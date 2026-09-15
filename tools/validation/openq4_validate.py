@@ -120,7 +120,7 @@ MACOS_OPENAL_SOFT_LICENSE_FILES = (
     "LICENSE-fmt",
     "LICENSE-gsl",
     "SOURCE.md",
-    "openal-soft-1.25.1.tar.gz",
+    "openal-soft-1.25.2.tar.gz",
 )
 MACOS_OPENAL_PROVIDERS = ("apple_framework", "system")
 MAX_MACOS_SUPPORT_INFO_SCRIPT_BYTES = 256 * 1024
@@ -404,6 +404,7 @@ def validate_game_libs_repo_path(game_libs_repo: Path) -> Path:
 
 def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) -> None:
     tests = [
+        root / "tools" / "tests" / "aas_compiler_contract.py",
         root / "tools" / "tests" / "aas_settings_contract.py",
         root / "tools" / "tests" / "arena_campaign.py",
         root / "tools" / "tests" / "async_drop_client_contract.py",
@@ -1733,7 +1734,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--runtime", action="store_true", help="Also run the safe renderer startup validation matrix after install.")
     parser.add_argument("--runtime-cases", default="", help="Comma-separated renderer validation case ids.")
     parser.add_argument("--runtime-tiers", default="auto,legacy", help="Renderer tiers for --runtime. Defaults to auto,legacy.")
-    parser.add_argument("--runtime-timeout", type=positive_int, default=60, help="Per-case renderer validation timeout.")
+    parser.add_argument("--runtime-timeout", type=positive_int, default=120,
+                        help="Per-case renderer validation timeout. The foundation self-test case "
+                             "loads every GUI before it reports, and on the slowest CI runner that has "
+                             "come in just over a minute, so the budget is deliberately well clear of it.")
     parser.add_argument("--runtime-basepath", default=None, help="Quake 4 base path override for renderer validation.")
     parser.add_argument(
         "--runtime-skip-official-pak-validation",

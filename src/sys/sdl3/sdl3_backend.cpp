@@ -1030,6 +1030,21 @@ static bool SDL3_IsMouseCaptured(void) {
 	return SDL_GetWindowRelativeMouseMode(s_sdlWindow) || SDL_GetWindowMouseGrab(s_sdlWindow);
 }
 
+// Warping or confining the pointer moves the *user's* cursor, not just ours.  A
+// window created hidden (r_hiddenWindow, used by batch renderer jobs and the
+// automated smokes) or one that is minimized has no pointer to own, and neither
+// does a run with mouse input disabled.  win32.activeApp starts out true and is
+// only corrected by a focus event, which a hidden window never receives, so the
+// focus guard below cannot catch this on its own.  Deliberately not a focus test:
+// that is already handled for the grab, and widening it here risks normal play.
+static bool SDL3_OwnsSystemPointer(void) {
+	if (!s_sdlWindow || !win32.in_mouse.GetBool()) {
+		return false;
+	}
+	const SDL_WindowFlags flags = SDL_GetWindowFlags(s_sdlWindow);
+	return (flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
+}
+
 static void SDL3_SetMouseHintDefaults(void) {
 	(void)SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_CENTER, "1", SDL_HINT_DEFAULT);
 	(void)SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "0", SDL_HINT_DEFAULT);
@@ -1460,6 +1475,10 @@ static void SDL3_SyncSystemMouseToActiveCursor(void) {
 	// Retained controls consume the absolute coordinates in queued SDL motion
 	// and button events. They never move the OS cursor to a 640x480 GUI cursor.
 	if (RetainedUI_IsOpen() && !(console && console->Active())) return;
+
+	if (!SDL3_OwnsSystemPointer()) {
+		return;
+	}
 
 	if (console != NULL && console->Active()) {
 		float windowMouseX = 0.0f;
@@ -5620,7 +5639,9 @@ void IN_Frame(void) {
 	}
 #endif
 
-	if (!win32.in_mouse.GetBool()) {
+	if (!SDL3_OwnsSystemPointer()) {
+		// Covers disabled mouse input and, beyond the focus test below, a window
+		// that is hidden or minimized and therefore has no pointer to confine.
 		shouldGrab = false;
 	}
 	if (routeMenuMouse) {

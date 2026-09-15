@@ -504,7 +504,7 @@
     },
     "settings.message": {
       "type": "string",
-      "initial": "#str_229982"
+      "initial": "#str_230007"
     },
     "page.discardVisible": {
       "type": "boolean",
@@ -516,7 +516,7 @@
     },
     "ui.numberDraftMessage": {
       "type": "string",
-      "initial": "#str_229982"
+      "initial": "#str_230007"
     }
   },
   "actions": {
@@ -9325,7 +9325,7 @@
                               },
                               "text": {
                                 "type": "text",
-                                "value": "#str_229982"
+                                "value": "#str_230007"
                               },
                               "font-family": {
                                 "type": "font",
@@ -15241,7 +15241,7 @@
                                       },
                                       "text": {
                                         "type": "text",
-                                        "value": "#str_229982"
+                                        "value": "#str_230007"
                                       },
                                       "font-family": {
                                         "type": "font",
@@ -16551,7 +16551,7 @@
                                           },
                                           "text": {
                                             "type": "text",
-                                            "value": "#str_229982"
+                                            "value": "#str_230007"
                                           },
                                           "font-family": {
                                             "type": "font",
@@ -25354,7 +25354,7 @@
                                       },
                                       "text": {
                                         "type": "text",
-                                        "value": "#str_229982"
+                                        "value": "#str_230007"
                                       },
                                       "font-family": {
                                         "type": "font",
@@ -26664,7 +26664,7 @@
                                           },
                                           "text": {
                                             "type": "text",
-                                            "value": "#str_229982"
+                                            "value": "#str_230007"
                                           },
                                           "font-family": {
                                             "type": "font",
@@ -27500,7 +27500,7 @@
                               },
                               "text": {
                                 "type": "text",
-                                "value": "#str_229982"
+                                "value": "#str_230007"
                               },
                               "font-family": {
                                 "type": "font",
@@ -28674,7 +28674,7 @@
                                               },
                                               "text": {
                                                 "type": "text",
-                                                "value": "#str_229982"
+                                                "value": "#str_230007"
                                               },
                                               "font-family": {
                                                 "type": "font",
@@ -29233,7 +29233,7 @@
                                               },
                                               "text": {
                                                 "type": "text",
-                                                "value": "#str_229982"
+                                                "value": "#str_230007"
                                               },
                                               "font-family": {
                                                 "type": "font",
@@ -29792,7 +29792,7 @@
                                               },
                                               "text": {
                                                 "type": "text",
-                                                "value": "#str_229982"
+                                                "value": "#str_230007"
                                               },
                                               "font-family": {
                                                 "type": "font",
@@ -30351,7 +30351,7 @@
                                               },
                                               "text": {
                                                 "type": "text",
-                                                "value": "#str_229982"
+                                                "value": "#str_230007"
                                               },
                                               "font-family": {
                                                 "type": "font",
@@ -30910,7 +30910,7 @@
                                               },
                                               "text": {
                                                 "type": "text",
-                                                "value": "#str_229982"
+                                                "value": "#str_230007"
                                               },
                                               "font-family": {
                                                 "type": "font",
@@ -35067,7 +35067,7 @@
                               },
                               "text": {
                                 "type": "text",
-                                "value": "#str_229982"
+                                "value": "#str_230007"
                               },
                               "font-family": {
                                 "type": "font",
@@ -42017,7 +42017,7 @@
                               },
                               "text": {
                                 "type": "text",
-                                "value": "#str_229982"
+                                "value": "#str_230007"
                               },
                               "font-family": {
                                 "type": "font",
@@ -45182,7 +45182,7 @@
                   },
                   "text": {
                     "type": "text",
-                    "value": "#str_229982"
+                    "value": "#str_230007"
                   },
                   "font-family": {
                     "type": "font",
@@ -46606,7 +46606,7 @@
                   },
                   "text": {
                     "type": "text",
-                    "value": "#str_229988"
+                    "value": "#str_230013"
                   },
                   "font-family": {
                     "type": "font",
@@ -46669,7 +46669,7 @@
                   },
                   "text": {
                     "type": "text",
-                    "value": "#str_229982"
+                    "value": "#str_230007"
                   },
                   "font-family": {
                     "type": "font",
@@ -48387,7 +48387,7 @@
                   },
                   "text": {
                     "type": "text",
-                    "value": "#str_229989"
+                    "value": "#str_230014"
                   },
                   "font-family": {
                     "type": "font",
@@ -50018,7 +50018,7 @@
     },
     "message": {
       "type": "string",
-      "initial": "#str_229982",
+      "initial": "#str_230007",
       "value": {
         "state": "settings.message"
       }
