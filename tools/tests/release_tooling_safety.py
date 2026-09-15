@@ -1112,7 +1112,7 @@ def validate_manual_release_linux_runtime_gate() -> None:
     diagnostic_step = workflow[diagnostics:package]
     for token in (
         "if: ${{ failure() && matrix.platform == 'linux' }}",
-        "actions/upload-artifact@v6",
+        "actions/upload-artifact@v7",
         ".tmp/release-runtime/${{ matrix.binary_arch }}",
         "runtime-diagnostics",
         "include-hidden-files: true",
