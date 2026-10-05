@@ -938,15 +938,16 @@ struct Runtime::Impl {
 	// takes it, or it lapses.
 	std::string pendingFocus;
 	std::map<PropertyKey,std::string> applied;
-	// ApplyMotion's last applied input for each motion value, by position, and
-	// the state revision and text ratio it was formatted under.
-	struct AppliedInput { PropertyKey key; Value value; };
+	// ApplyMotion's last applied input for each motion value, by position,
+	// whether a binding owns it, and the state revision and text ratio it was
+	// formatted under.
+	struct AppliedInput { PropertyKey key; Value value; bool bound = false; };
 	std::vector<AppliedInput> appliedInputs;
 	std::uint64_t appliedInputRevision = 0;
 	float appliedInputTextRatio = 0;
 	// Canonical ids by one breadth-first walk from the document, in
-	// GetElementById's own order and first match, so eligibility resolves
-	// every node with one walk instead of one search each.
+	// GetElementById's own order and first match, so a load resolves every
+	// node with one walk instead of one search each.
 	std::unordered_map<std::string_view,Rml::Element*> elementIndex;
 	void IndexElements() {
 		elementIndex.clear();
@@ -961,6 +962,15 @@ struct Runtime::Impl {
 	Rml::Element* IndexedElement(const std::string& id) const {
 		const auto found = elementIndex.find(id);
 		return found == elementIndex.end() ? nullptr : found->second;
+	}
+	// Canonical node elements by ID, resolved once per load. A canonical
+	// document keeps every node's element until it closes (text nodes own no
+	// canonical children; a choice popup moves under the document but lives
+	// on), so frames resolve IDs here instead of searching the document.
+	std::unordered_map<std::string,Rml::Element*> canonicalElements;
+	Rml::Element* CanonicalElement(const std::string& id) const {
+		const auto found = canonicalElements.find(id);
+		return found != canonicalElements.end() ? found->second : document ? document->GetElementById(id) : nullptr;
 	}
 	bool initialized = false;
 	std::map<std::string,bool> inputAllowed;
@@ -1037,21 +1047,43 @@ struct Runtime::Impl {
 		return animated == motion.Values().end() ? std::nullopt : std::optional<Value>(animated->second);
 	}
 	std::optional<Value> PresentedProperty(const PropertyKey& key) const { return Property(state,motion,key); }
+	// The nodes on a path from the root to an authored modal, in pre-order,
+	// with each one's parent position: only their display decides which
+	// modals show, so the check never visits the rest of a large document.
+	struct ModalPathNode { const Node* node; int parent; };
+	std::vector<ModalPathNode> modalPaths;
+	void IndexModalPaths() {
+		modalPaths.clear();
+		if (!canonical) return;
+		const std::function<bool(const Node&,int)> collect = [&](const Node& node, int parent) {
+			const auto at = modalPaths.size();
+			modalPaths.push_back({&node,parent});
+			bool holds = node.modal.has_value();
+			for (const auto& child : node.children) holds = collect(child,static_cast<int>(at)) || holds;
+			if (!holds) modalPaths.resize(at); // Its subtree holds no modal: keep nothing of it.
+			return holds;
+		};
+		collect(canonical->Model().root,-1);
+	}
 	bool VisibleModals(const State& state, const Motion& motion, std::vector<std::string>& roots, std::string& error) const {
 		roots.clear(); error.clear();
 		if (!canonical || !interaction.HasAuthoredModals()) return true;
 		bool valid = true;
-		std::function<void(const Node&,bool,const std::string&)> visit = [&](const Node& node, bool inherited, const std::string& parent) {
-			const auto display = Property(state,motion,{node.id,"display"});
-			const bool visible = inherited && (!display || display->text != "none");
-			std::string scope = parent;
-			if (visible && node.modal) {
-				if (!roots.empty() && roots.back() != parent) valid = false;
-				roots.push_back(node.id); scope = node.id;
+		// Per path node: visible, and the nearest visible modal at or above it
+		// (the scope its children open in), -1 for none.
+		std::vector<char> visible(modalPaths.size());
+		std::vector<int> scopes(modalPaths.size());
+		for (size_t i = 0; i < modalPaths.size(); ++i) {
+			const auto& [node,parent] = modalPaths[i];
+			const auto display = Property(state,motion,{node->id,"display"});
+			visible[i] = (parent < 0 || visible[parent]) && (!display || display->text != "none");
+			const int scope = parent < 0 ? -1 : scopes[parent];
+			scopes[i] = scope;
+			if (visible[i] && node->modal) {
+				if (!roots.empty() && roots.back() != (scope < 0 ? std::string{} : modalPaths[scope].node->id)) valid = false;
+				roots.push_back(node->id); scopes[i] = static_cast<int>(i);
 			}
-			for (const auto& child : node.children) visit(child,visible,scope);
-		};
-		visit(canonical->Model().root,true,{});
+		}
 		if (!valid) error = "Visible authored modals must form one nested ancestry chain";
 		return valid;
 	}
@@ -1080,19 +1112,21 @@ struct Runtime::Impl {
 			const Node* current = pending.back(); pending.pop_back();
 			const auto overflow = current->properties.find("overflow");
 			if (overflow != current->properties.end() && (overflow->second.text == "auto" || overflow->second.text == "scroll"))
-				if (auto* element = document ? document->GetElementById(current->id) : nullptr) { element->SetScrollTop(0); element->SetScrollLeft(0); }
+				if (auto* element = CanonicalElement(current->id)) { element->SetScrollTop(0); element->SetScrollLeft(0); }
 			for (const auto& child : current->children) pending.push_back(&child);
 		}
 	}
 	std::vector<std::string> openModals;
-	void CollectInputEligibility(const Node& node, bool inherited = true) {
+	// Records each control's eligibility. Nothing under an ineligible node can
+	// take input, so its subtree is skipped and its controls read as ineligible.
+	void CollectInputEligibility(const Node& node) {
 		const auto display = PresentedProperty({node.id,"display"});
 		const auto events = PresentedProperty({node.id,"pointer-events"});
-		auto* element = IndexedElement(node.id);
+		auto* element = node.mask ? CanonicalElement(node.id) : nullptr;
 		const bool maskArea = !node.mask || (element && static_cast<VectorElement*>(element)->HasMaskArea());
-		const bool allowed = inherited && maskArea && (!display || display->text != "none") && (!events || events->text != "none");
-		inputAllowed[node.id] = allowed;
-		for (const auto& child : node.children) CollectInputEligibility(child,allowed);
+		const bool allowed = maskArea && (!display || display->text != "none") && (!events || events->text != "none");
+		if (node.control) inputAllowed[node.id] = allowed;
+		if (allowed) for (const auto& child : node.children) CollectInputEligibility(child);
 	}
 	void ApplyControlBindings() {
 		SyncModals(); // Capture the opener before enabled/readback changes clear it.
@@ -1112,8 +1146,15 @@ struct Runtime::Impl {
 			}
 			changes[id] = std::move(value);
 		}
-		State candidate = state;
-		if (error.empty() && candidate.Set(changes,error,true) && ValidModals(candidate,motion,error)) state = std::move(candidate);
+		if (error.empty()) {
+			// A large document's state is costly to copy: copy it only when a
+			// source changed. Unchanged sources leave the state as it was.
+			if (!state.WouldChange(changes,true)) ValidModals(state,motion,error);
+			else {
+				State candidate = state;
+				if (candidate.Set(changes,error,true) && ValidModals(candidate,motion,error)) state = std::move(candidate);
+			}
+		}
 		if (!error.empty() && error != stateError) host.Log(true,error);
 		stateError = std::move(error); ApplyControlBindings();
 	}
@@ -1124,7 +1165,7 @@ struct Runtime::Impl {
 	Rml::Element* NumberViewport(Rml::Element* element) const {
 		const auto* node = element && canonical ? canonical->Model().FindNode(element->GetId()) : nullptr;
 		const auto* number = node && node->control ? std::get_if<NumberSpec>(&node->control->widget) : nullptr;
-		return number ? document->GetElementById(number->viewport) : nullptr;
+		return number ? CanonicalElement(number->viewport) : nullptr;
 	}
 	static bool ProjectedBounds(Rml::Element* element, Rml::Element* parent, Rml::Vector2f& minimum, Rml::Vector2f& maximum) {
 		Rml::Array<Rml::Vector2f,4> quad;
@@ -1158,7 +1199,7 @@ struct Runtime::Impl {
 	std::vector<Rml::Vector2f> FocusLayout() const {
 		std::vector<Rml::Vector2f> result;
 		if (!document) return result;
-		auto* target = document->GetElementById(interaction.Focused());
+		auto* target = CanonicalElement(interaction.Focused());
 		if (auto* viewport = NumberViewport(target)) target = viewport;
 		for (auto* element = target; element && element != document; element = element->GetParentNode()) {
 			// Relative layout and client extents exclude scroll offsets. A user
@@ -1171,7 +1212,7 @@ struct Runtime::Impl {
 	}
 	bool FocusVisible() const {
 		if (!document) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		Rml::Array<Rml::Vector2f,4> quad;
 		if (!element || !element->IsVisible(true) || !Rml::ElementUtilities::GetBorderBoxQuad(quad,element)) return false;
 		for (auto* parent = element->GetParentNode(); parent; parent = parent->GetParentNode()) {
@@ -1192,7 +1233,7 @@ struct Runtime::Impl {
 	}
 	bool RevealFocus(bool preserveAuthoredAxes = false) {
 		if (!document || !context) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		if (!element) return false;
 		const float margin = 4.f * viewport.DpRatio();
 		if (!std::isfinite(margin) || margin <= 0) return false;
@@ -1299,7 +1340,7 @@ struct Runtime::Impl {
             if(!owner->alive || owner->retiring || owner->identity!=stamp)return false;
         }
 		SyncModals();
-		inputAllowed.clear(); IndexElements(); CollectInputEligibility(canonical->Model().root); elementIndex.clear();
+		inputAllowed.clear(); CollectInputEligibility(canonical->Model().root);
         // Publish scrollbar metrics and projected bounds as one eligibility update.
         // Restored focus must never be tested against this instance's old bounds.
         std::string scrollError;scrollLayoutDirty|=scrollView.Sync(interaction,viewport.DpRatio(),freshLayout,scrollError,true);
@@ -1307,8 +1348,10 @@ struct Runtime::Impl {
         if(refreshing && (!owner->alive || owner->retiring || owner->identity!=stamp))return false;
 		std::map<std::string,ControlBounds> bounds;
 		for (const auto& id : controls) {
-			auto* element = document->GetElementById(id); Rml::Rectanglef rect;
-			if (element && inputAllowed.at(id) && element->IsVisible(true) && Rml::ElementUtilities::GetBoundingBox(rect,element,Rml::BoxArea::Border))
+			auto* element = CanonicalElement(id); Rml::Rectanglef rect;
+			const auto allowed = inputAllowed.find(id);
+			if (element && allowed != inputAllowed.end() && allowed->second && element->IsVisible(true) &&
+				Rml::ElementUtilities::GetBoundingBox(rect,element,Rml::BoxArea::Border))
 				bounds[id] = {rect.Left(),rect.Top(),rect.Width(),rect.Height(),true};
 		}
 		interaction.SetBounds(bounds,freshLayout);
@@ -1339,22 +1382,26 @@ struct Runtime::Impl {
 			document->SetProperty("font-size",defaultCss); applied[{"","font-size"}]=defaultCss;
 		}
 		// Motion holds every authored property, nearly all static. An input
-		// already applied under this state revision and text ratio formats to
-		// the CSS already applied, so only a changed one is formatted again.
-		// Text is translated every time and a backdrop pairs two values.
-		if (appliedInputRevision != state.Revision() || appliedInputTextRatio != viewport.TextRatio()) {
-			appliedInputs.clear(); appliedInputRevision = state.Revision(); appliedInputTextRatio = viewport.TextRatio();
+		// already applied under this text ratio formats to the CSS already
+		// applied, so only a changed one is formatted again; a new state
+		// revision can change only the properties bindings own. Text is
+		// translated every time and a backdrop pairs two values.
+		if (appliedInputTextRatio != viewport.TextRatio()) {
+			appliedInputs.clear(); appliedInputTextRatio = viewport.TextRatio();
 		}
+		const bool stateChanged = appliedInputRevision != state.Revision();
+		appliedInputRevision = state.Revision();
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
 		size_t inputIndex = 0;
 		for (const auto& [key,animated] : motion.Values()) {
 			auto& input = appliedInputs[inputIndex++];
 			const bool backdrop = key.second == "backdrop-blur" || key.second == "backdrop-saturate";
-			if (!backdrop && animated.type != ValueType::Text && input.key == key && input.value.type == animated.type &&
+			if (!backdrop && animated.type != ValueType::Text && input.key == key && !(stateChanged && input.bound) && input.value.type == animated.type &&
 				std::memcmp(input.value.data.data(),animated.data.data(),sizeof(animated.data)) == 0 &&
 				input.value.unit == animated.unit && input.value.text == animated.text) continue;
 			const auto bound = state.Properties().find(key);
-			const auto& value = bound == state.Properties().end() ? animated : bound->second;
+			const bool owned = bound != state.Properties().end();
+			const auto& value = owned ? bound->second : animated;
 			const bool opacity = key.second == "opacity";
 			std::string string;
 			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") &&
@@ -1374,12 +1421,12 @@ struct Runtime::Impl {
 				value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
 			if(!current())return false;
 			auto previous = applied.find(key);
-			if (previous != applied.end() && previous->second == string) { input = {key,animated}; continue; }
+			if (previous != applied.end() && previous->second == string) { input = {key,animated,owned}; continue; }
 			// Fit and alignment are authored once and folded into the decorator.
 			if (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend") {
-				applied[key] = string; input = {key,animated}; continue;
+				applied[key] = string; input = {key,animated,owned}; continue;
 			}
-			auto* element = document->GetElementById(key.first);
+			auto* element = CanonicalElement(key.first);
 			if (!element) continue;
 			if (value.type == ValueType::Text) element->SetInnerRML(Rml::StringUtilities::EncodeRml(string));
 			else if (value.type == ValueType::Image) {
@@ -1388,7 +1435,7 @@ struct Runtime::Impl {
 			}
 			else if (!element->SetProperty(opacity ? "filter" : backdrop ? "backdrop-filter" : key.second,string)) host.Log(true,"Canonical property rejected: "+key.first+"."+key.second);
 			if(!current())return false;
-			applied[key] = string; input = {key,animated};
+			applied[key] = string; input = {key,animated,owned};
 		}
         return current();
 	}
@@ -1544,7 +1591,8 @@ void Runtime::Shutdown() {
 	}
 	impl->context = nullptr;
 	impl->document = nullptr;
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->motion.Reset({});
+	impl->canonicalElements.clear();
+	impl->canonical.reset(); impl->modalPaths.clear(); impl->applied.clear(); impl->appliedInputs.clear(); impl->motion.Reset({});
 	impl->state = {}; impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -1563,7 +1611,7 @@ void Runtime::CloseDocument() {
 	impl->scrollView.Reset();impl->scrollLayoutDirty=impl->preserveRestoredScroll=false;
 	impl->focusLayoutId.clear();impl->focusLayout.clear();impl->focusLayoutVisible=false;
 	impl->numberView.Reset();
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->motion.Reset({});
+	impl->canonical.reset(); impl->modalPaths.clear(); impl->applied.clear(); impl->appliedInputs.clear(); impl->motion.Reset({});
 	impl->state = {}; impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -1571,6 +1619,7 @@ void Runtime::CloseDocument() {
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	impl->document->Close();
 	impl->document = nullptr;
+	impl->canonicalElements.clear();
 	impl->context->Update();
 }
 bool Runtime::LoadMarkup(const std::string& markup, const std::string& sourcePath) {
@@ -1598,20 +1647,26 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 	std::string stateError;
 	impl->state.Reset(candidate->Model(),stateError); // Initial state was validated by Document::Load.
 	impl->canonical = std::move(candidate);
+	impl->IndexModalPaths();
 	impl->sourcePath = sourcePath;
 	std::vector<const Node*> nodes{&impl->canonical->Model().root};
+	impl->IndexElements();
 	while (!nodes.empty()) {
 		const auto* node = nodes.back(); nodes.pop_back();
 		if (node->control) impl->controls.push_back(node->id);
-		// Canonical subtrees preserve paint order when opacity crosses 1 and
-		// their temporary filter layer appears or disappears.
-		if (auto* element = impl->document->GetElementById(node->id)) element->SetProperty("z-index","0");
-		if (auto* element = impl->document->GetElementById(node->id))
+		if (auto* element = impl->IndexedElement(node->id)) {
+			// Canonical subtrees preserve paint order when opacity crosses 1 and
+			// their temporary filter layer appears or disappears.
+			element->SetProperty("z-index","0");
 			static_cast<VectorElement*>(element)->Configure(*node,impl->host,impl->Stats());
+			impl->canonicalElements.emplace(node->id,element);
+		}
 		for (const auto& child : node->children) nodes.push_back(&child);
 	}
+	impl->elementIndex.clear();
 	if (!impl->valueView.Initialize(impl->canonical->Model(),*impl->document,
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError)) {
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
 	if (!impl->scrollView.Initialize(impl->canonical->Model(),*impl->document,stateError)) {
@@ -1619,7 +1674,8 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
     }
     if (!impl->numberView.Initialize(impl->canonical->Model(),*impl->document,
 		[owner=impl.get()](std::uintptr_t face,std::string_view text,float spacing) { return owner->services->fonts.QueryRun(face,text,spacing); },
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError)) {
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
 	impl->ReadStateSources(); impl->Feedback(impl->time);
@@ -2122,7 +2178,7 @@ void Runtime::Frame(const Viewport& viewport, double seconds) {
 }
 bool Runtime::GetBounds(const std::string& id, Bounds& bounds) const {
     if(impl->viewport.width<=0 || impl->viewport.height<=0)return false;
-	auto* element = impl->document ? impl->document->GetElementById(id) : nullptr;
+	auto* element = impl->CanonicalElement(id);
 	if (!element) return false;
 	const auto position = element->GetAbsoluteOffset(Rml::BoxArea::Border);
 	const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);

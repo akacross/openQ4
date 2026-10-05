@@ -840,6 +840,11 @@
   step on a progress rule. The title screen's QUAKE 4 is drawn the same sharp
   way. Set `ui_retained 0` for the original screens.
 
+- Multiplayer maps load faster and the in-match menu is smooth again: the
+  modern Escape menu, which loads with every multiplayer map, now loads about
+  fifteen times faster and draws its frames in a fraction of the time, and
+  the Welcome card, title and pause menus are lighter too.
+
 - The modern interface is now on by default for the title screen, the
   single-player pause menu and the loading screens; the other menus keep the
   classic look for now. Prefer the classic screens throughout? Enter

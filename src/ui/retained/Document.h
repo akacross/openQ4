@@ -7,6 +7,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <variant>
 #include "Vector.h"
@@ -232,6 +234,18 @@ struct DocumentModel {
 	// with the view's height; zero keeps display-density layout.
 	double canvasHeight = 0;
 	const Node* FindNode(const std::string& id) const;
+	// Index the tree's node IDs so FindNode answers without a search. Only a
+	// tree that no longer changes may be indexed (Document indexes the model
+	// it validated); a copy or move starts unindexed and FindNode searches.
+	void IndexNodes();
+	struct NodeIndex {
+		std::unordered_map<std::string_view, const Node*> nodes;
+		NodeIndex() = default;
+		NodeIndex(const NodeIndex&) {}
+		NodeIndex(NodeIndex&&) noexcept {}
+		NodeIndex& operator=(const NodeIndex&) { nodes.clear(); return *this; }
+		NodeIndex& operator=(NodeIndex&&) noexcept { nodes.clear(); return *this; }
+	} nodeIndex;
 	// Resolve a compiled descriptor against one supplied state snapshot.
 	// No side effects; failure preserves the caller's invocation unchanged.
 	bool ResolveAction(const std::string& id, const StateValues& variables,

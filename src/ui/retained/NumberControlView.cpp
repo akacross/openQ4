@@ -57,6 +57,7 @@ struct NumberControlView::Impl {
 	};
 	struct Applied { std::string requested,actual; };
 	Rml::ElementDocument* document=nullptr;
+	std::function<Rml::Element*(const std::string&)> find;
 	NumberTextRunQuery query;
 	std::function<std::string(const std::string&)> translate;
 	NumberValidationText validation;
@@ -69,7 +70,7 @@ struct NumberControlView::Impl {
 		for (auto& [id,entry]:entries) for (auto& observer:entry.compositions)
 			if (auto* element=observer.get()) if (auto* parent=element->GetParentNode()) parent->RemoveChild(element);
 	}
-	Rml::Element* Element(const std::string& id) const { return document ? document->GetElementById(id) : nullptr; }
+	Rml::Element* Element(const std::string& id) const { return !document ? nullptr : find ? find(id) : document->GetElementById(id); }
 	bool Property(const std::string& id,const std::string& key,const std::string& value) {
 		return Property(Element(id),key,value);
 	}
@@ -232,8 +233,9 @@ NumberControlView::NumberControlView():impl(std::make_unique<Impl>()) {}
 NumberControlView::~NumberControlView()=default;
 void NumberControlView::Reset() { impl=std::make_unique<Impl>(); }
 bool NumberControlView::Initialize(const DocumentModel& model,Rml::ElementDocument& document,NumberTextRunQuery query,
-	std::function<std::string(const std::string&)> translate,NumberValidationText validation,std::string& error) {
-	Reset(); impl->document=&document; impl->query=std::move(query); impl->translate=std::move(translate); impl->validation=std::move(validation);
+	std::function<std::string(const std::string&)> translate,NumberValidationText validation,std::string& error,
+	std::function<Rml::Element*(const std::string&)> find) {
+	Reset(); impl->document=&document; impl->find=std::move(find); impl->query=std::move(query); impl->translate=std::move(translate); impl->validation=std::move(validation);
 	std::vector<const Node*> nodes{&model.root};
 	while (!nodes.empty()) {
 		const auto* node=nodes.back(); nodes.pop_back(); impl->authored[node->id]=node->properties;

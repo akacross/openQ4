@@ -295,6 +295,71 @@ tessellated every frame. Fifteen layers remain, for the 0.4-opacity rails and
 markers and for the glint and its mask. A cold first frame takes 45-50 ms,
 most of it stroke unions, the reticle grid alone 28 ms.
 
+## Large documents
+
+5 October 2026. The multiplayer Escape card (`mp_escape.q4ui`) is the largest
+retained document: 7.6 MB, 4,499 nodes, 366 controls, 2,173 bindings, 1,925
+timelines with 5,240 tracks and 34,395 authored properties. The game loads it
+with every multiplayer map, and on a debugoptimized build its load took
+8-12 s and each frame half a second, because several steps did work
+proportional to the whole document once per node, binding, track or changed
+property:
+
+- **Node and element lookup.** `DocumentModel::FindNode` searched the tree and
+  RmlUi's `GetElementById` searches the whole document breadth-first. A load
+  configured each node with two searches and the value view resolved every
+  node with one; each frame resolved every changed property, every control's
+  bounds and every focus query the same way. A validated document's model now
+  indexes its node IDs (a copy starts unindexed and searches), and the runtime
+  resolves each canonical node's element once per load into a map that lives
+  as long as the document. Canonical elements never change while it is open:
+  text nodes own no canonical children, and a choice popup moves under the
+  document but lives on. The value view and number fields take the same
+  lookup.
+- **Validation.** Each binding was checked against every timeline track, and
+  each widget control against every binding and track. Both now look the
+  owned (node, property) pairs up in sets built once.
+- **Applied properties.** A new state revision made `ApplyMotion` format all
+  34,395 properties again. Only the properties bindings own can change with
+  the state, so the rest keep their fast path.
+- **Modals and eligibility.** The modal check visited every node on every
+  state read and binding pass; it now visits only the nodes on a path from the
+  root to an authored modal. Input eligibility records only controls and skips
+  the subtree under an ineligible node, whose controls read as ineligible.
+- **State reads.** Each frame's read of the CVar sources copied the whole
+  state; it now copies it only when a source has changed.
+- **Transactional copies.** Events and completion programs evaluate on copies
+  of the state and motion. The document's timelines, authored values,
+  declarations and bindings never change after a load, so copies share them
+  and duplicate only live values.
+- **Playing tracks.** Every play first advanced every playing track, so the
+  hundreds of control feedback timelines started at load sampled one another
+  quadratically. Sampling again at the same clock reproduces the same values,
+  so a burst of plays at one clock samples once; a presentation write or a
+  restore still forces a fresh sample.
+
+`openq4-retained-ui-benchmark --screen` now also reports `load_ms`, the
+runtime's document load. One machine (Windows 11, debugoptimized), the
+committed runtime (`dde802ef`) against this change, three runs each, 240
+frames at 1280x720 after the four-second settle; medians:
+
+| Document | Load before | Load after | Frame p50 before | Frame p50 after | Frame p95 before | Frame p95 after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `mp_escape.q4ui` | 9,484 ms | 624 ms | 504.0 ms | 13.4 ms | 764.3 ms | 61.0 ms |
+| `mp_welcome.q4ui` | 231 ms | 117 ms | 4.50 ms | 0.73 ms | 5.25 ms | 0.85 ms |
+| `title.q4ui` | 80 ms | 78 ms | 0.96 ms | 0.67 ms | 1.12 ms | 0.88 ms |
+| `pause.q4ui` | 70 ms | 63 ms | 1.12 ms | 0.29 ms | 1.23 ms | 0.36 ms |
+
+The native screens test, which loads the Escape card four times, fell from
+104-187 s to 42 s. The canvas suite (`ui_document_canvas.py`) and its 30
+mutations, the native suite and the script tests that read these sources pass.
+
+What remains: parsing the 7.6 MB source and reading its nodes take most of the
+load, the Escape card's frame is mostly RmlUi's layout of its 4,499 nodes, and
+each event or completion program still copies the motion and state's live
+values: up to 100 ms on the Escape card's page and modal changes in the
+native screens test.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

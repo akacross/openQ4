@@ -557,12 +557,13 @@ ValueControlView::ValueControlView() : impl(std::make_unique<Impl>()) {}
 ValueControlView::~ValueControlView() = default;
 void ValueControlView::Reset() { impl = std::make_unique<Impl>(); }
 bool ValueControlView::Initialize(const DocumentModel& model, Rml::ElementDocument& document,
-	std::function<std::string(const std::string&)> translate, std::string& error) {
+	std::function<std::string(const std::string&)> translate, std::string& error,
+	const std::function<Rml::Element*(const std::string&)>& find) {
 	error.clear(); auto candidate = std::make_unique<Impl>(); candidate->document = &document; candidate->translate = std::move(translate);
 	std::vector<const Node*> pending{&model.root};
 	while (!pending.empty()) {
 		const auto* node = pending.back(); pending.pop_back();
-		auto* element = document.GetElementById(node->id);
+		auto* element = find ? find(node->id) : document.GetElementById(node->id);
 		if (!element) { error = "Missing canonical value-control view node '"+node->id+"'"; return false; }
 		candidate->elements[node->id] = element; candidate->authored[node->id] = node->properties;
 		if (node->control && node->control->role != ControlRole::Button) candidate->entries[node->id] = {*node->control,element,nullptr};

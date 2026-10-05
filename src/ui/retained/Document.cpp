@@ -243,6 +243,7 @@ public:
 		ReadState(root);
 		ReadPresentationVariables(root);
 		model.root = ReadNode(root["root"],"/root",0);
+		model.IndexNodes(); // The tree is complete; validation resolves its references.
 		if (root.isMember("timelines")) {
 			Require(root["timelines"].isArray(),root["timelines"],"/timelines","Expected a timeline array");
 			std::set<std::string> ids;
@@ -252,6 +253,7 @@ public:
 				model.timelines.push_back(std::move(timeline));
 			}
 		}
+		for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks) trackTargets.insert({track.node,track.property});
 		ReadBindings(root);
 		ReadAliases(root);
 		ReadActions(root);
@@ -685,8 +687,7 @@ private:
 			for (const auto& property : properties) {
 				Require(enabled || node->properties.contains(property),value,path,"Bound properties require explicit base values");
 				Require(targets.insert({binding.node,property}).second,value,path,"Multiple bindings own the same effective property");
-				for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks)
-					Require(track.node != binding.node || track.property != property,value,path,"A binding and timeline cannot own the same property; use separate presentation/content nodes");
+				Require(!trackTargets.contains({binding.node,property}),value,path,"A binding and timeline cannot own the same property; use separate presentation/content nodes");
 				Binding effective = binding; effective.property = property;
 				if (!enabled) effective.prototype = node->properties.at(property);
 				const auto type = effective.prototype.type;
@@ -704,6 +705,7 @@ private:
 				model.bindings.push_back(std::move(effective));
 			}
 		}
+		bindingTargets = std::move(targets);
 	}
 	void Require(bool condition, const Json::Value& at, const std::string& path, const std::string& message) {
 		if (condition) return;
@@ -1337,10 +1339,10 @@ private:
 				for (size_t j = 0; j < i; ++j) separate(option.node,choice->options[j].node);
 			}
 		}
-		for (const auto& binding : model.bindings)
-			Require(!owned.contains({binding.node,binding.property}),value,path,"A binding cannot own a runtime widget property");
-		for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks)
-			Require(!owned.contains({track.node,track.property}),value,path,"A timeline cannot own a runtime widget property");
+		for (const auto& target : owned)
+			Require(!bindingTargets.contains(target),value,path,"A binding cannot own a runtime widget property");
+		for (const auto& target : owned)
+			Require(!trackTargets.contains(target),value,path,"A timeline cannot own a runtime widget property");
 		for (const auto& [name,alias] : model.aliases) {
 			if (alias.node.empty()) continue;
 			const auto targets = alias.property == "rect" ? std::vector<std::string>{"left","top","width","height"} :
@@ -1476,6 +1478,9 @@ private:
 	size_t eventStepCount = 0;
 	std::set<std::string> nodeIds;
 	unsigned nodeCount = 0;
+	// The (node, property) pairs that timeline tracks and bindings own, so
+	// ownership checks look a pair up instead of scanning every track.
+	std::set<std::pair<std::string,std::string>> trackTargets, bindingTargets;
 };
 const Node* Find(const Node& node, const std::string& id) {
 	if (node.id == id) return &node;
@@ -1601,7 +1606,21 @@ bool ParseStateValues(const std::string& source, StateValues& values, std::vecto
 	}
 	values = std::move(candidate); return true;
 }
-const Node* DocumentModel::FindNode(const std::string& id) const { return Find(root,id); }
+const Node* DocumentModel::FindNode(const std::string& id) const {
+	if (nodeIndex.nodes.empty()) return Find(root,id);
+	const auto found = nodeIndex.nodes.find(id);
+	return found == nodeIndex.nodes.end() ? nullptr : found->second;
+}
+void DocumentModel::IndexNodes() {
+	// Pre-order, first ID wins: the order Find answers in.
+	nodeIndex.nodes.clear();
+	std::vector<const Node*> pending{&root};
+	while (!pending.empty()) {
+		const auto* node = pending.back(); pending.pop_back();
+		nodeIndex.nodes.emplace(node->id,node);
+		for (auto child = node->children.rbegin(); child != node->children.rend(); ++child) pending.push_back(&*child);
+	}
+}
 std::string ImageDecorator(const Node& node, const std::string& source) {
 	if (source.empty() || !ValidImageSource(source)) return "none";
 	auto keyword = [&](const char* name, const char* fallback) {
@@ -1671,6 +1690,7 @@ bool Document::Load(const std::string& source, std::vector<Diagnostic>& diagnost
 	if (!Parse(source,candidate->root,diagnostics)) return false;
 	try { candidate->model = Validator(source,diagnostics).Read(candidate->root); }
 	catch (const ValidationError&) { return false; }
+	candidate->model.IndexNodes();
 	impl = std::move(candidate);
 	return true;
 }

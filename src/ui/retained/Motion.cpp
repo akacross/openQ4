@@ -12,11 +12,14 @@ void BaseValues(const Node& node, PropertyValues& values) {
 }
 }
 void Motion::Reset(const DocumentModel& model) {
-	timelines.clear(); playing.clear(); base.clear(); completed.clear();
-	for (const auto& timeline : model.timelines) timelines.emplace(timeline.id,timeline);
-	BaseValues(model.root,base);
-	values = base;
-	clock = 0;
+	playing.clear(); completed.clear();
+	auto loaded = std::make_shared<std::map<std::string, Timeline>>();
+	for (const auto& timeline : model.timelines) loaded->emplace(timeline.id,timeline);
+	auto authored = std::make_shared<PropertyValues>();
+	BaseValues(model.root,*authored);
+	values = *authored;
+	timelines = std::move(loaded); base = std::move(authored);
+	clock = 0; sampled = false;
 }
 Value Motion::Sample(const Track& track, double milliseconds) {
 	if (milliseconds <= track.keys.front().atMs) return track.keys.front().value;
@@ -29,6 +32,8 @@ Value Motion::Sample(const Track& track, double milliseconds) {
 }
 void Motion::Advance(double seconds) {
 	if (std::isfinite(seconds)) clock = std::max(clock,seconds);
+	if (sampled && sampledClock == clock) return;
+	sampled = true; sampledClock = clock;
 	std::vector<std::string> finished;
 	for (auto it = playing.begin(); it != playing.end();) {
 		auto& item = it->second;
@@ -41,8 +46,8 @@ void Motion::Advance(double seconds) {
 	for (const auto& owner : finished) if (!IsPlaying(owner)) NoteCompleted(owner);
 }
 void Motion::NoteCompleted(const std::string& id) {
-	const auto found = timelines.find(id);
-	if (found == timelines.end() || found->second.complete.empty()) return;
+	const auto found = timelines->find(id);
+	if (found == timelines->end() || found->second.complete.empty()) return;
 	if (std::find(completed.begin(),completed.end(),id) == completed.end()) completed.push_back(id);
 }
 std::vector<std::string> Motion::TakeCompleted() {
@@ -51,8 +56,8 @@ std::vector<std::string> Motion::TakeCompleted() {
 	return result;
 }
 bool Motion::Play(const std::string& id, double seconds) {
-	const auto found = timelines.find(id);
-	if (found == timelines.end()) return false;
+	const auto found = timelines->find(id);
+	if (found == timelines->end()) return false;
 	Advance(seconds);
 	const auto& timeline = found->second;
 	for (const auto& track : timeline.tracks) {
@@ -92,7 +97,7 @@ void Motion::Cancel(const std::string& id, CancelPolicy policy, double seconds) 
 	Advance(seconds);
 	for (auto it = playing.begin(); it != playing.end();) {
 		if (it->second.owner != id) { ++it; continue; }
-		if (policy == CancelPolicy::RestoreBase) values[it->first] = base.at(it->first);
+		if (policy == CancelPolicy::RestoreBase) values[it->first] = base->at(it->first);
 		it = playing.erase(it);
 	}
 }
@@ -125,8 +130,8 @@ bool Motion::IsPlaying(const std::string& id) const {
 }
 PropertyValues Motion::Scrub(const std::string& id, double milliseconds) const {
 	PropertyValues result;
-	auto found = timelines.find(id);
-	if (found == timelines.end() || !std::isfinite(milliseconds)) return result;
+	auto found = timelines->find(id);
+	if (found == timelines->end() || !std::isfinite(milliseconds)) return result;
 	for (const auto& track : found->second.tracks) result[{track.node,track.property}] = Sample(track,std::clamp(milliseconds,0.0,found->second.durationMs));
 	return result;
 }
@@ -136,7 +141,7 @@ MotionSnapshot Motion::Capture(double seconds) const {
 	MotionSnapshot result;
 	result.reducedMotion = candidate.reducedMotion;
 	for (const auto& [key,value] : candidate.values) {
-		const auto& original = base.at(key);
+		const auto& original = base->at(key);
 		if (value.type != original.type || value.data != original.data || value.unit != original.unit || value.text != original.text)
 			result.values.emplace(key,value);
 	}
@@ -152,12 +157,13 @@ MotionSnapshot Motion::Capture(double seconds) const {
 bool Motion::WriteValues(const PropertyValues& changes, std::string& error) {
 	error.clear();
 	for (const auto& [key,value] : changes) {
-		const auto original = base.find(key);
-		if (original == base.end() || value.type != original->second.type || value.unit != original->second.unit || !ValidProperty(key.second,value)) {
+		const auto original = base->find(key);
+		if (original == base->end() || value.type != original->second.type || value.unit != original->second.unit || !ValidProperty(key.second,value)) {
 			error = "Invalid presentation property '"+key.first+"."+key.second+"'"; return false;
 		}
 	}
 	for (const auto& [key,value] : changes) values[key] = value;
+	sampled = false; // A playing track writes again on its next sample.
 	return true;
 }
 bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string& error, bool allowStaticValues) {
@@ -166,20 +172,21 @@ bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string
 	if (!std::isfinite(seconds) || seconds < 0) return reject("Invalid restored presentation time");
 	Motion candidate = *this;
 	// Restore never replays a program: completions of the replaced playback go.
-	candidate.values = base; candidate.playing.clear(); candidate.completed.clear(); candidate.clock = seconds;
+	candidate.values = *base; candidate.playing.clear(); candidate.completed.clear(); candidate.clock = seconds;
+	candidate.sampled = false;
 	candidate.reducedMotion = snapshot.reducedMotion;
 	std::set<PropertyKey> animated;
-	for (const auto& [id,timeline] : timelines) for (const auto& track : timeline.tracks) animated.emplace(track.node,track.property);
+	for (const auto& [id,timeline] : *timelines) for (const auto& track : timeline.tracks) animated.emplace(track.node,track.property);
 	for (const auto& [key,value] : snapshot.values) {
-		const auto original = base.find(key);
-		if ((!allowStaticValues && !animated.contains(key)) || original == base.end() ||
+		const auto original = base->find(key);
+		if ((!allowStaticValues && !animated.contains(key)) || original == base->end() ||
 			value.type != original->second.type || value.unit != original->second.unit || !ValidProperty(key.second,value))
 			return reject("Invalid restored presentation property");
 		candidate.values[key] = value;
 	}
 	for (const auto& saved : snapshot.playing) {
-		const auto timeline = timelines.find(saved.owner);
-		if (timeline == timelines.end()) return reject("Unknown restored timeline");
+		const auto timeline = timelines->find(saved.owner);
+		if (timeline == timelines->end()) return reject("Unknown restored timeline");
 		const auto& authored = timeline->second;
 		if (snapshot.reducedMotion && !authored.essential && !saved.reduced) return reject("Restored playback conflicts with reduced motion");
 		const auto track = std::find_if(authored.tracks.begin(),authored.tracks.end(),[&](const Track& t) {

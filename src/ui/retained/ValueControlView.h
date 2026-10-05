@@ -19,8 +19,11 @@ public:
 	ValueControlView();
 	~ValueControlView();
 	void Reset();
+	// find resolves a canonical node's element; without it, the document is
+	// searched for each node.
 	bool Initialize(const DocumentModel& model, Rml::ElementDocument& document,
-		std::function<std::string(const std::string&)> translate, std::string& error);
+		std::function<std::string(const std::string&)> translate, std::string& error,
+		const std::function<Rml::Element*(const std::string&)>& find = {});
 	// Returns true when derived properties changed and another layout is needed.
 	bool Paint(Interaction& interaction, const std::map<std::string,ControlReadback>& readbacks,
 		int width, int height, float dpRatio, const std::function<double(const std::string&)>& opacity);

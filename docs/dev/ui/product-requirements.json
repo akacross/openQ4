@@ -174,7 +174,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/runtime-performance.md",
       "scope": "Debug CPU fixture counters; release GPU/frame pacing/resource budgets unqualified.",
-      "sha256": "96b93214ad8e99b276decfd8e9f6fcd7aad39aa2f51b771fc4acf51bcfa5d13c"
+      "sha256": "18a503a4cafc00933b9725cab7d96e0dc40e644b584046b73e3ae12def17e6ff"
     },
     "instance-persistence-foundation": {
       "kind": "qualified_foundation_checkpoint",

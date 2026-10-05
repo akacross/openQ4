@@ -1,6 +1,7 @@
 // Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
 #include "src/ui/retained/Runtime.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -54,8 +55,9 @@ struct ScreenHost final : Host {
 	FontMetrics GetFontMetrics(const std::string&, int size) override { return {size*.8f,size*.2f,size*1.2f,size*.5f}; }
 	Glyph GetGlyph(const std::string&, int size, std::uint32_t) override { return {size*.6f,0,-size*.8f,size*.6f,static_cast<float>(size),0,0,1,1,"benchmark-font"}; }
 };
-// The session's presentation of a root screen: onInit, the open timeline, a
-// four second settle, then timed 60 Hz frames on its view-height canvas.
+// The session's presentation of a root screen: its runtime load (timed),
+// onInit, the open timeline, a four second settle, then timed 60 Hz frames on
+// its view-height canvas.
 void Screen(const std::string& path, int frames, int width, int height) {
 	std::ifstream file(path,std::ios::binary);
 	if (!file) throw std::runtime_error("Cannot read screen document");
@@ -63,7 +65,9 @@ void Screen(const std::string& path, int frames, int width, int height) {
 	Document model; std::vector<Diagnostic> diagnostics;
 	if (!model.Load(source,diagnostics)) throw std::runtime_error("Invalid screen document");
 	ScreenHost host; Runtime runtime(host);
+	const auto loadStart = std::chrono::steady_clock::now();
 	if (!runtime.LoadDocument(source,path,diagnostics)) throw std::runtime_error("Cannot load screen runtime document");
+	const double loadMs = std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-loadStart).count();
 	Viewport viewport; viewport.width = width; viewport.height = height;
 	viewport.canvasHeight = static_cast<float>(model.Model().canvasHeight);
 	const double start = 1;
@@ -84,10 +88,10 @@ void Screen(const std::string& path, int frames, int width, int height) {
 		elisions.push_back(static_cast<double>(stats.layerElisions));
 	}
 	if (!host.error.empty()) throw std::runtime_error("Screen logged an error: "+host.error);
-	std::printf("{\"scenario\":\"screen\",\"document\":\"%s\",\"width\":%d,\"height\":%d,\"frames\":%d,\"cold_ms\":%.6f,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"max_ms\":%.6f,"
+	std::printf("{\"scenario\":\"screen\",\"document\":\"%s\",\"width\":%d,\"height\":%d,\"frames\":%d,\"load_ms\":%.6f,\"cold_ms\":%.6f,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"max_ms\":%.6f,"
 		"\"update_p50_ms\":%.6f,\"render_p50_ms\":%.6f,\"vector_compile_p50_ms\":%.6f,\"paths_compiled_p50\":%.0f,\"uploads_p50\":%.0f,"
 		"\"draw_calls_p50\":%.0f,\"submitted_vertices_p50\":%.0f,\"layer_pushes_p50\":%.0f,\"layer_elisions_p50\":%.0f}\n",
-		path.c_str(),width,height,frames,cold,Percentile(frame,.5),Percentile(frame,.95),Percentile(frame,1),Percentile(update,.5),Percentile(render,.5),
+		path.c_str(),width,height,frames,loadMs,cold,Percentile(frame,.5),Percentile(frame,.95),Percentile(frame,1),Percentile(update,.5),Percentile(render,.5),
 		Percentile(compile,.5),Percentile(paths,.5),Percentile(uploads,.5),Percentile(draws,.5),Percentile(vertices,.5),Percentile(layers,.5),Percentile(elisions,.5));
 	runtime.CloseDocument(); runtime.Shutdown();
 }

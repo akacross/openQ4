@@ -59,11 +59,20 @@ private:
 		bool paused = false, essential = false, reduced = false;
 	};
 	static Value Sample(const Track& track, double milliseconds);
-	std::map<std::string, Timeline> timelines;
-	PropertyValues base, values;
+	// The document's timelines and authored values are fixed after Reset and
+	// shared by copies: a transactional copy duplicates only live values.
+	std::shared_ptr<const std::map<std::string, Timeline>> timelines = std::make_shared<const std::map<std::string, Timeline>>();
+	std::shared_ptr<const PropertyValues> base = std::make_shared<const PropertyValues>();
+	PropertyValues values;
 	std::map<PropertyKey, Playing> playing;
 	double clock = 0;
 	bool reducedMotion = false;
+	// Advance samples every playing track. Sampling again at the same clock
+	// reproduces the same values (a play, pause, resume or cancel there starts
+	// each track at its current value), so a burst of plays at one clock
+	// samples once; only values written from outside need a fresh sample.
+	bool sampled = false;
+	double sampledClock = 0;
 };
 
 } // namespace openq4::ui
