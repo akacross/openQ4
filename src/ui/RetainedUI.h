@@ -48,6 +48,12 @@ double RetainedUI_PresentationTime();
 // command chain. Allows a deferred resource rebuild before the next draw; this
 // is not a GPU fence and does not replace renderer-owned resource retirement.
 void RetainedUI_FrameSubmitted();
+// The Remastered initializing screen (docs/dev/ui-visual-design.md 14.17):
+// draw guis/loading/initializing.q4ui with this status line and step inside
+// the caller's frame. False when it cannot draw, so the caller draws the stock
+// picture instead. Release the view once the menus are ready.
+bool RetainedUI_DrawInitializing(const char* status, int step);
+void RetainedUI_ReleaseInitializing();
 
 struct sysEvent_s;
 struct retainedUIInput_t {

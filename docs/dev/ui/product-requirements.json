@@ -4,7 +4,7 @@
   "date": "2026-10-01",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "7e428ca62d07ec7097215112eaf030545a3916ba",
+    "engine_revision": "216db1a7de4fbbf9b9400a5d3698cb2f4ebced90",
     "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
     "effective_gui_count": 271,
     "translated_or_accepted_resources": 0,
@@ -24,7 +24,7 @@
     "original": {
       "path": "docs/dev/plans/idtech5-ui.md",
       "authority": "original immutable scope and stage gates",
-      "sha256": "9bb6a7448e752e8efffbfde96570c909f2b3395a078daaa1dd64887b16e18eb0"
+      "sha256": "92d2f90b085b73acfba59ffc710fef528edb87572e09f128d1760f987a64a15e"
     },
     "inventory": {
       "path": "docs/dev/ui/inventory-report.md",
@@ -132,13 +132,13 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/vector-paths.md",
       "scope": "Native paths, fills, stroke unions and linear paints; all required primitive variants, production artwork and editor unfinished.",
-      "sha256": "f00905f741829f706f68571b2172ac04c911b8d4ced779b84d0fdaffca808c56"
+      "sha256": "ee9353ecb2f61dc3ca8903ae0d60f0587337659d1517aec3165ad631b191f289"
     },
     "coverage-foundation": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/coverage-antialiasing.md",
       "scope": "Independent analytic coverage checks and limited backend captures; broad matrix and optimized fractional motion unfinished.",
-      "sha256": "bf4e4cd79700ea767167ca4ccb9d5894f7a423a6210fb5487cc4161dcd95bd70"
+      "sha256": "930be48b61e79dfaa280419fa7260d009a250cd2e07e4d1ce3a3c896fa94edfe"
     },
     "composition-foundation": {
       "kind": "implementation_checkpoint",
@@ -634,139 +634,139 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Opt-in retained title, single-player pause and stock loading screens behind the single ui_retained gate, with image nodes, additive and multiply path blends, a view-height canvas, typed session menu requests and exact overflow clipping under translation and scale. Windowed OpenGL/Vulkan 16:9, OpenGL 4:3 and gate-off engine captures only; the Objectives action, the Strogg variant, soft focus, Remastered loading details, multiplayer menus, GLES and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-loading-progress": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen's Remastered progress behind ui_retained: the levelshot drift, the difficulty line, LOADING over a 240 u bar with the loader's phase and its place or asset count, the percentage, the load time and a continue prompt that follows the last input family. Real single-player loads traced the phases in order on OpenGL and Vulkan; the rendered line was captured through testGUI. Tips, touch and device-family glyphs, the Remastered multiplayer screen and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-loading-multiplayer": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen's Remastered multiplayer composition behind ui_retained: the bottom band kept low, a section 6 server card on the leading side with the server name, address, mode and limits, JOINING when a multiplayer load ends, and the name strip darkening the message line. Captured through testGUI on OpenGL and Vulkan; players by team, the server message, the arsenal, the Welcome hand-off and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-title-carry": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Section 13.8 refinements on the retained title and single-player pause menus behind ui_retained: the soft additive focus glow beside the focus rail, the emblem's rim light and glint, and the title carry, in which a page hand-off carries the chosen navigation label into the page title slot as the bands dock. Captured on OpenGL and Vulkan; the depth shift, the high-contrast rail, symbols, tags, HDR rules and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-title-depth": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Section 13.8 depth on the retained title behind ui_retained: the backdrop, the light and grid, and the framing bands lean up to 6 dp away from the pointer the session publishes, deeper layers further, while content stays fixed; reduced motion holds them still. Captured on OpenGL and Vulkan; the right stick, device tilt, the Phone default and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-title-depth-stick": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title's depth lean follows a held look stick while it leads and the pointer otherwise. Qualified by ui_retained_gate.py compiling the production session frame code against counted doubles, not by an engine capture, since no input is injected. Device tilt, the Phone default and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-modal-confirmation": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained confirmation modal at the 480 dp confirmation width behind ui_retained, in its opaque-backing form: the stock glow column across the dialog's 320 u rectangle with the stock art's black 0.70 silhouette inset 6.5625 dp from each side, 3.5625 dp at the top and 5.34 dp at the bottom, so the lit margin and slot outline it; the leading tooth, title slot, raised trailing section, 38 dp lower-leading chamfer and square trailing corners without rails; the title at the foot of the slot's leading flank with its capitals hanging from the raised top line and a 1 dp black outline at 0.85 composited once behind the fill; the first body baseline 87.5 dp down and the actions at the stock row. Captured on OpenGL and Vulkan at 16:9 and OpenGL at 4:3 beside an engine capture of the stock exit dialog; the capture record names ART-036, which ART-037 supersedes. Soft focus, the other four widths, modal motion and complete product acceptance stay open.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-modal-motion": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title and single-player pause screens behind ui_retained author the stock screen choreography with the section 8 tokens: menu.fade over 250 ms; frame.dock and screen.depart accel(250, 250) over 500 ms from 50 ms with the home layer sweeping 640 u; content.out of the home content over 250 ms; the bands' return from 0 ms and content.in over 150 ms. Their confirmations run modal.enter (scrim, glow and frame over 200 ms, contents together at 200 ms, no scale) and modal.leave (contents at once, then after 50 ms the scrim and glow over 250 ms and the frame over 200 ms for Exit or 250 ms), on timeline completion programs. Modal timing is qualified by native runtime tests; no engine capture of the transitions, and no sampled comparison with the stock timelines.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-motion-tokens": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title and single-player pause screens fade the plinth and its secondary links over 50 ms on depart while the home plates take 250 ms, bring them back with content.in, give hover feedback at once, and dim the wordmark to 40% gray while the title's Exit modal is open. Qualified by the native screens test; no engine capture.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-motion-engine": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Engine captures, on OpenGL and Vulkan at 1280x720, of the retained title's exit confirmation entering, open, leaving and closed, and of the plinth gone 30 ms into a depart, from a candidate runtime of the pushed code; with the host fix that keeps additive pictures from blacking out their rectangle inside a fading composition layer. Frame times follow console waits and are approximate.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-modal-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Backdrop soft focus behind the retained title's exit and the pause menu's quit confirmations on OpenGL and Vulkan: a two-pass separable Gaussian of 5 u at 0.80 saturation ramping with modal.enter and modal.leave, the glow cut to the dialog, and the scrim and stock column for the opaque-backing option and renderers without GLSL; engine captures at 1280x720 on both backends and 1920x1080 on OpenGL, native tests, a host harness and its mutants.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-pause-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained single-player pause screen over the paused view softened with modal.softfocus's values, never dimmed, ramping in with menu.fade on every pause, with a darkening scrim and vignette for the opaque-backing option and renderers that cannot soften; engine captures on OpenGL and Vulkan at 1280x720 over airdefense1, native tests and generator mutants.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "system-dialog-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Soft focus behind the SYSTEM page's Apply/Keep/Revert confirmation and unapplied-changes dialogs, with their 0.6 backing as the fallback; qualified by native tests against the real document and the SYSTEM updater checks, without an engine capture.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-stock-fallback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "ui_retained on by default and archived. Each retained screen presents its stock GUI when its document is not installed (quietly) or cannot load (reported once), when the legacy main menu lacks a page the title and pause screens hand off to (a mod's own menu), or when its view fails after a renderer or language change; the SYSTEM page joins the default only once it offers every stock setting, and it and the campaign selectors fall back from the click that asked for them; ui_retainedStatus lists the fallbacks. Qualified by ui_retained_gate.py and ui_system_session_route.py compiling the production session code against counted doubles, and by engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768 in which a private mod hides or replaces content.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-pause-objectives": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained pause screen's level block lists the objectives the player holds, newest first, each on a row behind the atlas marker, and the time in the mission as '0:42:10 in mission' under a faint rule. The session asks the game with the retainedPauseState menu command when the screen opens; a game module that publishes neither leaves the map's own objective summary and no time line. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-pause-strogg": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "After Kane's stroggification the retained single-player pause takes the Strogg family: the bands' 30-degree shoulders, downward teeth, #F59512 rim light and etched circuit traces, plates ending in a 30-degree shoulder with slanted markers, R_Strogg labels turning #FFCC00 on focus, a chamfered level block under the stock Strogg HUD static, and every label arriving in runes and playing the short credits translation (GAME PAUSED from 60 ms over 500 ms under the scan bar, the actions 120 + 45 ms per row over 200 ms, the level block after them; the focused plate runs the scan bar; reduced motion shows the translated labels at once). The session asks the game once a level with the retainedPauseFamily menu command, and the Marine pause stands in when the Strogg pause cannot present. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768, with the gate off loading nothing retained.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-pause-objectives-page": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The single-player pause lists its seven actions with OBJECTIVES, which opens the objectives display as a page of the pause in both families: the bands dock and the label carries into the title slot, the stock entry motion brings the back bar and the plates of every open objective, newest first, with its title, screenshot and description wrapping without a limit, then the objectives completed on the map under COMPLETED, the serial and an empty state; the list scrolls under its bar and Back returns with the bands. The level block lists the objectives with their state and a time line with the last save's age. The game publishes descriptions, screenshots and completed objectives (kept per map, unsaved) and lists the level's objective screenshots, which the session resolves inside the level load. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-pause-release": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "RESUME closes the single-player pause screen at once while its softened view, or the scrim standing in for it, releases over 250 ms over the running game in both families; pausing again during the release reopens the screen, a disconnect or level load ends it, and every activation after a release shows the screen and ramps the softening back in. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720, with the gate off.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-mod-loading": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "A mod's own copy of a stock loading screen, supplied by the mod's own game directory, presents instead of the retained loading screen, file by file; openQ4's, the stock game's and the Awakening's stock screens are still replaced. Qualified by the gate test compiling the production session code and engine runs on OpenGL and Vulkan as a private mod.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-loading-arsenal": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "A multiplayer load fills the retained loading screen's arsenal with each kind of item as it spawns, two rows of ten in the thick band, each fading in over 150 ms in its color code read from the item's colour-coded material. Qualified by the gate test, the native screens test, a listen server's mp/q4dm1 load and captures on OpenGL and Vulkan at 1280x720.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-subpage": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The sub-page level for the retained Single Player page and its Campaign sub-page: the sub-page state, the per-language crumb fit, both changes and their timing, the reversal of a change going deeper and the reduced-motion hand-over. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720, OpenGL at 1024x768, reduced motion and the gate off.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-loading-tips": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Single player loading tips: a TIP tag over one two-line tip in the loading band's leading part while the level loads, changing every 6 s with a 250 ms cross-fade, 18 verified tips in all seven languages. Qualified by the gate test compiling the production session code and measuring every tip, the native screens test, engine captures on OpenGL and Vulkan and in three more languages, and a real map load's trace.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-server-card": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The multiplayer server card's players and message: the players by team (one list outside team modes) with spectators and players connecting, and the server's message (si_motd), captured on the host, on a map change and on a fresh connection through an optional connect-response roster block. Qualified by the gate test compiling the production sanitizer, roster and publish, the codec's native test, the native screens test, engine captures on OpenGL and Vulkan and in three more languages, and traces from a listen host and a second client.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "runtime-choice-lists": {
       "kind": "implementation_checkpoint",
@@ -820,7 +820,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "SYSTEM route prerequisites for the retained default: the multiplayer menu's SYSTEM route opens the retained page through a main-menu timeline, with its stock fallback, and a refusal while the page is available (no current state makes one) shows the stock page for that request. Qualified by the compiled session route harness on Windows and Linux, the gate test, a mutation pass and live captures, one through a listen server's in-game menu.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-system-resolution": {
       "kind": "implementation_checkpoint",
@@ -880,7 +880,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen holds a Welcome join at JOINING until the card presents, then fades out over it, in place of the load's wipe. Qualified by the gate's compiled hold case, the native screens test, a mutation pass and live probes on a listen server and a remote client, OpenGL and Vulkan.",
-      "sha256": "e7973cae8916ba38d4d9d9c2ec4059954a7db806a19d633d03ef1b2ac701c258"
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     },
     "retained-mp-match": {
       "kind": "implementation_checkpoint",
@@ -905,6 +905,12 @@
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Match page, Series and Evidence sections, completing the page: the series, the map pool, the history, the format and the series and veto actions with the stock confirmations; the evidence and Refresh. Qualified by the gate and native screens tests, a mutation pass and live probes in two languages on both renderers.",
       "sha256": "eec146eba45849168bd0c0d048b1102451324332502194e3365ffdc0c37f29b2"
+    },
+    "retained-initializing-evidence": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/retained-screens.md",
+      "scope": "The Remastered initializing screen and the stock picture rebuilt as vector layers with the traced wordmark, qualified by the gate, native screens and vector checks, live captures at three aspects on both renderers, traced starts and a measured comparison with the stock picture.",
+      "sha256": "441b92a33e35cf8f17f0e505997134cb1cb71111f653b73d4242a73f4391fc48"
     }
   },
   "groups": {
@@ -11902,10 +11908,12 @@
       "acceptance_evidence_needed": [
         "Captures of each layer alone and composed against the stock picture on the 4:3 canvas at 100% and 300% with the difference measured, and of the title screen's wordmark against q4text."
       ],
-      "status": "pending",
-      "current_evidence": [],
+      "status": "partial",
+      "current_evidence": [
+        "retained-initializing-evidence"
+      ],
       "acceptance_evidence": [],
-      "remaining": "Implementation and acceptance evidence covering the entire stated requirement are required.",
+      "remaining": "The stock picture is rebuilt as separate vector layers from measured tone runs (the field and rings, the plates, the teeth, the clamps), the traced emblem and QUAKE 4 traced from q4text's white core with its halo as vector light; the title's wordmark uses the same letters with the texture's own halo. Against the stock picture on a 4:3 view at 100% the field matches within 0.44 levels on average and the letters' halo within 2 levels; the letter cores follow the specification's #F2F0EC, 10 to 16 levels darker than the stock picture's letters. Each layer's capture alone, the 300% comparison (beyond a window's size here) and design review remain.",
       "constraints": {
         "ring_center_u": [
           319,
@@ -13178,10 +13186,12 @@
       "acceptance_evidence_needed": [
         "Startup captures on GL, Vulkan and the GLES fallback at 4:3, 16:9 and 21:9 in Classic and Remastered for every step, a trace of the repaint cadence and ring angles across a slow start, and a reduced-motion run. Include one sweep turn and glint in Remastered and their absence in Classic."
       ],
-      "status": "pending",
-      "current_evidence": [],
+      "status": "partial",
+      "current_evidence": [
+        "retained-initializing-evidence"
+      ],
       "acceptance_evidence": [],
-      "remaining": "Implementation and acceptance evidence covering the entire stated requirement are required.",
+      "remaining": "Behind ui_retained, the initializing screen draws guis/loading/initializing.q4ui from the first startup frame the renderer can draw until the menus are ready: the stock picture rebuilt as ART-031's layers with the field and rings extended to any view, the plate band and teeth turning on the presentation clock, the four accents (the light sweep with its edge arcs, the breathing halo, fourteen embers and the glint clipped to the letters), the localized status line flickering in at each step over the 168 u rule (done, current pulsing, pending), repaints during a long step from the pacifier at most 30 times a second, and every loop's reduced-motion pose; with ui_retained 0, or a document that cannot draw, the stock picture and line. The five steps sent before the renderer can draw pass unseen and the rule marks them done. The GLES fallback's captures and acceptance across every step and display profile remain.",
       "constraints": {
         "band_turn_ms": 180000,
         "teeth_turn_ms": 120000,

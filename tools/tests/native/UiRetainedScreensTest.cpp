@@ -1277,8 +1277,97 @@ static void CheckWelcome(ScreenHost& host, const char* path) {
 	host.softFocus = false;
 }
 
+// The initializing screen (section 14.17): the rebuilt picture's rings turn on
+// the presentation clock, the engine's status line flickers in at each step,
+// and the rule marks the steps done, current and pending.
+static void CheckInitializing(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.initializing" && document.Model().canvasHeight == 720 &&
+		document.Model().actions.empty(),"initializing document validates and asks nothing of the engine");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/loading/initializing.q4ui",diagnostics),"initializing loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720;
+	std::string error; Runtime::EventEffects effects;
+	Check(runtime.RunEvent("onInit",0,effects,error) && effects.actions.empty(),"onInit starts the loops");
+	Check(runtime.SetState({{"init_step",3.0},{"init_status",std::string("INITIALIZING NETWORK...")}},error,0),"publish a step");
+	host.draws.clear();
+	runtime.Frame(viewport,0);
+	Check(!host.draws.empty(),"the rebuilt picture draws");
+	const auto status = runtime.PresentedValue("status","text");
+	Check(status && status->text == "INITIALIZING NETWORK...","the status line shows the engine's text");
+	// The picture keeps the 4:3 canvas centered: 160 px into a 16:9 view, the
+	// emblem's 260 u box from 190 u, the rings' square about 319,214.5 u.
+	Bounds emblem, rings, line;
+	Check(runtime.GetBounds("emblem",emblem) && Near(emblem.x,160+285) && Near(emblem.y,165) && Near(emblem.width,390),
+		"the emblem's box stands centered on the canvas");
+	Check(runtime.GetBounds("rings-field",rings) && Near(rings.x,160+13.5f) && Near(rings.y,1.5f*(214.5f-310)) && Near(rings.width,930),
+		"the rings center on 319,214.5 u");
+	Check(runtime.GetBounds("status",line) && Near(line.y+line.height/2,418*1.5f),"the line's middle stands at 418 u");
+	// One segment per step: done 0.55, the current one carried by the pulse, pending 0.15.
+	const auto done = runtime.PresentedValue("rule-2","opacity");
+	const auto current = runtime.PresentedValue("rule-3","opacity");
+	const auto pending = runtime.PresentedValue("rule-4","opacity");
+	Check(done && Near(static_cast<float>(done->data[0]),.55f,.001f) && current && Near(static_cast<float>(current->data[0]),0,.001f) &&
+		pending && Near(static_cast<float>(pending->data[0]),.15f,.001f),"done, current and pending segments");
+	Bounds pulse, third, first, last;
+	Check(runtime.GetBounds("rule-pulse",pulse) && runtime.GetBounds("rule-3",third) && Near(pulse.x,third.x) && Near(pulse.width,third.width),
+		"the pulse stands on the current segment");
+	Check(runtime.GetBounds("rule-0",first) && runtime.GetBounds("rule-7",last) && Near(last.x+last.width-first.x,168*1.5f) &&
+		Near((first.x+last.x+last.width)/2,160+480),"the 168 u rule centers under the line");
+	runtime.Frame(viewport,.4);
+	const auto dimmed = runtime.PresentedValue("rule-pulse","opacity");
+	Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.62f,.01f),"the current segment pulses down to 0.62 over half of 800 ms");
+	// The glint crosses QUAKE 4 in 900 ms from the start of each 9 s.
+	const auto crossing = runtime.PresentedValue("glint-light","transform");
+	Check(crossing && crossing->data[0] > 0 && crossing->data[0] < 1.5f*386,"the glint is crossing the letters");
+	// A new step replaces the line, flickering in from 0.35 over 120 ms.
+	Check(runtime.SetState({{"init_step",4.0},{"init_status",std::string("INITIALIZING RENDER SYSTEM...")}},error,1) &&
+		runtime.RunEvent("step",1,effects,error),"the next step");
+	runtime.Frame(viewport,1.002);
+	const auto flicker = runtime.PresentedValue("status-line","opacity");
+	runtime.Frame(viewport,1.2);
+	const auto lit = runtime.PresentedValue("status-line","opacity");
+	Check(flicker && Near(static_cast<float>(flicker->data[0]),.36f,.02f) && lit && Near(static_cast<float>(lit->data[0]),1,.001f),
+		"a new step flickers in from 0.35 and is lit after 120 ms");
+	// The teeth turn clockwise once every 120 s, the plate band counterclockwise
+	// once every 180 s and the light once every 10 s from its key-light pose.
+	runtime.Frame(viewport,32.5);
+	const auto teeth = runtime.PresentedValue("rings-teeth","transform");
+	const auto plates = runtime.PresentedValue("rings-plates","transform");
+	const auto sweep = runtime.PresentedValue("sweep","transform");
+	Check(teeth && Near(static_cast<float>(teeth->data[4]),97.5f,.01f) && plates && Near(static_cast<float>(plates->data[4]),-65,.01f) &&
+		sweep && Near(static_cast<float>(sweep->data[4]),-38+90,.01f),"after 32.5 s the rings and the light have turned on the clock");
+	const auto breathing = runtime.PresentedValue("halo","opacity");
+	Check(breathing && breathing->data[0] >= .4-1e-3 && breathing->data[0] <= 1+1e-3,"the halo breathes between 0.40 and 1.00");
+	// Reduced motion: the rings rest, the light holds as the upper-left key
+	// light, the halo at 0.80; no embers, glint or pulse.
+	// The engine sets the preference every frame (RetainedUI_DrawViewRoot);
+	// spatial loops jump to their ends, opacity settles within 80 ms.
+	runtime.SetReducedMotion(true,33);
+	runtime.Frame(viewport,33.1);
+	const auto restTeeth = runtime.PresentedValue("rings-teeth","transform");
+	const auto restPlates = runtime.PresentedValue("rings-plates","transform");
+	const auto keyLight = runtime.PresentedValue("sweep","transform");
+	const auto halo = runtime.PresentedValue("halo","opacity");
+	const auto ember = runtime.PresentedValue("ember-0","opacity");
+	const auto glint = runtime.PresentedValue("glint-light","transform");
+	const auto heldPulse = runtime.PresentedValue("rule-pulse","opacity");
+	runtime.Frame(viewport,40);
+	const auto stillTeeth = runtime.PresentedValue("rings-teeth","transform");
+	Check(restTeeth && Near(std::fmod(static_cast<float>(restTeeth->data[4]),360.f),0,.01f) && restPlates &&
+		Near(std::fmod(static_cast<float>(restPlates->data[4]),360.f),0,.01f) && stillTeeth &&
+		Near(static_cast<float>(stillTeeth->data[4]),static_cast<float>(restTeeth->data[4]),.001f),"reduced motion holds the rings still");
+	Check(keyLight && Near(std::fmod(static_cast<float>(keyLight->data[4])+360.f,360.f),322,.01f) && halo &&
+		Near(static_cast<float>(halo->data[0]),.8f,.001f),"the light rests as a key light 38 degrees left of the top, the halo at 0.80");
+	Check(ember && Near(static_cast<float>(ember->data[0]),0,.001f) && glint && glint->data[0] > 0 && heldPulse &&
+		Near(static_cast<float>(heldPulse->data[0]),.95f,.001f),"no embers, the glint gone past the letters and the pulse held");
+	runtime.SetReducedMotion(false,40);
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 9,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui");
+	Check(argc == 10,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -1302,7 +1391,11 @@ int main(int argc, char** argv) {
 		Check(std::any_of(host.draws.begin(),host.draws.end(),[&](const auto& draw) { return draw.material == host.multiply; }),
 			"the emblem multiplies the lit field through the host material");
 		Check(std::find(host.materials.begin(),host.materials.end(),"gfx/guis/mainmenu/level_mcc.dds") != host.materials.end(),"the backdrop montage loads its levelshots");
-		Check(std::find(host.materials.begin(),host.materials.end(),"q4-add/gfx/guis/mainmenu/q4text") != host.materials.end(),"the wordmark is additive light");
+		Check(std::find(host.materials.begin(),host.materials.end(),"q4-add/gfx/guis/mainmenu/q4text") == host.materials.end(),
+			"the wordmark is traced vector light, not the q4text bitmap");
+		Bounds wordmarkBox;
+		Check(runtime.GetBounds("wordmark",wordmarkBox) && Near(wordmarkBox.x,160+9) && Near(wordmarkBox.y,178.5f) &&
+			Near(wordmarkBox.width,564) && Near(wordmarkBox.height,138),"the wordmark keeps q4text's 376x92 u box at 6,119 u");
 		// Without a save CONTINUE collapses: SINGLE PLAYER takes the first row.
 		const float firstRow = label.y;
 		std::string error;
@@ -1409,9 +1502,8 @@ int main(int argc, char** argv) {
 			const auto appeared = runtime.PresentedValue("exitModal-contents","display");
 			Check(appeared && appeared->text == "block" && runtime.FocusedControl() == "exitModal_no",
 				"the contents appear together at 200 ms and NO takes focus");
-			const auto dimmed = runtime.PresentedValue("wordmark","image-color");
-			Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.4f,.01f) && Near(static_cast<float>(dimmed->data[3]),1,.001f),
-				"the Exit modal dims the wordmark to 40% gray");
+			const auto dimmed = runtime.PresentedValue("wordmark","opacity");
+			Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.4f,.01f),"the Exit modal dims the wordmark's light to 40%");
 			Bounds dialog, title, outline, left, below, body;
 			Check(runtime.GetBounds("exitModal-dialog",dialog) && runtime.GetBounds("exitModal-title",title) &&
 				runtime.GetBounds("exitModal-title-outline",outline) && runtime.GetBounds("exitModal-title-outline-1",left) &&
@@ -1448,7 +1540,7 @@ int main(int argc, char** argv) {
 			const auto stillOpen = runtime.PresentedValue("exitModal","display");
 			Check(frameOut && Near(static_cast<float>(frameOut->data[0]),0,.001f) && stillOpen && stillOpen->text == "block",
 				"Exit releases its frame over 200 ms while the scrim is still going");
-			const auto restoredMark = runtime.PresentedValue("wordmark","image-color");
+			const auto restoredMark = runtime.PresentedValue("wordmark","opacity");
 			Check(restoredMark && Near(static_cast<float>(restoredMark->data[0]),1,.001f),"the wordmark is restored from 50 ms over 150 ms");
 			runtime.Frame(viewport,14.61);
 			const auto closed = runtime.PresentedValue("exitModal","display");
@@ -2364,6 +2456,7 @@ int main(int argc, char** argv) {
 	CheckMatch(host,argv[7]);
 	CheckSettings(host,argv[7],argv[8]);
 	CheckWelcome(host,argv[8]);
+	CheckInitializing(host,argv[9]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

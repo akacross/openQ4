@@ -549,7 +549,9 @@ On engine `ded46e92e916a794bb26f028d5059c848ef79de1` the multiplayer Escape card
 
 On engine `7e428ca62d07ec7097215112eaf030545a3916ba` the multiplayer Escape card's Match page gains its Series and Evidence sections, completing the page: the series, the map pool, the veto and map history, the format and the series and veto actions with the stock confirmations, and the evidence with Refresh; only the referee credential opens the stock page. The gate and native screens tests, a mutation pass and live probes qualify it; `FLOW-012` and `FLOW-046` gain partial evidence. Evidence: `.tmp/ui/retained-mp-match-series-evidence/validation-evidence.json`, SHA-256 `6ee747ef06a2c9d6d90984021912bb53e22b4c354be2c6380d5bb9aedbeddf23`.
 
-There are **94 partial, 245 pending and one verified requirement**, counting the
+On engine `216db1a7de4fbbf9b9400a5d3698cb2f4ebced90` the initializing screen draws the stock picture rebuilt as vector layers, with the turning rings, the four accents, the status line and the step rule, from the first startup frame until the menus are ready, and the title's wordmark is the same traced QUAKE 4. `FLOW-057` and `ART-031` become partial. Evidence: `.tmp/ui/retained-initializing-evidence/validation-evidence.json`, SHA-256 `97391702528b95a50bd2f946e18c3f5dabc608e5dd1f052374cbb71ee1de39bd`.
+
+There are **96 partial, 243 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

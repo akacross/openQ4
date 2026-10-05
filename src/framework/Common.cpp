@@ -51,6 +51,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #if defined( USE_SDL3 )
 #include <SDL3/SDL_locale.h>
+#include <thread>
 #endif
 
 #define	MAX_PRINT_MSG_SIZE	4096
@@ -793,6 +794,8 @@ public:
 	void						InitGame( void );
 	void						ShutdownGame( bool reloading );
 	void						PrintLoadingMessage( const char *msg );
+	// Repaints the Remastered initializing screen during a long startup step.
+	void						InitializingPacifier( void );
 
 	// localization
 	void						InitLanguageDict( bool applyStartupSysLang, bool allowAutoLanguageSelect );
@@ -5751,14 +5754,40 @@ static void Common_DrawScaledSmallString( float x, float y, float charWidth, flo
 	renderSystem->SetColor( idVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
 }
 
-void idCommonLocal::PrintLoadingMessage( const char *msg ) {
-	if ( !( msg && *msg ) || !renderSystem || !renderSystem->IsOpenGLRunning() ) {
-		return;
+/*
+=================
+The initializing screen (docs/dev/ui-visual-design.md 14.17)
+
+Every message advances the step, including those sent before the renderer can
+draw, so the Remastered rule still marks the steps that passed unseen. A frame
+draws the Remastered screen (guis/loading/initializing.q4ui) when ui_retained
+is on and the document draws, else the stock picture and line. Classic
+repaints only at a step; the Remastered screen also repaints during a long
+step, from the session's pacifier, at most 30 times a second, so its rings
+keep turning while the engine works.
+=================
+*/
+static int				commonInitializingStep = -1;
+static idStr			commonInitializingStatus;
+static bool				commonInitializingRetained = false;	// the last frame drew the Remastered screen
+static bool				commonInitializingPainting = false;
+static int				commonInitializingPainted = 0;
+static std::thread::id	commonInitializingThread;
+static const int		INITIALIZING_REPAINT_MSEC = 33;
+
+static int Common_InitializingStep( const char *msg, int current ) {
+	// LOADING... twice, then one key per step. A later LOADING... (the render
+	// system's own, once its device has opened) belongs to the current step.
+	static const char *const stepKeys[] = { "#str_104346", "#str_104347", "#str_104348", "#str_104349", "#str_104350", "#str_104351" };
+	for ( int i = 0; i < 6; i++ ) {
+		if ( idStr::Cmp( msg, common->GetLanguageDict()->GetString( stepKeys[i] ) ) == 0 ) {
+			return 2 + i;
+		}
 	}
+	return current < 1 ? current + 1 : current;
+}
 
-	UI_SettingsRenderFrame settingsFrame;
-	renderSystem->BeginFrame( renderSystem->GetScreenWidth(), renderSystem->GetScreenHeight() );
-
+static void Common_DrawStockInitializing( const char *msg ) {
 	const float virtualWidth = static_cast<float>( SCREEN_WIDTH );
 	const float virtualHeight = static_cast<float>( SCREEN_HEIGHT );
 	float splashX = 0.0f;
@@ -5816,11 +5845,58 @@ void idCommonLocal::PrintLoadingMessage( const char *msg ) {
 	Common_DrawScaledSmallString( textX, textY, charWidth, charHeight, msg,
 		idVec4( 0.94f, 0.62f, 0.05f, 1.0f ), true, declManager->FindMaterial( "fonts/english/bigchars", false ) );
 	renderSystem->SetColor( idVec4( 1.0f, 1.0f, 1.0f, 1.0f ) );
+}
+
+static void Common_PaintInitializing( void ) {
+	commonInitializingPainting = true;
+	UI_SettingsRenderFrame settingsFrame;
+	renderSystem->BeginFrame( renderSystem->GetScreenWidth(), renderSystem->GetScreenHeight() );
+	commonInitializingRetained = cvarSystem->GetCVarBool( "ui_retained" ) &&
+		RetainedUI_DrawInitializing( commonInitializingStatus.c_str(), commonInitializingStep );
+	if ( !commonInitializingRetained ) {
+		Common_DrawStockInitializing( commonInitializingStatus.c_str() );
+	}
 	settingsFrame.Submitting();
 	renderSystem->EndFrame( NULL, NULL );
 	settingsFrame.Presented();
 	RetainedUI_FrameSubmitted();
 	UI_SettingsFrame( false ); // Startup/loading may observe recovery, never perform device or file work.
+	commonInitializingPainted = Sys_Milliseconds();
+	commonInitializingPainting = false;
+}
+
+// The menus are ready, or the engine is going down: the screen's view goes.
+static void Common_ReleaseInitializing( void ) {
+	commonInitializingRetained = false;
+	commonInitializingStep = -1;
+	commonInitializingStatus.Clear();
+	RetainedUI_ReleaseInitializing();
+}
+
+void idCommonLocal::PrintLoadingMessage( const char *msg ) {
+	if ( !( msg && *msg ) ) {
+		return;
+	}
+	commonInitializingStep = Common_InitializingStep( msg, commonInitializingStep );
+	commonInitializingStatus = msg;
+	if ( !renderSystem || !renderSystem->IsOpenGLRunning() || commonInitializingPainting ) {
+		return;
+	}
+	commonInitializingThread = std::this_thread::get_id();
+	Common_PaintInitializing();
+}
+
+void idCommonLocal::InitializingPacifier( void ) {
+	if ( !commonInitializingRetained || commonInitializingPainting || com_errorEntered || com_shuttingDown ||
+		std::this_thread::get_id() != commonInitializingThread || !renderSystem || !renderSystem->IsOpenGLRunning() ||
+		Sys_Milliseconds() - commonInitializingPainted < INITIALIZING_REPAINT_MSEC ) {
+		return;
+	}
+	Common_PaintInitializing();
+}
+
+void Common_InitializingPacifier( void ) {
+	commonLocal.InitializingPacifier();
 }
 
 /*
@@ -7151,6 +7227,9 @@ void idCommonLocal::InitGame( void ) {
 	// init the session
 	session->Init();
 
+	// the menus are ready: the initializing screen's view goes
+	Common_ReleaseInitializing();
+
 	// have to do this twice.. first one sets the correct r_mode for the renderer init
 	// this time around the backend is all setup correct.. a bit fugly but do not want
 	// to mess with all the gl init at this point.. an old vid card will never qualify for 
@@ -7174,6 +7253,7 @@ idCommonLocal::ShutdownGame
 =================
 */
 void idCommonLocal::ShutdownGame( bool reloading ) {
+	Common_ReleaseInitializing();
 	UI_SettingsShutdown();
 	// Stop advertising a ready single-player module before any shutdown work can
 	// race the async thread or mutate game-owned state.

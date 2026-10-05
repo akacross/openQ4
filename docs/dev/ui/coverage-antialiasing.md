@@ -69,6 +69,12 @@ A partially covered pixel outside the mathematical shape cannot enlarge the
 target, and holes remain excluded. This API is still awaiting semantic input
 and world-GUI routing in the larger replacement work.
 
+A row's accumulated coverage must stay within 1e-4 of the zero-to-one range.
+The tessellator's boundary contours can overlap by a sliver where
+near-parallel edges of a large stroke union cross (4e-7 was seen on the
+initializing screen's letter halo); a winding error leaves the range by far
+more. A path may also opt out of coverage ([vector paths](vector-paths.md)).
+
 Coverage work has explicit limits: 65,536 rows per clipped edge, 2,097,152
 edge-work steps and 1,048,576 difference events per fill/stroke compilation.
 The existing output vertex limit also applies to coverage quads and gradient

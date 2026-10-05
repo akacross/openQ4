@@ -21,10 +21,12 @@ struct idMath {
     static float ClampFloat(float a,float b,float v){return std::clamp(v,a,b);}
     static float Ceil(float v){return std::ceil(v);}
 };
-int clockMsec=1000, redraws=0, callbackStage=-1;
+int clockMsec=1000, redraws=0, callbackStage=-1, initializingPaints=0;
 bool throwFromCallback=false;
 int Sys_Milliseconds(){return clockMsec;}
 void Sys_GenerateEvents(){}
+// Startup's initializing screen repaints from the pacifier outside a map load.
+void Common_InitializingPacifier(){++initializingPaints;}
 float Session_GetBlockingLoadFrameIntervalMsec(){return 16.0f;}
 constexpr float SESSION_PACIFIER_DRAW_BUDGET_RATIO=4.0f;
 void Session_BeginBlockingLoadPresentationFrame(){++clockMsec;}
@@ -68,7 +70,7 @@ void NestedOffer(int stage) {
 void Reset() {
     session=idSessionLocal();session.guiLoading=&session.gui;
     idAsyncNetwork::client.calls=idAsyncNetwork::server.calls=redraws=0;
-    clockMsec=1000;callbackStage=-1;throwFromCallback=false;
+    clockMsec=1000;callbackStage=-1;throwFromCallback=false;initializingPaints=0;
 }
 int main() {
     for(int stage=0;stage<3;++stage)for(int fail=0;fail<2;++fail) {
@@ -91,6 +93,13 @@ int main() {
     }
     Reset();session.insideExecuteMapChange=false;session.PacifierUpdate();
     assert(redraws==0 && idAsyncNetwork::server.calls==0 && !session.insidePacifierUpdate);
+    // Outside a map load the offer goes to the initializing screen, never
+    // inside another screen update; a map load's offers never reach it.
+    assert(initializingPaints==1);
+    Reset();session.insideExecuteMapChange=false;session.insideUpdateScreen=true;session.PacifierUpdate();
+    assert(initializingPaints==0 && redraws==0);
+    Reset();session.PacifierUpdate();
+    assert(initializingPaints==0);
     Reset();session.lastPacifierTime=clockMsec;session.PacifierUpdate();
     assert(redraws==0 && idAsyncNetwork::server.calls==0 && !session.insidePacifierUpdate);
     puts("loading pacifier recursive offers, exception recovery and pacing: PASS");

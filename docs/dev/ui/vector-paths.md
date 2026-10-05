@@ -64,6 +64,11 @@ joins do not repeatedly blend a translucent stroke.
 | `join` | `miter` | `miter`, `bevel`, `round` |
 | `miterLimit` | 4 | Longer miters fall back to bevel |
 
+A path's optional `antialias` (default true) set to false compiles plain
+triangles instead of [coverage](coverage-antialiasing.md): for broad tonal
+fields whose edges step by a level or so, where coverage only costs the
+rasterizing of every row the shape spans (the initializing screen's rings).
+
 Round joins/caps adapt to output density. Explicit zero-length strokes support
 round/square caps; move-only contours do not produce dots. Butt caps stop at their
 endpoints. Stroke inside/outside alignment, dashes and variable width remain open.

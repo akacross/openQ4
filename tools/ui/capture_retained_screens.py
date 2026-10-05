@@ -151,6 +151,28 @@ SCENARIOS = {
         'waitMsec 300', 'screenshot "screenshots/loading-mp-players.tga"',
         'testGUI', 'waitMsec 300',
     ]),
+    # The initializing screen's document, opened as the loading screen's is
+    # and given steps as PrintLoadingMessage gives them. The engine paints it
+    # before any menu exists; here its layers, line and rule are captured at
+    # the view's own size, with the light sweep and glint caught mid-turn.
+    'initializing': (None, [
+        'waitMsec 3000', 'testGUI "guis/loading/initializing.q4ui"', 'waitMsec 300',
+        'openq4_retainedGui pending init_step 4', 'openq4_retainedGui state init_status "#str_104348"',
+        'openq4_retainedGui event step', 'waitMsec 2000', 'ui_retainedStatus', 'screenshot "screenshots/initializing.tga"',
+        'openq4_retainedGui pending init_step 7', 'openq4_retainedGui state init_status "#str_104351"',
+        'openq4_retainedGui event step', 'waitMsec 40', 'screenshot "screenshots/initializing-flicker.tga"',
+        'waitMsec 6700', 'screenshot "screenshots/initializing-glint-a.tga"', 'waitMsec 150',
+        'screenshot "screenshots/initializing-glint-b.tga"', 'waitMsec 150', 'screenshot "screenshots/initializing-glint-c.tga"',
+        'testGUI', 'waitMsec 300',
+    ]),
+    # Reduced motion: the rings rest, the light holds at the upper left, and
+    # there are no embers, glint or pulse.
+    'initializing-reduced': (None, [
+        'waitMsec 3000', 'set ui_retainedReducedMotion 1', 'testGUI "guis/loading/initializing.q4ui"', 'waitMsec 300',
+        'openq4_retainedGui pending init_step 6', 'openq4_retainedGui state init_status "#str_104350"',
+        'openq4_retainedGui event step', 'waitMsec 2000', 'screenshot "screenshots/initializing-reduced.tga"',
+        'testGUI', 'set ui_retainedReducedMotion 0', 'waitMsec 300',
+    ]),
     # A title document that cannot load: the stock title presents.
     'fallback-document': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/fallback-document.tga"',

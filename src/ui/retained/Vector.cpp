@@ -365,7 +365,11 @@ public:
 			while (index < events.size() && events[index].y == row) {
 				const int x = events[index].x;
 				do { sum += events[index++].delta; } while (index < events.size() && events[index].y == row && events[index].x == x);
-				if (sum < -1e-7 || sum > 1+1e-7) {
+				// The tessellator's boundary contours can overlap by a sliver
+				// where near-parallel edges of a large stroke union cross (seen
+				// at 4e-7 on the initializing screen's letter halo); only a
+				// winding error leaves the range by more than that.
+				if (sum < -1e-4 || sum > 1+1e-4) {
 					std::ostringstream message;
 					message.precision(17);
 					message << "normalized coverage escaped zero-to-one range at " << x << "," << row << ": " << sum;
@@ -492,12 +496,14 @@ bool TessellatePath(const VectorPath& path, const VectorOptions& options, Vector
 		VectorMesh candidate;
 		VectorTransform inverse;
 		if (options.transform.Inverse(inverse)) {
-			const auto contours = Flatten(options).Run(path);
-			if (path.fill.type != PaintType::None) Fill(contours,path.fillRule,path.fill,options,candidate);
+			VectorOptions pathOptions = options;
+			pathOptions.antialias = options.antialias && path.antialias;
+			const auto contours = Flatten(pathOptions).Run(path);
+			if (path.fill.type != PaintType::None) Fill(contours,path.fillRule,path.fill,pathOptions,candidate);
 			if (path.stroke.paint.type != PaintType::None) {
 				Require(std::isfinite(path.stroke.widthDp) && path.stroke.widthDp >= 0 && std::isfinite(path.stroke.minimumPixels) && path.stroke.minimumPixels >= 0 && std::isfinite(path.stroke.miterLimit) && path.stroke.miterLimit >= 1,"invalid stroke width, minimum pixel width or miter limit");
-				const auto stroke = StrokeContours(contours,path.stroke,options);
-				Fill(stroke,FillRule::NonZero,path.stroke.paint,options,candidate);
+				const auto stroke = StrokeContours(contours,path.stroke,pathOptions);
+				Fill(stroke,FillRule::NonZero,path.stroke.paint,pathOptions,candidate);
 			}
 		}
 		output = std::move(candidate); return true;

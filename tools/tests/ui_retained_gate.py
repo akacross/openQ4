@@ -2418,6 +2418,64 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert mp_game.count('ToggleFriend( client );') == 2
 
 
+def check_initializing() -> None:
+    """The initializing screen (docs/dev/ui-visual-design.md 14.17): every
+    startup message advances the step, even before the renderer can draw; a
+    frame draws the Remastered document when ui_retained is on and it draws,
+    else the stock picture; a long step repaints it from the pacifier, on the
+    engine thread, at most 30 times a second; the view goes once the menus
+    are ready or the game shuts down."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_initializing
+    common = (ROOT / 'src/framework/Common.cpp').read_text(encoding='utf-8')
+    session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
+    retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
+    text = (ROOT / 'content/baseoq4/pak0/guis/loading/initializing.q4ui').read_text(encoding='utf-8')
+    document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
+    assert document['id'] == 'openq4.initializing' and document.get('canvas') == {'height': 720}
+    assert not document.get('actions'), 'the initializing screen asks nothing of the engine'
+    assert document['state']['init_status']['type'] == 'string' and document['state']['init_step']['type'] == 'number'
+    assert set(document['events']) == {'onInit', 'step'}, sorted(document['events'])
+    def nodes(node):
+        yield node
+        for child in node.get('children', []):
+            yield from nodes(child)
+    segments = [node['id'] for node in nodes(document['root']) if re.fullmatch(r'rule-\d+', node['id'])]
+    assert len(segments) == retained_initializing.STEPS == 8, 'one rule segment per startup step'
+    # LOADING... twice, then one key per step; a later LOADING... keeps the step.
+    step = function_body(common, 'static int Common_InitializingStep(')
+    keys = re.findall(r'"(#str_\d+)"', step)
+    assert keys == ['#str_104346', '#str_104347', '#str_104348', '#str_104349', '#str_104350', '#str_104351'], keys
+    assert 'return 2 + i;' in step and 'return current < 1 ? current + 1 : current;' in step
+    assert 2 + len(keys) - 1 == retained_initializing.STEPS - 1, 'the last step is the rule\'s last segment'
+    printing = function_body(common, 'void idCommonLocal::PrintLoadingMessage(')
+    assert printing.index('Common_InitializingStep( msg, commonInitializingStep )') < printing.index('IsOpenGLRunning()'), \
+        'the step advances before the renderer can draw'
+    paint = function_body(common, 'static void Common_PaintInitializing(')
+    assert ('commonInitializingRetained = cvarSystem->GetCVarBool( "ui_retained" ) &&\n'
+            '\t\tRetainedUI_DrawInitializing( commonInitializingStatus.c_str(), commonInitializingStep );') in paint
+    assert 'if ( !commonInitializingRetained ) {\n\t\tCommon_DrawStockInitializing( commonInitializingStatus.c_str() );' in paint, \
+        'a frame the document cannot draw draws the stock picture'
+    pacifier = function_body(common, 'void idCommonLocal::InitializingPacifier(')
+    for token in ('!commonInitializingRetained', 'commonInitializingPainting', 'com_errorEntered', 'com_shuttingDown',
+                  'std::this_thread::get_id() != commonInitializingThread', 'Sys_Milliseconds() - commonInitializingPainted < INITIALIZING_REPAINT_MSEC'):
+        assert token in pacifier, f'the pacifier repaint needs {token}'
+    assert 'static const int\t\tINITIALIZING_REPAINT_MSEC = 33;' in common, 'at most 30 repaints a second'
+    pacifier_update = function_body(session, 'void idSessionLocal::PacifierUpdate(')
+    assert pacifier_update.index('Common_InitializingPacifier();') < pacifier_update.index('insidePacifierUpdate'), \
+        'outside a map load the pacifier repaints the initializing screen'
+    assert 'if ( !insideUpdateScreen ) {\n\t\t\tCommon_InitializingPacifier();' in pacifier_update, \
+        'never inside another screen update'
+    init_game = function_body(common, 'void idCommonLocal::InitGame(')
+    assert init_game.index('session->Init();') < init_game.index('Common_ReleaseInitializing();'), 'the view goes once the menus are ready'
+    shutdown = function_body(common, 'void idCommonLocal::ShutdownGame(')
+    assert shutdown.split('{', 1)[1].lstrip().startswith('Common_ReleaseInitializing();'), 'shutting the game down releases the view first'
+    assert 'const char* const INITIALIZING_PATH = "guis/loading/initializing.q4ui";' in retained
+    draw = function_body(retained, 'bool RetainedUI_DrawInitializing(')
+    assert 'viewport.canvasHeight = 720; viewport.fitScale = 1;' in draw, 'the document\'s view-height canvas'
+    assert 'runtime->RunEvent("onInit",now,effects,error)' in draw and 'runtime->RunEvent("step",now,effects,error)' in draw
+
+
 def main() -> int:
     menu = (ROOT / 'src/framework/Session_menu.cpp').read_text(encoding='utf-8')
     session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
@@ -2438,6 +2496,7 @@ def main() -> int:
     actual = {name.lower() for name in stock_system_settings()} - {name.lower() for name in retained_system_controls()}
     assert listed == actual, f'RETAINED_SYSTEM_MISSING_SETTINGS lists {sorted(listed)}; the retained SYSTEM page lacks {sorted(actual)}'
     check_retained_system_control_writes()
+    check_initializing()
     incomplete = re.search(r'RETAINED_SYSTEM_INCOMPLETE_SETTINGS\[\] = \{([^}]*)\};', menu).group(1)
     assert incomplete.strip().endswith('NULL'), 'the incomplete-settings list must stay NULL-terminated'
     listed_incomplete = {name.lower() for name in re.findall(r'"([A-Za-z_0-9]+)"', incomplete)}

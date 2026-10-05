@@ -834,6 +834,12 @@
 
 ## Unreleased — `idtech5-ui` development
 
+- The startup screen is rebuilt for any display: the Quake 4 rings, emblem and
+  lettering are sharp at every resolution and fill wide screens, the gear
+  rings turn slowly while the game starts, and the status line marks each
+  step on a progress rule. The title screen's QUAKE 4 is drawn the same sharp
+  way. Set `ui_retained 0` for the original screens.
+
 - The modern interface is now on by default for the title screen, the
   single-player pause menu and the loading screens; the other menus keep the
   classic look for now. Prefer the classic screens throughout? Enter

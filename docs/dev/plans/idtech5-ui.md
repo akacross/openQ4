@@ -159,7 +159,11 @@ handing off to its stock page; the
 Welcome card covers the connect-time join offer, by default now that all its
 pages are built, and a join's loading screen hands over to it.
 Event programs can move focus, and Q, E and the shoulders page a document's
-tabs. The Escape pages and the Welcome menu remain. No gate closes.
+tabs. The [initializing screen](../ui/retained-screens.md#initializing-screen)
+draws the stock picture rebuilt as vector layers from the first startup frame
+the renderer can draw until the menus are ready, with its turning rings, four
+accents, status line and step rule, and the title's wordmark is the same
+traced QUAKE 4 with the texture's own halo. No gate closes.
 
 ## Objective and immutable completion scope
 

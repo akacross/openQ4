@@ -34,6 +34,7 @@ OUTPUTS = {
     "pause": PAK0 / "guis" / "menu" / "pause.q4ui",
     "pause_strogg": PAK0 / "guis" / "menu" / "pause_strogg.q4ui",
     "loading": PAK0 / "guis" / "loading" / "loading.q4ui",
+    "initializing": PAK0 / "guis" / "loading" / "initializing.q4ui",
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
@@ -953,6 +954,8 @@ def montage(doc: Document) -> dict:
 
 
 def title_document() -> dict:
+    # The traced wordmark lives with the initializing screen, which shares it.
+    from retained_initializing import title_wordmark
     doc = Document("openq4.title")
     doc.state.update({
         "menu_continue": {"type": "boolean", "initial": False},
@@ -971,7 +974,7 @@ def title_document() -> dict:
     doc.session("credits", "credits")
     doc.session("quit", "quit")
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200,
-                              dim=(("wordmark", "image-color", colour([1, 1, 1, 1]), colour([0.4, 0.4, 0.4, 1])),))
+                              dim=(("wordmark", "opacity", number(1), number(0.4)),))
     doc.events["onBack"] = [{"op": "call", "event": "exitModalShow"}]
 
     # The message line at 44,364 u explains the focused item (section 13.7):
@@ -1013,8 +1016,7 @@ def title_document() -> dict:
     stage = group("home-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2),
                                  "opacity": number(1)}, [
         emblem(doc),
-        picture("wordmark", "gfx/guis/mainmenu/q4text", {**absolute(left=U * 6, top=U * 119, width=U * 376, height=U * 92),
-                                                          "image-blend": keyword("additive"), "image-color": colour([1, 1, 1, 1])}, fit="fill"),
+        title_wordmark(),
     ])
     content = group("home", {**FULL, "transform": transform(), "opacity": number(1)}, [
         group("home-content", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}, [
@@ -1035,7 +1037,7 @@ def title_document() -> dict:
         exit_modal,
         group("fade", {**FULL, "background-color": colour([0, 0, 0, 0]), "pointer-events": keyword("none")}),
     ])
-    band_motion(doc, "band", "home", [("wordmark", "image-color", colour([1, 1, 1, 1]), colour([1, 1, 1, 0])),
+    band_motion(doc, "band", "home", [("wordmark", "opacity", number(1), number(0)),
                                       ("home-stage", "opacity", number(1), number(0))], quick=("plinth",))
     hide_carry_at_home(doc)
     return doc.build(root)
@@ -2772,10 +2774,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus live in their own module, which builds on this one.
+    # The multiplayer menus and the initializing screen live in their own
+    # modules, which build on this one.
+    from retained_initializing import initializing_document
     from retained_mp_menus import escape_document, welcome_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
-                 "loading": loading_document(),
+                 "loading": loading_document(), "initializing": initializing_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
