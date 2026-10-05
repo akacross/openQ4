@@ -913,7 +913,8 @@ if build_engine or get_option('build_native_tests')
              meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weaponwheel_mp.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/loadgame.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/savegame.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/restartlevel.q4ui'], timeout: 120)
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/restartlevel.q4ui',
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/newcampaign.q4ui'], timeout: 120)
     openq4_ui_value_schema_test = executable(
       'openq4-ui-value-schema-test',
       files('tools/tests/native/UiValueControlSchemaTest.cpp'),

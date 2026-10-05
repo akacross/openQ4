@@ -184,6 +184,10 @@ RESTART LEVEL on the Marine pause opens the retained
 [Restart Level page](../ui/retained-screens.md#restart-level-page): the
 difficulty plates beside their description and the enlarged primary plate of
 the stock New Game layout.
+Accepting a campaign on the Campaign sub-page opens the retained
+[New Campaign page](../ui/retained-screens.md#new-campaign-page), the same
+choice with START GAME and TURBO MODE as Campaign's sibling sub-page, with
+page.leave and page.enter between the two.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

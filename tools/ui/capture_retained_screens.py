@@ -400,7 +400,32 @@ SCENARIOS = {
         'openq4_retainedGui report', 'screenshot "screenshots/savegame-empty.tga"',
         'openq4_retainedGui number begin "save-name"', 'waitMsec 300', 'screenshot "screenshots/savegame-empty-editing.tga"',
     ]),
-    # The Restart Level page (FLOW-050): the pause's RESTART LEVEL hands off to
+    # Campaign's New Campaign (FLOW-050): QUAKE 4 on the Campaign sub-page
+    # plays page.leave, and New Campaign presents at 140 ms and arrives from
+    # the trailing edge at CORPORAL with turbo mode off. A plate chooses and
+    # TURBO MODE toggles on the page; Back returns to Campaign from the
+    # leading edge, and the page reopens reset; START GAME starts the campaign
+    # at the choice.
+    'newcampaign': (None, [
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus campaign', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1000', 'screenshot "screenshots/newcampaign-campaigns.tga"',
+        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 100', 'screenshot "screenshots/newcampaign-change.tga"', 'waitMsec 900', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/newcampaign.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'openq4_retainedGui focus newgame_turbo', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/newcampaign-chosen.tga"',
+        'openq4_retainedGui focus newgame_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/newcampaign-back.tga"', 'waitMsec 800', 'openq4_retainedGui report',
+        'screenshot "screenshots/newcampaign-returned.tga"',
+        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1000', 'screenshot "screenshots/newcampaign-reopened.tga"',
+        'openq4_retainedGui focus "skill-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'openq4_retainedGui focus newgame_start', 'waitMsec 300', 'screenshot "screenshots/newcampaign-start.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
+        'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
+    ]),
+    # The Restart Level page (FLOW-001): the pause's RESTART LEVEL hands off to
     # it at the level's difficulty. A plate chooses another, which the page
     # lights and describes; Back leaves the difficulty as it was, so the page
     # reopens at the level's; RESTART LEVEL restarts the level at the choice.

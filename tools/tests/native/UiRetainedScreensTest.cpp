@@ -150,7 +150,7 @@ static void CheckSchema() {
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
-	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
+	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -1834,8 +1834,148 @@ static void CheckRestartPage(ScreenHost& host, const char* path) {
 	Check(runtime.CanActivateControl("restart_go",3.2) && runtime.CanActivateControl("restart_back",3.2),"RESTART LEVEL and BACK are live");
 }
 
+// Campaign's New Campaign, its sibling sub-page (section 9 "New game",
+// FLOW-050): the stock composition with TURBO MODE, the sub-page state it
+// shares with Campaign, and page.leave and page.enter between the two, whose
+// arrivals never show a page at rest on their first frame.
+static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const char* path) {
+	const auto source = Read(path), campaignsSource = Read(campaignsPath);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.newcampaign" && document.Model().canvasHeight == 720,"the New Campaign page validates");
+	CheckSessionActions(document);
+	const auto start = document.Model().actions.find("start"), back = document.Model().actions.find("back");
+	Check(start != document.Model().actions.end() && std::get<std::string>(start->second.arguments.at("command").literal) == "newgameStart" &&
+		back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "newgameBack",
+		"START GAME and BACK ask the session");
+	Runtime page(host), campaigns(host);
+	Check(page.Initialize() && page.LoadDocument(source,"guis/menu/newcampaign.q4ui",diagnostics) &&
+		campaigns.Initialize() && campaigns.LoadDocument(campaignsSource,"guis/menu/campaigns.q4ui",diagnostics),"both sub-pages load into runtimes");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto value = [](Runtime& runtime, const char* node, const char* property, size_t index) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = page.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const float tight = .002f;
+	// It waits hidden, so that an arrival never shows it at rest first.
+	Check(page.SetState({{"newgame.skill",1.0},{"newgame.turbo",false},{"newgame.awakening",false}},error,0),"the session resets the page");
+	page.Frame(viewport,1);
+	Check(Near(value(page,"content","opacity",0),0,tight) && Near(value(page,"title","color",3),0,tight) &&
+		Near(value(page,"back-stage","opacity",0),0,tight) && Near(value(page,"newgame-backing","opacity",0),0,tight),"the page waits hidden");
+	// page.enter from the trailing edge: from 12 dp and nothing to rest over 220 ms.
+	Check(page.RunEvent("onActivate",2,effects,error),"the page arrives");
+	page.Frame(viewport,2);
+	Check(Near(value(page,"content","opacity",0),0,tight) && Near(value(page,"title","color",3),0,tight),"its first frame shows nothing at rest");
+	page.Frame(viewport,2.05);
+	const float entering = value(page,"content","transform",0), enteringAlpha = value(page,"content","opacity",0);
+	Check(entering > .1f && entering < 11.9f && enteringAlpha > .01f && enteringAlpha < .99f,"it slides in from the trailing edge as it fades in");
+	page.Frame(viewport,2.23);
+	Check(Near(value(page,"content","opacity",0),1,tight) && Near(value(page,"content","transform",0),0,.01f) &&
+		Near(value(page,"title","color",3),.5f,tight) && Near(value(page,"title","transform",0),0,.01f) &&
+		Near(value(page,"back-stage","opacity",0),1,tight) && Near(value(page,"newgame-backing","opacity",0),1,tight),
+		"by 220 ms it is at rest with its title, backing and BACK");
+	Check(page.FocusedControl() == "skill-1","CORPORAL, the reset choice, has focus");
+	// The stock layout on the 4:3 canvas (x = 160 dp at 1280x720; 1 u = 1.5 dp).
+	const float x0 = 160, u = 1.5f;
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(page.GetBounds(id,b),"a page node is laid out"); return b; };
+	const auto first = bounds("skill-0"), primary = bounds("newgame_start"), turbo = bounds("newgame_turbo"), title = bounds("title"),
+		turboValue = bounds("newgame_turbo-off"), description = bounds("newgame-description");
+	Check(Near(first.x,x0+21*u) && Near(first.y,172*u),"the difficulty plates keep the stock place");
+	Check(Near(description.x,x0+239*u) && Near(description.y,181*u),"the description stands at 239,181 u");
+	Check(Near(primary.x,x0+237*u) && Near(primary.y,222*u) && Near(primary.width,356*u) && Near(primary.height,43*u),
+		"START GAME is the stock 356x43 u primary plate at 237,222 u");
+	Check(Near(turbo.x,x0+237*u) && Near(turbo.y,272*u) && Near(turbo.width,356*u) && Near(turbo.height,43*u),"TURBO MODE stands under it at 237,272 u");
+	Check(Near(turboValue.x,x0+489*u) && Near(turboValue.y,280*u),"its value stands at 489,280 u");
+	Check(Near(title.x,x0+136*u,1) && Near(title.y,19*u,1),"the campaign's name titles the page at the step's foot");
+	// The sub-page state it shares with Campaign: the bands, the crumb and the
+	// title slot never move between the two.
+	Check(campaigns.RunEvent("onActivate",1,effects,error),"Campaign arrives");
+	campaigns.Frame(viewport,1.2);
+	Bounds campaignTitle;
+	Check(campaigns.GetBounds("title",campaignTitle) && Near(campaignTitle.x,title.x,.01f) && Near(campaignTitle.y,title.y,.01f),"both titles share the slot");
+	for (const char* node : {"band-top","band-bottom","crumb"})
+		for (size_t index = 0; index < 4; ++index)
+			Check(Near(value(page,node,"transform",index),value(campaigns,node,"transform",index),.01f),"the bands and the crumb hold between the siblings");
+	Check(text("crumb","text") == "#str_42000" && text("title","text") == "#str_230039","SINGLE PLAYER is the crumb, QUAKE 4 the title");
+	Check(page.SetState({{"newgame.awakening",true}},error,2.3),"the Awakening");
+	page.Frame(viewport,2.31);
+	Check(text("title","text") == "#str_230040","THE AWAKENING titles its page");
+	// TURBO MODE: OFF, then ON in orange; nothing reaches the session.
+	Check(text("newgame_turbo-off","display") == "block" && text("newgame_turbo-on","display") == "none","turbo mode starts off");
+	Check(page.RunEvent("toggleTurbo",2.4,effects,error) && effects.actions.empty() && effects.stateChanges.count("newgame.turbo") &&
+		std::get<bool>(effects.stateChanges.at("newgame.turbo")),"TURBO MODE toggles it on the page");
+	page.Frame(viewport,2.41);
+	const auto orange = page.PresentedValue("newgame_turbo-on","color");
+	Check(text("newgame_turbo-on","display") == "block" && text("newgame_turbo-off","display") == "none" && orange &&
+		Near(static_cast<float>(orange->data[0]),.89f,.01f) && Near(static_cast<float>(orange->data[1]),.537f,.01f),"ON shows in orange");
+	Check(page.RunEvent("toggleTurbo",2.42,effects,error) && !std::get<bool>(effects.stateChanges.at("newgame.turbo")),"and toggles back off");
+	Check(page.RunEvent("chooseSkill3",2.5,effects,error) && effects.actions.empty(),"choosing a difficulty keeps it on the page");
+	page.Frame(viewport,2.51);
+	Check(text("skill-3-plate-lit","display") == "block" && text("skill-1-plate-lit","display") == "none" &&
+		text("newgame-description","text") == "#str_200185","the choice is lit and described");
+	Check(page.CanActivateControl("newgame_start",2.6) && page.CanActivateControl("newgame_turbo",2.6) && page.CanActivateControl("newgame_back",2.6),
+		"START GAME, TURBO MODE and BACK are live");
+	// Back: page.leave toward the trailing edge, 8 dp and out over 140 ms.
+	Check(page.RunEvent("siblingLeaveBack",3,effects,error),"Back leaves");
+	page.Frame(viewport,3.07);
+	const float leaving = value(page,"content","transform",0);
+	Check(leaving > .1f && leaving < 7.9f && value(page,"content","opacity",0) < .99f,"it departs toward the trailing edge");
+	page.Frame(viewport,3.14);
+	Check(Near(value(page,"content","transform",0),8,.01f) && Near(value(page,"content","opacity",0),0,tight) &&
+		Near(value(page,"title","color",3),0,tight) && Near(value(page,"back-stage","opacity",0),0,tight),"by 140 ms it is gone");
+	Check(page.RunEvent("onDeactivate",3.2,effects,error),"the page leaves the screen");
+	page.Frame(viewport,3.21);
+	Check(Near(value(page,"content","transform",0),0,.01f) && Near(value(page,"content","opacity",0),0,tight),"hidden, it waits at rest and out");
+	// Campaign: page.leave toward the leading edge on Accept, then out while away.
+	Check(campaigns.RunEvent("siblingLeave",4,effects,error),"a campaign accepted");
+	campaigns.Frame(viewport,4.07);
+	const float departing = value(campaigns,"content","transform",0);
+	Check(departing < -.1f && departing > -7.9f,"Campaign departs toward the leading edge");
+	campaigns.Frame(viewport,4.14);
+	Check(Near(value(campaigns,"content","transform",0),-8,.01f) && Near(value(campaigns,"content","opacity",0),0,tight) &&
+		Near(value(campaigns,"title","color",3),0,tight) && Near(value(campaigns,"prompts","opacity",0),0,tight),"by 140 ms Campaign is gone");
+	Check(campaigns.RunEvent("onDeactivate",4.2,effects,error),"Campaign leaves the screen");
+	campaigns.Frame(viewport,4.21);
+	Check(Near(value(campaigns,"content","transform",0),0,.01f) && Near(value(campaigns,"content","opacity",0),0,tight) &&
+		Near(value(campaigns,"title","color",3),0,tight) && Near(value(campaigns,"prompts","opacity",0),0,tight),"away, it waits at rest and out");
+	// Back from New Campaign: page.enter from the leading edge, onto the
+	// campaign that led there.
+	Check(campaigns.SetState({{"sibling_back",true},{"awakening_chosen",true},{"awakening_ready",true}},error,5),"the session asks for the return");
+	Check(campaigns.RunEvent("onActivate",5,effects,error),"Campaign returns");
+	campaigns.Frame(viewport,5);
+	Check(Near(value(campaigns,"content","opacity",0),0,tight) && Near(value(campaigns,"title","color",3),0,tight) &&
+		Near(value(campaigns,"prompts","opacity",0),0,tight),"its first frame shows nothing at rest");
+	campaigns.Frame(viewport,5.05);
+	const float returning = value(campaigns,"content","transform",0);
+	Check(returning < -.1f && returning > -11.9f,"it slides in from the leading edge");
+	campaigns.Frame(viewport,5.23);
+	Check(Near(value(campaigns,"content","opacity",0),1,tight) && Near(value(campaigns,"content","transform",0),0,.01f) &&
+		Near(value(campaigns,"title","color",3),.5f,tight) && Near(value(campaigns,"prompts","opacity",0),1,tight) &&
+		Near(value(campaigns,"details","opacity",0),1,tight),"by 220 ms Campaign is at rest");
+	Check(campaigns.FocusedControl() == "awakening","the campaign that led there has focus");
+	// Away again, then presented from Single Player: at once, as ever.
+	Check(campaigns.RunEvent("siblingLeave",6,effects,error) && campaigns.RunEvent("onDeactivate",6.2,effects,error),"away again");
+	Check(campaigns.RunEvent("onActivate",7,effects,error),"Campaign arrives from Single Player");
+	campaigns.Frame(viewport,7.01);
+	Check(Near(value(campaigns,"content","opacity",0),1,tight) && Near(value(campaigns,"title","color",3),.5f,tight) &&
+		Near(value(campaigns,"prompts","opacity",0),1,tight) && Near(value(campaigns,"content","transform",0),0,.01f),
+		"its plates, title and prompts show at once");
+	// Reduced motion: the arrival fades in within 80 ms and never moves.
+	page.SetReducedMotion(true,8);
+	Check(page.RunEvent("onActivate",8,effects,error),"the page arrives with reduced motion");
+	page.Frame(viewport,8.04);
+	const float half = value(page,"content","opacity",0);
+	Check(half > .01f && half < .99f && Near(value(page,"content","transform",0),0,.01f),"it fades in place");
+	page.Frame(viewport,8.09);
+	Check(Near(value(page,"content","opacity",0),1,tight),"within 80 ms");
+	page.SetReducedMotion(false,8.2);
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 16,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui");
+	Check(argc == 17,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2931,6 +3071,7 @@ int main(int argc, char** argv) {
 	CheckLoadPage(host,argv[13]);
 	CheckSavePage(host,argv[14]);
 	CheckRestartPage(host,argv[15]);
+	CheckNewCampaign(host,argv[6],argv[16]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

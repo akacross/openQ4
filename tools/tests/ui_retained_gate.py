@@ -119,6 +119,7 @@ struct CVarSystem {
     const char* GetCVarString(const char* name) const { const auto found = strings.find(name); return found == strings.end() ? "" : found->second.c_str(); }
     bool GetCVarBool(const char* name) const { return std::string(GetCVarString(name)) == "1"; }
     int GetCVarInteger(const char* name) const { return std::atoi(GetCVarString(name)); }
+    void SetCVarInteger(const char* name, int value) { strings[name] = std::to_string(value); }
 } cvarSystemObject, *cvarSystem = &cvarSystemObject;
 struct FileSystem {
     std::set<std::string> files;
@@ -136,8 +137,13 @@ struct FileSystem {
         std::snprintf(buffer, length, "%s", found == screenshots.end() ? "gfx/guis/loadscreens/generic.tga" : found->second.c_str());
     }
     idCampaignContentInfo GetAwakeningContentInfo() { return {}; }
+    std::string activeGameDir = "baseoq4";
+    const char* GetActiveGameDir() const { return activeGameDir.c_str(); }
 } fileSystemObject, *fileSystem = &fileSystemObject;
-struct ArenaCampaign { int selectors = 0; void OpenSelector() { ++selectors; } } arenaCampaign;
+struct ArenaCampaign {
+    int selectors = 0; void OpenSelector() { ++selectors; }
+    std::vector<std::string> commands; bool HandleGuiCommand(const char* command) { commands.push_back(command); return true; }
+} arenaCampaign;
 struct idDict {
     std::map<std::string, std::string> values;
     const char* GetString(const char* key, const char* fallback = "") const { const auto found = values.find(key); return found == values.end() ? fallback : found->second.c_str(); }
@@ -281,9 +287,14 @@ public:
     ID_TIME_T retainedNewestSave = 0;
     idUserInterface* guiRetainedReleasing = nullptr; int retainedReleaseUntil = 0;
     idUserInterface* retainedSubpageFrom = nullptr; bool retainedSubpageDeeper = false; int retainedSubpageBegan = 0, retainedSubpageUntil = 0;
+    bool retainedSubpageSibling = false;
     idUserInterface* guiLoading = nullptr; bool retainedLoadingActive = false;
     int retainedLoadingTip = -1, retainedLoadingTipSlot = 0, retainedLoadingTipAt = 0; void PublishRetainedLoadingTip(bool);
     void BeginRetainedSubpage(idUserInterface*, bool); void UpdateRetainedSubpage(); bool RetainedSubpageEvent(const sysEvent_t*);
+    // Campaign's New Campaign sub-page; the maps a new game started on.
+    bool OpenRetainedNewCampaign(const char*); void BeginRetainedSibling(idUserInterface*, bool); void PresentRetainedSibling(bool);
+    void StartRetainedNewCampaign(idUserInterface*);
+    std::vector<std::string> started; void StartNewGame(const char* map) { started.push_back(map); }
     bool retainedHomeReturning = false;
     idStrList retainedStock;
     int retainedHandoffUntil = 0;
@@ -341,7 +352,7 @@ public:
     idStr RetainedPauseShot(const char*) const;
     void UpdateRetainedHome(); bool RetainedHomeInputBlocked() const; void RetainedHomeFrameEvent();
     void HandleRetainedSessionRequest(idUserInterface*, const char*);
-    void OpenCampaignSelector(bool);
+    void OpenCampaignSelector(bool, bool = false);
     std::vector<std::string> selected; int menus = 0;
     void SelectCampaign(const char* campaign) { selected.push_back(campaign); }
     void StartMenu() { ++menus; guiActive = guiMainMenu; }
@@ -369,7 +380,8 @@ public:
 MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
-    "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui"};
+    "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
+    "guis/menu/newcampaign.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -379,6 +391,7 @@ static idSessionLocal Session(bool gate, bool inGame = false) {
     legacyActionAvailable = true; preview = false; ui_retained.value = gate; ui_retainedSystem.value = false; ui_retainedMultiplayer.value = false;
     fileSystemObject.files = std::set<std::string>(std::begin(DOCUMENTS), std::end(DOCUMENTS)); arenaCampaign = ArenaCampaign{};
     fileSystemObject.gameDirFiles.clear(); fileSystemObject.opens = fileSystemObject.closes = 0; cvarSystemObject = CVarSystem{};
+    fileSystemObject.activeGameDir = "baseoq4";
     legacyMissing.clear(); reloaded.clear(); describedShot = "savegames/quick.tga"; mapDecls.clear(); fileSystemObject.screenshots.clear();
     saveSlots.clear(); driveSpace = 1000;
     gameObject = Game{};
@@ -872,6 +885,76 @@ int main() {
         fileSystemObject.files.erase("guis/menu/campaigns.q4ui");
         stock.HandleRetainedSessionRequest(alone, "campaigns");
         CHECK(std::string(stock.guiActive->Name()) == "guis/campaign_menu.gui" && stock.retainedSubpageFrom == nullptr && alone->named.empty());
+    }
+    {   // Campaign's New Campaign, its sibling sub-page (FLOW-050): the leaving one
+        // plays page.leave, the other presents at 140 ms, input waits for it and
+        // the change is too short to reverse. Each arrival starts at CORPORAL
+        // with turbo off, titled with the campaign.
+        auto s = Session(true); s.OpenCampaignSelector(true); auto* campaigns = s.guiActive;
+        CHECK(campaigns->state["sibling_back"] == "0" && campaigns->state["awakening_chosen"] == "0");
+        CHECK(s.OpenRetainedNewCampaign("awakening") && s.guiActive == campaigns && campaigns->named.back() == "siblingLeave");
+        CHECK(s.retainedSubpageFrom == campaigns && s.retainedSubpageDeeper && s.retainedSubpageSibling &&
+              s.retainedSubpageUntil == commonObject.time + 140 && s.played.back() == "play main_menu_selection");
+        s.HandleRetainedSessionRequest(campaigns, "campaignQuake4"); CHECK(s.selected.empty());  // no second request mid-change
+        sysEvent_t back; back.evType = SE_KEY; back.evValue = K_ESCAPE; back.evValue2 = 1;
+        CHECK(s.RetainedSubpageEvent(&back) && s.retainedSubpageFrom == campaigns && campaigns->named.back() == "siblingLeave");
+        commonObject.time += 139; s.UpdateRetainedSubpage(); CHECK(s.guiActive == campaigns);
+        commonObject.time += 1; s.UpdateRetainedSubpage(); auto* page = s.guiActive;
+        CHECK(page && std::string(page->Name()) == "guis/menu/newcampaign.q4ui" && s.retainedSubpageFrom == nullptr && !s.retainedSubpageSibling);
+        CHECK(page->state["newgame.skill"] == "1" && page->state["newgame.turbo"] == "0" && page->state["newgame.awakening"] == "1");
+        CHECK(!s.RetainedSubpageEvent(&back));  // the page takes input again
+        // Back: page.leave back, and Campaign returns at 140 ms (sibling_back) on
+        // the campaign that led there.
+        fileSystemObject.activeGameDir = "q4xbase";
+        s.HandleRetainedSessionRequest(page, "newgameBack");
+        CHECK(s.guiActive == page && page->named.back() == "siblingLeaveBack" && s.retainedSubpageFrom == page &&
+              !s.retainedSubpageDeeper && s.retainedSubpageSibling && s.retainedSubpageUntil == commonObject.time + 140);
+        commonObject.time += 140; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == campaigns && campaigns->state["sibling_back"] == "1" && campaigns->state["awakening_chosen"] == "1");
+        // START GAME: the active campaign's first map at the choice, then the game.
+        CHECK(s.OpenRetainedNewCampaign("awakening")); commonObject.time += 140; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == page && page->state["newgame.skill"] == "1" && page->state["newgame.turbo"] == "0");
+        page->state["newgame.skill"] = "3"; page->state["newgame.turbo"] = "1";
+        s.HandleRetainedSessionRequest(page, "newgameStart");
+        CHECK((s.started == std::vector<std::string>{"game/m01_stranarus_trench1"}) && cvarSystemObject.strings["g_skill"] == "3" &&
+              cvarSystemObject.strings["g_turboMode"] == "1" && s.exits == 1 && s.guiActive == nullptr);
+        fileSystemObject.activeGameDir = "baseoq4";
+        s.OpenCampaignSelector(true); CHECK(campaigns->state["sibling_back"] == "0" && campaigns->state["awakening_chosen"] == "0");
+        CHECK(s.OpenRetainedNewCampaign("quake4")); commonObject.time += 140; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == page && page->state["newgame.awakening"] == "0" && page->state["newgame.skill"] == "1");
+        page->state["newgame.skill"] = "9"; page->state["newgame.turbo"] = "0";
+        s.HandleRetainedSessionRequest(page, "newgameStart");
+        CHECK(s.started.back() == "game/airdefense1" && cvarSystemObject.strings["g_skill"] == "4" &&
+              cvarSystemObject.strings["g_turboMode"] == "0" && s.exits == 2);
+        // Reduced motion hands over at once: the arrival's 80 ms fade is the change.
+        auto r = Session(true); r.OpenCampaignSelector(true); auto* sub = r.guiActive;
+        cvarSystemObject.strings["ui_retainedReducedMotion"] = "1";
+        CHECK(r.OpenRetainedNewCampaign("quake4") && std::string(r.guiActive->Name()) == "guis/menu/newcampaign.q4ui" &&
+              r.retainedSubpageFrom == nullptr && sub->named.back() == "siblingLeave");
+        r.HandleRetainedSessionRequest(r.guiActive, "newgameBack");
+        CHECK(r.guiActive == sub && sub->state["sibling_back"] == "1" && r.retainedSubpageFrom == nullptr);
+        cvarSystemObject.strings["ui_retainedReducedMotion"] = "0";
+        // After the engine reloads into the campaign's game directory the page
+        // presents at once.
+        auto direct = Session(true);
+        CHECK(direct.OpenRetainedNewCampaign("awakening") && direct.guiActive &&
+              std::string(direct.guiActive->Name()) == "guis/menu/newcampaign.q4ui" && direct.retainedSubpageFrom == nullptr);
+        // Anything else taking the screen abandons the change.
+        auto abandon = Session(true); abandon.OpenCampaignSelector(true);
+        CHECK(abandon.OpenRetainedNewCampaign("quake4"));
+        idUserInterface other("guis/msg.gui"); abandon.guiActive = &other; abandon.UpdateRetainedSubpage();
+        CHECK(abandon.retainedSubpageFrom == nullptr && !abandon.retainedSubpageSibling && abandon.guiActive == &other);
+        // A page that stops loading by the hand-over: the stock difficulty page.
+        auto vanish = Session(true); vanish.OpenCampaignSelector(true);
+        CHECK(vanish.OpenRetainedNewCampaign("quake4")); managerObject.fail = true;
+        commonObject.time += 140; vanish.UpdateRetainedSubpage();
+        CHECK(vanish.menus == 1 && (arenaCampaign.commands == std::vector<std::string>{"arenaMissionOpen"}));
+        managerObject.fail = false;
+        // Not installed, or with the gate off: the stock difficulty page, untouched.
+        auto stock = Session(true); fileSystemObject.files.erase("guis/menu/newcampaign.q4ui");
+        stock.OpenCampaignSelector(true); auto* alone = stock.guiActive;
+        CHECK(!stock.OpenRetainedNewCampaign("quake4") && stock.guiActive == alone && alone->named.empty());
+        auto off = Session(false); CHECK(!off.OpenRetainedNewCampaign("quake4") && managerObject.loads.empty());
     }
     {   // The gate alone includes the SYSTEM page only once it lacks no stock setting and
         // each one works there; ui_retainedSystem opts into it until it falls back.
@@ -2905,7 +2988,7 @@ def main() -> int:
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
-                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui'}
+                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3102,7 +3185,9 @@ def main() -> int:
         'bool idSessionLocal::RetainedPauseIsStrogg(', 'void idSessionLocal::RetainedHomeFrameEvent(',
         'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
         'void idSessionLocal::BeginRetainedSubpage(', 'void idSessionLocal::UpdateRetainedSubpage(',
-        'bool idSessionLocal::RetainedSubpageEvent(',
+        'bool idSessionLocal::RetainedSubpageEvent(', 'bool idSessionLocal::OpenRetainedNewCampaign(',
+        'void idSessionLocal::BeginRetainedSibling(', 'void idSessionLocal::PresentRetainedSibling(',
+        'void idSessionLocal::StartRetainedNewCampaign(',
         'bool idSessionLocal::BeginRetainedPage(', 'void idSessionLocal::UpdateRetainedPage(', 'void idSessionLocal::ReturnRetainedPage(',
         'static const char *Session_LoadFailureText(', 'void idSessionLocal::PublishRetainedLoadPage(',
         'void idSessionLocal::PublishRetainedLoadRows(', 'void idSessionLocal::PublishRetainedLoadSave(',

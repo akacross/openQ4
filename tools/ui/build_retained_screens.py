@@ -41,6 +41,7 @@ OUTPUTS = {
     "weaponwheel_mp": PAK0 / "guis" / "hud" / "weaponwheel_mp.q4ui",
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
+    "newcampaign": PAK0 / "guis" / "menu" / "newcampaign.q4ui",
     "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
     "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
     "restartlevel": PAK0 / "guis" / "menu" / "restartlevel.q4ui",
@@ -1189,6 +1190,40 @@ def by_language(doc: Document, prefix: str, fits: dict) -> list:
     return steps
 
 
+PAGE_LEAVE_MS, PAGE_LEAVE_DP, PAGE_LEAVE_EASE = 140, 8.0, [0.4, 0, 1, 1]   # page.leave (section 8)
+PAGE_ENTER_MS, PAGE_ENTER_DP = 220, 12.0                                   # page.enter, EASE_OUT
+
+
+def sibling_motion(doc: Document, parts: list, later: bool) -> None:
+    """page.leave and page.enter between sibling pages of one screen (section
+    8): the session plays a departure on the leaving page and presents the
+    other at 140 ms, whose arrival plays at once. `parts` lists (node,
+    property, shown, hidden, slides): each fades between its two values, and
+    those that slide move with it. The bands and the crumb, which siblings
+    share, never move. The earlier sibling leaves toward the leading edge and
+    comes back from it (siblingLeave, siblingEnterBack); the later one arrives
+    from the trailing edge and leaves back toward it (siblingEnter,
+    siblingLeaveBack):
+    leaving   8 dp and out over 140 ms, cubic (0.4, 0, 1, 1), from wherever
+              each part stands;
+    arriving  from 12 dp and nothing to rest over 220 ms, cubic (0.16, 1,
+              0.3, 1). An arrival starts from the hidden values, which the
+              page must already hold so that its first frame never shows it
+              at rest."""
+    side = 1 if later else -1
+    leave, enter = ("siblingLeaveBack", "siblingEnter") if later else ("siblingLeave", "siblingEnterBack")
+    departed, start = transform(side * PAGE_LEAVE_DP, 0), transform(side * PAGE_ENTER_DP, 0)
+    leaving, arriving = [], []
+    for node, prop, shown, hidden, slides in parts:
+        leaving.append(track(node, prop, [(0, shown, PAGE_LEAVE_EASE), (PAGE_LEAVE_MS, hidden)]))
+        arriving.append(track(node, prop, [(0, hidden), (1, hidden, EASE_OUT), (PAGE_ENTER_MS, shown)]))
+        if slides:
+            leaving.append(track(node, "transform", [(0, transform(), PAGE_LEAVE_EASE), (PAGE_LEAVE_MS, departed)]))
+            arriving.append(track(node, "transform", [(0, start), (1, start, EASE_OUT), (PAGE_ENTER_MS, transform())]))
+    doc.timelines.add(leave, PAGE_LEAVE_MS, leaving)
+    doc.timelines.add(enter, PAGE_ENTER_MS, arriving)
+
+
 def campaign_document(campaigns: bool) -> dict:
     """Single Player page and Campaign sub-page, specification sections 8/9
     and the sub-page level of 1.10.
@@ -1220,7 +1255,14 @@ def campaign_document(campaigns: bool) -> dict:
                   150 ms with the bands docked and its title in the slot;
     subpageReverseN on the page, Back while it goes deeper: every part returns
                   from where it stands over N ms (150-300 ms, by the distance
-                  the band has stepped).
+                  the band has stepped);
+    siblingLeave  on the sub-page, a campaign accepted: page.leave toward
+                  New Campaign, its sibling, which presents at 140 ms; the
+                  sub-page then waits with its content, title and prompts out
+                  (restAway);
+    siblingEnterBack on the sub-page, Back from New Campaign (sibling_back):
+                  page.enter from the leading edge, the focus on the campaign
+                  that led there.
     Leaving the screen (onDeactivate) places a document at rest while it is
     hidden, so it is never seen moved when it next presents, and a change
     that was cut short never leaves it moved. Under reduced motion the
@@ -1302,10 +1344,15 @@ def campaign_document(campaigns: bool) -> dict:
     fits = crumb_fits(crumb_key)
     variants = [("", CRUMB_SCALE)] + [(f"-{language}", fit) for language, fit in fits.items()]
     # Every arrival: the plates at once, the backing fading in (content.in).
-    doc.timelines.add("arrive", 150, [
+    arrive = [
         track("content", "opacity", [(0, number(1)), (1, number(1)), (150, number(1))]),
         track("details", "opacity", [(0, number(0)), (1, number(0)), (150, number(1))]),
-    ])
+    ]
+    if campaigns:
+        # The title and prompts too, which New Campaign's start may have left out.
+        arrive += [track("title", "color", [(0, white(0.5)), (1, white(0.5)), (150, white(0.5))]),
+                   track("prompts", "opacity", [(0, number(1)), (1, number(1)), (150, number(1))])]
+    doc.timelines.add("arrive", 150, arrive)
     if campaigns:
         # Hidden, the sub-page waits in the sub-page state with its backing out.
         doc.timelines.add("rest", 1, [
@@ -1314,9 +1361,29 @@ def campaign_document(campaigns: bool) -> dict:
             track("content", "opacity", [(0, number(1)), (1, number(1))]),
             track("details", "opacity", [(0, number(0)), (1, number(0))]),
             track("title", "color", [(0, white(0.5)), (1, white(0.5))]),
+            track("title", "transform", [(0, identity), (1, identity)]),
+            track("prompts", "opacity", [(0, number(1)), (1, number(1))]),
             track("crumb", "color", [(0, white(0.4)), (1, white(0.4))]),
             track("crumb-clip", "width", [(0, length(U * CRUMB_SPAN)), (1, length(U * CRUMB_SPAN))]),
         ])
+        # New Campaign, its sibling (FLOW-050): page.leave on Accept, and
+        # page.enter on the way back. Left for it, the sub-page waits with its
+        # content, title and prompts out, so that the return starts from
+        # nothing; its backing snaps in under the arriving content.
+        sibling_motion(doc, [("content", "opacity", number(1), number(0), True),
+                             ("title", "color", white(0.5), white(0), True),
+                             ("prompts", "opacity", number(1), number(0), False)], later=False)
+        doc.timelines.add("restAway", 1, [
+            track("content", "opacity", [(0, number(0)), (1, number(0))]),
+            track("title", "color", [(0, white(0)), (1, white(0))]),
+            track("prompts", "opacity", [(0, number(0)), (1, number(0))]),
+        ])
+        doc.timelines.add("detailsIn", 1, [track("details", "opacity", [(0, number(1)), (1, number(1))])])
+        doc.state.update({"sibling_away": {"type": "boolean", "initial": False},
+                          "sibling_back": {"type": "boolean", "initial": False},
+                          "awakening_chosen": {"type": "boolean", "initial": False}})
+        doc.events["siblingLeave"] = [{"op": "setState", "values": {"sibling_away": True}},
+                                      {"op": "playTimeline", "timeline": "siblingLeave"}]
         doc.timelines.add("subpageLeave", 300, [
             track("title", "color", [(0, white(0)), (1, white(0)), (300, white(0))]),
             track("content", "transform", [(0, identity), (300, swept_left)]),
@@ -1331,8 +1398,22 @@ def campaign_document(campaigns: bool) -> dict:
             fitted = crumb_transform(scale)
             doc.timelines.add(f"crumbRest{suffix}", 1, [track("crumb", "transform", [(0, fitted), (1, fitted)])])
             doc.timelines.add(f"crumbReturn{suffix}", 300, [track("crumb", "transform", [(0, fitted), (150, fitted), (300, identity)])])
-        doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits)]
-        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}, *by_language(doc, "crumbRest", fits)]
+        doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits),
+                                      {"op": "if", "condition": {"state": "sibling_away"},
+                                       "then": [{"op": "playTimeline", "timeline": "restAway"}]}]
+        # Back from New Campaign (the session sets sibling_back first) comes in
+        # from the leading edge onto the campaign that led there; every other
+        # arrival shows the sub-page at once.
+        doc.events["onActivate"] = [
+            *by_language(doc, "crumbRest", fits),
+            {"op": "setState", "values": {"sibling_away": False}},
+            {"op": "if", "condition": {"state": "sibling_back"},
+             "then": [{"op": "setState", "values": {"sibling_back": False}},
+                      {"op": "playTimeline", "timeline": "siblingEnterBack"}, {"op": "playTimeline", "timeline": "detailsIn"},
+                      {"op": "focus", "control": "quake4"},
+                      {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}],
+             "else": [{"op": "playTimeline", "timeline": "arrive"}]},
+        ]
         doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
     else:
         start = {"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
@@ -2810,20 +2891,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus, the Load and Save Game pages, the Restart Level
-    # page and the initializing screen live in their own modules, which build
-    # on this one.
+    # The multiplayer menus, the Load and Save Game pages, the difficulty
+    # choice (Restart Level and New Campaign) and the initializing screen live
+    # in their own modules, which build on this one.
     from retained_initializing import initializing_document
     from retained_weapon_wheel import weapon_wheel_document
     from retained_weapon_wheel_strogg import weapon_wheel_strogg_document
     from retained_mp_menus import escape_document, welcome_document
     from retained_saves import load_game_document, save_game_document
-    from retained_difficulty import restart_level_document
+    from retained_difficulty import new_campaign_document, restart_level_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
                  "weaponwheel_mp": weapon_wheel_document(multiplayer=True),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
+                 "newcampaign": new_campaign_document(),
                  "loadgame": load_game_document(), "savegame": save_game_document(), "restartlevel": restart_level_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []

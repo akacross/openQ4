@@ -874,6 +874,11 @@
   press RESTART LEVEL; Back keeps the difficulty you were playing. Set
   `ui_retained 0` for the classic page.
 
+- Choosing a campaign under SINGLE PLAYER now slides on to a rebuilt New
+  Campaign page: the five difficulties with their descriptions, START GAME
+  and TURBO MODE. Back slides you back to the campaign list. Set
+  `ui_retained 0` for the classic page.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -209,7 +209,7 @@ public:
 	virtual void		ExitMenu();
 	virtual void		GuiFrameEvents();
 	virtual void		SetGUI( idUserInterface *gui, HandleGuiCommand_t handle );
-	void OpenCampaignSelector( bool campaigns );
+	void OpenCampaignSelector( bool campaigns, bool siblingBack = false );
 	void SelectCampaign( const char *campaign, bool start = false );
 	bool				OpenSystemSettings();
 	bool				ReturnSystemSettings();
@@ -285,6 +285,12 @@ public:
 	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
+	// Campaign's New Campaign sub-page (guis/menu/newcampaign.q4ui), the
+	// Campaign sub-page's sibling, and the change between the two.
+	bool				OpenRetainedNewCampaign( const char *campaign );
+	void				BeginRetainedSibling( idUserInterface *gui, bool forward );
+	void				PresentRetainedSibling( bool forward );
+	void				StartRetainedNewCampaign( idUserInterface *gui );
 	// The retained Load Game page (guis/menu/loadgame.q4ui): LOAD GAME on the
 	// title and the Marine pause hands off to it as to a stock page.
 	bool				BeginRetainedPage( const char *request );
@@ -513,6 +519,7 @@ public:
 	bool				retainedSubpageDeeper;	// going to the sub-page, or back to the page
 	int					retainedSubpageBegan;	// presentation time the change began
 	int					retainedSubpageUntil;	// presentation time of the hand-over
+	bool				retainedSubpageSibling;	// between Campaign and New Campaign, its sibling
 	bool				retainedHomeReturning;
 	// The Load Game page: its document (NULL until it first loads), the home
 	// that handed off to it, a hand-off presenting it and when, whether the

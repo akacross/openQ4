@@ -1,5 +1,6 @@
 """The retained difficulty choice (docs/dev/ui-visual-design.md sections 9 and
-13.7): the Marine pause's Restart Level page.
+13.7): the Marine pause's Restart Level page and Campaign's New Campaign
+sub-page.
 
 Built by tools/ui/build_retained_screens.py, which writes and checks it with
 the other retained screens. Section 9 "New game": difficulty choices use
@@ -17,12 +18,20 @@ content over the departed pause, whose carried label is the page's title. The
 choice stays on the page until RESTART LEVEL restarts the level at it
 (RestartLevelAtSkill), so Back changes nothing. The in-game page offers no
 turbo mode, as the stock one hid it.
+
+Accepting a campaign on the Campaign sub-page opens newcampaign.q4ui, the
+same choice as Campaign's sibling sub-page (FLOW-050) with START GAME and
+the TURBO MODE plate of openQ4's stock page under it
+(idSessionLocal::OpenRetainedNewCampaign).
 """
 from __future__ import annotations
 
-from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, U, Document, absolute, action_plate,
-                                    colour, font, group, keyword, label, length, linear, marker_path, number, path, rgb, solid,
-                                    stroke, text_width, track, transform, typeface, vector)
+from build_retained_screens import (BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SLOT, CRUMB_SPAN, FULL, LANGUAGES, MARKER,
+                                    OLIVE, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_SUBPAGE, U,
+                                    Document, absolute, action_plate, by_language, colour, crumb_fits, crumb_transform, font,
+                                    framing_bands, group, keyword, label, length, linear, lit_field, marker_path, number,
+                                    page_title, path, rgb, sibling_motion, solid, stroke, text_width, track, transform,
+                                    typeface, vector)
 from retained_saves import backing, lines_needed, section_plate, table_text
 
 # The stock difficulties, easiest first (g_skill 0-4), with their descriptions.
@@ -174,4 +183,115 @@ def restart_level_document() -> dict:
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing("restart-backing"), stage])
+    return doc.build(root)
+
+
+# Campaign's New Campaign: TURBO MODE under START GAME (openQ4's stock page).
+TURBO = (237.0, 272.0, 356.0, 43.0)            # new_bturbo (b6_light)
+TURBO_TEXT = 19.4                              # dp: Marine textscale 0.27
+TURBO_VALUE = (252.0, 8.0, 92.0, 25.0)         # new_t_turbo_value (489,280 u), from the plate's corner
+TURBO_VALUE_TEXT = 18.0                        # dp: Marine textscale 0.25
+
+
+def turbo_plate(doc: Document, ident: str, key: str) -> dict:
+    """TURBO MODE (new_bturbo): the primary plate's art and feedback, its
+    Marine label at textscale 0.27, and its value at the plate's trailing end,
+    ON in orange or OFF, as the stock turboCheck showed it. Accept toggles
+    `key`."""
+    plate = primary_plate(doc, ident, "#str_41119", *TURBO, event="toggleTurbo")
+    label_node = next(child for child in plate["children"] if child["id"] == f"{ident}-label")
+    label_node["properties"]["font-size"] = length(TURBO_TEXT)
+    x, y, width, height = TURBO_VALUE
+    on = {"state": key}
+    for suffix, text, tint, shown in (("on", "#str_41120", rgb(ORANGE), True), ("off", "#str_41121", [1, 1, 1, 0.8], False)):
+        ident_value = f"{ident}-{suffix}"
+        plate["children"].append(label(ident_value, text, {
+            **absolute(left=U * x, top=U * y, width=U * width, height=U * height),
+            **typeface("marine", TURBO_VALUE_TEXT, U * height, tint), "white-space": keyword("nowrap"),
+            "pointer-events": keyword("none"), "display": keyword("none" if shown else "block")}))
+        doc.bind(f"{ident_value}.display", ident_value, "display",
+                 {"op": "select", "args": [on, "block" if shown else "none", "none" if shown else "block"]})
+    doc.events["toggleTurbo"] = [{"op": "setState", "values": {key: {"op": "!", "args": [on]}}}]
+    return plate
+
+
+def check_new_campaign_fits() -> None:
+    lines = int(U * DESCRIPTION[3] // DESCRIPTION_LINE)
+    check_fits(tuple((name, "marine", 22.3, U * 186) for name, _ in DIFFICULTIES) +
+               (("#str_200020", "marine", PRIMARY_TEXT, U * PRIMARY_LABEL[2]),
+                ("#str_41119", "marine", TURBO_TEXT, U * PRIMARY_LABEL[2]),
+                ("#str_41120", "marine", TURBO_VALUE_TEXT, U * TURBO_VALUE[2]),
+                ("#str_41121", "marine", TURBO_VALUE_TEXT, U * TURBO_VALUE[2]),
+                ("#str_230039", "marine", 18, U * PAGE_TITLE_W), ("#str_230040", "marine", 18, U * PAGE_TITLE_W),
+                ("#str_200018", "marine", 20, U * 109 - 30)),
+               tuple((text, "lowpixel", DESCRIPTION_TEXT, U * DESCRIPTION[2], lines) for _, text in DIFFICULTIES))
+
+
+def new_campaign_document() -> dict:
+    """Campaign's New Campaign (section 9 "New game", FLOW-050): the
+    difficulty choice for the campaign the Campaign sub-page chose, START GAME
+    and TURBO MODE, as openQ4's stock page laid them out. It is the Campaign
+    sub-page's sibling and holds the sub-page state as it does: the top band
+    one notch on, the bottom band docked, SINGLE PLAYER as the crumb and the
+    campaign's name (newgame.awakening) as the title at the step's foot, with
+    the stock page's backing and BACK in the bottom band. The session plays
+    siblingLeave on Campaign and presents this at 140 ms; its activation
+    plays siblingEnter (page.enter from the trailing edge), and Back plays
+    siblingLeaveBack before Campaign returns. It waits hidden, so that an
+    arrival never shows it at rest first. Each arrival starts at CORPORAL
+    with turbo mode off, as the stock page did (the session resets both),
+    and START GAME starts the campaign at the choice."""
+    check_new_campaign_fits()
+    doc = Document("openq4.newcampaign")
+    doc.state.update({"newgame.skill": {"type": "number", "initial": 1}, "newgame.turbo": {"type": "boolean", "initial": False},
+                      "newgame.awakening": {"type": "boolean", "initial": False}})
+    doc.session("start", "newgameStart")
+    doc.session("back", "newgameBack")
+    doc.events["onBack"] = [{"op": "action", "action": "back"}]
+    plates = difficulty_plates(doc, "newgame.skill")
+    description = difficulty_description(doc, "newgame-description", "newgame.skill")
+    start = primary_plate(doc, "newgame_start", "#str_200020", *PRIMARY, action="start")
+    turbo = turbo_plate(doc, "newgame_turbo", "newgame.turbo")
+    back = action_plate(doc, "newgame_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
+    content = group("content", {**canvas, "transform": transform(), "opacity": number(0)}, [*plates, description, start, turbo])
+    bands = framing_bands("band")
+    bands[0]["properties"]["transform"] = transform(*TOP_TO_SUBPAGE)
+    bands[1]["properties"]["transform"] = transform(*BOTTOM_TO_PAGE)
+    # SINGLE PLAYER stays the crumb, as on Campaign, so the change never moves it.
+    crumb_key = "#str_42000"
+    fits = crumb_fits(crumb_key)
+    titles = group("titles", {**canvas, "pointer-events": keyword("none")}, [
+        group("crumb-clip", {**absolute(left=U * CRUMB_SLOT[0], top=0, width=U * CRUMB_SPAN, height=U * 40), "overflow": keyword("hidden")}, [
+            label("crumb", crumb_key, {**absolute(left=0, top=U * TITLE_SLOT[1], width=U * PAGE_TITLE_W, height=U * PAGE_TITLE_H),
+                                       **typeface("marine", 18, U * PAGE_TITLE_H, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"),
+                                       "transform": crumb_transform()})]),
+        page_title("title", "#str_230039", *SUBPAGE_SLOT, alpha=0),
+    ])
+    doc.bind("title.text", "title", "text", {"op": "select", "args": [{"state": "newgame.awakening"}, "#str_230040", "#str_230039"]})
+    backing_node = backing("newgame-backing")
+    backing_node["properties"]["opacity"] = number(0)
+    back_stage = group("back-stage", {**canvas, "opacity": number(0)}, [back])
+    shown, hidden = colour([1, 1, 1, 0.5]), colour([1, 1, 1, 0])
+    sibling_motion(doc, [("content", "opacity", number(1), number(0), True), ("title", "color", shown, hidden, True),
+                         ("back-stage", "opacity", number(1), number(0), False),
+                         ("newgame-backing", "opacity", number(1), number(0), False)], later=True)
+    for suffix, scale in [("", CRUMB_SCALE)] + [(f"-{language}", fit) for language, fit in fits.items()]:
+        fitted = crumb_transform(scale)
+        doc.timelines.add(f"crumbRest{suffix}", 1, [track("crumb", "transform", [(0, fitted), (1, fitted)])])
+    doc.timelines.add("rest", 1, [
+        track("content", "transform", [(0, transform()), (1, transform())]),
+        track("content", "opacity", [(0, number(0)), (1, number(0))]),
+        track("title", "transform", [(0, transform()), (1, transform())]),
+        track("title", "color", [(0, hidden), (1, hidden)]),
+        track("back-stage", "opacity", [(0, number(0)), (1, number(0))]),
+        track("newgame-backing", "opacity", [(0, number(0)), (1, number(0))]),
+    ])
+    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "siblingEnter"}, *by_language(doc, "crumbRest", fits),
+                                *focus_chosen("newgame.skill")]
+    doc.events["siblingLeaveBack"] = [{"op": "playTimeline", "timeline": "siblingLeaveBack"}]
+    doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits)]
+    root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"), "font-size": length(16),
+                            "color": colour([1, 1, 1, 0.8])},
+                 [*lit_field("field", 0.7), *bands, backing_node, content, titles, back_stage])
     return doc.build(root)

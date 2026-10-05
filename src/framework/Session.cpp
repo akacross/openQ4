@@ -3810,6 +3810,7 @@ void idSessionLocal::Clear() {
 	retainedSubpageDeeper = false;
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
+	retainedSubpageSibling = false;
 	retainedHomeReturning = false;
 	guiRetainedLoad = NULL;
 	retainedPageHome = NULL;
