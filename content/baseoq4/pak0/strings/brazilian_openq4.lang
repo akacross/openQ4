@@ -1226,4 +1226,10 @@
 	"#str_231105"	"Não foi possível excluir este jogo salvo."
 	"#str_231106"	"JOGOS SALVOS MAIS RECENTES"
 	"#str_231107"	"JOGOS SALVOS MAIS ANTIGOS"
+	"#str_231108"	"Digite um nome para o jogo salvo."
+	"#str_231109"	"Dê um nome a este jogo salvo"
+	"#str_231110"	"Não foi possível salvar o jogo."
+	"#str_231111"	"Você precisa estar vivo para salvar o jogo."
+	"#str_231112"	"Espaço em disco insuficiente para salvar o jogo."
+	"#str_231113"	"Não é possível salvar após uma missão fracassada."
 }

@@ -2,6 +2,7 @@
 #include "../idlib/precompiled.h"
 #include "../framework/NativeInputPublications.h"
 #include "UserInterfaceRetained.h"
+#include "Rectangle.h"
 #ifndef ID_DEDICATED
 #include "RetainedUI.h"
 #include "SettingsService.h"
@@ -74,6 +75,7 @@ bool SessionMenuCommand(const std::string& command) {
 		"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
         "campaigns","campaignQuake4","campaignAwakening","campaignArena","campaignBack","campaignHome",
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
+        "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
@@ -145,6 +147,19 @@ std::optional<int> SessionMenuValue(const std::string& command, const StateValue
 bool ValidOperation(const Action& action) {
 	if (action.operation.starts_with("settings.system.")) { std::string error; return UI_SettingsOperation(action,error); }
 	if (action.operation == "ui.dismiss" || action.operation == "ui.numberDrafts.focus") return action.arguments.empty();
+	if (action.operation == "ui.state.set") {
+		// A field writes its own document state: a literal key, which
+		// ValidateApplication checks against the document, the control's own
+		// value and, optionally, a literal event to run once it is written.
+		const auto key = action.arguments.find("key"), value = action.arguments.find("value"), event = action.arguments.find("event");
+		const auto literal = [](const Expression& expression) {
+			return expression.type == 2 && expression.op.empty() && expression.state.empty() && expression.presentation.empty() &&
+				!expression.inputValue;
+		};
+		if (key == action.arguments.end() || value == action.arguments.end() || !value->second.inputValue ||
+			action.arguments.size() != (event == action.arguments.end() ? 2u : 3u)) return false;
+		return literal(key->second) && (event == action.arguments.end() || literal(event->second));
+	}
 	if (action.operation == "session.menu") {
 		const auto command = action.arguments.find("command");
 		if (action.arguments.size() != 1 || command == action.arguments.end() || command->second.type != 2) return false;
@@ -181,6 +196,14 @@ bool ValidOperation(const Action& action) {
 bool ValidInvocation(const ActionInvocation& invocation, std::string& error) {
 	if (invocation.operation.starts_with("settings.system.")) return UI_SettingsInvocation(invocation,error);
 	if ((invocation.operation == "ui.dismiss" || invocation.operation == "ui.numberDrafts.focus") && invocation.arguments.empty()) return true;
+	if (invocation.operation == "ui.state.set") {
+		const auto key = invocation.arguments.find("key"), value = invocation.arguments.find("value"), event = invocation.arguments.find("event");
+		if (key != invocation.arguments.end() && value != invocation.arguments.end() &&
+			invocation.arguments.size() == (event == invocation.arguments.end() ? 2u : 3u) &&
+			std::holds_alternative<std::string>(key->second) && ValidStateValue(value->second) &&
+			(event == invocation.arguments.end() || std::holds_alternative<std::string>(event->second))) return true;
+		error = "Unsupported field state write: "+invocation.action; return false;
+	}
 	if (invocation.operation == "session.menu") {
 		const auto command = invocation.arguments.find("command");
 		if (invocation.arguments.size() == 1 && command != invocation.arguments.end() &&
@@ -259,6 +282,18 @@ bool ValidateApplication(const DocumentModel& model, std::string& error) {
 	}
 	for (const auto& [name,action] : model.actions) {
 		if (!ValidOperation(action)) { error = "Unsupported application operation or arguments: " + name; return false; }
+		if (action.operation == "ui.state.set") {
+			// The document's own declared state of the field's type, never
+			// engine-owned or CVar-bound state, and an event it declares.
+			const auto& key = std::get<std::string>(action.arguments.at("key").literal);
+			const auto declaration = model.state.find(key);
+			const auto event = action.arguments.find("event");
+			if (declaration == model.state.end() || !declaration->second.cvar.empty() || !idStr::Icmpn(key.c_str(),"settings.",9) ||
+				NumberDraftState(key.c_str()) || !action.inputType || *action.inputType != declaration->second.initial.index() ||
+				(event != action.arguments.end() && !model.events.contains(PresentationAliasKey(std::get<std::string>(event->second.literal))))) {
+				error = "A field state write needs the document's own state of the field's type, and its event: " + name; return false;
+			}
+		}
 	}
 	std::vector<const Node*> pending{&model.root};
 	while (!pending.empty()) {
@@ -315,6 +350,18 @@ struct CursorTransform {
 		}
 	}
 };
+
+// A Unicode scalar value as UTF-8; empty for a surrogate or past U+10FFFF.
+std::string Utf8Scalar(int scalar) {
+	std::string out;
+	if (scalar < 0 || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) return out;
+	const auto byte = [&](int value) { out += static_cast<char>(value); };
+	if (scalar < 0x80) byte(scalar);
+	else if (scalar < 0x800) { byte(0xc0 | scalar >> 6); byte(0x80 | (scalar & 0x3f)); }
+	else if (scalar < 0x10000) { byte(0xe0 | scalar >> 12); byte(0x80 | (scalar >> 6 & 0x3f)); byte(0x80 | (scalar & 0x3f)); }
+	else { byte(0xf0 | scalar >> 18); byte(0x80 | (scalar >> 12 & 0x3f)); byte(0x80 | (scalar >> 6 & 0x3f)); byte(0x80 | (scalar & 0x3f)); }
+	return out;
+}
 
 bool ReadString(idFile& file, std::string& value, int limit, int& budget) {
 	int length = 0;
@@ -600,6 +647,37 @@ struct idUserInterfaceRetained::Impl {
 		suspended = pause;
 		return !pause;
 	}
+	// A focused field that takes typed text: a number or text field.
+	std::optional<std::string> FocusedField() const {
+		auto* runtime = RuntimeView();
+		if (!runtime) return {};
+		auto id = runtime->FocusedControl();
+		const auto widget = runtime->GetWidgetState(id);
+		if (!widget || widget->role != ControlRole::Number) return {};
+		return id;
+	}
+	// A committed character from the platform's text input (SE_CHAR, queued
+	// in order with the keys around it) types into the focused field, opening
+	// an edit if none is open, as typing into a stock edit field does. Its
+	// keys keep control characters, and a space accepts a field that is not
+	// being edited rather than replacing the text that edit then selects.
+	void TypeCharacter(int character) {
+		if (character < 0x20 || (character >= 0x7f && character < 0xa0)) return;
+		const auto text = Utf8Scalar(character);
+		const auto id = FocusedField();
+		if (text.empty() || !id) return;
+		auto* runtime = RuntimeView(); const double now = RetainedUI_PresentationTime();
+		std::string error;
+		auto widget = runtime->GetWidgetState(*id);
+		if (!widget->number || !widget->number->active) {
+			if (character == ' ' || !runtime->BeginNumberEdit(*id,error,now)) return;
+			widget = runtime->GetWidgetState(*id);
+			if (!widget || !widget->number || !widget->number->active) return;
+		}
+		TextInputEvent input;
+		if (MakeTextInputCommit(text,input,error) && runtime->ApplyNumberInput(*id,widget->number->identity,input,error,now)) pointerVisible = false;
+		else if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_TEXT control=%s refused=%s\n",id->c_str(),error.c_str());
+	}
 	// Q and E, and the shoulder buttons, page a document's tabs where it
 	// declares onTabPrevious and onTabNext; the triggers page the lists within
 	// a page where it declares onSectionPrevious and onSectionNext. A field
@@ -817,7 +895,20 @@ bool idUserInterfaceRetained::SetPresentationValue(const char* name, const char*
 	if (!impl->RuntimeView()->SetPresentationAlias(name,value,overrideExpression,error)) { impl->Error(error); return false; }
 	impl->lastError.clear(); return true;
 }
-bool idUserInterfaceRetained::GetTextInputState(idRectangle&, float&) const { return false; }
+// A focused number or text field takes the platform's text input, editing or
+// not, since typing opens it. The candidate area is the field's box in
+// virtual 640x480 units, as a stock edit field reports its own.
+bool idUserInterfaceRetained::GetTextInputState(idRectangle& area, float& cursorOffset) const {
+	if (!impl->view || !impl->active || !impl->interactive || impl->suspended) return false;
+	const auto id = impl->FocusedField();
+	Viewport viewport; Bounds bounds;
+	if (!id || !RetainedUI_DefaultViewport(viewport) || !impl->RuntimeView()->GetBounds(*id,bounds)) return false;
+	const CursorTransform transform(viewport);
+	if (transform.sx <= 0 || transform.sy <= 0 || bounds.width <= 0 || bounds.height <= 0) return false;
+	area = idRectangle((bounds.x-transform.ox)/transform.sx,(bounds.y-transform.oy)/transform.sy,bounds.width/transform.sx,bounds.height/transform.sy);
+	cursorOffset = 0;
+	return true;
+}
 
 TextBrokerContext idUserInterfaceRetained::QueryTextContext(std::uint64_t allocation,
 	std::uint64_t window, std::uint64_t session) {
@@ -914,6 +1005,8 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 			if (mapped) { impl->pointerVisible = false; impl->input.Menu(key,action,down,repeated,RetainedUI_PresentationTime()); }
 			else if (down && !repeated) impl->TabKey(key,hasMetadata ? &metadata : nullptr);
 		}
+	} else if (event->evType == SE_CHAR) {
+		impl->TypeCharacter(event->evValue);
 	}
 	impl->input.Advance(RetainedUI_PresentationTime()); impl->ApplyInput(); impl->CollectActions();
 	if (updateVisuals) *updateVisuals = true;
@@ -1074,6 +1167,26 @@ bool idUserInterfaceRetained::DispatchApplicationActions(const char* command, bo
 			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
 			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_SETTING path=%s cvar=%s value=%s accepted=%d\n",
 				Name(),cvar.c_str(),cvarSystem->GetCVarString(cvar.c_str()),accepted ? 1 : 0);
+			continue;
+		}
+		if (invocation.operation == "ui.state.set") {
+			// A field's committed value into its document's own state, checked
+			// at load. The runtime reads it back at once, so the field accepts
+			// it before anything later in the batch can change that state; then
+			// the event the action names, if any, runs.
+			const auto& key = std::get<std::string>(invocation.arguments.at("key"));
+			const auto& value = invocation.arguments.at("value");
+			const auto declaration = impl->document.Model().state.find(key);
+			std::string error;
+			const bool accepted = declaration != impl->document.Model().state.end() && declaration->second.initial.index() == value.index() &&
+				impl->RuntimeView()->SetState({{key,value}},error,RetainedUI_PresentationTime());
+			if (accepted) impl->PublishWrites({{key,value}});
+			else impl->Error(error.empty() ? "Field state write was not applied: "+key : error);
+			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
+			const auto event = invocation.arguments.find("event");
+			if (accepted && event != invocation.arguments.end()) impl->RunEvent(std::get<std::string>(event->second));
+			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_STATE path=%s key=%s accepted=%d\n",
+				Name(),key.c_str(),accepted ? 1 : 0);
 			continue;
 		}
 		if (invocation.operation == "session.menuValue") {

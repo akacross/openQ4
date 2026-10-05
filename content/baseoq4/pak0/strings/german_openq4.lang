@@ -1226,4 +1226,10 @@
 	"#str_231105"	"Dieser Spielstand konnte nicht gelöscht werden."
 	"#str_231106"	"NEUERE SPIELSTÄNDE"
 	"#str_231107"	"ÄLTERE SPIELSTÄNDE"
+	"#str_231108"	"Gib einen Namen für den Spielstand ein."
+	"#str_231109"	"Spielstand benennen"
+	"#str_231110"	"Das Spiel konnte nicht gespeichert werden."
+	"#str_231111"	"Du musst am Leben sein, um zu speichern."
+	"#str_231112"	"Nicht genügend Speicherplatz zum Speichern des Spiels."
+	"#str_231113"	"Nach einer gescheiterten Mission kann nicht gespeichert werden."
 }

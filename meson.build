@@ -707,6 +707,14 @@ if build_engine or get_option('build_native_tests')
     )
     test('openq4-ui-number-runtime', openq4_ui_number_runtime_test,
       args: [meson.project_source_root() / 'tools/ui/fixtures/number-edit-smoke.q4ui'], timeout: 30)
+    openq4_ui_text_field_test = executable(
+      'openq4-ui-text-field-test',
+      files('tools/tests/native/UiTextFieldTest.cpp'),
+      include_directories: root_include_dir,
+      dependencies: [openq4_retained_dep, rmlui_project.get_variable('rmlui_dep'), jsoncpp_project.get_variable('jsoncpp_dep')],
+      install: false,
+    )
+    test('openq4-ui-text-field', openq4_ui_text_field_test, timeout: 30)
     openq4_ui_focus_reveal_test = executable(
       'openq4-ui-focus-reveal-test',
       files('tools/tests/native/UiFocusRevealTest.cpp'),
@@ -903,7 +911,8 @@ if build_engine or get_option('build_native_tests')
              meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weaponwheel.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weaponwheel_strogg.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weaponwheel_mp.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/loadgame.q4ui'], timeout: 120)
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/loadgame.q4ui',
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/savegame.q4ui'], timeout: 120)
     openq4_ui_value_schema_test = executable(
       'openq4-ui-value-schema-test',
       files('tools/tests/native/UiValueControlSchemaTest.cpp'),

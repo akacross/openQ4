@@ -559,7 +559,9 @@ On engine `91b54635aa9189107d3e449648750c1deaaa8b17` multiplayer has its own ret
 
 On engine `a2548a5e83749ff8a4579f35eade5dca59c4fa14` LOAD GAME opens a retained Load Game page over the home that handed off to it. `FLOW-004` and `WID-009` become partial. Evidence: `.tmp/ui/retained-loadgame-evidence/validation-evidence.json`, SHA-256 `0ca1295e613bac04ccb9625f73af37b3bafe0311b1dc7d0b75f4f3eda9ffed49`.
 
-There are **100 partial, 239 pending and one verified requirement**, counting the
+On engine `5d5522343eedef52f0bd34638b43cbf51e1a067f` a text control role edits one line of free text, committed characters type into a focused retained field, and SAVE GAME opens a retained Save Game page. `WID-006` becomes partial; `FLOW-004`, `WID-009`, `RUN-004` and `FLOW-002` gain evidence. Evidence: `.tmp/ui/retained-savegame-evidence/validation-evidence.json`, SHA-256 `a19668e3ec74f32813923274778912d3dadfe6f682bc0867a75f259f61966b9a`.
+
+There are **101 partial, 238 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

@@ -1226,4 +1226,10 @@
 	"#str_231105"	"Bu kayıt silinemedi."
 	"#str_231106"	"DAHA YENİ KAYITLAR"
 	"#str_231107"	"DAHA ESKİ KAYITLAR"
+	"#str_231108"	"Kayıt için bir ad gir."
+	"#str_231109"	"Bu kayda bir ad ver"
+	"#str_231110"	"Oyun kaydedilemedi."
+	"#str_231111"	"Oyunu kaydetmek için hayatta olmalısın."
+	"#str_231112"	"Oyunu kaydetmek için yeterli disk alanı yok."
+	"#str_231113"	"Görev başarısız olduktan sonra kayıt yapılamaz."
 }

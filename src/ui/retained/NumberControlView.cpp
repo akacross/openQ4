@@ -259,11 +259,17 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 	for (auto& [id,entry]:impl->entries) {
 		entry.geometryReady=false; entry.run.reset();
 		const auto fail=[&] { changed|=impl->HideEditing(entry); };
-		const auto view=interaction.Widget(id); if (!view || !std::holds_alternative<double>(view->accepted)) { fail(); continue; }
+		// A text field (role "text") reads back its string; a number its value.
+		const auto view=interaction.Widget(id);
+		if (!view || !(entry.spec.textField ? std::holds_alternative<std::string>(view->accepted) : std::holds_alternative<double>(view->accepted))) { fail(); continue; }
 		const auto& spec=entry.spec; const auto* edit=view->number ? &*view->number : nullptr;
 		const bool active=edit && edit->active && interaction.Focused()==id && interaction.CanActivate(id);
 		std::string text,error;
 		if (edit) text=Presented(*edit);
+		else if (spec.textField) {
+			text=std::get<std::string>(view->accepted);
+			if (text.size()>spec.maxBytes) { fail(); continue; }
+		}
 		else if (!FormatTextNumber(std::get<double>(view->accepted),{spec.minimum,spec.maximum,spec.exponent,spec.integer},text,error)) { fail(); continue; }
 		const bool edited=edit && (edit->identity!=entry.identity || !impl->SamePresentation(entry,*edit));
 		entry.nativePresentation=edit ? edit->nativePresentation : std::nullopt;

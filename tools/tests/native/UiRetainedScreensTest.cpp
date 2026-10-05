@@ -150,6 +150,7 @@ static void CheckSchema() {
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
+	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -165,6 +166,20 @@ static const std::set<std::string> PlayerSettings = {"ui_handicap","cl_player_ou
 
 static void CheckSessionActions(const Document& document) {
 	for (const auto& [id,action] : document.Model().actions) {
+		// A text field writes the page's own state, then may run its event;
+		// a page may return the focus to a field holding text not yet entered.
+		if (action.operation == "ui.state.set") {
+			const auto key = action.arguments.find("key"), event = action.arguments.find("event");
+			Check(key != action.arguments.end() && document.Model().state.contains(std::get<std::string>(key->second.literal)) &&
+				action.arguments.at("value").inputValue && action.inputType &&
+				(event == action.arguments.end() || document.Model().events.contains(PresentationAliasKey(std::get<std::string>(event->second.literal)))),
+				"a field writes the page's own state and names its own event");
+			continue;
+		}
+		if (action.operation == "ui.numberDrafts.focus") {
+			Check(action.arguments.empty(),"returning to a field takes no arguments");
+			continue;
+		}
 		if (action.operation == "settings.player.set") {
 			const auto cvar = action.arguments.find("cvar");
 			Check(cvar != action.arguments.end() && action.arguments.size() == 2 && PlayerSettings.contains(std::get<std::string>(cvar->second.literal)) &&
@@ -1673,8 +1688,107 @@ static void CheckLoadPage(ScreenHost& host, const char* path) {
 	Check(text("load_newgame","display") == "none","in game the empty page offers no NEW GAME");
 }
 
+// The Save Game page: the saves under SAVE NAME and LOCATION, the name in a
+// text field on its plate, SAVE GAME beside it, and the overwrite and notice
+// dialogs. Typing, entering and the session's verbs run through the runtime.
+static void CheckSavePage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.savegame" && document.Model().canvasHeight == 720,"the Save Game page validates");
+	CheckSessionActions(document);
+	const auto* field = document.Model().FindNode("save-name");
+	Check(field && field->control && field->control->role == ControlRole::Number && std::holds_alternative<NumberSpec>(field->control->widget) &&
+		std::get<NumberSpec>(field->control->widget).textField && std::get<NumberSpec>(field->control->widget).maxBytes == 32,
+		"the name is a text field of up to 32 bytes");
+	Check(!document.Model().FindNode("band-top") && !document.Model().FindNode("title"),"the page is its content alone, as the Load Game page");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/savegame.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a page node is laid out"); return b; };
+	const auto requested = [&](const char* action, const char* operation = "session.menu") {
+		return effects.actions.size() == 1 && effects.actions[0].action == action && effects.actions[0].operation == operation;
+	};
+	// Two saves, none selected, and no name yet.
+	StateValues values{{"save.count",2.0},{"save.first",0.0},{"save.selected",-1.0},{"save.name",std::string()}};
+	const char* names[] = {"Medic","Bunker door"};
+	for (int row = 0; row < 2; ++row) {
+		values["save.row"+std::to_string(row)+".name"] = std::string(names[row]);
+		values["save.row"+std::to_string(row)+".location"] = std::string("Air Defense Trenches");
+	}
+	Check(runtime.SetState(values,error,0),"publish two saves");
+	runtime.Frame(viewport,1);
+	// The 4:3 canvas is 960 dp wide, centered: x = 160 dp at 1280x720; 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
+	Check(Near(row0.x,x0+35*u) && Near(row0.y,78*u) && Near(row1.y-row0.y,20*u) && Near(row0.width,550*u),
+		"the rows run on the stock 20 u pitch across the content column from 35,78 u");
+	const auto plate = bounds("save-name-plate"), name = bounds("save-name"), save = bounds("save_go");
+	Check(Near(plate.x,x0+4*u) && Near(plate.y,370*u) && Near(plate.width,484*u) && Near(plate.height,52*u),"the name plate is the stock 484x52 u at 4,370 u");
+	Check(Near(name.x,x0+49*u) && Near(name.y,382*u) && Near(name.width,344*u) && Near(name.height,20*u),"the field is the stock 344x20 u at 49,382 u");
+	Check(Near(save.x,x0+397*u) && Near(save.y,370*u),"SAVE GAME is the stock section plate at 397,370 u");
+	Check(text("row-1","display") == "block" && text("row-2","display") == "none" && text("save-empty","display") == "none","the list shows the saves");
+	Check(text("save-name-hint","display") == "block" && !runtime.CanActivateControl("save_go",1),"without a name the field asks for one and SAVE GAME rests");
+	// Arriving: the panel fades in and the name has focus, ready for typing.
+	Check(runtime.RunEvent("onActivate",2,effects,error),"the page arrives");
+	runtime.Frame(viewport,2.2);
+	Check(runtime.FocusedControl() == "save-name","the name has focus");
+	// A row's first Accept selects its save; Accept on the selected save saves.
+	Check(runtime.RunEvent("saveRow1",3,effects,error) && requested("select") && effects.stateChanges.count("save.pick") &&
+		std::get<double>(effects.stateChanges.at("save.pick")) == 1,"Accept on a save selects it");
+	Check(runtime.SetState({{"save.selected",1.0},{"save.name",std::string("Bunker door")}},error,3.1),"the session selects it and names it");
+	runtime.Frame(viewport,3.2);
+	const auto filled = runtime.GetWidgetState("save-name");
+	Check(text("row-1-selected","display") == "block" && text("save-name-hint","display") == "none" && filled &&
+		std::get<std::string>(filled->accepted) == "Bunker door","the selected save is lit and its name fills the field");
+	Check(runtime.CanActivateControl("save_go",3.2),"a name enables SAVE GAME");
+	Check(runtime.RunEvent("saveRow1",3.3,effects,error) && requested("save"),"Accept on the selected save saves under its name");
+	Check(runtime.RunEvent("saveRequested",3.4,effects,error) && requested("save"),"SAVE GAME saves under the name");
+	// A name typed but not entered: SAVE GAME returns the focus to it.
+	Check(runtime.SetState({{"ui.numberDraftsPending",true}},error,3.5) && runtime.RunEvent("saveRequested",3.6,effects,error) &&
+		requested("editName","ui.numberDrafts.focus"),"SAVE GAME returns to a name not yet entered");
+	Check(runtime.SetState({{"ui.numberDraftsPending",false}},error,3.7),"the draft settles");
+	// Typing a name and entering it proposes it to the page's own state.
+	runtime.Frame(viewport,3.8);
+	Check(runtime.FocusControl("save-name",3.9) && runtime.BeginNumberEdit("save-name",error,3.9),"the field opens for typing");
+	auto view = runtime.GetWidgetState("save-name");
+	Check(view && view->number && view->number->state.text == "Bunker door" && view->number->state.caret == 11,"typing starts from the name, all of it selected");
+	Check(runtime.ReplaceNumberSelection("save-name",view->number->identity,"Trench entry",error,4),"type a new name");
+	view = runtime.GetWidgetState("save-name");
+	Check(runtime.CommitNumberEdit("save-name",view->number->identity,error,4.1),"enter it");
+	const auto actions = runtime.TakeActions();
+	Check(actions.size() == 1 && actions[0].action == "rename" && actions[0].proposal &&
+		std::get<std::string>(*actions[0].proposal) == "Trench entry","entering proposes the name to the page's state");
+	Check(runtime.RunEvent("nameEntered",4.2,effects,error) && requested("save"),"the entered name saves");
+	// Saving over a save asks first, naming it; the dialog opens on NO.
+	Check(runtime.SetState({{"save.target",std::string("Bunker door")}},error,5) && runtime.RunEvent("overwriteModalShow",5,effects,error),"ask to save over");
+	runtime.Frame(viewport,5.3);
+	Check(text("overwriteModal","display") == "block" && runtime.FocusedControl() == "overwriteModal_no" &&
+		text("overwriteModal-target","text") == "Bunker door","the confirmation names the save and opens on NO");
+	Check(runtime.RunEvent("overwriteConfirmed",5.4,effects,error) && requested("overwrite"),"YES saves over it");
+	runtime.Frame(viewport,5.9);
+	Check(text("overwriteModal","display") == "none","the confirmation has closed");
+	// A refusal: WARNING, the reason and CLOSE alone.
+	Check(runtime.SetState({{"save.notice",std::string("You cannot save over an autosave.")}},error,6) &&
+		runtime.RunEvent("noticeModalShow",6,effects,error),"refuse a save");
+	runtime.Frame(viewport,6.3);
+	Check(text("noticeModal","display") == "block" && runtime.FocusedControl() == "noticeModal_close" && text("noticeModal-body","text") == "You cannot save over an autosave." &&
+		!document.Model().FindNode("noticeModal_yes") && !document.Model().FindNode("noticeModal_no"),"the notice says why and offers CLOSE alone");
+	Check(runtime.RunEvent("noticeModalHide",6.4,effects,error),"CLOSE closes it");
+	runtime.Frame(viewport,6.9);
+	Check(text("noticeModal","display") == "none","the notice has closed");
+	// No saves yet: the empty state in the list's place.
+	Check(runtime.SetState({{"save.count",0.0},{"save.selected",-1.0}},error,7),"no saves");
+	runtime.Frame(viewport,7.1);
+	Check(text("save-empty","display") == "block" && text("row-0","display") == "none","an empty list says so");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 14,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui");
+	Check(argc == 15,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2768,6 +2882,7 @@ int main(int argc, char** argv) {
 	CheckStroggWheel(host,argv[11]);
 	CheckMultiplayerWheel(host,argv[12]);
 	CheckLoadPage(host,argv[13]);
+	CheckSavePage(host,argv[14]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

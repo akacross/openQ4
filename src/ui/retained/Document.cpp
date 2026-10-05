@@ -908,8 +908,9 @@ private:
 			else if (role == "slider") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","step","decimals","orientation","parts","extensions"});
 			else if (role == "choice") Fields(control,p,{"role","action","label","enabled","states","navigation","value","parts","visibleRows","options","optionCount","scrollbar","placementBounds","extensions"});
 			else if (role == "number") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","exponent","integer","maxBytes","parts","extensions"});
+			else if (role == "text") Fields(control,p,{"role","action","label","enabled","states","navigation","value","maxBytes","parts","extensions"});
 			else if (role == "scrollbar") Fields(control,p,{"role","label","enabled","states","navigation","viewport","orientation","lineStep","minimumThumb","parts","extensions"});
-            else Require(false,control["role"],p+"/role","Supported roles are button, toggle, slider, choice, number and scrollbar");
+            else Require(false,control["role"],p+"/role","Supported roles are button, toggle, slider, choice, number, text and scrollbar");
 			result.control.emplace(); auto& parsed = *result.control;
 			Require(role == "scrollbar" || control.isMember("action") != control.isMember("event"),control,p,"Controls require exactly one action or event");
 			if (control.isMember("action")) parsed.action = Id(control["action"],p+"/action");
@@ -967,14 +968,20 @@ private:
 					spec.track = Id(parts["track"],at+"/track"); spec.fill = Id(parts["fill"],at+"/fill");
 					spec.thumb = Id(parts["thumb"],at+"/thumb"); spec.valueText = Id(parts["value"],at+"/value");
 					parsed.widget = std::move(spec);
-				} else if (role == "number") {
+				} else if (role == "number" || role == "text") {
+					// A text field shares the Number editor; its value is its text.
 					parsed.role = ControlRole::Number;
-					Require(parsed.value->type == 0,control["value"],p+"/value","Number values must be numeric");
+					const bool textField = role == "text";
+					Require(parsed.value->type == (textField ? 2u : 0u),control["value"],p+"/value",
+						textField ? "Text values must be strings" : "Number values must be numeric");
 					Fields(parts,at,{"viewport","text","selection","caret","composition","validation","extensions"});
 					NumberSpec spec;
-					spec.minimum = Numeric(control["minimum"],p+"/minimum",-1e12,1e12);
-					spec.maximum = Numeric(control["maximum"],p+"/maximum",-1e12,1e12);
-					Require(spec.minimum <= spec.maximum,control,p,"Number bounds must be ordered");
+					spec.textField = textField;
+					if (!textField) {
+						spec.minimum = Numeric(control["minimum"],p+"/minimum",-1e12,1e12);
+						spec.maximum = Numeric(control["maximum"],p+"/maximum",-1e12,1e12);
+						Require(spec.minimum <= spec.maximum,control,p,"Number bounds must be ordered");
+					}
 					if (control.isMember("exponent")) {
 						Require(control["exponent"].isBool(),control["exponent"],p+"/exponent","Number exponent policy must be Boolean");
 						spec.exponent = control["exponent"].asBool();

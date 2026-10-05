@@ -1230,4 +1230,10 @@
 	"#str_231105"	"Impossible de supprimer cette sauvegarde."
 	"#str_231106"	"SAUVEGARDES PLUS RÉCENTES"
 	"#str_231107"	"SAUVEGARDES PLUS ANCIENNES"
+	"#str_231108"	"Saisissez un nom pour la sauvegarde."
+	"#str_231109"	"Nommez cette sauvegarde"
+	"#str_231110"	"La partie n'a pas pu être sauvegardée."
+	"#str_231111"	"Vous devez être vivant pour sauvegarder la partie."
+	"#str_231112"	"Espace disque insuffisant pour sauvegarder la partie."
+	"#str_231113"	"Impossible de sauvegarder après un échec de mission."
 }

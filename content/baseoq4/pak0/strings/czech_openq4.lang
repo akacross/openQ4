@@ -1226,4 +1226,10 @@
 	"#str_231105"	"Tuto uloženou pozici nelze smazat."
 	"#str_231106"	"NOVĚJŠÍ POZICE"
 	"#str_231107"	"STARŠÍ POZICE"
+	"#str_231108"	"Zadej název uložené pozice."
+	"#str_231109"	"Pojmenuj tuto pozici"
+	"#str_231110"	"Hru se nepodařilo uložit."
+	"#str_231111"	"Hru můžeš uložit, jen když jsi naživu."
+	"#str_231112"	"Na disku není dost místa pro uložení hry."
+	"#str_231113"	"Po selhání mise nelze ukládat."
 }

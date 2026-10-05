@@ -122,7 +122,8 @@ mask points/paints are not yet timeline or game-binding targets.
 
 An optional `control` supplies button semantics independently of its vector/text
 parts. Value roles (toggle, slider, choice, number) are described in
-[typed value controls](value-controls.md); a choice's option `label` may name
+[typed value controls](value-controls.md), and a `text` field shares the
+[number editor](numeric-fields.md#text-fields); a choice's option `label` may name
 string state and its `optionCount` may bound the shown options
 ([catalog lists](value-controls.md#catalog-lists)). Its [interaction contract](interaction.md) defines localized labels,
 semantic action IDs, enabled state, navigation links and five required state

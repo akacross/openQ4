@@ -122,8 +122,9 @@ Expand Across Displays over those lists, hidden on one display unless the draft
 names a display or a span the lists cannot offer, or holds a change not yet
 applied. The [resolution rows increment](../ui/system-resolution-rows.md) adds
 Display Resolution and Refresh Rate, so the page now has a control for every
-stock setting; it stays opt-in while presets cannot apply from it and its size
-fields take no typed digits. Auto refresh now means the desktop rate on every
+stock setting; it stays opt-in while presets cannot apply from it. Its size
+fields take typed digits since committed characters reach retained fields
+([typed characters](../ui/numeric-fields.md#typed-characters)). Auto refresh now means the desktop rate on every
 display path, and MSAA applies on Vulkan. `BEH-002` and `FLOW-002` stay
 partial.
 
@@ -172,7 +173,15 @@ team's color. The quick-chat wheel remains. LOAD GAME on the title and the
 Marine pause opens the retained [Load Game page](../ui/retained-screens.md#load-game-page),
 the stock page's content over the home that handed off to it, with selection,
 loading, deletion with confirmation, failures in context, the empty state and
-paging; sorting, filters and the Save Game page remain. No gate closes.
+paging. SAVE GAME on the Marine pause opens the retained
+[Save Game page](../ui/retained-screens.md#save-game-page) the same way, its
+name in a new `text` field ([text fields](../ui/numeric-fields.md#text-fields)),
+with the overwrite confirmation, the autosave refusal and the session's
+reasons in context. Committed characters now type into a focused retained
+field ([typed characters](../ui/numeric-fields.md#typed-characters)), so the
+SYSTEM page's size fields take typed digits and only presets keep it opt-in.
+Sorting, filters, the Strogg pause's pages and in-field composition remain.
+No gate closes.
 
 ## Objective and immutable completion scope
 

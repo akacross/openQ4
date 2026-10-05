@@ -49,6 +49,7 @@ bool HasScrollOffset(const Control& control) {
 }
 bool ValidNumber(const Control& control) {
 	const auto* spec = std::get_if<NumberSpec>(&control.widget);
+	if (spec && spec->textField) return control.value && control.value->type == 2 && spec->maxBytes > 0 && spec->maxBytes <= TextInputMaxBytes;
 	return spec && control.value && control.value->type == 0 && std::isfinite(spec->minimum) &&
 		std::isfinite(spec->maximum) && spec->minimum <= spec->maximum &&
 		(!spec->integer || std::ceil(spec->minimum) <= std::floor(spec->maximum)) && spec->maxBytes > 0 && spec->maxBytes <= TextInputMaxBytes;
@@ -86,6 +87,42 @@ double SliderTickValue(const SliderSpec& spec,long double tick) {
 TextNumberPolicy NumberPolicy(const Control& control) {
 	const auto& spec = std::get<NumberSpec>(control.widget);
 	return {spec.minimum,spec.maximum,spec.exponent,spec.integer};
+}
+// A Number control's draft as its value: the parsed number, or for a text
+// field (role "text") the text itself, which must not be empty. Failure
+// leaves the value unchanged.
+TextNumberStatus ParseDraft(const Control& control, std::string_view text, StateValue& value) {
+	if (std::get<NumberSpec>(control.widget).textField) {
+		if (text.empty()) return TextNumberStatus::Empty;
+		value = std::string(text); return TextNumberStatus::Valid;
+	}
+	double number = 0;
+	const auto status = ParseTextNumber(text,NumberPolicy(control),number);
+	if (status == TextNumberStatus::Valid) value = number;
+	return status;
+}
+// A readback as the field's draft text: a number in the field's syntax, or a
+// text field's string as it stands, within the field's size.
+bool FormatDraft(const Control& control, const StateValue& value, std::string& text, std::string& error) {
+	const auto& spec = std::get<NumberSpec>(control.widget);
+	if (spec.textField) {
+		const auto* string = std::get_if<std::string>(&value);
+		if (!string || string->size() > spec.maxBytes) { error = "Text field value must be a string within its size"; return false; }
+		text = *string; return true;
+	}
+	const auto* number = std::get_if<double>(&value);
+	if (!number) { error = "Number field value must be numeric"; return false; }
+	return FormatTextNumber(*number,NumberPolicy(control),text,error);
+}
+// The numeric baseline an editor and its snapshot keep; a text field keeps
+// only its baseline text.
+double DraftBaseline(const StateValue& value) {
+	const auto* number = std::get_if<double>(&value);
+	return number ? *number : 0;
+}
+// Whether a readback has the value type of the field's role.
+bool DraftReadback(const Control& control, const StateValue& value) {
+	return std::get<NumberSpec>(control.widget).textField ? std::holds_alternative<std::string>(value) : std::holds_alternative<double>(value);
 }
 bool NativeUnsettled(const NativeTextEditorView& view) {
 	return view.barrier.collectionOpen || view.barrier.group || view.awaitingSettlement || !view.presentation.compositions.empty();
@@ -466,15 +503,15 @@ std::optional<WidgetViewState> Interaction::Widget(const std::string& id) const 
 		const auto& editor = *item.number;
 		NumberEditView number;
 		number.state = editor.buffer.State(); number.composition = editor.buffer.Composition(); number.identity = editor.identity;
-		double parsed = 0;
-		number.status = ParseTextNumber(number.state.text,NumberPolicy(item.control),parsed);
+		StateValue parsed;
+		number.status = ParseDraft(item.control,number.state.text,parsed);
 		number.dirty = number.state.text != editor.baselineText || number.composition.has_value();
 		number.conflict = editor.conflict; number.canUndo = editor.buffer.CanUndo(); number.canRedo = editor.buffer.CanRedo();
 		number.active = !editor.detached; number.notice = editor.notice;
 		if (editor.native) {
 			number.nativePresentation = editor.native->presentation;
 			number.nativeUnsettled = NativeUnsettled(*editor.native);
-			number.status = ParseTextNumber(number.nativePresentation->text,NumberPolicy(item.control),parsed);
+			number.status = ParseDraft(item.control,number.nativePresentation->text,parsed);
 			number.dirty = number.dirty || number.nativePresentation->text != editor.baselineText;
 			number.canUndo = number.canRedo = false;
 		}
@@ -487,9 +524,9 @@ bool Interaction::RebaseNumber(Item& item, std::string& error) {
 	editor.draftLifetime = editor.draftRevision = ProposalToken();
 	if (!editor.draftLifetime) { error = "Number draft identity exhausted"; return false; }
 	const auto& spec = std::get<NumberSpec>(item.control.widget);
-	editor.baselineValue = std::get<double>(item.readback->value);
+	editor.baselineValue = DraftBaseline(item.readback->value);
 	editor.detached = !item.number || item.number->detached;
-	if (!FormatTextNumber(editor.baselineValue,NumberPolicy(item.control),editor.baselineText,error) ||
+	if (!FormatDraft(item.control,item.readback->value,editor.baselineText,error) ||
 		!editor.buffer.Reset(editor.baselineText,{spec.maxBytes,false,false},error) ||
 		!editor.buffer.SetSelection(0,editor.baselineText.size(),error)) return false;
 	if (!editor.detached) {
@@ -532,8 +569,8 @@ bool Interaction::ResolveNumberConflict(const std::string& id, NumberEditIdentit
 	}
 	auto& item = found->second; NumberEditor candidate = *item.number;
 	const auto& spec = std::get<NumberSpec>(item.control.widget);
-	candidate.baselineValue = std::get<double>(item.readback->value);
-	if (!FormatTextNumber(candidate.baselineValue,NumberPolicy(item.control),candidate.baselineText,error)) return false;
+	candidate.baselineValue = DraftBaseline(item.readback->value);
+	if (!FormatDraft(item.control,item.readback->value,candidate.baselineText,error)) return false;
 	TextEditBuffer baseline;
 	if (!baseline.Reset(candidate.baselineText,{spec.maxBytes,false,false},error) ||
 		!baseline.SetSelection(0,candidate.baselineText.size(),error)) return false;
@@ -837,8 +874,8 @@ bool Interaction::ApplyNumberOperation(const std::string& id, NumberEditIdentity
 }
 bool Interaction::CommitNumberEdit(const std::string& id, NumberEditIdentity expected, std::string& error) {
 	auto* item = EditableNumber(id,expected,error); if (!item) return false;
-	double value = 0;
-	if (item->number->buffer.Composition() || ParseTextNumber(item->number->buffer.State().text,NumberPolicy(item->control),value) != TextNumberStatus::Valid) {
+	StateValue value;
+	if (item->number->buffer.Composition() || ParseDraft(item->control,item->number->buffer.State().text,value) != TextNumberStatus::Valid) {
 		error = "Number text is incomplete, invalid, out of range or composing"; return false;
 	}
 	if (!modalToken || !Propose(id,value)) { error = "Number proposal could not be queued"; return false; }
@@ -894,8 +931,8 @@ bool Interaction::QueryNumberDrafts(NumberDraftSummary& out, std::string& error)
 		const auto& text = editor.native ? editor.native->presentation.text : editor.buffer.State().text;
 		const bool dirty = editor.buffer.State().text != editor.baselineText || text != editor.baselineText || composing;
 		if (!dirty && !editor.conflict && !item.pending && !composing && !nativeUnsettled) continue;
-		double value = 0;
-		candidate.blocking.push_back({id,ParseTextNumber(text,NumberPolicy(item.control),value),
+		StateValue value;
+		candidate.blocking.push_back({id,ParseDraft(item.control,text,value),
 			dirty,editor.conflict,item.pending.has_value(),composing,!editor.detached,nativeUnsettled});
 	}
 	out = std::move(candidate); return true;
@@ -1083,11 +1120,12 @@ bool Interaction::RestoreWidgets(const ValueWidgetSnapshot& snapshot, std::strin
 		if (value.firstVisible > maximum) { error = "Restored widget scroll is outside its range"; return false; }
 		if (value.number) {
 			const auto& item = found->second; const auto& saved = *value.number;
-			if (!ValidNumber(item.control) || !item.readback || !std::holds_alternative<double>(item.readback->value) ||
+			if (!ValidNumber(item.control) || !item.readback || !DraftReadback(item.control,item.readback->value) ||
 				!ValidStateValue(saved.baselineValue)) { error = "Invalid restored numeric source or baseline"; return false; }
 			const auto& spec = std::get<NumberSpec>(item.control.widget);
+			// A text field's baseline is its text; a number's must be its value's canonical text.
 			std::string canonical;
-			if (!FormatTextNumber(saved.baselineValue,NumberPolicy(item.control),canonical,error)) return false;
+			if (!FormatDraft(item.control,spec.textField ? StateValue(saved.baselineText) : StateValue(saved.baselineValue),canonical,error)) return false;
 			if (canonical != saved.baselineText) { error = "Restored numeric baseline is not canonical for its source policy"; return false; }
 			TextEditBuffer baseline;
 			if (!baseline.Reset(saved.baselineText,{spec.maxBytes,false,false},error)) return false;
@@ -1096,11 +1134,13 @@ bool Interaction::RestoreWidgets(const ValueWidgetSnapshot& snapshot, std::strin
 			if (!editor.draftLifetime) { error = "Number draft identity exhausted"; return false; }
 			if (!editor.buffer.RestoreHistory(saved.state,{saved.undo,saved.redo},{spec.maxBytes,false,false},error)) return false;
 			editor.baselineText = saved.baselineText; editor.baselineValue = saved.baselineValue; editor.conflict = saved.conflict;
-			if (std::get<double>(item.readback->value) != saved.baselineValue) {
+			const bool moved = spec.textField ? std::get<std::string>(item.readback->value) != saved.baselineText :
+				std::get<double>(item.readback->value) != saved.baselineValue;
+			if (moved) {
 				if (saved.state.text != saved.baselineText || saved.conflict) editor.conflict = true;
 				else {
-					editor.baselineValue = std::get<double>(item.readback->value);
-					if (!FormatTextNumber(editor.baselineValue,NumberPolicy(item.control),editor.baselineText,error) ||
+					editor.baselineValue = DraftBaseline(item.readback->value);
+					if (!FormatDraft(item.control,item.readback->value,editor.baselineText,error) ||
 						!editor.buffer.Reset(editor.baselineText,{spec.maxBytes,false,false},error) ||
 						!editor.buffer.SetSelection(0,editor.baselineText.size(),error)) return false;
 				}

@@ -1226,4 +1226,10 @@
 	"#str_231105"	"Ezt a mentést nem sikerült törölni."
 	"#str_231106"	"ÚJABB MENTÉSEK"
 	"#str_231107"	"RÉGEBBI MENTÉSEK"
+	"#str_231108"	"Adj nevet a mentésnek."
+	"#str_231109"	"Nevezd el ezt a mentést"
+	"#str_231110"	"A játékot nem sikerült menteni."
+	"#str_231111"	"A mentéshez életben kell lenned."
+	"#str_231112"	"Nincs elég szabad hely a lemezen a játék mentéséhez."
+	"#str_231113"	"Sikertelen küldetés után nem lehet menteni."
 }

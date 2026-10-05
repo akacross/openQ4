@@ -20,6 +20,7 @@ it; do not hand-edit its outputs.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import math
 import re
@@ -41,6 +42,7 @@ OUTPUTS = {
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
     "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
+    "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -558,9 +560,12 @@ SOFT_FOCUS_BLUR = 5 * U   # modal.softfocus: a 5 u Gaussian (section 4)
 SOFT_FOCUS_SATURATION = 0.8
 
 
+CLOSE_W = 210.0  # a notice's lone action is wider than YES and NO, so every language's CLOSE fits
+
+
 def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_action: str | None,
                  frame_leave_ms: float = 250, dim: tuple = (), *, yes_event: str | None = None,
-                 no_event: str | None = None) -> dict:
+                 no_event: str | None = None, close_key: str | None = None, wide_title: bool = False) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -586,7 +591,11 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     are the hidden values, so the first key's retarget never flashes the
     scrim. `dim` lists (node, property, lit, dimmed) that dim over 200 ms on
     enter and return from 50 ms over 150 ms on leave, as the Exit and Mods
-    modals dim the wordmark to 40% gray."""
+    modals dim the wordmark to 40% gray. With `close_key` the dialog is a
+    notice: one action with that label stands in YES's place and closes it,
+    as the stock overwrite popup's CLOSE does. With `wide_title` a title too
+    long for the lit slot in some language runs on over the raised trailing
+    section to the frame's edge, as the stock title ran past its rectangle."""
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
     doc.state[contents] = {"type": "boolean", "initial": False}
@@ -643,8 +652,9 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     # hang from the raised top line into the lit slot, as the stock title's
     # do, its baseline 13.5 dp down where the stock one sits.
     foot = slot_lead + slot_depth
+    title_end = right - 6 if wide_title else slot_trail - slot_depth
     title = outlined_label(f"{ident}-title", title_key,
-                           absolute(left=round(foot, 4), top=-4, width=round(slot_trail - slot_depth - foot, 4), height=24),
+                           absolute(left=round(foot, 4), top=-4, width=round(title_end - foot, 4), height=24),
                            {**typeface("marine", 20, 24, [1, 1, 1, 0.9]), "letter-spacing": length(-0.075, "em"),
                             "white-space": keyword("nowrap")}, [1, 1, 1, 0.9], [0, 0, 0, 0.85])
     # The stock body box starts 45 u down (first baseline 87.5 dp) and runs
@@ -653,9 +663,14 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
         **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})
     # The modal's own programs may answer for it: `yes_event` in place of the
     # session action, `no_event` for No and back; each must hide the modal.
-    yes = action_plate(doc, f"{ident}_yes", "#str_200157", 30, U * 96, action=None if yes_event else yes_action, event=yes_event)
-    no = action_plate(doc, f"{ident}_no", "#str_200158", width - 33 - 180, U * 96, event=no_event or hide)
-    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, body, yes, no])
+    if close_key:
+        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * 96, event=no_event or hide, width=CLOSE_W)]
+        initial = f"{ident}_close"
+    else:
+        yes = action_plate(doc, f"{ident}_yes", "#str_200157", 30, U * 96, action=None if yes_event else yes_action, event=yes_event)
+        no = action_plate(doc, f"{ident}_no", "#str_200158", width - 33 - 180, U * 96, event=no_event or hide)
+        actions, initial = [yes, no], f"{ident}_no"
+    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, body, *actions])
     dialog = group(f"{ident}-dialog", absolute(left=left, top=top, width=width, height=height),
                    [glow, soft_glow, frame, shown_contents])
     stage = group(f"{ident}-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
@@ -666,7 +681,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                                             "backdrop-saturate": number(1)})
     scrim = group(f"{ident}-scrim", {**FULL, "display": keyword("block"), "background-color": colour([0, 0, 0, 0])})
     node = group(ident, {**FULL, "display": keyword("none")}, [softened, scrim, stage],
-                 modal={"initialFocus": f"{ident}_no", "back": no_event or hide})
+                 modal={"initialFocus": initial, "back": no_event or hide})
     doc.bind(f"{ident}.display", ident, "display", {"op": "select", "args": [{"state": visible}, "block", "none"]})
     doc.bind(f"{ident}.contents", f"{ident}-contents", "display", {"op": "select", "args": [{"state": contents}, "block", "none"]})
     for part, soft in ((f"{ident}-softfocus", True), (f"{ident}-scrim", False), (f"{ident}-glow", False), (f"{ident}-glow-soft", True)):
@@ -1095,10 +1110,11 @@ def localized(key: str) -> dict:
     return texts
 
 
-def text_width(face: str, text: str, size: float) -> float:
-    """The width in dp of `text` set in a shipped face at `size` dp, as the
-    retained host lays it out: each glyph's advance at pixels / unitsPerEm,
-    no kerning, '?' for a missing glyph."""
+@functools.lru_cache(maxsize=None)
+def face_advances(face: str) -> tuple:
+    """A shipped face's units per em, each mapped code point's advance in
+    font units and the advance of '?', which stands in for a missing glyph;
+    read once per face."""
     data = (ROOT / "content" / "baseoq4" / "pak0" / "fonts" / f"{face}.ttf").read_bytes()
     tables = {}
     for index in range(struct.unpack(">H", data[4:6])[0]):
@@ -1138,7 +1154,16 @@ def text_width(face: str, text: str, size: float) -> float:
     def advance(glyph: int) -> int:
         at = tables["hmtx"] + 4 * min(glyph, metrics - 1)
         return struct.unpack(">H", data[at:at + 2])[0]
-    return sum(advance(glyphs.get(ord(char)) or glyphs.get(ord("?"), 0)) for char in text) * size / units
+    fallback = advance(glyphs.get(ord("?"), 0))
+    return units, {code: advance(glyph) for code, glyph in glyphs.items() if glyph}, fallback
+
+
+def text_width(face: str, text: str, size: float) -> float:
+    """The width in dp of `text` set in a shipped face at `size` dp, as the
+    retained host lays it out: each glyph's advance at pixels / unitsPerEm,
+    no kerning, '?' for a missing glyph."""
+    units, advances, fallback = face_advances(face)
+    return sum(advances.get(ord(char), fallback) for char in text) * size / units
 
 
 def crumb_fits(key: str) -> dict:
@@ -2784,19 +2809,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus, the Load Game page and the initializing screen
-    # live in their own modules, which build on this one.
+    # The multiplayer menus, the Load and Save Game pages and the
+    # initializing screen live in their own modules, which build on this one.
     from retained_initializing import initializing_document
     from retained_weapon_wheel import weapon_wheel_document
     from retained_weapon_wheel_strogg import weapon_wheel_strogg_document
     from retained_mp_menus import escape_document, welcome_document
-    from retained_saves import load_game_document
+    from retained_saves import load_game_document, save_game_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
                  "weaponwheel_mp": weapon_wheel_document(multiplayer=True),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
-                 "loadgame": load_game_document(), "mp_escape": escape_document(), "mp_welcome": welcome_document()}
+                 "loadgame": load_game_document(), "savegame": save_game_document(),
+                 "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():
         output = OUTPUTS[name]

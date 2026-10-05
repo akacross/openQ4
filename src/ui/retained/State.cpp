@@ -175,7 +175,9 @@ bool State::Evaluate(const StateValues& candidate, PropertyValues& props, std::m
 				error = "Invalid slider readback type"; return reject();
 			}
 		} else if (control.role == ControlRole::Number) {
-			if (!std::holds_alternative<NumberSpec>(control.widget) || !std::holds_alternative<double>(value.value)) {
+			// A text field (role "text") reads back a string.
+			const auto* spec = std::get_if<NumberSpec>(&control.widget);
+			if (!spec || !(spec->textField ? std::holds_alternative<std::string>(value.value) : std::holds_alternative<double>(value.value))) {
 				error = "Invalid number readback type"; return reject();
 			}
 		} else if (control.role == ControlRole::Choice) {

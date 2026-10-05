@@ -1,8 +1,10 @@
 # Numeric field implementation
 
-Status: partial implementation. This component does not yet have a native text
-input route or full visual/platform acceptance. It contributes to the mandatory
-[UI replacement plan](../plans/idtech5-ui.md); it does not narrow that plan.
+Status: partial implementation. Committed characters reach a focused field
+([typed characters](#typed-characters)); in-field composition, the native text
+owner route and full visual/platform acceptance remain. It contributes to the
+mandatory [UI replacement plan](../plans/idtech5-ui.md); it does not narrow
+that plan.
 
 ## Behavior and ownership
 
@@ -37,8 +39,8 @@ a conflict. Beginning the edit again does not discard the conflict:
 
 These are semantic operations. The opt-in SYSTEM page now pairs Brightness and
 Ambient Brightness sliders with numeric fields, localized validation and guarded
-Apply/exit behavior. Complete conflict controls, native character delivery and
-the remaining production field families still require implementation.
+Apply/exit behavior. Complete conflict controls, in-field composition and the
+remaining production field families still require implementation.
 
 ## Editing commands
 
@@ -47,7 +49,26 @@ Backspace/Delete, Ctrl+A, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter/keypad Enter or
 controller Accept. Enter proposes the current valid number once per press.
 Space belongs to text delivery and cannot also activate a menu control.
 Tab and the menu navigation actions retain their focus-navigation role; leaving
-the editor preserves its draft. Native character delivery remains unfinished.
+the editor preserves its draft.
+
+## Typed characters
+
+A focused number or text field takes the platform's text input: the adapter
+reports the field's box as the text input area (`GetTextInputState`), so SDL
+starts text input, and each committed character (`SE_CHAR`, queued in order
+with the keys around it) types into the field. Typing into a field that is
+not being edited opens it, as Accept does, and replaces the text the edit
+selects, as typing into a stock edit field does. Control characters stay
+with their keys, and a space accepts a field that is not being edited
+instead of replacing its text. The runtime checks the edit identity of every
+character, so one typed as the focus moves never reaches another field.
+
+This route carries committed text only. An input method composes in its own
+window and commits into the field; composition inside the field, candidate
+placement from shaped text and the native text owner remain
+([native text delivery](text-input-routing.md)). The engine's character
+events carry Latin-1, the range the stock fonts and edit fields share.
+`tools/tests/ui_retained_adapter.py` (CheckTypedCharacters) covers the route.
 
 Commands measure the current local buffer with the current resolved typography,
 even when an earlier edit in the same event batch has not been painted. They use
@@ -104,6 +125,33 @@ accepts `left`, `right`, `home`, `end`, `word-left`, `word-right`, `select-all`,
 `backspace` and `delete`; an optional final `extend` requests selection movement.
 It invokes the same Runtime command API without injecting a device event.
 See [native text delivery](text-input-routing.md) for the remaining input route.
+
+## Text fields
+
+The `text` role reuses this editor for one line of free text, such as a
+save's name. Its value is a string state and its action takes `string` input.
+It has no `minimum`, `maximum`, `exponent` or `integer`; `maxBytes` bounds the
+text as it bounds a number's. Any non-empty text within that size is valid.
+There is no syntax, so markup characters remain literal glyphs. Empty text is
+a local draft that cannot be committed. Entry refuses newlines, tabs, other
+control characters and Unicode line separators.
+
+A commit proposes the text itself. As with a number, acceptance needs the
+readback first, and a draft survives snapshots under the same conflict rules.
+A text field's snapshot keeps its baseline text; its numeric baseline is 0.
+
+A field's action can use the adapter operation `ui.state.set`, with a literal
+`key` and `{"input":"value"}`, to write the committed text into the
+document's own declared state of the same type. The adapter writes the state
+at once and the field accepts the text as it reads it back, before anything
+later in the batch can change that state. An optional literal `event` names
+one of the document's events, which runs once the text is written: the Save
+Game page saves when its name is entered. Loading rejects an undeclared,
+CVar-bound, settings or number-draft key, a type mismatch and an event the
+document lacks. The session reads the state when it acts, as the Load Game
+page's selection is read.
+`tools/tests/native/UiTextFieldTest.cpp` drives the role through the real
+Runtime and Rml document.
 
 ## Authoring and rendering
 

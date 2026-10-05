@@ -1252,4 +1252,10 @@
 	"#str_231105"	"Nie udało się usunąć tego zapisu."
 	"#str_231106"	"NOWSZE ZAPISY"
 	"#str_231107"	"STARSZE ZAPISY"
+	"#str_231108"	"Wpisz nazwę zapisu."
+	"#str_231109"	"Nazwij ten zapis"
+	"#str_231110"	"Nie udało się zapisać gry."
+	"#str_231111"	"Musisz żyć, aby zapisać grę."
+	"#str_231112"	"Za mało miejsca na dysku, aby zapisać grę."
+	"#str_231113"	"Nie można zapisać gry po nieudanej misji."
 }

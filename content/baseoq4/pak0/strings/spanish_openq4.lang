@@ -1226,4 +1226,10 @@
 	"#str_231105"	"No se ha podido eliminar esta partida guardada."
 	"#str_231106"	"PARTIDAS MÁS RECIENTES"
 	"#str_231107"	"PARTIDAS MÁS ANTIGUAS"
+	"#str_231108"	"Escribe un nombre para la partida guardada."
+	"#str_231109"	"Pon nombre a esta partida"
+	"#str_231110"	"No se pudo guardar la partida."
+	"#str_231111"	"Debes estar vivo para guardar la partida."
+	"#str_231112"	"No hay espacio suficiente en la unidad para guardar la partida."
+	"#str_231113"	"No se puede guardar tras una misión fallida."
 }

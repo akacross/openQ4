@@ -859,6 +859,16 @@
   line shows the save's name, level and time cleanly. Set `ui_retained 0` for
   the classic page.
 
+- SAVE GAME on the pause menu opens a rebuilt Save Game page in the same
+  style: your saves, newest first, and a name field ready for typing. Type a
+  name and press Enter, or SAVE GAME, to save; pick a save to put its name in
+  the field and save over it after a confirmation that names it. Saving over
+  an autosave, or saving when the game cannot be saved, now says why on the
+  page. Set `ui_retained 0` for the classic page.
+
+- Number fields on the modern SYSTEM page, such as the window and custom
+  size fields, now take typed digits as well as pasted values.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -1230,4 +1230,10 @@
 	"#str_231105"	"Impossibile eliminare questo salvataggio."
 	"#str_231106"	"SALVATAGGI PIÙ RECENTI"
 	"#str_231107"	"SALVATAGGI MENO RECENTI"
+	"#str_231108"	"Inserisci un nome per il salvataggio."
+	"#str_231109"	"Dai un nome al salvataggio"
+	"#str_231110"	"Impossibile salvare la partita."
+	"#str_231111"	"Devi essere vivo per poter salvare la partita."
+	"#str_231112"	"Spazio insufficiente su disco per salvare la partita."
+	"#str_231113"	"Impossibile salvare dopo il fallimento di una missione."
 }

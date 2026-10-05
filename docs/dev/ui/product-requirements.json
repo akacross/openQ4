@@ -4,7 +4,7 @@
   "date": "2026-10-01",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "a2548a5e83749ff8a4579f35eade5dca59c4fa14",
+    "engine_revision": "5d5522343eedef52f0bd34638b43cbf51e1a067f",
     "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
     "effective_gui_count": 271,
     "translated_or_accepted_resources": 0,
@@ -24,7 +24,7 @@
     "original": {
       "path": "docs/dev/plans/idtech5-ui.md",
       "authority": "original immutable scope and stage gates",
-      "sha256": "d82fdf9b9504cba2c9d612f223a182cb09999215713be061bcce94ee299ed27a"
+      "sha256": "2b0402adabacda3389ffe2ab2b31250230b0bedc47535116d3cb40608ab2dc59"
     },
     "inventory": {
       "path": "docs/dev/ui/inventory-report.md",
@@ -108,7 +108,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/document-format.md",
       "scope": "Typed JSONC, stable IDs, value edits and motion only; components, structure editing and full model unfinished.",
-      "sha256": "7e43643f20585ac0900f5cf3a456bf5fea0de683195a5ede974cd8fb5e7406e9"
+      "sha256": "177d310bf92cb0482db0ccc4df8889a62e073d3ca4fbdeb469e9b473c7ccf75e"
     },
     "binding-foundation": {
       "kind": "implementation_checkpoint",
@@ -186,7 +186,7 @@
     "managed-application-foundation": {
       "kind": "qualified_foundation_checkpoint",
       "path": "docs/dev/ui/managed-application.md",
-      "sha256": "582483ca50f1f933c3a657d4a5108cd21cd5515a181d3ec384088483016086ed",
+      "sha256": "29fd21f63790b6e61c78b19b652d1f9f1635ef7f83f20098026694cf76d44f6c",
       "baseline_engine_revision": "b87b703b799cbf120d74b4aed122883a42b0ad68",
       "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
       "local_capture_summary": ".tmp/ui/managed-review/summary.json",
@@ -292,7 +292,7 @@
     "numeric-fields": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/numeric-fields.md",
-      "sha256": "ac2bb793379c72fc66a387f370b6fa0d1a9c2f590695032848d5ebe50e735180",
+      "sha256": "00390edb45f988455f569da3184152b1b379b3840101cdc6f6615109621f0bf2",
       "baseline_engine_revision": "17b106daa1827d6e50c786f99ea5970b1e8b91cf",
       "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
       "scope": "Canonical Number role with exact decimal proposals, local invalid/conflicting drafts, explicit conflict decisions, bounded undo/redo and inactive snapshot restoration. Font drawing and numeric geometry share bounded immutable unshaped scalar runs; authored selection/caret/preedit ink uses actual Rml line placement and scroll. Current host readbacks guard edits, numeric dispatch and success acknowledgement. Final Windows build and21 retained-UI suites pass. Hidden windowed SP/OpenGL125% and MP/Vulkan200% managed diagnostic fixtures after gameplay qualify the recorded semantic/rendered subset; ordinary SYSTEM regression preserves tested native UI pixels. Event-journal decoding/ownership checks retain historical native layout. No native field keyboard/clipboard/IME route, full shaping/grapheme/bidi, production precise-entry integration, editor, screen/migration or product acceptance.",
@@ -307,7 +307,7 @@
       "scope": "Current-buffer numeric editing commands, atomic range undo, held-key owner isolation and per-event captured modifier/repeat metadata. Portable native-text broker, strict wire codec, SDL ingress and reviewed Windows observer foundation; observer disabled pending owner/ordered native dispatch integration. Windows build and 27 retained-UI suites pass; two windowed gameplay-based semantic command captures cover 32 operations and ten engine images at SP/OpenGL125% and MP/Vulkan200%. Counted adapter, journal, edit-buffer and actual SDL observer tests reject behavioral mutations. No native character/clipboard/IME field route, physical-device acceptance, full international text, production precise-entry screen, migration, editor or product acceptance.",
       "local_capture_summary": ".tmp/ui/text-routing-integration/validation-evidence.json",
       "local_capture_summary_sha256": "1d62bddd483805ef0576b87571a5d4bae0d7a93c70283e15f8c1d8c366552bc4",
-      "sha256": "692f8edbf94126c6f10a4b8a55981e44e5eb977ab58fbfc35f11132fa50b5333"
+      "sha256": "7d33c5e29254d783a7a8eae29e262a77811cb991ffa9cb441418d3e16d8323a7"
     },
     "native-owner-store": {
       "kind": "implementation_checkpoint",
@@ -317,7 +317,7 @@
       "scope": "Exact managed editor ownership, engine queue continuity, portable native shadow document and actual Windows SDK text store with application-origin text/selection/layout notifications. First disabled SDL dispatch fence does not prove lossless earlier-event consumption. Windows build and29UI suites plus updatedCOM suite pass; source-bound SP/GL125% and MP/Vulkan200% gameplay captures cover32semantic operations and10engine images. Native field routing, checked queue consumer, complete composition/shaping, production controls, editor, migrations and final gates remain unaccepted.",
       "local_capture_summary": ".tmp/ui/native-owner-integration/validation-evidence.json",
       "local_capture_summary_sha256": "c9313dc2a1361368626a4d5b225e19f39be03fbe8e330bc573c42e8f6aaa168b",
-      "sha256": "692f8edbf94126c6f10a4b8a55981e44e5eb977ab58fbfc35f11132fa50b5333"
+      "sha256": "7d33c5e29254d783a7a8eae29e262a77811cb991ffa9cb441418d3e16d8323a7"
     },
     "precise-system-fields": {
       "kind": "implementation_checkpoint",
@@ -325,7 +325,7 @@
       "baseline_engine_revision": "a20fd8dde759b0f056b3f0ba438af803a272350b",
       "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
       "scope": "Paired precise SYSTEM brightness fields, localized validation and checked clipboard commands; complete local draft barriers guard Apply, Defaults, colliding edits and exit. Completed cancellation precedes local Discard; Keep Editing refreshes real projected layout before resuming the field. Windows build and 32 UI suites pass, including real-Rml modal focus and growing-validation scroll regressions. SP/OpenGL at 125% and MP/Vulkan at 200% each reach gameplay, then pass 37 semantic operations with 17 reviewed engine images; notices, safe draft continuation, Apply, Discard and reopen are covered within this subset. Generated slider tick noise and very small ambient CVar readback remain open precision defects. SDL checked consumption and owned event collections plus portable multi-offer composition reconciliation are implemented; native activation remains disabled. No native character/IME, full international text, complete page/editor, platform, migration or product acceptance.",
-      "sha256": "ac2bb793379c72fc66a387f370b6fa0d1a9c2f590695032848d5ebe50e735180",
+      "sha256": "00390edb45f988455f569da3184152b1b379b3840101cdc6f6615109621f0bf2",
       "local_capture_summary": ".tmp/ui/native-editing-integration/validation-evidence.json",
       "local_capture_summary_sha256": "42a470e87f6fc1e0014c62a21cc4bb7fd4c313a697f9e5f86833420f1ab4e5f3"
     },
@@ -337,7 +337,7 @@
       "scope": "SYSTEM authored slider ticks retain clean decimal text and fixed CVar serialization preserves tested small and custom values. Windows build and 36 UI suites pass; SP/OpenGL 125% and MP/Vulkan 200% each pass 38 semantic operations with 12 reviewed engine images after gameplay. Actual Runtime/Rml owns complete native Number presentation, directed selection and all composition ranges while preserving stable local history; checked preparation precedes native synchronization and allocation-free local publication. Windows SDK collection scopes and copied SDL hooks admit exact callbacks, while the portable coordinator reconciles owned FIFO offers. Live managed/provider/Session integration remains pending and native activation is disabled. Focus reveal spacing, exact persistent recovery, actual native IME, full page/editor/platform/migration and product qualification remain open.",
       "local_capture_summary": ".tmp/ui/native-field-binding-integration/validation-evidence.json",
       "local_capture_summary_sha256": "60fcd7fdb106e2ce6c0fa27372e09a8a48ba93c06cba59a629d4fa6330582720",
-      "sha256": "ac2bb793379c72fc66a387f370b6fa0d1a9c2f590695032848d5ebe50e735180"
+      "sha256": "00390edb45f988455f569da3184152b1b379b3840101cdc6f6615109621f0bf2"
     },
     "native-managed-bridge": {
       "kind": "implementation_checkpoint",
@@ -348,7 +348,7 @@
       "qualification_status": "bounded_checkpoint_qualified",
       "local_capture_summary": ".tmp/ui/native-managed-bridge-integration/validation-evidence.json",
       "local_capture_summary_sha256": "bf2732fa8c57a7947b73af55ccc525d3856220080badd6eab1b0e1039b9f8573",
-      "sha256": "ac2bb793379c72fc66a387f370b6fa0d1a9c2f590695032848d5ebe50e735180"
+      "sha256": "00390edb45f988455f569da3184152b1b379b3840101cdc6f6615109621f0bf2"
     },
     "performance-preset-drafts": {
       "kind": "implementation_checkpoint",
@@ -368,7 +368,7 @@
       "scope": "One constructing-STA Windows text-session controller binds exact editor/native/window/module/association/registration leases through checked SDK activation and quiescence collections. Cleanup retires the engine adoption lease, requires ordinary disposition, retires the store and uses a fresh provider/ledger gate before native ACK. Replacement ownership cannot be disabled or unregistered by fault cleanup. Counted SDK 4544 checks and 19 compiled mutations cover this boundary; the OS COM factory and installed text services are not invoked. Production activation, Session sidecars/pumps, native text/composition/candidate routing, all host input and full text/editor/product qualification remain incomplete.",
       "local_capture_summary": ".tmp/ui/preset-session-integration/validation-evidence.json",
       "local_capture_summary_sha256": "69ccd3f6872a47cf9fa66f632c969c426e9e95f61098ee7b93f9f7c317e526b8",
-      "sha256": "692f8edbf94126c6f10a4b8a55981e44e5eb977ab58fbfc35f11132fa50b5333"
+      "sha256": "7d33c5e29254d783a7a8eae29e262a77811cb991ffa9cb441418d3e16d8323a7"
     },
     "settings-effect-foundations": {
       "kind": "implementation_checkpoint",
@@ -383,7 +383,7 @@
     "native-disposition-storage": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/text-input-routing.md",
-      "sha256": "692f8edbf94126c6f10a4b8a55981e44e5eb977ab58fbfc35f11132fa50b5333",
+      "sha256": "7d33c5e29254d783a7a8eae29e262a77811cb991ffa9cb441418d3e16d8323a7",
       "baseline_engine_revision": "efcfdb0ffe6eaffa11dbf2ced026495539156478",
       "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
       "scope": "Native ordinary-event accounting preserves both actual fixed scheduling orders, failed-prefix quarantine, sysEvent sidecars and scalar keyboard/mouse polled-slot ownership. Actual-code compiled mutation suites qualify these boundaries. Storage removal is not delivery; route lifecycle, cancellation, native text provenance, real provider activation and all host/platform qualification remain required.",
@@ -628,145 +628,145 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/dimension-controls.md",
       "scope": "Four production SYSTEM window/custom fullscreen dimension fields use exact decimal-integer validation, dependent availability and owned typed drafts. Custom edits select Custom mode atomically. Separate intrinsic draft validation allows intermediate tuples while full capability checks still guard Apply, preparation and execution. Bounded native and hidden/windowed gameplay qualification only; dynamic display/resolution/refresh catalogs, visible fullscreen/platform behavior, native input, remaining effects, editor and complete product acceptance stay open.",
-      "sha256": "cff71b3333d4c9237237ba0d62253888a216fbc2c753fa507086fec71bcf9822"
+      "sha256": "dbe7826c66d327629150096d7a93af0a1a21f911abba1ca2d9f781e46dd64a6c"
     },
     "retained-screens": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Opt-in retained title, single-player pause and stock loading screens behind the single ui_retained gate, with image nodes, additive and multiply path blends, a view-height canvas, typed session menu requests and exact overflow clipping under translation and scale. Windowed OpenGL/Vulkan 16:9, OpenGL 4:3 and gate-off engine captures only; the Objectives action, the Strogg variant, soft focus, Remastered loading details, multiplayer menus, GLES and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-loading-progress": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen's Remastered progress behind ui_retained: the levelshot drift, the difficulty line, LOADING over a 240 u bar with the loader's phase and its place or asset count, the percentage, the load time and a continue prompt that follows the last input family. Real single-player loads traced the phases in order on OpenGL and Vulkan; the rendered line was captured through testGUI. Tips, touch and device-family glyphs, the Remastered multiplayer screen and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-loading-multiplayer": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen's Remastered multiplayer composition behind ui_retained: the bottom band kept low, a section 6 server card on the leading side with the server name, address, mode and limits, JOINING when a multiplayer load ends, and the name strip darkening the message line. Captured through testGUI on OpenGL and Vulkan; players by team, the server message, the arsenal, the Welcome hand-off and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-title-carry": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Section 13.8 refinements on the retained title and single-player pause menus behind ui_retained: the soft additive focus glow beside the focus rail, the emblem's rim light and glint, and the title carry, in which a page hand-off carries the chosen navigation label into the page title slot as the bands dock. Captured on OpenGL and Vulkan; the depth shift, the high-contrast rail, symbols, tags, HDR rules and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-title-depth": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Section 13.8 depth on the retained title behind ui_retained: the backdrop, the light and grid, and the framing bands lean up to 6 dp away from the pointer the session publishes, deeper layers further, while content stays fixed; reduced motion holds them still. Captured on OpenGL and Vulkan; the right stick, device tilt, the Phone default and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-title-depth-stick": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title's depth lean follows a held look stick while it leads and the pointer otherwise. Qualified by ui_retained_gate.py compiling the production session frame code against counted doubles, not by an engine capture, since no input is injected. Device tilt, the Phone default and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-modal-confirmation": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained confirmation modal at the 480 dp confirmation width behind ui_retained, in its opaque-backing form: the stock glow column across the dialog's 320 u rectangle with the stock art's black 0.70 silhouette inset 6.5625 dp from each side, 3.5625 dp at the top and 5.34 dp at the bottom, so the lit margin and slot outline it; the leading tooth, title slot, raised trailing section, 38 dp lower-leading chamfer and square trailing corners without rails; the title at the foot of the slot's leading flank with its capitals hanging from the raised top line and a 1 dp black outline at 0.85 composited once behind the fill; the first body baseline 87.5 dp down and the actions at the stock row. Captured on OpenGL and Vulkan at 16:9 and OpenGL at 4:3 beside an engine capture of the stock exit dialog; the capture record names ART-036, which ART-037 supersedes. Soft focus, the other four widths, modal motion and complete product acceptance stay open.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-modal-motion": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title and single-player pause screens behind ui_retained author the stock screen choreography with the section 8 tokens: menu.fade over 250 ms; frame.dock and screen.depart accel(250, 250) over 500 ms from 50 ms with the home layer sweeping 640 u; content.out of the home content over 250 ms; the bands' return from 0 ms and content.in over 150 ms. Their confirmations run modal.enter (scrim, glow and frame over 200 ms, contents together at 200 ms, no scale) and modal.leave (contents at once, then after 50 ms the scrim and glow over 250 ms and the frame over 200 ms for Exit or 250 ms), on timeline completion programs. Modal timing is qualified by native runtime tests; no engine capture of the transitions, and no sampled comparison with the stock timelines.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-motion-tokens": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained title and single-player pause screens fade the plinth and its secondary links over 50 ms on depart while the home plates take 250 ms, bring them back with content.in, give hover feedback at once, and dim the wordmark to 40% gray while the title's Exit modal is open. Qualified by the native screens test; no engine capture.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-motion-engine": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Engine captures, on OpenGL and Vulkan at 1280x720, of the retained title's exit confirmation entering, open, leaving and closed, and of the plinth gone 30 ms into a depart, from a candidate runtime of the pushed code; with the host fix that keeps additive pictures from blacking out their rectangle inside a fading composition layer. Frame times follow console waits and are approximate.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-modal-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Backdrop soft focus behind the retained title's exit and the pause menu's quit confirmations on OpenGL and Vulkan: a two-pass separable Gaussian of 5 u at 0.80 saturation ramping with modal.enter and modal.leave, the glow cut to the dialog, and the scrim and stock column for the opaque-backing option and renderers without GLSL; engine captures at 1280x720 on both backends and 1920x1080 on OpenGL, native tests, a host harness and its mutants.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-pause-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained single-player pause screen over the paused view softened with modal.softfocus's values, never dimmed, ramping in with menu.fade on every pause, with a darkening scrim and vignette for the opaque-backing option and renderers that cannot soften; engine captures on OpenGL and Vulkan at 1280x720 over airdefense1, native tests and generator mutants.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "system-dialog-softfocus": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Soft focus behind the SYSTEM page's Apply/Keep/Revert confirmation and unapplied-changes dialogs, with their 0.6 backing as the fallback; qualified by native tests against the real document and the SYSTEM updater checks, without an engine capture.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-stock-fallback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "ui_retained on by default and archived. Each retained screen presents its stock GUI when its document is not installed (quietly) or cannot load (reported once), when the legacy main menu lacks a page the title and pause screens hand off to (a mod's own menu), or when its view fails after a renderer or language change; the SYSTEM page joins the default only once it offers every stock setting, and it and the campaign selectors fall back from the click that asked for them; ui_retainedStatus lists the fallbacks. Qualified by ui_retained_gate.py and ui_system_session_route.py compiling the production session code against counted doubles, and by engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768 in which a private mod hides or replaces content.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-pause-objectives": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained pause screen's level block lists the objectives the player holds, newest first, each on a row behind the atlas marker, and the time in the mission as '0:42:10 in mission' under a faint rule. The session asks the game with the retainedPauseState menu command when the screen opens; a game module that publishes neither leaves the map's own objective summary and no time line. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-pause-strogg": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "After Kane's stroggification the retained single-player pause takes the Strogg family: the bands' 30-degree shoulders, downward teeth, #F59512 rim light and etched circuit traces, plates ending in a 30-degree shoulder with slanted markers, R_Strogg labels turning #FFCC00 on focus, a chamfered level block under the stock Strogg HUD static, and every label arriving in runes and playing the short credits translation (GAME PAUSED from 60 ms over 500 ms under the scan bar, the actions 120 + 45 ms per row over 200 ms, the level block after them; the focused plate runs the scan bar; reduced motion shows the translated labels at once). The session asks the game once a level with the retainedPauseFamily menu command, and the Marine pause stands in when the Strogg pause cannot present. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768, with the gate off loading nothing retained.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-pause-objectives-page": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The single-player pause lists its seven actions with OBJECTIVES, which opens the objectives display as a page of the pause in both families: the bands dock and the label carries into the title slot, the stock entry motion brings the back bar and the plates of every open objective, newest first, with its title, screenshot and description wrapping without a limit, then the objectives completed on the map under COMPLETED, the serial and an empty state; the list scrolls under its bar and Back returns with the bands. The level block lists the objectives with their state and a time line with the last save's age. The game publishes descriptions, screenshots and completed objectives (kept per map, unsaved) and lists the level's objective screenshots, which the session resolves inside the level load. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720 and OpenGL at 1024x768.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-pause-release": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "RESUME closes the single-player pause screen at once while its softened view, or the scrim standing in for it, releases over 250 ms over the running game in both families; pausing again during the release reopens the screen, a disconnect or level load ends it, and every activation after a release shows the screen and ramps the softening back in. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720, with the gate off.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-mod-loading": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "A mod's own copy of a stock loading screen, supplied by the mod's own game directory, presents instead of the retained loading screen, file by file; openQ4's, the stock game's and the Awakening's stock screens are still replaced. Qualified by the gate test compiling the production session code and engine runs on OpenGL and Vulkan as a private mod.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-loading-arsenal": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "A multiplayer load fills the retained loading screen's arsenal with each kind of item as it spawns, two rows of ten in the thick band, each fading in over 150 ms in its color code read from the item's colour-coded material. Qualified by the gate test, the native screens test, a listen server's mp/q4dm1 load and captures on OpenGL and Vulkan at 1280x720.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-subpage": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The sub-page level for the retained Single Player page and its Campaign sub-page: the sub-page state, the per-language crumb fit, both changes and their timing, the reversal of a change going deeper and the reduced-motion hand-over. Qualified by the gate test compiling the production session code, the native screens test and engine captures on OpenGL and Vulkan at 1280x720, OpenGL at 1024x768, reduced motion and the gate off.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-loading-tips": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "Single player loading tips: a TIP tag over one two-line tip in the loading band's leading part while the level loads, changing every 6 s with a 250 ms cross-fade, 18 verified tips in all seven languages. Qualified by the gate test compiling the production session code and measuring every tip, the native screens test, engine captures on OpenGL and Vulkan and in three more languages, and a real map load's trace.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-server-card": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The multiplayer server card's players and message: the players by team (one list outside team modes) with spectators and players connecting, and the server's message (si_motd), captured on the host, on a map change and on a fresh connection through an optional connect-response roster block. Qualified by the gate test compiling the production sanitizer, roster and publish, the codec's native test, the native screens test, engine captures on OpenGL and Vulkan and in three more languages, and traces from a listen host and a second client.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "runtime-choice-lists": {
       "kind": "implementation_checkpoint",
@@ -820,13 +820,13 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "SYSTEM route prerequisites for the retained default: the multiplayer menu's SYSTEM route opens the retained page through a main-menu timeline, with its stock fallback, and a refusal while the page is available (no current state makes one) shows the stock page for that request. Qualified by the compiled session route harness on Windows and Linux, the gate test, a mutation pass and live captures, one through a listen server's in-game menu.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-system-resolution": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/system-resolution-rows.md",
       "scope": "The retained SYSTEM page gains Display Resolution and Refresh Rate over the published lists, one exclusive mode rule for every display path, Vulkan MSAA and fixes for stale tuples, exclusive-mode monitor identity and native Wayland; it stays opt-in while presets and typed sizes are incomplete. Qualified by the native page tests across seven languages, the Meson suite, the gate, route, service and builder tests, an SDL 3.4.16 differential, a mutation pass, a frame probe and an in-game Vulkan run.",
-      "sha256": "dda12cb39453e01e62e9cda7f33c4f4936d0ae1f8d90f803cbd12d196967b494"
+      "sha256": "eade5c1ecce448b2c2b7cd20840f4a29908fab0c22d2b05f51f727b4ea85484e"
     },
     "controller-menu-pump": {
       "kind": "implementation_checkpoint",
@@ -880,7 +880,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained loading screen holds a Welcome join at JOINING until the card presents, then fades out over it, in place of the load's wipe. Qualified by the gate's compiled hold case, the native screens test, a mutation pass and live probes on a listen server and a remote client, OpenGL and Vulkan.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-mp-match": {
       "kind": "implementation_checkpoint",
@@ -910,31 +910,37 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The Remastered initializing screen and the stock picture rebuilt as vector layers with the traced wordmark, qualified by the gate, native screens and vector checks, live captures at three aspects on both renderers, traced starts and a measured comparison with the stock picture.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-weaponwheel-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained Marine weapon wheel in single player, qualified by the gate, the native screens check, live captures driven by openq4_weaponWheel on both renderers and the wheel's trace.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-weaponwheel-strogg-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained Strogg weapon wheel in single player, qualified by the gate, the native screens check and live captures on both renderers.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-weaponwheel-mp-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained multiplayer weapon wheel, qualified by the gate, the native screens check and live captures on listen servers and a remote client.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     },
     "retained-loadgame-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/retained-screens.md",
       "scope": "The retained Load Game page and its list, qualified by the gate, the native screens check and live captures on OpenGL and Vulkan at three aspects and three languages.",
-      "sha256": "97a1aeaadda6c28d534313aa1bbd5cdb124b11842a23bc12947d2518d02d6904"
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
+    },
+    "retained-savegame-evidence": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/retained-screens.md",
+      "scope": "The text control role, committed characters into retained fields and the retained Save Game page, qualified by the native text field test, the gate, the native screens check, the adapter harness and live captures on OpenGL and Vulkan.",
+      "sha256": "58a4d4a2528abf0ff488a509ce5a44ae367a95affa57999485ab3ce0fc44b396"
     }
   },
   "groups": {
@@ -2589,10 +2595,11 @@
       "current_evidence": [
         "retained-stock-fallback",
         "retained-mod-loading",
-        "retained-system-resolution"
+        "retained-system-resolution",
+        "retained-savegame-evidence"
       ],
       "acceptance_evidence": [],
-      "remaining": "The session maps the stock home, loading, SYSTEM and Single Player screens to their retained documents and chooses one only while it is installed, loads and validates, the legacy menu it covers provides every page it hands off to, and its view still draws; otherwise the stock GUI presents for the session and ui_retainedStatus reports the fallback, with documents that are not installed quiet and documents that cannot load reported once. A mod's own copy of a stock loading screen presents instead of the retained one. The SYSTEM page, which now has a control for every stock setting, joins the default only once each one works there: presets cannot yet apply from it and its size fields take no typed digits (RETAINED_SYSTEM_INCOMPLETE_SETTINGS). A reload of a changed document, stale hash checks, a manifest-driven mapping for every stock GUI, the remaining stock screens and complete acceptance remain."
+      "remaining": "The session maps the stock home, loading, SYSTEM and Single Player screens to their retained documents and chooses one only while it is installed, loads and validates, the legacy menu it covers provides every page it hands off to, and its view still draws; otherwise the stock GUI presents for the session and ui_retainedStatus reports the fallback, with documents that are not installed quiet and documents that cannot load reported once. A mod's own copy of a stock loading screen presents instead of the retained one. The SYSTEM page, which now has a control for every stock setting, joins the default only once each one works there: presets cannot yet apply from it (RETAINED_SYSTEM_INCOMPLETE_SETTINGS); its size fields take typed digits since committed characters reach retained fields. A reload of a changed document, stale hash checks, a manifest-driven mapping for every stock GUI, the remaining stock screens and complete acceptance remain."
     },
     {
       "id": "RUN-005",
@@ -4249,7 +4256,7 @@
       "acceptance_evidence_needed": [
         "Real value/action and state-gallery evidence for keyboard, pointer, gamepad and supported touch/text entry; include disabled, busy, invalid, cancel and focus cases as applicable. All named behavior must work through production routing."
       ],
-      "status": "pending",
+      "status": "partial",
       "current_evidence": [
         "text-entry-foundation",
         "numeric-fields",
@@ -4259,10 +4266,11 @@
         "native-field-binding",
         "native-managed-bridge",
         "windows-text-session",
-        "native-disposition-storage"
+        "native-disposition-storage",
+        "retained-savegame-evidence"
       ],
       "acceptance_evidence": [],
-      "remaining": "The checked Windows text-session controller now owns SDK activation/quiescence and exact final provider/ledger acknowledgement, with counted SDK evidence and production activation still disabled. The canonical Number model keeps local drafts, conflicts and history through inactive restoration; SYSTEM pairs brightness sliders with precise fields, localized validation, checked clipboard commands and guarded Apply/exit. Complete native presentation and prepared stable settlement reach Runtime/Rml, and managed owner/Windows bridge endpoints now preserve their exact lease boundaries. Shared projected focus reveal adds a bounded 4dp inset without modifying authored scroll ranges. Connect live native character/composition delivery; finish pointer/word/grapheme/bidi navigation, general text controls, visible conflict correction and all field states. Qualify production keyboard, pointer, gamepad and supported touch/text routes, actual clipboard/IME, full focus artwork, the complete state gallery and every supported platform."
+      "remaining": "A text control role edits one line of free text with the Number editor (the Save Game page's name): no numeric syntax or bounds, maxBytes, single line, empty text a local draft, the same commit, readback, conflict and snapshot rules, and ui.state.set writing the committed text into the document's own state. Committed characters from the platform's text input type into a focused number or text field, opening an edit as typing into a stock field does, so the SYSTEM page's size fields take typed digits. The checked Windows text-session controller still owns SDK activation/quiescence with production activation disabled, so an input method composes in its own window, and the engine's character events carry Latin-1 only. Connect live in-field composition (TXT-008), characters beyond Latin-1, pointer/word/grapheme/bidi navigation, visible conflict correction and all field states. Qualify production keyboard, pointer, gamepad and supported touch/text routes, actual clipboard/IME, full focus artwork, the complete state gallery and every supported platform."
     },
     {
       "id": "WID-007",
@@ -4336,10 +4344,11 @@
       ],
       "status": "partial",
       "current_evidence": [
-        "retained-loadgame-evidence"
+        "retained-loadgame-evidence",
+        "retained-savegame-evidence"
       ],
       "acceptance_evidence": [],
-      "remaining": "The Load Game list (the first retained list) keeps Lowpixel headers over an olive rule, rows on the stock 20 u pitch with the selected save lit apart from the focused row, a designed empty state, the selection kept when a save is deleted, and pages of 64 rows instead of an unbounded document. Sorting with its marker, filter tags, loading rows, virtualization, the server browser's and demo list's lists, touch and acceptance remain."
+      "remaining": "The Load and Save Game lists keep Lowpixel headers over an olive rule, rows on the stock 20 u pitch with the selected save lit apart from the focused row, a designed empty state, the selection kept when a save is deleted or written, and pages of 64 rows instead of an unbounded document. Sorting with its marker, filter tags, loading rows, virtualization, the server browser's and demo list's lists, touch and acceptance remain."
     },
     {
       "id": "WID-010",
@@ -5894,10 +5903,11 @@
         "system-display-catalog",
         "system-display-rows",
         "system-session-route",
-        "retained-system-resolution"
+        "retained-system-resolution",
+        "retained-savegame-evidence"
       ],
       "acceptance_evidence": [],
-      "remaining": "The production page now includes source-derived preset and Auto-Detect controls with localized flowing labels, guarded proposals, actual shared draft expansion and bounded Runtime/gameplay validation. The source-backed 31-option/53-CVar contract retains its packaged opt-in SYSTEM route and precise Brightness/Ambient Brightness fields, localized validation and local draft barriers. Exact numeric recovery and bounded full-border focus reveal extend this implementation; neither accepts the translated page. The render-options increment adds Preload Light Grids with its help and a status line; Apply completes it automatically and the next map load uses it. Renderer Fallback (Auto or ARB2) follows it: Apply restarts the renderer in place, the row is available only where a presenting OpenGL renderer reports its selection, and a notice says when the renderer fell back from an unavailable or retired request. The settings service now builds the display device, resolution and refresh lists those rows will read, from one cached topology capture with localized labels, and turns a pick checked against the list's token into settings. Display Device and Expand Across Displays read them, hidden on one display unless the draft names a display or a span the lists cannot offer or holds a change not yet applied. Display Resolution and Refresh Rate read them too; a size or display pick returns a rate or size the new choice lacks to Auto or Desktop Native, and Auto refresh means the desktop's rate on every display path. The page stays opt-in while presets cannot apply from it and its size fields take no typed digits. The multiplayer menu's SYSTEM route opens the same retained page over the main menu, falling back to its stock route. Complete every actual setting and dependent popup, display capability/resolution catalogs, native numeric text entry, complete preset/Auto-Detect effect execution and persistence, remaining effects, Defaults, full Apply/Cancel/exit behavior, source-derived visuals/transitions and the native editor round trip. Qualify normal SP/MP entry/return/reopen, failure/cancellation, complete responsive/localized state galleries and every mapped resource; historical and current bounded captures do not accept the full requirement. The 17 September audit repairs stale Ready, dirty, confirmation and error translation IDs, with every service status key checked against all shipped locales and bounded final SYSTEM gameplay captures. This repairs message presentation without accepting the remaining transaction or complete screen scope. The display-control increment adds fullscreen, borderless, fullscreen policy and MSAA to the owned draft/confirmation flow. Backend availability disables MSAA only for an unavailable renderer and refuses changed nonzero requests before live writes; OpenGL requests window samples, and Vulkan requests a single-sample window while its restart re-creates the scene targets at r_multiSamples (at most 8x). Complete dynamic catalogs, dependent-setting presentation, actual fullscreen/window-manager qualification and the full requirement remain open. The dimension-field increment adds window/custom fullscreen width and height with exact whole-pixel validation and dependent availability. Intrinsic draft validation permits intermediate pairs; Apply readiness, preparation and execution still require the complete current-capability request. Custom size and mode selection share one atomic patch. Complete dynamic display/resolution/refresh catalogs, visible fullscreen/platform behavior, native input, remaining effects and full screen/editor acceptance stay open."
+      "remaining": "The production page now includes source-derived preset and Auto-Detect controls with localized flowing labels, guarded proposals, actual shared draft expansion and bounded Runtime/gameplay validation. The source-backed 31-option/53-CVar contract retains its packaged opt-in SYSTEM route and precise Brightness/Ambient Brightness fields, localized validation and local draft barriers. Exact numeric recovery and bounded full-border focus reveal extend this implementation; neither accepts the translated page. The render-options increment adds Preload Light Grids with its help and a status line; Apply completes it automatically and the next map load uses it. Renderer Fallback (Auto or ARB2) follows it: Apply restarts the renderer in place, the row is available only where a presenting OpenGL renderer reports its selection, and a notice says when the renderer fell back from an unavailable or retired request. The settings service now builds the display device, resolution and refresh lists those rows will read, from one cached topology capture with localized labels, and turns a pick checked against the list's token into settings. Display Device and Expand Across Displays read them, hidden on one display unless the draft names a display or a span the lists cannot offer or holds a change not yet applied. Display Resolution and Refresh Rate read them too; a size or display pick returns a rate or size the new choice lacks to Auto or Desktop Native, and Auto refresh means the desktop's rate on every display path. The page stays opt-in while presets cannot apply from it; its size fields take typed digits since committed characters reach retained fields. The multiplayer menu's SYSTEM route opens the same retained page over the main menu, falling back to its stock route. Complete every actual setting and dependent popup, display capability/resolution catalogs, native numeric text entry, complete preset/Auto-Detect effect execution and persistence, remaining effects, Defaults, full Apply/Cancel/exit behavior, source-derived visuals/transitions and the native editor round trip. Qualify normal SP/MP entry/return/reopen, failure/cancellation, complete responsive/localized state galleries and every mapped resource; historical and current bounded captures do not accept the full requirement. The 17 September audit repairs stale Ready, dirty, confirmation and error translation IDs, with every service status key checked against all shipped locales and bounded final SYSTEM gameplay captures. This repairs message presentation without accepting the remaining transaction or complete screen scope. The display-control increment adds fullscreen, borderless, fullscreen policy and MSAA to the owned draft/confirmation flow. Backend availability disables MSAA only for an unavailable renderer and refuses changed nonzero requests before live writes; OpenGL requests window samples, and Vulkan requests a single-sample window while its restart re-creates the scene targets at r_multiSamples (at most 8x). Complete dynamic catalogs, dependent-setting presentation, actual fullscreen/window-manager qualification and the full requirement remain open. The dimension-field increment adds window/custom fullscreen width and height with exact whole-pixel validation and dependent availability. Intrinsic draft validation permits intermediate pairs; Apply readiness, preparation and execution still require the complete current-capability request. Custom size and mode selection share one atomic patch. Complete dynamic display/resolution/refresh catalogs, visible fullscreen/platform behavior, native input, remaining effects and full screen/editor acceptance stay open."
     },
     {
       "id": "FLOW-003",
@@ -5952,10 +5962,11 @@
       ],
       "status": "partial",
       "current_evidence": [
-        "retained-loadgame-evidence"
+        "retained-loadgame-evidence",
+        "retained-savegame-evidence"
       ],
       "acceptance_evidence": [],
-      "remaining": "Behind ui_retained, LOAD GAME on the title and the Marine pause opens guis/menu/loadgame.q4ui over the home that handed off to it, which keeps drawing behind the page as its departure left it (the title's montage, or the pause over the softened game), with the stock page's backing: the saves newest first with their names and levels, the selected save's screenshot or loadscreen with its date and time, a row's first Accept selecting and a second (or LOAD GAME) loading, DELETE GAME behind the stock confirmation with the next save selected after it, a load or delete the session refuses saying why over the picture while the page stays, the empty state offering NEW GAME at the title, and pages of 64 saves; saves written in the same second keep one order. The Save Game page with its overwrite confirmation, the Strogg pause's page, sorting and filters, independently reviewed captures at every scale and language, touch, the GLES fallback and acceptance remain."
+      "remaining": "Behind ui_retained, LOAD GAME on the title and the Marine pause opens guis/menu/loadgame.q4ui over the home that handed off to it, which keeps drawing behind the page as its departure left it (the title's montage, or the pause over the softened game), with the stock page's backing: the saves newest first with their names and levels, the selected save's screenshot or loadscreen with its date and time, a row's first Accept selecting and a second (or LOAD GAME) loading, DELETE GAME behind the stock confirmation with the next save selected after it, a load or delete the session refuses saying why over the picture while the page stays, the empty state offering NEW GAME at the title, and pages of 64 saves; saves written in the same second keep one order. SAVE GAME on the Marine pause opens guis/menu/savegame.q4ui the same way: the saves newest first, the name in a text field that typing opens, a row's first Accept selecting its save and naming it in the field unless a name is being typed there, Enter or SAVE GAME saving under the name, the stock overwrite confirmation naming the save it saves over, the stock autosave refusal, and the session's reasons (the player dead, no drive space, a failed mission, anything else) in a notice instead of the stock message box. The Strogg pause's pages, sorting and filters, independently reviewed captures at every scale and language, touch, the GLES fallback and acceptance remain."
     },
     {
       "id": "FLOW-005",

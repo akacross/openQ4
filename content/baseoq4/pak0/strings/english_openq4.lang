@@ -1226,4 +1226,10 @@
 	"#str_231105"	"This save could not be deleted."
 	"#str_231106"	"NEWER SAVES"
 	"#str_231107"	"OLDER SAVES"
+	"#str_231108"	"Enter a name for the save."
+	"#str_231109"	"Name this save"
+	"#str_231110"	"The game could not be saved."
+	"#str_231111"	"You must be alive to save the game."
+	"#str_231112"	"Not enough drive space to save the game."
+	"#str_231113"	"You can't save after a failed mission."
 }

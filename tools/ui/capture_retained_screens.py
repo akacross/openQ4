@@ -361,6 +361,45 @@ SCENARIOS = {
         'openq4_retainedGui focus "page-newer"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
         'openq4_retainedGui report', 'screenshot "screenshots/loadgame-pages-newer.tga"',
     ]),
+    # The Save Game page (FLOW-004): two saves made in the level, then the
+    # pause. SAVE GAME hands off as LOAD GAME does and the page arrives with no
+    # name, the field focused. A row fills the name; a typed name, entered,
+    # saves at once and becomes the newest; SAVE GAME over a name a save holds
+    # asks first and YES saves over it; an autosave (seeded below) is refused;
+    # Back returns the pause. Typing runs through the field's own editor
+    # operations, never a device.
+    'savegame': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Trench entry"', 'waitMsec 1500', 'saveGame "Bunker door"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/savegame-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui widget "save-name"', 'screenshot "screenshots/savegame-selected.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "Medic station"', 'waitMsec 300', 'openq4_retainedGui widget "save-name"',
+        'screenshot "screenshots/savegame-typing.tga"',
+        'openq4_retainedGui number commit "save-name"', 'waitMsec 1500', 'openq4_retainedGui report',
+        'screenshot "screenshots/savegame-saved.tga"',
+        'openq4_retainedGui focus save_go', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/savegame-overwrite.tga"',
+        'openq4_retainedGui focus overwriteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui report', 'screenshot "screenshots/savegame-overwritten.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "auto"', 'openq4_retainedGui number commit "save-name"', 'waitMsec 600',
+        'screenshot "screenshots/savegame-autosave.tga"',
+        'openq4_retainedGui focus noticeModal_close', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 500', 'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/savegame-home.tga"',
+    ]),
+    # A level without saves: the page's empty list, the hint in the empty
+    # field and SAVE GAME resting until a name is typed.
+    'savegame-empty': ('game/airdefense1', [
+        'waitMsec 1500', 'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'openq4_retainedGui focus nav_savegame',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame-empty.tga"',
+        'openq4_retainedGui number begin "save-name"', 'waitMsec 300', 'screenshot "screenshots/savegame-empty-editing.tga"',
+    ]),
     # A mod with its own copies of the stock loading screens: the level loads
     # under the mod's screen, and the retained loading screen never loads.
     'fallback-loading': ('game/airdefense2', [
@@ -435,9 +474,15 @@ def damaged_save(runtime: Path) -> bytes:
 # The damaged save's menu label, as SaveGame writes one.
 DAMAGED_DESCRIPTION = '"damaged"\r\n"^:Damaged save\t^0Air Defense Trenches"\r\n""\r\n'
 
+# An autosave's menu label: it names its level's loadscreen, so the Save Game
+# page refuses to save over it.
+AUTOSAVE_DESCRIPTION = '"auto"\r\n"^:Autosave\t^0AIR DEFENSE BUNKER"\r\n"gfx/guis/loadscreens/airdefense1"\r\n'
+
 # Files a scenario's game directory holds before it starts.
 SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
-                              'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')}}
+                              'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')},
+         'savegame': {'savegames/auto.save': damaged_save,
+                      'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
 
 
 def digest(path: Path) -> str:

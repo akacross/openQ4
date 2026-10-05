@@ -295,6 +295,14 @@ public:
 	void				PublishRetainedLoadRows( idUserInterface *gui );
 	void				PublishRetainedLoadSave( idUserInterface *gui, const char *error );
 	void				HandleRetainedLoadRequest( idUserInterface *gui, const char *request );
+	// The retained Save Game page (guis/menu/savegame.q4ui): SAVE GAME on the
+	// Marine pause hands off to it the same way. RetainedPageActive is true
+	// while either page presents.
+	bool				RetainedPageActive() const;
+	void				PublishRetainedSavePage( idUserInterface *gui, int select );
+	void				PublishRetainedSaveSelection( idUserInterface *gui, bool name );
+	void				HandleRetainedSaveRequest( idUserInterface *gui, const char *request );
+	bool				RetainedSaveGame( idUserInterface *gui, const char *name );
 	// Why LoadGame last refused a save, before it left the current game.
 	enum loadGameFailure_t {
 		LOADGAME_FAILURE_NONE,
@@ -517,6 +525,10 @@ public:
 	idList<ID_TIME_T>	retainedLoadTimes;
 	int					retainedLoadFirst;
 	int					retainedLoadSelected;
+	// The Save Game page (NULL until it first loads), which shares the list
+	// above, and the save its overwrite dialog asks about.
+	idUserInterface *	guiRetainedSave;
+	idStr				retainedSaveTarget;
 	// The multiplayer Escape and Welcome cards, loaded inside each
 	// multiplayer level load; the card covering the game's menu now (NULL:
 	// none) and whether it is Welcome; a stock page that took the menu over

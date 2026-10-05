@@ -51,7 +51,7 @@ struct idCmdArgs {
 };
 template<class T> T Min(T a,T b) { return (std::min)(a,b); }
 struct idVec2 { idVec2(float=0,float=0) {} } vec2_origin;
-enum { SE_KEY=1,SE_MOUSE,K_TAB=10,K_SHIFT,K_UPARROW,K_DOWNARROW,K_LEFTARROW,K_RIGHTARROW,
+enum { SE_KEY=1,SE_MOUSE,SE_CHAR,K_TAB=10,K_SHIFT,K_UPARROW,K_DOWNARROW,K_LEFTARROW,K_RIGHTARROW,
        K_ENTER,K_KP_ENTER,K_SPACE,K_ESCAPE,K_MOUSE1,K_JOY1,K_JOY2,K_JOY3,K_JOY4,K_JOY7,K_JOY8,K_JOY9,K_JOY10,K_JOY11,K_JOY12,K_JOY15,K_JOY16,
        K_HOME,K_END,K_PGUP,K_PGDN,K_MWHEELUP,K_MWHEELDOWN,K_CTRL,K_ALT,K_RIGHT_ALT,K_BACKSPACE,K_DEL,K_INS,K_LAST_KEY=512 };
 struct idKeyInput { static inline bool shift=false; static bool IsDown(int key) { return key==K_SHIFT && shift; } };
@@ -1107,6 +1107,33 @@ static void CheckEventBridge() {
     auto unlisted=valueAction; unlisted.arguments.at("command").literal=std::string("mpClose"); assert(!ValidOperation(unlisted));
     auto fixed=valueAction; fixed.arguments.at("value").inputValue=false; assert(!ValidOperation(fixed));
     auto computed=valueAction; computed.arguments.at("command").state="card.verb"; assert(!ValidOperation(computed));
+    // A field writes its own document state: a literal key and the field's
+    // value. The document's declaration of the key is checked at load.
+    const auto field=[](StateValue key,StateValue value) {
+        return ActionInvocation{"x","ui.state.set",{{"key",key},{"value",value}}};
+    };
+    assert(ValidInvocation(field(std::string("save.name"),std::string("My save")),error));
+    for (const auto& bad : {field(1.0,std::string("My save")),field(std::string("save.name"),std::numeric_limits<double>::infinity()),
+                            ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")}}}})
+        assert(!ValidInvocation(bad,error));
+    Action fieldAction; fieldAction.operation="ui.state.set"; fieldAction.inputType=2;
+    Expression fieldKey; fieldKey.type=2; fieldKey.literal=std::string("save.name");
+    Expression fieldText; fieldText.type=2; fieldText.inputValue=true;
+    fieldAction.arguments={{"key",fieldKey},{"value",fieldText}};
+    assert(ValidOperation(fieldAction));
+    auto keyFromState=fieldAction; keyFromState.arguments.at("key").state="save.key"; assert(!ValidOperation(keyFromState));
+    auto keyFromInput=fieldAction; keyFromInput.arguments.at("key").inputValue=true; assert(!ValidOperation(keyFromInput));
+    auto fixedText=fieldAction; fixedText.arguments.at("value").inputValue=false; assert(!ValidOperation(fixedText));
+    auto extraArgument=fieldAction; extraArgument.arguments.emplace("more",fieldText); assert(!ValidOperation(extraArgument));
+    // An optional literal event runs once the value is written.
+    assert(ValidInvocation(ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")},{"value",std::string("My save")},
+                                                                {"event",std::string("nameEntered")}}},error));
+    assert(!ValidInvocation(ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")},{"value",std::string("My save")},
+                                                                 {"event",1.0}}},error));
+    Expression fieldEvent; fieldEvent.type=2; fieldEvent.literal=std::string("nameEntered");
+    auto withEvent=fieldAction; withEvent.arguments.emplace("event",fieldEvent); assert(ValidOperation(withEvent));
+    auto eventFromState=withEvent; eventFromState.arguments.at("event").state="save.next"; assert(!ValidOperation(eventFromState));
+    auto numericEvent=withEvent; numericEvent.arguments.at("event").type=0; assert(!ValidOperation(numericEvent));
     // A player setting takes its stock control's values: a slider's range
     // (whole numbers for an integer setting), a Boolean, or one of a list's
     // values as its text; nothing else may be set.
@@ -1597,6 +1624,14 @@ static void CheckValueProposalBoundary() {
     modelTemplate.actions["value.brightness"]={"settings.brightness.set",{{"value",input}},std::size_t(0)};
     modelTemplate.actions["value.settings"]={"settings.system.edit",{{"r_brightness",input}},std::size_t(0)};
     modelTemplate.actions["value.dismiss"]={"ui.dismiss",{},std::size_t(0)};
+    Expression nameKey; nameKey.type=2; nameKey.literal=std::string("field.name");
+    Expression nameInput; nameInput.type=2; nameInput.inputValue=true;
+    modelTemplate.actions["value.name"]={"ui.state.set",{{"key",nameKey},{"value",nameInput}},std::size_t(2)};
+    modelTemplate.state["field.name"]={std::string(),""};
+    Expression namedEvent; namedEvent.type=2; namedEvent.literal=std::string("nameEntered");
+    modelTemplate.actions["value.named"]={"ui.state.set",{{"key",nameKey},{"value",nameInput},{"event",namedEvent}},std::size_t(2)};
+    modelTemplate.events["nameentered"];
+    eventPlans["nameentered"]={};
     for(const auto& [key,type]:UI_SettingsStateSchema())
         modelTemplate.state[key]={type==0?StateValue(0.0):type==1?StateValue(false):StateValue(std::string()),""};
     {
@@ -1654,6 +1689,22 @@ static void CheckValueProposalBoundary() {
         proposal(110,1.2,"value.dismiss"); collect(); Drain(gui,{},true);
         assert(runtime.acknowledgements.back().token==110 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
         assert(runtime.latestProposal.empty());
+        // A text field's committed text goes into the document's own state;
+        // with no Number widget to read it back, it is acknowledged at once.
+        runtime.latestProposal["root"]=111;
+        runtime.actions.push_back({ControlAction::Kind::Activate,modelTemplate.id,"root","value.name","",StateValue(std::string("My save")),111});
+        collect(); Drain(gui,{});
+        assert(std::string(gui.GetStateString("field.name"))=="My save" && runtime.state.at("field.name")==StateValue(std::string("My save")));
+        assert(runtime.acknowledgements.back().token==111 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
+        assert(runtime.acknowledgements.back().readback.at("field.name")==StateValue(std::string("My save")));
+        // A write that names an event runs the document's program after the
+        // value is written and accepted.
+        const auto programs=eventHistory.size();
+        runtime.latestProposal["root"]=112;
+        runtime.actions.push_back({ControlAction::Kind::Activate,modelTemplate.id,"root","value.named","",StateValue(std::string("Other")),112});
+        collect(); Drain(gui,{});
+        assert(std::string(gui.GetStateString("field.name"))=="Other" && eventHistory.size()==programs+1 && eventHistory.back()=="nameentered");
+        assert(runtime.acknowledgements.back().token==112 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
         WidgetViewState widget; widget.role=ControlRole::Slider; widget.accepted=1.05; widget.pending=1.2;
         widget.rejected=1.1; widget.proposalToken=999; widget.firstVisible=0; runtime.widgets["root"]=widget;
         idCmdArgs inspect; inspect.values={"retained","widget","root"};
@@ -2233,6 +2284,43 @@ static void CheckTabKeys() {
     Key(gui,K_CTRL,true);pulse(K_JOY16);Key(gui,K_CTRL,false);
     assert(sections().size()==3);
 }
+// Committed characters (SE_CHAR) type into the focused field, opening an
+// edit when none is open; a field with the focus takes the platform's
+// text input.
+static void CheckTypedCharacters() {
+    assert(views.empty());const auto original=modelTemplate;
+    Expression operand;operand.type=0;operand.inputValue=true;
+    modelTemplate.actions["number.set"]={"settings.brightness.set",{{"value",operand}},std::size_t(0)};
+    consoleObject.open=false;windowFocused=true;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+        auto& runtime=Live();runtime.InstallNumber("root","number.set");runtime.selected="root";
+        const auto type=[&](int character){sysEvent_t event{SE_CHAR,character,0};gui.HandleEvent(&event,0,nullptr);};
+        const auto text=[&]{return runtime.numberBuffers.at("root").State().text;};
+        idRectangle area;float offset=-1;
+        assert(gui.GetTextInputState(area,offset) && area.w>0 && area.h>0 && offset==0);
+        runtime.selected="missing";assert(!gui.GetTextInputState(area,offset));runtime.selected="root";
+        // Control characters stay with their keys, and a space accepts a
+        // field that is not being edited: none of them opens an edit.
+        const auto calls=runtime.numberCalls.size();
+        type(' ');type(8);type(13);type(0x7f);type(0x85);
+        assert(runtime.numberCalls.size()==calls && !runtime.widgets.at("root").number);
+        type('1');
+        assert(runtime.numberCalls.size()==calls+2 && runtime.numberCalls[calls].operation=="begin" &&
+               runtime.numberCalls[calls+1].operation=="input" && text()=="1");
+        type('.');type('5');assert(text()=="1.5");
+        // Latin-1 arrives as its code point and types as UTF-8.
+        type(0xe9);assert(text()=="1.5\xc3\xa9");
+        // An open edit takes spaces.
+        type(' ');assert(text()=="1.5\xc3\xa9 ");
+        // A suspended view takes nothing, and reports no text input.
+        consoleObject.open=true;gui.Redraw(0);
+        const auto suspended=runtime.numberCalls.size();type('2');
+        assert(runtime.numberCalls.size()==suspended && !gui.GetTextInputState(area,offset));
+        consoleObject.open=false;gui.Redraw(0);type('2');assert(text()=="1.5\xc3\xa9 2");
+    }
+    assert(views.empty());modelTemplate=original;
+}
 static void CheckNumberKeys() {
     assert(views.empty());const auto original=modelTemplate;
     Expression operand;operand.type=0;operand.inputValue=true;
@@ -2456,6 +2544,19 @@ int main() {
     unsafe=modelTemplate; unsafe.actions["brightness"].arguments["extra"]=Expression{}; assert(!ValidateApplication(unsafe,error));
     unsafe=modelTemplate; unsafe.state["NUMBER"]={1.0,""}; assert(!ValidateApplication(unsafe,error));
     unsafe=modelTemplate; unsafe.state["NaMe"]={1.0,""}; assert(!ValidateApplication(unsafe,error));
+    // A field writes only the document's own declared state of its type.
+    auto fieldModel=modelTemplate; fieldModel.state["save.name"]={std::string(),""};
+    Expression fieldKey; fieldKey.type=2; fieldKey.literal=std::string("save.name");
+    Expression fieldText; fieldText.type=2; fieldText.inputValue=true;
+    fieldModel.actions["rename"]={"ui.state.set",{{"key",fieldKey},{"value",fieldText}},std::size_t(2)};
+    assert(ValidateApplication(fieldModel,error));
+    unsafe=fieldModel; unsafe.actions["rename"].arguments.at("key").literal=std::string("save.missing"); assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.state["save.name"].cvar="ui_name"; assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.actions["rename"].inputType=0; assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.state["save.name"].initial=0.0; assert(!ValidateApplication(unsafe,error));
+    Expression enteredEvent; enteredEvent.type=2; enteredEvent.literal=std::string("nameEntered");
+    unsafe=fieldModel; unsafe.actions["rename"].arguments.emplace("event",enteredEvent); assert(!ValidateApplication(unsafe,error));
+    unsafe.events["nameentered"]; assert(ValidateApplication(unsafe,error));
     CheckEventBridge();
     CheckCompletionWrites();
     CheckEventEligibility();
@@ -2474,6 +2575,7 @@ int main() {
     CheckNumberDiagnosticBoundary();
     CheckChoiceDiagnosticBoundary();
     CheckNumberKeys();
+    CheckTypedCharacters();
     CheckTabKeys();
     std::puts("Retained adapter: Number diagnostic transport, delayed numeric identity and readback-before-acknowledgement; exactly-once Apply-and-exit receipts after complete queued batches, stationary wheel/pointer handoff, immutable value proposals/acknowledgements, authoritative settings return and authored Back, settings capability/draw ownership and state/lifecycle boundaries, ordered event/FIFO publication, restore suppression, pending dictionary, presentation delegation, framed saves, input suspension and cursor mapping passed");
 }

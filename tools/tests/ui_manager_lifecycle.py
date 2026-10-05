@@ -73,7 +73,8 @@ template<class T> struct idList {
     }
 };
 struct idVec4 { void Zero() {} } vec4_origin;
-struct idRectangle {};
+// The virtual-screen rectangle a focused field reports (src/ui/Rectangle.h).
+struct idRectangle { float x=0,y=0,w=0,h=0; idRectangle()=default; idRectangle(float ix,float iy,float iw,float ih):x(ix),y(iy),w(iw),h(ih) {} };
 struct sysEvent_t { int evType=0,evValue=0,evValue2=0; };
 struct idMath { static float ClampFloat(float low,float high,float value) { return std::clamp(value,low,high); } };
 struct wrapInfo_t {};

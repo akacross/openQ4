@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import re
 
-from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, PICTURE, RAIL_DARK, STRINGS, U,
+from build_retained_screens import (CANVAS_W, CLOSE_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, PICTURE, RAIL_DARK, STRINGS, U,
                                     Document, absolute, action_plate, colour, confirmation, font, group, keyword, label, length,
                                     linear, localized, marker_path, number, objectives_scrollbar, path, picture, rgb, solid,
                                     stroke, text_width, track, transform, typeface, vector)
@@ -58,14 +58,15 @@ RULE_Y = 77.6                              # horiz_line2's two centre texels, dr
 
 
 def section_plate(doc: Document, ident: str, key: str, left: float, top: float, *, action: str | None = None,
-                  event: str | None = None) -> dict:
+                  event: str | None = None, label_w: float = 186) -> dict:
     """A section navigation plate (b2_dark drawn at 208x52 u, Appendix B.1):
     its band rows 16-45 of 64 (13-37.4 u), a lower-leading cut from row 32,
     the #CCCC51 rail along the leading edge, the cut and the bottom, a black
     fill opaque to 57 % of the width, half at 72 % and gone by 94 %, drawn at
     0.40; the corner marker 8,19 u into the rectangle and the Marine label
     (textscale 0.31, 22.3 dp) from 18 u. Hover and focus light the plate to
-    0.80 and turn the marker and label orange, as on the home plates."""
+    0.80 and turn the marker and label orange, as on the home plates. The
+    label is `label_w` u wide, past the plate's faded end where it may run."""
     width, height = U * 208, U * 52
     band_top, band_bottom, cut = U * 13.0, U * 37.4, U * 11.4
     fade = [(0, [0, 0, 0, 1]), (0.57, [0, 0, 0, 1]), (0.72, [0, 0, 0, 0.5]), (0.94, [0, 0, 0, 0]), (1, [0, 0, 0, 0])]
@@ -82,7 +83,7 @@ def section_plate(doc: Document, ident: str, key: str, left: float, top: float, 
         marker_path("mark", U * 10.75, U * 21.75, U * 5.5, rgb(MARKER))])
     marker_hot = vector(f"{ident}-marker-hot", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0)}, [
         marker_path("mark", U * 10.75, U * 21.75, U * 5.5, rgb(ORANGE))])
-    text_node = label(f"{ident}-label", key, {**absolute(left=U * 18, top=band_top, width=U * 186, height=band_bottom - band_top),
+    text_node = label(f"{ident}-label", key, {**absolute(left=U * 18, top=band_top, width=U * label_w, height=band_bottom - band_top),
                       **typeface("marine", 22.3, band_bottom - band_top, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"),
                       "transform": transform()})
     lit, rest = number(1), number(0)
@@ -162,31 +163,33 @@ def row_states(doc: Document, ident: str, text_nodes: tuple, rest_colours: tuple
 NAME_TINT, LOCATION_TINT = [1, 1, 1, 0.9], [1, 1, 1, 0.65]
 
 
-def save_row(doc: Document, index: int) -> dict:
+def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW_W,
+             chosen: list | None = None) -> dict:
     """One of the list's rows: the save's name in the SAVE NAME column and its
     level in the LOCATION column (tabstops 0 and 180 u), Lowpixel at the stock
     list's textscale 0.22 (15.8 dp) on its 20 u pitch. Its first Accept selects
-    the save; Accept on the selected save loads it."""
-    ident, key = f"row-{index}", f"load.row{index}"
+    the save; Accept on the selected save runs `chosen` (by default it loads
+    it). `prefix` names the page's list state and `row_w` its row width."""
+    ident, key = f"row-{index}", f"{prefix}.row{index}"
     doc.state[f"{key}.name"] = {"type": "string", "initial": ""}
     doc.state[f"{key}.location"] = {"type": "string", "initial": ""}
-    width, height = U * ROW_W, U * ROW_H
+    width, height = U * row_w, U * ROW_H
     cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
     name = label(f"{ident}-name", PLACEHOLDER, {**absolute(left=U * 4, top=0, width=U * (LOCATION_X - 8), height=height),
                  **typeface("lowpixel", 15.8, height, NAME_TINT), **cell})
-    location = label(f"{ident}-location", PLACEHOLDER, {**absolute(left=U * LOCATION_X, top=0, width=U * (ROW_W - LOCATION_X - 4), height=height),
+    location = label(f"{ident}-location", PLACEHOLDER, {**absolute(left=U * LOCATION_X, top=0, width=U * (row_w - LOCATION_X - 4), height=height),
                      **typeface("lowpixel", 15.8, height, LOCATION_TINT), **cell})
     doc.bind(f"{ident}-name.text", f"{ident}-name", "text", {"state": f"{key}.name"})
     doc.bind(f"{ident}-location.text", f"{ident}-location", "text", {"state": f"{key}.location"})
-    save = {"op": "+", "args": [{"state": "load.first"}, index]}
+    save = {"op": "+", "args": [{"state": f"{prefix}.first"}, index]}
     doc.bind(f"{ident}.display", ident, "display",
-             {"op": "select", "args": [{"op": "<", "args": [save, {"state": "load.count"}]}, "block", "none"]})
+             {"op": "select", "args": [{"op": "<", "args": [save, {"state": f"{prefix}.count"}]}, "block", "none"]})
     doc.bind(f"{ident}-selected.display", f"{ident}-selected", "display",
-             {"op": "select", "args": [{"op": "==", "args": [{"state": "load.selected"}, save]}, "block", "none"]})
-    event = f"loadRow{index}"
-    doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": "load.selected"}, save]},
-                          "then": [{"op": "action", "action": "save"}],
-                          "else": [{"op": "setState", "values": {"load.pick": index}}, {"op": "action", "action": "select"}]}]
+             {"op": "select", "args": [{"op": "==", "args": [{"state": f"{prefix}.selected"}, save]}, "block", "none"]})
+    event = f"{prefix}Row{index}"
+    doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": f"{prefix}.selected"}, save]},
+                          "then": chosen if chosen is not None else [{"op": "action", "action": "save"}],
+                          "else": [{"op": "setState", "values": {f"{prefix}.pick": index}}, {"op": "action", "action": "select"}]}]
     ids = row_states(doc, ident, (f"{ident}-name", f"{ident}-location"), (NAME_TINT, LOCATION_TINT))
     return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
                          "flex-shrink": number(0)},
@@ -194,13 +197,13 @@ def save_row(doc: Document, index: int) -> dict:
                  control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
 
 
-def pager_row(doc: Document, ident: str, key: str, action: str, shown: dict) -> dict:
+def pager_row(doc: Document, ident: str, key: str, action: str, shown: dict, row_w: float = ROW_W) -> dict:
     """A row that pages the list to the newer or older saves (more saves than
     the list holds): a row with the home plates' marker and a Marine label."""
-    width, height = U * ROW_W, U * ROW_H
+    width, height = U * row_w, U * ROW_H
     marker = vector(f"{ident}-marker", {**absolute(left=U * 4, top=0, width=U * 8, height=height), "pointer-events": keyword("none")}, [
         marker_path("mark", 0, height / 2 - U * 3, U * 5, rgb(MARKER))])
-    text_node = label(f"{ident}-label", key, {**absolute(left=U * 14, top=0, width=U * (ROW_W - 18), height=height),
+    text_node = label(f"{ident}-label", key, {**absolute(left=U * 14, top=0, width=U * (row_w - 18), height=height),
                       **typeface("marine", 16, height, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
                       "pointer-events": keyword("none")})
     ids = row_states(doc, ident, (f"{ident}-label",), ([1, 1, 1, 0.8],))
@@ -240,11 +243,11 @@ def backing_x(f: float) -> dict:
     return {"fraction": f, "dp": round(U * (683 * f - 11) - CANVAS_W * f, 4)}
 
 
-def backing() -> dict:
+def backing(ident: str = "load-backing") -> dict:
     first, last = BACKING_STOPS[0][0], BACKING_STOPS[-1][0]
     stops = [(round((f - first) / (last - first), 4), [0, 0, 0, round(BACKING_ALPHA * alpha, 4)]) for f, alpha in BACKING_STOPS]
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
-    return vector("load-backing", {**FULL, "opacity": number(1), "pointer-events": keyword("none")}, [
+    return vector(ident, {**FULL, "opacity": number(1), "pointer-events": keyword("none")}, [
         path("backing", whole, fill=linear((backing_x(first), 0), (backing_x(last), 0), stops))])
 
 
@@ -416,3 +419,230 @@ def load_game_document() -> dict:
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing(), stage, modal])
     return doc.build(root)
+
+
+# The Save Game page: the stock p_savegame (section 9 "Save and load"). The
+# Marine pause's SAVE GAME hands off to it as LOAD GAME does to its page. The
+# saves fill the content column under SAVE NAME and LOCATION headings, 570 u
+# wide; the name plate (b1_dark) and the SAVE GAME plate (b2_dark) stand under
+# the list, and BACK in the bottom band.
+SAVE_LIST_LEFT, SAVE_LIST_TOP, SAVE_LIST_H = 35.0, 78.0, 285.0
+SAVE_ROW_W = 550.0                          # tabstops 0, 180 and 550: the scrollbar takes the last 20 u
+SAVE_LIST_W = 570.0
+SAVE_HEAD_TOP = 62.0
+NAME_PLATE = (4.0, 370.0, 484.0, 52.0)      # save_filenamebg: b1_dark at 0.40
+NAME_FIELD = (49.0, 382.0, 344.0, 20.0)     # save_filename: Lowpixel at textscale 0.28
+NAME_BYTES = 32                              # the stock field held 20 characters; the list column shows about 30
+SAVE_PLATE = (397.0, 370.0)                  # save_b1: b2_dark, its corner marker and the SAVE GAME label
+SAVE_LABEL_W = 221.0                         # the label may run past the plate to the canvas edge, as the stock one did
+NAME_TEXT = 20.0                             # dp: textscale 0.28
+VALIDATION = [0.8941, 0.4275, 0.3373, 1]     # a field's validation message (#E46D56)
+TITLE_W = 316.0                              # dp: a dialog's title slot, from the slot's leading foot to its trailing flank
+WIDE_TITLE_W = 437.2                         # dp: a wide dialog title, from the slot's leading foot to 6 dp short of the frame's edge
+
+
+def name_plate() -> dict:
+    """The name's plate, b1_dark drawn at 484x52 u at 0.40: its band rows
+    16-45 of 64 (13-37.4 u), starting 33 of its 512 texels in, with the rail
+    up the leading edge, down the 14-texel lower-leading cut and along the
+    foot, and the black fill opaque to 44 % of the width, half at 62 % and
+    gone by 88 % (Appendix B.1, as the home's navigation plates)."""
+    left, top, width, height = NAME_PLATE
+    w = U * width
+    band_top, band_bottom = U * 13.0, U * 37.4
+    lead, cut_x, cut_y = round(w * 33 / 512, 4), round(w * 14 / 512, 4), U * 11.4
+    fade = [(0, [0, 0, 0, 1]), (0.44, [0, 0, 0, 1]), (0.62, [0, 0, 0, 0.5]), (0.88, [0, 0, 0, 0]), (1, [0, 0, 0, 0])]
+    rail = [(0, rgb(RAIL_DARK)), (0.44, rgb(RAIL_DARK)), (0.62, rgb(RAIL_DARK, 0.5)), (0.88, rgb(RAIL_DARK, 0)), (1, rgb(RAIL_DARK, 0))]
+    return vector("save-name-plate", {**absolute(left=U * left, top=U * top, width=w, height=U * height), "opacity": number(0.4),
+                                      "pointer-events": keyword("none")}, [
+        path("fill", [(lead, band_top), (w, band_top), (w, band_bottom), (lead + cut_x, band_bottom), (lead, band_bottom - cut_y)],
+             fill=linear((0, 0), (w, 0), fade)),
+        path("rail", [(lead + 0.75, band_top), (lead + 0.75, band_bottom - cut_y), (lead + cut_x, band_bottom - 0.75), (w, band_bottom - 0.75)],
+             closed=False, stroke=stroke(linear((0, 0), (w, 0), rail), 1.5)),
+    ])
+
+
+def name_field(doc: Document) -> dict:
+    """The save's name (save_filename): a text field in Lowpixel at the stock
+    field's textscale 0.28 (20 dp), white 0.80, on the name plate. Accept or
+    typing opens it, and Enter saves under the name (the stock field's
+    onEnter). An empty field says what it wants; while it is being edited
+    empty, the validation line above the plate asks for a name."""
+    left, top, width, height = NAME_FIELD
+    ident = "save-name"
+    w, line = U * width, U * height
+    parts = {part: f"{ident}-{part}" for part in ("viewport", "text", "selection", "caret", "composition", "validation")}
+    def paint(part: str, thickness: float, tall: float, tint: list) -> dict:
+        return group(parts[part], {**absolute(left=0, top=0, width=thickness, height=tall), "background-color": colour(tint),
+                                   "pointer-events": keyword("none"), "display": keyword("block"), "opacity": number(1)})
+    text_node = label(parts["text"], PLACEHOLDER, {**absolute(left=0, top=0, width=4096, height=line),
+                      **typeface("lowpixel", NAME_TEXT, line, [1, 1, 1, 0.8]), "white-space": keyword("pre"), "text-align": keyword("left")})
+    viewport = group(parts["viewport"], {**absolute(left=0, top=0, width=w, height=line), "overflow": keyword("hidden")}, [
+        paint("selection", 0, line, rgb(ORANGE, 0.4)), text_node, paint("caret", 1.5, line, [1, 1, 1, 1]),
+        paint("composition", 0, 1, rgb(ORANGE))])
+    validation = label(parts["validation"], "#str_231108", {**absolute(left=0, top=-U * 13, width=w, height=U * 11),
+                       **typeface("lowpixel", 14, U * 11, VALIDATION), "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
+                       "display": keyword("none")})
+    # The name the field wants, until it holds one or is being typed into.
+    hint = label(f"{ident}-hint", "#str_231109", {**absolute(left=0, top=0, width=w, height=line),
+                 **typeface("lowpixel", NAME_TEXT, line, [1, 1, 1, 0.35]), "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
+                 "pointer-events": keyword("none"), "display": keyword("block")})
+    doc.bind(f"{ident}-hint.display", f"{ident}-hint", "display",
+             {"op": "select", "args": [{"op": "&&", "args": [{"op": "==", "args": [{"state": "save.name"}, ""]},
+                                                              {"op": "!", "args": [{"state": "ui.numberDraftsPending"}]}]}, "block", "none"]})
+    # Focus draws the plates' orange inset under the name; the pointer half of it.
+    focus = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=w, height=line + U * 4), "opacity": number(0),
+                                      "pointer-events": keyword("none")}, [
+        path("inset", [(0, line + U * 2), (round(w * 0.9, 4), line + U * 2)], closed=False, stroke=stroke(solid(rgb(ORANGE)), 1.2))])
+    rest, half, lit = number(0), number(0.5), number(1)
+    ids = doc.states(ident, {
+        "default": [(f"{ident}-focus", "opacity", rest), (parts["text"], "color", colour([1, 1, 1, 0.8]))],
+        "hover": [(f"{ident}-focus", "opacity", half), (parts["text"], "color", colour([1, 1, 1, 1]))],
+        "focus": [(f"{ident}-focus", "opacity", lit), (parts["text"], "color", colour([1, 1, 1, 1]))],
+        "pressed": [(f"{ident}-focus", "opacity", lit), (parts["text"], "color", colour([1, 1, 1, 1]))],
+        "disabled": [(f"{ident}-focus", "opacity", rest), (parts["text"], "color", colour([1, 1, 1, 0.3]))],
+    })
+    control = {"role": "text", "label": "#str_200925", "action": "rename", "value": {"state": "save.name"},
+               "maxBytes": NAME_BYTES, "parts": parts, "states": ids}
+    return group(ident, absolute(left=U * left, top=U * top, width=w, height=line), [focus, hint, viewport, validation], control=control)
+
+
+def check_save_text_fits() -> None:
+    """Every shipped language's text fits its box on the Save Game page: the
+    plates, headings, pager labels, field hint and validation on one line,
+    the empty state's sentence on two, and each dialog's body on the three
+    lines above its actions (the overwrite dialog keeps the third for the
+    save's name). Generation fails otherwise."""
+    one_line = (("#str_200003", "marine", 22.3, U * SAVE_LABEL_W), ("#str_200925", "lowpixel", 13, U * (LOCATION_X - 4)),
+                ("#str_200926", "lowpixel", 13, U * (SAVE_ROW_W - LOCATION_X)), ("#str_231100", "marine", 20, U * SAVE_ROW_W),
+                ("#str_231106", "marine", 16, U * (SAVE_ROW_W - 18)), ("#str_231107", "marine", 16, U * (SAVE_ROW_W - 18)),
+                ("#str_200018", "marine", 20, U * 109 - 30), ("#str_200923", "marine", 20, CLOSE_W - 30),
+                ("#str_231108", "lowpixel", 14, U * NAME_FIELD[2]), ("#str_231109", "lowpixel", NAME_TEXT, U * NAME_FIELD[2]),
+                ("#str_200252", "marine", 20, WIDE_TITLE_W), ("#str_200266", "marine", 20, TITLE_W))
+    body = 480 - 66
+    wrapped = (("#str_231101", "lowpixel", 17, U * SAVE_ROW_W, 2), ("#str_200253", "lowpixel", 17, body, 2)) + tuple(
+        (key, "lowpixel", 17, body, 3) for key in ("#str_200982", "#str_231110", "#str_231111", "#str_231112", "#str_231113"))
+    for key, face, size, width in one_line:
+        texts = table_text(key)
+        if sorted(texts) != sorted(LANGUAGES):
+            raise SystemExit(f"{key} is missing from {sorted(set(LANGUAGES) - set(texts))}")
+        # A dialog title is set 0.075 em tighter between its glyphs.
+        tighten = 0.075 * size if width in (TITLE_W, WIDE_TITLE_W) else 0
+        for language, text in texts.items():
+            needed = text_width(face, text, size) - tighten * (len(text) - 1)
+            if needed > width:
+                raise SystemExit(f"{key} in {language} ({text!r}) needs {needed:.0f} dp of {width:.0f}")
+    for key, face, size, width, allowed in wrapped:
+        texts = table_text(key)
+        if sorted(texts) != sorted(LANGUAGES):
+            raise SystemExit(f"{key} is missing from {sorted(set(LANGUAGES) - set(texts))}")
+        for language, text in texts.items():
+            if lines_needed(face, text, size, width) > allowed:
+                raise SystemExit(f"{key} in {language} needs {lines_needed(face, text, size, width)} lines of {allowed}")
+
+
+def save_game_document() -> dict:
+    check_save_text_fits()
+    doc = Document("openq4.savegame")
+    doc.state.update({
+        "save.count": {"type": "number", "initial": 0},
+        "save.first": {"type": "number", "initial": 0},
+        "save.selected": {"type": "number", "initial": -1},
+        "save.pick": {"type": "number", "initial": -1},
+        "save.name": {"type": "string", "initial": ""},
+        "save.target": {"type": "string", "initial": ""},
+        "save.notice": {"type": "string", "initial": ""},
+        # The adapter keeps this: the name field holds text not yet entered.
+        "ui.numberDraftsPending": {"type": "boolean", "initial": False},
+    })
+    for action, command in (("back", "saveBack"), ("select", "saveSelect"), ("save", "saveSave"), ("overwrite", "saveOverwrite"),
+                            ("newer", "saveNewer"), ("older", "saveOlder")):
+        doc.session(action, command)
+    # Entering the name writes it into save.name, then saves under it.
+    doc.actions["rename"] = {"input": "string", "operation": "ui.state.set",
+                             "arguments": {"key": "save.name", "value": {"input": "value"}, "event": "nameEntered"}}
+    doc.actions["editName"] = {"operation": "ui.numberDrafts.focus", "arguments": {}}
+    doc.events["nameEntered"] = [{"op": "action", "action": "save"}]
+    # SAVE GAME saves under the entered name. A name typed but not entered
+    # takes the focus back, where Enter saves under it.
+    doc.events["saveRequested"] = [{"op": "if", "condition": {"state": "ui.numberDraftsPending"},
+                                    "then": [{"op": "action", "action": "editName"}], "else": [{"op": "action", "action": "save"}]}]
+    doc.events["onBack"] = [{"op": "action", "action": "back"}]
+
+    # The list: headings over an olive rule, the saves, newest first, and the
+    # pages either side of them. A row's first Accept selects its save, whose
+    # name the field then shows; Accept on the selected save saves over it.
+    heading = {**typeface("lowpixel", 13, U * 14, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+    headings = [
+        label("save-head-name", "#str_200925", {**absolute(left=U * SAVE_LIST_LEFT, top=U * SAVE_HEAD_TOP, width=U * (LOCATION_X - 4),
+                                                          height=U * 14), **heading}),
+        label("save-head-location", "#str_200926", {**absolute(left=U * (SAVE_LIST_LEFT + LOCATION_X - 1), top=U * SAVE_HEAD_TOP,
+                                                              width=U * (SAVE_ROW_W - LOCATION_X), height=U * 14), **heading}),
+        vector("save-rule", absolute(left=U * SAVE_LIST_LEFT, top=U * RULE_Y - 0.6, width=U * SAVE_LIST_W, height=1.2), [
+            path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.26)), 1.2))]),
+    ]
+    chosen = [{"op": "call", "event": "saveRequested"}]
+    rows = [save_row(doc, index, "save", SAVE_ROW_W, chosen) for index in range(ROWS)]
+    newer = pager_row(doc, "page-newer", "#str_231106", "newer", {"op": ">", "args": [{"state": "save.first"}, 0]}, SAVE_ROW_W)
+    older = pager_row(doc, "page-older", "#str_231107", "older",
+                      {"op": "<", "args": [{"op": "+", "args": [{"state": "save.first"}, ROWS]}, {"state": "save.count"}]}, SAVE_ROW_W)
+    column = group("save-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")},
+                   [newer, *rows, older])
+    viewport = group("save-list", {**absolute(left=U * SAVE_LIST_LEFT, top=U * SAVE_LIST_TOP, width=U * SAVE_ROW_W, height=U * SAVE_LIST_H),
+                                   "overflow": keyword("auto")}, [column])
+    scrollbar = objectives_scrollbar(doc, "save_scroll", "save-list", OLIVE, ORANGE, U * (SAVE_LIST_LEFT + SAVE_ROW_W + 8) - 18,
+                                     U * SAVE_LIST_TOP, U * SAVE_LIST_H, line_step=U * ROW_H, key="#str_200003")
+    # No saves yet: the empty state of section 13.13 in the list's place.
+    empty = group("save-empty", {**absolute(left=U * SAVE_LIST_LEFT, top=U * SAVE_LIST_TOP, width=U * SAVE_ROW_W, height=U * 80),
+                                 "display": keyword("none")}, [
+        label("save-empty-heading", "#str_231100", {**absolute(left=0, top=U * 10, width=U * SAVE_ROW_W, height=U * 16),
+              **typeface("marine", 20, U * 16, HEADING), "white-space": keyword("nowrap")}),
+        label("save-empty-text", "#str_231101", {**absolute(left=0, top=U * 32, width=U * SAVE_ROW_W, height=U * 36),
+              **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8]), "white-space": keyword("normal"), "overflow": keyword("hidden")}),
+    ])
+    doc.bind("save-empty.display", "save-empty", "display",
+             {"op": "select", "args": [{"op": "==", "args": [{"state": "save.count"}, 0]}, "block", "none"]})
+
+    # Under the list: the name on its plate, then SAVE GAME, which needs a
+    # name, entered or typed.
+    save_plate = section_plate(doc, "save_go", "#str_200003", *SAVE_PLATE, event="saveRequested", label_w=SAVE_LABEL_W)
+    doc.bind("save_go.enabled", "save_go", "enabled",
+             {"op": "||", "args": [{"op": "!=", "args": [{"state": "save.name"}, ""]}, {"state": "ui.numberDraftsPending"}]})
+    field = name_field(doc)
+    back = action_plate(doc, "save_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(), field, back])
+    stage = group("save-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
+                  [save_plate, panel])
+
+    # Saving over a save asks first and names it; an autosave, or a save the
+    # session refuses, says why.
+    overwrite = confirmation(doc, "overwriteModal", "#str_200252", "#str_200253", None, yes_event="overwriteConfirmed",
+                             wide_title=True)
+    doc.events["overwriteConfirmed"] = [{"op": "call", "event": "overwriteModalHide"}, {"op": "action", "action": "overwrite"}]
+    target = label("overwriteModal-target", PLACEHOLDER, {**absolute(left=33, top=71 + 44, width=480 - 66, height=22),
+                   **typeface("lowpixel", 17, 22, rgb(ORANGE)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+    doc.bind("overwriteModal-target.text", "overwriteModal-target", "text", {"state": "save.target"})
+    contents = next(child for child in walk(overwrite) if child.get("id") == "overwriteModal-contents")
+    contents["children"].append(target)
+    notice = confirmation(doc, "noticeModal", "#str_200266", PLACEHOLDER, None, close_key="#str_200923")
+    doc.bind("noticeModal-body.text", "noticeModal-body", "text", {"state": "save.notice"})
+
+    doc.timelines.add("arrive", 150, [track(node, "opacity", [(0, number(0)), (1, number(0)), (150, number(1))])
+                                      for node in ("save-panel", "save-backing")])
+    doc.timelines.add("rest", 1, [track(node, "opacity", [(0, number(0)), (1, number(0))]) for node in ("save-panel", "save-backing")])
+    # Each arrival focuses the name, ready for typing, as the stock page's
+    # field took the keys.
+    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}, {"op": "focus", "control": "save-name"}]
+    doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
+    doc.events["pagedOlder"] = [{"op": "focus", "control": "row-0"}]
+    doc.events["pagedNewer"] = [{"op": "focus", "control": f"row-{ROWS - 1}"}]
+    root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
+                 [backing("save-backing"), stage, overwrite, notice])
+    return doc.build(root)
+
+
+def walk(node: dict):
+    """`node` and every node under it."""
+    yield node
+    for child in node.get("children", ()):
+        yield from walk(child)
