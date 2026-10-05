@@ -1579,6 +1579,19 @@ idPlayer::idPlayer() {
 	
 	oldMouseX				= 0;
 	oldMouseY				= 0;
+	weaponWheelGui			= NULL;
+	weaponWheelGuiTried		= false;
+	weaponWheelActive		= false;
+	weaponWheelPressed		= false;
+	weaponWheelPresenting	= false;
+	weaponWheelPressTime	= 0;
+	weaponWheelCloseTime	= 0;
+	weaponWheelHoveredSlot	= -1;
+	weaponWheelLastMouseX	= 0;
+	weaponWheelLastMouseY	= 0;
+	weaponWheelCursor.Zero();
+	weaponWheelTestHeld		= false;
+	weaponWheelTestStick.Zero();
 
 	lastDamageDef			= 0;
 	lastDamageDir			= vec3_zero;
@@ -2348,6 +2361,9 @@ void idPlayer::Spawn( void ) {
 		if ( cursor ) {
 			cursor->Activate( true, gameLocal.time );
 		}
+
+		// openQ4: the retained weapon wheel, before it is first held
+		AcquireRetainedWeaponWheel();
 		
 		// Load 
 
@@ -2551,6 +2567,9 @@ Release any resources used by the player.
 ==============
 */
 idPlayer::~idPlayer() {
+	if ( weaponWheelActive ) {
+		common->SetWeaponWheelCapture( false );
+	}
 	if( gameLocal.mpGame.GetGameState() ) {
 		gameLocal.mpGame.GetGameState()->ClientDisconnect( this );
 	}
@@ -4913,6 +4932,9 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 			overlayHudTime = 0;
 		}
 	}
+
+	// openQ4: the weapon wheel draws over the HUD and its multiplayer overlay.
+	DrawWeaponWheel();
 }
 
 /*
@@ -10275,10 +10297,250 @@ void idPlayer::EvaluateControls( void ) {
 
 	oldFlags = usercmd.flags;
 
+	// openQ4: the local client's weapon wheel, once per new frame (never in a
+	// prediction rerun, which would replay its press and release).
+	if ( gameLocal.isNewFrame ) {
+		UpdateWeaponWheel();
+	}
+
 	AdjustSpeed();
 
 	// update the viewangles
 	UpdateViewAngles();
+}
+
+/*
+================
+idPlayer::CanUseWeaponWheel / UseRetainedWeaponWheel
+
+openQ4 (section 14.6, Multiplayer): with ui_retained, the local client holds
+open the multiplayer wheel, the engine's "weaponwheel_mp" HUD component: the
+gauntlet in the blaster's place, colour-coded icons, the reserve alone and the
+player's team color. VR has no multiplayer wheel. The game is never slowed and
+releasing equips at once, through the weapon impulse the server receives.
+================
+*/
+bool idPlayer::CanUseWeaponWheel( void ) {
+	return entityNumber == gameLocal.localClientNum && !spectating && health > 0 && !pfl.dead && weaponEnabled &&
+		!privateCameraView && !GuiActive() && !vehicleController.IsDriving();
+}
+
+bool idPlayer::UseRetainedWeaponWheel( void ) {
+	if ( common->RetainedHudGui( "weaponwheel_mp" ) == NULL ||
+		( vrSystem != NULL && vrSystem->IsActive() && gameLocal.GetLocalPlayer() == this ) ) {
+		return false;
+	}
+	AcquireRetainedWeaponWheel();
+	return weaponWheelGui != NULL;
+}
+
+void idPlayer::AcquireRetainedWeaponWheel( void ) {
+	const char *path = entityNumber == gameLocal.localClientNum ? common->RetainedHudGui( "weaponwheel_mp" ) : NULL;
+	if ( weaponWheelGui == NULL && !weaponWheelGuiTried && path != NULL ) {
+		weaponWheelGuiTried = true;
+		weaponWheelGui = uiManager->FindGui( path, true, false, true );
+	}
+}
+
+bool idPlayer::HasWeaponWheelSlotWeapon( int slot ) const {
+	return slot >= 0 && slot < MAX_WEAPONS && ( inventory.weapons & ( 1 << slot ) ) != 0;
+}
+
+/*
+================
+idPlayer::UpdateWeaponWheel
+
+A hold opens the wheel after WEAPON_WHEEL_TAP_MSEC on the current weapon and
+captures the view, the sticks, fire and zoom in the engine; a shorter tap
+swaps to the previous weapon. A stick or the mouse selects, and releasing
+equips through the weapon impulse, which the client sends to the server.
+================
+*/
+static const int	WEAPON_WHEEL_SLOTS				= 11;		// the gauntlet to the napalm launcher
+static const int	WEAPON_WHEEL_TAP_MSEC			= 180;
+static const int	WEAPON_WHEEL_CLOSE_MSEC			= 300;
+static const float	WEAPON_WHEEL_STICK_SELECT		= 0.35f;
+static const float	WEAPON_WHEEL_SELECT_HYSTERESIS	= 4.0f;
+static const float	WEAPON_WHEEL_POINTER_SELECT		= 32.0f;
+static const float	WEAPON_WHEEL_POINTER_RADIUS		= 96.0f;
+static const float	WEAPON_WHEEL_MOUSE_SENSITIVITY	= 0.70f;
+static const char *const weaponWheelKeys[ WEAPON_WHEEL_SLOTS ] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-" };
+
+void idPlayer::UpdateWeaponWheel( void ) {
+	const bool canUseWheel = CanUseWeaponWheel();
+	const bool held = canUseWheel && ( ( usercmd.buttons & BUTTON_WEAPONWHEEL ) != 0 || weaponWheelTestHeld );
+	const int now = Sys_Milliseconds();
+	const bool trace = cvarSystem->GetCVarBool( "ui_retainedTrace" );
+	if ( weaponWheelPresenting && !weaponWheelActive && now - weaponWheelCloseTime >= WEAPON_WHEEL_CLOSE_MSEC ) {
+		weaponWheelPresenting = false;
+	}
+	if ( !canUseWheel || ( !weaponWheelPressed && !UseRetainedWeaponWheel() ) ) {
+		if ( weaponWheelActive ) {
+			CloseRetainedWeaponWheel();
+		}
+		weaponWheelPressed = false;
+		return;
+	}
+	if ( held && !weaponWheelPressed ) {
+		weaponWheelPressed = true;
+		weaponWheelPressTime = now;
+	}
+	if ( held && !weaponWheelActive && weaponWheelGui != NULL && now - weaponWheelPressTime >= WEAPON_WHEEL_TAP_MSEC ) {
+		weaponWheelActive = true;
+		weaponWheelPresenting = true;
+		weaponWheelHoveredSlot = HasWeaponWheelSlotWeapon( currentWeapon ) && currentWeapon < WEAPON_WHEEL_SLOTS ? currentWeapon : -1;
+		weaponWheelCursor.Zero();
+		weaponWheelLastMouseX = usercmd.mx;
+		weaponWheelLastMouseY = usercmd.my;
+		common->SetWeaponWheelCapture( true );
+		PublishRetainedWeaponWheel();
+		weaponWheelGui->HandleNamedEvent( "open" );
+		if ( trace ) {
+			gameLocal.Printf( "retained weapon wheel: open on slot %d after %d ms\n", weaponWheelHoveredSlot, now - weaponWheelPressTime );
+		}
+	}
+	if ( weaponWheelActive ) {
+		const int slot = RetainedWeaponWheelSlot();
+		const bool moved = slot != weaponWheelHoveredSlot;
+		weaponWheelHoveredSlot = slot;
+		PublishRetainedWeaponWheel();
+		if ( moved ) {
+			weaponWheelGui->HandleNamedEvent( "select" );
+			if ( trace ) {
+				gameLocal.Printf( "retained weapon wheel: select slot %d\n", slot );
+			}
+		}
+	}
+	if ( !held && weaponWheelPressed ) {
+		weaponWheelPressed = false;
+		if ( !weaponWheelActive ) {
+			if ( trace ) {
+				gameLocal.Printf( "retained weapon wheel: tap of %d ms swaps to the previous weapon\n", now - weaponWheelPressTime );
+			}
+			PerformImpulse( IMPULSE_51 );
+			return;
+		}
+		if ( weaponWheelHoveredSlot >= 0 && weaponWheelHoveredSlot != idealWeapon && HasWeaponWheelSlotWeapon( weaponWheelHoveredSlot ) ) {
+			// The impulse reaches the server; SelectWeapon refuses a weapon
+			// without ammunition there and here.
+			PerformImpulse( IMPULSE_0 + weaponWheelHoveredSlot );
+		}
+		if ( trace ) {
+			gameLocal.Printf( "retained weapon wheel: release on slot %d, ideal weapon %d\n", weaponWheelHoveredSlot, idealWeapon );
+		}
+		CloseRetainedWeaponWheel();
+	}
+}
+
+void idPlayer::CloseRetainedWeaponWheel( void ) {
+	weaponWheelActive = false;
+	weaponWheelCloseTime = Sys_Milliseconds();
+	weaponWheelCursor.Zero();
+	common->SetWeaponWheelCapture( false );
+	if ( weaponWheelGui != NULL ) {
+		weaponWheelGui->HandleNamedEvent( "close" );
+	}
+}
+
+void idPlayer::TestWeaponWheelHold( bool held ) {
+	weaponWheelTestHeld = held;
+}
+
+void idPlayer::TestWeaponWheelAim( const idVec2 &stick ) {
+	weaponWheelTestStick = stick;
+}
+
+int idPlayer::RetainedWeaponWheelSlot( void ) {
+	const float pitch = 360.0f / WEAPON_WHEEL_SLOTS;
+	const int mouseDx = usercmd.mx - weaponWheelLastMouseX;
+	const int mouseDy = usercmd.my - weaponWheelLastMouseY;
+	weaponWheelLastMouseX = usercmd.mx;
+	weaponWheelLastMouseY = usercmd.my;
+
+	float stickX = 0.0f, stickY = 0.0f, angle = 0.0f;
+	common->GetControllerSelection( stickX, stickY );
+	if ( weaponWheelTestStick.LengthSqr() > 0.0f ) {
+		stickX = weaponWheelTestStick.x;
+		stickY = weaponWheelTestStick.y;
+	}
+	if ( stickX * stickX + stickY * stickY > WEAPON_WHEEL_STICK_SELECT * WEAPON_WHEEL_STICK_SELECT ) {
+		angle = RAD2DEG( atan2f( stickX, stickY ) );
+	} else {
+		weaponWheelCursor.x += mouseDx * WEAPON_WHEEL_MOUSE_SENSITIVITY;
+		weaponWheelCursor.y += mouseDy * WEAPON_WHEEL_MOUSE_SENSITIVITY;
+		const float length = weaponWheelCursor.Length();
+		if ( length > WEAPON_WHEEL_POINTER_RADIUS ) {
+			weaponWheelCursor *= WEAPON_WHEEL_POINTER_RADIUS / length;
+		}
+		if ( length <= WEAPON_WHEEL_POINTER_SELECT ) {
+			return weaponWheelHoveredSlot;
+		}
+		angle = RAD2DEG( atan2f( weaponWheelCursor.x, -weaponWheelCursor.y ) );
+	}
+	if ( angle < 0.0f ) {
+		angle += 360.0f;
+	}
+	const int current = weaponWheelHoveredSlot;
+	if ( current >= 0 && idMath::Fabs( idMath::AngleNormalize180( angle - current * pitch ) ) <= pitch * 0.5f + WEAPON_WHEEL_SELECT_HYSTERESIS ) {
+		return current;
+	}
+	const int slot = static_cast<int>( angle / pitch + 0.5f ) % WEAPON_WHEEL_SLOTS;
+	return HasWeaponWheelSlotWeapon( slot ) ? slot : current;
+}
+
+/*
+================
+idPlayer::PublishRetainedWeaponWheel
+
+Multiplayer weapons have no clips: each slot and the hub read the reserve
+alone. wheel_team is the player's team in a team game (1 Marines, 2 Strogg),
+else 0 for the stock olive.
+================
+*/
+void idPlayer::PublishRetainedWeaponWheel( void ) {
+	idUserInterface *gui = weaponWheelGui;
+	if ( gui == NULL ) {
+		return;
+	}
+	gui->SetStateInt( "wheel_selected", weaponWheelHoveredSlot );
+	gui->SetStateInt( "wheel_previous", ( previousWeapon >= 0 && previousWeapon < WEAPON_WHEEL_SLOTS && HasWeaponWheelSlotWeapon( previousWeapon ) ) ?
+		previousWeapon : -1 );
+	gui->SetStateInt( "wheel_team", gameLocal.IsTeamGame() ? ( team == TEAM_STROGG ? 2 : 1 ) : 0 );
+	idStr name, ammo;
+	for ( int slot = 0; slot < WEAPON_WHEEL_SLOTS; ++slot ) {
+		const bool owned = HasWeaponWheelSlotWeapon( slot );
+		int total = -1, maximum = 0;
+		const char *weaponName = spawnArgs.GetString( va( "def_weapon%d", slot ) );
+		int ammoRequired = 0;
+		const int ammoIndex = ( weaponName != NULL && weaponName[ 0 ] ) ? inventory.AmmoIndexForWeaponClass( weaponName, &ammoRequired ) : 0;
+		if ( ammoIndex > 0 && ammoRequired > 0 ) {
+			total = inventory.HasAmmo( ammoIndex, ammoRequired );
+			if ( total >= 0 ) {
+				maximum = inventory.MaxAmmoForAmmoClass( this, rvWeapon::GetAmmoNameForIndex( ammoIndex ) ) / ammoRequired;
+			}
+		}
+		gui->SetStateBool( va( "wheel_owned_%d", slot ), owned );
+		gui->SetStateBool( va( "wheel_empty_%d", slot ), owned && total == 0 );
+		gui->SetStateFloat( va( "wheel_fill_%d", slot ), ( maximum > 0 && total > 0 ) ? idMath::ClampFloat( 0.0f, 1.0f, static_cast<float>( total ) / maximum ) : 0.0f );
+		gui->SetStateInt( va( "wheel_count_%d", slot ), owned ? total : -1 );
+		gui->SetStateString( va( "wheel_key_%d", slot ), weaponWheelKeys[ slot ] );
+		if ( slot == weaponWheelHoveredSlot && owned ) {
+			const idDeclEntityDef *weaponDecl = GetWeaponDef( slot );
+			name = weaponDecl != NULL ? common->GetLocalizedString( weaponDecl->dict.GetString( "inv_name" ) ) : "";
+			if ( total >= 0 ) {
+				ammo = va( "%d", total );
+			}
+		}
+	}
+	gui->SetStateString( "wheel_name", name.c_str() );
+	gui->SetStateString( "wheel_ammo", ammo.c_str() );
+	gui->StateChanged( gameLocal.time );
+}
+
+void idPlayer::DrawWeaponWheel( void ) {
+	if ( weaponWheelPresenting && weaponWheelGui != NULL && entityNumber == gameLocal.localClientNum ) {
+		weaponWheelGui->Redraw( gameLocal.realClientTime );
+	}
 }
 
 /*
@@ -14198,6 +14460,8 @@ void idPlayer::LocalClientPredictionThink( void ) {
 		if ( ( usercmd.flags & UCF_IMPULSE_SEQUENCE ) != ( oldFlags & UCF_IMPULSE_SEQUENCE ) ) {
 			PerformImpulse( usercmd.impulse );
 		}
+		// openQ4: a remote client's weapon wheel, once per new frame.
+		UpdateWeaponWheel();
 	}
 
 	if ( forceScoreBoard && forceScoreBoardTime && gameLocal.time > forceScoreBoardTime ) {

@@ -386,6 +386,7 @@ public:
 	void			SetUsercmdButton( int action, bool down );	// not part of idUsercmdGen, see Sys_SetUsercmdButton
 	bool			GetPresentationViewDelta( float &yawDelta, float &pitchDelta );
 	void			GetStickSelection( float &x, float &y );
+	void			SetWheelCapture( bool capture ) { wheelCapture = capture; }
 
 private:
 	void			MakeCurrent( void );
@@ -468,6 +469,7 @@ private:
 	// (GetStickSelection); written by the input thread, read by the game.
 	float			stickSelectionX;
 	float			stickSelectionY;
+	bool			wheelCapture;		// SetWheelCapture
 
 	static idCVar	in_yawSpeed;
 	static idCVar	in_pitchSpeed;
@@ -549,6 +551,7 @@ idUsercmdGenLocal::idUsercmdGenLocal( void ) {
 	mouseFilterBaseYaw = 0.0f;
 	mouseFilterBasePitch = 0.0f;
 	stickSelectionX = stickSelectionY = 0.0f;
+	wheelCapture = false;
 
 	ClearAngles();
 	Clear();
@@ -1254,8 +1257,17 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 		// get basic movement from mouse
 		MouseMove();
 
-		// get basic movement from joystick
-		JoystickMove();
+		// get basic movement from joystick; an open weapon wheel takes the sticks
+		if ( !wheelCapture ) {
+			JoystickMove();
+		}
+
+		// openQ4: an open multiplayer weapon wheel holds the view and keeps
+		// fire and zoom from the server (SetWheelCapture).
+		if ( wheelCapture ) {
+			viewangles = oldAngles;
+			cmd.buttons &= ~( BUTTON_ATTACK | BUTTON_ZOOM );
+		}
 
 		// check to make sure the angles haven't wrapped
 		if ( viewangles[PITCH] - oldAngles[PITCH] > 90 ) {
@@ -1352,6 +1364,7 @@ void idUsercmdGenLocal::InitForNewMap( void ) {
 	toggled_run.Clear();
 	toggled_zoom.Clear();
 	toggled_run.on = in_alwaysRun.GetBool();
+	wheelCapture = false;
 
 	Clear();
 	ClearAngles();

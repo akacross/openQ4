@@ -2518,6 +2518,28 @@ def check_weapon_wheel() -> None:
     assert len(retained_weapon_wheel_strogg.ORDER) == slots and sorted(retained_weapon_wheel_strogg.ORDER) == list(range(slots)), \
         'the plates boot in an order that covers every slot once'
     assert '\tWEAPON_WHEEL_CLOSE_MSEC\t\t\t= 300;' in player, 'the wheel draws through the Strogg close'
+    # Multiplayer (WID-034): the client's own wheel, equipping by impulse,
+    # with the engine holding the look, sticks, fire and zoom while it is open.
+    mp_player = (ROOT / 'src/mpgame/Player.cpp').read_text(encoding='utf-8')
+    mp_text = (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel_mp.q4ui').read_text(encoding='utf-8')
+    mp_doc = json.loads(re.sub(r'^\s*//.*$', '', mp_text, flags=re.M))
+    assert mp_doc['id'] == 'openq4.weaponwheel.mp' and not mp_doc.get('actions') and 'wheel_team' in mp_doc['state']
+    assert '{"weaponwheel_mp", "guis/hud/weaponwheel_mp.q4ui"},' in function_body(
+        (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8'), 'const char* RetainedUI_HudDocument(')
+    mp_update = function_body(mp_player, 'void idPlayer::UpdateWeaponWheel(')
+    for token in ('common->SetWeaponWheelCapture( true );', 'PerformImpulse( IMPULSE_51 );', 'PerformImpulse( IMPULSE_0 + weaponWheelHoveredSlot );'):
+        assert token in mp_update, token
+    assert 'SetGameTimeScale' not in mp_update, 'multiplayer is never slowed'
+    controls = function_body(mp_player, 'void idPlayer::EvaluateControls(')
+    assert 'if ( gameLocal.isNewFrame ) {\n\t\tUpdateWeaponWheel();' in controls, 'never in a prediction rerun'
+    remote = function_body(mp_player, 'void idPlayer::LocalClientPredictionThink(')
+    assert '\t\t// openQ4: a remote client\'s weapon wheel, once per new frame.\n\t\tUpdateWeaponWheel();\n\t}' in remote, \
+        'a remote client updates its wheel once per new frame too'
+    assert 'common->SetWeaponWheelCapture( false );' in function_body(mp_player, 'void idPlayer::CloseRetainedWeaponWheel(')
+    make = function_body(usercmd, 'void idUsercmdGenLocal::MakeCurrent(')
+    assert 'if ( !wheelCapture ) {\n\t\t\tJoystickMove();' in make and 'viewangles = oldAngles;' in make and \
+        'cmd.buttons &= ~( BUTTON_ATTACK | BUTTON_ZOOM );' in make, 'an open wheel holds the look, sticks, fire and zoom'
+    assert 'wheelCapture = false;' in function_body(usercmd, 'void idUsercmdGenLocal::InitForNewMap('), 'a new map frees the look'
     # The engine owns the document's path, behind the gate.
     retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
     hud = function_body(retained, 'const char* RetainedUI_HudDocument(')

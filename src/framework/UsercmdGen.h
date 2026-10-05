@@ -198,6 +198,12 @@ public:
 	// sticks after its dead zone, x right and y up, each -1..1. Look
 	// inversion does not apply: the wheel is drawn on the screen.
 	virtual void		GetStickSelection( float &x, float &y ) = 0;
+
+	// While a multiplayer weapon wheel is open the usercmd holds the view, the
+	// sticks only aim the wheel (keys still move) and neither fire nor zoom
+	// reaches the server: the wheel is the client's own and the server runs
+	// the same usercmds.
+	virtual void		SetWheelCapture( bool capture ) = 0;
 };
 
 extern idUsercmdGen	*usercmdGen;

@@ -167,8 +167,8 @@ traced QUAKE 4 with the texture's own halo. Single player's
 [weapon wheel](../ui/retained-screens.md#weapon-wheel) is the Marine wheel of
 section 14.6, at full game speed: a 180 ms hold opens it, a tap swaps to the
 previous weapon, either stick or the mouse selects and release equips; a
-Strogg body takes the Strogg wheel. The multiplayer and quick-chat wheels
-remain. No gate closes.
+Strogg body takes the Strogg wheel, and multiplayer has its own wheel in the
+team's color. The quick-chat wheel remains. No gate closes.
 
 ## Objective and immutable completion scope
 

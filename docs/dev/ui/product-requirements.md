@@ -555,7 +555,9 @@ On engine `236fad1aee1544984e214f573fd3a4d89e868f94` single player's weapon whee
 
 On engine `eecf98b20b3218b6dbf616cf031ea3fdb3a7f9ca` a Strogg body's weapon wheel is the retained Strogg wheel, opening as a translation. `WID-033` stays partial. Evidence: `.tmp/ui/retained-weaponwheel-strogg-evidence/validation-evidence.json`, SHA-256 `fc816eb3b1ddcd26054d7f9cfe0d858ae0d41a682f1d723063600362a8db6bd0`.
 
-There are **97 partial, 242 pending and one verified requirement**, counting the
+On engine `91b54635aa9189107d3e449648750c1deaaa8b17` multiplayer has its own retained weapon wheel in the team's color, equipping by the weapon impulse. `WID-034` becomes partial. Evidence: `.tmp/ui/retained-weaponwheel-mp-evidence/validation-evidence.json`, SHA-256 `21695827676d2113d77f3326db45576d9f9458eb5817279bfc52971681f71a6b`.
+
+There are **98 partial, 241 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

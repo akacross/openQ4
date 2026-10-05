@@ -391,6 +391,9 @@ public:
 	// ("weaponwheel"), or NULL when ui_retained is off or it has none. Game
 	// modules ask by name and never name a retained document.
 	virtual const char*			RetainedHudGui(const char* name) { return NULL; }
+	// A multiplayer game holds the view, the sticks, fire and zoom while its
+	// weapon wheel is open (idUsercmdGen::SetWheelCapture).
+	virtual void				SetWeaponWheelCapture(bool capture) {}
 };
 
 extern idCommon* common;

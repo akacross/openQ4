@@ -51,6 +51,24 @@ SELECTED = "#FF8000"
 RING = "#B2CC80"
 LIGHT = "#616F26"
 NAME = "#B0C891"
+# Multiplayer (section 14.6, Multiplayer): the gauntlet in the blaster's place,
+# icons in the weapon color code (the pending weapon at full alpha, the rest at
+# 0.60), the multiplayer gauge's own tints, and the player's team color on the
+# selection ring, the selected number, the bezel's ticks, the hub's double
+# ring, the compass's bright dot and the pointer. wheel_team is 0 for
+# Deathmatch and Tourney (the stock olive), 1 for Marines and 2 for Strogg,
+# whose selection light is #6B3A08.
+MP_SLOTS = ["gauntlet", *SLOTS[1:]]
+MP_CODES = [(0, 0.85, 1), (1, 1, 0), (1, 0.5, 0), (0, 0.45, 1), (0.2, 0.56, 0.07), (0.6, 0.8, 0.8), (1, 0.2, 0), (0, 1, 0),
+            (1, 1, 0.73), (0.77, 0, 1), (1, 0.75, 0.25)]
+MP_BAND_CODES = [None, (1, 1, 0), (1, 0.55, 0), (0, 0.45, 1), (0.2, 0.56, 0.07), (0.6, 0.8, 0.8), (1, 0.25, 0), (0, 1, 0),
+                 (1, 1, 0.6), (0.77, 0.2, 1), (1, 0.75, 0.25)]
+TEAMS = [("", RING, OLIVE_TICK, LIGHT), ("-marine", "#AAE355", "#AAE355", LIGHT), ("-strogg", "#FF8E00", "#FF8E00", "#6B3A08")]
+VARIANT = {"multiplayer": False}
+
+
+def team_is(team: int) -> dict:
+    return {"op": "==", "args": [{"state": "wheel_team"}, team]}
 NO_AMMO = "#FF2020"
 EASE_OUT = [0.16, 1, 0.3, 1]
 
@@ -238,7 +256,8 @@ def text_box(ident: str, centre, width: float, height: float, face: str, size: f
 # ------------------------------------------------------------------- the wheel
 
 def slot_nodes(doc: Document, index: int) -> dict:
-    name, code = SLOTS[index], CODES[index]
+    mp = VARIANT["multiplayer"]
+    name, code = (MP_SLOTS if mp else SLOTS)[index], (MP_BAND_CODES if mp else CODES)[index]
     middle = index * PITCH
     selected = {"op": "==", "args": [{"state": "wheel_selected"}, index]}
     owned = {"state": f"wheel_owned_{index}"}
@@ -255,9 +274,25 @@ def slot_nodes(doc: Document, index: int) -> dict:
                    [segment_path(P(), index, INNER, OUTER).build("light", fill=tone(LIGHT, 0.35), blend="additive")])
     ring = vector(f"slot-{index}-ring", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(0)},
                   [segment_path(P(), index, INNER, OUTER).build("ring", stroke=stroke(tone(RING), 2.4))])
-    for node in (light, ring):
-        doc.bind(f"{node['id']}.opacity", node["id"], "opacity", {"op": "select", "args": [selected, 1.0, 0.0]})
-    children += [plate, outline, light]
+    if mp:
+        lights, rings = [], []
+        for team, (suffix, ring_tint, _, light_tint) in enumerate(TEAMS):
+            on = {"op": "&&", "args": [selected, team_is(team)]}
+            if team != 1:  # The Marine light is the olive one.
+                lit = vector(f"slot-{index}-light{suffix}", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(0)},
+                             [segment_path(P(), index, INNER, OUTER).build("light", fill=tone(light_tint, 0.35), blend="additive")])
+                doc.bind(f"{lit['id']}.opacity", lit["id"], "opacity", {"op": "select", "args": [
+                    {"op": "&&", "args": [selected, team_is(2) if team == 2 else {"op": "!", "args": [team_is(2)]}]}, 1.0, 0.0]})
+                lights.append(lit)
+            outlined = vector(f"slot-{index}-ring{suffix}", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(0)},
+                              [segment_path(P(), index, INNER, OUTER).build("ring", stroke=stroke(tone(ring_tint), 2.4))])
+            doc.bind(f"{outlined['id']}.opacity", outlined["id"], "opacity", {"op": "select", "args": [on, 1.0, 0.0]})
+            rings.append(outlined)
+        children += [plate, outline, *lights]
+    else:
+        for node in (light, ring):
+            doc.bind(f"{node['id']}.opacity", node["id"], "opacity", {"op": "select", "args": [selected, 1.0, 0.0]})
+        children += [plate, outline, light]
     # The ammunition gauge: a track and eight cells filled in proportion to
     # the reserve (wheel_fill_<i>), each with its bevel; the blaster has none.
     if code is not None:
@@ -274,12 +309,13 @@ def slot_nodes(doc: Document, index: int) -> dict:
         children += cells
     # The glyph, dim or selected, the no-ammunition sign, number and reserve.
     centre = polar(GLYPH_R, middle)
+    icon = MP_CODES[index] if mp else None
     dim = vector(f"slot-{index}-glyph", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(1)},
-                 [glyph_paths(name, centre, GLYPH_DP, tone(ICON, 0.6), "glyph")])
+                 [glyph_paths(name, centre, GLYPH_DP, code_tone(icon, 0.6) if mp else tone(ICON, 0.6), "glyph")])
     doc.bind(f"slot-{index}-glyph.opacity", f"slot-{index}-glyph", "opacity",
              {"op": "select", "args": [{"op": "&&", "args": [owned, {"op": "!", "args": [selected]}]}, 1.0, 0.0]})
     hot = vector(f"slot-{index}-glyph-selected", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(0)},
-                 [glyph_paths(name, centre, GLYPH_DP, tone(SELECTED), "glyph")])
+                 [glyph_paths(name, centre, GLYPH_DP, code_tone(icon, 1.0) if mp else tone(SELECTED), "glyph")])
     doc.bind(f"slot-{index}-glyph-selected.opacity", f"slot-{index}-glyph-selected", "opacity",
              {"op": "select", "args": [selected, 1.0, 0.0]})
     sign = vector(f"slot-{index}-noammo", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(0)},
@@ -289,12 +325,21 @@ def slot_nodes(doc: Document, index: int) -> dict:
     key = text_box(f"slot-{index}-key", polar(NUMBER_R, middle), 40, 14, "lowpixel", 12, rgb(NAME, 0.8))
     doc.bind(f"slot-{index}-key.text", f"slot-{index}-key", "text", {"state": f"wheel_key_{index}"})
     doc.bind(f"slot-{index}-key.opacity", f"slot-{index}-key", "opacity", {"op": "select", "args": [owned, 1.0, 0.25]})
+    if mp:
+        # The selected number takes the team's color.
+        def component(channel: int) -> dict:
+            tints = [rgb(tint) for _, tint, _, _ in TEAMS]
+            team_value = {"op": "select", "args": [team_is(1), tints[1][channel], {"op": "select", "args": [
+                team_is(2), tints[2][channel], tints[0][channel]]}]}
+            return {"op": "select", "args": [selected, team_value, rgb(NAME, 0.8)[channel]]}
+        doc.bind(f"slot-{index}-key.color", f"slot-{index}-key", "color", [component(0), component(1), component(2),
+                                                                            {"op": "select", "args": [selected, 1.0, 0.8]}])
     reserve = text_box(f"slot-{index}-reserve", polar(RESERVE_R, middle), 60, 20, "chain", 17, rgb(NAME))
     doc.bind(f"slot-{index}-reserve.text", f"slot-{index}-reserve", "text",
              {"op": "numberText", "args": [{"op": "max", "args": [{"state": f"wheel_count_{index}"}, 0]}], "decimals": 0})
     doc.bind(f"slot-{index}-reserve.opacity", f"slot-{index}-reserve", "opacity", {"op": "select", "args": [
         {"op": "&&", "args": [owned, {"op": ">=", "args": [{"state": f"wheel_count_{index}"}, 0]}]}, 1.0, 0.0]})
-    children += [dim, hot, sign, ring, key, reserve]
+    children += [dim, hot, sign, *(rings if mp else [ring]), key, reserve]
     # The selection moves outward along its own direction.
     dx, dy = EXTEND * math.sin(math.radians(middle)), -EXTEND * math.cos(math.radians(middle))
     # The segment deploys from 90% about the wheel's center; its own transform
@@ -327,21 +372,31 @@ def rotation(degrees: float) -> dict:
     return {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, round(degrees, 3)]}
 
 
-def bezel() -> dict:
-    paths = []
-    fine = P()
-    for k in range(120):
-        a = k * 3.0
-        fine.move(polar(247, a)).line(polar(252, a))
-    paths.append(fine.build("fine", stroke={"paint": tone(OLIVE_TICK, 0.18), "widthDp": 1, "minimumPixels": 1, "join": "miter",
-                                            "cap": "butt"}))
-    long = P()
-    for k in range(COUNT):
-        a = k * PITCH + PITCH / 2
-        long.move(polar(242, a)).line(polar(253, a))
-    paths.append(long.build("long", stroke={"paint": tone(OLIVE_TICK, 0.5), "widthDp": 1.5, "minimumPixels": 1, "join": "miter",
-                                            "cap": "butt"}))
-    return vector("bezel", absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), paths)
+def bezel(doc: Document | None = None) -> dict | list:
+    def ticks(ident: str, tint: str, props: dict) -> dict:
+        paths = []
+        fine = P()
+        for k in range(120):
+            a = k * 3.0
+            fine.move(polar(247, a)).line(polar(252, a))
+        paths.append(fine.build("fine", stroke={"paint": tone(tint, 0.18), "widthDp": 1, "minimumPixels": 1, "join": "miter",
+                                                "cap": "butt"}))
+        long = P()
+        for k in range(COUNT):
+            a = k * PITCH + PITCH / 2
+            long.move(polar(242, a)).line(polar(253, a))
+        paths.append(long.build("long", stroke={"paint": tone(tint, 0.5), "widthDp": 1.5, "minimumPixels": 1, "join": "miter",
+                                                "cap": "butt"}))
+        return vector(ident, props, paths)
+    square = absolute(left=0, top=0, width=2 * BOX, height=2 * BOX)
+    if not VARIANT["multiplayer"]:
+        return ticks("bezel", OLIVE_TICK, square)
+    nodes = []
+    for team, (suffix, _, tint, _) in enumerate(TEAMS):
+        node = ticks(f"bezel{suffix}", tint, {**square, "opacity": number(1 if team == 0 else 0)})
+        doc.bind(f"bezel{suffix}.opacity", f"bezel{suffix}", "opacity", {"op": "select", "args": [team_is(team), 1.0, 0.0]})
+        nodes.append(node)
+    return nodes
 
 
 def backing() -> dict:
@@ -379,25 +434,48 @@ def hub(doc: Document) -> list:
         mask={"paths": [P().circle(HUB - 1).build("disc", fill=tone("#FFFFFF"))]})
     doc.timelines.add("hubScan", 2400, [track("hub-scan", "transform", [(0, transform()), (2400, transform(0, 3 * 8))])], iterations=0)
     doc.events.setdefault("onInit", []).append({"op": "playTimeline", "timeline": "hubScan"})
-    rings = vector("hub-rings", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(1)}, [
-        P().circle(HUB).build("outer", stroke=stroke(tone(OLIVE_TICK, 0.35), 1.5)),
-        P().circle(HUB_RING).build("inner", stroke=stroke(tone(OLIVE_TICK, 0.35), 1.2))])
+    mp = VARIANT["multiplayer"]
+    teams = TEAMS if mp else TEAMS[:1]
+
+    def by_team(node: dict, team: int) -> dict:
+        if mp:
+            doc.bind(f"{node['id']}.opacity", node["id"], "opacity", {"op": "select", "args": [team_is(team), 1.0, 0.0]})
+        return node
+    ring_nodes = [by_team(vector(f"hub-rings{suffix}", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX),
+                                                       "opacity": number(1 if team == 0 else 0)}, [
+        P().circle(HUB).build("outer", stroke=stroke(tone(tint, 0.35), 1.5)),
+        P().circle(HUB_RING).build("inner", stroke=stroke(tone(tint, 0.35), 1.2))]), team)
+        for team, (suffix, _, tint, _) in enumerate(teams)]
+    facing = [0, 0, 1, 1, {"op": "*", "args": [{"op": "max", "args": [{"state": "wheel_selected"}, 0]}, round(PITCH, 6)]}]
     dots = []
     for k in range(16):
         a = k * 22.5
         x, y = polar(COMPASS_R, a)
         r = 2.0 if k == 0 else 1.2
+        if k == 0 and mp:
+            continue  # In multiplayer the bright dot is the team's, below.
         dots.append(P().circle_at((x, y), r).build(f"dot-{k}", fill=tone(OLIVE_TICK, 0.9 if k == 0 else 0.35)))
     compass = vector("compass", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "transform": rotation(0)}, dots)
-    doc.bind("compass.transform", "compass", "transform",
-             [0, 0, 1, 1, {"op": "*", "args": [{"op": "max", "args": [{"state": "wheel_selected"}, 0]}, round(PITCH, 6)]}])
-    pointer = P()
-    tip = polar(INNER - 3, 0)
-    pointer.move((tip[0] - 4, tip[1] + 6)).line((tip[0] + 4, tip[1] + 6)).line(tip).close()
-    pointer_node = vector("pointer", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "transform": rotation(0)},
-                          [pointer.build("pointer", fill=tone(OLIVE_TICK, 0.8))])
-    doc.bind("pointer.transform", "pointer", "transform",
-             [0, 0, 1, 1, {"op": "*", "args": [{"op": "max", "args": [{"state": "wheel_selected"}, 0]}, round(PITCH, 6)]}])
+    doc.bind("compass.transform", "compass", "transform", facing)
+    compass_nodes = [compass]
+    if mp:
+        for team, (suffix, _, tint, _) in enumerate(teams):
+            ident = f"compass-dot{suffix}"
+            compass_nodes.append(by_team(vector(ident, {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "transform": rotation(0),
+                                                        "opacity": number(1 if team == 0 else 0)},
+                                                [P().circle_at(polar(COMPASS_R, 0), 2.0).build("dot", fill=tone(tint, 0.9))]), team))
+            doc.bind(f"{ident}.transform", ident, "transform", facing)
+    pointer_nodes = []
+    for team, (suffix, _, tint, _) in enumerate(teams):
+        pointer = P()
+        tip = polar(INNER - 3, 0)
+        pointer.move((tip[0] - 4, tip[1] + 6)).line((tip[0] + 4, tip[1] + 6)).line(tip).close()
+        props = {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "transform": rotation(0)}
+        if mp:
+            props["opacity"] = number(1 if team == 0 else 0)
+        node = by_team(vector(f"pointer{suffix}", props, [pointer.build("pointer", fill=tone(tint, 0.8))]), team)
+        doc.bind(f"pointer{suffix}.transform", f"pointer{suffix}", "transform", facing)
+        pointer_nodes.append(node)
     name = {"id": "name", "type": "text", "properties": {"text": {"type": "text", "value": "#str_104343"},
             **absolute(left=BOX - 70, top=BOX - 30, width=140, height=32), **typeface("marine", 12, 16, rgb(NAME)),
             "text-align": keyword("center")}}
@@ -407,7 +485,7 @@ def hub(doc: Document) -> list:
             "text-align": keyword("center"), "white-space": keyword("nowrap")}}
     doc.bind("ammo.text", "ammo", "text", {"state": "wheel_ammo"})
     centre = group("centre", {**absolute(left=0, top=0, width=2 * BOX, height=2 * BOX), "opacity": number(1)}, [name, ammo])
-    return [disc, screen, rings, compass, pointer_node, centre]
+    return [disc, screen, *ring_nodes, *compass_nodes, *pointer_nodes, centre]
 
 
 def _circle_at(self: P, centre, r: float) -> P:
@@ -473,8 +551,18 @@ def static_layer() -> dict:
         mask={"paths": [P().circle(HUB - 1).build("disc", fill=tone("#FFFFFF"))]})
 
 
-def weapon_wheel_document() -> dict:
-    doc = Document("openq4.weaponwheel")
+def weapon_wheel_document(multiplayer: bool = False) -> dict:
+    VARIANT["multiplayer"] = multiplayer
+    try:
+        return _weapon_wheel_document(multiplayer)
+    finally:
+        VARIANT["multiplayer"] = False
+
+
+def _weapon_wheel_document(multiplayer: bool) -> dict:
+    doc = Document("openq4.weaponwheel.mp" if multiplayer else "openq4.weaponwheel")
+    if multiplayer:
+        doc.state["wheel_team"] = {"type": "number", "initial": 0}
     doc.state.update({"wheel_selected": {"type": "number", "initial": -1},
                       "wheel_previous": {"type": "number", "initial": -1},
                       "wheel_name": {"type": "string", "initial": ""},
@@ -491,7 +579,7 @@ def weapon_wheel_document() -> dict:
                       hub_nodes + [static_layer()])
     wheel = group("wheel", {**absolute(width=2 * BOX, height=2 * BOX), "left": length(50, "%"), "top": length(50, "%"),
                             "margin-left": length(-BOX), "margin-top": length(-BOX)},
-                  [backing(), bezel(), *slots, previous_notch(doc), hub_group])
+                  [backing(), *([bezel()] if not multiplayer else bezel(doc)), *slots, previous_notch(doc), hub_group])
     transitions(doc)
     root = group("screen", {**absolute(left=0, top=0), "width": length(100, "%"), "height": length(100, "%"),
                             "font-family": {"type": "font", "value": "marine"}, "font-size": length(16),

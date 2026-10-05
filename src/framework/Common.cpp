@@ -789,6 +789,7 @@ public:
 	virtual const char *		BindingFromKey( const char *key );
 	virtual void				GetControllerSelection( float &x, float &y ) { usercmdGen->GetStickSelection( x, y ); }
 	virtual const char *		RetainedHudGui( const char *name ) { return RetainedUI_HudDocument( name ); }
+	virtual void				SetWeaponWheelCapture( bool capture ) { usercmdGen->SetWheelCapture( capture ); }
 
 	virtual int					ButtonState( int key );
 	virtual int					KeyState( int key );

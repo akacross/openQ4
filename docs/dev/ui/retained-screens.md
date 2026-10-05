@@ -608,6 +608,25 @@ hub collapses. Reduced motion keeps only short opacity changes.
 VR keeps the classic wheel, whose cursor follows the weapon hand, and so does
 `ui_retained 0`. The game API is 52: a game module reaches the new `idCommon`
 call through its table, so it must match its engine.
+
+Multiplayer has its own wheel (WID-034), `guis/hud/weaponwheel_mp.q4ui`, the
+Marine wheel generated with `weapon_wheel_document(multiplayer=True)`: the
+gauntlet in the blaster's place, icons in the weapon color code (the pending
+weapon at full alpha, the rest at 0.60), the multiplayer gauge's own tints, and
+the reserve alone in each segment and the hub, since multiplayer weapons have
+no clips. `wheel_team` gives the player's team color to the selection ring,
+the selected number, the bezel's ticks, the hub's double ring, the compass's
+bright dot and the pointer: #AAE355 for Marines and #FF8E00 for Strogg, whose
+selection light is #6B3A08; Deathmatch and Tourney keep the stock olive. The
+multiplayer player (`src/mpgame/Player.cpp`) runs it on the local client only,
+once per new frame, never in a prediction rerun, and it draws over the HUD and
+its multiplayer overlay. The wheel is the client's own: releasing equips
+through the weapon impulse the client sends to the server, and a tap sends the
+last-weapon impulse. While it is open the engine holds the view, takes the
+sticks from movement and keeps fire and zoom out of the usercmd
+(`idCommon::SetWeaponWheelCapture`), since the server runs the same usercmds;
+keys still move the player, a new map always frees the capture, and the game
+is never slowed.
 `openq4_weaponWheel hold | aim <x> <y> | release` (cheats) holds and aims the
 wheel without its button for headless tests, and `ui_retainedTrace` logs its
 opening, selections and release.
@@ -852,6 +871,16 @@ every slot once, and the wheel drawing through the Strogg close), and live
 captures on `game/recomp` on OpenGL at 4:3, 16:9 and 21:9 and on Vulkan at
 16:9, with reduced motion on both.
 
+The multiplayer wheel adds a native check (Deathmatch's olive on the ring,
+bezel, hub rings, compass dot, pointer and light; a Marine's and a Strogg's
+team colors on them, the #6B3A08 light and the selected number's color; the
+reserve alone in the hub), gate cases (the engine's "weaponwheel_mp" entry, the
+open capturing input and the close freeing it, equipping and the tap by
+impulse, no time scale, the update only in a new frame, and the capture
+holding the view, sticks, fire and zoom and clearing on a new map), and live
+captures on a `q4dm1` listen server in Deathmatch and Team Deathmatch on
+OpenGL and Vulkan at 16:9.
+
 ## Evidence
 
 Built as a debug engine and staged into `.install`; the six expensive layout
@@ -1084,6 +1113,9 @@ The weapon wheel: `.tmp/ui/retained-weaponwheel-evidence/validation-evidence.jso
 The Strogg weapon wheel: `.tmp/ui/retained-weaponwheel-strogg-evidence/validation-evidence.json`, SHA-256
 `fc816eb3b1ddcd26054d7f9cfe0d858ae0d41a682f1d723063600362a8db6bd0`.
 
+The multiplayer weapon wheel: `.tmp/ui/retained-weaponwheel-mp-evidence/validation-evidence.json`, SHA-256
+`21695827676d2113d77f3326db45576d9f9458eb5817279bfc52971681f71a6b`.
+
 ## Known limitations
 
 - The initializing screen's first frame loads, lays out and compiles its
@@ -1091,8 +1123,8 @@ The Strogg weapon wheel: `.tmp/ui/retained-weaponwheel-strogg-evidence/validatio
   RmlUi's first use, which the title would otherwise pay. A 300% capture is
   not possible in a window larger than the desktop, and the GLES fallback
   has not been captured.
-- The weapon wheels are single player's Marine and Strogg wheels. The
-  multiplayer wheel, quick chat and The Awakening's thirteen positions are
+- The weapon wheels are single player's Marine and Strogg wheels and the
+  multiplayer wheel. Quick chat and The Awakening's thirteen positions are
   not built; touch does not start a drag at the weapon button; a refused
   release has no controller pulse (the sound system's rumble would cancel it
   each frame); names do not wrap to a second line; the Marine open's ring

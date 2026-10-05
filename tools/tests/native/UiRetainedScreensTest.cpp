@@ -1521,8 +1521,48 @@ static void CheckStroggWheel(ScreenHost& host, const char* path) {
 	Check(Near(angle("core-ring-a"),still,.001f),"reduced motion stops the rings");
 }
 
+// The multiplayer weapon wheel (section 14.6, Multiplayer): the Marine wheel
+// with the gauntlet in the blaster's place, colour-coded icons, and the
+// player's team color on the selection ring, the selected number, the bezel,
+// the hub's rings, the compass's bright dot and the pointer.
+static void CheckMultiplayerWheel(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel.mp" && document.Model().actions.empty(),
+		"multiplayer wheel document validates and asks nothing of the engine");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel_mp.q4ui",diagnostics),"the multiplayer wheel loads");
+	Viewport viewport; viewport.canvasHeight = 720;
+	std::string error; Runtime::EventEffects effects;
+	Check(runtime.RunEvent("onInit",0,effects,error),"onInit");
+	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_team",0.0},{"wheel_name",std::string("Machinegun")},
+		{"wheel_ammo",std::string("150")}};
+	for (int slot : {0,1,2}) values["wheel_owned_"+std::to_string(slot)] = true;
+	Check(runtime.SetState(values,error,0),"publish a Deathmatch wheel");
+	runtime.Frame(viewport,1);
+	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
+	Check(Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-1-ring-marine"),0,.001f) && Near(opacity("bezel"),1,.001f) &&
+		Near(opacity("bezel-marine"),0,.001f) && Near(opacity("hub-rings"),1,.001f) && Near(opacity("compass-dot"),1,.001f) &&
+		Near(opacity("pointer"),1,.001f) && Near(opacity("slot-1-light"),1,.001f),"Deathmatch keeps the stock olive");
+	Check(runtime.SetState({{"wheel_team",1.0}},error,1),"a Marine player");
+	runtime.Frame(viewport,2);
+	Check(Near(opacity("slot-1-ring-marine"),1,.001f) && Near(opacity("slot-1-ring"),0,.001f) && Near(opacity("bezel-marine"),1,.001f) &&
+		Near(opacity("hub-rings-marine"),1,.001f) && Near(opacity("compass-dot-marine"),1,.001f) && Near(opacity("pointer-marine"),1,.001f) &&
+		Near(opacity("slot-1-light"),1,.001f),"a Marine's team color takes the selection and the hub");
+	const auto marine = runtime.PresentedValue("slot-1-key","color");
+	Check(marine && Near(static_cast<float>(marine->data[0]),0xAA/255.f,.01f) && Near(static_cast<float>(marine->data[1]),0xE3/255.f,.01f),
+		"the selected number takes the team color");
+	Check(runtime.SetState({{"wheel_team",2.0}},error,2),"a Strogg player");
+	runtime.Frame(viewport,3);
+	Check(Near(opacity("slot-1-ring-strogg"),1,.001f) && Near(opacity("slot-1-light-strogg"),1,.001f) && Near(opacity("slot-1-light"),0,.001f) &&
+		Near(opacity("bezel-strogg"),1,.001f),"a Strogg's team color, and the #6B3A08 light");
+	const auto ammo = runtime.PresentedValue("ammo","text");
+	Check(ammo && ammo->text == "150","the hub reads the reserve alone");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 12,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui");
+	Check(argc == 13,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2614,6 +2654,7 @@ int main(int argc, char** argv) {
 	CheckInitializing(host,argv[9]);
 	CheckWeaponWheel(host,argv[10]);
 	CheckStroggWheel(host,argv[11]);
+	CheckMultiplayerWheel(host,argv[12]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

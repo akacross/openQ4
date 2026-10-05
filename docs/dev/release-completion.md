@@ -845,8 +845,10 @@
   pick with either stick or the mouse, and let go to switch; a quick tap
   swaps back to your previous weapon. The game no longer slows down while the
   wheel is open. After Kane's stroggification the wheel turns Strogg too, with
-  angular plates, a turning core and labels that translate from runes. Set
-  `ui_retained 0` for the classic wheel.
+  angular plates, a turning core and labels that translate from runes. In
+  multiplayer the wheel shows every weapon in its color code with your team's
+  color, and holding it never fires or turns your view. Set `ui_retained 0`
+  for the classic wheel.
 
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about

@@ -201,6 +201,23 @@ SCENARIOS = {
         'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 200', 'screenshot "screenshots/weaponwheel-strogg-reduced-selected.tga"',
         'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000', 'set ui_retainedReducedMotion 0',
     ]),
+    # The multiplayer wheel on a listen server: the gauntlet's place, colour-
+    # coded icons and the reserve alone, in a Deathmatch's stock olive.
+    'weaponwheel-mp': ('mp:mp/q4dm1', [
+        'waitMsec 2500', 'give all', 'waitMsec 1000',
+        'openq4_weaponWheel hold', 'waitMsec 1000', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-mp-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-mp-selected.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1500',
+        'screenshot "screenshots/weaponwheel-mp-equipped.tga"',
+    ]),
+    # The same in Team Deathmatch: the player's team color takes the selection
+    # ring, the selected number, the bezel and the hub.
+    'weaponwheel-mp-team': ('mp:mp/q4dm1', [
+        'waitMsec 2500', 'give all', 'waitMsec 1000',
+        'openq4_weaponWheel hold', 'waitMsec 1000', 'screenshot "screenshots/weaponwheel-mp-team-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-mp-team-selected.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000',
+    ]),
     # Reduced motion: opening, selecting and closing are short opacity changes.
     'weaponwheel-reduced': ('game/airdefense1', [
         'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',
@@ -327,7 +344,7 @@ def stock_menu_without_demos(runtime: Path) -> str:
 
 
 # CVars a scenario sets beyond the common ones.
-SCENARIO_CVARS = {'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
+SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'}}
@@ -405,6 +422,9 @@ def run(args, scenario: str) -> dict:
         for key, value in {'com_gameMode': 'MP', 'net_serverDedicated': '0', 'net_LANServer': '1', 'si_pure': '0',
                            'si_maxPlayers': '4', 'si_gameType': 'DM', 'bot_minPlayers': '0', 'ui_autoJoin': '1',
                            'ui_spectate': 'Play', 'net_allowCheats': '1'}.items():
+            command += ['+set', key, value]
+        # A scenario's own settings win over the listen server's defaults.
+        for key, value in SCENARIO_CVARS.get(scenario, {}).items():
             command += ['+set', key, value]
         command += ['+set', 'g_autoExecAfterMapLoad', cfg.name, '+set', 'g_autoExecAfterMapLoadDelayMs', '3000',
                     '+spawnServer', level[3:]]
