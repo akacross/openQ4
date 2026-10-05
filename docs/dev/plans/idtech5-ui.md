@@ -180,6 +180,10 @@ with the overwrite confirmation, the autosave refusal and the session's
 reasons in context. Committed characters now type into a focused retained
 field ([typed characters](../ui/numeric-fields.md#typed-characters)), so the
 SYSTEM page's size fields take typed digits and only presets keep it opt-in.
+RESTART LEVEL on the Marine pause opens the retained
+[Restart Level page](../ui/retained-screens.md#restart-level-page): the
+difficulty plates beside their description and the enlarged primary plate of
+the stock New Game layout.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

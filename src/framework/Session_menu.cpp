@@ -4988,6 +4988,7 @@ static const char *const RETAINED_CAMPAIGNS_GUI = "guis/menu/campaigns.q4ui";
 // picture shows the stock page's generic one.
 static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
 static const char *const RETAINED_SAVEGAME_GUI = "guis/menu/savegame.q4ui";
+static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
 static const int RETAINED_LOAD_ROWS = 64;
 static const char *const RETAINED_LOAD_GENERIC_SHOT = "gfx/guis/loadscreens/generic";
 // The stock choreography shows a page 550 ms after its activation and a
@@ -5491,6 +5492,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedRestart ) {
+		// The Restart Level page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedRestartRequest( gui, request );
+		}
+		return;
+	}
     if ( gui && request && gui == guiActive &&
          ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) || !idStr::Icmp( gui->Name(), RETAINED_CAMPAIGNS_GUI ) ) ) {
         // A change of level in progress takes no further request.
@@ -5537,9 +5545,10 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
-	// LOAD GAME and SAVE GAME open their retained pages where those can
-	// present; else the stock pages below.
-	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) ) && BeginRetainedPage( request ) ) {
+	// LOAD GAME, SAVE GAME and RESTART LEVEL open their retained pages where
+	// those can present; else the stock pages below.
+	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ) &&
+			BeginRetainedPage( request ) ) {
 		return;
 	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
@@ -5572,19 +5581,19 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 ===============
 idSessionLocal::BeginRetainedPage
 
-LOAD GAME on the title or the Marine pause, and SAVE GAME on the Marine
-pause: the home plays a page hand-off (the bands dock and the label carries
-into the title slot) and the page presents at 550 ms, when the stock page
-would (UpdateRetainedPage). The Strogg pause keeps the stock pages, whose
-family the Marine pages would break. False when the page cannot present: the
-stock page then opens as before.
+LOAD GAME on the title or the Marine pause, and SAVE GAME and RESTART LEVEL
+on the Marine pause: the home plays a page hand-off (the bands dock and the
+label carries into the title slot) and the page presents at 550 ms, when the
+stock page would (UpdateRetainedPage). The Strogg pause keeps the stock
+pages, whose family the Marine pages would break. False when the page cannot
+present: the stock page then opens as before.
 ===============
 */
 bool idSessionLocal::BeginRetainedPage( const char *request ) {
 #ifndef ID_DEDICATED
-	const bool saving = !idStr::Icmp( request, "saveGame" );
-	if ( ( !saving && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
-			guiRetainedHome == guiRetainedPauseStrogg || ( saving && !mapSpawned ) ) {
+	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
+	if ( ( !saving && !restarting && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
+			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ) {
 		return false;
 	}
 	if ( retainedPagePending != NULL ) {
@@ -5593,8 +5602,8 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// Loaded with the other screens (PreloadRetainedScreens), or now when the
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
-	idUserInterface *&loaded = saving ? guiRetainedSave : guiRetainedLoad;
-	const char *path = saving ? RETAINED_SAVEGAME_GUI : RETAINED_LOADGAME_GUI;
+	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : guiRetainedLoad;
+	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
 		retainedStock.AddUnique( path );
@@ -5608,8 +5617,11 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	loaded = page;
 	// The saves, read while the home hands off: the newest selected to load,
 	// none to save over. Each arrival to save starts with no name, as the
-	// stock page's field did.
-	if ( saving ) {
+	// stock page's field did; a restart starts at the level's difficulty.
+	if ( restarting ) {
+		page->SetStateInt( "restart.skill", idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) ) );
+		page->StateChanged( common->GetPresentationTime() );
+	} else if ( saving ) {
 		retainedSaveTarget.Clear();
 		page->SetStateString( "save.name", "" );
 		page->SetStateString( "save.target", "" );
@@ -5621,7 +5633,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	retainedHandoffUntil = common->GetPresentationTime() + RETAINED_PAGE_HANDOFF_MSEC;
 	retainedPagePending = page;
 	retainedPageAt = retainedHandoffUntil;
-	guiRetainedHome->HandleNamedEvent( saving ? "carry_saveGame" : "carry_loadGame" );
+	guiRetainedHome->HandleNamedEvent( va( "carry_%s", request ) );
 	guiRetainedHome->HandleNamedEvent( "depart" );
 	HandleMainMenuCommands( "play main_menu_selection" );
 	return true;
@@ -5631,7 +5643,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 }
 
 bool idSessionLocal::RetainedPageActive() const {
-	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave );
+	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart );
 }
 
 // The hand-off's end: the page presents over the home that handed off, which
@@ -6032,6 +6044,30 @@ void idSessionLocal::HandleRetainedSaveRequest( idUserInterface *gui, const char
 #endif
 }
 
+/*
+===============
+idSessionLocal::HandleRetainedRestartRequest
+
+The Restart Level page's verbs. The page holds the chosen difficulty in
+restart.skill; RESTART LEVEL restarts the level at it, and Back leaves the
+level's difficulty as it was.
+===============
+*/
+void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( !idStr::Icmp( request, "restartBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "restartGo" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		RestartLevelAtSkill( idMath::ClampInt( 0, 4, gui->State().GetInt( "restart.skill", "1" ) ) );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Restart Level request '%s'", request );
+#endif
+}
+
 #ifndef ID_DEDICATED
 // A mod that ships its own loading screen under a stock name keeps it: the
 // file comes from the mod's own game directory (fs_game or fs_game_base),
@@ -6113,9 +6149,13 @@ void idSessionLocal::PreloadRetainedScreens() {
 			UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
 		}
 	}
-	// The Save Game page likewise, which only the Marine pause reaches.
+	// The Save Game and Restart Level pages likewise, which only the Marine
+	// pause reaches.
 	if ( guiRetainedSave == NULL && guiRetainedPause != NULL ) {
 		guiRetainedSave = FindRetainedGui( RETAINED_SAVEGAME_GUI, true, false );
+	}
+	if ( guiRetainedRestart == NULL && guiRetainedPause != NULL ) {
+		guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
 	}
 #endif
 }

@@ -150,7 +150,7 @@ static void CheckSchema() {
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
-	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder",
+	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -1787,8 +1787,55 @@ static void CheckSavePage(ScreenHost& host, const char* path) {
 	Check(text("save-empty","display") == "block" && text("row-0","display") == "none","an empty list says so");
 }
 
+// The Restart Level page: five difficulty plates with the chosen one lit, its
+// description beside them, RESTART LEVEL as the enlarged primary plate, and
+// BACK. The choice stays on the page until RESTART LEVEL.
+static void CheckRestartPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.restartlevel" && document.Model().canvasHeight == 720,"the Restart Level page validates");
+	CheckSessionActions(document);
+	const auto go = document.Model().actions.find("go"), back = document.Model().actions.find("back");
+	Check(go != document.Model().actions.end() && std::get<std::string>(go->second.arguments.at("command").literal) == "restartGo" &&
+		back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "restartBack",
+		"RESTART LEVEL and BACK ask the session");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/restartlevel.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a page node is laid out"); return b; };
+	Check(runtime.SetState({{"restart.skill",2.0}},error,0),"the level's difficulty");
+	runtime.Frame(viewport,1);
+	// The 4:3 canvas is 960 dp wide, centered: x = 160 dp at 1280x720; 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto first = bounds("skill-0"), second = bounds("skill-1"), primary = bounds("restart_go"), description = bounds("restart-description");
+	Check(Near(first.x,x0+21*u) && Near(first.y,172*u) && Near(second.x,x0+20*u) && Near(second.y-first.y,30*u),
+		"the difficulty plates keep the stock 30 u pitch from 21,172 u");
+	Check(Near(primary.x,x0+237*u) && Near(primary.y,222*u) && Near(primary.width,356*u) && Near(primary.height,43*u),
+		"RESTART LEVEL is the stock 356x43 u primary plate at 237,222 u");
+	Check(Near(description.x,x0+239*u) && Near(description.y,181*u),"the description stands at 239,181 u");
+	Check(text("skill-2-plate-lit","display") == "block" && text("skill-2-label","display") == "none" &&
+		text("skill-2-label-lit","display") == "block" && text("skill-1-plate-lit","display") == "none","the level's difficulty is lit");
+	Check(text("restart-description","text") == "#str_200184","its description shows");
+	// Arriving focuses the chosen difficulty.
+	Check(runtime.RunEvent("onActivate",2,effects,error),"the page arrives");
+	runtime.Frame(viewport,2.2);
+	Check(runtime.FocusedControl() == "skill-2","the chosen difficulty has focus");
+	// Choosing another lights and describes it; nothing reaches the session.
+	Check(runtime.RunEvent("chooseSkill4",3,effects,error) && effects.actions.empty() && effects.stateChanges.count("restart.skill") &&
+		std::get<double>(effects.stateChanges.at("restart.skill")) == 4,"choosing a difficulty keeps it on the page");
+	runtime.Frame(viewport,3.1);
+	Check(text("skill-4-plate-lit","display") == "block" && text("skill-2-plate-lit","display") == "none" &&
+		text("restart-description","text") == "#str_41118","the new choice is lit and described");
+	Check(runtime.CanActivateControl("restart_go",3.2) && runtime.CanActivateControl("restart_back",3.2),"RESTART LEVEL and BACK are live");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 15,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui");
+	Check(argc == 16,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2883,6 +2930,7 @@ int main(int argc, char** argv) {
 	CheckMultiplayerWheel(host,argv[12]);
 	CheckLoadPage(host,argv[13]);
 	CheckSavePage(host,argv[14]);
+	CheckRestartPage(host,argv[15]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

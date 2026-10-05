@@ -118,6 +118,7 @@ struct CVarSystem {
     std::map<std::string, std::string> strings;
     const char* GetCVarString(const char* name) const { const auto found = strings.find(name); return found == strings.end() ? "" : found->second.c_str(); }
     bool GetCVarBool(const char* name) const { return std::string(GetCVarString(name)) == "1"; }
+    int GetCVarInteger(const char* name) const { return std::atoi(GetCVarString(name)); }
 } cvarSystemObject, *cvarSystem = &cvarSystemObject;
 struct FileSystem {
     std::set<std::string> files;
@@ -327,6 +328,9 @@ public:
         savedGames.push_back(name); if (saveRefuses) return false;
         saves.insert(saves.begin(), name); return true;
     }
+    // The Restart Level page; the difficulties a level restarted at.
+    idUserInterface* guiRetainedRestart = nullptr; void HandleRetainedRestartRequest(idUserInterface*, const char*);
+    std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
         ++saveLists;
         for (size_t i = 0; i < saves.size(); ++i) { files.Append(idStr(saves[i])); times.Append({static_cast<int>(i), 100 - static_cast<ID_TIME_T>(i)}); }
@@ -365,7 +369,7 @@ public:
 MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
-    "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui"};
+    "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -651,6 +655,38 @@ int main() {
         CHECK(missing.guiRetainedSave == nullptr && legacyActions.back() == "main_b_savegame" &&
               (Stock(missing) == std::vector<std::string>{"guis/menu/savegame.q4ui"}));
     }
+    {   // The Restart Level page (FLOW-050): the Marine pause's RESTART LEVEL hands off to
+        // it as LOAD GAME does, at the level's difficulty. The choice stays on the
+        // page; RESTART LEVEL restarts the level at it and Back changes nothing.
+        auto s = Session(true, true); cvarSystemObject.strings["g_skill"] = "3";
+        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* pause = s.guiRetainedHome; auto* page = s.guiRetainedRestart;
+        CHECK(pause && page && std::string(page->Name()) == "guis/menu/restartlevel.q4ui");
+        s.HandleRetainedSessionRequest(pause, "restartLevel");
+        CHECK(legacyActions.empty() && s.retainedPagePending == page && page->state["restart.skill"] == "3");
+        CHECK(pause->named[pause->named.size() - 2] == "carry_restartLevel" && pause->named.back() == "depart");
+        commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && s.retainedPageHome == pause && s.RetainedPageActive());
+        s.HandleRetainedSessionRequest(page, "restartBack");
+        CHECK(s.guiActive == s.guiMainMenu && s.guiRetainedHome == pause && pause->named.back() == "returnHome" && s.restarts.empty());
+        cvarSystemObject.strings["g_skill"] = "9";
+        s.HandleRetainedSessionRequest(pause, "restartLevel"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && page->state["restart.skill"] == "4");  // clamped to the difficulties
+        page->state["restart.skill"] = "0"; s.HandleRetainedSessionRequest(page, "restartGo");
+        CHECK((s.restarts == std::vector<int>{0}) && s.played.back() == "play main_menu_selection");
+        page->state["restart.skill"] = "7"; s.HandleRetainedSessionRequest(page, "restartGo"); CHECK(s.restarts.back() == 4);
+        s.HandleRetainedSessionRequest(page, "unknown");
+        CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("Restart Level") != std::string::npos);
+    }
+    {   // The title has no level to restart, and the Strogg pause keeps the stock page.
+        auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
+        title.HandleRetainedSessionRequest(title.guiRetainedHome, "restartLevel");
+        CHECK(legacyActions.back() == "main_b_difficulty" && title.retainedPagePending == nullptr);
+        auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
+        strogg.UpdateRetainedHome(); strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "restartLevel");
+        CHECK(legacyActions.back() == "main_b_difficulty" && strogg.retainedPagePending == nullptr && strogg.restarts.empty());
+    }
     {   // No save: CONTINUE stays hidden and has nothing to load.
         auto s = Session(true); s.UpdateRetainedHome();
         CHECK(s.guiRetainedHome->state["menu_continue"] == "0");
@@ -661,7 +697,7 @@ int main() {
         CHECK(s.guiRetainedHome && std::string(s.guiRetainedHome->Name()) == "guis/menu/pause.q4ui" && s.guiRetainedHome->state["pause_level"] == "game/airdefense1");
         auto* pause = s.guiRetainedHome;
         s.HandleRetainedSessionRequest(pause, "quitToMenu"); CHECK(commands.buffered == std::vector<std::string>{"disconnect\n"});
-        s.HandleRetainedSessionRequest(pause, "restartLevel"); CHECK(legacyActions.back() == "main_b_difficulty");
+        s.HandleRetainedSessionRequest(pause, "settings"); CHECK(legacyActions.back() == "main_b_settings");
         commonObject.time += 600; legacy["desktop::active"] = 0; legacy["desktop::dest"] = 0; s.UpdateRetainedHome();
         s.HandleRetainedSessionRequest(pause, "resume"); CHECK(s.exits == 1);
         s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr && !pause->active);
@@ -674,17 +710,17 @@ int main() {
     {   // Startup and single-player level loads resolve the screens and the pause levelshot.
         auto s = Session(true); s.PreloadRetainedScreens();
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/loadgame.q4ui",
-                                                            "guis/menu/savegame.q4ui"}) &&
+                                                            "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui"}) &&
               s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
         CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 4 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 5 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 4 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 5 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 5 + cards);
+              managerObject.loads.size() == 6 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -750,8 +786,8 @@ int main() {
         CHECK(s.guiRetainedHome == nullptr && !title->active && s.guiRetainedTitle == nullptr);
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("stopped drawing") != std::string::npos);
         s.UpdateRetainedHome(); s.PreloadRetainedScreens();
-        // title, then pause and the Load and Save Game pages
-        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 4 && commonObject.warnings.size() == 1);
+        // title, then pause and the Load, Save Game and Restart Level pages
+        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 5 && commonObject.warnings.size() == 1);
     }
     {   // The campaign selectors: the retained ones while installed, the stock ones otherwise.
         auto s = Session(true); s.OpenCampaignSelector(false);
@@ -2869,7 +2905,7 @@ def main() -> int:
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
-                       'guis/menu/savegame.q4ui'}
+                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3073,6 +3109,7 @@ def main() -> int:
         'void idSessionLocal::HandleRetainedLoadRequest(', 'bool idSessionLocal::RetainedPageActive(',
         'void idSessionLocal::PublishRetainedSavePage(', 'void idSessionLocal::PublishRetainedSaveSelection(',
         'bool idSessionLocal::RetainedSaveGame(', 'void idSessionLocal::HandleRetainedSaveRequest(',
+        'void idSessionLocal::HandleRetainedRestartRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

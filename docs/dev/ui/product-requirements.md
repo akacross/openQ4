@@ -561,7 +561,9 @@ On engine `a2548a5e83749ff8a4579f35eade5dca59c4fa14` LOAD GAME opens a retained 
 
 On engine `5d5522343eedef52f0bd34638b43cbf51e1a067f` a text control role edits one line of free text, committed characters type into a focused retained field, and SAVE GAME opens a retained Save Game page. `WID-006` becomes partial; `FLOW-004`, `WID-009`, `RUN-004` and `FLOW-002` gain evidence. Evidence: `.tmp/ui/retained-savegame-evidence/validation-evidence.json`, SHA-256 `a19668e3ec74f32813923274778912d3dadfe6f682bc0867a75f259f61966b9a`.
 
-There are **101 partial, 238 pending and one verified requirement**, counting the
+On engine `46052f8a0371c1b717decd1c7f999d4afdfc40f5` RESTART LEVEL on the Marine pause opens a retained Restart Level page with the stock New Game composition: the difficulty plates beside the chosen one's description and the enlarged primary plate. Back returns the pause unchanged, and RESTART LEVEL restarts the level at the choice. `FLOW-001` becomes partial; `FLOW-048` gains evidence. Evidence: `.tmp/ui/retained-restartlevel-evidence/validation-evidence.json`, SHA-256 `c59bf89c0bccdfa9615b95eacd3b215bd181b71c5c755769df3d530b9f21d3d9`.
+
+There are **102 partial, 237 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

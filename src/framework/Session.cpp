@@ -3822,6 +3822,7 @@ void idSessionLocal::Clear() {
 	retainedLoadSelected = -1;
 	guiRetainedSave = NULL;
 	retainedSaveTarget.Clear();
+	guiRetainedRestart = NULL;
 	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
 	retainedMultiplayerWelcome = false;
@@ -8304,7 +8305,7 @@ void idSessionLocal::Draw() {
 		}
 
 		if ( RetainedPageActive() ) {
-			// A retained Load or Save Game page over the home that handed off to it.
+			// A retained page over the home that handed off to it.
 			DrawRetainedPageHome( presentationTime );
 		}
 		if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
@@ -9157,7 +9158,7 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
-	// A retained Load or Save Game page stands in for a main-menu page.
+	// A retained page stands in for a main-menu page.
 	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
 			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );

@@ -58,7 +58,7 @@ RULE_Y = 77.6                              # horiz_line2's two centre texels, dr
 
 
 def section_plate(doc: Document, ident: str, key: str, left: float, top: float, *, action: str | None = None,
-                  event: str | None = None, label_w: float = 186) -> dict:
+                  event: str | None = None, label_w: float = 186, selected: dict | None = None) -> dict:
     """A section navigation plate (b2_dark drawn at 208x52 u, Appendix B.1):
     its band rows 16-45 of 64 (13-37.4 u), a lower-leading cut from row 32,
     the #CCCC51 rail along the leading edge, the cut and the bottom, a black
@@ -66,28 +66,34 @@ def section_plate(doc: Document, ident: str, key: str, left: float, top: float, 
     0.40; the corner marker 8,19 u into the rectangle and the Marine label
     (textscale 0.31, 22.3 dp) from 18 u. Hover and focus light the plate to
     0.80 and turn the marker and label orange, as on the home plates. The
-    label is `label_w` u wide, past the plate's faded end where it may run."""
+    label is `label_w` u wide, past the plate's faded end where it may run.
+    With `selected`, an expression, the plate lights while it holds the
+    choice, as the stock New Game page lights its difficulty: the plate at
+    full strength and its label orange, whatever its feedback."""
     width, height = U * 208, U * 52
     band_top, band_bottom, cut = U * 13.0, U * 37.4, U * 11.4
     fade = [(0, [0, 0, 0, 1]), (0.57, [0, 0, 0, 1]), (0.72, [0, 0, 0, 0.5]), (0.94, [0, 0, 0, 0]), (1, [0, 0, 0, 0])]
     rail = [(0, rgb(RAIL_DARK)), (0.57, rgb(RAIL_DARK)), (0.72, rgb(RAIL_DARK, 0.5)), (0.94, rgb(RAIL_DARK, 0)), (1, rgb(RAIL_DARK, 0))]
-    plate = vector(f"{ident}-plate", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0.4)}, [
-        path("fill", [(0, band_top), (width, band_top), (width, band_bottom), (cut, band_bottom), (0, band_bottom - cut)],
-             fill=linear((0, 0), (width, 0), fade)),
-        path("rail", [(0.75, band_top), (0.75, band_bottom - cut), (cut, band_bottom - 0.75), (width, band_bottom - 0.75)],
-             closed=False, stroke=stroke(linear((0, 0), (width, 0), rail), 1.5)),
-    ])
+    def plate_paths() -> list:
+        return [
+            path("fill", [(0, band_top), (width, band_top), (width, band_bottom), (cut, band_bottom), (0, band_bottom - cut)],
+                 fill=linear((0, 0), (width, 0), fade)),
+            path("rail", [(0.75, band_top), (0.75, band_bottom - cut), (cut, band_bottom - 0.75), (width, band_bottom - 0.75)],
+                 closed=False, stroke=stroke(linear((0, 0), (width, 0), rail), 1.5)),
+        ]
+    plate = vector(f"{ident}-plate", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0.4)}, plate_paths())
     focus = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0)}, [
         path("inset", [(cut + 2, band_bottom - 3.2), (width * 0.72, band_bottom - 3.2)], closed=False, stroke=stroke(solid(rgb(ORANGE)), 1.2))])
     marker_rest = vector(f"{ident}-marker", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0.4)}, [
         marker_path("mark", U * 10.75, U * 21.75, U * 5.5, rgb(MARKER))])
     marker_hot = vector(f"{ident}-marker-hot", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0)}, [
         marker_path("mark", U * 10.75, U * 21.75, U * 5.5, rgb(ORANGE))])
-    text_node = label(f"{ident}-label", key, {**absolute(left=U * 18, top=band_top, width=U * label_w, height=band_bottom - band_top),
-                      **typeface("marine", 22.3, band_bottom - band_top, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"),
-                      "transform": transform()})
+    text_box = absolute(left=U * 18, top=band_top, width=U * label_w, height=band_bottom - band_top)
+    text_node = label(f"{ident}-label", key, {**text_box, **typeface("marine", 22.3, band_bottom - band_top, [1, 1, 1, 0.8]),
+                                              "white-space": keyword("nowrap"), "transform": transform()})
+    parts = [plate, focus, marker_rest, marker_hot, text_node]
     lit, rest = number(1), number(0)
-    ids = doc.states(ident, {
+    states = {
         "default": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)),
                     (f"{ident}-marker-hot", "opacity", rest), (f"{ident}-focus", "opacity", rest),
                     (f"{ident}-label", "color", colour([1, 1, 1, 0.8])), (f"{ident}-label", "transform", transform())],
@@ -103,14 +109,29 @@ def section_plate(doc: Document, ident: str, key: str, left: float, top: float, 
         "disabled": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)),
                      (f"{ident}-marker-hot", "opacity", rest), (f"{ident}-focus", "opacity", rest),
                      (f"{ident}-label", "color", colour([1, 1, 1, 0.3])), (f"{ident}-label", "transform", transform())],
-    })
+    }
+    if selected is not None:
+        # The lit plate and label stand in while the plate holds the choice;
+        # the lit label follows the label's feedback motion.
+        plate_lit = vector(f"{ident}-plate-lit", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(1),
+                                                  "display": keyword("none"), "pointer-events": keyword("none")}, plate_paths())
+        text_lit = label(f"{ident}-label-lit", key, {**text_box, **typeface("marine", 22.3, band_bottom - band_top, rgb(ORANGE)),
+                                                     "white-space": keyword("nowrap"), "transform": transform(), "display": keyword("none")})
+        text_node["properties"]["display"] = keyword("block")
+        doc.bind(f"{ident}-plate-lit.display", f"{ident}-plate-lit", "display", {"op": "select", "args": [selected, "block", "none"]})
+        doc.bind(f"{ident}-label-lit.display", f"{ident}-label-lit", "display", {"op": "select", "args": [selected, "block", "none"]})
+        doc.bind(f"{ident}-label.display", f"{ident}-label", "display", {"op": "select", "args": [selected, "none", "block"]})
+        parts = [plate, plate_lit, focus, marker_rest, marker_hot, text_node, text_lit]
+        for state, tracks in states.items():
+            moved = next(value for node, prop, value in tracks if node == f"{ident}-label" and prop == "transform")
+            tracks.append((f"{ident}-label-lit", "transform", moved))
+    ids = doc.states(ident, states)
     control = {"role": "button", "label": key, "states": ids}
     if action:
         control["action"] = action
     else:
         control["event"] = event
-    return group(ident, absolute(left=U * left, top=U * top, width=width, height=height),
-                 [plate, focus, marker_rest, marker_hot, text_node], control=control)
+    return group(ident, absolute(left=U * left, top=U * top, width=width, height=height), parts, control=control)
 
 
 def row_light(alpha: float) -> list:

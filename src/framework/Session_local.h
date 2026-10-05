@@ -303,6 +303,9 @@ public:
 	void				PublishRetainedSaveSelection( idUserInterface *gui, bool name );
 	void				HandleRetainedSaveRequest( idUserInterface *gui, const char *request );
 	bool				RetainedSaveGame( idUserInterface *gui, const char *name );
+	// The retained Restart Level page (guis/menu/restartlevel.q4ui), which
+	// RESTART LEVEL on the Marine pause hands off to the same way.
+	void				HandleRetainedRestartRequest( idUserInterface *gui, const char *request );
 	// Why LoadGame last refused a save, before it left the current game.
 	enum loadGameFailure_t {
 		LOADGAME_FAILURE_NONE,
@@ -529,6 +532,8 @@ public:
 	// above, and the save its overwrite dialog asks about.
 	idUserInterface *	guiRetainedSave;
 	idStr				retainedSaveTarget;
+	// The Restart Level page (NULL until it first loads).
+	idUserInterface *	guiRetainedRestart;
 	// The multiplayer Escape and Welcome cards, loaded inside each
 	// multiplayer level load; the card covering the game's menu now (NULL:
 	// none) and whether it is Welcome; a stock page that took the menu over

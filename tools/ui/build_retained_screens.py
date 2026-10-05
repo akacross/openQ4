@@ -43,6 +43,7 @@ OUTPUTS = {
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
     "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
     "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
+    "restartlevel": PAK0 / "guis" / "menu" / "restartlevel.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -2809,19 +2810,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus, the Load and Save Game pages and the
-    # initializing screen live in their own modules, which build on this one.
+    # The multiplayer menus, the Load and Save Game pages, the Restart Level
+    # page and the initializing screen live in their own modules, which build
+    # on this one.
     from retained_initializing import initializing_document
     from retained_weapon_wheel import weapon_wheel_document
     from retained_weapon_wheel_strogg import weapon_wheel_strogg_document
     from retained_mp_menus import escape_document, welcome_document
     from retained_saves import load_game_document, save_game_document
+    from retained_difficulty import restart_level_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
                  "weaponwheel_mp": weapon_wheel_document(multiplayer=True),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
-                 "loadgame": load_game_document(), "savegame": save_game_document(),
+                 "loadgame": load_game_document(), "savegame": save_game_document(), "restartlevel": restart_level_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():

@@ -400,6 +400,26 @@ SCENARIOS = {
         'openq4_retainedGui report', 'screenshot "screenshots/savegame-empty.tga"',
         'openq4_retainedGui number begin "save-name"', 'waitMsec 300', 'screenshot "screenshots/savegame-empty-editing.tga"',
     ]),
+    # The Restart Level page (FLOW-050): the pause's RESTART LEVEL hands off to
+    # it at the level's difficulty. A plate chooses another, which the page
+    # lights and describes; Back leaves the difficulty as it was, so the page
+    # reopens at the level's; RESTART LEVEL restarts the level at the choice.
+    'restartlevel': ('game/airdefense1', [
+        'waitMsec 1000', 'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/restartlevel-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/restartlevel.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/restartlevel-chosen.tga"',
+        'openq4_retainedGui focus restart_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'screenshot "screenshots/restartlevel-home.tga"',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'screenshot "screenshots/restartlevel-reopened.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus restart_go', 'waitMsec 300', 'screenshot "screenshots/restartlevel-go.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 12000', 'ui_retainedStatus',
+        'screenshot "screenshots/restartlevel-restarted.tga"',
+    ]),
     # A mod with its own copies of the stock loading screens: the level loads
     # under the mod's screen, and the retained loading screen never loads.
     'fallback-loading': ('game/airdefense2', [

@@ -869,6 +869,11 @@
 - Number fields on the modern SYSTEM page, such as the window and custom
   size fields, now take typed digits as well as pasted values.
 
+- RESTART LEVEL on the pause menu opens a rebuilt page with the five
+  difficulties and their descriptions, the level's own lit. Pick one and
+  press RESTART LEVEL; Back keeps the difficulty you were playing. Set
+  `ui_retained 0` for the classic page.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and
