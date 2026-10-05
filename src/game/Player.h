@@ -573,6 +573,10 @@ public:
 	bool					GetVRAimMarker( vrAimMarker_t &marker ) const;
 	// Room scale: walks the body after the tracked head (vr_roomScale).
 	void					UpdateVRRoomScale( void );
+	// openQ4 headless tests (openq4_weaponWheel): hold the weapon wheel
+	// without its button, and aim it with a stick vector, x right and y up.
+	void					TestWeaponWheelHold( bool held );
+	void					TestWeaponWheelAim( const idVec2 &stick );
 	// In a vehicle: the stick drives it the way it faces, and its turns
 	// carry the tracked view unless it steers after the driver's turret.
 	void					UpdateVRVehicleFrame( void );
@@ -1034,6 +1038,17 @@ private:
 	float					weaponWheelBlend;
 	idVec2					weaponWheelCursor;
 	idAngles				weaponWheelLastCmdAngles;
+	// openQ4: the retained wheel (ui_retained), the engine's "weaponwheel" HUD component.
+	// Transient presentation state; none of it is saved.
+	idUserInterface*		weaponWheelGui;
+	bool					weaponWheelGuiTried;	// its load was attempted
+	bool					weaponWheelRetained;	// this hold belongs to the retained wheel
+	bool					weaponWheelPressed;		// its button was held last frame
+	bool					weaponWheelPresenting;	// it draws: open or closing
+	int						weaponWheelPressTime;	// Sys_Milliseconds at the press
+	int						weaponWheelCloseTime;	// Sys_Milliseconds when it began to close
+	bool					weaponWheelTestHeld;	// openq4_weaponWheel hold
+	idVec2					weaponWheelTestStick;	// openq4_weaponWheel aim
 
 	bool					tipUp;
 	bool					objectiveUp;
@@ -1134,6 +1149,13 @@ private:
 	int						GetClosestAvailableWeaponWheelSlot( float angle ) const;
 	int						GetWeaponWheelAmmoCount( int weaponIndex );
 	bool					IsWeaponWheelSlotLowAmmo( int slot );
+	bool					UseRetainedWeaponWheel( void );
+	void					AcquireRetainedWeaponWheel( void );
+	void					UpdateRetainedWeaponWheel( bool canUseWheel, bool held );
+	void					CloseRetainedWeaponWheel( void );
+	int						RetainedWeaponWheelSlot( void );
+	void					RetainedWeaponWheelAmmo( int weaponIndex, int &total, int &maximum, int &clip, int &clipSize );
+	void					PublishRetainedWeaponWheel( void );
 
 	void					StopFiring( void );
 	void					FireWeapon( void );

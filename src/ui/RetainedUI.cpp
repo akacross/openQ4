@@ -1222,6 +1222,14 @@ void RetainedUI_ReleaseInitializing() {
 	initializingView = nullptr; initializingFailed = false; initializingStarted = false;
 	initializingStep = -1; initializingStatus.clear();
 }
+const char* RetainedUI_HudDocument(const char* name) {
+	static const struct { const char* name; const char* path; } documents[] = {
+		{"weaponwheel", "guis/hud/weaponwheel.q4ui"},
+	};
+	if (!name || !cvarSystem->GetCVarBool("ui_retained")) return nullptr;
+	for (const auto& document : documents) if (idStr::Icmp(name, document.name) == 0) return document.path;
+	return nullptr;
+}
 
 void RetainedUI_Init() {
 	cmdSystem->AddCommand("ui_retainedCheckpoint",Checkpoint_f,CMD_FL_SYSTEM,"save or restore one bounded canonical instance checkpoint in memory");
@@ -1413,6 +1421,7 @@ double RetainedUI_PresentationTime() { return 0; }
 void RetainedUI_FrameSubmitted() {}
 bool RetainedUI_DrawInitializing(const char*, int) { return false; }
 void RetainedUI_ReleaseInitializing() {}
+const char* RetainedUI_HudDocument(const char*) { return nullptr; }
 void RetainedUI_Init() {}
 void RetainedUI_Shutdown() {}
 void RetainedUI_Draw() {}

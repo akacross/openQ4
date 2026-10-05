@@ -840,6 +840,12 @@
   step on a progress rule. The title screen's QUAKE 4 is drawn the same sharp
   way. Set `ui_retained 0` for the original screens.
 
+- The weapon wheel is rebuilt in the Marine HUD style: hold the wheel button
+  to open a ring of every weapon with its icon, ammunition gauge and reserve,
+  pick with either stick or the mouse, and let go to switch; a quick tap
+  swaps back to your previous weapon. The game no longer slows down while the
+  wheel is open. Set `ui_retained 0` for the classic wheel.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

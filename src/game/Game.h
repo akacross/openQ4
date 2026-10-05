@@ -710,7 +710,7 @@ extern rvGameLog *				gameLog;
 //     off-axis frustum, and idRenderSystem appends the VR presentation slots.
 // 51: idRenderSystem appends PresentScaledScene, the r_resolutionScaleMode
 //     upscale of the game's below-native scene.
-const int GAME_API_VERSION		= 51;
+const int GAME_API_VERSION		= 52;
 
 struct gameImport_t {
 

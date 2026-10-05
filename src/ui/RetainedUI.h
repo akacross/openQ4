@@ -54,6 +54,10 @@ void RetainedUI_FrameSubmitted();
 // picture instead. Release the view once the menus are ready.
 bool RetainedUI_DrawInitializing(const char* status, int step);
 void RetainedUI_ReleaseInitializing();
+// The retained document of a named HUD component ("weaponwheel"), or null when
+// ui_retained is off or the component has none. Game modules ask by name
+// (idCommon::RetainedHudGui) and never name a retained document.
+const char* RetainedUI_HudDocument(const char* name);
 
 struct sysEvent_s;
 struct retainedUIInput_t {

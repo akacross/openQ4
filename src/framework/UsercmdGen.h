@@ -193,6 +193,11 @@ public:
 	// not consumed; the next 60 Hz usercmd still receives the full movement.
 	// Returns false when disabled or inhibited.
 	virtual bool		GetPresentationViewDelta( float &yawDelta, float &pitchDelta ) = 0;
+
+	// The weapon wheel's controller selection: the more deflected of the two
+	// sticks after its dead zone, x right and y up, each -1..1. Look
+	// inversion does not apply: the wheel is drawn on the screen.
+	virtual void		GetStickSelection( float &x, float &y ) = 0;
 };
 
 extern idUsercmdGen	*usercmdGen;

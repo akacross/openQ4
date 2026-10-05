@@ -1366,8 +1366,80 @@ static void CheckInitializing(ScreenHost& host, const char* path) {
 	runtime.SetReducedMotion(false,40);
 }
 
+// The weapon wheel (section 14.6): the game publishes the slots and the
+// selection; the document marks the selection, the empty and unowned slots,
+// the ammunition cells and the hub, and plays the Marine transmission.
+static void CheckWeaponWheel(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel" && document.Model().canvasHeight == 720 &&
+		document.Model().actions.empty(),"weapon wheel document validates and asks nothing of the engine");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel.q4ui",diagnostics),"the wheel loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720;
+	std::string error; Runtime::EventEffects effects;
+	Check(runtime.RunEvent("onInit",0,effects,error),"onInit");
+	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_name",std::string("Machinegun")},
+		{"wheel_ammo",std::string("40 / 200")}};
+	for (int slot : {0,1,2,6}) values["wheel_owned_"+std::to_string(slot)] = true;
+	values["wheel_empty_2"] = true;
+	values["wheel_fill_1"] = .4; values["wheel_count_1"] = 200.0; values["wheel_count_0"] = -1.0;
+	values["wheel_key_1"] = std::string("2");
+	Check(runtime.SetState(values,error,0),"publish the slots and the selection");
+	runtime.Frame(viewport,1);
+	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
+	// The ring centers on the view: a 600 dp square about 640,360 at 16:9.
+	Bounds wheel;
+	Check(runtime.GetBounds("wheel",wheel) && Near(wheel.x,340) && Near(wheel.y,60) && Near(wheel.width,600),"the wheel centers on the view");
+	// The selection moves 8 dp outward along its direction (32.7 degrees).
+	const auto moved = runtime.PresentedValue("slot-1","transform");
+	const auto still = runtime.PresentedValue("slot-0","transform");
+	Check(moved && Near(static_cast<float>(moved->data[0]),8*std::sin(32.7273f*3.14159265f/180),.05f) &&
+		Near(static_cast<float>(moved->data[1]),-8*std::cos(32.7273f*3.14159265f/180),.05f) && still &&
+		Near(static_cast<float>(still->data[0]),0,.001f),"the selected segment extends 8 dp outward");
+	Check(Near(opacity("slot-1-plate"),.7f,.001f) && Near(opacity("slot-0-plate"),.5f,.001f) && Near(opacity("slot-3-plate"),0,.001f) &&
+		Near(opacity("slot-3-outline"),1,.001f) && Near(opacity("slot-0-outline"),0,.001f),
+		"the selection's backing rises to 0.70; an unowned weapon keeps only its outline");
+	Check(Near(opacity("slot-1-glyph-selected"),1,.001f) && Near(opacity("slot-1-glyph"),0,.001f) && Near(opacity("slot-0-glyph"),1,.001f) &&
+		Near(opacity("slot-1-light"),1,.001f) && Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-0-ring"),0,.001f),
+		"the selection's icon turns orange inside the strip's ring, under the light");
+	Check(Near(opacity("slot-2-noammo"),1,.001f) && Near(opacity("slot-1-noammo"),0,.001f),"a weapon without ammunition shows the prohibition sign");
+	// 0.4 of the reserve fills three cells and a fifth of the fourth.
+	Check(Near(opacity("slot-1-cell-2"),1,.001f) && Near(opacity("slot-1-cell-3"),.2f,.01f) && Near(opacity("slot-1-cell-4"),0,.001f) &&
+		Near(opacity("slot-6-cell-0"),0,.001f),"the gauge fills in proportion to the reserve");
+	const auto reserve = runtime.PresentedValue("slot-1-reserve","text");
+	const auto key = runtime.PresentedValue("slot-1-key","text");
+	Check(reserve && reserve->text == "200" && key && key->text == "2" && Near(opacity("slot-0-reserve"),0,.001f),
+		"each slot shows its key and reserve; the blaster has none");
+	const auto compass = runtime.PresentedValue("compass","transform");
+	const auto pointer = runtime.PresentedValue("pointer","transform");
+	const auto notch = runtime.PresentedValue("previous","transform");
+	Check(compass && Near(static_cast<float>(compass->data[4]),32.7273f,.01f) && pointer && Near(static_cast<float>(pointer->data[4]),32.7273f,.01f) &&
+		notch && Near(static_cast<float>(notch->data[4]),0,.001f) && Near(opacity("previous"),1,.001f),
+		"the compass and pointer face the selection and the notch marks the previous weapon");
+	const auto name = runtime.PresentedValue("name","text");
+	const auto ammo = runtime.PresentedValue("ammo","text");
+	Check(name && name->text == "Machinegun" && ammo && ammo->text == "40 / 200","the hub names the selection and its ammunition");
+	// Opening: the hub powers on from a slit and the segments deploy clockwise.
+	Check(runtime.RunEvent("open",2,effects,error),"open");
+	runtime.Frame(viewport,2.001);
+	const auto slit = runtime.PresentedValue("hub","transform");
+	Check(slit && Near(static_cast<float>(slit->data[2]),.55f,.02f) && Near(static_cast<float>(slit->data[3]),.06f,.02f),"the hub opens from a slit");
+	runtime.Frame(viewport,2.05);
+	Check(opacity("slot-0") > opacity("slot-10"),"the segments deploy clockwise from the top");
+	runtime.Frame(viewport,2.16);
+	Check(opacity("slot-10") > .99f && opacity("static") > .3f,"plates read by 150 ms, under the static burst");
+	runtime.Frame(viewport,2.7);
+	const auto open = runtime.PresentedValue("hub","transform");
+	Check(open && Near(static_cast<float>(open->data[2]),1,.001f) && Near(opacity("static"),0,.001f),"the hub settles and the static decays");
+	Check(runtime.RunEvent("close",3,effects,error),"close");
+	runtime.Frame(viewport,3.2);
+	Check(Near(opacity("slot-0"),0,.001f),"closing drops the segments out");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 10,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui");
+	Check(argc == 11,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2457,6 +2529,7 @@ int main(int argc, char** argv) {
 	CheckSettings(host,argv[7],argv[8]);
 	CheckWelcome(host,argv[8]);
 	CheckInitializing(host,argv[9]);
+	CheckWeaponWheel(host,argv[10]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

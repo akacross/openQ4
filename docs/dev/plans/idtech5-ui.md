@@ -163,7 +163,11 @@ tabs. The [initializing screen](../ui/retained-screens.md#initializing-screen)
 draws the stock picture rebuilt as vector layers from the first startup frame
 the renderer can draw until the menus are ready, with its turning rings, four
 accents, status line and step rule, and the title's wordmark is the same
-traced QUAKE 4 with the texture's own halo. No gate closes.
+traced QUAKE 4 with the texture's own halo. Single player's
+[weapon wheel](../ui/retained-screens.md#weapon-wheel) is the Marine wheel of
+section 14.6, at full game speed: a 180 ms hold opens it, a tap swaps to the
+previous weapon, either stick or the mouse selects and release equips; the
+Strogg, multiplayer and quick-chat wheels remain. No gate closes.
 
 ## Objective and immutable completion scope
 

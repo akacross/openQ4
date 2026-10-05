@@ -787,6 +787,8 @@ public:
 	virtual const char *		KeysFromBinding( const char *bind );
 	virtual const char *		KeysFromBindingForPrompt( const char *bind );
 	virtual const char *		BindingFromKey( const char *key );
+	virtual void				GetControllerSelection( float &x, float &y ) { usercmdGen->GetStickSelection( x, y ); }
+	virtual const char *		RetainedHudGui( const char *name ) { return RetainedUI_HudDocument( name ); }
 
 	virtual int					ButtonState( int key );
 	virtual int					KeyState( int key );

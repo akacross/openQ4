@@ -165,6 +165,29 @@ SCENARIOS = {
         'screenshot "screenshots/initializing-glint-b.tga"', 'waitMsec 150', 'screenshot "screenshots/initializing-glint-c.tga"',
         'testGUI', 'waitMsec 300',
     ]),
+    # The weapon wheel (section 14.6), held and aimed by openq4_weaponWheel
+    # (cheats; no synthetic input): it opens past the 180 ms tap on the
+    # current weapon, a stick vector up and right selects the shotgun and one
+    # to the left the lightning gun, release equips it, and a tap swaps back.
+    'weaponwheel': ('game/airdefense1', [
+        'give all', 'waitMsec 1500',
+        'openq4_weaponWheel hold', 'waitMsec 260', 'screenshot "screenshots/weaponwheel-opening.tga"',
+        'waitMsec 800', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 60', 'screenshot "screenshots/weaponwheel-select.tga"',
+        'waitMsec 600', 'screenshot "screenshots/weaponwheel-selected.tga"',
+        'openq4_weaponWheel aim -0.95 -0.14', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-selected-lightning.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 60', 'screenshot "screenshots/weaponwheel-closing.tga"',
+        'waitMsec 1500', 'screenshot "screenshots/weaponwheel-equipped.tga"',
+        'openq4_weaponWheel hold', 'waitMsec 60', 'openq4_weaponWheel release', 'waitMsec 1500',
+        'screenshot "screenshots/weaponwheel-tap.tga"',
+    ]),
+    # Reduced motion: opening, selecting and closing are short opacity changes.
+    'weaponwheel-reduced': ('game/airdefense1', [
+        'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',
+        'openq4_weaponWheel hold', 'waitMsec 400', 'screenshot "screenshots/weaponwheel-reduced-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 200', 'screenshot "screenshots/weaponwheel-reduced-selected.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000', 'set ui_retainedReducedMotion 0',
+    ]),
     # Reduced motion: the rings rest, the light holds at the upper left, and
     # there are no embers, glint or pulse.
     'initializing-reduced': (None, [

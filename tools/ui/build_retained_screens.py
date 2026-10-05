@@ -35,6 +35,7 @@ OUTPUTS = {
     "pause_strogg": PAK0 / "guis" / "menu" / "pause_strogg.q4ui",
     "loading": PAK0 / "guis" / "loading" / "loading.q4ui",
     "initializing": PAK0 / "guis" / "loading" / "initializing.q4ui",
+    "weaponwheel": PAK0 / "guis" / "hud" / "weaponwheel.q4ui",
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
@@ -2777,9 +2778,11 @@ def main() -> int:
     # The multiplayer menus and the initializing screen live in their own
     # modules, which build on this one.
     from retained_initializing import initializing_document
+    from retained_weapon_wheel import weapon_wheel_document
     from retained_mp_menus import escape_document, welcome_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
+                 "weaponwheel": weapon_wheel_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []

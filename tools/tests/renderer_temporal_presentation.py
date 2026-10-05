@@ -66,7 +66,7 @@ def main() -> int:
     )
     require(
         read(GAME_ROOT / "src" / "game" / "Game.h"),
-        "const int GAME_API_VERSION\t\t= 51;",
+        "const int GAME_API_VERSION\t\t= 52;",
         "game ABI v48",
     )
 

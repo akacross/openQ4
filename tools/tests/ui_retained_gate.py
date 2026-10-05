@@ -2476,6 +2476,64 @@ def check_initializing() -> None:
     assert 'runtime->RunEvent("onInit",now,effects,error)' in draw and 'runtime->RunEvent("step",now,effects,error)' in draw
 
 
+def check_weapon_wheel() -> None:
+    """The retained Marine weapon wheel (docs/dev/ui-visual-design.md 14.6):
+    with ui_retained, single player opens guis/hud/weaponwheel.q4ui after a
+    180 ms hold, swaps to the previous weapon on a shorter tap, selects with
+    either stick past 35% (4 degrees of hysteresis) or the mouse past 32 dp,
+    equips on release and never slows the game; VR and ui_retained 0 keep the
+    classic wheel."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_weapon_wheel
+    player = (ROOT / 'src/game/Player.cpp').read_text(encoding='utf-8')
+    usercmd = (ROOT / 'src/framework/UsercmdGen.cpp').read_text(encoding='utf-8')
+    text = (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel.q4ui').read_text(encoding='utf-8')
+    document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
+    assert document['id'] == 'openq4.weaponwheel' and document.get('canvas') == {'height': 720}
+    assert not document.get('actions'), 'the wheel asks nothing of the engine: the game equips'
+    assert {'open', 'select', 'close'} <= set(document['events']), sorted(document['events'])
+    slots = len(retained_weapon_wheel.SLOTS)
+    assert f'const int\tWEAPON_WHEEL_RETAINED_SLOTS\t\t= {slots};' in player, 'the game and the document agree on the slots'
+    for name in ('wheel_selected', 'wheel_previous', 'wheel_name', 'wheel_ammo'):
+        assert name in document['state'], name
+    for slot in range(slots):
+        for name in ('owned', 'empty', 'fill', 'count', 'key'):
+            assert f'wheel_{name}_{slot}' in document['state'], (name, slot)
+    for token in ('const int\tWEAPON_WHEEL_TAP_MSEC\t\t\t= 180;', 'const float\tWEAPON_WHEEL_STICK_SELECT\t\t= 0.35f;',
+                  'const float\tWEAPON_WHEEL_SELECT_HYSTERESIS\t= 4.0f;', 'const float\tWEAPON_WHEEL_POINTER_SELECT\t\t= 32.0f;'):
+        assert token in player, token
+    use = function_body(player, 'bool idPlayer::UseRetainedWeaponWheel(')
+    for token in ('gameLocal.isMultiplayer', 'common->RetainedHudGui( "weaponwheel" ) == NULL', 'vrSystem->IsActive()'):
+        assert token in use, f'the retained wheel needs {token}'
+    # The engine owns the document's path, behind the gate.
+    retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
+    hud = function_body(retained, 'const char* RetainedUI_HudDocument(')
+    assert '{"weaponwheel", "guis/hud/weaponwheel.q4ui"},' in hud and '!cvarSystem->GetCVarBool("ui_retained")' in hud
+    assert 'RetainedHudGui( const char *name ) { return RetainedUI_HudDocument( name ); }' in \
+        (ROOT / 'src/framework/Common.cpp').read_text(encoding='utf-8')
+    update = function_body(player, 'void idPlayer::UpdateRetainedWeaponWheel(')
+    assert 'now - weaponWheelPressTime >= WEAPON_WHEEL_TAP_MSEC' in update, 'the wheel opens after a tap'
+    tap = update.index('if ( !weaponWheelActive ) {')
+    assert tap < update.index('LastWeapon();') < update.index('SelectWeapon( weaponIndex, false );'), \
+        'a tap swaps to the previous weapon; a release equips'
+    assert 'SetGameTimeScale' not in update and 'SPECIAL_EFFECT_BLUR' not in update, 'the retained wheel never slows the game'
+    for event in ('"open"', '"select"'):
+        assert f'weaponWheelGui->HandleNamedEvent( {event} );' in update, event
+    close = function_body(player, 'void idPlayer::CloseRetainedWeaponWheel(')
+    assert 'weaponWheelGui->HandleNamedEvent( "close" );' in close
+    slot = function_body(player, 'int idPlayer::RetainedWeaponWheelSlot(')
+    assert 'common->GetControllerSelection( stickX, stickY );' in slot and 'WEAPON_WHEEL_SELECT_HYSTERESIS' in slot
+    assert 'return HasWeaponWheelSlotWeapon( slot ) ? slot : current;' in slot, 'an unowned weapon cannot be selected'
+    wheel = function_body(player, 'void idPlayer::UpdateWeaponWheel(')
+    assert wheel.index('UpdateRetainedWeaponWheel( canUseWheel, held );') < wheel.index('UpdateWeaponWheelEffects()'), \
+        'the retained wheel takes its holds before the classic wheel'
+    draw = function_body(player, 'void idPlayer::DrawWeaponWheel(')
+    assert draw.index('weaponWheelGui->Redraw( gameLocal.realClientTime );') < draw.index('weaponWheelBlend')
+    selection = function_body(usercmd, 'void idUsercmdGenLocal::Joystick(')
+    assert 'in_joystickInvertLook' in selection and 'stickSelectionX = look ? lookX : moveX;' in selection, \
+        'either stick selects, never inverted like look'
+
+
 def main() -> int:
     menu = (ROOT / 'src/framework/Session_menu.cpp').read_text(encoding='utf-8')
     session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
@@ -2497,6 +2555,7 @@ def main() -> int:
     assert listed == actual, f'RETAINED_SYSTEM_MISSING_SETTINGS lists {sorted(listed)}; the retained SYSTEM page lacks {sorted(actual)}'
     check_retained_system_control_writes()
     check_initializing()
+    check_weapon_wheel()
     incomplete = re.search(r'RETAINED_SYSTEM_INCOMPLETE_SETTINGS\[\] = \{([^}]*)\};', menu).group(1)
     assert incomplete.strip().endswith('NULL'), 'the incomplete-settings list must stay NULL-terminated'
     listed_incomplete = {name.lower() for name in re.findall(r'"([A-Za-z_0-9]+)"', incomplete)}

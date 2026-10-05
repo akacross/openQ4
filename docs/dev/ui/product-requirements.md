@@ -551,7 +551,9 @@ On engine `7e428ca62d07ec7097215112eaf030545a3916ba` the multiplayer Escape card
 
 On engine `216db1a7de4fbbf9b9400a5d3698cb2f4ebced90` the initializing screen draws the stock picture rebuilt as vector layers, with the turning rings, the four accents, the status line and the step rule, from the first startup frame until the menus are ready, and the title's wordmark is the same traced QUAKE 4. `FLOW-057` and `ART-031` become partial. Evidence: `.tmp/ui/retained-initializing-evidence/validation-evidence.json`, SHA-256 `97391702528b95a50bd2f946e18c3f5dabc608e5dd1f052374cbb71ee1de39bd`.
 
-There are **96 partial, 243 pending and one verified requirement**, counting the
+On engine `236fad1aee1544984e214f573fd3a4d89e868f94` single player's weapon wheel is the retained Marine wheel: a 180 ms hold opens it, a tap swaps to the previous weapon, either stick or the mouse selects and release equips, at full game speed. `WID-033` becomes partial. Evidence: `.tmp/ui/retained-weaponwheel-evidence/validation-evidence.json`, SHA-256 `5e2922f97851b9cca3b43d542bd7af93ed09e514f34512f85f27dbbc439694ba`.
+
+There are **97 partial, 242 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
