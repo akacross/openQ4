@@ -2078,7 +2078,12 @@ idListSaveGameCompare
 ===============
 */
 ID_INLINE int idListSaveGameCompare( const fileTIME_T *a, const fileTIME_T *b ) {
-	return b->timeStamp - a->timeStamp;
+	// Newest first; saves written in the same second keep their list order
+	// (alphabetical, see GetSaveGameList), so a refresh never swaps them.
+	if ( a->timeStamp != b->timeStamp ) {
+		return b->timeStamp > a->timeStamp ? 1 : -1;
+	}
+	return a->index - b->index;
 }
 
 static const int SESSION_MENU_MAX_SAVE_DESCRIPTION_BYTES = 8192;
@@ -2441,6 +2446,9 @@ void idSessionLocal::GetSaveGameList( idStrList &fileList, idList<fileTIME_T> &f
 	
 	rawFileList = files->GetList();
 	fileSystem->FreeFileList( files );
+	// Alphabetical, so saves written in the same second always list in one
+	// order (idListSaveGameCompare keeps it).
+	rawFileList.Sort();
 
 	fileList.Clear();
 	fileTimes.Clear();
@@ -4417,6 +4425,7 @@ void idSessionLocal::GuiFrameEvents() {
 	UpdateRetainedHome();
 	RetainedHomeFrameEvent();
 	UpdateRetainedSubpage();
+	UpdateRetainedPage();
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -4970,6 +4979,13 @@ static const char *const RETAINED_PAUSE_STROGG_GUI = "guis/menu/pause_strogg.q4u
 static const char *const RETAINED_LOADING_GUI = "guis/loading/loading.q4ui";
 static const char *const RETAINED_SINGLEPLAYER_GUI = "guis/menu/singleplayer.q4ui";
 static const char *const RETAINED_CAMPAIGNS_GUI = "guis/menu/campaigns.q4ui";
+// The Load Game page, which LOAD GAME on the title and the Marine pause hands
+// off to as to a stock page. Its list holds this many saves at a time and
+// pages through more (ROWS in tools/ui/retained_saves.py); a save without a
+// picture shows the stock page's generic one.
+static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
+static const int RETAINED_LOAD_ROWS = 64;
+static const char *const RETAINED_LOAD_GENERIC_SHOT = "gfx/guis/loadscreens/generic";
 // The stock choreography shows a page 550 ms after its activation and a
 // home-state pop-up at once (specification section 8); the retained screen
 // covers the legacy departure for that long before the page takes over.
@@ -5033,37 +5049,65 @@ static const char *Session_RetainedHomeMissingPage( idUserInterface *menu ) {
 	return NULL;
 }
 
-// The title screen's CONTINUE resumes the newest save and describes it.
+// A save as the retained screens name it. The menu label a save writes is
+// "^:name\t^0level" (idSessionLocal::SaveGame): its name and level, colors
+// removed; a save without one shows its slot.
+static void Session_RetainedSaveLabel( const idStr &slot, const sessionMenuSaveDescription_t &description, bool described,
+		idStr &name, idStr &location ) {
+	const idStr text = described && description.description.Length() > 0 ? description.description : slot;
+	const int tab = text.Find( '\t' );
+	name = tab >= 0 ? text.Left( tab ) : text;
+	location = tab >= 0 ? text.Right( text.Length() - tab - 1 ) : idStr();
+	name.RemoveColors();
+	location.RemoveColors();
+	name.StripTrailingWhitespace();
+	location.StripTrailingWhitespace();
+}
+
+// A save's picture: an autosave names its level's loadscreen; any other save
+// keeps its own screenshot beside it, as the stock Load Game page shows it,
+// reread since a newer save may have replaced it. Without either, `fallback`.
+static idStr Session_RetainedSaveShot( const idStr &slot, const sessionMenuSaveDescription_t &description, bool described,
+		const char *fallback ) {
+	if ( described && description.screenshot.Length() > 0 ) {
+		return UI_RetainedImageSource( description.screenshot.c_str() ) ? description.screenshot : idStr( fallback );
+	}
+	const idStr preview = va( "savegames/%s.tga", slot.c_str() );
+	if ( UI_RetainedImageSource( preview.c_str() ) && fileSystem->ReadFile( preview.c_str(), NULL, NULL ) > 0 ) {
+		UI_RetainedReloadImage( preview.c_str() );
+		return preview;
+	}
+	return fallback;
+}
+
+// When a save was written: the stamp's date and time, split at its tab.
+static void Session_RetainedSaveStamp( ID_TIME_T timeStamp, idStr &date, idStr &time ) {
+	const idStr stamp = Sys_TimeStampToStr( timeStamp );
+	const int tab = stamp.Find( '\t' );
+	date = tab >= 0 ? stamp.Left( tab ) : stamp;
+	time = tab >= 0 ? stamp.Right( stamp.Length() - tab - 1 ) : idStr();
+}
+
+// The title screen's CONTINUE resumes the newest save and describes it: its
+// name, then its level and when it was written. Without a picture, none shows.
 static void Session_PublishRetainedTitleState( idUserInterface *gui, idSessionLocal *session ) {
 	idStrList fileList;
 	idList<fileTIME_T> fileTimes;
 	session->GetSaveGameList( fileList, fileTimes );
 	const bool hasSave = fileTimes.Num() > 0;
-	idStr title, detail, shot;
+	idStr name, location, date, time, shot, detail;
 	if ( hasSave ) {
 		const idStr &slot = fileList[ fileTimes[0].index ];
 		sessionMenuSaveDescription_t description;
 		const bool described = Session_MenuReadSaveDescription( slot, description );
-		title = described && description.description.Length() > 0 ? description.description : slot;
-		detail = Sys_TimeStampToStr( fileTimes[0].timeStamp );
-		if ( described && description.screenshot.Length() > 0 ) {
-			// An autosave names its level's loadscreen.
-			if ( UI_RetainedImageSource( description.screenshot.c_str() ) ) {
-				shot = description.screenshot;
-			}
-		} else {
-			// Other saves keep their own screenshot beside the save, as the
-			// stock Load Game page shows it. Without one, no picture shows.
-			const idStr preview = va( "savegames/%s.tga", slot.c_str() );
-			if ( UI_RetainedImageSource( preview.c_str() ) && fileSystem->ReadFile( preview.c_str(), NULL, NULL ) > 0 ) {
-				shot = preview;
-				// A newer save may have replaced the picture since it last showed.
-				UI_RetainedReloadImage( shot.c_str() );
-			}
-		}
+		Session_RetainedSaveLabel( slot, description, described, name, location );
+		Session_RetainedSaveStamp( fileTimes[0].timeStamp, date, time );
+		shot = Session_RetainedSaveShot( slot, description, described, "" );
+		detail = location.Length() > 0 ? va( "%s - %s %s", location.c_str(), date.c_str(), time.c_str() ) :
+			va( "%s %s", date.c_str(), time.c_str() );
 	}
 	gui->SetStateBool( "menu_continue", hasSave );
-	gui->SetStateString( "menu_continue_title", title.c_str() );
+	gui->SetStateString( "menu_continue_title", name.c_str() );
 	gui->SetStateString( "menu_continue_detail", detail.c_str() );
 	gui->SetStateString( "menu_continue_shot", shot.c_str() );
 	gui->StateChanged( common->GetPresentationTime() );
@@ -5240,9 +5284,10 @@ void idSessionLocal::UpdateRetainedHome() {
 		}
 		guiRetainedHome = want;
 		want->Activate( true, now );
-		// A page leaving for home brings the bands back from their page dock;
-		// opening the menu, or closing a home pop-up, only reveals the content.
-		want->HandleNamedEvent( returning && !fromPopup ? "returnHome" : "open" );
+		// A page leaving for home, stock or retained, brings the bands back
+		// from their page dock; opening the menu, or closing a home pop-up,
+		// only reveals the content.
+		want->HandleNamedEvent( ( returning && !fromPopup ) || retainedPageReturn ? "returnHome" : "open" );
 		PumpApplicationActions( want );
 	}
 	retainedHomeReturning = returning;
@@ -5428,6 +5473,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		HandleRetainedMultiplayerRequest( gui, request );
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedLoad ) {
+		// The Load Game page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedLoadRequest( gui, request );
+		}
+		return;
+	}
     if ( gui && request && gui == guiActive &&
          ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) || !idStr::Icmp( gui->Name(), RETAINED_CAMPAIGNS_GUI ) ) ) {
         // A change of level in progress takes no further request.
@@ -5474,6 +5526,11 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	// LOAD GAME opens the retained page where it can present; else the stock
+	// page below.
+	if ( !idStr::Icmp( request, "loadGame" ) && BeginRetainedPage( request ) ) {
+		return;
+	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
 		const retainedHandoff_t &handoff = RETAINED_HANDOFFS[i];
 		if ( idStr::Icmp( request, handoff.request ) ) {
@@ -5497,6 +5554,288 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		return;
 	}
 	common->Warning( "retained UI: unhandled session request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::BeginRetainedPage
+
+LOAD GAME on the title or the Marine pause: the home plays a page hand-off
+(the bands dock and the label carries into the title slot) and the Load Game
+page presents at 550 ms, when the stock page would (UpdateRetainedPage). The
+Strogg pause keeps the stock page, whose family the Marine page would break.
+False when the page cannot present: the stock page then opens as before.
+===============
+*/
+bool idSessionLocal::BeginRetainedPage( const char *request ) {
+#ifndef ID_DEDICATED
+	if ( idStr::Icmp( request, "loadGame" ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
+			guiRetainedHome == guiRetainedPauseStrogg ) {
+		return false;
+	}
+	if ( retainedPagePending != NULL ) {
+		return true;	// already handing off
+	}
+	// Loaded with the other screens (PreloadRetainedScreens), or now when the
+	// gate came on after startup. A view that stopped drawing after a renderer
+	// or language change hands the page back to the stock one for good.
+	if ( guiRetainedLoad != NULL && UI_RetainedViewFailed( guiRetainedLoad ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_LOADGAME_GUI );
+		retainedStock.AddUnique( RETAINED_LOADGAME_GUI );
+		guiRetainedLoad = NULL;
+		return false;
+	}
+	idUserInterface *page = guiRetainedLoad != NULL ? guiRetainedLoad : FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
+	if ( page == NULL ) {
+		return false;
+	}
+	guiRetainedLoad = page;
+	// The saves, the newest selected, read while the home hands off.
+	PublishRetainedLoadPage( page, 0, NULL );
+	retainedHandoffUntil = common->GetPresentationTime() + RETAINED_PAGE_HANDOFF_MSEC;
+	retainedPagePending = page;
+	retainedPageAt = retainedHandoffUntil;
+	guiRetainedHome->HandleNamedEvent( "carry_loadGame" );
+	guiRetainedHome->HandleNamedEvent( "depart" );
+	HandleMainMenuCommands( "play main_menu_selection" );
+	return true;
+#else
+	return false;
+#endif
+}
+
+// The hand-off's end: the page presents over the home that handed off, which
+// stops taking input on the same frame. Anything else taking the screen first
+// abandons it.
+void idSessionLocal::UpdateRetainedPage() {
+#ifndef ID_DEDICATED
+	if ( retainedPagePending == NULL ) {
+		return;
+	}
+	if ( guiActive != guiMainMenu || guiRetainedHome == NULL ) {
+		retainedPagePending = NULL;
+		return;
+	}
+	if ( common->GetPresentationTime() < retainedPageAt ) {
+		return;
+	}
+	idUserInterface *page = retainedPagePending;
+	retainedPagePending = NULL;
+	page->SetStateBool( "load.ingame", mapSpawned );
+	// The home keeps drawing behind the page (DrawRetainedPageHome).
+	retainedPageHome = guiRetainedHome;
+	SetGUI( page, NULL );
+	UpdateRetainedHome();
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_PAGE present gui=%s\n", page->Name() );
+	}
+#endif
+}
+
+// Back on the page: the home presents at once and brings the bands back from
+// the page dock, as it does when a stock page leaves.
+void idSessionLocal::ReturnRetainedPage() {
+#ifndef ID_DEDICATED
+	if ( guiActive == NULL || guiActive != guiRetainedLoad || guiMainMenu == NULL ) {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	SetGUI( guiMainMenu, NULL );
+	retainedPageReturn = true;
+	UpdateRetainedHome();
+	retainedPageReturn = false;
+	retainedPageHome = NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::DrawRetainedPageHome
+
+A stock page lives in the main menu, over its home's backdrop and docked
+bands; the retained Load Game page is that page's content alone. The home
+that handed off keeps drawing behind it as the departure left it: the title's
+montage, or the pause over the softened game. Its carried label is the page's
+title.
+===============
+*/
+void idSessionLocal::DrawRetainedPageHome( int presentationTime ) {
+#ifndef ID_DEDICATED
+	if ( mapSpawned && !com_skipGameDraw.GetBool() && GetLocalClientNum() >= 0 ) {
+		if ( !game->Draw( GetLocalClientNum() ) ) {
+			renderSystem->SetColor( colorBlack );
+			renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 0, 1, 1, declManager->FindMaterial( "_white" ) );
+		}
+	} else if ( retainedPageHome == NULL ) {
+		renderSystem->SetColor( colorBlack );
+		renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 0, 1, 1, declManager->FindMaterial( "_white" ) );
+	}
+	if ( retainedPageHome != NULL ) {
+		retainedPageHome->Redraw( presentationTime );
+	}
+#endif
+}
+
+#ifndef ID_DEDICATED
+// Why a save could not be loaded, as LoadGame found it before it left the
+// current game.
+static const char *Session_LoadFailureText( int failure ) {
+	switch ( failure ) {
+		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
+		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
+		default:										return "#str_231104";
+	}
+}
+#endif
+
+/*
+===============
+idSessionLocal::PublishRetainedLoadPage
+
+The Load Game page's saves, newest first. `select` is the save to select,
+clamped to the list (-1: none), and `error` the reason to show over its
+picture (NULL: none). The rows hold the RETAINED_LOAD_ROWS saves around the
+selection.
+===============
+*/
+void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error ) {
+#ifndef ID_DEDICATED
+	idStrList files;
+	idList<fileTIME_T> times;
+	GetSaveGameList( files, times );
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	for ( int i = 0; i < times.Num(); ++i ) {
+		retainedLoadSlots.Append( files[ times[i].index ] );
+		retainedLoadTimes.Append( times[i].timeStamp );
+	}
+	const int count = retainedLoadSlots.Num();
+	retainedLoadSelected = count > 0 && select >= 0 ? idMath::ClampInt( 0, count - 1, select ) : -1;
+	retainedLoadFirst = retainedLoadSelected > 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	PublishRetainedLoadRows( gui );
+	PublishRetainedLoadSave( gui, error );
+#endif
+}
+
+// Each row's save: its name and level.
+void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	for ( int row = 0; row < RETAINED_LOAD_ROWS; ++row ) {
+		const int index = retainedLoadFirst + row;
+		idStr name, location;
+		if ( index < retainedLoadSlots.Num() ) {
+			sessionMenuSaveDescription_t description;
+			const bool described = Session_MenuReadSaveDescription( retainedLoadSlots[ index ], description );
+			Session_RetainedSaveLabel( retainedLoadSlots[ index ], description, described, name, location );
+		}
+		gui->SetStateString( va( "load.row%d.name", row ), name.c_str() );
+		gui->SetStateString( va( "load.row%d.location", row ), location.c_str() );
+	}
+	gui->SetStateInt( "load.count", retainedLoadSlots.Num() );
+	gui->SetStateInt( "load.first", retainedLoadFirst );
+#endif
+}
+
+// The selected save: its picture, its date and time, and why it failed.
+void idSessionLocal::PublishRetainedLoadSave( idUserInterface *gui, const char *error ) {
+#ifndef ID_DEDICATED
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time;
+	if ( retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() ) {
+		const idStr &slot = retainedLoadSlots[ retainedLoadSelected ];
+		sessionMenuSaveDescription_t description;
+		const bool described = Session_MenuReadSaveDescription( slot, description );
+		shot = Session_RetainedSaveShot( slot, description, described, RETAINED_LOAD_GENERIC_SHOT );
+		Session_RetainedSaveStamp( retainedLoadTimes[ retainedLoadSelected ], date, time );
+	}
+	gui->SetStateInt( "load.selected", retainedLoadSelected );
+	gui->SetStateString( "load.shot", shot.c_str() );
+	gui->SetStateString( "load.date", date.c_str() );
+	gui->SetStateString( "load.time", time.c_str() );
+	gui->SetStateString( "load.error", error != NULL ? error : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedLoadRequest
+
+The Load Game page's verbs. A row reports itself in load.pick and the session
+checks it against the saves it shows; every other verb acts on the selected
+save. A save that cannot be loaded or deleted stays selected and says why.
+===============
+*/
+void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const int count = retainedLoadSlots.Num();
+	if ( !idStr::Icmp( request, "loadBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadSelect" ) ) {
+		const int row = gui->State().GetInt( "load.pick", "-1" );
+		const int index = retainedLoadFirst + row;
+		if ( row >= 0 && row < RETAINED_LOAD_ROWS && index < count ) {
+			retainedLoadSelected = index;
+			PublishRetainedLoadSave( gui, NULL );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadNewer" ) || !idStr::Icmp( request, "loadOlder" ) ) {
+		// A page further: its first save going to older ones, its last coming
+		// back to newer ones, is selected and focused.
+		const bool older = !idStr::Icmp( request, "loadOlder" );
+		const int first = retainedLoadFirst + ( older ? RETAINED_LOAD_ROWS : -RETAINED_LOAD_ROWS );
+		if ( first < 0 || first >= count ) {
+			return;
+		}
+		retainedLoadFirst = first;
+		retainedLoadSelected = older ? first : first + RETAINED_LOAD_ROWS - 1;
+		PublishRetainedLoadRows( gui );
+		PublishRetainedLoadSave( gui, NULL );
+		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
+		return;
+	}
+	const bool chosen = retainedLoadSelected >= 0 && retainedLoadSelected < count;
+	if ( !idStr::Icmp( request, "loadSave" ) ) {
+		if ( !chosen ) {
+			return;
+		}
+		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
+		HandleMainMenuCommands( "play main_menu_selection" );
+		// LoadGame refuses a save it cannot use before it leaves the current
+		// game, so the page is still here to say why.
+		if ( !LoadGame( slot.c_str() ) && guiActive == gui ) {
+			PublishRetainedLoadSave( gui, Session_LoadFailureText( loadGameFailure ) );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadDelete" ) ) {
+		if ( !chosen ) {
+			return;
+		}
+		// The page asked first. The save that takes the deleted one's place is
+		// selected; one that is still there stays selected and says so.
+		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
+		const int at = retainedLoadSelected;
+		DeleteGame( slot.c_str() );
+		PublishRetainedLoadPage( gui, at, NULL );
+		const int remaining = retainedLoadSlots.FindIndex( slot );
+		if ( remaining >= 0 ) {
+			PublishRetainedLoadPage( gui, remaining, "#str_231105" );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadNewGame" ) ) {
+		// No saves at the title: the Single Player page starts a game.
+		if ( !mapSpawned ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			OpenCampaignSelector( false );
+		}
+		return;
+	}
+	common->Warning( "retained UI: unhandled Load Game request '%s'", request );
 #endif
 }
 
@@ -5571,6 +5910,15 @@ void idSessionLocal::PreloadRetainedScreens() {
 	}
 	if ( guiRetainedPause == NULL ) {
 		guiRetainedPause = FindRetainedGui( RETAINED_PAUSE_GUI, false, true );
+	}
+	// The Load Game page too, which only a retained home reaches, so LOAD
+	// GAME never stalls its hand-off on a load (about 0.2 s), and the picture
+	// a save without one shows.
+	if ( guiRetainedLoad == NULL && ( guiRetainedTitle != NULL || guiRetainedPause != NULL ) ) {
+		guiRetainedLoad = FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
+		if ( guiRetainedLoad != NULL ) {
+			UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
+		}
 	}
 #endif
 }

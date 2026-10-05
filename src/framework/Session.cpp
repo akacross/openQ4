@@ -3811,6 +3811,16 @@ void idSessionLocal::Clear() {
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
 	retainedHomeReturning = false;
+	guiRetainedLoad = NULL;
+	retainedPageHome = NULL;
+	retainedPagePending = NULL;
+	retainedPageAt = 0;
+	retainedPageReturn = false;
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	retainedLoadFirst = 0;
+	retainedLoadSelected = -1;
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
 	retainedMultiplayerWelcome = false;
 	retainedMultiplayerUncovered = false;
@@ -7510,6 +7520,8 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 	idStr in, loadFile, saveMap, gamename, entityFilter, requestedSaveName, normalizedSaveMap, normalizedEntityFilter;
 	idDict loadedPersistentPlayerInfo[MAX_ASYNC_CLIENTS];
 
+	// Each refusal below records why, for the Load Game page to say.
+	loadGameFailure = LOADGAME_FAILURE_UNREADABLE;
 	if ( IsMultiplayer() ) {
 		common->Printf( "Can't load during net play.\n" );
 		return false;
@@ -7564,6 +7576,7 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		return false;
 	}
 	int loadGameFileLength = -1;
+	loadGameFailure = LOADGAME_FAILURE_DAMAGED;
 	if ( !Session_GetBoundedSaveGameLength( loadGameFile, in, "load preflight", loadGameFileLength ) ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
@@ -7623,12 +7636,14 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		} else if ( !Session_SaveGameMapExists( normalizedSaveMap, normalizedEntityFilter ) ) {
 			common->Warning( "Savegame '%s' references unavailable map '%s'", in.c_str(), normalizedSaveMap.c_str() );
 			headerValid = false;
+			loadGameFailure = LOADGAME_FAILURE_MAP;
 		}
 	}
 	if ( !headerValid ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
 	}
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 
 	for ( i = 0; i < MAX_ASYNC_CLIENTS; i++ ) {
 		mapSpawnData.persistentPlayerInfo[i] = loadedPersistentPlayerInfo[i];
@@ -8286,6 +8301,10 @@ void idSessionLocal::Draw() {
 			}
 		}
 
+		if ( guiActive == guiRetainedLoad && guiRetainedLoad != NULL ) {
+			// The retained Load Game page over the home that handed off to it.
+			DrawRetainedPageHome( presentationTime );
+		}
 		if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
 			// ui_retained: the retained title or pause screen covers the legacy
 			// menu while it rests at home or hands a page over.
@@ -9136,7 +9155,9 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
-	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading || ( guiActive == guiMsg && !mapSpawned ) ) ) {
+	// The retained Load Game page stands in for a main-menu page.
+	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
+			( guiActive == guiRetainedLoad && guiRetainedLoad != NULL ) || ( guiActive == guiMsg && !mapSpawned ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );
 	} else {
 		SetPlayingSoundWorld( sw );

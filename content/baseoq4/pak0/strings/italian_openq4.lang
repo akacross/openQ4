@@ -1222,4 +1222,12 @@
 	"#str_231057"	"La chat vocale non è disponibile."
 	"#str_231058"	"Per arma"
 	"#str_231059"	"Inserisci un numero intero da 0 a 10000."
+	"#str_231100"	"NESSUNA PARTITA SALVATA"
+	"#str_231101"	"Qui compaiono i tuoi salvataggi, insieme ai checkpoint e ai salvataggi automatici della campagna."
+	"#str_231102"	"Il livello di questo salvataggio non è installato."
+	"#str_231103"	"Questo salvataggio è danneggiato o proviene da una versione incompatibile."
+	"#str_231104"	"Impossibile leggere questo salvataggio."
+	"#str_231105"	"Impossibile eliminare questo salvataggio."
+	"#str_231106"	"SALVATAGGI PIÙ RECENTI"
+	"#str_231107"	"SALVATAGGI MENO RECENTI"
 }

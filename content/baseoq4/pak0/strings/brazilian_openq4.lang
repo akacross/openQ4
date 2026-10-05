@@ -1218,4 +1218,12 @@
 	"#str_231057"	"O chat de voz não está disponível."
 	"#str_231058"	"Por arma"
 	"#str_231059"	"Digite um número inteiro de 0 a 10000."
+	"#str_231100"	"NENHUM JOGO SALVO"
+	"#str_231101"	"Seus jogos salvos e os pontos de controle e salvamentos automáticos da campanha aparecem aqui."
+	"#str_231102"	"O nível deste jogo salvo não está instalado."
+	"#str_231103"	"Este jogo salvo está danificado ou vem de uma versão incompatível."
+	"#str_231104"	"Não foi possível ler este jogo salvo."
+	"#str_231105"	"Não foi possível excluir este jogo salvo."
+	"#str_231106"	"JOGOS SALVOS MAIS RECENTES"
+	"#str_231107"	"JOGOS SALVOS MAIS ANTIGOS"
 }

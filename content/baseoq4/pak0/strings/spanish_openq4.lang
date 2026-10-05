@@ -1218,4 +1218,12 @@
 	"#str_231057"	"El chat de voz no está disponible."
 	"#str_231058"	"Según el arma"
 	"#str_231059"	"Introduce un número entero de 0 a 10000."
+	"#str_231100"	"NO HAY PARTIDAS GUARDADAS"
+	"#str_231101"	"Aquí aparecen tus partidas guardadas y los puntos de control y guardados automáticos de la campaña."
+	"#str_231102"	"El nivel de esta partida guardada no está instalado."
+	"#str_231103"	"Esta partida guardada está dañada o procede de una versión incompatible."
+	"#str_231104"	"No se ha podido leer esta partida guardada."
+	"#str_231105"	"No se ha podido eliminar esta partida guardada."
+	"#str_231106"	"PARTIDAS MÁS RECIENTES"
+	"#str_231107"	"PARTIDAS MÁS ANTIGUAS"
 }

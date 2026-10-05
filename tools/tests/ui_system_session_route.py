@@ -166,7 +166,7 @@ struct idSessionLocal {
     // Retained home screens are outside this route: they never present in these scenarios.
     idUserInterface* guiRetainedHome=nullptr;int retainedHomeUpdates=0;
     void UpdateRetainedHome(){++retainedHomeUpdates;}void RetainedHomeFrameEvent(){CHECK(guiRetainedHome==nullptr);}
-    void UpdateRetainedSubpage(){}
+    void UpdateRetainedSubpage(){}void UpdateRetainedPage(){}idUserInterface* guiRetainedLoad=nullptr;
     // Nor does the multiplayer card, or a loading screen held over a join: these scenarios have no match.
     void UpdateRetainedMultiplayer(){}void RetainedMultiplayerFrameEvent(){}
     idUserInterface* guiLoadingHold=nullptr;void UpdateRetainedLoadingHold(){}

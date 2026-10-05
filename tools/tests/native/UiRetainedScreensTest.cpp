@@ -149,6 +149,7 @@ static void CheckSchema() {
 
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
+	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -1561,8 +1562,119 @@ static void CheckMultiplayerWheel(ScreenHost& host, const char* path) {
 	Check(ammo && ammo->text == "150","the hub reads the reserve alone");
 }
 
+// The Load Game page (sections 9 and 13.7, FLOW-004): the stock page's content
+// in the stock composition, the session's rows and selection, a row's two
+// Accepts, the delete confirmation, the failed and empty states and paging.
+static void CheckLoadPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.loadgame" && document.Model().canvasHeight == 720,"the Load Game page validates");
+	CheckSessionActions(document);
+	Check(!document.Model().FindNode("band-top") && !document.Model().FindNode("scene-softfocus") && !document.Model().FindNode("title"),
+		"the page is its content alone: the home that handed off draws its frame and title behind it");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/loadgame.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto number = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? static_cast<float>(value->data[0]) : -1.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a page node is laid out"); return b; };
+	const auto requested = [&](const char* action) {
+		return effects.actions.size() == 1 && effects.actions[0].action == action && effects.actions[0].operation == "session.menu";
+	};
+	// Three saves, newest first, the second selected.
+	StateValues values{{"load.count",3.0},{"load.first",0.0},{"load.selected",1.0},{"load.shot",std::string("savegames/bunker_door")},
+		{"load.date",std::string("10/05/2026")},{"load.time",std::string("06:40pm")},{"load.error",std::string()}};
+	const char* names[] = {"Medic","Bunker door","Trench entry"};
+	for (int row = 0; row < 3; ++row) {
+		values["load.row"+std::to_string(row)+".name"] = std::string(names[row]);
+		values["load.row"+std::to_string(row)+".location"] = std::string("Air Defense Trenches");
+	}
+	host.materials.clear();
+	Check(runtime.SetState(values,error,0),"publish three saves");
+	runtime.Frame(viewport,1);
+	// The 4:3 canvas is 960 dp wide, centered: x = 160 dp at 1280x720; 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto shot = bounds("load-shot-back");
+	Check(Near(shot.x,x0+25*u) && Near(shot.y,78*u) && Near(shot.width,183*u) && Near(shot.height,137*u),
+		"the picture keeps the stock 183x137 u at 25,78 u");
+	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
+	Check(Near(row0.x,x0+217*u) && Near(row0.y,78*u) && Near(row1.y-row0.y,20*u) && Near(row0.width,394*u),
+		"the rows run on the stock 20 u pitch from 217,78 u");
+	const auto load = bounds("load_go"), remove = bounds("load_delete");
+	Check(Near(load.x,x0+21*u) && Near(load.y,256*u) && Near(remove.x,x0+20*u) && Near(remove.y,293*u),
+		"LOAD GAME and DELETE GAME are the stock section plates");
+	Check(text("row-2","display") == "block" && text("row-3","display") == "none","the list shows the published saves");
+	Check(text("row-1-selected","display") == "block" && text("row-0-selected","display") == "none","the selected save is lit");
+	Check(text("row-0-name","text") == "Medic" && text("row-2-location","text") == "Air Defense Trenches","each row names its save and its level");
+	Check(text("load-date","text") == "10/05/2026" && text("load-time","text") == "06:40pm","the date and time stand under the picture");
+	Check(text("load-error","display") == "none" && text("load-empty","display") == "none","no failure and no empty state");
+	Check(text("page-newer","display") == "none" && text("page-older","display") == "none","one page holds three saves");
+	Check(std::find(host.materials.begin(),host.materials.end(),"savegames/bunker_door") != host.materials.end(),"the selected save's picture shows");
+	// Arriving: the panel fades in over 150 ms and the newest save has focus.
+	Check(runtime.RunEvent("onActivate",2,effects,error),"the page arrives");
+	runtime.Frame(viewport,2.001);
+	Check(number("load-panel","opacity") < .05f,"the panel starts out");
+	runtime.Frame(viewport,2.2);
+	Check(Near(number("load-panel","opacity"),1,.001f) && runtime.FocusedControl() == "row-0","the panel has faded in and the newest save has focus");
+	// Down walks the rows.
+	runtime.MenuAction(MenuInput::Down,true,2.3); runtime.MenuAction(MenuInput::Down,false,2.31);
+	runtime.Frame(viewport,2.32);
+	Check(runtime.FocusedControl() == "row-1","Down moves to the next save");
+	// A row's first Accept selects its save; Accept on the selected save loads it.
+	Check(runtime.RunEvent("loadRow0",3,effects,error) && requested("select") && effects.stateChanges.count("load.pick") &&
+		std::get<double>(effects.stateChanges.at("load.pick")) == 0,"Accept on another save selects it");
+	Check(runtime.RunEvent("loadRow1",3.1,effects,error) && requested("save") && !effects.stateChanges.count("load.pick"),
+		"Accept on the selected save loads it");
+	// The plates need a selection; DELETE GAME asks first.
+	Check(runtime.CanActivateControl("load_go",3.2) && runtime.CanActivateControl("load_delete",3.2),"a selection enables the plates");
+	Check(runtime.RunEvent("deleteModalShow",3.3,effects,error) && effects.actions.empty(),"DELETE GAME asks first");
+	runtime.Frame(viewport,3.6);
+	Check(text("deleteModal","display") == "block" && runtime.FocusedControl() == "deleteModal_no","the confirmation opens on NO");
+	Check(runtime.RunEvent("deleteConfirmed",3.7,effects,error) && requested("delete"),"YES deletes and closes the confirmation");
+	runtime.Frame(viewport,4.2);
+	Check(text("deleteModal","display") == "none","the confirmation has closed");
+	// A save that cannot be loaded says why over the foot of its picture.
+	Check(runtime.SetState({{"load.error",std::string("This save is damaged.")}},error,5),"a refused load");
+	runtime.Frame(viewport,5.1);
+	const auto strip = bounds("load-error");
+	Check(text("load-error","display") == "block" && text("load-error-text","text") == "This save is damaged." &&
+		Near(strip.x,x0+26*u) && Near(strip.y,177*u) && Near(strip.width,181*u),"the reason fills the stock strip at the picture's foot");
+	// More saves than the list holds: the pager rows and the rows' window.
+	Check(runtime.SetState({{"load.count",130.0},{"load.first",64.0},{"load.selected",64.0},{"load.error",std::string()}},error,6),"a second page");
+	runtime.Frame(viewport,6.1);
+	Check(text("page-newer","display") == "block" && text("page-older","display") == "block" && text("row-63","display") == "block",
+		"a middle page offers both neighbours");
+	Check(text("row-0-selected","display") == "block" && text("row-1-selected","display") == "none","the selection follows the window");
+	Check(runtime.SetState({{"load.first",128.0},{"load.selected",128.0}},error,6.2),"the last page");
+	runtime.Frame(viewport,6.3);
+	Check(text("page-older","display") == "none" && text("row-1","display") == "block" && text("row-2","display") == "none",
+		"the last page shows the remaining saves");
+	Check(runtime.RunEvent("pagedOlder",6.4,effects,error),"paging focuses the new page");
+	runtime.Frame(viewport,6.5);
+	Check(runtime.FocusedControl() == "row-0","the older page's first save has focus");
+	// No saves: the empty state, NEW GAME at the title, and the plates disabled.
+	Check(runtime.SetState({{"load.count",0.0},{"load.first",0.0},{"load.selected",-1.0}},error,7),"no saves");
+	runtime.Frame(viewport,7.1);
+	Check(text("load-empty","display") == "block" && text("load_newgame","display") == "block" && text("row-0","display") == "none",
+		"the empty state offers NEW GAME at the title");
+	Check(!runtime.CanActivateControl("load_go",7.1) && !runtime.CanActivateControl("load_delete",7.1),"without a selection the plates rest disabled");
+	Check(runtime.RunEvent("onActivate",7.2,effects,error),"an empty page arrives");
+	runtime.Frame(viewport,7.4);
+	Check(runtime.FocusedControl() == "load_newgame","NEW GAME has focus");
+	// In game NEW GAME is not offered.
+	Check(runtime.SetState({{"load.ingame",true}},error,8),"the page in game");
+	runtime.Frame(viewport,8.1);
+	Check(text("load_newgame","display") == "none","in game the empty page offers no NEW GAME");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 13,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui");
+	Check(argc == 14,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2655,6 +2767,7 @@ int main(int argc, char** argv) {
 	CheckWeaponWheel(host,argv[10]);
 	CheckStroggWheel(host,argv[11]);
 	CheckMultiplayerWheel(host,argv[12]);
+	CheckLoadPage(host,argv[13]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

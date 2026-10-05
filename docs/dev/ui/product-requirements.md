@@ -557,7 +557,9 @@ On engine `eecf98b20b3218b6dbf616cf031ea3fdb3a7f9ca` a Strogg body's weapon whee
 
 On engine `91b54635aa9189107d3e449648750c1deaaa8b17` multiplayer has its own retained weapon wheel in the team's color, equipping by the weapon impulse. `WID-034` becomes partial. Evidence: `.tmp/ui/retained-weaponwheel-mp-evidence/validation-evidence.json`, SHA-256 `21695827676d2113d77f3326db45576d9f9458eb5817279bfc52971681f71a6b`.
 
-There are **98 partial, 241 pending and one verified requirement**, counting the
+On engine `a2548a5e83749ff8a4579f35eade5dca59c4fa14` LOAD GAME opens a retained Load Game page over the home that handed off to it. `FLOW-004` and `WID-009` become partial. Evidence: `.tmp/ui/retained-loadgame-evidence/validation-evidence.json`, SHA-256 `0ca1295e613bac04ccb9625f73af37b3bafe0311b1dc7d0b75f4f3eda9ffed49`.
+
+There are **100 partial, 239 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

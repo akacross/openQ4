@@ -1244,4 +1244,12 @@
 	"#str_231057"	"Czat głosowy jest niedostępny."
 	"#str_231058"	"Według broni"
 	"#str_231059"	"Wpisz liczbę całkowitą od 0 do 10000."
+	"#str_231100"	"BRAK ZAPISANYCH GIER"
+	"#str_231101"	"Tutaj pojawiają się twoje zapisy oraz punkty kontrolne i autozapisy kampanii."
+	"#str_231102"	"Poziom tego zapisu nie jest zainstalowany."
+	"#str_231103"	"Ten zapis jest uszkodzony lub pochodzi z niezgodnej wersji."
+	"#str_231104"	"Nie udało się odczytać tego zapisu."
+	"#str_231105"	"Nie udało się usunąć tego zapisu."
+	"#str_231106"	"NOWSZE ZAPISY"
+	"#str_231107"	"STARSZE ZAPISY"
 }

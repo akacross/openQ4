@@ -168,7 +168,11 @@ traced QUAKE 4 with the texture's own halo. Single player's
 section 14.6, at full game speed: a 180 ms hold opens it, a tap swaps to the
 previous weapon, either stick or the mouse selects and release equips; a
 Strogg body takes the Strogg wheel, and multiplayer has its own wheel in the
-team's color. The quick-chat wheel remains. No gate closes.
+team's color. The quick-chat wheel remains. LOAD GAME on the title and the
+Marine pause opens the retained [Load Game page](../ui/retained-screens.md#load-game-page),
+the stock page's content over the home that handed off to it, with selection,
+loading, deletion with confirmation, failures in context, the empty state and
+paging; sorting, filters and the Save Game page remain. No gate closes.
 
 ## Objective and immutable completion scope
 

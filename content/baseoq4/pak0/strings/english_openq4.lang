@@ -1218,4 +1218,12 @@
 	"#str_231057"	"Voice chat is not available."
 	"#str_231058"	"By weapon"
 	"#str_231059"	"Enter a whole number from 0 to 10000."
+	"#str_231100"	"NO SAVED GAMES"
+	"#str_231101"	"Your saves, and the checkpoints and autosaves the campaign makes, appear here."
+	"#str_231102"	"This save's level is not installed."
+	"#str_231103"	"This save is damaged or comes from an incompatible version."
+	"#str_231104"	"This save could not be read."
+	"#str_231105"	"This save could not be deleted."
+	"#str_231106"	"NEWER SAVES"
+	"#str_231107"	"OLDER SAVES"
 }

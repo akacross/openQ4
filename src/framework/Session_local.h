@@ -285,6 +285,24 @@ public:
 	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
+	// The retained Load Game page (guis/menu/loadgame.q4ui): LOAD GAME on the
+	// title and the Marine pause hands off to it as to a stock page.
+	bool				BeginRetainedPage( const char *request );
+	void				UpdateRetainedPage();
+	void				ReturnRetainedPage();
+	void				DrawRetainedPageHome( int presentationTime );
+	void				PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error );
+	void				PublishRetainedLoadRows( idUserInterface *gui );
+	void				PublishRetainedLoadSave( idUserInterface *gui, const char *error );
+	void				HandleRetainedLoadRequest( idUserInterface *gui, const char *request );
+	// Why LoadGame last refused a save, before it left the current game.
+	enum loadGameFailure_t {
+		LOADGAME_FAILURE_NONE,
+		LOADGAME_FAILURE_UNREADABLE,	// missing, or unreadable
+		LOADGAME_FAILURE_DAMAGED,		// truncated, damaged or from an incompatible version
+		LOADGAME_FAILURE_MAP			// its level is not installed
+	};
+	loadGameFailure_t	loadGameFailure;
 	// The multiplayer menu card (section 14.18) covers the game's own menu
 	// while it is open over a match; the game keeps the menu, its state and
 	// its commands, and publishes the card's mp.* keys.
@@ -485,6 +503,20 @@ public:
 	int					retainedSubpageBegan;	// presentation time the change began
 	int					retainedSubpageUntil;	// presentation time of the hand-over
 	bool				retainedHomeReturning;
+	// The Load Game page: its document (NULL until it first loads), the home
+	// that handed off to it, a hand-off presenting it and when, whether the
+	// home presents coming back from it, and its saves (newest first, with
+	// when each was written), the first save its rows show and the selected
+	// save (-1: none).
+	idUserInterface *	guiRetainedLoad;
+	idUserInterface *	retainedPageHome;		// the home drawing behind the page
+	idUserInterface *	retainedPagePending;
+	int					retainedPageAt;
+	bool				retainedPageReturn;
+	idStrList			retainedLoadSlots;
+	idList<ID_TIME_T>	retainedLoadTimes;
+	int					retainedLoadFirst;
+	int					retainedLoadSelected;
 	// The multiplayer Escape and Welcome cards, loaded inside each
 	// multiplayer level load; the card covering the game's menu now (NULL:
 	// none) and whether it is Welcome; a stock page that took the menu over

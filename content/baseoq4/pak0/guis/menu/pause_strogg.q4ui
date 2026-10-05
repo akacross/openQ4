@@ -5581,7 +5581,20 @@
     {
      "node": "plinth",
      "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 1}}, {"atMs": 250, "value": {"type": "number", "value": 1}}]
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}},
+      {"atMs": 1, "value": {"type": "number", "value": 1}},
+      {"atMs": 250, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "prompts",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}},
+      {"atMs": 1, "value": {"type": "number", "value": 1}},
+      {"atMs": 250, "value": {"type": "number", "value": 1}}
+     ]
     },
     {
      "node": "scene-softfocus",
@@ -5604,15 +5617,10 @@
     {
      "node": "title-carry",
      "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 250, "value": {"type": "number", "value": 0}}]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
      "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 1}},
-      {"atMs": 1, "value": {"type": "number", "value": 1}},
-      {"atMs": 250, "value": {"type": "number", "value": 1}}
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 250, "value": {"type": "number", "value": 0}}
      ]
     },
     {
@@ -5688,6 +5696,15 @@
     },
     {
      "node": "plinth",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}},
+      {"atMs": 50, "value": {"type": "number", "value": 0}},
+      {"atMs": 550, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "prompts",
      "property": "opacity",
      "keys": [
       {"atMs": 0, "value": {"type": "number", "value": 1}},
@@ -5777,9 +5794,22 @@
      ]
     },
     {
+     "node": "prompts",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 500, "value": {"type": "number", "value": 0}},
+      {"atMs": 650, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
      "node": "title-carry",
      "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 650, "value": {"type": "number", "value": 0}}]
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 650, "value": {"type": "number", "value": 0}}
+     ]
     }
    ]
   },

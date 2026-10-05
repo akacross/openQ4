@@ -1222,4 +1222,12 @@
 	"#str_231057"	"Le chat vocal n'est pas disponible."
 	"#str_231058"	"Selon l'arme"
 	"#str_231059"	"Entrez un nombre entier de 0 à 10000."
+	"#str_231100"	"AUCUNE PARTIE SAUVEGARDÉE"
+	"#str_231101"	"Vos sauvegardes, ainsi que les points de contrôle et les sauvegardes automatiques de la campagne, apparaissent ici."
+	"#str_231102"	"Le niveau de cette sauvegarde n'est pas installé."
+	"#str_231103"	"Cette sauvegarde est endommagée ou provient d'une version incompatible."
+	"#str_231104"	"Impossible de lire cette sauvegarde."
+	"#str_231105"	"Impossible de supprimer cette sauvegarde."
+	"#str_231106"	"SAUVEGARDES PLUS RÉCENTES"
+	"#str_231107"	"SAUVEGARDES PLUS ANCIENNES"
 }

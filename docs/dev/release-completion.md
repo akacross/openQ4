@@ -850,6 +850,15 @@
   color, and holding it never fires or turns your view. Set `ui_retained 0`
   for the classic wheel.
 
+- LOAD GAME on the title screen and the pause menu opens a rebuilt Load Game
+  page over the menu you came from: your saves, newest first, with their
+  level, and each save's screenshot with when it was made. Press a save
+  again, or LOAD GAME, to load it; DELETE GAME asks first and then selects
+  the next save. A save that cannot be loaded now says why instead of doing
+  nothing, and with no saves the page offers NEW GAME. The title's CONTINUE
+  line shows the save's name, level and time cleanly. Set `ui_retained 0` for
+  the classic page.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

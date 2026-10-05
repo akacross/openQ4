@@ -72,6 +72,20 @@ struct idStr : std::string {
         return 0;
     }
     void StripLeading(char c) { while (!empty() && front() == c) erase(begin()); }
+    bool IsEmpty() const { return empty(); }
+    int Find(char c) const { const auto at = find(c); return at == npos ? -1 : static_cast<int>(at); }
+    idStr Left(int n) const { return idStr(substr(0, n)); }
+    idStr Right(int n) const { return idStr(substr(size() - n)); }
+    // Color escapes: a caret and a digit or colon (idStr::IsEscape's color indices).
+    void RemoveColors() {
+        std::string out;
+        for (size_t i = 0; i < size(); ++i) {
+            if ((*this)[i] == '^' && i + 1 < size() && (std::isdigit(static_cast<unsigned char>((*this)[i + 1])) || (*this)[i + 1] == ':')) { ++i; continue; }
+            out += (*this)[i];
+        }
+        assign(out);
+    }
+    void StripTrailingWhitespace() { while (!empty() && std::isspace(static_cast<unsigned char>(back()))) pop_back(); }
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
 template<typename T> struct idList : std::vector<T> {
@@ -232,11 +246,12 @@ static void UI_RetainedReloadImage(const char* source) { reloaded.push_back(sour
 static std::set<std::string> legacyMissing;
 static bool UI_LegacyWindowExists(idUserInterface*, const char* window) { return !legacyMissing.count(window); }
 static bool UI_RetainedViewFailed(idUserInterface* gui) { return gui->failed; }
-static const char* Sys_TimeStampToStr(ID_TIME_T) { return "29 Sep 2026 12:40"; }
+static const char* Sys_TimeStampToStr(ID_TIME_T) { return "09/29/2026\t12:40pm"; }
 struct sessionMenuSaveDescription_t { idStr saveName, description, screenshot; bool noOverwrite = false; };
 static std::string describedShot; // an autosave names its loadscreen; other saves name none
+// Each save's menu label as SaveGame writes it: "^:name\t^0level".
 static bool Session_MenuReadSaveDescription(const idStr& slot, sessionMenuSaveDescription_t& out) {
-    out.saveName = slot; out.description = "Air Defense Bunker"; out.screenshot = describedShot; return true;
+    out.saveName = slot; out.description = "^:" + slot + "\t^0Air Defense Bunker"; out.screenshot = describedShot; return true;
 }
 static const char* va(const char* fmt, ...) {
     static char text[1024]; va_list args; va_start(args, fmt); std::vsnprintf(text, sizeof(text), fmt, args); va_end(args); return text;
@@ -269,7 +284,23 @@ public:
         CHECK(gui == guiMainMenu || gui == guiActive || gui == guiRetainedMultiplayer); dispatched.push_back(command);
     }
     void HandleMainMenuCommands(const char* command) { played.push_back(command); }
-    void LoadGame(const char* slot) { loadedGames.push_back(slot); }
+    // LoadGame refuses a save with loadRefusal's reason, or loads it.
+    enum loadGameFailure_t { LOADGAME_FAILURE_NONE, LOADGAME_FAILURE_UNREADABLE, LOADGAME_FAILURE_DAMAGED, LOADGAME_FAILURE_MAP };
+    loadGameFailure_t loadGameFailure = LOADGAME_FAILURE_NONE, loadRefusal = LOADGAME_FAILURE_NONE;
+    bool LoadGame(const char* slot) { loadedGames.push_back(slot); loadGameFailure = loadRefusal; return loadRefusal == LOADGAME_FAILURE_NONE; }
+    std::vector<std::string> deleted; bool deleteFails = false;
+    bool DeleteGame(const char* slot) {
+        deleted.push_back(slot);
+        if (!deleteFails) saves.erase(std::remove(saves.begin(), saves.end(), std::string(slot)), saves.end());
+        return true;
+    }
+    // The Load Game page.
+    idUserInterface *guiRetainedLoad = nullptr, *retainedPageHome = nullptr, *retainedPagePending = nullptr;
+    int retainedPageAt = 0; bool retainedPageReturn = false;
+    idStrList retainedLoadSlots; idList<ID_TIME_T> retainedLoadTimes; int retainedLoadFirst = 0, retainedLoadSelected = -1;
+    bool BeginRetainedPage(const char*); void UpdateRetainedPage(); void ReturnRetainedPage();
+    void PublishRetainedLoadPage(idUserInterface*, int, const char*); void PublishRetainedLoadRows(idUserInterface*);
+    void PublishRetainedLoadSave(idUserInterface*, const char*); void HandleRetainedLoadRequest(idUserInterface*, const char*);
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
         ++saveLists;
         for (size_t i = 0; i < saves.size(); ++i) { files.Append(idStr(saves[i])); times.Append({static_cast<int>(i), 100 - static_cast<ID_TIME_T>(i)}); }
@@ -299,6 +330,7 @@ public:
     bool RetainedMultiplayerCovers() const; void UpdateRetainedMultiplayer(); void RetainedMultiplayerFrameEvent();
     void RetireRetainedMultiplayer(bool); void HandleRetainedMultiplayerRequest(idUserInterface*, const char*);
     void HandleGameMenuReturn(const char*);
+    bool guiReleasingNone() const { return guiRetainedReleasing == nullptr; }
     // The loading hold has its own compiled case (check_loading_hold).
     void FadeRetainedLoadingHold(const char*) {}
 };
@@ -307,7 +339,7 @@ public:
 MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
-    "guis/menu/mp_welcome.q4ui"};
+    "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -354,7 +386,9 @@ int main() {
         CHECK(s.guiRetainedHome && std::string(s.guiRetainedHome->Name()) == "guis/menu/title.q4ui");
         CHECK(managerObject.loads.size() == 1 && managerObject.flags[0].autoLoad && managerObject.flags[0].unique && !managerObject.flags[0].shared);
         CHECK(s.guiRetainedHome->active && s.guiRetainedHome->named.back() == "open");
-        CHECK(s.guiRetainedHome->state["menu_continue"] == "1" && s.guiRetainedHome->state["menu_continue_title"] == "Air Defense Bunker");
+        // The save's name, then its level and when it was written; color codes removed.
+        CHECK(s.guiRetainedHome->state["menu_continue"] == "1" && s.guiRetainedHome->state["menu_continue_title"] == "quick");
+        CHECK(s.guiRetainedHome->state["menu_continue_detail"] == "Air Defense Bunker - 09/29/2026 12:40pm");
         CHECK(s.guiRetainedHome->state["menu_continue_shot"] == "savegames/quick.tga");
         s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 1 && s.guiRetainedHome->activations == 1);
         auto* title = s.guiRetainedHome;
@@ -370,16 +404,16 @@ int main() {
         CHECK(s.guiMainMenu->cursorX == 320 && s.guiMainMenu->cursorY == 240);
         vrInputFocus = true; s.RetainedHomeFrameEvent(); vrInputFocus = false;
         CHECK(s.guiMainMenu->cursorX == 640 && s.guiMainMenu->cursorY == 120);
-        // A page hand-off runs the legacy home button's own action.
-        s.HandleRetainedSessionRequest(title, "loadGame");
-        CHECK(legacyActions.back() == "main_b_loadgame" && title->named.back() == "depart");
+        // A stock page hand-off runs the legacy home button's own action.
+        s.HandleRetainedSessionRequest(title, "settings");
+        CHECK(legacyActions.back() == "main_b_settings" && title->named.back() == "depart");
         // Its label carries into the page's title slot as the bands dock.
-        CHECK(title->named.size() >= 2 && title->named[title->named.size() - 2] == "carry_loadGame");
+        CHECK(title->named.size() >= 2 && title->named[title->named.size() - 2] == "carry_settings");
         CHECK(s.dispatched.back() == "play main_menu_selection" && s.RetainedHomeInputBlocked());
-        legacy["desktop::active"] = 1; legacy["desktop::dest"] = 2;
+        legacy["desktop::active"] = 1; legacy["desktop::dest"] = 4;
         commonObject.time += 549; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == title);
         commonObject.time += 2; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr && !title->active);
-        legacy["desktop::curr"] = 2; legacy["desktop::active"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);
+        legacy["desktop::curr"] = 4; legacy["desktop::active"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);
         // Back on the page: the retained title returns with the bands at once.
         legacy["desktop::active"] = 1; legacy["desktop::dest"] = 0; s.UpdateRetainedHome();
         CHECK(s.guiRetainedHome == title && title->named.back() == "returnHome" && !s.RetainedHomeInputBlocked());
@@ -398,6 +432,126 @@ int main() {
         CHECK(commonObject.warnings.back().find("unavailable from the current menu") != std::string::npos);
         s.HandleRetainedSessionRequest(title, "quit"); CHECK(commonObject.quits == 1 && s.exits == 1);
         s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr && !title->active); // the menu closed
+    }
+    {   // The Load Game page (FLOW-004). LOAD GAME hands off as to a stock page (the
+        // bands dock, the label carries) without loading anything at the click,
+        // and the page presents at 550 ms over the home, which keeps drawing
+        // behind it. Its verbs act on the session's saves, newest first.
+        auto s = Session(true); s.saves = {"quick", "autosave", "medic"};
+        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* title = s.guiRetainedHome; auto* page = s.guiRetainedLoad;
+        CHECK(title && page && std::string(page->Name()) == "guis/menu/loadgame.q4ui");
+        const size_t loads = managerObject.loads.size();
+        s.HandleRetainedSessionRequest(title, "loadGame");
+        CHECK(legacyActions.empty() && managerObject.loads.size() == loads && s.retainedPagePending == page);
+        CHECK(title->named[title->named.size() - 2] == "carry_loadGame" && title->named.back() == "depart");
+        CHECK(s.played.back() == "play main_menu_selection" && s.RetainedHomeInputBlocked());
+        CHECK(page->state["load.count"] == "3" && page->state["load.first"] == "0" && page->state["load.selected"] == "0");
+        CHECK(page->state["load.row0.name"] == "quick" && page->state["load.row0.location"] == "Air Defense Bunker" &&
+              page->state["load.row2.name"] == "medic" && page->state["load.row3.name"].empty());
+        CHECK(page->state["load.date"] == "09/29/2026" && page->state["load.time"] == "12:40pm" && page->state["load.error"].empty());
+        CHECK(page->state["load.shot"] == "savegames/quick.tga");
+        s.HandleRetainedSessionRequest(title, "loadGame"); CHECK(legacyActions.empty());  // one hand-off at a time
+        commonObject.time += 549; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == s.guiMainMenu && s.guiRetainedHome == title);
+        commonObject.time += 1; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && s.retainedPageHome == title && s.guiRetainedHome == nullptr && !title->active);
+        CHECK(page->state["load.ingame"] == "0" && s.retainedPagePending == nullptr);
+        // A row reports itself; the session checks it against the saves it shows.
+        page->state["load.pick"] = "2"; s.HandleRetainedSessionRequest(page, "loadSelect");
+        CHECK(s.retainedLoadSelected == 2 && page->state["load.selected"] == "2");
+        page->state["load.pick"] = "7"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 2);
+        // A refused load says why over the picture, and the page stays.
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_MAP; s.HandleRetainedSessionRequest(page, "loadSave");
+        CHECK(s.loadedGames.back() == "medic" && page->state["load.error"] == "#str_231102" && s.guiActive == page);
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_DAMAGED; s.HandleRetainedSessionRequest(page, "loadSave");
+        CHECK(page->state["load.error"] == "#str_231103");
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_UNREADABLE; s.HandleRetainedSessionRequest(page, "loadSave");
+        CHECK(page->state["load.error"] == "#str_231104");
+        page->state["load.pick"] = "1"; s.HandleRetainedSessionRequest(page, "loadSelect");
+        CHECK(s.retainedLoadSelected == 1 && page->state["load.error"].empty());  // another choice clears the reason
+        // DELETE GAME (the page asks first): the next save takes the deleted one's place.
+        s.HandleRetainedSessionRequest(page, "loadDelete");
+        CHECK(s.deleted.back() == "autosave" && page->state["load.count"] == "2" && page->state["load.selected"] == "1" &&
+              page->state["load.row1.name"] == "medic" && page->state["load.row2.name"].empty());
+        // A save that is still there stays selected and says so.
+        s.deleteFails = true; s.HandleRetainedSessionRequest(page, "loadDelete");
+        CHECK(s.deleted.back() == "medic" && page->state["load.count"] == "2" && page->state["load.selected"] == "1" &&
+              page->state["load.error"] == "#str_231105");
+        s.deleteFails = false;
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_NONE; s.HandleRetainedSessionRequest(page, "loadSave");
+        CHECK(s.loadedGames.back() == "medic");
+        // Deleting the last save selects the one before it; deleting every save leaves none selected.
+        s.HandleRetainedSessionRequest(page, "loadDelete"); CHECK(page->state["load.selected"] == "0" && page->state["load.count"] == "1");
+        s.HandleRetainedSessionRequest(page, "loadDelete");
+        CHECK(page->state["load.count"] == "0" && page->state["load.selected"] == "-1" && page->state["load.shot"] == "gfx/guis/loadscreens/generic");
+        const size_t deletes = s.deleted.size(), attempts = s.loadedGames.size();
+        s.HandleRetainedSessionRequest(page, "loadDelete"); s.HandleRetainedSessionRequest(page, "loadSave");
+        CHECK(s.deleted.size() == deletes && s.loadedGames.size() == attempts);  // nothing selected, nothing to do
+        // Back returns home with the bands, at once.
+        s.HandleRetainedSessionRequest(page, "loadBack");
+        CHECK(s.guiActive == s.guiMainMenu && s.guiRetainedHome == title && title->active && title->named.back() == "returnHome");
+        CHECK(s.retainedPageHome == nullptr && !s.retainedPageReturn && !s.RetainedHomeInputBlocked());
+        CHECK(title->state["menu_continue"] == "0");  // the home reads the saves again
+        // A page that is not presenting takes no request.
+        const size_t played = s.played.size(); s.HandleRetainedSessionRequest(page, "loadBack"); s.HandleRetainedSessionRequest(page, "loadNewGame");
+        CHECK(s.played.size() == played && s.guiActive == s.guiMainMenu);
+        // Opening it again lists the saves afresh; NEW GAME opens the Single Player page.
+        s.HandleRetainedSessionRequest(title, "loadGame"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && page->state["load.count"] == "0");
+        s.HandleRetainedSessionRequest(page, "loadNewGame"); CHECK(std::string(s.guiActive->Name()) == "guis/menu/singleplayer.q4ui");
+        s.HandleRetainedSessionRequest(page, "unknown"); CHECK(commonObject.warnings.empty());  // not presenting: ignored
+    }
+    {   // More saves than the page's rows: it pages, selecting the older page's first
+        // save or the newer page's last.
+        auto s = Session(true);
+        for (int i = 0; i < 70; ++i) s.saves.push_back("save" + std::to_string(i));
+        s.PreloadRetainedScreens(); s.UpdateRetainedHome(); auto* page = s.guiRetainedLoad;
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "loadGame"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && page->state["load.count"] == "70" && page->state["load.row63.name"] == "save63");
+        s.HandleRetainedSessionRequest(page, "loadOlder");
+        CHECK(page->state["load.first"] == "64" && page->state["load.selected"] == "64" && page->state["load.row0.name"] == "save64" &&
+              page->state["load.row5.name"] == "save69" && page->state["load.row6.name"].empty() && page->named.back() == "pagedOlder");
+        s.HandleRetainedSessionRequest(page, "loadOlder"); CHECK(page->state["load.first"] == "64");  // the last page
+        page->state["load.pick"] = "5"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 69);
+        page->state["load.pick"] = "6"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 69);
+        // Deleting on the second page keeps its window around the selection.
+        s.HandleRetainedSessionRequest(page, "loadDelete");
+        CHECK(page->state["load.first"] == "64" && page->state["load.selected"] == "68" && page->state["load.count"] == "69");
+        s.HandleRetainedSessionRequest(page, "loadNewer");
+        CHECK(page->state["load.first"] == "0" && page->state["load.selected"] == "63" && page->named.back() == "pagedNewer");
+        s.HandleRetainedSessionRequest(page, "loadNewer"); CHECK(page->state["load.first"] == "0");  // the first page
+    }
+    {   // In game the Marine pause hands off the same way, and NEW GAME is not
+        // offered; the Strogg pause keeps the stock page. A page that is not
+        // installed, cannot load or stopped drawing falls back to the stock page.
+        auto s = Session(true, true); s.saves = {"quick"}; s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* pause = s.guiRetainedHome; CHECK(pause && std::string(pause->Name()) == "guis/menu/pause.q4ui");
+        s.HandleRetainedSessionRequest(pause, "loadGame"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        auto* page = s.guiActive;
+        CHECK(page == s.guiRetainedLoad && page->state["load.ingame"] == "1" && s.retainedPageHome == pause && legacyActions.empty());
+        s.HandleRetainedSessionRequest(page, "loadNewGame"); CHECK(s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "loadBack");
+        CHECK(s.guiRetainedHome == pause && pause->named.back() == "returnHome" && s.guiReleasingNone());
+        auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
+        strogg.UpdateRetainedHome(); CHECK(std::string(strogg.guiRetainedHome->Name()) == "guis/menu/pause_strogg.q4ui");
+        strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "loadGame");
+        CHECK(legacyActions.back() == "main_b_loadgame" && strogg.retainedPagePending == nullptr);
+        auto missing = Session(true); fileSystemObject.files.erase("guis/menu/loadgame.q4ui");
+        missing.PreloadRetainedScreens(); missing.UpdateRetainedHome();
+        CHECK(missing.guiRetainedLoad == nullptr && commonObject.warnings.empty() && precached.empty());
+        missing.HandleRetainedSessionRequest(missing.guiRetainedHome, "loadGame");
+        CHECK(legacyActions.back() == "main_b_loadgame" && (Stock(missing) == std::vector<std::string>{"guis/menu/loadgame.q4ui"}));
+        auto late = Session(true); late.UpdateRetainedHome();  // the gate came on after startup: the page loads at the click
+        late.HandleRetainedSessionRequest(late.guiRetainedHome, "loadGame");
+        CHECK(late.guiRetainedLoad && managerObject.loads.back() == "guis/menu/loadgame.q4ui" && legacyActions.empty());
+        auto failed = Session(true); failed.PreloadRetainedScreens(); failed.UpdateRetainedHome();
+        failed.guiRetainedLoad->failed = true;
+        failed.HandleRetainedSessionRequest(failed.guiRetainedHome, "loadGame");
+        CHECK(legacyActions.back() == "main_b_loadgame" && failed.guiRetainedLoad == nullptr && commonObject.warnings.size() == 1);
+        CHECK(commonObject.warnings[0].find("stopped drawing") != std::string::npos);
+        auto off = Session(false); off.PreloadRetainedScreens(); CHECK(off.guiRetainedLoad == nullptr && managerObject.loads.empty());
     }
     {   // No save: CONTINUE stays hidden and has nothing to load.
         auto s = Session(true); s.UpdateRetainedHome();
@@ -421,13 +575,17 @@ int main() {
     }
     {   // Startup and single-player level loads resolve the screens and the pause levelshot.
         auto s = Session(true); s.PreloadRetainedScreens();
-        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui"}) && s.guiRetainedHome == nullptr);
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 2 && s.guiRetainedHome == s.guiRetainedTitle);
+        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/loadgame.q4ui"}) &&
+              s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
+        CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
+        CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 3 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.empty() && managerObject.loads.size() == 2 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 3 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
-        CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}) && managerObject.loads.size() == 3 + cards);
+        CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
+              managerObject.loads.size() == 4 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -493,7 +651,8 @@ int main() {
         CHECK(s.guiRetainedHome == nullptr && !title->active && s.guiRetainedTitle == nullptr);
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("stopped drawing") != std::string::npos);
         s.UpdateRetainedHome(); s.PreloadRetainedScreens();
-        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 2 && commonObject.warnings.size() == 1); // title, then pause
+        // title, then pause and the Load Game page
+        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 3 && commonObject.warnings.size() == 1);
     }
     {   // The campaign selectors: the retained ones while installed, the stock ones otherwise.
         auto s = Session(true); s.OpenCampaignSelector(false);
@@ -2607,7 +2766,7 @@ def main() -> int:
             path = match.group(1)
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
-                       'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui'}
+                       'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -2721,7 +2880,15 @@ def main() -> int:
     # input meanwhile, and the documents' halves last as long as the session
     # waits.
     pump = function_body(menu, 'void idSessionLocal::GuiFrameEvents(')
-    assert pump.index('UpdateRetainedHome();') < pump.index('UpdateRetainedSubpage();') < pump.index('if ( guiTest ) {')
+    assert pump.index('UpdateRetainedHome();') < pump.index('UpdateRetainedSubpage();') < pump.index('UpdateRetainedPage();') < \
+        pump.index('if ( guiTest ) {')
+    # The Load Game page draws over the home that handed off to it, and its
+    # rows match the session's.
+    assert 'DrawRetainedPageHome( presentationTime );' in function_body(session, 'void idSessionLocal::Draw(')
+    load_rows = int(re.search(r'static const int RETAINED_LOAD_ROWS = (\d+);', menu).group(1))
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_saves
+    assert load_rows == retained_saves.ROWS, (load_rows, retained_saves.ROWS)
     menu_event = function_body(menu, 'void idSessionLocal::MenuEvent(')
     assert menu_event.index('if ( RetainedSubpageEvent( event ) ) {') < menu_event.index('HandleEvent(')
     waits = {name: int(re.search(rf'static const int RETAINED_SUBPAGE_{name}_MSEC = (\d+);', menu).group(1)) for name in ('DEEPER', 'BACK')}
@@ -2756,7 +2923,7 @@ def main() -> int:
     for relative in ('content/baseoq4/pak0/guis/menu/title.q4ui', 'content/baseoq4/pak0/guis/menu/pause.q4ui',
                      'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui', 'content/baseoq4/pak0/guis/loading/loading.q4ui',
                      'content/baseoq4/pak0/guis/menu/singleplayer.q4ui', 'content/baseoq4/pak0/guis/menu/campaigns.q4ui',
-                     'content/baseoq4/pak0/guis/menu/mp_escape.q4ui'):
+                     'content/baseoq4/pak0/guis/menu/mp_escape.q4ui', 'content/baseoq4/pak0/guis/menu/loadgame.q4ui'):
         text = (ROOT / relative).read_text(encoding='utf-8')
         document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
         assert document.get('canvas') == {'height': 720}, relative
@@ -2788,6 +2955,7 @@ def main() -> int:
     assert 'RETAINED_SYSTEM_GUI' in gate_functions
     bodies = [gate_functions, tables] + [function_body(menu, signature) for signature in (
         'static bool Session_RetainedHomePopup(', 'static const char *Session_RetainedHomeMissingPage(',
+        'static void Session_RetainedSaveLabel(', 'static idStr Session_RetainedSaveShot(', 'static void Session_RetainedSaveStamp(',
         'static void Session_PublishRetainedTitleState(', 'idUserInterface *idSessionLocal::FindRetainedGui(',
         'bool idSessionLocal::RetainedSystemAvailable(', 'void idSessionLocal::OpenCampaignSelector(',
         'bool idSessionLocal::RetainedHomeInputBlocked(',
@@ -2796,6 +2964,10 @@ def main() -> int:
         'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
         'void idSessionLocal::BeginRetainedSubpage(', 'void idSessionLocal::UpdateRetainedSubpage(',
         'bool idSessionLocal::RetainedSubpageEvent(',
+        'bool idSessionLocal::BeginRetainedPage(', 'void idSessionLocal::UpdateRetainedPage(', 'void idSessionLocal::ReturnRetainedPage(',
+        'static const char *Session_LoadFailureText(', 'void idSessionLocal::PublishRetainedLoadPage(',
+        'void idSessionLocal::PublishRetainedLoadRows(', 'void idSessionLocal::PublishRetainedLoadSave(',
+        'void idSessionLocal::HandleRetainedLoadRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

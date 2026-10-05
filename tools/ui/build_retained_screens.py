@@ -40,6 +40,7 @@ OUTPUTS = {
     "weaponwheel_mp": PAK0 / "guis" / "hud" / "weaponwheel_mp.q4ui",
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
+    "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -719,9 +720,11 @@ def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None
 
 def band_motion(doc: Document, prefix: str, content: str, extra_home: list, quick: tuple = ()) -> None:
     """Section 8 stock choreography, sampled every presented frame:
-    open        menu.fade from black over 250 ms, bands already home;
-    depart      content out over 250 ms, the `quick` nodes (secondary links
-                and the plinth) over 50 ms; from 50 ms frame.dock and
+    open        menu.fade from black over 250 ms, bands already home, the
+                quick nodes shown at once;
+    depart      content out over 250 ms, the `quick` nodes (the plinth and
+                the prompt bar, which a page's own BACK replaces) over 50 ms;
+                from 50 ms frame.dock and
                 screen.depart, both accel(250, 250) over 500 ms;
     departPopup content out over 150 ms, bands stay home;
     returnHome  bands from their page dock home over 500 ms accel(250, 250);
@@ -736,7 +739,7 @@ def band_motion(doc: Document, prefix: str, content: str, extra_home: list, quic
         track(top, "transform", [(0, home), (250, home)]),
         track(bottom, "transform", [(0, home), (250, home)]),
     ] + [track(node, prop, [(0, lit), (250, lit)]) for node, prop, lit, dark in lights]
-      + [track(node, "opacity", [(0, number(1)), (250, number(1))]) for node in quick])
+      + [track(node, "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]) for node in quick])
     doc.timelines.add("depart", 550, [
         track(content, "opacity", [(0, number(1)), (250, number(0)), (550, number(0))]),
         track(content, "transform", [(0, transform()), (50, transform(), ACCEL), (550, transform(640 * U, 0))]),
@@ -835,10 +838,12 @@ def title_carry(doc: Document, items: list, continue_rows: bool = False, face: s
 
 def hide_carry_at_home(doc: Document) -> None:
     """Opening the menu, or coming back from a page, starts without a carried
-    title; the page's own title has taken over by then."""
+    title: a page's title leaves at once on Back (anim_loadOut drops it in
+    0 ms). A play retargets its first key to the current value, so the label
+    is hidden by 1 ms rather than faded out."""
     for timeline in doc.timelines.items:
         if timeline["id"] in ("open", "returnHome"):
-            timeline["tracks"].append(track("title-carry", "opacity", [(0, number(0)), (timeline["durationMs"], number(0))]))
+            timeline["tracks"].append(track("title-carry", "opacity", [(0, number(0)), (1, number(0)), (timeline["durationMs"], number(0))]))
 
 
 # ------------------------------------------------------------------ the emblem
@@ -1041,7 +1046,7 @@ def title_document() -> dict:
         group("fade", {**FULL, "background-color": colour([0, 0, 0, 0]), "pointer-events": keyword("none")}),
     ])
     band_motion(doc, "band", "home", [("wordmark", "opacity", number(1), number(0)),
-                                      ("home-stage", "opacity", number(1), number(0))], quick=("plinth",))
+                                      ("home-stage", "opacity", number(1), number(0))], quick=("plinth", "prompts"))
     hide_carry_at_home(doc)
     return doc.build(root)
 
@@ -1974,10 +1979,12 @@ def objective_frame(ident: str, tint: str) -> dict:
     ])
 
 
-def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, hot: str, left: float, top: float, height: float) -> dict:
+def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, hot: str, left: float, top: float, height: float,
+                         line_step: float = U * 48, key: str = "#str_200380") -> dict:
     """The list's scrollbar at the plates' trailing end (the atlas): a thin
     trough at 0.15 and a thumb at 0.55 in the frame color, the family's
-    focus color on hover, focus and press. Scroll position stays view state."""
+    focus color on hover, focus and press. Scroll position stays view state.
+    `line_step` is one entry of the list it scrolls, `key` the list's name."""
     trough = vector(f"{ident}-trough", {**absolute(left=0, top=0), "width": length(100, "%"), "height": length(100, "%"),
                                         "pointer-events": keyword("none")}, [
         path("line", [(15.75, 0), (20.25, 0), (20.25, {"fraction": 1}), (15.75, {"fraction": 1})], fill=solid(rgb(tint, 0.15)))])
@@ -1997,8 +2004,8 @@ def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, ho
         "disabled": [(f"{ident}-thumb-base", "opacity", number(0.4)), (f"{ident}-thumb-active", "opacity", number(0))],
     })
     return group(ident, {**absolute(left=left, top=top, width=36, height=height)}, [track_node],
-                 control={"role": "scrollbar", "label": "#str_200380", "viewport": viewport, "orientation": "vertical",
-                          "lineStep": round(U * 48, 3), "minimumThumb": 36,
+                 control={"role": "scrollbar", "label": key, "viewport": viewport, "orientation": "vertical",
+                          "lineStep": round(line_step, 3), "minimumThumb": 36,
                           "parts": {"track": f"{ident}-track", "thumb": f"{ident}-thumb"}, "states": ids})
 
 
@@ -2305,7 +2312,7 @@ def pause_document(strogg: bool = False) -> dict:
         scrim,
         chrome,
     ])
-    band_motion(doc, "band", "home", [], quick=("plinth",))
+    band_motion(doc, "band", "home", [], quick=("plinth", "prompts"))
     # The softened view rests at modal.softfocus, so a page's return keeps it.
     # A play retargets its first key from the current value, and the pause
     # document outlives each pause; the second key restarts the ramp from
@@ -2320,7 +2327,7 @@ def pause_document(strogg: bool = False) -> dict:
         translation.finish(doc)
     # A pause can close without Back (a console load or disconnect); every
     # opening starts at home without the Objectives page, prompts showing.
-    opening["tracks"] += [track(node, "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]) for node in ("prompts", "scrim")]
+    opening["tracks"] += [track("scrim", "opacity", [(0, number(1)), (1, number(1)), (250, number(1))])]
     reset = {"op": "setState", "values": {"objectives.visible": False, "objectives.leaving": False, "pause.released": False}}
     doc.events["open"] = [reset, *doc.events.get("open", [{"op": "playTimeline", "timeline": "open"}])]
     # Returning to the game closes the screen at once (section 8), but the
@@ -2777,18 +2784,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus and the initializing screen live in their own
-    # modules, which build on this one.
+    # The multiplayer menus, the Load Game page and the initializing screen
+    # live in their own modules, which build on this one.
     from retained_initializing import initializing_document
     from retained_weapon_wheel import weapon_wheel_document
     from retained_weapon_wheel_strogg import weapon_wheel_strogg_document
     from retained_mp_menus import escape_document, welcome_document
+    from retained_saves import load_game_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
                  "weaponwheel_mp": weapon_wheel_document(multiplayer=True),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
-                 "mp_escape": escape_document(), "mp_welcome": welcome_document()}
+                 "loadgame": load_game_document(), "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():
         output = OUTPUTS[name]

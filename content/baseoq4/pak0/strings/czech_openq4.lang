@@ -1218,4 +1218,12 @@
 	"#str_231057"	"Hlasový chat není k dispozici."
 	"#str_231058"	"Podle zbraně"
 	"#str_231059"	"Zadej celé číslo od 0 do 10000."
+	"#str_231100"	"ŽÁDNÉ ULOŽENÉ HRY"
+	"#str_231101"	"Zde se zobrazují vaše uložené pozice a také kontrolní body a automatická uložení kampaně."
+	"#str_231102"	"Úroveň této uložené pozice není nainstalována."
+	"#str_231103"	"Tato uložená pozice je poškozená nebo pochází z nekompatibilní verze."
+	"#str_231104"	"Tuto uloženou pozici nelze přečíst."
+	"#str_231105"	"Tuto uloženou pozici nelze smazat."
+	"#str_231106"	"NOVĚJŠÍ POZICE"
+	"#str_231107"	"STARŠÍ POZICE"
 }

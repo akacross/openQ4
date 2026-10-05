@@ -1218,4 +1218,12 @@
 	"#str_231057"	"Sesli sohbet kullanılamıyor."
 	"#str_231058"	"Silaha göre"
 	"#str_231059"	"0 ile 10000 arasında bir tam sayı gir."
+	"#str_231100"	"KAYITLI OYUN YOK"
+	"#str_231101"	"Kayıtların ve seferin kontrol noktaları ile otomatik kayıtları burada görünür."
+	"#str_231102"	"Bu kaydın bölümü yüklü değil."
+	"#str_231103"	"Bu kayıt bozuk ya da uyumsuz bir sürümden."
+	"#str_231104"	"Bu kayıt okunamadı."
+	"#str_231105"	"Bu kayıt silinemedi."
+	"#str_231106"	"DAHA YENİ KAYITLAR"
+	"#str_231107"	"DAHA ESKİ KAYITLAR"
 }

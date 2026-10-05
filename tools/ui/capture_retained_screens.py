@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import time
 import zipfile
@@ -303,6 +304,63 @@ SCENARIOS = {
         'screenshot "screenshots/subpage-reduced-sub.tga"', 'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1',
         'openq4_retainedGui menu accept 0', 'waitMsec 400', 'openq4_retainedGui report', 'screenshot "screenshots/subpage-reduced-returned.tga"',
     ]),
+    # The Load Game page (FLOW-004): three saves made in the level, then the
+    # title, whose CONTINUE describes the newest. LOAD GAME hands off (the
+    # bands dock, the label carries) and the page presents at 550 ms with the
+    # newest save selected. A row's first Accept selects its save, DELETE GAME
+    # asks and the next save takes the deleted one's place, Back returns home
+    # with the bands, and Accept on the selected row loads it. In game the
+    # page stands over the paused view.
+    'loadgame': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Trench entry"', 'waitMsec 1500', 'saveGame "Bunker door"', 'waitMsec 1500', 'saveGame Medic',
+        'waitMsec 1500', 'disconnect', 'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-title.tga"',
+        'openq4_retainedGui focus nav_continue', 'waitMsec 300', 'screenshot "screenshots/loadgame-title-continue.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/loadgame-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/loadgame.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/loadgame-selected.tga"',
+        'openq4_retainedGui focus load_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/loadgame-delete.tga"',
+        'openq4_retainedGui focus deleteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-deleted.tga"',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 250',
+        'screenshot "screenshots/loadgame-returning.tga"', 'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-home.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1000',
+        'openq4_retainedGui focus "row-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 9000',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-loaded.tga"',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 250', 'screenshot "screenshots/loadgame-ingame-handoff.tga"', 'waitMsec 800',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-ingame.tga"',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 900',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-ingame-home.tga"',
+    ]),
+    # No saves: the empty state says why and, at the title, NEW GAME opens the
+    # Single Player page.
+    'loadgame-empty': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/loadgame-empty.tga"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-empty-newgame.tga"',
+    ]),
+    # A save the list accepts but LoadGame refuses (a damaged payload, seeded
+    # below): Accept on it says why over its picture and the page stays.
+    'loadgame-failure': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'openq4_retainedGui focus "row-0"', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/loadgame-failure.tga"',
+    ]),
+    # More saves than the list holds: the older ones are a page away.
+    'loadgame-pages': ('game/airdefense1', ['waitMsec 1000'] + [command for index in range(70) for command in (
+        f'saveGame page{index:02d}', 'waitMsec 150')] + [
+        'disconnect', 'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'openq4_retainedGui focus "row-63"', 'waitMsec 400',
+        'screenshot "screenshots/loadgame-pages-end.tga"', 'openq4_retainedGui focus "page-older"', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 500', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-pages-older.tga"',
+        'openq4_retainedGui focus "page-newer"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'openq4_retainedGui report', 'screenshot "screenshots/loadgame-pages-newer.tga"',
+    ]),
     # A mod with its own copies of the stock loading screens: the level loads
     # under the mod's screen, and the retained loading screen never loads.
     'fallback-loading': ('game/airdefense2', [
@@ -362,6 +420,26 @@ OVERRIDES = {
 }
 
 
+def damaged_save(runtime: Path) -> bytes:
+    """A save whose header the Load Game page lists (Quake4, version 1834,
+    game/airdefense1, no entity filter, 32 empty player dictionaries) but
+    whose payload LoadGame refuses: its marker is neither openQ4's nor the
+    build's."""
+    def string(text: str) -> bytes:
+        data = text.encode('ascii')
+        return struct.pack('<i', len(data)) + data
+    header = string('Quake4') + struct.pack('<i', 1834) + string('game/airdefense1') + string('') + struct.pack('<i', 0) * 32
+    return header + struct.pack('<i', 0x2BAD) + bytes(64)
+
+
+# The damaged save's menu label, as SaveGame writes one.
+DAMAGED_DESCRIPTION = '"damaged"\r\n"^:Damaged save\t^0Air Defense Trenches"\r\n""\r\n'
+
+# Files a scenario's game directory holds before it starts.
+SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
+                              'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')}}
+
+
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -396,6 +474,10 @@ def run(args, scenario: str) -> dict:
         target = game / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content(args.runtime.resolve()).encode('utf-8', errors='surrogateescape'))
+    for relative, content in SEEDS.get(scenario, {}).items():
+        target = game / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content(args.runtime.resolve()))
     lines = [f'echo RETAINED_STAGE {scenario}'] + stages + ['ui_retainedStatus', f'echo {DONE}', 'quit']
     cfg = game / f'retained-{scenario}.cfg'
     cfg.write_text('\n'.join(lines) + '\n', encoding='utf-8')
@@ -413,6 +495,9 @@ def run(args, scenario: str) -> dict:
     }
     if args.gate != 'default':
         overrides['ui_retained'] = args.gate
+    for item in args.set:
+        key, _, value = item.partition('=')
+        overrides[key] = value
     overrides.update(SCENARIO_CVARS.get(scenario, {}))
     command = [str(args.runtime.resolve() / ('openQ4-client_x64.exe' if os.name == 'nt' else 'openQ4-client_x64'))]
     for key, value in overrides.items():
@@ -481,6 +566,9 @@ def main() -> int:
     parser.add_argument('--language', default='english')
     parser.add_argument('--scenario', action='append', choices=sorted(SCENARIOS))
     parser.add_argument('--timeout', type=int, default=180)
+    # On a shared machine, win_allowMultipleInstances=1 lets a run start beside
+    # another openQ4 client without taking the single-instance lock from it.
+    parser.add_argument('--set', action='append', default=[], metavar='CVAR=VALUE', help='set a CVar for every run')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('use a new output directory')
