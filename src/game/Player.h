@@ -1042,6 +1042,7 @@ private:
 	// Transient presentation state; none of it is saved.
 	idUserInterface*		weaponWheelGui;
 	bool					weaponWheelGuiTried;	// its load was attempted
+	bool					weaponWheelGuiStrogg;	// it is the Strogg family's wheel
 	bool					weaponWheelRetained;	// this hold belongs to the retained wheel
 	bool					weaponWheelPressed;		// its button was held last frame
 	bool					weaponWheelPresenting;	// it draws: open or closing
@@ -1150,6 +1151,7 @@ private:
 	int						GetWeaponWheelAmmoCount( int weaponIndex );
 	bool					IsWeaponWheelSlotLowAmmo( int slot );
 	bool					UseRetainedWeaponWheel( void );
+	const char *			RetainedWeaponWheelComponent( void ) const;
 	void					AcquireRetainedWeaponWheel( void );
 	void					UpdateRetainedWeaponWheel( bool canUseWheel, bool held );
 	void					CloseRetainedWeaponWheel( void );

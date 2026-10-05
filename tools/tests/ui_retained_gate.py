@@ -2503,12 +2503,26 @@ def check_weapon_wheel() -> None:
                   'const float\tWEAPON_WHEEL_SELECT_HYSTERESIS\t= 4.0f;', 'const float\tWEAPON_WHEEL_POINTER_SELECT\t\t= 32.0f;'):
         assert token in player, token
     use = function_body(player, 'bool idPlayer::UseRetainedWeaponWheel(')
-    for token in ('gameLocal.isMultiplayer', 'common->RetainedHudGui( "weaponwheel" ) == NULL', 'vrSystem->IsActive()'):
+    for token in ('gameLocal.isMultiplayer', 'common->RetainedHudGui( RetainedWeaponWheelComponent() ) == NULL',
+                  'vrSystem->IsActive()'):
         assert token in use, f'the retained wheel needs {token}'
+    component = function_body(player, 'const char *idPlayer::RetainedWeaponWheelComponent(')
+    assert 'return isStrogg ? "weaponwheel_strogg" : "weaponwheel";' in component, 'the Strogg HUD takes the Strogg wheel'
+    import retained_weapon_wheel_strogg
+    strogg = json.loads(re.sub(r'^\s*//.*$', '',
+                               (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel_strogg.q4ui').read_text(encoding='utf-8'),
+                               flags=re.M))
+    assert strogg['id'] == 'openq4.weaponwheel.strogg' and not strogg.get('actions')
+    assert set(strogg['state']) == set(document['state']), 'both families take the same state'
+    assert {'open', 'select', 'close'} <= set(strogg['events']), sorted(strogg['events'])
+    assert len(retained_weapon_wheel_strogg.ORDER) == slots and sorted(retained_weapon_wheel_strogg.ORDER) == list(range(slots)), \
+        'the plates boot in an order that covers every slot once'
+    assert '\tWEAPON_WHEEL_CLOSE_MSEC\t\t\t= 300;' in player, 'the wheel draws through the Strogg close'
     # The engine owns the document's path, behind the gate.
     retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
     hud = function_body(retained, 'const char* RetainedUI_HudDocument(')
     assert '{"weaponwheel", "guis/hud/weaponwheel.q4ui"},' in hud and '!cvarSystem->GetCVarBool("ui_retained")' in hud
+    assert '{"weaponwheel_strogg", "guis/hud/weaponwheel_strogg.q4ui"},' in hud
     assert 'RetainedHudGui( const char *name ) { return RetainedUI_HudDocument( name ); }' in \
         (ROOT / 'src/framework/Common.cpp').read_text(encoding='utf-8')
     update = function_body(player, 'void idPlayer::UpdateRetainedWeaponWheel(')

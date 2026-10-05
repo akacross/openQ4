@@ -436,10 +436,15 @@ def transitions(doc: Document) -> None:
         track("centre", "opacity", [(0, number(0)), (1, number(0)), (200, number(1))]),
     ]
     for index in range(COUNT):
+        # A play starts each track from the value it finds: the 1 ms key puts
+        # every segment out, and back to 90%, before its own start.
         start = 1 + 8 * index
-        open_tracks.append(track(f"slot-{index}", "opacity", [(0, number(0)), (start, number(0), EASE_OUT), (start + 90, number(1))]))
-        open_tracks.append(track(f"slot-{index}-deploy", "transform",
-                                 [(0, transform(sx=0.9, sy=0.9)), (start, transform(sx=0.9, sy=0.9), EASE_OUT), (start + 90, transform())]))
+        hold = [(1, number(0))] if start > 1 else []
+        open_tracks.append(track(f"slot-{index}", "opacity", [(0, number(0)), *hold, (start, number(0), EASE_OUT),
+                                                              (start + 90, number(1))]))
+        small = transform(sx=0.9, sy=0.9)
+        open_tracks.append(track(f"slot-{index}-deploy", "transform", [(0, small), *([(1, small)] if start > 1 else []),
+                                                                       (start, small, EASE_OUT), (start + 90, transform())]))
     doc.timelines.add("wheel.open", 650, open_tracks)
     doc.timelines.add("wheel.select", 301, [
         track("static", "opacity", [(0, number(0)), (1, number(0.40)), (301, number(0))]),

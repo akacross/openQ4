@@ -181,6 +181,26 @@ SCENARIOS = {
         'openq4_weaponWheel hold', 'waitMsec 60', 'openq4_weaponWheel release', 'waitMsec 1500',
         'screenshot "screenshots/weaponwheel-tap.tga"',
     ]),
+    # The Strogg wheel: from game/medlabs on Kane is Strogg and the HUD, and
+    # its wheel, take the Strogg family; the plates boot in a scrambled order
+    # and every label translates from runes.
+    'weaponwheel-strogg': ('game/recomp', [
+        'give all', 'waitMsec 1500',
+        'openq4_weaponWheel hold', 'waitMsec 230', 'screenshot "screenshots/weaponwheel-strogg-opening.tga"',
+        'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-strogg-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 80', 'screenshot "screenshots/weaponwheel-strogg-select.tga"',
+        'waitMsec 700', 'screenshot "screenshots/weaponwheel-strogg-selected.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 100',
+        'screenshot "screenshots/weaponwheel-strogg-closing.tga"', 'waitMsec 1500',
+        'screenshot "screenshots/weaponwheel-strogg-equipped.tga"',
+    ]),
+    # Reduced motion: the rings and grain stop and names change at once.
+    'weaponwheel-strogg-reduced': ('game/recomp', [
+        'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',
+        'openq4_weaponWheel hold', 'waitMsec 400', 'screenshot "screenshots/weaponwheel-strogg-reduced-open.tga"',
+        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 200', 'screenshot "screenshots/weaponwheel-strogg-reduced-selected.tga"',
+        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000', 'set ui_retainedReducedMotion 0',
+    ]),
     # Reduced motion: opening, selecting and closing are short opacity changes.
     'weaponwheel-reduced': ('game/airdefense1', [
         'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',

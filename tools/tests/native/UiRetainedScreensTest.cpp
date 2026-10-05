@@ -1438,8 +1438,91 @@ static void CheckWeaponWheel(ScreenHost& host, const char* path) {
 	Check(Near(opacity("slot-0"),0,.001f),"closing drops the segments out");
 }
 
+// The Strogg weapon wheel (section 14.6, Strogg HUD): the same state as the
+// Marine wheel on angular plates twisted 4 degrees backward, slanted reserve
+// cells under a masked grain, an octagonal core whose dashed rings turn at
+// 0.2 and 0.5 turns a second, circuits to the owned plates, and every label
+// translating from runes.
+static void CheckStroggWheel(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel.strogg" && document.Model().canvasHeight == 720 &&
+		document.Model().actions.empty(),"Strogg wheel document validates and asks nothing of the engine");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel_strogg.q4ui",diagnostics),"the Strogg wheel loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720;
+	std::string error; Runtime::EventEffects effects;
+	Check(runtime.RunEvent("onInit",0,effects,error),"onInit starts the rings and the grain");
+	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_name",std::string("Machinegun")},
+		{"wheel_ammo",std::string("40 / 200")}};
+	for (int slot : {0,1,2,6}) values["wheel_owned_"+std::to_string(slot)] = true;
+	values["wheel_empty_2"] = true;
+	values["wheel_fill_1"] = .4; values["wheel_count_1"] = 200.0; values["wheel_count_0"] = -1.0;
+	values["wheel_key_1"] = std::string("2");
+	Check(runtime.SetState(values,error,0),"the Strogg wheel takes the Marine wheel's state");
+	runtime.Frame(viewport,1);
+	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
+	auto angle = [&](const char* node) { const auto value = runtime.PresentedValue(node,"transform"); return value ? static_cast<float>(value->data[4]) : -1e9f; };
+	Bounds wheel;
+	Check(runtime.GetBounds("wheel",wheel) && Near(wheel.x,340) && Near(wheel.y,60) && Near(wheel.width,600),"the Strogg wheel centers on the view");
+	const auto moved = runtime.PresentedValue("slot-1","transform");
+	Check(moved && Near(static_cast<float>(moved->data[0]),8*std::sin(32.7273f*3.14159265f/180),.05f),"the selection extends 8 dp outward");
+	Check(Near(opacity("slot-1-plate"),.75f,.001f) && Near(opacity("slot-0-plate"),.55f,.001f) && Near(opacity("slot-3-plate"),0,.001f) &&
+		Near(opacity("slot-3-rim"),.45f,.001f) && Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-0-ring"),0,.001f),
+		"the selection's plate rises in its #F2AD0B ring; an unowned plate keeps only its rim");
+	Check(Near(opacity("slot-1-glyph-selected"),1,.001f) && Near(opacity("slot-0-glyph"),1,.001f) && Near(opacity("slot-2-noammo"),1,.001f),
+		"the selected icon turns #FFCC00; a weapon without ammunition shows the sign");
+	Check(Near(opacity("slot-1-cell-2"),1,.001f) && Near(opacity("slot-1-cell-3"),.2f,.01f) && Near(opacity("slot-1-cell-4"),0,.001f),
+		"the slanted cells fill in proportion to the reserve");
+	Check(Near(opacity("circuit-1"),.9f,.001f) && Near(opacity("circuit-0"),.32f,.001f) && Near(opacity("circuit-3"),.06f,.001f),
+		"the circuits join the core to the owned plates and brighten for the selection");
+	const auto reserve = runtime.PresentedValue("slot-1-reserve-text","text");
+	const auto rune = runtime.PresentedValue("slot-1-reserve-text-rune","text");
+	const auto name = runtime.PresentedValue("name-text","text");
+	const auto nameRune = runtime.PresentedValue("name-text-rune","text");
+	Check(reserve && reserve->text == "200" && rune && rune->text == "200" && name && name->text == "Machinegun" &&
+		nameRune && nameRune->text == "Machinegun","every readout has its rune copy");
+	Check(Near(opacity("grain"),.2f,.001f),"the grain rests at 0.20 over the plates");
+	// The rings turn at 0.2 and 0.5 turns a second, in opposite directions.
+	runtime.Frame(viewport,2);
+	const float a0 = angle("core-ring-a"), b0 = angle("core-ring-b");
+	runtime.Frame(viewport,3);
+	Check(Near(angle("core-ring-a")-a0,72,.5f) && Near(angle("core-ring-b")-b0,-180,.5f),"the dashed rings turn at 0.2 and 0.5 turns a second");
+	// Opening: the plates boot in a scrambled order under their flash.
+	Check(runtime.RunEvent("open",4,effects,error),"open");
+	runtime.Frame(viewport,4.002);
+	Check(opacity("slot-6-flash") > .9f && Near(opacity("slot-5-boot"),0,.001f),"the plates boot in a scrambled order, each under its flash");
+	runtime.Frame(viewport,4.05);
+	Check(opacity("slot-6-boot") > opacity("slot-5-boot") && opacity("slot-6-boot") > .99f,"the first plate reads while the last waits");
+	Check(angle("core-rings") < -1 && angle("core-rings") > -120,"the rings spin up");
+	const auto runes = runtime.PresentedValue("name-text-rune","color");
+	runtime.Frame(viewport,4.7);
+	const auto settled = runtime.PresentedValue("name-text-rune","color");
+	Check(runes && Near(static_cast<float>(runes->data[3]),.8f,.01f) && settled && Near(static_cast<float>(settled->data[3]),0,.01f),
+		"the name arrives in runes and translates");
+	Check(Near(opacity("slot-5-boot"),1,.001f) && Near(opacity("grain"),.2f,.001f),"every plate booted and the grain settled");
+	// Selecting: the name translates again and the scan bar slides in behind it.
+	Check(runtime.RunEvent("select",5,effects,error),"select");
+	runtime.Frame(viewport,5.042);
+	Check(opacity("name-bar") > .9f,"the scan bar lights as it starts to slide");
+	runtime.Frame(viewport,5.5);
+	Check(Near(opacity("name-bar"),0,.01f),"the scan bar dims");
+	// Closing: the plates drop out, then the core and the grain fade.
+	Check(runtime.RunEvent("close",6,effects,error),"close");
+	runtime.Frame(viewport,6.3);
+	Check(Near(opacity("slot-5-boot"),0,.001f) && Near(opacity("core"),0,.001f) && Near(opacity("grain"),0,.001f),
+		"closing drops the plates, then fades the core and the grain");
+	// Reduced motion stops the rings.
+	runtime.SetReducedMotion(true,7);
+	runtime.Frame(viewport,7.1);
+	const float still = angle("core-ring-a");
+	runtime.Frame(viewport,8.1);
+	Check(Near(angle("core-ring-a"),still,.001f),"reduced motion stops the rings");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 11,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui");
+	Check(argc == 12,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -2530,6 +2613,7 @@ int main(int argc, char** argv) {
 	CheckWelcome(host,argv[8]);
 	CheckInitializing(host,argv[9]);
 	CheckWeaponWheel(host,argv[10]);
+	CheckStroggWheel(host,argv[11]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

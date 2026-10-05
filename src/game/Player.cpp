@@ -257,7 +257,7 @@ const int weaponWheelSlotWeapons[ WEAPON_WHEEL_SLOT_COUNT ] = { 0, 1, 2, 3, 4, 5
 // the engine's "weaponwheel" HUD component.
 const int	WEAPON_WHEEL_RETAINED_SLOTS		= 11;		// the Marine wheel: blaster to napalm
 const int	WEAPON_WHEEL_TAP_MSEC			= 180;		// a shorter tap swaps to the previous weapon
-const int	WEAPON_WHEEL_CLOSE_MSEC			= 200;		// the 150 ms close transition and a margin
+const int	WEAPON_WHEEL_CLOSE_MSEC			= 300;		// the Strogg wheel's 260 ms close and a margin
 const float	WEAPON_WHEEL_STICK_SELECT		= 0.35f;	// stick deflection that selects
 const float	WEAPON_WHEEL_SELECT_HYSTERESIS	= 4.0f;		// degrees past a boundary before the selection moves
 const float	WEAPON_WHEEL_POINTER_SELECT		= 32.0f;	// dp the mouse selector travels before it selects
@@ -1939,6 +1939,7 @@ idPlayer::idPlayer() {
 	weaponWheelLastCmdAngles.Zero();
 	weaponWheelGui			= NULL;
 	weaponWheelGuiTried		= false;
+	weaponWheelGuiStrogg	= false;
 	weaponWheelRetained		= false;
 	weaponWheelPressed		= false;
 	weaponWheelPresenting	= false;
@@ -11735,14 +11736,14 @@ void idPlayer::UpdateWeaponWheel( void ) {
 ================
 idPlayer::UseRetainedWeaponWheel
 
-openQ4: while the retained interface is on (the engine's "weaponwheel" HUD
-component), single player holds open the retained wheel. VR keeps the classic
-wheel, whose cursor follows the weapon hand, and so does a session whose wheel
-document cannot load.
+openQ4: while the retained interface is on (the engine's "weaponwheel" and
+"weaponwheel_strogg" HUD components), single player holds open the retained
+wheel of the HUD's family. VR keeps the classic wheel, whose cursor follows
+the weapon hand, and so does a session whose wheel document cannot load.
 ================
 */
 bool idPlayer::UseRetainedWeaponWheel( void ) {
-	if ( gameLocal.isMultiplayer || common->RetainedHudGui( "weaponwheel" ) == NULL ||
+	if ( gameLocal.isMultiplayer || common->RetainedHudGui( RetainedWeaponWheelComponent() ) == NULL ||
 		( vrSystem != NULL && vrSystem->IsActive() && gameLocal.GetLocalPlayer() == this ) ) {
 		return false;
 	}
@@ -11750,10 +11751,22 @@ bool idPlayer::UseRetainedWeaponWheel( void ) {
 	return weaponWheelGui != NULL;
 }
 
+const char *idPlayer::RetainedWeaponWheelComponent( void ) const {
+	// After Kane's stroggification the HUD, and its wheel, take the Strogg family.
+	return isStrogg ? "weaponwheel_strogg" : "weaponwheel";
+}
+
 void idPlayer::AcquireRetainedWeaponWheel( void ) {
-	const char *path = gameLocal.isMultiplayer ? NULL : common->RetainedHudGui( "weaponwheel" );
+	// A body of the other family loads that family's wheel; the manager owns
+	// the one let go.
+	if ( weaponWheelGuiTried && weaponWheelGuiStrogg != isStrogg && !weaponWheelPresenting ) {
+		weaponWheelGui = NULL;
+		weaponWheelGuiTried = false;
+	}
+	const char *path = gameLocal.isMultiplayer ? NULL : common->RetainedHudGui( RetainedWeaponWheelComponent() );
 	if ( weaponWheelGui == NULL && !weaponWheelGuiTried && path != NULL ) {
 		weaponWheelGuiTried = true;
+		weaponWheelGuiStrogg = isStrogg;
 		weaponWheelGui = uiManager->FindGui( path, true, false, true );
 	}
 }

@@ -1225,6 +1225,7 @@ void RetainedUI_ReleaseInitializing() {
 const char* RetainedUI_HudDocument(const char* name) {
 	static const struct { const char* name; const char* path; } documents[] = {
 		{"weaponwheel", "guis/hud/weaponwheel.q4ui"},
+		{"weaponwheel_strogg", "guis/hud/weaponwheel_strogg.q4ui"},
 	};
 	if (!name || !cvarSystem->GetCVarBool("ui_retained")) return nullptr;
 	for (const auto& document : documents) if (idStr::Icmp(name, document.name) == 0) return document.path;

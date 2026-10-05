@@ -166,8 +166,9 @@ accents, status line and step rule, and the title's wordmark is the same
 traced QUAKE 4 with the texture's own halo. Single player's
 [weapon wheel](../ui/retained-screens.md#weapon-wheel) is the Marine wheel of
 section 14.6, at full game speed: a 180 ms hold opens it, a tap swaps to the
-previous weapon, either stick or the mouse selects and release equips; the
-Strogg, multiplayer and quick-chat wheels remain. No gate closes.
+previous weapon, either stick or the mouse selects and release equips; a
+Strogg body takes the Strogg wheel. The multiplayer and quick-chat wheels
+remain. No gate closes.
 
 ## Objective and immutable completion scope
 

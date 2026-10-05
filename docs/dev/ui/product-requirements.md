@@ -553,6 +553,8 @@ On engine `216db1a7de4fbbf9b9400a5d3698cb2f4ebced90` the initializing screen dra
 
 On engine `236fad1aee1544984e214f573fd3a4d89e868f94` single player's weapon wheel is the retained Marine wheel: a 180 ms hold opens it, a tap swaps to the previous weapon, either stick or the mouse selects and release equips, at full game speed. `WID-033` becomes partial. Evidence: `.tmp/ui/retained-weaponwheel-evidence/validation-evidence.json`, SHA-256 `5e2922f97851b9cca3b43d542bd7af93ed09e514f34512f85f27dbbc439694ba`.
 
+On engine `eecf98b20b3218b6dbf616cf031ea3fdb3a7f9ca` a Strogg body's weapon wheel is the retained Strogg wheel, opening as a translation. `WID-033` stays partial. Evidence: `.tmp/ui/retained-weaponwheel-strogg-evidence/validation-evidence.json`, SHA-256 `fc816eb3b1ddcd26054d7f9cfe0d858ae0d41a682f1d723063600362a8db6bd0`.
+
 There are **97 partial, 242 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

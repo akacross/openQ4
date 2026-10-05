@@ -844,7 +844,9 @@
   to open a ring of every weapon with its icon, ammunition gauge and reserve,
   pick with either stick or the mouse, and let go to switch; a quick tap
   swaps back to your previous weapon. The game no longer slows down while the
-  wheel is open. Set `ui_retained 0` for the classic wheel.
+  wheel is open. After Kane's stroggification the wheel turns Strogg too, with
+  angular plates, a turning core and labels that translate from runes. Set
+  `ui_retained 0` for the classic wheel.
 
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
