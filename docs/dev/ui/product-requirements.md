@@ -589,6 +589,8 @@ On engine `c09c2195de958d704bbeb53f5cc7010824caf4d4`, the retained Join Game gai
 
 On engine `5f62d8a6df8510260df59f46990949aaf234e4a5`, the retained Join Game becomes the default: JOIN IP ADDRESS and FIND PLAYER/CLAN open entry dialogs, the stock popups' "your ip address:" and player search work again, and the Multiplayer page goes deeper to both of its sub-pages without an opt-in. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-default-evidence/validation-evidence.json`, SHA-256 `4d2c6a2f86f0f1c3fa141acba00768cdbe5783344740d6d0071d74163d51ba4c`.
 
+On engine `e61425f8ea23e48916a40b66ae6775d7258880b3`, the server scan publishes its progress again, so the classic browser's load bar fills and the retained Join Game shows the same bar and notice under its list. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-progress-evidence/validation-evidence.json`, SHA-256 `86ad58e9f0cb2e487b06fa2e253b38711cb750ecee629ff6b72f3acb43b5cf7f`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

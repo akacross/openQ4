@@ -7304,7 +7304,9 @@ list's page (join.row<i>.*: favorite, password, dedicated server, name,
 ping, repeater, players, game type and map, the server's own text read as a
 player's), their count, how many the scan holds (join.listed, which tells a
 list the filters empty apart), the scan's status line (the stock page's
-sortNotice) and whether it runs, the source the legacy menu keeps
+sortNotice) and whether it runs, its progress (join.progress and
+join.notice, the stock page's loadPct and loadNotice), the source the legacy
+menu keeps
 (gui::lanSet, which the scans read), the mod filter (filterMod, which the
 scan writes there), the sort and its direction, and which server is chosen
 (join.selected), by the address the session kept, with its levelshot and
@@ -7383,6 +7385,9 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
 		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
 	gui->SetStateString( "join.search", Session_RetainedPlayerText( servers.GetPlayerSearch(), 64, 1 ).c_str() );
+	// The notice can name a server, whose text is read as a player's.
+	gui->SetStateFloat( "join.progress", servers.GetLoadProgress() );
+	gui->SetStateString( "join.notice", Session_RetainedPlayerText( servers.GetLoadNotice(), 160, 1 ).c_str() );
 	bool ascending = true;
 	const serverSort_t sort = servers.GetSorting( ascending );
 	gui->SetStateInt( "join.count", count );

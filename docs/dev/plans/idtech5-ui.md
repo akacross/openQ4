@@ -217,8 +217,8 @@ JOIN GAME goes deeper to the retained
 [Join Game sub-page](../ui/retained-screens.md#join-game-sub-page), the
 server browser's list with its sources, column sorts, symbols, mod filter,
 favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
-PLAYER/CLAN in entry dialogs, the session publishing the scan as it finds
-servers; it is the default, as it offers every control the stock page does.
+PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, the
+session publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.
 Filters beyond the browser's source, the Strogg pause's pages and in-field
 composition remain. No gate closes.
 

@@ -2703,6 +2703,14 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		Near(find.width,refresh.width,.5f) && find.width >= 208*u - .5f && find.x+find.width < bounds("join-shot-back").x &&
 		text("join_ip-label","text") == "#str_200025" && text("join_find-label","text") == "#str_200182",
 		"JOIN IP ADDRESS and FIND PLAYER/CLAN follow GET NEW LIST, clear of the levelshot");
+	// The scan's progress under the list, where the stock load bar is: the
+	// tube across the list's width, between CLEAR SORTING and REFRESH LIST,
+	// empty until the session publishes a fraction, its notice over it.
+	const auto track = bounds("join-load-track"), loadNotice = bounds("join-load-notice");
+	Check(Near(track.x,x0+21*u,1) && Near(track.y,313*u,1) && Near(track.width,593*u,1) && Near(track.height,14*u,1) &&
+		track.y > bounds("join_clearsort").y+bounds("join_clearsort").height-1 && track.y+track.height < refresh.y+refresh.height &&
+		Near(loadNotice.x,x0+41*u,1) && Near(loadNotice.y,311*u,1) && Near(value("join-load-fill","width"),0,.5f),
+		"the scan's progress bar and its notice stand where the stock load bar does");
 	const auto internet = bounds("join_internet"), lan = bounds("join_lan");
 	Check(Near(lan.x+lan.width,x0+613*u,1) && internet.x+internet.width < lan.x && Near(internet.y,46*u,1),
 		"the source tags end where the stock LAN tag did, INTERNET before LAN");
@@ -2715,6 +2723,13 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"join.scanning",true},{"join.status",std::string("Scanning - Found: 0")}},error,0.75),"a scan starts");
 	runtime.Frame(viewport,0.8);
 	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0","a running scan shows its status, not the empty line");
+	Check(runtime.SetState({{"join.progress",0.5},{"join.notice",std::string("Scanning 3/6: Strogg Hive")}},error,0.76),"the scan's progress");
+	runtime.Frame(viewport,0.77);
+	Check(Near(bounds("join-load-fill").width,593*u/2,1) && text("join-load-notice","text") == "Scanning 3/6: Strogg Hive",
+		"the fill follows the scan's fraction under its notice");
+	Check(runtime.SetState({{"join.progress",1.5}},error,0.78),"a fraction past the end");
+	runtime.Frame(viewport,0.79);
+	Check(Near(bounds("join-load-fill").width,593*u,1),"the fill stops at the bar's end");
 	// Servers the filters or a search all hide: the empty line says none matches.
 	Check(runtime.SetState({{"join.scanning",false},{"join.listed",2.0},{"join.status",std::string("Showing 0 out of 2 servers")}},error,0.81),
 		"a filter hides both servers the scan holds");

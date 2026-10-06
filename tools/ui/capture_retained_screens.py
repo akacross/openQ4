@@ -615,13 +615,14 @@ SCENARIOS = {
         # refuses focus until it has arrived.
         'waitMsec 7000',
         'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 1200', 'openq4_retainedGui report',
+        'waitMsec 2500', 'openq4_retainedGui report',
         'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 175', 'screenshot "screenshots/joingame-change.tga"', 'waitMsec 1200', 'ui_retainedStatus',
+        'waitMsec 175', 'screenshot "screenshots/joingame-change.tga"', 'waitMsec 2500', 'ui_retainedStatus',
         'openq4_retainedGui report', 'openq4_retainedGui inspect "join-empty"', 'screenshot "screenshots/joingame-empty.tga"',
         'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 300', 'screenshot "screenshots/joingame-scanning.tga"', 'waitMsec 4500', 'openq4_retainedGui report',
         'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "server-1"', 'openq4_retainedGui inspect "join-empty"',
+        'openq4_retainedGui inspect "join-load-track"', 'openq4_retainedGui inspect "join-load-fill"',
         'screenshot "screenshots/joingame-list.tga"',
         'openq4_retainedGui focus "heading-name"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"', 'screenshot "screenshots/joingame-sorted.tga"',
@@ -674,6 +675,18 @@ SCENARIOS = {
         'set logFileName "logs/openq4-match.log"',
         'openq4_retainedGui number commit "join-address"', AFTER_MAP,
         'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingameaddress-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
+    # The classic server browser (ui_retained 0) shows the scan's progress
+    # again: retail's scan published its notice and fraction (gui::loadNotice,
+    # gui::loadPct) for the stock load bar, which openQ4's had dropped. GET
+    # NEW LIST asks the master server, which the loopback cannot reach, and
+    # the seeded favorite, a loopback dedicated server (SCENARIO_SERVERS),
+    # answers: the bar fills and names the count.
+    'stockbrowser': (None, [
+        'waitMsec 7000', 'openq4_browser open', 'waitMsec 2500', 'openq4_browser source internet', 'waitMsec 2500',
+        'openq4_browser action updateServers', 'waitMsec 300', 'openq4_browser report',
+        'screenshot "screenshots/stockbrowser-scanning.tga"', 'waitMsec 4500', 'openq4_browser report',
+        'screenshot "screenshots/stockbrowser-scanned.tga"',
     ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
@@ -807,7 +820,8 @@ SCENARIO_PORTS = {'arenafail': 27961}
 # name), from the runtime with its own savepath; it quits once the client is
 # done.
 SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
-                    'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
+                    'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
     'retained_arenafail_after.cfg': [
@@ -826,7 +840,8 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
                   'multiplayer': {'net_allowCheats': '1'},
                   'createserverstart': {'net_ip': '127.0.0.1'},
-                  'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'}}
+                  'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
+                  'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'
@@ -876,6 +891,7 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'createserver': {'banlist.txt': ban_list},
          # The browser's favorites (one address a line): the scenario's server.
          'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
+         'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
 

@@ -4330,7 +4330,7 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		static const char *const details[] = {
 			"browser_selected", "server_IP", "server_name", "server_map",
 			"server_gameType", "server_passworded", "browser_levelshot",
-			"loadNotice", "sortNotice", "filterMod", "browser_count"
+			"loadNotice", "loadPct", "sortNotice", "filterMod", "browser_count"
 		};
 		for ( int i = 0; i < static_cast<int>( sizeof( details ) / sizeof( details[ 0 ] ) ); ++i ) {
 			const idStr value = Session_BrowserDiagnosticText( gui->State().GetString( details[ i ] ) );

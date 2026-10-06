@@ -937,6 +937,11 @@
 
 - JOIN IP ADDRESS shows your IP address again, as the original did.
 
+- Both server browsers show the scan's progress again: the bar under the list
+  fills as servers answer, with the current step (getting the list, scanning
+  server n of N, then how many were scanned). The classic browser's bar had
+  always stayed empty in openQ4.
+
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 

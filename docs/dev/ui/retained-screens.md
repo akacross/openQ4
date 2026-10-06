@@ -1217,7 +1217,9 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   name are wider than the stock ones, so every language's heading fits beside
   the sort's chevron, which follows the heading's longest translation. The
   scan's status line at 41,291 u (175 u, which every language's status fits),
-  a player search's tag after it and CLEAR SORTING; REFRESH LIST, GET NEW
+  a player search's tag after it and CLEAR SORTING; the scan's progress bar
+  across the list's width at 21,312 u with its notice over it from 41 u (the
+  stock load bar); REFRESH LIST, GET NEW
   LIST, JOIN IP ADDRESS and FIND PLAYER/CLAN down the leading column from
   19,330 u on a 26 u pitch, so the fourth clears the bottom band, each as
   wide as the longest label of any (Italian's FIND PLAYER/CLAN); the chosen
@@ -1232,10 +1234,12 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   servers the scan found and the filter passes, in the sort's order, a page
   at a time (`join.row<i>.*`), with their count and how many the scan holds,
   the scan's status line (the stock page's `sortNotice`), whether a scan
-  runs, the source, the mod filter (`filterMod`, which the scan writes on the
-  legacy menu), the player search and the sort, and publishes again whenever
-  the scan's revision moves (a server answered, a sort, filter or search
-  changed, the status changed). The scan's read view
+  runs, its progress (`join.progress` and `join.notice`, the stock page's
+  `loadPct` and `loadNotice`), the source, the mod filter (`filterMod`,
+  which the scan writes on the legacy menu), the player search and the sort,
+  and publishes again whenever the scan's revision moves (a server answered,
+  a sort, filter or search changed, the status or the progress changed). The
+  scan's read view
   (`idServerScan::VisibleServers`, `IsFavoriteServer`, `GetSorting`,
   `GetRevision`) lists exactly what the stock list shows. The servers' names,
   game types and maps are read as players' text (`Session_RetainedPlayerText`):
@@ -1259,6 +1263,24 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   it off (`idServerScan::ToggleFavoriteServer`, the stock toggle's work for a
   server the page names). The choice follows its server through new orders
   and stays while a scan may list it again.
+- **Progress.** The bar is the stock `load_bar3` tube in `marine.progress`:
+  its alpha profile down the 14 u tube (a bright top edge, dim under the
+  notice, a lighter foot), the track at 0.30 and the fill at 0.50, the fill's
+  width the scan's fraction. Retail's scan published that fraction and its
+  notice to the stock browser (`loadPct`, `loadNotice`); openQ4's had
+  dropped both, so the stock bar stayed empty, and publishes them again
+  (`idServerScan::GetLoadNotice` and `GetLoadProgress` for a menu that draws
+  its own): "Getting list of servers..." while a new list waits on the master
+  server, "Scanning for LAN servers..." as the LAN sweep starts, then the
+  server that answered last with the count of listed servers heard from or
+  given up on ("Scanning %d/%d: %s"; on the LAN "Scanning - Found: %s",
+  across its one-second reply window), and once the scan completes the
+  count it covered ("Scanned %d openQ4 Servers") on a full bar, which stays
+  until the next scan or a clear. A refresh says nothing until a server
+  answers, as retail's did. The fraction moves in whole percents, so a LAN
+  sweep republishes the list at most a hundred times. The notice can name a
+  server, so the page reads it as a player's text. Polish and Russian gained
+  the three scan strings their tables lacked.
 - **JOIN IP ADDRESS** opens section 6's entry dialog on the stock popup's
   pieces: the address field (99 bytes, as the stock field took), which Enter
   commits into `join.address` and connects with; CONNECT, while there is an
@@ -1297,9 +1319,11 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   address and the fallback; it also maps each stock browser button to the
   page or to `RETAINED_JOIN_GAME_MISSING`. The native screens check lays the
   page out at 1280x720 and drives its states, the two dialogs and the
-  search's tag, and `server_browser_contract.py` runs the scan's read view,
-  the per-server favorite toggle, the map-path check, the player search and
-  the loopback favorites against the production `ServerScan.cpp`.
+  search's tag and the progress bar, and `server_browser_contract.py` runs the
+  scan's read view, the per-server favorite toggle, the map-path check, the
+  player search, the scan's progress (a LAN sweep, a new Internet list, a
+  refresh, a clear, and what the stock browser receives) and the loopback
+  favorites against the production `ServerScan.cpp`.
 - **Captures.** `joingame` (opted in) goes deeper, gets a new Internet list in
   which the seeded favorite, a dedicated server the capture starts on the
   loopback (`SCENARIO_SERVERS`), answers (the master server cannot be reached
@@ -1308,9 +1332,12 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   symbol shown), takes it off the favorites and puts it back, steps MOD to
   the next mod and back, searches for a player nobody is (the list empties
   under the search's tag until its Accept), and joins it, the game module
-  reloading into game_mp. `joingameaddress` opens JOIN IP ADDRESS, enters an
-  address it cannot join (the reason shows), then the server's, which joins
-  it.
+  reloading into game_mp; the progress bar is full once the scan completes.
+  `joingameaddress` opens JOIN IP ADDRESS, enters an address it cannot join
+  (the reason shows), then the server's, which joins it. `stockbrowser` runs
+  the classic menu (`ui_retained 0`): its browser's GET NEW LIST fills the
+  stock load bar again and names the count (`openq4_browser report` prints
+  `loadNotice` and `loadPct`).
 
 ## Loading phase line
 
@@ -1847,6 +1874,9 @@ SHA-256 `fc9c671fb6fe43184528d0613b8bdbe4c44794efca2598295c47d0e5a8e538bc`.
 Join Game by default, with JOIN IP ADDRESS and FIND PLAYER/CLAN: `.tmp/ui/retained-joingame-default-evidence/validation-evidence.json`,
 SHA-256 `4d2c6a2f86f0f1c3fa141acba00768cdbe5783344740d6d0071d74163d51ba4c`.
 
+The server browsers' scan progress: `.tmp/ui/retained-joingame-progress-evidence/validation-evidence.json`,
+SHA-256 `86ad58e9f0cb2e487b06fa2e253b38711cb750ecee629ff6b72f3acb43b5cf7f`.
+
 ## Known limitations
 
 - The initializing screen's first frame loads, lays out and compiles its
@@ -1901,10 +1931,8 @@ SHA-256 `4d2c6a2f86f0f1c3fa141acba00768cdbe5783344740d6d0071d74163d51ba4c`.
   stock Settings page through the stock within-a-screen change instead of a
   sub-page. The retained Join Game has no detail column (the chosen server's
   players and rules) or prompt bar yet (Join, Spectate and Favorite), and the
-  controller's north and west do not yet sort and refresh it. Neither browser
-  shows the scan's progress bar and its notice: retail's scan published them
-  (`loadPct`, `loadNotice`), and openQ4's does not yet, so the stock bar
-  stays empty. Player Setup does not yet edit in place,
+  controller's north and west do not yet sort and refresh it. Player Setup
+  does not yet edit in place,
   Demos is not yet among its sections, and
   Campaign's Chapters is not yet a level of its own; New Campaign is
   Campaign's sibling. The Single Player page keeps the home navigation plates and the

@@ -32,7 +32,8 @@ console settings can also hide full or empty servers, passworded servers or
 game types. When a filter hides the selected server, Join Server is disabled
 until you select a visible server, and the list tells you when the filters
 hide every server. **Refresh List** updates the currently known addresses;
-**Get New List** runs discovery again.
+**Get New List** runs discovery again. The bar under the list fills as
+servers answer and names the step the scan is on.
 
 **Join IP Address** connects to an address you type, in any form the direct
 connections below accept, and shows your own IP address to pass on to

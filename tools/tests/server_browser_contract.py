@@ -153,6 +153,7 @@ struct idUserInterface {
     void SetStateString(const char *s,const char *v){state.Set(s,v);}
     void SetStateInt(const char *s,int v){state.SetInt(s,v);}
     void SetStateBool(const char *s,bool v){state.SetInt(s,v);}
+    void SetStateFloat(const char *s,float v){state.Set(s,std::to_string(v).c_str());}
     void DeleteStateVar(const char *s){state.Delete(s);}
     void StateChanged(int){}
 };
@@ -181,6 +182,10 @@ struct Language {
     const char *GetString(const char *token){
         if(!std::strcmp(token,"#str_42861"))return "Showing %d out of %d servers";
         if(!std::strcmp(token,"#str_107298"))return "Scanning - Found: %s";
+        if(!std::strcmp(token,"#str_107293"))return "Scanning for LAN servers...";
+        if(!std::strcmp(token,"#str_107294"))return "Scanned %d openQ4 Servers";
+        if(!std::strcmp(token,"#str_107297"))return "Scanning %d/%d: %s";
+        if(!std::strcmp(token,"#str_107736"))return "Getting list of servers...";
         return token;
     }
 } language;
@@ -354,6 +359,45 @@ int main(){
      const int same=search.GetRevision();search.SetPlayerSearch("nobody");assert(search.GetRevision()==same);
      search.SetPlayerSearch("");search.VisibleServers(order);assert(order.Num()==3);
      search.Shutdown();}
+    // The scan's progress, as the stock browser's load bar shows it (and the
+    // retained page reads it): a LAN sweep names its stage, then the server
+    // that answered, across its reply window; a completed scan its count on a
+    // full bar; a clear empties it. The stock GUI gets the same.
+    {idUserInterface bar;idServerScan lan;lan.GUIConfig(&bar,"serverList");lan.GUIInit();
+     assert(!*lan.GetLoadNotice()&&lan.GetLoadProgress()==0.0f);
+     clockValue=1000;lan.SetupLANScan();
+     assert(!std::strcmp(lan.GetLoadNotice(),"Scanning for LAN servers...")&&lan.GetLoadProgress()==0.0f);
+     assert(!std::strcmp(bar.State().GetString("loadNotice"),"Scanning for LAN servers...")&&!std::strcmp(bar.State().GetString("loadPct"),"0.000000"));
+     const int before=lan.GetRevision();
+     clockValue=1500;lan.RunFrame();
+     assert(lan.GetLoadProgress()==0.5f&&lan.GetRevision()>before&&!std::strcmp(bar.State().GetString("loadPct"),"0.500000"));
+     const int steady=lan.GetRevision();lan.RunFrame();assert(lan.GetRevision()==steady);   // nothing new, no news
+     auto a=server("10.3.0.1",5,"^2LAN Arena",1);a.challenge=lan.GetChallenge();assert(lan.InfoResponse(a)==0);
+     assert(!std::strcmp(lan.GetLoadNotice(),"Scanning - Found: LAN Arena"));
+     clockValue=2100;lan.RunFrame();
+     assert(lan.GetState()==idServerScan::IDLE&&!std::strcmp(lan.GetLoadNotice(),"Scanned 1 openQ4 Servers")&&lan.GetLoadProgress()==1.0f);
+     assert(!std::strcmp(bar.State().GetString("loadNotice"),"Scanned 1 openQ4 Servers")&&!std::strcmp(bar.State().GetString("loadPct"),"1.000000"));
+     lan.Clear();assert(!*lan.GetLoadNotice()&&lan.GetLoadProgress()==0.0f&&!*bar.State().GetString("loadNotice"));
+     lan.Shutdown();}
+    // A new Internet list: the master's request, then the server that answered
+    // with the count heard from or given up on out of those listed, then the
+    // count the scan covered. A refresh says nothing until a server answers.
+    {idUserInterface bar;idServerScan net;net.GUIConfig(&bar,"serverList");net.GUIInit();
+     clockValue=5000;net.Clear();net.NetScan();net.StartServers(true);net.RunFrame();
+     assert(net.GetState()==idServerScan::NET_SCAN&&!std::strcmp(net.GetLoadNotice(),"Getting list of servers...")&&net.GetLoadProgress()==0.0f);
+     net.AddServer(0,"10.4.0.1:28004");net.AddServer(1,"10.4.0.2:28004");net.RunFrame();
+     assert(!std::strcmp(net.GetLoadNotice(),"Getting list of servers..."));
+     auto b=server("10.4.0.1",5,"^1Answering",0);b.challenge=net.GetChallenge();assert(net.InfoResponse(b)==0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 1/2: Answering")&&net.GetLoadProgress()==0.5f);
+     clockValue=20000;net.RunFrame();
+     assert(net.GetState()==idServerScan::IDLE&&!std::strcmp(net.GetLoadNotice(),"Scanned 2 openQ4 Servers")&&net.GetLoadProgress()==1.0f);
+     net.NetScan();assert(net.GetState()==idServerScan::NET_SCAN&&!*net.GetLoadNotice()&&net.GetLoadProgress()==0.0f);
+     auto c=server("10.4.0.2",9,"Second",0);c.challenge=net.GetChallenge();assert(net.InfoResponse(c)>=0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 1/2: Second"));
+     // A server without a name is named by its address.
+     auto d=server("10.4.0.1",5,"",0);d.challenge=net.GetChallenge();assert(net.InfoResponse(d)>=0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 2/2: 10.4.0.1:28004")&&net.GetLoadProgress()==1.0f);
+     net.Shutdown();}
     // A server's map path is looked up only when it is a plain map path.
     assert(idServerScan::ValidMapPath("mp/q4dm1")&&!idServerScan::ValidMapPath("../secret")&&!idServerScan::ValidMapPath("/absolute"));
     // Execute the real packet callback: losing any required field must not
@@ -398,7 +442,7 @@ def main() -> None:
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
     print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, player search, read view, "
-          "malformed input)")
+          "scan progress, malformed input)")
 
 
 if __name__ == "__main__":

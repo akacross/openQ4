@@ -175,6 +175,8 @@ idServerScan::idServerScan( ) {
 	m_sortAscending = true;
 	challenge = 0;
 	revision = 0;
+	loadPct = 0.0f;
+	scanned = -1;
 	LocalClear();
 }
 
@@ -198,6 +200,9 @@ void idServerScan::LocalClear( ) {
 	}
 	incoming_useTimeout = false;
 	m_sortedServers.Clear();
+	lastResponder.Clear();
+	scanned = -1;
+	SetLoadProgress( "", 0.0f );
 }
 
 /*
@@ -290,6 +295,11 @@ int idServerScan::InfoResponse( networkServer_t &server ) {
 		server.serverInfo.Set( "si_mapName", mapName );
 	} else {
 		server.serverInfo.Set( "si_mapName", si_map );
+	}
+
+	lastResponder = ServerBrowserText( server.serverInfo.GetString( "si_name" ) );
+	if ( lastResponder.Length() == 0 ) {
+		lastResponder = serv;
 	}
 
 	int index = Append( server );
@@ -391,6 +401,8 @@ void idServerScan::NetScan( ) {
 		// start the scan one second from now...
 		scan_state = WAIT_ON_INIT;
 		endWaitTime = Sys_Milliseconds() + 1000;
+		lastResponder.Clear();
+		scanned = -1;
 		UpdateBrowserStatus();
 		return;
 	}
@@ -411,6 +423,8 @@ void idServerScan::NetScan( ) {
 		listGUI->SetSelection( -1 );
 	}
 	GUIUpdateSelected();
+	lastResponder.Clear();
+	scanned = -1;
 	UpdateBrowserStatus();
 	common->DPrintf( "NetScan with challenge %d\n", challenge );
 	
@@ -435,9 +449,11 @@ void idServerScan::RunFrame( ) {
 	
 	if ( scan_state == WAIT_ON_INIT ) {
 		if ( Sys_Milliseconds() >= endWaitTime ) {
-				scan_state = IDLE;
-				NetScan();
-			}
+			scan_state = IDLE;
+			NetScan();
+		} else {
+			UpdateLoadProgress();
+		}
 		return;
 	} 
 	
@@ -447,7 +463,10 @@ void idServerScan::RunFrame( ) {
 		if ( timeout_limit > lan_pingtime ) {
 			common->Printf( "Scanned for servers on the LAN\n" );
 			scan_state = IDLE;
+			scanned = Num();
 			EndServers();
+		} else {
+			UpdateLoadProgress();
 		}
 		return;
 	}
@@ -479,6 +498,7 @@ void idServerScan::RunFrame( ) {
 		// the list is complete, we are no longer waiting for any getInfo replies
 		common->Printf( "Scanned %d servers.\n", cur_info );
 		scan_state = IDLE;
+		scanned = cur_info;
 		EndServers();
 	}
 	UpdateBrowserStatus();
@@ -515,6 +535,10 @@ void idServerScan::GUIConfig( idUserInterface *pGUI, const char *name ) {
 		listGUI = uiManager->AllocListGUI();
 	}
 	listGUI->Config( pGUI, name );
+	if ( m_pGUI ) {
+		m_pGUI->SetStateString( "loadNotice", loadNotice.c_str() );
+		m_pGUI->SetStateFloat( "loadPct", loadPct );
+	}
 }
 
 /*
@@ -725,6 +749,7 @@ void idServerScan::UpdateFilterByMod( int direction ) {
 }
 
 void idServerScan::UpdateBrowserStatus() {
+	UpdateLoadProgress();
 	if ( !m_pGUI || !listGUI || !listGUI->IsConfigured() ) {
 		return;
 	}
@@ -749,6 +774,71 @@ void idServerScan::UpdateBrowserStatus() {
 	if ( status.Icmp( m_pGUI->State().GetString( "sortNotice" ) ) ) {
 		++revision;
 		m_pGUI->SetStateString( "sortNotice", status.c_str() );
+		m_pGUI->StateChanged( common->GetPresentationTime() );
+	}
+}
+
+/*
+================
+idServerScan::UpdateLoadProgress
+
+The scan's progress as retail's browser showed it under the list: a new
+list's request ("Getting list of servers...") or the LAN's sweep ("Scanning
+for LAN servers..."), then the server that answered last with the count of
+listed servers heard from or given up on ("Scanning %d/%d: %s"; on the LAN,
+"Scanning - Found: %s" across its reply window), and once the scan completes,
+how many it covered ("Scanned %d Quake 4 Servers") on a full bar. A refresh
+says nothing until a server answers, as retail's did.
+================
+*/
+void idServerScan::UpdateLoadProgress() {
+	if ( scan_state == LAN_SCAN ) {
+		const float elapsed = static_cast<float>( Sys_Milliseconds() - lan_pingtime ) / static_cast<float>( REPLY_TIMEOUT );
+		if ( lastResponder.Length() > 0 ) {
+			SetLoadProgress( va( common->GetLanguageDict()->GetString( "#str_107298" ), lastResponder.c_str() ), elapsed );
+		} else {
+			SetLoadProgress( common->GetLanguageDict()->GetString( "#str_107293" ), elapsed );
+		}
+		return;
+	}
+	if ( scan_state == NET_SCAN || scan_state == WAIT_ON_INIT ) {
+		const int listed = net_servers.Num();
+		const int covered = scan_state == NET_SCAN ? Max( 0, cur_info - net_info.GetNumKeyVals() ) : 0;
+		const float fraction = listed > 0 ? static_cast<float>( covered ) / static_cast<float>( listed ) : 0.0f;
+		if ( lastResponder.Length() > 0 ) {
+			SetLoadProgress( va( common->GetLanguageDict()->GetString( "#str_107297" ), covered, listed, lastResponder.c_str() ), fraction );
+		} else {
+			SetLoadProgress( incoming_net ? common->GetLanguageDict()->GetString( "#str_107736" ) : "", fraction );
+		}
+		return;
+	}
+	if ( scanned >= 0 ) {
+		SetLoadProgress( va( common->GetLanguageDict()->GetString( "#str_107294" ), scanned ), 1.0f );
+	} else {
+		SetLoadProgress( "", 0.0f );
+	}
+}
+
+/*
+================
+idServerScan::SetLoadProgress
+
+Publishes the progress to the stock browser and, through the revision, to a
+menu that draws its own list. The fraction moves in whole percents: a LAN
+sweep's changes every frame, and each change republishes that menu's list.
+================
+*/
+void idServerScan::SetLoadProgress( const char *notice, float pct ) {
+	pct = static_cast<float>( static_cast<int>( Max( 0.0f, Min( 1.0f, pct ) ) * 100.0f + 0.5f ) ) / 100.0f;
+	if ( pct == loadPct && !loadNotice.Cmp( notice ) ) {
+		return;
+	}
+	loadNotice = notice;
+	loadPct = pct;
+	++revision;
+	if ( m_pGUI ) {
+		m_pGUI->SetStateString( "loadNotice", loadNotice.c_str() );
+		m_pGUI->SetStateFloat( "loadPct", loadPct );
 		m_pGUI->StateChanged( common->GetPresentationTime() );
 	}
 }

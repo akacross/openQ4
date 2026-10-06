@@ -17,6 +17,8 @@
   "join.lan": {"type": "boolean", "initial": false},
   "join.scanning": {"type": "boolean", "initial": false},
   "join.status": {"type": "string", "initial": ""},
+  "join.progress": {"type": "number", "initial": 0},
+  "join.notice": {"type": "string", "initial": ""},
   "join.mod": {"type": "string", "initial": ""},
   "join.row0.fav": {"type": "boolean", "initial": false},
   "join.row0.lock": {"type": "boolean", "initial": false},
@@ -6586,6 +6588,18 @@
    "value": {"op": "select", "args": [{"op": ">", "args": [{"state": "join.listed"}, 0]}, "#str_231134", "#str_231133"]}
   },
   {"id": "join-status.text", "node": "join-status", "property": "text", "value": {"state": "join.status"}},
+  {
+   "id": "join-load-fill.width",
+   "node": "join-load-fill",
+   "property": "width",
+   "value": {"op": "*", "args": [{"op": "clamp", "args": [{"state": "join.progress"}, 0, 1]}, 889.5]}
+  },
+  {
+   "id": "join-load-notice.text",
+   "node": "join-load-notice",
+   "property": "text",
+   "value": {"state": "join.notice"}
+  },
   {
    "id": "join-search-name.text",
    "node": "join-search-name",
@@ -76946,6 +76960,114 @@
           "disabled": "join_clearsort.disabled"
          },
          "action": "joinClearSort"
+        }
+       },
+       {
+        "id": "join-load-track",
+        "type": "vector",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 31.5, "unit": "dp"},
+         "top": {"type": "length", "value": 469.5, "unit": "dp"},
+         "width": {"type": "length", "value": 889.5, "unit": "dp"},
+         "height": {"type": "length", "value": 21.0, "unit": "dp"}
+        },
+        "paths": [
+         {
+          "id": "track",
+          "commands": [
+           {"id": "p0", "op": "move", "points": [[0, 0]]},
+           {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+           {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+           {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+           {"id": "close", "op": "close"}
+          ],
+          "fill": {
+           "type": "linear",
+           "from": [0, 0],
+           "to": [0, {"fraction": 1}],
+           "stops": [
+            {"at": 0.0, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.3]}},
+            {"at": 0.15, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.255]}},
+            {"at": 0.31, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.18]}},
+            {"at": 0.46, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.12]}},
+            {"at": 0.62, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.093]}},
+            {"at": 0.77, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.117]}},
+            {"at": 0.85, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.144]}},
+            {"at": 1.0, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.21]}}
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "id": "join-load-fill",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 31.5, "unit": "dp"},
+         "top": {"type": "length", "value": 469.5, "unit": "dp"},
+         "width": {"type": "length", "value": 0, "unit": "dp"},
+         "height": {"type": "length", "value": 21.0, "unit": "dp"},
+         "overflow": {"type": "keyword", "value": "hidden"}
+        },
+        "children": [
+         {
+          "id": "join-load-fill-tube",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 889.5, "unit": "dp"},
+           "height": {"type": "length", "value": 21.0, "unit": "dp"}
+          },
+          "paths": [
+           {
+            "id": "fill",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[0, 0]]},
+             {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+             {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+             {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {
+             "type": "linear",
+             "from": [0, 0],
+             "to": [0, {"fraction": 1}],
+             "stops": [
+              {"at": 0.0, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.5]}},
+              {"at": 0.15, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.425]}},
+              {"at": 0.31, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.3]}},
+              {"at": 0.46, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.2]}},
+              {"at": 0.62, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.155]}},
+              {"at": 0.77, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.195]}},
+              {"at": 0.85, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.24]}},
+              {"at": 1.0, "color": {"type": "color", "value": [0.8784, 0.4235, 0.0, 0.35]}}
+             ]
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "join-load-notice",
+        "type": "text",
+        "properties": {
+         "text": {"type": "text", "value": "#str_230030"},
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 61.5, "unit": "dp"},
+         "top": {"type": "length", "value": 466.5, "unit": "dp"},
+         "width": {"type": "length", "value": 853.5, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "font-family": {"type": "font", "value": "lowpixel"},
+         "font-size": {"type": "length", "value": 15, "unit": "dp"},
+         "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "color": {"type": "color", "value": [1, 1, 1, 0.8]},
+         "white-space": {"type": "keyword", "value": "nowrap"},
+         "overflow": {"type": "keyword", "value": "hidden"}
         }
        },
        {

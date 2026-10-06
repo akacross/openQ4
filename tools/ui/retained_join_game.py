@@ -13,7 +13,7 @@ its spinner at 27,46 u and SOURCE with its INTERNET and LAN tags at 324,46 u;
 the server list at 23,83 u under its column headings on the stock 18 u rows,
 the sort's column marked (a heading sorts by its column, and again the other
 way); the scan's status at 41,291 u, a player search's tag after it, and
-CLEAR SORTING; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
+CLEAR SORTING; the scan's progress bar and its notice at 21,312 u; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
 PLAYER/CLAN from 19,330 u; the chosen server's levelshot at 240,337 u; JOIN
 SERVER at 385,330 u and the favorite toggle under it; BACK in the bottom
 band. JOIN IP ADDRESS and FIND PLAYER/CLAN open their dialogs (section 6's
@@ -34,8 +34,9 @@ from __future__ import annotations
 
 import math
 
-from build_retained_screens import (FULL, OLIVE, ORANGE, U, VALUE, Document, absolute, action_plate, confirmation, group, keyword, label,
-                                    length, number, objectives_scrollbar, path, rgb, solid, stroke, text_width, typeface, vector)
+from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, Document, absolute, action_plate, confirmation, group,
+                                    keyword, label, length, linear, number, objectives_scrollbar, path, rgb, solid, stroke, text_width,
+                                    typeface, vector)
 from retained_create_server import BACK, header_band, text_row
 from retained_difficulty import check_fits, primary_plate
 from retained_saves import ERROR, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
@@ -86,6 +87,14 @@ TAG_KEYS = (("internet", "#str_200033", "joinSourceInternet", False), ("lan", "#
 TAG_GAP = 6.0
 STATUS = (41.0, 291.0, 175.0)              # u: mp_browse_t_sortnotice; every language's status fits 175 u
 SEARCH_TAG_LEFT = 222.0                    # u: a player search's tag, after the status
+# The scan's progress under the list: the stock load_bar3 tube, its track at
+# 0.30 and its fill at 0.50 in marine.progress, with the notice over it.
+LOAD_BAR = (21.0, 312.0, 593.0, 16.0)      # u: mp_browse_loadbarbg and mp_browse_p_loadbar
+LOAD_NOTICE = (41.0, 311.0, 569.0)         # u: mp_browse_t_loadnotice (textscale 0.22, white 0.80)
+# load_bar3's alpha down the tube, sampled from its 14 inner texel rows (the
+# first and last are clear): a bright top edge, dim under the notice, a
+# lighter foot.
+LOAD_PROFILE = ((0.0, 1.0), (0.15, 0.85), (0.31, 0.6), (0.46, 0.4), (0.62, 0.31), (0.77, 0.39), (0.85, 0.48), (1.0, 0.7))
 # CLEAR SORTING ends where the stock plate does (615 u) and is as wide as its
 # longest translation needs, at least the stock 181 u; the status line runs
 # to 6 u before it.
@@ -411,6 +420,30 @@ def search_tag(doc: Document) -> dict:
     return tag_group
 
 
+def load_progress(doc: Document) -> list:
+    """The scan's progress under the list (the stock browser's load bar): the
+    track across the list's width, the fill to the scan's fraction
+    (join.progress) and its notice over them (join.notice)."""
+    left, top, width, height = LOAD_BAR
+    bar_w, tube_h = U * width, U * (height - 2)
+
+    def tube(ident: str, alpha: float) -> dict:
+        stops = [(at, rgb(PROGRESS, round(alpha * level, 3))) for at, level in LOAD_PROFILE]
+        return path(ident, [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})],
+                    fill=linear((0, 0), (0, {"fraction": 1}), stops))
+
+    track = vector("join-load-track", absolute(left=U * left, top=U * (top + 1), width=bar_w, height=tube_h), [tube("track", 0.30)])
+    fill = group("join-load-fill", {**absolute(left=U * left, top=U * (top + 1), width=0, height=tube_h), "overflow": keyword("hidden")}, [
+        vector("join-load-fill-tube", absolute(left=0, top=0, width=bar_w, height=tube_h), [tube("fill", 0.50)])])
+    doc.bind("join-load-fill.width", "join-load-fill", "width",
+             {"op": "*", "args": [{"op": "clamp", "args": [{"state": "join.progress"}, 0, 1]}, round(bar_w, 4)]})
+    notice = label("join-load-notice", PLACEHOLDER, {**absolute(left=U * LOAD_NOTICE[0], top=U * LOAD_NOTICE[1], width=U * LOAD_NOTICE[2],
+                                                                height=U * 16), **typeface("lowpixel", 15, U * 16, [1, 1, 1, 0.8]),
+                                                     "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+    doc.bind("join-load-notice.text", "join-load-notice", "text", {"state": "join.notice"})
+    return [track, fill, notice]
+
+
 def favorite_width() -> float:
     """The favorite toggle's plate width (u): its longer label and the plate's
     30 dp, at least JOIN SERVER's width."""
@@ -468,6 +501,8 @@ def join_game_document() -> dict:
         "join.lan": {"type": "boolean", "initial": False},
         "join.scanning": {"type": "boolean", "initial": False},
         "join.status": {"type": "string", "initial": ""},
+        "join.progress": {"type": "number", "initial": 0},
+        "join.notice": {"type": "string", "initial": ""},
     })
     heading_tint = {**typeface("marine", TAG_TEXT, U * 16, [1, 1, 1, 0.5]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
     tags = source_tags()
@@ -508,6 +543,7 @@ def join_game_document() -> dict:
     doc.bind("join-status.text", "join-status", "text", {"state": "join.status"})
     parts += [empty, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
                                           action="joinClearSort", width=U * clear_w)]
+    parts += load_progress(doc)
     action_w = list_action_width()
     for ident, key, y, verb, event in LIST_ACTIONS:
         if verb is not None:

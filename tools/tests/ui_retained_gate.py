@@ -448,6 +448,10 @@ struct idServerScan {
     std::string search;
     void SetPlayerSearch(const char* text) { calls.push_back(std::string("SetPlayerSearch ") + text); search = text; ++revision; }
     const char* GetPlayerSearch() const { return search.c_str(); }
+    // The scan's progress, as the stock browser's load bar shows it.
+    std::string notice; float progress = 0;
+    const char* GetLoadNotice() const { return notice.c_str(); }
+    float GetLoadProgress() const { return progress; }
 };
 struct AsyncClient { idServerScan serverList; };
 struct idAsyncNetwork {
@@ -1347,7 +1351,8 @@ int main() {
         s.HandleRetainedSessionRequest(page, "multiplayerCreate"); CHECK(s.retainedSubpageKind == RETAINED_SUBPAGE_JOIN_GAME);  // nothing else meanwhile
         commonObject.time += 350; s.UpdateRetainedSubpage();
         CHECK(s.guiActive == join && s.retainedSubpageFrom == nullptr && (scan.calls == std::vector<std::string>{"GUIInit"}) &&
-              join->state["join.clientip"] == "192.0.2.7" && join->state["join.search"] == "");
+              join->state["join.clientip"] == "192.0.2.7" && join->state["join.search"] == "" &&
+              join->state["join.progress"] == std::to_string(0.0f) && join->state["join.notice"] == "");
         CHECK(join->state["join.count"] == "3" && join->state["join.listed"] == "3" && join->state["join.first"] == "0" &&
               join->state["join.selected"] == "-1" && join->state["join.sort"] == "0" && join->state["join.ascending"] == "1" && join->state["join.lan"] == "0" &&
               join->state["join.scanning"] == "0" && join->state["join.status"] == "Showing 3 out of 3 servers");
@@ -1387,6 +1392,13 @@ int main() {
         // MOD's spinner shows the next and the previous mod.
         s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
         s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
+        // The scan's progress and its notice, which can name a server: read as
+        // players' text, its colors dropped and its length capped.
+        scan.notice = "Scanning 2/5: ^1Red Arena"; scan.progress = 0.4f; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.progress"] == std::to_string(0.4f) && join->state["join.notice"] == "Scanning 2/5: Red Arena");
+        scan.notice = std::string(300, 'n'); scan.progress = 1.0f; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.notice"] == std::string(160, 'n') && join->state["join.progress"] == std::to_string(1.0f));
+        scan.notice.clear(); scan.progress = 0; ++scan.revision; s.UpdateRetainedJoinGame();
         // JOIN IP ADDRESS: nothing entered, nothing to join; an address it
         // cannot join keeps the dialog with the reason; one it can connects and
         // closes the dialog.
@@ -3608,6 +3620,11 @@ def check_join_game(menu: str) -> None:
     assert 'guiMainMenu->SetStateString( "net_ip", Session_LocalAddressText().c_str() );' in main_menu
     assert 'idAsyncNetwork::client.serverList.SetPlayerSearch( guiActive->State().GetString( "playerclan_search" ) );' in main_menu
     assert scans.index('servers.SetPlayerSearch( "" );') < scans.index('servers.GUIInit();')
+    # The scan's progress reaches the page; a server's name in the notice is
+    # read as a player's text.
+    publish = function_body(text, 'void idSessionLocal::PublishRetainedJoinGame(')
+    assert 'gui->SetStateFloat( "join.progress", servers.GetLoadProgress() );' in publish
+    assert 'gui->SetStateString( "join.notice", Session_RetainedPlayerText( servers.GetLoadNotice(), 160, 1 ).c_str() );' in publish
 
 
 def check_retained_multiplayer(menu: str, session: str) -> None:

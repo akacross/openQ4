@@ -156,6 +156,14 @@ public:
 	// Whether a server's si_map is a map path the browser may look up (no
 	// parent references, no absolute paths, plain path characters).
 	static bool			ValidMapPath( const char *path );
+	// The scan's progress, as retail's browser showed it under the list
+	// (gui::loadNotice over gui::loadPct's bar, which this publishes too): the
+	// notice names the scan's stage or the server that answered last, and the
+	// fraction is of the listed servers the scan has heard from or given up on
+	// (a LAN scan's, of its reply window). A completed scan keeps its count
+	// and a full bar until the next scan or a clear.
+	const char *		GetLoadNotice() const { return loadNotice.c_str(); }
+	float				GetLoadProgress() const { return loadPct; }
 
 private:
 	static const int	MAX_PINGREQUESTS 	= 32;		// how many servers to query at once
@@ -197,6 +205,11 @@ private:
 	int					endWaitTime;		// when to stop waiting on a port init
 	int					revision;			// see GetRevision
 
+	idStr				loadNotice;			// see GetLoadNotice
+	float				loadPct;
+	idStr				lastResponder;		// the server that answered this scan last, as the notice names it
+	int					scanned;			// servers the last completed scan covered; -1 until one completes
+
 private:
 	void				LocalClear( );		// we need to clear some internal data as well
 
@@ -204,6 +217,8 @@ private:
 	void				GUIAdd( int id, const networkServer_t server );
 	bool				IsFiltered( const networkServer_t server );
 	void				UpdateBrowserStatus();
+	void				UpdateLoadProgress();
+	void				SetLoadProgress( const char *notice, float pct );
 	void				LoadFavorites();
 	bool				IsFavorite( const netadr_t &address ) const;
 
