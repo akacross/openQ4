@@ -887,6 +887,10 @@
   their version, author, release date and folder; LOAD MOD switches to the
   selected one.
 
+- Dying in single player now brings up a rebuilt restart screen: RESTART,
+  LOAD GAME, MAIN MENU and EXIT GAME, each explaining itself as you point
+  at it.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -614,6 +614,7 @@ public:
 	idUserInterface *	guiDemoMenu;
 	idListGUI *			guiDemoList;
 	idUserInterface *	guiRestartMenu;
+	idUserInterface *	guiRetainedRestartMenu;	// the retained restart screen (NULL until it loads)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;
@@ -768,6 +769,8 @@ public:
 	// The title's MODS dialog: the mods it lists (modsList) and the selected one.
 	void				PublishRetainedMods( idUserInterface *gui );
 	void				SelectRetainedMod( idUserInterface *gui, int row );
+	// After the player dies: the retained restart screen, else the stock one.
+	void				OpenRestartMenu();
 	int					retainedModSelected;
 	void				UpdateModsMenuGuiVars( void );
 	void				SetMainMenuSkin( void );

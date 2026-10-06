@@ -425,6 +425,21 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
         'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
+    # The restart screen (FLOW-005): the player dies in the level, and when the
+    # respawn wait runs out the level unloads and the screen presents with
+    # RESTART focused. Each plate explains itself in the line under the
+    # dialog; EXIT GAME asks and NO closes the question; RESTART reloads the
+    # level from its autosave.
+    'death': ('game/airdefense1', [
+        'waitMsec 1500', 'kill', 'waitMsec 15000', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/death.tga"',
+        'openq4_retainedGui focus death_load', 'waitMsec 300', 'screenshot "screenshots/death-load.tga"',
+        'openq4_retainedGui focus death_exit', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/death-exit.tga"',
+        'openq4_retainedGui focus exitModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 500', 'openq4_retainedGui focus death_restart', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 12000', 'ui_retainedStatus', 'screenshot "screenshots/death-restarted.tga"',
+    ]),
     # MODS on the title (section 6): the list dialog opens over the title with
     # the installed mods, the current game's selected and focused, and the
     # wordmark dimmed; LOAD MOD takes the focus, and CANCEL closes the dialog.

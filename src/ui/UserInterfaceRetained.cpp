@@ -77,7 +77,7 @@ bool SessionMenuCommand(const std::string& command) {
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
         "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
         "newgameStart","newgameBack","demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",
-        "demosNewer","demosOlder","modsSelect","modsLoad",
+        "demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};

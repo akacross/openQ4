@@ -3826,6 +3826,7 @@ void idSessionLocal::Clear() {
 	guiRetainedRestart = NULL;
 	guiRetainedDemos = NULL;
 	retainedModSelected = -1;
+	guiRetainedRestartMenu = NULL;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;
@@ -8911,7 +8912,7 @@ void idSessionLocal::RunGameTic() {
 		} else if ( !idStr::Icmp( args.Argv(0), "died" ) ) {
 			// restart on the same map
 			UnloadMap();
-			SetGUI(guiRestartMenu, NULL);
+			OpenRestartMenu();
 		} else if ( !idStr::Icmp( args.Argv(0), "disconnect" ) ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_INSERT, "stoprecording ; disconnect" );
 		} else if ( !idStr::Icmp( args.Argv(0), "endOfDemo" ) ) {

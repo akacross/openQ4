@@ -47,7 +47,8 @@ PRIMARY_TEXT = 23.7                            # dp: Marine textscale 0.33
 
 
 def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, width: float, height: float, *,
-                  action: str | None = None, event: str | None = None) -> dict:
+                  action: str | None = None, event: str | None = None, label_box: tuple = None, text: float = None,
+                  marker: tuple = (11.0, 10.0, 18.0), extra_states: dict | None = None, extra_children: tuple = ()) -> dict:
     """The enlarged primary plate (b6_light, Appendix B.1) that carries START
     GAME on the stock page: its band rows 4-27 of 32, a 45-degree lower-leading
     cut from row 14, the olive rail along the leading edge, the cut and the
@@ -55,7 +56,13 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
     95 %, drawn at 0.40. Its 18 u corner marker stands 11,10 u in and the Marine
     label (textscale 0.33, 23.7 dp) 28,6 u in. The pointer or focus lights the
     plate to full strength and turns the marker and label orange, as the stock
-    plate lit; focus adds the orange inset of the home plates."""
+    plate lit; focus adds the orange inset of the home plates. `label_box`,
+    `text` and `marker` (its left, top and size in u) suit a smaller plate;
+    `extra_states` adds (node, property, value) tracks to each feedback state,
+    which may target only the plate's own subtree, where `extra_children`
+    places further nodes."""
+    label_box = label_box or PRIMARY_LABEL
+    text = text or PRIMARY_TEXT
     w, h = U * width, U * height
     band_top, band_bottom, cut = round(h * 4 / 32, 4), round(h * 27 / 32, 4), round(h * 13 / 32, 4)
     fill = [(0, rgb(OLIVE, 0.49)), (0.31, rgb(OLIVE, 0.49)), (0.5, rgb(OLIVE, 0.37)), (0.75, rgb(OLIVE, 0.17)),
@@ -71,14 +78,15 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
     focus = vector(f"{ident}-focus", {**whole, "opacity": number(0)}, [
         path("inset", [(cut + 2, band_bottom - 3.2), (round(w * 0.6, 4), band_bottom - 3.2)], closed=False,
              stroke=stroke(solid(rgb(ORANGE)), 1.2))])
-    # The stock corner is the 11 u one at 18 u: the marker scales with it.
-    scale = 18 / 11
-    mark = (round(U * (11 + 1.75 * scale), 4), round(U * (10 + 2.75 * scale), 4), round(U * 5.5 * scale, 4))
+    # The stock corner art is 11 u, drawn here at the marker's size.
+    mark_left, mark_top, mark_size = marker
+    scale = mark_size / 11
+    mark = (round(U * (mark_left + 1.75 * scale), 4), round(U * (mark_top + 2.75 * scale), 4), round(U * 5.5 * scale, 4))
     marker_rest = vector(f"{ident}-marker", {**whole, "opacity": number(0.4)}, [marker_path("mark", *mark, rgb(MARKER))])
     marker_hot = vector(f"{ident}-marker-hot", {**whole, "opacity": number(0)}, [marker_path("mark", *mark, rgb(ORANGE))])
-    x, y, label_w, label_h = PRIMARY_LABEL
+    x, y, label_w, label_h = label_box
     text_node = label(f"{ident}-label", key, {**absolute(left=U * x, top=U * y, width=U * label_w, height=U * label_h),
-                      **typeface("marine", PRIMARY_TEXT, U * label_h, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"),
+                      **typeface("marine", text, U * label_h, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"),
                       "transform": transform()})
     lit, rest = number(1), number(0)
 
@@ -86,20 +94,23 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
         return [(f"{ident}-plate", "opacity", number(plate_alpha)), (f"{ident}-marker", "opacity", number(marker)),
                 (f"{ident}-marker-hot", "opacity", number(hot)), (f"{ident}-focus", "opacity", number(inset)),
                 (f"{ident}-label", "color", colour(tint)), (f"{ident}-label", "transform", moved)]
-    ids = doc.states(ident, {
+    states = {
         "default": state(0.4, 0.4, 0, 0, [1, 1, 1, 0.8], transform()),
         "hover": state(1, 0, 1, 0, rgb(ORANGE), transform(sx=1.03, sy=1.03)),
         "focus": state(1, 0, 1, 1, rgb(ORANGE), transform(sx=1.03, sy=1.03)),
         "pressed": state(1, 0, 1, 1, rgb(ORANGE), transform(tx=1, ty=1, sx=1.03, sy=1.03)),
         "disabled": state(0.4, 0.4, 0, 0, [1, 1, 1, 0.3], transform()),
-    })
+    }
+    for name, tracks in (extra_states or {}).items():
+        states[name] = states[name] + list(tracks)
+    ids = doc.states(ident, states)
     control = {"role": "button", "label": key, "states": ids}
     if action:
         control["action"] = action
     else:
         control["event"] = event
     return group(ident, absolute(left=U * left, top=U * top, width=w, height=h),
-                 [plate, focus, marker_rest, marker_hot, text_node], control=control)
+                 [plate, focus, marker_rest, marker_hot, text_node, *extra_children], control=control)
 
 
 def difficulty_plates(doc: Document, key: str) -> list:

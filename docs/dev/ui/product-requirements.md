@@ -569,7 +569,9 @@ On engine `5e8a70555e43c9f86d984956a457a901db495f4d` DEMOS on the title opens a 
 
 On engine `c118aba6c2453b6f5123c6101d3a47130b432687` MODS on the title opens a retained list dialog, the modal construction grown to 280 u, with the installed mods, their details, LOAD MOD and CANCEL. `WID-013` becomes partial. Evidence: `.tmp/ui/retained-mods-evidence/validation-evidence.json`, SHA-256 `6be45e12dadc8a14882242127fc431e54e54504b23ceb43a71a91b6cb329339d`.
 
-There are **105 partial, 234 pending and one verified requirement**, counting the
+On engine `580cd561215b223d6653e22a1e7aae9a2db1280e` the restart screen after a death presents retained: RESTART, LOAD GAME, MAIN MENU and EXIT GAME over the stock popup art, each explaining itself. `FLOW-005` becomes partial. Evidence: `.tmp/ui/retained-restartmenu-evidence/validation-evidence.json`, SHA-256 `c0efdf55a7abe4f8ac14bd3239fd2fdbae555b9cded737973c565211f2eb8fdf`.
+
+There are **106 partial, 233 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

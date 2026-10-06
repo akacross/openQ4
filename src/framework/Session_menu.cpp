@@ -4995,6 +4995,9 @@ static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
 // tools/ui/retained_demos.py); demos.filter picks one of the legacy
 // browser's filters, 0 showing them all.
 static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
+// The restart screen single player shows after the player dies (the stock
+// guis/restart.gui).
+static const char *const RETAINED_RESTARTMENU_GUI = "guis/menu/restartmenu.q4ui";
 static const int RETAINED_DEMO_ROWS = 64;
 // The title's MODS dialog lists this many mods (MOD_ROWS in
 // tools/ui/build_retained_screens.py).
@@ -5643,6 +5646,15 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+    if ( gui && request && gui == guiActive && gui == guiRetainedRestartMenu ) {
+        // The restart screen's plates run the stock screen's own commands.
+        HandleMainMenuCommands( "play main_menu_selection" );
+        if ( !idStr::Icmp( request, "deathRestart" ) ) HandleRestartMenuCommands( "restart" );
+        else if ( !idStr::Icmp( request, "deathLoad" ) ) HandleRestartMenuCommands( "disconnect mainmenu fromRestart_toLoad" );
+        else if ( !idStr::Icmp( request, "deathMenu" ) ) HandleRestartMenuCommands( "disconnect mainmenu" );
+        else if ( !idStr::Icmp( request, "quit" ) ) common->Quit();
+        return;
+    }
     if ( gui && request && gui == guiActive && !idStr::Icmp( gui->Name(), RETAINED_NEWCAMPAIGN_GUI ) ) {
         // New Campaign: START GAME, or Back to Campaign. A change in
         // progress takes no further request.
@@ -6249,6 +6261,28 @@ void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const c
 #endif
 }
 
+// After the player dies the level unloads and the restart screen offers its
+// choices: the retained one where it can present, else the stock one.
+void idSessionLocal::OpenRestartMenu() {
+#ifndef ID_DEDICATED
+	// Loaded with the pause, or now when the gate came on after the level
+	// loaded. A view that stopped drawing hands the screen back for good.
+	if ( guiRetainedRestartMenu != NULL && UI_RetainedViewFailed( guiRetainedRestartMenu ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_RESTARTMENU_GUI );
+		retainedStock.AddUnique( RETAINED_RESTARTMENU_GUI );
+		guiRetainedRestartMenu = NULL;
+	}
+	if ( Session_RetainedScreensEnabled() && guiRetainedRestartMenu == NULL ) {
+		guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
+	}
+	if ( Session_RetainedScreensEnabled() && guiRetainedRestartMenu != NULL ) {
+		SetGUI( guiRetainedRestartMenu, NULL );
+		return;
+	}
+#endif
+	SetGUI( guiRestartMenu, NULL );
+}
+
 /*
 ===============
 idSessionLocal::PublishRetainedMods
@@ -6563,6 +6597,10 @@ void idSessionLocal::PreloadRetainedScreens() {
 	}
 	if ( guiRetainedRestart == NULL && guiRetainedPause != NULL ) {
 		guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
+	}
+	// The restart screen, which only a level reaches.
+	if ( guiRetainedRestartMenu == NULL && guiRetainedPause != NULL ) {
+		guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
 	}
 	// The Demos page, which only the title reaches.
 	if ( guiRetainedDemos == NULL && guiRetainedTitle != NULL ) {

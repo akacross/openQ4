@@ -45,6 +45,7 @@ OUTPUTS = {
     "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
     "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
     "restartlevel": PAK0 / "guis" / "menu" / "restartlevel.q4ui",
+    "restartmenu": PAK0 / "guis" / "menu" / "restartmenu.q4ui",
     "demos": PAK0 / "guis" / "menu" / "demos.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
@@ -566,6 +567,24 @@ SOFT_FOCUS_SATURATION = 0.8
 CLOSE_W = 210.0  # a notice's lone action is wider than YES and NO, so every language's CLOSE fits
 
 
+def modal_silhouette(width: float, height: float):
+    """The stock popup art's silhouette in a `width` x `height` dp dialog:
+    popup_top, popup_mid and popup_btm stretch 512 texels across the rect, the
+    art starting at texel 7 and ending after 504 (6.5625 dp in from each side
+    at 480 dp); the raised sections start 4 of popup_top's 32 rows down
+    (3.5625 dp) and the bottom edge leaves 6 of popup_btm's 64 rows (5.34 dp).
+    The tooth's top ends at texel 14 and the slot opens to texel 388, about 73%
+    of the width; black at 0.70 with a 17 dp slot and a 38 dp chamfer."""
+    inset, raised, bottom = width * 7 / 512, 3.5625, height - 5.34375
+    slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
+    slot_depth, chamfer = 17.0, 38.0
+    right = width - inset
+    return path("frame", [(inset, raised), (slot_lead, raised), (slot_lead + slot_depth, raised + slot_depth),
+                          (slot_trail - slot_depth, raised + slot_depth), (slot_trail, raised), (right, raised),
+                          (right, bottom), (inset + chamfer, bottom), (inset, bottom - chamfer)],
+                fill=solid([0, 0, 0, 0.7]))
+
+
 def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_action: str | None,
                  frame_leave_ms: float = 250, dim: tuple = (), *, yes_event: str | None = None,
                  no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
@@ -618,19 +637,12 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     width, height = 480.0, U * height_u     # 320x136 u, or grown
     left = (CANVAS_W - width) / 2
     top = U * top_u                         # 155 u: 17 u above centre
-    # popup_top/mid/btm stretch 512 texels across the rect: the art starts at
-    # texel 7 and ends after 504 (6.5625 dp in from each side), its raised
-    # sections start 4 of popup_top's 32 rows down (3.5625 dp) and its bottom
-    # edge leaves 6 of popup_btm's 64 rows (5.34 dp). The tooth's top ends at
-    # texel 14 and the slot opens to texel 388, about 73% of the width.
-    inset, raised, bottom = width * 7 / 512, 3.5625, height - 5.34375
+    # The silhouette (modal_silhouette) and the title's place in its slot.
+    inset = width * 7 / 512
     slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
-    slot_depth, chamfer = 17.0, 38.0
+    slot_depth = 17.0
     right = width - inset
-    silhouette = path("frame", [(inset, raised), (slot_lead, raised), (slot_lead + slot_depth, raised + slot_depth),
-                                (slot_trail - slot_depth, raised + slot_depth), (slot_trail, raised), (right, raised),
-                                (right, bottom), (inset + chamfer, bottom), (inset, bottom - chamfer)],
-                      fill=solid([0, 0, 0, 0.7]))
+    silhouette = modal_silhouette(width, height)
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
     glow_top, glow_bottom = -U * 87, height + U * 108
     glow = vector(f"{ident}-glow", {**absolute(left=0, top=glow_top, width=width, height=glow_bottom - glow_top), "opacity": number(0),
@@ -2998,6 +3010,7 @@ def main() -> int:
     from retained_saves import load_game_document, save_game_document
     from retained_difficulty import new_campaign_document, restart_level_document
     from retained_demos import demos_document
+    from retained_death import restart_menu_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
@@ -3006,6 +3019,7 @@ def main() -> int:
                  "newcampaign": new_campaign_document(),
                  "loadgame": load_game_document(), "savegame": save_game_document(), "restartlevel": restart_level_document(),
                  "demos": demos_document(),
+                 "restartmenu": restart_menu_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():

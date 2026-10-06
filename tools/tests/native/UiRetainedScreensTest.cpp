@@ -151,7 +151,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
-	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad",
+	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2175,8 +2175,63 @@ static void CheckModsDialog(ScreenHost& host, const char* path) {
 	Check(runtime.RunEvent("modsLoadConfirmed",4.5,effects,error) && effects.actions.empty(),"nothing loads without a selection");
 }
 
+// The restart screen after the player dies (FLOW-005): the wordmark over the
+// popup art, four enlarged primary plates, the line that explains the plate
+// under the pointer or focus, and the exit confirmation.
+static void CheckRestartMenu(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.restartmenu" && document.Model().canvasHeight == 720,"the restart screen validates");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> verbs[] = {{"restart","deathRestart"},{"load","deathLoad"},{"menu","deathMenu"},{"quit","quit"}};
+	for (const auto& [action, command] : verbs) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
+			"each plate asks the session for the stock screen's command");
+	}
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/restartmenu.q4ui",diagnostics),"the screen loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto number = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? static_cast<float>(value->data[0]) : -1.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a screen node is laid out"); return b; };
+	runtime.Frame(viewport,1);
+	const float x0 = 160, u = 1.5f;
+	const auto dialog = bounds("death-dialog"), logo = bounds("wordmark");
+	Check(Near(dialog.x,x0+140*u) && Near(dialog.y,129*u) && Near(dialog.width,360*u) && Near(dialog.height,212*u),
+		"the popup art stands 360 u wide at 140,129 u");
+	Check(Near(logo.x,x0+145*u) && Near(logo.y,91*u) && Near(logo.width,258*u) && Near(logo.height,63*u),"QUAKE 4 stands in q4text's box");
+	const char* plates[] = {"death_restart","death_load","death_menu","death_exit"};
+	for (int index = 0; index < 4; ++index) {
+		const auto plate = bounds(plates[index]);
+		Check(Near(plate.x,x0+159*u) && Near(plate.y,(162+40*index)*u) && Near(plate.width,324*u) && Near(plate.height,38*u),
+			"the plates stand 324x38 u on a 40 u pitch from 159,162 u");
+		const auto tip = bounds(std::string(plates[index])+"-tip");
+		Check(Near(tip.x,x0+16) && Near(tip.y,362*u) && Near(tip.width,960-32),"each plate's line spans the canvas at 362 u");
+	}
+	Check(runtime.RunEvent("onActivate",2,effects,error),"the screen arrives");
+	runtime.Frame(viewport,2.2);
+	Check(runtime.FocusedControl() == "death_restart" && Near(number("death_restart-tip","opacity"),1,.01f) &&
+		Near(number("death_load-tip","opacity"),0,.01f),"RESTART has focus and explains itself");
+	runtime.MenuAction(MenuInput::Down,true,2.3); runtime.MenuAction(MenuInput::Down,false,2.31);
+	runtime.Frame(viewport,2.8);
+	Check(runtime.FocusedControl() == "death_load" && Near(number("death_load-tip","opacity"),1,.01f) &&
+		Near(number("death_restart-tip","opacity"),0,.01f),"Down moves to LOAD GAME, whose line replaces RESTART's");
+	Check(text("death_load-tip","text") == "#str_200914" && text("death_exit-tip","text") == "#str_200323","each plate has its stock line");
+	// EXIT GAME asks with the stock confirmation.
+	Check(runtime.RunEvent("exitModalShow",3,effects,error) && effects.actions.empty(),"EXIT GAME asks first");
+	runtime.Frame(viewport,3.3);
+	Check(text("exitModal","display") == "block" && runtime.FocusedControl() == "exitModal_no","the confirmation opens on NO");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 18,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui");
+	Check(argc == 19,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3275,6 +3330,7 @@ int main(int argc, char** argv) {
 	CheckNewCampaign(host,argv[6],argv[16]);
 	CheckDemosPage(host,argv[17]);
 	CheckModsDialog(host,argv[1]);
+	CheckRestartMenu(host,argv[18]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;
