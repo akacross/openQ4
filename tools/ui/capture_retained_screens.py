@@ -425,6 +425,17 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
         'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
+    # MODS on the title (section 6): the list dialog opens over the title with
+    # the installed mods, the current game's selected and focused, and the
+    # wordmark dimmed; LOAD MOD takes the focus, and CANCEL closes the dialog.
+    'mods': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_mods', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 100', 'screenshot "screenshots/mods-opening.tga"', 'waitMsec 500',
+        'openq4_retainedGui report', 'screenshot "screenshots/mods.tga"',
+        'openq4_retainedGui focus modsModal_yes', 'waitMsec 300', 'screenshot "screenshots/mods-load.tga"',
+        'openq4_retainedGui focus modsModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/mods-closed.tga"',
+    ]),
     # The Demos page (FLOW-013): two render demos recorded in the level, then
     # the title's DEMOS hands off and the page presents at 550 ms with the
     # newest selected. A filter that hides both shows the filtered empty

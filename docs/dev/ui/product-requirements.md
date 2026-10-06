@@ -567,7 +567,9 @@ On engine `2302f048d4003c4f342f414b5c1c063e7091d10c` accepting a campaign on the
 
 On engine `5e8a70555e43c9f86d984956a457a901db495f4d` DEMOS on the title opens a retained Demos page: the demo library under filter tags, the selected demo's picture and details, and PLAY, DELETE and REFRESH. `FLOW-013` becomes partial; `WID-009` gains evidence. Evidence: `.tmp/ui/retained-demos-evidence/validation-evidence.json`, SHA-256 `6af050d9337ba49f1906fc18bfc799af9adde4b8c2aa4b70dee997d98747ae9f`.
 
-There are **104 partial, 235 pending and one verified requirement**, counting the
+On engine `c118aba6c2453b6f5123c6101d3a47130b432687` MODS on the title opens a retained list dialog, the modal construction grown to 280 u, with the installed mods, their details, LOAD MOD and CANCEL. `WID-013` becomes partial. Evidence: `.tmp/ui/retained-mods-evidence/validation-evidence.json`, SHA-256 `6be45e12dadc8a14882242127fc431e54e54504b23ceb43a71a91b6cb329339d`.
+
+There are **105 partial, 234 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

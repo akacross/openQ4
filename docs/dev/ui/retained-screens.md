@@ -347,6 +347,19 @@ after editing the script; `--check` fails when an output is stale.
     other level cannot present, its stock selector opens at once, as before.
   - **A campaign.** Accepting QUAKE 4 or THE AWAKENING continues to the
     [New Campaign page](#new-campaign-page), Campaign's sibling sub-page.
+- **MODS** (section 6, the list dialog). MODS on the title's plinth opens the
+  title's own dialog instead of the stock pop-up: the modal construction grown
+  from 136 u to 280 u, 320 u wide with its centre 17 u above the view's, as the
+  modal's is, titled MODIFICATIONS. Its body holds the installed mods (the
+  stock list's mods, at most 32) under NAME and VERSION headings and the olive
+  rule, on 20 u rows lit as the save lists' are, with a scrollbar, and under
+  the list the selected mod's author, release date, required engine and
+  directory. LOAD MOD and CANCEL stand where YES and NO do. The session
+  publishes the mods as the dialog opens, the current game's selected; the
+  dialog opens on CANCEL and moves to the selected mod once its contents show.
+  A row's first Accept selects its mod; Accept on the selected mod, or LOAD
+  MOD, restarts the engine into it as the stock LOAD MOD does. The wordmark
+  dims to 40% gray, as for EXIT. The pause has no MODS.
 - **Confirmations** (section 6, the 480 dp confirmation width). EXIT and both
   pause quits ask in the stock confirmation dialog. The screen beneath stays
   in view in soft focus (`modal.softfocus`: a 5 u, 7.5 dp blur at 0.80
@@ -397,8 +410,8 @@ a real page hand-off, and the home state starts without it.
 
 The title and pause screens cover the legacy main menu while it rests at its
 home state; the legacy menu stays active underneath and keeps every page.
-Choosing SINGLE PLAYER, MULTIPLAYER, SETTINGS, CREDITS, MODS or UPDATES runs
-the legacy home button's own action, and the retained screen plays its
+Choosing SINGLE PLAYER, MULTIPLAYER, SETTINGS, CREDITS or UPDATES runs the
+legacy home button's own action (MODS opens the title's own dialog), and the retained screen plays its
 departure for the 550 ms (200 ms for a pop-up) the stock page takes to appear.
 Back on a legacy page returns to the retained screen as soon as the page starts
 to leave. LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS hand off the same way to
@@ -1383,6 +1396,9 @@ SHA-256 `5ef64a6421c78346292a3e2ac037659cd23f554802638b963e330b426b42b92e`.
 
 The Demos page: `.tmp/ui/retained-demos-evidence/validation-evidence.json`,
 SHA-256 `6af050d9337ba49f1906fc18bfc799af9adde4b8c2aa4b70dee997d98747ae9f`.
+
+The MODS dialog: `.tmp/ui/retained-mods-evidence/validation-evidence.json`,
+SHA-256 `6be45e12dadc8a14882242127fc431e54e54504b23ceb43a71a91b6cb329339d`.
 
 ## Known limitations
 

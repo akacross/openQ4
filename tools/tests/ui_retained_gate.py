@@ -133,12 +133,14 @@ static const int MAX_ASYNC_CLIENTS = 32;
 #define BASE_GAMEDIR "q4base"
 #define OPENQ4_GAMEDIR "baseoq4"
 struct idFile {};
+struct idModInfo { idStr directory, displayName, version, releaseDate, website, author, requiredopenQ4Version, listLabel; };
 struct CVarSystem {
     std::map<std::string, std::string> strings;
     const char* GetCVarString(const char* name) const { const auto found = strings.find(name); return found == strings.end() ? "" : found->second.c_str(); }
     bool GetCVarBool(const char* name) const { return std::string(GetCVarString(name)) == "1"; }
     int GetCVarInteger(const char* name) const { return std::atoi(GetCVarString(name)); }
     void SetCVarInteger(const char* name, int value) { strings[name] = std::to_string(value); }
+    void SetCVarString(const char* name, const char* value) { strings[name] = value; }
 } cvarSystemObject, *cvarSystem = &cvarSystemObject;
 struct FileSystem {
     std::set<std::string> files;
@@ -158,7 +160,16 @@ struct FileSystem {
     idCampaignContentInfo GetAwakeningContentInfo() { return {}; }
     std::string activeGameDir = "baseoq4";
     const char* GetActiveGameDir() const { return activeGameDir.c_str(); }
+    // The installed mods, and how often their list was made and freed.
+    struct ModList {
+        std::vector<idModInfo> mods;
+        int GetNumMods() const { return static_cast<int>(mods.size()); }
+        const idModInfo& GetInfo(int index) const { return mods[index]; }
+    } modList; int modLists = 0, modFrees = 0;
+    ModList* ListMods() { ++modLists; return &modList; }
+    void FreeModList(ModList*) { ++modFrees; }
 } fileSystemObject, *fileSystem = &fileSystemObject;
+using idModList = FileSystem::ModList;
 struct ArenaCampaign {
     int selectors = 0; void OpenSelector() { ++selectors; }
     std::vector<std::string> commands; bool HandleGuiCommand(const char* command) { commands.push_back(command); return true; }
@@ -381,6 +392,9 @@ public:
         return true;
     }
     bool IsDemoPlaybackActive() const { return demoPlaying; }
+    // The title's MODS dialog.
+    idList<idModInfo> modsList; int retainedModSelected = -1;
+    void PublishRetainedMods(idUserInterface*); void SelectRetainedMod(idUserInterface*, int);
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
         ++saveLists;
@@ -431,7 +445,7 @@ static idSessionLocal Session(bool gate, bool inGame = false) {
     legacyActionAvailable = true; preview = false; ui_retained.value = gate; ui_retainedSystem.value = false; ui_retainedMultiplayer.value = false;
     fileSystemObject.files = std::set<std::string>(std::begin(DOCUMENTS), std::end(DOCUMENTS)); arenaCampaign = ArenaCampaign{};
     fileSystemObject.gameDirFiles.clear(); fileSystemObject.opens = fileSystemObject.closes = 0; cvarSystemObject = CVarSystem{};
-    fileSystemObject.activeGameDir = "baseoq4";
+    fileSystemObject.activeGameDir = "baseoq4"; fileSystemObject.modList = {}; fileSystemObject.modLists = fileSystemObject.modFrees = 0;
     legacyMissing.clear(); reloaded.clear(); describedShot = "savegames/quick.tga"; mapDecls.clear(); fileSystemObject.screenshots.clear();
     saveSlots.clear(); driveSpace = 1000;
     gameObject = Game{};
@@ -502,9 +516,10 @@ int main() {
         legacy["desktop::active"] = 1; legacy["desktop::dest"] = 0; s.UpdateRetainedHome();
         CHECK(s.guiRetainedHome == title && title->named.back() == "returnHome" && !s.RetainedHomeInputBlocked());
         CHECK(managerObject.loads.size() == 1);
-        // Closing a home pop-up only reveals the content.
-        s.HandleRetainedSessionRequest(title, "mods"); CHECK(legacyActions.back() == "main_b_mods" && title->named.back() == "departPopup");
-        CHECK(title->named[title->named.size() - 2] != "carry_mods"); // a pop-up leaves the title where it is
+        // Closing a home pop-up only reveals the content. (MODS opens the
+        // title's own dialog instead; UPDATES keeps the stock pop-up.)
+        s.HandleRetainedSessionRequest(title, "updates"); CHECK(legacyActions.back() == "main_b_updates" && title->named.back() == "departPopup");
+        CHECK(title->named[title->named.size() - 2] != "carry_updates"); // a pop-up leaves the title where it is
         commonObject.time += 201; legacy["desktop::curr"] = 5; legacy["desktop::active"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);
         legacy["desktop::active"] = 1; legacy["desktop::dest"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == title && title->named.back() == "open");
         // Session verbs never become console text; quit uses the stock path.
@@ -820,6 +835,31 @@ int main() {
         missing.HandleRetainedSessionRequest(missing.guiRetainedHome, "demos");
         CHECK(missing.guiRetainedDemos == nullptr && legacyActions.back() == "main_b_demos" &&
               (Stock(missing) == std::vector<std::string>{"guis/menu/demos.q4ui"}));
+    }
+    {   // MODS opens the title's own dialog with the installed mods, the current
+        // game's selected; a row selects its mod and LOAD MOD restarts into it.
+        auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome(); auto* title = s.guiRetainedHome;
+        auto mod = [](const char* dir, const char* name, const char* version) {
+            idModInfo m; m.directory = dir; m.displayName = name; m.version = version; m.author = "Raven"; m.releaseDate = "2005";
+            m.requiredopenQ4Version = "0.11"; return m;
+        };
+        fileSystemObject.modList.mods = {mod("baseoq4", "openQ4", "0.13"), mod("q4xbase", "", "1.0"), mod("dmplus", "DM Plus", "2.1")};
+        cvarSystemObject.strings["fs_game"] = "q4xbase";
+        s.HandleRetainedSessionRequest(title, "mods");
+        CHECK(legacyActions.empty() && title->named.back() == "modsModalShow" && s.played.back() == "play main_menu_selection");
+        CHECK(title->state["mods.count"] == "3" && title->state["mods.selected"] == "1" && title->state["mods.row1.name"] == "q4xbase" &&
+              title->state["mods.row2.version"] == "2.1" && title->state["mods.row3.name"].empty() &&
+              title->state["mods.directory"] == "q4xbase" && title->state["mods.author"] == "Raven" && fileSystemObject.modFrees == 1);
+        title->state["mods.pick"] = "2"; s.HandleRetainedSessionRequest(title, "modsSelect");
+        CHECK(title->state["mods.selected"] == "2" && title->state["mods.directory"] == "dmplus");
+        title->state["mods.pick"] = "9"; s.HandleRetainedSessionRequest(title, "modsSelect"); CHECK(title->state["mods.selected"] == "2");
+        s.HandleRetainedSessionRequest(title, "modsLoad");
+        CHECK(cvarSystemObject.strings["fs_game"] == "dmplus" && commands.buffered.back() == "reloadEngine menu\n");
+        // Without mods there is nothing to select or load.
+        fileSystemObject.modList.mods.clear(); s.HandleRetainedSessionRequest(title, "mods");
+        CHECK(title->state["mods.count"] == "0" && title->state["mods.selected"] == "-1" && title->state["mods.directory"].empty());
+        const size_t buffered = commands.buffered.size(); s.HandleRetainedSessionRequest(title, "modsLoad");
+        CHECK(commands.buffered.size() == buffered);
     }
     {   // The title has no level to restart, and the Strogg pause keeps the stock page.
         auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
@@ -3329,7 +3369,8 @@ def main() -> int:
         'bool idSessionLocal::RetainedSaveGame(', 'void idSessionLocal::HandleRetainedSaveRequest(',
         'void idSessionLocal::HandleRetainedRestartRequest(', 'void idSessionLocal::PublishRetainedDemosPage(',
         'void idSessionLocal::PublishRetainedDemoRows(', 'void idSessionLocal::PublishRetainedDemoSelection(',
-        'void idSessionLocal::HandleRetainedDemosRequest(',
+        'void idSessionLocal::HandleRetainedDemosRequest(', 'void idSessionLocal::PublishRetainedMods(',
+        'void idSessionLocal::SelectRetainedMod(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

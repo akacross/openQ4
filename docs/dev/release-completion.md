@@ -883,6 +883,10 @@
   first with their map, date and length, filter tags for each kind, and
   PLAY, DELETE and REFRESH. Set `ui_retained 0` for the classic browser.
 
+- MODS on the title opens a rebuilt dialog listing your installed mods with
+  their version, author, release date and folder; LOAD MOD switches to the
+  selected one.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -4996,6 +4996,9 @@ static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
 // browser's filters, 0 showing them all.
 static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
 static const int RETAINED_DEMO_ROWS = 64;
+// The title's MODS dialog lists this many mods (MOD_ROWS in
+// tools/ui/build_retained_screens.py).
+static const int RETAINED_MOD_ROWS = 32;
 static const char *const RETAINED_DEMO_FILTERS[] = { "all", "mvd", "render", "legacy", "incomplete" };
 static const int RETAINED_DEMO_FILTER_COUNT = sizeof( RETAINED_DEMO_FILTERS ) / sizeof( RETAINED_DEMO_FILTERS[0] );
 static const int RETAINED_LOAD_ROWS = 64;
@@ -5694,6 +5697,27 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	// MODS opens the title's own dialog with the installed mods; the pause has
+	// no MODS. A row selects its mod, and LOAD MOD restarts the engine into it
+	// as the stock LOAD MOD does.
+	if ( !idStr::Icmp( request, "mods" ) && guiRetainedHome == guiRetainedTitle ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		PublishRetainedMods( guiRetainedHome );
+		guiRetainedHome->HandleNamedEvent( "modsModalShow" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "modsSelect" ) ) {
+		SelectRetainedMod( guiRetainedHome, guiRetainedHome->State().GetInt( "mods.pick", "-1" ) );
+		return;
+	}
+	if ( !idStr::Icmp( request, "modsLoad" ) ) {
+		if ( retainedModSelected >= 0 && retainedModSelected < modsList.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			cvarSystem->SetCVarString( "fs_game", modsList[ retainedModSelected ].directory.c_str() );
+			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "reloadEngine menu\n" );
+		}
+		return;
+	}
 	// LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS open their retained pages
 	// where those can present; else the stock pages below.
 	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ||
@@ -6222,6 +6246,58 @@ void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const c
 		return;
 	}
 	common->Warning( "retained UI: unhandled Restart Level request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedMods
+
+The title's MODS dialog: every installed mod, as the stock list lists them,
+the current game's selected, and the selected mod's details. The dialog holds
+RETAINED_MOD_ROWS of them.
+===============
+*/
+void idSessionLocal::PublishRetainedMods( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	idModList *list = fileSystem->ListMods();
+	const idStr current = cvarSystem->GetCVarString( "fs_game" );
+	modsList.Clear();
+	int select = -1;
+	for ( int i = 0; i < list->GetNumMods() && modsList.Num() < RETAINED_MOD_ROWS; ++i ) {
+		modsList.Append( list->GetInfo( i ) );
+		if ( select < 0 && !current.Icmp( modsList[ modsList.Num() - 1 ].directory.c_str() ) ) {
+			select = modsList.Num() - 1;
+		}
+	}
+	fileSystem->FreeModList( list );
+	for ( int row = 0; row < RETAINED_MOD_ROWS; ++row ) {
+		const idModInfo *info = row < modsList.Num() ? &modsList[ row ] : NULL;
+		gui->SetStateString( va( "mods.row%d.name", row ), info == NULL ? "" :
+			( info->displayName.Length() > 0 ? info->displayName.c_str() : info->directory.c_str() ) );
+		gui->SetStateString( va( "mods.row%d.version", row ), info == NULL ? "" : info->version.c_str() );
+	}
+	gui->SetStateInt( "mods.count", modsList.Num() );
+	SelectRetainedMod( gui, select >= 0 ? select : 0 );
+#endif
+}
+
+// A row's first Accept: its mod's author, release date, required engine and
+// directory.
+void idSessionLocal::SelectRetainedMod( idUserInterface *gui, int row ) {
+#ifndef ID_DEDICATED
+	if ( modsList.Num() == 0 ) {
+		retainedModSelected = -1;
+	} else if ( row >= 0 && row < modsList.Num() ) {
+		retainedModSelected = row;
+	}
+	const idModInfo *info = retainedModSelected >= 0 ? &modsList[ retainedModSelected ] : NULL;
+	gui->SetStateInt( "mods.selected", retainedModSelected );
+	gui->SetStateString( "mods.author", info != NULL ? info->author.c_str() : "" );
+	gui->SetStateString( "mods.date", info != NULL ? info->releaseDate.c_str() : "" );
+	gui->SetStateString( "mods.engine", info != NULL ? info->requiredopenQ4Version.c_str() : "" );
+	gui->SetStateString( "mods.directory", info != NULL ? info->directory.c_str() : "" );
+	gui->StateChanged( common->GetPresentationTime() );
 #endif
 }
 

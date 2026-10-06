@@ -568,7 +568,9 @@ CLOSE_W = 210.0  # a notice's lone action is wider than YES and NO, so every lan
 
 def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_action: str | None,
                  frame_leave_ms: float = 250, dim: tuple = (), *, yes_event: str | None = None,
-                 no_event: str | None = None, close_key: str | None = None, wide_title: bool = False) -> dict:
+                 no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
+                 height_u: float = 136.0, top_u: float = 155.0, actions_u: float = 96.0, contents: list | None = None,
+                 yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -598,7 +600,11 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     notice: one action with that label stands in YES's place and closes it,
     as the stock overwrite popup's CLOSE does. With `wide_title` a title too
     long for the lit slot in some language runs on over the raised trailing
-    section to the frame's edge, as the stock title ran past its rectangle."""
+    section to the frame's edge, as the stock title ran past its rectangle.
+    A list or entry dialog grows to `height_u` (146-400 u) at `top_u`, with
+    its actions at `actions_u`, its own `contents` in place of the body and
+    its own action labels and first focus."""
+    body_nodes = contents
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
     doc.state[contents] = {"type": "boolean", "initial": False}
@@ -609,9 +615,9 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     doc.events[shown] = [{"op": "setState", "values": {contents: True}}]
     doc.events[hide] = [{"op": "setState", "values": {contents: False}}, {"op": "playTimeline", "timeline": leave}]
     doc.events[hidden] = [{"op": "setState", "values": {visible: False}}]
-    width, height = 480.0, 204.0          # 320x136 u
+    width, height = 480.0, U * height_u     # 320x136 u, or grown
     left = (CANVAS_W - width) / 2
-    top = U * 155                           # 17 u above centre
+    top = U * top_u                         # 155 u: 17 u above centre
     # popup_top/mid/btm stretch 512 texels across the rect: the art starts at
     # texel 7 and ends after 504 (6.5625 dp in from each side), its raised
     # sections start 4 of popup_top's 32 rows down (3.5625 dp) and its bottom
@@ -662,18 +668,18 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                             "white-space": keyword("nowrap")}, [1, 1, 1, 0.9], [0, 0, 0, 0.85])
     # The stock body box starts 45 u down (first baseline 87.5 dp) and runs
     # to the actions at 96 u.
-    body = label(f"{ident}-body", body_key, {**absolute(left=33, top=71, width=width - 66, height=73),
-        **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})
+    body = [label(f"{ident}-body", body_key, {**absolute(left=33, top=71, width=width - 66, height=73),
+        **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})] if body_nodes is None else body_nodes
     # The modal's own programs may answer for it: `yes_event` in place of the
     # session action, `no_event` for No and back; each must hide the modal.
     if close_key:
-        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * 96, event=no_event or hide, width=CLOSE_W)]
-        initial = f"{ident}_close"
+        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=CLOSE_W)]
+        initial = initial or f"{ident}_close"
     else:
-        yes = action_plate(doc, f"{ident}_yes", "#str_200157", 30, U * 96, action=None if yes_event else yes_action, event=yes_event)
-        no = action_plate(doc, f"{ident}_no", "#str_200158", width - 33 - 180, U * 96, event=no_event or hide)
-        actions, initial = [yes, no], f"{ident}_no"
-    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, body, *actions])
+        yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event)
+        no = action_plate(doc, f"{ident}_no", no_key, width - 33 - 180, U * actions_u, event=no_event or hide)
+        actions, initial = [yes, no], initial or f"{ident}_no"
+    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, *body, *actions])
     dialog = group(f"{ident}-dialog", absolute(left=left, top=top, width=width, height=height),
                    [glow, soft_glow, frame, shown_contents])
     stage = group(f"{ident}-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
@@ -711,6 +717,94 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     ] + [track(node, prop, [(0, dimmed), (50, dimmed), (200, lit), (300, lit)]) for node, prop, lit, dimmed in dim],
         complete=hidden)
     return node
+
+
+# MODS (section 6, the list dialog): the modal grown from 136 u to 280 u, its
+# centre 17 u above the view's as the modal's is.
+MOD_ROWS = 32                             # RETAINED_MOD_ROWS in the session
+MODS_TOP, MODS_HEIGHT = 83.0, 280.0       # u
+MODS_LIST = (22.0, 25.0, 274.0, 147.0)    # u, in the dialog: the stock pop_mods_list
+MODS_HEAD_TOP, MODS_ROW_H, MODS_VERSION_X = 12.0, 20.0, 200.0
+MODS_DETAIL_TOP, MODS_DETAIL_PITCH, MODS_VALUE_X = 178.0, 15.0, 98.0
+MODS_DETAILS = (("author", "#str_41112"), ("date", "#str_41113"), ("engine", "#str_41114"), ("directory", "#str_41115"))
+
+
+def mods_modal(doc: Document) -> dict:
+    """MODS (section 6): the stock modal construction grown into a list dialog,
+    its title MODIFICATIONS. Its body holds the installed mods under NAME and
+    VERSION headings and an olive rule, on 20 u rows with the list's light and
+    a scrollbar, then the selected mod's author, release date, required engine
+    and directory, and LOAD MOD and CANCEL stand where YES and NO do. The
+    session publishes the mods before the dialog shows (mods.*), the current
+    game's selected. A row's first Accept selects its mod; Accept on the
+    selected mod, or LOAD MOD, loads it. The wordmark dims to 40% gray, as for
+    EXIT."""
+    from retained_saves import row_plates, row_states
+    doc.state.update({"mods.count": {"type": "number", "initial": 0}, "mods.selected": {"type": "number", "initial": -1},
+                      "mods.pick": {"type": "number", "initial": -1}})
+    for detail, _ in MODS_DETAILS:
+        doc.state[f"mods.{detail}"] = {"type": "string", "initial": ""}
+    doc.session("modsSelect", "modsSelect")
+    doc.session("modsLoad", "modsLoad")
+    left, top, list_w, list_h = MODS_LIST
+    heading = {**typeface("lowpixel", 13, U * 12, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+    parts = [
+        label("mods-head-name", "#str_41110", {**absolute(left=U * left, top=U * MODS_HEAD_TOP, width=U * (MODS_VERSION_X - 4), height=U * 12), **heading}),
+        label("mods-head-version", "#str_41111", {**absolute(left=U * (left + MODS_VERSION_X), top=U * MODS_HEAD_TOP,
+              width=U * (list_w - MODS_VERSION_X), height=U * 12), **heading}),
+        vector("mods-rule", absolute(left=U * left, top=U * top - 0.6, width=U * list_w, height=1.2), [
+            path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.26)), 1.2))]),
+    ]
+    rows = []
+    width, height = U * (list_w - 16), U * MODS_ROW_H
+    cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
+    tints = ([1, 1, 1, 0.9], [1, 1, 1, 0.65])
+    for index in range(MOD_ROWS):
+        ident, key = f"mods-row-{index}", f"mods.row{index}"
+        cells = []
+        for column, left_u, column_w, tint in (("name", 4, MODS_VERSION_X - 8, tints[0]), ("version", MODS_VERSION_X, list_w - 16 - MODS_VERSION_X - 4, tints[1])):
+            doc.state[f"{key}.{column}"] = {"type": "string", "initial": ""}
+            node = f"{ident}-{column}"
+            cells.append(label(node, "#str_230030", {**absolute(left=U * left_u, top=0, width=U * column_w, height=height),
+                                                     **typeface("lowpixel", 15.8, height, tint), **cell}))
+            doc.bind(f"{node}.text", node, "text", {"state": f"{key}.{column}"})
+        doc.bind(f"{ident}.display", ident, "display",
+                 {"op": "select", "args": [{"op": "<", "args": [index, {"state": "mods.count"}]}, "block", "none"]})
+        doc.bind(f"{ident}-selected.display", f"{ident}-selected", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": "mods.selected"}, index]}, "block", "none"]})
+        event = f"modsRow{index}"
+        doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": "mods.selected"}, index]},
+                              "then": [{"op": "call", "event": "modsLoadConfirmed"}],
+                              "else": [{"op": "setState", "values": {"mods.pick": index}}, {"op": "action", "action": "modsSelect"}]}]
+        ids = row_states(doc, ident, (f"{ident}-name", f"{ident}-version"), tints)
+        rows.append(group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
+                                  "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
+                          control={"role": "button", "label": "#str_230030", "event": event, "states": ids}))
+    column_node = group("mods-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")}, rows)
+    parts.append(group("mods-list", {**absolute(left=U * left, top=U * top, width=width, height=U * list_h), "overflow": keyword("auto")},
+                       [column_node]))
+    parts.append(objectives_scrollbar(doc, "mods_scroll", "mods-list", OLIVE, ORANGE, U * (left + list_w) - 24, U * top, U * list_h,
+                                      line_step=U * MODS_ROW_H, key="#str_200166"))
+    for index, (detail, key) in enumerate(MODS_DETAILS):
+        y = U * (MODS_DETAIL_TOP + MODS_DETAIL_PITCH * index)
+        parts.append(label(f"mods-{detail}-label", key, {**absolute(left=U * left, top=y, width=U * (MODS_VALUE_X - 4), height=U * 14),
+                           **typeface("lowpixel", 13, U * 14, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
+        value = f"mods-{detail}"
+        parts.append(label(value, "#str_230030", {**absolute(left=U * (left + MODS_VALUE_X), top=y, width=U * (list_w - MODS_VALUE_X), height=U * 14),
+                           **typeface("lowpixel", 15, U * 14, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
+        doc.bind(f"{value}.text", value, "text", {"state": f"mods.{detail}"})
+    modal = confirmation(doc, "modsModal", "#str_200166", "#str_230030", None, yes_event="modsLoadConfirmed",
+                         dim=(("wordmark", "opacity", number(1), number(0.4)),), height_u=MODS_HEIGHT, top_u=MODS_TOP,
+                         actions_u=MODS_HEIGHT - 40, contents=parts, yes_key="#str_200167", no_key="#str_200168")
+    # The dialog opens on CANCEL, as the stock modals open on NO, and moves to
+    # the selected mod once its contents show.
+    doc.events["modsModalShown"] = doc.events["modsModalShown"] + [
+        {"op": "if", "condition": {"op": "==", "args": [{"state": "mods.selected"}, index]},
+         "then": [{"op": "focus", "control": f"mods-row-{index}"}]} for index in range(MOD_ROWS)]
+    doc.events["modsLoadConfirmed"] = [{"op": "if", "condition": {"op": ">=", "args": [{"state": "mods.selected"}, 0]},
+                                        "then": [{"op": "call", "event": "modsModalHide"}, {"op": "action", "action": "modsLoad"}]}]
+    doc.bind("modsModal_yes.enabled", "modsModal_yes", "enabled", {"op": ">=", "args": [{"state": "mods.selected"}, 0]})
+    return modal
 
 
 def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None,
@@ -1001,6 +1095,7 @@ def title_document() -> dict:
     doc.session("quit", "quit")
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200,
                               dim=(("wordmark", "opacity", number(1), number(0.4)),))
+    mods_dialog = mods_modal(doc)
     doc.events["onBack"] = [{"op": "call", "event": "exitModalShow"}]
 
     # The message line at 44,364 u explains the focused item (section 13.7):
@@ -1061,6 +1156,7 @@ def title_document() -> dict:
         title_carry(doc, [("singlePlayer", "#str_42000", 212.2), ("loadGame", "#str_200001", 242.2),
                           ("multiplayer", "#str_200002", 272.2), ("settings", "#str_200009", 302.2)], continue_rows=True),
         exit_modal,
+        mods_dialog,
         group("fade", {**FULL, "background-color": colour([0, 0, 0, 0]), "pointer-events": keyword("none")}),
     ])
     band_motion(doc, "band", "home", [("wordmark", "opacity", number(1), number(0)),

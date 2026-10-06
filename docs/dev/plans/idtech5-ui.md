@@ -192,6 +192,8 @@ DEMOS on the title opens the retained
 [Demos page](../ui/retained-screens.md#demos-page): the demo library under
 filter tags, the selected demo's picture and lines, and PLAY, DELETE and
 REFRESH, on the Load Game page's construction.
+MODS on the title opens a retained list dialog, the modal construction grown
+to 280 u, with the installed mods, their details, LOAD MOD and CANCEL.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

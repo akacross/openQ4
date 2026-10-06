@@ -765,6 +765,10 @@ public:
 	void				SetMainMenuBackgroundMontageGuiVars( void );
 	void				PrimeMainMenuGuiResources( void );
 	void				SetModsMenuGuiVars( void );
+	// The title's MODS dialog: the mods it lists (modsList) and the selected one.
+	void				PublishRetainedMods( idUserInterface *gui );
+	void				SelectRetainedMod( idUserInterface *gui, int row );
+	int					retainedModSelected;
 	void				UpdateModsMenuGuiVars( void );
 	void				SetMainMenuSkin( void );
 	

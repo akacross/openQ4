@@ -151,7 +151,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
-	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder",
+	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2115,6 +2115,66 @@ static void CheckDemosPage(ScreenHost& host, const char* path) {
 	Check(runtime.FocusedControl() == "demo_refresh","REFRESH has focus");
 }
 
+// The title's MODS dialog (section 6): the modal grown into a list dialog, the
+// installed mods under NAME and VERSION, the selected mod's details, LOAD MOD
+// and CANCEL, and the wordmark dimmed to 40% gray as for EXIT.
+static void CheckModsDialog(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	std::vector<Diagnostic> diagnostics;
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/title.q4ui",diagnostics),"the title loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto number = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? static_cast<float>(value->data[0]) : -1.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a dialog node is laid out"); return b; };
+	const auto requested = [&](const char* action) {
+		return effects.actions.size() == 1 && effects.actions[0].action == action && effects.actions[0].operation == "session.menu";
+	};
+	StateValues values{{"mods.count",2.0},{"mods.selected",1.0},{"mods.author",std::string("Ritual")},{"mods.date",std::string("2005")},
+		{"mods.engine",std::string("0.11")},{"mods.directory",std::string("q4xbase")},{"mods.row0.name",std::string("openQ4")},
+		{"mods.row0.version",std::string("0.13")},{"mods.row1.name",std::string("The Awakening")},{"mods.row1.version",std::string("1.0")}};
+	Check(runtime.SetState(values,error,0),"publish two mods");
+	runtime.Frame(viewport,1);
+	Check(text("modsModal","display") == "none","the dialog rests hidden");
+	Check(runtime.RunEvent("modsModalShow",2,effects,error),"MODS opens the dialog");
+	runtime.Frame(viewport,2.1);
+	Check(text("modsModal","display") == "block" && text("modsModal-contents","display") == "none","its contents wait for the frame");
+	runtime.Frame(viewport,2.25);
+	Check(text("modsModal-contents","display") == "block" && runtime.FocusedControl() == "mods-row-1",
+		"the contents show with the selected mod focused");
+	// The 4:3 canvas starts at 160 dp at 1280x720; 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto dialog = bounds("modsModal-dialog");
+	Check(Near(dialog.x,x0+160*u) && Near(dialog.y,83*u) && Near(dialog.width,320*u) && Near(dialog.height,280*u),
+		"the list dialog is the modal grown to 320x280 u, its centre 17 u above the view's");
+	const auto row0 = bounds("mods-row-0"), row1 = bounds("mods-row-1");
+	Check(Near(row0.x,x0+(160+22)*u) && Near(row0.y,(83+25)*u) && Near(row1.y-row0.y,20*u),"the rows run on 20 u from the list's corner");
+	Check(text("mods-row-1-selected","display") == "block" && text("mods-row-0-selected","display") == "none" &&
+		text("mods-row-2","display") == "none","two rows show, the selected mod lit");
+	Check(text("mods-row-1-name","text") == "The Awakening" && text("mods-row-0-version","text") == "0.13","each row names its mod and version");
+	Check(text("mods-author","text") == "Ritual" && text("mods-date","text") == "2005" && text("mods-engine","text") == "0.11" &&
+		text("mods-directory","text") == "q4xbase","the selected mod's details stand under the list");
+	Check(Near(number("wordmark","opacity"),.4f,.01f),"the wordmark dims to 40% gray");
+	Check(runtime.CanActivateControl("modsModal_yes",2.3) && runtime.CanActivateControl("modsModal_no",2.3),"LOAD MOD and CANCEL are live");
+	Check(runtime.RunEvent("modsRow0",3,effects,error) && requested("modsSelect") && effects.stateChanges.count("mods.pick") &&
+		std::get<double>(effects.stateChanges.at("mods.pick")) == 0,"Accept on another mod selects it");
+	Check(runtime.RunEvent("modsRow1",3.1,effects,error) && requested("modsLoad"),"Accept on the selected mod loads it");
+	runtime.Frame(viewport,3.6);
+	Check(text("modsModal","display") == "none" && Near(number("wordmark","opacity"),1,.01f),"loading closes the dialog and the wordmark lights");
+	// No mods: LOAD MOD rests disabled and CANCEL keeps the focus.
+	Check(runtime.SetState({{"mods.count",0.0},{"mods.selected",-1.0}},error,4),"no mods");
+	Check(runtime.RunEvent("modsModalShow",4.1,effects,error),"the dialog opens again");
+	runtime.Frame(viewport,4.4);
+	Check(!runtime.CanActivateControl("modsModal_yes",4.4) && runtime.FocusedControl() == "modsModal_no",
+		"without mods LOAD MOD rests disabled and CANCEL has focus");
+	Check(runtime.RunEvent("modsLoadConfirmed",4.5,effects,error) && effects.actions.empty(),"nothing loads without a selection");
+}
+
 int main(int argc, char** argv) {
 	Check(argc == 18,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui");
 	CheckSchema();
@@ -3214,6 +3274,7 @@ int main(int argc, char** argv) {
 	CheckRestartPage(host,argv[15]);
 	CheckNewCampaign(host,argv[6],argv[16]);
 	CheckDemosPage(host,argv[17]);
+	CheckModsDialog(host,argv[1]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;
