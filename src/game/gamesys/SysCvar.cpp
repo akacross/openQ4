@@ -19,7 +19,12 @@ All game cvars should be defined here.
 // ddynerman: our gameplay modes
 // RITUAL BEGIN
 // squirrel: added DeadZone multiplayer mode
-const char *si_gameTypeArgs[]		= { "singleplayer", "DM", "Tourney", "Team DM", "CTF", "Arena CTF", "DeadZone", NULL };
+// openQ4: the main menu runs under this module and carries its multiplayer
+// mode to game_mp in si_gameType, and a value outside this list falls back
+// to its first, singleplayer. So the list mirrors game_mp's
+// (src/mpgame/mp/GameTypes.cpp); game_type_module_selection.py checks it.
+const char *si_gameTypeArgs[]		= { "singleplayer", "DM", "Tourney", "Team DM", "CTF", "One Flag CTF", "Arena CTF",
+										"Arena One Flag CTF", "DeadZone", "Duel", "Clan Arena", "Freeze Tag", "Red Rover", NULL };
 const int si_numGameTypeArgs = sizeof( si_gameTypeArgs ) / sizeof( si_gameTypeArgs[0] );
 // RITUAL END
 // RAVEN END
@@ -57,7 +62,7 @@ idCVar si_dropWeaponsInBuyingModes(	"si_dropWeaponsInBuyingModes",	"0",		CVAR_GA
 // RITUAL END
 // RAVEN BEGIN
 // ddynerman: new gametype strings
-idCVar si_gameType(					"si_gameType",				si_gameTypeArgs[ 0 ],	CVAR_GAME | CVAR_SERVERINFO, "game type - singleplayer, DM, Tourney, Team DM, CTF, Arena CTF, or DeadZone", si_gameTypeArgs, idCmdSystem::ArgCompletion_String<si_gameTypeArgs> );
+idCVar si_gameType(					"si_gameType",				si_gameTypeArgs[ 0 ],	CVAR_GAME | CVAR_SERVERINFO, "game type - singleplayer, or the multiplayer mode the menu carries to game_mp", si_gameTypeArgs, idCmdSystem::ArgCompletion_String<si_gameTypeArgs> );
 idCVar si_map(						"si_map",					"mp/q4dm1",				CVAR_GAME | CVAR_SERVERINFO, "map to be played next on server", idCmdSystem::ArgCompletion_MapName );
 idCVar si_mapCycle(					"si_mapCycle",				"",						CVAR_GAME | CVAR_SERVERINFO, "map cycle list semicolon delimited" );
 // bdube: raise player limit

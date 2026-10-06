@@ -904,6 +904,10 @@
   CREATE SERVER and PLAYER SETUP, each opening its page and coming back to
   the Multiplayer page, and BACK to the title.
 
+- Create Server now starts Duel, Clan Arena, Freeze Tag, Red Rover, One Flag
+  CTF and Arena One Flag CTF when you pick them from the main menu. Before,
+  those modes quietly fell back and the server started as Deathmatch.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and
