@@ -43,6 +43,7 @@
 #ifndef UINT_MAX
 #define UINT_MAX	0xffffffffu
 #endif
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include "volk.h"
@@ -98,7 +99,8 @@ void VK_PostProcess_Shutdown( void );
 int VK_PostProcess_WorldDepthCaptures( const viewDef_t *viewDef );
 int VK_PostProcess_DepthFillPhase( const drawSurf_t *surf, int captures );
 void VK_PostProcess_CaptureWorldDepth( const viewDef_t *viewDef, int fillPhase, int captures,
-		const int phaseDrawn[ 3 ] );
+		const int phaseDrawn[ 4 ] );
+bool VK_PostProcess_PrepareSSAOField( const viewDef_t *viewDef );
 bool VK_PostProcess_DrawSceneEffects( const viewDef_t *viewDef );
 bool VK_SceneEffects_DrawPreFog( const viewDef_t *viewDef, int processed );
 bool VK_PostProcess_DrawUnderwater( const viewDef_t *viewDef );
@@ -394,6 +396,8 @@ typedef struct vkGuiExecutor_s {
 	VkShaderModule		interactionVertModule;
 	VkShaderModule		interactionFragModule;
 	VkShaderModule		probeEnvironmentFragModule;
+	VkShaderModule		bakedEnvironmentFragModule;
+	VkShaderModule		bakedProbeEnvironmentFragModule;
 	VkShaderModule		interactionShadowVertModule;
 	VkShaderModule		interactionShadowFragModule;
 	VkShaderModule		interactionShadowPointVertModule;
@@ -506,6 +510,12 @@ typedef struct vkGuiExecutor_s {
 	bool				mainScopeOpen;		// the swapchain dynamic-rendering scope is recording
 	int					frameSlot;
 	uint32_t			swapImageIndex;
+	// The frame's final color image and view: the acquired swapchain image,
+	// or a hidden window's offscreen image (vkCtx.offscreenFrames), which
+	// screenshots read the same way and which is never presented.
+	VkImage				frameImage;
+	VkImageView			frameImageView;
+	bool				framePresentable;
 	VkCommandBuffer		cmd;
 	float				clearColor[ 4 ];
 	int					boundVertexOffset;	// binding-0 ring offset of the last VK_Exec_BindTriGeometry
@@ -571,6 +581,8 @@ typedef struct vkGuiExecutor_s {
 	uint64				gpuSkinningRingFallbacks;
 	uint64				gpuSkinningMemoFallbacks;
 	uint64				gpuSkinningValidationFallbacks;
+	uint64				gpuSkinningDeferredSurfaces;
+	uint64				gpuSkinningDeferredRepairs;
 } vkGuiExecutor_t;
 
 static vkGuiExecutor_t vkExec;
@@ -1014,7 +1026,13 @@ static VkPipeline VK_Exec_CreatePipeline( VkShaderModule vertModule, VkShaderMod
 	gpci.layout = layout;
 
 	VkPipeline pipeline = VK_NULL_HANDLE;
-	if ( vkCreateGraphicsPipelines( vkCtx.device, vkCtx.pipelineCache, 1, &gpci, NULL, &pipeline ) != VK_SUCCESS ) {
+	const std::chrono::steady_clock::time_point createStart = std::chrono::steady_clock::now();
+	const VkResult createResult = vkCreateGraphicsPipelines( vkCtx.device, vkCtx.pipelineCache,
+			1, &gpci, NULL, &pipeline );
+	VK_Device_RecordPipelineCreation( static_cast<uint64>(
+			std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::steady_clock::now() - createStart ).count() ) );
+	if ( createResult != VK_SUCCESS ) {
 		common->Warning( "Vulkan: pipeline creation failed (blend 0x%x)", blendBits );
 		return VK_NULL_HANDLE;
 	}
@@ -1614,7 +1632,7 @@ VkPipelineLayout VK_Exec_BakedEnvironmentPipelineLayout() { return vkBakedPipeli
 
 VkPipeline VK_Exec_BakedEnvironmentPipeline( bool probes ) {
 	const vkPipelineTarget_t target = VK_Exec_CurrentPipelineTarget();
-	if ( !target.hdrAccumulation || vkBakedPipelineLayout == VK_NULL_HANDLE ) { return VK_NULL_HANDLE; }
+	if ( vkBakedPipelineLayout == VK_NULL_HANDLE ) { return VK_NULL_HANDLE; }
 	const vkSpecialPipelineKind_t kind = probes ? VK_SPECIAL_BAKED_PROBE_ENVIRONMENT : VK_SPECIAL_BAKED_ENVIRONMENT;
 	VkPipeline cached = VK_Exec_FindSpecialPipeline( kind, target );
 	if ( cached != VK_NULL_HANDLE ) { return cached; }
@@ -1622,7 +1640,11 @@ VkPipeline VK_Exec_BakedEnvironmentPipeline( bool probes ) {
 	VkVertexInputAttributeDescription attrs[6];
 	VkPipelineVertexInputStateCreateInfo vertexInput;
 	VK_Exec_InteractionVertexInput( binding, attrs, vertexInput );
-	const VkShaderModule fragment = VK_HDRScene_Shader( probes ? VK_HDR_BAKED_PROBE_ENVIRONMENT : VK_HDR_BAKED_ENVIRONMENT );
+	// The laboratory linear scene splits PBR into its own attachment; a
+	// production frame composes every draw into the display-referred target.
+	const VkShaderModule fragment = target.hdrAccumulation
+		? VK_HDRScene_Shader( probes ? VK_HDR_BAKED_PROBE_ENVIRONMENT : VK_HDR_BAKED_ENVIRONMENT )
+		: ( probes ? vkExec.bakedProbeEnvironmentFragModule : vkExec.bakedEnvironmentFragModule );
 	if ( fragment == VK_NULL_HANDLE ) { return VK_NULL_HANDLE; }
 	return VK_Exec_StoreSpecialPipeline( kind, target,
 		VK_Exec_CreatePipeline( vkExec.interactionVertModule, fragment, &vertexInput,
@@ -2807,8 +2829,13 @@ static bool VK_GpuSkinning_InitResources( void ) {
 	cpci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	cpci.stage = stage;
 	cpci.layout = vkExec.gpuSkinningPipelineLayout;
-	if ( vkCreateComputePipelines( vkCtx.device, vkCtx.pipelineCache, 1, &cpci, NULL,
-			&vkExec.gpuSkinningPipeline ) != VK_SUCCESS ) {
+	const std::chrono::steady_clock::time_point createStart = std::chrono::steady_clock::now();
+	const VkResult createResult = vkCreateComputePipelines( vkCtx.device, vkCtx.pipelineCache,
+			1, &cpci, NULL, &vkExec.gpuSkinningPipeline );
+	VK_Device_RecordPipelineCreation( static_cast<uint64>(
+			std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::steady_clock::now() - createStart ).count() ) );
+	if ( createResult != VK_SUCCESS ) {
 		common->Warning( "Vulkan: GPU skinning compute pipeline creation failed" );
 		VK_GpuSkinning_DestroyResources();
 		return false;
@@ -3161,6 +3188,18 @@ static bool VK_GuiExecutor_Init( void ) {
 	smci.pCode = (const uint32_t *)vk_pbr_probe_environment_frag_spv;
 	if ( vkCreateShaderModule( vkCtx.device, &smci, NULL, &vkExec.probeEnvironmentFragModule ) != VK_SUCCESS ) {
 		common->Warning( "Vulkan: probe environment shader creation failed" );
+		return false;
+	}
+	smci.codeSize = vk_pbr_baked_environment_frag_spv_size;
+	smci.pCode = (const uint32_t *)vk_pbr_baked_environment_frag_spv;
+	if ( vkCreateShaderModule( vkCtx.device, &smci, NULL, &vkExec.bakedEnvironmentFragModule ) != VK_SUCCESS ) {
+		common->Warning( "Vulkan: baked environment shader creation failed" );
+		return false;
+	}
+	smci.codeSize = vk_pbr_baked_probe_environment_frag_spv_size;
+	smci.pCode = (const uint32_t *)vk_pbr_baked_probe_environment_frag_spv;
+	if ( vkCreateShaderModule( vkCtx.device, &smci, NULL, &vkExec.bakedProbeEnvironmentFragModule ) != VK_SUCCESS ) {
+		common->Warning( "Vulkan: baked probe environment shader creation failed" );
 		return false;
 	}
 	smci.codeSize = vk_interaction_shadow_vert_spv_size;
@@ -3793,6 +3832,12 @@ void VK_GuiExecutor_Shutdown( void ) {
 	if ( vkExec.probeEnvironmentFragModule != VK_NULL_HANDLE ) {
 		vkDestroyShaderModule( vkCtx.device, vkExec.probeEnvironmentFragModule, NULL );
 	}
+	if ( vkExec.bakedEnvironmentFragModule != VK_NULL_HANDLE ) {
+		vkDestroyShaderModule( vkCtx.device, vkExec.bakedEnvironmentFragModule, NULL );
+	}
+	if ( vkExec.bakedProbeEnvironmentFragModule != VK_NULL_HANDLE ) {
+		vkDestroyShaderModule( vkCtx.device, vkExec.bakedProbeEnvironmentFragModule, NULL );
+	}
 	if ( vkExec.interactionFragModule != VK_NULL_HANDLE ) {
 		vkDestroyShaderModule( vkCtx.device, vkExec.interactionFragModule, NULL );
 	}
@@ -4037,50 +4082,62 @@ bool VK_GuiExecutor_BeginFrame( void ) {
 	R_RendererMetrics_EndUploadRetirement( retirementBegin );
 
 	// A present-mode change needs a new swapchain. GL re-applies its swap
-	// interval on every present; the Vulkan equivalent only ever ran inside
-	// VK_Device_PresentClearFrame, which nothing calls, so toggling vsync did
-	// nothing here until something else forced a rebuild. Do it before the
-	// acquire, where the old swapchain is not yet in use this frame.
+	// interval on every present, so toggling vsync did nothing here until
+	// something else forced a rebuild. Do it before the acquire, where the old
+	// swapchain is not yet in use this frame. A hidden window's unused
+	// swapchain follows too, so it reports the interval it was asked for.
 	if ( VK_Device_RequestedSwapInterval() != vkCtx.swapInterval ) {
 		if ( !VK_Device_RecreateSwapchain() ) {
 			return false;
 		}
 	}
 
-	// A presentation engine that withholds images (an occluded Wayland
-	// window with FIFO, a compositor stall) must not block the game loop
-	// forever. A timeout acquires nothing and signals nothing, so the frame is
-	// simply skipped and retried; normal acquisition returns well within it.
-	const uint64_t acquireTimeout = 1000000000ull;
+	// A hidden window is never displayed, so its frame does not wait on the
+	// presentation engine: it renders into this slot's offscreen image, which
+	// screenshots read as they would a swapchain image (vkCtx.offscreenFrames).
+	const bool presentable = !vkCtx.offscreenFrames;
 	uint32_t imageIndex = 0;
-	const unsigned long long acquireBegin = timingEnabled ? R_RendererMetrics_CpuClock() : 0;
-	VkResult res = vkAcquireNextImageKHR( vkCtx.device, vkCtx.swapchain, acquireTimeout,
-			vkCtx.acquireSemaphores[ slot ], VK_NULL_HANDLE, &imageIndex );
-	R_RendererMetrics_EndWaitPhase( RENDERER_WAIT_SWAPCHAIN_IMAGE, acquireBegin );
-	if ( res == VK_ERROR_OUT_OF_DATE_KHR ) {
-		if ( !VK_Device_RecreateSwapchain() ) {
+	VkResult res = VK_SUCCESS;
+	if ( presentable ) {
+		if ( !VK_Device_ServiceWithheldImages() ) {
 			return false;
 		}
-		const unsigned long long retryBegin = timingEnabled ? R_RendererMetrics_CpuClock() : 0;
+		// A presentation engine that withholds images (an occluded Wayland
+		// window with FIFO, a compositor stall) must not block the game loop
+		// forever. A timeout acquires nothing and signals nothing, so the frame is
+		// simply skipped and retried; normal acquisition returns well within it.
+		const uint64_t acquireTimeout = 1000000000ull;
+		const unsigned long long acquireBegin = timingEnabled ? R_RendererMetrics_CpuClock() : 0;
 		res = vkAcquireNextImageKHR( vkCtx.device, vkCtx.swapchain, acquireTimeout,
 				vkCtx.acquireSemaphores[ slot ], VK_NULL_HANDLE, &imageIndex );
-		R_RendererMetrics_EndWaitPhase( RENDERER_WAIT_SWAPCHAIN_IMAGE, retryBegin );
+		R_RendererMetrics_EndWaitPhase( RENDERER_WAIT_SWAPCHAIN_IMAGE, acquireBegin );
+		if ( res == VK_ERROR_OUT_OF_DATE_KHR ) {
+			if ( !VK_Device_RecreateSwapchain() ) {
+				return false;
+			}
+			const unsigned long long retryBegin = timingEnabled ? R_RendererMetrics_CpuClock() : 0;
+			res = vkAcquireNextImageKHR( vkCtx.device, vkCtx.swapchain, acquireTimeout,
+					vkCtx.acquireSemaphores[ slot ], VK_NULL_HANDLE, &imageIndex );
+			R_RendererMetrics_EndWaitPhase( RENDERER_WAIT_SWAPCHAIN_IMAGE, retryBegin );
+		}
+		if ( res == VK_TIMEOUT || res == VK_NOT_READY ) {
+			R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
+			return false;
+		}
+		if ( res == VK_ERROR_SURFACE_LOST_KHR ) {
+			// Nothing was acquired; rebuild the surface and retry next frame.
+			R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
+			(void)VK_Device_RecoverSurface();
+			return false;
+		}
+		if ( res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR ) {
+			if ( res == VK_ERROR_DEVICE_LOST ) VK_Device_BlockPresentation( RDP_ACQUIRE_FAILED, res, "frame acquire" );
+			else R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
+			return false;
+		}
 	}
-	if ( res == VK_TIMEOUT || res == VK_NOT_READY ) {
-		R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
-		return false;
-	}
-	if ( res == VK_ERROR_SURFACE_LOST_KHR ) {
-		// Nothing was acquired; rebuild the surface and retry next frame.
-		R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
-		(void)VK_Device_RecoverSurface();
-		return false;
-	}
-	if ( res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR ) {
-		if ( res == VK_ERROR_DEVICE_LOST ) VK_Device_BlockPresentation( RDP_ACQUIRE_FAILED, res, "frame acquire" );
-		else R_DisplayPresentationFailed( RDP_ACQUIRE_FAILED, (int32_t)res );
-		return false;
-	}
+	const VkImage frameImage = presentable ? vkCtx.swapchainImages[ imageIndex ] : vkCtx.offscreenImages[ slot ];
+	const VkImageView frameImageView = presentable ? vkCtx.swapchainViews[ imageIndex ] : vkCtx.offscreenViews[ slot ];
 
 	VkCommandBuffer cmd = vkCtx.commandBuffers[ slot ];
 	VkCommandBufferBeginInfo cbbi;
@@ -4115,7 +4172,7 @@ bool VK_GuiExecutor_BeginFrame( void ) {
 	toAttachment[ 0 ].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	toAttachment[ 0 ].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	toAttachment[ 0 ].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	toAttachment[ 0 ].image = vkCtx.swapchainImages[ imageIndex ];
+	toAttachment[ 0 ].image = frameImage;
 	toAttachment[ 0 ].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	toAttachment[ 0 ].subresourceRange.levelCount = 1;
 	toAttachment[ 0 ].subresourceRange.layerCount = 1;
@@ -4138,18 +4195,22 @@ bool VK_GuiExecutor_BeginFrame( void ) {
 
 	vkExec.frameSlot = slot;
 	vkExec.swapImageIndex = imageIndex;
+	vkExec.frameImage = frameImage;
+	vkExec.frameImageView = frameImageView;
+	vkExec.framePresentable = presentable;
 	vkExec.cmd = cmd;
 	vkExec.activeRenderTexture = NULL;
 	vkExec.activeCubeFace = 0;
 	memset( vkExec.activeColorEntries, 0, sizeof( vkExec.activeColorEntries ) );
 	vkExec.activeDepthEntry = NULL;
 	memset( vkExec.activeColorAttachmentViews, 0, sizeof( vkExec.activeColorAttachmentViews ) );
-	vkExec.activeColorAttachmentViews[ 0 ] = vkCtx.swapchainViews[ imageIndex ];
+	vkExec.activeColorAttachmentViews[ 0 ] = frameImageView;
 	vkExec.activeDepthAttachmentView = vkCtx.depthViews[ slot ];
 	vkExec.activeExtent = vkCtx.swapchainExtent;
 	vkExec.activePipelineTarget = VK_Exec_SwapchainPipelineTarget();
 	vkExec.frameOpen = true;
-	vkExec.acquireWaitPending = true;
+	// An offscreen frame acquired nothing, so its submission waits on nothing.
+	vkExec.acquireWaitPending = presentable;
 	vkExec.displayColorMapped = false;
 	VK_Exec_BeginMainRendering( true );
 
@@ -4196,7 +4257,7 @@ static void VK_Exec_BarrierActiveTargetForLoad( void ) {
 		barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		barrier.oldLayout = barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		barrier.srcQueueFamilyIndex = barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.image = entry != NULL ? entry->image : vkCtx.swapchainImages[ vkExec.swapImageIndex ];
+		barrier.image = entry != NULL ? entry->image : vkExec.frameImage;
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseArrayLayer = entry != NULL && entry->isCube ? (uint32_t)vkExec.activeCubeFace : 0;
 		barrier.subresourceRange.levelCount = barrier.subresourceRange.layerCount = 1;
@@ -4419,7 +4480,7 @@ static void VK_Exec_TransitionSwapchain( VkImageLayout oldLayout, VkImageLayout 
 	VK_Exec_LayoutAccess( newLayout, barrier.dstStageMask, barrier.dstAccessMask );
 	barrier.oldLayout = oldLayout;
 	barrier.newLayout = newLayout;
-	barrier.image = vkCtx.swapchainImages[ vkExec.swapImageIndex ];
+	barrier.image = vkExec.frameImage;
 	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.layerCount = 1;
@@ -4508,7 +4569,7 @@ bool VK_Exec_SetRenderTarget( idRenderTexture *renderTexture, int cubeFace ) {
 		}
 	} else {
 		attachments.colorCount = 1;
-		attachments.colorViews[ 0 ] = vkCtx.swapchainViews[ vkExec.swapImageIndex ];
+		attachments.colorViews[ 0 ] = vkExec.frameImageView;
 		attachments.depthView = vkCtx.depthViews[ vkExec.frameSlot ];
 		attachments.extent = vkCtx.swapchainExtent;
 		attachments.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -4742,6 +4803,15 @@ static bool VK_TemporalPresentation_RootCoversNativeOutput(
 		&& height == (int)vkCtx.swapchainExtent.height;
 }
 
+// Every opt-in shared adapter that the 3D walk gates on a native scene.
+static bool VK_TemporalPresentation_SharedAdapterRequested( void ) {
+	return r_rendererSharedWorldAmbient.GetBool()
+		|| r_rendererSharedWorldInteraction.GetBool()
+		|| r_rendererSharedInWorldGui.GetBool()
+		|| r_rendererSharedCinematicPost.GetBool()
+		|| r_rendererSharedWorldFogBlend.GetBool();
+}
+
 static bool VK_TemporalPresentation_BackendSceneRequested(
 		const viewDef_t *rootView, int &targetWidth, int &targetHeight ) {
 	targetWidth = 0;
@@ -4766,11 +4836,27 @@ static bool VK_TemporalPresentation_BackendSceneRequested(
 			&& !R_TemporalPresentation_ScreenSpaceEffectsRequested() ) {
 		return false;
 	}
-	// Keep native-size scenes in the same lower-origin attachment convention
-	// as scaled/HDR scenes and OpenGL. Reversing the viewport on the swapchain
-	// changes interpolation rounding even when the projected coverage agrees;
-	// radial shadow references can cross a depth threshold as a result. The
-	// existing spatial presenter normalizes the completed scene's orientation.
+	// The shared classic adapters own only the swapchain: each preflight
+	// rejects an offscreen target, and the 3D walk skips them outright while
+	// a scene target is active. Leave their views native when nothing else
+	// needs the target (scaling, temporal AA, screen-space effects, an HDR
+	// scene, MSAA or a PBR preview), or no shared adapter could ever draw.
+	const bool knownCapture = presentation.captureFrozen
+		|| presentation.captureForcedNative
+		|| ( rootView != NULL && rootView->temporalCaptureFrame );
+	if ( VK_TemporalPresentation_SharedAdapterRequested() && !sceneScaled
+			&& !( presentation.temporalAARequested && !knownCapture )
+			&& !AdvancedScreenSpaceCore_Requested( presentation.advancedScreenSpace )
+			&& !VK_PostProcess_HDRSceneRequested() && r_multiSamples.GetInteger() <= 1
+			&& !VK_HDRScene_PreviewRequested( rootView ) ) {
+		return false;
+	}
+	// Keep other native-size scenes in the same lower-origin attachment
+	// convention as scaled/HDR scenes and OpenGL. Reversing the viewport on
+	// the swapchain changes interpolation rounding even when the projected
+	// coverage agrees; radial shadow references can cross a depth threshold
+	// as a result. The existing spatial presenter normalizes the completed
+	// scene's orientation.
 	// The spatial presentation shader is also the projection-jitter safety
 	// gate for a backend-owned scene target. If its swapchain pipeline cannot
 	// be created, leave the view native so a later fixed-function scale cannot
@@ -5532,7 +5618,7 @@ static bool VK_TemporalPresentation_CompositePendingScene( void ) {
 	region.dstOffsets[1].z = 1;
 	vkCmdBlitImage( vkExec.cmd, sceneColor->image,
 		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-		vkCtx.swapchainImages[vkExec.swapImageIndex],
+		vkExec.frameImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, filter );
 
 	VK_Exec_TransitionImage( sceneColor, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
@@ -5691,7 +5777,7 @@ bool VK_Exec_CopyRender( idImage *image, int x, int y, int width, int height,
 		if ( vkExec.activeRenderTexture != NULL && sourceEntry == NULL ) {
 			return false;
 		}
-		sourceImage = sourceEntry != NULL ? sourceEntry->image : vkCtx.swapchainImages[ vkExec.swapImageIndex ];
+		sourceImage = sourceEntry != NULL ? sourceEntry->image : vkExec.frameImage;
 		sourceFormat = sourceEntry != NULL ? sourceEntry->format : vkCtx.swapchainFormat;
 	}
 	const uint32_t sourceLayer = sourceEntry != NULL && sourceEntry->isCube
@@ -6921,7 +7007,7 @@ bool VK_GuiExecutor_ReadPixels( int x, int y, int width, int height, void *pixel
 	copy.imageExtent.width = (uint32_t)width;
 	copy.imageExtent.height = (uint32_t)height;
 	copy.imageExtent.depth = 1;
-	vkCmdCopyImageToBuffer( vkExec.cmd, vkCtx.swapchainImages[ vkExec.swapImageIndex ],
+	vkCmdCopyImageToBuffer( vkExec.cmd, vkExec.frameImage,
 			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readbackBuffer, 1, &copy );
 
 	VK_Exec_TransitionSwapchain( VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -7020,6 +7106,8 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 	const int slot = vkExec.frameSlot;
 	const uint32_t imageIndex = vkExec.swapImageIndex;
 	VkCommandBuffer cmd = vkExec.cmd;
+	// A hidden window's offscreen frame completes without a presentation.
+	const bool presentImage = present && vkExec.framePresentable;
 
 	// submit any batched image uploads first: same-queue submission order makes
 	// them execute before this frame samples the images, and this frame's fence
@@ -7034,7 +7122,7 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 	VK_Exec_EndMainRendering();
 	VK_Exec_TransitionActiveTargetToSampled();
 
-	if ( present ) {
+	if ( presentImage ) {
 		VkImageMemoryBarrier2 toPresent;
 		memset( &toPresent, 0, sizeof( toPresent ) );
 		toPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -7043,7 +7131,7 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 		toPresent.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 		toPresent.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		toPresent.image = vkCtx.swapchainImages[ imageIndex ];
+		toPresent.image = vkExec.frameImage;
 		toPresent.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		toPresent.subresourceRange.levelCount = 1;
 		toPresent.subresourceRange.layerCount = 1;
@@ -7106,8 +7194,8 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 	si.pWaitSemaphoreInfos = vkExec.acquireWaitPending ? &waitInfo : NULL;
 	si.commandBufferInfoCount = 1;
 	si.pCommandBufferInfos = &cmdInfo;
-	si.signalSemaphoreInfoCount = present ? 1 : 0;
-	si.pSignalSemaphoreInfos = present ? &signalInfo : NULL;
+	si.signalSemaphoreInfoCount = presentImage ? 1 : 0;
+	si.pSignalSemaphoreInfos = presentImage ? &signalInfo : NULL;
 	const VkResult submitted = vkQueueSubmit2( vkCtx.graphicsQueue, 1, &si, vkCtx.frameFences[ slot ] );
 	if ( submitted != VK_SUCCESS ) {
 		VK_GpuFrameTiming_SubmitFailed( slot );
@@ -7124,6 +7212,12 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 	vkExec.acquireWaitPending = false;
 	vkExec.frameOpen = false;
 	if ( !present ) {
+		return true;
+	}
+	if ( !presentImage ) {
+		// Nothing displays a hidden window, so its completed frame is all its
+		// presentation is, as a GL swap of a hidden window is.
+		R_DisplayPresentationPresented();
 		return true;
 	}
 
@@ -7367,7 +7461,7 @@ static int VK_GpuSkinning_FindMemo( const void *ambientKey, bool reserve,
 
 /*
 ====================
-VK_GpuSkinning_PrepareView
+VK_GpuSkinning_DispatchView
 
 The front end cannot dispatch while building dynamic models, so Vulkan keeps
 its CPU ambient cache as a correctness fallback. Immediately before a 3D view
@@ -7378,7 +7472,7 @@ memo key, so depth, interactions, ambient passes, shadow maps, subviews, and
 view models all consume the same result without learning a skinning ABI.
 ====================
 */
-static bool VK_GpuSkinning_PrepareView( const viewDef_t *viewDef ) {
+static bool VK_GpuSkinning_DispatchView( const viewDef_t *viewDef ) {
 	if ( viewDef == NULL || viewDef->drawSurfs == NULL || viewDef->numDrawSurfs <= 0
 			|| !r_gpuSkinning.GetBool() || !vkGpuSkinningBackendRequested
 			|| !vkExec.gpuSkinningAvailable || !vkExec.frameOpen
@@ -7615,6 +7709,111 @@ static bool VK_GpuSkinning_PrepareView( const viewDef_t *viewDef ) {
 	return true;
 }
 
+static bool VK_Exec_CPUCacheValid( const vertCache_t *cache,
+		const bool indexBuffer, const size_t requiredBytes );
+
+/*
+====================
+VK_GpuSkinning_RepairDeferredSurface
+
+The front end skipped the normal/tangent derivation of a surface it handed to
+the compute pass. When that pass did not produce its stream, finish the
+complete CPU stream the front end would otherwise have built, before any draw
+of this view reads it, and retire any ring copy of the incomplete one.
+====================
+*/
+static void VK_GpuSkinning_RepairDeferredSurface( srfTriangles_t *tri ) {
+	tri->gpuSkinningDeferred = false;
+	vkExec.gpuSkinningDeferredRepairs++;
+	if ( tri->verts == NULL || tri->numVerts <= 0 ) {
+		return;
+	}
+	if ( !tri->tangentsCalculated ) {
+		R_DeriveTangents( tri );
+	}
+	const size_t vertexBytes = static_cast<size_t>( tri->numVerts ) * sizeof( idDrawVert );
+	if ( !VK_Exec_CPUCacheValid( tri->ambientCache, false, vertexBytes ) ) {
+		return;
+	}
+	memcpy( vertexCache.Position( tri->ambientCache ), tri->verts, vertexBytes );
+	const unsigned int memoIndex = static_cast<unsigned int>(
+			( reinterpret_cast<uintptr_t>( tri->ambientCache ) >> 4 )
+			& ( VK_TRI_MEMO_SIZE - 1 ) );
+	if ( vkExec.vertMemo[ memoIndex ].vertKey == tri->ambientCache ) {
+		vkExec.vertMemo[ memoIndex ].vertKey = NULL;
+	}
+}
+
+static void VK_GpuSkinning_RepairDeferredGeometry( const srfTriangles_t *geo ) {
+	if ( geo == NULL ) {
+		return;
+	}
+	// light-tris chains share their ambient surface's vertex stream
+	srfTriangles_t *tri = const_cast<srfTriangles_t *>(
+			geo->ambientSurface != NULL ? geo->ambientSurface : geo );
+	if ( !tri->gpuSkinningDeferred ) {
+		return;
+	}
+	bool existing = false;
+	const int memoIndex = VK_GpuSkinning_FindMemo( tri->ambientCache, false, existing );
+	if ( existing && memoIndex >= 0
+			&& vkExec.gpuSkinningMemo[ memoIndex ].vertexOffset >= 0 ) {
+		return;
+	}
+	VK_GpuSkinning_RepairDeferredSurface( tri );
+}
+
+/*
+====================
+VK_GpuSkinning_RepairDeferredView
+
+Every lit or ambient draw of the view reaches its vertex stream through the
+view's surface list or a light's interaction chains (a deformed copy replaces
+its source in the former, so the source is only reachable through the
+latter). Shadow-map casters read positions alone, which a deferred stream
+already holds.
+====================
+*/
+static void VK_GpuSkinning_RepairDeferredView( const viewDef_t *viewDef ) {
+	if ( viewDef == NULL ) {
+		return;
+	}
+	if ( viewDef->drawSurfs != NULL ) {
+		for ( int surfNum = 0; surfNum < viewDef->numDrawSurfs; ++surfNum ) {
+			const drawSurf_t *drawSurf = viewDef->drawSurfs[ surfNum ];
+			VK_GpuSkinning_RepairDeferredGeometry( drawSurf != NULL ? drawSurf->geo : NULL );
+		}
+	}
+	for ( const viewLight_t *vLight = viewDef->viewLights; vLight != NULL; vLight = vLight->next ) {
+		const drawSurf_t *chains[ 3 ] = {
+			vLight->localInteractions, vLight->globalInteractions,
+			vLight->translucentInteractions
+		};
+		for ( int chain = 0; chain < 3; ++chain ) {
+			for ( const drawSurf_t *surf = chains[ chain ]; surf != NULL; surf = surf->nextOnLight ) {
+				VK_GpuSkinning_RepairDeferredGeometry( surf->geo );
+			}
+		}
+	}
+}
+
+/*
+====================
+VK_GpuSkinning_PrepareView
+
+Dispatch the view's eligible surfaces, then complete on the CPU every deferred
+surface the dispatch did not cover (disabled, unavailable, out of ring or memo
+space, or refused validation). False means the view must be skipped.
+====================
+*/
+static bool VK_GpuSkinning_PrepareView( const viewDef_t *viewDef ) {
+	if ( !VK_GpuSkinning_DispatchView( viewDef ) ) {
+		return false;
+	}
+	VK_GpuSkinning_RepairDeferredView( viewDef );
+	return true;
+}
+
 // Memoized ring upload: the depth fill and both ambient walks visit the same
 // tris, so a hit retains the existing offsets without re-copying. Binding is
 // deliberately separate so speculative shared-domain preflight records no
@@ -7763,6 +7962,30 @@ bool VK_Exec_BindTriGeometry( VkCommandBuffer cmd, int slot,
 	vkCmdBindIndexBuffer( cmd, vkExec.indexRings[ slot ].buffer,
 		static_cast<VkDeviceSize>( indexOffset ), VK_INDEX_TYPE_UINT32 );
 	vkExec.boundVertexOffset = vertexOffset;	// the cube-texgen path re-binds binding 0 alongside its dir stream
+	return true;
+}
+
+// Temporal AA: drawSurf->previousPositionCache holds one idVec3 per vertex of
+// its tri, as drawn on the previous frame. Bound at vertex binding 1 beside
+// VK_Exec_BindTriGeometry's binding 0 (VK_EXTRA_VERTEX_POSITION_PREVIOUS).
+bool VK_Exec_BindPreviousPositions( VkCommandBuffer cmd, int slot,
+		const drawSurf_t *surf ) {
+	if ( cmd == VK_NULL_HANDLE || surf == NULL || surf->geo == NULL
+			|| surf->previousPositionCache == NULL || surf->geo->numVerts <= 0
+			|| slot < 0 || slot >= VK_FRAMES_IN_FLIGHT ) {
+		return false;
+	}
+	const size_t bytes = static_cast<size_t>( surf->geo->numVerts ) * sizeof( idVec3 );
+	if ( !VK_Exec_CPUCacheValid( surf->previousPositionCache, false, bytes ) ) {
+		return false;
+	}
+	const void *positions = vertexCache.Position( surf->previousPositionCache );
+	const int offset = VK_Ring_Alloc( vkExec.vertexRings[ slot ], positions, bytes, 16 );
+	if ( offset < 0 ) {
+		return false;
+	}
+	const VkDeviceSize bindOffset = static_cast<VkDeviceSize>( offset );
+	vkCmdBindVertexBuffers( cmd, 1, 1, &vkExec.vertexRings[ slot ].buffer, &bindOffset );
 	return true;
 }
 
@@ -8033,14 +8256,35 @@ VkPipeline VK_Exec_ExtraPipeline( int kind, VkShaderModule vertModule,
 		return VK_NULL_HANDLE;
 	}
 
-	VkVertexInputBindingDescription binding;
+	VkVertexInputBindingDescription bindings[ 2 ];
+	VkVertexInputBindingDescription &binding = bindings[ 0 ];
 	VkVertexInputAttributeDescription attrs[ 6 ];
 	VkPipelineVertexInputStateCreateInfo vertexInput;
-	memset( &binding, 0, sizeof( binding ) );
+	memset( bindings, 0, sizeof( bindings ) );
 	memset( attrs, 0, sizeof( attrs ) );
 	memset( &vertexInput, 0, sizeof( vertexInput ) );
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	switch ( vertexLayout ) {
+		case VK_EXTRA_VERTEX_POSITION_PREVIOUS:
+			bindings[ 0 ].binding = 0;
+			bindings[ 0 ].stride = sizeof( idDrawVert );
+			bindings[ 0 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+			bindings[ 1 ].binding = 1;
+			bindings[ 1 ].stride = sizeof( idVec3 );
+			bindings[ 1 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+			attrs[ 0 ].location = 0;
+			attrs[ 0 ].binding = 0;
+			attrs[ 0 ].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attrs[ 0 ].offset = (uint32_t)offsetof( idDrawVert, xyz );
+			attrs[ 1 ].location = 1;
+			attrs[ 1 ].binding = 1;
+			attrs[ 1 ].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attrs[ 1 ].offset = 0;
+			vertexInput.vertexBindingDescriptionCount = 2;
+			vertexInput.pVertexBindingDescriptions = bindings;
+			vertexInput.vertexAttributeDescriptionCount = 2;
+			vertexInput.pVertexAttributeDescriptions = attrs;
+			break;
 		case VK_EXTRA_VERTEX_POSITION:
 			binding.stride = sizeof( idDrawVert );
 			binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -8419,7 +8663,7 @@ static void VK_TemporalPresentation_FillResolveBlock(
 		int sceneWidth, int sceneHeight, bool useHistory, bool depthValid,
 		bool captureRecenter, int debugMode,
 		vkTemporalResolveBlock_t &block, unsigned int exactMotionDomains = 0u,
-		bool velocityValid = false ) {
+		bool velocityValid = false, bool perPixelOwnership = false ) {
 	memset( &block, 0, sizeof( block ) );
 	const viewDef_t *viewDef = command.viewDef;
 	const int outputWidth = Max( 1, (int)vkCtx.swapchainExtent.width );
@@ -8453,7 +8697,7 @@ static void VK_TemporalPresentation_FillResolveBlock(
 		temporalViewMotionPolicy_t motionPolicy;
 		const bool motionPolicyAvailable = viewDef != NULL
 			&& R_ScenePackets_BuildTemporalViewMotionPolicy(
-				viewDef, exactMotionDomains, motionPolicy );
+				viewDef, exactMotionDomains, motionPolicy, perPixelOwnership );
 		if ( motionPolicyAvailable ) {
 			for ( int component = 0; component < 4; ++component ) {
 				block.reactiveRect0[component] = -1.0f;
@@ -8566,7 +8810,10 @@ static bool VK_TemporalPresentation_DrawResolve(
 	// Keep the temporal algorithm in top-down texture coordinates.
 	// Individual scene/history images can have a different stored origin.
 	vkTemporalResolveBlock_t imageBlock = block;
-	int flags = block.motionParams[3] > 0.5f ? 1 : 0;
+	// the caller requests recentering (1) and present sharpening (16); the
+	// image-origin bits are derived here
+	const int requestedFlags = (int)( block.motionParams[3] + 0.5f );
+	int flags = requestedFlags & ( 1 | 16 );
 	if ( !sceneEntry->materialSampleFlipY ) { flags |= 2; }
 	if ( depthEntry != NULL && !depthEntry->materialSampleFlipY ) { flags |= 4; }
 	if ( historyEntry != NULL && !historyEntry->materialSampleFlipY ) { flags |= 8; }
@@ -8772,6 +9019,14 @@ static bool VK_TemporalPresentation_DrawResolvedColorToSwap(
 	vkTemporalResolveBlock_t block;
 	VK_TemporalPresentation_FillResolveBlock( presentCommand,
 		outputWidth, outputHeight, false, false, false, 0, block );
+	// Sharpen only the presented image; the history keeps its unsharpened
+	// samples. A history-less block reads no reactive regions, so slot 1
+	// carries the amount (temporal_resolve.frag flag 16).
+	const float sharpness = R_TemporalPresentation_PresentSharpness();
+	if ( sharpness > 0.0f ) {
+		block.motionParams[3] = (float)( (int)( block.motionParams[3] + 0.5f ) | 16 );
+		block.reactiveRect1[0] = sharpness;
+	}
 	return VK_TemporalPresentation_DrawResolve( NULL,
 		resolvedImage, resolvedEntry, NULL, NULL, NULL, NULL, block );
 }
@@ -8808,7 +9063,7 @@ static bool VK_TemporalPresentation_BlitColorToSwap(
 	region.dstOffsets[1].z = 1;
 	vkCmdBlitImage( vkExec.cmd, sourceEntry->image,
 		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-		vkCtx.swapchainImages[vkExec.swapImageIndex],
+		vkExec.frameImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, filter );
 	VK_Exec_TransitionImage( sourceEntry,
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
@@ -8959,12 +9214,20 @@ static bool VK_TemporalPresentation_ResolveTargets(
 	idImage *velocityImage = VK_PostProcess_TemporalMotionVectors( command.viewDef,
 		depthImage, sceneWidth, sceneHeight, command.historyGeneration,
 		historyValid, velocityComplete );
-	const unsigned int exactMotionDomains = velocityComplete
-		? TemporalHistoryCore_MotionDomainBit( TEMPORAL_MOTION_DOMAIN_RIGID ) : 0u;
+	// A complete pass owned every moving surface per pixel (exact vectors for
+	// rigid, posed and weapon surfaces, reactive coverage for the rest); only
+	// an incomplete one falls back to conservative screen regions.
+	const bool perPixelOwnership = velocityComplete && velocityImage != NULL;
+	const unsigned int exactMotionDomains = perPixelOwnership
+		? ( TemporalHistoryCore_MotionDomainBit( TEMPORAL_MOTION_DOMAIN_RIGID )
+			| TemporalHistoryCore_MotionDomainBit( TEMPORAL_MOTION_DOMAIN_SKINNED )
+			| TemporalHistoryCore_MotionDomainBit( TEMPORAL_MOTION_DOMAIN_DEFORM )
+			| TemporalHistoryCore_MotionDomainBit( TEMPORAL_MOTION_DOMAIN_VIEW_MODEL ) )
+		: 0u;
 	vkTemporalResolveBlock_t normalBlock;
 	VK_TemporalPresentation_FillResolveBlock( command, sceneWidth,
 		sceneHeight, historyValid, depthReady, false, 0, normalBlock,
-		exactMotionDomains, velocityImage != NULL );
+		exactMotionDomains, velocityImage != NULL, perPixelOwnership );
 	if ( !VK_TemporalPresentation_DrawResolve(
 			command.historyWriteTarget, sceneImage, sceneEntry,
 			depthReady ? depthImage : NULL, depthReady ? depthEntry : NULL,
@@ -8991,7 +9254,8 @@ static bool VK_TemporalPresentation_ResolveTargets(
 		vkTemporalResolveBlock_t debugBlock;
 		VK_TemporalPresentation_FillResolveBlock( command, sceneWidth,
 			sceneHeight, historyValid, depthReady, false,
-			debugMode, debugBlock, exactMotionDomains, velocityImage != NULL );
+			debugMode, debugBlock, exactMotionDomains, velocityImage != NULL,
+			perPixelOwnership );
 		const bool presented = VK_TemporalPresentation_DrawResolve(
 			NULL, sceneImage,
 			sceneEntry, depthReady ? depthImage : NULL,
@@ -11532,7 +11796,11 @@ static void VK_Exec_DrawAmbientStages( const viewDef_t *viewDef, const drawSurf_
 			default:					push.params[ 0 ] = 0.0f; break;
 		}
 		if ( nativePBREmission != NULL ) {
-			push.params[ 0 ] = 3.0f; // native emission, ignore vertex tint, finite radiance storage
+			// Native emission ignores vertex tint and bounds its radiance. 4 also
+			// encodes it for the display-referred framebuffer. The emission view
+			// (r_pbrDebug 6) shows the term exactly as it reaches the frame.
+			const int debugMode = r_pbrDebug.GetInteger();
+			push.params[ 0 ] = VK_HDRScene_DisplayReferredTarget() && ( debugMode == 0 || debugMode == 6 ) ? 4.0f : 3.0f;
 		} else if ( !softParticle ) {
 			VK_Exec_ClampClassicStageColor( push.stageColor, pStage->vertexColor != SVC_IGNORE );
 		}
@@ -13808,8 +14076,8 @@ void VK_GuiExecutor_Draw3DView( const viewDef_t *viewDef ) {
 	// than a separate fill and clear, the fill draws those surfaces first
 	// and vk_PostProcess.cpp copies depth between the phases.
 	const int worldDepthCaptures = VK_PostProcess_WorldDepthCaptures( viewDef );
-	int fillPhaseDrawn[ 3 ] = { 0, 0, 0 };
-	for ( int fillPhase = worldDepthCaptures != 0 ? 0 : 2; fillPhase < 3; fillPhase++ ) {
+	int fillPhaseDrawn[ 4 ] = { 0, 0, 0, 0 };
+	for ( int fillPhase = worldDepthCaptures != 0 ? 0 : 3; fillPhase < 4; fillPhase++ ) {
 		vkCmdSetDepthTestEnable( cmd, VK_TRUE );
 		vkCmdSetDepthWriteEnable( cmd, VK_TRUE );
 		vkCmdSetDepthCompareOp( cmd, VK_COMPARE_OP_LESS_OR_EQUAL );
@@ -14002,7 +14270,7 @@ void VK_GuiExecutor_Draw3DView( const viewDef_t *viewDef ) {
 			}
 		}
 		vkExec.alphaToCoverageSurface = false;
-		if ( fillPhase < 2 ) {
+		if ( fillPhase < 3 ) {
 			// the copy restarts rendering at the 2D baseline; the next phase
 			// re-latches the fill state, the space and the bound objects
 			VK_PostProcess_CaptureWorldDepth( viewDef, fillPhase, worldDepthCaptures, fillPhaseDrawn );
@@ -14010,6 +14278,13 @@ void VK_GuiExecutor_Draw3DView( const viewDef_t *viewDef ) {
 			depthFillBoundPipeline = VK_NULL_HANDLE;
 			depthFillBoundSet = VK_NULL_HANDLE;
 		}
+	}
+
+	// Native PBR keeps SSAO off its direct light: the occlusion field its
+	// indirect light reads is drawn now, from the complete prepass depth.
+	if ( worldDepthCaptures != 0 && VK_PostProcess_PrepareSSAOField( viewDef ) ) {
+		currentSpace = NULL;
+		vkCmdSetViewport( cmd, 0, 1, &viewport );
 	}
 
 	// ---- interactions: per-light bump/diffuse/specular (Phase F1) ----
@@ -14223,7 +14498,7 @@ void VK_GuiExecutor_Draw3DView( const viewDef_t *viewDef ) {
 				const idMaterial *shader = drawSurf->material;
 				if ( shader == NULL || ( !shader->HasAmbient() && !VK_PBR_BakedSurfaceOwned( viewDef, drawSurf ) && !( shader->HasPBR()
 						&& r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool()
-						&& ( r_pbrIBL.GetBool() || r_pbrDebug.GetInteger() != 0 ) ) ) || shader->IsPortalSky() ) {
+						&& VK_PBR_EnvironmentVisit( viewDef, drawSurf ) ) ) || shader->IsPortalSky() ) {
 					continue;
 				}
 				if ( shader->SuppressInSubview() ) {
@@ -14387,6 +14662,9 @@ Vulkan cannot record compute while dynamic models are being built on the
 front end. Returning false from PrepareAmbientCache intentionally requests
 the established CPU cache as the fail-closed fallback; Draw3D can later
 replace its ring upload with compute output while a command buffer is active.
+An accepted surface is marked deferred, so that cache holds the current
+positions without the normal/tangent derivation the compute pass replaces;
+VK_GpuSkinning_PrepareView completes it on the CPU if the dispatch is refused.
 ====================
 */
 void R_BackendGpuSkinning_Init( const renderBackendCaps_t &caps ) {
@@ -14402,11 +14680,17 @@ void R_BackendGpuSkinning_Shutdown( void ) {
 
 bool R_BackendGpuSkinning_PrepareAmbientCache( srfTriangles_t *tri,
 		bool needsLighting ) {
-	(void)tri;
 	(void)needsLighting;
-	if ( vkExec.initialized
-			&& ( !vkGpuSkinningBackendRequested || !vkExec.gpuSkinningAvailable ) ) {
+	if ( !vkExec.initialized ) {
+		return false;
+	}
+	if ( !vkGpuSkinningBackendRequested || !vkExec.gpuSkinningAvailable ) {
 		R_GpuSkinning_RecordFallback( GPU_SKINNING_FALLBACK_BACKEND_UNAVAILABLE );
+		return false;
+	}
+	if ( tri != NULL ) {
+		tri->gpuSkinningDeferred = true;
+		vkExec.gpuSkinningDeferredSurfaces++;
 	}
 	return false;
 }
@@ -14417,13 +14701,16 @@ void R_BackendGpuSkinning_PrintGfxInfo( void ) {
 			: ( vkExec.initialized ? "unavailable" : "pending executor initialization" );
 	common->Printf(
 			"GPU skinning compute (Vulkan): %s, dispatches=%llu vertices=%llu "
-			"fallbacks(validation=%llu ring=%llu memo=%llu)\n",
+			"fallbacks(validation=%llu ring=%llu memo=%llu) "
+			"deferred=%llu cpuRepairs=%llu\n",
 			status,
 			static_cast<unsigned long long>( vkExec.gpuSkinningDispatches ),
 			static_cast<unsigned long long>( vkExec.gpuSkinningVertices ),
 			static_cast<unsigned long long>( vkExec.gpuSkinningValidationFallbacks ),
 			static_cast<unsigned long long>( vkExec.gpuSkinningRingFallbacks ),
-			static_cast<unsigned long long>( vkExec.gpuSkinningMemoFallbacks ) );
+			static_cast<unsigned long long>( vkExec.gpuSkinningMemoFallbacks ),
+			static_cast<unsigned long long>( vkExec.gpuSkinningDeferredSurfaces ),
+			static_cast<unsigned long long>( vkExec.gpuSkinningDeferredRepairs ) );
 }
 
 // Exercise the real attachment/capture path on the active device. The readback
@@ -15495,18 +15782,31 @@ static bool VK_Exec_TestTemporalMotionCase( int width, int height, int fixture, 
 		view.temporalCaptureFrame = false;
 		view.temporalPreviousProjectionValid = true;
 	}
-	// Failed geometry admission and a newly visible entity cannot claim that
-	// the rigid domain was completely drawn. Existing texture contents never
-	// make that claim valid.
+	// Failed geometry admission cannot claim the view was completely owned;
+	// existing texture contents never make that claim valid. A newly visible
+	// entity has no previous transform: the pass still owns it completely, but
+	// only as full reactive coverage, never as an exact vector.
 	for ( int failure = 0; failure < 2 && passed; ++failure ) {
 		VK_PostProcess_CommitTemporalMotion( &view, width, height, generation );
 		++backEnd.frameCount;
 		vertCache_t *savedCache = tri.ambientCache;
 		if ( failure == 0 ) { tri.ambientCache = NULL; }
 		if ( failure == 1 ) { ++entity.index; }
-		passed = VK_GuiExecutor_BeginFrame() && VK_Exec_SetRenderTarget( &scene )
-			&& VK_PostProcess_TemporalMotionVectors( &view, depth, width, height,
-				generation, true, complete ) == NULL && !complete;
+		passed = VK_GuiExecutor_BeginFrame() && VK_Exec_SetRenderTarget( &scene );
+		idImage *ownership = passed ? VK_PostProcess_TemporalMotionVectors( &view, depth, width, height,
+			generation, true, complete ) : NULL;
+		if ( failure == 0 ) {
+			passed = passed && ownership == NULL && !complete;
+		} else {
+			passed = passed && ownership != NULL && complete
+				&& VK_Exec_TestReadFloatImage( ownership, pixels );
+			bool covered = false;
+			for ( int i = 0; i + 3 < pixels.Num() && passed; i += 4 ) {
+				passed = pixels[i + 3] == 0.0f;
+				covered |= pixels[i + 2] >= 0.999f;
+			}
+			passed = passed && covered;
+		}
 		tri.ambientCache = savedCache;
 		entity.index = 4321;
 	}

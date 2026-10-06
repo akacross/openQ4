@@ -77,14 +77,29 @@ when a status differs or a narrower qualification is needed.
 |---|---|---|
 | Stock-compatibility and security foundation | **Implemented** | Protocol 2.41 preservation, pure-MP game-module containment, bounded malformed-input handling with immediate session teardown, challenge entropy, rcon2, private-CVar redaction/remote authority, HTTP(S)-only transfer policy, source-provenance auditing, archived MP auto-join test policy, and the four-role retail-PK4 evidence harness are present. Release promotion still requires a clean source pair, final-package capture, and retained human review. |
 | Audited BFG-lineage image, sound, and idlib work | **Implemented** | The existing 37-file BFG inventory is tracked with source lineage and Additional Terms. Further imports must update the same manifest and notices. |
-| PBR material authoring and advanced-lighting path | **Experimental; implemented default-off; local Windows implementation exit passed; release promotion pending** | Namespaced parsing, typed color/data image usage, classic ARB2 fallbacks, packet/resource diagnostics, guarded OpenGL G-buffer/deferred/clustered-forward shader branches, GGX direct lighting, and a PBR-only analytic environment baseline cover the current PBR plan. OpenGL also has an authored, bounded specular-probe consumer: eight atlas cubemaps, no more than 32 records, deterministic top-two selection per cluster, and analytic fallback for every incomplete case. It is base-mip specular approximation only, with no parallax or diffuse-irradiance claim. Vulkan remains deliberately limited to opaque packed-ORM `tangentXYZ` direct lighting and has no authored-probe consumer. PBR, probe, and decal leaf controls default off, while `r_rendererModernQuality 0` rolls every Milestone F domain back at once. Current-source debug x64 self-tests, four-role retail-PK4 gameplay, controlled GL 3.3--4.5 and Vulkan fixture runs, visible PBR ownership, and exact master rollback pass locally; final committed-package, platform/driver, and release review remain open. |
+| PBR material authoring and advanced-lighting path | **PBR materials implemented and default-on; probe, decal and other advanced-lighting leaves default-off** | Since the [production-readiness plan](plans/2026-10-04-pbr-production-readiness.md) the classic OpenGL light loop (`draw_pbr.cpp`) and native Vulkan own every admitted PBR surface in ordinary gameplay, every light keeping its shadows; stock materials are never PBR and a frame without a PBR material skips all PBR preparation. Roughness, metalness and AO reach every term (multiple-scattering energy compensation, specular, horizon and multi-bounce occlusion); irradiance is calibrated to the classic light term and each draw composes into the display-referred frame. Authored ambient lights act as uniform environments, baked light grids and opt-in authored probes (`r_rendererReflectionProbes`) light PBR on both backends, and SSAO occludes only indirect light. Paired OpenGL/Vulkan laboratory suites qualify every channel and term on Windows (NVIDIA; Vulkan also on Intel) and on Linux Mesa (llvmpipe and lavapipe). Animated and MD5R-converted models are PBR on both backends; probes can be box-projected (`boxParallax`) and captured in the engine (`bakeReflectionProbes`); an OpenGL context without GLSL 1.30, such as macOS's GL 2.1, keeps PBR materials classic. Review on Mac hardware is pending. |
 | GPU measurement and dynamic resolution | **Implemented measurement; experimental default-off controller** | OpenGL and Vulkan publish the same delayed, non-blocking whole-frame microsecond result through renderer ABI v11, including frame/generation identity and availability/drop/reset counters. The Milestone E controller binds each retired sample to its source scale, rejects stale identity, drops quickly above budget, raises only after an under-budget streak, and keeps bounded aligned scene dimensions. Captures freeze or deliberately force native scale without feeding their timing into control. Current-build required-profile captures exercise both timing backends and forced controller drops; clean committed-package and platform/driver qualification remain open. |
 | General job system | **Implemented foundation** | The engine-owned [portable bounded job service](parallel-job-system.md) provides sleepable workers and waits, bounded list/job/dependency admission, low/normal/high priority aging, dependency ordering, cooperative cancellation, deterministic inline execution, metrics, and dedicated-safe lifecycle ownership. Threaded and synchronous native coverage passes. Its first production consumer is the learned level-load read/PK4-inflate and framing/integrity pipeline; live asset parsing, renderer/audio upload, and renderer-front-end work remain with their established owners. Current-build stock validation also produced identical jobs-on/off storage1 screenshots and game state, completed jobs-on/off OpenGL plus jobs-on Vulkan repeated-map campaigns with clean shutdown markers, and recorded five deterministic synchronous dedicated-server exits. Clean final-package recapture remains a separate release-promotion gate. |
-| Generated caches, streaming, and learned preload manifests | **Implemented and locally validated; release promotion pending** | Successful loads produce exact map/mode/entity-filter/search/PK4/settings manifests. Matching loads use bounded cancellable read/PK4 inflation followed by worker-safe typed framing and integrity validation, publish an immutable generation/source-identity DTO, and let the established main owner parse, adopt, and upload. Transactional static/MD5/MD5R model, classic-proc world, collision, and animation-v3 caches are private to `fs_savepath` and fall back to authoritative VFS sources. This is learned level-load preparation, not general asynchronous asset decode/upload streaming or portal-aware live reprioritization. Local Windows runtime evidence is recorded; clean committed-package performance, broader cancellation/failure campaigns, and release-platform evidence remain open. |
-| Shared renderer contracts and GPU skinning | **Implemented; opt-in and release promotion pending** | Ordered material/pass, clip-space, semantic vertex-layout, typed buffer-slice, exact four-weight, and joint-palette contracts are shared by OpenGL and Vulkan. `r_gpuSkinning` remains default-off; admitted MD5/MD5R surfaces produce the ordinary `idDrawVert` stream through backend compute while CPU positions and complete fallback remain authoritative for gameplay consumers and stencil volumes. Clean-package visual/performance and platform/driver promotion evidence remains open. |
+| Generated caches, streaming, and learned preload manifests | **Implemented and locally validated; release promotion pending** | Successful loads produce exact map/mode/entity-filter/search/PK4/settings manifests. Matching loads use bounded cancellable read/PK4 inflation followed by worker-safe typed framing and integrity validation, publish an immutable generation/source-identity DTO, and let the established main owner parse, adopt, and upload. Transactional static/MD5/MD5R model, classic-proc world, collision, and animation-v3 caches are private to `fs_savepath` and fall back to authoritative VFS sources. This is learned level-load preparation, not general asynchronous asset decode/upload streaming or portal-aware live reprioritization. Separately and by default since 2026-10-06, every level load reads and fingerprints its precompressed DDS images on worker threads while the main thread uploads (`image_prefetchLevelImages`). Local Windows runtime evidence is recorded; clean committed-package performance, broader cancellation/failure campaigns, and release-platform evidence remain open. |
+| Shared renderer contracts and GPU skinning | **Implemented; opt-in (not beneficial for stock content, 2026-10-06)** | Ordered material/pass, clip-space, semantic vertex-layout, typed buffer-slice, exact four-weight, and joint-palette contracts are shared by OpenGL and Vulkan. `r_gpuSkinning` remains default-off; admitted MD5/MD5R surfaces produce the ordinary `idDrawVert` stream through backend compute while CPU positions and complete fallback remain authoritative for gameplay consumers and stencil volumes. Vulkan no longer pays the CPU basis derivation the compute pass replaces, and sidecar validation is O(1) per use. Stock maps skin only about 1,500 vertices per frame, so promotion is deferred to animation-heavy content, after batched OpenGL dispatches and persistent per-mesh source buffers ([evidence](gpu-skinning-modernization.md#2026-10-06-promotion-attempt-not-beneficial-for-stock-content)). |
 | Modern classic-frame ownership | **Implemented; default-off; controlled nested GL/Vulkan fixture passed; release promotion pending** | Fixed-function root 2D GUI, eligible ambient-only 3D world, fixed-classic interaction, complete eligible fog/blend phases, provenance-tagged in-world GUI output, special subviews, cinematic/authored-post ranges, render-demo/Raven special frames, and their material-deform dependency have separate sealed GL/Vulkan corridors with complete classic rollback. Eligible authored-post tails inside a sealed special view bind to its exact root and depth; their executed work remains unpublished until the complete special-view transaction succeeds, and either domain can roll back the whole tree. Final R6 runtime acceptance proves one capture-backed color-2D mirror with a nested cinematic plus `_currentRender` tail on Windows GL/Vulkan. This is scoped ownership, not a claim that the aggregate modern-visible renderer owns every stock frame or that root cinematic/post, `_currentDepth`, broad subview, in-world-GUI, special-frame, final-package, platform, or driver breadth is qualified. |
-| Temporal presentation | **Implemented; experimental and default-off; release promotion pending** | OpenGL and Vulkan now share native-resolution history ownership, TAA/TAAU, camera/depth reprojection, conservative motion-domain rejection, camera/capture resets, and native-resolution UI composition. OpenGL has exact eligible rigid velocity; unsupported streams, Vulkan object motion, particles, skinned/deformed work, subviews, in-world GUI, and the view model are explicitly reactive rather than silently zero-motion. Missing resources or exact frame/generation depth ownership fails closed, and SMAA remains the immediate rollback. Local Windows GL/Vulkan gameplay closes the implementation gate; clean package, platform, driver, and retained human-review promotion remain open. |
+| Temporal presentation | **Implemented; automatic below native resolution by default (2026-10-06)** | OpenGL and Vulkan share native-resolution history ownership, TAA/TAAU, camera/depth reprojection, camera/capture resets, and native-resolution UI composition. The velocity pass owns every moving surface per pixel: exact vectors for rigid entities, skinned surfaces (previous model-space positions captured before each pose) and the depth-hacked weapon; per-pixel reactive coverage for particles, effects, GUIs, subviews and translucent moving geometry. The resolve uses YCoCg variance clipping, nearest-depth velocity, Catmull-Rom history and present-only CAS sharpening. `r_temporalAA 2` (default) engages only below native resolution; SMAA remains the rollback. Clean package, platform, driver, and retained human-review promotion remain open. |
 | Modern PBR quality and idTech 6-like follow-ons | **Implemented for the scoped roadmap; default-off; local Windows gate passed; release promotion pending** | Guarded direct metallic/roughness lighting, analytic fallback IBL, authored bounded OpenGL specular probes, atomic bounded OpenGL clustered decals, and three independent GL/Vulkan screen-space leaves now cover the scoped quality plan. The shared native presentation tail provides bounded 16-slice view-aligned froxel integration, bounded 16-step depth-normal SSR, and fixed eight-tap depth-derived SSGI. The effects deliberately do not claim shadowed light-injected volumetrics, material-roughness reflections, or world-space GI. This does not establish broad authored scene coverage or whole-frame lighting promotion: `MODERN_LIGHTING_PARITY_PROVEN_DOMAINS` remains `0`, while complete GPU-driven visible ownership and optional sparse residency remain later follow-ons. |
+
+### 2026-10-06 gap review
+
+Each remaining idTech 5/6 renderer item was either finished by default, measured
+and found not to pay for stock content, or deferred for a stated reason:
+
+| Item | Outcome |
+|---|---|
+| Temporal AA / upscaling (idTech 6 TSSAA) | **Done, default.** Complete per-pixel motion ownership; `r_temporalAA 2` upscales whenever the scene renders below native resolution ([temporal presentation](temporal-presentation.md)). |
+| Level-load streaming | **Done for images, default.** Worker-thread DDS reads, hardware SHA-256, immutable OpenGL texture storage and the loose-file memo: warm OpenGL Air Defense 1 about 14 s to about 9 s ([evidence](airdefense1-optimization-evidence.md)). General asset streaming stays open. |
+| Shader/pipeline caches | **Done; no background compilation needed.** Vulkan's pipeline cache is written atomically per level; a whole stock session creates 33 pipelines (49 ms cold, 4 ms warm). |
+| GPU skinning | **Not beneficial for stock content.** Vulkan no longer pays the CPU work it replaces, but stock maps skin about 1,500 vertices per frame (about 15 microseconds of CPU); `r_gpuSkinning` stays opt-in ([evidence](gpu-skinning-modernization.md#2026-10-06-promotion-attempt-not-beneficial-for-stock-content)). |
+| True HDR display output | **Deferred:** needs HDR display hardware to verify. |
+| Shadowed light-injected volumetrics | **Deferred to an authored opt-in:** shadow maps exist only inside each backend's light loop, and stock maps stage their shafts with beams and fog lights. |
+| `com_levelLoadModernization` default | **Deferred:** now 3.4 s slower on a first visit (was 6.6 s) and 1.1-1.5 s faster warm; the per-file `Sync()` and cache-key audit decide promotion. |
 
 Milestones A, B, and C have completed their implementation and local integration
 gates. **Milestone D scoped implementation is complete.** Its default-off
@@ -344,10 +359,12 @@ or PBR work multiplies the parity surface.
 
 ### Image quality
 
-- Complete motion vectors for rigid, skinned, particle, deform, subview, GUI,
-  and view-model surfaces.
-- TAA/TAAU with reactive masks, disocclusion handling, camera-cut resets, and
-  SMAA fallback.
+- **Implemented 2026-10-06:** complete motion ownership. Rigid, skinned and
+  view-model surfaces get exact vectors; particle, deform, subview and GUI
+  surfaces get per-pixel reactive coverage instead of screen regions.
+- **Implemented:** TAA/TAAU with per-pixel reactive masks, disocclusion
+  handling, camera-cut resets, and SMAA fallback; automatic below native
+  resolution by default.
 - Dynamic resolution driven by backend timestamps.
 - Namespaced PBR material extensions, GGX lighting, IBL/specular probes, and
   stock-material defaults that preserve the classic look.
@@ -357,12 +374,30 @@ or PBR work multiplies the parity surface.
   Their documented screen-space limitations remain explicit.
 - True HDR output (scRGB/HDR10 negotiation, paper-white GUI composition, and HDR
   screenshot policy), distinct from the existing internal HDR scene chain.
+  **Deferred 2026-10-06:** the only development machine exposes no HDR surface
+  format (Intel Xe: `SRGB_NONLINEAR` only), so swapchain negotiation and PQ/scRGB
+  encoding could not be seen working; Quake 4's SDR-authored content also gains
+  little without the internal tone-mapping chain being on by default. Revisit on
+  HDR display hardware.
+- Shadowed, light-injected volumetrics. **Deferred 2026-10-06:** a light's
+  shadow map exists only while that light draws (the OpenGL loop renders one
+  shadow map at a time), so injection needs a hook inside each backend's light
+  loop, and stock maps already stage their light shafts with authored beam
+  meshes and fog lights. Global scattering would restage every stock scene;
+  the useful form is an authored per-light or per-material opt-in for new
+  content.
 
 ### Streaming and CPU scalability
 
 - Extend the implemented bounded read/PK4-inflate -> framing/integrity DTO ->
   main-owner adoption corridor into asset-specific decode/transcode/upload only
   where detached results and per-stage budgets make ownership safe.
+  **2026-10-06, by default:** level images now read and fingerprint their
+  precompressed DDS on worker threads while the main thread uploads, content
+  hashing uses the CPU's SHA instructions, OpenGL compressed textures take
+  immutable storage, and a level load stops failing loose-file opens; together
+  about 14 s to about 9 s for a warm OpenGL Air Defense 1 load on the test
+  machine ([evidence](airdefense1-optimization-evidence.md)).
 - Add portal-aware live priority changes to the current exact-match learned
   manifest. The implemented replay is a bounded, deterministically ordered
   subset rather than an unconditional whole-level preload, but it does not
@@ -371,9 +406,19 @@ or PBR work multiplies the parity surface.
   content, after ordinary streaming is reliable. The official BFG drop does not
   provide idTech 5's virtual-texturing implementation, and stock Quake 4 assets
   must never depend on this path.
-- GPU skinning plus jobbed animation/model preparation.
+- GPU skinning plus jobbed animation/model preparation. **Measured 2026-10-06:**
+  stock maps skin about 1,500 vertices per frame, so GPU skinning stays opt-in
+  until animation-heavy content justifies batched dispatch and persistent
+  per-mesh buffers ([evidence](gpu-skinning-modernization.md#2026-10-06-promotion-attempt-not-beneficial-for-stock-content)).
 - Background shader/pipeline compilation with deterministic cache keys and an
-  always-available synchronous fallback.
+  always-available synchronous fallback. **Measured 2026-10-06, not needed for
+  stock content:** a whole Vulkan airdefense1 session with a full camera sweep
+  creates 33 pipelines (49 ms in total and one 11 ms creation from an empty
+  cache; 4 ms in total from a restored one), and stock materials need no
+  runtime SPIR-V compilation. Vulkan now times every pipeline creation
+  (`gfxInfo`), logs what each map created, and writes the driver's pipeline
+  cache atomically before every level load as well as at shutdown, so a
+  session that crashes keeps what earlier maps compiled.
 
 ### Networking and operations
 
@@ -660,9 +705,10 @@ promotion work rather than implementation blockers.
    incorporating external assets.
 2. **Implemented and locally contract-validated; broader authored-scene evidence pending:** authored OpenGL specular probes
    use a fixed eight-cubemap atlas, at most 32 frame records, and deterministic
-   top-two selection per cluster. Sampling is base-mip specular approximation
-   with analytic fallback; it does not claim box parallax, diffuse irradiance,
-   runtime capture, or Vulkan support.
+   top-two selection per cluster. Sampling now uses GGX-filtered specular,
+   diffuse irradiance and box-projected parallax (`boxParallax`) with analytic
+   fallback, probes can be captured in the engine (`bakeReflectionProbes`), and
+   Vulkan has a native consumer.
 3. **Implemented and locally contract-validated; broader authored-scene evidence pending:** eligible OpenGL clustered decals
    transfer ownership only through one prepare/seal transaction bounded to
    1,024 records and 65,536 cluster references. Any malformed, stale,

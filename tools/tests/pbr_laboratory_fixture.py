@@ -311,6 +311,45 @@ def test_classic_float_reference(root: Path) -> None:
     assert check(), 'matching clipped highlights are not compatibility proof'
 
 
+def test_classic_display_shoulder(root: Path) -> None:
+    from array import array
+    settings={**runner.BASE,**runner.CASES['production-fixed-native']}
+    def transfer(value: float) -> float:
+        return runner.stock_display_transfer(value,settings)
+    # BASE pins exposure 1 and white point 6: identity below the 0.5 shoulder,
+    # and the 0.782 classic highlight measured on 2026-10-04 displays as 175.
+    assert transfer(0.4)==0.4
+    assert abs(255*transfer(199.4/255)-175)<0.5
+    try: runner.stock_display_transfer(0.6,{**settings,'r_hdrGain':'2'})
+    except ValueError: pass
+    else: raise AssertionError('an unmodelled display adjustment was accepted')
+    width,height=1280,800
+    unshouldered=bytearray(width*height*3)
+    shouldered=bytearray(width*height*3)
+    linear=array('f',[0])*(width*height*3)
+    for y in range(296,385):
+        for x in range(663,752):
+            value=100+(x-663)
+            encoded=value/255
+            radiance=((encoded+0.055)/1.055)**2.4
+            for c in range(3):
+                unshouldered[(y*width+x)*3+c]=value
+                shouldered[(y*width+x)*3+c]=round(255*transfer(encoded))
+                linear[((height-1-y)*width+x)*3+c]=radiance
+    header=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,width,height,24,0x20)
+    native=root/'classic-shoulder-native.tga'
+    pfm=root/'classic-shoulder-linear.pfm'
+    pfm.write_bytes(b'PF\n1280 800\n-1.0\n'+linear.tobytes())
+    def check(image: bytearray) -> list[str]:
+        native.write_bytes(header+image)
+        rows=[{'case':'production-fixed','backend':'gl','tier':'gl45','linearScreenshot':str(pfm),'failures':[]},
+              {'case':'production-fixed-native','backend':'gl','tier':'gl45','screenshot':str(native),'failures':[]}]
+        runner.compare_material_captures(rows)
+        return rows[0]['failures']
+    assert not check(shouldered), 'a highlight through the stock shoulder must match its linear radiance'
+    assert check(unshouldered), 'a native highlight that skipped the stock shoulder must fail'
+
+
 def test_native_msaa_rounding(root: Path) -> None:
     header=struct.pack('<BBBHHBHHHHBB',0,0,2,0,0,0,0,0,1280,800,24,0x20)
     values=bytearray([100])*(1280*800*3)
@@ -348,8 +387,8 @@ def test_vulkan_direct_evidence(root: Path) -> None:
                        ('green',(0,255,0)),('black',(0,0,0)),('white',(255,255,255))):
         paths[name]=root/f'vk-direct-{name}.tga'
         paths[name].write_bytes(header+bytes(color)*(1280*800))
-    def check(assignments):
-        rows=[{'case':'vk-direct-'+case,'screenshot':str(paths[image]),'failures':[]}
+    def check(assignments,telemetry=()):
+        rows=[{'case':'vk-direct-'+case,'screenshot':str(paths[image]),'failures':[],'telemetry':list(telemetry)}
               for case,image in assignments]
         runner.compare_vulkan_direct_captures(rows)
         return rows
@@ -371,6 +410,14 @@ def test_vulkan_direct_evidence(root: Path) -> None:
     assert rows[1]['failures'], 'partial PBR emission promotion must fail exact classic fallback'
     assert check([('emission-half','grey')])[0]['failures'], 'emission needs an independent linear color reference'
     assert check([('emission-extreme','grey')])[0]['failures'], 'extreme emission must preserve the faint channel'
+    # A committed linear HDR scene maps the unclipped red channel through the
+    # filmic curve and one sRGB encode, 178 instead of production's 3.
+    paths['filmic']=root/'vk-direct-filmic.tga'
+    paths['filmic'].write_bytes(header+bytes((255,255,178))*(1280*800))
+    linear=['Vulkan HDR: sceneRequested=1 sceneFormat=RGBA16F linearScene=1']
+    assert not check([('emission-extreme','filmic')],linear)[0]['failures'], 'linear extreme emission must match its filmic reference'
+    assert check([('emission-extreme','filmic')],[linear[0].replace('linearScene=1','linearScene=0')])[0]['failures'], \
+        'the stock-domain reference must reject a filmic display value'
     assert check([('emission-dark','grey')])[0]['failures'], 'disabled emission must not retain radiance'
     for shape in ('geometric','normal'):
         rows=check([('aa-'+shape,'grey'),('aa-'+shape+'-off','grey'),('aa-'+shape+'-owned','green')])
@@ -490,7 +537,7 @@ def test_ibl_parity_provenance(root: Path) -> None:
         rows=[]
         for name in runner.IBL_MATERIALS:
             if backend=='gl' and name=='shared': continue
-            value=0 if name in ('off','ao-zero','zero','alpha-off','cutout-off','master-off','legacy') else 20
+            value=0 if name in ('off','ao-zero','zero','alpha-off','cutout-off','master-off','legacy','production') else 20
             value={'rough-low':10,'rough-high':30,'double':40}.get(name,value)
             if name.startswith('normal-'): value=22
             shot=coverage if name.endswith('coverage') else shots[value]
@@ -613,6 +660,7 @@ def main() -> int:
         test_proof_rejects_fallback_and_missing_channels(Path(name))
         test_differential_proof(Path(name))
         test_classic_float_reference(Path(name))
+        test_classic_display_shoulder(Path(name))
         test_native_msaa_rounding(Path(name))
         test_vulkan_direct_evidence(Path(name))
         test_vulkan_msaa_coverage_evidence(Path(name))

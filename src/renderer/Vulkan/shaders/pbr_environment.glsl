@@ -72,7 +72,7 @@ vec3 EvaluatePBREnvironment() {
     }
     metallic = clamp(metallic, 0.0, 1.0);
     roughness = PBRRoughness(roughness);
-    ao = clamp(ao, 0.0, 1.0);
+    ao = PBRScreenAO(clamp(ao, 0.0, 1.0), flags);
     mat3 basis = mat3(SafeNormalize(vPBRTangent0), SafeNormalize(vPBRTangent1), SafeNormalize(vPBRNormal));
     vec3 objectNormal = SafeNormalize(basis * PBRDirectNormal(vBumpTexCoord));
     vec3 dx = dFdx(objectNormal), dy = dFdy(objectNormal);
@@ -85,29 +85,44 @@ vec3 EvaluatePBREnvironment() {
     vec3 reflection = reflect(-v, n);
     float lod = roughness * 6.0;
     int low = int(floor(lod));
+    // The analytic studio environment lights only the laboratory
+    // (r_pbrAnalyticEnvironment, pc.b.y); production starts from black and
+    // takes its environment from authored probes and baked light grids.
     vec3 prefiltered = mix(PBREnvironmentLevel(8, reflection, low),
-        PBREnvironmentLevel(8, reflection, min(low + 1, 6)), fract(lod));
+        PBREnvironmentLevel(8, reflection, min(low + 1, 6)), fract(lod)) * pc.b.y;
     vec3 octNormal = n / max(abs(n.x) + abs(n.y) + abs(n.z), 1.0e-6);
     vec2 oct = octNormal.xy;
     if (n.z < 0.0) {
         oct = (1.0 - abs(octNormal.yx))
             * vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
     }
-    vec3 irradiance = PBREnvironmentTile(54 + 8, oct * 0.5 + 0.5, 32.0);
+    vec3 irradiance = PBREnvironmentTile(54 + 8, oct * 0.5 + 0.5, 32.0) * pc.b.y;
 #ifdef PBR_AUTHORED_PROBES
     PBRProbeBlend(vLightProjectionTexCoord.xyw, reflection, n, roughness, prefiltered, irradiance);
 #endif
     vec2 brdf = PBREnvironmentTile(63, vec2(NoV, roughness), 128.0).rg;
     vec3 f0 = mix(vec3(0.04), albedo, metallic);
     vec3 fresnel = f0 + (max(vec3(1.0 - roughness), f0) - f0) * PBRFresnelWeight(NoV);
-    vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * albedo * irradiance;
-    vec3 specular = prefiltered * (f0 * brdf.x + brdf.y);
+    // AO is indirect visibility. Diffuse takes its multi-bounce form; the
+    // specular cone takes its own occlusion and bounce off F0, and fades where
+    // the normal map turns the reflection below the geometric surface. The
+    // table's A + B is the single-scattering albedo the compensation restores.
+    vec3 diffuseColor = (1.0 - metallic) * albedo;
+    vec3 diffuseAO = PBRMultiBounceAOColor(ao, diffuseColor);
+    vec3 specularAO = PBRMultiBounceAOColor(PBRSpecularOcclusion(NoV, ao, roughness), f0)
+        * PBRHorizonOcclusion(dot(reflection, PBREnvironmentWorld(vPBRNormal)));
+    vec3 diffuse = (1.0 - fresnel) * diffuseColor * irradiance * diffuseAO;
+    vec3 specular = prefiltered * (f0 * brdf.x + brdf.y)
+        * PBREnergyCompensationColor(f0, brdf.x + brdf.y) * specularAO;
 #ifdef PBR_BAKED_LIGHTGRID
-    vec4 baked = ModernBakedIrradiance(vLightProjectionTexCoord.xyw, n, pc.b.z > 0.5);
-    diffuse = ModernBakedClamp((1.0 - fresnel) * (1.0 - metallic) * albedo
-        * baked.rgb * ao * vVertexColor, baked.w);
-    return diffuse + specular * ao * pc.c.z * vVertexColor;
+    // PBR shades in linear light whether the draw accumulates the laboratory
+    // linear scene or encodes into the display-referred frame, so it always
+    // decodes the display-encoded atlas texels.
+    vec4 baked = ModernBakedIrradiance(vLightProjectionTexCoord.xyw, n, true);
+    diffuse = ModernBakedClamp((1.0 - fresnel) * diffuseColor
+        * baked.rgb * diffuseAO * vVertexColor, baked.w);
+    return PBRDisplayOutput(diffuse + specular * pc.c.z * vVertexColor);
 #else
-    return (diffuse + specular) * ao * pc.c.z * vVertexColor;
+    return PBRDisplayOutput((diffuse + specular) * pc.c.z * vVertexColor);
 #endif
 }

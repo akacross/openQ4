@@ -55,6 +55,14 @@ compute support, and backend submission failures all select the complete CPU
 path. The fallback reason remains visible in diagnostics and is never treated
 as successful GPU admission.
 
+The per-vertex rules are proven once, when the model packs its immutable
+sidecar. The model records the highest joint any influence uses, and the
+attach rejects a palette that cannot cover it. Every later use of the surface
+(admission, scene packets, stencil-volume classification, backend dispatch)
+then checks only the palette header, generation, and that bound, instead of
+walking every vertex several times per frame. A sidecar without a recorded
+bound keeps the full per-vertex validation.
+
 ## Ownership and CPU invariants
 
 Immutable bind-pose and four-weight sidecars are owned by the source render
@@ -109,13 +117,33 @@ Host-to-compute and compute-to-vertex barriers make the ownership transition
 explicit. The separate stencil-shadow binding never consumes the computed
 stream.
 
+Because the front end cannot record compute, Vulkan accepts an admitted
+surface as *deferred* instead of returning a prepared stream. The CPU ambient
+cache it still allocates (the draw memo key and the fallback) then carries the
+current positions only: the front end skips the normal/tangent derivation that
+the compute pass replaces. Before the view's first draw, every deferred
+surface reachable from the view's surface list or a light's interaction chains
+that the dispatch did not cover (disabled, unavailable, out of ring or memo
+space, refused validation) is completed on the CPU, its cache rewritten, and
+any ring copy of the incomplete stream retired. Shadow-map casters read only
+positions, which a deferred stream already holds. Before this, a Vulkan
+GPU-skinned surface paid for both the compute pass and the full CPU tangent
+derivation, so enabling the feature could cost CPU time instead of saving it.
+
+A CPU `deform expand` offsets along vertex normals that a GPU-skinned pose does
+not carry on the CPU, so it derives the basis into its own copy over the source
+topology (seams and mirrored vertices still share their normals) whenever the
+source tangents were not calculated.
+
 ## Controls and diagnostics
 
 `r_gpuSkinning` is archived, experimental, and defaults to `0`. It is safe to
 toggle for an A/B capture; a renderer restart is not required. `gfxInfo`
 reports backend availability and the shared counters distinguish eligible,
 admitted, dispatched, and CPU-fallback work, including vertices, joints,
-palette bytes, and fallback reasons.
+palette bytes, and fallback reasons. The Vulkan line adds `deferred` (surfaces
+accepted without a CPU basis) and `cpuRepairs` (deferred surfaces the dispatch
+did not cover and the CPU completed).
 
 The dependency-light `RendererContractsTest` validates ordered/repeated passes,
 clip conversion, viewport orientation, semantic layouts, and typed buffer
@@ -192,3 +220,41 @@ release-promotion evidence until they have been captured from clean committed
 source and a freshly staged final package. That separation does not weaken the
 runtime rollback: the feature remains opt-in and fail-closed while promotion
 evidence is accumulated.
+
+### 2026-10-06 promotion attempt: not beneficial for stock content
+
+The strict pairs above were run on Windows x64 from a clean commit with the
+deferred Vulkan basis and prevalidated sidecars (OpenGL and Vulkan, stencil
+preset, `g_stopTime 1`, `sp-airdefense2`, `shadow-character-airdefense2`,
+`sp-mcc-landing`). Vulkan accepted 3,924 surfaces as deferred and dispatched all
+3,924, so no CPU repair was needed, with the validation layer clean.
+
+The decisive measurement is the engine's own skinning counter, not the
+whole-frame percentile. CPU skinning with tangents costs about 10-15 ns per
+vertex and the position-only path GPU admission keeps costs about 6-11 ns, and
+these maps skin roughly 1,400-1,500 vertices per frame. CPU skinning is therefore
+about 15 microseconds of a 1-2 ms frame; removing all of it is below what a
+CPU P95 comparison can resolve. The pairs could not show the required 1%
+improvement on either backend (they reported regressions of 6-98%), but those
+whole-frame numbers were dominated by peer builds saturating the shared
+machine and by recurring ~0.5 s frames that also appeared with GPU skinning
+off, so they are not evidence of a regression either. The paired verifier had
+also stopped accepting the benchmark's report schema (3 vs the current 5); it
+now follows the benchmark and a static contract fails if the two drift again.
+The pinned cases also never produced the classified stencil-volume fallback
+the verifier requires.
+
+`r_gpuSkinning` therefore stays opt-in. For stock Quake 4 content the work it
+removes is too small to matter, while it adds a compute pass and, on Vulkan, a
+split of the view's rendering scope. It remains useful for animation-heavy
+community content, where two costs still stand in the way of a clear win:
+
+- OpenGL dispatches each surface separately, each followed by its own
+  compute-to-vertex barrier;
+- both backends re-upload each surface's immutable bind pose and four-weight
+  stream (96 bytes per vertex) with every dispatch instead of keeping them in a
+  persistent per-mesh device buffer.
+
+Batched OpenGL dispatches with one barrier per view and persistent per-mesh
+source buffers are the prerequisites for any future promotion attempt, which
+should use an animation-heavy multiplayer workload rather than these maps.

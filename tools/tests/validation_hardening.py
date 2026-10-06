@@ -665,6 +665,7 @@ def validate_validation_wiring() -> None:
         "renderer_pbr_environment_parity.py",
         "renderer_pbr_geometry_parity.py",
         "renderer_pbr_laboratory.py",
+        "renderer_pbr_native_gl_parity.py",
         "renderer_pbr_preview.py",
         "renderer_pbr_probe_parity.py",
         "renderer_render_target_lifetime.py",
@@ -747,6 +748,9 @@ def validate_validation_wiring() -> None:
         # Imported by the UI harnesses that compile wrap sources; the workflows
         # py_compile it, and it is exercised through those harnesses.
         "wrap_sources.py",
+        # The NumPy reference the PBR laboratory oracles import; its fitted
+        # kernels are tested natively in PBRMathTest.
+        "pbr_reference.py",
     }
     discovered_tests = sorted(path.name for path in (ROOT / "tools" / "tests").glob("*.py"))
     if not discovered_tests:

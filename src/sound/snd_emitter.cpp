@@ -45,6 +45,7 @@ extern idCVar s_speakerFraction;
 extern idCVar s_radioChatterFraction;
 extern idCVar s_quadraticFalloff;
 extern idCVar s_frequencyShift;
+extern idCVar s_useEAXOcclusion;
 
 static const int SOUND_SHADER_SHAKE_RATE_HZ = 30;
 static const float SOUND_SHADER_MATERIAL_SHAKE_SCALE = 2800.0f;
@@ -55,7 +56,6 @@ static const int Q4_SOUND_CHANNEL_SPECIAL_ATTENUATION_EXEMPT_1 = 7;
 static const int Q4_SOUND_CHANNEL_RADIO_CHATTER = 10;
 static const float SOUND_FREQUENCY_SHIFT_MIN = 0.25f;
 static const float SOUND_FREQUENCY_SHIFT_MAX = 4.0f;
-static const float SOUND_OCCLUSION_PER_BLOCKED_PORTAL = 0.5f;
 static const float SOUND_ENVIROSUIT_OCCLUSION = 0.5f;
 // openQ4: heavier than the enviro suit - water swallows high frequencies far more than a helmet
 static const float SOUND_UNDERWATER_OCCLUSION = 0.75f;
@@ -145,6 +145,30 @@ static ID_INLINE float SoundChannelFrequencyShift( const idSoundChannel* chan )
 	return idMath::ClampFloat( SOUND_FREQUENCY_SHIFT_MIN, SOUND_FREQUENCY_SHIFT_MAX, frequencyShift );
 }
 
+static bool SoundUsesMusicVolume( const soundShaderParms_t& parms );
+
+/*
+========================
+SoundChannelPlaybackRate
+
+The rate a channel's voice plays at: the shader's frequency shift, com_timescale and
+the world's slow motion (the weapon wheel runs the game at 0.18x). Music keeps its
+tempo through slow motion; at 0.18x it dropped some thirty semitones.
+========================
+*/
+static float SoundChannelPlaybackRate( const idSoundChannel* chan )
+{
+	extern idCVar com_timescale;
+	float rate = SoundChannelFrequencyShift( chan );
+	rate *= idMath::ClampFloat( 0.2f, 5.0f, SoundSanitizePositiveValue( com_timescale.GetFloat(), 1.0f ) );
+	const idSoundWorldLocal* soundWorld = ( chan->emitter != NULL ) ? chan->emitter->soundWorld : NULL;
+	if( soundWorld != NULL && !SoundUsesMusicVolume( chan->parms ) )
+	{
+		rate *= SoundSanitizePositiveValue( soundWorld->slowmoSpeed, 1.0f );
+	}
+	return rate;
+}
+
 static float SoundChannelPlaybackTimeMsec( idSoundChannel* chan, const int currentTime )
 {
 	if( chan == NULL || currentTime <= chan->startTime )
@@ -153,8 +177,11 @@ static float SoundChannelPlaybackTimeMsec( idSoundChannel* chan, const int curre
 	}
 
 	// Retail keeps a shifted sample clock per live channel instead of deriving every offset from wall time.
+	// It runs at the voice's whole playback rate: wall time alone stopped a line of dialogue started
+	// before slow motion about a third of the way in.
 	const float frequencyShift = SoundChannelFrequencyShift( chan );
-	if( chan->lastFrequencyShiftTime != 0 || frequencyShift != 1.0f )
+	const float playbackRate = SoundChannelPlaybackRate( chan );
+	if( chan->lastFrequencyShiftTime != 0 || playbackRate != 1.0f )
 	{
 		float elapsed = 0.0f;
 		if( chan->lastFrequencyShiftTime != 0 )
@@ -163,16 +190,55 @@ static float SoundChannelPlaybackTimeMsec( idSoundChannel* chan, const int curre
 		}
 		else
 		{
+			// until now only the shader's own shift applied, or the clock would be running already
 			elapsed = Max( 0, currentTime - chan->startTime ) * frequencyShift;
 		}
 
-		chan->lastFrequencyShift = frequencyShift;
+		chan->lastFrequencyShift = playbackRate;
 		chan->elapsedFrequencyShiftTime = Max( 0.0f, elapsed );
 		chan->lastFrequencyShiftTime = currentTime;
 		return chan->elapsedFrequencyShiftTime;
 	}
 
 	return currentTime - chan->startTime;
+}
+
+// The channel's envelope at its playback position: the shader's own shakeData (Raven's
+// 30 Hz letter envelope, the one sound-driven lights read) when it has one for this
+// variant, else the level measured from the sample.
+static float SoundChannelSampleAmplitude( idSoundChannel* chan, const int currentTime )
+{
+	if( chan == NULL || chan->leadinSample == NULL )
+	{
+		return 0.0f;
+	}
+	const int relativeTime = idMath::FtoiFast( SoundChannelPlaybackTimeMsec( chan, currentTime ) );
+	const char* shakeData = ( chan->soundShader != NULL ) ? chan->soundShader->GetShakeData( chan->choice ) : NULL;
+	if( shakeData != NULL && shakeData[0] != '\0' )
+	{
+		const int shakeDataLength = idStr::Length( shakeData );
+		int shakeIndex = SOUND_SHADER_SHAKE_RATE_HZ * relativeTime / 1000;
+		if( ( chan->parms.soundShaderFlags & SSF_LOOPING ) != 0 )
+		{
+			shakeIndex %= shakeDataLength;
+		}
+		if( shakeIndex < 0 || shakeIndex >= shakeDataLength )
+		{
+			return 0.0f;
+		}
+		const float high = Max( 0, shakeData[shakeIndex] - 'a' ) * SOUND_SHADER_MATERIAL_SHAKE_SCALE;
+		return idMath::ATan( high * SOUND_SHADER_SHAKE_NORMALIZE, 1.0f ) / DEG2RAD( 45.0f );
+	}
+	const int leadinLength = chan->leadinSample->LengthInMsec();
+	if( relativeTime < leadinLength )
+	{
+		return chan->leadinSample->GetAmplitude( relativeTime );
+	}
+	if( chan->loopingSample != NULL && chan->loopingSample->LengthInMsec() > 0 )
+	{
+		return chan->loopingSample->GetAmplitude( ( relativeTime - leadinLength ) % chan->loopingSample->LengthInMsec() );
+	}
+	return 0.0f;
 }
 
 static bool SoundChannelHasCompleted( idSoundChannel* chan, const int currentTime )
@@ -233,13 +299,6 @@ static void SoundWorldApplyDistanceFalloff( float& volumeScale, const float dist
 		}
 		volumeScale *= frac;
 	}
-}
-
-static ID_INLINE float SoundCombineOcclusion( const float a, const float b )
-{
-	const float clampedA = SoundSanitizeUnitValue( a, 0.0f );
-	const float clampedB = SoundSanitizeUnitValue( b, 0.0f );
-	return 1.0f - ( ( 1.0f - clampedA ) * ( 1.0f - clampedB ) );
 }
 
 static bool IsRadioChatterChannel( const idSoundChannel* chan )
@@ -425,6 +484,17 @@ idSoundChannel::idSoundChannel
 */
 idSoundChannel::idSoundChannel()
 {
+	hardwareVoice = NULL;
+	Reset();
+}
+
+/*
+========================
+idSoundChannel::Reset
+========================
+*/
+void idSoundChannel::Reset()
+{
 	emitter = NULL;
 	hardwareVoice = NULL;
 
@@ -442,6 +512,7 @@ idSoundChannel::idSoundChannel()
 
 	volumeDB = DB_SILENCE;
 	currentAmplitude = 0.0f;
+	shakeScale = 0.0f;
 	lastFrequencyShift = 1.0f;
 	elapsedFrequencyShiftTime = 0.0f;
 }
@@ -535,6 +606,7 @@ void idSoundChannel::UpdateVolume( int currentTime )
 
 	volumeDB = DB_SILENCE;
 	currentAmplitude = 0.0f;
+	shakeScale = 0.0f;
 
 	if( leadinSample == NULL )
 	{
@@ -584,7 +656,6 @@ void idSoundChannel::UpdateVolume( int currentTime )
 		}
 	}
 
-	volumeScale *= SoundSanitizeGainScale( s_volume.GetFloat(), 0.0f );
 	volumeScale *= volumeFade.GetVolume( currentTime );
 	volumeScale *= soundWorld->volumeFade.GetVolume( currentTime );
 	volumeScale *= soundWorld->pauseFade.GetVolume( currentTime );
@@ -628,24 +699,18 @@ void idSoundChannel::UpdateVolume( int currentTime )
 	}
 
 	volumeScale = SoundSanitizeGainScale( volumeScale, 0.0f );
+	// Retail took a sound's shake strength from its own volume and falloff, never the
+	// player's volume setting, so the master volume goes on after this.
+	shakeScale = volumeScale;
+	volumeScale = SoundSanitizeGainScale( volumeScale * SoundSanitizeGainScale( s_volume.GetFloat(), 0.0f ), 0.0f );
 
 	// store the new volume on the channel
 	volumeDB = volumeScale < SOUND_WORLD_VOLUME_EPSILON ? DB_SILENCE : VolumeScaleToDB( volumeScale );
 
-	// keep track of the maximum volume
-	float currentVolumeDB = volumeDB;
+	// The voice cannot report its level (OpenAL has no meter), so read the sample's envelope.
 	if( hardwareVoice != NULL )
 	{
-		float amplitude = hardwareVoice->GetAmplitude();
-		if( amplitude <= 0.0f )
-		{
-			currentVolumeDB = DB_SILENCE;
-		}
-		else
-		{
-			currentVolumeDB += LinearToDB( amplitude );
-		}
-		currentAmplitude = amplitude;
+		currentAmplitude = ( parms.soundShaderFlags & SSF_NO_FLICKER ) != 0 ? 1.0f : SoundChannelSampleAmplitude( this, currentTime );
 	}
 }
 
@@ -746,12 +811,8 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 		hardwareVoice->SetCenterChannel( 0.0f );
 	}
 
-	extern idCVar com_timescale;
-
 	hardwareVoice->SetGain( volume );
 	hardwareVoice->SetInnerRadius( parms.minDistance * METERS_TO_DOOM );
-	const float pitchScale = idMath::ClampFloat( 0.2f, 5.0f, SoundSanitizePositiveValue( com_timescale.GetFloat(), 1.0f ) );
-	const float frequencyShift = SoundChannelFrequencyShift( this );
 	const float wetLevel = SoundSanitizeUnitValue( parms.wetLevel, 0.0f );
 	const float dryLevel = SoundSanitizeUnitValue( parms.dryLevel, 1.0f );
 	// A generic room tail surviving more strongly than the muffled direct path makes submerged
@@ -762,21 +823,38 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 		  ( emitter->crossesLiquidBoundary && ( parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0 ) );
 	hardwareVoice->SetWetLevel( wetLevel * ( liquidAcoustics ? 0.125f : 1.0f ) );
 	hardwareVoice->SetDryLevel( dryLevel );
-	hardwareVoice->SetPitch( SoundSanitizePositiveValue( soundWorld->slowmoSpeed, 1.0f ) * pitchScale * frequencyShift );
+	hardwareVoice->SetPitch( SoundChannelPlaybackRate( this ) );
 
-	float portalOcclusion = 0.0f;
-	const bool allowPortalOcclusion = !global && !emitterIsListener && s_useOcclusion.GetBool() && ( parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0;
-	if( allowPortalOcclusion && leadinSample->NumChannels() == 1 && emitter->occludingPortalCount > 0 )
+	// Retail EAX source state (Quake4.exe 1.4.2): every mono voice feeds the reverb slot of its
+	// own area and the listener's slot. The radio channel stays out of the room and voice-over
+	// is pulled back; while EAX reverb is on, each blocking portal on the traced path occludes
+	// the direct sound and the listener-room send by 1500 mB.
+	int reverbRoomMB = 0;
+	if( IsRadioChatterChannel( this ) )
 	{
-		portalOcclusion = SoundCombineOcclusion( portalOcclusion, SOUND_OCCLUSION_PER_BLOCKED_PORTAL * emitter->occludingPortalCount );
+		reverbRoomMB = SOUND_REVERB_ROOM_RADIO_MB;
 	}
+	else if( ( parms.soundShaderFlags & SSF_IS_VO ) != 0 )
+	{
+		reverbRoomMB = SOUND_REVERB_ROOM_VOICEOVER_MB;
+	}
+	int reverbOcclusionMB = 0;
+	if( soundSystemLocal.hardware.HasEFX() && s_useEAXOcclusion.GetBool() && s_useOcclusion.GetBool() &&
+		( parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0 && emitter->occludingPortalCount > 0 )
+	{
+		reverbOcclusionMB = SOUND_REVERB_OCCLUSION_PER_PORTAL_MB * emitter->occludingPortalCount;
+	}
+	hardwareVoice->SetReverbSource( soundSystemLocal.reverb.SlotForArea( emitter->lastValidPortalArea ), reverbRoomMB,
+		reverbOcclusionMB, leadinSample->NumChannels() == 1 );
+
 	// openQ4: a surface between the emitter and the ear is a far stronger barrier than a doorway
+	float liquidOcclusion = 0.0f;
 	if( emitter->crossesLiquidBoundary && ( parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0 )
 	{
-		portalOcclusion = SoundCombineOcclusion( portalOcclusion, SOUND_LIQUID_BOUNDARY_OCCLUSION );
+		liquidOcclusion = SOUND_LIQUID_BOUNDARY_OCCLUSION;
 	}
 
-	hardwareVoice->SetOcclusion( portalOcclusion );
+	hardwareVoice->SetOcclusion( liquidOcclusion );
 	// openQ4: the enviro suit and being underwater both muffle the mix; take whichever is heavier
 	// rather than letting one cancel the other out
 	float environmentMuffle = soundWorld->enviroSuitActive ? SOUND_ENVIROSUIT_OCCLUSION : 0.0f;
@@ -785,6 +863,7 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 		environmentMuffle = SOUND_UNDERWATER_OCCLUSION;
 	}
 	hardwareVoice->SetEnvironmentMuffle( environmentMuffle );
+	hardwareVoice->CommitMix();
 
 	if( issueStart )
 	{
@@ -866,6 +945,9 @@ void idSoundEmitterLocal::Init( int i, idSoundWorldLocal* sw )
 	crossesLiquidBoundary = false;
 
 	memset( &parms, 0, sizeof( parms ) );
+	memset( recentShaders, 0, sizeof( recentShaders ) );
+	memset( recentSamples, 0, sizeof( recentSamples ) );
+	recentNext = 0;
 
 	if( soundWorld && soundWorld->writeDemo )
 	{
@@ -1044,16 +1126,26 @@ void idSoundEmitterLocal::Update( int currentTime )
 	float maxDistance = 0.0f;
 	bool maxDistanceValid = false;
 	bool useOcclusion = false;
+	// Retail traces portals for every playing channel, global ones included: their
+	// EAX occlusion follows the blocking portals between emitter and listener.
+	bool globalOcclusion = false;
+	float occlusionDistance = 0.0f;
 	if( emitterId != soundWorld->listener.id )
 	{
 		for( int i = 0; i < channels.Num(); i++ )
 		{
 			idSoundChannel* chan = channels[i];
+			const bool occludes = ( chan->parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0;
+			if( occludes && occlusionDistance < chan->parms.maxDistance )
+			{
+				occlusionDistance = chan->parms.maxDistance;
+			}
 			if( ( chan->parms.soundShaderFlags & SSF_GLOBAL ) != 0 )
 			{
+				globalOcclusion = globalOcclusion || occludes;
 				continue;
 			}
-			useOcclusion = useOcclusion || ( ( chan->parms.soundShaderFlags & SSF_NO_OCCLUSION ) == 0 );
+			useOcclusion = useOcclusion || occludes;
 			maxDistanceValid = true;
 			if( maxDistance < channels[i]->parms.maxDistance )
 			{
@@ -1063,31 +1155,50 @@ void idSoundEmitterLocal::Update( int currentTime )
 	}
 	if( maxDistanceValid && directDistance >= maxDistance )
 	{
-		// too far away to possibly hear it
+		// Too far away to hear any positional channel. maxDistance only counts those, and
+		// a global channel on the same emitter plays at any distance, so it still updates.
+		for( int j = 0; j < channels.Num(); j++ )
+		{
+			if( ( channels[j]->parms.soundShaderFlags & SSF_GLOBAL ) != 0 )
+			{
+				channels[j]->UpdateVolume( currentTime );
+			}
+		}
 		return;
 	}
-	if( useOcclusion && s_useOcclusion.GetBool() )
+	if( soundWorld->renderWorld != NULL )
 	{
-		// work out virtual origin and distance, which may be from a portal instead of the actual origin
-		if( soundWorld->renderWorld != NULL )
+		// Retail Spatialize: every emitter in range keeps the area it is in, which
+		// the area reverb routing reads even when occlusion is off.
+		int soundInArea = soundWorld->renderWorld->PointInArea( origin );
+		if( soundInArea == -1 )
 		{
-			// we have a valid renderWorld
-			int soundInArea = soundWorld->renderWorld->PointInArea( origin );
-			if( soundInArea == -1 )
-			{
-				soundInArea = lastValidPortalArea;
-			}
-			else
-			{
-				lastValidPortalArea = soundInArea;
-			}
+			soundInArea = lastValidPortalArea;
+		}
+		else
+		{
+			lastValidPortalArea = soundInArea;
+		}
+
+		// work out virtual origin and distance, which may be from a portal instead of the actual origin
+		if( ( useOcclusion || globalOcclusion ) && s_useOcclusion.GetBool() )
+		{
 			if( soundInArea != -1 && soundInArea != soundWorld->listener.area )
 			{
-				spatializedDistance = maxDistance * METERS_TO_DOOM;
+				spatializedDistance = Max( maxDistance, occlusionDistance ) * METERS_TO_DOOM;
 				soundWorld->ResolveOrigin( 0, NULL, soundInArea, 0.0f, 0, origin, this );
 				spatializedDistance *= DOOM_TO_METERS;
+				if( !useOcclusion )
+				{
+					// traced only for the global channels' occlusion; positional
+					// channels keep the direct path
+					spatializedDistance = directDistance;
+					spatializedOrigin = origin;
+				}
 			}
-
+		}
+		if( useOcclusion && s_useOcclusion.GetBool() )
+		{
 			// openQ4: does this sound have to cross a liquid surface to reach the ear? Asked here
 			// because this is already the per-emitter geometry step, and it is the same thread.
 			if( soundWorld->liquidTest != NULL )
@@ -1312,13 +1423,24 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 			selectedSample = shader->entries[choice];
 		}
 
-		for( int i = 0; i < channels.Num(); i++ )
+		bool duplicate = false;
+		for( int i = 0; i < channels.Num() && !duplicate; i++ )
 		{
-			if( channels[i]->leadinSample == selectedSample )
+			duplicate = ( channels[i]->leadinSample == selectedSample );
+		}
+		// the last sample this shader started here, even if it has finished
+		for( int i = 1; i <= RECENT_SAMPLES && !duplicate; i++ )
+		{
+			const int slot = ( recentNext - i + RECENT_SAMPLES ) % RECENT_SAMPLES;
+			if( recentShaders[slot] == shader )
 			{
-				choice = ( choice + 1 ) % shader->entries.Num();
+				duplicate = ( recentSamples[slot] == selectedSample );
 				break;
 			}
+		}
+		if( duplicate )
+		{
+			choice = ( choice + 1 ) % shader->entries.Num();
 		}
 	}
 
@@ -1392,6 +1514,9 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	chan->leadinSample = leadinSample;
 	chan->loopingSample = loopingSample;
 	chan->allowSlow = allowSlow;
+	recentShaders[recentNext] = shader;
+	recentSamples[recentNext] = leadinSample;
+	recentNext = ( recentNext + 1 ) % RECENT_SAMPLES;
 	chan->lastFrequencyShiftTime = 0;
 	chan->lastFrequencyShift = 1.0f;
 	chan->elapsedFrequencyShiftTime = 0.0f;
@@ -1418,8 +1543,7 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	else
 	{
 		// This channel will automatically end at this time
-		const float frequencyShift = SoundChannelFrequencyShift( chan );
-		chan->endTime = chan->startTime + idMath::FtoiFast( length / frequencyShift ) + 100;
+		chan->endTime = chan->startTime + idMath::FtoiFast( length / SoundChannelPlaybackRate( chan ) ) + 100;
 	}
 	if( showStartSound )
 	{

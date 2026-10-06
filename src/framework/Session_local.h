@@ -537,7 +537,7 @@ public:
 	bool				objectiveFailed;
 	// each game tic, numClients usercmds will be added, until full
 
-	bool				insideUpdateScreen;	// true while inside ::UpdateScreen()
+	bool				insideUpdateScreen;	// true while inside ::UpdateScreen() or a capture draw (sessionCaptureDrawGuard_t)
 	bool				insidePacifierUpdate;	// prevents recursive loading/network updates
 
 	bool				loadingSaveGame;	// currently loading map from a SaveGame

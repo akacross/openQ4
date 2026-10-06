@@ -205,11 +205,11 @@ Notes:
   ARB `RECT`, `1D` or `3D` textures, the `ARB_fog_*` options, or NVIDIA program
   options. OpenGL would draw those with leftover state rather than a defined
   result.
-- **Advanced renderer parity.** Vulkan's opt-in PBR path supports a narrower
-  material subset than OpenGL. It is a default-off experimental feature,
-  separate from the stock effects listed above. `r_rendererClusteredDecals`
-  only changes how OpenGL's modern path routes decals, not how they look;
-  Vulkan draws the same decals, so the setting changes nothing there.
+- **Clustered decal routing.** `r_rendererClusteredDecals` only changes how
+  OpenGL's modern path routes decals, not how they look; Vulkan draws the same
+  decals, so the setting changes nothing there. (PBR materials are not on this
+  list: both renderers draw them by the same rules; see
+  [PBR materials](pbr-materials.md).)
 - **VR.** The [OpenXR VR mode](vr.md) needs the OpenGL renderer.
 - **Pixel readbacks in the debug views.** A Vulkan frame cannot stop halfway
   to read pixels back, so the overdraw averages that `r_showLightCount 3` and
@@ -380,8 +380,11 @@ Changes take effect immediately without reconnecting.
 The Display menu exposes curated presets: `10%`, `25%`, `50%`, `75%`, `85%`, `100%`, `125%`, `150%`, and `200%`.
 
 Modes `2` and `3` apply in the campaign and in multiplayer, on OpenGL and Vulkan.
-Temporal anti-aliasing (`r_temporalAA`) and the experimental screen-space effects
-do their own upscale, so with either of them on, every mode looks like mode `1`.
+With modes `1` and `2`, a scene below `100%` is upscaled by temporal anti-aliasing
+by default (`r_temporalAA 2`), which keeps edges smooth and recovers detail a plain
+stretch loses; see [Temporal AA](temporal-presentation.md). Modes `0` and `3` keep
+their own look. The experimental screen-space effects do their own upscale, so with
+them on every mode looks like mode `1`.
 
 ## Fullscreen Policy (Desktop vs Exclusive)
 

@@ -77,6 +77,8 @@ SHADERS = [
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "interaction.vert",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "interaction.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "pbr_probe_environment.frag",
+    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "pbr_baked_environment.frag",
+    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "pbr_baked_probe_environment.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "interaction_shadow.vert",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "interaction_shadow.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "interaction_shadow_point.vert",
@@ -108,7 +110,6 @@ POST_COMMITTED = REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_s
 POST_GUARD = "__VK_POST_SHADERS_SPV_H__"
 POST_SHADERS = [
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_fullscreen.vert",
-    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_color_mapping.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_crt.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_ssao.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_bloom_extract.frag",
@@ -118,6 +119,9 @@ POST_SHADERS = [
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionblur.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionvectors.vert",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionvectors.frag",
+    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionvectors_previous.vert",
+    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionvectors_reactive.vert",
+    REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_motionvectors_reactive.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_celoutline.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_underwater.frag",
     REPO_ROOT / "src" / "renderer" / "Vulkan" / "shaders" / "post_debug_view.frag",

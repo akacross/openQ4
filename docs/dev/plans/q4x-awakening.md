@@ -2,7 +2,9 @@
 
 Status: in progress. This is the living plan for running the unreleased Raven/Ritual
 expansion on openQ4. The gap analysis it works from is
-[the support audit](../q4x-awakening-support-audit.md).
+[the support audit](../q4x-awakening-support-audit.md). What has changed for players
+is summarised in [The Awakening on openQ4](../../user/awakening.md); keep that page
+current when a change here reaches the campaign.
 
 ## Current architecture (1 October 2026)
 
@@ -111,10 +113,12 @@ harness `.tmp/awakening/run_q4x.py` (local, untracked) used to boot each map.
   models have at most 244 animations and openQ4's restore rejected more than 256; the
   expansion's marines have 540 (its reference marine 1015), so a game saved on m04 never
   loaded. The bound now follows the range of an animation number (32768).
-- **Dead keys.** `velScale`, `iff`, `spawn_iff`, `bindOrientied`, `canTurn` and
-  `ignoreAAS` have no reader in the expansion's own code either. Its only reader of
-  `useMasterRoll` / `useMasterPitch` is monster physics, and the content sets them on
-  movers, dropships and static models. Nothing to do for any of them.
+- **Dead keys.** `iff`, `spawn_iff`, `bindOrientied` and `ignoreAAS` have no reader in
+  the expansion's own code either. Three keys first filed here do have one (Phase 5):
+  the hurt trigger's `velscale` (dictionary keys ignore case), the Strogg flyer's
+  `canturn`, and `useMasterRoll` / `useMasterPitch`, which its monster physics reads
+  for the space flyers bound to m03's spline movers. The movers, dropships and static
+  models that also carry them ignore them.
 
 ### Phase 3 — multiplayer (done)
 
@@ -169,6 +173,152 @@ Classes the expansion's code has but nothing in its content reaches:
 
 The compass (`gui::objectiveYaw`) waits on content that is commented out.
 
+### Phase 5 — gameplay audit (done, 5 October 2026)
+
+Every unique monster, weapon and vehicle was driven in headless runs (scripted input
+through `openq4_testInput`, never real input) and its behaviour compared with the
+expansion's code. What changed:
+
+**Monsters**
+
+- **Valkaryne (m09 finale).** She now runs her `requestDocking` script the first time
+  she has an enemy, which the intro gives her with `becomeAggressive()` as it raises the
+  Makron sphere's shields. She docks on her platform, where nothing hurts her, and fires
+  death-ray volleys with about two seconds of warning; the arena's pillars block them.
+  When the sphere dies she undocks and fights on foot, and her death starts the escape.
+  The key names the function without its `map_m09` namespace, so a name that does not
+  resolve is looked up as the one script function of that name in any namespace.
+- **The beach death-ray turret (m01 part 2).** `ignoreplayer` now holds however an
+  enemy reaches an AI (sight, a heard sound, a teammate's enemy, pain), in
+  `idAI::IsAllowedTarget`. The expansion checked it only in its sight search, so the
+  turret could take the player from the turrets beside it.
+- **Pain Lord.** Headshots count. The def scales the head 2 and the legs 0.75 but lists
+  the legs zone (`*root origin`, every joint) after the head (`*neck1`), and the later
+  zone wins, so in the expansion a headshot was a leg hit. A zone that a later one
+  swallows whole gets its joints back; no other stock or expansion def has one. His
+  stuns, the dudes' shared pool, their tearing off, the enrage and the processing that
+  dude damage interrupts all match the expansion.
+- **Tank.** Its rockets scatter with the expansion's accuracy (10) once its launcher
+  smokes, and breaking either armoured part plays the def's break effect, staggers it
+  and ends its rocket attack. Its heart is the weak spot (head zone, 6 times damage);
+  legs and plates take a twentieth.
+- **Retch.** Its def asks for `aas96`, which m02 does not ship and m01 part 2 ships
+  empty, so four retches could never move. A retch without its own AAS walks on
+  `aas48`, which its bounds fit. In melee tactics it holds its lightning.
+- **Elites.** Elite grunts (`q4xElite`) pull a player 128 to 256 units away towards
+  them (`gravity_well`, every `gravityWellTime`); elite gunners switch three nailgun
+  bursts in four for a spread fire; the tactical elites throw offhand grenades, at
+  most every `grenadedelay`. Only the expansion's elite model has `throw_grenade`.
+- **Space flyers (m03).** `canturn 0` and `noFaceEnemy` keep them on their spline, and
+  they climb, dive and bank with their mover (`useMasterPitch`, `useMasterRoll`).
+  The movers bank because the expansion's `idPhysics_Parametric` rolls every mover
+  that faces along its spline: against the change of heading between the next two
+  `g_splineRollLookahead` spans of the spline (500, five spline points), times
+  `g_splineRollMultiplier` (2.0), both its defaults. Retail's movers never banked, so
+  openQ4 banks only the Awakening's. m03's and m06's fighters ride such movers.
+- The walker monster is a marine ally (team 0): it fights the Strogg, never the player.
+
+**Weapons**
+
+- **Goob gun.** Its projectile's `impactEntity` (the expansion's key name) now spawns the
+  six-glob burst, which is precached. Burns of one kind on one victim merge instead of
+  stacking without limit: a new one adds its damage up to three times the base and
+  extends the burn. The flamethrower shows its alternate muzzle flash.
+- **Freeze gun.** Chills, freezes solid and shatters four seconds later, and puts out
+  the fire vents (m04's 50-health vent in about four and a half seconds of fire).
+- **Spike gun.** A spike kills a Strogg marine outright, throws the body back
+  (`impactForce`) and pins it to the surface behind.
+
+**Vehicles**
+
+- **m03 and m06 cannons.** The gunner cannot be hurt while seated (`useGodMode`), and
+  leaving takes god mode away only if the cannon gave it. The turret swings back to rest
+  when its gunner leaves (`resetOnExit`). m03's ammo-jam script freezes the turret until
+  the jam clears (`allowDisableMovement`, on by default only in the Awakening, off in
+  the walker's cockpit), and the turret does not snap round when it frees. The pulse
+  cannon overheats after about seven and a half seconds of fire; its screens' JAMMED
+  text, which the scripted jam also uses, stays up while the script has the gun
+  disabled. Rockets lock on in 250 ms and home.
+- m03's gun scripts set `g_fov` to 80 on entering and 90 on leaving. openQ4 turns that
+  into an offset on the player's view, kept in the savegame, instead of overwriting
+  the player's FOV setting.
+- **m07 races.** The 122 slow-down volumes' `velscale` scales the speed of what they
+  hurt. The bike touches them before its hidden rider, so it drops to a tenth of its
+  speed or less and its shield takes the damage.
+- The speeder bike cruises at about 690 units a second and boosts (crouch) to about
+  1,090. m06's hacked Strogg fighters fly their splines, and the walker drives.
+- A vehicle passes its script `guiEvent` and `setGuiParm` calls to its HUD as well as
+  its world screens, as the expansion's `rvVehicle` did (its event table overrides
+  both). m07's race scripts run the speeder bike's HUD race clock this way and m06
+  sets the MCC cannon's health readout; neither appeared before. Retail's vehicle
+  HUDs handle none of the events retail scripts send to vehicles.
+- The expansion's `rvVehicle::UpdateHUD` also wrote `playerYaw` (the local player's
+  view yaw) to the HUD and `vehicle_speed` to the vehicle's own screens (a quarter of
+  its speed less four, never below 0), and its `idPlayer::DrawHUD` wrote `playerYaw`
+  after the HUD stats. openQ4 does the same: the speeder bike's speedometer
+  (`speeder.gui`) reads its speed and the m03 ship panels' view cones turn
+  (`turretplayerhud.gui`, `q4xhud.gui`). Retail reads `playerYaw` only on weapon
+  scopes, which are separate GUIs, and never reads `vehicle_speed`.
+- `idPlayer::UpdateFocusCharacter` writes the character's talk state to the cursor
+  as `npc_talkstate`, as the expansion's did; its `cursor.gui` shows `crosstalk_wait`
+  at `TALK_WAIT`. Retail's cursor does not read it.
+- The goob gun's alternate fire holds the player's flamethrower pose (`useAltFireAnim`
+  picks `fire_alt` while `wsfl.zoom` is set), which shows in shadows, mirrors and
+  third person.
+- m09's flares are not the single quads `deform flare` expects; `R_FlareDeform` logged
+  that about 340 times a second and now warns once per material.
+- The pulse cannon's barrels (the turret model's `pulse_cannon_l` and `pulse_cannon_r`)
+  move as the expansion's barrel helper moved them, through `JOINTMOD_LOCAL` joint
+  mods: a shot kicks the firing barrel 32 units back along the pivot's forward axis at
+  once and it slides home over 0.1 s; while the other weapon is selected both barrels
+  fold over 0.4 s (12 units outward and 12 down, turned -7.5 degrees about the barrel's
+  x axis, then -15 about its z axis) and unfold over 0.2 s when the cannon is selected
+  again. The motion is not saved: a spawned or loaded cannon settles its barrels to the
+  selection. The m03 cannons and m06's MCC cannon all use that model.
+- The expansion's `rvVehiclePosition` ran a second per-frame virtual on every weapon
+  but the selected one. openQ4 adds `rvVehiclePart::RunInactivePostPhysics`, empty by
+  default so retail vehicles are unchanged: through it the pulse cannon cools and folds
+  its barrels, and the missile launcher reloads its magazine, while the other weapon is
+  selected.
+- The m07 races fail by design: each lockdown gate closes on a timer and, if the player
+  is not past it, the script triggers the area's `objectivefailed` item.
+- `rvMonsterHarvester` turns in place only when its model has the turn animation.
+  m07's background harvester is retail's cinematic `monster_harvester` (`noturn`, no
+  turn animations), which failed the turn every 250 ms, logging a warning each time (158
+  in one race) and skipping that think's attack checks. Retail's combat harvesters have
+  the animations and turn as before.
+
+**Audits.** Beyond the key scan, every `object_call` frame command in the
+expansion's models resolves to a state of its class (state names ignore case; the
+spike gun's `AddToClip` sits in a reload animation its clip size of 0 never plays),
+every action its defs configure that its code initialises is initialised here, and
+the script events and states its code registers match openQ4's, class for class
+(`.tmp/awk/objcallaudit.py`, `actionaudit.py`, `evcompare.py`, `statecompare.py`).
+The only difference left is `idAFEntity_Base`'s `canDamage`, which no script calls.
+Every `gui::` state and named event the expansion's single-player GUIs use is now
+written by openQ4's code or by a script, or the GUI sets it itself
+(`guistateaudit.py`); what remains is multiplayer GUI state.
+
+**Content holes found** (no code change helps): m09 has no `valk_forcefield` or
+`mvr_makShields` for its script to show and hide; after the Valkaryne dies the escape
+objective is given, then the script re-triggers the used `obj_project_navajas` and stops
+there, harmlessly; m04's start inventory gives `weaponmod_goobgun_burst`, which has no
+def; the m08 and m09 development give lists have typos; the Tank's rocket flash names a
+joint (`gunBarrelReal`) its model lacks; m07's background harvester is retail's
+cinematic one (`noturn`), which has no turn animations; `m07_race1.aas48` is empty, which
+leaves its scripted gunner and fighters without navigation. m08's first-lab scientists'
+`script_death` names `FirstLabCleared`, which the script never defines (the counter it
+would have kept, `first_lab_enemy_count`, is declared and never used); m07_race2's
+`guis/monitors/strogg/stroyent/stroyent_flow1.gui` exists nowhere; and the expansion's
+charge effects use retail's `gfx/effects/fire/p_fire2a`, whose image retail never
+shipped, so they draw nothing there, as on retail. m07_race1 and m07_race2 call
+`setFOV` on the player, which only cameras handle in the expansion's code as in
+retail's; the call is ignored with a warning. m09's `coldInHere` binds its breath
+effects to `legs_channel`, a joint only the marine and player models have, and stops at a
+`cold_breath_*` entity the map lacks; `trigger_once_70` calls `spawnTactical02`, which
+the script has commented out, and `trigger_once_96` calls `spawnTrashCan01`, which it
+never defines.
+
 ## What the expansion's code taught us
 
 Recorded because each one changed what "support" means here.
@@ -183,8 +333,30 @@ Recorded because each one changed what "support" means here.
   (the bike's HUD says so), not a new button.
 - The bike's script events drive a spline tether its def leaves out, so they do nothing
   in the expansion or here.
-- The Valkaryne's `requestDocking` function is parsed and never called; the m09 script
-  docks her itself. She spawns with her ranged and melee attacks switched off.
+- The expansion's rigid bodies take friction values up to 10; Quake 4 drops the whole
+  friction set when one passes 1. The bike's `friction_angular` of 5 is what stops it
+  turning: on the 0.6 fallback a held turn spun it up past 500 degrees a second, and
+  it turned two more full circles after the stick was let go. openQ4 raises the
+  ceiling for the bike alone (`riVehicleSpeederBike::GetMaxFriction`), because a
+  global change would also apply convoy1's landmine friction of 5, which retail drops.
+  Rigid vehicles apply the def's friction again on restore, so older saves pick it up.
+- Its hoverpads take `traceRelativeDirection`: the pad probes along that direction in
+  the vehicle's frame and pushes straight back. The bike's antisuspensor probes up,
+  holding it off ceilings, and its six bumpers probe out, holding it off walls. Probing
+  down instead, as stock pads do, the antisuspensor pressed the bike towards the ground.
+- openQ4's first rebuild of the bike's grip turned its velocity by twice the bike's
+  heading every tic (it multiplied by the axis instead of projecting onto it), so
+  thrust could not build speed on most headings. On open track three seconds of full
+  forward thrust moved the bike about 25 units; it now covers about 1100 and reaches
+  about 580 units a second.
+- Vehicle turrets follow only the change in the player's own aim, so a script that
+  seats the player and then turns the vehicle (m07's race start turns the bike 165
+  degrees) leaves the guns pointing ahead, here and in the expansion. A gun camera
+  facing backwards at the race start came from VR's seat tracking, not the bike.
+- The finale Valkaryne's `requestDocking` names m09's `valkaryne_dock`, which the
+  expansion's code parses and never calls. m09's script docks only the descent's
+  set-piece Valkarynes, so the finale's never docked (Phase 5). She spawns with her
+  ranged and melee attacks switched off.
 - `ai_valkaryneShots` is registered and never read, and so are the weapon-group and
   pickup-priority cvars.
 - Some of its map scripts call events their target classes do not have, in its own game
@@ -206,6 +378,21 @@ Recorded because each one changed what "support" means here.
   loads it in a second client. A load passes when nothing errors after the savegame
   banner and the after-load cfg, which only runs once the restored map is live, echoes
   its marker. `--game baseoq4` runs it on stock maps.
+- Gameplay probes never synthesise real input. The cheat `openq4_testInput <msec>
+  [attack] [zoom] [run] [crouch] [jump] [forward|back|right|left <0-127>] [aim <entity>]
+  [yaw|pitch <deg/s>] [impulse <n>]` holds buttons, movement, turning and one impulse on
+  the local player's usercmd for a stretch of game time; turning moves the usercmd's
+  angles as a mouse would, so vehicle turrets follow it, and `impulse 1` picks a
+  vehicle's second weapon. `openq4_viewReport` prints the player's view (a gunner's
+  follows the turret), field of view and god mode. `ai_debugActions <name|*>` prints an
+  AI's actions, attacks and the Awakening's docking, buffs, part breaks and freezing.
+  `damage <entity> <n> [def] [joint]` lands a hit in a joint's damage zone, and
+  `g_debugVehicle 1` reports the cockpit guns' overheating, cooling and lock-on.
+- `.tmp/awk/awkprobe.py <tag> --map game/<map> --cfg <cfg>` (local) boots a campaign map
+  hidden, with an isolated savepath, and runs a probe cfg after it loads; the Phase 5
+  probes are its `probes/*.cfg`. Console `script` lines cannot hold string literals
+  (vectors in single quotes can), and a map's own script variables are reachable by
+  namespace (`m06b::spawnedFighter`).
 - `.tmp/awakening/pin_test.py` (local) launches a spike at the world and at a fresh
   Strogg marine on m04 with `openq4_launchTestProjectile`, and reads `g_debugDamage`'s
   stick and pin reports; it then saves and loads the game with the corpse pinned.

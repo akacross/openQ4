@@ -433,8 +433,9 @@ public:
 	// Free all sounds loaded during the last map load
 	virtual	void			BeginLevelLoad() = 0;
 
-	// Load all sounds marked as used this level
-	virtual	void			EndLevelLoad() = 0;
+	// Load all sounds marked as used this level. mapName is the session's
+	// "maps/<name>" path, which also selects the map's reverb tables.
+	virtual	void			EndLevelLoad( const char* mapName ) = 0;
 
 //	virtual void			Preload( idPreloadManifest& preload ) = 0;
 
@@ -524,12 +525,25 @@ public:
 		soundWorld->PlaceListener(origin, axis, listenerId);
 	}
 
+	// The game asks for the shake at the player's view, where the listener already is, so the
+	// world's own sum of audible shaking sounds answers it. This returned 0, and no sound
+	// with a "shakes" value moved the camera or an earthquake entity.
 	virtual	float			CurrentShakeAmplitudeForPosition(int worldId, const int time, const idVec3& listenerPosition) {
-		return 0.0f; // GetSoundWorldFromId(worldId)->CurrentShakeAmplitudeForPosition(time, listenerPosition);
+		(void)time;
+		(void)listenerPosition;
+		idSoundWorld* soundWorld = GetSoundWorldFromId(worldId);
+		return ( soundWorld != NULL ) ? soundWorld->CurrentShakeAmplitude() : 0.0f;
 	}
 
 	// RAVEN END
 // jmarshall end
+
+	// Quake 4 reverb editor interface: the map's portal areas and the efxs/*.efx
+	// reverb each one plays (see idSoundReverb).
+	virtual	const char*		GetReverbName( int reverb ) = 0;
+	virtual	int				GetNumAreas() = 0;
+	virtual	int				GetReverb( int area ) = 0;
+	virtual	bool			SetReverb( int area, const char* reverbName, const char* fileName ) = 0;
 };
 
 extern idSoundSystem*	soundSystem;

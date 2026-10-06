@@ -91,6 +91,12 @@ static void VK_PBR_GenerateEnvironment( idImage *image ) {
 			return;
 		}
 	}
+	// The shaders select prefiltered levels with explicit LODs. The image's
+	// TF_LINEAR sampler would otherwise clamp them all to the mirror level.
+	if ( !VK_Image_UseExplicitMipChain( image->GetDeviceHandle() ) ) {
+		image->PurgeImage();
+		return;
+	}
 	common->Printf( "Vulkan: native PBR filtered environment generated (7 mips, diffuse irradiance, BRDF LUT)\n" );
 }
 
@@ -102,12 +108,12 @@ struct vkProbeResident_t {
 	bool valid;
 };
 
-// std430: seven vec4 header lanes, 32 six-vec4 records, then uint pairs.
+// std430: seven vec4 header lanes, 32 seven-vec4 records, then uint pairs.
 struct vkProbeGpuHeader_t {
 	float grid[4], depth[4], viewOrigin[4], worldToView[3][4], projection[4];
 	rendererSpecularProbeRecord_t records[RENDERER_CLUSTER_SPECULAR_PROBE_MAX_RECORDS];
 };
-assert_sizeof( vkProbeGpuHeader_t, 112 + 32 * 96 );
+assert_sizeof( vkProbeGpuHeader_t, 112 + 32 * 112 );
 assert_offsetof( vkProbeGpuHeader_t, records, 112 );
 
 struct vkProbeBuffer_t {

@@ -7,14 +7,15 @@ oracles because GL does not admit that complete mixed scene.
 """
 import argparse
 import json
-import math
 from pathlib import Path
 import re
 import shutil
 import sys
 
+import numpy as np
 from PIL import Image
 
+import pbr_reference as reference
 import renderer_pbr_laboratory as lab
 import renderer_vulkan_pbr_ambient as ambient
 
@@ -228,15 +229,25 @@ def qualify(report, profile, backend, samples, suite):
             if rgb != base:
                 failures.append(name + ': shared-setting toggle changed the image')
     if suite == 'ambient':
-        # Isotropic authored ambient irradiance has an independent analytic
-        # response; use the fully covered centre where no edge samples mix.
-        for suffix, lights in (('scalar', 1), ('packed', 1), ('separate', 1), ('ao-zero', 1),
-                               ('two', 2), ('two-stages', 2), ('restored', 1)):
+        # An authored ambient light is a uniform environment with an
+        # independent analytic response (pbr_reference); use the fully covered
+        # centre, where N.V is one and no edge samples mix. The classic light
+        # term (1, .5, .25) reaches PBR as pi times its decoded value
+        # (PBRClassicLightIrradiance); the data specimens carry metallic
+        # 102/255, roughness 128/255 and AO 192/255, and ao_zero has none.
+        nov, variance = reference.sampling_sphere()
+        centre_roughness = reference.filtered_roughness(128 / 255, variance[400, 640])
+        light = reference.decode(np.asarray((1, .5, .25)))
+        for suffix, lights, ao in (('scalar', 1, 192 / 255), ('packed', 1, 192 / 255),
+                                   ('separate', 1, 192 / 255), ('ao-zero', 1, 0),
+                                   ('two', 2, 192 / 255), ('two-stages', 2, 192 / 255),
+                                   ('restored', 1, 192 / 255)):
             name = 'linear-ambient-' + suffix
             if name not in images:
                 continue
-            target = [output(decode(188) * (1 - 102 / 255) * .96 / math.pi * color * lights)
-                      for color in (1, .5, .25)]
+            radiance = reference.uniform_environment(light, reference.byte_decode((188, 188, 188)), 102 / 255,
+                                                     centre_roughness, ao, nov[400, 640]) * lights
+            target = [output(float(v)) for v in radiance]
             centre = images[name][(400 * 1280 + 640) * 3: (400 * 1280 + 640) * 3 + 3]
             error = max(abs(c - t) for c, t in zip(centre, target))
             checks[name + '/radiance'] = dict(expected=target, actual=list(centre), maximumError=error)

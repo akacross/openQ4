@@ -390,7 +390,9 @@ bool idSoundShader::ParseShader( idLexer& src )
 	parms.soundShaderFlags = 0;
 	parms.soundClass = 0;
 	parms.frequencyShift = 1.0f;
-	parms.wetLevel = 0.0f;
+	// Retail sends every mono sound to the area reverb; it has no "reverb" keyword.
+	// openQ4 keeps the keyword's wet level as a scale on that send.
+	parms.wetLevel = 1.0f;
 	parms.dryLevel = 1.0f;
 	minFrequencyShift = SOUND_SHADER_DEFAULT_FREQUENCY_SHIFT;
 	maxFrequencyShift = SOUND_SHADER_DEFAULT_FREQUENCY_SHIFT;
@@ -668,10 +670,12 @@ bool idSoundShader::ParseShader( idLexer& src )
 				token.SetFileExtension( ".wav" );
 			}
 
+			// BFG's rule, for openQ4's own SSF_VO. Retail's SSF_IS_VO marks lip-synced speech and
+			// is the game's to set: inferred from the path it took map speakers playing VO out of
+			// s_speakerFraction, 3.7 dB louder than Quake 4 played them.
 			if( token.IcmpPrefixPath( "sound/vo/" ) == 0 || token.IcmpPrefixPath( "sound/guis/" ) == 0 )
 			{
 				parms.soundShaderFlags |= SSF_VO;
-				parms.soundShaderFlags |= SSF_IS_VO;
 			}
 			if( SND_IsMusicSamplePath( token ) )
 			{
@@ -694,7 +698,6 @@ bool idSoundShader::ParseShader( idLexer& src )
 			if( token.IcmpPrefixPath( "sound/vo/" ) == 0 || token.IcmpPrefixPath( "sound/guis/" ) == 0 )
 			{
 				parms.soundShaderFlags |= SSF_VO;
-				parms.soundShaderFlags |= SSF_IS_VO;
 			}
 			if( SND_IsMusicSamplePath( token ) )
 			{

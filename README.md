@@ -52,7 +52,7 @@ It is for players who want the original Quake 4 experience on today's hardware.
 - **Optional visual upgrades.** Bloom, HDR, anti-aliasing, soft particles, baked light grids, cel shading, a CRT filter and cleaner [shadow maps](docs/user/shadow-mapping.md), each one switchable.
 - **A modern interface, still growing.** The title screen, pause menu and loading screens are rebuilt as sharp, scalable screens; the other menus keep the classic look for now. If a modern screen can't be shown, for example because a mod brings its own main menu, the classic one appears instead. Prefer the classic screens throughout? See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens).
 - **Real liquids.** Wade, swim and drown in water, take damage in slime and lava, with underwater visuals and audio. Retail Quake 4 has no liquids, so they appear in maps built for them; see the [Liquids guide](docs/user/liquids.md).
-- **Reliable audio** through OpenAL. macOS packages bundle their own, so there is nothing extra to install.
+- **Rich, reliable audio** through OpenAL: Quake 4's room reverb, 3D headphone audio and your device's own speaker layout. macOS packages bundle their own, so there is nothing extra to install; see [Gameplay Settings](docs/user/gameplay-settings.md#audio-quality).
 - **Controller support and quality-of-life fixes**, including a better console and modern settings behaviour.
 - **Play in VR** (experimental). With a PC VR headset, play the campaign or multiplayer in stereo: look around with your head, aim with a motion controller, and get menus and cinematics on a floating screen. See the [VR guide](docs/user/vr.md).
 - **Play in your language.** Menus and game text in English, French, German, Italian, Spanish, Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian, plus Polish and Russian menus. Choose one in Settings > Game Options > Language; see the [languages guide](docs/user/languages.md).
@@ -61,7 +61,8 @@ It is for players who want the original Quake 4 experience on today's hardware.
 - **A demo library and player** with pause, speed, stepping, rewind and fast-forward, plus free-fly playback of full-match recordings.
 - **Single-player and multiplayer in one install** on Windows, Linux, Steam Deck and macOS.
 - **A Vulkan renderer on Windows**: a stable alternative to OpenGL, chosen with `r_renderApi vulkan`.
-- **Renderer previews**, all off by default: [temporal anti-aliasing and dynamic resolution](docs/user/temporal-presentation.md), [volumetrics, reflections and indirect light](docs/user/advanced-screen-space-lighting.md), and [PBR materials](docs/user/pbr-materials.md).
+- **Physically based materials for mods.** Maps and mods can ship PBR materials, with metalness, roughness, ambient occlusion, normal maps and glow, that render on OpenGL and Vulkan beside the stock surfaces, lit and shadowed by every light. Stock content looks exactly as before. See the [PBR materials guide](docs/user/pbr-materials.md).
+- **Renderer previews**, all off by default: [temporal anti-aliasing and dynamic resolution](docs/user/temporal-presentation.md) and [volumetrics, reflections and indirect light](docs/user/advanced-screen-space-lighting.md).
 
 See the [Releases page](https://github.com/themuffinator/openQ4/releases) for what changed in each version.
 
@@ -125,6 +126,7 @@ When upgrading, replace the whole openQ4 package rather than individual files.
 
 - [Getting Started](docs/user/getting-started.md) - system requirements, installation, first launch, and common setup questions
 - [Campaigns](docs/user/campaigns.md) - choosing Quake 4 or The Awakening, installing expansion content, and separate saves
+- [The Awakening](docs/user/awakening.md) - what openQ4 fixes and changes in the expansion's campaign
 - [Client Settings Guide](docs/user/client-settings.md) - where to find the most useful in-game settings
 - [Server Setup Guide](docs/user/server-setup.md) - dedicated server setup and common server variables
 - [Server and Remote-Console Security](docs/user/server-security.md) - secure remote console and password handling
@@ -147,7 +149,7 @@ When upgrading, replace the whole openQ4 package rather than individual files.
 - [Cel Shading](docs/user/cel-shading.md) - the cel-shaded look
 - [Temporal AA and Dynamic Resolution](docs/user/temporal-presentation.md) (experimental) - temporal anti-aliasing, upscaling, and automatic resolution scaling
 - [Advanced Screen-Space Lighting](docs/user/advanced-screen-space-lighting.md) (experimental) - volumetrics, reflections, and indirect light
-- [PBR Materials](docs/user/pbr-materials.md) (experimental) - physically based materials and environment lighting
+- [PBR Materials](docs/user/pbr-materials.md) - authoring physically based materials and how they are lit
 - [DDS Texture Replacements](docs/user/texture-replacements.md) - installing texture packs
 - [Level-Load Cache](docs/user/level-load-cache.md) (experimental) - optional local load caches, and how to clear them
 
@@ -190,6 +192,7 @@ Developers can also find advanced configuration and file layout in [TECHNICAL.md
 - **[Mikko Mononen, Eric Veach and the libtess2 contributors](https://github.com/memononen/libtess2/tree/8dbd6483e920311a58c9af10a10beb278efebc36)** - SGI-B-2.0 polygon tessellator for the new interface's vector shapes, with an [openQ4 precision patch](subprojects/packagefiles/libtess2/double-precision.patch); [licence notice](docs/licenses/libtess2.txt)
 - **[Q2REX Project Team](https://github.com/themuffinator/Q2REX)** - design reference for the [multiplayer chat panel](docs/user/multiplayer-chat.md)
 - **[MuffMode](https://github.com/themuffinator/MuffMode)** and **[Q4MAX](https://www.moddb.com/mods/q4max)** - multiplayer workflow and usability references
+- **[Team Beef](https://github.com/Team-Beef-Studios)** - design reference for [VR mode](docs/user/vr.md): [PreyVR](https://github.com/Team-Beef-Studios/PreyVR) (Luboš Vonásek, GLKarin, DrBeef, Baggyg, Bummser and contributors) and [Doom3Quest](https://github.com/DrBeef/Doom3Quest) (DrBeef and contributors) shaped its head-driven movement, two-handed aim, zoom, comfort options and physical crouch; ideas only, no code copied
 - **Justin Marshall** - Quake4Doom and early BSE reverse engineering reference work, and recovering and publishing Quake 4: The Awakening
 - **Robert Beckebans** - renderer modernization reference work, including RBDOOM-3-BFG inspiration
 - **id Software's official Doom 3 and Doom 3 BFG source releases** - retained idTech 4 source lineage; see the [source provenance inventory](docs/dev/source-provenance.md)

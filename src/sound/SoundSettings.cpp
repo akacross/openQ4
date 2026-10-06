@@ -15,7 +15,7 @@
 	defined(AL_EFFECT_EAXREVERB) && defined(AL_FILTER_LOWPASS) && defined(ALC_STEREO_HRTF_SOFT)
 
 extern idCVar s_noSound, s_useOpenAL, s_deviceName, s_useEAXReverb;
-extern idCVar s_openALHRTF, s_numberOfSpeakers, s_maxEmitterChannels, s_openALEfxDebugMode;
+extern idCVar s_openALHRTF, s_numberOfSpeakers, s_maxEmitterChannels, s_openALEfxDebugMode, s_outputLimiter;
 
 namespace {
 bool Fail(char* out, int size, const char* text) noexcept {
@@ -32,7 +32,7 @@ bool Same(const SoundSettingsPolicy& a,const SoundSettingsPolicy& b) noexcept {
 	return a.speakers==b.speakers && a.efx==b.efx && a.maxEmitterChannels==b.maxEmitterChannels;
 }
 bool Valid(const SoundSettingsPolicy& p) noexcept {
-	return (p.speakers==2 || p.speakers==6) && p.maxEmitterChannels>=1 && p.maxEmitterChannels<=48;
+	return (p.speakers==0 || p.speakers==2 || p.speakers==6) && p.maxEmitterChannels>=1 && p.maxEmitterChannels<=48;
 }
 SoundSettingsPolicy Policy() noexcept {
 	return {s_numberOfSpeakers.GetInteger(),s_useEAXReverb.GetBool(),s_maxEmitterChannels.GetInteger()};
@@ -91,7 +91,10 @@ template<class F> bool Native(F&& operation) {
 	const bool result=operation();
 	return SoundSettings_NativeOperationCurrent() && result;
 }
+bool KnownOutput(int mode) noexcept;
 bool OutputMatches(int observed,int requested) noexcept {
+	// The device's own layout: any mode the device settles on realizes it.
+	if (requested==ALC_ANY_SOFT) return KnownOutput(observed);
 	if (requested==ALC_STEREO_SOFT) return observed==ALC_STEREO_SOFT || observed==ALC_STEREO_BASIC_SOFT ||
 		observed==ALC_STEREO_UHJ_SOFT || observed==ALC_STEREO_HRTF_SOFT;
 	return observed==requested;
@@ -108,11 +111,14 @@ bool KnownOutput(int mode) noexcept {
 struct SoundSettingsAccess {
 	static bool PortableNone() noexcept {
 		const auto& h=soundSystemLocal.hardware;
-		if (h.efxEnabled || h.auxEffectSlot || h.auxReverbEffect || h.voices.Num()>96) return false;
+		if (h.efxEnabled || h.auxEffectSlot || h.auxReverbEffect || h.HasAreaReverbResources() || h.voices.Num()>96) return false;
 		// Retained filters on an idle voice are resources too. BaselineSources
 		// intentionally inventories active source receipts only.
 		for (int i=0;i<h.voices.Num();++i)
 			if (h.voices[i].openalDirectFilter || h.voices[i].openalAuxFilter) return false;
+		// So is the filter of the send into a voice's own area reverb slot.
+		for (int i=0;i<h.voices.Num();++i)
+			if (h.voices[i].openalAreaAuxFilter) return false;
 		return true;
 	}
 	static bool Read(SoundSettingsObservation& out, bool effectProof=true) {
@@ -193,7 +199,16 @@ struct SoundSettingsAccess {
 		LPALCRESETDEVICESOFT reset=nullptr;
 		if (!Native([&] {reset=reinterpret_cast<LPALCRESETDEVICESOFT>(alcGetProcAddress(h.openalDevice,"alcResetDeviceSOFT"));return reset!=nullptr;}) ||
 			!Native([&] {return alcGetError(h.openalDevice)==ALC_NO_ERROR;})) return false;
+		// A reset rebuilds the device from these attributes alone, so the limiter rides along.
+		bool limiter=false;
+#if defined(ALC_OUTPUT_LIMITER_SOFT)
+		if (!Native([&] {limiter=alcIsExtensionPresent(h.openalDevice,"ALC_SOFT_output_limiter")==ALC_TRUE;return true;})) return false;
+		const ALCint attrs[]={ALC_HRTF_SOFT,automaticStereo?ALC_DONT_CARE_SOFT:(desired.hrtf?ALC_TRUE:ALC_FALSE),ALC_OUTPUT_MODE_SOFT,desired.outputMode,
+			limiter?ALC_OUTPUT_LIMITER_SOFT:0,s_outputLimiter.GetBool()?ALC_TRUE:ALC_FALSE,0};
+#else
 		const ALCint attrs[]={ALC_HRTF_SOFT,automaticStereo?ALC_DONT_CARE_SOFT:(desired.hrtf?ALC_TRUE:ALC_FALSE),ALC_OUTPUT_MODE_SOFT,desired.outputMode,0};
+#endif
+		(void)limiter;
 		bool accepted=false;
 		if (!Native([&] {accepted=reset(h.openalDevice,attrs)==ALC_TRUE;return true;})) return false;
 		const bool noError=Native([&] {return alcGetError(h.openalDevice)==ALC_NO_ERROR;});
@@ -230,6 +245,9 @@ struct SoundSettingsAccess {
 			if (deviceLifetimeSerial==oldLifetime && h.openalContext==oldContext) h.auxEffectSlot=slot;
 			if (!slotCall || !Native([] {return alGetError()==AL_NO_ERROR;}) || !slot) return false;
 		}
+		// The area reverb slots, and every source send into any reverb slot, go
+		// before the shared slot is unbound and possibly deleted on restore.
+		if (!enabled && !Native([&] {h.ReleaseAreaReverbSlots();return true;})) return false;
 		if (h.auxEffectSlot && (!Native([&] {sloti(h.auxEffectSlot,AL_EFFECTSLOT_EFFECT,enabled?h.auxReverbEffect:AL_EFFECT_NULL);return true;}) ||
 			!Native([] {return alGetError()==AL_NO_ERROR;}))) return false;
 		h.efxEnabled=enabled; return true;
@@ -290,7 +308,7 @@ struct SoundSettingsAccess {
 		for (int i=0;i<h.voices.Num();++i) {
 			auto& v=h.voices[i]; if (!v.openalSource) continue;
 			SoundSettingsSourceReceipt receipt;
-			if (!v.ApplyWetDryRoutingChecked(h.efxFiltersAvailable,h.efxEnabled,h.auxEffectSlot,receipt)) return false;
+			if (!v.ApplyWetDryRoutingChecked(h.efxFiltersAvailable,h.efxEnabled,h.GetPrimaryAuxEffectSlot(),receipt)) return false;
 			c.sources[c.sourceCount++]=receipt;
 		}
 		c.routingGeneration=generation; c.routingUpdate=updateSerial; out=c; return true;
@@ -324,11 +342,11 @@ bool Attempt(SoundSettingsLease lease,bool restore,SoundSettingsObservation& out
 	if (state.phase!=SoundSettingsPhase::Failed && !Actual(current,state.expected)) {
 		state.phase=SoundSettingsPhase::Invalidated; return Fail(error,size,"Audio output changed outside the owned request.");
 	}
-	const bool automaticStereo=!restore && state.target.speakers==2 && state.target.speakers!=state.baseline.requested.speakers && state.baseline.requestedHrtf==0;
+	const bool automaticStereo=!restore && state.target.speakers!=6 && state.target.speakers!=state.baseline.requested.speakers && state.baseline.requestedHrtf==0;
 	auto desired=state.baseline;
 	if (!restore) {
 		if (state.target.speakers!=state.baseline.requested.speakers) {
-			desired.outputMode=state.target.speakers==6?ALC_SURROUND_5_1_SOFT:ALC_STEREO_SOFT;
+			desired.outputMode=state.target.speakers==6?ALC_SURROUND_5_1_SOFT:state.target.speakers==2?ALC_STEREO_SOFT:ALC_ANY_SOFT;
 			desired.hrtf=false;
 			if (state.baseline.requestedHrtf==2) { desired.outputMode=ALC_STEREO_HRTF_SOFT; desired.hrtf=true; }
 		}

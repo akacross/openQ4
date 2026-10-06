@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 
 
 #include "tr_local.h"
+#if !defined( OPENQ4_RENDERER_GLES_MODULE )
+#include "draw_pbr.h"
+#endif
 #include "GLDebugScope.h"
 #include "GLStateCache.h"
 #include "RenderGraph.h"
@@ -1133,6 +1136,10 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 			R_ClassicFogBlendDomain_PrepareFrame( *scenePackets );
 		}
 		R_ModernGLExecutor_PrepareFrame( *scenePackets, legacyGraph );
+#if !defined( OPENQ4_RENDERER_GLES_MODULE )
+		// The ES module has no native PBR owner (draw_pbr.cpp is not built).
+		RB_GLPBR_AdoptExecutorFrame();
+#endif
 		rg_modernStatMirrorsZeroed = false;	// active frame wrote real stats; re-zero on next dormant frame
 	} else {
 		// the zeroed stat mirrors cannot change while the side pipeline is
@@ -1155,6 +1162,24 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 			rg_modernStatMirrorsZeroed = true;
 		}
 		R_ModernGLExecutor_SkipFrame();
+#if !defined( OPENQ4_RENDERER_GLES_MODULE )
+		// Native PBR admission (draw_pbr.cpp) reads the material contract
+		// table. Prepare that alone, from the same packets Vulkan uses, and
+		// only for a frame that draws a PBR material. The ES module has no
+		// native owner: its PBR materials keep their classic stages.
+		if ( r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool()
+				&& R_ScenePackets_CommandStreamHasPBR( cmds ) ) {
+			const idScenePacketFrame *scenePackets = NULL;
+			if ( R_ScenePackets_FrontEndFrameAvailable() ) {
+				scenePackets = &R_ScenePackets_FrontEndFrame();
+			} else {
+				R_ScenePackets_BuildLegacyCommandStream( cmds, rg_backendScenePacketFrame );
+				scenePackets = &rg_backendScenePacketFrame;
+			}
+			R_MaterialResourceTable_PrepareFrame( *scenePackets );
+			RB_GLPBR_PrepareFrame( *scenePackets );
+		}
+#endif
 	}
 	backEndStartTime = Sys_Milliseconds();
 	R_RendererMetrics_BeginGpuBackendFrame();

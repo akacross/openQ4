@@ -126,6 +126,8 @@ typedef struct modernSpecularProbeRecord_s {
 	float				depthMax;
 	idScreenRect			scissor;
 	modernSpecularProbeAtlasPlacement_t placement;
+	bool				boxParallax;
+	idVec3				boxExtents;	// half extents along axisX/Y/Z
 } modernSpecularProbeRecord_t;
 
 typedef struct modernClusterRecord_s {
@@ -187,9 +189,10 @@ assert_offsetof( modernClusterLightGpuRecord_t, projectQ, 144 );
 
 typedef rendererSpecularProbeRecord_t modernSpecularProbeGpuRecord_t;
 
-assert_sizeof( modernSpecularProbeGpuRecord_t, 6 * 4 * sizeof( float ) );
+assert_sizeof( modernSpecularProbeGpuRecord_t, 7 * 4 * sizeof( float ) );
 assert_offsetof( modernSpecularProbeGpuRecord_t, tintIntensity, 16 );
 assert_offsetof( modernSpecularProbeGpuRecord_t, identity, 80 );
+assert_offsetof( modernSpecularProbeGpuRecord_t, boxExtents, 96 );
 
 typedef struct modernClusterIndexGpuRecord_s {
 	GLuint				indices[4];
@@ -1060,7 +1063,9 @@ static bool R_ModernClusteredLighting_UsePerStageDescriptors( const viewLight_t 
 	if ( vLight == NULL || lightShader == NULL || vLight->shaderRegisters == NULL ) {
 		return false;
 	}
-	if ( lightShader->IsFogLight() || lightShader->IsAmbientLight() || lightShader->IsBlendLight() ) {
+	// Ambient lights split like every other additive light: classic draws one
+	// interaction per stage, and PBR encodes each stage's draw on its own.
+	if ( lightShader->IsFogLight() || lightShader->IsBlendLight() ) {
 		return false;
 	}
 	if ( !vLight->pointLight && vLight->parallel ) {
@@ -2262,11 +2267,13 @@ static bool R_ModernClusteredLighting_AppendSpecularProbe( modernClusterGridReco
 	const float radiusMin = Min( radii.x, Min( radii.y, radii.z ) );
 	const float radiusMax = Max( radii.x, Max( radii.y, radii.z ) );
 	const int stableIdentity = vLight->lightDef != NULL ? vLight->lightDef->index : -1;
+	// A spherical probe needs equal radii. A box-parallax probe's volume is
+	// the room box itself, so its radii may differ per axis.
 	if ( !vLight->pointLight || vLight->parallel || stableIdentity < 0
 			|| !R_ModernClusteredLighting_FiniteVec3( vLight->globalLightOrigin )
 			|| !R_ModernClusteredLighting_FiniteVec3( radii )
 			|| radiusMin <= 0.0f || radiusMax > 32768.0f
-			|| radiusMax - radiusMin > Max( 0.01f, radiusMax * 0.01f ) ) {
+			|| ( !info.boxParallax && radiusMax - radiusMin > Max( 0.01f, radiusMax * 0.01f ) ) ) {
 		stats.probeRejectedVolume++;
 		rg_clusteredLightingFrame.probeSetComplete = false;
 		return false;
@@ -2324,7 +2331,10 @@ static bool R_ModernClusteredLighting_AppendSpecularProbe( modernClusterGridReco
 	record.axisZ = axisZ;
 	record.tint.Set( info.tint[0], info.tint[1], info.tint[2] );
 	record.intensity = info.intensity;
-	record.radius = ( radii.x + radii.y + radii.z ) / 3.0f;
+	// A box probe clusters by its bounding sphere and weighs itself by the box.
+	record.boxParallax = info.boxParallax;
+	record.boxExtents = radii;
+	record.radius = info.boxParallax ? radii.Length() : ( radii.x + radii.y + radii.z ) / 3.0f;
 	record.blendFraction = info.blendFraction;
 	record.depthMin = idMath::ClampFloat( grid.nearZ, grid.farZ, record.cameraOrigin.z - record.radius );
 	record.depthMax = idMath::ClampFloat( grid.nearZ, grid.farZ, record.cameraOrigin.z + record.radius );
@@ -3089,6 +3099,10 @@ static void R_ModernClusteredLighting_PackProbe( const modernSpecularProbeRecord
 	dst.identity[1] = static_cast<float>( R_ModernClusteredLighting_ProbeGenerationExact( src.placement.sourceStorageGeneration ) );
 	dst.identity[2] = static_cast<float>( R_ModernClusteredLighting_ProbeGenerationExact( src.placement.residencyGeneration ) );
 	dst.identity[3] = static_cast<float>( generation );
+	dst.boxExtents[0] = src.boxExtents.x;
+	dst.boxExtents[1] = src.boxExtents.y;
+	dst.boxExtents[2] = src.boxExtents.z;
+	dst.boxExtents[3] = src.boxParallax ? 1.0f : 0.0f;
 }
 
 static bool R_ModernClusteredLighting_UploadBuffers( rendererClusteredLightingStats_t &stats ) {
@@ -3403,6 +3417,9 @@ static void R_ModernClusteredLighting_BuildGridParams( const modernClusterGridRe
 	params.projectionDepth[3] = static_cast<float>( stats.probeFrameGeneration );
 }
 
+static void R_ModernClusteredLighting_PackProbeViews( unsigned int exactGeneration,
+		std::vector<rendererSpecularProbeView_t> &views );
+
 bool R_ModernClusteredLighting_PrepareProbes( const idScenePacketFrame &packetFrame,
 		rendererProbeAtlasAcquire_t acquire, std::uint64_t generation,
 		std::vector<rendererSpecularProbeView_t> &views, rendererClusteredLightingStats_t &stats ) {
@@ -3415,6 +3432,26 @@ bool R_ModernClusteredLighting_PrepareProbes( const idScenePacketFrame &packetFr
 	stats.uploadedProbes = stats.probeCount;
 	stats.probeFrameGeneration = exactGeneration;
 	stats.probeFrameReady = true;
+	R_ModernClusteredLighting_PackProbeViews( exactGeneration, views );
+	return true;
+}
+
+bool R_ModernClusteredLighting_ExportProbeViews( std::uint64_t generation,
+		std::vector<rendererSpecularProbeView_t> &views ) {
+	views.clear();
+	// A frame stays valid for its lights when its probe set is incomplete or
+	// overflows; the executor then publishes no probe frame and every view
+	// falls back to the analytic environment. Adopters follow that verdict.
+	if ( generation == 0 || !rg_clusteredLightingStats.frameValid || rg_clusteredLightingStats.probeCount <= 0
+			|| !rg_clusteredLightingStats.probeFrameReady ) {
+		return false;
+	}
+	R_ModernClusteredLighting_PackProbeViews( R_ModernClusteredLighting_ProbeGenerationExact( generation ), views );
+	return true;
+}
+
+static void R_ModernClusteredLighting_PackProbeViews( unsigned int exactGeneration,
+		std::vector<rendererSpecularProbeView_t> &views ) {
 	for ( int g = 0; g < rg_clusteredLightingFrame.gridCount; ++g ) {
 		const modernClusterGridRecord_t &grid = rg_clusteredLightingFrame.grids[g];
 		if ( grid.probeCount == 0 ) { continue; }
@@ -3450,7 +3487,6 @@ bool R_ModernClusteredLighting_PrepareProbes( const idScenePacketFrame &packetFr
 		}
 		views.push_back( view );
 	}
-	return true;
 }
 
 void R_ModernClusteredLighting_Init( const renderBackendCaps_t &caps, const renderFeatureSet_t &features ) {
@@ -4192,9 +4228,9 @@ static bool R_ModernClusteredLighting_RunDecalSelfTest( viewDef_t &view ) {
 }
 
 static bool R_ModernClusteredLighting_RunProbeRecordSelfTest( void ) {
-	if ( sizeof( modernSpecularProbeGpuRecord_t ) != 96
+	if ( sizeof( modernSpecularProbeGpuRecord_t ) != 112
 			|| R_ModernClusteredLighting_ProbeUboBlockBytes()
-				!= 96 * RENDERER_CLUSTER_SPECULAR_PROBE_MAX_RECORDS ) {
+				!= 112 * RENDERER_CLUSTER_SPECULAR_PROBE_MAX_RECORDS ) {
 		common->Printf( "RendererClusterGrid self-test failed: specular probe std140 size drifted\n" );
 		return false;
 	}

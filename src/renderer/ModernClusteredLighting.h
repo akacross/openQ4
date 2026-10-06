@@ -41,6 +41,9 @@ struct rendererSpecularProbeRecord_t {
 	float axisYBlend[4];
 	float axisZSlot[4];
 	float identity[4];
+	// xyz: half extents along the axes; w: 1 for a box-parallax probe
+	// (positionRadius.w is then its bounding-sphere radius), 0 for a sphere.
+	float boxExtents[4];
 };
 
 struct rendererSpecularProbeView_t {
@@ -344,6 +347,10 @@ void R_ModernClusteredLighting_PrepareFrame( const idScenePacketFrame &packetFra
 // CPU-only export. The acquire callback must publish complete, resident tiles.
 // Failure clears every view; partial probe sets are never consumed. No GL call
 // is made. Native storage budgets use the same grid policy as the GL SSBO path.
+// The probe views of the cluster frame the modern executor built this frame,
+// for the classic OpenGL PBR owner that draws beside it (draw_pbr.cpp).
+bool R_ModernClusteredLighting_ExportProbeViews( std::uint64_t generation,
+	std::vector<rendererSpecularProbeView_t> &views );
 bool R_ModernClusteredLighting_PrepareProbes( const idScenePacketFrame &packetFrame,
 	rendererProbeAtlasAcquire_t acquire, std::uint64_t generation,
 	std::vector<rendererSpecularProbeView_t> &views, rendererClusteredLightingStats_t &stats );

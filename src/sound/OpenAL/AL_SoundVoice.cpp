@@ -84,6 +84,9 @@ static LPALGETSOURCEDVSOFT qalGetSourcedvSOFT = NULL;
 
 idCVar s_skipHardwareSets( "s_skipHardwareSets", "0", CVAR_BOOL, "Do all calculation, but skip XA2 calls" );
 idCVar s_debugHardware( "s_debugHardware", "0", CVAR_BOOL, "Print a message any time a hardware voice changes" );
+idCVar s_sourceRadiusScale( "s_sourceRadiusScale", "0.5", CVAR_ARCHIVE | CVAR_FLOAT, "size of a sound as a fraction of its minDistance: a sound you stand next to surrounds you instead of panning hard to one side; 0 = point sources", 0.0f, 1.0f );
+idCVar s_airAbsorption( "s_airAbsorption", "1", CVAR_ARCHIVE | CVAR_BOOL, "distant sounds lose high frequencies by the air absorption of the room's reverb preset" );
+idCVar s_directStereo( "s_directStereo", "1", CVAR_ARCHIVE | CVAR_BOOL, "play stereo sounds such as music straight to the output channels instead of through virtual speakers or HRTF" );
 
 // The whole system runs at this sample rate
 static int SYSTEM_SAMPLE_RATE = 44100;
@@ -172,6 +175,7 @@ idSoundVoice_OpenAL::idSoundVoice_OpenAL()
 	soundSettingsDeleteFilters( NULL ),
 	openalDirectFilter( 0 ),
 	openalAuxFilter( 0 ),
+	openalAreaAuxFilter( 0 ),
 	nextQueuedSample( NULL ),
 	nextQueuedBuffer( 0 ),
 	nextQueuedOffset( 0 ),
@@ -182,7 +186,8 @@ idSoundVoice_OpenAL::idSoundVoice_OpenAL()
 	numChannels( 0 ),
 	sampleRate( 0 ),
 	hasVUMeter( false ),
-	paused( true )
+	paused( true ),
+	appliedSourceRadius( -1.0f )
 {
 	openalStreamingBuffer[0] = 0;
 	openalStreamingBuffer[1] = 0;
@@ -557,6 +562,9 @@ void idSoundVoice_OpenAL::Create( const idSoundSample* leadinSample_, const idSo
 
 		soundSettingsSourceGeneration = SoundSettings_SourceCreated();
 		alSourcef( openalSource, AL_ROLLOFF_FACTOR, 0.0f );
+		// AL_MAX_GAIN defaults to 1, which flattened every s_unclamped sound (57 stock
+		// map speakers are authored 1-12 dB hot) back to unity before the listener gain.
+		alSourcef( openalSource, AL_MAX_GAIN, OPENQ4_OPENAL_MAX_SOURCE_GAIN );
 	}
 
 	formatTag = leadinSample->format.basic.formatTag;
@@ -1008,6 +1016,20 @@ bool idSoundVoice_OpenAL::Update()
 
 	if( !HasQueuedBufferState() )
 	{
+		// A static buffer plays on its own, so only its state can say it stopped.
+		// OpenAL Soft stops every source when the device disconnects and leaves them
+		// stopped after alcReopenDeviceSOFT, which left looping ambience and music
+		// silent after a headset was unplugged. Hand the voice back: the channel
+		// restarts a looping sound at its current offset and ends a finished one.
+		if( !paused )
+		{
+			ALint state = AL_PLAYING;
+			alGetSourcei( openalSource, AL_SOURCE_STATE, &state );
+			if( CheckALErrors() == AL_NO_ERROR && state == AL_STOPPED )
+			{
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -1487,6 +1509,13 @@ void idSoundVoice_OpenAL::ResetSourceMixState()
 	innerRadius = 32.0f;
 	occlusion = 0.0f;
 	environmentMuffle = 0.0f;
+	reverbAreaSlot = -1;
+	eaxDirectGain = 1.0f;
+	eaxDirectGainHF = 1.0f;
+	eaxPrimaryGain = 0.0f;
+	eaxPrimaryGainHF = 1.0f;
+	eaxAreaGain = 0.0f;
+	eaxAreaGainHF = 1.0f;
 	channelMask = 0;
 	innerSampleRangeSqr = 0.0f;
 	outerSampleRangeSqr = 0.0f;
@@ -1502,17 +1531,95 @@ void idSoundVoice_OpenAL::ResetSourceMixState()
 	alSourcef( openalSource, AL_GAIN, 0.0f );
 	alSourcef( openalSource, AL_PITCH, 1.0f );
 	alSourcei( openalSource, AL_LOOPING, AL_FALSE );
+	const idSoundHardware_OpenAL& hardware = soundSystemLocal.hardware;
+#if defined( AL_SOURCE_RADIUS )
+	if( hardware.HasSourceRadius() )
+	{
+		alSourcef( openalSource, AL_SOURCE_RADIUS, 0.0f );
+	}
+#endif
+	appliedSourceRadius = 0.0f;
+#if defined( AL_DIRECT_CHANNELS_SOFT )
+	// BFG and retail Quake 4 played stereo sounds (music, the menus) straight to the
+	// left and right outputs; OpenAL would otherwise render them as virtual speakers,
+	// through HRTF on headphones.
+	if( hardware.HasDirectChannels() )
+	{
+		alSourcei( openalSource, AL_DIRECT_CHANNELS_SOFT, ( numChannels > 1 && s_directStereo.GetBool() ) ? hardware.GetDirectChannelsMode() : AL_FALSE );
+	}
+#endif
+#if defined( AL_SOURCE_RESAMPLER_SOFT )
+	if( hardware.GetSourceResampler() >= 0 )
+	{
+		alSourcei( openalSource, AL_SOURCE_RESAMPLER_SOFT, hardware.GetSourceResampler() );
+	}
+#endif
 #if OPENQ4_OPENAL_EFX_SUPPORTED
 	if( soundSystemLocal.hardware.HasEFXFilters() && openQ4_LoadVoiceEfxProcs() )
 	{
 		alSourcei( openalSource, AL_DIRECT_FILTER, AL_FILTER_NULL );
-		if( soundSystemLocal.hardware.HasEFX() )
-		{
-			alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL );
-		}
+		DetachReverbSends();
 	}
 #endif
 	CheckALErrors();
+}
+
+/*
+========================
+idSoundVoice_OpenAL::ApplySourceRadius
+
+OpenAL Soft spreads a source over the arc it subtends, and over the whole sphere
+once the listener is inside it. With half of minDistance as the radius the
+directional part of the panning follows BFG's linear blend to omni within about
+a tenth up to minDistance, and settles to a point source beyond it.
+========================
+*/
+void idSoundVoice_OpenAL::ApplySourceRadius()
+{
+#if defined( AL_SOURCE_RADIUS )
+	if( !soundSystemLocal.hardware.HasSourceRadius() || !alIsSource( openalSource ) )
+	{
+		return;
+	}
+	float scale = s_sourceRadiusScale.GetFloat();
+	scale = FLOAT_IS_NAN( scale ) ? 0.0f : idMath::ClampFloat( 0.0f, 1.0f, scale );
+	float radius = innerRadius * scale;
+	// Global, omnidirectional and listener-owned sounds sit at the listener. With no
+	// radius OpenAL Soft renders that as a point straight ahead, where retail and BFG
+	// played them equally from every speaker; any radius makes them surround.
+	if( position.LengthSqr() < 0.0001f )
+	{
+		radius = Max( radius, 1.0f );
+	}
+	if( radius == appliedSourceRadius )
+	{
+		return;
+	}
+	alSourcef( openalSource, AL_SOURCE_RADIUS, radius );
+	appliedSourceRadius = radius;
+	CheckALErrors();
+#endif
+}
+
+/*
+========================
+idSoundVoice_OpenAL::DetachReverbSends
+========================
+*/
+void idSoundVoice_OpenAL::DetachReverbSends()
+{
+#if OPENQ4_OPENAL_EFX_SUPPORTED
+	if( !alIsSource( openalSource ) || !soundSystemLocal.hardware.HasEFXFilters() )
+	{
+		return;
+	}
+	const int sends = soundSystemLocal.hardware.GetMaxAuxiliarySends();
+	for( int send = 0; send < sends && send < 2; send++ )
+	{
+		alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, send, AL_FILTER_NULL );
+	}
+	CheckALErrors();
+#endif
 }
 
 /*
@@ -1557,6 +1664,21 @@ void idSoundVoice_OpenAL::CreateWetDryFilters()
 			openalAuxFilter = 0;
 		}
 	}
+	if( openalAreaAuxFilter == 0 && soundSystemLocal.hardware.GetMaxAuxiliarySends() >= 2 )
+	{
+		qalGenFilters( 1, &openalAreaAuxFilter );
+		if( CheckALErrors() == AL_NO_ERROR && openalAreaAuxFilter != 0 )
+		{
+			qalFilteri( openalAreaAuxFilter, AL_FILTER_TYPE, AL_FILTER_LOWPASS );
+			qalFilterf( openalAreaAuxFilter, AL_LOWPASS_GAIN, 1.0f );
+			qalFilterf( openalAreaAuxFilter, AL_LOWPASS_GAINHF, 1.0f );
+			CheckALErrors();
+		}
+		else
+		{
+			openalAreaAuxFilter = 0;
+		}
+	}
 #endif
 }
 
@@ -1591,6 +1713,15 @@ void idSoundVoice_OpenAL::DestroyWetDryFilters()
 			soundSettingsDeleteFilters( 1, &openalAuxFilter );
 		}
 		openalAuxFilter = 0;
+	}
+	if( openalAreaAuxFilter != 0 )
+	{
+		// only the normal routing path allocates this filter, through qalGenFilters
+		if( qalDeleteFilters != NULL )
+		{
+			qalDeleteFilters( 1, &openalAreaAuxFilter );
+		}
+		openalAreaAuxFilter = 0;
 	}
 	soundSettingsDeleteFilters = NULL;
 #endif
@@ -1627,8 +1758,28 @@ void idSoundVoice_OpenAL::ApplyWetDryRouting()
 
 	const float effectiveGain = OpenQ4_SanitizeSourceGain( gain );
 	const openQ4OcclusionFilter_t occlusionFilter = OpenQ4_BuildOcclusionFilter( occlusion, environmentMuffle );
-	const float directFilterGain = effectiveDry * occlusionFilter.directGain;
-	const float wetFilterGain = effectiveWet * occlusionFilter.wetGain;
+	// Every stock reverb preset sets an air absorption of -5 mB per metre, a high-frequency
+	// loss over distance. OpenAL applies it from the distance it attenuates by, and openQ4
+	// attenuates itself (AL_ROLLOFF_FACTOR 0), so apply it here: -1.3 dB at 5 kHz across
+	// 1000 units, -3.8 dB across 3000. The position is the spatialized one, so a sound heard
+	// round a corner travels the portal path.
+	float airGainHF = 1.0f;
+	if( s_airAbsorption.GetBool() )
+	{
+		const float meters = position.Length() * 0.0254f;
+		const float perMeter = soundSystemLocal.hardware.GetAirAbsorptionGainHF();
+		if( perMeter < 1.0f && meters > 0.0f && !FLOAT_IS_NAN( meters ) )
+		{
+			airGainHF = idMath::ClampFloat( 0.0f, 1.0f, idMath::Pow( perMeter, meters ) );
+		}
+	}
+	// openQ4's liquid and suit muffling, then retail's EAX source occlusion and room level
+	const float directFilterGain = effectiveDry * occlusionFilter.directGain * eaxDirectGain;
+	const float directFilterGainHF = occlusionFilter.directGainHF * eaxDirectGainHF * airGainHF;
+	const float wetFilterGain = effectiveWet * occlusionFilter.wetGain * eaxPrimaryGain;
+	const float wetFilterGainHF = occlusionFilter.wetGainHF * eaxPrimaryGainHF * airGainHF;
+	const float areaFilterGain = effectiveWet * occlusionFilter.wetGain * eaxAreaGain;
+	const float areaFilterGainHF = occlusionFilter.wetGainHF * eaxAreaGainHF * airGainHF;
 
 #if OPENQ4_OPENAL_EFX_SUPPORTED
 	const bool hasEfxFilters = soundSystemLocal.hardware.HasEFXFilters() && openQ4_LoadVoiceEfxProcs();
@@ -1640,7 +1791,7 @@ void idSoundVoice_OpenAL::ApplyWetDryRouting()
 	if( hasEfxFilters && openalDirectFilter != 0 )
 	{
 		qalFilterf( openalDirectFilter, AL_LOWPASS_GAIN, directFilterGain );
-		qalFilterf( openalDirectFilter, AL_LOWPASS_GAINHF, occlusionFilter.directGainHF );
+		qalFilterf( openalDirectFilter, AL_LOWPASS_GAINHF, directFilterGainHF );
 		alSourcei( openalSource, AL_DIRECT_FILTER, openalDirectFilter );
 		alSourcef( openalSource, AL_GAIN, effectiveGain );
 	}
@@ -1649,15 +1800,37 @@ void idSoundVoice_OpenAL::ApplyWetDryRouting()
 		alSourcef( openalSource, AL_GAIN, effectiveGain * directFilterGain );
 	}
 
-	if( hasEfxFilters && openalAuxFilter != 0 && soundSystemLocal.hardware.HasEFX() && soundSystemLocal.hardware.GetAuxEffectSlot() != 0 && wetFilterGain > 0.0f )
+	// send 0 feeds the reverb slot holding the listener's area, send 1 the slot
+	// holding the sound's own area when that is a different one
+	const ALuint primarySlot = soundSystemLocal.hardware.HasEFX() ? soundSystemLocal.hardware.GetPrimaryAuxEffectSlot() : 0;
+	if( hasEfxFilters && openalAuxFilter != 0 && primarySlot != 0 && wetFilterGain > 0.0f )
 	{
 		qalFilterf( openalAuxFilter, AL_LOWPASS_GAIN, wetFilterGain );
-		qalFilterf( openalAuxFilter, AL_LOWPASS_GAINHF, occlusionFilter.wetGainHF );
-		alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, soundSystemLocal.hardware.GetAuxEffectSlot(), 0, openalAuxFilter );
+		qalFilterf( openalAuxFilter, AL_LOWPASS_GAINHF, wetFilterGainHF );
+		alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, primarySlot, 0, openalAuxFilter );
 	}
 	else if( hasEfxFilters )
 	{
 		alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL );
+	}
+
+	if( hasEfxFilters && soundSystemLocal.hardware.GetMaxAuxiliarySends() >= 2 )
+	{
+		ALuint areaSlot = 0;
+		if( primarySlot != 0 && reverbAreaSlot >= 0 && reverbAreaSlot != soundSystemLocal.hardware.GetPrimaryReverbSlot() )
+		{
+			areaSlot = soundSystemLocal.hardware.GetReverbSlotHandle( reverbAreaSlot );
+		}
+		if( openalAreaAuxFilter != 0 && areaSlot != 0 && areaSlot != primarySlot && areaFilterGain > 0.0f )
+		{
+			qalFilterf( openalAreaAuxFilter, AL_LOWPASS_GAIN, areaFilterGain );
+			qalFilterf( openalAreaAuxFilter, AL_LOWPASS_GAINHF, areaFilterGainHF );
+			alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, areaSlot, 1, openalAreaAuxFilter );
+		}
+		else
+		{
+			alSource3i( openalSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 1, AL_FILTER_NULL );
+		}
 	}
 #else
 	alSourcef( openalSource, AL_GAIN, effectiveGain * directFilterGain );
@@ -1687,7 +1860,10 @@ bool idSoundVoice_OpenAL::ApplyWetDryRoutingChecked(bool filters, bool wet, ALui
 	if (s_openALEfxDebugMode.GetInteger()==1) {dry=0.0f;send=1.0f;}
 	if (s_openALEfxDebugMode.GetInteger()==2) {dry=1.0f;send=0.0f;}
 	const auto occluded=OpenQ4_BuildOcclusionFilter(occlusion,environmentMuffle);
-	const float direct=dry*occluded.directGain, auxiliary=send*occluded.wetGain;
+	// Same direct path and primary send as ApplyWetDryRouting; send 1 stays with the normal path,
+	// and so does air absorption, which the next normal update applies.
+	const float direct=dry*occluded.directGain*eaxDirectGain, auxiliary=send*occluded.wetGain*eaxPrimaryGain;
+	const float directHF=occluded.directGainHF*eaxDirectGainHF, auxiliaryHF=occluded.wetGainHF*eaxPrimaryGainHF;
 	const float effectiveGain=OpenQ4_SanitizeSourceGain(gain);
 	SoundSettingsSourceReceipt receipt;receipt.source=source;receipt.lifetime=lifetime;
 #if OPENQ4_OPENAL_EFX_SUPPORTED
@@ -1715,14 +1891,14 @@ bool idSoundVoice_OpenAL::ApplyWetDryRoutingChecked(bool filters, bool wet, ALui
 		}
 		SOUND_VOICE_CALL(filteri(openalDirectFilter,AL_FILTER_TYPE,AL_FILTER_LOWPASS));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		SOUND_VOICE_CALL(filterf(openalDirectFilter,AL_LOWPASS_GAIN,direct));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
-		SOUND_VOICE_CALL(filterf(openalDirectFilter,AL_LOWPASS_GAINHF,occluded.directGainHF));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
+		SOUND_VOICE_CALL(filterf(openalDirectFilter,AL_LOWPASS_GAINHF,directHF));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		SOUND_VOICE_CALL(alSourcei(source,AL_DIRECT_FILTER,openalDirectFilter));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		SOUND_VOICE_CALL(alSourcef(source,AL_GAIN,effectiveGain));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		const bool route=wet && auxiliary>0.0f;
 		if (route) {
 			SOUND_VOICE_CALL(filteri(openalAuxFilter,AL_FILTER_TYPE,AL_FILTER_LOWPASS));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 			SOUND_VOICE_CALL(filterf(openalAuxFilter,AL_LOWPASS_GAIN,auxiliary));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
-			SOUND_VOICE_CALL(filterf(openalAuxFilter,AL_LOWPASS_GAINHF,occluded.wetGainHF));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
+			SOUND_VOICE_CALL(filterf(openalAuxFilter,AL_LOWPASS_GAINHF,auxiliaryHF));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		}
 		SOUND_VOICE_CALL(alSource3i(source,AL_AUXILIARY_SEND_FILTER,route?slot:AL_EFFECTSLOT_NULL,0,route?openalAuxFilter:AL_FILTER_NULL));SOUND_VOICE_TEST(alGetError()==AL_NO_ERROR);
 		receipt.directFilter=openalDirectFilter;receipt.auxiliaryFilter=route?openalAuxFilter:0;receipt.slot=route?slot:0;

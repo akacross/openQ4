@@ -562,7 +562,10 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 	R_ClassicInteractionDomain_ResetFrame();
 	R_ClassicFogBlendDomain_ResetFrame();
 	R_ClassicSubviewDomain_ResetFrame();
-	if ( ( r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool() )
+	// PBR needs the packets, material table and probes only for a frame
+	// that draws a PBR-authored material (stock content has none).
+	if ( ( r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool()
+				&& R_ScenePackets_CommandStreamHasPBR( cmds ) )
 			|| r_rendererSharedGui.GetBool()
 			|| r_rendererSharedInWorldGui.GetBool()
 			|| r_rendererSharedCinematicPost.GetBool()
@@ -805,8 +808,10 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 				const unsigned long long postBegin = timingEnabled ? R_RendererMetrics_CpuClock() : 0;
 				// RB_SwapBuffers runs the back-buffer passes (CRT, then
 				// r_brightness/r_gamma) before presenting, and screenshots read
-				// the result, so they run here whether or not this frame is a
-				// capture.
+				// the result. CRT runs here whether or not this frame is a
+				// capture; the display mapping that applies r_brightness/r_gamma
+				// follows exactly once, in VK_GuiExecutor_EndFrameAndPresent or
+				// VK_GuiExecutor_ReadPixels.
 				VK_PostProcess_ApplyBackBuffer();
 				R_RendererMetrics_EndPresentPhase( RENDERER_PRESENT_FINAL_POST, postBegin );
 				// CaptureRenderToFile flushes a cropped save-preview frame with
@@ -1629,6 +1634,7 @@ void R_RenderGraphResources_Shutdown( void ) {
 // render-graph pool, so report those instead.
 void R_RenderGraphResources_PrintGfxInfo( void ) {
 	VK_Device_PrintMemoryInfo();
+	VK_Device_PrintPipelineInfo();
 }
 
 void R_RendererVulkanMemoryInfo_f( const idCmdArgs &args ) {

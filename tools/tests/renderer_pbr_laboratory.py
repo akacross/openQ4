@@ -42,7 +42,13 @@ BASE = {
     'r_msaaAlphaToCoverage':'1',
     'r_vkPBRSpecularAA':'1',
     'r_gpuSkinning':'0',
-    'r_useScissor':'1', 'r_lightScale':'2',
+    'r_convertMD5toMD5R':'0',
+    # The overview's key light is three times overbright. Calibrated PBR shows
+    # the classic brightness, so at the game's r_lightScale 2 classic and PBR
+    # alike saturate 40% of the frame and most stations read white. A quarter
+    # of it keeps the stations measurable; controls that need other light
+    # levels set their own.
+    'r_useScissor':'1', 'r_lightScale':'0.5',
     'logFileName': 'logs/openq4.log', 'developer': '1', 'r_ignoreGLErrors': '0',
     'com_skipLoadingContinue': '1', 'com_loadingContinueAutoAdvance': '1',
     'com_levelLoadModernization': '0', 'g_autoSkipCinematics': '1',
@@ -56,7 +62,16 @@ BASE = {
     'r_rendererSharedWorldAmbient':'0',
     'r_rendererReflectionProbes': '1', 'r_pbrMaterials': '1', 'r_pbrDebug': '0',
     'r_pbrIBL': '1', 'r_pbrIBLIntensity': '1', 'r_shadows': '0',
+    # The laboratory keeps its linear-scene and floating-point preview
+    # machinery under test. Production (0) composites each PBR draw into the
+    # display-referred framebuffer; the composite-* controls select it.
+    'r_pbrLinearScene': '1',
+    # The analytic studio environment is the laboratory's reference lighting;
+    # production (0) takes environment light from authored probes, baked grids
+    # and ambient lights only. The production-environment controls select it.
+    'r_pbrAnalyticEnvironment': '1',
     'r_bloom': '0', 'r_ssao': '0', 'r_postAA': '0', 'r_motionBlur': '0',
+    'r_ssaoRadius': '36', 'r_ssaoIntensity': '1.35', 'r_ssaoDebug': '0', 'r_ssaoMaxDistance': '220',
     'r_hdrToneMap': '0', 'r_hdrAutoExposure': '0', 'r_hdrSceneTarget': '1',
     'r_hdrExposure': '1', 'r_hdrHighlightDesaturation': '0', 'r_hdrGamutCompression': '0',
     'r_hdrWhitePoint':'6', 'r_hdrLift':'0', 'r_hdrPostGamma':'1', 'r_hdrGain':'1',
@@ -80,6 +95,34 @@ BASE = {
     'ui_autoJoin': '1',
     'sys_allowMultipleInstances': '1',
 }
+# --gl-native: the experimental modern visible path stays off, so the default
+# classic OpenGL light loop owns every admitted PBR surface (draw_pbr.cpp).
+GL_NATIVE_OVERRIDES = {
+    'r_rendererModernExecutor': '0', 'r_rendererModernSubmit': '0',
+    'r_rendererModernOpaque': '0', 'r_rendererModernDeferred': '0',
+    'r_rendererForwardPlus': '0', 'r_rendererModernVisible': '0', 'r_glPBR': '1',
+}
+
+# --production: Vulkan with the laboratory linear scene off, as players run
+# it. Every PBR draw composes into the display-referred framebuffer, which is
+# how the classic OpenGL owner always draws (--gl-native).
+PRODUCTION_OVERRIDES = {'r_pbrLinearScene': '0'}
+
+# Multi-GPU qualification: OPENQ4_LAB_VK_DEVICE pins r_vkDevice for this and
+# every harness that captures through BASE (on the qualification laptop, 2 is
+# the integrated Intel GPU). OpenGL ignores it.
+if os.environ.get('OPENQ4_LAB_VK_DEVICE', '').strip():
+    BASE['r_vkDevice'] = os.environ['OPENQ4_LAB_VK_DEVICE'].strip()
+
+# Stage D: SSAO occludes native PBR indirect light only. The overview's
+# stations are native PBR in front of a classic room; the laboratory's analytic
+# environment is their indirect light, its key and fill lights the direct. The
+# room lies beyond SSAO's default fade distance. Every control keeps SSAO on,
+# so OpenGL draws all of them through its scene target; the unoccluded ones
+# fade it out at the nearest distance instead.
+SSAO_SETTINGS = {'r_ssao': '1', 'r_ssaoRadius': '64', 'r_ssaoIntensity': '2', 'r_ssaoMaxDistance': '2048'}
+SSAO_FADED = {**SSAO_SETTINGS, 'r_ssaoMaxDistance': '16'}
+
 CASES = {
     'lit': {},
     'forced-parity': {'r_rendererModernLightingParity':'15'},
@@ -124,6 +167,14 @@ CASES = {
     'production-no-scissor': {'r_rendererModernLightingParity':'0','r_useScissor':'0'},
     'production-no-scissor-native': {'r_rendererModernLightingParity':'0','r_useScissor':'0','r_pbrMaterials':'0','r_rendererReflectionProbes':'0'},
     'ownership': {'r_pbrDebug': '7'},
+    'ssao-ownership': {**SSAO_FADED, 'r_pbrDebug': '7'},
+    'ssao-off': dict(SSAO_FADED),
+    'ssao-on': dict(SSAO_SETTINGS),
+    'ssao-direct-off': {**SSAO_FADED, 'r_pbrIBL': '0'},
+    'ssao-direct-on': {**SSAO_SETTINGS, 'r_pbrIBL': '0'},
+    'ssao-classic': {**SSAO_SETTINGS, 'r_pbrMaterials': '0'},
+    'ssao-debug': {**SSAO_SETTINGS, 'r_ssaoDebug': '1'},
+    'ssao-debug-classic': {**SSAO_SETTINGS, 'r_ssaoDebug': '1', 'r_pbrMaterials': '0'},
     'albedo': {'r_pbrDebug': '1'},
     'normals': {'r_pbrDebug': '2'},
     **{f'normal-{name}': {'r_pbrDebug':'2'} for name in ('xyz','rg','agb','zero','flat')},
@@ -181,8 +232,10 @@ CASES = {
     'full-restart': {},
     'map-reload': {},
     **{f'sampler-{name}': {'r_pbrDebug':'1'} for name in ('nearest','linear','clamp','mips')},
-    **{f'skin-{backend}{pose}': {'r_gpuSkinning':str(int(backend=='gpu')), 'r_pbrDebug':'2' if pose=='-normal' else '7' if pose=='-ownership' else '0', 'r_shadows':'1', 'r_useShadowMap':'1', 'g_showPlayerShadow':'0'}
-       for backend in ('cpu','gpu') for pose in ('','-bent','-restored','-normal','-ownership')},
+    # md5r converts the skinned specimen to a packed MD5R model at load
+    # (r_convertMD5toMD5R), so its controls run as their own process.
+    **{f'skin-{backend}{pose}': {'r_gpuSkinning':str(int(backend=='gpu')), 'r_convertMD5toMD5R':str(int(backend=='md5r')), 'r_pbrDebug':'2' if pose=='-normal' else '7' if pose=='-ownership' else '0', 'r_shadows':'1', 'r_useShadowMap':'1', 'g_showPlayerShadow':'0'}
+       for backend in ('cpu','gpu','md5r') for pose in ('','-bent','-restored','-normal','-ownership')},
 }
 for restart in ('partial','full'):
     CASES[f'skin-gpu-{restart}-restart']=dict(CASES['skin-gpu'])
@@ -229,6 +282,12 @@ CASES['production-fixed-bright']={**CASES['production-fixed'],'r_lightScale':'2'
 FALLBACK_CASES = {'multi-budget','shadow-capacity','local-global','production-rejected','production-no-scissor'}
 FALLBACK_CASES.update(('fog-fallback','blend-fallback','lightgrid-fallback'))
 FALLBACK_CASES.update(f'production-fixed-{boundary}-fallback' for boundary in ('shadow','msaa'))
+# Controls whose PBR specimen is deliberately hidden (background captures for
+# composite oracles): no native owner is expected to admit anything there.
+HIDDEN_SPECIMEN_CASES: set[str] = set()
+# Controls whose specimen deliberately breaks the native material contract:
+# every native owner must decline them and keep the classic stages.
+CONTRACT_DECLINE_CASES = {'vk-direct-emission-mismatch-fallback', 'vk-direct-cutout-mismatch-fallback'}
 LEGACY_CASES = {'legacy','master-off','multi-legacy','shadow-capacity-legacy','local-global-legacy','production-native','production-rejected-native','production-curved-native'}
 LEGACY_CASES.update(('production-fixed-colored-native','production-fixed-master-off'))
 LEGACY_CASES.add('production-fixed-grid-native')
@@ -238,6 +297,7 @@ LEGACY_CASES.update(('production-no-scissor-native','production-fixed-native','p
 LEGACY_CASES.update(f'{kind}-{mode}' for kind in ('fog','blend') for mode in ('native','off','fallback-native'))
 LEGACY_CASES.update(('lightgrid-native','lightgrid-off'))
 LEGACY_CASES.update(('lightgrid-pbr-master-off','lightgrid-pbr-native'))
+LEGACY_CASES.update(('ssao-classic','ssao-debug-classic'))
 CASE_COMMANDS = {'shader-reload':['rendererShaderLibraryReload'], 'image-reload':['reloadImages all'],
                  'partial-restart':['vid_restart partial','wait 60'], 'full-restart':['vid_restart','wait 60'],
                  # Spawned entities publish their first render definitions on
@@ -333,6 +393,15 @@ VK_DIRECT_MATERIALS = {
     'shadow-point-owned':'data_separate', 'shadow-point-restored':'data_separate',
     'shadow-projected-off':'baked_normal_agb', 'shadow-projected':'baked_normal_agb',
     'shadow-projected-owned':'baked_normal_agb', 'shadow-projected-restored':'baked_normal_agb',
+    # The shadowed scene with PBR off: what each backend's classic shadow
+    # filter does to the surfaces PBR never touches.
+    'shadow-projected-native':'baked_normal_agb',
+    # Every light with PBR off: classic rounding on the lit room.
+    'emission-many-lights-native':'emission_half',
+    # Production composition: the same draws written straight into the
+    # display-referred framebuffer, and a rough grey dielectric against its own
+    # classic diffuse fallback under the same light (brightness calibration).
+    'composite':'data_scalar', 'calibration':'dielectric_5', 'calibration-classic':'dielectric_5',
 }
 for suffix in VK_DIRECT_MATERIALS:
     case='vk-direct-'+suffix
@@ -340,7 +409,7 @@ for suffix in VK_DIRECT_MATERIALS:
                  'r_pbrDebug':'7' if suffix.startswith('ownership-') or suffix.endswith(('-fallback','-owned')) else '0',
                  'r_rendererModernQuality':'0' if suffix=='master-off' else '1',
                  'r_pbrMaterials':'0' if suffix.endswith('-native') else '1'}
-    if suffix in ('shadow-point','shadow-point-owned','shadow-projected','shadow-projected-owned'):
+    if suffix in ('shadow-point','shadow-point-owned','shadow-projected','shadow-projected-owned','shadow-projected-native'):
         CASES[case].update({'r_shadows':'1','r_useShadowMap':'1',
                            'r_shadowMapReport':'2','r_shadowMapReportInterval':'1'})
     if suffix=='cutout-hard':
@@ -351,7 +420,11 @@ for suffix in VK_DIRECT_MATERIALS:
         CASES[case]['r_pbrMaterials']='0'
     if suffix=='emission-legacy':
         CASES[case]['r_pbrMaterials']='0'
-    if suffix in ('emission-one-light','emission-many-lights'):
+    if suffix in ('composite','calibration','calibration-classic'):
+        CASES[case]['r_pbrLinearScene']='0'
+    if suffix=='calibration-classic':
+        CASES[case]['r_pbrMaterials']='0'
+    if suffix in ('emission-one-light','emission-many-lights','emission-many-lights-native'):
         CASES[case]['r_pbrDebug']='6'
     if suffix=='emission-dark':
         CASES[case]['r_skipAmbient']='1'
@@ -380,6 +453,8 @@ IBL_MATERIALS = {
     'alpha':'source_alpha', 'alpha-off':'source_alpha', 'alpha-restored':'source_alpha',
     'image-reload':'data_scalar', 'partial-restart':'data_scalar', 'full-restart':'data_scalar',
     'shared':'data_scalar', 'master-off':'data_scalar', 'legacy':'data_scalar',
+    # Production environment lighting: no analytic studio and no probe here.
+    'production':'data_scalar',
 }
 for suffix in IBL_MATERIALS:
     case='ibl-'+suffix
@@ -391,6 +466,7 @@ for suffix in IBL_MATERIALS:
     if suffix in ('image-reload','partial-restart','full-restart'):
         CASE_COMMANDS[case]=CASE_COMMANDS[suffix]
 CASES['ibl-shared']['r_rendererSharedWorldAmbient']='1'
+CASES['ibl-production']['r_pbrAnalyticEnvironment']='0'
 for name in ('cutout-coverage','cutout-hard-coverage'):
     CASES['ibl-'+name]['r_pbrDebug']='7'
 CASES['ibl-cutout-hard-coverage']['r_msaaAlphaToCoverage']='0'
@@ -499,7 +575,9 @@ def compare_ibl_captures(results: list[dict], patches: dict[str,bytes] | None = 
                 row['failures'].append('cutout ownership does not measure four-sample coverage')
             if name=='cutout-hard-coverage' and any(v not in (0,255) for v in green):
                 row['failures'].append('hard cutout coverage contains partial interior pixels')
-        elif name in ('off','zero','ao-zero','alpha-off'):
+        elif name in ('off','zero','ao-zero','alpha-off','production'):
+            # Production takes environment light only from the map's probes
+            # and grids; this scene has neither.
             if max(patch)>0: row['failures'].append('disabled or fully occluded environment still illuminates opaque material')
         elif name not in ('legacy','master-off','cutout-off','alpha-off'):
             if sum(patch)/len(patch)<0.5 or row['environmentProof']['clippedFraction']>0.05:
@@ -527,6 +605,37 @@ def compare_ibl_captures(results: list[dict], patches: dict[str,bytes] | None = 
             rows['cutout-coverage']['failures'].append('MSAA cutout coverage has no partial samples')
         if not multisampled and smooth!=hard:
             rows['cutout-coverage']['failures'].append('single-sample coverage differs from the hard cutout')
+
+
+def extreme_emission_reference(linear_scene: bool) -> tuple[float,float,float]:
+    """Display BGR of the faint (1,30,200) texture at a million-strength emission.
+
+    Exposure is r_hdrExposure 0.1 times the fixed 0.01 automatic exposure;
+    FP16 bounds the blue radiance at 65504. A committed linear HDR scene (the
+    laboratory mode) exposes the linear radiance, applies the filmic curve
+    normalised by the reference white and encodes sRGB once: red 178.1. A
+    production frame (r_pbrLinearScene 0) composes the draw into the
+    display-referred frame on its own: the extended sRGB encode of the
+    radiance, then the stock exposure, whose tone map leaves values below its
+    0.5 shoulder unchanged: BGR 27.3, 13.9, 2.9. BASE disables highlight
+    desaturation and gamut compression, which this reference does not model.
+    """
+    settings={**BASE,**CASES['vk-direct-emission-extreme']}
+    if float(settings['r_hdrHighlightDesaturation']) or float(settings['r_hdrGamutCompression']):
+        raise ValueError('the extreme emission reference assumes no highlight compression')
+    exposure=float(settings['r_hdrExposure'])*float(settings['r_hdrMaxExposure'])
+    def decode(byte: int) -> float:
+        value=byte/255
+        return value/12.92 if value<=0.04045 else ((value+0.055)/1.055)**2.4
+    def encode(value: float) -> float:
+        return value*12.92 if value<0.0031308 else 1.055*value**(1/2.4)-0.055
+    radiance=[min(decode(byte)*1000000,65504) for byte in (200,30,1)]
+    if not linear_scene:
+        return tuple(255*min(encode(value)*exposure,1) for value in radiance)
+    def filmic(x: float) -> float:
+        return x*(2.51*x+0.03)/(x*(2.43*x+0.59)+0.14)
+    white=filmic(float(settings['r_hdrWhitePoint']))
+    return tuple(255*encode(min(max(filmic(value*exposure)/white,0),1)) for value in radiance)
 
 
 def compare_vulkan_direct_captures(results: list[dict]) -> None:
@@ -576,6 +685,8 @@ def compare_vulkan_direct_captures(results: list[dict]) -> None:
         ('emission-half','emission-many-lights',0), ('emission-half','emission-partial-restart',0),
         ('emission-half','emission-full-restart',0),
         ('emission-half','emission-shared',0),
+        # One float preview store versus one display-referred blend per draw.
+        ('scalar','composite',0.5),
         ('emission-mismatch-fallback','emission-mismatch-native',0),
         ('cutout-mismatch-fallback','cutout-mismatch-native',0),
         ('cutout-lit','cutout-restored',0), ('cutout-lit','cutout-partial-restart',0),
@@ -609,34 +720,75 @@ def compare_vulkan_direct_captures(results: list[dict]) -> None:
             row['failures'].append('native alpha-to-coverage did not smooth interior cutout edges')
         if not samples4 and changed:
             row['failures'].append('alpha-to-coverage changed a single-sample cutout')
-    # The untonemapped native target stores linear energy. These constants
-    # are independently decoded from the original (30,200,255) color texture;
-    # this proves material decode/scale, not full-scene display transfer.
+    # Native emission is linear radiance, independently decoded from the
+    # original (30,200,255) color texture and scaled, then encoded once for
+    # the display-referred framebuffer like every other PBR draw.
     for name,scale in (('emission-half',0.5),('emission-quarter',0.25)):
         if name not in patches: continue
         expected=[]
         for value in (255,200,30):  # normal_patch is BGR
             encoded=value/255
-            expected.append(255*scale*(encoded/12.92 if encoded<=0.04045 else ((encoded+0.055)/1.055)**2.4))
+            radiance=scale*(encoded/12.92 if encoded<=0.04045 else ((encoded+0.055)/1.055)**2.4)
+            expected.append(255*(12.92*radiance if radiance<=0.0031308 else 1.055*radiance**(1/2.4)-0.055))
         error=max(abs(value-expected[i%3]) for i,value in enumerate(patches[name]))
         by_case[name]['nativeEmissionReference']={'expectedBGR':expected,'maximumByteError':error,'limit':1}
         if error>1:
             by_case[name]['failures'].append('native emission differs from independent linear color reference')
+    if 'calibration' in by_case and 'calibration-classic' in by_case:
+        # PBR irradiance is pi times the decoded classic light term
+        # (PBRClassicLightIrradiance), so where the light meets the grey
+        # dielectric head-on its diffuse reproduces the classic pixel through
+        # the sRGB transfer. Find that point as the brightest classic pixel
+        # of the specimen and predict the PBR byte there; the rough lobe adds
+        # about two bytes. Away from it PBR applies the cosine in linear light,
+        # brighter than classic's display-space cosine, so their means differ
+        # by design (about 1.25 here, against 0.22 before calibration).
+        images={name:capture_rgb(Path(by_case[name]['screenshot'])) for name in ('calibration','calibration-classic')}
+        row=by_case['calibration']
+        if any(image is None for image in images.values()):
+            row['failures'].append('calibration captures are missing')
+        else:
+            def decode(v: float) -> float:
+                return v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4
+            def encode(v: float) -> float:
+                return v*12.92 if v<=0.0031308 else 1.055*v**(1/2.4)-0.055
+            classic,pbr=images['calibration-classic'],images['calibration']
+            green=[((y*1280+x)*3+1) for y in range(280,521) for x in range(500,781)]
+            peak=max(green,key=lambda i:classic[i])
+            albedo=188/255
+            light=classic[peak]/255/albedo
+            predicted=255*encode(0.96*decode(albedo)*decode(light))
+            means=[sum(image[i] for i in green)/len(green) for image in (pbr,classic)]
+            row['classicCalibration']={'classicPeak':classic[peak],'pbrAtPeak':pbr[peak],
+                'predictedPBR':predicted,'limit':[-1,4],'meanRatio':means[0]/max(means[1],1e-6)}
+            if not -1<=pbr[peak]-predicted<=4:
+                row['failures'].append(f'PBR brightness is not calibrated to the classic light term: '
+                                       f'{pbr[peak]} at the classic peak {classic[peak]}, expected {predicted:.1f}')
     if 'emission-dark' in patches and max(patches['emission-dark'])!=0:
         by_case['emission-dark']['failures'].append('emission leaked through the disabled ambient owner')
-    if 'emission-extreme' in patches:
-        # Red remains below the shoulder after exposure. The two other
-        # channels intentionally saturate; a per-intensity clamp would reduce
-        # red to about 5 instead of 77. Verify every central-patch pixel.
-        expected=(255,255,(1/255/12.92)*1000000*0.001*255)
+    if 'emission-extreme' in patches and by_case['emission-extreme'].get('backend')!='gl':
+        # A Vulkan float-HDR control: OpenGL's auto exposure follows the
+        # modern visible post path, so the classic owner only records it.
+        # Red stays unclipped while the two other channels intentionally
+        # saturate; a per-intensity clamp would reduce red to almost nothing.
+        # The reference follows the display transfer the capture reported.
+        # Verify every central-patch pixel.
+        row=by_case['emission-extreme']
+        hdr=next((line for line in row.get('telemetry',[]) if line.startswith('Vulkan HDR:')),'')
+        linear=re.search(r'\blinearScene=1\b',hdr) is not None
+        expected=extreme_emission_reference(linear)
         error=max(abs(value-expected[i%3]) for i,value in enumerate(patches['emission-extreme']))
-        by_case['emission-extreme']['nativeEmissionReference']={'expectedBGR':expected,'maximumByteError':error,'limit':1}
+        row['nativeEmissionReference']={'expectedBGR':expected,'maximumByteError':error,'limit':1,'linearScene':linear}
         if error>1:
-            by_case['emission-extreme']['failures'].append('extreme emission lost its unclipped channel after texture modulation')
+            row['failures'].append('extreme emission lost its unclipped channel after texture modulation')
     for shape in ('geometric','normal'):
         names=['aa-'+shape+suffix for suffix in ('','-off','-owned')]
         if not all(name in by_case for name in names): continue
         row=by_case[names[0]]
+        if row.get('backend')=='gl':
+            # r_vkPBRSpecularAA is Vulkan's switch; OpenGL always filters and
+            # is held to Vulkan's filtered result by the paired comparison.
+            continue
         images=[capture_rgb(Path(by_case[name]['screenshot'])) for name in names]
         if any(image is None for image in images):
             row['failures'].append('specular AA requires lit, disabled and ownership captures')
@@ -733,7 +885,7 @@ def compare_sampler_captures(results: list[dict]) -> None:
 def compare_skinning_captures(results: list[dict]) -> None:
     by_case={r['case']:r for r in results if r['case'].startswith('skin-')}
     images={name:capture_rgb(Path(r['screenshot'])) for name,r in by_case.items()}
-    for backend in ('cpu','gpu'):
+    for backend in ('cpu','gpu','md5r'):
         base,bent,restored=(f'skin-{backend}'+suffix for suffix in ('','-bent','-restored'))
         a,b=images.get(base),images.get(bent)
         if a and b:
@@ -800,6 +952,146 @@ def compare_transparency_captures(results: list[dict]) -> None:
             owned['failures'].append(f'native PBR source-alpha ownership missing {delta}')
 
 
+def stock_display_transfer(value: float, settings: dict[str,str]) -> float:
+    """Display value of a stock (perceptual, not linear) scene value in 0..1.
+
+    Mirrors ToneMapHDR in glprogs/bloom.fs and post_bloom_composite.frag for a
+    scene that is not linear: the fixed exposure, then a rational shoulder from
+    0.5 that reaches display white at the exposed reference white. The shoulder
+    started at 0.98 until the 2026-09-25 checkpoint, so a lit classic highlight
+    no longer reaches the display unchanged. The colour adjustments after it
+    are identity under BASE; any other setting is refused, not modelled.
+    """
+    if settings['r_hdrToneMap']!='1':
+        return min(max(value,0.0),1.0)
+    identity={'r_bloom':0,'r_hdrAutoExposure':0,'r_hdrHighlightDesaturation':0,'r_hdrGamutCompression':0,
+              'r_hdrLift':0,'r_hdrPostGamma':1,'r_hdrGain':1,'r_hdrVibrance':0,'r_hdrSaturation':1,'r_hdrContrast':1}
+    if any(float(settings[name])!=expected for name,expected in identity.items()):
+        raise ValueError('the stock display transfer models only exposure and the highlight shoulder')
+    exposure=max(float(settings['r_hdrExposure']),0.001)
+    shoulder=0.5
+    white=max(max(float(settings['r_hdrWhitePoint']),1.0)*exposure,1.0)
+    x=max(value,0.0)*exposure
+    if x>=shoulder:
+        t=x-shoulder
+        x=shoulder+t/(1+(1/(1-shoulder)-1/(white-shoulder))*t)
+    return min(max(x,0.0),1.0)
+
+
+def native_gl_owner(row: dict) -> bool:
+    """The classic OpenGL light loop owned the capture's PBR (--gl-native)."""
+    return any(line.startswith('OpenGL: native PBR:') and re.search(r'\badmitted=[1-9]', line)
+               for line in row.get('telemetry', []))
+
+
+def display_referred_owner(row: dict) -> bool:
+    """The capture composed PBR into the display-referred frame, as shipped:
+    the classic OpenGL owner, or Vulkan with the linear scene off."""
+    return native_gl_owner(row) or (row.get('backend') == 'vk' and row.get('pbrLinearScene') == '0')
+
+
+def compare_ssao_captures(results: list[dict]) -> None:
+    """SSAO darkens native PBR indirect light only (Stage D).
+
+    Native PBR pixels (green in the ownership capture) keep their direct light
+    exactly: with the environment off, SSAO changes none of them. With it on,
+    each lies between its direct-only value and its unoccluded value, and some
+    darken. Classic pixels darken exactly as in a frame without native PBR,
+    and the debug view shows the same occlusion with and without it.
+    """
+    by_case = {r['case']: r for r in results}
+    names = ('ssao-ownership', 'ssao-off', 'ssao-on', 'ssao-direct-off', 'ssao-direct-on',
+             'ssao-classic', 'ssao-debug', 'ssao-debug-classic')
+    if not all(name in by_case for name in names):
+        return
+    images = {name: capture_rgb(Path(by_case[name]['screenshot'])) for name in names}
+    if any(image is None for image in images.values()):
+        by_case['ssao-on']['failures'].append('SSAO controls are missing captures')
+        return
+    owner = images['ssao-ownership']
+    # Opaque native PBR shows pure green; translucent native PBR blends its
+    # green over the room and belongs to neither set.
+    owned = [i for i in range(0, len(owner), 3) if owner[i:i + 3] == bytes((0, 255, 0))]
+    classic = [i for i in range(0, len(owner), 3)
+               if not ( owner[i + 1] >= 48 and owner[i + 1] > 2 * owner[i] and owner[i + 1] > 2 * owner[i + 2] )]
+    row = by_case['ssao-on']
+    if len(owned) < 4096:
+        row['failures'].append('the SSAO scene shows too few native PBR pixels')
+        return
+
+    def channels(i):
+        return range(i, i + 3)
+
+    direct_on, direct_off = images['ssao-direct-on'], images['ssao-direct-off']
+    direct_changed = sum(1 for i in owned if any(direct_on[c] != direct_off[c] for c in channels(i)))
+    on, off = images['ssao-on'], images['ssao-off']
+    above = sum(1 for i in owned if any(on[c] > off[c] + 1 for c in channels(i)))
+    below = sum(1 for i in owned if any(on[c] + 1 < direct_on[c] for c in channels(i)))
+    darkened = sum(1 for i in owned if any(on[c] + 2 <= off[c] for c in channels(i)))
+    with_pbr, without_pbr = images['ssao-on'], images['ssao-classic']
+    # The field is stored in half floats: allow the last bit of rounding.
+    classic_changed = sum(1 for i in classic if any(abs(with_pbr[c] - without_pbr[c]) > 1 for c in channels(i)))
+    classic_darkened = sum(1 for i in classic if any(with_pbr[c] + 2 <= images['ssao-off'][c] for c in channels(i)))
+    debug, debug_classic = images['ssao-debug'], images['ssao-debug-classic']
+    debug_changed = sum(1 for i in range(0, len(debug), 3)
+                        if any(abs(debug[c] - debug_classic[c]) > 1 for c in channels(i)))
+    row['ssaoComparisons'] = {'nativePixels': len(owned), 'classicPixels': len(classic),
+        'directChanged': direct_changed, 'aboveUnoccluded': above, 'belowDirect': below,
+        'indirectDarkened': darkened, 'classicChanged': classic_changed,
+        'classicDarkened': classic_darkened, 'debugChanged': debug_changed}
+    if direct_changed:
+        row['failures'].append(f'SSAO changed {direct_changed} native PBR pixels lit only directly')
+    if above or below:
+        row['failures'].append(f'SSAO left native PBR outside its direct/unoccluded bounds ({above} above, {below} below)')
+    if darkened < 64:
+        row['failures'].append(f'SSAO darkened only {darkened} native PBR pixels of indirect light')
+    if classic_changed:
+        row['failures'].append(f'native PBR changed {classic_changed} classic pixels under SSAO')
+    if classic_darkened < 1024:
+        row['failures'].append(f'SSAO darkened only {classic_darkened} classic pixels')
+    if debug_changed:
+        row['failures'].append(f'the SSAO debug view differs on {debug_changed} pixels with native PBR')
+
+
+def compare_native_baked_captures(results: list[dict]) -> None:
+    """A display-referred owner's baked light grid, from display captures.
+
+    The classic OpenGL owner and Vulkan with the linear scene off compose each
+    draw into the display-referred frame and have no linear export, so the
+    linear grid checks above cannot see them. A grid adds diffuse to every
+    dielectric station, never to a metal or a zero-AO material (their diffuse
+    is zero), scales with the grid intensity, and draws in the owner's
+    environment pass, which the owner reports.
+    """
+    by_case = {r['case']: r for r in results}
+    rows = [by_case.get('lightgrid-pbr' + suffix) for suffix in ('-clear', '', '-double')]
+    if not all(row is not None for row in rows) or not display_referred_owner(rows[1]):
+        return
+    if native_gl_owner(rows[1]):
+        native = next((line for line in rows[1].get('telemetry', []) if line.startswith('OpenGL: native PBR:')), '')
+        drawn = int(dict(re.findall(r'(\w+)=([^\s]+)', native)).get('baked', '0'))
+    else:
+        native = next((line for line in rows[1].get('telemetry', []) if line.startswith('Vulkan baked lighting:')), '')
+        drawn = int(dict(re.findall(r'(\w+)=([^\s]+)', native)).get('production', '0'))
+    if drawn <= 0:
+        rows[1]['failures'].append('the native PBR owner drew no baked light-grid receiver')
+    clear, grid, double = [row.get('image', {}).get('stationRGB', {}) for row in rows]
+    rows[1]['nativeBakedComparisons'] = {}
+    for name, a in clear.items():
+        if name not in grid or name not in double or name in ('source_alpha', 'cutout', 'emissive'):
+            continue
+        added = [y - x for x, y in zip(a, grid[name])]
+        doubled = [y - x for x, y in zip(a, double[name])]
+        zero_diffuse = name.startswith('metal_') or name in ('ao_zero', 'normal_zero', 'normal_xyz', 'normal_rg', 'normal_agb')
+        rows[1]['nativeBakedComparisons'][name] = {'added': added, 'doubled': doubled}
+        if zero_diffuse and max(abs(d) for d in added) > 1:
+            rows[1]['failures'].append(f'{name}: metalness or AO did not suppress baked diffuse')
+        if not zero_diffuse and max(added) < 2:
+            rows[1]['failures'].append(f'{name}: baked diffuse contributed no light')
+        if not zero_diffuse and max(doubled) <= max(added):
+            rows[1]['failures'].append(f'{name}: doubling the grid intensity added no light')
+
+
 def compare_material_captures(results: list[dict]) -> None:
     """Use changed controls as an oracle, including controls that must do nothing."""
     by_case = {r['case']: r for r in results if
@@ -856,7 +1148,7 @@ def compare_material_captures(results: list[dict]) -> None:
             by_case[left]['failures'].append(f'{left}/{right}: equivalent controls changed linear radiance')
     for grid_variant in ('','-msaa'):
         grid_rows=[by_case.get('lightgrid-pbr'+grid_variant+suffix) for suffix in ('-clear','','-double')]
-        if not all(row is not None for row in grid_rows): continue
+        if not all(row is not None for row in grid_rows) or display_referred_owner(grid_rows[1]): continue
         before,after,doubled=[row.get('linearImage',{}).get('stationRGB',{}) for row in grid_rows]
         grid_rows[1]['bakedMaterialComparisons']={}
         for name,a in before.items():
@@ -998,10 +1290,15 @@ def compare_material_captures(results: list[dict]) -> None:
                 v=values[((799-y)*1280+x)*3+c]
                 encoded.append(255*(12.92*v if v<=0.0031308 else 1.055*v**(1/2.4)-0.055))
                 reference.append(native[(y*1280+x)*3+c])
-        errors=[abs(a-b) for a,b in zip(encoded,reference)]
+        # The native capture is a display image. Its highlight passes the stock
+        # shoulder, so show the classic radiance through the same transfer.
+        settings={**BASE,**CASES[case+'-native']}
+        displayed=[255*stock_display_transfer(value/255,settings) for value in encoded]
+        errors=[abs(a-b) for a,b in zip(displayed,reference)]
         proof={'samples':len(errors),'radius':44,'meanAbsoluteByteError':sum(errors)/len(errors),
                'maximumByteError':max(errors),'nativeRange':[min(reference),max(reference)],
-               'encodedRange':[min(encoded),max(encoded)],'comparison':'linear PFM encoded to sRGB versus unclipped native display'}
+               'encodedRange':[min(encoded),max(encoded)],'displayedRange':[min(displayed),max(displayed)],
+               'comparison':'linear PFM encoded to sRGB through the stock display transfer versus native display'}
         modern['classicComparison']=proof
         if max(reference)>=240 or max(encoded)>=240 or max(reference)-min(reference)<40:
             modern['failures'].append('classic reference is clipped or lacks a useful lighting range')
@@ -1060,13 +1357,13 @@ def compare_material_captures(results: list[dict]) -> None:
                 extreme['failures'].append('unclipped extreme HDR channel lost emission linearity')
 
 
-def capture_rgb(path: Path) -> bytes | None:
+def capture_rgb(path: Path, size: tuple[int,int] = (1280,800)) -> bytes | None:
     if not path.is_file(): return None
     raw=path.read_bytes()
     if len(raw)<18 or raw[2]!=2: return None
     width,height,bits=struct.unpack_from('<HHB',raw,12)
     stride=bits//8
-    if (width,height)!=(1280,800) or stride not in (3,4): return None
+    if (width,height)!=size or stride not in (3,4): return None
     pixels=raw[18+raw[0]:]
     if len(pixels)!=width*height*stride: return None
     rows=[]
@@ -1417,12 +1714,12 @@ def inspect_capture(args: argparse.Namespace, case: str, text: str, shot: Path) 
     if not shot.is_file(): failures.append('engine screenshot missing')
     diagnostics = diagnostic_lines(text)
     if diagnostics: failures.append('engine diagnostics require review')
-    telemetry = [line for line in text.splitlines() if line.startswith(('PBR material resources:', 'Modern GL executor:', 'Modern visible frame:', 'Modern classic lighting:', 'Modern forward+:', 'Modern current shadow map:', 'Modern scene MSAA:', 'Renderer AA:', 'Modern specular probe atlas:', 'Modern clustered specular probes:', 'Vulkan: native PBR', 'Vulkan PBR probes:', 'Vulkan HDR scene ownership:', 'Vulkan PBR preview:', 'GPU skinning:', 'modernLightingOwnership'))]
+    telemetry = [line for line in text.splitlines() if line.startswith(('OpenGL: native PBR:', 'PBR material resources:', 'Modern GL executor:', 'Modern visible frame:', 'Modern classic lighting:', 'Modern forward+:', 'Modern current shadow map:', 'Modern scene MSAA:', 'Renderer AA:', 'Modern specular probe atlas:', 'Modern clustered specular probes:', 'Vulkan: native PBR', 'Vulkan PBR probes:', 'Vulkan HDR scene ownership:', 'Vulkan PBR preview:', 'Vulkan baked lighting:', 'GPU skinning:', 'modernLightingOwnership'))]
     if case.startswith(('vk-direct-','ibl-')):
         samples=CASES[case].get('r_multiSamples',BASE['r_multiSamples'])
         if not re.search(rf'Renderer AA: MSAA requested={samples} effective={samples}\b',text):
             failures.append('native direct specimen did not render at its requested sample count')
-    if case=='vk-direct-emission-extreme':
+    if case=='vk-direct-emission-extreme' and args.backend=='vk':
         hdr=next((line for line in text.splitlines() if line.startswith('Vulkan HDR:')), '')
         telemetry.append(hdr)
         state=dict(re.findall(r'(\w+)=([^\s]+)',hdr))
@@ -1433,6 +1730,12 @@ def inspect_capture(args: argparse.Namespace, case: str, text: str, shot: Path) 
         except ValueError:
             valid=False
         if not valid: failures.append('extreme emission requires completed float-HDR exposure evidence')
+        # The laboratory's linear scene owns this view; a production run
+        # (--production) composes it into the display-referred frame.
+        linear_expected={**BASE,**CASES[case]}.get('r_pbrLinearScene')=='1'
+        if state.get('linearScene')!=('1' if linear_expected else '0'):
+            failures.append('extreme emission was not composed in the committed linear HDR scene' if linear_expected
+                            else 'extreme emission entered a linear scene the case did not request')
     if case in ('production-fixed','production-fixed-bump','production-fixed-colored','production-fixed-restored','production-fixed-image-reload','production-fixed-shader-reload','production-fixed-partial-restart','production-fixed-full-restart','production-fixed-resize','production-fixed-minimal','production-fixed-bright') and not re.search(r'Modern classic lighting: ready=1 executed=1 primitives=[1-9]\d*',text):
         failures.append('classic compatibility lighting was not submitted')
     if case.startswith('production-fixed-msaa') and not re.search(r'Renderer AA: MSAA requested=4 effective=4\b',text):
@@ -1448,17 +1751,57 @@ def inspect_capture(args: argparse.Namespace, case: str, text: str, shot: Path) 
         gpu=next((line for line in telemetry if line.startswith('GPU skinning:')), '')
         if not re.search(r'\benabled=1\b',gpu) or not re.search(r'\bprepared=[1-9]\d*\b',gpu):
             failures.append('GPU skinning did not consume the specimen')
+    if case.startswith('skin-md5r'):
+        if 'MD5R model.' not in text:
+            failures.append('the skinned specimen was not converted to MD5R')
+        elif args.backend == 'gl' and 'runtime surfaces: packed primitive batches' not in text:
+            failures.append('OpenGL did not report packed MD5R runtime surfaces')
+        elif args.backend == 'gl' and '[classic: PBR]' not in text:
+            # Packed batches pose on the GPU through the md5r programs; the
+            # PBR-authored mesh must keep the classic geometry Vulkan uses.
+            failures.append('the PBR-authored MD5R mesh kept packed GPU-posed geometry on OpenGL')
     if case.startswith('msaa') or '-pbr-msaa' in case:
         if not re.search(r'Renderer AA: MSAA requested=4 effective=4\b',text):
             failures.append('four-sample MSAA was requested but is not effective')
         if not re.search(r'Modern scene MSAA: samples=4 colorResolves=[1-9]\d* depthResolves=[1-9]\d*',text):
             failures.append('multisample scene color and depth were not resolved')
     active_pbr = case not in LEGACY_CASES | FALLBACK_CASES and args.tier != 'legacy'
-    if case in FALLBACK_CASES:
+    # SSAO occludes only PBR's indirect light, which the classic light loop's
+    # native owner does: the modern visible path declines those frames to it.
+    ssao_declined = (active_pbr and args.backend == 'gl' and not getattr(args, 'gl_native', False)
+                     and case.startswith('ssao-'))
+    if ssao_declined:
+        visible = next((line for line in telemetry if line.startswith('Modern visible frame:')), '')
+        if not re.search(r'\bblocked=1\b', visible) or 'reason=pbr-ssao-indirect-only' not in visible:
+            failures.append('the modern visible path kept an SSAO frame with PBR materials')
+    if getattr(args, 'gl_native', False) or ssao_declined:
+        # The classic light loop owns PBR: prove its own telemetry instead of
+        # the modern visible frame, which is deliberately off.
+        native = next((line for line in telemetry if line.startswith('OpenGL: native PBR:')), '')
+        state = dict(re.findall(r'(\w+)=([^\s]+)', native))
+        settings = {**BASE, **CASES.get(case, {})}
+        expected = settings.get('r_pbrMaterials') == '1' and settings.get('r_rendererModernQuality') == '1'
+        # Nothing is drawn to admit when the specimen is hidden or the ambient
+        # walk is skipped with every direct light off.
+        unseen = case in HIDDEN_SPECIMEN_CASES or settings.get('r_skipAmbient') == '1'
+        if not native:
+            failures.append('native OpenGL PBR telemetry missing')
+        elif state.get('enabled') != str(int(expected)):
+            failures.append('native OpenGL PBR enable state differs from the case')
+        elif expected and state.get('program') != '1':
+            failures.append('native OpenGL PBR program is unavailable')
+        elif case in CONTRACT_DECLINE_CASES:
+            if int(state.get('admitted', '0')) != 0 or int(state.get('declined', '0')) <= 0:
+                failures.append('native OpenGL PBR did not decline a broken material contract')
+        elif expected and not unseen and int(state.get('admitted', '0')) <= 0:
+            failures.append('native OpenGL PBR did not admit the specimen')
+        elif not expected and int(state.get('admitted', '0')) != 0:
+            failures.append('native OpenGL PBR admitted a surface with PBR disabled')
+    elif case in FALLBACK_CASES:
         visible = next((line for line in telemetry if line.startswith('Modern visible frame:')), '')
         if not re.search(r'\bexec=0\b',visible) or not re.search(r'\bblocked=1\b',visible):
             failures.append('unsupported rendering contract did not retain complete classic ownership')
-    if active_pbr and args.backend == 'gl':
+    if active_pbr and args.backend == 'gl' and not getattr(args, 'gl_native', False) and not ssao_declined:
         ownership = next((line for line in telemetry if line.startswith('modernLightingOwnership')), '')
         if (case.startswith(('production','environment-')) or '-pbr' in case or case in ('fog-preview','blend-preview')) and not re.search(r'override=0 requested=1 materialContract=1\b',ownership):
             failures.append('production admission relied on a parity override or lacked its material contract')
@@ -1496,14 +1839,26 @@ def inspect_capture(args: argparse.Namespace, case: str, text: str, shot: Path) 
                 if len(points)<3 or len({m.get('firstTile') for m in points.values()})!=len(points):
                     failures.append('three point lights did not consume distinct complete maps')
     if case in ('vk-direct-shadow-point','vk-direct-shadow-point-owned',
-                'vk-direct-shadow-projected','vk-direct-shadow-projected-owned'):
+                'vk-direct-shadow-projected','vk-direct-shadow-projected-owned',
+                'vk-direct-shadow-projected-native'):
         kind='projected' if '-projected' in case else 'point'
-        maps=[line for line in text.splitlines() if line.startswith('SM pass light[') and f'type={kind} ' in line]
-        # The stationary func_static may enter the static cache after the
-        # stabilization frames. Require represented casters, not a particular
-        # cache classification; the off/on/restore images prove occlusion.
-        if not any(re.search(r'\bGLOBAL=(?:publish|reuse|scratch|alias)\b',line)
-                   and re.search(r'\b(?:static|dynamic)=[1-9]\d*',line) for line in maps):
+        if args.backend == 'gl':
+            # OpenGL reports each complete map, rendered or reused from the
+            # static cache, with its caster classes a-d.
+            maps=[line for line in text.splitlines() if line.startswith(('SM pass global[','SM pass local['))
+                  and f'type={kind} ' in line]
+            complete=any(re.search(r'\bresult=(?:mapped|cache-reuse)\b',line)
+                         and re.search(r'\bcasters\(a=(\d+) b=(\d+) c=(\d+) d=(\d+)\)',line)
+                         and sum(map(int,re.search(r'\bcasters\(a=(\d+) b=(\d+) c=(\d+) d=(\d+)\)',line).groups()))>0
+                         for line in maps)
+        else:
+            maps=[line for line in text.splitlines() if line.startswith('SM pass light[') and f'type={kind} ' in line]
+            # The stationary func_static may enter the static cache after the
+            # stabilization frames. Require represented casters, not a particular
+            # cache classification; the off/on/restore images prove occlusion.
+            complete=any(re.search(r'\bGLOBAL=(?:publish|reuse|scratch|alias)\b',line)
+                         and re.search(r'\b(?:static|dynamic)=[1-9]\d*',line) for line in maps)
+        if not complete:
             failures.append(f'native {kind} material control lacks a complete map with represented casters')
         telemetry.extend(dict.fromkeys(maps))
     image = {}
@@ -1571,7 +1926,8 @@ def inspect_capture(args: argparse.Namespace, case: str, text: str, shot: Path) 
                         failures.append('AO incorrectly extinguishes direct light, or direct lighting missing')
     hdr_line=next((line for line in text.splitlines() if line.startswith('OpenGL HDR:')), '')
     hdr_state={k:float(v) for k,v in re.findall(r'(\w+)=(-?[\d.]+)',hdr_line)}
-    result = {'case':case, 'backend':args.backend, 'camera':args.camera, 'tier':args.tier, 'failures':failures, 'diagnostics':diagnostics, 'telemetry':telemetry, 'hdrState':hdr_state, 'image':image, 'screenshot':str(shot), 'sha256': {'screenshot':digest(shot) if shot.is_file() else None}}
+    result = {'case':case, 'backend':args.backend, 'camera':args.camera, 'tier':args.tier,
+              'pbrLinearScene':{**BASE, **CASES.get(case, {})}.get('r_pbrLinearScene'), 'failures':failures, 'diagnostics':diagnostics, 'telemetry':telemetry, 'hdrState':hdr_state, 'image':image, 'screenshot':str(shot), 'sha256': {'screenshot':digest(shot) if shot.is_file() else None}}
     return result
 
 
@@ -1597,6 +1953,12 @@ def capture_cases(args: argparse.Namespace, cases: list[str], save: Path) -> lis
     cfg = save/'baseoq4/pbr_lab_capture.cfg'
     cfg.parent.mkdir()
     manifest = json.loads((args.runtime_root/'pbr-lab.json').read_text())
+    # Runtime files a fixture copies into each run's fresh save path, keyed by
+    # path under it: placeholder images a capture command overwrites in place.
+    for relative,source in manifest.get('saveSeeds',{}).items():
+        target = fixture.validate_contained_target(save, save/relative)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(fixture.validate_contained_target(args.runtime_root, args.runtime_root/source).read_bytes())
     camera = manifest['cameras'][args.camera]
     cvars = {**BASE, 'r_renderApi': 'vulkan' if args.backend == 'vk' else 'gl', 'r_glTier': args.tier}
     if args.backend == 'vk':
@@ -1656,11 +2018,11 @@ def capture_cases(args: argparse.Namespace, cases: list[str], save: Path) -> lis
                 scene_setups.add('vk-direct-projector')
             # Isolate emission with zero, one or several direct lights. The
             # emission-only diagnostic must agree with the unlit ordinary draw.
-            many=case=='vk-direct-emission-many-lights'
+            many=case in ('vk-direct-emission-many-lights','vk-direct-emission-many-lights-native')
             emitter=case.startswith('vk-direct-emission-')
             for light in ('key','blue_fill','warm_fill','lab_projector'):
                 commands += [f'script "${light}.{"On" if many else "Off"}()"']
-            direct_on=not emitter or case in ('vk-direct-emission-one-light','vk-direct-emission-many-lights')
+            direct_on=not emitter or case in ('vk-direct-emission-one-light','vk-direct-emission-many-lights','vk-direct-emission-many-lights-native')
             commands += [f'script "$vk_direct_light.{"On" if direct_on else "Off"}()"']
             material=VK_DIRECT_MATERIALS[case.removeprefix('vk-direct-')]
             model=lab.CONSTANT_NORMAL_MODEL if case.startswith('vk-direct-aa-constant') else lab.MODEL
@@ -1741,8 +2103,10 @@ def capture_cases(args: argparse.Namespace, cases: list[str], save: Path) -> lis
         commands += ['wait 20', f'echo "PBRLAB_{case}_BEGIN"']
         if case.startswith('vk-direct-shadow-'):
             commands += ['wait 2']
+        if case.startswith('skin-md5r'):
+            commands += [f'printModel {lab.SKINNING_MESH}']
         commands += ['viewpos', 'gfxInfo', 'rendererMaterialResourceTableDump', f'screenshot "screenshots/{case}.tga"']
-        if case=='vk-direct-emission-extreme':
+        if case=='vk-direct-emission-extreme' and args.backend=='vk':
             commands += ['rendererVulkanHDRInfo']
         if args.linear and case not in LEGACY_CASES | FALLBACK_CASES | LINEAR_UNAVAILABLE_CASES:
             commands += [f'screenshot linear "screenshots/{case}.pfm"']
@@ -1821,10 +2185,22 @@ def main() -> int:
     selection.add_argument('--suite',choices=('vulkan-direct','ibl'),help='run every control in the named suite')
     parser.add_argument('--camera',default='overview',help='camera name in pbr-lab.json; station-NAME centres a station')
     parser.add_argument('--backend',choices=('gl','vk'),default='gl')
+    parser.add_argument('--gl-native',action='store_true',help='OpenGL with the modern visible path off: the classic light loop draws PBR (draw_pbr.cpp)')
+    parser.add_argument('--production',action='store_true',help='Vulkan with the laboratory linear scene off: every PBR draw composes into the display-referred frame, as shipped')
     parser.add_argument('--tier',default='gl45')
     parser.add_argument('--timeout',type=int,default=180)
     parser.add_argument('--samples',type=int,choices=(0,4),help='override sample count for vk-direct or IBL controls')
     args = parser.parse_args()
+    if args.gl_native:
+        if args.backend != 'gl':
+            parser.error('--gl-native selects the classic OpenGL owner')
+        BASE.update(GL_NATIVE_OVERRIDES)
+    if args.production:
+        if args.backend != 'vk':
+            parser.error('--production qualifies Vulkan; the OpenGL owner always composes this way (--gl-native)')
+        BASE.update(PRODUCTION_OVERRIDES)
+        for settings in CASES.values():
+            settings.pop('r_pbrLinearScene', None)
     args.runtime_root = fixture.validate_runtime_root(args.runtime_root)
     args.output_dir = fixture.validate_runtime_root(args.output_dir)
     args.basepath = args.basepath.resolve()
@@ -1839,22 +2215,27 @@ def main() -> int:
         parser.error('select rendering controls, or explicitly prepare/update the fixture')
     if args.prepare and args.update_fixture: parser.error('choose --prepare or --update-fixture')
     if any(case not in CASES for case in cases): parser.error('unknown capture case')
-    if args.backend!='vk' and any(case.startswith('vk-direct-') for case in cases):
-        parser.error('vk-direct controls require the native Vulkan backend')
+    if args.backend!='vk' and not args.gl_native and any(case.startswith('vk-direct-') for case in cases):
+        parser.error('vk-direct controls require a native PBR owner: Vulkan or --gl-native')
     if args.backend!='vk' and 'ibl-shared' in cases:
         parser.error('ibl-shared qualifies the Vulkan ambient walker; GL deliberately excludes shared ambient from modern PBR')
     if args.samples is not None:
-        if not cases or not all(case.startswith('ibl-') or (args.backend=='vk' and case.startswith('vk-direct-')) for case in cases):
+        if not cases or not all(case.startswith('ibl-') or ((args.backend=='vk' or args.gl_native) and case.startswith('vk-direct-')) for case in cases):
             parser.error('--samples requires only IBL or native vk-direct controls')
         for case in cases:
             CASES[case]={**CASES[case],'r_multiSamples':str(args.samples)}
-    if args.backend=='gl' and any(c in ('msaa-partial-restart','msaa-full-restart') or '-pbr' in c for c in cases):
+    # The classic OpenGL owner composes into the display-referred frame and
+    # has no linear export; compare_native_baked_captures judges its grid.
+    if args.backend=='gl' and not args.gl_native and any(c in ('msaa-partial-restart','msaa-full-restart') or '-pbr' in c for c in cases):
         args.linear=True
     if args.batch and len({CASES[c].get('r_multiSamples',BASE['r_multiSamples']) for c in cases})>1:
         parser.error('MSAA sample count must stay fixed for a batch; use separate processes for other counts')
     for prefix in ('multi-','local-global','sampler-','skin-','fog-','blend-','lightgrid-','vk-direct-','ibl-'):
         if args.batch and any(c.startswith(prefix) for c in cases) and not all(c.startswith(prefix) for c in cases):
             parser.error(f'{prefix} cases require a separate scene from other controls')
+    # The specimen converts when it loads: one conversion state per process.
+    if args.batch and len({c.startswith('skin-md5r') for c in cases if c.startswith('skin-')}) > 1:
+        parser.error('skin-md5r cases convert the specimen at load; run them without other skin- cases')
     if args.prepare: prepare(args.runtime_root,args.basepath,args.output_dir,args.timeout)
     if args.update_fixture:
         existing=json.loads((args.runtime_root/'pbr-lab.json').read_text())
@@ -1896,6 +2277,8 @@ def main() -> int:
     compare_sampler_captures(results)
     compare_skinning_captures(results)
     compare_material_captures(results)
+    compare_native_baked_captures(results)
+    compare_ssao_captures(results)
     compare_transparency_captures(results)
     compare_post_captures(results)
     compare_msaa_captures(results)

@@ -428,7 +428,7 @@ void R_WriteGeneratedRenderModelCache( const idRenderModel &model, const char *s
 namespace {
 	static const unsigned int STATIC_MODEL_CACHE_MAGIC = 0x5334514fU; // "OQ4S"
 	static const int STATIC_MODEL_CACHE_VERSION = 2;
-	static const unsigned int STATIC_MODEL_GENERATED_CACHE_PARSER_VERSION = 0x00010002U;	// bump when R_BuildDeformInfo's derivation changes: cache hits no longer cross-check against a fresh rebuild
+	static const unsigned int STATIC_MODEL_GENERATED_CACHE_PARSER_VERSION = 0x00010003U;	// bump when R_BuildDeformInfo's derivation changes: cache hits no longer cross-check against a fresh rebuild; 3: back-side surface ids were uninitialised before
 	static const int MODEL_CACHE_MAX_NAME = 4096;
 	static const int MODEL_CACHE_MAX_MATERIAL = 4096;
 	static const int MODEL_CACHE_MAX_SURFACES = 65536;
@@ -1587,7 +1587,7 @@ void idRenderModelStatic::MakeDefaultModel() {
 	PurgeModel();
 
 	// create one new surface
-	modelSurface_t	surf;
+	modelSurface_t	surf = {};
 
 	srfTriangles_t *tri = R_AllocStaticTriSurf();
 
@@ -2036,8 +2036,9 @@ void idRenderModelStatic::FinishSurfaces( bool createBackSides ) {
 			newTri = R_CopyStaticTriSurf( surf->geometry );
 			R_ReverseTriangles( newTri );
 
-			modelSurface_t	newSurf;
+			modelSurface_t	newSurf = {};
 
+			newSurf.id = NumSurfaces();	// its index, as the converters and ParseModel number surfaces
 			newSurf.shader = surf->shader;
 			newSurf.geometry = newTri;
 
@@ -2137,7 +2138,7 @@ bool idRenderModelStatic::ConvertASEToModelSurfaces( const struct aseModel_s *as
 	int *			mergeTo;
 	byte *			color;
 	static byte	identityColor[4] = { 255, 255, 255, 255 };
-	modelSurface_t	surf, *modelSurf;
+	modelSurface_t	surf = {}, *modelSurf;
 
 	if ( !ase ) {
 		return false;
@@ -2444,7 +2445,7 @@ bool idRenderModelStatic::ConvertLWOToModelSurfaces( const struct st_lwObject *l
 	idVec3			normal;
 	int *			mergeTo;
 	byte			color[4];
-	modelSurface_t	surf, *modelSurf;
+	modelSurface_t	surf = {}, *modelSurf;
 
 	if ( !lwo ) {
 		return false;
@@ -3022,7 +3023,7 @@ bool idRenderModelStatic::ConvertMAToModelSurfaces (const struct maModel_s *ma )
 	int *			mergeTo;
 	byte *			color;
 	static byte	identityColor[4] = { 255, 255, 255, 255 };
-	modelSurface_t	surf, *modelSurf;
+	modelSurface_t	surf = {}, *modelSurf;
 
 	if ( !ma ) {
 		return false;
@@ -3535,7 +3536,7 @@ bool idRenderModelStatic::LoadFLT( const char *fileName ) {
 
 	fileSystem->FreeFile( data );
 
-	modelSurface_t	surface;
+	modelSurface_t	surface = {};
 
 	surface.geometry = tri;
 	surface.id = 0;
@@ -3626,8 +3627,9 @@ void idRenderModelStatic::ReadFromDemoFile( class idDemoFile *f ) {
 	}
 	
 	for ( i = 0 ; i < numSurfaces ; i++ ) {
-		modelSurface_t	surf;
+		modelSurface_t	surf = {};
 		
+		surf.id = i;
 		surf.shader = declManager->FindMaterial( f->ReadHashString() );
 		
 		srfTriangles_t	*tri = R_AllocStaticTriSurf();

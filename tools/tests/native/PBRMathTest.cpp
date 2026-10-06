@@ -78,6 +78,189 @@ static void EnvironmentTests() {
     Require(std::fabs(roughBRDF[0] + roughBRDF[1] - (1-std::log(2.0))) < 0.001, "split-sum rough furnace reference");
 }
 
+// The fitted directional albedo must stand in for the integrated table where
+// a pass cannot bind it, and compensation must restore a white furnace without
+// letting any F0 gain energy.
+static void EnergyCompensationTests() {
+    using namespace openq4PBR;
+    double worstInverse = 0;
+    for (int ri = 0; ri <= 20; ++ri) {
+        const float r = 0.045f + (1.0f - 0.045f) * ri / 20.0f;
+        for (int vi = 0; vi <= 18; ++vi) {
+            const float v = 0.1f + 0.9f * vi / 18.0f;
+            const auto ab = IntegrateBRDF(v, r, 4096);
+            const double reference = double(ab[0]) + ab[1];
+            const float fitted = kernel::PBRSpecularAlbedo(v, r);
+            Require(fitted >= 0.3f && fitted <= 1.0f, "fitted directional albedo range");
+            worstInverse = std::fmax(worstInverse, std::fabs(reference / fitted - 1.0));
+            const double white = reference * kernel::PBREnergyCompensation(1.0f, fitted);
+            Require(white > 0.96 && white < 1.04, "compensated white furnace");
+            for (float f0 : {0.0f, 0.04f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+                const double single = f0 * ab[0] + ab[1];
+                const double compensated = single * kernel::PBREnergyCompensation(f0, fitted);
+                Require(compensated >= single - 1e-7 && compensated <= 1.04, "compensation adds bounded energy");
+            }
+        }
+    }
+    Require(worstInverse < 0.035, "fitted directional albedo accuracy");
+    Require(kernel::PBREnergyCompensation(0.0f, 0.3f) == 1.0f, "no compensation without F0");
+    Require(kernel::PBRSpecularAlbedo(0.0f, 0.5f) == kernel::PBRSpecularAlbedo(0.1f, 0.5f), "grazing view clamp");
+    Require(kernel::PBRSpecularAlbedo(1.0f, 0.0f) == kernel::PBRSpecularAlbedo(1.0f, 0.045f), "roughness floor");
+}
+
+// A per-light pass binds no split-sum table: the fitted bias must stand in
+// for it off the fit grid, and a uniform environment (an ambient light) must
+// keep a white furnace while F0 only ever adds reflection.
+static void UniformEnvironmentTests() {
+    using namespace openq4PBR;
+    double worstBias = 0, worstDielectric = 0;
+    for (int ri = 0; ri < 23; ++ri) {
+        const float r = 0.045f + (1.0f - 0.045f) * (ri + 0.37f) / 23.0f;
+        for (int vi = 0; vi < 19; ++vi) {
+            const float v = 0.1f + 0.9f * (vi + 0.41f) / 19.0f;
+            const auto ab = IntegrateBRDF(v, r, 4096);
+            const float albedo = kernel::PBRSpecularAlbedo(v, r);
+            const float bias = kernel::PBRSpecularBias(v, r);
+            Require(bias >= 0.0f && bias <= albedo, "split-sum bias within the directional albedo");
+            worstBias = std::fmax(worstBias, std::fabs(bias - ab[1]));
+            const double dielectric = 0.04 * (albedo - bias) + bias;
+            worstDielectric = std::fmax(worstDielectric, std::fabs(dielectric - (0.04 * ab[0] + ab[1])));
+            Require(std::fabs(kernel::PBRUniformEnvironmentSpecular(1.0f, v, r) - 1.0f) < 1e-5f,
+                "a white conductor reflects all of a uniform environment");
+            float previous = 0.0f;
+            for (float f0 : {0.0f, 0.04f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+                const float reflected = kernel::PBRUniformEnvironmentSpecular(f0, v, r);
+                Require(reflected >= previous - 1e-6f && reflected <= 1.0f + 1e-5f,
+                    "uniform reflection grows with F0 and never exceeds one");
+                previous = reflected;
+            }
+        }
+    }
+    Require(worstBias < 0.012, "fitted split-sum bias accuracy");
+    Require(worstDielectric < 0.012, "dielectric uniform reflection accuracy");
+}
+
+// The extended transfer pair must equal the clamped one on [0, 1], continue
+// smoothly above white, and the classic light calibration must reproduce a
+// white classic surface's display value at normal incidence.
+static void ClassicCalibrationTests() {
+    for (int i = 0; i <= 255; ++i) {
+        const float x = i / 255.0f;
+        Require(kernel::PBRSRGBToLinearExtended(x) == kernel::PBRSRGBToLinear(x), "extended decode matches on [0,1]");
+        Require(kernel::PBRLinearToSRGBExtended(x) == kernel::PBRLinearToSRGB(x), "extended encode matches on [0,1]");
+    }
+    float previous = 0.0f;
+    for (int i = 0; i <= 64; ++i) {
+        const float x = i / 8.0f;
+        const float linear = kernel::PBRSRGBToLinearExtended(x);
+        Require(linear >= previous, "extended decode is monotonic");
+        previous = linear;
+        Require(std::fabs(kernel::PBRLinearToSRGBExtended(linear) - x) < 2e-5f * (1.0f + x), "extended round trip above white");
+    }
+    Require(kernel::PBRSRGBToLinearExtended(-1.0f) == 0.0f && kernel::PBRLinearToSRGBExtended(-1.0f) == 0.0f,
+        "negative light is black");
+    // White Lambertian at normal incidence: radiance = albedo / pi * E.
+    for (float display : {0.05f, 0.25f, 0.5f, 0.75f, 1.0f, 2.0f}) {
+        const double radiance = 1.0 / 3.141592653589793 * kernel::PBRClassicLightIrradiance(display);
+        Require(std::fabs(kernel::PBRLinearToSRGBExtended(float(radiance)) - display) < 1e-4f,
+            "PBR white matches the classic white under the same light");
+    }
+}
+
+static void OcclusionTests() {
+    for (float r : {0.045f, 0.2f, 0.5f, 0.8f, 1.0f}) {
+        for (int vi = 0; vi <= 20; ++vi) {
+            const float v = vi / 20.0f;
+            Require(kernel::PBRSpecularOcclusion(v, 1.0f, r) == 1.0f, "unoccluded specular");
+            Require(kernel::PBRSpecularOcclusion(v, 0.0f, r) == 0.0f, "fully occluded specular");
+            float previous = 0.0f;
+            for (int ai = 0; ai <= 20; ++ai) {
+                const float ao = ai / 20.0f;
+                const float occlusion = kernel::PBRSpecularOcclusion(v, ao, r);
+                Require(occlusion >= previous && occlusion <= 1.0f, "specular occlusion follows AO");
+                previous = occlusion;
+                if (r == 1.0f) {
+                    Require(std::fabs(occlusion - ao) < 0.001f, "rough lobes follow AO");
+                }
+            }
+        }
+    }
+    // Smooth lobes viewed head-on escape the cavity; grazing ones do not.
+    Require(kernel::PBRSpecularOcclusion(1.0f, 0.5f, 0.045f) > 0.7f, "head-on smooth specular escapes AO");
+    Require(kernel::PBRSpecularOcclusion(0.05f, 0.5f, 0.045f) < 0.5f, "grazing smooth specular is occluded");
+    for (int vi = 0; vi <= 20; ++vi) {
+        const float v = vi / 20.0f;
+        Require(kernel::PBRMultiBounceAO(v, 0.0f) == v, "black albedo has no bounce");
+        float previous = v;
+        for (int ai = 0; ai <= 10; ++ai) {
+            const float bounced = kernel::PBRMultiBounceAO(v, ai / 10.0f);
+            Require(bounced >= previous && bounced <= 1.0f, "brighter albedo bounces more");
+            previous = bounced;
+        }
+        Require(kernel::PBRMultiBounceAO(1.0f, vi / 20.0f) == 1.0f, "unoccluded multi-bounce");
+    }
+    Require(kernel::PBRMultiBounceAO(0.5f, 0.8f) > 0.6f, "multi-bounce lifts bright occluded diffuse");
+    Require(kernel::PBRHorizonOcclusion(-1.0f) == 0.0f && kernel::PBRHorizonOcclusion(-0.5f) == 0.25f
+        && kernel::PBRHorizonOcclusion(0.0f) == 1.0f && kernel::PBRHorizonOcclusion(1.0f) == 1.0f,
+        "horizon fade below the geometric surface");
+}
+
+// Box-projected parallax: the exit distance against an independent slab
+// intersection, and the box influence's margin.
+static void BoxParallaxTests() {
+    auto exitDistance = [](float px, float py, float pz, float rx, float ry, float rz, float ex, float ey, float ez) {
+        return kernel::PBRBoxParallaxDistance(px, py, pz, rx, ry, rz, ex, ey, ez);
+    };
+    Require(exitDistance(0, 0, 0, 1, 0, 0, 2, 3, 4) == 2.0f, "centre exit along +x");
+    Require(exitDistance(1, 0, 0, 1, 0, 0, 2, 2, 2) == 1.0f && exitDistance(1, 0, 0, -1, 0, 0, 2, 2, 2) == 3.0f,
+        "exit distance runs to the face the ray points at");
+    Require(exitDistance(0.5f, 0.5f, 0, 0, 0, 1, 1, 1, 1) == 1.0f, "an axis parallel to the ray never bounds it");
+    Require(exitDistance(3, 0, 0, 1, 0, 0, 2, 2, 2) == -1.0f && exitDistance(0, 0, -5, 0, 0, 1, 2, 2, 2) == -1.0f,
+        "a fragment outside the box has no exit");
+    const float s = 1.0f / std::sqrt(2.0f);
+    const float diagonal = exitDistance(0, 0, 0, s, s, 0, 1, 2, 2);
+    Require(std::fabs(diagonal - std::sqrt(2.0f)) < 1e-6f, "the nearest face bounds a diagonal ray");
+    // Independent reference: slab method on a sweep of points and rays.
+    int checked = 0;
+    for (int i = 0; i < 4096; ++i) {
+        const double u = (i * 0.6180339887) - std::floor(i * 0.6180339887);
+        const double v = (i * 0.7548776662) - std::floor(i * 0.7548776662);
+        const double w = (i * 0.5698402910) - std::floor(i * 0.5698402910);
+        const double e[3] = {64.0 + 448.0 * u, 32.0 + 224.0 * v, 96.0 + 160.0 * w};
+        const double p[3] = {(2 * v - 1) * e[0] * 0.95, (2 * w - 1) * e[1] * 0.95, (2 * u - 1) * e[2] * 0.95};
+        const double theta = 2.0 * 3.141592653589793 * u, z = 2.0 * w - 1.0, rr = std::sqrt(1.0 - z * z);
+        const double r[3] = {rr * std::cos(theta), rr * std::sin(theta), z};
+        double reference = 1e300;
+        for (int axis = 0; axis < 3; ++axis) {
+            if (std::fabs(r[axis]) > 1e-6) {
+                reference = std::fmin(reference, ((r[axis] > 0 ? e[axis] : -e[axis]) - p[axis]) / r[axis]);
+            }
+        }
+        const float t = exitDistance(float(p[0]), float(p[1]), float(p[2]), float(r[0]), float(r[1]), float(r[2]),
+            float(e[0]), float(e[1]), float(e[2]));
+        Require(t > 0 && RelativeError(t, reference) < 1e-4, "slab-method exit distance");
+        // The exit point lies on the box surface.
+        double face = 0;
+        for (int axis = 0; axis < 3; ++axis) {
+            face = std::fmax(face, std::fabs(p[axis] + t * r[axis]) / e[axis]);
+        }
+        Require(std::fabs(face - 1.0) < 1e-4, "the exit point lies on a face");
+        ++checked;
+    }
+    Require(checked == 4096, "every sampled ray checked");
+    // At the centre the corrected direction is the ray itself.
+    const float t = exitDistance(0, 0, 0, 0.6f, 0.0f, 0.8f, 50, 50, 50);
+    Require(std::fabs(t - 62.5f) < 1e-4f, "the capture point exits through its nearest face");
+
+    Require(kernel::PBRBoxInfluence(0, 0, 0, 10, 10, 10, 0.2f) == 1.0f, "full weight inside the margin");
+    Require(std::fabs(kernel::PBRBoxInfluence(9, 0, 0, 10, 10, 10, 0.2f) - 0.5f) < 1e-6f,
+        "weight falls across the margin");
+    Require(kernel::PBRBoxInfluence(10, 0, 0, 10, 10, 10, 0.2f) == 0.0f
+        && kernel::PBRBoxInfluence(0, -12, 0, 10, 10, 10, 0.2f) == 0.0f, "no weight on or outside a face");
+    Require(std::fabs(kernel::PBRBoxInfluence(0, 0, 3, 100, 100, 4, 0.5f) - 0.5f) < 1e-6f,
+        "the smallest half extent sets the margin");
+}
+
 int main() {
     const double pi = 3.141592653589793;
     const float roughnesses[] = {0.045f, 0.08f, 0.2f, 0.5f, 0.8f, 1.0f};
@@ -103,6 +286,14 @@ int main() {
     Require(mip[0]==11 && mip[3]==128,"sRGB toe differs from power-2.2 filtering");
     Require(kernel::PBRVisibilitySmithGGX(0, 1, 0) == 0, "grazing limit");
     Require(kernel::PBRVisibilitySmithGGX(1, -1, 0) == 0, "back-face light");
+    // A normal map can turn the shading normal from the viewer at a
+    // silhouette; direct light keeps a small positive N.V, never a black cut.
+    Require(kernel::PBRShadingNoV(-0.3f) == 1.0e-4f && kernel::PBRShadingNoV(0.0f) == 1.0e-4f
+        && kernel::PBRShadingNoV(0.5f) == 0.5f && kernel::PBRShadingNoV(2.0f) == 1.0f, "shading N.V clamp");
+    for (float r : roughnesses) {
+        const float grazing = kernel::PBRVisibilitySmithGGX(kernel::PBRShadingNoV(-0.01f), 0.5f, r);
+        Require(grazing > 0.0f && std::isfinite(grazing), "clamped N.V keeps a finite specular lobe");
+    }
     Require(kernel::PBRRoughness(0) == 0.045f && kernel::PBRRoughness(2) == 1, "roughness floor/range");
     for (float r : roughnesses) {
         Require(std::fabs(kernel::PBRFilteredRoughness(r, 0)-r)<1e-7f,"specular AA preserves a constant normal");
@@ -157,6 +348,11 @@ int main() {
         }
     }
     EnvironmentTests();
-    std::puts("PBRMathTest: passed sRGB, mirror peaks, Smith reference, reciprocity, 24 white furnaces, probe convolution, HDR, seams, irradiance and split-sum integration");
+    EnergyCompensationTests();
+    UniformEnvironmentTests();
+    OcclusionTests();
+    ClassicCalibrationTests();
+    BoxParallaxTests();
+    std::puts("PBRMathTest: passed sRGB, mirror peaks, Smith reference, reciprocity, 24 white furnaces, probe convolution, HDR, seams, irradiance, split-sum integration, energy compensation, split-sum bias and uniform environments, specular/multi-bounce/horizon occlusion, extended transfer, classic light calibration and box-projected parallax");
     return 0;
 }

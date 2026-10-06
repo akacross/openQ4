@@ -31,7 +31,10 @@ retained fields. The gate test derives both lists from the code.
 `ui_retainedMultiplayer` likewise opts into the multiplayer menu card, which
 covers the game's in-match menu; `ui_retained` includes it only once none of
 its pages hands off to a stock page any more
-([multiplayer menus](multiplayer-menus.md#the-gate)).
+([multiplayer menus](multiplayer-menus.md#the-gate)). Neither opt-in is
+archived, so each lasts until the player quits. Both are `CVAR_NOCHEAT`, so
+joining or hosting a game without cheats, which resets every unarchived cheat
+CVar, keeps them, and either can change during a match.
 
 `tools/tests/ui_retained_gate.py` holds the gate: it checks the CVar defaults,
 that every retained document path in the session is reached only behind the

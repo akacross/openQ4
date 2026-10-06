@@ -2,6 +2,356 @@
 
 ## 0.13.2 release candidate
 
+- [x] Make temporal AA production quality and the default upscaler (idTech 6
+  roadmap: complete motion ownership). The velocity pass now owns every moving
+  surface per pixel on OpenGL and Vulkan: exact vectors for rigid entities,
+  for skinned MD5 surfaces (each pose's predecessor is captured before
+  `UpdateSurface` overwrites it and uploaded as a frame-temp `idVec3` stream)
+  and for the weapon through its own depth-hack projection and depth range;
+  reactive coverage in the velocity target's blue channel for BSE, GUIs,
+  subviews, post and translucent moving surfaces, replacing the two scissor
+  rectangles that let one effect reject history over the whole view. The
+  resolve clips a Catmull-Rom history to a YCoCg variance box with
+  nearest-depth velocity, no longer treats colour change as reactive, and
+  presents through CAS (`r_temporalAASharpness` 0.5). `r_temporalAA` is now
+  0/1/2 with default 2 (automatic below native resolution, never on ES or
+  without GLSL 1.30), migrated once from an archived 0. `airdefense1` on GL and
+  validation-clean Vulkan reports complete ownership (53 rigid, 11 posed incl.
+  2 weapon, ~75 reactive, 0 missed). `renderer_temporal_presentation.py`, the
+  Vulkan header pins and the vid_restart harness cover it.
+
+- [x] Cut the search-path cost of a level load (idTech 5 track, Air Defense 1
+  register item 1). A null-buffer `ReadFile` for a pk4 member is answered from
+  the central-directory index (the uncompressed size is kept per entry) instead
+  of reopening the pak, and is no longer recorded in the learned manifest.
+  During a level load each loose search directory on the way to a file is
+  checked once and a lookup under a missing directory skips its `fopen`
+  (`fs_cacheLooseDirectories`, Windows/case-insensitive only; `CreateOSPath`
+  drops negative answers). One `game/airdefense1` load skipped 60,854 failed
+  opens for 176 directory checks; same-binary median load 14,255 -> 12,978 ms,
+  image probe phase 415 -> 132 ms. `filesystem_length_probe_contract.py`
+  compiles the real search, probe, memo and `CreateOSPath` bodies.
+
+- [x] Hash loaded content with the processor's SHA instructions (idTech 5
+  track, load-time register). `idCrypto::SHA256` compresses whole block runs
+  through the x86 SHA extensions after a one-time CPUID check, or the Armv8
+  SHA-256 instructions where the compilation baseline guarantees them (Apple
+  Silicon), about 2 GB/s against 252 MB/s; the portable path scrubs its
+  schedule once per call (339 MB/s). The image policy hashes about 510 MiB per
+  Air Defense 1 load. Interleaved warm loads with only the renderer module
+  swapped: OpenGL median 12.4 -> 10.6 s, Vulkan 2.9-3.7 s faster per pair. The
+  native core-safety test cross-checks both paths at every length to 1,100
+  bytes and four alignments; the Armv8 path passed under qemu-aarch64.
+
+- [x] Read level textures on worker threads (idTech 5 track, Air Defense 1
+  register item 2). `LoadLevelImages` predicts each image's precompressed DDS
+  and up to four workers read and fingerprint the next ones while the main
+  thread uploads; the main thread still opens every file and owns every
+  buffer (32 files / 64 MiB window), and `R_LoadPrecompressedDDS` takes a
+  finished buffer through `R_SetDDSPrefetchSource` (never for recovery reads).
+  1,657 of 1,657 predictions taken; DDS phase 1.1-1.7 s -> 0.1 s; warm load
+  OpenGL median 11.1 -> 9.1 s, Vulkan 1.6-2.3 s faster per pair; static
+  screenshot region pixel-identical. `renderer_image_content.py` compiles the
+  real loader with a counted prefetch hand-off and pins the worker invariants.
+
+- [x] Stop sending every OpenGL texture to the driver twice. Compressed
+  textures take immutable `glTexStorage2D` storage when available (new
+  `hasTextureStorage` capability) instead of a 2011 BFG workaround that
+  uploaded an uninitialized buffer per level, and a loaded image queries GL
+  errors once instead of once per mip (still before its consumed load
+  completes). Warm Air Defense 1, OpenGL module swapped, idle machine: median
+  10.3 -> 9.6 s, every pair faster; fixed-tic screenshots matched outside
+  animated effects.
+
+- [x] Stop hidden Vulkan windows stalling up to a second per frame. With the
+  display off (Modern Standby on 2026-10-06, 10:06-17:49), a hidden window's
+  FIFO presentation engine handed swapchain images back only every quarter to
+  whole second, so `vkAcquireNextImageKHR` often waited out its 1 s timeout and
+  the frame was skipped: retained-UI captures alternated ~40 ms and ~1 s frames
+  and ran up to four times as long as on OpenGL. A hidden window
+  (`r_hiddenWindow`, or a strict restart's hidden request) now renders each
+  frame into its slot's offscreen image and never acquires or presents;
+  screenshots and back-buffer copies read that image, and the completed frame
+  counts as presented. The swapchain is still created, so present-mode reports
+  are unchanged, and visible windows keep the 1 s timeout.
+  `r_vkPresentationFailureTest 3` withholds every swapchain image to reproduce
+  the condition with the display on (presenting: 113 timed-out acquisitions in
+  a 6 s wait; offscreen: 60 fps and none), and `r_vkHiddenWindowPresent 1`
+  presents hidden frames again for presentation studies. The uncalled
+  `VK_Device_PresentClearFrame`, an unbounded acquire, is removed. Offscreen
+  and presented captures at one frozen pose are pixel-identical.
+  `renderer_display_presentation.py` runs the real frame methods on both paths
+  and rejects unbounded acquisition.
+
+- [x] Keep Vulkan's compiled pipelines across crashes and measure them. The
+  pipeline cache is written atomically before every level load as well as at
+  shutdown, and every `vkCreate*Pipelines` call is timed (`gfxInfo`, per-map
+  log line). A whole Air Defense 1 session with a full sweep creates 33
+  pipelines: 49 ms total and one 11 ms creation cold, 4 ms total warm, so
+  background or prewarmed compilation is not needed for stock content.
+
+- [x] Stop GPU skinning from paying for the CPU work it replaces, and record
+  why it stays opt-in. Vulkan accepts admitted surfaces as deferred (no CPU
+  tangent derivation) and completes refused ones on the CPU before any draw;
+  immutable four-weight sidecars are validated once at load instead of on
+  every use; `deform expand` derives the basis of a GPU-skinned pose. The
+  2026-10-06 strict pairs measured only about 1,500 skinned vertices (about
+  15 microseconds of CPU) per frame on stock maps, so `r_gpuSkinning` stays
+  off; the evidence verifier follows the benchmark's report schema again.
+
+- [x] Play retail Quake 4's per-area reverb. openQ4 read neither reverb file
+  and no sound reached its single Generic reverb, because the send was gated by
+  a shader wet level that defaults to 0. It now loads `efxs/<map>.efx` or
+  `efxs/default.efx` and `maps/<map>.reverb` exactly as Quake4.exe 1.4.2 does,
+  drives four EFX reverb slots that follow the listener's area and the three
+  nearest areas through its portals (pinned, panned toward each doorway, the
+  listener's slot primary), and routes every mono voice to its own area's slot
+  and the primary slot, with retail's -10000 mB radio and -500 mB voice-over
+  room levels and -1500 mB of EAX occlusion per blocking portal. The EAX to
+  EFX arithmetic is OpenAL Soft's EAX emulation and reproduces `efx-presets.h`.
+  Adds the retail `s_useEAXOcclusion` and `s_muteEAXReverb` cvars, `s_showReverb`,
+  `listReverbs`, the SDK's reverb editor interface, and
+  `EndLevelLoad( mapName )`. Verified against the 1.4.2 binary; record and
+  addresses in [retail-audio-reverb.md](retail-audio-reverb.md).
+  `openq4-sound-reverb-core`, `sound_settings.py` (a new mutant) and
+  `sound_retail_reverb_contract.py` pin it.
+
+- [x] Audit the audio cvar defaults against Quake4.exe and Quake4Ded.exe 1.4.2
+  (their cvar objects hold name, default and description together) and modern
+  output devices. `s_numberOfSpeakers` defaulted to 6 and the three top
+  presets forced it, so OpenAL Soft opened 5.1 on headphones, Windows downmixed
+  it and automatic HRTF never engaged (seen on a Realtek headphone endpoint).
+  It now defaults to `0`, the device's own layout: no output-mode request, any
+  realized layout accepted by the checked settings and recovery paths (new
+  `device-layout` recovery mode), every preset sets 0, and the Audio menu row
+  reads `Auto;Off;On`. `s_radioChatterFraction` 0.5 was a guess; retail is
+  0.9. `s_quadraticFalloff` 1 was Doom 3's; retail is 0 and unarchived.
+  `s_openALEfxDebugMode` and `s_showLevelMeter` are no longer archived. A
+  one-time migration (`s_audioDefaultsMigrated`) moves the archived 6, 0.5 and
+  1. Every other audio default already matched retail or is openQ4-only and
+  sound. `sound_settings.py` and `sound_recovery.py` cover the device layout.
+
+- [x] Audio modernization pass against the id Tech 5 (BFG) and id Tech 6
+  (Wwise-class) generation; record in
+  [audio-modernization.md](audio-modernization.md). Spatial: `AL_SOURCE_RADIUS`
+  from each sound's `minDistance` (`s_sourceRadiusScale`, BFG's unused inner
+  radius), full spread for sounds at the listener, direct channels for stereo
+  (`s_directStereo`; HRTF had narrowed and dimmed the menu music by ~5 dB).
+  Device: one attribute list for create, reopen and the settings reset, which
+  fixes `s_openALHRTF 1` being ignored and hot-plug dropping the layout; the
+  output limiter (`s_outputLimiter`), an 11th order sinc resampler
+  (`s_resampler`, `listResamplers`), `AL_SPEED_OF_SOUND` in game units and 16x
+  `AL_MAX_GAIN` for `s_unclamped` speakers. Mixing: recycled channels keep no
+  fade (silent sounds after -80 dB script fades), the channel clock follows the
+  slow-motion pitch (weapon wheel cut dialogue short; music keeps its tempo),
+  silent voice-over updates at zero gain (it kept playing while unfocused),
+  path-inferred VO no longer sets retail's `SSF_IS_VO`, `no_dups` remembers
+  finished variants, frame-rate independent cushion fade, global channels past
+  positional range, filters committed once a frame, air absorption from the
+  room preset (`s_airAbsorption`), and static voices restart after a device
+  reopen. Shakes: the game's shake query reaches the world and follows
+  `shakeData` or a measured envelope. Memory: Doom 3 level purge restored
+  (airdefense1 then airdefense2: 233 MB to 121 MB of PCM), exact-size Ogg decode,
+  and loaders that fail without uploading the beep or ending the session.
+  Level loads decode Ogg samples on job workers (`s_asyncSampleDecode`): the
+  main thread peeks the page headers for length and format, the job opens and
+  checks the stream; airdefense1's sound precache went from ~970 to ~270 ms of
+  main-thread time. Every performance preset keeps room reverb (3b13c1dd).
+
+- [x] PBR production readiness, Stage A: complete roughness and AO shading on
+  both backends. Multiple-scattering energy compensation on every specular
+  lobe, specular and multi-bounce occlusion, horizon occlusion, AO on authored
+  ambient lights and a roughness-aware atlas-less GL fallback, all from the
+  numerically tested kernel in `PBRMath.h`. The audit also found that Vulkan
+  had sampled the PBR environment atlas's mirror level for every roughness
+  since c850233d; the atlas now keeps its mip chain, and GL/Vulkan IBL parity
+  is exact. Evidence and the remaining stages:
+  [production-readiness plan](plans/2026-10-04-pbr-production-readiness.md).
+- [x] PBR production readiness, Stage C: calibration and display-domain
+  composition on both backends. PBR irradiance is pi times the decoded classic
+  light term (`PBRClassicLightIrradiance`), so a white rough PBR surface
+  matches classic at normal incidence (a grey sphere showed 25/255 against
+  classic 112/255). Every PBR light, light stage, environment term and emission
+  is encoded into the display-referred framebuffer on its own, exactly as
+  classic lights add; GL's clustered path encodes inside its light loop and
+  splits ambient lights per stage. The linear scene and Vulkan's float preview
+  are the laboratory mode `r_pbrLinearScene` (default 0); production shares
+  the classic HDR tone map, so PBR never changes stock presentation.
+- [x] PBR production readiness, Stage B: native per-surface PBR in the classic
+  OpenGL light loop (`draw_pbr.cpp`, `r_glPBR`). Admission is the Vulkan
+  material contract (`PBRNativeContract`); every light keeps its classic
+  stencil or shadow-map shadowing through PBR variants of the shipped receiver
+  programs; the ambient walk owns the environment term, typed emission,
+  perforated coverage and, as on Vulkan, ordered source-alpha transparency.
+  The paired comparison also found that every direct-light term blacked out
+  normal-mapped silhouettes; all three now clamp N.V (`PBRShadingNoV`). The
+  OpenGL owner matches Vulkan on every paired direct, ambient, environment,
+  probe, diagnostic and geometry control under the documented classic and
+  edge exclusions.
+- [x] PBR production readiness, Stage E: environment lighting in real maps.
+  Authored ambient lights are uniform environments for PBR (Fresnel-weighted
+  diffuse and the split-sum specular, with a fitted bias term,
+  `PBRSpecularBias`), so metals reflect them and AO occludes both. The
+  analytic studio environment is the laboratory mode `r_pbrAnalyticEnvironment`
+  (default 0). The OpenGL owner composes baked light grids as Vulkan and
+  modern GL do, and modern GL no longer encodes baked PBR diffuse twice.
+  Separate metallic, roughness and AO maps pack at load (`packORM`). The
+  ambient oracles evaluate an independent NumPy reference
+  (`tools/tests/pbr_reference.py`) pixel by pixel over the specimen sphere.
+- [x] Vulkan's display-referred frame composes baked light grids for PBR.
+  Vulkan had composed PBR-weighted grid diffuse only inside the laboratory's
+  linear scene, so as players run it a PBR receiver in a grid lost its
+  environment pass and took the classic grid pass through its legacy diffuse
+  stage, metals included. The environment pass now composes the grid per
+  surface like the OpenGL owner, the classic grid pass skips native PBR
+  receivers, and PBR always decodes the atlas. `--production` runs the Vulkan
+  laboratory suites with the linear scene off, paired with the OpenGL owner;
+  every pairing passes.
+- [x] PBR production readiness, Stage D: SSAO occludes native PBR indirect
+  light only, on both backends. A view with native PBR world surfaces
+  snapshots the classic and the complete world depth and draws an occlusion
+  field right after its depth prepass; native PBR folds it into the AO of
+  ambient, environment, probe and baked light as the lesser of the two, and
+  the post pass applies only the field's classic factor. Classic pixels are
+  unchanged and PBR direct light is never darkened, as paired laboratory
+  controls prove on the OpenGL owner and on Vulkan.
+- [x] PBR production readiness, Stage F: `r_pbrMaterials` defaults to 1, with
+  a one-time migration of profiles saved under the old default
+  (`r_pbrMaterialsDefaultMigrated`), and the renderer's default-safety
+  inventory expects it on. Frames that draw no PBR-authored material skip the
+  per-frame scene packets, material table and probe preparation on both
+  backends (`R_ScenePackets_CommandStreamHasPBR`), so stock content pays
+  nothing. Authored reflection probes stay opt-in: they start the modern
+  scene-packet pipeline every frame. README, the user guide, the capability
+  matrix and the roadmap describe PBR materials as a supported default.
+- [x] PBR promotion cross-module audit: the opt-in shared world-interaction
+  domain no longer rejects every view while `r_pbrMaterials` is on (it
+  rejects PBR-authored receivers only), and the OpenGL ES module no longer
+  loses the native owner's hooks or the baked-grid packing, which the ES
+  module does not build (`tr_backend.cpp` guard; `RB_LightGridBakedParams`
+  moved to `ModernGLExecutor.cpp`). A Linux GCC build and an ES symbol
+  closure confirm it; `renderer_pbr_materials.py` pins the module guards.
+- [x] PBR on animated and converted models: `r_gpuSkinning 1` surfaces were
+  already PBR on OpenGL (compute-posed vertex caches), now proven by the
+  skinned laboratory controls; a PBR-authored mesh of an MD5R-converted model
+  keeps classic CPU-skinned geometry on OpenGL as on Vulkan, and the GPU-posed
+  test reads only primitive batches. New `skin-md5r-*` controls pass on the
+  OpenGL owner and Vulkan production.
+- [x] The OpenGL ES module builds again on main: the Android review branch's
+  fix for desktop-only GL in shared renderer code (3ce8167b0) is carried
+  unchanged, so the branch merges cleanly later. A Linux build with the ES
+  module enabled links every target, and no renderer module has an
+  undefined symbol.
+- [x] Box-projected parallax reflection probes: `boxParallax` makes a probe's
+  light volume the room box its cubemap shows, with per-axis `light_radius`.
+  The shared kernel (`PBRBoxParallaxDistance`, `PBRBoxInfluence`) runs on
+  Vulkan, the OpenGL owner and the modern GL path; the probe record grew to
+  seven vec4s. Seven probe controls prove on all four owners that reflections
+  follow the box (sign tests), per-axis extents, face-based blending and an
+  exact analytic frame outside the box.
+- [x] In-engine probe capture: `bakeReflectionProbes` captures every
+  native-cube probe from its light and reloads its image. `envshot` and the
+  capture now size their views in virtual-screen units; window pixels had
+  cropped every capture at window sizes other than 640x480. The `baked`
+  control checks GL's cube convention in the written faces and in the
+  reflection on all four owners. The light-grid bake shared the old sizing
+  and is fixed separately.
+- [x] SSAO on the modern visible GL path: a frame that requests SSAO and draws
+  a PBR material is declined to the light loop (`pbr-ssao-indirect-only`),
+  whose native owner applies SSAO to indirect light only; a modern GL run of
+  the SSAO suite proves the decline and the owner's result.
+- [x] OpenGL PBR needs GLSL 1.30: on a context without it (macOS's GL 2.1) PBR
+  materials keep their classic stages, with a one-time console note, instead
+  of being admitted with no environment program. Under an emulated Apple GL
+  2.1 context the old path crashed the client in Mesa's shader compiler; now
+  its PBR controls render like the PBR-off ones.
+- [x] PBR qualification beyond Windows/NVIDIA: Vulkan on Intel Iris Xe passes
+  every suite but one SSAO control (6 of 833,291 classic pixels move,
+  deterministically), and on Linux Mesa (llvmpipe and lavapipe) the direct,
+  probe, SSAO, environment and ambient suites pass on both backends with
+  OpenGL/Vulkan parity, apart from one lavapipe pixel off by one byte in the
+  ambient material-layout check. Mac hardware review remains open.
+- [x] Fix the OpenGL PBR-laboratory regressions reported on 2026-10-04,
+  bisected over lean lab runtimes of the 09-24, 09-25, 10-01, 10-02 and current
+  builds:
+  - `shadows` ("shadow acne on an unoccluded planar receiver", a dark wedge
+    over the left wall and ceiling) started with a48624df. Its PCSS-lite
+    default (`r_shadowMapFilterMode 2`) reached the modern GL clustered-forward
+    receivers, which have no blocker search and filter with one fixed kernel:
+    `ModernShadowPlanner` gave them `ceil( effectiveFilterRadius )`, the PCSS
+    search and penumbra bound of 8 texels, since July. Grazing walls inside the
+    lab projector's frustum self-shadowed. Not the player body
+    (`static-shadows` had the same error) and no station: the projector alone
+    reproduces it, and modes 0 and 1 at radius 2.0 are clean. Modern receivers
+    now use the base contact radius; modes 0 and 1 are unchanged and the classic
+    GLSL receiver keeps its own PCSS.
+  - `production-fixed-shadow-fallback/-native` differed by one byte in two
+    channels, and the first capture always took the extra byte whichever case
+    it was. A projected light whose cache signature changed was re-rendered
+    into the next free atlas cell, and the 2.0-texel default radius reaches
+    receivers that flip between cells. A miss now re-renders into that light's
+    own idle entry (`RB_ShadowMapRecycleProjectedCacheEntry`), in the legacy and
+    sealed schedulers alike.
+  - `production-fixed`, `-bump`, `-colored` and `-grid` ("classic interaction
+    differs from the native lighting reference") were the laboratory's oracle,
+    not the renderer. c850233d moved the stock display shoulder in `bloom.fs`
+    from 0.98 to 0.5, so the native reference's highlight (0.782) displays as
+    0.686, byte 175. With `r_hdrToneMap 0` the native image still matches the
+    modern radiance at 0.251 mean and 0.56 maximum byte error, the 09-21
+    figures. The comparison now passes the modern radiance through the same
+    stock transfer (`stock_display_transfer`).
+  Evidence (`+g8a4a7aa9` plus these changes, GL 4.5, `--gl-debug`): shadows
+  8/8 with all four unoccluded patches exactly 0, classic 19/19 (specular cases
+  0.251-0.252 mean, at most 0.62), classic grid 5/5, admission 12/12, multi 4/4,
+  local/global 2/2, skinning 12/12, post 12/12 and isolated 6/6, and the four
+  Air Defense 2 door scenarios (`renderer_shadow_mapping_maps.py --scenario
+  door-*`) pass with the cache change. `pbr_laboratory_fixture.py` covers the
+  shoulder with a negative control, and
+  `renderer_vulkan_shadow_compatibility.py` pins the contact radius and the
+  cache-cell reuse.
+
+- [x] Remove the grazing-wall shadow acne of the 2.0-texel projected filter
+  default on all three projected receivers: the classic OpenGL
+  `shadow_interaction.fs`, the modern GL clustered receiver and Vulkan's
+  `interaction_shadow.frag`. Each compared every PCF tap and PCSS blocker probe
+  with the centre's receiver bias. On a receiver at an angle to the light that
+  bias, with the one-texel normal offset, covers about 1.7 texels of the
+  surface's own depth slope. The 0.75 radius kept the Poisson taps inside it;
+  at 2.0 they reach 1.96 texels and the 4-texel blocker search 3.9, so taps on
+  the side nearer the light found the receiver itself, and PCSS also took it
+  for a blocker. Every off-centre tap and probe now adds
+  `R_ShadowMapTexelDepthStep` (world texel over falloff depth extent; the
+  texel bias is `r_shadowMapTexelBiasScale` times it) times `min(tan, 4)` per
+  texel of its distance from the centre. The centre sample keeps the plain
+  bias. Vulkan's shadow block carries the step in place of the scaled bias,
+  with the scale in `texelSize.z`, and stays 512 bytes. The modern GL receiver
+  derives the step from its shadow matrix's depth row. A signed receiver-plane
+  bias from screen-space derivatives also cleared the wall, but drew a dark
+  line along concave corners. A one-sided version kept the corner line that
+  radius 2.0 already had; the distance-scaled bias also removes most of it.
+  Evidence (`+g632d66b1` built with and without this change, lab
+  projector-only captures, unoccluded left-wall patch, mean/max max-channel
+  error): OpenGL classic 3.09/25 to 0.53/1 at the shipped defaults and
+  3.86/13 to 0.53/1 at mode 0, the old 0.75 defaults' 0.53/1; Vulkan 2.74/25
+  and 3.92/13 to 0/0. Pixels darkened by more than two levels on the deeper
+  wall fell from 34,660 to 39 (OpenGL), 34,685 to 46 (Vulkan) and 5,005 to 17
+  (modern GL); the old 0.75 filter also loses its 857 (OpenGL) and 1,153
+  (Vulkan). A sphere moved to touch the grazing wall keeps its contact shadow
+  (retained occlusion against the stencil reference in the contact band 0.988
+  before, 0.987 after, on OpenGL and Vulkan), and the packed-ORM station is
+  pixel-identical on both PBR receivers. Air Defense 1's terrain keeps 0.854
+  (OpenGL) and 0.856 (Vulkan) of the stencil shadow contrast, against 0.866
+  and 0.869 before: about 300 pixels along one stair-stepped shadow edge on
+  sloped ground are about 4 levels lighter. The one-sided plane variant kept
+  0.863 there but kept the corner line. Vulkan's lab `shadows` case now
+  passes; `shadows-manual-point`, `multi-budget` and `local-global` fail
+  identically with and without the change. OpenGL laboratory groups 80/80
+  with `--gl-debug`, `vulkan-direct` 68/68 at 0x and 4x, the Air Defense 1
+  and q4dm2 terrain checks on OpenGL and Vulkan (three runs each, both
+  builds) and the four Air Defense 2 door scenarios pass.
+  `renderer_vulkan_shadow_compatibility.py` pins the footprint bias on all
+  three receivers and both upload paths.
+
 - [x] Make the multiplayer Admin page's password check work. The page sends
   `rcon verifyRconPass` and waits for the game to hear the answer; the server
   ran it as an unknown command and the client never passed an answer on, so
@@ -65,6 +415,38 @@
   Vulkan/Intel and OpenGL. See the
   [gap-closure ledger](plans/2026-09-20-vulkan-gap-closure.md).
 
+- [x] Clear four Vulkan PBR-laboratory failures found on 2026-10-04. Composed
+  shadow-cache hits now bind the solid alpha image for their moving casters;
+  a view of composed hits alone used to draw them with the scene's last set-0
+  image, a multisampled one under 4x MSAA (`VUID-RuntimeSpirv-samples-08725`).
+  Views that request a shared classic adapter (`r_rendererShared*`) and need
+  nothing the native scene target provides stay on the swapchain again, so
+  those adapters can own them; since the 2026-09-25 checkpoint none could. Two
+  laboratory oracles that predated the linear HDR scene and the PBR preview now
+  follow the reported display domain: extreme emission expects the filmic,
+  once-encoded red channel (178.1, not 77.4) when the linear scene owns the
+  view, and the capacity proof expects 65 float-composed alpha layers to reach
+  255 rather than RGBA8's 254. On Vulkan the `vulkan-direct` suite passes
+  68/68 at 0x and 4x, classic colors 90/90 and pixel-identical to OpenGL, and
+  the capacity proof at 0x and 4x. See
+  [shadow movers](shadowmapping-movers-2026-09-05.md#composed-vulkan-hits-drew-moving-casters-without-their-alpha-image)
+  and the [world ambient domain](classic-world-ambient-domain-modernization.md#backend-execution).
+
+- [x] Apply `r_brightness` and `r_gamma` once on Vulkan, as OpenGL does. The
+  `RC_SWAP_BUFFERS` back-buffer pass added on 2026-09-18 mapped every frame,
+  then the executor's display mapping (2026-09-09) mapped it again at
+  presentation and screenshot readback, so any non-neutral value was applied
+  twice. The display mapping is now the only pass: it runs after CRT, covers
+  native and shared GUI draws and skips neutral settings. At two frozen Air
+  Defense 1 poses, `r_gamma 2` gave Vulkan a mean luma of 127.1 and 149.2
+  against OpenGL's 76.7 and 94.8, and Vulkan's pixels matched two applications
+  of the curve to its own neutral frame. After the fix Vulkan gives 77.4 and
+  95.3 against OpenGL's 77.0 and 95.4, every `r_gamma 2`, `r_brightness 1.5`
+  and CRT-plus-gamma capture on both renderers matches a single application,
+  and Vulkan's `r_gamma 2` pixels sit within 2 levels of it everywhere.
+  `vk_display_color_mapping.py` now fails if any other Vulkan code reads
+  either cvar, and the unused post colour-mapping shader is gone.
+
 - [x] Make the experimental Vulkan renderer survive what used to stop it:
   a GPU or driver reset during play now restarts the renderer automatically
   and carries on (three times per session, `r_vkPresentationRecoveries`)
@@ -116,6 +498,11 @@
   [plan](plans/2026-10-02-openxr-vr.md) and [VR guide](../user/vr.md).
 
 - [x] Suppress startup splash windows for hidden-window, renderer-disabled and dedicated launches across Windows, Linux and macOS.
+
+- [x] Create Server's Server Type now takes effect: LAN keeps a hosted game off
+  the Internet master servers and admits only players on your local network, as
+  in retail Quake 4. Dedicated still starts a listen server; host a dedicated
+  server with `openQ4-ded`.
 
 - [x] Consolidate SDK game sources and Awakening SP into the engine checkout;
   qualify campaign discovery, content/save isolation, stock/expansion save
@@ -304,6 +691,25 @@
   payload a third time, which saved about 1.35 s across Air Defense 1's 82.6
   MB of caches in a debug build. See
   [generated-cache cost](loading-cache-modernization.md#generated-cache-cost-on-air-defense-1).
+
+- [x] Make the generated world and static-model caches reproducible. Proc
+  model surfaces from `ParseModel` and `ParseShadowModel`, and the back sides
+  `FinishSurfaces` adds, left `modelSurface_t::id` and `mOriginalSurfaceName`
+  uninitialised, and both caches stored the ids. Two cold Air Defense 1 loads
+  with `com_levelLoadModernization 1` wrote world caches that differed in all
+  2,025 surface ids, and five static-model caches that differed in one
+  back-side id each. That id had looked like a near-zero float, but it was
+  uninitialised stack data. A surface's id is now its index, the way the ASE,
+  LWO and MA converters number surfaces, because `GetSurfaceMask` sets
+  `suppressSurfaceMask` bits by index and the ambient pass tests them against
+  the id; with zero ids, hiding the first material of a brush model would hide
+  all of it. The other renderer and BSE surfaces that started uninitialised are
+  zeroed too. World parser version 3 and static parser version `0x00010003`
+  make older caches miss, so they are rebuilt once. Two cold loads now write
+  byte-identical world and model caches with `r_convertStaticToMD5R` 0 and 1,
+  a warm load with the default 0 hits all 198 of its caches, and
+  `level_load_cache.py` fails any `modelSurface_t` in `src/renderer` or
+  `src/bse` that starts uninitialised.
 
 - [x] Correct outdoor shadow-map terrain sampling on OpenGL and Vulkan.
   Point filters compare against the receiver plane at each sampled texel, while
@@ -755,6 +1161,11 @@
   - a save/load voice count (1, 2, 3 before; 1, 1, 1 after);
   - a six-bot multiplayer match;
   - the related contract tests.
+- [x] Effect sounds pick a random variation again, as in retail 1.4.2, so bullet
+  impacts, ricochets and rocket and grenade explosions no longer repeat their first
+  sample. Emile Belanger found the fixed diversity first
+  ([emileb/openQ4@71af0c11](https://github.com/emileb/openQ4/commit/71af0c115f4e99fd1a9b5d49bd74d5eba6eb9413)),
+  and `bse_retail_parity.py` now pins both sound starts.
 - [x] Match Control's team join and the player's own team agree again. Joining a
   side from Match Control (the stock page and the retained card send the same
   `team_join_*` token) committed the session's side. `idPlayer::UserInfoChanged`
@@ -780,6 +1191,83 @@
   - `mp_match_control_team_join_smoke.py` passes, and fails on a pre-fix
     runtime (revision 19 -> 21, "Committed" while the player stays Marine);
     `competitive_match_layer.py` pins the order, and eight mutants fail it.
+- [x] Map loads no longer drop just as they finish with "idRenderSystemLocal::UnCrop:
+  currentRenderCrop < 1". ExecuteMapChange ends with StartWipe, which pushes a
+  render crop, draws the loading screen and copies it into `_scratch` outside
+  UpdateScreen while every print still offers PacifierUpdate a loading-screen
+  redraw. A print inside that capture (fs_debug's "Can't find _scratch" from the
+  level-load cache's image lookup, a developer DPrintf, a non-precached decl
+  warning) ran the redraw once the pacing interval had passed. Its BeginFrame
+  reset the crop stack, the capture copied the whole window, and StartWipe's
+  UnCrop dropped the finished map. `sessionCaptureDrawGuard_t` now holds
+  `insideUpdateScreen` across the wipe capture and the save preview's crop, so
+  neither PacifierUpdate nor refresh-on-print can begin a frame inside a
+  capture. The other crop pairs never meet such a redraw: the game's objective
+  camshot fires 250 ms after spawn but a load runs only 160 ms of settle frames
+  (and no stock map uses it), and the renderer's subview, demo and
+  resolution-scale crops run inside a guarded draw or outside a map change.
+  `loading_wipe_capture_crop_contract.py` runs the production StartWipe,
+  PacifierUpdate and UpdateScreen against a renderer with a real crop stack and
+  checks that an unguarded StartWipe still drops. Evidence, hidden-window SP
+  loads of game/airdefense1 with fs_debug 1 and developer 1, one at a time:
+  the previous build dropped 5 of 5, the fixed build 0 of 11, and every run
+  printed "Can't find _scratch" inside the capture.
+- [x] `bakeLightGrids` captures whole cube faces at any window size. Its
+  capture view took the window's pixel size as its rectangle, but render-view
+  rectangles are virtual-screen units: `RenderViewToViewport` scales them by
+  the capture crop (`tr.tiledViewport`) over 640x480. Outside a 640x480 window
+  each face drew into a larger viewport (128x107 for a `size64` face at
+  1280x800) and the readback kept its top-left corner, stretched over the
+  face. The synchronous and async PBO paths share the view, which now spans
+  `SCREEN_WIDTH` x `SCREEN_HEIGHT` as levelshots, `envshot` and
+  `bakeReflectionProbes` do; `renderer_screenshot_readback.py` pins all three
+  and models the viewport. On mp/q4dm8 with the shipped settings (`size128
+  samples128 bounce3`), fixed bakes at 1280x720, 1280x800 (async and
+  synchronous readback) and 2538x1312 match the 640x480 bake to run-to-run
+  noise (mean difference at most 0.009 levels, 99% of texels identical), where
+  the unfixed build was off by 3.3-3.6 levels (r 0.62-0.77). Whole faces draw
+  more of the map, so a bake takes about twice as long (q4xtourney2: 1.6 to
+  3.2 minutes).
+  - The bundled light grids carry cropped faces. 37 multiplayer grids match
+    bakes logged on 2026-06-19 in a 2560x1334 window, and the unfixed build
+    reproduces the shipped atlases at those windows: q4xtourney2 at 2538x1312
+    (r 0.9996, mean difference 0.8 levels, against 9.4 for a correct bake) and
+    q4dm8, from the unlogged 2026-06-18 batch, at the default 1280x720 window
+    (r 0.997). airdefense2 shares that batch. They stay as shipped for now
+    (decided 2026-10-05); the next entry fixes the two faults that kept a
+    re-bake of them from being correct.
+- [x] A light-grid bake releases every capture and builds on its own output,
+  so maps that ship light grids can be re-baked correctly and large maps
+  finish. Captures ran BeginFrame and their back end inline but never reached
+  EndFrame, so frame memory grew about 300 KB a face (`r_showMemory 1`
+  counted 3.5 GB after q4dm8's 11,340 faces, enough to wrap its 32-bit total;
+  airdefense2 ran out of memory), frame-temp vertex data stayed live and the
+  upload stream never fenced a buffer before a later capture reused it. Each
+  capture now ends with EndFrame's release calls, without presenting
+  (`LightGrid_FinishCapture`). openQ4 searches `fs_savepath` last, so a bake
+  that read its atlases back by name got the copies `pak1` ships: re-baking
+  q4dm8 lit bounces 2+ with the shipped grid and packed the shipped
+  irradiance byte for byte. The bake now reads its atlases and
+  `separateAreas` metadata from the save path (`LightGrid_ReadBakedTGA`,
+  `LoadLightGridFile( path, true )`), uploads them in the format a by-name
+  load derives, gives areas it wrote nothing for no images, and warns when
+  another copy of the pack will load first. `lightgrid_bake_contract.py` pins
+  both and round-trips the TGA reader in a compiled harness; mutants of each
+  fault fail it. Evidence, with the new renderer module:
+  - game/core2, 6,551 probes and about 118,000 faces: private memory held at
+    3.1 GB from the map load to the end, and frame memory never passed one
+    frame's 3.6 MB;
+  - game/core2 at a coarser grid: during its 1.5-minute bake the previous
+    module grew from 3.0 to 9.9 GB while the new one stayed at 3.2 GB, and
+    with no shipped copy to shadow the atlases the two bakes match (99.97% of
+    texels identical, largest difference 4 levels);
+  - game/airdefense2 at the shipped settings, which ran out of memory before:
+    all 14,041 probes in 23.5 minutes at a steady 3.1 GB. Its pack holds this
+    bake's irradiance (1.4 levels from the baked atlases, the DXT1 error,
+    against 9.6 from the shipped pack), and the bake warned that the shipped
+    pack still loads first. The shipped grid is dark by comparison: about
+    9,600 of its 14,041 valid probes are black, against about 150 in the new
+    bake.
 
 ## Unreleased — Quake 4: The Awakening (`q4xbase`)
 
@@ -831,6 +1319,63 @@
   `q4xdm15` and `q4xtourney1` were lit with lighting made for the retail
   geometry. They now load with the game's standard lighting, and the stock maps
   keep theirs, under the expansion too.
+- [x] The speeder bike drives the way the expansion built it. A held turn
+  settles at about 85 degrees a second and stops within a second of letting go;
+  it spun up past 500 degrees a second and kept turning two full circles,
+  because Quake 4's friction ceiling of 1 dropped the bike's angular friction
+  of 5 (the expansion's ceiling is 10; openQ4 raises it for the bike alone, and
+  older saves pick it up on load). The bike also reaches race speed (about 580
+  units a second after three seconds of thrust on open track, where it crawled
+  about 25 units): its grip turned the velocity by twice the bike's heading
+  every tic.
+  Its pads honour `traceRelativeDirection`, so the antisuspensor holds it off
+  ceilings and the bumpers off walls instead of all probing the ground. Stock
+  vehicles are unchanged: convoy1's GEV moves identically under a scripted
+  drive and turn. `awakening_speeder_physics_contract.py` pins the three fixes.
+- [x] Every unique Awakening monster, weapon and vehicle plays as its content
+  was built to, checked in headless runs against the expansion's code (the
+  [plan's Phase 5](plans/q4x-awakening.md)). The m09 Valkaryne docks behind
+  the Makron sphere through her `requestDocking` script, which nothing ran, and
+  undocks to fight on foot when the sphere dies. `ignoreplayer` holds on every
+  enemy path, so the m01 death-ray turret never takes the player. Pain Lord
+  headshots reach his head zone, which his legs zone swallowed. Retches walk
+  on `aas48` where a map lacks a usable `aas96`. The elites' gravity well,
+  spread fire and grenades, the space flyers' `canturn`, `noFaceEnemy` and
+  master pitch and roll, the Tank's damaged-launcher accuracy and break
+  effects, the goob gun's burst, burn stacking and alternate flash, the spike's
+  impact force, the cannons' `useGodMode`, `resetOnExit` and jam lock, m03's
+  script FOV and m07's `velscale` slow-down volumes now do what their keys say.
+  Stock content is unchanged: the new keys appear only in Awakening defs and
+  maps, and the jam lock defaults on only under `q4xbase`.
+  `awakening_gameplay_contract.py` pins the fixes.
+- [x] A vehicle passes script `guiEvent` and `setGuiParm` calls to its HUD as
+  well as its world screens, as the expansion's `rvVehicle` did, so m07's race
+  clock counts down on the speeder bike's HUD and m06's MCC health shows on the
+  MCC cannon's; retail's vehicle HUDs handle none of what retail scripts send.
+  Vehicles also write `vehicle_speed` to their own screens (the speeder bike's
+  speedometer) and `playerYaw` to their HUD, as the player HUD now does too (the
+  m03 ship panels' view cones), and the cursor gets `npc_talkstate` (the
+  "wait" talk crosshair). Awakening spline movers that face along their spline
+  bank into its turns (`g_splineRollLookahead` 500, `g_splineRollMultiplier`
+  2.0, the expansion's defaults), so m03's and m06's fighters bank; retail's
+  movers never did and do not. The goob gun's alternate fire holds the player's
+  `fire_alt` pose, and m09's non-quad flares warn once per material instead of
+  about 340 times a second. Audits of the expansion's frame commands, actions,
+  script events, states and single-player GUI state find nothing else missing.
+  Player-facing summary: [The Awakening on openQ4](../user/awakening.md).
+- [x] The pulse cannon's barrels move as the expansion's code moved them: a
+  shot kicks the firing barrel back and it slides home, and both fold out and
+  down while the missiles are selected. Unselected vehicle weapons now get a
+  per-frame call, `rvVehiclePart::RunInactivePostPhysics` (empty by default, so
+  retail vehicles are unchanged), through which the cannon cools and the
+  missile launcher reloads while the other weapon is selected, as in the
+  expansion. Retail's cinematic harvester, which m07's races use as a
+  background monster, no longer tries to turn in place without turn
+  animations: it logged a warning every 250 ms (158 in one race) and skipped
+  that think's attack checks; retail's combat harvesters, which have the
+  animations, turn as before. A probe of m07_race1 to the end of m09 found the
+  races' timed lockdown gates fail the mission by design, and only content
+  holes past them (recorded in the support plan).
 
 ## Unreleased — `idtech5-ui` development
 
@@ -1061,6 +1606,12 @@
 - The classic multiplayer Players page's Add Friend button now marks the
   player as your friend in the lists and on the scoreboard. It did nothing on
   PC, which has no friends service.
+
+- Menu development: `ui_retainedMultiplayer 1` and `ui_retainedSystem 1` now
+  stay on when you join or host a multiplayer game, and you can turn them on
+  or off during a match. Joining or hosting a game without cheats used to
+  switch both back off, so the multiplayer cards never appeared after a
+  normal join. Neither setting is saved, so each still lasts until you quit.
 
 - The opt-in SYSTEM page adds **Preload Light Grids** under Irradiance Volumes.
   Apply saves it without a Keep/Revert question, since it takes effect when the

@@ -523,6 +523,7 @@ static void R_LinkShadowMapCasterSurf( const drawSurf_t **link, const srfTriangl
 	drawSurf_t *drawSurf = (drawSurf_t *)R_FrameAlloc( sizeof( *drawSurf ) );
 	drawSurf->geo = tri;
 	drawSurf->pbrLightGeo = NULL;
+	drawSurf->previousPositionCache = NULL;
 	drawSurf->space = space;
 	drawSurf->material = shader;
 	drawSurf->sort = 0.0f;
@@ -1238,7 +1239,8 @@ static srfTriangles_t *R_CreateLightTris( const idRenderEntityLocal *ent,
 static void R_CreateInteractionLightTris( const idRenderEntityLocal *ent,
 		const idRenderLightLocal *light, surfaceInteraction_t *sint ) {
 	bool needsPBR = false;
-#if defined( OPENQ4_RENDERER_VK_MODULE )
+	// Native owners: Vulkan and the classic OpenGL light loop (draw_pbr.cpp).
+#if !defined( OPENQ4_RENDERER_GLES_MODULE )
 	needsPBR = sint->shader->HasPBR() && !light->lightShader->IsAmbientLight()
 		&& !light->lightShader->IsFogLight() && !light->lightShader->IsBlendLight()
 		&& !R_LightIncludesBackFaces( ent, light, sint->shader );

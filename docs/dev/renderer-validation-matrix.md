@@ -110,9 +110,19 @@ one byte/channel. The post runner also requires actual GL graph dimensions and
 in `.tmp/vulkan-gap-closure/scene-scale/checkpoint-v30-scene-scale.json`; broader
 material, multi-view and platform qualification remain separate.
 
+The laboratory pins `r_pbrLinearScene 1`, so its Vulkan suites qualify the
+linear scene and float preview. `--production` runs a Vulkan suite with the
+linear scene off, as players run it; each such suite is paired with the
+classic OpenGL owner's captures of the same batch (`--gl-native`), since both
+compose every PBR draw into the display-referred frame. Overview controls of
+the baked light grid are judged per station there.
+
 The `ibl` suite isolates analytic environment lighting by disabling all direct
-lights. It covers 27 native Vulkan controls and 26 common OpenGL controls at
-0x/4x MSAA, including negative controls and image/video lifecycle restoration.
+lights. The laboratory pins `r_pbrAnalyticEnvironment 1`, the studio
+environment its expectations were qualified against; the `ibl-production`
+control turns it off and must draw no environment at all. It covers 28 native
+Vulkan controls and 27 common OpenGL controls at 0x/4x MSAA, including negative
+controls and image/video lifecycle restoration.
 `renderer_pbr_environment_parity.py` compares the same package and fixture with
 retained image/log hashes and bounded specimen error. The extra shared-ambient
 control is Vulkan-only; OpenGL deliberately excludes that combination from its

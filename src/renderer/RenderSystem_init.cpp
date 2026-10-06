@@ -30,6 +30,9 @@ If you have questions concerning this license or the applicable additional terms
 
 
 #include "tr_local.h"
+#if !defined( OPENQ4_RENDERER_VK_MODULE ) && !defined( OPENQ4_RENDERER_GLES_MODULE )
+#include "draw_pbr.h"
+#endif
 #include "OpenGL/FramebufferSamples.h"
 #include "LevelShotDepth.h"
 #include "RendererResourceSettings.h"
@@ -273,13 +276,15 @@ idCVar r_useLightPortalFlow( "r_useLightPortalFlow", "1", CVAR_RENDERER | CVAR_B
 idCVar r_multiSamples( "r_multiSamples", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER, "MSAA sample count: 0 = off, 2/4/8/16 = supported quality steps", 0, 16, idCmdSystem::ArgCompletion_String<r_multiSamplesArgs> );
 idCVar r_postAA( "r_postAA", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER, "post AA mode: 0 = off, 1 = SMAA 1x medium, 2 = SMAA 1x high, 3 = SMAA 1x ultra, 4 = SMAA 1x colour-edge prototype", 0, 4, idCmdSystem::ArgCompletion_Integer<0,4> );
 idCVar r_postAAStatePoisonTest( "r_postAAStatePoisonTest", "0", CVAR_RENDERER | CVAR_BOOL, "intentionally dirty GL texture/client state before SMAA post-AA draws for validation" );
-idCVar r_pbrMaterials( "r_pbrMaterials", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "allow explicitly PBR-authored materials on supported modern renderer paths" );
+idCVar r_pbrMaterials( "r_pbrMaterials", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "draw explicitly PBR-authored materials as PBR; 0 keeps their classic stages. Stock materials are never PBR" );
 idCVar r_vkPBRSpecularAA( "r_vkPBRSpecularAA", "1", CVAR_RENDERER | CVAR_BOOL, "filter native Vulkan PBR roughness by shading-normal variance; disable only for comparison" );
 idCVar r_pbrGeneratedLegacyFallback( "r_pbrGeneratedLegacyFallback", "1", CVAR_RENDERER | CVAR_BOOL, "allow development-only classic fallback generation for PBR-only materials" );
 idCVar r_pbrDebug( "r_pbrDebug", "0", CVAR_RENDERER | CVAR_INTEGER, "PBR debug view: 0=off, 1=albedo, 2=normal, 3=metallic, 4=roughness, 5=AO, 6=emissive, 7=state marker (green=PBR, magenta=contract mismatch)", 0, 7, idCmdSystem::ArgCompletion_Integer<0,7> );
-idCVar r_pbrIBL( "r_pbrIBL", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "enable the analytic environment contribution for explicitly PBR-authored materials" );
-idCVar r_pbrIBLIntensity( "r_pbrIBLIntensity", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "analytic PBR environment intensity", 0.0f, 4.0f );
+idCVar r_pbrIBL( "r_pbrIBL", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "enable environment reflections and diffuse from authored reflection probes for explicitly PBR-authored materials (with r_pbrAnalyticEnvironment, the laboratory studio environment)" );
+idCVar r_pbrIBLIntensity( "r_pbrIBLIntensity", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "PBR environment intensity", 0.0f, 4.0f );
+idCVar r_pbrAnalyticEnvironment( "r_pbrAnalyticEnvironment", "0", CVAR_RENDERER | CVAR_BOOL, "laboratory mode: light PBR surfaces with the analytic studio environment where no authored probe applies; 0 leaves environment lighting to authored probes, baked light grids and the map's ambient lights" );
 idCVar r_pbrInferFromLegacyMaterials( "r_pbrInferFromLegacyMaterials", "0", CVAR_RENDERER | CVAR_BOOL, "research-only legacy material reinterpretation; never used for stock rendering by default" );
+idCVar r_pbrLinearScene( "r_pbrLinearScene", "0", CVAR_RENDERER | CVAR_BOOL, "laboratory mode: accumulate PBR radiance in a separate linear scene, encoded once per pixel; with r_hdrToneMap the whole view, classic surfaces included, is presented through the PBR filmic curve. 0 composites each PBR draw into Quake 4's display-referred framebuffer like classic lighting" );
 idCVar r_bloom( "r_bloom", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "enable bloom post-process" );
 idCVar r_bloomThreshold( "r_bloomThreshold", "0.45", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "bloom bright-pass threshold in scene-referred units", 0.0f, 16.0f );
 idCVar r_bloomSoftKnee( "r_bloomSoftKnee", "0.15", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "relative bloom soft-threshold knee", 0.0f, 1.0f );
@@ -688,6 +693,9 @@ idCVar r_shadowMapPolygonFactor( "r_shadowMapPolygonFactor", "0.25", CVAR_RENDER
 idCVar r_shadowMapPolygonOffset( "r_shadowMapPolygonOffset", "0.5", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "constant depth bias used when rendering shadow-map casters", 0.0f, 64.0f );
 static idCVar r_shadowMapContactQualityMigrated( "r_shadowMapContactQualityMigrated", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "one-time migration flag for legacy broad shadow filtering defaults" );
 static idCVar r_shadowMapFilterDefaultsMigrated( "r_shadowMapFilterDefaultsMigrated", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "one-time migration flag for the legacy fixed-PCF projected shadow filter defaults" );
+static idCVar r_pbrMaterialsDefaultMigrated( "r_pbrMaterialsDefaultMigrated", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "one-time migration flag for the PBR material default" );
+static idCVar r_temporalAADefaultMigrated( "r_temporalAADefaultMigrated", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "one-time migration flag for the automatic temporal AA default" );
+extern idCVar r_temporalAA;
 idCVar r_frontBuffer( "r_frontBuffer", "0", CVAR_RENDERER | CVAR_BOOL, "draw to front buffer for debugging" );
 idCVar r_skipSubviews( "r_skipSubviews", "0", CVAR_RENDERER | CVAR_INTEGER, "1 = don't render any gui elements on surfaces" );
 idCVar r_skipParticles( "r_skipParticles", "0", CVAR_RENDERER | CVAR_INTEGER, "1 = skip all particle systems", 0, 1, idCmdSystem::ArgCompletion_Integer<0,1> );
@@ -3955,15 +3963,50 @@ void R_StencilShot( void ) {
 	Mem_Free( byteBuffer );	
 }
 
-/* 
-================== 
+/*
+==================
+R_SetNativeCubeAxes
+
+View axes of the six faces of a native cube map (_px, _nx, _py, _ny, _pz,
+_nz), each in the orientation cubeMap loads it.
+==================
+*/
+static void R_SetNativeCubeAxes( idMat3 axis[6] ) {
+	memset( axis, 0, sizeof( idMat3 ) * 6 );
+	axis[0][0][0] = 1;
+	axis[0][1][2] = 1;
+	axis[0][2][1] = 1;
+
+	axis[1][0][0] = -1;
+	axis[1][1][2] = -1;
+	axis[1][2][1] = 1;
+
+	axis[2][0][1] = 1;
+	axis[2][1][0] = -1;
+	axis[2][2][2] = -1;
+
+	axis[3][0][1] = -1;
+	axis[3][1][0] = -1;
+	axis[3][2][2] = 1;
+
+	axis[4][0][2] = 1;
+	axis[4][1][0] = -1;
+	axis[4][2][1] = 1;
+
+	axis[5][0][2] = -1;
+	axis[5][1][0] = 1;
+	axis[5][2][1] = 1;
+}
+
+/*
+==================
 R_EnvShot_f
 
 envshot <basename>
 
 Saves out env/<basename>_ft.tga, etc
-================== 
-*/  
+==================
+*/
 void R_EnvShot_f( const idCmdArgs &args ) {
 	idStr		fullname;
 	const char	*baseName;
@@ -4014,37 +4057,17 @@ void R_EnvShot_f( const idCmdArgs &args ) {
 
 	primary = *tr.primaryView;
 
-	memset( &axis, 0, sizeof( axis ) );
-	axis[0][0][0] = 1;
-	axis[0][1][2] = 1;
-	axis[0][2][1] = 1;
-
-	axis[1][0][0] = -1;
-	axis[1][1][2] = -1;
-	axis[1][2][1] = 1;
-
-	axis[2][0][1] = 1;
-	axis[2][1][0] = -1;
-	axis[2][2][2] = -1;
-
-	axis[3][0][1] = -1;
-	axis[3][1][0] = -1;
-	axis[3][2][2] = 1;
-
-	axis[4][0][2] = 1;
-	axis[4][1][0] = -1;
-	axis[4][2][1] = 1;
-
-	axis[5][0][2] = -1;
-	axis[5][1][0] = 1;
-	axis[5][2][1] = 1;
+	R_SetNativeCubeAxes( axis );
 
 	for ( i = 0 ; i < 6 ; i++ ) {
 		ref = primary.renderView;
 		ref.x = ref.y = 0;
 		ref.fov_x = ref.fov_y = 90;
-		ref.width = glConfig.vidWidth;
-		ref.height = glConfig.vidHeight;
+		// View rectangles are virtual-screen units: the full screen is the
+		// whole size x size capture. Window pixels drew a larger view and
+		// kept only its corner unless the window was 640x480.
+		ref.width = SCREEN_WIDTH;
+		ref.height = SCREEN_HEIGHT;
 		ref.viewaxis = axis[i];
 		fullname = "env/";
 		fullname += baseName;
@@ -4053,7 +4076,162 @@ void R_EnvShot_f( const idCmdArgs &args ) {
 	}
 
 	common->Printf( "Wrote %s, etc\n", fullname.c_str() );
-} 
+}
+
+/*
+==================
+R_SavedFileLoads
+
+True when a load of relativePath reads the copy in the save path. openQ4
+searches the save path last, so a copy in the game or install tree wins.
+==================
+*/
+static bool R_SavedFileLoads( const char *relativePath ) {
+	idFile *saved = fileSystem->OpenExplicitFileRead( fileSystem->RelativePathToOSPath( relativePath, "fs_savepath" ) );
+	if ( saved == NULL ) {
+		return false;
+	}
+	void *loaded = NULL;
+	const int length = fileSystem->ReadFile( relativePath, &loaded );
+	bool same = length >= 0 && length == saved->Length();
+	if ( same && length > 0 ) {
+		idTempArray<byte> bytes( length );
+		same = saved->Read( bytes.Ptr(), length ) == length && memcmp( bytes.Ptr(), loaded, length ) == 0;
+	}
+	fileSystem->CloseFile( saved );
+	if ( loaded != NULL ) {
+		fileSystem->FreeFile( loaded );
+	}
+	return same;
+}
+
+/*
+==================
+R_BakeReflectionProbes_f
+
+bakeReflectionProbes [size] [blends]
+
+Captures each authored reflection probe of the current map from its light
+origin, in the light's own axes, and writes the six faces its cubeMap loads
+(<cubeMap>_px.tga .. _nz.tga) under the save path. Each image then reloads,
+so the probes reflect the capture at once. The capture is the scene alone:
+display filters, view weapons, subviews and existing probe reflections are
+left out, so baking again from the same scene writes the same faces.
+==================
+*/
+static void R_BakeReflectionProbes_f( const idCmdArgs &args ) {
+	static const char *suffixes[6] = { "_px.tga", "_nx.tga", "_py.tga", "_ny.tga", "_pz.tga", "_nz.tga" };
+	if ( args.Argc() > 3 ) {
+		common->Printf( "usage: bakeReflectionProbes [size] [blends]\n" );
+		return;
+	}
+	const int size = args.Argc() > 1 ? atoi( args.Argv( 1 ) ) : MODERN_SPECULAR_PROBE_ATLAS_FACE_SIZE;
+	if ( size < 16 || size > MODERN_SPECULAR_PROBE_ATLAS_FACE_SIZE || ( size & ( size - 1 ) ) != 0 ) {
+		common->Printf( "bakeReflectionProbes: size must be a power of two from 16 to %i\n",
+			MODERN_SPECULAR_PROBE_ATLAS_FACE_SIZE );
+		return;
+	}
+	const int blends = idMath::ClampInt( 1, MAX_BLENDS, args.Argc() > 2 ? atoi( args.Argv( 2 ) ) : 1 );
+	if ( tr.primaryWorld == NULL || tr.primaryView == NULL ) {
+		common->Printf( "bakeReflectionProbes: no map is being rendered\n" );
+		return;
+	}
+
+	idList<const idRenderLightLocal *> probes;
+	const idRenderWorldLocal *world = tr.primaryWorld;
+	for ( int i = 0; i < world->lightDefs.Num(); ++i ) {
+		const idRenderLightLocal *light = world->lightDefs[i];
+		if ( light != NULL && light->lightShader != NULL && light->lightShader->HasSpecularProbe() ) {
+			probes.Append( light );
+		}
+	}
+	if ( probes.Num() == 0 ) {
+		common->Printf( "bakeReflectionProbes: the map has no reflection probe lights\n" );
+		return;
+	}
+
+	struct captureSetting_t {
+		idCVar *		cvar;
+		const char *	value;
+		idStr			saved;
+	};
+	captureSetting_t settings[] = {
+		{ &r_skipPostProcess, "1" }, { &r_skipGlowOverlay, "1" }, { &r_skipSubviews, "1" },
+		{ &r_rendererReflectionProbes, "0" }, { &r_hdrToneMap, "0" }, { &r_hdrAutoExposure, "0" },
+		{ &r_hdrExposure, "1" }, { &r_bloom, "0" }, { &r_motionBlur, "0" }, { &r_crt, "0" },
+		{ &r_gamma, "1" }, { &r_brightness, "1" },
+	};
+	for ( int i = 0; i < (int)( sizeof( settings ) / sizeof( settings[0] ) ); ++i ) {
+		settings[i].saved = settings[i].cvar->GetString();
+		settings[i].cvar->SetString( settings[i].value );
+	}
+	const bool oldSuppressViewModels = tr.suppressLevelshotViewModels;
+	tr.suppressLevelshotViewModels = true;
+
+	// Copy the view before capturing: each capture starts frames that reuse
+	// the memory tr.primaryView points into.
+	const renderView_t primary = tr.primaryView->renderView;
+	idMat3 faceAxes[6];
+	R_SetNativeCubeAxes( faceAxes );
+	int baked = 0;
+	for ( int i = 0; i < probes.Num(); ++i ) {
+		const idRenderLightLocal *light = probes[i];
+		const specularProbeMaterialInfo_t &info = light->lightShader->GetSpecularProbeInfo();
+		const char *material = light->lightShader->GetName();
+		if ( info.cubeImage == NULL || info.cubeConvention != SPECULAR_PROBE_CUBE_NATIVE ) {
+			common->Printf( "bakeReflectionProbes: skipped %s: only a cubeMap probe can be baked\n", material );
+			continue;
+		}
+		if ( !light->parms.pointLight ) {
+			common->Printf( "bakeReflectionProbes: skipped %s: a probe is a point light\n", material );
+			continue;
+		}
+		// A probe owns its cube image: probe lights sharing one would
+		// overwrite each other's capture, so none of them is baked.
+		int users = 0;
+		for ( int j = 0; j < probes.Num(); ++j ) {
+			if ( probes[j]->lightShader->GetSpecularProbeInfo().cubeImage == info.cubeImage ) {
+				++users;
+			}
+		}
+		if ( users > 1 ) {
+			common->Printf( "bakeReflectionProbes: skipped %s: %i probe lights share its cube map\n", material, users );
+			continue;
+		}
+		renderView_t ref = primary;
+		ref.x = ref.y = 0;
+		ref.fov_x = ref.fov_y = 90;
+		ref.width = SCREEN_WIDTH;
+		ref.height = SCREEN_HEIGHT;
+		ref.vieworg = light->globalLightOrigin;
+		for ( int face = 0; face < 6; ++face ) {
+			ref.viewaxis = faceAxes[face] * light->parms.axis;
+			tr.TakeScreenshot( size, size, va( "%s%s", info.cubeImage->GetName(), suffixes[face] ), blends, &ref );
+			// A capture runs its frame inline but never reaches EndFrame:
+			// release what the face allocated as EndFrame does, without
+			// presenting (as the light-grid bake's LightGrid_FinishCapture).
+			R_ToggleSmpFrame();
+			vertexCache.EndFrame();
+			R_RendererUpload_EndFrame();
+		}
+		const idStr firstFace = va( "%s%s", info.cubeImage->GetName(), suffixes[0] );
+		if ( !R_SavedFileLoads( firstFace ) ) {
+			common->Warning( "bakeReflectionProbes: %s does not load from the bake at %s: another copy loads first, or the save path is not writable",
+				firstFace.c_str(), fileSystem->RelativePathToOSPath( firstFace, "fs_savepath" ) );
+		}
+		info.cubeImage->Reload( true );
+		common->Printf( "bakeReflectionProbes: %s at (%.1f %.1f %.1f) -> %s_*.tga\n", material,
+			light->globalLightOrigin.x, light->globalLightOrigin.y, light->globalLightOrigin.z,
+			info.cubeImage->GetName() );
+		++baked;
+	}
+
+	tr.suppressLevelshotViewModels = oldSuppressViewModels;
+	for ( int i = 0; i < (int)( sizeof( settings ) / sizeof( settings[0] ) ); ++i ) {
+		settings[i].cvar->SetString( settings[i].saved );
+	}
+	common->Printf( "bakeReflectionProbes: baked %i of %i probes at %ix%i\n", baked, probes.Num(), size, size );
+}
 
 //============================================================================
 
@@ -4697,6 +4875,9 @@ void GfxInfo_f( const idCmdArgs &args ) {
 		RENDER_GRAPH_MAX_RESOURCE_ACCESSES );
 	R_RenderGraphResources_PrintGfxInfo();
 	R_MaterialResourceTable_PrintGfxInfo();
+#if !defined( OPENQ4_RENDERER_VK_MODULE ) && !defined( OPENQ4_RENDERER_GLES_MODULE )
+	RB_GLPBR_PrintInfo();
+#endif
 	{
 		const classicGuiDomainStats_t &guiDomain = R_ClassicGuiDomain_Stats();
 		common->Printf(
@@ -5800,6 +5981,49 @@ static void R_MigrateLegacyShadowMapFilterDefaults( void ) {
 }
 
 /*
+==================
+R_MigrateLegacyPBRMaterialsDefault
+
+PBR materials now default on: they change only content that ships
+PBR-authored materials, never stock surfaces. Every archived profile carries
+r_pbrMaterials, so one saved under the old default (0) would never see the
+new one. Turn it on once; a later 0 is a player's choice and is kept.
+==================
+*/
+static void R_MigrateLegacyPBRMaterialsDefault( void ) {
+	if ( r_pbrMaterialsDefaultMigrated.GetBool() ) {
+		return;
+	}
+	if ( !r_pbrMaterials.GetBool() ) {
+		common->Printf( "Migrating the legacy PBR material default: PBR-authored materials on\n" );
+		r_pbrMaterials.SetBool( true );
+	}
+	r_pbrMaterialsDefaultMigrated.SetBool( true );
+}
+
+/*
+==================
+R_MigrateLegacyTemporalAADefault
+
+Temporal AA now defaults to automatic (r_temporalAA 2): it upscales only
+when the 3D scene renders below native resolution, where it replaces a
+bilinear stretch, and stays off at native resolution. A profile saved under
+the old default (0) would never see that, so move it once; a later 0 is a
+player's choice and is kept.
+==================
+*/
+static void R_MigrateLegacyTemporalAADefault( void ) {
+	if ( r_temporalAADefaultMigrated.GetBool() ) {
+		return;
+	}
+	if ( r_temporalAA.GetInteger() == 0 ) {
+		common->Printf( "Migrating the legacy temporal AA default: temporal upscaling below native resolution\n" );
+		r_temporalAA.SetInteger( 2 );
+	}
+	r_temporalAADefaultMigrated.SetBool( true );
+}
+
+/*
 =================
 R_InitCommands
 =================
@@ -5815,6 +6039,7 @@ void R_InitCommands( void ) {
 	cmdSystem->AddCommand( "levelshot", R_LevelShot_f, CMD_FL_RENDERER | CMD_FL_CHEAT, "captures a 5-tile levelshot set" );
 	cmdSystem->AddCommand( "levelshotProbe", R_LevelShotProbe_f, CMD_FL_RENDERER | CMD_FL_CHEAT, "renders the camera probes queued in a request file, for levelshot pose tools" );
 	cmdSystem->AddCommand( "envshot", R_EnvShot_f, CMD_FL_RENDERER, "takes an environment shot" );
+	cmdSystem->AddCommand( "bakeReflectionProbes", R_BakeReflectionProbes_f, CMD_FL_RENDERER | CMD_FL_CHEAT, "captures each reflection probe light's cube map from the current map and reloads it: [size 16-256] [blends]" );
 	cmdSystem->AddCommand( "makeAmbientMap", R_MakeAmbientMap_f, CMD_FL_RENDERER|CMD_FL_CHEAT, "makes an ambient map" );
 	cmdSystem->AddCommand( "benchmark", R_Benchmark_f, CMD_FL_RENDERER, "benchmark" );
 	cmdSystem->AddCommand( "gfxInfo", GfxInfo_f, CMD_FL_RENDERER, "show graphics info" );
@@ -6119,6 +6344,11 @@ idRenderSystemLocal::BeginLevelLoad
 */
 void idRenderSystemLocal::BeginLevelLoad( void ) {
 	R_RendererMetrics_ResetGpuFrameTiming( "begin level load" );
+#ifdef OPENQ4_RENDERER_VK_MODULE
+	// keep what the last map compiled even if this session never exits cleanly
+	extern void VK_Device_PersistPipelineCache( const char *reason );
+	VK_Device_PersistPipelineCache( "since the last save" );
+#endif
 	// SetUnderwaterView is the only writer of this state, and it is driven by the game
 	// each frame. A map change started while the player was submerged would otherwise
 	// leave the effect live across the whole loading screen and into the first frames
@@ -6235,6 +6465,8 @@ static bool R_InitRendererDevice( bool legacyPolicy, bool forceWindow, char *err
 void idRenderSystemLocal::InitOpenGL( void ) {
 	R_MigrateLegacyShadowMapContactQuality();
 	R_MigrateLegacyShadowMapFilterDefaults();
+	R_MigrateLegacyPBRMaterialsDefault();
+	R_MigrateLegacyTemporalAADefault();
 	char error[1024];
 	if ( !R_InitRendererDevice( true, false, error, sizeof( error ) ) ) common->FatalError( "%s", error );
 	r_recoverableRendererRestore = false;

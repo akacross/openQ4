@@ -17,7 +17,10 @@ page's password check now works (B7).
 
 ## The gate
 
-`ui_retainedMultiplayer` (default 0) opts into both cards. `ui_retained` alone
+`ui_retainedMultiplayer` (default 0) opts into both cards. It is not archived,
+so it lasts until the player quits, and it is `CVAR_NOCHEAT`, so a join or a
+hosted spawn without cheats, which resets every unarchived cheat CVar, keeps
+it, and it can change during a match. `ui_retained` alone
 includes a card only once none of its pages hands off any more: the session
 lists the pages that still do in `RETAINED_MP_ESCAPE_MISSING_PAGES`, today
 Admin, and `RETAINED_MP_WELCOME_MISSING_PAGES`, now empty, and

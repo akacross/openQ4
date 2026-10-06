@@ -354,16 +354,151 @@ the pak), a central-directory seek, a 64 KiB read buffer, and an inflate window.
 `idFile_InZip::Timestamp` then returns a hardcoded `0`. Every one of those opens
 is performed to receive a constant.
 
+## 2026-10-06 search-path lookup cost
+
+Ranked item 1 below assumed the timestamp probe cost was the PK4 member open.
+That was only part of it. Answering null-buffer `ReadFile` calls for PK4
+members from the central-directory index (the length is now kept per entry)
+left the probe phase at 382--426 ms, because every lookup of a packed asset
+first fails an `fopen` in each loose search directory ahead of its pak:
+`fs_savepath`, `fs_cdpath` and `fs_basepath` for each game directory. On this
+machine a failed open costs 25--35 microseconds, and the stock directories
+almost never contain `textures/`, `models/` or `sound/` at all.
+
+During a level load each directory on the way to a loose file is now checked
+once and remembered, and a lookup under a missing directory skips the open
+(see [search-path lookups](loading-cache-modernization.md#search-path-lookups)).
+One `game/airdefense1` load skipped **60,854** failed opens for **176**
+directory checks. Same binary, same warm `fs_savepath`, 1280x720 hidden
+window, OpenGL, `fs_cacheLooseDirectories` alternated, three pairs after a
+warm-up load:
+
+| `fs_cacheLooseDirectories` | Map load (ms) | Image probe phase (ms) |
+|---|---|---|
+| `0` | 14,255 / 14,162 / 15,310 | 381.7 / 415.4 / 426.2 |
+| `1` | 13,843 / 12,978 / 12,648 | 138.1 / 131.9 / 117.3 |
+
+The median load fell from 14,255 ms to 12,978 ms (-9%) and the median probe
+phase from 415 ms to 132 ms. The memo also covers every other lookup in the
+load (declarations, models, sounds), which is why the total gain is larger
+than the probe phase alone. The remaining probe time is DDS header reads,
+which are already memoized per load.
+
+## 2026-10-06 content hashing cost
+
+The image "decode" phase was not mostly reads either. Every precompressed DDS
+the level loads is hashed twice on the main thread for the image policy's
+content identity (`R_MakeImageFileContent` over the file, then
+`R_MakeImageBinaryContent` over each mip), and generated `.bimage` reads hash
+their payload too: about 510 MiB of SHA-256 per `game/airdefense1` load. The
+portable `idCrypto::SHA256` ran at **252 MB/s** (MSVC `/O2`, this machine),
+about two seconds of the load.
+
+`idCrypto::SHA256` now runs the processor's SHA instructions when it has them:
+the x86 SHA extensions (every AMD Zen, Intel Ice Lake/Goldmont and later),
+detected once with CPUID, and the Armv8 SHA-256 instructions wherever the
+compilation baseline guarantees them (Apple Silicon). Everything else keeps
+the portable compression, which now scrubs its schedule once per call instead
+of once per 64-byte block. Single-thread throughput, 64 MiB:
+
+| Implementation | MB/s |
+|---|---|
+| portable, before | 252 |
+| portable, after | 339 (MSVC) / 353-361 (GCC 13, Clang 18) |
+| x86 SHA extensions | 2,029 (MSVC) / 1,966-2,025 (GCC, Clang) |
+
+The native core-safety test cross-checks the accelerated path against the
+portable one for every length up to 1,100 bytes at four alignments, beside the
+FIPS 180-4 and RFC 4231 vectors; the Armv8 path passed the same checks under
+`qemu-aarch64`.
+
+Warm `game/airdefense1` loads, 1280x720 hidden window, one staged build with
+only the renderer module swapped between the old and new hash, interleaved
+after a warm-up load:
+
+| Renderer | Old SHA-256 (ms) | New SHA-256 (ms) |
+|---|---|---|
+| OpenGL | 13,982 / 12,441 / 12,381 | 11,096 / 9,629 / 10,552 |
+| Vulkan | 11,937 / 15,809 / 17,311 | 8,260 / 12,439 / 14,414 |
+
+The OpenGL median fell from 12,441 ms to 10,552 ms (-15%); generated reads
+from about 390 ms to 80 ms and the DDS phase from about 1.8 s to 1.1-1.6 s.
+The Vulkan runs shared the machine with peer builds that grew during the
+series, but each new load was 2.9-3.7 s faster than the old load before it.
+
+## 2026-10-06 OpenGL texture allocation
+
+`idImage::AllocImage` still carried a BFG workaround from 2011: for every mip
+level of a compressed texture it allocated an uninitialized buffer of that
+level's full size and handed it to `glCompressedTexImage2D`, with a
+`glGetError` before and after, and `SubImageUpload` then uploaded the real
+data with another `glGetError` per level. Every compressed texture a map loads
+crossed to the driver twice, and threaded drivers synchronize on each error
+query.
+
+Compressed textures now take immutable `glTexStorage2D` storage when the
+context has it (GL 4.2, `GL_ARB_texture_storage`, ES 3.0), which allocates
+every level at once and uploads nothing; contexts without it keep the old
+path. While `ActuallyLoadImage` uploads an image, the per-mip error query is
+deferred to one query when its upload scope closes, still before the consumed
+load completes (`renderer_image_policy_boundaries.py` pins that order).
+
+Same staged build with only the OpenGL renderer module swapped, warm
+`game/airdefense1`, idle machine, interleaved after a warm-up:
+
+| Renderer module | Map load (ms) |
+|---|---|
+| before | 10,566 / 10,098 / 10,475 / 10,147 |
+| after | 9,116 / 9,717 / 9,510 / 9,617 |
+
+Every pair was faster, by 0.4-1.5 s; the median fell from 10,311 ms to
+9,564 ms (-7%). The measured upload phase itself varies between 0.5 and 3.9 s
+from run to run on this machine, so the saving shows in the whole load rather
+than in that phase alone. A fixed-tic screenshot pair matched outside the
+animated sky and effects (0.07% of the lower half differed, by at most 20).
+
+## 2026-10-06 parallel level image read
+
+With hashing fast, the DDS phase that remained was the PK4 inflate of each
+file plus its file fingerprint, one image after another. `LoadLevelImages` now
+predicts the precompressed DDS each pending image will read
+(`idImage::PredictDirectDDSPayload`, the direct-DDS decision of
+`ActuallyLoadImage` without its staleness check), and while the main thread
+loads image N, up to four worker threads read and fingerprint the files of the
+next images. The main thread still opens every file (the filesystem's search
+state is not thread-safe) and allocates every buffer from the renderer
+module's heap, within 32 open files and 64 MiB; a worker only reads its own
+open file into its own buffer (in-pak files each have their own `unzReOpen`
+handle, the read counter is locked, and the heap's running count is now
+atomic because inflate allocates). `R_LoadPrecompressedDDS` takes a finished
+buffer and its fingerprint through `R_SetDDSPrefetchSource`; a recovery read
+with an expected descriptor never does, and an image that does not read its
+predicted file releases it. `image_prefetchLevelImages 0` restores the serial
+read. This prefetches during the image phase itself rather than during
+`gameInit`, which is what makes it safe: every file is opened by its owner
+thread at the moment the old code would have opened it, only earlier.
+
+Warm `game/airdefense1`, 1280x720 hidden window, same binary, cvar alternated
+after a warm-up; every predicted file (1,657 of 1,657) was taken:
+
+| Renderer | `image_prefetchLevelImages 0` (ms) | `1` (ms) |
+|---|---|---|
+| OpenGL | 10,356 / 9,651 / 11,865 / 11,801 | 7,163 / 9,209 / 9,471 / 8,931 |
+| Vulkan | 12,904 / 10,406 / 8,357 | 10,602 / 8,818 / 6,447 |
+
+The DDS phase fell from 1.1-1.7 s to about 0.1 s on both renderers, and every
+pair was faster: by 0.4-3.2 s on OpenGL (median 11.1 s to 9.1 s) and 1.6-2.3 s
+on Vulkan. A fixed-tic screenshot pair matched pixel for pixel outside the
+animated sky and effects.
+
 ### Ranked remaining work
 
-1. Answer the source timestamp probe without opening the PK4 member. Worth
-   371--732 ms depending on configuration, needs no threading, and the length a
-   null-buffer `ReadFile` also returns is already in the central directory the
-   pak keeps open. The care required is in the side effects the current path has
-   on the way past: pure-pak status, `pak->referenced`, the asset log, and the
-   learned level-load manifest.
-2. Parallel level image read. This is the real bulk, but it is reads, not
-   decode, and the obvious design does not work: `FinishLevelLoadCache`
+1. **Done 2026-10-06** (see above): the timestamp probe no longer opens PK4
+   members, and loose search directories are checked once per load instead of
+   once per lookup.
+2. **Done 2026-10-06** (see above) for precompressed DDS images, which are
+   ~96% of a stock level's image reads. Generated `.bimage` reads and the
+   source-decode path stay serial. The original design note follows: the obvious design does not work: `FinishLevelLoadCache`
    (`Session.cpp`) joins the pipeline and drains every handle before
    `EndLevelLoad` runs, so a prefetch pump driven from the image path is inert,
    and the existing substitution hook only replaces the payload read after the

@@ -230,6 +230,19 @@ that representation rather than losing the sharing contract. A selected
 MD5RProc companion, or classic proc converted through `r_convertProcToMD5R`,
 therefore uses the authoritative source path with no world-cache write.
 
+Static and world payloads store each surface's id, and every static surface's
+id is its index in its model. `ParseModel` and the back sides `FinishSurfaces`
+adds number their surfaces the way the ASE, LWO and MA converters do, because
+`idRenderModelStatic::GetSurfaceMask` sets `suppressSurfaceMask` bits by index
+and the ambient pass tests them against the id. Shadow models have one surface,
+id 0. Before world parser version 3 and static parser version `0x00010003`,
+proc-model and back-side ids were uninitialised stack values, so two cold loads
+of Air Defense 1 wrote world caches that differed in every surface id, five
+static-model caches differed in one back-side id each, and a cached load did not
+match a parsed one. The bumped versions make those payloads miss.
+`level_load_cache.py` fails any `modelSurface_t` in `src/renderer` or `src/bse`
+that starts uninitialised.
+
 ### Collision models
 
 The collision payload stores pointer-free model vertices, edges, polygons,
@@ -344,6 +357,30 @@ individual settings:
   reading or writing `.banim` files.
 - With openQ4 closed, delete any or all of the `generated/` subdirectories above
   for a clean rebuild. Never delete the original retail/mod source files.
+
+## Search-path lookups
+
+Two lookup shortcuts are independent of the experiment above and are on for
+every load:
+
+- A length or timestamp query (`ReadFile` with a null buffer) for a pk4 member
+  is answered from the pak's central-directory index. The member is not
+  opened, and the query is not recorded in the learned manifest, because no
+  payload is read. The pak is still marked referenced and the asset log still
+  records the path.
+- Between `BeginLevelLoadCache` and the end of the load, every loose search
+  directory on the way to a file is checked once, top-down from its search
+  root, and a lookup under a directory known to be missing skips the `fopen`.
+  `CreateOSPath`, which every engine directory creation goes through, forgets
+  all negative answers, so generated files written during the load are found.
+  A directory created by another program mid-load is seen from the next load.
+  `fs_cacheLooseDirectories 0` restores the classic open in every directory;
+  the memo is always off with `fs_caseSensitiveOS 1` (the non-Windows default),
+  where case is resolved through directory listings.
+
+`com_showLevelLoadTimes 1` prints `Loose search directories: N opens skipped,
+M directory checks` at the end of each load. The measurements are in the
+[Air Defense 1 evidence](airdefense1-optimization-evidence.md#2026-10-06-search-path-lookup-cost).
 
 ## Evidence status
 
@@ -475,10 +512,12 @@ also counted the envelope. Reading the files is mostly loading-screen redraws, b
 `AddToReadCount` updates the pacifier every MiB. On a warm load the remaining
 cost is the two SHA-256 passes over every payload.
 
-Static and world cache bytes are not reproducible from run to run, and this
-change does not cause that. Five static-model files differed in one float each.
-The world file differed in every surface's id, because
-`idRenderWorldLocal::ParseModel` leaves `modelSurface_t::id` uninitialised.
+Five static-model files and the world file also differed between these runs.
+The differences were uninitialised surface ids, which this change did not
+touch: the back sides `FinishSurfaces` added, and every surface
+`idRenderWorldLocal::ParseModel` parsed. World parser version 3 and static
+parser version `0x00010003` number those ids (see Render worlds), so both
+caches are now reproducible across cold loads.
 
 ### Dedicated-server development run
 

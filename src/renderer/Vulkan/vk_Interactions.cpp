@@ -101,6 +101,7 @@ static idCVar r_vkPBRBakedFailureAfter( "r_vkPBRBakedFailureAfter", "0", CVAR_RE
 #include "vk_MaterialPrograms.h"
 #include "../RenderWorld_local.h"
 #include <unordered_map>
+bool VK_PostProcess_SSAOField( const viewDef_t *viewDef, idImage **image, bool *flip );
 bool VK_LightGrid_PrepareModern( const viewDef_t *view, const drawSurf_t *surf,
     idImage *images[3], float params[7][4] );
 void VK_PBR_PrepareBakedView( const viewDef_t *view );
@@ -220,11 +221,11 @@ typedef struct vkShadowBlock_s {
 	float			atlasRects[ SHADOWMAP_PROJECTED_MAX_CASCADES ][ 4 ];
 	float			splitDepths[ 4 ];
 	float			cascadeBiasScale[ 4 ];
-	float			texelDepthBias[ 4 ];
+	float			texelDepthStep[ 4 ];	// R_ShadowMapProjectedTexelDepthSteps
 	float			normalOffsetWorld[ 4 ];
 	float			viewDepthRow[ 4 ];	// -modelView row 2
 	float			biasParams[ 4 ];	// x: constant, y: normal, z: cascade blend, w: cascade count
-	float			texelSize[ 4 ];		// x,y: 1 / atlas dimensions
+	float			texelSize[ 4 ];		// x,y: 1 / atlas dimensions, z: r_shadowMapTexelBiasScale
 	float			filterParams[ 4 ];	// x: radius, y: taps, z: mode, w: hardware compare
 	float			pcssParams[ 4 ];	// x: light radius, y: max radius, z: effective radius, w: receiver-plane bias
 	float			debugParams[ 4 ];	// x: r_shadowMapDebugMode, y: receiver fallback reason
@@ -839,8 +840,9 @@ static bool VK_ClassicInteraction_BuildMappedShadowBlock(
 		sizeof( block.splitDepths ) );
 	memcpy( block.cascadeBiasScale, projected.biasScale,
 		sizeof( block.cascadeBiasScale ) );
-	memcpy( block.texelDepthBias, projected.texelDepthBias,
-		sizeof( block.texelDepthBias ) );
+	// The receiver rebuilds texelDepthBias as texelSize.z * step and also
+	// scales the step by each filter tap's distance from the centre.
+	R_ShadowMapProjectedTexelDepthSteps( projected, block.texelDepthStep );
 	for ( int cascadeIndex = 0;
 			cascadeIndex < SHADOWMAP_PROJECTED_MAX_CASCADES;
 			++cascadeIndex ) {
@@ -858,6 +860,7 @@ static bool VK_ClassicInteraction_BuildMappedShadowBlock(
 	block.biasParams[ 3 ] = static_cast<float>( cascadeCount );
 	block.texelSize[ 0 ] = physicalLight.invAtlasSize[ 0 ];
 	block.texelSize[ 1 ] = physicalLight.invAtlasSize[ 1 ];
+	block.texelSize[ 2 ] = Max( 0.0f, r_shadowMapTexelBiasScale.GetFloat() );
 	block.filterParams[ 0 ] = mapPass.projected.filter.filterRadius;
 	block.filterParams[ 1 ] = static_cast<float>(
 		mapPass.projected.filter.filterTaps );
@@ -2221,9 +2224,11 @@ VK_PBRDirectInteraction
 The native Vulkan interaction pipelines have six fixed 2D descriptor slots.
 Direct PBR uses slot 1 for an optional normal and slot 4 for albedo. Slot 5
 is packed ORM or separate roughness; the unused classic specular-table slot 0
-carries separate metallic. AO belongs to indirect light, not this BRDF.
-Emission is owned once in the ambient walk. Source alpha and unsupported
-ownership stay entirely classic.
+carries separate metallic. AO belongs to indirect light, not this BRDF; an
+authored ambient light stands in for indirect light, so its stage reads AO
+from the ORM red channel or from a separate AO map bound in slot 5 in place
+of the roughness it never uses (flag 16). Emission is owned once in the
+ambient walk. Source alpha and unsupported ownership stay entirely classic.
 ====================
 */
 typedef struct vkPBRDirectInteraction_s {
@@ -2231,11 +2236,13 @@ typedef struct vkPBRDirectInteraction_s {
 	idImage *	albedoImage;
 	idImage *	dataImage;
 	idImage *	metallicImage;
-	int			dataFlags;		// 1 packed ORM, 2 separate metallic, 4 separate roughness
+	idImage *	aoImage;		// separate AO map, NULL with ORM or scalar AO
+	int			dataFlags;		// 1 packed ORM, 2 separate metallic, 4 separate roughness, 16 AO in slot 5
 	int			normalFormat;	// 0 flat; otherwise pbrNormalFormat_t + 1
 	float		metallic;
 	float		roughness;
 	float		normalScale;
+	float		ao;
 } vkPBRDirectInteraction_t;
 
 static float VK_PBRRegisterValue( const drawSurf_t *surf, int registerIndex, float fallback ) {
@@ -2479,7 +2486,8 @@ static bool VK_PBRDirectMaterial( const drawSurf_t *surf,
 				|| !VK_PBRImageReady( info.normal.image, normalUsage ) ) )
 			|| ( info.orm.present && !VK_PBRImageReady( info.orm.image, TD_MATERIAL_DATA ) )
 			|| ( info.metallic.present && !VK_PBRImageReady( info.metallic.image, TD_MATERIAL_DATA ) )
-			|| ( info.roughness.present && !VK_PBRImageReady( info.roughness.image, TD_MATERIAL_DATA ) ) ) {
+			|| ( info.roughness.present && !VK_PBRImageReady( info.roughness.image, TD_MATERIAL_DATA ) )
+			|| ( info.ao.present && !VK_PBRImageReady( info.ao.image, TD_MATERIAL_DATA ) ) ) {
 		return false;
 	}
 
@@ -2489,6 +2497,7 @@ static bool VK_PBRDirectMaterial( const drawSurf_t *surf,
 	out.albedoImage = info.albedo.image;
 	out.dataImage = info.orm.present ? info.orm.image : ( info.roughness.present ? info.roughness.image : globalImages->whiteImage );
 	out.metallicImage = info.metallic.present ? info.metallic.image : NULL;
+	out.aoImage = info.ao.present ? info.ao.image : NULL;
 	out.dataFlags = ( info.orm.present ? 1 : 0 ) | ( info.metallic.present ? 2 : 0 ) | ( info.roughness.present ? 4 : 0 );
 	out.normalFormat = info.normal.present ? (int)info.normalFormat + 1 : 0;
 	out.metallic = idMath::ClampFloat( 0.0f, 1.0f,
@@ -2497,6 +2506,8 @@ static bool VK_PBRDirectMaterial( const drawSurf_t *surf,
 		VK_PBRRegisterValue( surf, info.roughnessRegister, 0.5f ) );
 	out.normalScale = idMath::ClampFloat( 0.0f, 4.0f,
 		VK_PBRRegisterValue( surf, info.normalScaleRegister, 1.0f ) );
+	out.ao = idMath::ClampFloat( 0.0f, 1.0f,
+		VK_PBRRegisterValue( surf, info.aoRegister, 1.0f ) );
 	return true;
 }
 
@@ -2558,11 +2569,29 @@ struct vkPBRPreparedDraw_t {
 	vkInteractionPush_t push;
 };
 
+// Production environment lighting is the map's own (authored probes; baked
+// grids have their own receiver path). The analytic studio environment lights
+// only the laboratory (r_pbrAnalyticEnvironment). A probe resource failure
+// still reaches preparation, which reports it.
+static bool VK_PBR_EnvironmentSourcesView( const viewDef_t *viewDef ) {
+	if ( r_pbrAnalyticEnvironment.GetBool() ) {
+		return true;
+	}
+	VkDescriptorSet probeSet = VK_NULL_HANDLE;
+	return !VK_PBRProbes_ForView( viewDef, probeSet ) || probeSet != VK_NULL_HANDLE;
+}
+
+// The laboratory linear scene prepares every baked receiver of its view in
+// advance (VK_PBR_PrepareBakedView); a display-referred frame tries the
+// receiver's grid first in VK_PBR_DrawEnvironment and, like the OpenGL owner,
+// keeps the environment alone when the grid contract declines it.
 static bool VK_PBR_EnvironmentEnabled( const viewDef_t *viewDef, const drawSurf_t *surf,
 		float alphaScale, bool composite ) {
 	return !( alphaScale > 0.0f && composite )
 		&& r_pbrIBL.GetBool() && r_pbrIBLIntensity.GetFloat() > 0.0f
-		&& r_pbrDebug.GetInteger() == 0 && !VK_LightGrid_SurfaceRequestsBakedDiffuse( viewDef, surf );
+		&& r_pbrDebug.GetInteger() == 0
+		&& !( VK_HDRScene_Accumulating() && VK_LightGrid_SurfaceRequestsBakedDiffuse( viewDef, surf ) )
+		&& VK_PBR_EnvironmentSourcesView( viewDef );
 }
 
 static bool VK_PBR_PrepareEnvironment( VkCommandBuffer cmd, const viewDef_t *viewDef,
@@ -2576,6 +2605,7 @@ static bool VK_PBR_PrepareEnvironment( VkCommandBuffer cmd, const viewDef_t *vie
 	const bool classicBaked = baked != NULL && !surf->material->HasPBR();
 	const bool illuminated = baked != NULL
 		? !classicBaked && r_pbrIBL.GetBool() && r_pbrIBLIntensity.GetFloat() > 0.0f
+			&& VK_PBR_EnvironmentSourcesView( viewDef )
 		: VK_PBR_EnvironmentEnabled( viewDef, surf, alphaScale, composite );
 	const int debugMode = r_pbrDebug.GetInteger();
 	// Emission (mode 6) retains its authored ambient stage. The other material
@@ -2617,7 +2647,14 @@ static bool VK_PBR_PrepareEnvironment( VkCommandBuffer cmd, const viewDef_t *vie
 	if ( ( illuminated && VK_PBRPrepareFault( 13 ) ) || atlas == NULL || !atlas->IsLoaded() ) {
 		return VK_PBRPrepareFailed( "environment-image" );
 	}
-	idImage *images[6] = { material.metallicImage != NULL ? material.metallicImage : globalImages->whiteImage,
+	// SSAO occludes indirect light: its field takes slot 0 when no separate
+	// metallic map needs it (flag 32, 64 with flipped rows).
+	idImage *screenAO = NULL;
+	bool screenAOFlip = false;
+	const bool screenAOUsed = !transparent && !diagnostic && material.metallicImage == NULL
+		&& VK_PostProcess_SSAOField( viewDef, &screenAO, &screenAOFlip );
+	idImage *images[6] = { material.metallicImage != NULL ? material.metallicImage
+			: screenAOUsed ? screenAO : globalImages->whiteImage,
 		material.normalImage, atlas, ( illuminated || diagnostic || baked != NULL ) && info.ao.present ? info.ao.image : globalImages->whiteImage,
 		material.albedoImage, material.dataImage };
 	VkDescriptorSet *sets = prepared.sets;
@@ -2682,7 +2719,11 @@ static bool VK_PBR_PrepareEnvironment( VkCommandBuffer cmd, const viewDef_t *vie
 	push.a[1] = vertexColor == SVC_MODULATE ? 0.0f : 1.0f;
 	push.a[3] = alphaScale;
 	push.b[0] = idMath::ClampFloat( 0.0f, 1.0f, VK_PBRRegisterValue( surf, info.aoRegister, 1.0f ) );
-	push.c[0] = float( material.dataFlags | ( info.ao.present ? 8 : 0 ) );
+	// Weight of the analytic studio environment under authored probes: the
+	// laboratory mode only. Classic draws use b.y for their ambient direction.
+	push.b[1] = r_pbrAnalyticEnvironment.GetBool() ? 1.0f : 0.0f;
+	push.c[0] = float( material.dataFlags | ( info.ao.present ? 8 : 0 )
+		| ( screenAOUsed ? 32 | ( screenAOFlip ? 64 : 0 ) : 0 ) );
 	push.c[1] = float( material.normalFormat );
 	push.c[2] = diagnostic ? float( debugMode )
 		: baked != NULL && !illuminated ? 0.0f : idMath::ClampFloat( 0.0f, 4.0f, r_pbrIBLIntensity.GetFloat() );
@@ -2715,6 +2756,7 @@ struct vkPBRBakedView_t {
 	const viewDef_t *view;
 	bool ready, retargeted;
 	int requested, submitted;
+	int production;		// receivers composed in a display-referred frame
 	int rejectedPrepared, restoredUniformBytes, restoredDescriptors;
 	const char *reason;
 	std::unordered_map<const drawSurf_t *, vkPBRPreparedDraw_t> draws;
@@ -2734,7 +2776,7 @@ void VK_PBR_PrepareBakedView( const viewDef_t *view ) {
 	vkPBRBakedView.view = view;
 	vkPBRBakedView.ready = false;
 	vkPBRBakedView.retargeted = false;
-	vkPBRBakedView.requested = vkPBRBakedView.submitted = 0;
+	vkPBRBakedView.requested = vkPBRBakedView.submitted = vkPBRBakedView.production = 0;
 	vkPBRBakedView.rejectedPrepared = vkPBRBakedView.restoredUniformBytes = vkPBRBakedView.restoredDescriptors = 0;
 	vkPBRBakedView.reason = "disabled";
 	vkPBRBakedView.draws.clear();
@@ -2822,6 +2864,9 @@ static void VK_PBR_SubmitPrepared( VkCommandBuffer cmd, const vkPBRPreparedDraw_
 	vkInteractionPush_t push = prepared.push;
 	memcpy( push.mvp, mvp, sizeof( push.mvp ) );
 	push.a[3] = alphaScale;
+	// Recorded draws replay after their light pass: the target they now write
+	// decides their transfer, not the one current when they were recorded.
+	push.b[3] = VK_HDRScene_DisplayReferredTarget() ? 1.0f : 0.0f;
 	vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, prepared.pipeline );
 	vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, prepared.layout,
 		0, uint32_t( prepared.setCount ), prepared.sets,
@@ -2836,12 +2881,73 @@ static void VK_PBR_SubmitPrepared( VkCommandBuffer cmd, const vkPBRPreparedDraw_
 	vkCmdDrawIndexed( cmd, uint32_t( prepared.geo->numIndexes ), 1, 0, 0, 0 );
 }
 
+bool VK_PBR_NativeOpaqueSurface( const drawSurf_t *surf ) {
+	vkPBRDirectInteraction_t material;
+	return surf != NULL && surf->material != NULL && surf->material->HasPBR()
+		&& surf->material->Coverage() != MC_TRANSLUCENT && VK_PBRDirectMaterial( surf, material );
+}
+
+bool VK_PBR_GridOwned( const viewDef_t *view, const drawSurf_t *surf ) {
+	vkPBRDirectInteraction_t material;
+	return !VK_HDRScene_Accumulating() && surf != NULL && surf->material != NULL
+		&& surf->material->HasPBR() && VK_PBRDirectMaterial( surf, material );
+}
+
+bool VK_PBR_EnvironmentVisit( const viewDef_t *view, const drawSurf_t *surf ) {
+	return r_pbrIBL.GetBool() || r_pbrDebug.GetInteger() != 0
+		|| ( !VK_HDRScene_Accumulating() && VK_LightGrid_SurfaceRequestsBakedDiffuse( view, surf ) );
+}
+
+/*
+A display-referred frame composes a native PBR receiver's baked light grid in
+its environment pass, like the OpenGL owner (RB_GLPBR_EnvironmentPass): baked
+diffuse weighted by the material (Fresnel, metalness, multi-bounce AO) beside
+the environment specular, decoded to linear light and encoded once with the
+draw. The classic grid pass skips the receiver (VK_PBR_GridOwned), so the grid
+adds its light once. The laboratory linear scene prepares the same draws for
+its whole view in advance instead (VK_PBR_PrepareBakedView).
+*/
+static const viewDef_t *vkPBRProductionGridView;
+static int vkPBRProductionGridFrame = -1;
+
+static bool VK_PBR_DrawProductionBaked( VkCommandBuffer cmd, const viewDef_t *viewDef,
+		const drawSurf_t *surf, const srfTriangles_t *tri, const float mvp[16] ) {
+	if ( VK_HDRScene_Accumulating() || r_pbrDebug.GetInteger() != 0 || !surf->material->HasPBR()
+			|| surf->material->Coverage() == MC_TRANSLUCENT
+			|| !VK_LightGrid_SurfaceRequestsBakedDiffuse( viewDef, surf ) ) {
+		return false;
+	}
+	if ( vkPBRProductionGridView != viewDef || vkPBRProductionGridFrame != backEnd.frameCount ) {
+		VK_LightGrid_PrepareModernView( viewDef );
+		vkPBRProductionGridView = viewDef;
+		vkPBRProductionGridFrame = backEnd.frameCount;
+	}
+	vkPBRBakedInput_t baked = {};
+	if ( !VK_LightGrid_PrepareModern( viewDef, surf, baked.images, baked.params ) ) {
+		return false;
+	}
+	vkPBRPreparedDraw_t prepared;
+	if ( !VK_PBR_PrepareEnvironment( cmd, viewDef, surf, tri, mvp, 0.0f, false, prepared, &baked ) ) {
+		return false;
+	}
+	prepared.pipeline = VK_Exec_BakedEnvironmentPipeline( prepared.bakedProbes );
+	if ( prepared.pipeline == VK_NULL_HANDLE ) {
+		return false;
+	}
+	VK_PBR_SubmitPrepared( cmd, prepared, mvp, 0.0f, false );
+	++vkPBRBakedView.production;
+	return true;
+}
+
 bool VK_PBR_DrawEnvironment( VkCommandBuffer cmd, const viewDef_t *viewDef,
 		const drawSurf_t *surf, const srfTriangles_t *tri, const float mvp[16],
 		float alphaScale, bool composite ) {
 	if ( VK_PBR_BakedSurfaceOwned( viewDef, surf ) ) {
 		VK_PBR_SubmitPrepared( cmd, vkPBRBakedView.draws.find( surf )->second, mvp, 0.0f, false );
 		++vkPBRBakedView.submitted;
+		return true;
+	}
+	if ( alphaScale <= 0.0f && !composite && VK_PBR_DrawProductionBaked( cmd, viewDef, surf, tri, mvp ) ) {
 		return true;
 	}
 	vkPBRPreparedDraw_t prepared;
@@ -3086,9 +3192,9 @@ static void VK_PBRTransparentResetView( const viewDef_t *viewDef ) {
 }
 
 void VK_PBR_PrintGfxInfo() {
-	common->Printf( "Vulkan baked lighting: requested=%d ready=%d prepared=%d submitted=%d rejectedPrepared=%d restoredUniform=%d restoredDescriptors=%d reason='%s'\n",
+	common->Printf( "Vulkan baked lighting: requested=%d ready=%d prepared=%d submitted=%d production=%d rejectedPrepared=%d restoredUniform=%d restoredDescriptors=%d reason='%s'\n",
 		vkPBRBakedView.requested, vkPBRBakedView.ready ? 1 : 0, int( vkPBRBakedView.draws.size() ),
-		vkPBRBakedView.submitted, vkPBRBakedView.rejectedPrepared, vkPBRBakedView.restoredUniformBytes,
+		vkPBRBakedView.submitted, vkPBRBakedView.production, vkPBRBakedView.rejectedPrepared, vkPBRBakedView.restoredUniformBytes,
 		vkPBRBakedView.restoredDescriptors, vkPBRBakedView.reason != NULL ? vkPBRBakedView.reason : "none" );
 	common->Printf( "Vulkan: native PBR transparency: admitted=%d reason=%s requiredAtLeast=%d capacity=%d recorded=%d composites=%d surfaces=%d ready=%d preparedRecords=%d restoredUniformBytes=%d restoredDescriptors=%d faultVisits=%d\n",
 		vkPBRTransparentView.admitted ? 1 : 0,
@@ -3232,16 +3338,35 @@ static void VK_DrawSingleInteractionMode( const drawInteraction_t *din,
 		return;
 	}
 
+	// An ambient light stage evaluates diffuse only, so it never reads
+	// roughness. With separate maps its slot 5 carries the AO map instead.
+	int pbrDataFlags = nativePBR ? pbr.dataFlags : 0;
+	idImage *pbrDataImage = nativePBR ? pbr.dataImage : NULL;
+	if ( nativePBR && din->ambientLight && pbr.aoImage != NULL && ( pbr.dataFlags & 1 ) == 0 ) {
+		pbrDataFlags = ( pbr.dataFlags & ~4 ) | 16;
+		pbrDataImage = pbr.aoImage;
+	}
+	// An ambient light stands in for indirect light, so SSAO occludes it:
+	// the field takes slot 0 when no separate metallic map needs it.
+	idImage *screenAO = NULL;
+	bool screenAOFlip = false;
+	if ( nativePBR && din->ambientLight && pbr.metallicImage == NULL
+			&& din->surf->material->Coverage() != MC_TRANSLUCENT
+			&& VK_PostProcess_SSAOField( backEnd.viewDef, &screenAO, &screenAOFlip ) ) {
+		pbrDataFlags |= 32 | ( screenAOFlip ? 64 : 0 );
+	}
 	VkDescriptorSet sets[ 8 ];
 	sets[ 0 ] = interPass.specTableSet;
 	if ( nativePBR && pbr.metallicImage != NULL ) {
 		sets[ 0 ] = VK_Exec_ImageDescriptor( pbr.metallicImage->GetDeviceHandle(), true );
+	} else if ( screenAO != NULL ) {
+		sets[ 0 ] = VK_Exec_ImageDescriptor( screenAO->GetDeviceHandle(), true );
 	}
 	sets[ 1 ] = VK_Exec_ImageDescriptor( ( nativePBR ? pbr.normalImage : din->bumpImage )->GetDeviceHandle(), true );
 	sets[ 2 ] = VK_Exec_ImageDescriptor( din->lightFalloffImage->GetDeviceHandle(), true );
 	sets[ 3 ] = VK_Exec_ImageDescriptor( din->lightImage->GetDeviceHandle(), true );
 	sets[ 4 ] = VK_Exec_ImageDescriptor( ( nativePBR ? pbr.albedoImage : din->diffuseImage )->GetDeviceHandle(), true );
-	sets[ 5 ] = VK_Exec_ImageDescriptor( ( nativePBR ? pbr.dataImage : din->specularImage )->GetDeviceHandle(), true );
+	sets[ 5 ] = VK_Exec_ImageDescriptor( ( nativePBR ? pbrDataImage : din->specularImage )->GetDeviceHandle(), true );
 	sets[ 6 ] = VK_Exec_InteractionUniformSet();
 	sets[ 7 ] = interPass.shadowSet;
 	for ( int i = 0 ; i < setCount ; i++ ) {
@@ -3300,15 +3425,23 @@ static void VK_DrawSingleInteractionMode( const drawInteraction_t *din,
 			break;
 	}
 	push.a[ 2 ] = din->ambientLight ? 1.0f : 0.0f;
-	push.b[ 0 ] = interPass.ambientDir[ 0 ];
-	push.b[ 1 ] = interPass.ambientDir[ 1 ];
-	push.b[ 2 ] = interPass.ambientDir[ 2 ];
+	if ( nativePBR ) {
+		// PBR never reads the classic tangent-space ambient direction. Its
+		// ambient light stage takes the material AO scalar from b.x instead,
+		// and b.w selects display-referred output (PBRDisplayOutput).
+		push.b[ 0 ] = pbr.ao;
+		push.b[ 3 ] = VK_HDRScene_DisplayReferredTarget() ? 1.0f : 0.0f;
+	} else {
+		push.b[ 0 ] = interPass.ambientDir[ 0 ];
+		push.b[ 1 ] = interPass.ambientDir[ 1 ];
+		push.b[ 2 ] = interPass.ambientDir[ 2 ];
+	}
 	push.c[ 0 ] = parallaxScale;
 	push.c[ 1 ] = parallaxBias;
 	push.c[ 2 ] = parallax && !nativePBR ? 1.0f : 0.0f;
 	const bool enhanced = !nativePBR && interPass.enhancedChain;
 	if ( nativePBR ) {
-		push.c[ 0 ] = (float)pbr.dataFlags;
+		push.c[ 0 ] = (float)pbrDataFlags;
 		push.c[ 1 ] = (float)pbr.normalFormat;
 		push.c[ 3 ] = r_vkPBRSpecularAA.GetBool() ? 1.0f : 0.0f;
 	} else if ( enhanced ) {
@@ -3657,8 +3790,7 @@ static int VK_Inter_WriteShadowSlice( const viewEntity_t *space ) {
 			sizeof( block.splitDepths ) );
 	memcpy( block.cascadeBiasScale, projected.biasScale,
 			sizeof( block.cascadeBiasScale ) );
-	memcpy( block.texelDepthBias, projected.texelDepthBias,
-			sizeof( block.texelDepthBias ) );
+	R_ShadowMapProjectedTexelDepthSteps( projected, block.texelDepthStep );
 	const float normalOffsetScale =
 			Max( 0.0f, r_shadowMapNormalOffsetScale.GetFloat() );
 	for ( int cascadeIndex = 0 ;
@@ -3683,6 +3815,7 @@ static int VK_Inter_WriteShadowSlice( const viewEntity_t *space ) {
 	block.biasParams[ 3 ] = (float)cascadeCount;
 	block.texelSize[ 0 ] = state->invAtlasSize[ 0 ];
 	block.texelSize[ 1 ] = state->invAtlasSize[ 1 ];
+	block.texelSize[ 2 ] = Max( 0.0f, r_shadowMapTexelBiasScale.GetFloat() );
 	const shadowMapProjectedFilterSettings_t filterSettings =
 			R_ShadowMapProjectedFilterSettings( state->vLight );
 	block.filterParams[ 0 ] = filterSettings.filterRadius;

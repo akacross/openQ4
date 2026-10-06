@@ -33,6 +33,8 @@ public:
 	virtual void				RunPrePhysics		( void ) { }
 	virtual void				RunPhysics			( void ) { }
 	virtual void				RunPostPhysics		( void ) { }
+								// each frame, for a position's weapons other than the selected one
+	virtual void				RunInactivePostPhysics	( void ) { }
 
 	bool						IsLeft				( void ) const;
 	bool						IsFront				( void ) const;
@@ -158,6 +160,7 @@ public:
 protected:
 
 	void			UpdateDustEffect	( const idVec3& origin, const idMat3& axis, float attenuation, const rvDeclMatType* mtype );
+	void			SetTraceDirection	( void );
 
 	float					height;
 	float					dampen;
@@ -182,6 +185,10 @@ protected:
 	
 	int						forceUpTime;
 	int						forceDownTime;
+
+	// openQ4: "traceRelativeDirection", in the vehicle's frame; from the def, never saved
+	idVec3					traceDirection;
+	bool					traceRelative;
 
 	// Dust effects
 	rvClientEntityPtr<rvClientEffect>	effectDust;
@@ -411,6 +418,10 @@ protected:
 	int				soundPart;
 
 	bool			parentStuck;
+
+	// openQ4: The Awakening's "allowDisableMovement" (from the def, not saved)
+	bool			allowDisableMovement;
+	void			ReadMovementLock	( void );
 
 	// openQ4 VR: input rotation the turn rate has not applied yet, the aim it
 	// last saw, and whether the turret has turned to the aim since the seat

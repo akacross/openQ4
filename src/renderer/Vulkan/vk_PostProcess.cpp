@@ -9,10 +9,14 @@
 	frame by running RB_ApplyCRTToBackBuffer and then
 	RB_ApplyColorMappingsToBackBuffer over the whole back buffer, HUD and
 	menus included, and screenshots read the result. The Vulkan backend
-	draws straight into the swapchain image, so each pass copies that image
-	out with VK_Exec_CopyRender and draws the copy back through a full-screen
-	shader. vk_Backend.cpp runs them from the RC_SWAP_BUFFERS handler, before
-	the frame is presented or read back.
+	draws straight into the swapchain image, so the CRT pass copies that
+	image out with VK_Exec_CopyRender and draws the copy back through a
+	full-screen shader. vk_Backend.cpp runs it from the RC_SWAP_BUFFERS
+	handler, before the frame is presented or read back. r_brightness and
+	r_gamma have no pass here: the executor's display mapping
+	(VK_DisplayColorMapping_Apply, vk_GuiExecutor.cpp) applies them once per
+	composition, after CRT, at presentation or screenshot readback. A pass
+	here as well would map every frame twice.
 
 	Scene passes: RB_STD_DrawView runs SSAO, motion blur, bloom with the HDR
 	tone map, and the cel world ink over the main 3D view after the post-fog
@@ -63,8 +67,6 @@
 #include "shaders/post_shaders_spv.h"
 #include "shaders/hdr_luminance_spv.h"
 
-extern idCVar r_brightness;
-extern idCVar r_gamma;
 extern idCVar r_skipPostProcess;
 extern idCVar r_crt;
 extern idCVar r_crtAmount;
@@ -130,8 +132,7 @@ extern idCVar r_underwaterVisibility;
 // pipeline cache keys for VK_Exec_PostPipeline / VK_Exec_ExtraPipeline.
 // vk_SceneEffects.cpp and vk_DebugTools.cpp use 32 and up.
 enum vkPostPassKind_t {
-	VK_POST_COLOR_MAPPING = 1,
-	VK_POST_CRT,
+	VK_POST_CRT = 1,
 	VK_POST_SSAO,
 	VK_POST_BLOOM_EXTRACT,
 	VK_POST_BLOOM_DOWNSAMPLE,
@@ -142,7 +143,9 @@ enum vkPostPassKind_t {
 	VK_POST_CEL_OUTLINE,
 	VK_POST_UNDERWATER,
 	VK_POST_DEBUG_VIEW,
-	VK_POST_HDR_LUMINANCE
+	VK_POST_HDR_LUMINANCE,
+	VK_POST_MOTION_VECTORS_PREVIOUS,
+	VK_POST_MOTION_VECTORS_REACTIVE
 };
 
 // scene shader modules, created the first time a pass needs one
@@ -159,6 +162,9 @@ enum vkPostSceneModule_t {
 	VK_POST_MODULE_UNDERWATER,
 	VK_POST_MODULE_DEBUG_VIEW,
 	VK_POST_MODULE_HDR_LUMINANCE,
+	VK_POST_MODULE_MOTION_VECTORS_PREVIOUS_VERT,
+	VK_POST_MODULE_MOTION_VECTORS_REACTIVE_VERT,
+	VK_POST_MODULE_MOTION_VECTORS_REACTIVE_FRAG,
 	VK_POST_SCENE_MODULE_COUNT
 };
 
@@ -180,7 +186,10 @@ static const vkPostModuleSource_t vkPostSceneModuleSources[ VK_POST_SCENE_MODULE
 	{ vk_post_celoutline_frag_spv, vk_post_celoutline_frag_spv_size, "post cel outline fragment" },
 	{ vk_post_underwater_frag_spv, vk_post_underwater_frag_spv_size, "post underwater fragment" },
 	{ vk_post_debug_view_frag_spv, vk_post_debug_view_frag_spv_size, "post debug view fragment" },
-	{ vk_post_hdr_luminance_frag_spv, vk_post_hdr_luminance_frag_spv_size, "HDR luminance reduction fragment" }
+	{ vk_post_hdr_luminance_frag_spv, vk_post_hdr_luminance_frag_spv_size, "HDR luminance reduction fragment" },
+	{ vk_post_motionvectors_previous_vert_spv, vk_post_motionvectors_previous_vert_spv_size, "post posed motion vector vertex" },
+	{ vk_post_motionvectors_reactive_vert_spv, vk_post_motionvectors_reactive_vert_spv_size, "post reactive coverage vertex" },
+	{ vk_post_motionvectors_reactive_frag_spv, vk_post_motionvectors_reactive_frag_spv_size, "post reactive coverage fragment" }
 };
 
 // RB_BLOOM_MAX_LEVELS and RB_BLOOM_BASE_WEIGHTS (draw_common.cpp)
@@ -217,6 +226,12 @@ typedef struct vkPostMotionEntityHistory_s {
 // World-depth snapshot bits for VK_PostProcess_WorldDepthCaptures
 static const int VK_POST_CAPTURE_CEL_WORLD = 1 << 0;
 static const int VK_POST_CAPTURE_SSAO_WORLD = 1 << 1;
+// The view's native PBR world surfaces fill after the classic ones, with a
+// snapshot between (VK_PostProcess_PrepareSSAOField).
+static const int VK_POST_CAPTURE_SSAO_SPLIT = 1 << 2;
+
+// vk_Interactions.cpp: an opaque or perforated surface native PBR owns.
+bool VK_PBR_NativeOpaqueSurface( const drawSurf_t *surf );
 
 typedef struct vkPostSceneState_s {
 	VkShaderModule		modules[ VK_POST_SCENE_MODULE_COUNT ];
@@ -235,6 +250,16 @@ typedef struct vkPostSceneState_s {
 	int					celWorldDepthFrame;
 	int					celWorldDepthWidth;
 	int					celWorldDepthHeight;
+
+	// Native PBR keeps SSAO off its direct light (VK_PostProcess_PrepareSSAOField)
+	idImage *			ssaoClassicDepth;	// the world depth without native PBR surfaces
+	int					ssaoClassicDepthFrame;
+	idImage *			ssaoFieldDepth;		// the depth right after the prepass
+	idImage *			ssaoField;			// r: native PBR indirect AO, g: classic factor, b: world depth
+	idRenderTexture *	ssaoFieldTarget;
+	const viewDef_t *	ssaoFieldView;
+	int					ssaoFieldFrame;
+	bool				ssaoFieldFlip;		// its rows run opposite to the view's target
 
 	idImage *			bloomImages[ VK_POST_BLOOM_MAX_LEVELS ][ 2 ];
 	idRenderTexture *	bloomTargets[ VK_POST_BLOOM_MAX_LEVELS ][ 2 ];
@@ -350,7 +375,6 @@ void VK_PostProcess_PrintTemporalMotion( void ) {
 
 typedef struct vkPostState_s {
 	VkShaderModule	fullscreenVert;
-	VkShaderModule	colorMappingFrag;
 	VkShaderModule	crtFrag;
 	bool			modulesFailed;	// creation failed once; do not retry every frame
 	idImage *		backBufferCopy;
@@ -372,11 +396,6 @@ static struct vkLinearCapture_t {
 void VK_PostProcess_ResetLinearCapture() {
 	vkLinearCapture.valid = false;
 }
-
-// std140 layout of ColorMappingBlock in post_color_mapping.frag
-typedef struct vkPostColorMappingBlock_s {
-	float	params[ 4 ];	// x: brightness, y: gamma
-} vkPostColorMappingBlock_t;
 
 // std140 layout of CRTBlock in post_crt.frag
 typedef struct vkPostCRTBlock_s {
@@ -401,8 +420,7 @@ static VkShaderModule VK_Post_CreateModule( const unsigned char *code, unsigned 
 }
 
 static bool VK_Post_EnsureModules( void ) {
-	if ( vkPost.fullscreenVert != VK_NULL_HANDLE && vkPost.colorMappingFrag != VK_NULL_HANDLE
-			&& vkPost.crtFrag != VK_NULL_HANDLE ) {
+	if ( vkPost.fullscreenVert != VK_NULL_HANDLE && vkPost.crtFrag != VK_NULL_HANDLE ) {
 		return true;
 	}
 	if ( vkPost.modulesFailed || vkCtx.device == VK_NULL_HANDLE ) {
@@ -412,16 +430,11 @@ static bool VK_Post_EnsureModules( void ) {
 		vkPost.fullscreenVert = VK_Post_CreateModule( vk_post_fullscreen_vert_spv,
 				vk_post_fullscreen_vert_spv_size, "post full-screen vertex" );
 	}
-	if ( vkPost.colorMappingFrag == VK_NULL_HANDLE ) {
-		vkPost.colorMappingFrag = VK_Post_CreateModule( vk_post_color_mapping_frag_spv,
-				vk_post_color_mapping_frag_spv_size, "post colour mapping fragment" );
-	}
 	if ( vkPost.crtFrag == VK_NULL_HANDLE ) {
 		vkPost.crtFrag = VK_Post_CreateModule( vk_post_crt_frag_spv,
 				vk_post_crt_frag_spv_size, "post CRT fragment" );
 	}
-	if ( vkPost.fullscreenVert == VK_NULL_HANDLE || vkPost.colorMappingFrag == VK_NULL_HANDLE
-			|| vkPost.crtFrag == VK_NULL_HANDLE ) {
+	if ( vkPost.fullscreenVert == VK_NULL_HANDLE || vkPost.crtFrag == VK_NULL_HANDLE ) {
 		vkPost.modulesFailed = true;
 		return false;
 	}
@@ -478,7 +491,6 @@ void VK_PostProcess_Shutdown( void ) {
 	vkPortalSkyTarget = NULL;
 	VK_Post_ResetHDRExposure();
 	VK_Post_DestroyModule( vkPost.fullscreenVert );
-	VK_Post_DestroyModule( vkPost.colorMappingFrag );
 	VK_Post_DestroyModule( vkPost.crtFrag );
 	memset( &vkPost, 0, sizeof( vkPost ) );
 
@@ -491,6 +503,7 @@ void VK_PostProcess_Shutdown( void ) {
 		}
 	}
 	delete vkPostScene.motionVectorTarget;
+	delete vkPostScene.ssaoFieldTarget;
 	delete vkTemporalMotionTarget;
 	vkTemporalMotionTarget = NULL;
 	vkTemporalMotionImage = NULL;
@@ -500,6 +513,8 @@ void VK_PostProcess_Shutdown( void ) {
 	vkPostScene.finalDepthFrame = -1;
 	vkPostScene.ssaoWorldDepthFrame = -1;
 	vkPostScene.celWorldDepthFrame = -1;
+	vkPostScene.ssaoClassicDepthFrame = -1;
+	vkPostScene.ssaoFieldFrame = -1;
 	VK_Post_ResetMotionBlurHistory();
 }
 
@@ -599,26 +614,6 @@ static VkDescriptorSet VK_Post_CaptureBackBuffer( void ) {
 	return VK_Exec_ImageDescriptor( copy->GetDeviceHandle(), true );
 }
 
-static bool VK_Post_ColorMappingsAreNeutral( float brightness, float gamma ) {
-	return idMath::Fabs( brightness - 1.0f ) <= 0.0001f
-		&& idMath::Fabs( gamma - 1.0f ) <= 0.0001f;
-}
-
-static bool VK_Post_DrawColorMapping( float brightness, float gamma ) {
-	const VkDescriptorSet sceneSet = VK_Post_CaptureBackBuffer();
-	if ( sceneSet == VK_NULL_HANDLE ) {
-		return false;
-	}
-	vkPostColorMappingBlock_t block;
-	memset( &block, 0, sizeof( block ) );
-	block.params[ 0 ] = brightness;
-	block.params[ 1 ] = gamma;
-	const int uniformOffset = VK_Exec_InteractionUniformAlloc( &block, sizeof( block ) );
-	const VkPipeline pipeline = VK_Exec_PostPipeline( VK_POST_COLOR_MAPPING,
-			vkPost.fullscreenVert, vkPost.colorMappingFrag, GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	return VK_Post_DrawFullscreen( pipeline, &sceneSet, 1, uniformOffset );
-}
-
 // RB_ApplyCRTToBackBuffer: same clamps and frame-based clock as OpenGL.
 static float VK_Post_CRTAmount( void ) {
 	return idMath::ClampFloat( 0.0f, 1.0f, r_crtAmount.GetFloat() );
@@ -652,8 +647,10 @@ static bool VK_Post_DrawCRT( void ) {
 ====================
 VK_PostProcess_ApplyBackBuffer
 
-The Vulkan counterpart of the tail of RB_SwapBuffers: CRT, then the
-r_brightness/r_gamma mapping, over the finished frame.
+The Vulkan counterpart of RB_ApplyCRTToBackBuffer at the tail of
+RB_SwapBuffers. RB_ApplyColorMappingsToBackBuffer's counterpart is the
+executor's display mapping, which runs after this when the frame is presented
+or read back.
 ====================
 */
 void VK_PostProcess_ApplyBackBuffer( void ) {
@@ -662,24 +659,14 @@ void VK_PostProcess_ApplyBackBuffer( void ) {
 	}
 	const bool crt = !r_skipPostProcess.GetBool() && r_crt.GetBool()
 			&& VK_Post_CRTAmount() > 0.001f;
-	const float brightness = idMath::ClampFloat( 0.0f, 16.0f, r_brightness.GetFloat() );
-	const float gamma = Max( r_gamma.GetFloat(), 0.001f );
-	const bool colorMapping = !VK_Post_ColorMappingsAreNeutral( brightness, gamma );
-	if ( ( !crt && !colorMapping ) || !VK_Post_EnsureModules() ) {
+	if ( !crt || !VK_Post_EnsureModules() ) {
 		return;
 	}
-	if ( crt && !VK_Post_DrawCRT() ) {
+	if ( !VK_Post_DrawCRT() ) {
 		static bool crtWarned = false;
 		if ( !crtWarned ) {
 			common->Warning( "Vulkan: r_crt pass could not run this frame" );
 			crtWarned = true;
-		}
-	}
-	if ( colorMapping && !VK_Post_DrawColorMapping( brightness, gamma ) ) {
-		static bool warned = false;
-		if ( !warned ) {
-			common->Warning( "Vulkan: r_brightness/r_gamma pass could not run this frame" );
-			warned = true;
 		}
 	}
 }
@@ -1125,18 +1112,33 @@ draw a filtered depth-only fill, copy depth and clear again before the real
 prepass. Depth writes are order independent, so the Vulkan prepass orders its
 surfaces instead: the ones the cel filter keeps, a copy, the rest of the SSAO
 filter's, a copy, then everything else. The cel filter keeps world surfaces
-only, which the SSAO filter also keeps.
+only, which the SSAO filter also keeps. A view whose native PBR owns world
+surfaces splits the SSAO filter's surfaces: classic ones, a copy, native PBR
+ones, the world copy (draw_common.cpp RB_CaptureSSAOWorldDepthImage).
 ====================
 */
 int VK_PostProcess_WorldDepthCaptures( const viewDef_t *viewDef ) {
 	vkPostScene.ssaoWorldDepthFrame = -1;
 	vkPostScene.celWorldDepthFrame = -1;
+	vkPostScene.ssaoClassicDepthFrame = -1;
+	vkPostScene.ssaoFieldFrame = -1;
+	vkPostScene.ssaoFieldView = NULL;
 	int captures = 0;
 	if ( VK_Post_CelInkRequested( viewDef ) ) {
 		captures |= VK_POST_CAPTURE_CEL_WORLD;
 	}
 	if ( VK_Post_SSAORequested( viewDef ) ) {
 		captures |= VK_POST_CAPTURE_SSAO_WORLD;
+		// The cel world ink keeps the classic whole-frame occlusion.
+		if ( ( captures & VK_POST_CAPTURE_CEL_WORLD ) == 0 ) {
+			for ( int i = 0; i < viewDef->numDrawSurfs; i++ ) {
+				const drawSurf_t *surf = viewDef->drawSurfs[ i ];
+				if ( VK_Post_SSAOWorldDepthSurf( surf ) && VK_PBR_NativeOpaqueSurface( surf ) ) {
+					captures |= VK_POST_CAPTURE_SSAO_SPLIT;
+					break;
+				}
+			}
+		}
 	}
 	return captures;
 }
@@ -1146,15 +1148,15 @@ int VK_PostProcess_DepthFillPhase( const drawSurf_t *surf, int captures ) {
 		return 0;
 	}
 	if ( ( captures & VK_POST_CAPTURE_SSAO_WORLD ) != 0 && VK_Post_SSAOWorldDepthSurf( surf ) ) {
-		return 1;
+		return ( captures & VK_POST_CAPTURE_SSAO_SPLIT ) != 0 && VK_PBR_NativeOpaqueSurface( surf ) ? 2 : 1;
 	}
-	return 2;
+	return 3;
 }
 
-// Runs after prepass phase 0 or 1. phaseDrawn counts the surfaces each phase
+// Runs after prepass phases 0-2. phaseDrawn counts the surfaces each phase
 // drew; the copy restarts rendering, so the caller re-establishes its state.
 void VK_PostProcess_CaptureWorldDepth( const viewDef_t *viewDef, int fillPhase, int captures,
-		const int phaseDrawn[ 3 ] ) {
+		const int phaseDrawn[ 4 ] ) {
 	const int width = VK_Post_ViewWidth( viewDef );
 	const int height = VK_Post_ViewHeight( viewDef );
 	if ( fillPhase == 0 && ( captures & VK_POST_CAPTURE_CEL_WORLD ) != 0 && phaseDrawn[ 0 ] > 0 ) {
@@ -1168,8 +1170,16 @@ void VK_PostProcess_CaptureWorldDepth( const viewDef_t *viewDef, int fillPhase, 
 			&& r_celShadingWorldDebug.GetBool() ) {
 		common->Printf( "cel world outline skipped: no world surfaces passed the depth snapshot filter\n" );
 	}
-	if ( fillPhase == 1 && ( captures & VK_POST_CAPTURE_SSAO_WORLD ) != 0
-			&& phaseDrawn[ 0 ] + phaseDrawn[ 1 ] > 0 ) {
+	const bool split = ( captures & VK_POST_CAPTURE_SSAO_SPLIT ) != 0;
+	if ( fillPhase == 1 && split && ( captures & VK_POST_CAPTURE_SSAO_WORLD ) != 0 ) {
+		// The classic world alone; empty where native PBR is the only world.
+		idImage *image = VK_Post_EnsureImage( vkPostScene.ssaoClassicDepth, "_vkSSAOClassicDepth", VK_Post_DepthImage );
+		if ( VK_Post_CaptureDepth( image, viewDef ) ) {
+			vkPostScene.ssaoClassicDepthFrame = backEnd.frameCount;
+		}
+	}
+	if ( fillPhase == ( split ? 2 : 1 ) && ( captures & VK_POST_CAPTURE_SSAO_WORLD ) != 0
+			&& phaseDrawn[ 0 ] + phaseDrawn[ 1 ] + ( split ? phaseDrawn[ 2 ] : 0 ) > 0 ) {
 		idImage *image = VK_Post_EnsureImage( vkPostScene.ssaoWorldDepth, "_vkSSAOWorldDepth", VK_Post_DepthImage );
 		if ( VK_Post_CaptureDepth( image, viewDef ) ) {
 			vkPostScene.ssaoWorldDepthFrame = backEnd.frameCount;
@@ -1188,7 +1198,42 @@ typedef struct vkPostSSAOBlock_s {
 	float	depthInfo[ 4 ];
 	float	params[ 4 ];
 	float	params2[ 4 ];
+	float	modeInfo[ 4 ];		// x mode (0 classic, 1 field, 2 apply), y field rows flipped
 } vkPostSSAOBlock_t;
+
+static void VK_Post_FillSSAOBlock( vkPostSSAOBlock_t &block, const viewDef_t *viewDef,
+		int width, int height, float mode, bool flip ) {
+	memset( &block, 0, sizeof( block ) );
+	block.texInfo[ 0 ] = 1.0f / (float)width;
+	block.texInfo[ 1 ] = 1.0f / (float)height;
+	block.texInfo[ 2 ] = 0.5f * (float)height * idMath::Fabs( viewDef->projectionMatrix[ 5 ] );
+	block.texInfo[ 3 ] = r_ssaoDebug.GetBool() ? 1.0f : 0.0f;
+	VK_Post_ProjectionInfo( viewDef, block.projection );
+	block.depthInfo[ 0 ] = viewDef->projectionMatrix[ 10 ];
+	block.depthInfo[ 1 ] = viewDef->projectionMatrix[ 14 ];
+	block.params[ 0 ] = r_ssaoRadius.GetFloat();
+	block.params[ 1 ] = r_ssaoBias.GetFloat();
+	block.params[ 2 ] = r_ssaoIntensity.GetFloat();
+	block.params[ 3 ] = r_ssaoPower.GetFloat();
+	block.params2[ 0 ] = r_ssaoMaxDistance.GetFloat();
+	block.params2[ 1 ] = (float)idMath::ClampInt( 4, 32, r_ssaoSamples.GetInteger() );
+	block.modeInfo[ 0 ] = mode;
+	block.modeInfo[ 1 ] = flip ? 1.0f : 0.0f;
+}
+
+static bool VK_Post_SSAOFieldValid( const viewDef_t *viewDef ) {
+	return vkPostScene.ssaoFieldFrame == backEnd.frameCount && vkPostScene.ssaoFieldView == viewDef
+		&& vkPostScene.ssaoField != NULL;
+}
+
+bool VK_PostProcess_SSAOField( const viewDef_t *viewDef, idImage **image, bool *flip ) {
+	if ( !VK_Post_SSAOFieldValid( viewDef ) ) {
+		return false;
+	}
+	*image = vkPostScene.ssaoField;
+	*flip = vkPostScene.ssaoFieldFlip;
+	return true;
+}
 
 static bool VK_Post_DrawSSAO( const viewDef_t *viewDef ) {
 	const VkShaderModule fragModule = VK_Post_SceneModule( VK_POST_MODULE_SSAO );
@@ -1216,29 +1261,80 @@ static bool VK_Post_DrawSSAO( const viewDef_t *viewDef ) {
 		worldDepth = vkPostScene.ssaoWorldDepth;
 	}
 
+	// A view with an occlusion field only applies its classic factor.
+	const bool field = VK_Post_SSAOFieldValid( viewDef );
 	vkPostSSAOBlock_t block;
-	memset( &block, 0, sizeof( block ) );
-	block.texInfo[ 0 ] = 1.0f / (float)width;
-	block.texInfo[ 1 ] = 1.0f / (float)height;
-	block.texInfo[ 2 ] = 0.5f * (float)height * idMath::Fabs( viewDef->projectionMatrix[ 5 ] );
-	block.texInfo[ 3 ] = r_ssaoDebug.GetBool() ? 1.0f : 0.0f;
-	VK_Post_ProjectionInfo( viewDef, block.projection );
-	block.depthInfo[ 0 ] = viewDef->projectionMatrix[ 10 ];
-	block.depthInfo[ 1 ] = viewDef->projectionMatrix[ 14 ];
-	block.params[ 0 ] = r_ssaoRadius.GetFloat();
-	block.params[ 1 ] = r_ssaoBias.GetFloat();
-	block.params[ 2 ] = r_ssaoIntensity.GetFloat();
-	block.params[ 3 ] = r_ssaoPower.GetFloat();
-	block.params2[ 0 ] = r_ssaoMaxDistance.GetFloat();
-	block.params2[ 1 ] = (float)idMath::ClampInt( 4, 32, r_ssaoSamples.GetInteger() );
+	VK_Post_FillSSAOBlock( block, viewDef, width, height, field ? 2.0f : 0.0f, field && vkPostScene.ssaoFieldFlip );
 
-	const VkDescriptorSet sets[ 3 ] = {
-		VK_Post_Descriptor( scene ), VK_Post_Descriptor( worldDepth ), VK_Post_Descriptor( finalDepth )
+	const VkDescriptorSet sets[ 5 ] = {
+		VK_Post_Descriptor( scene ), VK_Post_Descriptor( worldDepth ), VK_Post_Descriptor( finalDepth ),
+		VK_Post_Descriptor( finalDepth ), VK_Post_Descriptor( field ? vkPostScene.ssaoField : globalImages->whiteImage )
 	};
 	const int uniformOffset = VK_Exec_InteractionUniformAlloc( &block, sizeof( block ) );
 	const VkPipeline pipeline = VK_Exec_PostPipeline( VK_POST_SSAO, vkPost.fullscreenVert, fragModule,
 			GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	return VK_Post_DrawSceneRect( viewDef, pipeline, sets, 3, uniformOffset );
+	return VK_Post_DrawSceneRect( viewDef, pipeline, sets, 5, uniformOffset );
+}
+
+static bool VK_Post_EnsureColorTarget( idImage *&image, idRenderTexture *&target, const char *name,
+		int width, int height, textureFilter_t filter, const char *label );
+
+/*
+====================
+VK_PostProcess_PrepareSSAOField
+
+Right after the depth prepass of a view whose world depth was split, before
+any light draws: the occlusion field native PBR folds into the AO of its
+indirect light, as OpenGL's RB_PrepareSSAOIndirectField. It has the active
+target's size and is drawn at the view's rectangle, so a fragment reads it at
+gl_FragCoord; its rows are flipped when that target is the top-down swapchain.
+The caller re-establishes its draw state afterwards.
+====================
+*/
+bool VK_PostProcess_PrepareSSAOField( const viewDef_t *viewDef ) {
+	vkPostScene.ssaoFieldFrame = -1;
+	vkPostScene.ssaoFieldView = NULL;
+	const int width = VK_Post_ViewWidth( viewDef );
+	const int height = VK_Post_ViewHeight( viewDef );
+	if ( vkPostScene.ssaoClassicDepthFrame != backEnd.frameCount || vkPostScene.ssaoWorldDepthFrame != backEnd.frameCount
+			|| vkPostScene.ssaoWorldDepthWidth != width || vkPostScene.ssaoWorldDepthHeight != height
+			|| width <= 0 || height <= 0 || !VK_Post_EnsureModules() || !VK_Post_ProjectionUsable( viewDef ) ) {
+		return false;
+	}
+	const VkShaderModule fragModule = VK_Post_SceneModule( VK_POST_MODULE_SSAO );
+	idImage *depth = VK_Post_EnsureImage( vkPostScene.ssaoFieldDepth, "_vkSSAOFieldDepth", VK_Post_DepthImage );
+	if ( fragModule == VK_NULL_HANDLE || !VK_Post_CaptureDepth( depth, viewDef ) ) {
+		return false;
+	}
+	idRenderTexture *sceneTarget = VK_Exec_ActiveRenderTexture();
+	const int sceneFace = VK_Exec_ActiveCubeFace();
+	const bool sceneLowerOrigin = VK_Exec_ActiveLowerOrigin();
+	if ( !VK_Post_EnsureColorTarget( vkPostScene.ssaoField, vkPostScene.ssaoFieldTarget, "_vkSSAOField",
+			VK_Exec_ActiveFramebufferWidth(), VK_Exec_ActiveFramebufferHeight(), TF_NEAREST, "SSAO field" ) ) {
+		return false;
+	}
+	bool drawn = false, fieldLowerOrigin = false;
+	if ( VK_Exec_SetRenderTarget( vkPostScene.ssaoFieldTarget ) ) {
+		fieldLowerOrigin = VK_Exec_ActiveLowerOrigin();
+		vkPostSSAOBlock_t block;
+		VK_Post_FillSSAOBlock( block, viewDef, width, height, 1.0f, false );
+		const VkDescriptorSet sets[ 5 ] = {
+			VK_Post_Descriptor( globalImages->whiteImage ), VK_Post_Descriptor( vkPostScene.ssaoWorldDepth ),
+			VK_Post_Descriptor( depth ), VK_Post_Descriptor( vkPostScene.ssaoClassicDepth ),
+			VK_Post_Descriptor( globalImages->whiteImage )
+		};
+		const int uniformOffset = VK_Exec_InteractionUniformAlloc( &block, sizeof( block ) );
+		const VkPipeline pipeline = VK_Exec_PostPipeline( VK_POST_SSAO, vkPost.fullscreenVert, fragModule,
+				GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		drawn = VK_Post_DrawSceneRect( viewDef, pipeline, sets, 5, uniformOffset );
+	}
+	if ( !VK_Exec_SetRenderTarget( sceneTarget, sceneFace ) || !drawn ) {
+		return false;
+	}
+	vkPostScene.ssaoFieldFlip = fieldLowerOrigin != sceneLowerOrigin;
+	vkPostScene.ssaoFieldFrame = backEnd.frameCount;
+	vkPostScene.ssaoFieldView = viewDef;
+	return true;
 }
 
 // ---- motion blur (RB_STD_MotionBlur) ----
@@ -1392,6 +1488,67 @@ static void VK_Post_UpdateMotionEntityHistory( const viewDef_t *viewDef ) {
 	VK_Post_UpdateMotionEntityHistory( viewDef, vkPostMotionEntityHistory, vkPostMotionNextEntityHistory );
 }
 
+static int VK_Post_CompareMotionEntityHistory( const void *a, const void *b ) {
+	return static_cast<const vkPostMotionEntityHistory_t *>( a )->entityIndex
+		- static_cast<const vkPostMotionEntityHistory_t *>( b )->entityIndex;
+}
+
+// TAA's transform history covers every moving entity the next frame may draw
+// exactly (rigid or posed, the view weapon included), sorted for lookups.
+static void VK_Post_UpdateTemporalMotionEntityHistory( const viewDef_t *viewDef,
+		idList<vkPostMotionEntityHistory_t> &history, idList<vkPostMotionEntityHistory_t> &nextHistory ) {
+	nextHistory.Clear();
+	for ( int i = 0; i < viewDef->numDrawSurfs; i++ ) {
+		const drawSurf_t *surf = viewDef->drawSurfs[ i ];
+		if ( surf == NULL || surf->space == NULL || surf->space->entityDef == NULL
+				|| surf->space->entityDef->index < 0
+				|| ( surf->space->entityDef->parms.hModel != NULL
+					&& surf->space->entityDef->parms.hModel->IsStaticWorldModel() ) ) {
+			continue;
+		}
+		vkPostMotionEntityHistory_t &entry = nextHistory.Alloc();
+		entry.entityIndex = surf->space->entityDef->index;
+		entry.model = surf->space->entityDef->parms.hModel;
+		memcpy( entry.modelMatrix, surf->space->modelMatrix, sizeof( entry.modelMatrix ) );
+	}
+	if ( nextHistory.Num() > 1 ) {
+		qsort( nextHistory.Ptr(), nextHistory.Num(), sizeof( vkPostMotionEntityHistory_t ),
+			VK_Post_CompareMotionEntityHistory );
+		int unique = 1;
+		for ( int i = 1; i < nextHistory.Num(); i++ ) {
+			if ( nextHistory[ i ].entityIndex != nextHistory[ unique - 1 ].entityIndex ) {
+				nextHistory[ unique++ ] = nextHistory[ i ];
+			}
+		}
+		nextHistory.SetNum( unique, false );
+	}
+	history.Swap( nextHistory );
+	nextHistory.Clear();
+}
+
+static bool VK_Post_FindTemporalMotionEntityHistory( const idList<vkPostMotionEntityHistory_t> &history,
+		const idRenderEntityLocal *entity, float previousModelMatrix[ 16 ] ) {
+	int low = 0;
+	int high = history.Num() - 1;
+	while ( low <= high ) {
+		const int middle = ( low + high ) >> 1;
+		const int key = history[ middle ].entityIndex;
+		if ( key == entity->index ) {
+			if ( history[ middle ].model != entity->parms.hModel ) {
+				return false;
+			}
+			memcpy( previousModelMatrix, history[ middle ].modelMatrix, sizeof( float ) * 16 );
+			return true;
+		}
+		if ( key < entity->index ) {
+			low = middle + 1;
+		} else {
+			high = middle - 1;
+		}
+	}
+	return false;
+}
+
 static bool VK_Post_EnsureColorTarget( idImage *&image, idRenderTexture *&target, const char *name,
 		int width, int height, textureFilter_t filter, const char *label ) {
 	if ( width <= 0 || height <= 0 ) {
@@ -1429,6 +1586,13 @@ typedef struct vkPostMotionVectorPush_s {
 	float	currentMvp[ 16 ];
 	float	previousMvp[ 16 ];
 } vkPostMotionVectorPush_t;
+
+// post_motionvectors_reactive: the same 128-byte range, read as one matrix
+// and a parameter vector
+typedef struct vkPostReactiveCoveragePush_s {
+	float	currentMvp[ 16 ];
+	float	params[ 4 ];			// x: reactive strength
+} vkPostReactiveCoveragePush_t;
 
 /*
 ====================
@@ -1468,6 +1632,25 @@ static bool VK_Post_RenderMotionVectors( const viewDef_t *viewDef, const vkPostM
 	VkCommandBuffer cmd = VK_Exec_ActiveCmd();
 	const VkPipeline pipeline = VK_Exec_ExtraPipeline( VK_POST_MOTION_VECTORS, vertModule, fragModule,
 			GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO, VK_EXTRA_VERTEX_POSITION, 0 );
+	// Temporal AA owns every moving surface per pixel: posed surfaces add a
+	// previous-position stream, everything without exact motion marks the blue
+	// reactive channel only. Motion blur keeps the rigid-only pass.
+	VkPipeline previousPipeline = VK_NULL_HANDLE;
+	VkPipeline reactivePipeline = VK_NULL_HANDLE;
+	if ( temporal ) {
+		const VkShaderModule previousVertModule = VK_Post_SceneModule( VK_POST_MODULE_MOTION_VECTORS_PREVIOUS_VERT );
+		const VkShaderModule reactiveVertModule = VK_Post_SceneModule( VK_POST_MODULE_MOTION_VECTORS_REACTIVE_VERT );
+		const VkShaderModule reactiveFragModule = VK_Post_SceneModule( VK_POST_MODULE_MOTION_VECTORS_REACTIVE_FRAG );
+		if ( previousVertModule != VK_NULL_HANDLE ) {
+			previousPipeline = VK_Exec_ExtraPipeline( VK_POST_MOTION_VECTORS_PREVIOUS, previousVertModule, fragModule,
+				GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO, VK_EXTRA_VERTEX_POSITION_PREVIOUS, 0 );
+		}
+		if ( reactiveVertModule != VK_NULL_HANDLE && reactiveFragModule != VK_NULL_HANDLE ) {
+			reactivePipeline = VK_Exec_ExtraPipeline( VK_POST_MOTION_VECTORS_REACTIVE, reactiveVertModule, reactiveFragModule,
+				GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_REDMASK | GLS_GREENMASK | GLS_ALPHAMASK,
+				VK_EXTRA_VERTEX_POSITION, 0 );
+		}
+	}
 	// Sample the depth image using its recorded row order, including
 	// both canonical scene depth and normalized post captures.
 	const vkImageEntry_t *depthEntry = VK_Image_GetEntry( depthImage->GetDeviceHandle() );
@@ -1495,22 +1678,81 @@ static bool VK_Post_RenderMotionVectors( const viewDef_t *viewDef, const vkPostM
 		vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 6, 1, &uniformSet, 1, &dynamicOffset );
 
 		const int slot = VK_Exec_ActiveFrameSlot();
+		VkPipeline boundPipeline = pipeline;
+		bool weaponDepthRange = false;
+		temporalOwnershipStats_t ownership;
+		memset( &ownership, 0, sizeof( ownership ) );
+		ownership.frameNumber = backEnd.frameCount;
 		for ( int i = 0; i < viewDef->numDrawSurfs; i++ ) {
 			const drawSurf_t *surf = viewDef->drawSurfs[ i ];
-			if ( !R_ScenePackets_TemporalRigidMotionEligible( surf ) ) {
+			temporalSurfaceMotion_t motion = TEMPORAL_SURFACE_MOTION_NONE;
+			if ( temporal ) {
+				motion = R_ScenePackets_TemporalSurfaceMotion( surf );
+			} else if ( R_ScenePackets_TemporalRigidMotionEligible( surf ) ) {
+				motion = TEMPORAL_SURFACE_MOTION_RIGID;
+			}
+			if ( motion == TEMPORAL_SURFACE_MOTION_NONE ) {
 				continue;
 			}
-			if ( temporal ) { ++vkTemporalMotionEligible; }
+			if ( temporal && motion != TEMPORAL_SURFACE_MOTION_REACTIVE ) { ++vkTemporalMotionEligible; }
+			// a surface that should move exactly but cannot owns no history at all
+			bool noHistory = false;
 			float previousModelMatrix[ 16 ];
-			if ( !VK_Post_FindMotionEntityHistory( entityHistory, surf->space->entityDef, previousModelMatrix ) ) {
-				complete = false;
-				continue;
+			if ( motion != TEMPORAL_SURFACE_MOTION_REACTIVE && !( temporal
+					? VK_Post_FindTemporalMotionEntityHistory( entityHistory, surf->space->entityDef, previousModelMatrix )
+					: VK_Post_FindMotionEntityHistory( entityHistory, surf->space->entityDef, previousModelMatrix ) ) ) {
+				if ( !temporal ) {
+					complete = false;
+					continue;
+				}
+				// newly visible: no previous transform, so it owns no history yet
+				motion = TEMPORAL_SURFACE_MOTION_REACTIVE;
+				noHistory = true;
 			}
 			const srfTriangles_t *tri = surf->geo;
 			if ( tri->ambientCache == NULL || tri->indexes == NULL
 					|| !VK_Exec_BindTriGeometry( cmd, slot, tri ) ) {
 				complete = false;
+				ownership.missed++;
 				continue;
+			}
+			if ( motion == TEMPORAL_SURFACE_MOTION_PREVIOUS_POSITIONS
+					&& ( previousPipeline == VK_NULL_HANDLE
+						|| !VK_Exec_BindPreviousPositions( cmd, slot, surf ) ) ) {
+				motion = TEMPORAL_SURFACE_MOTION_REACTIVE;
+				noHistory = true;
+			}
+			const VkPipeline wantedPipeline = motion == TEMPORAL_SURFACE_MOTION_REACTIVE ? reactivePipeline
+				: ( motion == TEMPORAL_SURFACE_MOTION_PREVIOUS_POSITIONS ? previousPipeline : pipeline );
+			if ( wantedPipeline == VK_NULL_HANDLE ) {
+				complete = false;
+				ownership.missed++;
+				continue;
+			}
+			if ( motion == TEMPORAL_SURFACE_MOTION_REACTIVE ) {
+				ownership.reactive++;
+			} else {
+				if ( motion == TEMPORAL_SURFACE_MOTION_PREVIOUS_POSITIONS ) {
+					ownership.posed++;
+				} else {
+					ownership.rigid++;
+				}
+				if ( surf->space->weaponDepthHack ) {
+					ownership.weapon++;
+				}
+			}
+			if ( wantedPipeline != boundPipeline ) {
+				// every variant shares the interaction layout, so the bound
+				// depth and uniform sets stay valid
+				vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wantedPipeline );
+				boundPipeline = wantedPipeline;
+			}
+			// the view weapon is drawn into depth range 0..0.5
+			const bool wantWeaponRange = temporal && surf->space->weaponDepthHack;
+			if ( wantWeaponRange != weaponDepthRange ) {
+				weaponDepthRange = wantWeaponRange;
+				viewport.maxDepth = wantWeaponRange ? 0.5f : 1.0f;
+				vkCmdSetViewport( cmd, 0, 1, &viewport );
 			}
 
 			// TAA runs after scene scaling restores the view rectangles. Scale
@@ -1546,6 +1788,19 @@ static bool VK_Post_RenderMotionVectors( const viewDef_t *viewDef, const vkPostM
 					break;
 			}
 
+			if ( motion == TEMPORAL_SURFACE_MOTION_REACTIVE ) {
+				vkPostReactiveCoveragePush_t push;
+				VK_BuildSurfMVP( viewDef, surf, push.currentMvp );
+				push.params[ 0 ] = noHistory ? 1.0f : R_ScenePackets_TemporalSurfaceReactiveStrength( surf );
+				push.params[ 1 ] = push.params[ 2 ] = push.params[ 3 ] = 0.0f;
+				vkCmdPushConstants( cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+						0, sizeof( push ), &push );
+				vkCmdDrawIndexed( cmd, (uint32_t)tri->numIndexes, 1, 0, 0, 0 );
+				drew = true;
+				continue;
+			}
+			// The weapon's depth hack only rescales clip z, which the vector
+			// ignores, so last frame's plain projection still matches.
 			vkPostMotionVectorPush_t push;
 			VK_BuildSurfMVP( viewDef, surf, push.currentMvp );
 			float previousModelView[ 16 ];
@@ -1557,7 +1812,15 @@ static bool VK_Post_RenderMotionVectors( const viewDef_t *viewDef, const vkPostM
 			if ( temporal ) { ++vkTemporalMotionDrawn; }
 			drew = true;
 		}
+		if ( weaponDepthRange ) {
+			viewport.maxDepth = 1.0f;
+			vkCmdSetViewport( cmd, 0, 1, &viewport );
+		}
 		vkCmdSetFrontFace( cmd, VK_Exec_CanonicalFrontFace() );
+		if ( temporal ) {
+			ownership.complete = complete;
+			R_TemporalPresentation_RecordOwnership( ownership );
+		}
 	}
 	if ( drew ) { VK_Exec_MarkColorOrigin( false ); }
 	complete = VK_Exec_SetRenderTarget( sceneTarget, sceneCubeFace ) && complete;
@@ -1585,8 +1848,10 @@ idImage *VK_PostProcess_TemporalMotionVectors( const viewDef_t *viewDef,
 		depthImage, VK_Exec_ActiveRenderTexture(), vkTemporalMotionEntityHistory,
 		vkTemporalMotionImage, vkTemporalMotionTarget, width, height, true, complete );
 	vkTemporalMotionComplete = complete;
-	if ( drawn && complete ) { ++vkTemporalMotionCompletedViews; }
-	return drawn ? vkTemporalMotionImage : NULL;
+	if ( complete ) { ++vkTemporalMotionCompletedViews; }
+	// A complete per-pixel target is meaningful even when nothing moved: its
+	// cleared texels say "camera reprojection, no reactive coverage".
+	return ( drawn || complete ) ? vkTemporalMotionImage : NULL;
 }
 
 void VK_PostProcess_CommitTemporalMotion( const viewDef_t *viewDef,
@@ -1597,7 +1862,7 @@ void VK_PostProcess_CommitTemporalMotion( const viewDef_t *viewDef,
 		VK_PostProcess_ResetTemporalMotion();
 		return;
 	}
-	VK_Post_UpdateMotionEntityHistory( viewDef, vkTemporalMotionEntityHistory, vkTemporalMotionNextEntityHistory );
+	VK_Post_UpdateTemporalMotionEntityHistory( viewDef, vkTemporalMotionEntityHistory, vkTemporalMotionNextEntityHistory );
 	vkTemporalMotionGeneration = generation;
 	vkTemporalMotionViewIdentity = viewDef->temporalViewIdentity;
 	vkTemporalMotionFrame = backEnd.frameCount;

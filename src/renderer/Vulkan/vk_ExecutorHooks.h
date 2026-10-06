@@ -22,7 +22,8 @@ enum vkExtraVertexLayout_t {
 	VK_EXTRA_VERTEX_POSITION,		// idDrawVert xyz only
 	VK_EXTRA_VERTEX_DRAWVERT,		// the interaction layout: xyz 0, colour 1, normal 2, tangents 3-4, st 5
 	VK_EXTRA_VERTEX_DEBUG,			// vkDebugVert_t: xyzw 0, RGBA8 colour 1, st 2 (28-byte stride)
-	VK_EXTRA_VERTEX_GUI				// gui.vert's idDrawVert xyz 0, colour 1 and st 2
+	VK_EXTRA_VERTEX_GUI,			// gui.vert's idDrawVert xyz 0, colour 1 and st 2
+	VK_EXTRA_VERTEX_POSITION_PREVIOUS	// idDrawVert xyz 0 (binding 0) + idVec3 previous position 1 (binding 1)
 };
 
 // VK_Exec_ExtraPipeline flags
@@ -115,6 +116,8 @@ void VK_PostProcess_CommitTemporalMotion( const viewDef_t *viewDef,
 void VK_PostProcess_ResetTemporalMotion( void );
 
 bool				VK_Exec_BindTriGeometry( VkCommandBuffer cmd, int slot, const srfTriangles_t *tri );
+// binds drawSurf->previousPositionCache at vertex binding 1 (temporal AA)
+bool				VK_Exec_BindPreviousPositions( VkCommandBuffer cmd, int slot, const drawSurf_t *surf );
 // streams vertices into the frame's vertex ring and binds them as binding 0
 bool				VK_Exec_BindTransientVertices( VkCommandBuffer cmd, const void *data, int bytes );
 void				VK_BuildSurfMVP( const viewDef_t *viewDef, const drawSurf_t *drawSurf, float outMvp[ 16 ] );
@@ -136,6 +139,12 @@ void VK_PBR_PrepareBakedView( const viewDef_t *view );
 bool VK_PBR_BakedViewReady( const viewDef_t *view );
 bool VK_PBR_RetargetBakedView( const viewDef_t *view );
 bool VK_PBR_BakedSurfaceOwned( const viewDef_t *view, const drawSurf_t *surf );
+// A display-referred frame lights a natively owned PBR receiver's baked grid
+// in its environment pass, never in the classic grid pass.
+bool VK_PBR_GridOwned( const viewDef_t *view, const drawSurf_t *surf );
+// The ambient walk visits a PBR surface without authored ambient stages when
+// its environment pass has work: environment light, a diagnostic or a grid.
+bool VK_PBR_EnvironmentVisit( const viewDef_t *view, const drawSurf_t *surf );
 VkPipeline VK_Exec_BakedEnvironmentPipeline( bool probes );
 VkPipelineLayout VK_Exec_BakedEnvironmentPipelineLayout();
 VkDescriptorSet VK_Exec_BakedDescriptor( idImage * const images[3], VkDescriptorSet probes );

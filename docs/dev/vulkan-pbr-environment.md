@@ -2,9 +2,14 @@
 
 Status: implemented and locally qualified at 0x/4x MSAA on Windows/NVIDIA.
 This records the analytic environment contribution for admitted authored PBR
-surfaces. [Authored reflection probes](vulkan-pbr-probes.md) also have local
-LDR qualification at 0x/4x. Baked PBR diffuse composition and full scene
-color parity remain open; Vulkan remains experimental.
+surfaces. Since Stage E of the
+[production-readiness plan](plans/2026-10-04-pbr-production-readiness.md) the
+analytic studio environment lights only the laboratory
+(`r_pbrAnalyticEnvironment 1`); production environment light comes from
+authored probes, baked light grids and ambient lights. [Authored reflection probes](vulkan-pbr-probes.md) also have local
+LDR qualification at 0x/4x. Baked PBR diffuse composes in the environment
+pass ([baked lighting](vulkan-pbr-baked.md)); full scene color parity remains
+open; Vulkan remains experimental.
 
 The existing `r_pbrIBL` and `r_pbrIBLIntensity` controls now drive a native
 once-per-surface pass. Its lazily generated RGBA16F atlas uses the same analytic
@@ -43,6 +48,21 @@ Generated image ownership handles image reload and device restart. Every mip
 must upload successfully before the atlas is usable; a partial upload purges
 the image. Ordinary stock materials and disabled PBR do not request it.
 
+The atlas keeps a sampler of its own that addresses the whole mip chain
+(`VK_Image_UseExplicitMipChain`). From c850233d (2026-09-25) until 2026-10-04,
+an explicit `TF_LINEAR` sampler clamped every image to its base level to match
+`GL_LINEAR`. The atlas is `TF_LINEAR`, so every explicit-LOD read returned the
+mirror level: rough Vulkan reflections and authored probes showed an unfiltered
+key highlight, and GL/Vulkan IBL parity failed `rough-high` and `double`
+(maximum 4 bytes; 11 once energy compensation brightened the specimen). With
+the dedicated sampler all 26 paired IBL controls match exactly. The OpenGL
+atlas is a raw texture with `GL_LINEAR_MIPMAP_LINEAR` and was never affected.
+
+Since 2026-10-04 the pass applies the shared roughness/AO kernel: specular
+occlusion and multi-bounce AO, horizon occlusion against the interpolated
+vertex normal, and multiple-scattering energy compensation from the split-sum
+table's `A + B`. See the [production-readiness plan](plans/2026-10-04-pbr-production-readiness.md).
+
 The opaque environment pass checks the existing baked receiver rules per surface:
 the default `r_useLightGrid 1` switch no longer disables environment lighting
 when the map or receiver has no eligible baked grid. The frozen v21 regression
@@ -51,10 +71,12 @@ probes, metal, cutouts and transparency all remain byte-identical when the grid
 switch is enabled and restored. The v19 negative fails the four opaque cases.
 The 60 captures and 40 exact comparisons are pinned in
 `.tmp/vulkan-gap-closure/pbr-grid-default/checkpoint-v21.json`.
-Eligible HDR baked receivers now use a [combined baked/environment
+Baked receivers use a [combined baked/environment
 owner](vulkan-pbr-baked.md). It replaces classic grid and environment diffuse
-with PBR baked diffuse, preserving environment specular. Unsupported views keep
-the existing grid path. Transparent surfaces do not receive the classic grid
+with PBR baked diffuse, preserving environment specular: per surface in an
+ordinary display-referred frame, and prepared for the whole view in the
+laboratory's linear HDR scene, where unsupported views keep the existing grid
+path. Transparent surfaces do not receive the classic grid
 and keep their environment pass.
 
 ## Qualification

@@ -616,6 +616,45 @@ Absolutely every image goes through this path
 On exit, the idImage will have a valid OpenGL texture number that can be bound
 ===============
 */
+/*
+==============
+PredictDirectDDSPayload
+
+Mirrors ActuallyLoadImage's direct-DDS decision without its staleness check;
+the preferred-source resolution is memoized for the level load, so the load
+itself asks again for free.
+==============
+*/
+bool idImage::PredictDirectDDSPayload( idStr &path ) const {
+	if ( scratchImage || generatorFunction != NULL || cubeFiles != CF_2D || usage == TD_PBR_COLOR
+			|| R_ImagePolicyUsesPreparedContent() ) {
+		return false;
+	}
+	idStr name = GetName();
+	idStr extension;
+	name.ExtractFileExtension( extension );
+	if ( idStr::Icmp( extension.c_str(), "dds" ) == 0 ) {
+		path = name;
+	} else {
+		bool precompressed = false;
+		if ( !R_ResolvePreferredDDSImageSource( GetName(), path, NULL, true, &precompressed ) || !precompressed ) {
+			return false;
+		}
+	}
+	path.BackSlashesToSlashes();
+	return true;
+}
+
+int idImageUploadErrorScope::depth = 0;
+bool idImageUploadErrorScope::pending = false;
+
+idImageUploadErrorScope::~idImageUploadErrorScope() {
+	if ( --depth == 0 && pending ) {
+		pending = false;
+		GL_CheckErrors();
+	}
+}
+
 void idImage::ActuallyLoadImage( bool fromBackEnd ) {
 	if ( !R_ImagePolicyOperationAllowed() ) return;
 	if ( !R_ImagePolicyContentMutation() ) return;
@@ -656,9 +695,12 @@ void idImage::ActuallyLoadImage( bool fromBackEnd ) {
             defaulted=false;
             const auto source=descriptor.scope==IPC_DIRECT_SOURCE?ICS_DIRECT_DDS:ICS_GENERATED;
             consumedLoad.Content(*prepared,source);
-            AllocImage();
-            for(int i=0;i<prepared->NumImages();++i){const bimageImage_t& part=prepared->GetImageHeader(i);
-                SubImageUpload(part.level,0,0,part.destZ,part.width,part.height,prepared->GetImageData(i));}
+            {
+                idImageUploadErrorScope uploadErrors;
+                AllocImage();
+                for(int i=0;i<prepared->NumImages();++i){const bimageImage_t& part=prepared->GetImageHeader(i);
+                    SubImageUpload(part.level,0,0,part.destZ,part.width,part.height,prepared->GetImageData(i));}
+            }
             loadedSourceName=descriptor.file.qpath;
             consumedLoad.Loaded(source);
             return;
@@ -1065,6 +1107,7 @@ void idImage::ActuallyLoadImage( bool fromBackEnd ) {
 	consumedLoad.Content(im,consumedSource);
 	{
 		idScopedImageLoadPhase uploadPhase( imageLoadPhaseTimings.uploadMsec, imageLoadPhaseTimings.uploadCount );
+		idImageUploadErrorScope uploadErrors;
 		AllocImage();
 
 		const int imageCount = im.NumImages();

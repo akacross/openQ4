@@ -236,8 +236,11 @@ bool R_ModernGLExecutor_ModernVisibleRequestedForPost( void ) {
 
 static bool R_ModernGLExecutor_PBRLinearSceneRequested( void ) {
 	// A renderer mode, never a test for the visible material count: crossing a
-	// portal must not change the transfer function of the whole scene.
-	return r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool() && r_hdrToneMap.GetBool();
+	// portal must not change the transfer function of the whole scene. The
+	// linear scene presents classic surfaces through the PBR filmic curve, so
+	// it is the explicit laboratory mode, never implied by tone mapping alone.
+	return r_rendererModernQuality.GetBool() && r_pbrMaterials.GetBool() && r_hdrToneMap.GetBool()
+		&& r_pbrLinearScene.GetBool();
 }
 
 bool R_ModernGLExecutor_PBRLinearSceneActive( void ) {
@@ -2650,6 +2653,41 @@ static void R_ModernGLExecutor_ClassifyModernVisibleLighting( const idScenePacke
 	R_ModernGLExecutor_RecomputeModernVisibleFallbacks( stats );
 }
 
+/*
+==================
+R_ModernGLExecutor_DeclinePBRUnderSSAO
+
+SSAO occludes only a PBR surface's indirect light: the classic light loop's
+native owner folds the occlusion field into it (PBR production readiness,
+Stage D). This path would darken the whole frame afterwards instead, so a
+frame that requests SSAO and draws a PBR material stays classic.
+==================
+*/
+static void R_ModernGLExecutor_DeclinePBRUnderSSAO( const idScenePacketFrame &packetFrame, const idRenderGraph &graph, modernGLExecutorStats_t &stats ) {
+	bool ssao = false;
+	for ( int i = 0; i < graph.NumPasses() && !ssao; ++i ) {
+		ssao = graph.Pass( i ).enabled && graph.Pass( i ).category == RENDER_PASS_SSAO;
+	}
+	if ( !ssao ) {
+		return;
+	}
+	const int drawPacketCount = packetFrame.NumDrawPackets();
+	for ( int i = 0; i < drawPacketCount; ++i ) {
+		const drawPacket_t &draw = packetFrame.DrawPacket( i );
+		if ( draw.materialRecord == NULL || R_ModernGLExecutor_DrawPacketUsesLegacySidecarView( draw ) ) {
+			continue;
+		}
+		const materialResourceTableRecord_t *record = R_MaterialResourceTable_FindRecordForMaterial( draw.materialRecord->material );
+		if ( record == NULL || !record->hasPBR ) {
+			continue;
+		}
+		stats.modernVisibleMaterialFallbackDraws++;
+		R_ModernGLExecutor_SetOwnershipBlocker( stats, "material", R_ModernGLExecutor_ViewIndexForViewDef( packetFrame, draw.viewDef ),
+			draw.passCategory, record->materialId, record->materialName, "pbr-ssao-indirect-only" );
+		return;
+	}
+}
+
 static void R_ModernGLExecutor_AnalyzeModernVisibleOwnershipReadiness( const idScenePacketFrame &packetFrame, const idRenderGraph &graph, modernGLExecutorStats_t &stats ) {
 	if ( !stats.modernVisibleRequested ) {
 		return;
@@ -2683,6 +2721,7 @@ static void R_ModernGLExecutor_AnalyzeModernVisibleOwnershipReadiness( const idS
 	stats.modernVisibleCompatibilityModernPasses += gridOwnerChange;
 	stats.modernVisibleCompatibilityLegacyPasses -= gridOwnerChange;
 	R_ModernGLExecutor_RecordPacketFallbackBlockers( packetFrame, stats );
+	R_ModernGLExecutor_DeclinePBRUnderSSAO( packetFrame, graph, stats );
 
 	// This runs before ModernShadowPlanner and ModernClusteredLighting have
 	// built the frame, so it can only record which lighting domains the front
@@ -3714,8 +3753,11 @@ static void R_ModernGLExecutor_SetPBRIBL( int location, bool useMemo = false ) {
 	// 0 = encoded preview, 1 = linear, 2 = linear with the exact shared fog phase,
 	// -2 = encoded preview with that same exact phase. A negative value keeps
 	// classic preview colors encoded while disabling clustered fog evaluation.
+	// The first component also selects the environment's base: 1 lights PBR
+	// with the analytic studio environment (r_pbrAnalyticEnvironment, the
+	// laboratory mode), 2 with authored probes over black.
 	const float value[4] = {
-		r_pbrIBL.GetBool() ? 1.0f : 0.0f,
+		r_pbrIBL.GetBool() ? ( r_pbrAnalyticEnvironment.GetBool() ? 1.0f : 2.0f ) : 0.0f,
 		idMath::ClampFloat( 0.0f, 4.0f, r_pbrIBLIntensity.GetFloat() ),
 		R_ModernGLExecutor_PBRLinearSceneRequested() ? ( rg_modernGLLinearFogBlendView != NULL ? 2.0f : 1.0f )
 			: ( rg_modernGLLinearFogBlendView != NULL ? -2.0f : 0.0f ),
@@ -4878,30 +4920,43 @@ static void R_ModernGLExecutor_BindMaterialTextures( const modernGLSubmitCommand
 	R_GLStateCache().ActiveTextureUnit( 0 );
 }
 
+/*
+The uBakedGrid[7] block of ModernLightGridGLSL.h: origin/enabled,
+spacing/gamma, bounds/intensity, atlas texel size/tile/border, visibility
+distance/bias/floor/exponent, relocation distance, and the origin the shader's
+positions are relative to (with the contribution cap). Shared by the modern
+executor and the classic-loop PBR owner (draw_pbr.cpp); defined here because
+the OpenGL ES module compiles this file but not draw_common.cpp.
+*/
+void RB_LightGridBakedParams( const LightGrid &grid, const float origin[3], float params[7][4] ) {
+	memset( params, 0, sizeof( float ) * 7 * 4 );
+	for ( int axis = 0; axis < 3; ++axis ) {
+		params[0][axis] = grid.lightGridOrigin[axis];
+		params[1][axis] = grid.lightGridSize[axis];
+		params[2][axis] = static_cast<float>( grid.lightGridBounds[axis] );
+		params[6][axis] = origin[axis];
+	}
+	params[0][3] = 1.0f;
+	params[1][3] = idMath::ClampFloat( 0.25f, 4.0f, r_lightGridIrradianceGamma.GetFloat() );
+	params[2][3] = idMath::ClampFloat( 0.0f, 16.0f, r_lightGridIntensity.GetFloat() );
+	params[3][0] = 1.0f / grid.irradianceImage->GetOpts().width;
+	params[3][1] = 1.0f / grid.irradianceImage->GetOpts().height;
+	params[3][2] = static_cast<float>( grid.imageSingleProbeSize );
+	params[3][3] = static_cast<float>( grid.imageBorderSize );
+	params[4][0] = grid.visibilityMaxDistance > 0.0f ? grid.visibilityMaxDistance : 4096.0f;
+	params[4][1] = 3.0f;
+	params[4][2] = idMath::ClampFloat( 0.0f, 1.0f, r_lightGridVisibilityFloor.GetFloat() );
+	params[4][3] = 2.0f;
+	params[5][0] = grid.relocationMaxDistance > 0.0f ? grid.relocationMaxDistance : 48.0f;
+	params[6][3] = idMath::ClampFloat( 0.0f, 16.0f, r_lightGridMaxContribution.GetFloat() );
+}
+
 static void R_ModernGLExecutor_BindBakedGrid( const modernGLSubmitCommand_t &command ) {
 	if ( command.bakedGridLocation < 0 ) { return; }
 	const LightGrid *grid = R_ModernGLExecutor_CommandBakedGrid( command );
 	float params[7][4] = {};
 	if ( grid != NULL ) {
-		for ( int axis = 0; axis < 3; ++axis ) {
-			params[0][axis] = grid->lightGridOrigin[axis];
-			params[1][axis] = grid->lightGridSize[axis];
-			params[2][axis] = static_cast<float>( grid->lightGridBounds[axis] );
-			params[6][axis] = command.viewDef->renderView.vieworg[axis];
-		}
-		params[0][3] = 1.0f;
-		params[1][3] = idMath::ClampFloat( 0.25f, 4.0f, r_lightGridIrradianceGamma.GetFloat() );
-		params[2][3] = idMath::ClampFloat( 0.0f, 16.0f, r_lightGridIntensity.GetFloat() );
-		params[3][0] = 1.0f / grid->irradianceImage->GetOpts().width;
-		params[3][1] = 1.0f / grid->irradianceImage->GetOpts().height;
-		params[3][2] = static_cast<float>( grid->imageSingleProbeSize );
-		params[3][3] = static_cast<float>( grid->imageBorderSize );
-		params[4][0] = grid->visibilityMaxDistance > 0.0f ? grid->visibilityMaxDistance : 4096.0f;
-		params[4][1] = 3.0f;
-		params[4][2] = idMath::ClampFloat( 0.0f, 1.0f, r_lightGridVisibilityFloor.GetFloat() );
-		params[4][3] = 2.0f;
-		params[5][0] = grid->relocationMaxDistance > 0.0f ? grid->relocationMaxDistance : 48.0f;
-		params[6][3] = idMath::ClampFloat( 0.0f, 16.0f, r_lightGridMaxContribution.GetFloat() );
+		RB_LightGridBakedParams( *grid, command.viewDef->renderView.vieworg.ToFloatPtr(), params );
 		idImage *images[] = { grid->irradianceImage, grid->visibilityImage, grid->probeImage };
 		for ( int i = 0; i < 3; ++i ) {
 			R_GLStateCache().BindTexture( 7 + i, GL_TEXTURE_2D, images[i]->GetDeviceHandle() );
@@ -10285,7 +10340,8 @@ bool R_ModernGLExecutor_LinearScreenshot( const char *fileName ) {
 			|| scene == NULL || !scene->allocated || scene->texture == 0
 			|| scene->target != GL_TEXTURE_2D || scene->internalFormat != GL_RGBA16F
 			|| scene->width < 1 || scene->height < 1
-			|| scene->width > 8192 || scene->height > 8192 ) {
+			|| scene->width > 8192 || scene->height > 8192
+			|| glGetTexImage == NULL ) {
 		common->Printf( "screenshot linear: no completed modern HDR scene\n" );
 		return false;
 	}

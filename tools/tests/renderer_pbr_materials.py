@@ -7,6 +7,7 @@ import contextlib
 import io
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -72,7 +73,7 @@ def test_shared_material_abi_and_opt_in_defaults() -> None:
 
     init = read(ROOT / "src/renderer/RenderSystem_init.cpp")
     for name, default in (
-        ("r_pbrMaterials", "0"),
+        ("r_pbrMaterials", "1"),
         ("r_pbrGeneratedLegacyFallback", "1"),
         ("r_pbrDebug", "0"),
         ("r_pbrIBL", "1"),
@@ -482,9 +483,10 @@ def test_scene_packet_and_resource_table_drive_the_guarded_visible_path() -> Non
         "probeIndex = candidate == 0 ? clusterRange.z : clusterRange.w",
         "probeIndex >= probeCount",
         "ModernSpecularProbeExactInteger(probe.axisZSlot.w",
-        "dot(reflectionDirection, normalize(probe.axisXPriority.xyz))",
-        "dot(reflectionDirection, normalize(probe.axisYBlend.xyz))",
-        "dot(reflectionDirection, normalize(probe.axisZSlot.xyz))",
+        "vec3 axisX = normalize(probe.axisXPriority.xyz), axisY = normalize(probe.axisYBlend.xyz), axisZ = normalize(probe.axisZSlot.xyz);",
+        "dot(reflectionDirection, axisX)",
+        "dot(reflectionDirection, axisY)",
+        "dot(reflectionDirection, axisZ)",
         "weight = clamp((radius - distanceToProbe) / blendWidth, 0.0, 1.0)",
         "environment /= totalWeight",
         "textureLod(uModernSpecularProbeAtlas, atlasUV, float(level))",
@@ -1030,7 +1032,9 @@ def test_vulkan_pbr_support_stays_narrow_and_fail_closed() -> None:
     require(function_body(executor, "static bool VK_ClassicWorldAmbient_Preflight("),
             "material->GetPBRInfo().emissive.present", "shared classic glow must yield to native emission")
     reject(emission, "65504.0f", "do not clamp intensity before emission texture modulation")
-    require(executor, "push.params[ 0 ] = 3.0f", "native emission finite-storage mode")
+    # 3 keeps finite radiance storage; 4 also encodes for the display-referred
+    # framebuffer (test_pbr_display_calibration_contract).
+    require(executor, "? 4.0f : 3.0f;", "native emission finite-storage mode")
     fragment = read(ROOT / "src/renderer/Vulkan/shaders/gui.frag")
     for token in ("if (pc.params.x > 2.5)", "vec3(65504.0)", "isnan(color.rgb)"):
         require(fragment, token, "evaluated emission radiance storage")
@@ -1062,6 +1066,18 @@ def test_vulkan_pbr_support_stays_narrow_and_fail_closed() -> None:
         require(shared, token, "native final-normal specular filtering")
     if shared.index("dFdx(objectNormal)") > shared.index("if (ndotl <= 0.0"):
         raise AssertionError("native normal derivatives must precede per-fragment light rejection")
+    # A normal map can turn the shading normal from the viewer at a silhouette.
+    # Every direct-light evaluation clamps N.V there; a cut blacked out those
+    # pixels and flipped between backends with the last bit of interpolation.
+    for relative_path, token in (
+        ("src/renderer/Vulkan/shaders/pbr_direct.glsl", "float ndotv = PBRShadingNoV(dot(objectNormal, viewDir));"),
+        ("src/renderer/ModernGLShaderLibrary.cpp", "float ndotv = PBRShadingNoV(dot(normal, viewDir));"),
+        ("src/renderer/draw_pbr.cpp", "float ndotv = PBRShadingNoV( dot( objectNormal, viewDir ) );"),
+    ):
+        source = read(ROOT / relative_path)
+        require(source, token, f"continuous direct N.V in {relative_path}")
+        if re.search(r"ndotv\s*<=\s*0\.0", source):
+            raise AssertionError(f"{relative_path} must not cut direct light at N.V <= 0")
     require(interactions, "push.c[ 3 ] = r_vkPBRSpecularAA.GetBool() ? 1.0f : 0.0f;",
             "native specular-AA comparison switch")
     for stem in ("interaction", "interaction_shadow", "interaction_shadow_point"):
@@ -1074,13 +1090,554 @@ def test_vulkan_pbr_support_stays_narrow_and_fail_closed() -> None:
         "PBRDistributionGGX(ndoth, roughness)",
         "PBRVisibilitySmithGGX(ndotv, ndotl, roughness)",
         "vec3 diffuse = (vec3(1.0) - fresnel) * (1.0 - metallic)",
-        "texture(specularMap, dataTexCoord).bg",
+        "vec3 orm = texture(specularMap, dataTexCoord).rgb",
+        "materialData = orm.bg",
         "texture(specularTableMap, dataTexCoord).r",
         "texture(specularMap, dataTexCoord).r",
         "value.agb",
         "sqrt(max(1.0 - dot(xy, xy), 0.0))",
     ):
         require(shared, token, "shared Vulkan PBR direct material decoding")
+
+
+def test_pbr_energy_and_occlusion_contract() -> None:
+    """Roughness and AO reach every PBR lighting term on both backends.
+
+    Single-scattering GGX loses up to 69% of a rough conductor's energy, so
+    every specular lobe carries the multiple-scattering compensation. AO is
+    indirect visibility: it occludes environment and baked diffuse through the
+    multi-bounce form, environment specular through specular occlusion and the
+    normal-map horizon, and authored ambient lights (which stand in for bounced
+    light) like environment diffuse. Direct point/projected light stays AO-free.
+    """
+    kernel = read(ROOT / "src/renderer/PBRMath.h")
+    for token in ("float PBRSpecularAlbedo(float NoV, float perceptualRoughness)",
+                  "float PBREnergyCompensation(float f0, float specularAlbedo)",
+                  "float PBRSpecularOcclusion(float NoV, float ao, float perceptualRoughness)",
+                  "float PBRMultiBounceAO(float visibility, float albedo)",
+                  "float PBRHorizonOcclusion(float RoN)"):
+        require(kernel, token, "shared roughness/AO kernel")
+    gl = read(ROOT / "src/renderer/ModernGLShaderLibrary.cpp")
+    for token in (
+        "float metallic, float roughness, float ao, out float attenuation",
+        "return ModernPBRUniformEnvironmentLight(radiance, baseColor, metallic, roughness, ao, normal, viewDir, geometricNormal); }",
+        "ModernPBREnergyCompensation(f0, PBRSpecularAlbedo(ndotv, roughness))",
+        "specularAlbedo = brdf.x + brdf.y;",
+        "PBRSpecularOcclusion(ndotv, ao, roughness)",
+        "PBRHorizonOcclusion(dot(reflection, normalize(geometricNormal)))",
+        "ModernPBREnergyCompensation(f0, specularAlbedo) * specularAO",
+        "baked.rgb * diffuseAO",
+        "ModernPBRAnalyticEnvironmentFiltered(reflection, roughness)",
+        "ModernPBREnvironmentBRDFApprox(ndotv, roughness)",
+        "vec4(metallic, roughness, ao, PBRRoughness(orm.g * uLocalParams.y))",
+    ):
+        require(gl, token, "modern GL roughness/AO coverage")
+    if gl.count("ModernClusterEvaluatePBRLight(light,") != 3 or gl.count(", pbrData.z, attenuation)") != 2:
+        raise AssertionError("every modern GL PBR light call must carry the material AO")
+    reject(gl, "(diffuse + specular) * ao", "modern GL must not apply raw AO to specular")
+    direct = read(ROOT / "src/renderer/Vulkan/shaders/pbr_direct.glsl")
+    for token in (
+        "PBREnergyCompensationColor(f0, PBRSpecularAlbedo(ndotv, roughness))",
+        "if ((dataFlags & 16) != 0)",
+        "PBRScreenAO(clamp(aoTexel * pc.b.x, 0.0, 1.0), dataFlags), objectNormal, viewDir, vPBRNormal) * vVertexColor);",
+    ):
+        require(direct, token, "Vulkan direct roughness/AO coverage")
+    environment = read(ROOT / "src/renderer/Vulkan/shaders/pbr_environment.glsl")
+    for token in (
+        "PBRSpecularOcclusion(NoV, ao, roughness)",
+        "PBRHorizonOcclusion(dot(reflection, PBREnvironmentWorld(vPBRNormal)))",
+        "PBREnergyCompensationColor(f0, brdf.x + brdf.y) * specularAO",
+        "baked.rgb * diffuseAO",
+    ):
+        require(environment, token, "Vulkan environment roughness/AO coverage")
+    reject(environment, "(diffuse + specular) * ao", "Vulkan must not apply raw AO to specular")
+    interactions = read(ROOT / "src/renderer/Vulkan/vk_Interactions.cpp")
+    for token in ("push.b[ 0 ] = pbr.ao;", "pbrDataFlags = ( pbr.dataFlags & ~4 ) | 16;",
+                  "( info.ao.present && !VK_PBRImageReady( info.ao.image, TD_MATERIAL_DATA ) )"):
+        require(interactions, token, "Vulkan ambient-light AO binding")
+
+
+def test_vulkan_environment_mip_chain_sampler() -> None:
+    """The prefiltered environment atlas must keep its whole mip chain.
+
+    Since c850233d an explicit TF_LINEAR sampler clamps to the base level to
+    match GL_LINEAR. The environment atlas is TF_LINEAR and selects its
+    roughness levels with explicit textureLod, so every rough Vulkan
+    reflection and authored probe silently sampled the mirror level (GL/VK
+    IBL parity max error 4, 11 with energy compensation; exact once fixed).
+    """
+    image = read(ROOT / "src/renderer/Vulkan/vk_Image.cpp")
+    for token in ("explicitMipChain = explicitMipChain && mips && filter == TF_LINEAR;",
+                  "if ( !explicitMipChain && ( filter != TF_DEFAULT || !defaultFilter.usesMipmaps ) )",
+                  "vkSamplerKeys[ i ].explicitMipChain == explicitMipChain",
+                  "explicitMipChain ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST",
+                  "VK_Image_GetSampler( filter, repeat, entry->numMips > 1, entry->explicitMipChain )",
+                  "bool VK_Image_UseExplicitMipChain( unsigned int texnum )"):
+        require(image, token, "explicit mip-chain sampler")
+    probes = read(ROOT / "src/renderer/Vulkan/vk_PBRProbes.cpp")
+    generator = function_body(probes, "static void VK_PBR_GenerateEnvironment(")
+    require(generator, "VK_Image_UseExplicitMipChain( image->GetDeviceHandle() )",
+            "the generated environment atlas must address its prefiltered levels")
+    environment = read(ROOT / "src/renderer/Vulkan/shaders/pbr_environment.glsl")
+    require(environment, "textureLod(lightFalloffMap, texel / float(2048 >> level), float(level))",
+            "explicit-LOD environment level sampling")
+
+
+def test_box_parallax_and_probe_capture_contract() -> None:
+    """Box probes share one kernel on every owner; probes bake in the engine."""
+    kernel = read(ROOT / "src/renderer/PBRMath.h")
+    for token in ("OPENQ4_PBR_INLINE float PBRBoxParallaxDistance(", "OPENQ4_PBR_INLINE float PBRBoxInfluence("):
+        require(kernel, token, "box-projected parallax kernel")
+    owners = {
+        "src/renderer/Vulkan/shaders/pbr_probes.glsl": ("vec4 boxExtents;", "localReflection = localPosition + localReflection * exitDistance;"),
+        "src/renderer/draw_pbr.cpp": ("PBRProbeField( record, 6 )",),
+        "src/renderer/ModernGLShaderLibrary.cpp": ("vec4 boxExtents;", "localDirection = localPosition + localDirection * exitDistance;"),
+    }
+    for relative_path, tokens in owners.items():
+        source = read(ROOT / relative_path)
+        for token in ("PBRBoxInfluence(", "PBRBoxParallaxDistance(", *tokens):
+            require(source, token, f"box-projected parallax in {relative_path}")
+    lighting = read(ROOT / "src/renderer/ModernClusteredLighting.cpp")
+    for token in ("( !info.boxParallax && radiusMax - radiusMin > Max( 0.01f, radiusMax * 0.01f ) )",
+                  "assert_offsetof( modernSpecularProbeGpuRecord_t, boxExtents, 96 );"):
+        require(lighting, token, "box probes keep their per-axis light volume")
+    require(read(ROOT / "src/renderer/ModernClusteredLighting.h"), "float boxExtents[4];", "seven-vec4 probe record")
+    require(read(ROOT / "src/renderer/Material.cpp"), 'if ( !token.Icmp( "boxParallax" ) ) {', "boxParallax probe flag")
+    init = read(ROOT / "src/renderer/RenderSystem_init.cpp")
+    for token in ('cmdSystem->AddCommand( "bakeReflectionProbes", R_BakeReflectionProbes_f, CMD_FL_RENDERER | CMD_FL_CHEAT,',
+                  "ref.viewaxis = faceAxes[face] * light->parms.axis;",
+                  "ref.vieworg = light->globalLightOrigin;",
+                  "if ( !R_SavedFileLoads( firstFace ) ) {",
+                  "info.cubeImage->Reload( true );"):
+        require(init, token, "in-engine reflection probe capture")
+    # Each face's inline frame is released as EndFrame releases it.
+    bake = init[init.index("static void R_BakeReflectionProbes_f("):]
+    bake = bake[:bake.index("//====")]
+    release = [bake.find(call, bake.find("tr.TakeScreenshot(")) for call in
+               ("R_ToggleSmpFrame();", "vertexCache.EndFrame();", "R_RendererUpload_EndFrame();")]
+    if min(release) < 0 or release != sorted(release):
+        raise AssertionError("bakeReflectionProbes must release each capture's frame data after TakeScreenshot")
+    # View rectangles are virtual-screen units; window pixels cropped captures.
+    if init.count("ref.width = SCREEN_WIDTH;") < 3 or "ref.width = glConfig.vidWidth;" in init:
+        raise AssertionError("envshot and probe captures must size their view in virtual-screen units")
+
+
+def test_pbr_display_calibration_contract() -> None:
+    """PBR composes with Quake 4's display-referred lighting like a classic light.
+
+    A classic light term is what a white classic surface shows; PBR receives
+    pi times its decoded value as irradiance, so a white Lambertian surface
+    matches classic at normal incidence (before calibration PBR showed 22% of
+    the classic brightness). Production writes each PBR light, the indirect
+    term and emission into the display-referred framebuffer encoded on its own,
+    exactly as classic lights add. Only the laboratory linear scene
+    (r_pbrLinearScene with HDR) keeps linear radiance, and it is off by default.
+    """
+    kernel = read(ROOT / "src/renderer/PBRMath.h")
+    for token in ("float PBRSRGBToLinearExtended(float value)",
+                  "float PBRLinearToSRGBExtended(float value)",
+                  "return 3.141592653589793 * PBRSRGBToLinearExtended(displayLight);"):
+        require(kernel, token, "shared classic calibration kernel")
+    init = read(ROOT / "src/renderer/RenderSystem_init.cpp")
+    require(init, 'idCVar r_pbrLinearScene( "r_pbrLinearScene", "0", CVAR_RENDERER | CVAR_BOOL,',
+            "the linear scene is an unarchived laboratory mode, off by default")
+    executor = read(ROOT / "src/renderer/ModernGLExecutor.cpp")
+    require(function_body(executor, "static bool R_ModernGLExecutor_PBRLinearSceneRequested("),
+            "&& r_pbrLinearScene.GetBool()", "GL linear scene must be explicit")
+    hdr = read(ROOT / "src/renderer/Vulkan/vk_HDRScene.cpp")
+    for name in ("bool VK_HDRScene_Requested(", "bool VK_HDRScene_PreviewRequested("):
+        require(function_body(hdr, name), "r_pbrLinearScene.GetBool()", "Vulkan linear scene must be explicit")
+    require(hdr, "return !hdrLinearActive && ( !VK_HDRScene_Accumulating() || VK_HDRScene_PreviewAccumulating() );",
+            "only the linear scene keeps radiance")
+    composite = read(ROOT / "src/renderer/Vulkan/shaders/hdr_scene_composite.glsl")
+    reject(composite, "1.0 / 2.4", "preview radiance is encoded per draw, never once per pixel")
+    gl = read(ROOT / "src/renderer/ModernGLShaderLibrary.cpp")
+    for token in (
+        "vec3 radiance = vec3(PBRClassicLightIrradiance(lightTerm.r), PBRClassicLightIrradiance(lightTerm.g), PBRClassicLightIrradiance(lightTerm.b));",
+        "if (uPBRIBL.z > 0.5) return color;",
+        "lightAccum += pbr ? ModernPBRSceneColor(contribution * inX * inY * shadowVisibility)",
+        "lightAccum += supported ? (pbr ? ModernPBRSceneColor(lightTerm) : lightTerm) : vec3(0.0);",
+        "lightAccum += pbr ? ModernPBRSceneColor(contribution * shadowVisibility)",
+        "ModernPBRSceneColor(pbrIndirect) + lightAccum + ModernPBRSceneColor(emissive)",
+        "if (!pbr) transparentColor = ModernClassicSceneColor(transparentColor);",
+    ):
+        require(gl, token, "modern GL per-light display composition")
+    if gl.count("ModernPBRSceneColor(emissive)") != 6:
+        raise AssertionError("every modern GL emission term and emission view must be encoded")
+    reject(gl, "lit = pbr ? ModernPBRSceneColor(lit)", "modern GL must not encode the summed lights once")
+    clusters = read(ROOT / "src/renderer/ModernClusteredLighting.cpp")
+    body = function_body(clusters, "static bool R_ModernClusteredLighting_UsePerStageDescriptors(")
+    reject(body, "IsAmbientLight()", "ambient light stages are separate draws, as in classic")
+    direct = read(ROOT / "src/renderer/Vulkan/shaders/pbr_direct.glsl")
+    for token in ("vec3 PBRDisplayOutput(vec3 radiance) {", "if (pc.b.w < 0.5) {",
+                  "vec3 radiance = PBRClassicLightIrradianceColor("):
+        require(direct, token, "Vulkan direct calibration and output transfer")
+    if direct.count("return PBRDisplayOutput(") != 2:
+        raise AssertionError("both Vulkan direct PBR returns must take the display transfer")
+    environment = read(ROOT / "src/renderer/Vulkan/shaders/pbr_environment.glsl")
+    if environment.count("return PBRDisplayOutput(") != 2:
+        raise AssertionError("both Vulkan environment PBR returns must take the display transfer")
+    interactions = read(ROOT / "src/renderer/Vulkan/vk_Interactions.cpp")
+    require(interactions, "push.b[ 3 ] = VK_HDRScene_DisplayReferredTarget() ? 1.0f : 0.0f;",
+            "Vulkan direct draws select their transfer from the target")
+    require(function_body(interactions, "static void VK_PBR_SubmitPrepared("),
+            "push.b[3] = VK_HDRScene_DisplayReferredTarget() ? 1.0f : 0.0f;",
+            "recorded draws select their transfer when they replay")
+    gui = read(ROOT / "src/renderer/Vulkan/vk_GuiExecutor.cpp")
+    require(gui, "VK_HDRScene_DisplayReferredTarget() && ( debugMode == 0 || debugMode == 6 ) ? 4.0f : 3.0f;",
+            "Vulkan native emission takes the display transfer")
+    require(read(ROOT / "src/renderer/Vulkan/shaders/gui.frag"), "if (pc.params.x > 3.5) {",
+            "Vulkan native emission encode")
+    laboratory = read(ROOT / "tools/tests/renderer_pbr_laboratory.py")
+    require(laboratory, "'r_pbrLinearScene': '1',", "the laboratory pins its linear-scene machinery explicitly")
+
+
+def test_gl_classic_loop_native_pbr_contract() -> None:
+    """OpenGL draws admitted PBR inside its classic light loop, as Vulkan does.
+
+    Ordinary gameplay on the default renderer never qualified for the modern
+    visible path, so PBR materials showed their classic stages. The classic
+    owner (draw_pbr.cpp) shares the Vulkan material contract, keeps every
+    light's classic shadowing, compiles the shipped receiver programs as PBR
+    variants so shadow filtering stays theirs, and owns the environment term,
+    typed emission and perforated coverage in the ambient walk. A translucent
+    owner composites at its authored source-alpha stage, as on Vulkan: the
+    background keeps 1 - alpha, then each light and the environment add alpha
+    times their radiance, in views whose translucent receivers no
+    shadow-casting light reaches.
+    """
+    sources = read(ROOT / "tools/build/meson_sources.py")
+    for module in ("RENDERER_VK_EXCLUDED_SOURCES", "RENDERER_GLES_EXCLUDED_SOURCES"):
+        block = sources.split(module, 1)[1].split(")", 1)[0]
+        require(block, '"src/renderer/draw_pbr.cpp"', f"{module} keeps the GL owner out")
+    owner = read(ROOT / "src/renderer/draw_pbr.cpp")
+    for token in (
+        'idCVar r_glPBR( "r_glPBR", "1", CVAR_RENDERER | CVAR_BOOL,',
+        "R_PBRNative_Material( surf, g_glPBRTranslucentView, material )",
+        "static bool RB_GLPBR_TranslucentViewAdmits( const viewDef_t *viewDef, const char *&reason ) {",
+        "\t\t\treason = \"shadows\";",
+        "return !RB_GLPBR_SurfaceOwned( surf ) || RB_GLPBR_Translucent( surf );",
+        "GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | depthBits",
+        "GL_State( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE | GLS_DEPTHMASK | GLS_DEPTHFUNC_LESS );",
+        "RB_GLPBR_SurfaceIdentity( lightSurf ) != identity",
+        "clamp( texture2D( uDiffuseMap, vDiffuseTexCoord ).a * uPBRTransparent.x, 0.0, 1.0 ) : 0.0;",
+        "RB_GLSLSurfaceUsesGPUPosedGeometry( surf )",
+        "glPBRFragmentLibrary += OPENQ4_PBR_SCALAR_GLSL;",
+        "PBRClassicLightIrradianceColor(",
+        "PBREnergyCompensationColor( f0, PBRSpecularAlbedo( ndotv, roughness ) )",
+        "PBRUniformEnvironmentLight( radiance, albedo, metallic, roughness, PBRScreenAO( data.z ),",
+        "PBRSpecularOcclusion( NoV, ao, roughness )",
+        "PBRHorizonOcclusion( dot( reflection, PBREnvironmentWorld( vPBRNormal ) ) )",
+        "PBRProbeBlend( vWorldPosition, reflection, n, roughness, prefiltered, irradiance );",
+        "R_ModernClusteredLighting_PrepareProbes( frame, R_ModernSpecularProbeAtlas_Acquire,",
+        "din->surf->pbrLightGeo != NULL && !din->ambientLight ? din->surf->pbrLightGeo : din->surf->geo",
+        "R_PBRNative_IsReplacedEmissionStage( surf, stageIndex )",
+        "OpenGL: native PBR: enabled=%d",
+    ):
+        require(owner, token, "classic OpenGL PBR owner")
+    contract = read(ROOT / "src/renderer/PBRNativeContract.cpp")
+    for token in ("bool R_PBRNative_HasSingleClassicInteractionTopology( const drawSurf_t *surf )",
+                  "bool R_PBRNative_PerforatedCoverageMatches( const drawSurf_t *surf )",
+                  "R_MaterialResourceTable_PBRModernPathEligible( *resourceRecord )"):
+        require(contract, token, "shared native PBR material contract")
+    decomposition = function_body(read(ROOT / "src/renderer/tr_render.cpp"),
+                                  "void RB_CreateSingleDrawInteractionsFiltered(")
+    require(decomposition, "if ( RB_GLPBR_DecompositionSkips( surf ) ) {",
+            "each surface is lit by exactly one owner per light")
+    arb2 = read(ROOT / "src/renderer/draw_arb2.cpp")
+    require(function_body(arb2, "static void RB_DrawMaterialInteractions("),
+            "RB_GLPBR_DrawInteractionChain( surf );", "stencil and unshadowed lights")
+    for token in ("RB_GLSLShadowMap_CreateDrawInteractionsWithPBR( interactions, true )",
+                  "RB_GLSLShadowMap_CreateDrawInteractionsWithPBR( interactions, false )",
+                  "g_receiverProgramDefines = RB_GLPBR_ReceiverDefines( false );",
+                  "receiverGeo = RB_GLPBR_BindReceiverInteraction( *g_activeReceiverPBRUniforms, din );"):
+        require(arb2, token, "shadow-mapped PBR receivers")
+    if arb2.count("RB_DrawElementsWithCounters( receiverGeo );") != 2:
+        raise AssertionError("both receiver draws must use the PBR light triangles")
+    common = read(ROOT / "src/renderer/draw_common.cpp")
+    passes = function_body(common, "void RB_STD_T_RenderShaderPasses(")
+    for token in ("const bool nativePBR = shader->HasPBR() && RB_GLPBR_SurfaceOwned( surf );",
+                  "RB_GLPBR_DrawEnvironment( surf );",
+                  "if ( nativePBR && RB_GLPBR_DrawEmissionStage( surf, stage ) ) {",
+                  "if ( nativePBR && RB_GLPBR_DrawTransparentStage( surf, stage ) ) {"):
+        require(passes, token, "ambient walk ownership")
+    require(common, "RB_GLPBR_DepthCoverageImage( surf, pStage );", "perforated coverage uses the PBR albedo")
+    require(common, "RB_SHARED_WORLD_AMBIENT_GL_REJECT_NATIVE_PBR", "the shared ambient phase yields")
+    interaction = read(ROOT / "src/renderer/Interaction.cpp")
+    require(interaction, "#if !defined( OPENQ4_RENDERER_GLES_MODULE )\n\tneedsPBR = sint->shader->HasPBR()",
+            "OpenGL builds the PBR light triangles too")
+    backend = read(ROOT / "src/renderer/tr_backend.cpp")
+    for token in ("R_MaterialResourceTable_PrepareFrame( *scenePackets );\n\t\t\tRB_GLPBR_PrepareFrame( *scenePackets );",):
+        require(backend, token, "the material contract table and probes are prepared with PBR on")
+    for name in ("shadow_interaction", "shadow_point_interaction"):
+        vertex = read(ROOT / f"content/baseoq4/pak0/glprogs/{name}.vs")
+        fragment = read(ROOT / f"content/baseoq4/pak0/glprogs/{name}.fs")
+        require(vertex, "PBRVertexFrame( attr_Normal, attr_Tangent, attr_Bitangent );", f"{name} PBR frame")
+        require(fragment, "vec3 OpenQ4PBRDirect( vec3 shadow );", f"{name} PBR shading")
+        require(fragment, "float OpenQ4PBRAlpha();", f"{name} translucent coverage")
+        if fragment.count("gl_FragColor = vec4( OpenQ4PBRDirect(") != fragment.count("), OpenQ4PBRAlpha() );"):
+            raise AssertionError(f"{name}: every PBR output carries the translucent coverage alpha")
+
+    # GLSL 1.30 programs: a context without it (Apple GL 2.1) stays classic.
+    require(owner, "return glConfig.GLSLProgramAvailable && glConfig.GLSL130Available;",
+            "a context without GLSL 1.30 keeps PBR materials classic")
+
+def test_pbr_production_environment_contract() -> None:
+    """Environment lighting in real maps follows the map on every backend.
+
+    Authored ambient lights are uniform environments (diffuse and split-sum
+    specular, AO-occluded), the analytic studio environment is the laboratory
+    mode r_pbrAnalyticEnvironment, separate material-data maps pack into one
+    ORM image, and the OpenGL owner composes baked light grids like the other
+    owners while the classic grid pass leaves its surfaces alone.
+    """
+    kernel = read(ROOT / "src/renderer/PBRMath.h")
+    for token in ("OPENQ4_PBR_INLINE float PBRSpecularBias(float NoV, float perceptualRoughness) {",
+                  "OPENQ4_PBR_INLINE float PBRUniformEnvironmentSpecular(float f0, float NoV, float perceptualRoughness) {",
+                  "return (f * albedo + (1.0 - f) * PBRSpecularBias(NoV, perceptualRoughness)) * PBREnergyCompensation(f, albedo);"):
+        require(kernel, token, "uniform environment kernel")
+    shading = {
+        "src/renderer/Vulkan/shaders/pbr_direct.glsl": ("vec3 PBRUniformEnvironmentLight(vec3 irradiance", "PBRUniformEnvironmentSpecular(f0.r, NoV, roughness)",
+            "PBRMultiBounceAOColor(PBRSpecularOcclusion(NoV, ao, roughness), f0)", "PBRHorizonOcclusion(dot(reflect(-v, n), SafeNormalize(vertexNormal)))"),
+        "src/renderer/draw_pbr.cpp": ("vec3 PBRUniformEnvironmentLight( vec3 irradiance", "PBRUniformEnvironmentSpecular( f0.r, NoV, roughness )",
+            "PBRMultiBounceAOColor( PBRSpecularOcclusion( NoV, ao, roughness ), f0 )", "PBRHorizonOcclusion( dot( reflect( -v, n ), PBRSafeNormalize( vertexNormal ) ) )"),
+        "src/renderer/ModernGLShaderLibrary.cpp": ("vec3 ModernPBRUniformEnvironmentLight(vec3 irradiance", "PBRUniformEnvironmentSpecular(f0.r, NoV, roughness)",
+            "ModernPBRMultiBounceAO(PBRSpecularOcclusion(NoV, ao, roughness), f0)", "PBRHorizonOcclusion(dot(reflect(-v, n), normalize(geometricNormal)))"),
+    }
+    for relative_path, tokens in shading.items():
+        source = read(ROOT / relative_path)
+        for token in tokens:
+            require(source, token, f"ambient uniform environment in {relative_path}")
+        reject(source, "0.96 / 3.14159265", f"{relative_path} must not keep the isotropic ambient approximation")
+    init = read(ROOT / "src/renderer/RenderSystem_init.cpp")
+    require(init, 'idCVar r_pbrAnalyticEnvironment( "r_pbrAnalyticEnvironment", "0", CVAR_RENDERER | CVAR_BOOL,',
+            "analytic studio environment is a laboratory mode")
+    analytic = {
+        "src/renderer/draw_pbr.cpp": ("fract( lod ) ) * uPBREnvironment.w;", "oct * 0.5 + 0.5, 32.0 ) * uPBREnvironment.w;",
+                                      "r_pbrAnalyticEnvironment.GetBool() || RB_GLPBR_ProbeView( backEnd.viewDef ) != NULL"),
+        "src/renderer/Vulkan/shaders/pbr_environment.glsl": ("fract(lod)) * pc.b.y;", "oct * 0.5 + 0.5, 32.0) * pc.b.y;"),
+        "src/renderer/Vulkan/vk_Interactions.cpp": ("push.b[1] = r_pbrAnalyticEnvironment.GetBool() ? 1.0f : 0.0f;",
+                                                     "&& VK_PBR_EnvironmentSourcesView( viewDef );"),
+        "src/renderer/ModernGLShaderLibrary.cpp": ("float analytic = abs(uPBRIBL.x - 1.0) < 0.5 ? 1.0 : 0.0;",
+                                                    "prefiltered *= analytic; irradiance *= analytic;"),
+        "src/renderer/ModernGLExecutor.cpp": ("r_pbrIBL.GetBool() ? ( r_pbrAnalyticEnvironment.GetBool() ? 1.0f : 2.0f ) : 0.0f,",),
+    }
+    for relative_path, tokens in analytic.items():
+        source = read(ROOT / relative_path)
+        for token in tokens:
+            require(source, token, f"production environment sources in {relative_path}")
+    require(read(ROOT / "tools/tests/renderer_pbr_laboratory.py"), "'r_pbrAnalyticEnvironment': '1',",
+            "the laboratory keeps its analytic reference lighting")
+    program = read(ROOT / "src/imagetools/Image_program.cpp")
+    for token in ('if (!token.Icmp("packORM")) {', 'if (src.ReadToken(&source) && !source.Icmp("_white")) {',
+                  "(*pic)[p * 4 + c] = sources[c] != NULL ? sources[c][p * 4] : 255;"):
+        require(program, token, "packORM image program")
+    require(read(ROOT / "src/imagetools/Image_files.cpp"), '!token.Icmp( "packORM" );', "packORM is a program operator")
+    material = read(ROOT / "src/renderer/Material.cpp")
+    for token in ('pbrMaterialTexture_t *channels[3] = { &pbrInfo.ao, &pbrInfo.roughness, &pbrInfo.metallic };',
+                  'idStr program = "packORM( ";', "pbrInfo.packedSeparateData = true;"):
+        require(material, token, "separate material-data maps pack into one ORM image")
+    grid = read(ROOT / "src/renderer/ModernLightGridGLSL.h")
+    require(grid, "if (pbr) sampleColor = ModernBakedLinear(sampleColor);", "PBR always decodes baked texels")
+    reject(grid, "if (pbr) sampleColor = ModernClassicSceneColor(sampleColor);",
+           "the linear-scene gate double-encoded production baked diffuse")
+    owner = read(ROOT / "src/renderer/draw_pbr.cpp")
+    for token in ("glPBREnvironmentFragment += modernLightGridGLSL;",
+                  "vec4 baked = ModernBakedIrradiance( vWorldPosition, n, true );",
+                  "RB_LightGridBakedParams( *grid, worldOrigin, bakedGrid );"):
+        require(owner, token, "OpenGL owner baked light-grid composition")
+    passes = function_body(read(ROOT / "src/renderer/draw_common.cpp"), "static bool RB_STD_DrawLightGridSurface(")
+    require(passes, "if ( shader->HasPBR() && RB_GLPBR_SurfaceOwned( surf ) ) {",
+            "the classic grid pass leaves owned PBR surfaces to their environment pass")
+
+
+def test_vulkan_production_baked_contract() -> None:
+    # A display-referred Vulkan frame composes a native PBR receiver's baked
+    # grid in its environment pass, as the OpenGL owner does, and the classic
+    # grid pass leaves the receiver alone (production readiness, Stage E).
+    interactions = read(ROOT / "src/renderer/Vulkan/vk_Interactions.cpp")
+    require(interactions, "static bool VK_PBR_DrawProductionBaked(", "Vulkan production baked composition")
+    require(interactions,
+            "if ( alphaScale <= 0.0f && !composite && VK_PBR_DrawProductionBaked( cmd, viewDef, surf, tri, mvp ) ) {",
+            "opaque environment draws try the receiver's grid first")
+    require(interactions,
+            "&& !( VK_HDRScene_Accumulating() && VK_LightGrid_SurfaceRequestsBakedDiffuse( viewDef, surf ) )",
+            "only the linear laboratory scene withholds a grid receiver's plain environment draw")
+    effects = function_body(read(ROOT / "src/renderer/Vulkan/vk_SceneEffects.cpp"), "static bool VK_LightGrid_DrawSurface(")
+    require(effects, "if ( VK_PBR_GridOwned( pass.viewDef, surf ) ) {",
+            "the classic grid pass leaves native PBR receivers to their environment pass")
+    environment = read(ROOT / "src/renderer/Vulkan/shaders/pbr_environment.glsl")
+    require(environment, "vec4 baked = ModernBakedIrradiance(vLightProjectionTexCoord.xyw, n, true);",
+            "PBR always decodes the display-encoded atlas")
+    executor = read(ROOT / "src/renderer/Vulkan/vk_GuiExecutor.cpp")
+    require(executor, ": ( probes ? vkExec.bakedProbeEnvironmentFragModule : vkExec.bakedEnvironmentFragModule );",
+            "display-referred targets use the single-attachment baked shaders")
+    require(executor, "&& VK_PBR_EnvironmentVisit( viewDef, drawSurf ) ) ) || shader->IsPortalSky() ) {",
+            "the ambient walk visits a grid receiver without environment light")
+
+
+def test_pbr_ssao_indirect_contract() -> None:
+    # SSAO occludes native PBR indirect light only (production readiness,
+    # Stage D): an occlusion field drawn after the depth prepass, folded into
+    # indirect AO as the lesser of the two, and the post pass applying only the
+    # field's classic factor.
+    for path in ("content/baseoq4/pak0/glprogs/ssao.fs", "src/renderer/Vulkan/shaders/post_ssao.frag"):
+        shader = read(ROOT / path)
+        for token in ("void FieldMain(", "void ApplyMain(", "ClassicDepthBuffer", "AOField",
+                      "bool classic = classicDepth < 0.99999 && !PixelIsForeground( uv, classicDepth );"):
+            require(shader, token, path + " SSAO field and apply modes")
+    common = read(ROOT / "src/renderer/draw_common.cpp")
+    for token in ("static void RB_PrepareSSAOIndirectField( void ) {",
+                  "bool RB_SSAOIndirectField( idImage **image, float invSize[2] ) {",
+                  "rendered = RB_STD_FillDepthBufferFiltered( drawSurfs, numDrawSurfs, RB_SSAOClassicWorldDepthSurfFilter );",
+                  "RB_PrepareSSAOIndirectField();\n\tRB_PrepareLightGridDepthTexture();",
+                  "RB_DrawSSAOPass( field ? 2.0f : 0.0f, sceneImage, depthImage, finalDepthImage, NULL,"):
+        require(common, token, "OpenGL SSAO field")
+    owner = read(ROOT / "src/renderer/draw_pbr.cpp")
+    for token in ("static const int GL_PBR_UNIT_SCREEN_AO = 14;",
+                  "static const int GL_PBR_REQUIRED_IMAGE_UNITS = 15;",
+                  "float ao = PBRScreenAO( data.z );",
+                  "const bool screenAO = alphaScale <= 0.0f && !coverageOnly && RB_SSAOIndirectField( &field, invSize );"):
+        require(owner, token, "OpenGL native PBR indirect SSAO")
+    reject(owner, "PBRScreenAO( ndotl", "direct light must never read SSAO")
+    direct = read(ROOT / "src/renderer/Vulkan/shaders/pbr_direct.glsl")
+    require(direct, "float PBRScreenAO(float ao, int dataFlags) {", "Vulkan indirect SSAO")
+    if direct.count("PBRScreenAO(") != 2:
+        raise AssertionError("Vulkan direct shading reads SSAO only for ambient lights")
+    environment = read(ROOT / "src/renderer/Vulkan/shaders/pbr_environment.glsl")
+    require(environment, "ao = PBRScreenAO(clamp(ao, 0.0, 1.0), flags);", "Vulkan environment SSAO")
+    post = read(ROOT / "src/renderer/Vulkan/vk_PostProcess.cpp")
+    for token in ("bool VK_PostProcess_PrepareSSAOField( const viewDef_t *viewDef ) {",
+                  "return ( captures & VK_POST_CAPTURE_SSAO_SPLIT ) != 0 && VK_PBR_NativeOpaqueSurface( surf ) ? 2 : 1;",
+                  "VK_Post_FillSSAOBlock( block, viewDef, width, height, field ? 2.0f : 0.0f, field && vkPostScene.ssaoFieldFlip );"):
+        require(post, token, "Vulkan SSAO field")
+    interactions = read(ROOT / "src/renderer/Vulkan/vk_Interactions.cpp")
+    for token in ("if ( nativePBR && din->ambientLight && pbr.metallicImage == NULL",
+                  "const bool screenAOUsed = !transparent && !diagnostic && material.metallicImage == NULL"):
+        require(interactions, token, "Vulkan binds the field for indirect light only")
+    executor = read(ROOT / "src/renderer/Vulkan/vk_GuiExecutor.cpp")
+    require(executor, "if ( worldDepthCaptures != 0 && VK_PostProcess_PrepareSSAOField( viewDef ) ) {",
+            "the field is drawn after the prepass, before the lights")
+    # The modern visible GL path cannot read the field, so it leaves a frame
+    # with SSAO and a PBR material to the classic light loop's native owner.
+    modern = read(ROOT / "src/renderer/ModernGLExecutor.cpp")
+    for token in ("static void R_ModernGLExecutor_DeclinePBRUnderSSAO( const idScenePacketFrame &packetFrame, const idRenderGraph &graph, modernGLExecutorStats_t &stats ) {",
+                  "ssao = graph.Pass( i ).enabled && graph.Pass( i ).category == RENDER_PASS_SSAO;",
+                  '"pbr-ssao-indirect-only"',
+                  "R_ModernGLExecutor_DeclinePBRUnderSSAO( packetFrame, graph, stats );"):
+        require(modern, token, "modern visible GL declines SSAO frames with PBR")
+    require(read(ROOT / "tools/tests/renderer_pbr_laboratory.py"), "'reason=pbr-ssao-indirect-only' not in visible",
+            "the laboratory proves the modern path's SSAO decline")
+
+
+def test_pbr_default_promotion_contract() -> None:
+    # PBR materials default on (production readiness, Stage F) with a one-time
+    # migration of profiles saved under the old default, after the archived
+    # configs ran; frames without a PBR material skip every PBR preparation.
+    init = read(ROOT / "src/renderer/RenderSystem_init.cpp")
+    require(init, 'idCVar r_pbrMaterials( "r_pbrMaterials", "1"', "PBR materials default on")
+    require(init, 'idCVar r_rendererReflectionProbes( "r_rendererReflectionProbes", "0"',
+            "authored probes stay opt-in: they start the modern packet pipeline every frame")
+    migrate = function_body(init, "static void R_MigrateLegacyPBRMaterialsDefault(")
+    for token in ("if ( r_pbrMaterialsDefaultMigrated.GetBool() ) {", "if ( !r_pbrMaterials.GetBool() ) {",
+                  "r_pbrMaterials.SetBool( true );", "r_pbrMaterialsDefaultMigrated.SetBool( true );"):
+        require(migrate, token, "one-time PBR default migration")
+    require(init, "R_MigrateLegacyShadowMapFilterDefaults();\n\tR_MigrateLegacyPBRMaterialsDefault();",
+            "the migration runs with the others, after the archived configs")
+    reject(function_body(init, "void R_InitCvars("), "r_pbrMaterialsDefaultMigrated",
+           "the migration must not run before archived configs")
+    bootstrap = read(ROOT / "src/renderer/RendererBootstrap.cpp")
+    require(bootstrap, '{ "r_pbrMaterials", &r_pbrMaterials, 1 }', "default-safety inventory expects PBR on")
+    packets = read(ROOT / "src/renderer/ScenePackets.cpp")
+    require(packets, "bool R_ScenePackets_CommandStreamHasPBR( const emptyCommand_t *cmds ) {", "PBR frame detection")
+    require(read(ROOT / "src/renderer/tr_backend.cpp"), "&& R_ScenePackets_CommandStreamHasPBR( cmds ) ) {",
+            "OpenGL skips PBR preparation in a frame without a PBR material")
+    require(read(ROOT / "src/renderer/Vulkan/vk_Backend.cpp"), "&& R_ScenePackets_CommandStreamHasPBR( cmds ) )",
+            "Vulkan skips PBR preparation in a frame without a PBR material")
+
+
+def _calls_outside_module_guard(text: str, prefix: str, macro: str) -> list[int]:
+    # Lines that call prefix* where the module macro is not excluded by an
+    # enclosing preprocessor branch. Each stack entry is the pair (if-branch
+    # excludes the module, else-branch excludes it); "excludes" means the
+    # branch condition is a conjunction containing !defined( macro ), or the
+    # else of a positive test of the macro.
+    negative = re.compile(r"!\s*defined\s*\(\s*" + macro + r"\s*\)")
+    positive = re.compile(r"(^ifdef\s+" + macro + r"\b)|(^if\s+defined\s*\(\s*" + macro + r"\s*\)\s*$)")
+    stack: list[list[bool]] = []
+    active: list[bool] = []
+    unguarded = []
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            directive = stripped[1:].strip()
+            if directive.startswith(("if", "ifdef", "ifndef")) and not directive.startswith("include"):
+                if directive.startswith("ifndef"):
+                    excludes = directive.split()[1:2] == [macro]
+                    pair = [excludes, False]
+                elif positive.search(directive):
+                    pair = [False, True]
+                else:
+                    pair = [bool(negative.search(directive)) and "||" not in directive, False]
+                stack.append(pair)
+                active.append(pair[0])
+            elif directive.startswith("elif") and stack:
+                active[-1] = bool(negative.search(directive)) and "||" not in directive
+            elif directive.startswith("else") and stack:
+                active[-1] = stack[-1][1]
+            elif directive.startswith("endif") and stack:
+                stack.pop()
+                active.pop()
+            continue
+        if re.search(r"\b" + prefix + r"\w*\s*\(", line) and not any(active):
+            unguarded.append(number)
+    return unguarded
+
+
+def test_native_gl_pbr_owner_stays_in_the_gl_module() -> None:
+    # draw_pbr.cpp (the native OpenGL owner) is built only into renderer-gl.
+    # Any translation unit the Vulkan or OpenGL ES module also compiles must
+    # reach its RB_GLPBR_* entry points only inside a branch that excludes
+    # that module, or the module loses those symbols: the ES module links
+    # with -z defs, and CI never builds it.
+    sources = read(ROOT / "tools/build/meson_sources.py")
+    for name in ("RENDERER_VK_EXCLUDED_SOURCES", "RENDERER_GLES_EXCLUDED_SOURCES"):
+        block = sources.split(name + " = (", 1)[1].split(")", 1)[0]
+        require(block, '"src/renderer/draw_pbr.cpp"', f"{name} excludes the native OpenGL owner")
+    listings = {}
+    for module, macro in (("renderer_vk", "OPENQ4_RENDERER_VK_MODULE"),
+                          ("renderer_gles", "OPENQ4_RENDERER_GLES_MODULE")):
+        listing = subprocess.run([sys.executable, str(ROOT / "tools/build/meson_sources.py"), "--emit", module],
+                                 cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+        if not listing or "src/renderer/draw_pbr.cpp" in listing:
+            raise AssertionError(f"{module}: source discovery must list sources and exclude draw_pbr.cpp")
+        listings[module] = listing
+        for path in listing:
+            if not path.endswith(".cpp"):
+                continue
+            unguarded = _calls_outside_module_guard(read(ROOT / path), "RB_GLPBR_", macro)
+            if unguarded:
+                raise AssertionError(f"{module}: {path} calls RB_GLPBR_* outside a {macro} exclusion "
+                                     f"at lines {unguarded}")
+    # The baked-grid uniform packing is shared by the native owner and the
+    # modern executor, which the ES module also compiles: it must live in a
+    # translation unit the ES module builds, never in draw_common.cpp.
+    definition = "void RB_LightGridBakedParams( const LightGrid &grid,"
+    owners = [path for path in listings["renderer_gles"]
+              if path.endswith(".cpp") and definition in read(ROOT / path)]
+    if owners != ["src/renderer/ModernGLExecutor.cpp"]:
+        raise AssertionError(f"RB_LightGridBakedParams must be defined once in ModernGLExecutor.cpp, found {owners}")
+    reject(read(ROOT / "src/renderer/draw_common.cpp"), definition, "draw_common.cpp is not built into the ES module")
+    # Negative control: the scan must flag an unguarded call and pass a
+    # guarded one in either branch shape.
+    if _calls_outside_module_guard("void f() {\n\tRB_GLPBR_PrintInfo();\n}\n", "RB_GLPBR_",
+                                   "OPENQ4_RENDERER_GLES_MODULE") != [2]:
+        raise AssertionError("the module-guard scan must flag an unguarded call")
+    guarded = ("#if !defined( OPENQ4_RENDERER_VK_MODULE ) && !defined( OPENQ4_RENDERER_GLES_MODULE )\n"
+               "\tRB_GLPBR_PrintInfo();\n#endif\n#ifdef OPENQ4_RENDERER_GLES_MODULE\n\tGLES();\n#else\n"
+               "\tRB_GLPBR_PrepareFrame( frame );\n#endif\n")
+    if _calls_outside_module_guard(guarded, "RB_GLPBR_", "OPENQ4_RENDERER_GLES_MODULE"):
+        raise AssertionError("the module-guard scan must accept guarded calls")
 
 
 def main() -> int:

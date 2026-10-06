@@ -808,6 +808,7 @@ idMD5Mesh::idMD5Mesh() {
 	surfaceNum		= 0;
 	currentTime		= 0.0f;
 	gpuSkinningNumJoints = 0;
+	gpuSkinningJointBound = 0;
 	gpuSkinningFallback = GPU_SKINNING_FALLBACK_MISSING_SKIN_VERTICES;
 }
 
@@ -1080,6 +1081,7 @@ void idMD5Mesh::BuildGpuSkinningSidecar( int numJoints ) {
 	gpuBindPoseVerts.Clear();
 	gpuSkinningVerts.Clear();
 	gpuSkinningNumJoints = numJoints;
+	gpuSkinningJointBound = 0;
 	gpuSkinningFallback = GPU_SKINNING_FALLBACK_NONE;
 	if ( deformInfo == NULL || baseVectors == NULL || weights == NULL
 		|| deformInfo->numOutputVerts <= 0 ) {
@@ -1123,9 +1125,13 @@ void idMD5Mesh::BuildGpuSkinningSidecar( int numJoints ) {
 
 		gpuSkinningPackResult_t result;
 		if ( !R_GpuSkinning_PackVertexExact( influences.Ptr(), influences.Num(), numJoints,
-			false, gpuSkinningVerts[vertexIndex], result )
-			&& gpuSkinningFallback == GPU_SKINNING_FALLBACK_NONE ) {
-			gpuSkinningFallback = result.reason;
+			false, gpuSkinningVerts[vertexIndex], result ) ) {
+			if ( gpuSkinningFallback == GPU_SKINNING_FALLBACK_NONE ) {
+				gpuSkinningFallback = result.reason;
+			}
+		} else {
+			gpuSkinningJointBound = Max( gpuSkinningJointBound,
+				static_cast<int>( result.maxJointIndex ) + 1 );
 		}
 		weightCursor += groupCount;
 	}
@@ -1230,6 +1236,10 @@ void idMD5Mesh::UpdateSurface( const struct renderEntity_s *ent, const idJointMa
 	tri->dominantTris = deformInfo->dominantTris;
 	tri->numVerts = deformInfo->numOutputVerts;
 
+	// a reused surface still holds the pose drawn last frame: keep it for
+	// temporal reprojection before this pose overwrites it
+	R_TemporalPresentation_CapturePreviousPositions( tri );
+
 	if ( tri->verts == NULL ) {
 		R_AllocStaticTriSurfVerts( tri, tri->numVerts );
 		for ( i = 0; i < deformInfo->numSourceVerts; i++ ) {
@@ -1256,7 +1266,7 @@ void idMD5Mesh::UpdateSurface( const struct renderEntity_s *ent, const idJointMa
 		gpuSkinningContractAttached = R_GpuSkinning_AttachSurfaceContract(
 			tri, gpuBindPoseVerts.Ptr(), gpuSkinningVerts.Ptr(), gpuBindPoseVerts.Num(),
 			entJoints != NULL ? entJoints[0].ToFloatPtr() : NULL, gpuSkinningNumJoints,
-			GPU_SKINNING_JOINT_FLOATS, false, gpuSkinningFallback );
+			GPU_SKINNING_JOINT_FLOATS, false, gpuSkinningFallback, gpuSkinningJointBound );
 	}
 
 	const uint64 cpuSkinStart = R_GpuSkinning_ReadMicroseconds();
@@ -1327,6 +1337,7 @@ void idMD5Mesh::UpdateSurface( const struct renderEntity_s *ent, const idJointMa
 		? cpuSkinEnd - cpuSkinStart : 0;
 	R_GpuSkinning_RecordCpuSkinning( elapsedMicroseconds, tri->numVerts,
 		gpuSkinningContractAttached );
+	R_TemporalPresentation_MarkPositionsDrawn( tri );
 }
 
 /*
@@ -1871,6 +1882,7 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 			surf->geometry = NULL;
 			surf->shader = NULL;
 			surf->id = i;
+			surf->mOriginalSurfaceName = NULL;
 		}
 
 		if ( collisionOnly || mesh->UpdateLod( ent, viewEnt, surf ) ) {
@@ -1879,6 +1891,11 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 			// the mesh in front of its coplanar GUI (for example weapon displays).
 			mesh->UpdateSurface( ent, entJoints, surf, !collisionOnly,
 				!collisionOnly && gpuJointPaletteReady && !shader->HasGui() );
+		} else if ( surf->geometry != NULL ) {
+			// animation LOD redraws the previous pose unchanged; it is still the
+			// pose this frame shows, so the next capture stays continuous
+			R_TemporalPresentation_CapturePreviousPositions( surf->geometry );
+			R_TemporalPresentation_MarkPositionsDrawn( surf->geometry );
 		}
 		srfTriangles_t *frontTri = surf->geometry;
 
@@ -1892,6 +1909,7 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 				backSurf->geometry = NULL;
 				backSurf->shader = NULL;
 				backSurf->id = i + MD5_BackSideSurfaceIdOffset;
+				backSurf->mOriginalSurfaceName = NULL;
 			}
 
 			backSurf->shader = mesh->shader;

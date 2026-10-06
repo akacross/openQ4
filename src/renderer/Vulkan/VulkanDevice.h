@@ -109,6 +109,19 @@ typedef struct vkDeviceContext_s {
 	VkImage				swapchainImages[ 8 ];
 	VkImageView			swapchainViews[ 8 ];
 	bool				swapchainTransferSrc;
+	// A hidden window (r_hiddenWindow) is never displayed, so its frames skip
+	// the presentation engine: each renders into its frame slot's offscreen
+	// image, which screenshots read as they read a swapchain image, and is
+	// neither acquired nor presented. With the display off (modern standby, a
+	// sleeping monitor) a hidden window's engine handed images back only every
+	// quarter to whole second, and an acquire often waited out its timeout.
+	// The swapchain is still created and recreated, unused, so present-mode
+	// requests and reports behave as before. These images live and die with
+	// it; r_vkHiddenWindowPresent 1 presents hidden frames again.
+	bool				offscreenFrames;
+	VkImage				offscreenImages[ VK_FRAMES_IN_FLIGHT ];
+	VkImageView			offscreenViews[ VK_FRAMES_IN_FLIGHT ];
+	VmaAllocation		offscreenAllocations[ VK_FRAMES_IN_FLIGHT ];
 
 	VkCommandPool		commandPool;
 	VkCommandBuffer		commandBuffers[ VK_FRAMES_IN_FLIGHT ];
@@ -136,6 +149,16 @@ typedef struct vkDeviceContext_s {
 	// disposable fs_savepath cache so a session does not re-compile every
 	// pipeline the last one already built.
 	VkPipelineCache		pipelineCache;
+	// Creation cost since the blob was last written, and for the whole device.
+	int					pipelineCreationsSincePersist;
+	uint64				pipelineCreateMicrosecondsSincePersist;
+	uint64				pipelineCreateMaxMicrosecondsSincePersist;
+	int					pipelineSlowCreationsSincePersist;
+	int					pipelineCreations;
+	uint64				pipelineCreateMicroseconds;
+	uint64				pipelineCreateMaxMicroseconds;
+	int					pipelineSlowCreations;
+	size_t				pipelineCacheBytes;	// size of the blob last read or written
 
 	// --- Phase D ---
 	VmaAllocator		allocator;
@@ -217,9 +240,23 @@ void	VK_Device_CountDrawIndexed( int indexCount, int vertexCount );
 // rendererVulkanMemoryInfo)
 void	VK_Device_PrintMemoryInfo( void );
 
-// acquires, records a dynamic-rendering clear with the given color, and
-// presents; handles OUT_OF_DATE/SUBOPTIMAL by recreating and retrying once
-void	VK_Device_PresentClearFrame( const float clearColor[ 4 ] );
+// Pipelines are created synchronously at first use, so their creation time is
+// time the frame that first draws a state combination waits. Every
+// vkCreate*Pipelines call reports its duration here.
+void	VK_Device_RecordPipelineCreation( uint64 microseconds );
+// Writes the pipeline cache blob back to fs_savepath through a staged file and
+// an atomic replace (a crash mid-write never leaves a truncated blob), and logs
+// what was created since the last write. Called at shutdown and before each
+// level load, so a session that does not exit cleanly keeps what earlier maps
+// compiled.
+void	VK_Device_PersistPipelineCache( const char *reason );
+void	VK_Device_PrintPipelineInfo( void );
+
+// Called before each frame's acquisition. r_vkPresentationFailureTest 3 takes
+// every swapchain image the presentation engine would hand out, as a display
+// that is off withholds them; clearing the drill rebuilds the swapchain to
+// return them. False when that rebuild fails.
+bool	VK_Device_ServiceWithheldImages( void );
 
 typedef void ( *vkImmediateRecord_t )( VkCommandBuffer cmd, void *user );
 // records upload commands into the shared upload command buffer, opening a
