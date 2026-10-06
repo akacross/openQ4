@@ -593,7 +593,9 @@ On engine `e61425f8ea23e48916a40b66ae6775d7258880b3`, the server scan publishes 
 
 On engine `45b72594b52f378d24a62e3da7149ccc951a82a8`, the server scan describes a server's address, players and settings, which the classic browser's server tooltip shows again for the hovered row. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-details-evidence/validation-evidence.json`, SHA-256 `5b7857f09bfd8f65fd8cfa22264375b890b55387090450c5ca5010fd6b034e46`.
 
-There are **107 partial, 232 pending and one verified requirement**, counting the
+On engine `a2b3d602526ebabe92b7e9ca6bc384d56827f7f4`, the retained runtime gains a detail card, the hover card anchored to the pointer's control or the focused one, and Join Game shows a server's address, players and settings in it. `WID-025` moves from pending to partial and `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-detail-card-evidence/validation-evidence.json`, SHA-256 `f756cd836ed5469f16f0f60658c9568d31f35bff637eb694493c464dc0f58854`.
+
+There are **108 partial, 231 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

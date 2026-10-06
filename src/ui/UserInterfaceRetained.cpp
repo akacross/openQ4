@@ -58,6 +58,7 @@ bool ConvertState(const char* text, size_t type, StateValue& value) {
 bool ApplicationState(const DocumentModel& model, const idDict& dictionary, StateValues& result, std::string& error) {
 	for (const auto& [name,declaration] : model.state) {
 		if (!declaration.cvar.empty() || name.starts_with("settings.") || NumberDraftState(name.c_str())) continue;
+		if (model.detail && name == model.detail->state) continue; // The runtime writes the detail subject.
 		StateValue value = declaration.initial;
 		const auto* entry = dictionary.FindKey(name.c_str());
 		if (entry && !ConvertState(entry->GetValue().c_str(),declaration.initial.index(),value)) {
@@ -1066,6 +1067,12 @@ void idUserInterfaceRetained::Redraw(int time, bool useAspectCorrection) {
 	const bool drawn = RetainedUI_DrawViewRoot(impl->view,viewport);
 	// Timeline completion programs run inside the frame; publish their writes.
 	if (auto* runtime = impl->RuntimeView()) impl->PublishWrites(runtime->TakeCompletionWrites());
+	// The detail subject the frame settled on, for the session to describe.
+	if (auto* runtime = impl->RuntimeView(); runtime && impl->document.Model().detail) {
+		StateValue subject;
+		if (runtime->GetStateValue(impl->document.Model().detail->state,subject))
+			impl->PublishWrites({{impl->document.Model().detail->state,subject}});
+	}
 	// The frame read the bound state back; settle the number fields it answers.
 	impl->SettleSessionNumbers();
 	if (drawn && impl->active && impl->interactive) {

@@ -947,6 +947,10 @@
   match's frag, capture or round limit, team damage, team autobalance, pure
   and spectators). openQ4 had kept the card hidden.
 
+- The rebuilt server browser shows the same server card: point at a server,
+  or move to it with the keyboard or a controller, to see its address,
+  players and settings beside it.
+
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 

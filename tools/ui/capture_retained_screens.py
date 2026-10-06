@@ -624,6 +624,9 @@ SCENARIOS = {
         'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "server-1"', 'openq4_retainedGui inspect "join-empty"',
         'openq4_retainedGui inspect "join-load-track"', 'openq4_retainedGui inspect "join-load-fill"',
         'screenshot "screenshots/joingame-list.tga"',
+        # The focused row's server details: the card under the row.
+        'openq4_retainedGui focus "server-0"', 'waitMsec 2500', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join-detail"', 'screenshot "screenshots/joingame-detail.tga"',
         'openq4_retainedGui focus "heading-name"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"', 'screenshot "screenshots/joingame-sorted.tga"',
         'openq4_retainedGui focus join_clearsort', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',

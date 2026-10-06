@@ -196,7 +196,62 @@ def server_row(doc: Document, index: int, row_w: float) -> dict:
     ids = row_states(doc, ident, tuple(texts), tuple(tint for _ in texts))
     return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
                          "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
-                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
+                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids, "detail": index})
+
+
+# The server details card (the stock p_mp_browse_tooltip as section 7's hover
+# card): its frame, the address, PLAYERS and SERVER SETTINGS with their lists.
+DETAIL = (270.0, 186.0)                    # u: the stock tooltip
+DETAIL_PLAYERS = 11                        # the stock list's 139 u at 12 u items
+DETAIL_SETTINGS = 7                        # the stock settings (GetServerDetails)
+DETAIL_HEADING = 11.0                      # dp: Lowpixel at the stock .16 scale
+DETAIL_TEXT = 13.0                         # dp: Profont (section 7's hover card)
+
+
+def detail_card(doc: Document) -> dict:
+    """The server under the pointer, or the focused row's: the runtime writes
+    the row (join.detail) and places the card beside it; the session fills it
+    (join.detail.*, the stock tooltip's address, players and settings) and
+    names the row it describes (join.detail.row), so the card shows only
+    once its content matches the row. It holds no controls and never takes
+    the pointer."""
+    doc.state["join.detail"] = {"type": "number", "initial": -1}
+    doc.state["join.detail.row"] = {"type": "number", "initial": -1}
+    doc.state["join.detail.address"] = {"type": "string", "initial": ""}
+    doc.detail = {"state": "join.detail", "card": "join-detail", "none": -1}
+    width, height = U * DETAIL[0], U * DETAIL[1]
+    cut, bevel = U * 8, U * 4
+    frame = vector("join-detail-frame", {**FULL, "pointer-events": keyword("none")}, [
+        path("card", [(0, 0), (width - bevel, 0), (width, bevel), (width, height), (cut, height), (0, height - cut)],
+             fill=solid([0, 0, 0, 0.9]), stroke=stroke(solid(rgb(OLIVE, 0.85)), 1)),
+        path("rule", [(U * 7, U * 23), (U * 252, U * 23)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
+        path("divider", [(U * 89, U * 29), (U * 89, U * 179)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
+    ])
+    address = label("join-detail-address", PLACEHOLDER, {**absolute(left=U * 6, top=U * 5, width=U * 244, height=U * 16),
+                                                          **typeface("lowpixel", 14, U * 16, [1, 1, 1, 1]), "white-space": keyword("nowrap"),
+                                                          "overflow": keyword("hidden")})
+    doc.bind("join-detail-address.text", "join-detail-address", "text", {"state": "join.detail.address"})
+    headings = [label("join-detail-players", "#str_200038", {**absolute(left=U * 7, top=U * 27, width=U * 80, height=U * 12),
+                                                             **typeface("lowpixel", DETAIL_HEADING, U * 12, [1, 1, 1, 0.4]),
+                                                             "white-space": keyword("nowrap"), "overflow": keyword("hidden")}),
+                label("join-detail-settings", "#str_200928", {**absolute(left=U * 92, top=U * 27, width=U * 160, height=U * 12),
+                                                              **typeface("lowpixel", DETAIL_HEADING, U * 12, [1, 1, 1, 0.4]),
+                                                              "white-space": keyword("nowrap"), "overflow": keyword("hidden")})]
+    lines = []
+    for prefix, count, left, line_w in (("player", DETAIL_PLAYERS, 7, 80), ("setting", DETAIL_SETTINGS, 92, 172)):
+        for index in range(count):
+            ident, key = f"join-detail-{prefix}{index}", f"join.detail.{prefix}{index}"
+            doc.state[key] = {"type": "string", "initial": ""}
+            lines.append(label(ident, PLACEHOLDER, {**absolute(left=U * left, top=U * (40 + 12 * index), width=U * line_w, height=U * 12),
+                                                    **typeface("profont", DETAIL_TEXT, U * 12, [1, 1, 1, 0.8]),
+                                                    "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
+            doc.bind(f"{ident}.text", ident, "text", {"state": key})
+    card = group("join-detail", {**absolute(left=0, top=0, width=width, height=height), "display": keyword("none"),
+                                 "pointer-events": keyword("none")}, [frame, address, *headings, *lines])
+    doc.bind("join-detail.display", "join-detail", "display", {"op": "select", "args": [
+        {"op": "&&", "args": [{"op": ">=", "args": [{"state": "join.detail"}, 0]},
+                              {"op": "==", "args": [{"state": "join.detail"}, {"state": "join.detail.row"}]}]}, "block", "none"]})
+    return card
 
 
 def heading(doc: Document, column: str, sort: int, key: str | None, left: float, width: float, verb: str) -> dict:
@@ -475,6 +530,7 @@ def check_join_fits() -> None:
         width_dp = entry_dialog_size(("#str_200171", "#str_200168") if key == "#str_200025" else ("#str_200257", "#str_200168"))[0]
         one_line += [(key, "marine", 20, width_dp * (1 - 7 / 512) - 6 - (width_dp * 14 / 512 + 17))]
     one_line += [("#str_223005", "marine", TAG_TEXT, U * MOD[2])]
+    one_line += [("#str_200038", "lowpixel", DETAIL_HEADING, U * 80), ("#str_200928", "lowpixel", DETAIL_HEADING, U * 160)]
     one_line += [(key, "marine", 20, U * favorite_width() - 30) for key in FAVORITE_KEYS]
     check_fits(tuple(one_line), ())
 
@@ -569,5 +625,5 @@ def join_game_document() -> dict:
              {"op": "select", "args": [{"state": "join.favorite"}, FAVORITE_KEYS[1], FAVORITE_KEYS[0]]})
     doc.bind("join_favorite.enabled", "join_favorite", "enabled", {"op": ">=", "args": [{"state": "join.selected"}, 0]})
     back = action_plate(doc, "join_back", "#str_200018", U * BACK[0], U * BACK[1], action="back", width=U * BACK[2])
-    return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back],
+    return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back, detail_card(doc)],
                             [join_ip_modal(doc), find_modal(doc)])

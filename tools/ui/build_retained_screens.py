@@ -331,6 +331,8 @@ class Document:
         self.actions: dict = {}
         self.events: dict = {}
         self.bindings: list = []
+        # The document's detail card (state, card, none): see Document.h's DetailSpec.
+        self.detail: dict | None = None
 
     def bind(self, ident: str, node: str, prop: str, value) -> None:
         self.bindings.append({"id": ident, "node": node, "property": prop, "value": value})
@@ -366,6 +368,8 @@ class Document:
             result["events"] = self.events
         if self.bindings:
             result["bindings"] = self.bindings
+        if self.detail:
+            result["detail"] = self.detail
         result["timelines"] = self.timelines.items
         result["root"] = root
         if extras:

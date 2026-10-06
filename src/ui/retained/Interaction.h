@@ -213,6 +213,7 @@ public:
 	bool PushModal(const std::string& root);
 	bool PopModal();
 	std::string Focused() const { return focused; }
+	std::string Hovered() const { return hovered; }
 	std::string Modal() const { return modals.empty() ? std::string{} : modals.back().root; }
 	std::optional<ControlState> State(const std::string& id) const;
 	std::vector<ControlFeedback> TakeFeedback();

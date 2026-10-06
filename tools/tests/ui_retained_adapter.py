@@ -460,6 +460,9 @@ public:
         return true;
     }
     StateValues GetState(bool=true) const { return state; }
+    bool GetStateValue(const std::string& id, StateValue& value) const {
+        const auto found=state.find(id); if(found==state.end()) return false; value=found->second; return true;
+    }
     bool HasEvent(const std::string& name) const { eventQueries.push_back(name); return eventPlans.contains(PresentationAliasKey(name)); }
     StateValues completionWrites; unsigned completionTakes=0;
     StateValues TakeCompletionWrites() { ++completionTakes; StateValues result; result.swap(completionWrites); return result; }

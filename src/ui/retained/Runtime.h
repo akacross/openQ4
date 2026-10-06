@@ -196,6 +196,8 @@ public:
 	bool LoadDocument(const std::string& source, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
 	bool SetState(const StateValues& changes, std::string& error, double monotonicSeconds);
 	StateValues GetState(bool includeHostSources = true) const;
+	// One state's value without copying the rest; false when it is undeclared.
+	bool GetStateValue(const std::string& id, StateValue& value) const;
 	std::optional<Value> PresentedValue(const std::string& node, const std::string& property) const;
 	// Public legacy names are explicitly mapped by the canonical document.
 	// Values are data, never CSS/markup. Failures leave outputs/state untouched.

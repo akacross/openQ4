@@ -177,6 +177,20 @@ struct Control {
 	ControlRole role = ControlRole::Button;
 	std::optional<Expression> value;
 	std::variant<std::monostate, ToggleSpec, SliderSpec, ChoiceSpec, NumberSpec, ScrollSpec> widget;
+	// Buttons only: the detail this control names (DocumentModel::detail).
+	std::optional<double> detail;
+};
+// A document's detail card (section 7's hover card). While the pointer moved
+// last, the control it is over is the subject; otherwise the focused control
+// is. The runtime writes the subject's detail, or `none` without one, to the
+// numeric `state` and places `card` beside the subject: 6 dp from the
+// pointer, its trailing edge 28 dp past the pointer once the pointer is more
+// than 555 dp into the card's containing block; 6 dp under a focused control,
+// over it when the card would cross the view's edge; always 16 dp inside the
+// view. The card holds no controls and the runtime owns its left and top.
+struct DetailSpec {
+	std::string state, card;
+	double none = -1;
 };
 struct ControlReadback {
 	StateValue value;
@@ -238,6 +252,7 @@ struct DocumentModel {
 	// Alias keys are ASCII case-folded public names; targets retain exact IDs.
 	std::map<std::string, PresentationAlias> aliases;
 	std::map<std::string, EventProgram> events; // Case-folded public event names.
+	std::optional<DetailSpec> detail;
 	// Reference height in dp of a view-height canvas. A stock-composition screen
 	// (title, pause, loading) lays its 4:3 canvas out at this height and scales
 	// with the view's height; zero keeps display-density layout.

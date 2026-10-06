@@ -33,7 +33,9 @@ game types. When a filter hides the selected server, Join Server is disabled
 until you select a visible server, and the list tells you when the filters
 hide every server. **Refresh List** updates the currently known addresses;
 **Get New List** runs discovery again. The bar under the list fills as
-servers answer and names the step the scan is on.
+servers answer and names the step the scan is on. Point at a server, or
+move to it with the keyboard or a controller, to see its address, players
+and settings in a card beside it.
 
 **Join IP Address** connects to an address you type, in any form the direct
 connections below accept, and shows your own IP address to pass on to

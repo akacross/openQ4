@@ -382,6 +382,77 @@ static void CheckRetainedMeshes(TestHost& host) {
 		Check(std::find(host.releasedMeshes.begin(),host.releasedMeshes.end(),mesh) != host.releasedMeshes.end(),
 			"every mesh identity is released with its geometry");
 }
+// A detail card. The subject is the control the pointer is over after the
+// pointer moved, the focused control after keyboard or controller input, and
+// none on a control without a detail; its detail goes to the detail state,
+// whose binding shows the card. The card sits 6 dp under a focused control,
+// over it near the view's edge, 6 dp from the pointer, with its trailing edge
+// 28 dp past the pointer beyond 555 dp, and always 16 dp inside the view.
+static void CheckDetailCard(TestHost& host) {
+	const auto box = [](const char* id, double left, double top, double width, double height) {
+		return std::string(R"({"id":")")+id+R"(","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},)"
+			R"("opacity":{"type":"number","value":1},"left":{"type":"length","value":)"+std::to_string(left)+R"(,"unit":"dp"},"top":{"type":"length","value":)"+std::to_string(top)+
+			R"(,"unit":"dp"},"width":{"type":"length","value":)"+std::to_string(width)+R"(,"unit":"dp"},"height":{"type":"length","value":)"+
+			std::to_string(height)+R"(,"unit":"dp"})";
+	};
+	// A button with its feedback timeline (every state lights its own box).
+	const auto button = [](const char* id, const char* detail) {
+		const std::string lit = std::string(id)+"-lit";
+		return std::string(R"(,"control":{"role":"button","event":"pick","label":"#str_)")+id+R"(","states":{"default":")"+lit+
+			R"(","hover":")"+lit+R"(","focus":")"+lit+R"(","pressed":")"+lit+R"(","disabled":")"+lit+R"("})"+detail+"}}";
+	};
+	const auto lit = [](const char* id) {
+		return std::string(R"({"id":")")+id+R"(-lit","durationMs":100,"tracks":[{"node":")"+id+R"(","property":"opacity","keys":[)"
+			R"({"atMs":0,"value":{"type":"number","value":1}},{"atMs":100,"value":{"type":"number","value":0.8}}]}]})";
+	};
+	const std::string source = R"json({"format":"openq4-ui","version":1,"id":"detail-card",
+	 "state":{"subject":{"type":"number","initial":-1},"picked":{"type":"boolean","initial":false}},
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","value":100,"unit":"%"},"height":{"type":"length","value":100,"unit":"%"}},
+	  "children":[)json"+box("upper",40,40,1220,30)+"}"+button("upper",R"(,"detail":0)")+","+
+	   box("lower",40,650,300,30)+"}"+button("lower",R"(,"detail":1)")+","+
+	   box("plain",40,300,300,30)+"}"+button("plain","")+","+
+	   box("card",0,0,200,100)+R"json(,"display":{"type":"keyword","value":"none"},"pointer-events":{"type":"keyword","value":"none"}}}]},
+	 "timelines":[)json"+lit("upper")+","+lit("lower")+","+lit("plain")+R"json(],
+	 "bindings":[{"id":"shown","node":"card","property":"display","value":{"op":"select","args":[{"op":">=","args":[{"state":"subject"},0]},"block","none"]}}],
+	 "events":{"pick":[{"op":"setState","values":{"picked":true}}]},
+	 "detail":{"state":"subject","card":"card"}})json";
+	Runtime runtime(host);
+	std::vector<Diagnostic> diagnostics;
+	const bool loaded = runtime.Initialize() && runtime.LoadDocument(source,"detail-card.q4ui",diagnostics);
+	for (const auto& d : diagnostics) std::fprintf(stderr,"%s %s\n",d.pointer.c_str(),d.message.c_str());
+	Check(loaded,"the detail card document loads");
+	Viewport viewport; viewport.width = 1280; viewport.height = 720;
+	const auto subject = [&] { StateValue value; return runtime.GetStateValue("subject",value) ? std::get<double>(value) : -99.0; };
+	const auto card = [&] { Bounds b{}; runtime.GetBounds("card",b); return b; };
+	// A hidden element keeps its last box; whether it shows is its presented display.
+	const auto shown = [&] { const auto display = runtime.PresentedValue("card","display"); return display && display->text != "none"; };
+	Check(runtime.FocusControl("upper",1),"focus the upper control");
+	runtime.Frame(viewport,1.1);
+	Check(subject() == 0 && shown() && Near(card().x,40) && Near(card().y,76) && Near(card().width,200),
+		"the focused control's detail shows the card 6 dp under it, at its leading edge");
+	Check(runtime.FocusControl("lower",1.2),"focus the lower control");
+	runtime.Frame(viewport,1.3);
+	Check(subject() == 1 && Near(card().x,40) && Near(card().y,650-6-100),"near the view's edge the card sits over the control");
+	Check(runtime.FocusControl("plain",1.4),"focus a control without a detail");
+	runtime.Frame(viewport,1.5);
+	Check(subject() == -1 && !shown(),"a control without a detail hides the card");
+	runtime.PointerMove(100,50,1.6); runtime.Frame(viewport,1.7);
+	Check(subject() == 0 && Near(card().x,106) && Near(card().y,56),"the pointer's control is the subject; the card sits 6 dp from the pointer");
+	runtime.PointerMove(700,55,1.8); runtime.Frame(viewport,1.9);
+	Check(subject() == 0 && Near(card().x,700+28-200),"past 555 dp the card's trailing edge sits 28 dp past the pointer");
+	runtime.PointerMove(1250,60,2.0); runtime.Frame(viewport,2.1);
+	Check(subject() == 0 && Near(card().x,1280-16-200),"and stays 16 dp inside the view");
+	runtime.PointerMove(900,500,2.2); runtime.Frame(viewport,2.3);
+	Check(subject() == -1 && !shown(),"the pointer over no control hides the card");
+	Check(runtime.FocusedControl() == "plain","the card never takes the focus");
+	runtime.MenuAction(MenuInput::Up,true,2.4); runtime.MenuAction(MenuInput::Up,false,2.41); runtime.Frame(viewport,2.5);
+	Check(runtime.FocusedControl() != "plain" && subject() == (runtime.FocusedControl() == "upper" ? 0 : 1),
+		"keyboard or controller input makes the focused control the subject again");
+	StateValues values = runtime.GetState(false);
+	Check(values.contains("subject") && runtime.GetStateValue("picked",values["picked"]) && !runtime.GetStateValue("absent",values["subject"]),
+		"one state reads without copying the rest; an undeclared one is refused");
+}
+
 int main(int argc, char** argv) {
 	CheckTypedActionDescriptors();
 	Viewport viewport;
@@ -1176,7 +1247,8 @@ int main(int argc, char** argv) {
 	host.samplePoints.clear();
 	Check(host.errors==0,"no library warnings or errors");
 	CheckCompletionPrograms(host);
+	CheckDetailCard(host);
 	CheckSoftFocus(host);
 	CheckRetainedMeshes(host);
-	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, soft focus and retained meshes passed");
+	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, detail cards, soft focus and retained meshes passed");
 }

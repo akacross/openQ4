@@ -5242,6 +5242,11 @@ static const int RETAINED_CREATE_BAN_ROWS = 32;
 // join.sort names, COLUMNS in the generator).
 static const char *const RETAINED_JOIN_GAME_GUI = "guis/menu/joingame.q4ui";
 static const int RETAINED_JOIN_ROWS = 64;
+// The details card's lines: the stock tooltip's player list holds 11 of its
+// 12 u items, and the scan describes 7 settings (DETAIL_PLAYERS and
+// DETAIL_SETTINGS in the generator).
+static const int RETAINED_JOIN_DETAIL_PLAYERS = 11;
+static const int RETAINED_JOIN_DETAIL_SETTINGS = 7;
 typedef struct retainedJoinSort_s {
 	const char *	verb;
 	serverSort_t	sort;
@@ -7417,6 +7422,8 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	gui->SetStateBool( "join.lan", guiMainMenu != NULL && guiMainMenu->State().GetBool( "lanSet" ) );
 	gui->SetStateBool( "join.scanning", scanning );
 	gui->SetStateString( "join.status", guiMainMenu != NULL ? guiMainMenu->State().GetString( "sortNotice" ) : "" );
+	// The rows may now hold other servers: the details card's again.
+	PublishRetainedJoinDetail( gui );
 	gui->StateChanged( common->GetPresentationTime() );
 #endif
 }
@@ -7427,16 +7434,56 @@ idSessionLocal::UpdateRetainedJoinGame
 
 Each frame the Join Game sub-page presents: the list again once the scan
 has moved on (a server answered, a sort or filter changed, the status
-changed).
+changed), and the details card's server once the row under the pointer or
+the focus changes.
 ===============
 */
 void idSessionLocal::UpdateRetainedJoinGame() {
 #ifndef ID_DEDICATED
-	if ( guiRetainedJoin == NULL || guiActive != guiRetainedJoin ||
-			idAsyncNetwork::client.serverList.GetRevision() == retainedJoinRevision ) {
+	if ( guiRetainedJoin == NULL || guiActive != guiRetainedJoin ) {
 		return;
 	}
-	PublishRetainedJoinGame( guiRetainedJoin );
+	if ( idAsyncNetwork::client.serverList.GetRevision() != retainedJoinRevision ) {
+		PublishRetainedJoinGame( guiRetainedJoin );
+	} else if ( guiRetainedJoin->State().GetInt( "join.detail", "-1" ) != retainedJoinDetailRow ) {
+		PublishRetainedJoinDetail( guiRetainedJoin );
+		guiRetainedJoin->StateChanged( common->GetPresentationTime() );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedJoinDetail
+
+The details card's server: the page row under the pointer or the focus
+(join.detail, which the runtime writes as they move) names one of the
+listed servers, whose address, players and settings the session publishes
+as the stock browser's tooltip shows them (idServerScan::GetServerDetails),
+read as players' text, with the row they describe (join.detail.row), which
+shows the card once it matches the row. A row without a server publishes
+none.
+===============
+*/
+void idSessionLocal::PublishRetainedJoinDetail( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	const int row = gui->State().GetInt( "join.detail", "-1" );
+	const int at = retainedJoinFirst + row;
+	const int index = row >= 0 && at >= 0 && at < retainedJoinServers.Num() ? retainedJoinServers[ at ] : -1;
+	idStr address;
+	idStrList players, settings;
+	const bool described = idAsyncNetwork::client.serverList.GetServerDetails( index, address, players, settings );
+	retainedJoinDetailRow = row;
+	gui->SetStateInt( "join.detail.row", described ? row : -1 );
+	gui->SetStateString( "join.detail.address", Session_RetainedPlayerText( address.c_str(), 64, 1 ).c_str() );
+	for ( int i = 0; i < RETAINED_JOIN_DETAIL_PLAYERS; ++i ) {
+		const idStr player = i < players.Num() ? Session_RetainedPlayerText( players[ i ].c_str(), 64, 1 ) : idStr();
+		gui->SetStateString( va( "join.detail.player%d", i ), player.c_str() );
+	}
+	for ( int i = 0; i < RETAINED_JOIN_DETAIL_SETTINGS; ++i ) {
+		const idStr setting = i < settings.Num() ? Session_RetainedPlayerText( settings[ i ].c_str(), 128, 1 ) : idStr();
+		gui->SetStateString( va( "join.detail.setting%d", i ), setting.c_str() );
+	}
 #endif
 }
 

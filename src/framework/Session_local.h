@@ -384,6 +384,7 @@ public:
 	idUserInterface *	RetainedJoinGamePage();
 	void				OpenRetainedJoinGame();
 	void				PublishRetainedJoinGame( idUserInterface *gui );
+	void				PublishRetainedJoinDetail( idUserInterface *gui );
 	void				UpdateRetainedJoinGame();
 	// The stock browser's server tooltip, kept for the hovered row while the
 	// classic main menu runs (idServerScan::GUIUpdateHover).
@@ -688,6 +689,7 @@ public:
 	int					retainedJoinRevision;	// the scan's revision the page shows (-1: none yet)
 	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
 	idStr				retainedJoinShot;		// that levelshot
+	int					retainedJoinDetailRow;	// the page row whose server's details the page holds (-1: none)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

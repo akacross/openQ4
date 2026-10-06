@@ -933,6 +933,12 @@ struct Runtime::Impl {
 	float windowPointerX = 0, windowPointerY = 0;
 	bool pointerPresent = false;
 	bool pointerNavigation = false;
+	// The detail card (DocumentModel::detail): its subject, whether the pointer
+	// chose it, and the card's last placement relative to its containing block.
+	std::string detailSubject;
+	bool detailByPointer = false;
+	float detailLeft = 0, detailTop = 0;
+	bool detailPlaced = false;
 	// A program's focus request that the current layout could not take: its
 	// control appears with the same state change. The next frame's layout
 	// takes it, or it lapses.
@@ -1127,6 +1133,57 @@ struct Runtime::Impl {
 		const bool allowed = maskArea && (!display || display->text != "none") && (!events || events->text != "none");
 		if (node.control) inputAllowed[node.id] = allowed;
 		if (allowed) for (const auto& child : node.children) CollectInputEligibility(child);
+	}
+	// Writes the detail subject's detail to the detail state: the control the
+	// pointer is over while the pointer moved last, otherwise the focused
+	// control, or the definition's `none` without one that names a detail.
+	// True when the state changed (its bindings are then applied).
+	bool UpdateDetailSubject() {
+		if (!canonical || !canonical->Model().detail) return false;
+		const auto& spec = *canonical->Model().detail;
+		std::string subject = pointerNavigation ? (pointerPresent ? interaction.Hovered() : std::string{}) : interaction.Focused();
+		const auto* node = subject.empty() ? nullptr : canonical->Model().FindNode(subject);
+		if (!node || !node->control || !node->control->detail) subject.clear();
+		if (subject != detailSubject || pointerNavigation != detailByPointer) detailPlaced = false;
+		detailSubject = subject; detailByPointer = pointerNavigation;
+		const StateValues change{{spec.state, subject.empty() ? spec.none : *node->control->detail}};
+		if (!state.WouldChange(change)) return false;
+		State candidate = state; std::string error;
+		if (!candidate.Set(change,error) || !ValidModals(candidate,motion,error)) { host.Log(true,error); return false; }
+		state = std::move(candidate); ApplyControlBindings(); ApplyMotion(); return true;
+	}
+	// Places the detail card beside its subject by the card's measured box
+	// (DetailSpec). A hidden card is not placed. True when it moved.
+	bool PlaceDetailCard() {
+		if (!canonical || !canonical->Model().detail || detailSubject.empty()) return false;
+		auto* card = CanonicalElement(canonical->Model().detail->card);
+		auto* subject = CanonicalElement(detailSubject);
+		if (!card || !subject) return false;
+		const auto size = card->GetBox().GetSize(Rml::BoxArea::Border);
+		if (size.x <= 0 || size.y <= 0) return false;
+		auto* parent = card->GetOffsetParent();
+		const auto origin = parent ? parent->GetAbsoluteOffset(Rml::BoxArea::Padding) : Rml::Vector2f{};
+		const float dp = viewport.DpRatio(), gap = 6*dp, edge = 16*dp;
+		const float viewWidth = static_cast<float>(viewport.width), viewHeight = static_cast<float>(viewport.height);
+		float x = 0, y = 0;
+		if (detailByPointer) {
+			x = pointerX-origin.x > 555*dp ? pointerX+28*dp-size.x : pointerX+gap;
+			y = pointerY+gap;
+			if (y+size.y > viewHeight-edge) y = pointerY-gap-size.y;
+		} else {
+			const auto at = subject->GetAbsoluteOffset(Rml::BoxArea::Border);
+			const auto box = subject->GetBox().GetSize(Rml::BoxArea::Border);
+			x = at.x; y = at.y+box.y+gap;
+			if (y+size.y > viewHeight-edge) y = at.y-gap-size.y;
+		}
+		x = std::clamp(x,edge,std::max(edge,viewWidth-edge-size.x));
+		y = std::clamp(y,edge,std::max(edge,viewHeight-edge-size.y));
+		const float left = x-origin.x, top = y-origin.y;
+		if (detailPlaced && std::abs(left-detailLeft) < .25f && std::abs(top-detailTop) < .25f) return false;
+		detailLeft = left; detailTop = top; detailPlaced = true;
+		card->SetProperty(Rml::PropertyId::Left,Rml::Property(left,Rml::Unit::PX));
+		card->SetProperty(Rml::PropertyId::Top,Rml::Property(top,Rml::Unit::PX));
+		return true;
 	}
 	void ApplyControlBindings() {
 		SyncModals(); // Capture the opener before enabled/readback changes clear it.
@@ -1701,6 +1758,11 @@ StateValues Runtime::GetState(bool includeHostSources) const {
 		if (includeHostSources || impl->state.Declarations().at(id).cvar.empty()) values[id] = value;
 	return values;
 }
+bool Runtime::GetStateValue(const std::string& id, StateValue& value) const {
+	const auto found = impl->state.Variables().find(id);
+	if (found == impl->state.Variables().end()) return false;
+	value = found->second; return true;
+}
 std::uint64_t Runtime::StateRevision() const { return impl->state.Revision(); }
 bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double seconds) const {
 	error.clear();
@@ -2145,6 +2207,10 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 		}
 	}
 	impl->preserveRestoredScroll=false;
+	// The detail card follows the subject this layout settled on: its detail
+	// shows the card and its content, then the card's measured box places it.
+	if (impl->UpdateDetailSubject()) impl->context->Update();
+	if (impl->PlaceDetailCard()) impl->context->Update();
 	impl->context->GetRootElement()->UpdateGeometryForProjection();
 	impl->RememberFocusLayout();
 	return true;

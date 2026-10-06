@@ -452,6 +452,17 @@ struct idServerScan {
     std::string notice; float progress = 0;
     const char* GetLoadNotice() const { return notice.c_str(); }
     float GetLoadProgress() const { return progress; }
+    // A server's details, as the stock tooltip shows them: its address, the
+    // double's players for it, and one setting naming its server.
+    std::map<std::string, std::vector<std::string>> players;
+    bool GetServerDetails(int index, idStr& address, idStrList& names, idStrList& settings) const {
+        if (index < 0 || index >= Num()) return false;
+        address = servers[index].adr.address.c_str(); names.clear(); settings.clear();
+        const auto found = players.find(servers[index].adr.address);
+        if (found != players.end()) for (const auto& name : found->second) names.push_back(idStr(name.c_str()));
+        settings.push_back(idStr((std::string("Map: ") + servers[index].serverInfo.GetString("si_mapName")).c_str()));
+        return true;
+    }
 };
 struct AsyncClient { idServerScan serverList; };
 struct idAsyncNetwork {
@@ -573,6 +584,7 @@ public:
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
     idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
+    void PublishRetainedJoinDetail(idUserInterface*); int retainedJoinDetailRow = -1;
     void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
@@ -1399,6 +1411,27 @@ int main() {
         scan.notice = std::string(300, 'n'); scan.progress = 1.0f; ++scan.revision; s.UpdateRetainedJoinGame();
         CHECK(join->state["join.notice"] == std::string(160, 'n') && join->state["join.progress"] == std::to_string(1.0f));
         scan.notice.clear(); scan.progress = 0; ++scan.revision; s.UpdateRetainedJoinGame();
+        // The details card: no row under the pointer or the focus, none; the
+        // row the runtime writes names its server, whose address, players and
+        // settings the session publishes as players' text with the row they
+        // describe; a row past the list, none; a new order, the row's new
+        // server.
+        CHECK(join->state["join.detail.row"] == "-1" && join->state["join.detail.address"] == "" && join->state["join.detail.player0"] == "");
+        scan.players[scan.servers[scan.visible[1]].adr.address] = {"^1Grunt", "Kane"};
+        join->state["join.detail"] = "1"; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.detail.row"] == "1" && join->state["join.detail.address"] == scan.servers[scan.visible[1]].adr.address &&
+              join->state["join.detail.player0"] == "Grunt" && join->state["join.detail.player1"] == "Kane" && join->state["join.detail.player2"] == "" &&
+              join->state["join.detail.setting0"].rfind("Map: ", 0) == 0 && join->state["join.detail.setting1"] == "");
+        int detailChanges = join->stateChanges; s.UpdateRetainedJoinGame(); CHECK(join->stateChanges == detailChanges);   // unchanged
+        join->state["join.detail"] = "9"; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.detail.row"] == "-1" && join->state["join.detail.address"] == "" && join->state["join.detail.player0"] == "");
+        join->state["join.detail"] = "0"; s.UpdateRetainedJoinGame();
+        const std::string firstAddress = join->state["join.detail.address"];
+        std::swap(scan.visible[0], scan.visible[1]); ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.detail.row"] == "0" && join->state["join.detail.address"] != firstAddress &&
+              join->state["join.detail.player0"] == "Grunt");
+        std::swap(scan.visible[0], scan.visible[1]); join->state["join.detail"] = "-1"; ++scan.revision; s.UpdateRetainedJoinGame();
+        scan.players.clear();
         // JOIN IP ADDRESS: nothing entered, nothing to join; an address it
         // cannot join keeps the dialog with the reason; one it can connects and
         // closes the dialog.
@@ -3620,6 +3653,20 @@ def check_join_game(menu: str) -> None:
     assert 'guiMainMenu->SetStateString( "net_ip", Session_LocalAddressText().c_str() );' in main_menu
     assert 'idAsyncNetwork::client.serverList.SetPlayerSearch( guiActive->State().GetString( "playerclan_search" ) );' in main_menu
     assert scans.index('servers.SetPlayerSearch( "" );') < scans.index('servers.GUIInit();')
+    # The details card: the session's line counts are the generator's, the
+    # document defines the card on join.detail, and each row names its row.
+    assert re.search(r'RETAINED_JOIN_DETAIL_PLAYERS = (\d+);', text).group(1) == str(join.DETAIL_PLAYERS)
+    assert re.search(r'RETAINED_JOIN_DETAIL_SETTINGS = (\d+);', text).group(1) == str(join.DETAIL_SETTINGS)
+    page = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/joingame.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    assert page['detail'] == {'state': 'join.detail', 'card': 'join-detail', 'none': -1}, page['detail']
+    rows = {}
+    stack = [page['root']]
+    while stack:
+        node = stack.pop()
+        stack += node.get('children', [])
+        if node['id'].startswith('server-') and node['id'][7:].isdigit():
+            rows[int(node['id'][7:])] = node['control'].get('detail')
+    assert len(rows) == join.JOIN_ROWS and all(rows[row] == row for row in rows), 'every row names its row'
     # The scan's progress reaches the page; a server's name in the notice is
     # read as a player's text.
     publish = function_body(text, 'void idSessionLocal::PublishRetainedJoinGame(')
@@ -4292,7 +4339,8 @@ def main() -> int:
         'static bool Session_BanListRow(', 'void idSessionLocal::PublishRetainedCreateBans(',
         'void idSessionLocal::HandleRetainedCreateServerRequest(', 'static void Session_ScanServers(',
         'idUserInterface *idSessionLocal::RetainedJoinGamePage(', 'void idSessionLocal::OpenRetainedJoinGame(',
-        'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::UpdateRetainedJoinGame(',
+        'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::PublishRetainedJoinDetail(',
+        'void idSessionLocal::UpdateRetainedJoinGame(',
         'void idSessionLocal::HandleRetainedJoinGameRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',

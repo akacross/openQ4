@@ -1294,9 +1294,24 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   classic menu ran; openQ4's had published the selected server's players
   there and kept the tooltip hidden. The session keeps it again
   (`UpdateBrowserTooltip`, `idServerScan::GUIUpdateHover`, reading the
-  list's `serverList_hover`). The retained page does not show these details
-  yet. Polish and Russian gained the tooltip's labels, which their tables
-  lacked, and French and Italian DeadZone's control time.
+  list's `serverList_hover`). Polish and Russian gained the tooltip's labels,
+  which their tables lacked, and French and Italian DeadZone's control time.
+- **Details card.** The retained page shows those details in the stock
+  tooltip's card as section 7's hover card, through the runtime's detail
+  card ([interaction](interaction.md#detail-cards)). Each row names its row as
+  the subject (`join.detail`). The pointer's row is the subject while the
+  pointer moved last, and otherwise the focused row. The session publishes the
+  row's server (`PublishRetainedJoinDetail`: `join.detail.address`,
+  `join.detail.player0`-`10`, `join.detail.setting0`-`6`, read as players'
+  text) and the row it describes (`join.detail.row`), and the card shows only
+  while that matches the subject, so it never shows another server's details
+  for a frame. The card is the stock 270x186 u: a black body at 0.9 with an
+  olive border, cut at its lower-leading corner and bevelled at its
+  upper-trailing one; the address in Lowpixel 14 dp; PLAYERS and SERVER
+  SETTINGS at 0.4 over 11 player and 7 setting lines in Profont 13 dp on the
+  stock 12 u pitch; and olive dividers at 0.32 as the stock draws them. It
+  sits under the focused row (over it near the view's edge), or beside the
+  pointer.
 - **JOIN IP ADDRESS** opens section 6's entry dialog on the stock popup's
   pieces: the address field (99 bytes, as the stock field took), which Enter
   commits into `join.address` and connects with; CONNECT, while there is an
@@ -1348,7 +1363,8 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   symbol shown), takes it off the favorites and puts it back, steps MOD to
   the next mod and back, searches for a player nobody is (the list empties
   under the search's tag until its Accept), and joins it, the game module
-  reloading into game_mp; the progress bar is full once the scan completes.
+  reloading into game_mp; the progress bar is full once the scan completes,
+  and the focused first row's details card shows under it.
   `joingameaddress` opens JOIN IP ADDRESS, enters an address it cannot join
   (the reason shows), then the server's, which joins it. `stockbrowser` runs
   the classic menu (`ui_retained 0`): its browser's GET NEW LIST fills the
@@ -1899,6 +1915,9 @@ SHA-256 `86ad58e9f0cb2e487b06fa2e253b38711cb750ecee629ff6b72f3acb43b5cf7f`.
 A server's details and the classic browser's server tooltip: `.tmp/ui/retained-joingame-details-evidence/validation-evidence.json`,
 SHA-256 `5b7857f09bfd8f65fd8cfa22264375b890b55387090450c5ca5010fd6b034e46`.
 
+The runtime's detail card and Join Game's server details: `.tmp/ui/retained-detail-card-evidence/validation-evidence.json`,
+SHA-256 `f756cd836ed5469f16f0f60658c9568d31f35bff637eb694493c464dc0f58854`.
+
 ## Known limitations
 
 - The initializing screen's first frame loads, lays out and compiles its
@@ -1951,9 +1970,10 @@ SHA-256 `5b7857f09bfd8f65fd8cfa22264375b890b55387090450c5ca5010fd6b034e46`.
 - The sub-page level covers Single Player's Campaign and Arena, and
   Multiplayer's Create Server and Join Game. The Multiplayer page opens the
   stock Settings page through the stock within-a-screen change instead of a
-  sub-page. The retained Join Game has no detail column (the chosen server's
-  players and rules) or prompt bar yet (Join, Spectate and Favorite), and the
-  controller's north and west do not yet sort and refresh it. Player Setup
+  sub-page. The retained Join Game shows a server's players and rules in the
+  stock tooltip's card rather than a docked detail column, and has no prompt
+  bar yet (Join, Spectate and Favorite); the controller's north and west do
+  not yet sort and refresh it. Player Setup
   does not yet edit in place,
   Demos is not yet among its sections, and
   Campaign's Chapters is not yet a level of its own; New Campaign is

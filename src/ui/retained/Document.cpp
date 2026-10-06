@@ -223,7 +223,7 @@ public:
 	Validator(const std::string& text, std::vector<Diagnostic>& errors) : source(text), diagnostics(errors) {}
 	DocumentModel Read(const Json::Value& root) {
 		FiniteTree(root,"");
-		Fields(root,"",{"format","version","id","canvas","tokens","root","timelines","state","bindings","actions","presentationVariables","aliases","events","editor","extensions"});
+		Fields(root,"",{"format","version","id","canvas","tokens","root","timelines","state","bindings","actions","presentationVariables","aliases","events","detail","editor","extensions"});
 		Require(root["format"] == "openq4-ui",root,"/format","Expected format 'openq4-ui'");
 		Require(root["version"].isUInt() && root["version"].asUInt() == 1,root["version"],"/version","Unsupported document version; expected 1");
 		model.id = Id(root["id"],"/id");
@@ -260,6 +260,7 @@ public:
 		ReadEvents(root);
 		ValidateCompletions(root);
 		ValidateControls(root["root"],model.root,"/root",false);
+		ReadDetail(root);
 		State initial; std::string stateError;
 		Require(initial.Reset(model,stateError),root["bindings"],"/bindings",stateError);
 		std::string lastModal;
@@ -267,6 +268,41 @@ public:
 		return std::move(model);
 	}
 private:
+	// The detail card: a declared numeric state, a card node holding no
+	// controls whose left and top the runtime owns, and a definition whenever a
+	// control names a detail.
+	void ReadDetail(const Json::Value& root) {
+		if (!root.isMember("detail")) {
+			Require(detailControls.empty(),root,detailControls.empty() ? "" : detailControls.front().second,
+				"A control's detail requires the document's detail definition");
+			return;
+		}
+		const auto& detail = root["detail"];
+		Fields(detail,"/detail",{"state","card","none","extensions"});
+		DetailSpec spec;
+		spec.state = Id(detail["state"],"/detail/state");
+		spec.card = Id(detail["card"],"/detail/card");
+		if (detail.isMember("none")) spec.none = Numeric(detail["none"],"/detail/none",-1e9,1e9);
+		const auto declared = model.state.find(spec.state);
+		Require(declared != model.state.end() && std::holds_alternative<double>(declared->second.initial),detail["state"],"/detail/state",
+			"The detail state must be a declared number");
+		const auto* card = model.FindNode(spec.card);
+		Require(card != nullptr && card->id != model.root.id,detail["card"],"/detail/card","The detail card must be a node below the root");
+		Require(!HasControl(*card),detail["card"],"/detail/card","The detail card cannot hold controls");
+		for (const auto* property : {"left","top"}) {
+			Require(!trackTargets.contains({card->id,property}),detail["card"],"/detail/card","The runtime places the detail card; its left and top cannot be animated");
+			for (const auto& binding : model.bindings)
+				Require(!(binding.node == card->id && binding.property == property),detail["card"],"/detail/card","The runtime places the detail card; its left and top cannot be bound");
+		}
+		for (const auto& [id,path] : detailControls)
+			Require(!Descendant(id,card->id),root,path,"A control naming a detail cannot sit inside the detail card");
+		model.detail = std::move(spec);
+	}
+	static bool HasControl(const Node& node) {
+		if (node.control) return true;
+		for (const auto& child : node.children) if (HasControl(child)) return true;
+		return false;
+	}
 	void ValidateInitialModals(const Json::Value& sourceNode, const Node& node, const std::string& path,
 		const PropertyValues& bound, bool inherited, const std::string& parent, std::string& last) {
 		const auto expression = bound.find({node.id,"display"});
@@ -903,7 +939,7 @@ private:
 			const auto& control = value["control"]; const auto p = path+"/control";
 			Require(control.isObject() && control["role"].isString(),control,p,"Expected a semantic control role");
 			const auto role = control["role"].asString();
-			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","extensions"});
+			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","detail","extensions"});
 			else if (role == "toggle") Fields(control,p,{"role","action","label","enabled","states","navigation","value","mixed","parts","extensions"});
 			else if (role == "slider") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","step","decimals","orientation","parts","extensions"});
 			else if (role == "choice") Fields(control,p,{"role","action","label","enabled","states","navigation","value","parts","visibleRows","options","optionCount","scrollbar","placementBounds","extensions"});
@@ -916,6 +952,10 @@ private:
 			if (control.isMember("action")) parsed.action = Id(control["action"],p+"/action");
 			else if (role != "scrollbar") parsed.event = EventName(control["event"],p+"/event");
 			parsed.label = ControlLabel(control["label"],p+"/label");
+			if (control.isMember("detail")) {
+				parsed.detail = Numeric(control["detail"],p+"/detail",-1e9,1e9);
+				detailControls.emplace_back(result.id,p+"/detail");
+			}
 			if (role == "scrollbar") {
                 parsed.role = ControlRole::Scrollbar;ScrollSpec spec;
                 spec.viewport = Id(control["viewport"],p+"/viewport");
@@ -1491,6 +1531,7 @@ private:
 	size_t eventStepCount = 0;
 	std::set<std::string> nodeIds;
 	unsigned nodeCount = 0;
+	std::vector<std::pair<std::string,std::string>> detailControls; // Controls naming a detail, with their JSON pointers.
 	// The (node, property) pairs that timeline tracks and bindings own, so
 	// ownership checks look a pair up instead of scanning every track.
 	std::set<std::pair<std::string,std::string>> trackTargets, bindingTargets;

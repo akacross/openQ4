@@ -54,6 +54,37 @@ The [fixture](../../../tools/ui/fixtures/interaction-smoke.q4ui) uses separate
 editable orange inset rails, label color and a 1 dp pressed label offset. Its
 right-hand panel is a test input scope, not an accepted production modal design.
 
+### Detail cards
+
+A document may define one detail card (section 7's hover card, WID-025), and
+buttons may name a detail for it:
+
+```json
+"detail": {"state": "join.detail", "card": "join-detail", "none": -1}
+```
+
+A button's `"detail": 3` names its subject value. The subject is the control
+the pointer is over while the pointer moved last, and otherwise the focused
+control after keyboard, controller or programmatic focus. Each layout writes
+the subject's value, or `none` (default -1) when the subject names no detail
+or there is none, to `state`, which must be a declared number. Bindings then
+show the card and its content. The runtime owns this state: a host's
+application state never resets it, and the adapter mirrors it back to the
+host's dictionary after each frame, so the session can describe the subject.
+
+The runtime then places `card` by its measured box. Under the pointer, it
+sits 6 dp right of and below the pointer; once the pointer is more than
+555 dp into the card's containing block, its trailing edge sits 28 dp past
+the pointer. Under a focused control, it sits 6 dp under the control at the
+control's leading edge, and over the control when it would cross the view's
+edge. It always stays 16 dp inside the view. A hidden card is not placed.
+
+The card must be a node below the root holding no controls. Bindings and
+timelines cannot own its `left` or `top`, and no control naming a detail
+may sit inside it. It never takes the focus, and it should not take the
+pointer (`pointer-events: none`). `UiDocumentTest` holds the schema, and
+`RetainedUiTest` holds the subject and the placement.
+
 ## Interaction ownership
 
 `Interaction` is independent of RmlUi, engine headers and devices. The layout

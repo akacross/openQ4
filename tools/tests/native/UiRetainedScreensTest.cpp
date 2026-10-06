@@ -2757,6 +2757,34 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(Near(bounds("server-0-ping").x,bounds("server-0").x+279*u,1) && Near(bounds("server-1").y,bounds("server-0").y+18*u,1),
 		"the rows keep the stock 18 u pitch and their columns");
 	Check(text("servers-newer","display") == "none" && text("servers-older","display") == "none","one page holds them all");
+	// The details card: each row names its row; focusing one makes it the
+	// subject (join.detail); the card shows once the session's details describe
+	// that row (join.detail.row), 6 dp under the row at its leading edge, with
+	// the address, players and settings under the stock headings; describing
+	// another row hides it, and a control without a detail clears the subject.
+	Check(document.Model().detail && document.Model().detail->card == "join-detail" && document.Model().detail->state == "join.detail" &&
+		document.Model().FindNode("server-5")->control->detail == 5.0,"the rows name their rows as the card's subject");
+	Check(text("join-detail","display") == "none","no subject, no card");
+	Check(runtime.FocusControl("server-1",0.91),"focus the second row");
+	runtime.Frame(viewport,0.911);
+	StateValue subject;
+	Check(runtime.GetStateValue("join.detail",subject) && std::get<double>(subject) == 1,"the focused row is the subject");
+	Check(text("join-detail","display") == "none","the card waits for its server's details");
+	Check(runtime.SetState({{"join.detail.row",1.0},{"join.detail.address",std::string("10.0.0.9:28004")},
+		{"join.detail.player0",std::string("Grunt")},{"join.detail.setting0",std::string("Map: Fragging Yard")}},error,0.92),"the session describes it");
+	runtime.Frame(viewport,0.921);
+	const auto detailRow = bounds("server-1"), detailCard = bounds("join-detail");
+	Check(text("join-detail","display") == "block" && Near(detailCard.x,detailRow.x,1) && Near(detailCard.y,detailRow.y+detailRow.height+6,1) &&
+		Near(detailCard.width,270*u,1) && Near(detailCard.height,186*u,1),"the card sits 6 dp under the focused row at its leading edge");
+	Check(text("join-detail-address","text") == "10.0.0.9:28004" && text("join-detail-player0","text") == "Grunt" &&
+		text("join-detail-setting0","text") == "Map: Fragging Yard" && text("join-detail-players","text") == "#str_200038" &&
+		text("join-detail-settings","text") == "#str_200928","it names the server's address, players and settings under the stock headings");
+	Check(runtime.SetState({{"join.detail.row",2.0}},error,0.93),"a stale description");
+	runtime.Frame(viewport,0.931);
+	Check(text("join-detail","display") == "none","describing another row hides it");
+	Check(runtime.SetState({{"join.detail.row",-1.0}},error,0.94) && runtime.FocusControl("join_newlist",0.941),"the focus leaves the list");
+	runtime.Frame(viewport,0.942);
+	Check(runtime.GetStateValue("join.detail",subject) && std::get<double>(subject) == -1,"a control without a detail clears the subject");
 	// The sort: ping ascending marks PING's heading with its up chevron.
 	Check(text("heading-ping-up","display") == "block" && text("heading-ping-down","display") == "none" &&
 		text("heading-name-up","display") == "none","the sort's column shows its direction");
