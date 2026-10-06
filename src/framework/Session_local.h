@@ -188,8 +188,14 @@ typedef struct {
 typedef enum {
 	RETAINED_SUBPAGE_CAMPAIGN,		// Single Player's Campaign
 	RETAINED_SUBPAGE_ARENA,			// Single Player's Arena
-	RETAINED_SUBPAGE_CREATE_SERVER	// Multiplayer's Create Server
+	RETAINED_SUBPAGE_CREATE_SERVER,	// Multiplayer's Create Server
+	RETAINED_SUBPAGE_JOIN_GAME		// Multiplayer's Join Game, the server browser
 } retainedSubpage_t;
+
+// Player- or server-supplied text for a retained screen (Session.cpp): escapes,
+// controls and malformed UTF-8 dropped, at most maxBytes bytes on maxLines
+// lines, never read as a #str_ key.
+idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines );
 
 const int USERCMD_PER_DEMO_FRAME	= 2;
 const int CONNECT_TRANSMIT_TIME		= 1000;
@@ -312,7 +318,7 @@ public:
 	int					retainedRosterConnecting;
 	bool				retainedRosterKnown;
 	// A page and its sub-page change (spec 1.10): Single Player and its
-	// Campaign and Arena, Multiplayer and its Create Server.
+	// Campaign and Arena, Multiplayer and its Create Server and Join Game.
 	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage = RETAINED_SUBPAGE_CAMPAIGN );
 	void				PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage );
 	void				UpdateRetainedSubpage();
@@ -354,9 +360,10 @@ public:
 	void				HandleRetainedArenaRequest( idUserInterface *gui, const char *request );
 	// The retained Multiplayer page (guis/menu/multiplayer.q4ui), which the
 	// title's MULTIPLAYER hands off to: its sections open the stock pages
-	// after its departure, and their Back presents it again (multiplayerOpen).
+	// after its departure, and their Back presents it again (multiplayerOpen);
+	// back from a sub-page it returns onto that sub-page's section.
 	idUserInterface *	RetainedMultiplayerPage();
-	bool				OpenRetainedMultiplayerPage( bool fromCreate = false );
+	bool				OpenRetainedMultiplayerPage( const char *section = NULL );
 	void				HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request );
 	void				UpdateRetainedMultiplayerPage();
 	// The retained Create Server sub-page (guis/menu/createserver.q4ui), which
@@ -370,6 +377,15 @@ public:
 	void				PublishRetainedCreateBans( idUserInterface *gui );
 	void				HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request );
 	bool				StartMenuServer();
+	// The retained Join Game sub-page (guis/menu/joingame.q4ui), which JOIN
+	// GAME on the Multiplayer page goes deeper to: the session lists the
+	// server scan's servers (join.*) as the scan finds them, and JOIN SERVER
+	// connects to the chosen one.
+	idUserInterface *	RetainedJoinGamePage();
+	void				OpenRetainedJoinGame();
+	void				PublishRetainedJoinGame( idUserInterface *gui );
+	void				UpdateRetainedJoinGame();
+	void				HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request );
 	// The demo library's operations, which the legacy browser and the
 	// retained page share.
 	void				ScanDemoLibrary();
@@ -662,6 +678,11 @@ public:
 	int					retainedCreateMapSelected;	// the chosen one among them (-1: none)
 	idStrList			retainedCreateBanGuids;		// PLAYER BAN LIST's rows' GUIDs, in list order
 	int					retainedCreateBanSelected;	// the chosen row (-1: none)
+	idUserInterface *	guiRetainedJoin;		// the retained Join Game sub-page (NULL until it loads)
+	idList<int>			retainedJoinServers;	// the scan's servers the list shows, in list order
+	int					retainedJoinFirst;		// the first of them the list holds
+	idStr				retainedJoinAddress;	// the chosen server's address (empty: none)
+	int					retainedJoinRevision;	// the scan's revision the page shows (-1: none yet)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

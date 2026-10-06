@@ -51,6 +51,7 @@ OUTPUTS = {
     "arena": PAK0 / "guis" / "menu" / "arena.q4ui",
     "multiplayer": PAK0 / "guis" / "menu" / "multiplayer.q4ui",
     "createserver": PAK0 / "guis" / "menu" / "createserver.q4ui",
+    "joingame": PAK0 / "guis" / "menu" / "joingame.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -3036,6 +3037,7 @@ def main() -> int:
     from retained_arena import arena_document
     from retained_mp_page import multiplayer_document
     from retained_create_server import create_server_document
+    from retained_join_game import join_game_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
@@ -3049,6 +3051,7 @@ def main() -> int:
                  "arena": arena_document(),
                  "multiplayer": multiplayer_document(),
                  "createserver": create_server_document(),
+                 "joingame": join_game_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():

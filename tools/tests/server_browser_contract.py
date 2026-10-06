@@ -44,6 +44,14 @@ public:
         for(char &c:y)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         return x.compare(y);
     }
+    static int Icmpn(const char *a,const char *b,int n) {
+        for(int i=0;i<n;++i){
+            const int x=std::tolower(static_cast<unsigned char>(a[i])),y=std::tolower(static_cast<unsigned char>(b[i]));
+            if(x!=y||!x)return x-y;
+        }
+        return 0;
+    }
+    friend idStr operator+(const idStr &a,const char *b) { return idStr(a.value+b); }
     int Icmp(const char *s) const { return Icmp(c_str(),s); }
     int Icmp(const idStr &s) const { return Icmp(c_str(),s.c_str()); }
     operator const char *() const { return c_str(); }
@@ -110,10 +118,13 @@ bool Sys_StringToNetAdr(const char *s,netadr_t *out,bool) {
     if(colon==std::string::npos)return false;
     std::string port=value.substr(colon+1);
     if(port.empty() || port.find_first_not_of("0123456789")!=std::string::npos)return false;
-    out->port=std::atoi(port.c_str());out->host=value.substr(0,colon);out->type=value[0]=='['?NA_IP6:NA_IP;
+    // As the platform's: 127.0.0.1 is the loopback endpoint.
+    out->port=std::atoi(port.c_str());out->host=value.substr(0,colon);
+    out->type=value[0]=='['?NA_IP6:out->host=="127.0.0.1"?NA_LOOPBACK:NA_IP;
     return out->port>0 && out->port<65536 && out->host.find_first_not_of("0123456789abcdefABCDEF.:[]%") == std::string::npos;
 }
-const char *Sys_NetAdrToString(const netadr_t &adr){return va("%s:%d",adr.host.c_str(),adr.port);}
+// As the platform's: a loopback endpoint reads as localhost.
+const char *Sys_NetAdrToString(const netadr_t &adr){return adr.type==NA_LOOPBACK?va("localhost:%d",adr.port):va("%s:%d",adr.host.c_str(),adr.port);}
 bool Sys_CompareNetAdrBase(const netadr_t &a,const netadr_t &b){return a.host==b.host;}
 int clockValue=100;
 int Sys_Milliseconds(){return clockValue;}
@@ -246,14 +257,26 @@ int main(){
     scan.SetSorting(SORT_SERVERNAME);assert(scan.GetSelectedAddress(address)&&address==original);
     assert(gui.State().GetInt("serverList_sel_0")==1);
     scan.SetSorting(SORT_SERVERNAME);assert(scan.GetSelectedAddress(address)&&address==original);
+    // The read view a menu drawing its own list uses: the servers the filter
+    // passes in the sort's walking order, the sort, whether a server is a
+    // favorite, a revision each change moves, and the game type's name.
+    {bool up=true;assert(scan.GetSorting(up)==SORT_SERVERNAME&&!up);
+     idList<int> order;scan.VisibleServers(order);assert(order.Num()==2);
+     assert(!std::strcmp(scan[order[0]].serverInfo.GetString("si_name"),"^2Zulu\tArena\n^imaterial"));
+     assert(!std::strcmp(scan[order[1]].serverInfo.GetString("si_name"),"Alpha"));
+     const int before=scan.GetRevision();scan.ApplyFilter();assert(scan.GetRevision()>before);
+     assert(!scan.IsFavoriteServer(order[0])&&!scan.IsFavoriteServer(-1)&&!scan.IsFavoriteServer(2));
+     assert(!std::strcmp(idServerScan::GameTypeName("Team DM"),"#str_107677")&&!std::strcmp(idServerScan::GameTypeName("custom"),"custom"));}
     const auto &row=uiManager->last->rows[0].second.value;
     assert(std::count(row.begin(),row.end(),'\t')==9);assert(row.find('\n')==std::string::npos);assert(row.find('^')==std::string::npos);
     assert(gui.State().GetInt("browser_count")==2); // OS mask does not reject our own modules.
     gui_filter_players.SetString("2");scan.ApplyFilter();assert(!scan.GetSelectedAddress(address));assert(gui.State().GetInt("browser_count")==0);
+    {idList<int> order;scan.VisibleServers(order);assert(order.Num()==0);}
     assert(std::string(gui.State().GetString("server_IP")).empty());
     gui_filter_players.SetString("0");scan.ApplyFilter();assert(!scan.GetSelectedAddress(address));
     gui.SetStateInt("serverList_sel_0",0);scan.GUIUpdateSelected();assert(scan.GetSelectedAddress(address));
     scan.ToggleFavorite();assert(fileValue.files["server_favorites.list"].find(address.c_str())!=std::string::npos);
+    {idList<int> order;scan.VisibleServers(order);int favorites=0;for(int i=0;i<order.Num();++i)favorites+=scan.IsFavoriteServer(order[i]);assert(favorites==1);}
     assert(std::string(gui.State().GetString("favoriteStatus"))=="#str_200293");
     scan.SetSorting(SORT_FAVORITE);assert(scan.GetSelectedAddress(address));
     fileValue.failWrite=true;scan.ToggleFavorite();assert(std::string(gui.State().GetString("favoriteStatus"))=="#str_200293");fileValue.failWrite=false;
@@ -272,11 +295,21 @@ int main(){
     fileValue.screenshot.clear();scan[0].serverInfo.Set("si_map","../secret");scan.GUIUpdateSelected();assert(fileValue.screenshot.empty());
     clockValue+=1200;scan.RunFrame();assert(scan.GetState()==idServerScan::IDLE);assert(!gui.State().GetBool("browser_scanning"));
     scan.Shutdown();
-    fileValue.files["server_favorites.list"]="10.0.0.9:28004\n[2001:db8::1]:28004\n10.0.0.9:28004\n10.0.0.3:28004;quit\n";
+    // Loopback favorites (a server on this machine) list too, numeric or as
+    // a "localhost" line saved before the numeric form.
+    fileValue.files["server_favorites.list"]="10.0.0.9:28004\n[2001:db8::1]:28004\n10.0.0.9:28004\n10.0.0.3:28004;quit\n127.0.0.1:28005\nlocalhost:28006\n";
     idServerScan restored;restored.GUIConfig(&gui,"serverList");restored.GUIInit();restored.AddFavoriteServers();restored.NetScan();
-    assert(idAsyncNetwork::client.queries.size()==2);
+    assert(idAsyncNetwork::client.queries.size()==4);
     assert(idAsyncNetwork::client.queries[1]=="[2001:db8::1]:28004");
+    assert(idAsyncNetwork::client.queries[2]=="localhost:28005"&&idAsyncNetwork::client.queries[3]=="localhost:28006");
     restored.Shutdown();
+    // A loopback server toggled into the favorites is saved in the numeric form.
+    {idServerScan local;local.GUIConfig(&gui,"serverList");local.GUIInit();local.SetupLANScan();
+     auto self=server("127.0.0.1",3,"Local");self.adr.type=NA_LOOPBACK;self.challenge=local.GetChallenge();assert(local.InfoResponse(self)==0);
+     gui.SetStateInt("serverList_sel_0",0);local.GUIUpdateSelected();assert(!local.IsFavoriteServer(0));local.ToggleFavorite();
+     assert(fileValue.files["server_favorites.list"].find("127.0.0.1:28004\n")!=std::string::npos);
+     assert(fileValue.files["server_favorites.list"].find("localhost:28004")==std::string::npos&&local.IsFavoriteServer(0));
+     local.Shutdown();}
     // Execute the real packet callback: losing any required field must not
     // create a browser row, even when the challenge was otherwise accepted.
     for(int completeFields=0;completeFields<=5;++completeFields){
@@ -318,7 +351,7 @@ def main() -> None:
         source.write_text(support + header + scan + PACKET_SUPPORT + response + MAIN, encoding="utf-8")
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
-    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, malformed input)")
+    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, read view, malformed input)")
 
 
 if __name__ == "__main__":

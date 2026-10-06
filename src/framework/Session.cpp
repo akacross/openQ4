@@ -3839,6 +3839,11 @@ void idSessionLocal::Clear() {
 	retainedCreateMapSelected = -1;
 	retainedCreateBanGuids.Clear();
 	retainedCreateBanSelected = -1;
+	guiRetainedJoin = NULL;
+	retainedJoinServers.Clear();
+	retainedJoinFirst = 0;
+	retainedJoinAddress.Clear();
+	retainedJoinRevision = -1;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;
@@ -6015,8 +6020,9 @@ void idSessionLocal::PublishRetainedLoadingTip( bool first ) {
 // line break past maxLines lines reads as a space, at most maxBytes bytes are
 // kept (never splitting a character), and text that would read as a #str_ key
 // stays literal. The console turns backslashes into slashes, so a cvar can
-// carry no typed line break; the card wraps the text itself.
-static idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
+// carry no typed line break; the card wraps the text itself. The Join Game
+// page's server rows read the same way.
+idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
 	idStr plain = text != NULL ? text : "";
 	plain.RemoveEscapes();
 	idStr out;

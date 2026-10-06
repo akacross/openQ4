@@ -919,6 +919,18 @@
   and REMOVE BAN lifts them, and its Min Players and Max Players stay in
   order, as in the original game.
 
+- A favorite server running on your own machine, such as a local dedicated
+  server, now appears in the server browser's Internet list. Before, the
+  browser saved it as "localhost" and never contacted it. Favorites saved
+  that way are picked up again automatically.
+
+- Preview: with `ui_retainedMultiplayer 1`, JOIN GAME on the Multiplayer page
+  slides one level down to a rebuilt server browser: the Internet or LAN
+  list with sortable columns, favorites and passworded servers marked, and
+  JOIN SERVER. Joining by IP address, finding a player, the mod filter,
+  adding favorites and the server details still need the classic browser,
+  which JOIN GAME opens by default.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

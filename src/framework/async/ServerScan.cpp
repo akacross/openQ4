@@ -119,6 +119,17 @@ static bool ServerBrowserMapPath( const char *path ) {
 	return true;
 }
 
+// A favorite's endpoint as the favorites keep it: as Sys_NetAdrToString
+// writes it, except a loopback endpoint, which it writes as "localhost:port",
+// a name only a DNS lookup parses again (AddServer parses without one); the
+// numeric form lists and round-trips through the favorites file.
+static idStr ServerBrowserEndpoint( const netadr_t &adr ) {
+	if ( adr.type == NA_LOOPBACK ) {
+		return va( "127.0.0.1:%i", adr.port );
+	}
+	return Sys_NetAdrToString( adr );
+}
+
 static const char *ServerBrowserGameType( const char *type ) {
 	static const char *tokens[] = { "DM", "Tourney", "Team DM", "CTF", "Arena CTF", "DeadZone",
 		"Duel", "Clan Arena", "Freeze Tag", "Red Rover", "One Flag CTF", "Arena One Flag CTF" };
@@ -163,6 +174,7 @@ idServerScan::idServerScan( ) {
 	m_sort = SORT_PING;
 	m_sortAscending = true;
 	challenge = 0;
+	revision = 0;
 	LocalClear();
 }
 
@@ -172,6 +184,7 @@ idServerScan::LocalClear
 ================
 */
 void idServerScan::LocalClear( ) {
+	++revision;
 	scan_state = IDLE;
 	incoming_net = false;
 	lan_pingtime = -1;
@@ -387,7 +400,8 @@ void idServerScan::NetScan( ) {
 
 	scan_state = NET_SCAN;
 	challenge++;
-	
+	++revision;
+
 	idList<networkServer_t>::Clear();
 	m_sortedServers.Clear();
 	cur_info = 0;
@@ -607,13 +621,17 @@ void idServerScan::LoadFavorites() {
 		idStr line;
 		for ( int i = 0; i <= read && favorites.Num() < MAX_BROWSER_FAVORITES; ++i ) {
 			if ( i == read || bytes[i] == '\n' ) {
+				// A loopback favorite saved before the numeric form reads as one.
+				if ( !idStr::Icmpn( line.c_str(), "localhost:", 10 ) ) {
+					line = idStr( "127.0.0.1" ) + ( line.c_str() + 9 );
+				}
 				netadr_t endpoint;
 				if ( line.Length() && line.Length() < 128 && Sys_StringToNetAdr( line.c_str(), &endpoint, false ) &&
 					( endpoint.type == NA_IP || endpoint.type == NA_IP6 || endpoint.type == NA_LOOPBACK ) ) {
 					if ( !endpoint.port ) {
 						endpoint.port = PORT_SERVER;
 					}
-					favorites.AddUnique( Sys_NetAdrToString( endpoint ) );
+					favorites.AddUnique( ServerBrowserEndpoint( endpoint ) );
 				}
 				line.Clear();
 			} else if ( bytes[i] != '\r' && line.Length() < 128 ) {
@@ -625,15 +643,16 @@ void idServerScan::LoadFavorites() {
 }
 
 bool idServerScan::IsFavorite( const netadr_t &address ) const {
-	return favorites.FindIndex( idStr( Sys_NetAdrToString( address ) ) ) >= 0;
+	return favorites.FindIndex( ServerBrowserEndpoint( address ) ) >= 0;
 }
 
 void idServerScan::ToggleFavorite() {
 	LoadFavorites();
-	idStr address;
-	if ( !GetSelectedAddress( address ) ) {
+	idStr selected;
+	if ( !GetSelectedAddress( selected ) ) {
 		return;
 	}
+	const idStr address = ServerBrowserEndpoint( (*this)[ listGUI->GetSelection( NULL, 0 ) ].adr );
 	idStrList updated = favorites;
 	const int old = updated.FindIndex( address );
 	if ( old >= 0 ) {
@@ -716,10 +735,47 @@ void idServerScan::UpdateBrowserStatus() {
 	m_pGUI->SetStateInt( "browser_count", visible );
 	m_pGUI->SetStateInt( "browser_total", Num() );
 	m_pGUI->SetStateBool( "browser_scanning", scan_state != IDLE );
+	// The status names the scan's state and counts, so a new one is news
+	// for a menu drawing its own list too.
 	if ( status.Icmp( m_pGUI->State().GetString( "sortNotice" ) ) ) {
+		++revision;
 		m_pGUI->SetStateString( "sortNotice", status.c_str() );
 		m_pGUI->StateChanged( common->GetPresentationTime() );
 	}
+}
+
+/*
+================
+idServerScan::VisibleServers
+================
+*/
+void idServerScan::VisibleServers( idList<int> &out ) {
+	out.Clear();
+	for ( int i = m_sortAscending ? 0 : m_sortedServers.Num() - 1;
+			m_sortAscending ? i < m_sortedServers.Num() : i >= 0;
+			m_sortAscending ? i++ : i-- ) {
+		if ( !IsFiltered( (*this)[ m_sortedServers[ i ] ] ) ) {
+			out.Append( m_sortedServers[ i ] );
+		}
+	}
+}
+
+/*
+================
+idServerScan::IsFavoriteServer
+================
+*/
+bool idServerScan::IsFavoriteServer( int index ) const {
+	return index >= 0 && index < Num() && IsFavorite( (*this)[ index ].adr );
+}
+
+/*
+================
+idServerScan::GameTypeName
+================
+*/
+const char *idServerScan::GameTypeName( const char *type ) {
+	return ServerBrowserGameType( type != NULL ? type : "" );
 }
 
 /*
@@ -752,6 +808,7 @@ idServerScan::ApplyFilter
 ================
 */
 void idServerScan::ApplyFilter( ) {
+	++revision;
 	if ( !listGUI || !listGUI->IsConfigured() || !m_pGUI ) {
 		return;
 	}

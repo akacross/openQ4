@@ -157,6 +157,8 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
 	"createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword","createMapsNewer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
+	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
+	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2611,6 +2613,141 @@ static void CheckMultiplayerPage(ScreenHost& host, const char* path) {
 	Check(partway > pageTop && Near(value("band-top","transform",0),pageTop,.05f) && Near(value("content","transform",0),0,.05f) &&
 		Near(value("content","opacity"),1,.01f) && Near(value("title","transform",2),1,.001f) && Near(value("create-carry","opacity"),0,.01f),
 		"by 150 ms the page is back as it was");
+	// JOIN GAME goes deeper the same way, its own label carrying from its row,
+	// one row above CREATE SERVER's; back from Join Game the page returns onto
+	// JOIN GAME.
+	runtime.Frame(viewport,6.5);
+	Check(runtime.RunEvent("onDeactivate",6.5,effects,error) && runtime.RunEvent("onActivate",6.6,effects,error),
+		"the page leaves and arrives again, its carries at rest on their rows");
+	runtime.Frame(viewport,6.9);
+	Check(runtime.RunEvent("subpageEnterJoin",7,effects,error),"JOIN GAME leads deeper");
+	runtime.Frame(viewport,7.01);
+	Check(Near(value("join-carry","opacity"),1,.01f) && Near(value("create-carry","opacity"),0,.01f) &&
+		Near(value("create-carry","transform",1)-value("join-carry","transform",1),30*u,.05f),
+		"JOIN GAME's label sets out from its row, one row above CREATE SERVER's");
+	runtime.Frame(viewport,7.35);
+	Bounds joinCarry;
+	Check(Near(value("band-top","transform",0),subTop,.05f) && Near(value("content","opacity"),0,.01f) &&
+		Near(value("join-carry","transform",2),.75f,.001f) && Near(value("join-carry","color",3),.5f,.01f) &&
+		runtime.GetBounds("join-carry",joinCarry) && Near(joinCarry.x,x0+136*u,1) && text("join-carry","text") == "#str_200187",
+		"at 350 ms JOIN GAME sits at the step's foot");
+	Check(runtime.RunEvent("onDeactivate",7.4,effects,error),"the page left the screen at the hand-over");
+	Check(runtime.SetState({{"from_create",false},{"from_join",true}},error,8) && runtime.RunEvent("onActivate",8,effects,error) &&
+		runtime.RunEvent("subpageReturn",8,effects,error),"the page returns from Join Game");
+	runtime.Frame(viewport,8.075);
+	Check(runtime.FocusedControl() == "join" && Near(value("join-carry","opacity"),0,.01f) && Near(value("content","opacity"),.5f,.02f),
+		"it fades back in place onto JOIN GAME, with no carry");
+}
+
+// The Join Game sub-page (FLOW-050), Multiplayer's server browser: the stock
+// browser's content in the sub-page state under MULTIPLAYER's crumb. The
+// session lists the servers (join.row<i>.*) a page at a time; each column
+// heading sorts by its column, its chevron showing the sort's direction; the
+// source tags light the list's source; a row's first Accept chooses its
+// server, and Accept on the chosen one moves on to JOIN SERVER, which applies
+// once a server is chosen; an empty list says so unless a scan runs.
+static void CheckJoinGamePage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.joingame" && document.Model().canvasHeight == 720,"the Join Game page validates");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> menu[] = {{"back","joinBack"},{"joinPick","joinPick"},{"joinServer","joinServer"},
+		{"joinClearSort","joinClearSort"},{"serversNewer","joinNewer"},{"serversOlder","joinOlder"},{"joinRefresh","joinRefresh"},
+		{"joinNewList","joinNewList"},{"joinSourceInternet","joinSourceInternet"},{"joinSourceLan","joinSourceLan"},
+		{"joinSortFavorite","joinSortFavorite"},{"joinSortLocked","joinSortLocked"},{"joinSortName","joinSortName"},
+		{"joinSortPing","joinSortPing"},{"joinSortPlayers","joinSortPlayers"},{"joinSortGameType","joinSortGameType"},
+		{"joinSortMap","joinSortMap"}};
+	for (const auto& [action, command] : menu) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
+			std::get<std::string>(found->second.arguments.at("command").literal) == command,"the page's verbs reach the session");
+	}
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/joingame.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto value = [&](const std::string& node, const char* property, size_t index = 0) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a Join Game node is laid out"); return b; };
+	Check(runtime.RunEvent("onActivate",0.5,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.575);
+	Check(value("join-panel","opacity") > .3f && value("join-panel","opacity") < .7f && runtime.FocusedControl() == "join_newlist",
+		"its content fades in over 150 ms and GET NEW LIST takes the focus");
+	runtime.Frame(viewport,0.7);
+	// The 4:3 canvas at 1280x720: x = 160 dp, 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto list = bounds("servers-list"), name = bounds("heading-name"), join = bounds("join_server"), status = bounds("join-status");
+	Check(Near(list.x,x0+23*u,1) && Near(list.y,83*u,1) && Near(list.height,202*u,1),"the server list stands where the stock list does");
+	Check(Near(name.x,x0+(23+89)*u,1) && Near(name.y,70*u,1) && text("heading-name-label","text") == "#str_200036",
+		"SERVER NAME heads its column over the list");
+	Check(Near(join.x,x0+385*u,1) && Near(join.y,330*u,1) && Near(status.x,x0+41*u,1) && Near(status.y,291*u,1),
+		"JOIN SERVER and the status line stand where the stock page's do");
+	const auto internet = bounds("join_internet"), lan = bounds("join_lan");
+	Check(Near(lan.x+lan.width,x0+613*u,1) && internet.x+internet.width < lan.x && Near(internet.y,46*u,1),
+		"the source tags end where the stock LAN tag did, INTERNET before LAN");
+	Check(text("crumb","text") == "#str_200002" && text("title","text") == "#str_200187" && Near(bounds("title").x,x0+136*u,1),
+		"MULTIPLAYER is the crumb and JOIN GAME titles the sub-page at the step's foot");
+	// Nothing listed: the empty line, unless a scan runs; nothing to join.
+	Check(text("join-empty","display") == "block" && text("server-0","display") == "none" &&
+		runtime.GetControlState("join_server") == ControlState::Disabled,"an empty list says so, with nothing to join");
+	Check(runtime.SetState({{"join.scanning",true},{"join.status",std::string("Scanning - Found: 0")}},error,0.75),"a scan starts");
+	runtime.Frame(viewport,0.8);
+	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0","a running scan shows its status, not the empty line");
+	StateValues servers = {{"join.scanning",false},{"join.count",3.0},{"join.first",0.0},{"join.selected",-1.0},{"join.sort",0.0},
+		{"join.ascending",true},{"join.status",std::string("Showing 3 out of 3 servers")},
+		{"join.row0.name",std::string("Refinement Arena")},{"join.row0.ping",std::string("12")},{"join.row0.players",std::string("1/8")},
+		{"join.row0.type",std::string("Deathmatch")},{"join.row0.map",std::string("Fragging Yard")},{"join.row0.fav",true},
+		{"join.row1.name",std::string("Strogg Hive")},{"join.row1.ping",std::string("40")},{"join.row1.lock",true},
+		{"join.row2.name",std::string("Lost Fleet")},{"join.row2.ping",std::string("85")}};
+	Check(runtime.SetState(servers,error,0.85),"the session lists three servers");
+	runtime.Frame(viewport,0.9);
+	Check(text("join-empty","display") == "none" && text("server-2","display") == "block" && text("server-3","display") == "none" &&
+		text("server-0-name","text") == "Refinement Arena" && text("server-0-players","text") == "1/8" && text("server-0-map","text") == "Fragging Yard" &&
+		text("server-1-ping","text") == "40","the servers fill their rows at the stock tab stops");
+	Check(text("server-0-fav","display") == "block" && text("server-1-fav","display") == "none" && text("server-1-lock","display") == "block" &&
+		text("server-0-lock","display") == "none","a favorite shows its star and a password its lock");
+	Check(Near(bounds("server-0-ping").x,bounds("server-0").x+300*u,1) && Near(bounds("server-1").y,bounds("server-0").y+18*u,1),
+		"the rows keep the stock 18 u pitch and their columns");
+	Check(text("servers-newer","display") == "none" && text("servers-older","display") == "none","one page holds them all");
+	// The sort: ping ascending marks PING's heading with its up chevron.
+	Check(text("heading-ping-up","display") == "block" && text("heading-ping-down","display") == "none" &&
+		text("heading-name-up","display") == "none","the sort's column shows its direction");
+	Check(runtime.SetState({{"join.sort",1.0},{"join.ascending",false}},error,0.95),"sorted by name, descending");
+	runtime.Frame(viewport,1.0);
+	Check(text("heading-name-down","display") == "block" && text("heading-name-up","display") == "none" &&
+		text("heading-ping-up","display") == "none","the chevron follows the sort");
+	Check(runtime.SetState({{"join.sort",11.0}},error,1.02),"CLEAR SORTING");
+	runtime.Frame(viewport,1.03);
+	Check(text("heading-name-down","display") == "none" && text("heading-ping-up","display") == "none","an unsorted list marks no column");
+	// The source: the lit tag follows the list's.
+	Check(text("join_internet-lit","display") == "block" && text("join_lan-lit","display") == "none","the Internet is the source");
+	Check(runtime.SetState({{"join.lan",true}},error,1.04),"the LAN");
+	runtime.Frame(viewport,1.05);
+	Check(text("join_internet-lit","display") == "none" && text("join_lan-lit","display") == "block","the LAN tag lights");
+	// A row's first Accept asks for its server; once chosen it is lit, JOIN
+	// SERVER applies and Accept on it moves on to JOIN SERVER.
+	Check(runtime.RunEvent("serverRow1",1.1,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinPick",
+		"a row asks for its server");
+	Check(runtime.SetState({{"join.selected",1.0}},error,1.15),"the session chooses it");
+	runtime.Frame(viewport,1.2);
+	Check(text("server-1-selected","display") == "block" && text("server-0-selected","display") == "none" &&
+		runtime.GetControlState("join_server") != ControlState::Disabled,"the chosen server is lit and JOIN SERVER applies");
+	Check(runtime.RunEvent("serverRow1",1.25,effects,error) && effects.actions.empty() && runtime.FocusedControl() == "join_server",
+		"Accept on the chosen server moves on to JOIN SERVER");
+	// More servers than a page: the pagers.
+	Check(runtime.SetState({{"join.count",70.0}},error,1.3),"seventy servers");
+	runtime.Frame(viewport,1.35);
+	Check(text("servers-older","display") == "block" && text("servers-newer","display") == "none","the list pages on to more servers");
+	Check(runtime.SetState({{"join.first",64.0}},error,1.4),"the next page");
+	runtime.Frame(viewport,1.45);
+	Check(text("servers-newer","display") == "block" && text("servers-older","display") == "none" && text("server-5","display") == "block" &&
+		text("server-6","display") == "none","the last page pages back and holds the rest");
+	Check(runtime.RunEvent("onBack",1.5,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back","Back asks to climb out");
 }
 
 // The Create Server sub-page (FLOW-050): the stock Create Server page's
@@ -2803,7 +2940,7 @@ static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 }
 
 int main(int argc, char** argv) {
-	Check(argc == 23,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui");
+	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3908,6 +4045,7 @@ int main(int argc, char** argv) {
 	CheckMultiplayerPage(host,argv[21]);
 	CheckCreateServerPage(host,argv[22]);
 	CheckCreateServerBanList(host,argv[22]);
+	CheckJoinGamePage(host,argv[23]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

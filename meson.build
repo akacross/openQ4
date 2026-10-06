@@ -920,7 +920,8 @@ if build_engine or get_option('build_native_tests')
              meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/credits.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/arena.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/multiplayer.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/createserver.q4ui'], timeout: 120)
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/createserver.q4ui',
+             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/joingame.q4ui'], timeout: 120)
     openq4_ui_value_schema_test = executable(
       'openq4-ui-value-schema-test',
       files('tools/tests/native/UiValueControlSchemaTest.cpp'),

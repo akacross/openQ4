@@ -133,6 +133,17 @@ public:
 
 	int					GetChallenge( );
 
+	// For a menu that draws its own list (the retained Join Game page): the
+	// servers the filter passes, in the sort's walking order as ApplyFilter
+	// lists them; whether one is a favorite; the sort; and a revision that
+	// moves whenever any of them or the scan's state may have changed.
+	void				VisibleServers( idList<int> &out );
+	bool				IsFavoriteServer( int index ) const;
+	serverSort_t		GetSorting( bool &ascending ) const { ascending = m_sortAscending; return m_sort; }
+	int					GetRevision() const { return revision; }
+	// A server's si_gameType as the browser names it, in the player's language.
+	static const char *	GameTypeName( const char *type );
+
 private:
 	static const int	MAX_PINGREQUESTS 	= 32;		// how many servers to query at once
 	static const int	REPLY_TIMEOUT 		= 999;		// how long should we wait for a reply from a game server
@@ -170,6 +181,7 @@ private:
 	int					challenge;			// challenge for current scan
 	
 	int					endWaitTime;		// when to stop waiting on a port init
+	int					revision;			// see GetRevision
 
 private:
 	void				LocalClear( );		// we need to clear some internal data as well

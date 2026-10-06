@@ -592,6 +592,43 @@ SCENARIOS = {
         'openq4_retainedGui focus create_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_gameType', 'si_map', 'ui_retainedStatus', 'screenshot "screenshots/createserverstart-match.tga"', 'disconnect', 'waitMsec 2000',
     ]),
+    # The Join Game sub-page (FLOW-050), opted into (SCENARIO_CVARS): JOIN GAME
+    # on the Multiplayer page goes deeper and the browser presents at 350 ms
+    # under the MULTIPLAYER crumb, empty before any scan. INTERNET gets a new
+    # list: the master server cannot be reached from the loopback the client
+    # binds, but the seeded favorite, a loopback dedicated server
+    # (SCENARIO_SERVERS), answers and is listed. SERVER NAME sorts the list
+    # and CLEAR SORTING clears the sort; BACK climbs out onto JOIN GAME and
+    # JOIN GAME returns to the list; the row chooses the server and JOIN
+    # SERVER joins it, the game module reloading into game_mp (logged to its
+    # own file).
+    'joingame': (None, [
+        # A fresh build's first start can run past the usual wait; the title
+        # refuses focus until it has arrived.
+        'waitMsec 7000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui report',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 175', 'screenshot "screenshots/joingame-change.tga"', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'openq4_retainedGui inspect "join-empty"', 'screenshot "screenshots/joingame-empty.tga"',
+        'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/joingame-scanning.tga"', 'waitMsec 4500', 'openq4_retainedGui report',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "server-1"', 'openq4_retainedGui inspect "join-empty"',
+        'screenshot "screenshots/joingame-list.tga"',
+        'openq4_retainedGui focus "heading-name"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"', 'screenshot "screenshots/joingame-sorted.tga"',
+        'openq4_retainedGui focus join_clearsort', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"',
+        'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui report', 'screenshot "screenshots/joingame-back.tga"',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0-selected"',
+        'screenshot "screenshots/joingame-chosen.tga"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
+        'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
     # screen's lines arrive in runes and translate to Latin under the scan
@@ -720,6 +757,10 @@ def stock_menu_without_demos(runtime: Path) -> str:
 # Ports a scenario holds on the loopback interface while it runs, and the
 # cfg files it chains to (the last one ends the run).
 SCENARIO_PORTS = {'arenafail': 27961}
+# A dedicated server a scenario starts first (its loopback port, map and
+# name), from the runtime with its own savepath; it quits once the client is
+# done.
+SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
     'retained_arenafail_after.cfg': [
@@ -737,7 +778,8 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
                   'multiplayer': {'net_allowCheats': '1'},
-                  'createserverstart': {'net_ip': '127.0.0.1'}}
+                  'createserverstart': {'net_ip': '127.0.0.1'},
+                  'joingame': {'net_ip': '127.0.0.1', 'ui_retainedMultiplayer': '1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'
@@ -785,6 +827,8 @@ def ban_list(runtime: Path) -> bytes:
 SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
                               'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')},
          'createserver': {'banlist.txt': ban_list},
+         # The browser's favorites (one address a line): the scenario's server.
+         'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
 
@@ -808,6 +852,55 @@ def mod_manifest(runtime: Path) -> str:
     manifest = json.loads((runtime / 'baseoq4' / 'mod.json').read_text(encoding='utf-8'))
     manifest['name'] = 'openQ4 retained fallback test'
     return json.dumps(manifest, indent=2) + '\n'
+
+
+def start_server(args, output: Path, spec: dict, options: dict) -> tuple:
+    """A scenario's dedicated server (SCENARIO_SERVERS), once it listens: on
+    the loopback interface only, a LAN server (no master heartbeat), idling on
+    a script that quits once rewritten."""
+    game = output / 'server' / 'baseoq4'
+    game.mkdir(parents=True)
+    idle = game / 'server_idle.cfg'
+    idle.write_text('waitMsec 250\nexec server_idle.cfg\n', encoding='utf-8')
+    cvars = {
+        'win_allowMultipleInstances' if os.name == 'nt' else 'sys_allowMultipleInstances': '1',
+        'fs_basepath': str(args.assets.resolve()), 'fs_savepath': str(output / 'server'), 'fs_devpath': str(output / 'server'),
+        'fs_game': 'baseoq4', 'com_gameMode': 'MP', 'logFile': '2', 'logFileName': 'logs/openq4.log',
+        'net_ip': '127.0.0.1', 'net_port': str(spec['port']), 'net_serverDedicated': '1', 'net_LANServer': '1',
+        'si_name': spec['name'], 'si_pure': '0', 'si_maxPlayers': '4', 'si_gameType': 'DM', 'si_warmup': '0', 'bot_minPlayers': '0',
+    }
+    command = [str(args.runtime.resolve() / ('openQ4-ded_x64.exe' if os.name == 'nt' else 'openQ4-ded_x64'))]
+    for key, value in cvars.items():
+        command += ['+set', key, value]
+    command += ['+spawnServer', spec['map'], '+exec', idle.name]
+    stream = (output / 'server-process.log').open('w', encoding='utf-8')
+    process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=stream, stderr=subprocess.STDOUT, **options)
+    log = game / 'logs' / 'openq4.log'
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        if log.is_file() and f"Server spawned on port {spec['port']}." in log.read_text(encoding='utf-8', errors='replace'):
+            return process, stream, idle, log, command
+        if process.poll() is not None:
+            break
+        time.sleep(0.25)
+    process.kill()
+    process.wait()
+    stream.close()
+    raise RuntimeError(f'the dedicated server for {output.name} never listened on port {spec["port"]}')
+
+
+def stop_server(server: tuple) -> int:
+    """Quit a scenario's dedicated server through its idle script."""
+    process, stream, idle, _log, _command = server
+    idle.write_text('quit\n', encoding='utf-8')
+    try:
+        returncode = process.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        returncode = None
+    stream.close()
+    return returncode
 
 
 def run(args, scenario: str) -> dict:
@@ -899,6 +992,9 @@ def run(args, scenario: str) -> dict:
     if scenario in SCENARIO_PORTS:
         held = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         held.bind(('127.0.0.1', SCENARIO_PORTS[scenario]))
+    server, server_result = None, None
+    if scenario in SCENARIO_SERVERS:
+        server = start_server(args, output, SCENARIO_SERVERS[scenario], options)
     try:
         with (output / 'process.log').open('w', encoding='utf-8') as process_log:
             process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=process_log, stderr=subprocess.STDOUT, **options)
@@ -911,6 +1007,11 @@ def run(args, scenario: str) -> dict:
     finally:
         if held is not None:
             held.close()
+        if server is not None:
+            server_returncode = stop_server(server)
+            server_log = server[3]
+            server_result = {'returncode': server_returncode, 'command': server[4],
+                             'log': str(server_log.relative_to(ROOT)) if server_log.is_file() else None}
     log_path = game / 'logs' / 'openq4.log'
     log = re.sub(r'\^[0-9]', '', log_path.read_text(encoding='utf-8', errors='replace')) if log_path.is_file() else ''
     # A scenario whose page reloads the game module logs the reloaded module
@@ -934,6 +1035,7 @@ def run(args, scenario: str) -> dict:
         'game_dir': game_dir, 'overrides': sorted(overrides_files),
         'errors': [line for line in log.splitlines() if 'ERROR:' in line or 'FATAL:' in line],
         'screenshots': shots, 'command': command, 'log': str(log_path.relative_to(ROOT)) if log_path.is_file() else None,
+        'server': server_result,
         'host_input_injection': False, 'windowed': True, 'hidden_window': True,
     }
 

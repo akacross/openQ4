@@ -110,6 +110,7 @@ struct idSessionLocal {
     void UpdateRetainedSubpage() {}
     void UpdateRetainedPage() {}
     void UpdateRetainedMultiplayerPage() {}
+    void UpdateRetainedJoinGame() {}
     // Nor does the multiplayer card, or a loading screen held over a join.
     void UpdateRetainedMultiplayer() {}
     idUserInterface* guiLoadingHold=nullptr;

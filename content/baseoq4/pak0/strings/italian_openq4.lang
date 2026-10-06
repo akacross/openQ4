@@ -1253,4 +1253,7 @@
 	"#str_231128"	"ALTRE MAPPE"
 	"#str_231129"	"Le password non possono essere copiate."
 	"#str_231130"	"Nessun giocatore è bandito."
+	"#str_231131"	"SERVER PRECEDENTI"
+	"#str_231132"	"ALTRI SERVER"
+	"#str_231133"	"Nessun server trovato."
 }

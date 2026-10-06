@@ -239,6 +239,7 @@ struct idKeyInput {
     static const char* KeyNumToString(int key, bool) { static std::string name; name = key == 0x8b ? "F1" : "#str_07133"; return name.c_str(); }
 };
 enum { SE_NONE = 0, CMD_EXEC_APPEND = 1, SE_KEY = 2, SE_MOUSE = 3 };
+enum { CMD_EXEC_NOW = 4 };
 enum { K_ESCAPE = 27, K_ENTER = 13, K_JOY4 = 200, K_JOY7 = 203, K_JOY8 = 204 };
 struct sysEvent_t { int evType = SE_NONE, evValue = 0, evValue2 = 0; };
 struct idKeyValue { idStr value; const idStr& GetValue() const { return value; } };
@@ -314,7 +315,15 @@ struct Manager {
         storage.push_back(std::make_unique<idUserInterface>(path)); return storage.back().get();
     }
 } managerObject, *uiManager = &managerObject;
-struct CommandSystem { std::vector<std::string> buffered; void BufferCommandText(int, const char* text) { buffered.push_back(text); } } commands, *cmdSystem = &commands;
+struct idCmdArgs { std::vector<std::string> args; void AppendArg(const char* arg) { args.push_back(arg); } };
+struct CommandSystem {
+    std::vector<std::string> buffered;
+    void BufferCommandText(int, const char* text) { buffered.push_back(text); }
+    // A command's arguments, as one line.
+    void BufferCommandArgs(int, const idCmdArgs& line) {
+        std::string joined; for (const auto& arg : line.args) joined += (joined.empty() ? "" : " ") + arg; buffered.push_back(joined);
+    }
+} commands, *cmdSystem = &commands;
 // The legacy main menu's desktop variables, as presentation queries read them.
 static std::map<std::string, int> legacy;
 // Only the GUI's own `set` leaves a variable's declared expression (the
@@ -373,7 +382,51 @@ static bool Session_MenuReadSaveDescription(const idStr& slot, sessionMenuSaveDe
 static const char* va(const char* fmt, ...) {
     static char text[1024]; va_list args; va_start(args, fmt); std::vsnprintf(text, sizeof(text), fmt, args); va_end(args); return text;
 }
-typedef enum { RETAINED_SUBPAGE_CAMPAIGN, RETAINED_SUBPAGE_ARENA, RETAINED_SUBPAGE_CREATE_SERVER } retainedSubpage_t;
+typedef enum { RETAINED_SUBPAGE_CAMPAIGN, RETAINED_SUBPAGE_ARENA, RETAINED_SUBPAGE_CREATE_SERVER, RETAINED_SUBPAGE_JOIN_GAME } retainedSubpage_t;
+template<typename T> static T Max(T a, T b) { return a > b ? a : b; }
+// The server scan as the Join Game page reads and drives it: the servers it
+// found, those the filter passes in the sort's order (visible), the
+// favorites, the sort, the scan's state, and a revision each change moves;
+// the stock browser's operations are recorded.
+enum serverSort_t { SORT_PING, SORT_SERVERNAME, SORT_PLAYERS, SORT_GAMETYPE, SORT_MAP, SORT_GAME, SORT_FAVORITE, SORT_PASSWORD,
+                    SORT_DEDICATED, SORT_PUNKBUSTER, SORT_REPEATER, SORT_NONE };
+struct netadr_t { std::string address; };
+static const char* Sys_NetAdrToString(const netadr_t& adr) { return adr.address.c_str(); }
+struct ServerInfo : idDict {
+    int GetInt(const char* key) const { return std::atoi(GetString(key, "0")); }
+    bool GetBool(const char* key) const { return GetInt(key) != 0; }
+};
+struct networkServer_t { netadr_t adr; ServerInfo serverInfo; int ping = 0, clients = 0; };
+struct idServerScan {
+    enum scan_state_t { IDLE, WAIT_ON_INIT, LAN_SCAN, NET_SCAN };
+    std::vector<networkServer_t> servers; std::vector<int> visible; std::set<std::string> favorites;
+    serverSort_t sort = SORT_PING; bool ascending = true; int revision = 0; scan_state_t state = IDLE;
+    std::vector<std::string> calls;
+    int Num() const { return static_cast<int>(servers.size()); }
+    const networkServer_t& operator[](int index) const { return servers[index]; }
+    void VisibleServers(idList<int>& out) { out.Clear(); for (int index : visible) out.Append(index); }
+    bool IsFavoriteServer(int index) const { return index >= 0 && index < Num() && favorites.count(servers[index].adr.address) != 0; }
+    serverSort_t GetSorting(bool& up) const { up = ascending; return sort; }
+    int GetRevision() const { return revision; }
+    scan_state_t GetState() const { return state; }
+    static const char* GameTypeName(const char* type) { return !std::strcmp(type, "DM") ? "Deathmatch" : type; }
+    void GUIInit() { calls.push_back("GUIInit"); ++revision; }
+    void AddFavoriteServers() { calls.push_back("AddFavoriteServers"); }
+    void NetScan() { calls.push_back("NetScan"); state = NET_SCAN; ++revision; }
+    void SetSorting(serverSort_t to) { calls.push_back("SetSorting " + std::to_string(to)); ascending = to == sort ? !ascending : true; sort = to; ++revision; }
+    void ResetSorting() { calls.push_back("ResetSorting"); sort = SORT_NONE; ascending = true; ++revision; }
+};
+struct AsyncClient { idServerScan serverList; };
+struct idAsyncNetwork {
+    static AsyncClient client;
+    static void GetNETServers() { client.serverList.calls.push_back("GetNETServers"); client.serverList.state = idServerScan::NET_SCAN; }
+};
+AsyncClient idAsyncNetwork::client;
+// Server text as Session.cpp reads it (check_server_card compiles the
+// production one): colors dropped, at most maxBytes bytes.
+static idStr Session_RetainedPlayerText(const char* text, int maxBytes, int) {
+    idStr out(text ? text : ""); out.RemoveColors(); out.CapLength(maxBytes); return out;
+}
 class idSessionLocal {
 public:
     idUserInterface *guiActive = nullptr, *guiMainMenu = nullptr, *guiTest = nullptr;
@@ -472,13 +525,18 @@ public:
     idUserInterface* guiRetainedCredits = nullptr; void PublishRetainedCredits(idUserInterface*);
     // The Multiplayer page; the stock page it leaves for, and when.
     idUserInterface* guiRetainedMpPage = nullptr; int retainedMpPageDest = 0, retainedMpPageAt = 0;
-    idUserInterface* RetainedMultiplayerPage(); bool OpenRetainedMultiplayerPage(bool = false);
+    idUserInterface* RetainedMultiplayerPage(); bool OpenRetainedMultiplayerPage(const char* = nullptr);
     void HandleRetainedMultiplayerPageRequest(idUserInterface*, const char*); void UpdateRetainedMultiplayerPage();
     // Its Create Server sub-page and the maps it lists; the servers started.
     idUserInterface* guiRetainedCreate = nullptr; idList<int> retainedCreateMaps; int retainedCreateMapFirst = 0, retainedCreateMapSelected = -1;
     idUserInterface* RetainedCreateServerPage(); void OpenRetainedCreateServer(); void PublishRetainedCreateServer(idUserInterface*);
     void PublishRetainedCreateMaps(idUserInterface*, bool); void HandleRetainedCreateServerRequest(idUserInterface*, const char*);
     idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
+    // Its Join Game sub-page and the servers it lists.
+    idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
+    idStr retainedJoinAddress;
+    idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
+    void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
@@ -521,7 +579,7 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
     "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
-    "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui"};
+    "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -536,7 +594,7 @@ static idSessionLocal Session(bool gate, bool inGame = false) {
     legacyMissing.clear(); legacyEventsMissing.clear(); reloaded.clear(); describedShot = "savegames/quick.tga"; mapDecls.clear();
     fileSystemObject.screenshots.clear();
     saveSlots.clear(); driveSpace = 1000;
-    gameObject = Game{};
+    gameObject = Game{}; idAsyncNetwork::client = AsyncClient{};
     static idUserInterface menu("guis/mainmenu.gui"); menu = idUserInterface("guis/mainmenu.gui");
     idSessionLocal session; session.guiActive = session.guiMainMenu = &menu; session.mapSpawned = inGame;
     legacy["desktop::curr"] = 0; legacy["desktop::active"] = 0; legacy["desktop::dest"] = 0;
@@ -1213,6 +1271,138 @@ int main() {
         create->failed = true; s.HandleRetainedSessionRequest(page, "multiplayerCreate");
         CHECK(s.guiRetainedCreate == nullptr && s.retainedMpPageDest == 17 && commonObject.warnings.back().find("stopped drawing") != std::string::npos &&
               (Stock(s) == std::vector<std::string>{"guis/menu/createserver.q4ui"}));
+        ui_retainedMultiplayer.value = false;
+    }
+    {   // The Join Game sub-page (FLOW-050), Multiplayer's server browser, is
+        // opt-in while it lacks some of the stock browser
+        // (RETAINED_JOIN_GAME_MISSING): without ui_retainedMultiplayer it never
+        // loads and JOIN GAME opens the stock browser.
+        auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        CHECK(s.guiRetainedJoin == nullptr && s.RetainedJoinGamePage() == nullptr &&
+              std::find(managerObject.loads.begin(), managerObject.loads.end(), "guis/menu/joingame.q4ui") == managerObject.loads.end());
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        s.HandleRetainedSessionRequest(s.guiRetainedMpPage, "multiplayerJoin");
+        CHECK(s.retainedMpPageDest == 14 && s.retainedSubpageFrom == nullptr && s.guiRetainedMpPage->named.back() == "depart");
+    }
+    {   // With ui_retainedMultiplayer, JOIN GAME goes deeper as CREATE SERVER
+        // does, and at 350 ms the sub-page presents as the stock browser opens
+        // (InitServerBrowser), listing the servers the scan found and the
+        // filter passes, in its sort's order.
+        auto s = Session(true); ui_retainedMultiplayer.value = true;
+        auto& scan = idAsyncNetwork::client.serverList;
+        const auto server = [](const std::string& address, const std::string& name, int ping, int clients, const char* type = "DM") {
+            networkServer_t found; found.adr.address = address; found.ping = ping; found.clients = clients;
+            found.serverInfo.values = {{"si_name", name}, {"si_gameType", type}, {"si_mapName", "^1Fragging ^7Yard"}, {"si_maxPlayers", "8"}};
+            return found;
+        };
+        scan.servers = {server("10.0.0.1:28004", "^2Refinement ^7Arena", 12, 1), server("10.0.0.2:28004", "", -5, 40, "Freeze Tag"),
+                        server("10.0.0.3:28004", "Lost Fleet", 85, 0)};
+        scan.servers[1].serverInfo.values["si_usePass"] = "1";
+        scan.visible = {2, 0, 1}; scan.favorites = {"10.0.0.1:28004"};
+        s.guiMainMenu->state["sortNotice"] = "Showing 3 out of 3 servers";
+        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* join = s.guiRetainedJoin;
+        CHECK(join && std::string(join->Name()) == "guis/menu/joingame.q4ui" && s.RetainedJoinGamePage() == join);
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        auto* page = s.guiRetainedMpPage; CHECK(s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "multiplayerJoin");
+        CHECK(s.retainedSubpageFrom == page && page->named.back() == "subpageEnterJoin" && s.retainedSubpageDeeper &&
+              s.retainedSubpageKind == RETAINED_SUBPAGE_JOIN_GAME && s.retainedSubpageUntil == commonObject.time + 350 && s.retainedMpPageDest == 0);
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate"); CHECK(s.retainedSubpageKind == RETAINED_SUBPAGE_JOIN_GAME);  // nothing else meanwhile
+        commonObject.time += 350; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == join && s.retainedSubpageFrom == nullptr && (scan.calls == std::vector<std::string>{"GUIInit"}));
+        CHECK(join->state["join.count"] == "3" && join->state["join.first"] == "0" && join->state["join.selected"] == "-1" &&
+              join->state["join.sort"] == "0" && join->state["join.ascending"] == "1" && join->state["join.lan"] == "0" &&
+              join->state["join.scanning"] == "0" && join->state["join.status"] == "Showing 3 out of 3 servers");
+        // The rows in the list's order, the servers' text read as players'
+        // text: a nameless server by its address, a negative ping as 0, the
+        // players capped, the game type named.
+        CHECK(join->state["join.row0.name"] == "Lost Fleet" && join->state["join.row0.ping"] == "85" && join->state["join.row0.players"] == "0/8" &&
+              join->state["join.row1.name"] == "Refinement Arena" && join->state["join.row1.fav"] == "1" && join->state["join.row1.lock"] == "0" &&
+              join->state["join.row1.type"] == "Deathmatch" && join->state["join.row1.map"] == "Fragging Yard" && join->state["join.row0.fav"] == "0");
+        CHECK(join->state["join.row2.name"] == "10.0.0.2:28004" && join->state["join.row2.ping"] == "0" && join->state["join.row2.players"] == "32/8" &&
+              join->state["join.row2.lock"] == "1" && join->state["join.row2.type"] == "Freeze Tag" && join->state["join.row3.name"] == "" &&
+              join->state["join.row3.lock"] == "0");
+        // Nothing chosen: nothing to join.
+        const size_t buffered = commands.buffered.size();
+        s.HandleRetainedSessionRequest(join, "joinServer"); CHECK(commands.buffered.size() == buffered);
+        // A row chooses its server, a row past the list nothing; the choice
+        // follows its server into a new order, and an unchanged scan publishes
+        // nothing.
+        join->state["join.pick"] = "5"; s.HandleRetainedSessionRequest(join, "joinPick");
+        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress.empty());
+        join->state["join.pick"] = "1"; s.HandleRetainedSessionRequest(join, "joinPick");
+        CHECK(join->state["join.selected"] == "1" && s.retainedJoinAddress == "10.0.0.1:28004" && s.played.back() == "play main_menu_selection");
+        scan.visible = {0, 1, 2}; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.selected"] == "0" && join->state["join.row0.name"] == "Refinement Arena");
+        int changes = join->stateChanges; s.UpdateRetainedJoinGame(); CHECK(join->stateChanges == changes);
+        // A heading sorts by its column, and again the other way; CLEAR
+        // SORTING lists the servers as they answered.
+        s.HandleRetainedSessionRequest(join, "joinSortName");
+        CHECK(scan.calls.back() == "SetSorting 1" && join->state["join.sort"] == "1" && join->state["join.ascending"] == "1");
+        s.HandleRetainedSessionRequest(join, "joinSortName"); CHECK(join->state["join.ascending"] == "0");
+        for (const auto& [verb, sort] : {std::pair<const char*, int>{"joinSortFavorite", 6}, {"joinSortLocked", 7}, {"joinSortPing", 0},
+                                         {"joinSortPlayers", 2}, {"joinSortGameType", 3}, {"joinSortMap", 4}}) {
+            s.HandleRetainedSessionRequest(join, verb); CHECK(scan.calls.back() == "SetSorting " + std::to_string(sort) && join->state["join.sort"] == std::to_string(sort));
+        }
+        s.HandleRetainedSessionRequest(join, "joinClearSort"); CHECK(scan.calls.back() == "ResetSorting" && join->state["join.sort"] == "11");
+        // The Internet: GET NEW LIST asks the master server and the favorites,
+        // REFRESH LIST the listed servers again.
+        scan.calls.clear(); s.HandleRetainedSessionRequest(join, "joinNewList");
+        CHECK((scan.calls == std::vector<std::string>{"GUIInit", "GetNETServers", "AddFavoriteServers"}) && join->state["join.scanning"] == "1");
+        s.HandleRetainedSessionRequest(join, "joinRefresh"); CHECK(scan.calls.back() == "NetScan" && commands.buffered.size() == buffered);
+        // While a scan runs, a chosen server it has not listed again stays
+        // chosen; once it ends without it, the choice is gone.
+        scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress == "10.0.0.1:28004");
+        scan.visible = {2, 0}; ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->state["join.selected"] == "1");
+        scan.state = idServerScan::IDLE; scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress.empty() && join->state["join.scanning"] == "0");
+        // The LAN, which the legacy menu's scans read too: both ask the LAN.
+        s.HandleRetainedSessionRequest(join, "joinSourceLan");
+        CHECK(s.guiMainMenu->state["lanSet"] == "1" && join->state["join.lan"] == "1" && commands.buffered.back() == "LANScan" &&
+              commands.buffered.size() == buffered + 1 && scan.calls.back() == "GUIInit");
+        s.HandleRetainedSessionRequest(join, "joinRefresh"); CHECK(commands.buffered.size() == buffered + 2 && commands.buffered.back() == "LANScan");
+        s.HandleRetainedSessionRequest(join, "joinSourceInternet");
+        CHECK(s.guiMainMenu->state["lanSet"] == "0" && join->state["join.lan"] == "0" && scan.calls.back() == "AddFavoriteServers");
+        // Seventy servers: the list pages on and back, the last page holding
+        // the rest.
+        scan.state = idServerScan::IDLE; scan.servers.clear(); scan.visible.clear();
+        for (int i = 0; i < 70; ++i) {
+            scan.servers.push_back(server("10.0.1." + std::to_string(i) + ":28004", "Server " + std::to_string(i), i, 0)); scan.visible.push_back(i);
+        }
+        ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->state["join.count"] == "70" && join->state["join.row63.name"] == "Server 63");
+        s.HandleRetainedSessionRequest(join, "joinNewer"); CHECK(s.retainedJoinFirst == 0);
+        s.HandleRetainedSessionRequest(join, "joinOlder");
+        CHECK(s.retainedJoinFirst == 64 && join->state["join.first"] == "64" && join->state["join.row5.name"] == "Server 69" && join->state["join.row6.name"] == "");
+        s.HandleRetainedSessionRequest(join, "joinOlder"); CHECK(s.retainedJoinFirst == 64);
+        join->state["join.pick"] = "5"; s.HandleRetainedSessionRequest(join, "joinPick"); CHECK(join->state["join.selected"] == "69");
+        // JOIN SERVER connects to the chosen server by the address the session
+        // kept, never the page's.
+        join->state["join.row5.name"] = "forged"; s.HandleRetainedSessionRequest(join, "joinServer");
+        CHECK(commands.buffered.size() == buffered + 3 && commands.buffered.back() == "connect 10.0.1.69:28004");
+        s.HandleRetainedSessionRequest(join, "unknown"); CHECK(commonObject.warnings.back().find("unhandled Join Game request") != std::string::npos);
+        // BACK climbs out: at 300 ms the Multiplayer page returns onto JOIN
+        // GAME, and the list no longer follows the scan.
+        s.HandleRetainedSessionRequest(join, "joinBack");
+        CHECK(s.retainedSubpageFrom == join && join->named.back() == "subpageLeave" && !s.retainedSubpageDeeper &&
+              s.retainedSubpageUntil == commonObject.time + 300);
+        s.HandleRetainedSessionRequest(join, "joinServer"); CHECK(commands.buffered.size() == buffered + 3);  // nothing else meanwhile
+        commonObject.time += 300; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == page && page->state["from_join"] == "1" && page->state["from_create"] == "0" && page->named.back() == "subpageReturn");
+        changes = join->stateChanges; ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->stateChanges == changes);
+        // JOIN GAME again opens on the page holding the chosen server.
+        s.HandleRetainedSessionRequest(page, "multiplayerJoin"); commonObject.time += 350; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == join && join->state["join.first"] == "64" && join->state["join.selected"] == "69");
+        // Back while going deeper reverses the change on the page.
+        s.HandleRetainedSessionRequest(join, "joinBack"); commonObject.time += 300; s.UpdateRetainedSubpage(); CHECK(s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "multiplayerJoin"); commonObject.time += 120;
+        sysEvent_t back; back.evType = SE_KEY; back.evValue = K_ESCAPE; back.evValue2 = 1;
+        CHECK(s.RetainedSubpageEvent(&back) && page->named.back() == "subpageReverse150" && s.retainedSubpageFrom == nullptr && s.guiActive == page);
+        // A Join Game that stopped drawing hands JOIN GAME back to the stock browser.
+        join->failed = true; s.HandleRetainedSessionRequest(page, "multiplayerJoin");
+        CHECK(s.guiRetainedJoin == nullptr && s.retainedMpPageDest == 14 && commonObject.warnings.back().find("stopped drawing") != std::string::npos &&
+              (Stock(s) == std::vector<std::string>{"guis/menu/joingame.q4ui"}));
         ui_retainedMultiplayer.value = false;
     }
     {   // The title has no level to restart, and the Strogg pause keeps the stock page.
@@ -2624,7 +2814,7 @@ def check_server_card(compiler: str, directory: Path) -> None:
     rows = re.search(r'static const int RETAINED_ROSTER_ROWS = \d+;', session).group(0)
     bodies = [function_body(strings, 'int idStr::IsEscape( const char *s, int* type )'),
               function_body(strings, 'char *idStr::RemoveEscapes( char *string, int escapes )'),
-              function_body(session, 'static idStr Session_RetainedPlayerText('), rows]
+              function_body(session, 'idStr Session_RetainedPlayerText('), rows]
     bodies += [function_body(session, f'void idSessionLocal::{name}(') for name in (
         'ClearRetainedLoadingRoster', 'NoteRetainedLoadingPlayer', 'NoteRetainedLoadingConnecting', 'PublishRetainedLoadingServer')]
     source = directory / 'card.cpp'
@@ -3244,6 +3434,77 @@ def check_create_server(menu: str) -> None:
     assert '\tStartMenuServer();' in function_body(text, 'void idSessionLocal::HandleRetainedCreateServerRequest(')
 
 
+# The stock browser's controls (p_mp_browse's buttons) and what the retained
+# Join Game page offers for each: a session verb, a control of its own, or the
+# name RETAINED_JOIN_GAME_MISSING gives what it lacks. The stock list's rows
+# are the page's (joinPick, joinServer).
+STOCK_BROWSER = {
+    'mp_b_browse_sortFavorite': 'joinSortFavorite', 'mp_b_browse_sortLocked': 'joinSortLocked', 'mp_b_browse_sortServer': 'joinSortName',
+    'mp_b_browse_sortPing': 'joinSortPing', 'mp_b_browse_sortPlayers': 'joinSortPlayers', 'mp_b_browse_sortGametype': 'joinSortGameType',
+    'mp_b_browse_sortMap': 'joinSortMap', 'mp_b_browse_src_internet': 'joinSourceInternet', 'mp_b_browse_src_lan': 'joinSourceLan',
+    'mp_b_browse_clearSort': 'joinClearSort', 'mp_b_browse_refreshlist': 'joinRefresh', 'mp_b_browse_getnewlist': 'joinNewList',
+    'mp_b_browse_joinserver': 'joinServer', 'mp_b_browse_back': 'joinBack',
+    'mp_b_browse_uparrow': 'servers_scroll', 'mp_b_browse_dnarrow': 'servers_scroll',
+    'mp_b_browse_sortDed': 'columns', 'mp_b_browse_sortPb': 'columns', 'mp_b_browse_sortRepeater': 'columns',
+    'mp_b_browse_filter_prev_mod': 'modfilter', 'mp_b_browse_filter_next_mod': 'modfilter',
+    'mp_b_browse_joinipaddress': 'joinip', 'mp_b_browse_findplayerclan': 'findplayer', 'mp_b_browse_favsel': 'favorite',
+}
+# What the stock page shows beyond its buttons: the chosen server's levelshot.
+STOCK_BROWSER_PANELS = {'mp_browse_info_mapshot': 'details'}
+
+
+def check_join_game(menu: str) -> None:
+    """The Join Game sub-page's tables against its generator and the server
+    scan, its opt-in, and what it does not offer yet: each of the stock
+    browser's controls is the page's, or RETAINED_JOIN_GAME_MISSING names it."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_join_game as join
+    text = menu.replace('\r\n', '\n')
+    assert re.search(r'RETAINED_JOIN_ROWS = (\d+);', text).group(1) == str(join.JOIN_ROWS)
+    header = (ROOT / 'src/framework/async/ServerScan.h').read_text(encoding='utf-8')
+    order = re.findall(r'(SORT_[A-Z]+)', re.search(r'typedef enum \{(.*?)\} serverSort_t;', header, re.S).group(1))
+    sorts = re.findall(r'\{ "(join[A-Za-z]+)",\s+(SORT_[A-Z]+) \}', re.search(r'RETAINED_JOIN_SORTS\[\] = \{(.*?)\n\};', text, re.S).group(1))
+    assert [(verb, order.index(sort)) for verb, sort in sorts] == [(verb, sort) for _c, sort, _k, _l, _w, verb in join.COLUMNS], sorts
+    assert order.index('SORT_NONE') == 11  # the page marks no column for it
+    adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
+    document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/joingame.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    commands = {action['arguments']['command'] for action in document['actions'].values()}
+    assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('join')} == commands, sorted(commands)
+    controls, pending = set(), [document['root']]
+    while pending:
+        node = pending.pop()
+        if 'control' in node:
+            controls.add(node['id'])
+        pending += node.get('children', [])
+    legacy_menu = (ROOT / 'content/baseoq4/pak0/guis/mainmenu.gui').read_text(encoding='utf-8', errors='replace')
+    stock = set()
+    for match in re.finditer(r'windowDef (mp_b_browse_\w+)\s*\{', legacy_menu):
+        following = legacy_menu.find('windowDef ', match.end())
+        if 'onAction' in legacy_menu[match.end():following if following >= 0 else len(legacy_menu)]:
+            stock.add(match.group(1))
+    assert stock == set(STOCK_BROWSER), sorted(stock ^ set(STOCK_BROWSER))
+    for name in STOCK_BROWSER_PANELS:
+        assert re.search(rf'windowDef {name}\s*\{{', legacy_menu), name
+    targets = {*STOCK_BROWSER.values(), *STOCK_BROWSER_PANELS.values()}
+    lacking = {target for target in targets if target not in commands and target not in controls}
+    missing = set(re.findall(r'"([a-z]+)"', re.search(r'RETAINED_JOIN_GAME_MISSING\[\] = \{([^}]*)\};', text).group(1)))
+    assert missing == lacking, f'RETAINED_JOIN_GAME_MISSING lists {sorted(missing)}; the page lacks {sorted(lacking)}'
+    assert ('static bool Session_RetainedJoinGameEnabled( void ) {\n\treturn Session_RetainedScreensEnabled() && '
+            '( ui_retainedMultiplayer.GetBool() || RETAINED_JOIN_GAME_MISSING[0] == NULL );') in text
+    # The page drives the scan as the stock browser does: the same scans on
+    # the legacy menu's source, its sorts, and a connect to the address.
+    scans = function_body(text, 'static void Session_ScanServers(')
+    main_menu = re.sub(r'\(\s+\)', '()', function_body(text, 'void idSessionLocal::HandleMainMenuCommands('))
+    for line in ('servers.GUIInit();', 'cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );', 'idAsyncNetwork::GetNETServers();',
+                 'servers.AddFavoriteServers();', 'servers.NetScan();'):
+        assert line in scans and line.replace('servers.', 'idAsyncNetwork::client.serverList.') in main_menu, line
+    handler = function_body(text, 'void idSessionLocal::HandleRetainedJoinGameRequest(')
+    assert 'connectArgs.AppendArg( retainedJoinAddress.c_str() );' in handler and 'cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );' in handler
+    assert 'guiMainMenu->SetStateBool( "lanSet",' in handler and 'servers.ResetSorting();' in handler
+    # Each frame the page presents, its list follows the scan.
+    assert 'UpdateRetainedMultiplayerPage();\n\tUpdateRetainedJoinGame();' in text
+
+
 def check_retained_multiplayer(menu: str, session: str) -> None:
     """The multiplayer card's contracts that the compiled cases cannot see:
     its opt-in and missing pages, the game's side of the cover protocol, the
@@ -3661,7 +3922,7 @@ def main() -> int:
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
                        'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
-                       'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui'}
+                       'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3699,6 +3960,7 @@ def main() -> int:
     assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 3
     check_retained_multiplayer(menu, session)
     check_create_server(menu)
+    check_join_game(menu)
     check_retained_match(menu)
     for signature in ('void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel('):
         assert 'if ( !Session_RetainedScreensEnabled()' in function_body(menu, signature), f'{signature} must be gated'
@@ -3801,11 +4063,12 @@ def main() -> int:
     menu_event = function_body(menu, 'void idSessionLocal::MenuEvent(')
     assert menu_event.index('if ( RetainedSubpageEvent( event ) ) {') < menu_event.index('HandleEvent(')
     waits = {name: int(re.search(rf'static const int RETAINED_SUBPAGE_{name}_MSEC = (\d+);', menu).group(1)) for name in ('DEEPER', 'BACK')}
-    for name, event in (('singleplayer', 'subpageEnter'), ('campaigns', 'subpageLeave')):
+    for name, event in (('singleplayer', 'subpageEnter'), ('campaigns', 'subpageLeave'), ('multiplayer', 'subpageEnterCreate'),
+                        ('multiplayer', 'subpageEnterJoin'), ('createserver', 'subpageLeave'), ('joingame', 'subpageLeave')):
         text = (ROOT / f'content/baseoq4/pak0/guis/menu/{name}.q4ui').read_text(encoding='utf-8')
         document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
         timelines = {item['id']: item for item in document['timelines']}
-        assert timelines[event]['durationMs'] == waits['DEEPER' if event == 'subpageEnter' else 'BACK'], name
+        assert timelines[event]['durationMs'] == waits['DEEPER' if event.startswith('subpageEnter') else 'BACK'], name
         assert document['events']['onDeactivate'][0] == {'op': 'playTimeline', 'timeline': 'rest'}, name
         # Rest returns everything a change moves, so a hidden document never
         # presents moved (the crumb's fitted scale rests in crumbRest).
@@ -3834,6 +4097,9 @@ def main() -> int:
     # The Create Server page's text verbs, each handing over its field's text.
     create_texts = menu[menu.index('RETAINED_CREATE_TEXTS[] = {'):menu.index('RETAINED_CREATE_TEXT_COUNT')]
     handled |= set(re.findall(r'\{ "(create[A-Za-z]*)",', create_texts))
+    # The Join Game page's column headings, each asking for its sort.
+    join_sorts = menu[menu.index('RETAINED_JOIN_SORTS[] = {'):menu.index('RETAINED_JOIN_SORT_COUNT')]
+    handled |= set(re.findall(r'\{ "(join[A-Za-z]*)",', join_sorts))
     assert allowlist == handled, f'allowlist {sorted(allowlist)} differs from session handlers {sorted(handled)}'
     for relative in ('content/baseoq4/pak0/guis/menu/title.q4ui', 'content/baseoq4/pak0/guis/menu/pause.q4ui',
                      'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui', 'content/baseoq4/pak0/guis/loading/loading.q4ui',
@@ -3902,7 +4168,10 @@ def main() -> int:
         'idUserInterface *idSessionLocal::RetainedCreateServerPage(', 'void idSessionLocal::OpenRetainedCreateServer(',
         'void idSessionLocal::PublishRetainedCreateServer(', 'void idSessionLocal::PublishRetainedCreateMaps(',
         'static bool Session_BanListRow(', 'void idSessionLocal::PublishRetainedCreateBans(',
-        'void idSessionLocal::HandleRetainedCreateServerRequest(',
+        'void idSessionLocal::HandleRetainedCreateServerRequest(', 'static void Session_ScanServers(',
+        'idUserInterface *idSessionLocal::RetainedJoinGamePage(', 'void idSessionLocal::OpenRetainedJoinGame(',
+        'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::UpdateRetainedJoinGame(',
+        'void idSessionLocal::HandleRetainedJoinGameRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

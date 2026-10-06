@@ -122,6 +122,16 @@ static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
 static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
 	NULL
 };
+// What the stock Join Game page (the server browser) offers that
+// Multiplayer's retained Join Game sub-page does not yet: JOIN IP ADDRESS,
+// FIND PLAYER/CLAN, the mod filter, the favorite toggle, the chosen server's
+// levelshot and details, and the dedicated, PunkBuster and repeater columns.
+// While anything remains, JOIN GAME opens the stock browser and only
+// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
+// this list equal to what the two pages offer.
+static const char *const RETAINED_JOIN_GAME_MISSING[] = {
+	"joinip", "findplayer", "modfilter", "favorite", "details", "columns", NULL
+};
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
 static const int RETAINED_MP_TEAM_SLOTS = 3;
@@ -216,6 +226,10 @@ static bool Session_RetainedMultiplayerEnabled( bool welcome ) {
 #ifndef ID_DEDICATED
 static bool Session_RetainedCreateServerEnabled( void ) {
 	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_CREATE_SERVER_MISSING[0] == NULL );
+}
+
+static bool Session_RetainedJoinGameEnabled( void ) {
+	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_JOIN_GAME_MISSING[0] == NULL );
 }
 
 // The stock button a card's hand-off to `page` presses, or NULL; `joinPanel`
@@ -4524,6 +4538,7 @@ void idSessionLocal::GuiFrameEvents() {
 	UpdateRetainedSubpage();
 	UpdateRetainedPage();
 	UpdateRetainedMultiplayerPage();
+	UpdateRetainedJoinGame();
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -5169,6 +5184,26 @@ static const int RETAINED_CREATE_TEXT_COUNT = static_cast<int>( sizeof( RETAINED
 // PLAYER BAN LIST's rows (BAN_ROWS in tools/ui/retained_create_server.py):
 // the page lists the first this many bans; removing one brings up the next.
 static const int RETAINED_CREATE_BAN_ROWS = 32;
+// Multiplayer's Join Game sub-page, the server browser. Its list holds this
+// many servers at a time (JOIN_ROWS in tools/ui/retained_join_game.py), and
+// each column heading asks to sort by its column (the sort the page's
+// join.sort names, COLUMNS in the generator).
+static const char *const RETAINED_JOIN_GAME_GUI = "guis/menu/joingame.q4ui";
+static const int RETAINED_JOIN_ROWS = 64;
+typedef struct retainedJoinSort_s {
+	const char *	verb;
+	serverSort_t	sort;
+} retainedJoinSort_t;
+static const retainedJoinSort_t RETAINED_JOIN_SORTS[] = {
+	{ "joinSortFavorite",	SORT_FAVORITE },
+	{ "joinSortLocked",		SORT_PASSWORD },
+	{ "joinSortName",		SORT_SERVERNAME },
+	{ "joinSortPing",		SORT_PING },
+	{ "joinSortPlayers",	SORT_PLAYERS },
+	{ "joinSortGameType",	SORT_GAMETYPE },
+	{ "joinSortMap",		SORT_MAP },
+};
+static const int RETAINED_JOIN_SORT_COUNT = static_cast<int>( sizeof( RETAINED_JOIN_SORTS ) / sizeof( RETAINED_JOIN_SORTS[0] ) );
 // Single Player's Arena sub-page, the Arena campaign's browser, and the
 // campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
 static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
@@ -5633,21 +5668,23 @@ void idSessionLocal::DrawRetainedHome( int presentationTime ) {
 }
 
 // The Single Player page and its Campaign and Arena sub-pages, and the
-// Multiplayer page and its Create Server sub-page, are documents of their own
-// (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other document cannot present,
-// its stock screen opens at once.
+// Multiplayer page and its Create Server and Join Game sub-pages, are
+// documents of their own (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other
+// document cannot present, its stock screen opens at once.
 void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage ) {
 #ifndef ID_DEDICATED
 	HandleMainMenuCommands( "play main_menu_selection" );
-	const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER, arena = subpage == RETAINED_SUBPAGE_ARENA;
-	const char *other = create ? ( deeper ? RETAINED_CREATE_SERVER_GUI : RETAINED_MPPAGE_GUI ) :
+	const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER, join = subpage == RETAINED_SUBPAGE_JOIN_GAME;
+	const bool arena = subpage == RETAINED_SUBPAGE_ARENA;
+	const char *other = create || join ? ( !deeper ? RETAINED_MPPAGE_GUI : create ? RETAINED_CREATE_SERVER_GUI : RETAINED_JOIN_GAME_GUI ) :
 		!deeper ? RETAINED_SINGLEPLAYER_GUI : arena ? RETAINED_ARENA_GUI : RETAINED_CAMPAIGNS_GUI;
 	if ( FindRetainedGui( other, true, false ) == NULL || cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
 		// The stock screen, or reduced motion: the other level at once.
 		PresentRetainedSubpage( deeper, subpage );
 		return;
 	}
-	gui->HandleNamedEvent( !deeper ? "subpageLeave" : create ? "subpageEnterCreate" : arena ? "subpageEnterArena" : "subpageEnter" );
+	gui->HandleNamedEvent( !deeper ? "subpageLeave" : create ? "subpageEnterCreate" : join ? "subpageEnterJoin" :
+		arena ? "subpageEnterArena" : "subpageEnter" );
 	PumpApplicationActions( gui );
 	retainedSubpageFrom = gui;
 	retainedSubpageDeeper = deeper;
@@ -5692,17 +5729,20 @@ void idSessionLocal::UpdateRetainedSubpage() {
 }
 
 // The other level presents: Campaign (or the stock selector), the Arena
-// campaign's browser (the Arena page where it can), Create Server, or the page
-// coming back: Single Player, onto ARENA from Arena, or Multiplayer onto
-// CREATE SERVER.
+// campaign's browser (the Arena page where it can), Create Server, Join Game,
+// or the page coming back: Single Player, onto ARENA from Arena, or
+// Multiplayer onto CREATE SERVER or JOIN GAME.
 void idSessionLocal::PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage ) {
 #ifndef ID_DEDICATED
 	const bool arena = subpage == RETAINED_SUBPAGE_ARENA;
 	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
-	if ( subpage == RETAINED_SUBPAGE_CREATE_SERVER ) {
-		if ( deeper ) {
+	if ( subpage == RETAINED_SUBPAGE_CREATE_SERVER || subpage == RETAINED_SUBPAGE_JOIN_GAME ) {
+		const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER;
+		if ( deeper && create ) {
 			OpenRetainedCreateServer();
-		} else if ( OpenRetainedMultiplayerPage( true ) ) {
+		} else if ( deeper ) {
+			OpenRetainedJoinGame();
+		} else if ( OpenRetainedMultiplayerPage( create ? "create" : "join" ) ) {
 			guiActive->HandleNamedEvent( "subpageReturn" );
 			PumpApplicationActions( guiActive );
 		}
@@ -5911,6 +5951,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		// The Create Server sub-page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedCreateServerRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedJoin ) {
+		// The Join Game sub-page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedJoinGameRequest( gui, request );
 		}
 		return;
 	}
@@ -6668,13 +6715,14 @@ idUserInterface *idSessionLocal::RetainedMultiplayerPage() {
 ===============
 idSessionLocal::OpenRetainedMultiplayerPage
 
-Back from a stock Multiplayer page, or from Create Server (`fromCreate`, onto
-CREATE SERVER): the retained page presents at once, its arrival bringing its
-plates and description back. False when it cannot present: the stock
-Multiplayer page opens instead.
+Back from a stock Multiplayer page, or from a sub-page onto its section
+(`section`: "create" from Create Server, "join" from Join Game): the
+retained page presents at once, its arrival bringing its plates and
+description back. False when it cannot present: the stock Multiplayer page
+opens instead.
 ===============
 */
-bool idSessionLocal::OpenRetainedMultiplayerPage( bool fromCreate ) {
+bool idSessionLocal::OpenRetainedMultiplayerPage( const char *section ) {
 #ifndef ID_DEDICATED
 	idUserInterface *page = RetainedMultiplayerPage();
 	if ( page == NULL || guiMainMenu == NULL ) {
@@ -6682,8 +6730,9 @@ bool idSessionLocal::OpenRetainedMultiplayerPage( bool fromCreate ) {
 	}
 	retainedMpPageDest = 0;
 	retainedPageHome = NULL;
-	// The activation reads it.
-	page->SetStateBool( "from_create", fromCreate );
+	// The activation reads them.
+	page->SetStateBool( "from_create", section != NULL && !idStr::Icmp( section, "create" ) );
+	page->SetStateBool( "from_join", section != NULL && !idStr::Icmp( section, "join" ) );
 	page->StateChanged( common->GetPresentationTime() );
 	SetGUI( page, NULL );
 	return true;
@@ -6696,12 +6745,12 @@ bool idSessionLocal::OpenRetainedMultiplayerPage( bool fromCreate ) {
 ===============
 idSessionLocal::HandleRetainedMultiplayerPageRequest
 
-The Multiplayer page's verbs. JOIN GAME and PLAYER SETUP open the stock
-browser and Settings pages once the page has left
-(UpdateRetainedMultiplayerPage); CREATE SERVER goes deeper to the retained
-Create Server sub-page where it can present, else it opens the stock page the
-same way; BACK returns the title, from the page dock as from a stock page. A
-page or a change of level under way takes no further request.
+The Multiplayer page's verbs. PLAYER SETUP opens the stock Settings page
+once the page has left (UpdateRetainedMultiplayerPage); JOIN GAME and CREATE
+SERVER go deeper to the retained Join Game and Create Server sub-pages where
+they can present, else they open the stock browser and Create Server pages
+the same way; BACK returns the title, from the page dock as from a stock
+page. A page or a change of level under way takes no further request.
 ===============
 */
 void idSessionLocal::HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request ) {
@@ -6711,6 +6760,10 @@ void idSessionLocal::HandleRetainedMultiplayerPageRequest( idUserInterface *gui,
 	}
 	if ( !idStr::Icmp( request, "multiplayerCreate" ) && RetainedCreateServerPage() != NULL ) {
 		BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_CREATE_SERVER );
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerJoin" ) && RetainedJoinGamePage() != NULL ) {
+		BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_JOIN_GAME );
 		return;
 	}
 	if ( !idStr::Icmp( request, "multiplayerBack" ) ) {
@@ -7130,6 +7183,265 @@ void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, co
 #endif
 }
 
+#ifndef ID_DEDICATED
+// The stock browser's GET NEW LIST (UpdateServers) or REFRESH LIST
+// (RefreshServers) on a source: a new list asks the LAN, or the master
+// server and the favorites; a refresh asks the LAN again, or the listed
+// servers.
+static void Session_ScanServers( bool lan, bool newList ) {
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	if ( newList ) {
+		servers.GUIInit();
+	}
+	if ( lan ) {
+		cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
+	} else if ( newList ) {
+		idAsyncNetwork::GetNETServers();
+		servers.AddFavoriteServers();
+	} else {
+		servers.NetScan();
+	}
+}
+#endif
+
+/*
+===============
+idSessionLocal::RetainedJoinGamePage
+
+Multiplayer's retained Join Game sub-page where it can present: NULL while the
+session does not offer it (RETAINED_JOIN_GAME_MISSING without
+ui_retainedMultiplayer), in a game, or when the page is not installed, cannot
+load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedJoinGamePage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedJoin != NULL && UI_RetainedViewFailed( guiRetainedJoin ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_JOIN_GAME_GUI );
+		retainedStock.AddUnique( RETAINED_JOIN_GAME_GUI );
+		guiRetainedJoin = NULL;
+	}
+	if ( !Session_RetainedJoinGameEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	if ( guiRetainedJoin == NULL ) {
+		guiRetainedJoin = FindRetainedGui( RETAINED_JOIN_GAME_GUI, true, false );
+	}
+	return guiRetainedJoin;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedJoinGame
+
+The Join Game sub-page presents as the stock browser opens
+(InitServerBrowser: the favorites read, the mod filter checked), with the
+servers the last scan found listed from the page holding the chosen one. Where
+it cannot, JOIN GAME opens the stock browser from the Multiplayer page, as
+its other sections do.
+===============
+*/
+void idSessionLocal::OpenRetainedJoinGame() {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedJoinGamePage();
+	if ( page == NULL ) {
+		if ( guiRetainedMpPage != NULL && guiActive == guiRetainedMpPage ) {
+			HandleRetainedMultiplayerPageRequest( guiRetainedMpPage, "multiplayerJoin" );
+		}
+		return;
+	}
+	idAsyncNetwork::client.serverList.GUIInit();
+	retainedJoinFirst = -1;
+	PublishRetainedJoinGame( page );
+	SetGUI( page, NULL );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedJoinGame
+
+The servers the scan found and the filter passes, in the sort's order: the
+list's page (join.row<i>.*: favorite, password, name, ping, players, game
+type and map, the server's own text read as a player's), their count, the
+scan's status line (the stock page's sortNotice) and whether it runs, the
+source the legacy menu keeps (gui::lanSet, which the scans read), the sort
+and its direction, and which server is chosen (join.selected), by the
+address the session kept. A chosen server the list stops holding stays
+chosen while a scan may list it again. A first page of -1 pages to the
+chosen server.
+===============
+*/
+void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	retainedJoinRevision = servers.GetRevision();
+	servers.VisibleServers( retainedJoinServers );
+	const int count = retainedJoinServers.Num();
+	const bool scanning = servers.GetState() != idServerScan::IDLE;
+	int selected = -1;
+	for ( int i = 0; i < count && retainedJoinAddress.Length() > 0 && selected < 0; ++i ) {
+		if ( !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
+			selected = i;
+		}
+	}
+	if ( selected < 0 && !scanning ) {
+		retainedJoinAddress.Clear();
+	}
+	if ( retainedJoinFirst < 0 ) {
+		retainedJoinFirst = selected > 0 ? selected / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS : 0;
+	}
+	retainedJoinFirst = idMath::ClampInt( 0, Max( 0, count - 1 ) / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS, retainedJoinFirst );
+	for ( int row = 0; row < RETAINED_JOIN_ROWS; ++row ) {
+		const int index = retainedJoinFirst + row;
+		const networkServer_t *server = index < count ? &servers[ retainedJoinServers[ index ] ] : NULL;
+		idStr name, ping, players, type, map;
+		if ( server != NULL ) {
+			name = Session_RetainedPlayerText( server->serverInfo.GetString( "si_name" ), 96, 1 );
+			if ( name.Length() == 0 ) {
+				name = Sys_NetAdrToString( server->adr );
+			}
+			ping = va( "%d", Max( 0, server->ping ) );
+			players = va( "%d/%d", idMath::ClampInt( 0, MAX_ASYNC_CLIENTS, server->clients ),
+				idMath::ClampInt( 0, MAX_ASYNC_CLIENTS, server->serverInfo.GetInt( "si_maxPlayers" ) ) );
+			type = Session_RetainedPlayerText( idServerScan::GameTypeName( server->serverInfo.GetString( "si_gameType" ) ), 64, 1 );
+			map = Session_RetainedPlayerText( server->serverInfo.GetString( "si_mapName" ), 64, 1 );
+		}
+		gui->SetStateBool( va( "join.row%d.fav", row ), server != NULL && servers.IsFavoriteServer( retainedJoinServers[ index ] ) );
+		gui->SetStateBool( va( "join.row%d.lock", row ), server != NULL && server->serverInfo.GetBool( "si_usePass" ) );
+		gui->SetStateString( va( "join.row%d.name", row ), name.c_str() );
+		gui->SetStateString( va( "join.row%d.ping", row ), ping.c_str() );
+		gui->SetStateString( va( "join.row%d.players", row ), players.c_str() );
+		gui->SetStateString( va( "join.row%d.type", row ), type.c_str() );
+		gui->SetStateString( va( "join.row%d.map", row ), map.c_str() );
+	}
+	bool ascending = true;
+	const serverSort_t sort = servers.GetSorting( ascending );
+	gui->SetStateInt( "join.count", count );
+	gui->SetStateInt( "join.first", retainedJoinFirst );
+	gui->SetStateInt( "join.selected", selected );
+	gui->SetStateInt( "join.sort", static_cast<int>( sort ) );
+	gui->SetStateBool( "join.ascending", ascending );
+	gui->SetStateBool( "join.lan", guiMainMenu != NULL && guiMainMenu->State().GetBool( "lanSet" ) );
+	gui->SetStateBool( "join.scanning", scanning );
+	gui->SetStateString( "join.status", guiMainMenu != NULL ? guiMainMenu->State().GetString( "sortNotice" ) : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateRetainedJoinGame
+
+Each frame the Join Game sub-page presents: the list again once the scan
+has moved on (a server answered, a sort or filter changed, the status
+changed).
+===============
+*/
+void idSessionLocal::UpdateRetainedJoinGame() {
+#ifndef ID_DEDICATED
+	if ( guiRetainedJoin == NULL || guiActive != guiRetainedJoin ||
+			idAsyncNetwork::client.serverList.GetRevision() == retainedJoinRevision ) {
+		return;
+	}
+	PublishRetainedJoinGame( guiRetainedJoin );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedJoinGameRequest
+
+The Join Game sub-page's verbs, the stock browser's commands on the source
+the legacy menu keeps (gui::lanSet): INTERNET and LAN choose the source and
+get a new list from it, as the stock tags do; GET NEW LIST gets a new list
+and REFRESH LIST asks again; a column heading sorts by its column, and again
+the other way, and CLEAR SORTING lists the servers as they answered; a row
+chooses its server (join.pick) and the pagers page the list; JOIN SERVER
+connects to the chosen server by the address the session kept, never the
+page's; BACK climbs to the Multiplayer page. A change of level under way
+takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL ) {
+		return;
+	}
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	if ( !idStr::Icmp( request, "joinBack" ) ) {
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_JOIN_GAME );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinServer" ) ) {
+		if ( gui->State().GetInt( "join.selected", "-1" ) < 0 || retainedJoinAddress.Length() == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		idCmdArgs connectArgs;
+		connectArgs.AppendArg( "connect" );
+		connectArgs.AppendArg( retainedJoinAddress.c_str() );
+		cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinPick" ) ) {
+		const int row = gui->State().GetInt( "join.pick", "-1" );
+		const int index = retainedJoinFirst + row;
+		if ( row >= 0 && row < RETAINED_JOIN_ROWS && index < retainedJoinServers.Num() && retainedJoinServers[ index ] < servers.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedJoinAddress = Sys_NetAdrToString( servers[ retainedJoinServers[ index ] ].adr );
+			PublishRetainedJoinGame( gui );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinNewer" ) || !idStr::Icmp( request, "joinOlder" ) ) {
+		const int first = retainedJoinFirst + ( !idStr::Icmp( request, "joinOlder" ) ? RETAINED_JOIN_ROWS : -RETAINED_JOIN_ROWS );
+		if ( first >= 0 && first < retainedJoinServers.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedJoinFirst = first;
+			PublishRetainedJoinGame( gui );
+		}
+		return;
+	}
+	if ( guiMainMenu == NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinSourceInternet" ) || !idStr::Icmp( request, "joinSourceLan" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		guiMainMenu->SetStateBool( "lanSet", !idStr::Icmp( request, "joinSourceLan" ) );
+		guiMainMenu->StateChanged( common->GetPresentationTime() );
+		Session_ScanServers( guiMainMenu->State().GetBool( "lanSet" ), true );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinNewList" ) || !idStr::Icmp( request, "joinRefresh" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		Session_ScanServers( guiMainMenu->State().GetBool( "lanSet" ), !idStr::Icmp( request, "joinNewList" ) );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinClearSort" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.ResetSorting();
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	for ( int i = 0; i < RETAINED_JOIN_SORT_COUNT; ++i ) {
+		if ( !idStr::Icmp( request, RETAINED_JOIN_SORTS[i].verb ) ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			servers.SetSorting( RETAINED_JOIN_SORTS[i].sort );
+			PublishRetainedJoinGame( gui );
+			return;
+		}
+	}
+	common->Warning( "retained UI: unhandled Join Game request '%s'", request );
+#endif
+}
+
 /*
 ===============
 idSessionLocal::HandleRetainedArenaRequest
@@ -7505,6 +7817,10 @@ void idSessionLocal::PreloadRetainedScreens() {
 				UI_RetainedPrecacheImage( RetainedPauseShot( dict->GetString( "path" ) ).c_str() );
 			}
 		}
+	}
+	// Its Join Game sub-page, where the session offers it.
+	if ( guiRetainedJoin == NULL && guiRetainedMpPage != NULL && Session_RetainedJoinGameEnabled() ) {
+		guiRetainedJoin = FindRetainedGui( RETAINED_JOIN_GAME_GUI, true, false );
 	}
 #endif
 }

@@ -583,6 +583,8 @@ On engine `3d8ab71457492b6d88f69cab9c1b580585bfcab8`, a text field can be masked
 
 On engine `156694227f16c666cfabefbfbac0f1c28c1adb06`, Create Server's advanced options gain PLAYER BAN LIST, a list dialog nested over them that lists and lifts the local server's bans, and the retained page becomes the default; the stock page's ban list and player-count guards work again as retail's session ran them. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-createserver-banlist-evidence/validation-evidence.json`, SHA-256 `aaaeed1f5512c93c181d1fb2895122bc30dcea5437f35b660bd4a2bf057951d8`.
 
+On engine `03688d4387b0661ef86de7359c0bcd1306cca12b`, Multiplayer's JOIN GAME goes deeper (opted into with ui_retainedMultiplayer) to a retained server browser that lists the scan's servers with their sources and column sorts and joins the chosen one, and favorites of a server on the same machine now list. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-evidence/validation-evidence.json`, SHA-256 `79aa239d2f10627940727d4a0c5c7306dee0a571ddee62d5dc149ad95b5c7e86`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

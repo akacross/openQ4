@@ -71,6 +71,7 @@ struct idSessionLocal {
     void UpdateRetainedSubpage() {}
     void UpdateRetainedPage() {}
     void UpdateRetainedMultiplayerPage() {}
+    void UpdateRetainedJoinGame() {}
     bool RetainedSubpageEvent(const sysEvent_t*) { return false; }
     void HandleRetainedSessionRequest(idUserInterface*,const char*) { assert(false); }
     // The multiplayer card and the loading hold are covered by the retained screens suite.
