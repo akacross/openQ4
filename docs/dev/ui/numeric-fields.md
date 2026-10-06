@@ -133,8 +133,22 @@ save's name. Its value is a string state and its action takes `string` input.
 It has no `minimum`, `maximum`, `exponent` or `integer`; `maxBytes` bounds the
 text as it bounds a number's. Any non-empty text within that size is valid.
 There is no syntax, so markup characters remain literal glyphs. Empty text is
-a local draft that cannot be committed. Entry refuses newlines, tabs, other
-control characters and Unicode line separators.
+a local draft that cannot be committed unless the control sets `allowEmpty`,
+which makes it a value, as a password or map cycle may be empty. Entry refuses
+newlines, tabs, other control characters and Unicode line separators.
+
+`masked` (Boolean, text fields only) makes a password field. It paints one `*`
+for each character, as the stock edit field's `password 1` painted one per
+byte. The run measures the mask, and every caret, selection and composition
+offset in the text maps onto it; a pointer hit on the mask maps back, and
+editing commands step over the mask's carets carried onto the text's character
+boundaries, so a right-to-left or unfamiliar script moves the same way. The
+field never reaches the clipboard: Copy and Cut of a selection are refused
+with their own notice (`#str_231129`), and Paste still works. A masked field
+is never a candidate for the native text services. The mask hides the text on
+screen only: it is still the field's value, in document state and snapshots
+as any field's, and menu documents are never written to savegames. Both
+policies are rejected on the `number` role.
 
 A commit proposes the text itself. As with a number, acceptance needs the
 readback first, and a draft survives snapshots under the same conflict rules.

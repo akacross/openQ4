@@ -533,6 +533,13 @@ bool idUserInterfaceManagerLocal::DispatchApplicationActions( idUserInterface *g
 			if (!MakeTextInputCommit(selection,checked,error)) continue;
 			if (request.operation != uiClipboardOperation_t::Copy && request.operation != uiClipboardOperation_t::Cut &&
 				request.operation != uiClipboardOperation_t::Paste) continue;
+			// A masked field's text never reaches the clipboard: copying or
+			// cutting a selection there is refused and said. Paste still works.
+			if (before.editor.masked && request.operation != uiClipboardOperation_t::Paste) {
+				if (!selection.empty() && !clipboardBoundaryFailed) if (auto* live = resolve())
+					live->SetClipboardNotice(request.target,NumberEditNotice::ClipboardMasked,error);
+				continue;
+			}
 			std::string paste; bool succeeded = true;
 			NumberEditNotice notice = NumberEditNotice::None;
 			try {

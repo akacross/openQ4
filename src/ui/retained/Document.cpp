@@ -908,7 +908,7 @@ private:
 			else if (role == "slider") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","step","decimals","orientation","parts","extensions"});
 			else if (role == "choice") Fields(control,p,{"role","action","label","enabled","states","navigation","value","parts","visibleRows","options","optionCount","scrollbar","placementBounds","extensions"});
 			else if (role == "number") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","exponent","integer","maxBytes","parts","extensions"});
-			else if (role == "text") Fields(control,p,{"role","action","label","enabled","states","navigation","value","maxBytes","parts","extensions"});
+			else if (role == "text") Fields(control,p,{"role","action","label","enabled","states","navigation","value","maxBytes","allowEmpty","masked","parts","extensions"});
 			else if (role == "scrollbar") Fields(control,p,{"role","label","enabled","states","navigation","viewport","orientation","lineStep","minimumThumb","parts","extensions"});
             else Require(false,control["role"],p+"/role","Supported roles are button, toggle, slider, choice, number, text and scrollbar");
 			result.control.emplace(); auto& parsed = *result.control;
@@ -996,6 +996,12 @@ private:
 							control["maxBytes"],p+"/maxBytes","Number edit size must be 1..65536 bytes");
 						spec.maxBytes = control["maxBytes"].asUInt();
 					}
+					// Text-only policies; Fields refuses them on a number.
+					for (const auto& [key,flag] : {std::pair{"allowEmpty",&spec.allowEmpty},std::pair{"masked",&spec.masked}})
+						if (control.isMember(key)) {
+							Require(control[key].isBool(),control[key],p+"/"+key,"Text field policy must be Boolean");
+							*flag = control[key].asBool();
+						}
 					spec.viewport = Id(parts["viewport"],at+"/viewport"); spec.text = Id(parts["text"],at+"/text");
 					spec.selection = Id(parts["selection"],at+"/selection"); spec.caret = Id(parts["caret"],at+"/caret");
 					spec.composition = Id(parts["composition"],at+"/composition"); spec.validation = Id(parts["validation"],at+"/validation");

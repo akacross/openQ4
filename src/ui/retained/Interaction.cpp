@@ -21,6 +21,9 @@ bool Interaction::ObserveNumberNativeCandidate(NumberNativeCandidate& out) const
     const auto found=items.find(focused);
     if(found==items.end() || found->second.control.role!=ControlRole::Number || !found->second.number ||
         !found->second.readback || found->second.pending)return false;
+    // The text services would read a masked field's plain text.
+    const auto* spec=std::get_if<NumberSpec>(&found->second.control.widget);
+    if(!spec || spec->masked)return false;
     const auto& editor=*found->second.number;
     if(editor.detached || editor.native || editor.conflict || editor.buffer.Composition() ||
         !editor.identity.session || !editor.identity.revision)return false;
@@ -89,11 +92,11 @@ TextNumberPolicy NumberPolicy(const Control& control) {
 	return {spec.minimum,spec.maximum,spec.exponent,spec.integer};
 }
 // A Number control's draft as its value: the parsed number, or for a text
-// field (role "text") the text itself, which must not be empty. Failure
-// leaves the value unchanged.
+// field (role "text") the text itself, which must not be empty unless the
+// field allows it. Failure leaves the value unchanged.
 TextNumberStatus ParseDraft(const Control& control, std::string_view text, StateValue& value) {
-	if (std::get<NumberSpec>(control.widget).textField) {
-		if (text.empty()) return TextNumberStatus::Empty;
+	if (const auto& spec = std::get<NumberSpec>(control.widget); spec.textField) {
+		if (text.empty() && !spec.allowEmpty) return TextNumberStatus::Empty;
 		value = std::string(text); return TextNumberStatus::Valid;
 	}
 	double number = 0;
@@ -508,6 +511,7 @@ std::optional<WidgetViewState> Interaction::Widget(const std::string& id) const 
 		number.dirty = number.state.text != editor.baselineText || number.composition.has_value();
 		number.conflict = editor.conflict; number.canUndo = editor.buffer.CanUndo(); number.canRedo = editor.buffer.CanRedo();
 		number.active = !editor.detached; number.notice = editor.notice;
+		number.masked = std::get<NumberSpec>(item.control.widget).masked;
 		if (editor.native) {
 			number.nativePresentation = editor.native->presentation;
 			number.nativeUnsettled = NativeUnsettled(*editor.native);
@@ -835,7 +839,7 @@ bool Interaction::ApplyNumberInput(const std::string& id, NumberEditIdentity exp
 }
 bool Interaction::SetNumberNotice(const std::string& id, NumberEditIdentity expected, NumberEditNotice notice, std::string& error) {
 	auto* item = EditableNumber(id,expected,error); if (!item) return false;
-	if (notice < NumberEditNotice::None || notice > NumberEditNotice::ClipboardRejected || item->number->buffer.Composition()) {
+	if (notice < NumberEditNotice::None || notice > NumberEditNotice::ClipboardMasked || item->number->buffer.Composition()) {
 		error = "Number clipboard notice is invalid or composing"; return false;
 	}
 	item->number->notice = notice; return true;

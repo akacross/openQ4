@@ -42,9 +42,11 @@ struct NumberNativeCandidate {
     NumberEditIdentity identity;
     std::uint64_t modalToken=0;
 };
-enum class NumberEditNotice { None, ClipboardReadFailed, ClipboardWriteFailed, ClipboardRejected };
+// ClipboardMasked: a masked field refused a copy or cut (it stays last).
+enum class NumberEditNotice { None, ClipboardReadFailed, ClipboardWriteFailed, ClipboardRejected, ClipboardMasked };
 struct NumberEditView {
 	NumberEditNotice notice = NumberEditNotice::None;
+	bool masked = false; // The field presents a mask (NumberSpec::masked).
 	TextEditState state;
 	std::optional<TextInputEvent> composition;
 	NumberEditIdentity identity;

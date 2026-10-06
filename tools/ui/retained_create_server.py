@@ -117,9 +117,20 @@ TOURNEY_TYPES = (1,)
 # The stock advanced popup (pop_createAdv): 428 u wide from 106,23 u; its rows
 # 377 u on the 24 u pitch from 25 u in. The stock value column ran past its
 # rows; here it starts 220 u in, where every language's label and choice fit.
-ADVANCED_DIALOG = (23.0, 428.0, 400.0)     # top, width, height (u)
+# Its height follows its rows: CLOSE ADVANCED OPTIONS 14 u under the last and
+# 49 u for it and the foot, and it rises from 23 u to stay centred on the
+# 480 u screen once it outgrows that.
+ADVANCED_TOP, ADVANCED_WIDTH, ADVANCED_FOOT = 23.0, 428.0, 63.0
 ADVANCED_ROWS_TOP, ADVANCED_VALUE_X = 25.0, 220.0
 MAPCYCLE_BYTES = 200                       # pop_createAdv_mapcycle_val: maxchars 200
+# The password rows after Use password, as the stock popup orders them: the
+# game's password (shown only while Use password is on) and the remote console
+# password. Each is masked, may be empty and takes 16 bytes (maxchars 16).
+PASSWORDS = (
+    ("password", "createPassword", "#str_200068", "passwordEntered"),
+    ("rconpassword", "createRconPassword", "#str_200069", "rconPasswordEntered"),
+)
+PASSWORD_BYTES = 16
 
 
 def setting_action(doc: Document, verb: str, kind: str) -> str:
@@ -139,10 +150,11 @@ def among(types: tuple) -> dict:
 
 
 def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: float, state: str, event: str, max_bytes: int,
-             row_h: float) -> dict:
+             row_h: float, allow_empty: bool = False, masked: bool = False) -> dict:
     """A text setting (section 7 with the Save page's text field): the label in
     its column and the field in the value column, which Enter commits into the
-    page's own `state` and then runs `event`, which asks the session to take it."""
+    page's own `state` and then runs `event`, which asks the session to take it.
+    `allow_empty` lets the text be empty; `masked` shows it as one * a character."""
     shape = [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)]
     plate = vector(f"{ident}-plate", FULL, [path("plate", shape, fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1))])
     wash = vector(f"{ident}-wash", {**FULL, "opacity": number(0)}, [
@@ -164,7 +176,7 @@ def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: f
     text_node = label(parts["text"], PLACEHOLDER, {**absolute(left=6, top=0, width=4096, height=field_h),
                       **typeface("lowpixel", 15, field_h, rgb(VALUE)), "white-space": keyword("pre"), "text-align": keyword("left")})
     viewport = group(parts["viewport"], {**absolute(left=value_x - 8, top=(row_h - field_h) / 2, width=field_w, height=field_h),
-                                         "overflow": keyword("hidden")},
+                                         "display": keyword("block"), "overflow": keyword("hidden")},
                      [field_plate, ink(parts["selection"], rgb(ORANGE, 0.4), 0, field_h), text_node,
                       ink(parts["caret"], [1, 1, 1, 1], 1, field_h), ink(parts["composition"], rgb(ORANGE), 0, 1)])
     validation = label(parts["validation"], PLACEHOLDER, {**absolute(left=21, top=row_h + 1, width=width - 33, height=16),
@@ -173,7 +185,8 @@ def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: f
     action = f"enter.{ident}"
     doc.actions[action] = {"input": "string", "operation": "ui.state.set", "arguments": {"key": state, "value": {"input": "value"},
                                                                                          "event": event}}
-    control = {"role": "text", "label": label_key, "action": action, "value": {"state": state}, "maxBytes": max_bytes, "parts": parts,
+    control = {"role": "text", "label": label_key, "action": action, "value": {"state": state}, "maxBytes": max_bytes,
+               **({"allowEmpty": True} if allow_empty else {}), **({"masked": True} if masked else {}), "parts": parts,
                "states": setting_states(doc, ident)}
     return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width), "height": length(row_h),
                          "opacity": number(1), "flex-shrink": number(0)}, [plate, wash, rail, head, viewport, validation], control=control)
@@ -256,19 +269,36 @@ def map_row(doc: Document, index: int, row_w: float) -> dict:
                  control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
 
 
+def password_row(doc: Document, state: str, verb: str, label_key: str, event: str) -> dict:
+    """A password row: a masked text field that may be empty, committing into
+    create.<state> and asking `verb`, which the session takes as its CVar."""
+    doc.state[f"create.{state}"] = {"type": "string", "initial": ""}
+    doc.session(verb, verb)
+    doc.events[event] = [{"op": "action", "action": verb}]
+    return text_row(doc, f"create-{state}", label_key, U * 377, U * ADVANCED_VALUE_X, f"create.{state}", event, PASSWORD_BYTES,
+                    U * ROW_PITCH, allow_empty=True, masked=True)
+
+
 def advanced_dialog(doc: Document) -> dict:
     """ADVANCED OPTIONS: the stock popup's options in the stock modal
     construction grown to its size, titled ADVANCED SERVER OPTIONS, with the
-    map cycle's text field and CLOSE ADVANCED OPTIONS in place of YES and NO."""
-    top_u, width_u, height_u = ADVANCED_DIALOG
-    width = U * width_u
+    password and map cycle text fields and CLOSE ADVANCED OPTIONS in place of
+    YES and NO. Set password dims and hides its text while Use password is
+    off, as the stock popup hid its field."""
+    width = U * ADVANCED_WIDTH
     controls = {}
     rows = setting_rows(doc, ADVANCED, U * 377, U * ADVANCED_VALUE_X, U * ROW_PITCH, controls, "advancedModal-dialog")
+    rows[1:1] = [password_row(doc, *password) for password in PASSWORDS]
+    using = {"state": "create.usepass"}
+    lock_unless(doc, "create-password", using)
+    doc.bind("create-password-viewport.display", "create-password-viewport", "display", {"op": "select", "args": [using, "block", "none"]})
     doc.state["create.mapcycle"] = {"type": "string", "initial": ""}
     doc.session("createMapCycle", "createMapCycle")
     doc.events["mapCycleEntered"] = [{"op": "action", "action": "createMapCycle"}]
     rows.append(text_row(doc, "create-mapcycle", "#str_200072", U * 377, U * ADVANCED_VALUE_X, "create.mapcycle", "mapCycleEntered",
-                         MAPCYCLE_BYTES, U * ROW_PITCH))
+                         MAPCYCLE_BYTES, U * ROW_PITCH, allow_empty=True))
+    height_u = ADVANCED_ROWS_TOP + ROW_PITCH * len(rows) + ADVANCED_FOOT
+    top_u = min(ADVANCED_TOP, (480 - height_u) / 2)
     column = group("advanced-rows", {**absolute(left=U * 25, top=U * ADVANCED_ROWS_TOP, width=U * 377,
                                                 height=U * ROW_PITCH * len(rows)),
                                      "display": keyword("flex"), "flex-direction": keyword("column")}, rows)
@@ -289,7 +319,7 @@ def check_create_fits() -> None:
                 ("#str_231128", "marine", 16, U * (MAP_LIST[2] - 16 - 18)), ("#str_200052", "lowpixel", 15, U * VALUE_X - 29)]
     one_line += [(label_key, "lowpixel", 15, U * VALUE_X - 29) for _, _, label_key, *_ in SETTINGS]
     one_line += [(label_key, "lowpixel", 15, U * ADVANCED_VALUE_X - 29) for _, _, label_key, *_ in ADVANCED]
-    one_line += [("#str_200072", "lowpixel", 15, U * ADVANCED_VALUE_X - 29)]
+    one_line += [(label_key, "lowpixel", 15, U * ADVANCED_VALUE_X - 29) for label_key in ("#str_200072", *(key for _, _, key, _ in PASSWORDS))]
     check_fits(tuple(one_line), ())
     for state, (names, values) in CHOICES.items():
         value_w = (U * 377 - U * (ADVANCED_VALUE_X if state in ("rate", "bots", "botskill") else VALUE_X) - 12) - 14

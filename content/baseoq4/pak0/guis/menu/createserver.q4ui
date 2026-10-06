@@ -102,6 +102,8 @@
   "create.buying": {"type": "boolean", "initial": false},
   "create.bots": {"type": "number", "initial": 0},
   "create.botskill": {"type": "number", "initial": 1},
+  "create.password": {"type": "string", "initial": ""},
+  "create.rconpassword": {"type": "string", "initial": ""},
   "create.mapcycle": {"type": "string", "initial": ""},
   "advancedModal.visible": {"type": "boolean", "initial": false},
   "advancedModal.contents": {"type": "boolean", "initial": false},
@@ -244,6 +246,18 @@
    "operation": "session.menuValue",
    "input": "number",
    "arguments": {"command": "createBotSkill", "value": {"input": "value"}}
+  },
+  "createPassword": {"operation": "session.menu", "arguments": {"command": "createPassword"}},
+  "enter.create-password": {
+   "input": "string",
+   "operation": "ui.state.set",
+   "arguments": {"key": "create.password", "value": {"input": "value"}, "event": "passwordEntered"}
+  },
+  "createRconPassword": {"operation": "session.menu", "arguments": {"command": "createRconPassword"}},
+  "enter.create-rconpassword": {
+   "input": "string",
+   "operation": "ui.state.set",
+   "arguments": {"key": "create.rconpassword", "value": {"input": "value"}, "event": "rconPasswordEntered"}
   },
   "createMapCycle": {"operation": "session.menu", "arguments": {"command": "createMapCycle"}},
   "enter.create-mapcycle": {
@@ -959,6 +973,8 @@
    }
   ],
   "nameEntered": [{"op": "action", "action": "createName"}],
+  "passwordEntered": [{"op": "action", "action": "createPassword"}],
+  "rconPasswordEntered": [{"op": "action", "action": "createRconPassword"}],
   "mapCycleEntered": [{"op": "action", "action": "createMapCycle"}],
   "advancedModalShow": [
    {"op": "setState", "values": {"advancedModal.visible": true, "advancedModal.contents": false}},
@@ -3249,6 +3265,24 @@
      0.38
     ]
    }
+  },
+  {
+   "id": "create-password.enabled",
+   "node": "create-password",
+   "property": "enabled",
+   "value": {"state": "create.usepass"}
+  },
+  {
+   "id": "create-password.opacity",
+   "node": "create-password",
+   "property": "opacity",
+   "value": {"op": "select", "args": [{"state": "create.usepass"}, 1, 0.38]}
+  },
+  {
+   "id": "create-password-viewport.display",
+   "node": "create-password-viewport",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "create.usepass"}, "block", "none"]}
   },
   {
    "id": "advancedModal.display",
@@ -17472,6 +17506,294 @@
     },
     {
      "node": "create-botskill-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-password.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "create-password-focus",
+     "property": "opacity",
+     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 300, "value": {"type": "number", "value": 0}}]
+    },
+    {
+     "node": "create-password-wash",
+     "property": "opacity",
+     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 300, "value": {"type": "number", "value": 0}}]
+    },
+    {
+     "node": "create-password-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}},
+      {"atMs": 300, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-password.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "create-password-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-password-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.6}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.6}}
+     ]
+    },
+    {
+     "node": "create-password-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 1]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 1]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-password.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "create-password-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-password-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-password-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-password.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "create-password-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-password-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-password-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-password.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "create-password-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-password-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-password-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-rconpassword.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "create-rconpassword-focus",
+     "property": "opacity",
+     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 300, "value": {"type": "number", "value": 0}}]
+    },
+    {
+     "node": "create-rconpassword-wash",
+     "property": "opacity",
+     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 300, "value": {"type": "number", "value": 0}}]
+    },
+    {
+     "node": "create-rconpassword-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}},
+      {"atMs": 300, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-rconpassword.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "create-rconpassword-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.6}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.6}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 1]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 1]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-rconpassword.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "create-rconpassword-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-rconpassword.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "create-rconpassword-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-label",
+     "property": "color",
+     "keys": [
+      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "create-rconpassword.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "create-rconpassword-focus",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-wash",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0}}
+     ]
+    },
+    {
+     "node": "create-rconpassword-label",
      "property": "color",
      "keys": [
       {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}, "easing": [0.16, 1, 0.3, 1]},
@@ -35419,6 +35741,7 @@
              "top": {"type": "length", "value": 7.0, "unit": "dp"},
              "width": {"type": "length", "value": 283.5, "unit": "dp"},
              "height": {"type": "length", "value": 22.0, "unit": "dp"},
+             "display": {"type": "keyword", "value": "block"},
              "overflow": {"type": "keyword", "value": "hidden"}
             },
             "children": [
@@ -40753,7 +41076,7 @@
         "properties": {
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 342.0, "unit": "dp"},
-         "top": {"type": "length", "value": 545.5, "unit": "dp"},
+         "top": {"type": "length", "value": 29.5, "unit": "dp"},
          "width": {"type": "length", "value": 565.5, "unit": "dp"},
          "height": {"type": "length", "value": 45, "unit": "dp"}
         },
@@ -41419,9 +41742,9 @@
         "properties": {
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 159.0, "unit": "dp"},
-         "top": {"type": "length", "value": 34.5, "unit": "dp"},
+         "top": {"type": "length", "value": 24.0, "unit": "dp"},
          "width": {"type": "length", "value": 642.0, "unit": "dp"},
-         "height": {"type": "length", "value": 600.0, "unit": "dp"}
+         "height": {"type": "length", "value": 672.0, "unit": "dp"}
         },
         "children": [
          {
@@ -41432,7 +41755,7 @@
            "left": {"type": "length", "value": 0, "unit": "dp"},
            "top": {"type": "length", "value": -130.5, "unit": "dp"},
            "width": {"type": "length", "value": 642.0, "unit": "dp"},
-           "height": {"type": "length", "value": 892.5, "unit": "dp"},
+           "height": {"type": "length", "value": 964.5, "unit": "dp"},
            "opacity": {"type": "number", "value": 0},
            "display": {"type": "keyword", "value": "block"}
           },
@@ -41471,7 +41794,7 @@
            "left": {"type": "length", "value": -16.0, "unit": "dp"},
            "top": {"type": "length", "value": -40.0, "unit": "dp"},
            "width": {"type": "length", "value": 674.0, "unit": "dp"},
-           "height": {"type": "length", "value": 680.0, "unit": "dp"},
+           "height": {"type": "length", "value": 752.0, "unit": "dp"},
            "opacity": {"type": "number", "value": 0},
            "display": {"type": "keyword", "value": "none"}
           },
@@ -41491,10 +41814,10 @@
              "to": [0, {"fraction": 1}],
              "stops": [
               {"at": 0, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0]}},
-              {"at": 0.0588, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.5]}},
-              {"at": 0.405, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.9]}},
-              {"at": 0.6282, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.9]}},
-              {"at": 0.9412, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.5]}},
+              {"at": 0.0532, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.5]}},
+              {"at": 0.4055, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.9]}},
+              {"at": 0.6236, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.9]}},
+              {"at": 0.9468, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0.5]}},
               {"at": 1, "color": {"type": "color", "value": [0.2706, 0.3059, 0.1059, 0]}}
              ]
             },
@@ -41535,7 +41858,7 @@
            "left": {"type": "length", "value": 0, "unit": "dp"},
            "top": {"type": "length", "value": 0, "unit": "dp"},
            "width": {"type": "length", "value": 642.0, "unit": "dp"},
-           "height": {"type": "length", "value": 600.0, "unit": "dp"},
+           "height": {"type": "length", "value": 672.0, "unit": "dp"},
            "opacity": {"type": "number", "value": 0}
           },
           "paths": [
@@ -41548,9 +41871,9 @@
              {"id": "p3", "op": "line", "points": [[469.516, 20.562]]},
              {"id": "p4", "op": "line", "points": [[486.516, 3.562]]},
              {"id": "p5", "op": "line", "points": [[633.223, 3.562]]},
-             {"id": "p6", "op": "line", "points": [[633.223, 594.656]]},
-             {"id": "p7", "op": "line", "points": [[46.777, 594.656]]},
-             {"id": "p8", "op": "line", "points": [[8.777, 556.656]]},
+             {"id": "p6", "op": "line", "points": [[633.223, 666.656]]},
+             {"id": "p7", "op": "line", "points": [[46.777, 666.656]]},
+             {"id": "p8", "op": "line", "points": [[8.777, 628.656]]},
              {"id": "close", "op": "close"}
             ],
             "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.7]}}
@@ -41754,7 +42077,7 @@
              "left": {"type": "length", "value": 37.5, "unit": "dp"},
              "top": {"type": "length", "value": 37.5, "unit": "dp"},
              "width": {"type": "length", "value": 565.5, "unit": "dp"},
-             "height": {"type": "length", "value": 468.0, "unit": "dp"},
+             "height": {"type": "length", "value": 540.0, "unit": "dp"},
              "display": {"type": "keyword", "value": "flex"},
              "flex-direction": {"type": "keyword", "value": "column"}
             },
@@ -41977,6 +42300,660 @@
                 "disabled": "create-usepass.disabled"
                },
                "parts": {"checked": "create-usepass-checked"}
+              }
+             },
+             {
+              "id": "create-password",
+              "type": "group",
+              "properties": {
+               "position": {"type": "keyword", "value": "relative"},
+               "display": {"type": "keyword", "value": "block"},
+               "width": {"type": "length", "value": 565.5, "unit": "dp"},
+               "height": {"type": "length", "value": 36.0, "unit": "dp"},
+               "opacity": {"type": "number", "value": 1},
+               "flex-shrink": {"type": "number", "value": 0}
+              },
+              "children": [
+               {
+                "id": "create-password-plate",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"}
+                },
+                "paths": [
+                 {
+                  "id": "plate",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[6, 1]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p4", "op": "line", "points": [[0, 7]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.12]}},
+                  "stroke": {
+                   "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.32]}},
+                   "widthDp": 1,
+                   "minimumPixels": 1,
+                   "join": "miter",
+                   "cap": "butt"
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-password-wash",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"},
+                 "opacity": {"type": "number", "value": 0}
+                },
+                "paths": [
+                 {
+                  "id": "wash",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[6, 1]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p4", "op": "line", "points": [[0, 7]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {
+                   "type": "linear",
+                   "from": [0, 0],
+                   "to": [{"fraction": 1}, 0],
+                   "stops": [
+                    {"at": 0, "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                    {"at": 1, "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.1]}}
+                   ]
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-password-focus",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 4, "unit": "dp"},
+                 "height": {"type": "length", "value": 36.0, "unit": "dp"},
+                 "opacity": {"type": "number", "value": 0}
+                },
+                "paths": [
+                 {
+                  "id": "rail",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 7]]},
+                   {"id": "p1", "op": "line", "points": [[6, 1]]},
+                   {"id": "p2", "op": "line", "points": [[6, 35.0]]},
+                   {"id": "p3", "op": "line", "points": [[0, 35.0]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                 }
+                ]
+               },
+               {
+                "id": "create-password-head",
+                "type": "group",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 21, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 301.0, "unit": "dp"},
+                 "height": {"type": "length", "value": 36.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "flex"},
+                 "flex-direction": {"type": "keyword", "value": "row"},
+                 "align-items": {"type": "keyword", "value": "center"}
+                },
+                "children": [
+                 {
+                  "id": "create-password-label",
+                  "type": "text",
+                  "properties": {
+                   "text": {"type": "text", "value": "#str_200068"},
+                   "position": {"type": "keyword", "value": "relative"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "flex-shrink": {"type": "number", "value": 1},
+                   "min-width": {"type": "length", "value": 0, "unit": "dp"},
+                   "font-family": {"type": "font", "value": "lowpixel"},
+                   "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                   "line-height": {"type": "length", "value": 36.0, "unit": "dp"},
+                   "color": {"type": "color", "value": [1, 1, 1, 0.85]},
+                   "white-space": {"type": "keyword", "value": "nowrap"},
+                   "overflow": {"type": "keyword", "value": "hidden"}
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-password-viewport",
+                "type": "group",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 322.0, "unit": "dp"},
+                 "top": {"type": "length", "value": 7.0, "unit": "dp"},
+                 "width": {"type": "length", "value": 223.5, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "overflow": {"type": "keyword", "value": "hidden"}
+                },
+                "children": [
+                 {
+                  "id": "create-password-field",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 100, "unit": "%"},
+                   "height": {"type": "length", "value": 100, "unit": "%"},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "field",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.6]}},
+                    "stroke": {
+                     "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                     "widthDp": 1,
+                     "minimumPixels": 1,
+                     "join": "miter",
+                     "cap": "butt"
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-password-selection",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 0, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.4]}}
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-password-text",
+                  "type": "text",
+                  "properties": {
+                   "text": {"type": "text", "value": "#str_230030"},
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 6, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 4096, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "font-family": {"type": "font", "value": "lowpixel"},
+                   "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                   "line-height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+                   "white-space": {"type": "keyword", "value": "pre"},
+                   "text-align": {"type": "keyword", "value": "left"}
+                  }
+                 },
+                 {
+                  "id": "create-password-caret",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 1, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 1]}}
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-password-composition",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 0, "unit": "dp"},
+                   "height": {"type": "length", "value": 1, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "id": "create-password-validation",
+                "type": "text",
+                "properties": {
+                 "text": {"type": "text", "value": "#str_230030"},
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 21, "unit": "dp"},
+                 "top": {"type": "length", "value": 37.0, "unit": "dp"},
+                 "width": {"type": "length", "value": 532.5, "unit": "dp"},
+                 "height": {"type": "length", "value": 16, "unit": "dp"},
+                 "font-family": {"type": "font", "value": "lowpixel"},
+                 "font-size": {"type": "length", "value": 13, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 16, "unit": "dp"},
+                 "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]},
+                 "white-space": {"type": "keyword", "value": "nowrap"},
+                 "overflow": {"type": "keyword", "value": "hidden"},
+                 "display": {"type": "keyword", "value": "none"}
+                }
+               }
+              ],
+              "control": {
+               "role": "text",
+               "label": "#str_200068",
+               "action": "enter.create-password",
+               "value": {"state": "create.password"},
+               "maxBytes": 16,
+               "allowEmpty": true,
+               "masked": true,
+               "parts": {
+                "viewport": "create-password-viewport",
+                "text": "create-password-text",
+                "selection": "create-password-selection",
+                "caret": "create-password-caret",
+                "composition": "create-password-composition",
+                "validation": "create-password-validation"
+               },
+               "states": {
+                "default": "create-password.default",
+                "hover": "create-password.hover",
+                "focus": "create-password.focus",
+                "pressed": "create-password.pressed",
+                "disabled": "create-password.disabled"
+               }
+              }
+             },
+             {
+              "id": "create-rconpassword",
+              "type": "group",
+              "properties": {
+               "position": {"type": "keyword", "value": "relative"},
+               "display": {"type": "keyword", "value": "block"},
+               "width": {"type": "length", "value": 565.5, "unit": "dp"},
+               "height": {"type": "length", "value": 36.0, "unit": "dp"},
+               "opacity": {"type": "number", "value": 1},
+               "flex-shrink": {"type": "number", "value": 0}
+              },
+              "children": [
+               {
+                "id": "create-rconpassword-plate",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"}
+                },
+                "paths": [
+                 {
+                  "id": "plate",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[6, 1]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p4", "op": "line", "points": [[0, 7]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.12]}},
+                  "stroke": {
+                   "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.32]}},
+                   "widthDp": 1,
+                   "minimumPixels": 1,
+                   "join": "miter",
+                   "cap": "butt"
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-rconpassword-wash",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"},
+                 "opacity": {"type": "number", "value": 0}
+                },
+                "paths": [
+                 {
+                  "id": "wash",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[6, 1]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1, "dp": -1}]]},
+                   {"id": "p4", "op": "line", "points": [[0, 7]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {
+                   "type": "linear",
+                   "from": [0, 0],
+                   "to": [{"fraction": 1}, 0],
+                   "stops": [
+                    {"at": 0, "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                    {"at": 1, "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.1]}}
+                   ]
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-rconpassword-focus",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 4, "unit": "dp"},
+                 "height": {"type": "length", "value": 36.0, "unit": "dp"},
+                 "opacity": {"type": "number", "value": 0}
+                },
+                "paths": [
+                 {
+                  "id": "rail",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 7]]},
+                   {"id": "p1", "op": "line", "points": [[6, 1]]},
+                   {"id": "p2", "op": "line", "points": [[6, 35.0]]},
+                   {"id": "p3", "op": "line", "points": [[0, 35.0]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                 }
+                ]
+               },
+               {
+                "id": "create-rconpassword-head",
+                "type": "group",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 21, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 301.0, "unit": "dp"},
+                 "height": {"type": "length", "value": 36.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "flex"},
+                 "flex-direction": {"type": "keyword", "value": "row"},
+                 "align-items": {"type": "keyword", "value": "center"}
+                },
+                "children": [
+                 {
+                  "id": "create-rconpassword-label",
+                  "type": "text",
+                  "properties": {
+                   "text": {"type": "text", "value": "#str_200069"},
+                   "position": {"type": "keyword", "value": "relative"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "flex-shrink": {"type": "number", "value": 1},
+                   "min-width": {"type": "length", "value": 0, "unit": "dp"},
+                   "font-family": {"type": "font", "value": "lowpixel"},
+                   "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                   "line-height": {"type": "length", "value": 36.0, "unit": "dp"},
+                   "color": {"type": "color", "value": [1, 1, 1, 0.85]},
+                   "white-space": {"type": "keyword", "value": "nowrap"},
+                   "overflow": {"type": "keyword", "value": "hidden"}
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "create-rconpassword-viewport",
+                "type": "group",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 322.0, "unit": "dp"},
+                 "top": {"type": "length", "value": 7.0, "unit": "dp"},
+                 "width": {"type": "length", "value": 223.5, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "overflow": {"type": "keyword", "value": "hidden"}
+                },
+                "children": [
+                 {
+                  "id": "create-rconpassword-field",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 100, "unit": "%"},
+                   "height": {"type": "length", "value": 100, "unit": "%"},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "field",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.6]}},
+                    "stroke": {
+                     "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                     "widthDp": 1,
+                     "minimumPixels": 1,
+                     "join": "miter",
+                     "cap": "butt"
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-rconpassword-selection",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 0, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.4]}}
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-rconpassword-text",
+                  "type": "text",
+                  "properties": {
+                   "text": {"type": "text", "value": "#str_230030"},
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 6, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 4096, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "font-family": {"type": "font", "value": "lowpixel"},
+                   "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                   "line-height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+                   "white-space": {"type": "keyword", "value": "pre"},
+                   "text-align": {"type": "keyword", "value": "left"}
+                  }
+                 },
+                 {
+                  "id": "create-rconpassword-caret",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 1, "unit": "dp"},
+                   "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 1]}}
+                   }
+                  ]
+                 },
+                 {
+                  "id": "create-rconpassword-composition",
+                  "type": "vector",
+                  "properties": {
+                   "position": {"type": "keyword", "value": "absolute"},
+                   "left": {"type": "length", "value": 0, "unit": "dp"},
+                   "top": {"type": "length", "value": 0, "unit": "dp"},
+                   "width": {"type": "length", "value": 0, "unit": "dp"},
+                   "height": {"type": "length", "value": 1, "unit": "dp"},
+                   "display": {"type": "keyword", "value": "block"},
+                   "opacity": {"type": "number", "value": 1},
+                   "pointer-events": {"type": "keyword", "value": "none"}
+                  },
+                  "paths": [
+                   {
+                    "id": "ink",
+                    "commands": [
+                     {"id": "p0", "op": "move", "points": [[0, 0]]},
+                     {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                     {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                     {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                     {"id": "close", "op": "close"}
+                    ],
+                    "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "id": "create-rconpassword-validation",
+                "type": "text",
+                "properties": {
+                 "text": {"type": "text", "value": "#str_230030"},
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 21, "unit": "dp"},
+                 "top": {"type": "length", "value": 37.0, "unit": "dp"},
+                 "width": {"type": "length", "value": 532.5, "unit": "dp"},
+                 "height": {"type": "length", "value": 16, "unit": "dp"},
+                 "font-family": {"type": "font", "value": "lowpixel"},
+                 "font-size": {"type": "length", "value": 13, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 16, "unit": "dp"},
+                 "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]},
+                 "white-space": {"type": "keyword", "value": "nowrap"},
+                 "overflow": {"type": "keyword", "value": "hidden"},
+                 "display": {"type": "keyword", "value": "none"}
+                }
+               }
+              ],
+              "control": {
+               "role": "text",
+               "label": "#str_200069",
+               "action": "enter.create-rconpassword",
+               "value": {"state": "create.rconpassword"},
+               "maxBytes": 16,
+               "allowEmpty": true,
+               "masked": true,
+               "parts": {
+                "viewport": "create-rconpassword-viewport",
+                "text": "create-rconpassword-text",
+                "selection": "create-rconpassword-selection",
+                "caret": "create-rconpassword-caret",
+                "composition": "create-rconpassword-composition",
+                "validation": "create-rconpassword-validation"
+               },
+               "states": {
+                "default": "create-rconpassword.default",
+                "hover": "create-rconpassword.hover",
+                "focus": "create-rconpassword.focus",
+                "pressed": "create-rconpassword.pressed",
+                "disabled": "create-rconpassword.disabled"
+               }
               }
              },
              {
@@ -47388,6 +48365,7 @@
                  "top": {"type": "length", "value": 7.0, "unit": "dp"},
                  "width": {"type": "length", "value": 223.5, "unit": "dp"},
                  "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
                  "overflow": {"type": "keyword", "value": "hidden"}
                 },
                 "children": [
@@ -47550,6 +48528,7 @@
                "action": "enter.create-mapcycle",
                "value": {"state": "create.mapcycle"},
                "maxBytes": 200,
+               "allowEmpty": true,
                "parts": {
                 "viewport": "create-mapcycle-viewport",
                 "text": "create-mapcycle-text",
@@ -47575,7 +48554,7 @@
             "properties": {
              "position": {"type": "keyword", "value": "absolute"},
              "left": {"type": "length", "value": 30, "unit": "dp"},
-             "top": {"type": "length", "value": 526.5, "unit": "dp"},
+             "top": {"type": "length", "value": 598.5, "unit": "dp"},
              "width": {"type": "length", "value": 499.5, "unit": "dp"},
              "height": {"type": "length", "value": 45, "unit": "dp"}
             },

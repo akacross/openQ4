@@ -33,8 +33,9 @@ static Json::Value Box(const char* id,double x,double y,double width,double heig
 static void Colour(Json::Value& node,std::initializer_list<double> colour) { node["properties"]["background-color"]=Typed("color",Array(colour)); }
 // A save-name field: its own document state, written by a string action.
 // Authored string state starts empty; the name arrives as a state update.
-// A host-bound name reads back from the host instead.
-static Json::Value Source(bool hostBound=false) {
+// A host-bound name reads back from the host instead. `masked` and
+// `allowEmpty` make it a password field's.
+static Json::Value Source(bool hostBound=false,bool masked=false,bool allowEmpty=false) {
 	Json::Value source;source["format"]="openq4-ui";source["version"]=1;source["id"]="text-field";
 	source["state"]["name"]["type"]="string";source["state"]["name"]["initial"]="";
 	if(hostBound)source["state"]["name"]["cvar"]="ui_text_test";
@@ -44,6 +45,7 @@ static Json::Value Source(bool hostBound=false) {
 	root["properties"]["color"]=Typed("color",Array({1,1,1,1}));
 	auto field=Box("field",40,35,290,95);auto& c=field["control"];
 	c["role"]="text";c["action"]="rename";c["label"]="#str_field";c["value"]["state"]="name";c["maxBytes"]=32;
+	if(masked)c["masked"]=true;if(allowEmpty)c["allowEmpty"]=true;
 	for(const auto* state:{"default","hover","focus","pressed","disabled"})c["states"][state]="feedback";
 	for(const auto* part:{"viewport","text","selection","caret","composition","validation"})c["parts"][part]=part;
 	auto viewport=Box("viewport",12,8,240,36);viewport["properties"]["overflow"]=Typed("keyword","hidden");
@@ -68,7 +70,9 @@ struct TestHost final:Host {
 	std::set<std::uint32_t> drawn;std::uint64_t frame=1;unsigned errors=0;bool quiet=false;std::string hostName="Quicksave";
 	bool ReadFile(const std::string&,std::string&)override{return false;}
 	bool ReadCVar(const std::string& name,size_t type,StateValue& value)override{if(name!="ui_text_test"||type!=2)return false;value=hostName;return true;}
-	std::string Translate(const std::string& value)override{return value=="#str_field"?"Name":value.starts_with("#str_")?"Enter a name":value;}
+	std::string Translate(const std::string& value)override{
+		return value=="#str_field"?"Name":value=="#str_231129"?"No copies":value.starts_with("#str_")?"Enter a name":value;
+	}
 	void Log(bool error,const std::string& message)override{if(error&&!quiet){++errors;std::fprintf(stderr,"Runtime: %s\n",message.c_str());}}
 	std::uintptr_t LoadMaterial(const std::string& name,int& w,int& h)override{
 		w=h=256;auto& handle=handles[name];if(!handle){handle=handles.size();const auto glyph=glyphs.find(name);codepoints[handle]=glyph!=glyphs.end()?glyph->second:0;}return handle;
@@ -86,8 +90,8 @@ struct TestHost final:Host {
 };
 struct View {
 	TestHost host;Runtime runtime{host};Viewport viewport;double time=1;std::string error,source;
-	explicit View(bool hostBound=false){
-		viewport.width=1280;viewport.height=720;viewport.displayScale=1;source=Encode(Source(hostBound));
+	explicit View(bool hostBound=false,bool masked=false,bool allowEmpty=false){
+		viewport.width=1280;viewport.height=720;viewport.displayScale=1;source=Encode(Source(hostBound,masked,allowEmpty));
 		std::vector<Diagnostic> diagnostics;const bool loaded=runtime.LoadDocument(source,"text-field.q4ui",diagnostics);
 		for(const auto& d:diagnostics)std::fprintf(stderr,"%s: %s\n",d.pointer.c_str(),d.message.c_str());Check(loaded,"authored text field fixture loads");
 		if(!hostBound)Check(runtime.SetState({{"name",std::string("Quicksave")}},error,time),"the name arrives as state");
@@ -135,6 +139,13 @@ static void DocumentRules(){
 	auto mistyped=Source();mistyped["actions"]["rename"]["input"]="number";
 	rejects(mistyped,"matching typed input","a text field's action takes a string");
 	auto empty=Source();empty["root"]["children"][0]["control"]["maxBytes"]=0;rejects(empty,"1..65536 bytes","a text field holds at least one byte");
+	for(const auto* policy:{"masked","allowEmpty"}){
+		auto loose=Source();loose["root"]["children"][0]["control"][policy]=1;
+		rejects(loose,"Text field policy must be Boolean","a text field's mask and empty policies are Boolean");
+		auto number=Source();number["state"]["name"]["type"]="number";number["state"]["name"]["initial"]=1;number["actions"]["rename"]["input"]="number";
+		auto& control=number["root"]["children"][0]["control"];control["role"]="number";control["minimum"]=0;control["maximum"]=10;control[policy]=true;
+		rejects(number,"Unknown field","a number has no mask or empty policy");
+	}
 	auto unknown=Source();unknown["root"]["children"][0]["control"]["role"]="textarea";rejects(unknown,"Supported roles","unknown control roles are rejected");
 }
 static void EditingAndProposals(){
@@ -171,6 +182,51 @@ static void EditingAndProposals(){
 	Check(view.runtime.SetState({{"name",std::string("Autosave")}},view.error,view.time),"the document can replace the name");view.Frame();
 	Check(view.Painted()=="Autosave","an idle field follows its state");
 }
+// A masked field (a password) paints one * a character over the same editor:
+// carets map onto the mask, moves and deletions step whole characters, an
+// empty text is its value, a refused copy says so, and the native text
+// services never get it.
+static void MaskedField(){
+	{
+		View plain;plain.Begin();NumberNativeCandidate candidate;
+		Check(plain.runtime.ObserveNumberNativeCandidate(candidate)&&candidate.control=="field","a plain text field is a native text candidate");
+	}
+	View view(false,true,true);
+	Check(view.Accepted()=="Quicksave"&&view.Painted()=="*********"&&view.host.drawn.contains('*')&&!view.host.drawn.contains('Q'),
+		"an idle masked field paints one * a character, never its text");
+	view.Begin();NumberNativeCandidate candidate;
+	Check(view.Widget().number->masked&&view.Painted()=="*********"&&!view.runtime.ObserveNumberNativeCandidate(candidate),
+		"editing keeps the mask, and a masked field is never a native text candidate");
+	// "Kraków ✓": 11 bytes, 8 characters.
+	const std::string word="Krak\xc3\xb3w \xe2\x9c\x93";view.Text(word);view.Frame();view.Frame();
+	Check(view.Widget().number->state.text==word&&view.Painted()=="********"&&!view.host.drawn.contains('K'),"eight characters paint eight *");
+	const auto caretAt=[&](std::size_t offset){
+		Check(view.runtime.SetNumberSelection("field",view.Identity(),offset,offset,view.error,view.time),"place the masked caret");view.Frame();view.Frame();
+		const auto geometry=view.runtime.GetNumberGeometry("field");Check(geometry.has_value(),"a masked caret has geometry");return geometry->caret.x;
+	};
+	// After "Krakó" (6 bytes) stands the fifth *, not the sixth.
+	const float start=caretAt(0),fifth=caretAt(6),end=caretAt(word.size());
+	Check(end>start&&std::abs((fifth-start)/(end-start)-5.f/8.f)<.01f,"a plain offset's caret stands at its character's * in the mask");
+	const auto command=[&](TextEditCommand which){
+		Check(view.runtime.NumberCommand("field",view.Identity(),which,false,view.error,view.time),"a masked command runs");view.Frame();
+		return view.Widget().number->state;
+	};
+	Check(command(TextEditCommand::Left).caret==8&&command(TextEditCommand::Left).caret==7&&command(TextEditCommand::Home).caret==0&&
+		command(TextEditCommand::Right).caret==1&&command(TextEditCommand::End).caret==word.size(),"moves step whole characters");
+	const auto left=command(TextEditCommand::Backspace);
+	Check(left.text=="Krak\xc3\xb3w "&&left.caret==8,"Backspace deletes the whole last character");view.Frame();
+	Check(view.Painted()=="*******","the mask follows the text");
+	view.Text("");view.Frame();
+	Check(view.Widget().number->status==TextNumberStatus::Valid&&!view.Element("validation")->IsVisible(true)&&view.Painted().find('*')==std::string::npos,
+		"an empty password is a valid value");
+	Check(view.Commit(),"an empty password commits");auto actions=view.runtime.TakeActions();
+	Check(actions.size()==1&&actions[0].proposal&&std::get<std::string>(*actions[0].proposal).empty(),"one empty string proposal");
+	Check(view.runtime.AcknowledgeControlProposal("field",actions[0].proposalToken,false),"the empty password is acknowledged");
+	view.Text("secret");view.Frame();
+	Check(view.runtime.SetNumberNotice("field",view.Identity(),NumberEditNotice::ClipboardMasked,view.error,view.time),"a refused copy is said");view.Frame();
+	Check(view.Element("validation")->IsVisible(true)&&view.Element("validation")->GetInnerRML()=="No copies"&&view.Painted()=="******",
+		"the masked notice shows its own message over the mask");
+}
 // Rml keeps one live host, so each case owns its view.
 static void SnapshotDocumentName(){
 	View view;view.Begin();view.Text("Draft name");view.Frame();
@@ -203,6 +259,7 @@ static void SnapshotHostRebase(){
 int main(){
 	DocumentRules();
 	EditingAndProposals();
+	MaskedField();
 	SnapshotDocumentName();
 	SnapshotHostConflict();
 	SnapshotHostRebase();

@@ -911,7 +911,8 @@
 - Preview: with `ui_retainedMultiplayer 1`, CREATE SERVER on the Multiplayer
   page slides one level down to a rebuilt Create Server page: the maps the
   game type plays with the chosen map's picture, every server option and the
-  advanced options. Its password fields and ban list are still to come, so
+  advanced options, including the server and remote console passwords, which
+  show as asterisks and cannot be copied. Its ban list is still to come, so
   the classic page stays the default.
 
 - Multiplayer maps load faster and the in-match menu is smooth again: the

@@ -159,6 +159,11 @@ struct NumberSpec {
 	// has no numeric bounds or syntax.
 	bool textField = false;
 	unsigned maxBytes = 1024;
+	// Text fields only. `allowEmpty` makes an empty text a value. A `masked`
+	// field (a password) presents one '*' per character, never hands its text
+	// to the clipboard or the native text services, and otherwise edits as any
+	// text field; its text is still its value, in document state and snapshots.
+	bool allowEmpty = false, masked = false;
 	// A positioned/clipped viewport owns direct absolute text and paint parts.
 	// Their transform is shared through the viewport; validation stays outside.
 	std::string viewport, text, selection, caret, composition, validation;

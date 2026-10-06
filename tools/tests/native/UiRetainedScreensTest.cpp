@@ -155,7 +155,8 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
 	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
 	"multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
-	"createBack","createMap","createStart","createName","createMapCycle","createMapsNewer","createMapsOlder",
+	"createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword","createMapsNewer",
+	"createMapsOlder",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2634,12 +2635,27 @@ static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 			std::get<std::string>(found->second.arguments.at("command").literal) == verb,"each setting asks the session with its own verb");
 	}
 	const std::pair<const char*,const char*> menu[] = {{"back","createBack"},{"createMap","createMap"},{"createStart","createStart"},
-		{"createName","createName"},{"mapsNewer","createMapsNewer"},{"mapsOlder","createMapsOlder"},{"createMapCycle","createMapCycle"}};
+		{"createName","createName"},{"mapsNewer","createMapsNewer"},{"mapsOlder","createMapsOlder"},{"createMapCycle","createMapCycle"},
+		{"createPassword","createPassword"},{"createRconPassword","createRconPassword"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
 			"the page's verbs reach the session");
 	}
+	// The text fields: the passwords masked, 16 bytes and possibly empty as the
+	// stock fields were; the map cycle may be empty, the server name not.
+	const auto field = [&](const char* id) {
+		const auto* node = document.Model().FindNode(id);
+		Check(node && node->control && std::holds_alternative<NumberSpec>(node->control->widget),"a Create Server text field");
+		return std::get<NumberSpec>(node->control->widget);
+	};
+	for (const char* id : {"create-password","create-rconpassword"}) {
+		const auto spec = field(id);
+		Check(spec.textField && spec.masked && spec.allowEmpty && spec.maxBytes == 16,"a password field is masked, may be empty and takes 16 bytes");
+	}
+	const auto nameField = field("create-name"), cycleField = field("create-mapcycle");
+	Check(!nameField.masked && !nameField.allowEmpty && nameField.maxBytes == 25 && !cycleField.masked && cycleField.allowEmpty &&
+		cycleField.maxBytes == 200,"the server name needs text; the map cycle may be empty");
 	Runtime runtime(host);
 	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/createserver.q4ui",diagnostics),"the page loads into a runtime");
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
@@ -2703,6 +2719,17 @@ static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,1.55);
 	Check(text("advancedModal","display") == "block" && text("advancedModal-contents","display") == "block" &&
 		text("create-bots","display") == "block" && text("create-mapcycle","display") == "block","the dialog shows the advanced options");
+	// The password rows follow Use password, as the stock popup's do; Set
+	// password dims and hides its text while Use password is off.
+	const auto usepass = bounds("create-usepass"), password = bounds("create-password"), rcon = bounds("create-rconpassword");
+	Check(Near(password.y,usepass.y+24*u,1) && Near(rcon.y,usepass.y+48*u,1) && Near(bounds("create-servermods").y,usepass.y+72*u,1),
+		"Set password and the remote console password follow Use password");
+	Check(runtime.GetControlState("create-password") == ControlState::Disabled && text("create-password-viewport","display") == "none" &&
+		runtime.GetControlState("create-rconpassword") != ControlState::Disabled,"without Use password, Set password is locked and its text hidden");
+	Check(runtime.SetState({{"create.usepass",true}},error,1.56),"Use password");
+	runtime.Frame(viewport,1.57);
+	Check(runtime.GetControlState("create-password") != ControlState::Disabled && text("create-password-viewport","display") == "block",
+		"with Use password, Set password takes its text");
 	Check(runtime.RunEvent("advancedModalHide",1.6,effects,error),"CLOSE ADVANCED OPTIONS");
 	runtime.Frame(viewport,2.0);
 	Check(text("advancedModal","display") == "none","the dialog closes");

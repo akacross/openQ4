@@ -82,7 +82,8 @@ bool SessionMenuCommand(const std::string& command) {
         "arenaMatch2","arenaMatch3","arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart",
         "arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
         "multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
-        "createBack","createMap","createStart","createName","createMapCycle","createMapsNewer","createMapsOlder",
+        "createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword",
+        "createMapsNewer","createMapsOlder",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
@@ -1585,7 +1586,7 @@ bool UI_RetainedDiagnostic(idUserInterface* gui, const idCmdArgs& args) {
 		else if (operation == "notice" && args.Argc() == 5) {
 			const std::map<std::string,NumberEditNotice> notices = {{"none",NumberEditNotice::None},
 				{"read",NumberEditNotice::ClipboardReadFailed},{"write",NumberEditNotice::ClipboardWriteFailed},
-				{"rejected",NumberEditNotice::ClipboardRejected}};
+				{"rejected",NumberEditNotice::ClipboardRejected},{"masked",NumberEditNotice::ClipboardMasked}};
 			const auto notice = notices.find(args.Argv(4));
 			if (notice != notices.end()) okay = runtime->SetNumberNotice(id,identity,notice->second,error,now);
 		}

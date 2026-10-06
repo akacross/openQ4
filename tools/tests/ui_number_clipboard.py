@@ -42,7 +42,7 @@ public:
     uiNumberEditorTarget_t target{++next,++next,++next,"number",{++next,++next}};
     openq4::ui::TextEditBuffer buffer;
     Notice notice=Notice::None;
-    bool eligible=true,conflict=false,pending=false,interactiveOverride=false;
+    bool eligible=true,conflict=false,pending=false,interactiveOverride=false,masked=false;
     int replacements=0,notices=0;
     struct Entry {std::optional<uiClipboardRequest_t> clipboard;std::string action;std::function<void()> effect;};
     std::deque<Entry> queue;
@@ -65,7 +65,7 @@ public:
     }
     bool QueryClipboardEditor(uiNumberEditorSnapshot_t& out,std::string&)override{
         Stack stack;if(!eligible || !active || conflict || pending || buffer.Composition())return false;
-        openq4::ui::NumberEditView view;view.active=true;view.identity=target.edit;view.state=buffer.State();view.notice=notice;
+        openq4::ui::NumberEditView view;view.active=true;view.identity=target.edit;view.state=buffer.State();view.notice=notice;view.masked=masked;
         view.canUndo=buffer.CanUndo();view.canRedo=buffer.CanRedo();out={target,view};return true;
     }
     bool ReplaceClipboardSelection(const uiNumberEditorTarget_t& expected,std::string_view text,std::string& error)override{
@@ -105,6 +105,17 @@ int main(){
     assert(a->buffer.Undo(error));++a->target.edit.revision;
     NativeReset();assert(a->buffer.SetSelection(0,0,error));++a->target.edit.revision;const auto noSelection=a->target;
     a->Request(uiClipboardOperation_t::Copy);a->Request(uiClipboardOperation_t::Cut);Drain(a);assert(reads==0 && writes==0 && a->target==noSelection);
+    delete a;
+    // A masked field's selection never reaches the clipboard: Copy and Cut are
+    // refused and said, an empty selection is a no-op, and Paste still works.
+    NativeReset();a=new idUserInterfaceRetained;a->masked=true;const auto masked=a->target;
+    a->Request(uiClipboardOperation_t::Copy);Drain(a);
+    assert(writes==0 && reads==0 && a->notice==NumberEditNotice::ClipboardMasked && a->notices==1 && a->target==masked && a->buffer.State().text=="1.25");
+    a->notice=NumberEditNotice::None;a->Request(uiClipboardOperation_t::Cut);Drain(a);
+    assert(writes==0 && a->notice==NumberEditNotice::ClipboardMasked && a->replacements==0 && a->buffer.State().text=="1.25" && !a->buffer.CanUndo());
+    a->notice=NumberEditNotice::None;assert(a->buffer.SetSelection(0,0,error));++a->target.edit.revision;
+    a->Request(uiClipboardOperation_t::Copy);a->Request(uiClipboardOperation_t::Cut);Drain(a);assert(writes==0 && a->notices==2 && a->notice==NumberEditNotice::None);
+    a->Request(uiClipboardOperation_t::Paste);Drain(a);assert(reads==1 && a->replacements==1 && a->buffer.State().text=="1.751.25");
     delete a;
     // Every identity component and eligibility is rechecked after native access.
     for(int change=0;change<11;++change){
@@ -292,7 +303,7 @@ static bool Paint(const WidgetViewState& widget){
 int main(){
     WidgetViewState widget;widget.number=NumberEditView{};widget.number->status=TextNumberStatus::Valid;
     assert(!Paint(widget) && !mock.visible);
-    const std::vector<std::pair<NumberEditNotice,std::string>> notices={{NumberEditNotice::ClipboardReadFailed,"#str_230001"},{NumberEditNotice::ClipboardWriteFailed,"#str_230002"},{NumberEditNotice::ClipboardRejected,"#str_230003"}};
+    const std::vector<std::pair<NumberEditNotice,std::string>> notices={{NumberEditNotice::ClipboardReadFailed,"#str_230001"},{NumberEditNotice::ClipboardWriteFailed,"#str_230002"},{NumberEditNotice::ClipboardRejected,"#str_230003"},{NumberEditNotice::ClipboardMasked,"#str_231129"}};
     for(const auto& [notice,key]:notices){widget.number->notice=notice;assert(Paint(widget) && mock.visible && mock.text=="translated:"+key);assert(!Paint(widget));}
     widget.number->notice=NumberEditNotice::None;widget.number->status=TextNumberStatus::Invalid;
     assert(Paint(widget) && mock.text=="translated:#str_authored" && mock.visible);
@@ -312,7 +323,7 @@ def main():
     for language in paths:
         if language.suffix=='.lang':
             text=language.read_text(encoding='utf-8')
-            for key in ('#str_230001','#str_230002','#str_230003'):assert text.count('"'+key+'"')==1,(language,key)
+            for key in ('#str_230001','#str_230002','#str_230003','#str_231129'):assert text.count('"'+key+'"')==1,(language,key)
     sources={p.relative_to(ROOT).as_posix():digest(p) for p in paths}
     manager_code,adapter_code=manager_source(),adapter_source()
     cases=[('manager',manager_code,False),('adapter',adapter_code,False),('interaction',interaction_source(),False),('validation',validation_source(),False)]
@@ -323,6 +334,7 @@ def main():
         ('manager-owner-not-checked',manager_code,'out.target == request.target &&','true &&'),
         ('manager-postquery-skipped',manager_code,'if (!query(after) || after.editor.state.text != state.text ||','after = before; if (false || after.editor.state.text != state.text ||'),
         ('manager-native-error-is-success',manager_code,'succeeded = openq4::SDL3_ReadTextClipboard(paste,error);','openq4::SDL3_ReadTextClipboard(paste,error); succeeded = true;'),
+        ('manager-masked-copy-transfers',manager_code,'if (before.editor.masked && request.operation != uiClipboardOperation_t::Paste) {','if (false) {'),
         ('manager-reentry-not-retired',manager_code,'if (clipboardBoundaryActive || nativeBoundaryActive) { clipboardBoundaryFailed = true; if(nativeBoundaryActive)nativeBoundaryFailed=true; return true; }','if (clipboardBoundaryActive || nativeBoundaryActive) { return true; }'),
         ('adapter-repeat-transfers',adapter_code,'else if (claim == Input::TextKey::Press)','else if (true)'),
         ('adapter-altgr-transfers',adapter_code,' || !editing || alt',' || !editing'),

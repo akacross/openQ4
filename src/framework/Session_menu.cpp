@@ -115,12 +115,12 @@ static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
 	NULL
 };
 // What the stock Create Server page offers that Multiplayer's retained Create
-// Server sub-page does not yet: the advanced options' two password fields and
-// the ban list. While any remain, CREATE SERVER opens the stock page and only
-// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
-// this list equal to what the two pages offer.
+// Server sub-page does not yet: the advanced options' ban list. While any
+// remain, CREATE SERVER opens the stock page and only ui_retainedMultiplayer
+// opts into the sub-page. ui_retained_gate.py keeps this list equal to what
+// the two pages offer.
 static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
-	"g_password", "net_serverRemoteConsolePassword", "banlist", NULL
+	"banlist", NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
@@ -5092,10 +5092,22 @@ static const retainedCreateSetting_t RETAINED_CREATE_SETTINGS[] = {
 	{ "createBotSkill",		"botskill",		"bot_skill",				1, 5,	false },
 };
 static const int RETAINED_CREATE_SETTING_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_SETTINGS ) / sizeof( RETAINED_CREATE_SETTINGS[0] ) );
-// The longest server name and map cycle the page takes (the stock fields'
-// maxchars).
-static const int RETAINED_CREATE_NAME_CHARS = 25;
-static const int RETAINED_CREATE_MAPCYCLE_CHARS = 200;
+// The page's text fields: the verb a field asks with once its text is in its
+// page state, that state, the CVar the session writes and the most bytes it
+// takes (the stock fields' maxchars). The passwords are masked fields.
+typedef struct retainedCreateText_s {
+	const char *	verb;
+	const char *	state;
+	const char *	cvar;
+	int				limit;
+} retainedCreateText_t;
+static const retainedCreateText_t RETAINED_CREATE_TEXTS[] = {
+	{ "createName",			"create.name",			"si_name",							25 },
+	{ "createMapCycle",		"create.mapcycle",		"g_mapCycle",						200 },
+	{ "createPassword",		"create.password",		"g_password",						16 },
+	{ "createRconPassword",	"create.rconpassword",	"net_serverRemoteConsolePassword",	16 },
+};
+static const int RETAINED_CREATE_TEXT_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_TEXTS ) / sizeof( RETAINED_CREATE_TEXTS[0] ) );
 // Single Player's Arena sub-page, the Arena campaign's browser, and the
 // campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
 static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
@@ -6820,8 +6832,8 @@ void idSessionLocal::OpenRetainedCreateServer() {
 idSessionLocal::PublishRetainedCreateServer
 
 The page's settings as their CVars hold them, within the ranges it offers,
-the server name and map cycle, and the chosen game type, which picks the
-limit row and the slot under Allow Voting.
+its text fields' (RETAINED_CREATE_TEXTS), and the chosen game type, which
+picks the limit row and the slot under Allow Voting.
 ===============
 */
 void idSessionLocal::PublishRetainedCreateServer( idUserInterface *gui ) {
@@ -6835,8 +6847,9 @@ void idSessionLocal::PublishRetainedCreateServer( idUserInterface *gui ) {
 			gui->SetStateInt( va( "create.%s", setting.state ), value );
 		}
 	}
-	gui->SetStateString( "create.name", cvarSystem->GetCVarString( "si_name" ) );
-	gui->SetStateString( "create.mapcycle", cvarSystem->GetCVarString( "g_mapCycle" ) );
+	for ( int i = 0; i < RETAINED_CREATE_TEXT_COUNT; ++i ) {
+		gui->SetStateString( RETAINED_CREATE_TEXTS[i].state, cvarSystem->GetCVarString( RETAINED_CREATE_TEXTS[i].cvar ) );
+	}
 	gui->SetStateInt( "create.gametype", Session_RetainedCreateGameType() );
 	gui->StateChanged( common->GetPresentationTime() );
 #endif
@@ -6915,10 +6928,10 @@ The Create Server sub-page's verbs. A setting's verb carries its value, which
 the session checks against the setting's range before it writes the CVar;
 the player counts keep their order, a lower maximum lowering the minimum and
 a higher minimum raising the maximum. The game type lists its maps again. A
-map row chooses its map (create.pick) and the pagers page the list; the name
-and map cycle fields hand over their text; CREATE SERVER starts the server
-as the stock page's does; BACK climbs to the Multiplayer page. A change of
-level under way takes none.
+map row chooses its map (create.pick) and the pagers page the list; a text
+field hands over its text, which the session caps at the field's stock
+length; CREATE SERVER starts the server as the stock page's does; BACK climbs
+to the Multiplayer page. A change of level under way takes none.
 ===============
 */
 void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request ) {
@@ -6957,13 +6970,14 @@ void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, co
 		PublishRetainedCreateMaps( gui, false );
 		return;
 	}
-	if ( !idStr::Icmp( request, "createName" ) || !idStr::Icmp( request, "createMapCycle" ) ) {
-		const bool name = !idStr::Icmp( request, "createName" );
-		const idStr text = Session_RetainedCreateText( gui, name ? "create.name" : "create.mapcycle",
-			name ? RETAINED_CREATE_NAME_CHARS : RETAINED_CREATE_MAPCYCLE_CHARS );
-		cvarSystem->SetCVarString( name ? "si_name" : "g_mapCycle", text.c_str() );
-		PublishRetainedCreateServer( gui );
-		return;
+	for ( int i = 0; i < RETAINED_CREATE_TEXT_COUNT; ++i ) {
+		const retainedCreateText_t &field = RETAINED_CREATE_TEXTS[i];
+		if ( !idStr::Icmp( request, field.verb ) ) {
+			const idStr text = Session_RetainedCreateText( gui, field.state, field.limit );
+			cvarSystem->SetCVarString( field.cvar, text.c_str() );
+			PublishRetainedCreateServer( gui );
+			return;
+		}
 	}
 	static const char *const gametypeVerb[] = { "createGameType" };
 	int field = -1, value = 0;

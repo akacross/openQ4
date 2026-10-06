@@ -1084,7 +1084,7 @@ int main() {
         fileSystemObject.files.insert("gfx/guis/loadscreens/q4dm5.tga");
         cvarSystemObject.strings = {{"si_gameType", "DM"}, {"si_map", "mp/q4dm5"}, {"si_name", "openQ4 Server"}, {"si_fragLimit", "20"},
                                     {"si_maxPlayers", "8"}, {"si_minPlayers", "2"}, {"si_teamDamage", "1"}, {"g_mapCycle", "mapcycle"},
-                                    {"bot_skill", "9"}};
+                                    {"bot_skill", "9"}, {"g_password", "hunter2"}};
         s.PreloadRetainedScreens(); s.UpdateRetainedHome();
         auto* create = s.guiRetainedCreate;
         CHECK(create && std::string(create->Name()) == "guis/menu/createserver.q4ui" && s.RetainedCreateServerPage() == create);
@@ -1100,6 +1100,7 @@ int main() {
         CHECK(s.guiActive == create && s.retainedSubpageFrom == nullptr);
         CHECK(create->state["create.gametype"] == "0" && create->state["create.fraglimit"] == "20" && create->state["create.maxplayers"] == "8" &&
               create->state["create.teamdamage"] == "1" && create->state["create.botskill"] == "5" && create->state["create.name"] == "openQ4 Server");
+        CHECK(create->state["create.password"] == "hunter2" && create->state["create.rconpassword"] == "" && create->state["create.mapcycle"] == "mapcycle");
         CHECK(create->state["create.map_count"] == "2" && create->state["create.map0"] == "#str_q4dm1" && create->state["create.map1"] == "mp/q4dm5" &&
               create->state["create.map2"] == "" && create->state["create.map_selected"] == "1" &&
               create->state["create.shot"] == "gfx/guis/loadscreens/q4dm5" && cvarSystemObject.strings["si_map"] == "mp/q4dm5");
@@ -1136,6 +1137,14 @@ int main() {
         CHECK(cvarSystemObject.strings["si_name"] == std::string(25, 'n') && create->state["create.name"] == std::string(25, 'n'));
         create->state["create.mapcycle"] = "duelcycle"; s.HandleRetainedSessionRequest(create, "createMapCycle");
         CHECK(cvarSystemObject.strings["g_mapCycle"] == "duelcycle");
+        // The passwords take 16 bytes, never cut inside a character, and may be
+        // empty.
+        create->state["create.password"] = std::string(15, 'p') + "\xc3\xa9x"; s.HandleRetainedSessionRequest(create, "createPassword");
+        CHECK(cvarSystemObject.strings["g_password"] == std::string(15, 'p') && create->state["create.password"] == std::string(15, 'p'));
+        create->state["create.rconpassword"] = ""; s.HandleRetainedSessionRequest(create, "createRconPassword");
+        CHECK(cvarSystemObject.strings.count("net_serverRemoteConsolePassword") == 1 && cvarSystemObject.strings["net_serverRemoteConsolePassword"].empty());
+        create->state["create.rconpassword"] = "letmein"; s.HandleRetainedSessionRequest(create, "createRconPassword");
+        CHECK(cvarSystemObject.strings["net_serverRemoteConsolePassword"] == "letmein" && create->state["create.rconpassword"] == "letmein");
         s.HandleRetainedSessionRequest(create, "unknown"); CHECK(commonObject.warnings.back().find("unhandled Create Server request") != std::string::npos);
         // CREATE SERVER starts it as the stock page's does.
         s.HandleRetainedSessionRequest(create, "createStart"); CHECK(s.serverStarts == 1);
@@ -3143,14 +3152,33 @@ def check_create_server(menu: str) -> None:
     assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if verb.startswith('create')} == \
         {'createGameType'} | {verb for verb, *_rest in rows}
     assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('create')} == \
-        {'createBack', 'createMap', 'createStart', 'createName', 'createMapCycle', 'createMapsNewer', 'createMapsOlder'}
-    # Opt-in while the stock page offers what this one does not: its two
-    # password fields and its ban list.
+        {'createBack', 'createMap', 'createStart', 'createName', 'createMapCycle', 'createPassword', 'createRconPassword',
+         'createMapsNewer', 'createMapsOlder'}
+    # The text fields against the generator: the name, the map cycle and the
+    # two passwords, each capped at its stock field's length.
+    texts = re.findall(r'\{ "(create[A-Za-z]+)",\s+"(create\.[a-z]+)",\s+"([A-Za-z_]+)",\s+(\d+) \}',
+                       re.search(r'RETAINED_CREATE_TEXTS\[\] = \{(.*?)\n\};', text, re.S).group(1))
+    assert [(verb, state, int(limit)) for verb, state, _cvar, limit in texts] == \
+        [('createName', 'create.name', create.NAME_BYTES), ('createMapCycle', 'create.mapcycle', create.MAPCYCLE_BYTES)] + \
+        [(verb, f'create.{state}', create.PASSWORD_BYTES) for state, verb, _label, _event in create.PASSWORDS], texts
+    assert [cvar for _verb, _state, cvar, _limit in texts] == ['si_name', 'g_mapCycle', 'g_password', 'net_serverRemoteConsolePassword']
+    # Opt-in while the stock page offers what this one does not: its ban list.
     missing = re.search(r'RETAINED_CREATE_SERVER_MISSING\[\] = \{([^}]*)\};', text).group(1)
-    assert missing.strip().endswith('NULL') and re.findall(r'"([A-Za-z_]+)"', missing) == ['g_password', 'net_serverRemoteConsolePassword', 'banlist']
+    assert missing.strip().endswith('NULL') and re.findall(r'"([A-Za-z_]+)"', missing) == ['banlist']
     document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/createserver.q4ui').read_text(encoding='utf-8'), flags=re.M))
-    cvars = {cvar for _verb, _state, cvar, *_rest in rows}
-    assert not cvars & {'g_password', 'net_serverRemoteConsolePassword'} and not any('ban' in name.lower() for name in document['actions'])
+    assert not any('ban' in name.lower() for name in document['actions'])
+    # Each text field's control: the passwords masked and possibly empty, the
+    # map cycle possibly empty, the name neither.
+    controls, pending = {}, [document['root']]
+    while pending:
+        node = pending.pop()
+        if 'control' in node:
+            controls[node['id']] = node['control']
+        pending += node.get('children', [])
+    policy = {ident: (control.get('masked', False), control.get('allowEmpty', False), control['maxBytes'])
+              for ident, control in controls.items() if control['role'] == 'text'}
+    assert policy == {'create-name': (False, False, 25), 'create-mapcycle': (False, True, 200),
+                      'create-password': (True, True, 16), 'create-rconpassword': (True, True, 16)}, policy
     assert ('static bool Session_RetainedCreateServerEnabled( void ) {\n\treturn Session_RetainedScreensEnabled() && '
             '( ui_retainedMultiplayer.GetBool() || RETAINED_CREATE_SERVER_MISSING[0] == NULL );') in text
     # The stock page and this one start a server the same way.
@@ -3745,6 +3773,9 @@ def main() -> int:
     # The Arena page's verbs, each mapped to the campaign's own command.
     arena_verbs = menu[menu.index('RETAINED_ARENA_VERBS[][2] = {'):menu.index('RETAINED_ARENA_VERB_COUNT')]
     handled |= set(re.findall(r'\{ "(arena[A-Za-z0-9]*)", "arena', arena_verbs))
+    # The Create Server page's text verbs, each handing over its field's text.
+    create_texts = menu[menu.index('RETAINED_CREATE_TEXTS[] = {'):menu.index('RETAINED_CREATE_TEXT_COUNT')]
+    handled |= set(re.findall(r'\{ "(create[A-Za-z]*)",', create_texts))
     assert allowlist == handled, f'allowlist {sorted(allowlist)} differs from session handlers {sorted(handled)}'
     for relative in ('content/baseoq4/pak0/guis/menu/title.q4ui', 'content/baseoq4/pak0/guis/menu/pause.q4ui',
                      'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui', 'content/baseoq4/pak0/guis/loading/loading.q4ui',

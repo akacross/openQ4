@@ -553,6 +553,14 @@ SCENARIOS = {
         'screenshot "screenshots/createserver-ctf.tga"',
         'openq4_retainedGui event advancedModalShow', 'waitMsec 500', 'openq4_retainedGui report',
         'screenshot "screenshots/createserver-advanced.tga"',
+        # Use password unlocks Set password; a typed password shows as its
+        # mask while editing and once the session has taken it.
+        'openq4_retainedGui focus "create-usepass"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'openq4_retainedGui focus "create-password"', 'openq4_retainedGui number begin "create-password"',
+        'openq4_retainedGui number input "create-password" "hunter2"', 'waitMsec 300',
+        'screenshot "screenshots/createserver-password.tga"',
+        'openq4_retainedGui number commit "create-password"', 'waitMsec 300', 'si_usePass', 'g_password',
+        'openq4_retainedGui widget "create-password"', 'screenshot "screenshots/createserver-password-set.tga"',
         'openq4_retainedGui event advancedModalHide', 'waitMsec 600',
         'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 150', 'screenshot "screenshots/createserver-back.tga"', 'waitMsec 1200', 'openq4_retainedGui report',
