@@ -638,6 +638,7 @@
   "joinClearSort": {"operation": "session.menu", "arguments": {"command": "joinClearSort"}},
   "serversNewer": {"operation": "session.menu", "arguments": {"command": "joinNewer"}},
   "serversOlder": {"operation": "session.menu", "arguments": {"command": "joinOlder"}},
+  "joinSortNext": {"operation": "session.menu", "arguments": {"command": "joinSortNext"}},
   "joinSourceInternet": {"operation": "session.menu", "arguments": {"command": "joinSourceInternet"}},
   "joinSourceLan": {"operation": "session.menu", "arguments": {"command": "joinSourceLan"}},
   "joinModPrevious": {"operation": "session.menu", "arguments": {"command": "joinModPrevious"}},
@@ -670,6 +671,26 @@
  },
  "events": {
   "onBack": [{"op": "action", "action": "back"}],
+  "onSecondary": [
+   {
+    "op": "if",
+    "condition": {
+     "op": "!",
+     "args": [{"op": "||", "args": [{"state": "joinIpModal.visible"}, {"state": "findModal.visible"}]}]
+    },
+    "then": [{"op": "action", "action": "joinRefresh"}]
+   }
+  ],
+  "onTertiary": [
+   {
+    "op": "if",
+    "condition": {
+     "op": "!",
+     "args": [{"op": "||", "args": [{"state": "joinIpModal.visible"}, {"state": "findModal.visible"}]}]
+    },
+    "then": [{"op": "action", "action": "joinSortNext"}]
+   }
+  ],
   "serverRow0": [
    {
     "op": "if",

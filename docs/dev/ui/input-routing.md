@@ -42,9 +42,11 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
+| Gamepad triggers | The document's previous / next section (`onSectionPrevious`, `onSectionNext`), on the same terms |
+| Gamepad West / North | The document's secondary / tertiary action (`onSecondary`, `onTertiary`), on the same terms |
 
-SDL's gamepad South/East buttons map to engine `K_JOY3`/`K_JOY4`; the shoulders
-are distinct. Keyboard scancodes, controller buttons and pointer buttons have
+SDL's gamepad South/East buttons map to engine `K_JOY3`/`K_JOY4` and West/North
+to `K_JOY6`/`K_JOY5`; the shoulders are distinct. Keyboard scancodes, controller buttons and pointer buttons have
 separate source IDs. Multiple sources mapped to Accept hold one logical press;
 releasing the first source cannot activate while another remains down. Key-up
 releases the action captured at key-down, including when Shift changes first.

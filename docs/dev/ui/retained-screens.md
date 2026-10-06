@@ -1255,7 +1255,13 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   on the Internet, the LAN otherwise) and REFRESH LIST asks again
   (`Session_ScanServers`, the stock `UpdateServers` and `RefreshServers`). A
   heading sorts by its column, and again the other way; CLEAR SORTING lists
-  the servers as they answered. MOD's spinner shows the previous or next mod
+  the servers as they answered. On a controller, west asks for the list
+  again, as REFRESH LIST does, and north sorts it by the next text column
+  (`joinSortNext`: PING, SERVER NAME, PLAYERS, GAMETYPE, MAP and round again,
+  ascending, from PING while the list is unsorted or sorted by a symbol):
+  section 13.5's secondary and tertiary actions, through the document's
+  `onSecondary` and `onTertiary`, neither of which acts while a dialog is
+  open. MOD's spinner shows the previous or next mod
   the list holds (`UpdateFilterByMod`, the stock arrows'). A row's first
   Accept chooses its server and Accept on the chosen one moves on to JOIN
   SERVER, which connects to the chosen server by the address the session
@@ -1344,13 +1350,13 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   cannot load or stops drawing, JOIN GAME opens the stock browser.
 - **Checks.** `ui_retained_gate.py` compiles the session's Join Game code
   against a scan double: the opt-in, the change and its reverse, the rows
-  and their text, the choice following its server, the sorts, each source's
-  scans, the paging, the symbols, MOD's spinner, the favorite toggle, the
+  and their text, the choice following its server, the sorts and north's
+  next column, each source's scans, the paging, the symbols, MOD's spinner, the favorite toggle, the
   levelshot (and the generic art for an unsafe map path), JOIN SERVER's
   address and the fallback; it also maps each stock browser button to the
   page or to `RETAINED_JOIN_GAME_MISSING`. The native screens check lays the
-  page out at 1280x720 and drives its states, the two dialogs and the
-  search's tag and the progress bar, and `server_browser_contract.py` runs the
+  page out at 1280x720 and drives its states, west and north (neither under
+  a dialog), the two dialogs and the search's tag and the progress bar, and `server_browser_contract.py` runs the
   scan's read view, the per-server favorite toggle, the map-path check, the
   player search, the scan's progress (a LAN sweep, a new Internet list, a
   refresh, a clear, and what the stock browser receives) and the loopback
@@ -1359,7 +1365,9 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   which the seeded favorite, a dedicated server the capture starts on the
   loopback (`SCENARIO_SERVERS`), answers (the master server cannot be reached
   from the loopback the client binds), sorts by name and clears the sort,
-  climbs back and returns, chooses the server (its levelshot and dedicated
+  sorts by PING and asks for the list again as north and west do
+  (`openq4_retainedGui event onTertiary` and `onSecondary`), climbs back and
+  returns, chooses the server (its levelshot and dedicated
   symbol shown), takes it off the favorites and puts it back, steps MOD to
   the next mod and back, searches for a player nobody is (the list empties
   under the search's tag until its Accept), and joins it, the game module

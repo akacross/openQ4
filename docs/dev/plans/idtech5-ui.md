@@ -159,8 +159,9 @@ referee sign-in opening the stock page for the credential) and Admin still
 handing off to its stock page; the
 Welcome card covers the connect-time join offer, by default now that all its
 pages are built, and a join's loading screen hands over to it.
-Event programs can move focus, and Q, E and the shoulders page a document's
-tabs. The [initializing screen](../ui/retained-screens.md#initializing-screen)
+Event programs can move focus; Q, E and the shoulders page a document's
+tabs, the triggers its sections, and a controller's west and north run its
+secondary and tertiary actions. The [initializing screen](../ui/retained-screens.md#initializing-screen)
 draws the stock picture rebuilt as vector layers from the first startup frame
 the renderer can draw until the menus are ready, with its turning rings, four
 accents, status line and step rule, and the title's wordmark is the same
@@ -219,7 +220,8 @@ server browser's list with its sources, column sorts, symbols, mod filter,
 favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
 PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, a
 server's players and settings in the stock tooltip's card beside the
-pointer's or the focused row (the runtime's detail card), the session
+pointer's or the focused row (the runtime's detail card), a controller's
+west refreshing the list and north sorting it by the next column, the session
 publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.
 Filters beyond the browser's source, the Strogg pause's pages and in-field
 composition remain. No gate closes.

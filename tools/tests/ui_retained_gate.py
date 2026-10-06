@@ -1468,6 +1468,20 @@ int main() {
             s.HandleRetainedSessionRequest(join, verb); CHECK(scan.calls.back() == "SetSorting " + std::to_string(sort) && join->state["join.sort"] == std::to_string(sort));
         }
         s.HandleRetainedSessionRequest(join, "joinClearSort"); CHECK(scan.calls.back() == "ResetSorting" && join->state["join.sort"] == "11");
+        // The controller's north: the next text column, ascending, from PING
+        // when the list is unsorted or sorted by a symbol.
+        for (const int sort : {0, 1, 2, 3, 4, 0}) {
+            s.HandleRetainedSessionRequest(join, "joinSortNext");
+            CHECK(scan.calls.back() == "SetSorting " + std::to_string(sort) && join->state["join.sort"] == std::to_string(sort) &&
+                  join->state["join.ascending"] == "1");
+        }
+        s.HandleRetainedSessionRequest(join, "joinSortName"); s.HandleRetainedSessionRequest(join, "joinSortName");
+        CHECK(join->state["join.ascending"] == "0");
+        s.HandleRetainedSessionRequest(join, "joinSortNext");
+        CHECK(scan.calls.back() == "SetSorting 2" && join->state["join.ascending"] == "1");
+        s.HandleRetainedSessionRequest(join, "joinSortLocked"); s.HandleRetainedSessionRequest(join, "joinSortNext");
+        CHECK(scan.calls.back() == "SetSorting 0" && join->state["join.sort"] == "0");
+        s.HandleRetainedSessionRequest(join, "joinClearSort");
         // The Internet: GET NEW LIST asks the master server and the favorites,
         // REFRESH LIST the listed servers again.
         scan.calls.clear(); s.HandleRetainedSessionRequest(join, "joinNewList");
@@ -3445,6 +3459,7 @@ def check_retained_match(menu: str) -> None:
         assert descriptors[prefixes[name]] == 'MP_MATCH_LOCALIZATION_NONE'
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8')
     assert 'key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext"' in adapter, 'the triggers page sections'
+    assert 'key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary"' in adapter, 'west and north are secondary and tertiary'
     assert {'mpMatch', 'mpMatchSelect'} <= cpp_allowlist(adapter)
     assert 'mpMatchRole' in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(')
     # A number field's value goes through the session and comes back a frame

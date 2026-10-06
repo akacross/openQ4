@@ -546,6 +546,12 @@ def join_game_document() -> dict:
     doc.session("serversNewer", "joinNewer")
     doc.session("serversOlder", "joinOlder")
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
+    # The controller (section 13.5): west refreshes the list and north sorts it
+    # by the next column, while no dialog is open.
+    doc.session("joinSortNext", "joinSortNext")
+    quiet = {"op": "!", "args": [{"op": "||", "args": [{"state": "joinIpModal.visible"}, {"state": "findModal.visible"}]}]}
+    doc.events["onSecondary"] = [{"op": "if", "condition": quiet, "then": [{"op": "action", "action": "joinRefresh"}]}]
+    doc.events["onTertiary"] = [{"op": "if", "condition": quiet, "then": [{"op": "action", "action": "joinSortNext"}]}]
     doc.state.update({
         "join.count": {"type": "number", "initial": 0},
         "join.listed": {"type": "number", "initial": 0},

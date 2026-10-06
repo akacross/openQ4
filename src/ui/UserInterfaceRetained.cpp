@@ -88,7 +88,7 @@ bool SessionMenuCommand(const std::string& command) {
         "joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet",
         "joinSourceLan","joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers",
         "joinSortGameType","joinSortMap","joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
-        "joinConnect","joinSearch","joinSearchClear",
+        "joinConnect","joinSearch","joinSearchClear","joinSortNext",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
@@ -697,11 +697,15 @@ struct idUserInterfaceRetained::Impl {
 	}
 	// Q and E, and the shoulder buttons, page a document's tabs where it
 	// declares onTabPrevious and onTabNext; the triggers page the lists within
-	// a page where it declares onSectionPrevious and onSectionNext. A field
-	// being edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
+	// a page where it declares onSectionPrevious and onSectionNext; the west
+	// face button runs its secondary action (reset, remove, refresh) where it
+	// declares onSecondary, and north its tertiary one (details, search, sort,
+	// filters) where it declares onTertiary (section 13.5). A field being
+	// edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
 	bool TabKey(int key, const openq4::KeyEventMetadata* metadata) {
 		const char* name = key == 'q' || key == K_JOY1 ? "onTabPrevious" : key == 'e' || key == K_JOY2 ? "onTabNext" :
-			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" : nullptr;
+			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" :
+			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : nullptr;
 		if (!name || !RuntimeView()->HasEvent(name)) return false;
 		const bool control = metadata ? metadata->control : held.contains(K_CTRL) || idKeyInput::IsDown(K_CTRL);
 		const bool alt = metadata ? metadata->alt : held.contains(K_ALT) || held.contains(K_RIGHT_ALT) || idKeyInput::IsDown(K_ALT) || idKeyInput::IsDown(K_RIGHT_ALT);

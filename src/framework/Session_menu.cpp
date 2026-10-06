@@ -7617,6 +7617,25 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 			return;
 		}
 	}
+	// The controller's north (section 13.5): the list sorted by the column
+	// after the sort's among the text columns, ascending, from PING when the
+	// list is unsorted or sorted by a symbol.
+	if ( !idStr::Icmp( request, "joinSortNext" ) ) {
+		static const serverSort_t order[] = { SORT_PING, SORT_SERVERNAME, SORT_PLAYERS, SORT_GAMETYPE, SORT_MAP };
+		const int count = static_cast<int>( sizeof( order ) / sizeof( order[0] ) );
+		bool ascending = true;
+		const serverSort_t current = servers.GetSorting( ascending );
+		int next = 0;
+		for ( int i = 0; i < count; ++i ) {
+			if ( order[i] == current ) {
+				next = ( i + 1 ) % count;
+			}
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.SetSorting( order[ next ] );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
 	common->Warning( "retained UI: unhandled Join Game request '%s'", request );
 #endif
 }

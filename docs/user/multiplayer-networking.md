@@ -35,7 +35,8 @@ hide every server. **Refresh List** updates the currently known addresses;
 **Get New List** runs discovery again. The bar under the list fills as
 servers answer and names the step the scan is on. Point at a server, or
 move to it with the keyboard or a controller, to see its address, players
-and settings in a card beside it.
+and settings in a card beside it. With a controller, the left face button
+refreshes the list and the top one sorts it by the next column.
 
 **Join IP Address** connects to an address you type, in any form the direct
 connections below accept, and shows your own IP address to pass on to

@@ -951,6 +951,9 @@
   or move to it with the keyboard or a controller, to see its address,
   players and settings beside it.
 
+- With a controller, the rebuilt server browser refreshes the list with the
+  left face button and sorts it by the next column with the top one.
+
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 

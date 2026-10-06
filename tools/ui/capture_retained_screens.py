@@ -604,7 +604,8 @@ SCENARIOS = {
     # list: the master server cannot be reached from the loopback the client
     # binds, but the seeded favorite, a loopback dedicated server
     # (SCENARIO_SERVERS), answers and is listed. SERVER NAME sorts the list
-    # and CLEAR SORTING clears the sort; BACK climbs out onto JOIN GAME and
+    # and CLEAR SORTING clears the sort; a controller's north sorts by PING and
+    # its west asks for the list again; BACK climbs out onto JOIN GAME and
     # JOIN GAME returns to the list; the row chooses the server and JOIN
     # SERVER joins it, the game module reloading into game_mp (logged to its
     # own file). Before the join the chosen server shows its levelshot and
@@ -631,6 +632,11 @@ SCENARIOS = {
         'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"', 'screenshot "screenshots/joingame-sorted.tga"',
         'openq4_retainedGui focus join_clearsort', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"',
+        # A controller's north sorts by the next column, PING from none, and
+        # its west asks for the list again.
+        'openq4_retainedGui event onTertiary', 'waitMsec 400', 'openq4_retainedGui inspect "heading-ping-up"',
+        'openq4_retainedGui event onSecondary', 'waitMsec 2500', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0"',
+        'screenshot "screenshots/joingame-controller.tga"',
         'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 2500', 'openq4_retainedGui report', 'screenshot "screenshots/joingame-back.tga"',
         'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',

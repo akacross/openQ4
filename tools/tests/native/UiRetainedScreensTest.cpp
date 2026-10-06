@@ -159,7 +159,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinConnect","joinSearch","joinSearchClear",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2658,7 +2658,7 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"joinNewList","joinNewList"},{"joinSourceInternet","joinSourceInternet"},{"joinSourceLan","joinSourceLan"},
 		{"joinSortFavorite","joinSortFavorite"},{"joinSortLocked","joinSortLocked"},{"joinSortName","joinSortName"},
 		{"joinSortPing","joinSortPing"},{"joinSortPlayers","joinSortPlayers"},{"joinSortGameType","joinSortGameType"},
-		{"joinSortMap","joinSortMap"}};
+		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
@@ -2835,11 +2835,19 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	const auto searchAction = document.Model().actions.find("joinSearchClear");
 	Check(searchAction != document.Model().actions.end() && std::get<std::string>(searchAction->second.arguments.at("command").literal) == "joinSearchClear",
 		"its Accept ends the search");
+	// The controller's west refreshes the list and north sorts it by the next
+	// column (section 13.5).
+	Check(runtime.RunEvent("onSecondary",1.472,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinRefresh",
+		"west asks for the list again");
+	Check(runtime.RunEvent("onTertiary",1.474,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinSortNext",
+		"north asks for the next column's sort");
 	// JOIN IP ADDRESS: the dialog opens on the address field; CONNECT applies
 	// once there is an address and asks the session; a refusal shows its
 	// reason; this machine's address shows; Back returns to the plate.
 	Check(runtime.FocusControl("join_ip",1.48) && runtime.RunEvent("joinIpOpen",1.5,effects,error),"JOIN IP ADDRESS opens its dialog");
 	runtime.Frame(viewport,1.75);
+	Check(runtime.RunEvent("onSecondary",1.76,effects,error) && effects.actions.empty() &&
+		runtime.RunEvent("onTertiary",1.77,effects,error) && effects.actions.empty(),"neither refreshes nor sorts under the dialog");
 	Check(text("joinIpModal","display") == "block" && runtime.FocusedControl() == "join-address" &&
 		runtime.GetControlState("joinIpModal_yes") == ControlState::Disabled && text("joinIpModal_yes-label","text") == "#str_200171" &&
 		text("join-yourip","text") == "#str_200180","the dialog opens on the address field, with nothing to connect to yet");
@@ -2864,6 +2872,8 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,2.75);
 	Check(text("findModal","display") == "block" && runtime.FocusedControl() == "join-find" && text("join-find-label","text") == "#str_200254",
 		"the dialog opens on SEARCH FOR:");
+	Check(runtime.RunEvent("onSecondary",2.76,effects,error) && effects.actions.empty() &&
+		runtime.RunEvent("onTertiary",2.77,effects,error) && effects.actions.empty(),"nor under this one");
 	const auto* findNode = document.Model().FindNode("join-find");
 	Check(findNode && findNode->control && std::holds_alternative<NumberSpec>(findNode->control->widget) &&
 		std::get<NumberSpec>(findNode->control->widget).maxBytes == 31 && std::get<NumberSpec>(findNode->control->widget).allowEmpty,

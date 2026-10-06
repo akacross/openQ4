@@ -595,6 +595,8 @@ On engine `45b72594b52f378d24a62e3da7149ccc951a82a8`, the server scan describes 
 
 On engine `a2b3d602526ebabe92b7e9ca6bc384d56827f7f4`, the retained runtime gains a detail card, the hover card anchored to the pointer's control or the focused one, and Join Game shows a server's address, players and settings in it. `WID-025` moves from pending to partial and `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-detail-card-evidence/validation-evidence.json`, SHA-256 `f756cd836ed5469f16f0f60658c9568d31f35bff637eb694493c464dc0f58854`.
 
+On engine `562ffb3597e8e263b0379081baea781666511784`, a controller's west and north face buttons run a document's secondary and tertiary events, and Join Game refreshes its list on west and sorts it by the next column on north. `INP-011` and `FLOW-050` gain evidence. Evidence: `.tmp/ui/retained-face-buttons-evidence/validation-evidence.json`, SHA-256 `fc90b152d4822bab61ea49b047678f0e5b035bd6932284ff83c2a7fe25134753`.
+
 There are **108 partial, 231 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
