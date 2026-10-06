@@ -160,6 +160,16 @@ calls, submitted vertices, and layers pushed and elided:
 & builddir/openq4-retained-ui-benchmark.exe --screen content/baseoq4/pak0/guis/menu/title.q4ui 240 1280 720
 ```
 
+An optional sixth argument names a document event that runs after the settle,
+so the timed frames show what it opens; `first_ms` is the frame that opens
+it. Create Server's ADVANCED OPTIONS, with PLAYER BAN LIST nested in it,
+opens in a 2.8-3.4 ms first frame against 2.5-2.7 ms without the list
+(debugoptimized, two runs each, 30 frames at 1280x720):
+
+```powershell
+& builddir/openq4-retained-ui-benchmark.exe --screen content/baseoq4/pak0/guis/menu/createserver.q4ui 30 1280 720 advancedModalShow
+```
+
 ## Gameplay evidence
 
 The final hidden, windowed runs used the registered engine screenshot command

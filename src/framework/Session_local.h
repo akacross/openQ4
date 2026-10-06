@@ -367,6 +367,7 @@ public:
 	void				OpenRetainedCreateServer();
 	void				PublishRetainedCreateServer( idUserInterface *gui );
 	void				PublishRetainedCreateMaps( idUserInterface *gui, bool rescan );
+	void				PublishRetainedCreateBans( idUserInterface *gui );
 	void				HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request );
 	bool				StartMenuServer();
 	// The demo library's operations, which the legacy browser and the
@@ -659,6 +660,8 @@ public:
 	idList<int>			retainedCreateMaps;		// the map decls the chosen game type plays, in list order
 	int					retainedCreateMapFirst;	// the first of them the list holds
 	int					retainedCreateMapSelected;	// the chosen one among them (-1: none)
+	idStrList			retainedCreateBanGuids;		// PLAYER BAN LIST's rows' GUIDs, in list order
+	int					retainedCreateBanSelected;	// the chosen row (-1: none)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

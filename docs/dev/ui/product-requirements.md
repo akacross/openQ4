@@ -581,6 +581,8 @@ On engine `6a8bdb0c4026053ac2599824a0a2263668261297`, with `ui_retainedMultiplay
 
 On engine `3d8ab71457492b6d88f69cab9c1b580585bfcab8`, a text field can be masked (a password: one * a character, its carets mapped onto the mask, Copy and Cut refused, never a native text candidate) and may allow empty text; Create Server's advanced options gain Set password and Remote console password on them, leaving the ban list before the page joins the default. `WID-006` and `FLOW-050` gain evidence. Evidence: `.tmp/ui/retained-createserver-passwords-evidence/validation-evidence.json`, SHA-256 `608164c9a749f0cd13f931057fb9bc6c3ebe406bd2d89c89c9f470285c7cdbd0`.
 
+On engine `156694227f16c666cfabefbfbac0f1c28c1adb06`, Create Server's advanced options gain PLAYER BAN LIST, a list dialog nested over them that lists and lifts the local server's bans, and the retained page becomes the default; the stock page's ban list and player-count guards work again as retail's session ran them. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-createserver-banlist-evidence/validation-evidence.json`, SHA-256 `aaaeed1f5512c93c181d1fb2895122bc30dcea5437f35b660bd4a2bf057951d8`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

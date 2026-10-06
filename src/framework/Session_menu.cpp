@@ -52,7 +52,7 @@ idCVar gui_set_sys_scroll( "gui_set_sys_scroll", "0", CVAR_GUI | CVAR_INTEGER, "
 idCVar gui_set_audio_scroll( "gui_set_audio_scroll", "0", CVAR_GUI | CVAR_INTEGER, "audio menu scroll step", 0.0f, 0.0f );
 idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER, "game menu scroll step", 0, 61 );
 idCVar ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained SYSTEM page, which ui_retained includes only once every stock setting works there" );
-idCVar ui_retainedMultiplayer( "ui_retainedMultiplayer", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained multiplayer menus (the match card and Create Server), which ui_retained includes only once they offer everything the stock ones do" );
+idCVar ui_retainedMultiplayer( "ui_retainedMultiplayer", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained multiplayer menu card, which ui_retained includes only once all its pages are built" );
 // The single gate for the retained (RmlUi) interface, on by default. Each
 // screen presents its stock GUI instead when its retained document is missing
 // or cannot load, or when the legacy menu it covers lacks a page it hands off
@@ -115,12 +115,12 @@ static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
 	NULL
 };
 // What the stock Create Server page offers that Multiplayer's retained Create
-// Server sub-page does not yet: the advanced options' ban list. While any
-// remain, CREATE SERVER opens the stock page and only ui_retainedMultiplayer
-// opts into the sub-page. ui_retained_gate.py keeps this list equal to what
-// the two pages offer.
+// Server sub-page does not yet: nothing now. While anything remains, CREATE
+// SERVER opens the stock page and only ui_retainedMultiplayer opts into the
+// sub-page. ui_retained_gate.py keeps this list equal to what the two pages
+// offer.
 static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
-	"banlist", NULL
+	NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
@@ -2990,6 +2990,28 @@ static void MainMenuApplyNewGameOptions( idUserInterface *gui ) {
 
 /*
 ==============
+Session_BanListRow
+
+A ban list row as the game publishes it on a menu (idGameLocal::PopulateBanList):
+"N:  name\tguid". The name follows the row number's ":  "; the GUID is the
+text after the tab, as retail's REMOVE BAN read it. False without a GUID.
+==============
+*/
+static bool Session_BanListRow( const char *row, idStr &name, idStr &guid ) {
+	const char *tab = row != NULL ? strchr( row, '\t' ) : NULL;
+	if ( tab == NULL || tab[1] == '\0' ) {
+		return false;
+	}
+	const char *colon = strstr( row, ":  " );
+	const char *start = colon != NULL && colon < tab ? colon + 3 : row;
+	name.Clear();
+	name.Append( start, static_cast<int>( tab - start ) );
+	guid = tab + 1;
+	return true;
+}
+
+/*
+==============
 idSessionLocal::HandleMainMenuCommands
 
 Executes any commands returned by the gui
@@ -3429,6 +3451,42 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			connectArgs.AppendArg( Sys_NetAdrToString( address ) );
 			cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
 			return;
+		}
+
+		// The stock Create Server page's player-count guards and its advanced
+		// popup's ban list, as retail's session handled them: the counts keep
+		// their order, the game publishes its ban list on the menu
+		// (sa_banList_item_N), and REMOVE BAN removes the chosen row's GUID.
+		if ( !idStr::Icmp( cmd, "checkMinPlayers" ) ) {
+			const int maxPlayers = cvarSystem->GetCVarInteger( "si_maxPlayers" );
+			if ( maxPlayers < cvarSystem->GetCVarInteger( "si_minPlayers" ) ) {
+				cvarSystem->SetCVarInteger( "si_minPlayers", maxPlayers );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "checkMaxPlayers" ) ) {
+			const int minPlayers = cvarSystem->GetCVarInteger( "si_minPlayers" );
+			if ( minPlayers > cvarSystem->GetCVarInteger( "si_maxPlayers" ) ) {
+				cvarSystem->SetCVarInteger( "si_maxPlayers", minPlayers );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "populateBanList" ) ) {
+			if ( game != NULL && guiActive != NULL ) {
+				game->PopulateBanList( guiActive );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "handleServerAdminRemoveBan" ) ) {
+			const int selected = guiActive != NULL ? guiActive->State().GetInt( "sa_banList_sel_0", "-1" ) : -1;
+			if ( selected >= 0 && game != NULL ) {
+				idStr name, guid;
+				if ( Session_BanListRow( guiActive->State().GetString( va( "sa_banList_item_%d", selected ) ), name, guid ) ) {
+					game->RemoveGuidFromBanList( guid.c_str() );
+				}
+				game->PopulateBanList( guiActive );
+			}
+			continue;
 		}
 
 		if ( !idStr::Icmp( cmd, "startMultiplayer" ) ) {
@@ -5108,6 +5166,9 @@ static const retainedCreateText_t RETAINED_CREATE_TEXTS[] = {
 	{ "createRconPassword",	"create.rconpassword",	"net_serverRemoteConsolePassword",	16 },
 };
 static const int RETAINED_CREATE_TEXT_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_TEXTS ) / sizeof( RETAINED_CREATE_TEXTS[0] ) );
+// PLAYER BAN LIST's rows (BAN_ROWS in tools/ui/retained_create_server.py):
+// the page lists the first this many bans; removing one brings up the next.
+static const int RETAINED_CREATE_BAN_ROWS = 32;
 // Single Player's Arena sub-page, the Arena campaign's browser, and the
 // campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
 static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
@@ -6922,6 +6983,40 @@ void idSessionLocal::PublishRetainedCreateMaps( idUserInterface *gui, bool resca
 
 /*
 ===============
+idSessionLocal::PublishRetainedCreateBans
+
+The local server's ban list on the page's PLAYER BAN LIST: the game publishes
+it on the stock menu as the stock popup reads it, and each row reaches the
+page as its name (colors removed) and GUID, at most RETAINED_CREATE_BAN_ROWS;
+the session keeps the GUIDs, and no row is chosen.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateBans( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	retainedCreateBanGuids.Clear();
+	retainedCreateBanSelected = -1;
+	if ( game != NULL && guiMainMenu != NULL ) {
+		game->PopulateBanList( guiMainMenu );
+		for ( int row = 0; row < RETAINED_CREATE_BAN_ROWS; ++row ) {
+			const idKeyValue *item = guiMainMenu->State().FindKey( va( "sa_banList_item_%d", row ) );
+			idStr name, guid;
+			if ( item == NULL || !Session_BanListRow( item->GetValue().c_str(), name, guid ) ) {
+				break;
+			}
+			name.RemoveColors();
+			gui->SetStateString( va( "create.ban%d.name", row ), name.c_str() );
+			gui->SetStateString( va( "create.ban%d.guid", row ), guid.c_str() );
+			retainedCreateBanGuids.Append( guid );
+		}
+	}
+	gui->SetStateInt( "create.ban_count", retainedCreateBanGuids.Num() );
+	gui->SetStateInt( "create.ban_selected", -1 );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
 idSessionLocal::HandleRetainedCreateServerRequest
 
 The Create Server sub-page's verbs. A setting's verb carries its value, which
@@ -6930,8 +7025,10 @@ the player counts keep their order, a lower maximum lowering the minimum and
 a higher minimum raising the maximum. The game type lists its maps again. A
 map row chooses its map (create.pick) and the pagers page the list; a text
 field hands over its text, which the session caps at the field's stock
-length; CREATE SERVER starts the server as the stock page's does; BACK climbs
-to the Multiplayer page. A change of level under way takes none.
+length; PLAYER BAN LIST lists the bans, a row chooses its ban
+(create.ban_pick) and REMOVE BAN removes it; CREATE SERVER starts the server
+as the stock page's does; BACK climbs to the Multiplayer page. A change of
+level under way takes none.
 ===============
 */
 void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request ) {
@@ -6968,6 +7065,29 @@ void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, co
 		retainedCreateMapFirst = first;
 		retainedCreateMapSelected = older ? first : first + RETAINED_CREATE_MAP_ROWS - 1;
 		PublishRetainedCreateMaps( gui, false );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanList" ) ) {
+		PublishRetainedCreateBans( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanPick" ) ) {
+		const int row = gui->State().GetInt( "create.ban_pick", "-1" );
+		if ( row >= 0 && row < retainedCreateBanGuids.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedCreateBanSelected = row;
+			gui->SetStateInt( "create.ban_selected", row );
+			gui->StateChanged( common->GetPresentationTime() );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanRemove" ) ) {
+		// The chosen row's GUID as the session published it, never the page's.
+		if ( retainedCreateBanSelected >= 0 && retainedCreateBanSelected < retainedCreateBanGuids.Num() && game != NULL ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			game->RemoveGuidFromBanList( retainedCreateBanGuids[ retainedCreateBanSelected ].c_str() );
+			PublishRetainedCreateBans( gui );
+		}
 		return;
 	}
 	for ( int i = 0; i < RETAINED_CREATE_TEXT_COUNT; ++i ) {

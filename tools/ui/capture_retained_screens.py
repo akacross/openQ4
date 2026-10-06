@@ -531,13 +531,12 @@ SCENARIOS = {
         'waitMsec 250', 'screenshot "screenshots/multiplayer-back.tga"', 'waitMsec 1000', 'ui_retainedStatus',
         'screenshot "screenshots/multiplayer-title.tga"',
     ]),
-    # The Create Server sub-page (FLOW-050), opted in (ui_retainedMultiplayer,
-    # SCENARIO_CVARS) while it lacks the stock page's passwords and ban list:
-    # CREATE SERVER on the Multiplayer page goes deeper and the sub-page
-    # presents at 350 ms under the MULTIPLAYER crumb, the game type's maps
-    # listed and the chosen one's levelshot shown. Choosing CTF lists its maps
-    # again, ADVANCED OPTIONS opens the popup's options, and BACK climbs out
-    # onto CREATE SERVER.
+    # The Create Server sub-page (FLOW-050), the default: CREATE SERVER on the
+    # Multiplayer page goes deeper and the sub-page presents at 350 ms under
+    # the MULTIPLAYER crumb, the game type's maps listed and the chosen one's
+    # levelshot shown. Choosing CTF lists its maps again, ADVANCED OPTIONS
+    # opens the popup's options (a password typed, the seeded ban list opened
+    # and one ban removed), and BACK climbs out onto CREATE SERVER.
     'createserver': (None, [
         'waitMsec 4000',
         'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
@@ -561,6 +560,15 @@ SCENARIOS = {
         'screenshot "screenshots/createserver-password.tga"',
         'openq4_retainedGui number commit "create-password"', 'waitMsec 300', 'si_usePass', 'g_password',
         'openq4_retainedGui widget "create-password"', 'screenshot "screenshots/createserver-password-set.tga"',
+        # VIEW LOCAL SERVER BAN LIST opens the seeded bans over the dialog; the
+        # second is chosen and removed, and CLOSE returns to its row.
+        'openq4_retainedGui focus "create-banlist"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 500', 'openq4_retainedGui report', 'screenshot "screenshots/createserver-banlist.tga"',
+        'openq4_retainedGui focus "ban-row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus banModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/createserver-banlist-removed.tga"',
+        'openq4_retainedGui focus banModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui report',
         'openq4_retainedGui event advancedModalHide', 'waitMsec 600',
         'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 150', 'screenshot "screenshots/createserver-back.tga"', 'waitMsec 1200', 'openq4_retainedGui report',
@@ -729,8 +737,7 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
                   'multiplayer': {'net_allowCheats': '1'},
-                  'createserver': {'ui_retainedMultiplayer': '1'},
-                  'createserverstart': {'ui_retainedMultiplayer': '1', 'net_ip': '127.0.0.1'}}
+                  'createserverstart': {'net_ip': '127.0.0.1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'
@@ -764,9 +771,20 @@ DAMAGED_DESCRIPTION = '"damaged"\r\n"^:Damaged save\t^0Air Defense Trenches"\r\n
 # page refuses to save over it.
 AUTOSAVE_DESCRIPTION = '"auto"\r\n"^:Autosave\t^0AIR DEFENSE BUNKER"\r\n"gfx/guis/loadscreens/airdefense1"\r\n'
 
+def ban_list(runtime: Path) -> bytes:
+    """A local server's ban list as idGameLocal::SaveBanList writes it: each
+    ban's name and GUID as little-endian length-prefixed strings."""
+    def string(text: str) -> bytes:
+        data = text.encode('utf-8')
+        return struct.pack('<i', len(data)) + data
+    bans = (('^1Griefer', 'ABCDEFGHIJK'), ('Camper', 'BCDEFGHIJKL'), ('Spammer', 'CDEFGHIJKLM'))
+    return b''.join(string(name) + string(guid) for name, guid in bans)
+
+
 # Files a scenario's game directory holds before it starts.
 SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
                               'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')},
+         'createserver': {'banlist.txt': ban_list},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
 

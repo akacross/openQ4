@@ -3837,6 +3837,8 @@ void idSessionLocal::Clear() {
 	retainedCreateMaps.Clear();
 	retainedCreateMapFirst = 0;
 	retainedCreateMapSelected = -1;
+	retainedCreateBanGuids.Clear();
+	retainedCreateBanSelected = -1;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;

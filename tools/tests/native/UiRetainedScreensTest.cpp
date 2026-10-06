@@ -156,7 +156,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
 	"multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
 	"createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword","createMapsNewer",
-	"createMapsOlder",
+	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2619,6 +2619,57 @@ static void CheckMultiplayerPage(ScreenHost& host, const char* path) {
 // row and the slot under Allow Voting and locks Auto Balance and Team Damage
 // outside team modes; the map list shows the maps the session publishes, the
 // chosen one lit; ADVANCED OPTIONS opens the stock popup's options as a dialog.
+// PLAYER BAN LIST: VIEW LOCAL SERVER BAN LIST asks for the list and opens it
+// over ADVANCED OPTIONS, nested in its scope; a row's first Accept chooses
+// its ban, REMOVE BAN (enabled once one is chosen) removes it, and closing the
+// list returns the focus to the row that opened it.
+static void CheckCreateServerBanList(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Runtime runtime(host); std::vector<Diagnostic> diagnostics;
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/createserver.q4ui",diagnostics),"the page loads for its ban list");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a ban list node is laid out"); return b; };
+	Check(runtime.RunEvent("onActivate",0.5,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.7);
+	Check(runtime.RunEvent("advancedModalShow",0.8,effects,error),"ADVANCED OPTIONS opens");
+	runtime.Frame(viewport,1.05);
+	// VIEW LOCAL SERVER BAN LIST is the dialog's last row, after the map cycle.
+	Check(Near(bounds("create-banlist").y,bounds("create-mapcycle").y+36,1) && runtime.FocusControl("create-banlist",1.1),
+		"VIEW LOCAL SERVER BAN LIST follows the map cycle on the row pitch");
+	Check(runtime.RunEvent("banListOpen",1.2,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "createBanList",
+		"the row asks the session for the list");
+	runtime.Frame(viewport,1.45);
+	Check(text("banModal","display") == "block" && text("banModal-contents","display") == "block" && runtime.FocusedControl() == "banModal_no",
+		"the list opens over the dialog on CLOSE");
+	Check(!runtime.FocusControl("create-usepass",1.46),"the dialog beneath takes no focus while the list stands over it");
+	Check(text("ban-empty","display") == "block" && text("ban-row-0","display") == "none" &&
+		runtime.GetControlState("banModal_yes") == ControlState::Disabled,"an empty list says so, with nothing to remove");
+	Check(runtime.SetState({{"create.ban_count",2.0},{"create.ban0.name",std::string("Griefer")},{"create.ban0.guid",std::string("ABCDEFGHIJK")},
+		{"create.ban1.name",std::string("Camper")},{"create.ban1.guid",std::string("BCDEFGHIJKL")}},error,1.5),"the session publishes two bans");
+	runtime.Frame(viewport,1.55);
+	Check(text("ban-empty","display") == "none" && text("ban-row-1","display") == "block" && text("ban-row-2","display") == "none" &&
+		text("ban-row-1-name","text") == "Camper" && text("ban-row-1-guid","text") == "BCDEFGHIJKL","the bans fill their rows");
+	Check(runtime.RunEvent("banRow1",1.6,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "createBanPick",
+		"a row's first Accept asks for its ban");
+	Check(runtime.SetState({{"create.ban_selected",1.0}},error,1.65),"the session chooses it");
+	runtime.Frame(viewport,1.7);
+	Check(text("ban-row-1-selected","display") == "block" && runtime.GetControlState("banModal_yes") != ControlState::Disabled,
+		"the chosen ban is lit and REMOVE BAN applies");
+	Check(runtime.RunEvent("banRow1",1.75,effects,error) && effects.actions.empty() && runtime.FocusedControl() == "banModal_yes",
+		"Accept on the chosen ban moves on to REMOVE BAN");
+	Check(runtime.RunEvent("banRemoveConfirmed",1.8,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "createBanRemove",
+		"REMOVE BAN asks the session to remove it, the list staying");
+	runtime.Frame(viewport,1.85);
+	Check(text("banModal","display") == "block","REMOVE BAN keeps the list open");
+	Check(runtime.RunEvent("banModalHide",1.9,effects,error),"CLOSE");
+	runtime.Frame(viewport,2.3);
+	Check(text("banModal","display") == "none" && text("advancedModal","display") == "block" && runtime.FocusedControl() == "create-banlist",
+		"closing the list returns to the row that opened it, the dialog still open");
+}
 static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 	const auto source = Read(path);
 	Document document; std::vector<Diagnostic> diagnostics;
@@ -2636,7 +2687,8 @@ static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 	}
 	const std::pair<const char*,const char*> menu[] = {{"back","createBack"},{"createMap","createMap"},{"createStart","createStart"},
 		{"createName","createName"},{"mapsNewer","createMapsNewer"},{"mapsOlder","createMapsOlder"},{"createMapCycle","createMapCycle"},
-		{"createPassword","createPassword"},{"createRconPassword","createRconPassword"}};
+		{"createPassword","createPassword"},{"createRconPassword","createRconPassword"},{"createBanList","createBanList"},
+		{"createBanPick","createBanPick"},{"createBanRemove","createBanRemove"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
@@ -3855,6 +3907,7 @@ int main(int argc, char** argv) {
 	CheckArenaPage(host,argv[5],argv[20]);
 	CheckMultiplayerPage(host,argv[21]);
 	CheckCreateServerPage(host,argv[22]);
+	CheckCreateServerBanList(host,argv[22]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

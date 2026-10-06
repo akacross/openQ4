@@ -908,12 +908,16 @@
   CTF and Arena One Flag CTF when you pick them from the main menu. Before,
   those modes quietly fell back and the server started as Deathmatch.
 
-- Preview: with `ui_retainedMultiplayer 1`, CREATE SERVER on the Multiplayer
-  page slides one level down to a rebuilt Create Server page: the maps the
-  game type plays with the chosen map's picture, every server option and the
-  advanced options, including the server and remote console passwords, which
-  show as asterisks and cannot be copied. Its ban list is still to come, so
-  the classic page stays the default.
+- Create Server is rebuilt in the modern interface: CREATE SERVER on the
+  Multiplayer page slides one level down to it, with the maps the game type
+  plays beside the chosen map's picture, every server option, and the
+  advanced options, including the server and remote console passwords
+  (shown as asterisks, never copied) and your server's ban list, where you
+  can lift a ban.
+
+- The classic Create Server page's ban list shows your server's bans again
+  and REMOVE BAN lifts them, and its Min Players and Max Players stay in
+  order, as in the original game.
 
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about

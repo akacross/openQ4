@@ -24,9 +24,10 @@ session checks against the CVar's range before it writes it. The game type
 picks the limit row (Frag Limit, Capture Limit or Control Time) and whether
 the slot under Allow Voting is Team Damage or Tourney Round Limit; Auto
 Balance and Team Damage lock outside team modes, as the stock rows dimmed.
-The stock popup's password fields and its ban list are not built yet, so the
-session keeps this page opt-in (RETAINED_CREATE_SERVER_MISSING) until they
-are.
+The advanced options' passwords are masked text fields, and VIEW LOCAL
+SERVER BAN LIST opens PLAYER BAN LIST over them, nested in their dialog as
+the stock popup opened over its own. With nothing of the stock page missing
+(RETAINED_CREATE_SERVER_MISSING is empty) the page is the default.
 """
 from __future__ import annotations
 
@@ -115,12 +116,14 @@ TEAM_TYPES = (2, 3, 4, 5, 7, 8, 9, 10, 11)
 TOURNEY_TYPES = (1,)
 
 # The stock advanced popup (pop_createAdv): 428 u wide from 106,23 u; its rows
-# 377 u on the 24 u pitch from 25 u in. The stock value column ran past its
-# rows; here it starts 220 u in, where every language's label and choice fit.
-# Its height follows its rows: CLOSE ADVANCED OPTIONS 14 u under the last and
-# 49 u for it and the foot, and it rises from 23 u to stay centred on the
-# 480 u screen once it outgrows that.
-ADVANCED_TOP, ADVANCED_WIDTH, ADVANCED_FOOT = 23.0, 428.0, 63.0
+# 377 u on the 24 u pitch from 25 u in, VIEW LOCAL SERVER BAN LIST the last as
+# the stock link sat on that pitch. The stock value column ran past its rows;
+# here it starts 220 u in, where every language's label and choice fit. Its
+# height follows its rows: CLOSE ADVANCED OPTIONS 4 u under the last and 49 u
+# for it and the foot, and it rises from 23 u to stay centered on the 480 u
+# screen once it outgrows that.
+ADVANCED_TOP, ADVANCED_WIDTH = 23.0, 428.0
+ADVANCED_GAP, ADVANCED_FOOT = 4.0, 49.0
 ADVANCED_ROWS_TOP, ADVANCED_VALUE_X = 25.0, 220.0
 MAPCYCLE_BYTES = 200                       # pop_createAdv_mapcycle_val: maxchars 200
 # The password rows after Use password, as the stock popup orders them: the
@@ -131,6 +134,16 @@ PASSWORDS = (
     ("rconpassword", "createRconPassword", "#str_200069", "rconPasswordEntered"),
 )
 PASSWORD_BYTES = 16
+# PLAYER BAN LIST (stock pop_p_createAdv_banlist): the game's ban list under
+# NAME and GUID, BAN_ROWS rows at most on the stock 20 u pitch, REMOVE BAN and
+# CLOSE where YES and NO stand; the MODS dialog's construction, as wide as
+# ADVANCED OPTIONS or wider where a language's REMOVE BAN or CLOSE needs it,
+# the list 22 u in from each side and the GUID column at its half, as the
+# stock list's tab stops halved it.
+BAN_ROWS = 32                              # RETAINED_CREATE_BAN_ROWS in the session
+BAN_TOP, BAN_HEIGHT = 83.0, 280.0          # u
+BAN_LIST_LEFT, BAN_LIST_TOP, BAN_LIST_H = 22.0, 25.0, 195.0
+BAN_ROW_H = 20.0
 
 
 def setting_action(doc: Document, verb: str, kind: str) -> str:
@@ -279,6 +292,105 @@ def password_row(doc: Document, state: str, verb: str, label_key: str, event: st
                     U * ROW_PITCH, allow_empty=True, masked=True)
 
 
+def link_row(doc: Document, ident: str, label_key: str, width: float, row_h: float, event: str) -> dict:
+    """A row that opens a dialog (the stock popup's VIEW LOCAL SERVER BAN LIST):
+    a setting row's plate, label and feedback with a chevron pointing on in
+    the value column's end, the whole row one button running `event`."""
+    shape = [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)]
+    plate = vector(f"{ident}-plate", FULL, [path("plate", shape, fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1))])
+    wash = vector(f"{ident}-wash", {**FULL, "opacity": number(0)}, [
+        path("wash", shape, fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(OLIVE, 0.45)), (1, rgb(OLIVE, 0.1))]))])
+    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=row_h), "opacity": number(0)}, [
+        path("rail", [(0, 7), (6, 1), (6, row_h - 1), (0, row_h - 1)], fill=solid(rgb(ORANGE)))])
+    caption = label(f"{ident}-label", label_key, {**absolute(left=21, top=0, width=width - 60, height=row_h), **row_face(False, row_h),
+                    "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+    chevron = vector(f"{ident}-chevron", absolute(left=width - 21, top=(row_h - 12) / 2, width=6, height=12), [
+        path("chevron", [(0, 0), (6, 6), (0, 12)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5))])
+    return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width), "height": length(row_h),
+                         "opacity": number(1), "flex-shrink": number(0)}, [plate, wash, rail, caption, chevron],
+                 control={"role": "button", "label": label_key, "event": event, "states": setting_states(doc, ident)})
+
+
+def ban_dialog_size() -> tuple[float, float]:
+    """PLAYER BAN LIST's width and its action plates' (dp): each plate takes
+    the longest REMOVE BAN or CLOSE of any language and 50 dp, at least the
+    stock 180 dp, and the dialog both plates beside each other with its 30 and
+    33 dp margins and a 12 dp gap, at least ADVANCED OPTIONS' width."""
+    longest = max(text_width("marine", text, 20) for key in ("#str_200922", "#str_200923") for text in table_text(key).values())
+    action_w = round(max(180.0, longest + 50), 1)
+    return round(max(U * ADVANCED_WIDTH, 2 * action_w + 30 + 33 + 12), 1), action_w
+
+
+def ban_list_modal(doc: Document) -> dict:
+    """PLAYER BAN LIST (section 6, the list dialog as MODS builds it): the
+    game's ban list under NAME and GUID headings and an olive rule, on 20 u
+    rows with the list's light and a scrollbar, or a line saying there is
+    none; REMOVE BAN and CLOSE stand where YES and NO do. The session
+    publishes the list before the dialog shows (create.ban*) with no row
+    chosen. A row's first Accept chooses it, Accept on the chosen row moves on
+    to REMOVE BAN, which removes its ban; CLOSE and Back return to VIEW LOCAL
+    SERVER BAN LIST."""
+    doc.state.update({"create.ban_count": {"type": "number", "initial": 0}, "create.ban_selected": {"type": "number", "initial": -1},
+                      "create.ban_pick": {"type": "number", "initial": -1}})
+    doc.session("createBanPick", "createBanPick")
+    doc.session("createBanRemove", "createBanRemove")
+    width_dp, action_w = ban_dialog_size()
+    left, top, list_h = BAN_LIST_LEFT, BAN_LIST_TOP, BAN_LIST_H
+    list_w = width_dp / U - 2 * left
+    guid_x = round(list_w / 2, 1)
+    heading = {**typeface("lowpixel", 13, U * 12, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+    parts = [
+        label("ban-head-name", "#str_200242", {**absolute(left=U * left, top=U * 12, width=U * (guid_x - 4), height=U * 12), **heading}),
+        label("ban-head-guid", "#str_200924", {**absolute(left=U * (left + guid_x), top=U * 12,
+              width=U * (list_w - guid_x), height=U * 12), **heading}),
+        vector("ban-rule", absolute(left=U * left, top=U * top - 0.6, width=U * list_w, height=1.2), [
+            path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.26)), 1.2))]),
+        label("ban-empty", "#str_231130", {**absolute(left=U * left, top=U * (top + 8), width=U * list_w, height=U * 16),
+              **typeface("lowpixel", 15, U * 16, [1, 1, 1, 0.6]), "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
+              "display": keyword("block")}),
+    ]
+    doc.bind("ban-empty.display", "ban-empty", "display",
+             {"op": "select", "args": [{"op": "==", "args": [{"state": "create.ban_count"}, 0]}, "block", "none"]})
+    rows = []
+    width, height = U * (list_w - 16), U * BAN_ROW_H
+    cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
+    tints = ([1, 1, 1, 0.9], [1, 1, 1, 0.65])
+    for index in range(BAN_ROWS):
+        ident, key = f"ban-row-{index}", f"create.ban{index}"
+        cells = []
+        for column, left_u, column_w, tint in (("name", 4, guid_x - 8, tints[0]),
+                                               ("guid", guid_x, list_w - 16 - guid_x - 4, tints[1])):
+            doc.state[f"{key}.{column}"] = {"type": "string", "initial": ""}
+            node = f"{ident}-{column}"
+            cells.append(label(node, PLACEHOLDER, {**absolute(left=U * left_u, top=0, width=U * column_w, height=height),
+                                                  **typeface("lowpixel", 15.8, height, tint), **cell}))
+            doc.bind(f"{node}.text", node, "text", {"state": f"{key}.{column}"})
+        doc.bind(f"{ident}.display", ident, "display",
+                 {"op": "select", "args": [{"op": "<", "args": [index, {"state": "create.ban_count"}]}, "block", "none"]})
+        doc.bind(f"{ident}-selected.display", f"{ident}-selected", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": "create.ban_selected"}, index]}, "block", "none"]})
+        event = f"banRow{index}"
+        doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": "create.ban_selected"}, index]},
+                              "then": [{"op": "focus", "control": "banModal_yes"}],
+                              "else": [{"op": "setState", "values": {"create.ban_pick": index}}, {"op": "action", "action": "createBanPick"}]}]
+        ids = row_states(doc, ident, (f"{ident}-name", f"{ident}-guid"), tints)
+        rows.append(group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
+                                  "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
+                          control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids}))
+    column_node = group("ban-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")}, rows)
+    parts.append(group("ban-list", {**absolute(left=U * left, top=U * top, width=width, height=U * list_h), "overflow": keyword("auto")},
+                       [column_node]))
+    parts.append(objectives_scrollbar(doc, "ban_scroll", "ban-list", OLIVE, ORANGE, U * (left + list_w) - 24, U * top, U * list_h,
+                                      line_step=U * BAN_ROW_H, key="#str_200921"))
+    modal = confirmation(doc, "banModal", "#str_200921", PLACEHOLDER, None, yes_event="banRemoveConfirmed", wide_title=True,
+                         height_u=BAN_HEIGHT, top_u=BAN_TOP, actions_u=BAN_HEIGHT - 40, contents=parts,
+                         yes_key="#str_200922", no_key="#str_200923", width_dp=width_dp, action_w=action_w)
+    doc.events["banRemoveConfirmed"] = [{"op": "if", "condition": {"op": ">=", "args": [{"state": "create.ban_selected"}, 0]},
+                                         "then": [{"op": "action", "action": "createBanRemove"}]}]
+    doc.bind("banModal_yes.enabled", "banModal_yes", "enabled", {"op": ">=", "args": [{"state": "create.ban_selected"}, 0]})
+    return modal
+
+
 def advanced_dialog(doc: Document) -> dict:
     """ADVANCED OPTIONS: the stock popup's options in the stock modal
     construction grown to its size, titled ADVANCED SERVER OPTIONS, with the
@@ -297,15 +409,24 @@ def advanced_dialog(doc: Document) -> dict:
     doc.events["mapCycleEntered"] = [{"op": "action", "action": "createMapCycle"}]
     rows.append(text_row(doc, "create-mapcycle", "#str_200072", U * 377, U * ADVANCED_VALUE_X, "create.mapcycle", "mapCycleEntered",
                          MAPCYCLE_BYTES, U * ROW_PITCH, allow_empty=True))
-    height_u = ADVANCED_ROWS_TOP + ROW_PITCH * len(rows) + ADVANCED_FOOT
+    # VIEW LOCAL SERVER BAN LIST asks for the list, then opens it over this
+    # dialog; its CLOSE comes back to this row.
+    doc.session("createBanList", "createBanList")
+    doc.events["banListOpen"] = [{"op": "action", "action": "createBanList"}, {"op": "call", "event": "banModalShow"}]
+    rows.append(link_row(doc, "create-banlist", "#str_200948", U * 377, U * ROW_PITCH, "banListOpen"))
+    rows_end = ADVANCED_ROWS_TOP + ROW_PITCH * len(rows)
+    height_u = rows_end + ADVANCED_GAP + ADVANCED_FOOT
     top_u = min(ADVANCED_TOP, (480 - height_u) / 2)
     column = group("advanced-rows", {**absolute(left=U * 25, top=U * ADVANCED_ROWS_TOP, width=U * 377,
                                                 height=U * ROW_PITCH * len(rows)),
                                      "display": keyword("flex"), "flex-direction": keyword("column")}, rows)
     close_w = round(min(width - 66, max(210.0, max(text_width("marine", text, 20) for text in table_text("#str_200075").values()) + 50)), 1)
     modal = confirmation(doc, "advancedModal", "#str_200066", PLACEHOLDER, None, close_key="#str_200075", wide_title=True,
-                         height_u=height_u, top_u=top_u, actions_u=ADVANCED_ROWS_TOP + ROW_PITCH * len(rows) + 14, contents=[column],
+                         height_u=height_u, top_u=top_u, actions_u=rows_end + ADVANCED_GAP, contents=[column],
                          width_dp=width, close_w=close_w, initial="create-usepass")
+    # PLAYER BAN LIST nests in this dialog's scope, as the stock popup opened
+    # over its own: it stands over it, and closing it returns the focus here.
+    modal["children"].append(ban_list_modal(doc))
     return modal
 
 
@@ -320,6 +441,11 @@ def check_create_fits() -> None:
     one_line += [(label_key, "lowpixel", 15, U * VALUE_X - 29) for _, _, label_key, *_ in SETTINGS]
     one_line += [(label_key, "lowpixel", 15, U * ADVANCED_VALUE_X - 29) for _, _, label_key, *_ in ADVANCED]
     one_line += [(label_key, "lowpixel", 15, U * ADVANCED_VALUE_X - 29) for label_key in ("#str_200072", *(key for _, _, key, _ in PASSWORDS))]
+    # VIEW LOCAL SERVER BAN LIST in its row, and PLAYER BAN LIST's title (the
+    # wide title slot) and empty line.
+    ban_w, _ = ban_dialog_size()
+    one_line += [("#str_200948", "lowpixel", 15, U * 377 - 60), ("#str_231130", "lowpixel", 15, ban_w - 2 * U * BAN_LIST_LEFT),
+                 ("#str_200921", "marine", 20, ban_w * (1 - 7 / 512) - 6 - (ban_w * 14 / 512 + 17))]
     check_fits(tuple(one_line), ())
     for state, (names, values) in CHOICES.items():
         value_w = (U * 377 - U * (ADVANCED_VALUE_X if state in ("rate", "bots", "botskill") else VALUE_X) - 12) - 14

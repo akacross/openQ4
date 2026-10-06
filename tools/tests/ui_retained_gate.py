@@ -90,6 +90,7 @@ struct idStr : std::string {
     void StripTrailingWhitespace() { while (!empty() && std::isspace(static_cast<unsigned char>(back()))) pop_back(); }
     void Clear() { clear(); }
     void CapLength(int length) { if (length < Length()) resize(length); }
+    void Append(const char* text, int length) { append(text, length); }
     int Icmp(const char* other) const { return Icmp(c_str(), other); }
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
@@ -220,6 +221,14 @@ struct Game {
     bool InCinematic() const { return cinematic; }
     struct PlayerInfo { int health; int GetInt(const char*) const { return health; } };
     PlayerInfo GetPersistentPlayerInfo(int) const { return {health}; }
+    // The local server's ban list (name, GUID), published on a GUI as
+    // idGameLocal::PopulateBanList does, and the GUIDs removed.
+    std::vector<std::pair<std::string, std::string>> bans; std::vector<std::string> unbanned; int populated = 0;
+    void PopulateBanList(idUserInterface* gui);
+    void RemoveGuidFromBanList(const char* guid) {
+        unbanned.push_back(guid);
+        for (auto it = bans.begin(); it != bans.end(); ++it) if (it->second == guid) { bans.erase(it); break; }
+    }
 } gameObject, *game = &gameObject;
 struct CVar { bool value = false; bool GetBool() const { return value; } } ui_retained, ui_retainedSystem, ui_retainedMultiplayer;
 // Key bindings: a bound command's key as the key lists name it ("^ikHH"),
@@ -232,6 +241,7 @@ struct idKeyInput {
 enum { SE_NONE = 0, CMD_EXEC_APPEND = 1, SE_KEY = 2, SE_MOUSE = 3 };
 enum { K_ESCAPE = 27, K_ENTER = 13, K_JOY4 = 200, K_JOY7 = 203, K_JOY8 = 204 };
 struct sysEvent_t { int evType = SE_NONE, evValue = 0, evValue2 = 0; };
+struct idKeyValue { idStr value; const idStr& GetValue() const { return value; } };
 struct idUserInterface {
     std::string source; bool active = false, failed = false; int activations = 0, deactivations = 0;
     std::vector<std::string> named; std::map<std::string, std::string> state;
@@ -256,8 +266,14 @@ struct idUserInterface {
         int GetInt(const char* key, const char* fallback = "0") const { const auto found = values.find(key); return std::atoi(found == values.end() ? fallback : found->second.c_str()); }
         bool GetBool(const char* key, const char* fallback = "0") const { return GetInt(key, fallback) != 0; }
         const char* GetString(const char* key, const char* fallback = "") const { const auto found = values.find(key); return found == values.end() ? fallback : found->second.c_str(); }
+        std::map<std::string, idKeyValue>* pairs;
+        const idKeyValue* FindKey(const char* key) const {
+            const auto found = values.find(key); if (found == values.end()) return nullptr;
+            auto& pair = (*pairs)[key]; pair.value = found->second; return &pair;
+        }
     };
-    StateView State() const { return {state}; }
+    mutable std::map<std::string, idKeyValue> pairs;
+    StateView State() const { return {state, &pairs}; }
     void SetStateString(const char* key, const char* value) { state[key] = value; }
     void SetStateFloat(const char* key, float value) { state[key] = std::to_string(value); }
     float cursorX = 320, cursorY = 240;
@@ -267,6 +283,13 @@ struct idUserInterface {
     int stateChanges = 0;
     void StateChanged(int) { ++stateChanges; }
 };
+void Game::PopulateBanList(idUserInterface* gui) {
+    ++populated;
+    for (size_t i = 0; i < bans.size(); ++i)
+        gui->state["sa_banList_item_" + std::to_string(i)] = std::to_string(i + 1) + ":  " + bans[i].first + "\t" + bans[i].second;
+    gui->state.erase("sa_banList_item_" + std::to_string(bans.size()));
+    gui->state["sa_banList_sel_0"] = "-1";
+}
 enum { AXIS_SIDE = 0, AXIS_FORWARD = 1 };
 static int stickX = 0, stickY = 0;
 static bool vrInputFocus = false;
@@ -455,6 +478,7 @@ public:
     idUserInterface* guiRetainedCreate = nullptr; idList<int> retainedCreateMaps; int retainedCreateMapFirst = 0, retainedCreateMapSelected = -1;
     idUserInterface* RetainedCreateServerPage(); void OpenRetainedCreateServer(); void PublishRetainedCreateServer(idUserInterface*);
     void PublishRetainedCreateMaps(idUserInterface*, bool); void HandleRetainedCreateServerRequest(idUserInterface*, const char*);
+    idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
@@ -995,23 +1019,24 @@ int main() {
         // BACK before any stock page: the title returns as from any page.
         s.HandleRetainedSessionRequest(page, "multiplayerBack");
         CHECK(s.guiActive == s.guiMainMenu && title->named.back() == "returnHome" && s.guiRetainedHome == title);
-        // Again, and CREATE SERVER: the page leaves, and takes no other choice meanwhile.
+        // Again, and JOIN GAME: the page leaves, and takes no other choice
+        // meanwhile, CREATE SERVER's change of level among them.
         s.HandleRetainedSessionRequest(title, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         CHECK(s.guiActive == page);
         const size_t sounds = s.played.size();
-        s.HandleRetainedSessionRequest(page, "multiplayerCreate");
-        CHECK(page->named.back() == "depart" && s.retainedMpPageDest == 17 && s.played.size() == sounds + 1);
-        s.HandleRetainedSessionRequest(page, "multiplayerJoin"); s.HandleRetainedSessionRequest(page, "multiplayerBack");
-        CHECK(s.retainedMpPageDest == 17 && s.played.size() == sounds + 1 && s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "multiplayerJoin");
+        CHECK(page->named.back() == "depart" && s.retainedMpPageDest == 14 && s.played.size() == sounds + 1);
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate"); s.HandleRetainedSessionRequest(page, "multiplayerBack");
+        CHECK(s.retainedMpPageDest == 14 && s.played.size() == sounds + 1 && s.guiActive == page && s.retainedSubpageFrom == nullptr);
         commonObject.time += 499; s.UpdateRetainedMultiplayerPage(); CHECK(s.guiActive == page && timeRuns.empty());
         commonObject.time += 1; s.UpdateRetainedMultiplayerPage();
         CHECK(s.guiActive == s.guiMainMenu && s.retainedMpPageDest == 0 && s.retainedPageHome == nullptr);
-        CHECK(legacy["desktop::curr"] == 3 && legacy["desktop::active"] == 1 && legacy["desktop::dest"] == 17 && expressionWrites == 0 &&
+        CHECK(legacy["desktop::curr"] == 3 && legacy["desktop::active"] == 1 && legacy["desktop::dest"] == 14 && expressionWrites == 0 &&
               s.guiMainMenu->named.back() == "openMultiplayerPage" &&
               (timeRuns == std::vector<std::string>{"guis/mainmenu.gui"}));  // its timelines caught up first
         s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);  // the stock page presents alone
         // Its Back: the stock page leaves for the Multiplayer page and the retained one presents at once.
-        legacy["desktop::curr"] = 17; legacy["desktop::dest"] = 3;
+        legacy["desktop::curr"] = 14; legacy["desktop::dest"] = 3;
         CHECK(s.OpenRetainedMultiplayerPage() && s.guiActive == page && s.retainedPageHome == nullptr && s.retainedMpPageDest == 0);
         // JOIN GAME and PLAYER SETUP choose the browser and the Settings page.
         for (const auto& [verb, dest] : {std::pair<const char*, int>{"multiplayerJoin", 14}, {"multiplayerSetup", 18}}) {
@@ -1063,20 +1088,20 @@ int main() {
             CHECK(std::find(managerObject.loads.begin(), managerObject.loads.end(), "guis/menu/multiplayer.q4ui") == managerObject.loads.end());
         }
     }
-    {   // The Create Server sub-page (FLOW-050): opt-in while the stock page
-        // offers what it does not (RETAINED_CREATE_SERVER_MISSING), CREATE SERVER
-        // then opening the stock page as before.
+    {   // The Create Server sub-page (FLOW-050) offers all the stock page does
+        // (RETAINED_CREATE_SERVER_MISSING is empty), so it is the default:
+        // without ui_retainedMultiplayer it preloads and CREATE SERVER goes deeper.
         auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
-        CHECK(s.guiRetainedCreate == nullptr && s.RetainedCreateServerPage() == nullptr);
+        CHECK(s.guiRetainedCreate != nullptr && s.RetainedCreateServerPage() == s.guiRetainedCreate);
         s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         auto* page = s.guiRetainedMpPage; CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "multiplayerCreate");
-        CHECK(s.retainedMpPageDest == 17 && page->named.back() == "depart" && s.retainedSubpageFrom == nullptr);
+        CHECK(s.retainedMpPageDest == 0 && page->named.back() == "subpageEnterCreate" && s.retainedSubpageFrom == page);
     }
-    {   // Opted in: CREATE SERVER goes deeper as Campaign does, and at 350 ms the
+    {   // CREATE SERVER goes deeper as Campaign does, and at 350 ms the
         // sub-page presents with the settings, the game type's maps (si_map's
         // own chosen) and its levelshot published.
-        auto s = Session(true); ui_retainedMultiplayer.value = true;
+        auto s = Session(true);
         fileSystemObject.maps = {idDict{{{"path", "mp/q4dm1"}, {"name", "#str_q4dm1"}, {"DM", "1"}, {"Team DM", "1"}}},
                                  idDict{{{"path", "mp/q4ctf1"}, {"name", "^c560[^c870CMP^c560]^c998 Lost ^1Fleet"}, {"CTF", "1"}}},
                                  idDict{{{"path", "mp/q4dm5"}, {"DM", "1"}}}};
@@ -1145,6 +1170,31 @@ int main() {
         CHECK(cvarSystemObject.strings.count("net_serverRemoteConsolePassword") == 1 && cvarSystemObject.strings["net_serverRemoteConsolePassword"].empty());
         create->state["create.rconpassword"] = "letmein"; s.HandleRetainedSessionRequest(create, "createRconPassword");
         CHECK(cvarSystemObject.strings["net_serverRemoteConsolePassword"] == "letmein" && create->state["create.rconpassword"] == "letmein");
+        // PLAYER BAN LIST: the game's bans as the stock popup reads them, names
+        // without colors; a row chosen; REMOVE BAN removing the chosen row's
+        // GUID as the session kept it, never the page's copy.
+        gameObject.bans = {{"^1Griefer", "ABCDEFGHIJK"}, {"Camper", "BCDEFGHIJKL"}};
+        s.HandleRetainedSessionRequest(create, "createBanList");
+        CHECK(create->state["create.ban_count"] == "2" && create->state["create.ban0.name"] == "Griefer" && create->state["create.ban0.guid"] == "ABCDEFGHIJK" &&
+              create->state["create.ban1.guid"] == "BCDEFGHIJKL" && create->state["create.ban_selected"] == "-1" && gameObject.populated == 1);
+        s.HandleRetainedSessionRequest(create, "createBanRemove"); CHECK(gameObject.unbanned.empty());  // nothing chosen yet
+        create->state["create.ban_pick"] = "2"; s.HandleRetainedSessionRequest(create, "createBanPick"); CHECK(create->state["create.ban_selected"] == "-1");
+        create->state["create.ban_pick"] = "1"; s.HandleRetainedSessionRequest(create, "createBanPick");
+        CHECK(create->state["create.ban_selected"] == "1" && s.played.back() == "play main_menu_selection");
+        create->state["create.ban1.guid"] = "FORGED00000";
+        s.HandleRetainedSessionRequest(create, "createBanRemove");
+        CHECK((gameObject.unbanned == std::vector<std::string>{"BCDEFGHIJKL"}) && create->state["create.ban_count"] == "1" &&
+              create->state["create.ban0.name"] == "Griefer" && create->state["create.ban_selected"] == "-1" && gameObject.populated == 2);
+        // The list stops at the first row without a GUID, and at 32 rows.
+        gameObject.bans.clear();
+        for (int i = 0; i < 40; ++i) gameObject.bans.push_back({"Player" + std::to_string(i), "GUID" + std::to_string(1000000 + i)});
+        s.HandleRetainedSessionRequest(create, "createBanList"); CHECK(create->state["create.ban_count"] == "32" && create->state["create.ban31.name"] == "Player31");
+        gameObject.bans = {{"Valid", "ABCDEFGHIJK"}}; s.guiMainMenu->state["sa_banList_item_1"] = "2:  NoGuid";
+        s.HandleRetainedSessionRequest(create, "createBanList"); CHECK(create->state["create.ban_count"] == "1");
+        // Two-digit rows keep their names.
+        idStr name, guid;
+        CHECK(Session_BanListRow("12:  ^2Name:  with colons\tGUIDGUIDGUID", name, guid) && name == "^2Name:  with colons" && guid == "GUIDGUIDGUID");
+        CHECK(!Session_BanListRow("3:  NoTab", name, guid) && !Session_BanListRow("3:  Trailing\t", name, guid) && !Session_BanListRow(nullptr, name, guid));
         s.HandleRetainedSessionRequest(create, "unknown"); CHECK(commonObject.warnings.back().find("unhandled Create Server request") != std::string::npos);
         // CREATE SERVER starts it as the stock page's does.
         s.HandleRetainedSessionRequest(create, "createStart"); CHECK(s.serverStarts == 1);
@@ -1200,17 +1250,17 @@ int main() {
                                                             "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
                                                             "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
                                                             "guis/menu/demos.q4ui", "guis/menu/arena.q4ui",
-                                                            "guis/menu/multiplayer.q4ui"}) &&
+                                                            "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui"}) &&
               s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
         CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 10 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 11 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 10 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 11 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 11 + cards);
+              managerObject.loads.size() == 12 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -3153,7 +3203,7 @@ def check_create_server(menu: str) -> None:
         {'createGameType'} | {verb for verb, *_rest in rows}
     assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('create')} == \
         {'createBack', 'createMap', 'createStart', 'createName', 'createMapCycle', 'createPassword', 'createRconPassword',
-         'createMapsNewer', 'createMapsOlder'}
+         'createMapsNewer', 'createMapsOlder', 'createBanList', 'createBanPick', 'createBanRemove'}
     # The text fields against the generator: the name, the map cycle and the
     # two passwords, each capped at its stock field's length.
     texts = re.findall(r'\{ "(create[A-Za-z]+)",\s+"(create\.[a-z]+)",\s+"([A-Za-z_]+)",\s+(\d+) \}',
@@ -3162,11 +3212,19 @@ def check_create_server(menu: str) -> None:
         [('createName', 'create.name', create.NAME_BYTES), ('createMapCycle', 'create.mapcycle', create.MAPCYCLE_BYTES)] + \
         [(verb, f'create.{state}', create.PASSWORD_BYTES) for state, verb, _label, _event in create.PASSWORDS], texts
     assert [cvar for _verb, _state, cvar, _limit in texts] == ['si_name', 'g_mapCycle', 'g_password', 'net_serverRemoteConsolePassword']
-    # Opt-in while the stock page offers what this one does not: its ban list.
+    # Nothing of the stock page is missing, so the page is the default.
     missing = re.search(r'RETAINED_CREATE_SERVER_MISSING\[\] = \{([^}]*)\};', text).group(1)
-    assert missing.strip().endswith('NULL') and re.findall(r'"([A-Za-z_]+)"', missing) == ['banlist']
+    assert missing.strip() == 'NULL', missing
     document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/createserver.q4ui').read_text(encoding='utf-8'), flags=re.M))
-    assert not any('ban' in name.lower() for name in document['actions'])
+    assert {'createBanList', 'createBanPick', 'createBanRemove'} <= set(document['actions'])
+    assert re.search(r'RETAINED_CREATE_BAN_ROWS = (\d+);', text).group(1) == str(create.BAN_ROWS)
+    # Retail's session commands for the stock page: the player counts' guards
+    # and the advanced popup's ban list, which the game fills and empties.
+    main_menu = function_body(text, 'void idSessionLocal::HandleMainMenuCommands(')
+    for command in ('checkMinPlayers', 'checkMaxPlayers', 'populateBanList', 'handleServerAdminRemoveBan'):
+        assert f'if ( !idStr::Icmp( cmd, "{command}" ) ) {{' in main_menu, command
+    assert main_menu.count('game->PopulateBanList( guiActive );') == 2 and 'game->RemoveGuidFromBanList( guid.c_str() );' in main_menu
+    assert 'cvarSystem->SetCVarInteger( "si_minPlayers", maxPlayers );' in main_menu and 'cvarSystem->SetCVarInteger( "si_maxPlayers", minPlayers );' in main_menu
     # Each text field's control: the passwords masked and possibly empty, the
     # map cycle possibly empty, the name neither.
     controls, pending = {}, [document['root']]
@@ -3843,6 +3901,7 @@ def main() -> int:
         'static bool Session_RetainedCreateSettingRequest(', 'static idStr Session_RetainedCreateText(',
         'idUserInterface *idSessionLocal::RetainedCreateServerPage(', 'void idSessionLocal::OpenRetainedCreateServer(',
         'void idSessionLocal::PublishRetainedCreateServer(', 'void idSessionLocal::PublishRetainedCreateMaps(',
+        'static bool Session_BanListRow(', 'void idSessionLocal::PublishRetainedCreateBans(',
         'void idSessionLocal::HandleRetainedCreateServerRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',

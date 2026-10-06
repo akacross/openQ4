@@ -207,12 +207,12 @@ authority.
 MULTIPLAYER on the title opens the retained [Multiplayer page](../ui/retained-screens.md#multiplayer-page),
 the stock Multiplayer page's level: JOIN GAME, CREATE SERVER and PLAYER SETUP
 open the stock browser, Create Server and Settings pages, whose Back returns
-to it. With `ui_retainedMultiplayer`, CREATE SERVER goes deeper to the retained
+to it. CREATE SERVER goes deeper to the retained
 [Create Server sub-page](../ui/retained-screens.md#create-server-sub-page), the
 stock page's map selection and options with the session owning each setting,
 the passwords on masked text fields
-([text fields](../ui/numeric-fields.md#text-fields)); it joins the default
-once it has the advanced options' ban list.
+([text fields](../ui/numeric-fields.md#text-fields)) and the ban list in a
+nested dialog; it is the default, as it offers all the stock page does.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

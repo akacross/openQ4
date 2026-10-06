@@ -57,8 +57,9 @@ struct ScreenHost final : Host {
 };
 // The session's presentation of a root screen: its runtime load (timed),
 // onInit, the open timeline, a four second settle, then timed 60 Hz frames on
-// its view-height canvas.
-void Screen(const std::string& path, int frames, int width, int height) {
+// its view-height canvas. With `event`, the event runs after the settle and
+// the timed frames show what it opens (first_ms is the frame that does).
+void Screen(const std::string& path, int frames, int width, int height, const std::string& event) {
 	std::ifstream file(path,std::ios::binary);
 	if (!file) throw std::runtime_error("Cannot read screen document");
 	const std::string source{std::istreambuf_iterator<char>(file),{}};
@@ -77,6 +78,7 @@ void Screen(const std::string& path, int frames, int width, int height) {
 	runtime.Frame(viewport,start);
 	const double cold = runtime.Statistics().frameMilliseconds;
 	for (int i = 1; i <= 240; ++i) runtime.Frame(viewport,start+i/60.0);
+	if (!event.empty() && !runtime.RunEvent(event,start+4,effects,error)) throw std::runtime_error(event+": "+error);
 	std::vector<double> frame, update, render, compile, paths, uploads, draws, vertices, layers, elisions;
 	for (int i = 1; i <= frames; ++i) {
 		runtime.Frame(viewport,start+4+i/60.0);
@@ -88,10 +90,12 @@ void Screen(const std::string& path, int frames, int width, int height) {
 		elisions.push_back(static_cast<double>(stats.layerElisions));
 	}
 	if (!host.error.empty()) throw std::runtime_error("Screen logged an error: "+host.error);
-	std::printf("{\"scenario\":\"screen\",\"document\":\"%s\",\"width\":%d,\"height\":%d,\"frames\":%d,\"load_ms\":%.6f,\"cold_ms\":%.6f,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"max_ms\":%.6f,"
+	std::printf("{\"scenario\":\"screen\",\"document\":\"%s\",\"event\":\"%s\",\"width\":%d,\"height\":%d,\"frames\":%d,\"load_ms\":%.6f,\"cold_ms\":%.6f,"
+		"\"first_ms\":%.6f,\"p50_ms\":%.6f,\"p95_ms\":%.6f,\"max_ms\":%.6f,"
 		"\"update_p50_ms\":%.6f,\"render_p50_ms\":%.6f,\"vector_compile_p50_ms\":%.6f,\"paths_compiled_p50\":%.0f,\"uploads_p50\":%.0f,"
 		"\"draw_calls_p50\":%.0f,\"submitted_vertices_p50\":%.0f,\"layer_pushes_p50\":%.0f,\"layer_elisions_p50\":%.0f}\n",
-		path.c_str(),width,height,frames,loadMs,cold,Percentile(frame,.5),Percentile(frame,.95),Percentile(frame,1),Percentile(update,.5),Percentile(render,.5),
+		path.c_str(),event.c_str(),width,height,frames,loadMs,cold,frame.front(),Percentile(frame,.5),Percentile(frame,.95),Percentile(frame,1),
+		Percentile(update,.5),Percentile(render,.5),
 		Percentile(compile,.5),Percentile(paths,.5),Percentile(uploads,.5),Percentile(draws,.5),Percentile(vertices,.5),Percentile(layers,.5),Percentile(elisions,.5));
 	runtime.CloseDocument(); runtime.Shutdown();
 }
@@ -99,13 +103,13 @@ void Screen(const std::string& path, int frames, int width, int height) {
 int main(int argc, char** argv) {
 	try {
 		if (argc >= 3 && std::string(argv[1]) == "--screen") {
-			if (argc > 6) throw std::runtime_error("usage: openq4-retained-ui-benchmark --screen <document.q4ui> [frames=120] [width=1280] [height=720]");
+			if (argc > 7) throw std::runtime_error("usage: openq4-retained-ui-benchmark --screen <document.q4ui> [frames=120] [width=1280] [height=720] [event]");
 			const int frames = argc > 3 ? std::stoi(argv[3]) : 120, width = argc > 4 ? std::stoi(argv[4]) : 1280, height = argc > 5 ? std::stoi(argv[5]) : 720;
 			if (frames < 2 || frames > 3600 || width < 64 || width > 8192 || height < 64 || height > 8192) throw std::runtime_error("Invalid screen frame count or size");
-			Screen(argv[2],frames,width,height);
+			Screen(argv[2],frames,width,height,argc > 6 ? argv[6] : "");
 			return 0;
 		}
-		if (argc < 2 || argc > 4) throw std::runtime_error("usage: openq4-retained-ui-benchmark <vector-smoke.q4ui> [density=1.25] [frames=60] | --screen <document.q4ui> [frames] [width] [height]");
+		if (argc < 2 || argc > 4) throw std::runtime_error("usage: openq4-retained-ui-benchmark <vector-smoke.q4ui> [density=1.25] [frames=60] | --screen <document.q4ui> [frames] [width] [height] [event]");
 		Viewport viewport;
 		viewport.displayScale = argc > 2 ? std::stof(argv[2]) : 1.25f;
 		const int frames = argc > 3 ? std::stoi(argv[3]) : 60;

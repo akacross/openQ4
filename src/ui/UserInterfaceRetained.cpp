@@ -83,7 +83,7 @@ bool SessionMenuCommand(const std::string& command) {
         "arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
         "multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
         "createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword",
-        "createMapsNewer","createMapsOlder",
+        "createMapsNewer","createMapsOlder","createBanList","createBanPick","createBanRemove",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
