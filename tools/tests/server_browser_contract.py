@@ -186,6 +186,11 @@ struct Language {
         if(!std::strcmp(token,"#str_107294"))return "Scanned %d openQ4 Servers";
         if(!std::strcmp(token,"#str_107297"))return "Scanning %d/%d: %s";
         if(!std::strcmp(token,"#str_107736"))return "Getting list of servers...";
+        static const std::map<std::string,std::string> details={{"#str_107702","Map"},{"#str_107659","Time Limit"},
+            {"#str_107660","Frag Limit"},{"#str_107661","Capture Limit"},{"#str_41404","Round Limit"},{"#str_122008","Control Time"},
+            {"#str_107664","Team Damage"},{"#str_107666","Auto Balance Teams"},{"#str_107662","Pure"},{"#str_104254","Allow Spectators"},
+            {"#str_107703","Yes"},{"#str_107704","No"}};
+        const auto detail=details.find(token);if(detail!=details.end())return detail->second.c_str();
         return token;
     }
 } language;
@@ -398,6 +403,52 @@ int main(){
      auto d=server("10.4.0.1",5,"",0);d.challenge=net.GetChallenge();assert(net.InfoResponse(d)>=0);
      assert(!std::strcmp(net.GetLoadNotice(),"Scanning 2/2: 10.4.0.1:28004")&&net.GetLoadProgress()==1.0f);
      net.Shutdown();}
+    // A server's details, as the stock browser's tooltip shows them: its
+    // address, its players' names as the browser reads them, and its settings
+    // with the limit its game type ends on. The tooltip follows the hovered
+    // row (or the row openq4_browser names) and hides with none.
+    {idUserInterface tip;idServerScan d;d.GUIConfig(&tip,"serverList");d.GUIInit();d.SetupLANScan();
+     auto dm=server("10.5.0.1",5,"Duel Hall",2);dm.challenge=d.GetChallenge();
+     std::snprintf(dm.nickname[0],MAX_NICKLEN,"%s","^1Grunt");std::snprintf(dm.nickname[1],MAX_NICKLEN,"%s","Kane\tX");
+     dm.serverInfo.Set("si_timeLimit","15");dm.serverInfo.Set("si_fragLimit","25");dm.serverInfo.Set("si_teamDamage","1");
+     dm.serverInfo.Set("si_autobalance","0");dm.serverInfo.Set("si_pure","1");dm.serverInfo.Set("si_spectators","0");
+     assert(d.InfoResponse(dm)==0);
+     auto flags=server("10.5.0.2",9,"Flags",0);flags.challenge=d.GetChallenge();
+     flags.serverInfo.Set("si_gameType","One Flag CTF");flags.serverInfo.Set("si_captureLimit","7");assert(d.InfoResponse(flags)==1);
+     auto rounds=server("10.5.0.3",9,"Rounds",0);rounds.challenge=d.GetChallenge();
+     rounds.serverInfo.Set("si_gameType","Clan Arena");rounds.serverInfo.Set("si_roundLimit","9");assert(d.InfoResponse(rounds)==2);
+     auto zone=server("10.5.0.4",9,"Zone",0);zone.challenge=d.GetChallenge();
+     zone.serverInfo.Set("si_gameType","DeadZone");zone.serverInfo.Set("si_controlTime","120");assert(d.InfoResponse(zone)==3);
+     idStr address;idStrList players,settings;
+     assert(d.GetServerDetails(0,address,players,settings)&&address==idStr("10.5.0.1:28004"));
+     assert(players.Num()==2&&players[0]==idStr("Grunt")&&players[1]==idStr("Kane X"));
+     assert(settings.Num()==7&&settings[0]==idStr("Map: mp/q4dm1")&&settings[1]==idStr("Time Limit: 15")&&settings[2]==idStr("Frag Limit: 25")&&
+            settings[3]==idStr("Team Damage: Yes")&&settings[4]==idStr("Auto Balance Teams: No")&&settings[5]==idStr("Pure: Yes")&&
+            settings[6]==idStr("Allow Spectators: No"));
+     assert(d.GetServerDetails(1,address,players,settings)&&settings[2]==idStr("Capture Limit: 7")&&players.Num()==0);
+     assert(d.GetServerDetails(2,address,players,settings)&&settings[2]==idStr("Round Limit: 9"));
+     assert(d.GetServerDetails(3,address,players,settings)&&settings[2]==idStr("Control Time: 120"));
+     assert(!d.GetServerDetails(4,address,players,settings)&&!d.GetServerDetails(-1,address,players,settings));
+     idList<int> order;d.VisibleServers(order);assert(order.Num()==4);
+     int dmRow=-1,flagsRow=-1;for(int i=0;i<order.Num();++i){if(order[i]==0)dmRow=i;if(order[i]==1)flagsRow=i;}
+     d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     tip.SetStateInt("serverList_hover",flagsRow);d.GUIUpdateHover();
+     assert(tip.State().GetBool("serverinfo_visible")&&!std::strcmp(tip.State().GetString("server_tooltip_ip"),"10.5.0.2:28004"));
+     assert(!std::strcmp(tip.State().GetString("server_tooltip_settingslist_item_2"),"Capture Limit: 7")&&
+            tip.State().FindKey("server_tooltip_settingslist_item_7")==nullptr&&tip.State().FindKey("server_tooltip_playerlist_item_0")==nullptr);
+     tip.SetStateInt("serverList_hover",dmRow);d.GUIUpdateHover();
+     assert(!std::strcmp(tip.State().GetString("server_tooltip_playerlist_item_0"),"Grunt")&&
+            !std::strcmp(tip.State().GetString("server_tooltip_playerlist_item_1"),"Kane X")&&
+            tip.State().FindKey("server_tooltip_playerlist_item_2")==nullptr&&
+            !std::strcmp(tip.State().GetString("server_tooltip_settingslist_item_6"),"Allow Spectators: No"));
+     tip.SetStateInt("serverList_hover",-1);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     tip.SetStateInt("serverList_hover",9);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));   // past the list
+     d.SetHoverOverride(flagsRow);d.GUIUpdateHover();   // the pointer on no row, the override names one
+     assert(tip.State().GetBool("serverinfo_visible")&&!std::strcmp(tip.State().GetString("server_tooltip_ip"),"10.5.0.2:28004"));
+     d.SetHoverOverride(-1);tip.SetStateInt("serverList_hover",-1);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     // The selection no longer drives the tooltip.
+     tip.SetStateInt("serverList_sel_0",dmRow);d.GUIUpdateSelected();assert(!tip.State().GetBool("serverinfo_visible"));
+     d.Shutdown();}
     // A server's map path is looked up only when it is a plain map path.
     assert(idServerScan::ValidMapPath("mp/q4dm1")&&!idServerScan::ValidMapPath("../secret")&&!idServerScan::ValidMapPath("/absolute"));
     // Execute the real packet callback: losing any required field must not
@@ -431,6 +482,25 @@ def main() -> None:
         missing = labels - set(re.findall(r'"(#str_\d+)"', tables))
         if missing:
             raise AssertionError(f"Browser labels missing from {language}: {sorted(missing)}")
+    # The limit the browser's details name for each public game type is the
+    # one the game's descriptor table ends the match on.
+    types = (ROOT / "src/mpgame/mp/GameTypes.cpp").read_text(encoding="utf-8")
+    table = types[types.index("mpGameTypeInfoTable[] = {"):types.index("};", types.index("mpGameTypeInfoTable[] = {"))]
+    expected = {}
+    for name, flags, public in re.findall(r'\{\s*GAME_\w+,\s*"([^"]+)",[^{}]*?\n\s*([A-Z_| ]+?),\s*(?:\n\s*)?MP_GAMESTATE_\w+,\s*(true|false)\s*\}', table):
+        if public != "true":
+            continue
+        flags = {flag.strip() for flag in flags.split("|")}
+        expected[name] = ("si_captureLimit" if "GTF_CAPTURELIMIT" in flags else "si_roundLimit" if "GTF_ROUNDLIMIT" in flags
+                          else "si_controlTime" if "GTF_DEADZONE" in flags else "si_fragLimit" if "GTF_FRAGLIMIT" in flags else "?")
+    limits = scan[scan.index("static void ServerBrowserMatchLimit("):scan.index("static const char *ServerBrowserGameType(")]
+    listed = lambda array: re.findall(r'"([^"]+)"', re.search(array + r'\[\] = \{([^}]*)\}', limits).group(1))
+    actual = {name: "si_fragLimit" for name in expected}
+    actual.update({name: "si_captureLimit" for name in listed("capture")})
+    actual.update({name: "si_roundLimit" for name in listed("rounds")})
+    actual["DeadZone"] = "si_controlTime"
+    if len(expected) != 12 or "?" in expected.values() or actual != expected:
+        raise AssertionError(f"the browser's match limits drifted from the game types: {expected} != {actual}")
     compiler = next((p for name in ("clang++", "g++", "c++") if (p := shutil.which(name))), None)
     if compiler is None:
         raise RuntimeError("a C++ compiler is required")
@@ -442,7 +512,7 @@ def main() -> None:
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
     print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, player search, read view, "
-          "scan progress, malformed input)")
+          "scan progress, server details and tooltip, malformed input)")
 
 
 if __name__ == "__main__":

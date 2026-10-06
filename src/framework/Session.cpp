@@ -4336,6 +4336,21 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 			const idStr value = Session_BrowserDiagnosticText( gui->State().GetString( details[ i ] ) );
 			common->Printf( "BROWSER_DETAIL key=%s value=%s\n", details[ i ], value.c_str() );
 		}
+		// The server tooltip: whether it shows, its address, and its lists'
+		// items, which the lists read until one is missing.
+		common->Printf( "BROWSER_TOOLTIP visible=%d ip=%s\n", gui->State().GetBool( "serverinfo_visible" ),
+			Session_BrowserDiagnosticText( gui->State().GetString( "server_tooltip_ip" ) ).c_str() );
+		static const char *const tooltipLists[] = { "server_tooltip_playerlist", "server_tooltip_settingslist" };
+		for ( int list = 0; list < 2; ++list ) {
+			for ( int i = 0; i < MAX_ASYNC_CLIENTS; ++i ) {
+				const idKeyValue *item = gui->State().FindKey( va( "%s_item_%d", tooltipLists[ list ], i ) );
+				if ( item == NULL ) {
+					break;
+				}
+				common->Printf( "BROWSER_TOOLTIP list=%s item=%d value=%s\n", tooltipLists[ list ], i,
+					Session_BrowserDiagnosticText( item->GetValue().c_str() ).c_str() );
+			}
+		}
 		static const char *const windows[] = {
 			"desktop::curr", "desktop::dest", "desktop::active", "desktop::blockBrowser",
 			"p_main::visible", "p_mp_browse::visible", "p_mp_browse::rect",
@@ -4386,6 +4401,30 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		gui->StateChanged( common->GetPresentationTime() );
 		return;
 	}
+	if ( args.Argc() == 3 && !idStr::Icmp( verb, "hover" ) ) {
+		// The server tooltip without a pointer: a visible row treated as the
+		// hovered one, or -1 to follow the pointer again.
+		const char *number = args.Argv( 2 );
+		int row = -1;
+		bool valid = !idStr::Cmp( number, "-1" );
+		if ( !valid && number[ 0 ] != '\0' ) {
+			row = 0;
+			valid = true;
+			for ( int i = 0; number[ i ] != '\0'; ++i ) {
+				if ( number[ i ] < '0' || number[ i ] > '9' || row > 409 ) {
+					valid = false;
+					break;
+				}
+				row = row * 10 + number[ i ] - '0';
+			}
+		}
+		if ( !valid || row >= 4096 ) {
+			common->Printf( "openq4_browser hover requires a visible row or -1\n" );
+			return;
+		}
+		idAsyncNetwork::client.serverList.SetHoverOverride( row );
+		return;
+	}
 	if ( args.Argc() == 3 && !idStr::Icmp( verb, "action" ) ) {
 		static const char *const actions[] = {
 			"InitServerBrowser", "updateServers", "refreshServers", "FilterServers",
@@ -4403,7 +4442,7 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		common->Printf( "openq4_browser action is not a supported browser operation\n" );
 		return;
 	}
-	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | action <browser-operation>\n" );
+	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | hover <visible-row|-1> | action <browser-operation>\n" );
 }
 
 static void Session_OpenQ4GuiGet_f( const idCmdArgs &args ) {

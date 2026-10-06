@@ -130,6 +130,33 @@ static idStr ServerBrowserEndpoint( const netadr_t &adr ) {
 	return Sys_NetAdrToString( adr );
 }
 
+// The limit each public game type ends on, as the game's descriptor table
+// flags it (mp/GameTypes.cpp: GTF_CAPTURELIMIT, GTF_ROUNDLIMIT, DeadZone's
+// control time; every other public type GTF_FRAGLIMIT): the label and the
+// serverinfo key the browser's details name it by.
+static void ServerBrowserMatchLimit( const char *type, const char *&label, const char *&key ) {
+	static const char *capture[] = { "CTF", "One Flag CTF", "Arena CTF", "Arena One Flag CTF" };
+	static const char *rounds[] = { "Clan Arena", "Freeze Tag", "Red Rover" };
+	label = "#str_107660";
+	key = "si_fragLimit";
+	for ( int i = 0; i < static_cast<int>( sizeof( capture ) / sizeof( capture[0] ) ); ++i ) {
+		if ( !idStr::Icmp( type, capture[i] ) ) {
+			label = "#str_107661";
+			key = "si_captureLimit";
+		}
+	}
+	for ( int i = 0; i < static_cast<int>( sizeof( rounds ) / sizeof( rounds[0] ) ); ++i ) {
+		if ( !idStr::Icmp( type, rounds[i] ) ) {
+			label = "#str_41404";
+			key = "si_roundLimit";
+		}
+	}
+	if ( !idStr::Icmp( type, "DeadZone" ) ) {
+		label = "#str_122008";
+		key = "si_controlTime";
+	}
+}
+
 static const char *ServerBrowserGameType( const char *type ) {
 	static const char *tokens[] = { "DM", "Tourney", "Team DM", "CTF", "Arena CTF", "DeadZone",
 		"Duel", "Clan Arena", "Freeze Tag", "Red Rover", "One Flag CTF", "Arena One Flag CTF" };
@@ -177,6 +204,9 @@ idServerScan::idServerScan( ) {
 	revision = 0;
 	loadPct = 0.0f;
 	scanned = -1;
+	hoverOverride = -1;
+	tooltipServer = -2;
+	tooltipRevision = -1;
 	LocalClear();
 }
 
@@ -535,6 +565,8 @@ void idServerScan::GUIConfig( idUserInterface *pGUI, const char *name ) {
 		listGUI = uiManager->AllocListGUI();
 	}
 	listGUI->Config( pGUI, name );
+	listName = name != NULL ? name : "";
+	tooltipServer = -2;
 	if ( m_pGUI ) {
 		m_pGUI->SetStateString( "loadNotice", loadNotice.c_str() );
 		m_pGUI->SetStateFloat( "loadPct", loadPct );
@@ -554,15 +586,7 @@ void idServerScan::GUIUpdateSelected( void ) {
 	const bool selected = GetSelectedAddress( address );
 	m_pGUI->SetStateBool( "browser_selected", selected );
 	m_pGUI->SetStateString( "favoriteStatus", common->GetLanguageDict()->GetString( "#str_200292" ) );
-	m_pGUI->SetStateString( "server_tooltip_ip", address.c_str() );
 	m_pGUI->SetStateString( "server_IP", address.c_str() );
-	m_pGUI->SetStateBool( "serverinfo_visible", false );
-	for ( int j = 0; j < MAX_ASYNC_CLIENTS; ++j ) {
-		m_pGUI->DeleteStateVar( va( "server_tooltip_playerlist_item_%d", j ) );
-	}
-	for ( int j = 0; j < 8; ++j ) {
-		m_pGUI->DeleteStateVar( va( "server_tooltip_settingslist_item_%d", j ) );
-	}
 	if ( !selected ) {
 		m_pGUI->SetStateString( "server_name", "" );
 		m_pGUI->SetStateString( "player1", "" );
@@ -588,9 +612,6 @@ void idServerScan::GUIUpdateSelected( void ) {
 			} else {
 				m_pGUI->SetStateString( va( "player%i", j + 1 ) , "" );
 			}
-		}
-		for ( int j = 0; j < server.clients; ++j ) {
-			m_pGUI->SetStateString( va( "server_tooltip_playerlist_item_%d", j ), ServerBrowserText( server.nickname[j], MAX_NICKLEN - 1 ).c_str() );
 		}
 		m_pGUI->SetStateString( "server_map", ServerBrowserText( server.serverInfo.GetString( "si_mapName" ) ).c_str() );
 		char levelshot[ MAX_STRING_CHARS ] = "";
@@ -841,6 +862,84 @@ void idServerScan::SetLoadProgress( const char *notice, float pct ) {
 		m_pGUI->SetStateFloat( "loadPct", loadPct );
 		m_pGUI->StateChanged( common->GetPresentationTime() );
 	}
+}
+
+/*
+================
+idServerScan::GetServerDetails
+================
+*/
+bool idServerScan::GetServerDetails( int index, idStr &address, idStrList &players, idStrList &settings ) const {
+	if ( index < 0 || index >= Num() ) {
+		return false;
+	}
+	const networkServer_t &server = (*this)[ index ];
+	const idDict &info = server.serverInfo;
+	address = Sys_NetAdrToString( server.adr );
+	players.Clear();
+	for ( int i = 0; i < Min( server.clients, MAX_ASYNC_CLIENTS ); ++i ) {
+		players.Append( ServerBrowserText( server.nickname[ i ], MAX_NICKLEN - 1 ) );
+	}
+	const char *limitLabel = NULL;
+	const char *limitKey = NULL;
+	ServerBrowserMatchLimit( info.GetString( "si_gameType" ), limitLabel, limitKey );
+	const char *yes = common->GetLanguageDict()->GetString( "#str_107703" );
+	const char *no = common->GetLanguageDict()->GetString( "#str_107704" );
+	const struct { const char *label; idStr value; } lines[] = {
+		{ "#str_107702", ServerBrowserText( info.GetString( "si_mapName" ) ) },
+		{ "#str_107659", ServerBrowserText( info.GetString( "si_timeLimit" ), 16 ) },
+		{ limitLabel, ServerBrowserText( info.GetString( limitKey ), 16 ) },
+		{ "#str_107664", info.GetBool( "si_teamDamage" ) ? yes : no },
+		{ "#str_107666", info.GetBool( "si_autobalance" ) ? yes : no },
+		{ "#str_107662", info.GetBool( "si_pure" ) ? yes : no },
+		{ "#str_104254", info.GetBool( "si_spectators" ) ? yes : no },
+	};
+	settings.Clear();
+	for ( int i = 0; i < static_cast<int>( sizeof( lines ) / sizeof( lines[0] ) ); ++i ) {
+		settings.Append( va( "%s: %s", common->GetLanguageDict()->GetString( lines[i].label ), lines[i].value.c_str() ) );
+	}
+	return true;
+}
+
+/*
+================
+idServerScan::GUIUpdateHover
+================
+*/
+void idServerScan::GUIUpdateHover() {
+	if ( !m_pGUI || !listGUI || !listGUI->IsConfigured() ) {
+		return;
+	}
+	const int row = hoverOverride >= 0 ? hoverOverride : m_pGUI->State().GetInt( va( "%s_hover", listName.c_str() ), "-1" );
+	idList<int> visible;
+	VisibleServers( visible );
+	const int index = row >= 0 && row < visible.Num() ? visible[ row ] : -1;
+	if ( index == tooltipServer && ( index < 0 || tooltipRevision == revision ) ) {
+		return;
+	}
+	tooltipServer = index;
+	tooltipRevision = revision;
+	idStr address;
+	idStrList players, settings;
+	const bool shown = GetServerDetails( index, address, players, settings );
+	m_pGUI->SetStateBool( "serverinfo_visible", shown );
+	m_pGUI->SetStateString( "server_tooltip_ip", address.c_str() );
+	// The lists read their items until one is missing.
+	for ( int i = 0; i < MAX_ASYNC_CLIENTS; ++i ) {
+		if ( i < players.Num() ) {
+			m_pGUI->SetStateString( va( "server_tooltip_playerlist_item_%d", i ), players[ i ].c_str() );
+		} else {
+			m_pGUI->DeleteStateVar( va( "server_tooltip_playerlist_item_%d", i ) );
+		}
+	}
+	for ( int i = 0; i < 8; ++i ) {
+		if ( i < settings.Num() ) {
+			m_pGUI->SetStateString( va( "server_tooltip_settingslist_item_%d", i ), settings[ i ].c_str() );
+		} else {
+			m_pGUI->DeleteStateVar( va( "server_tooltip_settingslist_item_%d", i ) );
+		}
+	}
+	m_pGUI->StateChanged( common->GetPresentationTime() );
 }
 
 /*

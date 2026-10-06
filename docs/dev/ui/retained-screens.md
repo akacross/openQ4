@@ -1281,6 +1281,22 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   sweep republishes the list at most a hundred times. The notice can name a
   server, so the page reads it as a player's text. Polish and Russian gained
   the three scan strings their tables lacked.
+- **Server details.** The scan describes a server as the stock browser's
+  tooltip shows it (`idServerScan::GetServerDetails`): its address, its
+  players' names, and its settings as "label: value" lines (the map, the time
+  limit, the limit its game type ends on, team damage, team autobalance, pure
+  and spectators), its text read as the browser reads a server's. The limit
+  follows the game's descriptor table (`mp/GameTypes.cpp`): the capture limit
+  for the flag modes, the round limit for Clan Arena, Freeze Tag and Red
+  Rover, DeadZone's control time, and the frag limit otherwise;
+  `server_browser_contract.py` holds the scan's table to the game's. Retail's
+  scan kept the stock tooltip for the row the pointer was over each frame the
+  classic menu ran; openQ4's had published the selected server's players
+  there and kept the tooltip hidden. The session keeps it again
+  (`UpdateBrowserTooltip`, `idServerScan::GUIUpdateHover`, reading the
+  list's `serverList_hover`). The retained page does not show these details
+  yet. Polish and Russian gained the tooltip's labels, which their tables
+  lacked, and French and Italian DeadZone's control time.
 - **JOIN IP ADDRESS** opens section 6's entry dialog on the stock popup's
   pieces: the address field (99 bytes, as the stock field took), which Enter
   commits into `join.address` and connects with; CONNECT, while there is an
@@ -1337,7 +1353,10 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   (the reason shows), then the server's, which joins it. `stockbrowser` runs
   the classic menu (`ui_retained 0`): its browser's GET NEW LIST fills the
   stock load bar again and names the count (`openq4_browser report` prints
-  `loadNotice` and `loadPct`).
+  `loadNotice` and `loadPct`), and the server's row, treated as hovered
+  without a pointer (`openq4_browser hover`), shows the stock tooltip with
+  its address and settings, which no row hides again (the report prints the
+  tooltip's state and items).
 
 ## Loading phase line
 
@@ -1876,6 +1895,9 @@ SHA-256 `4d2c6a2f86f0f1c3fa141acba00768cdbe5783344740d6d0071d74163d51ba4c`.
 
 The server browsers' scan progress: `.tmp/ui/retained-joingame-progress-evidence/validation-evidence.json`,
 SHA-256 `86ad58e9f0cb2e487b06fa2e253b38711cb750ecee629ff6b72f3acb43b5cf7f`.
+
+A server's details and the classic browser's server tooltip: `.tmp/ui/retained-joingame-details-evidence/validation-evidence.json`,
+SHA-256 `5b7857f09bfd8f65fd8cfa22264375b890b55387090450c5ca5010fd6b034e46`.
 
 ## Known limitations
 

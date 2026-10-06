@@ -942,6 +942,11 @@
   server n of N, then how many were scanned). The classic browser's bar had
   always stayed empty in openQ4.
 
+- The classic server browser's server card works again: pointing at a server
+  shows its address, its players and its settings (map, time limit, the
+  match's frag, capture or round limit, team damage, team autobalance, pure
+  and spectators). openQ4 had kept the card hidden.
+
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 

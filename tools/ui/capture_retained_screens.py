@@ -687,6 +687,11 @@ SCENARIOS = {
         'openq4_browser action updateServers', 'waitMsec 300', 'openq4_browser report',
         'screenshot "screenshots/stockbrowser-scanning.tga"', 'waitMsec 4500', 'openq4_browser report',
         'screenshot "screenshots/stockbrowser-scanned.tga"',
+        # The server tooltip again (retail's, which openQ4's scan had kept
+        # hidden): the listed server's row treated as hovered, without a
+        # pointer (openq4_browser hover), then no row, which hides it.
+        'openq4_browser hover 0', 'waitMsec 1000', 'openq4_browser report', 'screenshot "screenshots/stockbrowser-tooltip.tga"',
+        'openq4_browser hover -1', 'waitMsec 1000', 'openq4_browser report',
     ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first

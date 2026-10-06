@@ -385,6 +385,9 @@ public:
 	void				OpenRetainedJoinGame();
 	void				PublishRetainedJoinGame( idUserInterface *gui );
 	void				UpdateRetainedJoinGame();
+	// The stock browser's server tooltip, kept for the hovered row while the
+	// classic main menu runs (idServerScan::GUIUpdateHover).
+	void				UpdateBrowserTooltip();
 	void				HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request );
 	// The demo library's operations, which the legacy browser and the
 	// retained page share.

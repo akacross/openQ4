@@ -4590,6 +4590,7 @@ void idSessionLocal::GuiFrameEvents() {
 	UpdateRetainedPage();
 	UpdateRetainedMultiplayerPage();
 	UpdateRetainedJoinGame();
+	UpdateBrowserTooltip();
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -7292,6 +7293,23 @@ void idSessionLocal::OpenRetainedJoinGame() {
 	page->SetStateString( "join.clientip", Session_LocalAddressText().c_str() );
 	PublishRetainedJoinGame( page );
 	SetGUI( page, NULL );
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateBrowserTooltip
+
+The stock browser's server tooltip, as retail's session kept it: each frame
+the classic main menu is the active GUI, the scan shows the hovered row's
+server (its address, players and settings) or hides the tooltip.
+===============
+*/
+void idSessionLocal::UpdateBrowserTooltip() {
+#ifndef ID_DEDICATED
+	if ( guiActive != NULL && guiActive == guiMainMenu ) {
+		idAsyncNetwork::client.serverList.GUIUpdateHover();
+	}
 #endif
 }
 

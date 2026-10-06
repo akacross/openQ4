@@ -164,6 +164,19 @@ public:
 	// and a full bar until the next scan or a clear.
 	const char *		GetLoadNotice() const { return loadNotice.c_str(); }
 	float				GetLoadProgress() const { return loadPct; }
+	// A server's details as the stock browser's tooltip shows them: its
+	// address, its players' names and its settings as "label: value" lines
+	// (the map, the time limit, the limit its game type ends on, team damage,
+	// team autobalance, pure, spectators), its text read as the browser reads
+	// a server's. False for a server the scan does not hold.
+	bool				GetServerDetails( int index, idStr &address, idStrList &players, idStrList &settings ) const;
+	// The stock browser's server tooltip, kept each frame the main menu runs:
+	// the row the pointer is over (<list>_hover, which the list draws) shows
+	// its server's details, and no row hides them.
+	void				GUIUpdateHover();
+	// openq4_browser hover: a visible row treated as the hovered one, so the
+	// tooltip shows without a pointer; -1 follows the pointer again.
+	void				SetHoverOverride( int row ) { hoverOverride = row; tooltipServer = -2; }
 
 private:
 	static const int	MAX_PINGREQUESTS 	= 32;		// how many servers to query at once
@@ -209,6 +222,11 @@ private:
 	float				loadPct;
 	idStr				lastResponder;		// the server that answered this scan last, as the notice names it
 	int					scanned;			// servers the last completed scan covered; -1 until one completes
+
+	idStr				listName;			// the stock list's name (GUIConfig), whose _hover the list draws
+	int					hoverOverride;		// see SetHoverOverride
+	int					tooltipServer;		// the server the tooltip shows (-1 none, -2 to publish again)
+	int					tooltipRevision;	// the scan's revision when it was published
 
 private:
 	void				LocalClear( );		// we need to clear some internal data as well
