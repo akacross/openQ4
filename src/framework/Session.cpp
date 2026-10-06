@@ -3827,6 +3827,7 @@ void idSessionLocal::Clear() {
 	guiRetainedDemos = NULL;
 	retainedModSelected = -1;
 	guiRetainedRestartMenu = NULL;
+	guiRetainedCredits = NULL;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;

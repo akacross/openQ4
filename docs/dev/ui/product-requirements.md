@@ -571,6 +571,8 @@ On engine `c118aba6c2453b6f5123c6101d3a47130b432687` MODS on the title opens a r
 
 On engine `580cd561215b223d6653e22a1e7aae9a2db1280e` the restart screen after a death presents retained: RESTART, LOAD GAME, MAIN MENU and EXIT GAME over the stock popup art, each explaining itself. `FLOW-005` becomes partial. Evidence: `.tmp/ui/retained-restartmenu-evidence/validation-evidence.json`, SHA-256 `c0efdf55a7abe4f8ac14bd3239fd2fdbae555b9cded737973c565211f2eb8fdf`.
 
+On engine `acca732c88269a3619a207086fa52d59c5855029` CREDITS on the title opens a retained Credits page that plays the stock credits translation compiled from the stock scripts, its words read from the stock menu at runtime. `MOT-015` gains evidence. Evidence: `.tmp/ui/retained-credits-evidence/validation-evidence.json`, SHA-256 `d6ac5ccd40691bbd7b368514a72dbc9278374db007fab76b14be34e98efc1045`.
+
 There are **106 partial, 233 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

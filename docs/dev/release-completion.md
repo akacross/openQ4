@@ -891,6 +891,9 @@
   LOAD GAME, MAIN MENU and EXIT GAME, each explaining itself as you point
   at it.
 
+- CREDITS on the title plays the original credits, rebuilt: the Raven logo,
+  then every screen translating from Strogg runes under its scan bars.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

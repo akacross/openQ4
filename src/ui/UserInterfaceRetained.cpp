@@ -77,7 +77,7 @@ bool SessionMenuCommand(const std::string& command) {
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
         "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
         "newgameStart","newgameBack","demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",
-        "demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu",
+        "demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
@@ -1669,6 +1669,16 @@ void UI_RetainedReloadImage( const char *source ) {
 bool UI_RetainedViewFailed(idUserInterface* gui) {
 	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
 	return found == diagnosticViews.end() || RetainedUI_ViewFailed((*found)->impl->view);
+}
+
+int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names) {
+	names.clear();
+	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
+	if (found == diagnosticViews.end() || prefix == nullptr) return 0;
+	const std::string start(prefix);
+	for (const auto& [name,declaration] : (*found)->impl->document.Model().state)
+		if (name.compare(0,start.size(),start) == 0) names.push_back(name);
+	return static_cast<int>(names.size());
 }
 
 #else

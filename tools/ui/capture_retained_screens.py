@@ -425,6 +425,19 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
         'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
+    # The Credits page: CREDITS hands off and the page presents at 550 ms on
+    # its opaque backing; the Raven logo lights and goes out, then the first
+    # screen's lines arrive in runes and translate to Latin under the scan
+    # bars, and the screen leaves for the next. Back returns the title.
+    'credits': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_credits', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/credits-logo.tga"',
+        'waitMsec 4000', 'screenshot "screenshots/credits-runes.tga"', 'waitMsec 2500', 'openq4_retainedGui report',
+        'screenshot "screenshots/credits-translated.tga"', 'waitMsec 3300', 'screenshot "screenshots/credits-next.tga"',
+        'waitMsec 3000', 'screenshot "screenshots/credits-second.tga"',
+        'openq4_retainedGui focus credits_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'screenshot "screenshots/credits-back.tga"',
+    ]),
     # The restart screen (FLOW-005): the player dies in the level, and when the
     # respawn wait runs out the level unloads and the screen presents with
     # RESTART focused. Each plate explains itself in the line under the

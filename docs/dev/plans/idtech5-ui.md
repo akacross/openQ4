@@ -197,6 +197,9 @@ to 280 u, with the installed mods, their details, LOAD MOD and CANCEL.
 After the player dies the retained
 [restart screen](../ui/retained-screens.md#restart-screen) offers RESTART,
 LOAD GAME, MAIN MENU and EXIT GAME over the stock popup art.
+CREDITS on the title opens the retained [Credits page](../ui/retained-screens.md#credits-page):
+the stock credits' choreography compiled into one repeating timeline, its words
+read from the stock menu at runtime.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

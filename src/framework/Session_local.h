@@ -615,6 +615,7 @@ public:
 	idListGUI *			guiDemoList;
 	idUserInterface *	guiRestartMenu;
 	idUserInterface *	guiRetainedRestartMenu;	// the retained restart screen (NULL until it loads)
+	idUserInterface *	guiRetainedCredits;		// the retained Credits page (NULL until it loads)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;
@@ -771,6 +772,9 @@ public:
 	void				SelectRetainedMod( idUserInterface *gui, int row );
 	// After the player dies: the retained restart screen, else the stock one.
 	void				OpenRestartMenu();
+	// The retained Credits page (guis/menu/credits.q4ui), which the title's
+	// CREDITS hands off to: its lines read from the legacy credits windows.
+	void				PublishRetainedCredits( idUserInterface *page );
 	int					retainedModSelected;
 	void				UpdateModsMenuGuiVars( void );
 	void				SetMainMenuSkin( void );

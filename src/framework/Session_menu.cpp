@@ -4998,6 +4998,8 @@ static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
 // The restart screen single player shows after the player dies (the stock
 // guis/restart.gui).
 static const char *const RETAINED_RESTARTMENU_GUI = "guis/menu/restartmenu.q4ui";
+// The Credits page, which the title's CREDITS hands off to.
+static const char *const RETAINED_CREDITS_GUI = "guis/menu/credits.q4ui";
 static const int RETAINED_DEMO_ROWS = 64;
 // The title's MODS dialog lists this many mods (MOD_ROWS in
 // tools/ui/build_retained_screens.py).
@@ -5639,6 +5641,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedCredits ) {
+		// The Credits page's one verb, Back, while it presents.
+		if ( gui == guiActive && !idStr::Icmp( request, "creditsBack" ) ) {
+			ReturnRetainedPage();
+		}
+		return;
+	}
 	if ( gui != NULL && request != NULL && gui == guiRetainedDemos ) {
 		// The Demos page's verbs, while it presents.
 		if ( gui == guiActive ) {
@@ -5733,7 +5742,7 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 	// LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS open their retained pages
 	// where those can present; else the stock pages below.
 	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ||
-			!idStr::Icmp( request, "demos" ) ) && BeginRetainedPage( request ) ) {
+			!idStr::Icmp( request, "demos" ) || !idStr::Icmp( request, "credits" ) ) && BeginRetainedPage( request ) ) {
 		return;
 	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
@@ -5777,8 +5786,9 @@ present: the stock page then opens as before.
 bool idSessionLocal::BeginRetainedPage( const char *request ) {
 #ifndef ID_DEDICATED
 	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
-	const bool demos = !idStr::Icmp( request, "demos" );
-	if ( ( !saving && !restarting && !demos && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
+	const bool demos = !idStr::Icmp( request, "demos" ), credits = !idStr::Icmp( request, "credits" );
+	if ( ( !saving && !restarting && !demos && !credits && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
+			guiActive != guiMainMenu || ( credits && mapSpawned ) ||
 			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
 			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
 		return false;
@@ -5789,9 +5799,10 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// Loaded with the other screens (PreloadRetainedScreens), or now when the
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
-	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos : guiRetainedLoad;
+	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
+		credits ? guiRetainedCredits : guiRetainedLoad;
 	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
-		RETAINED_LOADGAME_GUI;
+		credits ? RETAINED_CREDITS_GUI : RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
 		retainedStock.AddUnique( path );
@@ -5815,6 +5826,8 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 		page->SetStateString( "save.target", "" );
 		page->SetStateString( "save.notice", "" );
 		PublishRetainedSavePage( page, -1 );
+	} else if ( credits ) {
+		PublishRetainedCredits( page );
 	} else if ( demos ) {
 		// Each arrival shows every demo, the newest selected.
 		retainedDemoFilter = 0;
@@ -5836,7 +5849,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 
 bool idSessionLocal::RetainedPageActive() const {
 	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
-		guiActive == guiRetainedDemos );
+		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits );
 }
 
 // The hand-off's end: the page presents over the home that handed off, which
@@ -6261,6 +6274,24 @@ void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const c
 #endif
 }
 
+// The Credits page's words: every line's text, read from the legacy main
+// menu's credits window of the same name (credits.<window>), so the generated
+// page carries none of them.
+void idSessionLocal::PublishRetainedCredits( idUserInterface *page ) {
+#ifndef ID_DEDICATED
+	std::vector<std::string> names;
+	UI_RetainedStateNames( page, "credits.", names );
+	for ( const std::string &name : names ) {
+		idStr text;
+		if ( guiMainMenu == NULL || !guiMainMenu->GetPresentationValue( va( "%s::text", name.c_str() + 8 ), text ) ) {
+			text.Clear();
+		}
+		page->SetStateString( name.c_str(), text.c_str() );
+	}
+	page->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
 // After the player dies the level unloads and the restart screen offers its
 // choices: the retained one where it can present, else the stock one.
 void idSessionLocal::OpenRestartMenu() {
@@ -6601,6 +6632,10 @@ void idSessionLocal::PreloadRetainedScreens() {
 	// The restart screen, which only a level reaches.
 	if ( guiRetainedRestartMenu == NULL && guiRetainedPause != NULL ) {
 		guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
+	}
+	// The Credits page, which only the title reaches.
+	if ( guiRetainedCredits == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedCredits = FindRetainedGui( RETAINED_CREDITS_GUI, true, false );
 	}
 	// The Demos page, which only the title reaches.
 	if ( guiRetainedDemos == NULL && guiRetainedTitle != NULL ) {

@@ -151,7 +151,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
-	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu",
+	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2230,8 +2230,68 @@ static void CheckRestartMenu(ScreenHost& host, const char* path) {
 	Check(text("exitModal","display") == "block" && runtime.FocusedControl() == "exitModal_no","the confirmation opens on NO");
 }
 
+// The Credits page: the stock credits' layout and choreography compiled into
+// one repeating timeline (the Raven logo, then the thirteen screens in the
+// stock order), its words in application state, its opaque backing, title and
+// BACK.
+static void CheckCreditsPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.credits" && document.Model().canvasHeight == 720,"the Credits page validates");
+	CheckSessionActions(document);
+	const auto back = document.Model().actions.find("back");
+	Check(back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "creditsBack",
+		"BACK asks the session");
+	const auto loop = std::find_if(document.Model().timelines.begin(),document.Model().timelines.end(),
+		[](const Timeline& item) { return item.id == "creditsLoop"; });
+	Check(loop != document.Model().timelines.end() && loop->iterations == 0 && loop->durationMs > 100000,
+		"the logo and thirteen screens repeat as one timeline over a minute and a half");
+	size_t lines = 0;
+	for (const auto& [name, declaration] : document.Model().state) lines += name.rfind("credits.",0) == 0;
+	Check(lines > 300,"every credit line, rune and Latin, shows application text");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/credits.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto value = [&](const std::string& node, const char* property, size_t index) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a credits node is laid out"); return b; };
+	Check(runtime.SetState({{"credits.screen1_t_1",std::string("Project Lead")},{"credits.screen1_ts_1",std::string("Project Lead")}},error,0),
+		"the session publishes the words");
+	runtime.Frame(viewport,0.5);
+	const float x0 = 160, u = 1.5f;
+	const auto logo = bounds("raven"), heading = bounds("screen1_t_1");
+	Check(Near(logo.x,x0+120*u) && Near(logo.y,40*u) && Near(logo.width,400*u) && Near(logo.height,400*u),"the logo stands in its stock box");
+	Check(Near(heading.x,x0+103*u) && Near(heading.y,82*u),"a heading keeps its stock rect");
+	Check(runtime.PresentedValue("screen1_t_1","text")->text == "Project Lead","the heading shows the published words");
+	Check(runtime.RunEvent("onActivate",1,effects,error) && runtime.FocusedControl() == "credits_back","the page arrives with BACK focused");
+	runtime.Frame(viewport,1.2);
+	Check(Near(value("credits-panel","opacity",0),1,.01f),"the backing and panel fade in over 150 ms");
+	// The logo lights from black over 1000 ms, holds, and goes out by 4000 ms.
+	runtime.Frame(viewport,2.05);
+	Check(Near(value("raven","image-color",0),.839f,.02f) && Near(value("raven","image-color",1),1,.02f),"the logo has lit");
+	runtime.Frame(viewport,5.05);
+	Check(Near(value("raven","image-color",1),0,.02f) && Near(value("p_screen1","opacity",0),1,.01f),"the logo is out and the first screen shows");
+	// The first screen's runes fade in over 2000 ms; at 2000 ms the first
+	// heading translates over 1000 ms behind its sliding scan bar.
+	runtime.Frame(viewport,6.0);
+	const float runes = value("screen1_ts_1","color",3);
+	Check(runes > .1f && runes < .8f && Near(value("screen1_t_1","color",3),0,.01f),"the heading's runes are fading in, its Latin not yet");
+	runtime.Frame(viewport,7.5);
+	Check(value("screen1_t_1","color",3) > .2f && value("screen1_ts_1","color",3) < runes + .5f,"the heading translates from runes to Latin");
+	Check(value("screen1_bar1","opacity",0) > 0 && value("screen1_bar1","transform",0) > 0,"its scan bar has slid in from the leading edge");
+	// Leaving: the screen slides 640 u toward the trailing edge.
+	runtime.Frame(viewport,1+4+7.25);
+	Check(value("p_screen1","transform",0) > 600 || Near(value("p_screen1","opacity",0),0,.01f),"the first screen leaves toward the trailing edge");
+	Check(runtime.RunEvent("onDeactivate",13,effects,error),"the page leaves the screen");
+	runtime.Frame(viewport,13.1);
+	Check(Near(value("p_screen2","opacity",0),0,.01f),"leaving stops the loop with every screen out");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 19,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui");
+	Check(argc == 20,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3331,6 +3391,7 @@ int main(int argc, char** argv) {
 	CheckDemosPage(host,argv[17]);
 	CheckModsDialog(host,argv[1]);
 	CheckRestartMenu(host,argv[18]);
+	CheckCreditsPage(host,argv[19]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;
