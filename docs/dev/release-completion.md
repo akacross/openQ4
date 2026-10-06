@@ -924,12 +924,18 @@
   browser saved it as "localhost" and never contacted it. Favorites saved
   that way are picked up again automatically.
 
-- Preview: with `ui_retainedMultiplayer 1`, JOIN GAME on the Multiplayer page
-  slides one level down to a rebuilt server browser: the Internet or LAN
-  list with sortable columns, favorites, passworded and dedicated servers and
-  Q4TV repeaters marked, the mod filter, the chosen server's levelshot, a
-  favorite toggle and JOIN SERVER. Joining by IP address and finding a player
-  still need the classic browser, which JOIN GAME opens by default.
+- The server browser is rebuilt in the modern interface: JOIN GAME on the
+  Multiplayer page slides one level down to it. It lists Internet or LAN
+  servers in sortable columns, marks favorites, passworded and dedicated
+  servers and Q4TV repeaters, filters by mod, shows the chosen server's
+  levelshot, adds or removes favorites, joins by IP address (showing your
+  own) and finds a player's servers.
+
+- FIND PLAYER/CLAN in the classic server browser works again: it now shows
+  only the listed servers with a player whose name contains what you typed.
+  The original searched through id's master server, which no longer answers.
+
+- JOIN IP ADDRESS shows your IP address again, as the original did.
 
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.

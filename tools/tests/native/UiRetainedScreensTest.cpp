@@ -159,7 +159,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinConnect","joinSearch","joinSearchClear",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2696,25 +2696,37 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		"the favorite toggle ends with JOIN SERVER and clears the levelshot frame");
 	Check(Near(join.x,x0+385*u,1) && Near(join.y,330*u,1) && Near(status.x,x0+41*u,1) && Near(status.y,291*u,1),
 		"JOIN SERVER and the status line stand where the stock page's do");
+	// The list's four actions down the leading column on a 26 u pitch, each as
+	// wide as the longest label of any (FIND PLAYER/CLAN's Italian).
+	const auto refresh = bounds("join_refresh"), joinIp = bounds("join_ip"), find = bounds("join_find");
+	Check(Near(refresh.x,x0+19*u,1) && Near(joinIp.x,x0+19*u,1) && Near(find.y-joinIp.y,26*u,1) && Near(joinIp.y-refresh.y,52*u,1) &&
+		Near(find.width,refresh.width,.5f) && find.width >= 208*u - .5f && find.x+find.width < bounds("join-shot-back").x &&
+		text("join_ip-label","text") == "#str_200025" && text("join_find-label","text") == "#str_200182",
+		"JOIN IP ADDRESS and FIND PLAYER/CLAN follow GET NEW LIST, clear of the levelshot");
 	const auto internet = bounds("join_internet"), lan = bounds("join_lan");
 	Check(Near(lan.x+lan.width,x0+613*u,1) && internet.x+internet.width < lan.x && Near(internet.y,46*u,1),
 		"the source tags end where the stock LAN tag did, INTERNET before LAN");
 	Check(text("crumb","text") == "#str_200002" && text("title","text") == "#str_200187" && Near(bounds("title").x,x0+136*u,1),
 		"MULTIPLAYER is the crumb and JOIN GAME titles the sub-page at the step's foot");
 	// Nothing listed: the empty line, unless a scan runs; nothing to join.
-	Check(text("join-empty","display") == "block" && text("server-0","display") == "none" &&
+	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231133" && text("server-0","display") == "none" &&
 		runtime.GetControlState("join_server") == ControlState::Disabled && runtime.GetControlState("join_favorite") == ControlState::Disabled,
 		"an empty list says so, with nothing to join or favorite");
 	Check(runtime.SetState({{"join.scanning",true},{"join.status",std::string("Scanning - Found: 0")}},error,0.75),"a scan starts");
 	runtime.Frame(viewport,0.8);
 	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0","a running scan shows its status, not the empty line");
+	// Servers the filters or a search all hide: the empty line says none matches.
+	Check(runtime.SetState({{"join.scanning",false},{"join.listed",2.0},{"join.status",std::string("Showing 0 out of 2 servers")}},error,0.81),
+		"a filter hides both servers the scan holds");
+	runtime.Frame(viewport,0.82);
+	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231134","the empty line tells a filtered list apart");
 	StateValues servers = {{"join.scanning",false},{"join.count",3.0},{"join.first",0.0},{"join.selected",-1.0},{"join.sort",0.0},
 		{"join.ascending",true},{"join.status",std::string("Showing 3 out of 3 servers")},
 		{"join.row0.name",std::string("Refinement Arena")},{"join.row0.ping",std::string("12")},{"join.row0.players",std::string("1/8")},
 		{"join.row0.type",std::string("Deathmatch")},{"join.row0.map",std::string("Fragging Yard")},{"join.row0.fav",true},
 		{"join.row1.name",std::string("Strogg Hive")},{"join.row1.ping",std::string("40")},{"join.row1.lock",true},
 		{"join.row2.name",std::string("Lost Fleet")},{"join.row2.ping",std::string("85")},{"join.row1.ded",true},{"join.row2.rep",true},
-		{"join.mod",std::string("All")}};
+		{"join.mod",std::string("All")},{"join.listed",3.0}};
 	Check(runtime.SetState(servers,error,0.85),"the session lists three servers");
 	runtime.Frame(viewport,0.9);
 	Check(text("join-empty","display") == "none" && text("server-2","display") == "block" && text("server-3","display") == "none" &&
@@ -2769,7 +2781,55 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,1.45);
 	Check(text("servers-newer","display") == "block" && text("servers-older","display") == "none" && text("server-5","display") == "block" &&
 		text("server-6","display") == "none","the last page pages back and holds the rest");
-	Check(runtime.RunEvent("onBack",1.5,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back","Back asks to climb out");
+	// A player search shows its tag after the status line; Accept ends it.
+	Check(text("join_search","display") == "none","no search, no tag");
+	Check(runtime.SetState({{"join.search",std::string("Grunt")}},error,1.46),"the session publishes a search");
+	runtime.Frame(viewport,1.47);
+	Check(text("join_search","display") == "block" && text("join-search-name","text") == "Grunt" &&
+		bounds("join_search").x > bounds("join-status").x+bounds("join-status").width && Near(bounds("join_search").y,290*u,1.5f) &&
+		bounds("join_search").x+bounds("join_search").width < bounds("join_clearsort").x,
+		"the search's tag stands between the status line and CLEAR SORTING");
+	const auto searchAction = document.Model().actions.find("joinSearchClear");
+	Check(searchAction != document.Model().actions.end() && std::get<std::string>(searchAction->second.arguments.at("command").literal) == "joinSearchClear",
+		"its Accept ends the search");
+	// JOIN IP ADDRESS: the dialog opens on the address field; CONNECT applies
+	// once there is an address and asks the session; a refusal shows its
+	// reason; this machine's address shows; Back returns to the plate.
+	Check(runtime.FocusControl("join_ip",1.48) && runtime.RunEvent("joinIpOpen",1.5,effects,error),"JOIN IP ADDRESS opens its dialog");
+	runtime.Frame(viewport,1.75);
+	Check(text("joinIpModal","display") == "block" && runtime.FocusedControl() == "join-address" &&
+		runtime.GetControlState("joinIpModal_yes") == ControlState::Disabled && text("joinIpModal_yes-label","text") == "#str_200171" &&
+		text("join-yourip","text") == "#str_200180","the dialog opens on the address field, with nothing to connect to yet");
+	const auto* addressNode = document.Model().FindNode("join-address");
+	Check(addressNode && addressNode->control && std::holds_alternative<NumberSpec>(addressNode->control->widget) &&
+		std::get<NumberSpec>(addressNode->control->widget).maxBytes == 99 && !std::get<NumberSpec>(addressNode->control->widget).masked,
+		"the address takes the stock field's 99 bytes");
+	Check(runtime.SetState({{"join.address",std::string("192.0.2.9:28004")},{"join.clientip",std::string("192.0.2.7")},
+		{"join.addressError",std::string("Cannot join 192.0.2.9:28004")}},error,1.8),"an address, this machine's and a refusal");
+	runtime.Frame(viewport,1.85);
+	Check(runtime.GetControlState("joinIpModal_yes") != ControlState::Disabled && text("join-yourip-value","text") == "192.0.2.7" &&
+		text("join-address-error","display") == "block" && text("join-address-error","text") == "Cannot join 192.0.2.9:28004",
+		"CONNECT applies, this machine's address and the refusal's reason show");
+	Check(runtime.RunEvent("joinIpConnect",1.9,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinConnect",
+		"CONNECT asks the session to connect");
+	Check(runtime.RunEvent("joinIpModalHide",2.0,effects,error),"the dialog closes");
+	runtime.Frame(viewport,2.4);
+	Check(text("joinIpModal","display") == "none" && runtime.FocusedControl() == "join_ip","closing it returns to JOIN IP ADDRESS");
+	// FIND PLAYER/CLAN: the name field (31 bytes, a player name's, possibly
+	// empty to end a search); SEARCH asks the session and closes the dialog.
+	Check(runtime.FocusControl("join_find",2.45) && runtime.RunEvent("findOpen",2.5,effects,error),"FIND PLAYER/CLAN opens its dialog");
+	runtime.Frame(viewport,2.75);
+	Check(text("findModal","display") == "block" && runtime.FocusedControl() == "join-find" && text("join-find-label","text") == "#str_200254",
+		"the dialog opens on SEARCH FOR:");
+	const auto* findNode = document.Model().FindNode("join-find");
+	Check(findNode && findNode->control && std::holds_alternative<NumberSpec>(findNode->control->widget) &&
+		std::get<NumberSpec>(findNode->control->widget).maxBytes == 31 && std::get<NumberSpec>(findNode->control->widget).allowEmpty,
+		"a name takes 31 bytes and may be empty");
+	Check(runtime.RunEvent("findSearch",2.8,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinSearch",
+		"SEARCH asks the session to search");
+	runtime.Frame(viewport,3.2);
+	Check(text("findModal","display") == "none" && runtime.FocusedControl() == "join_find","and the dialog closes onto FIND PLAYER/CLAN");
+	Check(runtime.RunEvent("onBack",3.3,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back","Back asks to climb out");
 }
 
 // The Create Server sub-page (FLOW-050): the stock Create Server page's

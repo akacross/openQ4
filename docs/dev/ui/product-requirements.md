@@ -587,6 +587,8 @@ On engine `03688d4387b0661ef86de7359c0bcd1306cca12b`, Multiplayer's JOIN GAME go
 
 On engine `c09c2195de958d704bbeb53f5cc7010824caf4d4`, the retained Join Game gains the stock list's symbols on their tiles, the mod filter, a favorite toggle and the chosen server's levelshot, leaving JOIN IP ADDRESS and FIND PLAYER/CLAN to keep it opt-in. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-symbols-evidence/validation-evidence.json`, SHA-256 `fc9c671fb6fe43184528d0613b8bdbe4c44794efca2598295c47d0e5a8e538bc`.
 
+On engine `5f62d8a6df8510260df59f46990949aaf234e4a5`, the retained Join Game becomes the default: JOIN IP ADDRESS and FIND PLAYER/CLAN open entry dialogs, the stock popups' "your ip address:" and player search work again, and the Multiplayer page goes deeper to both of its sub-pages without an opt-in. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-default-evidence/validation-evidence.json`, SHA-256 `4d2c6a2f86f0f1c3fa141acba00768cdbe5783344740d6d0071d74163d51ba4c`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

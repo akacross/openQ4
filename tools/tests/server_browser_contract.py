@@ -52,6 +52,25 @@ public:
         return 0;
     }
     friend idStr operator+(const idStr &a,const char *b) { return idStr(a.value+b); }
+    // idStr's own: a caret and a digit (or c and three digits) is a color.
+    void RemoveColors() {
+        std::string out;
+        for(size_t i=0;i<value.size();++i){
+            if(value[i]=='^'&&i+4<value.size()&&(value[i+1]=='c'||value[i+1]=='C')){i+=4;continue;}
+            if(value[i]=='^'&&i+1<value.size()&&std::isdigit(static_cast<unsigned char>(value[i+1]))){++i;continue;}
+            out+=value[i];
+        }
+        value=out;
+    }
+    void StripLeading(char c) { while(!value.empty()&&value.front()==c)value.erase(value.begin()); }
+    void StripTrailing(char c) { while(!value.empty()&&value.back()==c)value.pop_back(); }
+    int Cmp(const char *s) const { return value.compare(s); }
+    int Find(const char *text,bool casesensitive=true) const {
+        std::string a=value,b=text;
+        if(!casesensitive){for(char &c:a)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                           for(char &c:b)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));}
+        const auto at=a.find(b);return at==std::string::npos?-1:static_cast<int>(at);
+    }
     int Icmp(const char *s) const { return Icmp(c_str(),s); }
     int Icmp(const idStr &s) const { return Icmp(c_str(),s.c_str()); }
     operator const char *() const { return c_str(); }
@@ -317,6 +336,24 @@ int main(){
      assert(!local.ToggleFavoriteServer(1)&&!local.ToggleFavoriteServer(-1)&&fileValue.files["server_favorites.list"]==kept);
      assert(local.ToggleFavoriteServer(0)&&local.IsFavoriteServer(0));
      local.Shutdown();}
+    // FIND PLAYER/CLAN: only servers with a player whose name holds the text
+    // (colors removed, any case) pass; empty text, or a new search, clears it.
+    {idServerScan search;search.GUIConfig(&gui,"serverList");search.GUIInit();search.SetupLANScan();
+     auto x=server("10.2.0.1",5,"With Grunt",2);x.challenge=search.GetChallenge();
+     std::snprintf(x.nickname[0],MAX_NICKLEN,"%s","^1[Q4]^7Grunt");std::snprintf(x.nickname[1],MAX_NICKLEN,"%s","Kane");
+     auto y=server("10.2.0.2",9,"Without",1);y.challenge=search.GetChallenge();std::snprintf(y.nickname[0],MAX_NICKLEN,"%s","Strauss");
+     auto z=server("10.2.0.3",9,"Empty",0);z.challenge=search.GetChallenge();
+     assert(search.InfoResponse(x)==0&&search.InfoResponse(y)==1&&search.InfoResponse(z)==2);
+     idList<int> order;search.VisibleServers(order);assert(order.Num()==3);
+     const int before=search.GetRevision();
+     search.SetPlayerSearch("  grunt ");assert(!std::strcmp(search.GetPlayerSearch(),"grunt")&&search.GetRevision()>before);
+     search.VisibleServers(order);assert(order.Num()==1&&order[0]==0);
+     search.SetPlayerSearch("[q4]");search.VisibleServers(order);assert(order.Num()==1&&order[0]==0);   // a clan tag in a name
+     search.SetPlayerSearch("^2STRAUSS");search.VisibleServers(order);assert(order.Num()==1&&order[0]==1);
+     search.SetPlayerSearch("nobody");search.VisibleServers(order);assert(order.Num()==0);
+     const int same=search.GetRevision();search.SetPlayerSearch("nobody");assert(search.GetRevision()==same);
+     search.SetPlayerSearch("");search.VisibleServers(order);assert(order.Num()==3);
+     search.Shutdown();}
     // A server's map path is looked up only when it is a plain map path.
     assert(idServerScan::ValidMapPath("mp/q4dm1")&&!idServerScan::ValidMapPath("../secret")&&!idServerScan::ValidMapPath("/absolute"));
     // Execute the real packet callback: losing any required field must not
@@ -360,7 +397,8 @@ def main() -> None:
         source.write_text(support + header + scan + PACKET_SUPPORT + response + MAIN, encoding="utf-8")
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
-    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, read view, malformed input)")
+    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, player search, read view, "
+          "malformed input)")
 
 
 if __name__ == "__main__":

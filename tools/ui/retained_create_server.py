@@ -164,11 +164,13 @@ def among(types: tuple) -> dict:
 
 
 def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: float, state: str, event: str, max_bytes: int,
-             row_h: float, allow_empty: bool = False, masked: bool = False) -> dict:
+             row_h: float, allow_empty: bool = False, masked: bool = False, caption: bool = True) -> dict:
     """A text setting (section 7 with the Save page's text field): the label in
     its column and the field in the value column, which Enter commits into the
     page's own `state` and then runs `event`, which asks the session to take it.
-    `allow_empty` lets the text be empty; `masked` shows it as one * a character."""
+    `allow_empty` lets the text be empty; `masked` shows it as one * a character.
+    Without `caption` the row shows no label (an entry dialog's lone field,
+    which its title names); `label_key` still names it for assistive output."""
     shape = [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)]
     plate = vector(f"{ident}-plate", FULL, [path("plate", shape, fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1))])
     wash = vector(f"{ident}-wash", {**FULL, "opacity": number(0)}, [
@@ -203,7 +205,8 @@ def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: f
                **({"allowEmpty": True} if allow_empty else {}), **({"masked": True} if masked else {}), "parts": parts,
                "states": setting_states(doc, ident)}
     return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width), "height": length(row_h),
-                         "opacity": number(1), "flex-shrink": number(0)}, [plate, wash, rail, head, viewport, validation], control=control)
+                         "opacity": number(1), "flex-shrink": number(0)}, [plate, wash, rail, *([head] if caption else []), viewport, validation],
+                 control=control)
 
 
 def setting_rows(doc: Document, settings: tuple, width: float, value_x: float, row_h: float, controls: dict, placement: str) -> list:

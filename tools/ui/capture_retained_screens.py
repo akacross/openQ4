@@ -505,25 +505,27 @@ SCENARIOS = {
     ]),
     # The Multiplayer page (FLOW-050): MULTIPLAYER hands off and the page
     # presents at 550 ms in the page state under its carried title. CREATE
-    # SERVER leaves it as the stock Multiplayer page leaves, and the stock
-    # Create Server page takes over at 500 ms; its BACK returns the retained
-    # page. JOIN GAME opens the stock browser on the LAN (openq4_browser
-    # source lan, so no master server is asked) and PLAYER SETUP the stock
-    # Settings page, and their BACK returns too; BACK returns the title from
-    # the page dock.
+    # SERVER and JOIN GAME go deeper to their retained sub-pages (JOIN GAME's
+    # on the LAN source, openq4_browser source lan, so no list asks a master
+    # server), and each one's BACK climbs out onto its section; PLAYER SETUP
+    # leaves the page as the stock Multiplayer page leaves, the stock Settings
+    # page takes over at 500 ms and its BACK returns the retained page; BACK
+    # returns the title from the page dock.
     'multiplayer': (None, [
-        'waitMsec 4000', 'openq4_browser source lan',
+        'waitMsec 7000', 'openq4_browser source lan',
         'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 250', 'screenshot "screenshots/multiplayer-handoff.tga"', 'waitMsec 1000', 'ui_retainedStatus',
         'openq4_retainedGui report', 'screenshot "screenshots/multiplayer.tga"',
         'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 150', 'screenshot "screenshots/multiplayer-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
         'screenshot "screenshots/multiplayer-create.tga"',
-        'openq4_guiAction mp_b_create_back', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
         'screenshot "screenshots/multiplayer-returned.tga"',
         'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 3000', 'screenshot "screenshots/multiplayer-browser.tga"',
-        'openq4_guiAction mp_b_browse_back', 'waitMsec 1500', 'openq4_retainedGui report',
+        'waitMsec 1500', 'screenshot "screenshots/multiplayer-browser.tga"',
+        'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui report',
         'openq4_retainedGui focus setup', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 1500', 'screenshot "screenshots/multiplayer-setup.tga"',
         'openq4_guiAction mp_b_set_back', 'waitMsec 1500', 'openq4_retainedGui report',
@@ -592,7 +594,11 @@ SCENARIOS = {
         'openq4_retainedGui focus create_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_gameType', 'si_map', 'ui_retainedStatus', 'screenshot "screenshots/createserverstart-match.tga"', 'disconnect', 'waitMsec 2000',
     ]),
-    # The Join Game sub-page (FLOW-050), opted into (SCENARIO_CVARS): JOIN GAME
+    # The Join Game scenarios wait 2.5 s around page and dialog changes: a
+    # hidden Vulkan window can wait up to a second for a swapchain image, so
+    # its frames alternate ~40 ms and ~1 s, and a dialog's focus lands only on
+    # the frame its timeline ends.
+    # The Join Game sub-page (FLOW-050), the default: JOIN GAME
     # on the Multiplayer page goes deeper and the browser presents at 350 ms
     # under the MULTIPLAYER crumb, empty before any scan. INTERNET gets a new
     # list: the master server cannot be reached from the loopback the client
@@ -622,9 +628,9 @@ SCENARIOS = {
         'openq4_retainedGui focus join_clearsort', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"',
         'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 1200', 'openq4_retainedGui report', 'screenshot "screenshots/joingame-back.tga"',
+        'waitMsec 2500', 'openq4_retainedGui report', 'screenshot "screenshots/joingame-back.tga"',
         'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 1200', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0-selected"',
         'openq4_retainedGui inspect "server-0-ded"', 'openq4_retainedGui inspect "join-shot"',
         'screenshot "screenshots/joingame-chosen.tga"',
@@ -637,9 +643,37 @@ SCENARIOS = {
         'waitMsec 400', 'openq4_retainedGui inspect "server-0"', 'screenshot "screenshots/joingame-mod.tga"',
         'openq4_retainedGui focus join_mod_previous', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400',
+        # FIND PLAYER/CLAN for a name no player has: the list empties under the
+        # search's tag, and the tag's Accept brings the server back.
+        'openq4_retainedGui focus join_find', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2500',
+        'openq4_retainedGui report', 'openq4_retainedGui number begin "join-find"', 'openq4_retainedGui number input "join-find" "Grunt"',
+        'openq4_retainedGui number commit "join-find"', 'waitMsec 2500', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join_search"', 'screenshot "screenshots/joingame-search.tga"',
+        'openq4_retainedGui focus join_search', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1000',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join_search"',
         'set logFileName "logs/openq4-match.log"',
         'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
+    # JOIN IP ADDRESS on the Join Game sub-page: an address it cannot join
+    # keeps the dialog with the reason (spaces fail before any lookup); the
+    # loopback dedicated server's address (SCENARIO_SERVERS), entered, joins
+    # it and closes the dialog, the game module reloading into game_mp.
+    'joingameaddress': (None, [
+        'waitMsec 7000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_ip', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui report', 'openq4_retainedGui inspect "join-yourip-value"',
+        'screenshot "screenshots/joingameaddress-open.tga"',
+        'openq4_retainedGui number begin "join-address"', 'openq4_retainedGui number input "join-address" "not an address"',
+        'openq4_retainedGui number commit "join-address"', 'waitMsec 1000', 'openq4_retainedGui inspect "join-address-error"',
+        'openq4_retainedGui report', 'screenshot "screenshots/joingameaddress-error.tga"',
+        'openq4_retainedGui number begin "join-address"', 'openq4_retainedGui number select "join-address" 0 14',
+        'openq4_retainedGui number replace "join-address" "127.0.0.1:27962"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui number commit "join-address"', AFTER_MAP,
+        'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingameaddress-match.tga"', 'disconnect', 'waitMsec 2000',
     ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
@@ -772,7 +806,8 @@ SCENARIO_PORTS = {'arenafail': 27961}
 # A dedicated server a scenario starts first (its loopback port, map and
 # name), from the runtime with its own savepath; it quits once the client is
 # done.
-SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
+SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
     'retained_arenafail_after.cfg': [
@@ -791,7 +826,7 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
                   'multiplayer': {'net_allowCheats': '1'},
                   'createserverstart': {'net_ip': '127.0.0.1'},
-                  'joingame': {'net_ip': '127.0.0.1', 'ui_retainedMultiplayer': '1'}}
+                  'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'

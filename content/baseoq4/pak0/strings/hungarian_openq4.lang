@@ -1252,4 +1252,5 @@
 	"#str_231131"	"ELŐZŐ SZERVEREK"
 	"#str_231132"	"TOVÁBBI SZERVEREK"
 	"#str_231133"	"Nem található szerver."
+	"#str_231134"	"Egyetlen szerver sem felel meg a jelenlegi szűrőknek."
 }

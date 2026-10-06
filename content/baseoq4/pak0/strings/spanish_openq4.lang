@@ -1252,4 +1252,5 @@
 	"#str_231131"	"SERVIDORES ANTERIORES"
 	"#str_231132"	"MÁS SERVIDORES"
 	"#str_231133"	"No se encontraron servidores."
+	"#str_231134"	"Ningún servidor coincide con los filtros actuales."
 }

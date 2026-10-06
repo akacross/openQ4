@@ -126,6 +126,12 @@ public:
 	bool				ToggleFavoriteServer( int index );
 	void				AddFavoriteServers();
 	void				UpdateFilterByMod( int direction );
+	// FIND PLAYER/CLAN: only servers with a player whose name holds `text`
+	// (colors removed, in any case) pass the filter; empty text clears it.
+	// Retail asked the master server, which no master answers now; a clan
+	// tag is part of a player's name.
+	void				SetPlayerSearch( const char *text );
+	const char *		GetPlayerSearch() const { return playerSearch.c_str(); }
 	void				ResetSorting();
 
 	void				Shutdown( );
@@ -183,6 +189,7 @@ private:
 	idList<int>			m_sortedServers;	// use ascending for the walking order
 
 	idStr				screenshot;
+	idStr				playerSearch;		// see SetPlayerSearch
 	idStrList			favorites;
 	bool				favoritesLoaded;
 	int					challenge;			// challenge for current scan

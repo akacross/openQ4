@@ -325,6 +325,17 @@ struct CommandSystem {
         std::string joined; for (const auto& arg : line.args) joined += (joined.empty() ? "" : " ") + arg; buffered.push_back(joined);
     }
 } commands, *cmdSystem = &commands;
+// JOIN IP ADDRESS's connect (Session_ConnectToTypedAddress, which the stock
+// inetConnect shares and check_join_game pins): an address with a space or a
+// semicolon is refused with its reason; any other connects.
+static std::vector<std::string> typedAddresses;
+static bool Session_ConnectToTypedAddress(const char* text, idStr& error) {
+    typedAddresses.push_back(text);
+    if (std::strchr(text, ' ') || std::strchr(text, ';')) { error = std::string("Cannot join ") + text; return false; }
+    commands.buffered.push_back(std::string("connect ") + text); return true;
+}
+// This machine's address, as Sys_GetLocalIPAddress gives it.
+static idStr Session_LocalAddressText() { return idStr("192.0.2.7"); }
 // The legacy main menu's desktop variables, as presentation queries read them.
 static std::map<std::string, int> legacy;
 // Only the GUI's own `set` leaves a variable's declared expression (the
@@ -433,6 +444,10 @@ struct idServerScan {
         ++revision;
     }
     static bool ValidMapPath(const char* path) { return path && *path && !std::strstr(path, "..") && path[0] != '/'; }
+    // FIND PLAYER/CLAN's search, which the scan filters by.
+    std::string search;
+    void SetPlayerSearch(const char* text) { calls.push_back(std::string("SetPlayerSearch ") + text); search = text; ++revision; }
+    const char* GetPlayerSearch() const { return search.c_str(); }
 };
 struct AsyncClient { idServerScan serverList; };
 struct idAsyncNetwork {
@@ -1095,27 +1110,28 @@ int main() {
         // BACK before any stock page: the title returns as from any page.
         s.HandleRetainedSessionRequest(page, "multiplayerBack");
         CHECK(s.guiActive == s.guiMainMenu && title->named.back() == "returnHome" && s.guiRetainedHome == title);
-        // Again, and JOIN GAME: the page leaves, and takes no other choice
-        // meanwhile, CREATE SERVER's change of level among them.
+        // Again, and PLAYER SETUP: the page leaves, and takes no other choice
+        // meanwhile, the sub-pages' changes of level among them.
         s.HandleRetainedSessionRequest(title, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         CHECK(s.guiActive == page);
         const size_t sounds = s.played.size();
-        s.HandleRetainedSessionRequest(page, "multiplayerJoin");
-        CHECK(page->named.back() == "depart" && s.retainedMpPageDest == 14 && s.played.size() == sounds + 1);
-        s.HandleRetainedSessionRequest(page, "multiplayerCreate"); s.HandleRetainedSessionRequest(page, "multiplayerBack");
-        CHECK(s.retainedMpPageDest == 14 && s.played.size() == sounds + 1 && s.guiActive == page && s.retainedSubpageFrom == nullptr);
+        s.HandleRetainedSessionRequest(page, "multiplayerSetup");
+        CHECK(page->named.back() == "depart" && s.retainedMpPageDest == 18 && s.played.size() == sounds + 1);
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate"); s.HandleRetainedSessionRequest(page, "multiplayerJoin");
+        s.HandleRetainedSessionRequest(page, "multiplayerBack");
+        CHECK(s.retainedMpPageDest == 18 && s.played.size() == sounds + 1 && s.guiActive == page && s.retainedSubpageFrom == nullptr);
         commonObject.time += 499; s.UpdateRetainedMultiplayerPage(); CHECK(s.guiActive == page && timeRuns.empty());
         commonObject.time += 1; s.UpdateRetainedMultiplayerPage();
         CHECK(s.guiActive == s.guiMainMenu && s.retainedMpPageDest == 0 && s.retainedPageHome == nullptr);
-        CHECK(legacy["desktop::curr"] == 3 && legacy["desktop::active"] == 1 && legacy["desktop::dest"] == 14 && expressionWrites == 0 &&
+        CHECK(legacy["desktop::curr"] == 3 && legacy["desktop::active"] == 1 && legacy["desktop::dest"] == 18 && expressionWrites == 0 &&
               s.guiMainMenu->named.back() == "openMultiplayerPage" &&
               (timeRuns == std::vector<std::string>{"guis/mainmenu.gui"}));  // its timelines caught up first
         s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);  // the stock page presents alone
         // Its Back: the stock page leaves for the Multiplayer page and the retained one presents at once.
-        legacy["desktop::curr"] = 14; legacy["desktop::dest"] = 3;
+        legacy["desktop::curr"] = 18; legacy["desktop::dest"] = 3;
         CHECK(s.OpenRetainedMultiplayerPage() && s.guiActive == page && s.retainedPageHome == nullptr && s.retainedMpPageDest == 0);
-        // JOIN GAME and PLAYER SETUP choose the browser and the Settings page.
-        for (const auto& [verb, dest] : {std::pair<const char*, int>{"multiplayerJoin", 14}, {"multiplayerSetup", 18}}) {
+        // PLAYER SETUP chooses the Settings page again.
+        for (const auto& [verb, dest] : {std::pair<const char*, int>{"multiplayerSetup", 18}}) {
             s.HandleRetainedSessionRequest(page, verb); CHECK(s.retainedMpPageDest == dest);
             commonObject.time += 500; s.UpdateRetainedMultiplayerPage();
             CHECK(s.guiActive == s.guiMainMenu && legacy["desktop::dest"] == dest && s.guiMainMenu->named.back() == "openMultiplayerPage");
@@ -1291,21 +1307,20 @@ int main() {
               (Stock(s) == std::vector<std::string>{"guis/menu/createserver.q4ui"}));
         ui_retainedMultiplayer.value = false;
     }
-    {   // The Join Game sub-page (FLOW-050), Multiplayer's server browser, is
-        // opt-in while it lacks some of the stock browser
-        // (RETAINED_JOIN_GAME_MISSING): without ui_retainedMultiplayer it never
-        // loads and JOIN GAME opens the stock browser.
+    {   // The Join Game sub-page (FLOW-050), Multiplayer's server browser,
+        // offers all the stock browser does (RETAINED_JOIN_GAME_MISSING is
+        // empty), so it is the default: without ui_retainedMultiplayer it
+        // preloads and JOIN GAME goes deeper.
         auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
-        CHECK(s.guiRetainedJoin == nullptr && s.RetainedJoinGamePage() == nullptr &&
-              std::find(managerObject.loads.begin(), managerObject.loads.end(), "guis/menu/joingame.q4ui") == managerObject.loads.end());
+        CHECK(s.guiRetainedJoin != nullptr && s.RetainedJoinGamePage() == s.guiRetainedJoin);
         s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         s.HandleRetainedSessionRequest(s.guiRetainedMpPage, "multiplayerJoin");
-        CHECK(s.retainedMpPageDest == 14 && s.retainedSubpageFrom == nullptr && s.guiRetainedMpPage->named.back() == "depart");
+        CHECK(s.retainedMpPageDest == 0 && s.retainedSubpageFrom == s.guiRetainedMpPage && s.guiRetainedMpPage->named.back() == "subpageEnterJoin");
     }
-    {   // With ui_retainedMultiplayer, JOIN GAME goes deeper as CREATE SERVER
-        // does, and at 350 ms the sub-page presents as the stock browser opens
-        // (InitServerBrowser), listing the servers the scan found and the
-        // filter passes, in its sort's order.
+    {   // JOIN GAME goes deeper as CREATE SERVER does (ui_retainedMultiplayer
+        // set here changes nothing for it), and at 350 ms the sub-page
+        // presents as the stock browser opens (InitServerBrowser), listing the
+        // servers the scan found and the filter passes, in its sort's order.
         auto s = Session(true); ui_retainedMultiplayer.value = true;
         auto& scan = idAsyncNetwork::client.serverList;
         const auto server = [](const std::string& address, const std::string& name, int ping, int clients, const char* type = "DM") {
@@ -1331,9 +1346,10 @@ int main() {
               s.retainedSubpageKind == RETAINED_SUBPAGE_JOIN_GAME && s.retainedSubpageUntil == commonObject.time + 350 && s.retainedMpPageDest == 0);
         s.HandleRetainedSessionRequest(page, "multiplayerCreate"); CHECK(s.retainedSubpageKind == RETAINED_SUBPAGE_JOIN_GAME);  // nothing else meanwhile
         commonObject.time += 350; s.UpdateRetainedSubpage();
-        CHECK(s.guiActive == join && s.retainedSubpageFrom == nullptr && (scan.calls == std::vector<std::string>{"GUIInit"}));
-        CHECK(join->state["join.count"] == "3" && join->state["join.first"] == "0" && join->state["join.selected"] == "-1" &&
-              join->state["join.sort"] == "0" && join->state["join.ascending"] == "1" && join->state["join.lan"] == "0" &&
+        CHECK(s.guiActive == join && s.retainedSubpageFrom == nullptr && (scan.calls == std::vector<std::string>{"GUIInit"}) &&
+              join->state["join.clientip"] == "192.0.2.7" && join->state["join.search"] == "");
+        CHECK(join->state["join.count"] == "3" && join->state["join.listed"] == "3" && join->state["join.first"] == "0" &&
+              join->state["join.selected"] == "-1" && join->state["join.sort"] == "0" && join->state["join.ascending"] == "1" && join->state["join.lan"] == "0" &&
               join->state["join.scanning"] == "0" && join->state["join.status"] == "Showing 3 out of 3 servers");
         // The rows in the list's order, the servers' text read as players'
         // text: a nameless server by its address, a negative ping as 0, the
@@ -1371,6 +1387,23 @@ int main() {
         // MOD's spinner shows the next and the previous mod.
         s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
         s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
+        // JOIN IP ADDRESS: nothing entered, nothing to join; an address it
+        // cannot join keeps the dialog with the reason; one it can connects and
+        // closes the dialog.
+        const size_t connects = commands.buffered.size();
+        join->state["join.address"] = ""; s.HandleRetainedSessionRequest(join, "joinConnect");
+        CHECK(typedAddresses.empty() && commands.buffered.size() == connects);
+        join->state["join.address"] = "bad address"; s.HandleRetainedSessionRequest(join, "joinConnect");
+        CHECK(typedAddresses.back() == "bad address" && join->state["join.addressError"] == "Cannot join bad address" &&
+              commands.buffered.size() == connects && (join->named.empty() || join->named.back() != "joinIpModalHide"));
+        join->state["join.address"] = std::string(120, 'a'); s.HandleRetainedSessionRequest(join, "joinConnect");
+        CHECK(typedAddresses.back() == std::string(99, 'a') && join->named.back() == "joinIpModalHide");  // the stock field's 99
+        commands.buffered.resize(connects);
+        // FIND PLAYER/CLAN searches the list for the name entered; its tag
+        // ends the search.
+        join->state["join.find"] = "Gr^1unt"; s.HandleRetainedSessionRequest(join, "joinSearch");
+        CHECK(scan.calls.back() == "SetPlayerSearch Gr^1unt" && join->state["join.search"] == "Grunt");
+        s.HandleRetainedSessionRequest(join, "joinSearchClear"); CHECK(scan.calls.back() == "SetPlayerSearch " && join->state["join.search"] == "");
         // A map path the browser may not look up shows the generic art.
         join->state["join.pick"] = "0"; s.HandleRetainedSessionRequest(join, "joinPick");
         CHECK(join->state["join.selected"] == "0" && join->state["join.shot"] == "gfx/guis/loadscreens/generic" && join->state["join.favorite"] == "0");
@@ -1393,15 +1426,24 @@ int main() {
         // The Internet: GET NEW LIST asks the master server and the favorites,
         // REFRESH LIST the listed servers again.
         scan.calls.clear(); s.HandleRetainedSessionRequest(join, "joinNewList");
-        CHECK((scan.calls == std::vector<std::string>{"GUIInit", "GetNETServers", "AddFavoriteServers"}) && join->state["join.scanning"] == "1");
+        CHECK((scan.calls == std::vector<std::string>{"SetPlayerSearch ", "GUIInit", "GetNETServers", "AddFavoriteServers"}) &&
+              join->state["join.scanning"] == "1");
         s.HandleRetainedSessionRequest(join, "joinRefresh"); CHECK(scan.calls.back() == "NetScan" && commands.buffered.size() == buffered);
         // While a scan runs, a chosen server it has not listed again stays
-        // chosen; once it ends without it, the choice is gone.
+        // chosen; so does one the scan holds and a filter or search hides;
+        // once the scan no longer holds it, the choice is gone.
         scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
         CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress == "10.0.0.1:28004");
         scan.visible = {2, 0}; ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->state["join.selected"] == "1");
         scan.state = idServerScan::IDLE; scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
-        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress.empty() && join->state["join.scanning"] == "0");
+        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress == "10.0.0.1:28004" && join->state["join.scanning"] == "0");
+        scan.servers[0].adr.address = "10.0.0.9:28004"; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress.empty());
+        scan.servers[0].adr.address = "10.0.0.1:28004";
+        // Filters or a search that hide every server: none shown, three held.
+        scan.visible.clear(); ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.count"] == "0" && join->state["join.listed"] == "3");
+        scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
         // The LAN, which the legacy menu's scans read too: both ask the LAN.
         s.HandleRetainedSessionRequest(join, "joinSourceLan");
         CHECK(s.guiMainMenu->state["lanSet"] == "1" && join->state["join.lan"] == "1" && commands.buffered.back() == "LANScan" &&
@@ -1415,7 +1457,8 @@ int main() {
         for (int i = 0; i < 70; ++i) {
             scan.servers.push_back(server("10.0.1." + std::to_string(i) + ":28004", "Server " + std::to_string(i), i, 0)); scan.visible.push_back(i);
         }
-        ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->state["join.count"] == "70" && join->state["join.row63.name"] == "Server 63");
+        ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.count"] == "70" && join->state["join.listed"] == "70" && join->state["join.row63.name"] == "Server 63");
         s.HandleRetainedSessionRequest(join, "joinNewer"); CHECK(s.retainedJoinFirst == 0);
         s.HandleRetainedSessionRequest(join, "joinOlder");
         CHECK(s.retainedJoinFirst == 64 && join->state["join.first"] == "64" && join->state["join.row5.name"] == "Server 69" && join->state["join.row6.name"] == "");
@@ -1484,17 +1527,18 @@ int main() {
                                                             "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
                                                             "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
                                                             "guis/menu/demos.q4ui", "guis/menu/arena.q4ui",
-                                                            "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui"}) &&
+                                                            "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui",
+                                                            "guis/menu/joingame.q4ui"}) &&
               s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
         CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 11 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 12 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 11 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 12 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 12 + cards);
+              managerObject.loads.size() == 13 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -3491,7 +3535,7 @@ STOCK_BROWSER = {
     'mp_b_browse_uparrow': 'servers_scroll', 'mp_b_browse_dnarrow': 'servers_scroll',
     'mp_b_browse_sortDed': 'joinSortDedicated', 'mp_b_browse_sortRepeater': 'joinSortRepeater',
     'mp_b_browse_filter_prev_mod': 'joinModPrevious', 'mp_b_browse_filter_next_mod': 'joinModNext',
-    'mp_b_browse_joinipaddress': 'joinip', 'mp_b_browse_findplayerclan': 'findplayer', 'mp_b_browse_favsel': 'joinFavorite',
+    'mp_b_browse_joinipaddress': 'join_ip', 'mp_b_browse_findplayerclan': 'join_find', 'mp_b_browse_favsel': 'joinFavorite',
 }
 # What the stock page shows beyond its buttons: the chosen server's levelshot.
 STOCK_BROWSER_PANELS = {'mp_browse_info_mapshot': 'join-shot'}
@@ -3515,7 +3559,7 @@ def check_join_game(menu: str) -> None:
     assert order.index('SORT_NONE') == 11  # the page marks no column for it
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
     document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/joingame.q4ui').read_text(encoding='utf-8'), flags=re.M))
-    commands = {action['arguments']['command'] for action in document['actions'].values()}
+    commands = {action['arguments']['command'] for action in document['actions'].values() if action['operation'] == 'session.menu'}
     assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('join')} == commands, sorted(commands)
     nodes, pending = set(), [document['root']]
     while pending:
@@ -3543,12 +3587,27 @@ def check_join_game(menu: str) -> None:
     main_menu = re.sub(r'\(\s+\)', '()', function_body(text, 'void idSessionLocal::HandleMainMenuCommands('))
     for line in ('servers.GUIInit();', 'cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );', 'idAsyncNetwork::GetNETServers();',
                  'servers.AddFavoriteServers();', 'servers.NetScan();'):
-        assert line in scans and line.replace('servers.', 'idAsyncNetwork::client.serverList.') in main_menu, line
+        assert line in scans, line
+    assert ('if ( !idStr::Icmp( cmd, "UpdateServers" ) || !idStr::Icmp( cmd, "RefreshServers" ) ) {\n'
+            '\t\t\tSession_ScanServers( guiActive->State().GetBool( "lanSet" ), !idStr::Icmp( cmd, "UpdateServers" ) );') in main_menu
     handler = function_body(text, 'void idSessionLocal::HandleRetainedJoinGameRequest(')
     assert 'connectArgs.AppendArg( retainedJoinAddress.c_str() );' in handler and 'cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );' in handler
     assert 'guiMainMenu->SetStateBool( "lanSet",' in handler and 'servers.ResetSorting();' in handler
     # Each frame the page presents, its list follows the scan.
     assert 'UpdateRetainedMultiplayerPage();\n\tUpdateRetainedJoinGame();' in text
+    # JOIN IP ADDRESS: the page and the stock popup connect through one check
+    # (no control, quote, semicolon or backslash; resolved; IPv4, IPv6 or
+    # loopback; the default port), and the stock popup's "your ip address:"
+    # and FIND PLAYER/CLAN work again (retail's getClientIP; a local search,
+    # as no master answers retail's). A new list ends a search.
+    typed = function_body(text, 'static bool Session_ConnectToTypedAddress(')
+    for line in ("valid = *p > 32 && *p != 127 && *p != '\"' && *p != ';' && *p != '\\\\';", 'Sys_StringToNetAdr( text, &address, true )',
+                 '( address.type != NA_IP && address.type != NA_IP6 && address.type != NA_LOOPBACK )', 'address.port = PORT_SERVER;'):
+        assert line in typed, line
+    assert 'if ( !Session_ConnectToTypedAddress( s, error ) ) {' in main_menu
+    assert 'guiMainMenu->SetStateString( "net_ip", Session_LocalAddressText().c_str() );' in main_menu
+    assert 'idAsyncNetwork::client.serverList.SetPlayerSearch( guiActive->State().GetString( "playerclan_search" ) );' in main_menu
+    assert scans.index('servers.SetPlayerSearch( "" );') < scans.index('servers.GUIInit();')
 
 
 def check_retained_multiplayer(menu: str, session: str) -> None:

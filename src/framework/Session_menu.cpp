@@ -123,13 +123,13 @@ static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
 	NULL
 };
 // What the stock Join Game page (the server browser) offers that
-// Multiplayer's retained Join Game sub-page does not yet: JOIN IP ADDRESS and
-// FIND PLAYER/CLAN. While anything remains, JOIN GAME opens the stock browser
-// and only ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py
-// keeps this list equal to what the two pages offer (the stock PunkBuster
-// column, a discontinued service, needs no replacement).
+// Multiplayer's retained Join Game sub-page does not yet: nothing now. While
+// anything remains, JOIN GAME opens the stock browser and only
+// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
+// this list equal to what the two pages offer (the stock PunkBuster column, a
+// discontinued service, needs no replacement).
 static const char *const RETAINED_JOIN_GAME_MISSING[] = {
-	"joinip", "findplayer", NULL
+	NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
@@ -3023,6 +3023,74 @@ static bool Session_BanListRow( const char *row, idStr &name, idStr &guid ) {
 	return true;
 }
 
+// The stock browser's GET NEW LIST (UpdateServers) or REFRESH LIST
+// (RefreshServers) on a source: a new list asks the LAN, or the master
+// server and the favorites, and ends a player search, as retail's search was
+// a list of its own; a refresh asks the LAN again, or the listed servers.
+static void Session_ScanServers( bool lan, bool newList ) {
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	if ( newList ) {
+		servers.SetPlayerSearch( "" );
+		servers.GUIInit();
+	}
+	if ( lan ) {
+		cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
+	} else if ( newList ) {
+		idAsyncNetwork::GetNETServers();
+		servers.AddFavoriteServers();
+	} else {
+		servers.NetScan();
+	}
+}
+
+/*
+==============
+Session_ConnectToTypedAddress
+
+JOIN IP ADDRESS: connects to an address the player typed, checked before it
+reaches the command system (a hostname or IPv6 literal never becomes console
+text) and resolved, the default port added. False, with the message saying
+why (#str_06734), when it is not an address it can join.
+==============
+*/
+static bool Session_ConnectToTypedAddress( const char *text, idStr &error ) {
+	netadr_t address;
+	bool valid = text != NULL && text[0] != '\0' && strlen( text ) < 256;
+	for ( const unsigned char *p = reinterpret_cast<const unsigned char *>( text ); valid && *p; ++p ) {
+		valid = *p > 32 && *p != 127 && *p != '"' && *p != ';' && *p != '\\';
+	}
+	if ( !valid || !Sys_StringToNetAdr( text, &address, true ) ||
+		( address.type != NA_IP && address.type != NA_IP6 && address.type != NA_LOOPBACK ) ) {
+		error = va( common->GetLanguageDict()->GetString( "#str_06734" ), text != NULL ? text : "" );
+		return false;
+	}
+	if ( !address.port ) {
+		address.port = PORT_SERVER;
+	}
+	idCmdArgs connectArgs;
+	connectArgs.AppendArg( "connect" );
+	connectArgs.AppendArg( Sys_NetAdrToString( address ) );
+	cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
+	return true;
+}
+
+/*
+==============
+Session_LocalAddressText
+
+This machine's address as JOIN IP ADDRESS shows the player ("your ip
+address:"), as retail's getClientIP published it: its first non-loopback
+IPv4 interface's, without a port; empty when it has none.
+==============
+*/
+static idStr Session_LocalAddressText( void ) {
+	netadr_t address;
+	if ( !Sys_GetLocalIPAddress( address ) ) {
+		return "";
+	}
+	return va( "%i.%i.%i.%i", address.ip[0], address.ip[1], address.ip[2], address.ip[3] );
+}
+
 /*
 ==============
 idSessionLocal::HandleMainMenuCommands
@@ -3276,23 +3344,8 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			continue;
 		}
 
-		if ( !idStr::Icmp( cmd, "UpdateServers" ) ) {
-			idAsyncNetwork::client.serverList.GUIInit();
-			if ( guiActive->State().GetBool( "lanSet" ) ) {
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
-			} else {
-				idAsyncNetwork::GetNETServers();
-				idAsyncNetwork::client.serverList.AddFavoriteServers();
-			}
-			continue;
-		}
-
-		if ( !idStr::Icmp( cmd, "RefreshServers" ) ) {
-			if ( guiActive->State().GetBool( "lanSet" ) ) {
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
-			} else {
-				idAsyncNetwork::client.serverList.NetScan( );
-			}
+		if ( !idStr::Icmp( cmd, "UpdateServers" ) || !idStr::Icmp( cmd, "RefreshServers" ) ) {
+			Session_ScanServers( guiActive->State().GetBool( "lanSet" ), !idStr::Icmp( cmd, "UpdateServers" ) );
 			continue;
 		}
 
@@ -3443,27 +3496,26 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 				continue;
 			}
 
-			// Validate before handing a typed argument to the command system.
-			// A hostname or IPv6 literal must never become console command text.
-			netadr_t address;
-			bool valid = strlen( s ) < 256;
-			for ( const unsigned char *p = reinterpret_cast<const unsigned char *>( s ); valid && *p; ++p ) {
-				valid = *p > 32 && *p != 127 && *p != '"' && *p != ';' && *p != '\\';
-			}
-			if ( !valid || !Sys_StringToNetAdr( s, &address, true ) ||
-				( address.type != NA_IP && address.type != NA_IP6 && address.type != NA_LOOPBACK ) ) {
-				MessageBox( MSG_OK, va( common->GetLanguageDict()->GetString( "#str_06734" ), s ),
-					common->GetLanguageDict()->GetString( "#str_06735" ), true );
+			idStr error;
+			if ( !Session_ConnectToTypedAddress( s, error ) ) {
+				MessageBox( MSG_OK, error.c_str(), common->GetLanguageDict()->GetString( "#str_06735" ), true );
 				continue;
 			}
-			if ( !address.port ) {
-				address.port = PORT_SERVER;
-			}
-			idCmdArgs connectArgs;
-			connectArgs.AppendArg( "connect" );
-			connectArgs.AppendArg( Sys_NetAdrToString( address ) );
-			cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
 			return;
+		}
+
+		// JOIN IP ADDRESS's "your ip address:", as retail's session published it.
+		if ( !idStr::Icmp( cmd, "getClientIP" ) ) {
+			guiMainMenu->SetStateString( "net_ip", Session_LocalAddressText().c_str() );
+			continue;
+		}
+
+		// FIND PLAYER/CLAN: retail asked the master server for the servers the
+		// player or clan was on, which no master answers now; the list is
+		// searched for the name instead (SetPlayerSearch), until a new list.
+		if ( !idStr::Icmp( cmd, "playerClanSearch" ) ) {
+			idAsyncNetwork::client.serverList.SetPlayerSearch( guiActive->State().GetString( "playerclan_search" ) );
+			continue;
 		}
 
 		// The stock Create Server page's player-count guards and its advanced
@@ -7184,26 +7236,6 @@ void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, co
 #endif
 }
 
-#ifndef ID_DEDICATED
-// The stock browser's GET NEW LIST (UpdateServers) or REFRESH LIST
-// (RefreshServers) on a source: a new list asks the LAN, or the master
-// server and the favorites; a refresh asks the LAN again, or the listed
-// servers.
-static void Session_ScanServers( bool lan, bool newList ) {
-	idServerScan &servers = idAsyncNetwork::client.serverList;
-	if ( newList ) {
-		servers.GUIInit();
-	}
-	if ( lan ) {
-		cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
-	} else if ( newList ) {
-		idAsyncNetwork::GetNETServers();
-		servers.AddFavoriteServers();
-	} else {
-		servers.NetScan();
-	}
-}
-#endif
 
 /*
 ===============
@@ -7257,6 +7289,7 @@ void idSessionLocal::OpenRetainedJoinGame() {
 	}
 	idAsyncNetwork::client.serverList.GUIInit();
 	retainedJoinFirst = -1;
+	page->SetStateString( "join.clientip", Session_LocalAddressText().c_str() );
 	PublishRetainedJoinGame( page );
 	SetGUI( page, NULL );
 #endif
@@ -7269,14 +7302,15 @@ idSessionLocal::PublishRetainedJoinGame
 The servers the scan found and the filter passes, in the sort's order: the
 list's page (join.row<i>.*: favorite, password, dedicated server, name,
 ping, repeater, players, game type and map, the server's own text read as a
-player's), their count, the scan's status line (the stock page's
+player's), their count, how many the scan holds (join.listed, which tells a
+list the filters empty apart), the scan's status line (the stock page's
 sortNotice) and whether it runs, the source the legacy menu keeps
 (gui::lanSet, which the scans read), the mod filter (filterMod, which the
 scan writes there), the sort and its direction, and which server is chosen
 (join.selected), by the address the session kept, with its levelshot and
 whether it is a favorite. A chosen server the list stops holding stays
-chosen while a scan may list it again. A first page of -1 pages to the
-chosen server.
+chosen while a scan may list it again, or while the scan holds it and a
+filter or search hides it. A first page of -1 pages to the chosen server.
 ===============
 */
 void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
@@ -7293,7 +7327,15 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 		}
 	}
 	if ( selected < 0 && !scanning ) {
-		retainedJoinAddress.Clear();
+		// A filter or a search may hide the chosen server; it stays chosen
+		// while the scan still holds it.
+		bool held = false;
+		for ( int i = 0; i < servers.Num() && !held && retainedJoinAddress.Length() > 0; ++i ) {
+			held = !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ i ].adr ) );
+		}
+		if ( !held ) {
+			retainedJoinAddress.Clear();
+		}
 	}
 	if ( retainedJoinFirst < 0 ) {
 		retainedJoinFirst = selected > 0 ? selected / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS : 0;
@@ -7340,9 +7382,11 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	gui->SetStateBool( "join.favorite", chosen >= 0 && servers.IsFavoriteServer( chosen ) );
 	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
 		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
+	gui->SetStateString( "join.search", Session_RetainedPlayerText( servers.GetPlayerSearch(), 64, 1 ).c_str() );
 	bool ascending = true;
 	const serverSort_t sort = servers.GetSorting( ascending );
 	gui->SetStateInt( "join.count", count );
+	gui->SetStateInt( "join.listed", servers.Num() );
 	gui->SetStateInt( "join.first", retainedJoinFirst );
 	gui->SetStateInt( "join.selected", selected );
 	gui->SetStateInt( "join.sort", static_cast<int>( sort ) );
@@ -7386,7 +7430,11 @@ spinner shows the previous or next mod the list holds; a row chooses its
 server (join.pick) and the pagers page the list; the favorite toggle adds
 the chosen server to the favorites or takes it off; JOIN SERVER connects to
 the chosen server by the address the session kept, never the page's; BACK
-climbs to the Multiplayer page. A change of level under way takes none.
+climbs to the Multiplayer page. JOIN IP ADDRESS connects to the address
+the player entered (join.address), as the stock popup's does, or says why it
+cannot (join.addressError); FIND PLAYER/CLAN searches the list for the name
+the player entered (join.find), and the search's tag ends it. A change of
+level under way takes none.
 ===============
 */
 void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request ) {
@@ -7418,6 +7466,28 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 			retainedJoinAddress = Sys_NetAdrToString( servers[ retainedJoinServers[ index ] ].adr );
 			PublishRetainedJoinGame( gui );
 		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinConnect" ) ) {
+		const idStr address = Session_RetainedCreateText( gui, "join.address", 99 );
+		if ( address.Length() == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		idStr error;
+		if ( !Session_ConnectToTypedAddress( address.c_str(), error ) ) {
+			gui->SetStateString( "join.addressError", Session_RetainedPlayerText( error.c_str(), 160, 2 ).c_str() );
+			gui->StateChanged( common->GetPresentationTime() );
+			return;
+		}
+		// Connecting: the dialog closes, so a return to the menu finds the list.
+		gui->HandleNamedEvent( "joinIpModalHide" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinSearch" ) || !idStr::Icmp( request, "joinSearchClear" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.SetPlayerSearch( !idStr::Icmp( request, "joinSearch" ) ? Session_RetainedCreateText( gui, "join.find", 99 ).c_str() : "" );
+		PublishRetainedJoinGame( gui );
 		return;
 	}
 	if ( !idStr::Icmp( request, "joinFavorite" ) ) {

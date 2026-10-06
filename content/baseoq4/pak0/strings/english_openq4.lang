@@ -1252,4 +1252,5 @@
 	"#str_231131"	"PREVIOUS SERVERS"
 	"#str_231132"	"MORE SERVERS"
 	"#str_231133"	"No servers found."
+	"#str_231134"	"No server matches the current filters."
 }

@@ -12,10 +12,13 @@ The content is the stock p_mp_browse's over the stock page backing: MOD with
 its spinner at 27,46 u and SOURCE with its INTERNET and LAN tags at 324,46 u;
 the server list at 23,83 u under its column headings on the stock 18 u rows,
 the sort's column marked (a heading sorts by its column, and again the other
-way); the scan's status at 41,291 u beside CLEAR SORTING; REFRESH LIST and
-GET NEW LIST at 19,330 and 19,358 u; the chosen server's levelshot at
-240,337 u; JOIN SERVER at 385,330 u and the favorite toggle under it; BACK in
-the bottom band. The list's symbols (favorite, password, dedicated server,
+way); the scan's status at 41,291 u, a player search's tag after it, and
+CLEAR SORTING; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
+PLAYER/CLAN from 19,330 u; the chosen server's levelshot at 240,337 u; JOIN
+SERVER at 385,330 u and the favorite toggle under it; BACK in the bottom
+band. JOIN IP ADDRESS and FIND PLAYER/CLAN open their dialogs (section 6's
+entry dialog): an address the session connects to, and a name it searches
+the list for. The list's symbols (favorite, password, dedicated server,
 repeater) sit on their tiles as section 9's symbol table draws them; the
 stock PunkBuster column is gone (a discontinued service, no replacement
 column).
@@ -24,18 +27,18 @@ The session owns the list: it publishes the scan's visible servers a page of
 JOIN_ROWS at a time (join.row<i>.*), their count, the scan's status, the
 source, the mod filter and the sort, and the chosen server (join.selected,
 its levelshot and whether it is a favorite), and each control asks through
-its own verb. The stock page's JOIN IP ADDRESS and FIND PLAYER/CLAN are not
-built yet, so the session keeps the page opt-in (RETAINED_JOIN_GAME_MISSING).
+its own verb. It offers all the stock page does, so the session presents it
+by default (RETAINED_JOIN_GAME_MISSING is empty).
 """
 from __future__ import annotations
 
 import math
 
-from build_retained_screens import (FULL, OLIVE, ORANGE, U, VALUE, Document, absolute, action_plate, group, keyword, label, length,
-                                    number, objectives_scrollbar, path, rgb, solid, stroke, text_width, typeface, vector)
-from retained_create_server import BACK, header_band
+from build_retained_screens import (FULL, OLIVE, ORANGE, U, VALUE, Document, absolute, action_plate, confirmation, group, keyword, label,
+                                    length, number, objectives_scrollbar, path, rgb, solid, stroke, text_width, typeface, vector)
+from retained_create_server import BACK, header_band, text_row
 from retained_difficulty import check_fits, primary_plate
-from retained_saves import PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
+from retained_saves import ERROR, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
 from retained_subpage import subpage_document
 
 JOIN_ROWS = 64                             # RETAINED_JOIN_ROWS in the session
@@ -81,12 +84,21 @@ SOURCE_END = 613.0                         # u: where the stock LAN tag ends
 # translation (the stock 50 u LAN tag held "LAN" only).
 TAG_KEYS = (("internet", "#str_200033", "joinSourceInternet", False), ("lan", "#str_200034", "joinSourceLan", True))
 TAG_GAP = 6.0
-STATUS = (41.0, 291.0)                     # u: mp_browse_t_sortnotice
+STATUS = (41.0, 291.0, 175.0)              # u: mp_browse_t_sortnotice; every language's status fits 175 u
+SEARCH_TAG_LEFT = 222.0                    # u: a player search's tag, after the status
 # CLEAR SORTING ends where the stock plate does (615 u) and is as wide as its
 # longest translation needs, at least the stock 181 u; the status line runs
 # to 6 u before it.
 CLEAR_SORT = (615.0, 286.0, 181.0)         # u: right end, top, least width
-LIST_ACTIONS = (("join_refresh", "#str_200028", 19.0, 330.0, "joinRefresh"), ("join_newlist", "#str_200029", 19.0, 358.0, "joinNewList"))
+# The list's actions down the leading column (the stock mp_browse_b1-b3, b5),
+# on a 26 u pitch so the fourth clears the bottom band: a session verb, or an
+# event opening a dialog. Each plate takes the longest label of any language.
+LIST_X = 19.0
+LIST_ACTIONS = (("join_refresh", "#str_200028", 330.0, "joinRefresh", None), ("join_newlist", "#str_200029", 356.0, "joinNewList", None),
+                ("join_ip", "#str_200025", 382.0, None, "joinIpOpen"), ("join_find", "#str_200182", 408.0, None, "findOpen"))
+ADDRESS_BYTES = 99                         # pop_joinIp_address's maxchars
+FIND_BYTES = 31                            # a player name's (MAX_NICKLEN - 1)
+ENTRY_ROW = 24.0                           # u: an entry dialog's field row
 JOIN = (385.0, 330.0, 230.0, 37.0)         # u: mp_browse_b4 (JOIN SERVER)
 CELL_TEXT = 14.0                           # dp: the stock list's 0.2 textscale
 HEADING_TEXT = 12.0
@@ -290,6 +302,115 @@ def mod_filter(doc: Document) -> list:
     return parts
 
 
+def list_action_width() -> float:
+    """The list's action plates' width (u): the longest label of any of them
+    in any language and the plate's 30 dp, at least the stock 208 u."""
+    longest = max(text_width("marine", text, 20) for _i, key, *_rest in LIST_ACTIONS for text in table_text(key).values())
+    return float(max(208.0, math.ceil((longest + 30) / U)))
+
+
+def entry_dialog_size(keys: tuple) -> tuple:
+    """An entry dialog's width and its two plates' (dp): each plate takes the
+    longest of `keys` in any language and 50 dp, at least the stock 180 dp,
+    and the dialog both plates with its 30 and 33 dp margins and a 12 dp gap,
+    at least the stock 480 dp."""
+    longest = max(text_width("marine", text, 20) for key in keys for text in table_text(key).values())
+    action_w = round(max(180.0, longest + 50), 1)
+    return round(max(480.0, 2 * action_w + 30 + 33 + 12), 1), action_w
+
+
+def join_ip_modal(doc: Document) -> dict:
+    """JOIN IP ADDRESS (the stock pop_p_joinIp as section 6's entry dialog):
+    the address field, which Enter commits into join.address and connects
+    with; the session's reason when it cannot (join.addressError); "your ip
+    address:" and this machine's (join.clientip); CONNECT, while there is an
+    address, and CANCEL. The session closes the dialog once it connects."""
+    doc.state.update({"join.address": {"type": "string", "initial": ""}, "join.addressError": {"type": "string", "initial": ""},
+                      "join.clientip": {"type": "string", "initial": ""}})
+    doc.session("joinConnect", "joinConnect")
+    width_dp, action_w = entry_dialog_size(("#str_200171", "#str_200168"))
+    row_w = width_dp - U * 50
+    doc.events["joinAddressEntered"] = [{"op": "action", "action": "joinConnect"}]
+    field = text_row(doc, "join-address", "#str_200025", row_w, 29, "join.address", "joinAddressEntered", ADDRESS_BYTES, U * ENTRY_ROW,
+                     caption=False)
+    column = group("join-ip-rows", {**absolute(left=U * 25, top=U * 25, width=row_w, height=U * ENTRY_ROW), "display": keyword("flex"),
+                                    "flex-direction": keyword("column")}, [field])
+    error = label("join-address-error", PLACEHOLDER, {**absolute(left=U * 25 + 21, top=U * 51, width=row_w - 21, height=U * 16),
+                                                      **typeface("lowpixel", 13, U * 16, rgb(ERROR)), "white-space": keyword("nowrap"),
+                                                      "overflow": keyword("hidden"), "display": keyword("none")})
+    doc.bind("join-address-error.text", "join-address-error", "text", {"state": "join.addressError"})
+    doc.bind("join-address-error.display", "join-address-error", "display",
+             {"op": "select", "args": [{"op": "!=", "args": [{"state": "join.addressError"}, ""]}, "block", "none"]})
+    yours = label("join-yourip", "#str_200180", {**absolute(left=U * 25 + 21, top=U * 70, width=U * 130, height=U * 16),
+                                                  **typeface("marine", 15, U * 16, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"),
+                                                  "overflow": keyword("hidden")})
+    address = label("join-yourip-value", PLACEHOLDER, {**absolute(left=U * 25 + 21 + U * 134, top=U * 70, width=row_w - 21 - U * 134,
+                                                                 height=U * 16), **typeface("marine", 15, U * 16, rgb(VALUE, 0.8)),
+                                                       "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+    doc.bind("join-yourip-value.text", "join-yourip-value", "text", {"state": "join.clientip"})
+    doc.events["joinIpConnect"] = [{"op": "if", "condition": {"op": "!=", "args": [{"state": "join.address"}, ""]},
+                                    "then": [{"op": "action", "action": "joinConnect"}]}]
+    # Each opening starts without the last refusal's reason.
+    doc.events["joinIpOpen"] = [{"op": "setState", "values": {"join.addressError": ""}}, {"op": "call", "event": "joinIpModalShow"}]
+    modal = confirmation(doc, "joinIpModal", "#str_200025", PLACEHOLDER, None, yes_event="joinIpConnect", wide_title=True,
+                         contents=[column, error, yours, address], yes_key="#str_200171", no_key="#str_200168", initial="join-address",
+                         width_dp=width_dp, action_w=action_w)
+    doc.bind("joinIpModal_yes.enabled", "joinIpModal_yes", "enabled", {"op": "!=", "args": [{"state": "join.address"}, ""]})
+    return modal
+
+
+def find_modal(doc: Document) -> dict:
+    """FIND PLAYER/CLAN (the stock pop_p_find_playerClan as section 6's entry
+    dialog): SEARCH FOR: and the name field, which Enter commits into
+    join.find and searches with; SEARCH and CANCEL. A clan tag is part of a
+    player's name, so the stock PLAYER and CLAN choice has no use."""
+    doc.state["join.find"] = {"type": "string", "initial": ""}
+    doc.session("joinSearch", "joinSearch")
+    width_dp, action_w = entry_dialog_size(("#str_200257", "#str_200168"))
+    row_w = width_dp - U * 50
+    search = [{"op": "action", "action": "joinSearch"}, {"op": "call", "event": "findModalHide"}]
+    doc.events["joinFindEntered"] = search
+    field = text_row(doc, "join-find", "#str_200254", row_w, round(row_w * 0.42, 1), "join.find", "joinFindEntered", FIND_BYTES,
+                     U * ENTRY_ROW, allow_empty=True)
+    column = group("join-find-rows", {**absolute(left=U * 25, top=U * 25, width=row_w, height=U * ENTRY_ROW), "display": keyword("flex"),
+                                      "flex-direction": keyword("column")}, [field])
+    doc.events["findSearch"] = search
+    doc.events["findOpen"] = [{"op": "call", "event": "findModalShow"}]
+    return confirmation(doc, "findModal", "#str_200182", PLACEHOLDER, None, yes_event="findSearch", wide_title=True, contents=[column],
+                        yes_key="#str_200257", no_key="#str_200168", initial="join-find", width_dp=width_dp, action_w=action_w)
+
+
+def search_tag(doc: Document) -> dict:
+    """A player search's filter tag (section 7: a small cut tag with a close
+    cross, set at 0.60) after the status line while the list is searched:
+    the name and the cross; Accept ends the search."""
+    doc.state["join.search"] = {"type": "string", "initial": ""}
+    doc.session("joinSearchClear", "joinSearchClear")
+    left = SEARCH_TAG_LEFT
+    width = U * (CLEAR_SORT[0] - clear_sort_width() - 6 - left)
+    height, cut = U * 16, U * 5
+    shape = [(cut, 0), (width, 0), (width, height), (0, height), (0, cut)]
+    tag = vector("join-search-tag", {**FULL, "opacity": number(0.6), "pointer-events": keyword("none")},
+                 [path("tag", shape, fill=solid(rgb(ORANGE, 0.35)), stroke=stroke(solid(rgb(ORANGE)), 1))])
+    name = label("join-search-name", PLACEHOLDER, {**absolute(left=U * 6, top=0, width=width - U * 6 - 22, height=height),
+                                                   **typeface("lowpixel", 14, height, [1, 1, 1, 0.9]), "white-space": keyword("nowrap"),
+                                                   "overflow": keyword("hidden"), "pointer-events": keyword("none")})
+    doc.bind("join-search-name.text", "join-search-name", "text", {"state": "join.search"})
+    cross = vector("join-search-cross", {**absolute(left=width - 17, top=height / 2 - 5, width=10, height=10), "pointer-events": keyword("none")},
+                   [path("a", [(1, 1), (9, 9)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5)),
+                    path("b", [(9, 1), (1, 9)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5))])
+    ids = doc.states("join_search", {
+        "default": [("join-search-tag", "opacity", number(0.6))], "hover": [("join-search-tag", "opacity", number(0.85))],
+        "focus": [("join-search-tag", "opacity", number(1))], "pressed": [("join-search-tag", "opacity", number(1))],
+        "disabled": [("join-search-tag", "opacity", number(0.3))],
+    })
+    tag_group = group("join_search", {**absolute(left=U * left, top=U * (STATUS[1] - 1), width=width, height=height), "display": keyword("none")},
+                      [tag, name, cross], control={"role": "button", "label": "#str_200182", "action": "joinSearchClear", "states": ids})
+    doc.bind("join_search.display", "join_search", "display",
+             {"op": "select", "args": [{"op": "!=", "args": [{"state": "join.search"}, ""]}, "block", "none"]})
+    return tag_group
+
+
 def favorite_width() -> float:
     """The favorite toggle's plate width (u): its longer label and the plate's
     30 dp, at least JOIN SERVER's width."""
@@ -311,9 +432,15 @@ def check_join_fits() -> None:
     tags = source_tags()
     one_line += [("#str_200032", "marine", TAG_TEXT, U * (tags[0][2] - TAG_GAP - SOURCE[0]))]
     one_line += [(key, "marine", TAG_TEXT, U * width - U * 8) for _i, key, _l, width, _v, _lan in tags]
-    one_line += [("#str_231133", "lowpixel", 15, U * (LIST[2] - 16)), ("#str_231131", "marine", 16, U * (LIST[2] - 16 - 18)),
+    one_line += [("#str_231133", "lowpixel", 15, U * (LIST[2] - 16)), ("#str_231134", "lowpixel", 15, U * (LIST[2] - 16)),
+                 ("#str_231131", "marine", 16, U * (LIST[2] - 16 - 18)),
                  ("#str_231132", "marine", 16, U * (LIST[2] - 16 - 18)), ("#str_200951", "marine", 20, U * clear_sort_width() - 30)]
-    one_line += [(key, "marine", 20, U * 208 - 30) for _i, key, _l, _t, _v in LIST_ACTIONS]
+    one_line += [(key, "marine", 20, U * list_action_width() - 30) for _i, key, *_rest in LIST_ACTIONS]
+    one_line += [("#str_200180", "marine", 15, U * 130), ("#str_200254", "lowpixel", 15, (entry_dialog_size(("#str_200257", "#str_200168"))[0]
+                  - U * 50) * 0.42 - 29)]
+    for key in ("#str_200025", "#str_200182"):     # the dialogs' titles in the wide title slot
+        width_dp = entry_dialog_size(("#str_200171", "#str_200168") if key == "#str_200025" else ("#str_200257", "#str_200168"))[0]
+        one_line += [(key, "marine", 20, width_dp * (1 - 7 / 512) - 6 - (width_dp * 14 / 512 + 17))]
     one_line += [("#str_223005", "marine", TAG_TEXT, U * MOD[2])]
     one_line += [(key, "marine", 20, U * favorite_width() - 30) for key in FAVORITE_KEYS]
     check_fits(tuple(one_line), ())
@@ -332,6 +459,7 @@ def join_game_document() -> dict:
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
     doc.state.update({
         "join.count": {"type": "number", "initial": 0},
+        "join.listed": {"type": "number", "initial": 0},
         "join.first": {"type": "number", "initial": 0},
         "join.selected": {"type": "number", "initial": -1},
         "join.pick": {"type": "number", "initial": -1},
@@ -369,17 +497,23 @@ def join_game_document() -> dict:
     doc.bind("join-empty.display", "join-empty", "display", {"op": "select", "args": [
         {"op": "&&", "args": [{"op": "==", "args": [{"state": "join.count"}, 0]}, {"op": "!", "args": [{"state": "join.scanning"}]}]},
         "block", "none"]})
+    # When the scan holds servers that the filters or a search all hide, the
+    # line says none matches rather than none was found.
+    doc.bind("join-empty.text", "join-empty", "text", {"op": "select", "args": [
+        {"op": ">", "args": [{"state": "join.listed"}, 0]}, "#str_231134", "#str_231133"]})
     clear_w = clear_sort_width()
-    status = label("join-status", PLACEHOLDER, {**absolute(left=U * STATUS[0], top=U * STATUS[1],
-                                                           width=U * (CLEAR_SORT[0] - clear_w - 6 - STATUS[0]), height=U * 16),
+    status = label("join-status", PLACEHOLDER, {**absolute(left=U * STATUS[0], top=U * STATUS[1], width=U * STATUS[2], height=U * 16),
                                                  **typeface("lowpixel", 14, U * 16, [1, 1, 1, 0.7]), "white-space": keyword("nowrap"),
                                                  "overflow": keyword("hidden")})
     doc.bind("join-status.text", "join-status", "text", {"state": "join.status"})
     parts += [empty, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
                                           action="joinClearSort", width=U * clear_w)]
-    for ident, key, x, y, verb in LIST_ACTIONS:
-        doc.session(verb, verb)
-        parts.append(action_plate(doc, ident, key, U * x, U * y - 5, action=verb, width=U * 208))
+    action_w = list_action_width()
+    for ident, key, y, verb, event in LIST_ACTIONS:
+        if verb is not None:
+            doc.session(verb, verb)
+        parts.append(action_plate(doc, ident, key, U * LIST_X, U * y - 5, action=verb, event=event, width=U * action_w))
+    parts.append(search_tag(doc))
     # The chosen server's levelshot (the session's join.shot), in the stock
     # frame between the list's actions and JOIN SERVER.
     doc.state["join.shot"] = {"type": "string", "initial": ""}
@@ -399,4 +533,5 @@ def join_game_document() -> dict:
              {"op": "select", "args": [{"state": "join.favorite"}, FAVORITE_KEYS[1], FAVORITE_KEYS[0]]})
     doc.bind("join_favorite.enabled", "join_favorite", "enabled", {"op": ">=", "args": [{"state": "join.selected"}, 0]})
     back = action_plate(doc, "join_back", "#str_200018", U * BACK[0], U * BACK[1], action="back", width=U * BACK[2])
-    return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back], [])
+    return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back],
+                            [join_ip_modal(doc), find_modal(doc)])

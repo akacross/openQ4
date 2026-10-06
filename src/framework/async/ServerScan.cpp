@@ -925,7 +925,39 @@ bool idServerScan::IsFiltered( const networkServer_t server ) {
 		return true;
 	}
 
+	// player search
+	if ( playerSearch.Length() > 0 ) {
+		const int clients = idMath::ClampInt( 0, MAX_ASYNC_CLIENTS, server.clients );
+		for ( i = 0; i < clients; i++ ) {
+			idStr name = ServerBrowserText( server.nickname[i], MAX_NICKLEN - 1 );
+			name.RemoveColors();
+			if ( name.Find( playerSearch.c_str(), false ) >= 0 ) {
+				break;
+			}
+		}
+		if ( i == clients ) {
+			return true;
+		}
+	}
+
 	return false;
+}
+
+/*
+================
+idServerScan::SetPlayerSearch
+================
+*/
+void idServerScan::SetPlayerSearch( const char *text ) {
+	idStr search = ServerBrowserText( text, MAX_NICKLEN - 1 );
+	search.RemoveColors();
+	search.StripLeading( ' ' );
+	search.StripTrailing( ' ' );
+	if ( !search.Cmp( playerSearch ) ) {
+		return;
+	}
+	playerSearch = search;
+	ApplyFilter();
 }
 
 /*
