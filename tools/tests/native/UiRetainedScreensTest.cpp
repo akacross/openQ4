@@ -159,6 +159,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2683,8 +2684,16 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	const float x0 = 160, u = 1.5f;
 	const auto list = bounds("servers-list"), name = bounds("heading-name"), join = bounds("join_server"), status = bounds("join-status");
 	Check(Near(list.x,x0+23*u,1) && Near(list.y,83*u,1) && Near(list.height,202*u,1),"the server list stands where the stock list does");
-	Check(Near(name.x,x0+(23+89)*u,1) && Near(name.y,70*u,1) && text("heading-name-label","text") == "#str_200036",
-		"SERVER NAME heads its column over the list");
+	Check(Near(name.x,x0+(23+68)*u,1) && Near(name.y,70*u,1) && text("heading-name-label","text") == "#str_200036",
+		"SERVER NAME heads its column over the list, where the stock PunkBuster column stood");
+	// MOD and its spinner at the stock places; the favorite toggle under JOIN
+	// SERVER, ending where it ends; the levelshot frame between the list's
+	// actions and JOIN SERVER.
+	const auto mod = bounds("join-mod"), previous = bounds("join_mod_previous"), next = bounds("join_mod_next"), favorite = bounds("join_favorite");
+	Check(Near(mod.x,x0+27*u,1) && Near(mod.y,46*u,1) && Near(previous.x,x0+88*u,1) && Near(next.x,x0+266*u,1) &&
+		text("join-mod","text") == "#str_223005","MOD stands with its spinner where the stock filter did");
+	Check(Near(favorite.x+favorite.width,x0+615*u,1) && Near(bounds("join-shot-back").x,x0+240*u,1) && bounds("join-shot-back").x+bounds("join-shot-back").width < favorite.x && Near(bounds("join-shot-back").y,337*u,1),
+		"the favorite toggle ends with JOIN SERVER and clears the levelshot frame");
 	Check(Near(join.x,x0+385*u,1) && Near(join.y,330*u,1) && Near(status.x,x0+41*u,1) && Near(status.y,291*u,1),
 		"JOIN SERVER and the status line stand where the stock page's do");
 	const auto internet = bounds("join_internet"), lan = bounds("join_lan");
@@ -2694,7 +2703,8 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		"MULTIPLAYER is the crumb and JOIN GAME titles the sub-page at the step's foot");
 	// Nothing listed: the empty line, unless a scan runs; nothing to join.
 	Check(text("join-empty","display") == "block" && text("server-0","display") == "none" &&
-		runtime.GetControlState("join_server") == ControlState::Disabled,"an empty list says so, with nothing to join");
+		runtime.GetControlState("join_server") == ControlState::Disabled && runtime.GetControlState("join_favorite") == ControlState::Disabled,
+		"an empty list says so, with nothing to join or favorite");
 	Check(runtime.SetState({{"join.scanning",true},{"join.status",std::string("Scanning - Found: 0")}},error,0.75),"a scan starts");
 	runtime.Frame(viewport,0.8);
 	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0","a running scan shows its status, not the empty line");
@@ -2703,15 +2713,21 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"join.row0.name",std::string("Refinement Arena")},{"join.row0.ping",std::string("12")},{"join.row0.players",std::string("1/8")},
 		{"join.row0.type",std::string("Deathmatch")},{"join.row0.map",std::string("Fragging Yard")},{"join.row0.fav",true},
 		{"join.row1.name",std::string("Strogg Hive")},{"join.row1.ping",std::string("40")},{"join.row1.lock",true},
-		{"join.row2.name",std::string("Lost Fleet")},{"join.row2.ping",std::string("85")}};
+		{"join.row2.name",std::string("Lost Fleet")},{"join.row2.ping",std::string("85")},{"join.row1.ded",true},{"join.row2.rep",true},
+		{"join.mod",std::string("All")}};
 	Check(runtime.SetState(servers,error,0.85),"the session lists three servers");
 	runtime.Frame(viewport,0.9);
 	Check(text("join-empty","display") == "none" && text("server-2","display") == "block" && text("server-3","display") == "none" &&
 		text("server-0-name","text") == "Refinement Arena" && text("server-0-players","text") == "1/8" && text("server-0-map","text") == "Fragging Yard" &&
 		text("server-1-ping","text") == "40","the servers fill their rows at the stock tab stops");
+	Check(text("server-1-ded","display") == "block" && text("server-0-ded","display") == "none" && text("server-2-rep","display") == "block" &&
+		text("server-1-rep","display") == "none" && text("join-mod-value","text") == "All",
+		"a dedicated server and a repeater show their symbols, and MOD its filter");
+	Check(Near(bounds("server-1-ded").x,bounds("server-1").x+47*u+(21*u-16)/2,1) && Near(bounds("server-2-rep").x,bounds("server-2").x+319*u+(21*u-16)/2,1) &&
+		Near(bounds("server-1-ded").width,16,.5f),"the symbols' 16 dp tiles sit centered in their stock columns");
 	Check(text("server-0-fav","display") == "block" && text("server-1-fav","display") == "none" && text("server-1-lock","display") == "block" &&
 		text("server-0-lock","display") == "none","a favorite shows its star and a password its lock");
-	Check(Near(bounds("server-0-ping").x,bounds("server-0").x+300*u,1) && Near(bounds("server-1").y,bounds("server-0").y+18*u,1),
+	Check(Near(bounds("server-0-ping").x,bounds("server-0").x+279*u,1) && Near(bounds("server-1").y,bounds("server-0").y+18*u,1),
 		"the rows keep the stock 18 u pitch and their columns");
 	Check(text("servers-newer","display") == "none" && text("servers-older","display") == "none","one page holds them all");
 	// The sort: ping ascending marks PING's heading with its up chevron.
@@ -2736,7 +2752,13 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"join.selected",1.0}},error,1.15),"the session chooses it");
 	runtime.Frame(viewport,1.2);
 	Check(text("server-1-selected","display") == "block" && text("server-0-selected","display") == "none" &&
-		runtime.GetControlState("join_server") != ControlState::Disabled,"the chosen server is lit and JOIN SERVER applies");
+		runtime.GetControlState("join_server") != ControlState::Disabled && runtime.GetControlState("join_favorite") != ControlState::Disabled &&
+		text("join_favorite-label","text") == "#str_200292","the chosen server is lit, JOIN SERVER applies and ADD TO FAVORITES offers");
+	Check(runtime.SetState({{"join.favorite",true},{"join.shot",std::string("gfx/guis/loadscreens/generic")}},error,1.21),
+		"the session publishes its favorite state and levelshot");
+	runtime.Frame(viewport,1.22);
+	Check(text("join_favorite-label","text") == "#str_200293" && text("join-shot","image") == "gfx/guis/loadscreens/generic",
+		"a favorite offers REMOVE FAVORITE, and its levelshot fills the frame");
 	Check(runtime.RunEvent("serverRow1",1.25,effects,error) && effects.actions.empty() && runtime.FocusedControl() == "join_server",
 		"Accept on the chosen server moves on to JOIN SERVER");
 	// More servers than a page: the pagers.

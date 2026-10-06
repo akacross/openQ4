@@ -585,6 +585,8 @@ On engine `156694227f16c666cfabefbfbac0f1c28c1adb06`, Create Server's advanced o
 
 On engine `03688d4387b0661ef86de7359c0bcd1306cca12b`, Multiplayer's JOIN GAME goes deeper (opted into with ui_retainedMultiplayer) to a retained server browser that lists the scan's servers with their sources and column sorts and joins the chosen one, and favorites of a server on the same machine now list. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-evidence/validation-evidence.json`, SHA-256 `79aa239d2f10627940727d4a0c5c7306dee0a571ddee62d5dc149ad95b5c7e86`.
 
+On engine `c09c2195de958d704bbeb53f5cc7010824caf4d4`, the retained Join Game gains the stock list's symbols on their tiles, the mod filter, a favorite toggle and the chosen server's levelshot, leaving JOIN IP ADDRESS and FIND PLAYER/CLAN to keep it opt-in. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-joingame-symbols-evidence/validation-evidence.json`, SHA-256 `fc9c671fb6fe43184528d0613b8bdbe4c44794efca2598295c47d0e5a8e538bc`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

@@ -120,6 +120,10 @@ public:
 	void				GUIInit();
 	bool				GetSelectedAddress( idStr &address );
 	void				ToggleFavorite();
+	// Adds a server to the favorites or takes it off them, as ToggleFavorite
+	// does for the stock list's selection. False when the favorites cannot
+	// change (no such server, the limit reached, the file not written).
+	bool				ToggleFavoriteServer( int index );
 	void				AddFavoriteServers();
 	void				UpdateFilterByMod( int direction );
 	void				ResetSorting();
@@ -143,6 +147,9 @@ public:
 	int					GetRevision() const { return revision; }
 	// A server's si_gameType as the browser names it, in the player's language.
 	static const char *	GameTypeName( const char *type );
+	// Whether a server's si_map is a map path the browser may look up (no
+	// parent references, no absolute paths, plain path characters).
+	static bool			ValidMapPath( const char *path );
 
 private:
 	static const int	MAX_PINGREQUESTS 	= 32;		// how many servers to query at once

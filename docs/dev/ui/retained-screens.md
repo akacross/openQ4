@@ -1191,12 +1191,12 @@ CREATE SERVER goes to Create Server (section 9 "Menu levels" and "Lists",
 FLOW-050). It is the stock browser (`p_mp_browse`) on the sub-page frame the
 two share (`tools/ui/retained_subpage.py`). It does not yet offer everything
 the stock page does, so it is opt-in: the session's list of what it lacks
-(`RETAINED_JOIN_GAME_MISSING`: JOIN IP ADDRESS, FIND PLAYER/CLAN, the mod
-filter, the favorite toggle, the chosen server's levelshot and details, and
-the dedicated, PunkBuster and repeater columns) keeps JOIN GAME on the stock
-browser unless `ui_retainedMultiplayer 1` offers the page.
-`ui_retained_gate.py` maps each of the stock browser's buttons to the page's
-verb or control, or to that list.
+(`RETAINED_JOIN_GAME_MISSING`: JOIN IP ADDRESS and FIND PLAYER/CLAN) keeps
+JOIN GAME on the stock browser unless `ui_retainedMultiplayer 1` offers the
+page. `ui_retained_gate.py` maps each of the stock browser's buttons to the
+page's verb or node, or to that list; the stock PunkBuster column's sort is
+exempt (section 9's symbol table: a discontinued service, no replacement
+column).
 
 - **Change.** The Multiplayer page plays `subpageEnterJoin`, CREATE SERVER's
   change with the JOIN GAME label carrying from its row to the step's foot;
@@ -1204,38 +1204,55 @@ verb or control, or to that list.
   its `subpageLeave` and the Multiplayer page returns at 300 ms onto JOIN GAME
   (`from_join`); Back while going deeper reverses the change, and reduced
   motion changes at once.
-- **Content.** SOURCE with its INTERNET and LAN tags (section 7's cut tags,
-  the list's source lit, each as wide as its longest translation) at
+- **Content.** MOD (the mod filter) with its spinner at 27,46 u and SOURCE
+  with its INTERNET and LAN tags (section 7's cut tags, the list's source lit
+  at 0.60 and the other at 0.28, each as wide as its longest translation) at
   324,46 u; the server list at 23,83 u under its column headings, on the
-  stock 18 u rows (64 a page, with pager rows past them): the favorite's
-  star and the password's lock at the stock icon stops, then SERVER NAME,
-  PING, PLAYERS, GAMETYPE and MAP. The columns after the name are wider than
-  the stock ones, so every language's heading fits beside the sort's chevron.
-  The scan's status line at 41,291 u beside CLEAR SORTING; REFRESH LIST and
-  GET NEW LIST at 19,330 and 19,358 u; JOIN SERVER, enabled once a server is
-  chosen, at 385,330 u; BACK in the bottom band. An empty list says so,
-  unless a scan is still running.
+  stock 18 u rows (64 a page, with pager rows past them): the favorite, the
+  password and the dedicated server's symbols at the stock symbol stops, then
+  SERVER NAME from the stop the stock PunkBuster column held, PING, the
+  repeater's symbol, PLAYERS, GAMETYPE and MAP. The symbols sit on their
+  16 dp tiles with the cut upper-leading corner as section 9's symbol table
+  draws them: a gold star, a padlock, a server case with its green power
+  light, a television with its antennas and color bars. The columns after the
+  name are wider than the stock ones, so every language's heading fits beside
+  the sort's chevron, which follows the heading's longest translation. The
+  scan's status line at 41,291 u beside CLEAR SORTING; REFRESH LIST and GET
+  NEW LIST at 19,330 and 19,358 u; the chosen server's levelshot in the stock
+  frame, at 240,337 u so the favorite toggle clears it; JOIN SERVER, enabled once a server is chosen, at
+  385,330 u, and under it the favorite toggle (ADD TO FAVORITES, or REMOVE
+  FAVORITE while the chosen server is one); BACK in the bottom band. An empty
+  list says so, unless a scan is still running.
 - **List.** The session owns it. While the page presents it lists the
   servers the scan found and the filter passes, in the sort's order, a page
   at a time (`join.row<i>.*`), with their count, the scan's status line (the
-  stock page's `sortNotice`), whether a scan runs, the source and the sort,
-  and publishes again whenever the scan's revision moves (a server answered,
-  a sort or filter changed, the status changed). The scan's read view
+  stock page's `sortNotice`), whether a scan runs, the source, the mod filter
+  (`filterMod`, which the scan writes on the legacy menu) and the sort, and
+  publishes again whenever the scan's revision moves (a server answered, a
+  sort or filter changed, the status changed). The scan's read view
   (`idServerScan::VisibleServers`, `IsFavoriteServer`, `GetSorting`,
   `GetRevision`) lists exactly what the stock list shows. The servers' names,
   game types and maps are read as players' text (`Session_RetainedPlayerText`):
   escapes and controls dropped, never read as a `#str_` key; a nameless
-  server shows its address.
+  server shows its address. The chosen server's levelshot is the loading
+  screen's choice for its map (`RetainedPauseShot`), looked up again only
+  when the map changes and precached; a map path the browser may not look up
+  (`idServerScan::ValidMapPath`: no parent references or absolute paths)
+  shows the generic art.
 - **Verbs.** INTERNET and LAN choose the source on the legacy menu
   (`gui::lanSet`, which the stock browser's scans read) and get a new list
   from it; GET NEW LIST gets a new list (the master server and the favorites
   on the Internet, the LAN otherwise) and REFRESH LIST asks again
   (`Session_ScanServers`, the stock `UpdateServers` and `RefreshServers`). A
   heading sorts by its column, and again the other way; CLEAR SORTING lists
-  the servers as they answered. A row's first Accept chooses its server and
-  Accept on the chosen one moves on to JOIN SERVER, which connects to the
-  chosen server by the address the session kept. The choice follows its
-  server through new orders and stays while a scan may list it again.
+  the servers as they answered. MOD's spinner shows the previous or next mod
+  the list holds (`UpdateFilterByMod`, the stock arrows'). A row's first
+  Accept chooses its server and Accept on the chosen one moves on to JOIN
+  SERVER, which connects to the chosen server by the address the session
+  kept. The favorite toggle adds the chosen server to the favorites or takes
+  it off (`idServerScan::ToggleFavoriteServer`, the stock toggle's work for a
+  server the page names). The choice follows its server through new orders
+  and stays while a scan may list it again.
 - **Favorites.** A favorite on this machine (a loopback endpoint) now lists
   from the Internet source: the scan kept it as `localhost:port`, which only a
   DNS lookup parses, so it was never asked. Favorites are kept in numeric form,
@@ -1245,17 +1262,21 @@ verb or control, or to that list.
 - **Checks.** `ui_retained_gate.py` compiles the session's Join Game code
   against a scan double: the opt-in, the change and its reverse, the rows
   and their text, the choice following its server, the sorts, each source's
-  scans, the paging, JOIN SERVER's address and the fallback; it also maps
-  each stock browser button to the page or to `RETAINED_JOIN_GAME_MISSING`.
-  The native screens check lays the page out at 1280x720 and drives its
-  states, and `server_browser_contract.py` runs the scan's read view and the
-  loopback favorites against the production `ServerScan.cpp`.
+  scans, the paging, the symbols, MOD's spinner, the favorite toggle, the
+  levelshot (and the generic art for an unsafe map path), JOIN SERVER's
+  address and the fallback; it also maps each stock browser button to the
+  page or to `RETAINED_JOIN_GAME_MISSING`. The native screens check lays the
+  page out at 1280x720 and drives its states, and `server_browser_contract.py`
+  runs the scan's read view, the per-server favorite toggle, the map-path
+  check and the loopback favorites against the production `ServerScan.cpp`.
 - **Captures.** `joingame` (opted in) goes deeper, gets a new Internet list in
   which the seeded favorite, a dedicated server the capture starts on the
   loopback (`SCENARIO_SERVERS`), answers (the master server cannot be reached
   from the loopback the client binds), sorts by name and clears the sort,
-  climbs back and returns, chooses the server and joins it, the game module
-  reloading into game_mp.
+  climbs back and returns, chooses the server (its levelshot and dedicated
+  symbol shown), takes it off the favorites and puts it back, steps MOD to
+  the next mod and back, and joins it, the game module reloading into
+  game_mp.
 
 ## Loading phase line
 
@@ -1786,6 +1807,9 @@ SHA-256 `aaaeed1f5512c93c181d1fb2895122bc30dcea5437f35b660bd4a2bf057951d8`.
 The Join Game sub-page (opt-in) and loopback favorites: `.tmp/ui/retained-joingame-evidence/validation-evidence.json`,
 SHA-256 `79aa239d2f10627940727d4a0c5c7306dee0a571ddee62d5dc149ad95b5c7e86`.
 
+Join Game's symbols, mod filter, favorite toggle and levelshot: `.tmp/ui/retained-joingame-symbols-evidence/validation-evidence.json`,
+SHA-256 `fc9c671fb6fe43184528d0613b8bdbe4c44794efca2598295c47d0e5a8e538bc`.
+
 ## Known limitations
 
 - The initializing screen's first frame loads, lays out and compiles its
@@ -1839,9 +1863,10 @@ SHA-256 `79aa239d2f10627940727d4a0c5c7306dee0a571ddee62d5dc149ad95b5c7e86`.
   Multiplayer's Create Server and (opt-in) Join Game. The Multiplayer page
   opens the stock Settings page through the stock within-a-screen change
   instead of a sub-page, and the stock Join Game page while the retained one
-  lacks part of it. The retained Join Game has no detail column or prompt
-  bar yet (Join, Spectate and Favorite), and the controller's north and west
-  do not yet sort and refresh it. Player Setup does not yet edit in place,
+  lacks part of it. The retained Join Game has no detail column (the chosen
+  server's players and rules) or prompt bar yet (Join, Spectate and
+  Favorite), and the controller's north and west do not yet sort and refresh
+  it. Player Setup does not yet edit in place,
   Demos is not yet among its sections, and
   Campaign's Chapters is not yet a level of its own; New Campaign is
   Campaign's sibling. The Single Player page keeps the home navigation plates and the

@@ -92,6 +92,7 @@ struct idStr : std::string {
     void CapLength(int length) { if (length < Length()) resize(length); }
     void Append(const char* text, int length) { append(text, length); }
     int Icmp(const char* other) const { return Icmp(c_str(), other); }
+    int Cmp(const char* other) const { return std::strcmp(c_str(), other); }
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
 template<typename T> struct idList : std::vector<T> {
@@ -415,6 +416,23 @@ struct idServerScan {
     void NetScan() { calls.push_back("NetScan"); state = NET_SCAN; ++revision; }
     void SetSorting(serverSort_t to) { calls.push_back("SetSorting " + std::to_string(to)); ascending = to == sort ? !ascending : true; sort = to; ++revision; }
     void ResetSorting() { calls.push_back("ResetSorting"); sort = SORT_NONE; ascending = true; ++revision; }
+    // The favorites file, which the scan writes; the mod filter, which it
+    // writes on the legacy menu (filterMod).
+    bool ToggleFavoriteServer(int index) {
+        calls.push_back("ToggleFavoriteServer " + std::to_string(index));
+        if (index < 0 || index >= Num()) return false;
+        const std::string& address = servers[index].adr.address;
+        if (!favorites.erase(address)) favorites.insert(address);
+        ++revision; return true;
+    }
+    idUserInterface* menu = nullptr; std::vector<std::string> mods = {"All", "baseoq4"}; int mod = 0;
+    void UpdateFilterByMod(int direction) {
+        calls.push_back("UpdateFilterByMod " + std::to_string(direction));
+        mod = (mod + static_cast<int>(mods.size()) + direction) % static_cast<int>(mods.size());
+        if (menu) menu->state["filterMod"] = mods[mod];
+        ++revision;
+    }
+    static bool ValidMapPath(const char* path) { return path && *path && !std::strstr(path, "..") && path[0] != '/'; }
 };
 struct AsyncClient { idServerScan serverList; };
 struct idAsyncNetwork {
@@ -534,7 +552,7 @@ public:
     idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
     // Its Join Game sub-page and the servers it lists.
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
-    idStr retainedJoinAddress;
+    idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
     void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
@@ -1298,8 +1316,11 @@ int main() {
         scan.servers = {server("10.0.0.1:28004", "^2Refinement ^7Arena", 12, 1), server("10.0.0.2:28004", "", -5, 40, "Freeze Tag"),
                         server("10.0.0.3:28004", "Lost Fleet", 85, 0)};
         scan.servers[1].serverInfo.values["si_usePass"] = "1";
+        scan.servers[0].serverInfo.values["net_serverDedicated"] = "1"; scan.servers[2].serverInfo.values["si_repeater"] = "1";
+        scan.servers[0].serverInfo.values["si_map"] = "mp/q4dm5"; scan.servers[2].serverInfo.values["si_map"] = "../escape";
+        fileSystemObject.screenshots["mp/q4dm5"] = "gfx/guis/loadscreens/q4dm5"; fileSystemObject.files.insert("gfx/guis/loadscreens/q4dm5.tga");
         scan.visible = {2, 0, 1}; scan.favorites = {"10.0.0.1:28004"};
-        s.guiMainMenu->state["sortNotice"] = "Showing 3 out of 3 servers";
+        s.guiMainMenu->state["sortNotice"] = "Showing 3 out of 3 servers"; s.guiMainMenu->state["filterMod"] = "^1All"; scan.menu = s.guiMainMenu;
         s.PreloadRetainedScreens(); s.UpdateRetainedHome();
         auto* join = s.guiRetainedJoin;
         CHECK(join && std::string(join->Name()) == "guis/menu/joingame.q4ui" && s.RetainedJoinGamePage() == join);
@@ -1323,6 +1344,12 @@ int main() {
         CHECK(join->state["join.row2.name"] == "10.0.0.2:28004" && join->state["join.row2.ping"] == "0" && join->state["join.row2.players"] == "32/8" &&
               join->state["join.row2.lock"] == "1" && join->state["join.row2.type"] == "Freeze Tag" && join->state["join.row3.name"] == "" &&
               join->state["join.row3.lock"] == "0");
+        // The dedicated server's and the repeater's symbols; the mod filter as
+        // the scan wrote it, read as players' text; nothing chosen, so no
+        // levelshot and no favorite.
+        CHECK(join->state["join.row1.ded"] == "1" && join->state["join.row0.ded"] == "0" && join->state["join.row0.rep"] == "1" &&
+              join->state["join.row1.rep"] == "0" && join->state["join.row3.ded"] == "0" && join->state["join.mod"] == "All" &&
+              join->state["join.shot"] == "" && join->state["join.favorite"] == "0");
         // Nothing chosen: nothing to join.
         const size_t buffered = commands.buffered.size();
         s.HandleRetainedSessionRequest(join, "joinServer"); CHECK(commands.buffered.size() == buffered);
@@ -1333,6 +1360,22 @@ int main() {
         CHECK(join->state["join.selected"] == "-1" && s.retainedJoinAddress.empty());
         join->state["join.pick"] = "1"; s.HandleRetainedSessionRequest(join, "joinPick");
         CHECK(join->state["join.selected"] == "1" && s.retainedJoinAddress == "10.0.0.1:28004" && s.played.back() == "play main_menu_selection");
+        // The chosen server's levelshot, precached, and its favorite state.
+        CHECK(join->state["join.shot"] == "gfx/guis/loadscreens/q4dm5" && precached.back() == "gfx/guis/loadscreens/q4dm5" &&
+              join->state["join.favorite"] == "1");
+        // The favorite toggle takes it off the favorites and puts it back.
+        s.HandleRetainedSessionRequest(join, "joinFavorite");
+        CHECK(scan.calls.back() == "ToggleFavoriteServer 0" && scan.favorites.empty() && join->state["join.favorite"] == "0" &&
+              join->state["join.row1.fav"] == "0");
+        s.HandleRetainedSessionRequest(join, "joinFavorite"); CHECK(scan.favorites.count("10.0.0.1:28004") && join->state["join.favorite"] == "1");
+        // MOD's spinner shows the next and the previous mod.
+        s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
+        s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
+        // A map path the browser may not look up shows the generic art.
+        join->state["join.pick"] = "0"; s.HandleRetainedSessionRequest(join, "joinPick");
+        CHECK(join->state["join.selected"] == "0" && join->state["join.shot"] == "gfx/guis/loadscreens/generic" && join->state["join.favorite"] == "0");
+        join->state["join.pick"] = "1"; s.HandleRetainedSessionRequest(join, "joinPick");
+        CHECK(join->state["join.selected"] == "1" && join->state["join.shot"] == "gfx/guis/loadscreens/q4dm5");
         scan.visible = {0, 1, 2}; ++scan.revision; s.UpdateRetainedJoinGame();
         CHECK(join->state["join.selected"] == "0" && join->state["join.row0.name"] == "Refinement Arena");
         int changes = join->stateChanges; s.UpdateRetainedJoinGame(); CHECK(join->stateChanges == changes);
@@ -1342,7 +1385,8 @@ int main() {
         CHECK(scan.calls.back() == "SetSorting 1" && join->state["join.sort"] == "1" && join->state["join.ascending"] == "1");
         s.HandleRetainedSessionRequest(join, "joinSortName"); CHECK(join->state["join.ascending"] == "0");
         for (const auto& [verb, sort] : {std::pair<const char*, int>{"joinSortFavorite", 6}, {"joinSortLocked", 7}, {"joinSortPing", 0},
-                                         {"joinSortPlayers", 2}, {"joinSortGameType", 3}, {"joinSortMap", 4}}) {
+                                         {"joinSortPlayers", 2}, {"joinSortGameType", 3}, {"joinSortMap", 4}, {"joinSortDedicated", 8},
+                                         {"joinSortRepeater", 10}}) {
             s.HandleRetainedSessionRequest(join, verb); CHECK(scan.calls.back() == "SetSorting " + std::to_string(sort) && join->state["join.sort"] == std::to_string(sort));
         }
         s.HandleRetainedSessionRequest(join, "joinClearSort"); CHECK(scan.calls.back() == "ResetSorting" && join->state["join.sort"] == "11");
@@ -3435,7 +3479,7 @@ def check_create_server(menu: str) -> None:
 
 
 # The stock browser's controls (p_mp_browse's buttons) and what the retained
-# Join Game page offers for each: a session verb, a control of its own, or the
+# Join Game page offers for each: a session verb, a node of its own, or the
 # name RETAINED_JOIN_GAME_MISSING gives what it lacks. The stock list's rows
 # are the page's (joinPick, joinServer).
 STOCK_BROWSER = {
@@ -3445,12 +3489,15 @@ STOCK_BROWSER = {
     'mp_b_browse_clearSort': 'joinClearSort', 'mp_b_browse_refreshlist': 'joinRefresh', 'mp_b_browse_getnewlist': 'joinNewList',
     'mp_b_browse_joinserver': 'joinServer', 'mp_b_browse_back': 'joinBack',
     'mp_b_browse_uparrow': 'servers_scroll', 'mp_b_browse_dnarrow': 'servers_scroll',
-    'mp_b_browse_sortDed': 'columns', 'mp_b_browse_sortPb': 'columns', 'mp_b_browse_sortRepeater': 'columns',
-    'mp_b_browse_filter_prev_mod': 'modfilter', 'mp_b_browse_filter_next_mod': 'modfilter',
-    'mp_b_browse_joinipaddress': 'joinip', 'mp_b_browse_findplayerclan': 'findplayer', 'mp_b_browse_favsel': 'favorite',
+    'mp_b_browse_sortDed': 'joinSortDedicated', 'mp_b_browse_sortRepeater': 'joinSortRepeater',
+    'mp_b_browse_filter_prev_mod': 'joinModPrevious', 'mp_b_browse_filter_next_mod': 'joinModNext',
+    'mp_b_browse_joinipaddress': 'joinip', 'mp_b_browse_findplayerclan': 'findplayer', 'mp_b_browse_favsel': 'joinFavorite',
 }
 # What the stock page shows beyond its buttons: the chosen server's levelshot.
-STOCK_BROWSER_PANELS = {'mp_browse_info_mapshot': 'details'}
+STOCK_BROWSER_PANELS = {'mp_browse_info_mapshot': 'join-shot'}
+# Stock controls the page need not offer: PunkBuster is a discontinued service
+# (ui-visual-design.md's symbol table: no replacement column required).
+STOCK_BROWSER_EXEMPT = {'mp_b_browse_sortPb'}
 
 
 def check_join_game(menu: str) -> None:
@@ -3470,11 +3517,10 @@ def check_join_game(menu: str) -> None:
     document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/joingame.q4ui').read_text(encoding='utf-8'), flags=re.M))
     commands = {action['arguments']['command'] for action in document['actions'].values()}
     assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('join')} == commands, sorted(commands)
-    controls, pending = set(), [document['root']]
+    nodes, pending = set(), [document['root']]
     while pending:
         node = pending.pop()
-        if 'control' in node:
-            controls.add(node['id'])
+        nodes.add(node['id'])
         pending += node.get('children', [])
     legacy_menu = (ROOT / 'content/baseoq4/pak0/guis/mainmenu.gui').read_text(encoding='utf-8', errors='replace')
     stock = set()
@@ -3482,11 +3528,11 @@ def check_join_game(menu: str) -> None:
         following = legacy_menu.find('windowDef ', match.end())
         if 'onAction' in legacy_menu[match.end():following if following >= 0 else len(legacy_menu)]:
             stock.add(match.group(1))
-    assert stock == set(STOCK_BROWSER), sorted(stock ^ set(STOCK_BROWSER))
+    assert stock == set(STOCK_BROWSER) | STOCK_BROWSER_EXEMPT, sorted(stock ^ (set(STOCK_BROWSER) | STOCK_BROWSER_EXEMPT))
     for name in STOCK_BROWSER_PANELS:
         assert re.search(rf'windowDef {name}\s*\{{', legacy_menu), name
     targets = {*STOCK_BROWSER.values(), *STOCK_BROWSER_PANELS.values()}
-    lacking = {target for target in targets if target not in commands and target not in controls}
+    lacking = {target for target in targets if target not in commands and target not in nodes}
     missing = set(re.findall(r'"([a-z]+)"', re.search(r'RETAINED_JOIN_GAME_MISSING\[\] = \{([^}]*)\};', text).group(1)))
     assert missing == lacking, f'RETAINED_JOIN_GAME_MISSING lists {sorted(missing)}; the page lacks {sorted(lacking)}'
     assert ('static bool Session_RetainedJoinGameEnabled( void ) {\n\treturn Session_RetainedScreensEnabled() && '

@@ -123,14 +123,13 @@ static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
 	NULL
 };
 // What the stock Join Game page (the server browser) offers that
-// Multiplayer's retained Join Game sub-page does not yet: JOIN IP ADDRESS,
-// FIND PLAYER/CLAN, the mod filter, the favorite toggle, the chosen server's
-// levelshot and details, and the dedicated, PunkBuster and repeater columns.
-// While anything remains, JOIN GAME opens the stock browser and only
-// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
-// this list equal to what the two pages offer.
+// Multiplayer's retained Join Game sub-page does not yet: JOIN IP ADDRESS and
+// FIND PLAYER/CLAN. While anything remains, JOIN GAME opens the stock browser
+// and only ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py
+// keeps this list equal to what the two pages offer (the stock PunkBuster
+// column, a discontinued service, needs no replacement).
 static const char *const RETAINED_JOIN_GAME_MISSING[] = {
-	"joinip", "findplayer", "modfilter", "favorite", "details", "columns", NULL
+	"joinip", "findplayer", NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
@@ -5197,8 +5196,10 @@ typedef struct retainedJoinSort_s {
 static const retainedJoinSort_t RETAINED_JOIN_SORTS[] = {
 	{ "joinSortFavorite",	SORT_FAVORITE },
 	{ "joinSortLocked",		SORT_PASSWORD },
+	{ "joinSortDedicated",	SORT_DEDICATED },
 	{ "joinSortName",		SORT_SERVERNAME },
 	{ "joinSortPing",		SORT_PING },
+	{ "joinSortRepeater",	SORT_REPEATER },
 	{ "joinSortPlayers",	SORT_PLAYERS },
 	{ "joinSortGameType",	SORT_GAMETYPE },
 	{ "joinSortMap",		SORT_MAP },
@@ -7266,12 +7267,14 @@ void idSessionLocal::OpenRetainedJoinGame() {
 idSessionLocal::PublishRetainedJoinGame
 
 The servers the scan found and the filter passes, in the sort's order: the
-list's page (join.row<i>.*: favorite, password, name, ping, players, game
-type and map, the server's own text read as a player's), their count, the
-scan's status line (the stock page's sortNotice) and whether it runs, the
-source the legacy menu keeps (gui::lanSet, which the scans read), the sort
-and its direction, and which server is chosen (join.selected), by the
-address the session kept. A chosen server the list stops holding stays
+list's page (join.row<i>.*: favorite, password, dedicated server, name,
+ping, repeater, players, game type and map, the server's own text read as a
+player's), their count, the scan's status line (the stock page's
+sortNotice) and whether it runs, the source the legacy menu keeps
+(gui::lanSet, which the scans read), the mod filter (filterMod, which the
+scan writes there), the sort and its direction, and which server is chosen
+(join.selected), by the address the session kept, with its levelshot and
+whether it is a favorite. A chosen server the list stops holding stays
 chosen while a scan may list it again. A first page of -1 pages to the
 chosen server.
 ===============
@@ -7313,12 +7316,30 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 		}
 		gui->SetStateBool( va( "join.row%d.fav", row ), server != NULL && servers.IsFavoriteServer( retainedJoinServers[ index ] ) );
 		gui->SetStateBool( va( "join.row%d.lock", row ), server != NULL && server->serverInfo.GetBool( "si_usePass" ) );
+		gui->SetStateBool( va( "join.row%d.ded", row ), server != NULL && server->serverInfo.GetInt( "net_serverDedicated" ) != 0 );
+		gui->SetStateBool( va( "join.row%d.rep", row ), server != NULL && server->serverInfo.GetBool( "si_repeater" ) );
 		gui->SetStateString( va( "join.row%d.name", row ), name.c_str() );
 		gui->SetStateString( va( "join.row%d.ping", row ), ping.c_str() );
 		gui->SetStateString( va( "join.row%d.players", row ), players.c_str() );
 		gui->SetStateString( va( "join.row%d.type", row ), type.c_str() );
 		gui->SetStateString( va( "join.row%d.map", row ), map.c_str() );
 	}
+	// The chosen server's levelshot, looked up again only when its map
+	// changes; a map path the browser may not look up shows the generic art.
+	const int chosen = selected >= 0 ? retainedJoinServers[ selected ] : -1;
+	const char *chosenMap = chosen >= 0 ? servers[ chosen ].serverInfo.GetString( "si_map" ) : "";
+	if ( chosen < 0 ) {
+		retainedJoinShotMap.Clear();
+		retainedJoinShot.Clear();
+	} else if ( retainedJoinShot.Length() == 0 || retainedJoinShotMap.Cmp( chosenMap ) != 0 ) {
+		retainedJoinShotMap = chosenMap;
+		retainedJoinShot = idServerScan::ValidMapPath( chosenMap ) ? RetainedPauseShot( chosenMap ) : idStr( "gfx/guis/loadscreens/generic" );
+		UI_RetainedPrecacheImage( retainedJoinShot.c_str() );
+	}
+	gui->SetStateString( "join.shot", retainedJoinShot.c_str() );
+	gui->SetStateBool( "join.favorite", chosen >= 0 && servers.IsFavoriteServer( chosen ) );
+	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
+		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
 	bool ascending = true;
 	const serverSort_t sort = servers.GetSorting( ascending );
 	gui->SetStateInt( "join.count", count );
@@ -7360,11 +7381,12 @@ The Join Game sub-page's verbs, the stock browser's commands on the source
 the legacy menu keeps (gui::lanSet): INTERNET and LAN choose the source and
 get a new list from it, as the stock tags do; GET NEW LIST gets a new list
 and REFRESH LIST asks again; a column heading sorts by its column, and again
-the other way, and CLEAR SORTING lists the servers as they answered; a row
-chooses its server (join.pick) and the pagers page the list; JOIN SERVER
-connects to the chosen server by the address the session kept, never the
-page's; BACK climbs to the Multiplayer page. A change of level under way
-takes none.
+the other way, and CLEAR SORTING lists the servers as they answered; MOD's
+spinner shows the previous or next mod the list holds; a row chooses its
+server (join.pick) and the pagers page the list; the favorite toggle adds
+the chosen server to the favorites or takes it off; JOIN SERVER connects to
+the chosen server by the address the session kept, never the page's; BACK
+climbs to the Multiplayer page. A change of level under way takes none.
 ===============
 */
 void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request ) {
@@ -7396,6 +7418,23 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 			retainedJoinAddress = Sys_NetAdrToString( servers[ retainedJoinServers[ index ] ].adr );
 			PublishRetainedJoinGame( gui );
 		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinFavorite" ) ) {
+		for ( int i = 0; i < retainedJoinServers.Num() && retainedJoinAddress.Length() > 0; ++i ) {
+			if ( !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
+				HandleMainMenuCommands( "play main_menu_selection" );
+				servers.ToggleFavoriteServer( retainedJoinServers[ i ] );
+				PublishRetainedJoinGame( gui );
+				break;
+			}
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinModPrevious" ) || !idStr::Icmp( request, "joinModNext" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.UpdateFilterByMod( !idStr::Icmp( request, "joinModNext" ) ? 1 : -1 );
+		PublishRetainedJoinGame( gui );
 		return;
 	}
 	if ( !idStr::Icmp( request, "joinNewer" ) || !idStr::Icmp( request, "joinOlder" ) ) {

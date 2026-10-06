@@ -926,10 +926,13 @@
 
 - Preview: with `ui_retainedMultiplayer 1`, JOIN GAME on the Multiplayer page
   slides one level down to a rebuilt server browser: the Internet or LAN
-  list with sortable columns, favorites and passworded servers marked, and
-  JOIN SERVER. Joining by IP address, finding a player, the mod filter,
-  adding favorites and the server details still need the classic browser,
-  which JOIN GAME opens by default.
+  list with sortable columns, favorites, passworded and dedicated servers and
+  Q4TV repeaters marked, the mod filter, the chosen server's levelshot, a
+  favorite toggle and JOIN SERVER. Joining by IP address and finding a player
+  still need the classic browser, which JOIN GAME opens by default.
+
+- The server browser's MOD filter label reads correctly in French and
+  Italian; it showed a raw text key before.
 
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about

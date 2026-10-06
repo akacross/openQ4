@@ -309,7 +309,16 @@ int main(){
      gui.SetStateInt("serverList_sel_0",0);local.GUIUpdateSelected();assert(!local.IsFavoriteServer(0));local.ToggleFavorite();
      assert(fileValue.files["server_favorites.list"].find("127.0.0.1:28004\n")!=std::string::npos);
      assert(fileValue.files["server_favorites.list"].find("localhost:28004")==std::string::npos&&local.IsFavoriteServer(0));
+     // A menu drawing its own list toggles a server by index, as the stock
+     // list toggles its selection; a server that does not exist changes nothing.
+     assert(local.ToggleFavoriteServer(0)&&!local.IsFavoriteServer(0));
+     assert(fileValue.files["server_favorites.list"].find("127.0.0.1:28004")==std::string::npos);
+     const std::string kept=fileValue.files["server_favorites.list"];
+     assert(!local.ToggleFavoriteServer(1)&&!local.ToggleFavoriteServer(-1)&&fileValue.files["server_favorites.list"]==kept);
+     assert(local.ToggleFavoriteServer(0)&&local.IsFavoriteServer(0));
      local.Shutdown();}
+    // A server's map path is looked up only when it is a plain map path.
+    assert(idServerScan::ValidMapPath("mp/q4dm1")&&!idServerScan::ValidMapPath("../secret")&&!idServerScan::ValidMapPath("/absolute"));
     // Execute the real packet callback: losing any required field must not
     // create a browser row, even when the challenge was otherwise accepted.
     for(int completeFields=0;completeFields<=5;++completeFields){

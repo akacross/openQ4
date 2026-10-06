@@ -215,10 +215,10 @@ the passwords on masked text fields
 nested dialog; it is the default, as it offers all the stock page does.
 JOIN GAME goes deeper, opted into with `ui_retainedMultiplayer`, to the
 retained [Join Game sub-page](../ui/retained-screens.md#join-game-sub-page),
-the server browser's list with its sources and column sorts, the session
-publishing the scan as it finds servers; JOIN IP ADDRESS, FIND PLAYER/CLAN,
-the mod filter, the favorite toggle, the chosen server's details and the
-dedicated, PunkBuster and repeater columns keep it opt-in.
+the server browser's list with its sources, column sorts, symbols, mod
+filter, favorite toggle and the chosen server's levelshot, the session
+publishing the scan as it finds servers; JOIN IP ADDRESS and FIND
+PLAYER/CLAN keep it opt-in.
 Filters beyond the browser's source, the Strogg pause's pages and in-field
 composition remain. No gate closes.
 

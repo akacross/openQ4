@@ -601,7 +601,9 @@ SCENARIOS = {
     # and CLEAR SORTING clears the sort; BACK climbs out onto JOIN GAME and
     # JOIN GAME returns to the list; the row chooses the server and JOIN
     # SERVER joins it, the game module reloading into game_mp (logged to its
-    # own file).
+    # own file). Before the join the chosen server shows its levelshot and
+    # dedicated symbol, the favorite toggle takes it off the favorites and
+    # puts it back, and MOD's spinner steps to the next mod and back.
     'joingame': (None, [
         # A fresh build's first start can run past the usual wait; the title
         # refuses focus until it has arrived.
@@ -624,7 +626,17 @@ SCENARIOS = {
         'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 1200', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0-selected"',
+        'openq4_retainedGui inspect "server-0-ded"', 'openq4_retainedGui inspect "join-shot"',
         'screenshot "screenshots/joingame-chosen.tga"',
+        # The favorite toggle takes the server off the favorites and puts it
+        # back; MOD's spinner shows the next mod and the previous again.
+        'openq4_retainedGui focus join_favorite', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "server-0-fav"', 'screenshot "screenshots/joingame-unfavorite.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400', 'openq4_retainedGui inspect "server-0-fav"',
+        'openq4_retainedGui focus join_mod_next', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "server-0"', 'screenshot "screenshots/joingame-mod.tga"',
+        'openq4_retainedGui focus join_mod_previous', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400',
         'set logFileName "logs/openq4-match.log"',
         'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',

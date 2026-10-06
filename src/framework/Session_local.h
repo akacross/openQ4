@@ -683,6 +683,8 @@ public:
 	int					retainedJoinFirst;		// the first of them the list holds
 	idStr				retainedJoinAddress;	// the chosen server's address (empty: none)
 	int					retainedJoinRevision;	// the scan's revision the page shows (-1: none yet)
+	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
+	idStr				retainedJoinShot;		// that levelshot
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

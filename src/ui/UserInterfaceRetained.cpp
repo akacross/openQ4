@@ -86,7 +86,7 @@ bool SessionMenuCommand(const std::string& command) {
         "createMapsNewer","createMapsOlder","createBanList","createBanPick","createBanRemove",
         "joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet",
         "joinSourceLan","joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers",
-        "joinSortGameType","joinSortMap",
+        "joinSortGameType","joinSortMap","joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};

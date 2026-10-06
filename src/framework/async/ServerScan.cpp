@@ -652,7 +652,15 @@ void idServerScan::ToggleFavorite() {
 	if ( !GetSelectedAddress( selected ) ) {
 		return;
 	}
-	const idStr address = ServerBrowserEndpoint( (*this)[ listGUI->GetSelection( NULL, 0 ) ].adr );
+	ToggleFavoriteServer( listGUI->GetSelection( NULL, 0 ) );
+}
+
+bool idServerScan::ToggleFavoriteServer( int index ) {
+	LoadFavorites();
+	if ( index < 0 || index >= Num() ) {
+		return false;
+	}
+	const idStr address = ServerBrowserEndpoint( (*this)[ index ].adr );
 	idStrList updated = favorites;
 	const int old = updated.FindIndex( address );
 	if ( old >= 0 ) {
@@ -661,7 +669,7 @@ void idServerScan::ToggleFavorite() {
 		updated.Append( address );
 	} else {
 		common->Warning( "Server favorites limit reached (%d)", MAX_BROWSER_FAVORITES );
-		return;
+		return false;
 	}
 	idStr contents;
 	for ( int i = 0; i < updated.Num(); ++i ) {
@@ -673,12 +681,13 @@ void idServerScan::ToggleFavorite() {
 		!fileSystem->PromoteFile( pending, BROWSER_FAVORITES_FILE ) ) {
 		fileSystem->RemoveFile( pending );
 		common->Warning( "Could not save server favorites" );
-		return;
+		return false;
 	}
 	favorites = updated;
 	l_serverScan = this;
 	m_sortedServers.Sort( idServerScan::Cmp );
 	ApplyFilter();
+	return true;
 }
 
 void idServerScan::AddFavoriteServers() {
@@ -776,6 +785,15 @@ idServerScan::GameTypeName
 */
 const char *idServerScan::GameTypeName( const char *type ) {
 	return ServerBrowserGameType( type != NULL ? type : "" );
+}
+
+/*
+================
+idServerScan::ValidMapPath
+================
+*/
+bool idServerScan::ValidMapPath( const char *path ) {
+	return ServerBrowserMapPath( path );
 }
 
 /*

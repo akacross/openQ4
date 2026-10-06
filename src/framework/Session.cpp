@@ -3844,6 +3844,8 @@ void idSessionLocal::Clear() {
 	retainedJoinFirst = 0;
 	retainedJoinAddress.Clear();
 	retainedJoinRevision = -1;
+	retainedJoinShotMap.Clear();
+	retainedJoinShot.Clear();
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;
