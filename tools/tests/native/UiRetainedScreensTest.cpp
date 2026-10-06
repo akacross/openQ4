@@ -152,6 +152,8 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
 	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
+	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
+	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2290,8 +2292,209 @@ static void CheckCreditsPage(ScreenHost& host, const char* path) {
 	Check(Near(value("p_screen2","opacity",0),0,.01f),"leaving stops the loop with every screen out");
 }
 
+// The Arena sub-page (FLOW-011, FLOW-026, FLOW-050): the Arena campaign's
+// browser in Campaign's sub-page state. The tier ladder and the chosen tier's
+// matches show the published locks, checks and choice; a plate's first Accept
+// chooses it, Accept on the chosen tier moves to its chosen match and on the
+// chosen match starts it; the bumpers switch tier; the entrance, the result
+// ledger and RESET PROGRESS's confirmation; Back's half of the change. Single
+// Player's ARENA leads deeper with its own carry and returns onto ARENA.
+static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.arena" && document.Model().canvasHeight == 720,"the Arena page validates");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> verbs[] = {{"back","arenaBack"},{"tier0","arenaTier0"},{"tier4","arenaTier4"},{"match0","arenaMatch0"},
+		{"match3","arenaMatch3"},{"start","arenaStart"},{"tierPrevious","arenaTierPrevious"},{"tierNext","arenaTierNext"},{"easier","arenaEasier"},
+		{"harder","arenaHarder"},{"reset","arenaReset"},{"resetConfirm","arenaResetConfirm"},{"resetCancel","arenaResetCancel"},
+		{"retry","arenaRetry"},{"dismiss","arenaDismiss"}};
+	for (const auto& [action, command] : verbs) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
+			"each verb asks the session for the campaign's command");
+	}
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/arena.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto value = [&](const std::string& node, const char* property, size_t index = 0) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"an Arena node is laid out"); return b; };
+	const auto acted = [&](const char* action) { return effects.actions.size() == 1 && effects.actions[0].action == action; };
+	// The campaign publishes its browser: TIER 1 complete, TIER 2 chosen with
+	// its first qualifier won and its second chosen, its boss still locked.
+	StateValues campaign = {{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},{"arenaCampaignProgress",5.0},
+		{"arena_progress",std::string("CAMPAIGN PROGRESS  5 / 20")},{"arena_selectedTitle",std::string("Shifting Lines")},
+		{"arena_selectedTierName",std::string("Ironworks")},{"arena_difficultyName",std::string("Veteran")},
+		{"arena_levelshot",std::string("gfx/guis/loadscreens/generic")}};
+	for (int tier = 0; tier < 5; ++tier) {
+		const std::string prefix = "arena_tier" + std::to_string(tier);
+		campaign[prefix+"_locked"] = tier > 1; campaign[prefix+"_selected"] = tier == 1; campaign[prefix+"_completed"] = tier == 0;
+		campaign[prefix+"_status"] = std::string(tier == 0 ? "COMPLETE" : tier == 1 ? "AVAILABLE" : "LOCKED");
+	}
+	for (int match = 0; match < 4; ++match) {
+		const std::string prefix = "arena_match" + std::to_string(match);
+		campaign[prefix+"_locked"] = match == 3; campaign[prefix+"_selected"] = match == 1; campaign[prefix+"_completed"] = match == 0;
+		campaign[prefix+"_status"] = std::string(match == 0 ? "COMPLETE" : match == 3 ? "LOCKED" : "AVAILABLE");
+	}
+	Check(runtime.SetState(campaign,error,0),"the campaign publishes its browser");
+	runtime.Frame(viewport,0.5);
+	// The ladder on the 4:3 canvas (x = 160 dp at 1280x720; 1 u = 1.5 dp).
+	const float x0 = 160, u = 1.5f;
+	const auto tier0 = bounds("tier-0"), tier4 = bounds("tier-4"), match0 = bounds("match-0"), boss = bounds("match-3"),
+		start = bounds("arena_start"), back = bounds("arena_back"), title = bounds("title"), shot = bounds("arena-shot");
+	Check(Near(tier0.x,x0+16*u) && Near(tier0.y,72*u) && Near(tier0.width,170*u) && Near(tier0.height,40*u) && Near(tier4.y,(72+4*44)*u),
+		"the five tiers form a ladder of plates in the section navigation");
+	Check(Near(match0.x,x0+196*u) && Near(match0.y,72*u) && Near(match0.height,36*u) && Near(boss.y,194*u) && Near(boss.height,50*u) &&
+		boss.height > match0.height,"the matches stand beside it, the boss on a larger plate");
+	Check(Near(start.x,x0+404*u) && Near(start.y,354*u) && Near(start.width,226*u) && Near(start.height,43*u),
+		"START MATCH is the enlarged primary plate at the foot of the detail column");
+	Check(Near(shot.x,x0+405*u) && Near(shot.y,59*u),"the levelshot leads the detail column");
+	Check(Near(back.x,x0+532*u) && Near(back.y,441*u) && Near(title.x,x0+136*u,1) && Near(title.y,19*u,1),
+		"BACK stands in the bottom band and ARENA titles the page at the step's foot");
+	Check(text("title","text") == "#str_42002" && text("crumb","text") == "#str_42000","SINGLE PLAYER is the crumb, ARENA the title");
+	// Locks, checks and the choice, as published.
+	Check(text("tier-0-check","display") == "block" && text("tier-0-done","display") == "block" && text("tier-0-lock","display") == "none",
+		"a completed tier carries the check and the green edge");
+	Check(text("tier-2-lock","display") == "block" && !runtime.CanActivateControl("tier-2",0.6) && runtime.CanActivateControl("tier-0",0.6),
+		"a locked tier is dimmed with the lock and cannot be chosen");
+	Check(text("tier-1-plate-lit","display") == "block" && text("tier-1-wash","display") == "block" && text("tier-1-label-lit","display") == "block" &&
+		text("tier-1-label","display") == "none" && text("tier-0-wash","display") == "none","the chosen tier is lit over its orange wash");
+	Check(text("match-3-lock","display") == "block" && text("match-3-ready","display") == "none" && !runtime.CanActivateControl("match-3",0.6),
+		"the boss waits locked");
+	Check(text("tier-1-status","text") == "AVAILABLE" && text("arena-match-title","text") == "Shifting Lines" &&
+		text("arena-tier-name","text") == "Ironworks" && text("arena-difficulty","text") == "Veteran","the published words show");
+	Check(Near(bounds("arena-progress-fill").width,5*166*u/20,.5f),"the progress bar fills a twentieth a match");
+	campaign["arena_match3_locked"] = false; campaign["arena_match3_status"] = std::string("BOSS READY");
+	Check(runtime.SetState(campaign,error,0.7),"the qualifiers open the boss");
+	runtime.Frame(viewport,0.71);
+	Check(text("match-3-ready","display") == "block" && text("match-3-lock","display") == "none" && runtime.CanActivateControl("match-3",0.72),
+		"the waiting boss shows its orange edge");
+	// Arriving: the content at once, the backing fading in, the focus on the chosen match.
+	Check(runtime.RunEvent("onActivate",1,effects,error),"the page arrives");
+	runtime.Frame(viewport,1.075);
+	Check(Near(value("content","opacity"),1,.01f) && value("arena-backing","opacity") > .3f && value("arena-backing","opacity") < .7f &&
+		runtime.FocusedControl() == "match-1","the content shows at once, the backing fades in, the chosen match has focus");
+	// Accept: a plate's first Accept chooses it; on the chosen tier it moves to
+	// the chosen match, on the chosen match it starts it.
+	Check(runtime.RunEvent("tierPick0",1.2,effects,error) && acted("tier0"),"an unchosen tier asks to be chosen");
+	Check(runtime.FocusControl("tier-1",1.3) && runtime.RunEvent("tierPick1",1.3,effects,error) && effects.actions.empty(),"the chosen tier asks nothing");
+	runtime.Frame(viewport,1.35);
+	Check(runtime.FocusedControl() == "match-1","and moves to its chosen match");
+	Check(runtime.RunEvent("matchPick2",1.4,effects,error) && acted("match2"),"an unchosen match asks to be chosen");
+	Check(runtime.RunEvent("matchPick1",1.5,effects,error) && acted("start"),"Accept on the chosen match starts it");
+	campaign["arena_canStart"] = false;
+	Check(runtime.SetState(campaign,error,1.6) && runtime.RunEvent("matchPick1",1.6,effects,error) && effects.actions.empty() &&
+		!runtime.CanActivateControl("arena_start",1.61),"a match the campaign cannot start stays put");
+	campaign["arena_canStart"] = true;
+	Check(runtime.SetState(campaign,error,1.7),"startable again");
+	// The bumpers switch tier.
+	Check(runtime.RunEvent("onTabNext",1.8,effects,error) && acted("tierNext") && runtime.RunEvent("onTabPrevious",1.8,effects,error) &&
+		acted("tierPrevious"),"the bumpers switch tier");
+	// DIFFICULTY steps within 1-5.
+	campaign["arena_difficulty"] = 1.0;
+	Check(runtime.SetState(campaign,error,1.9) && !runtime.CanActivateControl("arena_easier",1.91) && runtime.CanActivateControl("arena_harder",1.91),
+		"the easiest difficulty steps only up");
+	campaign["arena_difficulty"] = 5.0;
+	Check(runtime.SetState(campaign,error,1.95) && runtime.CanActivateControl("arena_easier",1.96) && !runtime.CanActivateControl("arena_harder",1.96),
+		"the hardest only down");
+	// RESET PROGRESS asks with the stock modal once the campaign holds the request.
+	campaign["arenaCampaignProgress"] = 0.0;
+	Check(runtime.SetState(campaign,error,2) && !runtime.CanActivateControl("arena_reset",2.01),"nothing to reset without progress");
+	campaign["arenaCampaignProgress"] = 5.0;
+	Check(runtime.SetState(campaign,error,2.05) && runtime.CanActivateControl("arena_reset",2.06),"RESET PROGRESS is live with progress");
+	Check(runtime.RunEvent("arenaResetReveal",2.1,effects,error),"the campaign asks for the confirmation");
+	runtime.Frame(viewport,2.4);
+	Check(text("resetModal","display") == "block" && runtime.FocusedControl() == "resetModal_no" &&
+		text("resetModal-title","text") == "#str_42011" && text("resetModal-body","text") == "#str_42073","it asks on CANCEL, saying what it clears");
+	Check(runtime.RunEvent("onTabNext",2.45,effects,error) && effects.actions.empty(),"the bumpers wait while it asks");
+	Check(runtime.RunEvent("resetConfirmed",2.5,effects,error) && acted("resetConfirm"),"RESET clears the progress");
+	runtime.Frame(viewport,2.9);
+	Check(text("resetModal","display") == "none","and the modal closes");
+	// The entrance: every control out while the campaign holds it.
+	campaign["arena_transitioning"] = true;
+	Check(runtime.SetState(campaign,error,3) && !runtime.CanActivateControl("arena_start",3.01) && !runtime.CanActivateControl("arena_back",3.01) &&
+		!runtime.CanActivateControl("tier-0",3.01),"the entrance holds every control");
+	Check(runtime.RunEvent("arenaMatchLaunch",3,effects,error),"the match launches");
+	runtime.Frame(viewport,3.001);
+	Check(text("launch","display") == "block" && value("launch-card","opacity") < .05f,"the entrance starts from the page");
+	runtime.Frame(viewport,3.45);
+	Check(Near(value("launch-shade","opacity"),.72f,.02f) && Near(value("launch-card","opacity"),1,.02f) &&
+		text("launch-title","text") == "Shifting Lines","by 450 ms the screen is darkened under the card");
+	runtime.Frame(viewport,4.26);
+	Check(Near(value("launch-shade","opacity"),1,.01f) && Near(value("launch-card","opacity"),0,.01f),"by 1260 ms it is black for the hand-over");
+	Check(runtime.RunEvent("onDeactivate",4.3,effects,error),"the match takes the screen");
+	runtime.Frame(viewport,4.31);
+	Check(text("launch","display") == "none","leaving closes the entrance");
+	// The result ledger, revealed in the stock phases from black.
+	campaign["arena_transitioning"] = false; campaign["arena_result"] = 1.0; campaign["arena_resultCanRetry"] = true;
+	campaign["arena_resultTitle"] = std::string("VICTORY"); campaign["arena_resultHasScore"] = true; campaign["arena_resultScore"] = std::string("15  -  9");
+	Check(runtime.SetState(campaign,error,5) && runtime.RunEvent("onActivate",5,effects,error) &&
+		runtime.RunEvent("arenaResultReveal",5,effects,error),"back from the match the ledger reveals");
+	runtime.Frame(viewport,5.001);
+	Check(Near(value("arena-curtain","opacity"),1,.01f) && Near(value("result-phase1","opacity"),0,.01f),"from black");
+	runtime.Frame(viewport,5.5);
+	Check(Near(value("result-phase1","opacity"),1,.01f) && Near(value("result-phase2","opacity"),0,.01f) && text("result-actions","display") == "none" &&
+		text("result-title","text") == "VICTORY" && text("result-accent-win","display") == "block","first the result over its accent");
+	runtime.Frame(viewport,5.8);
+	Check(Near(value("result-phase2","opacity"),1,.01f) && text("result-score-row","display") == "block" && text("result-score","text") == "15  -  9",
+		"then the message and score");
+	runtime.Frame(viewport,6.3);
+	Check(text("result-actions","display") == "block" && runtime.FocusedControl() == "resultModal_no" &&
+		Near(value("arena-curtain","opacity"),0,.01f),"at 1260 ms the actions, on the safe one");
+	Check(text("resultModal_yes-label","text") == "#str_42076" && text("resultModal_no-label","text") == "#str_42032" &&
+		text("resultModal_yes","display") == "block","after a win: REPLAY and NEXT");
+	campaign["arena_result"] = 2.0;
+	Check(runtime.SetState(campaign,error,6.4),"a defeat");
+	runtime.Frame(viewport,6.41);
+	Check(text("resultModal_yes-label","text") == "#str_42033" && text("resultModal_no-label","text") == "#str_42034" &&
+		text("result-accent-loss","display") == "block","after a defeat: RETRY and RETURN");
+	campaign["arena_result"] = 3.0;
+	Check(runtime.SetState(campaign,error,6.5),"an aborted match");
+	runtime.Frame(viewport,6.51);
+	Check(text("resultModal_yes","display") == "none" && text("resultModal_no-label","text") == "#str_42025","an aborted match only CONTINUEs");
+	Check(runtime.RunEvent("resultDismiss",6.6,effects,error) && acted("dismiss"),"CONTINUE dismisses the ledger");
+	runtime.Frame(viewport,7);
+	Check(text("resultModal","display") == "none","and it closes");
+	// Back: the title drops, the page sweeps 640 u toward the leading edge,
+	// the band steps back and the backing goes.
+	Check(runtime.RunEvent("subpageLeave",8,effects,error),"Back climbs one level");
+	runtime.Frame(viewport,8.3);
+	Check(Near(value("content","transform",0),-640*u,.5f) && Near(value("title","color",3),0,.001f) && Near(value("arena-backing","opacity"),0,.001f) &&
+		Near(value("band-top","transform",0),323*u,.05f),"by 300 ms the page has swept out and the band is docked");
+	Check(runtime.RunEvent("onDeactivate",8.4,effects,error),"the page leaves the screen");
+	runtime.Frame(viewport,8.41);
+	Check(Near(value("content","transform",0),0,.01f) && Near(value("band-top","transform",0),(323+97)*u,.05f) &&
+		Near(value("arena-backing","opacity"),0,.001f),"hidden, it waits at rest in the sub-page state");
+	// Single Player: ARENA carries its label to the step's foot, and Back from
+	// Arena returns onto ARENA.
+	const auto pageSource = Read(pagePath);
+	Runtime page(host);
+	Check(page.Initialize() && page.LoadDocument(pageSource,"guis/menu/singleplayer.q4ui",diagnostics),"Single Player loads");
+	Check(page.RunEvent("onActivate",9,effects,error) && page.RunEvent("subpageEnterArena",9.1,effects,error),"ARENA leads deeper");
+	page.Frame(viewport,9.11);
+	const auto from = page.PresentedValue("arena-carry","transform");
+	Check(from && Near(static_cast<float>(from->data[1]),(190+30+2.8f-19)*u,.05f) && Near(static_cast<float>(page.PresentedValue("subpage-carry","opacity")->data[0]),0,.001f),
+		"the ARENA label starts on its row, CAMPAIGN's stays out");
+	page.Frame(viewport,9.45);
+	Bounds carry;
+	const auto carried = page.PresentedValue("arena-carry","transform");
+	Check(carried && Near(static_cast<float>(carried->data[2]),.75f,.001f) && page.GetBounds("arena-carry",carry) && Near(carry.x,x0+136*u,1),
+		"at 350 ms ARENA sits at the step's foot");
+	Check(page.RunEvent("onDeactivate",9.5,effects,error) && page.SetState({{"from_arena",true}},error,10) &&
+		page.RunEvent("onActivate",10,effects,error),"Single Player returns from Arena");
+	page.Frame(viewport,10.05);
+	Check(page.FocusedControl() == "arena" && Near(static_cast<float>(page.PresentedValue("arena-carry","opacity")->data[0]),0,.001f),
+		"onto ARENA, with no carry");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 20,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui");
+	Check(argc == 21,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3392,6 +3595,7 @@ int main(int argc, char** argv) {
 	CheckModsDialog(host,argv[1]);
 	CheckRestartMenu(host,argv[18]);
 	CheckCreditsPage(host,argv[19]);
+	CheckArenaPage(host,argv[5],argv[20]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

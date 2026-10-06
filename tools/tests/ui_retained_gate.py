@@ -173,6 +173,8 @@ using idModList = FileSystem::ModList;
 struct ArenaCampaign {
     int selectors = 0; void OpenSelector() { ++selectors; }
     std::vector<std::string> commands; bool HandleGuiCommand(const char* command) { commands.push_back(command); return true; }
+    // The browser opening (the Arena page where it can), and the entrance holding it.
+    int browsers = 0; bool entering = false; void OpenBrowser() { ++browsers; } bool IsEntering() const { return entering; }
 } arenaCampaign;
 struct idDict {
     std::map<std::string, std::string> values;
@@ -332,7 +334,11 @@ public:
     bool retainedSubpageSibling = false;
     idUserInterface* guiLoading = nullptr; bool retainedLoadingActive = false;
     int retainedLoadingTip = -1, retainedLoadingTipSlot = 0, retainedLoadingTipAt = 0; void PublishRetainedLoadingTip(bool);
-    void BeginRetainedSubpage(idUserInterface*, bool); void UpdateRetainedSubpage(); bool RetainedSubpageEvent(const sysEvent_t*);
+    void BeginRetainedSubpage(idUserInterface*, bool, bool = false); void UpdateRetainedSubpage(); bool RetainedSubpageEvent(const sysEvent_t*);
+    void PresentRetainedSubpage(bool, bool); bool retainedSubpageArena = false;
+    // Single Player's Arena sub-page.
+    idUserInterface* guiRetainedArena = nullptr; idUserInterface* RetainedArenaPage();
+    idUserInterface* RetainedArenaGui() const { return guiRetainedArena; } void HandleRetainedArenaRequest(idUserInterface*, const char*);
     // Campaign's New Campaign sub-page; the maps a new game started on.
     bool OpenRetainedNewCampaign(const char*); void BeginRetainedSibling(idUserInterface*, bool); void PresentRetainedSibling(bool);
     void StartRetainedNewCampaign(idUserInterface*);
@@ -423,7 +429,7 @@ public:
     idStr RetainedPauseShot(const char*) const;
     void UpdateRetainedHome(); bool RetainedHomeInputBlocked() const; void RetainedHomeFrameEvent();
     void HandleRetainedSessionRequest(idUserInterface*, const char*);
-    void OpenCampaignSelector(bool, bool = false);
+    void OpenCampaignSelector(bool, bool = false, bool = false);
     std::vector<std::string> selected; int menus = 0;
     void SelectCampaign(const char* campaign) { selected.push_back(campaign); }
     void StartMenu() { ++menus; guiActive = guiMainMenu; }
@@ -452,7 +458,8 @@ MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
-    "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui"};
+    "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
+    "guis/menu/arena.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -963,17 +970,17 @@ int main() {
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/loadgame.q4ui",
                                                             "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
                                                             "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
-                                                            "guis/menu/demos.q4ui"}) &&
+                                                            "guis/menu/demos.q4ui", "guis/menu/arena.q4ui"}) &&
               s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
         CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 8 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 9 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 8 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 9 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 9 + cards);
+              managerObject.loads.size() == 10 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -1196,6 +1203,82 @@ int main() {
         stock.OpenCampaignSelector(true); auto* alone = stock.guiActive;
         CHECK(!stock.OpenRetainedNewCampaign("quake4") && stock.guiActive == alone && alone->named.empty());
         auto off = Session(false); CHECK(!off.OpenRetainedNewCampaign("quake4") && managerObject.loads.empty());
+    }
+    {   // Single Player's Arena sub-page (FLOW-011, FLOW-050): ARENA plays the change
+        // with its own carry and the campaign's browser presents at 350 ms; the
+        // page's verbs run the campaign's own commands; Back plays the page's half
+        // and Single Player returns at 300 ms onto ARENA.
+        // In the campaign's game directory and module: no reload first.
+        const auto home = [] { cvarSystemObject.strings["fs_game"] = "baseoq4"; cvarSystemObject.strings["com_activeGameModule"] = "game_sp"; };
+        auto s = Session(true); home(); s.OpenCampaignSelector(false); auto* page = s.guiActive;
+        CHECK(page->state["from_arena"] == "0");
+        s.HandleRetainedSessionRequest(page, "campaignArena");
+        CHECK(s.guiActive == page && page->named.back() == "subpageEnterArena" && s.retainedSubpageFrom == page &&
+              s.retainedSubpageDeeper && s.retainedSubpageArena && s.retainedSubpageUntil == commonObject.time + 350 && s.selected.empty());
+        commonObject.time += 349; s.UpdateRetainedSubpage(); CHECK(arenaCampaign.browsers == 0);
+        commonObject.time += 1; s.UpdateRetainedSubpage();
+        CHECK(arenaCampaign.browsers == 1 && s.retainedSubpageFrom == nullptr && !s.retainedSubpageArena &&
+              commonObject.output.find("CAMPAIGN_SELECTED id=arena gameDir=baseoq4") != std::string::npos);
+        // The campaign presents the page (idArenaCampaign::OpenBrowser).
+        auto* arena = s.RetainedArenaPage();
+        CHECK(arena && std::string(arena->Name()) == "guis/menu/arena.q4ui" && s.RetainedArenaGui() == arena);
+        s.guiActive = arena;
+        const std::pair<const char*, const char*> verbs[] = {{"arenaTier2", "arenaSelectTier 2"}, {"arenaMatch3", "arenaSelectMatch 3"},
+            {"arenaTierNext", "arenaStepTier 1"}, {"arenaTierPrevious", "arenaStepTier -1"}, {"arenaEasier", "arenaDifficulty -1"},
+            {"arenaHarder", "arenaDifficulty 1"}, {"arenaStart", "arenaStart"}, {"arenaReset", "arenaReset"},
+            {"arenaResetConfirm", "arenaResetConfirm"}, {"arenaResetCancel", "arenaResetCancel"}, {"arenaRetry", "arenaRetry"},
+            {"arenaDismiss", "arenaDismissResult"}};
+        for (const auto& [verb, command] : verbs) {
+            const size_t played = s.played.size();
+            s.HandleRetainedSessionRequest(arena, verb);
+            CHECK(arenaCampaign.commands.back() == command && s.played.size() == played + 1);
+        }
+        // The entrance holds the page: nothing reaches the campaign, not even Back.
+        arenaCampaign.entering = true; const size_t held = arenaCampaign.commands.size();
+        s.HandleRetainedSessionRequest(arena, "arenaStart"); s.HandleRetainedSessionRequest(arena, "arenaBack");
+        CHECK(arenaCampaign.commands.size() == held && s.retainedSubpageFrom == nullptr && s.guiActive == arena);
+        arenaCampaign.entering = false;
+        // Only while it presents.
+        idUserInterface other("guis/msg.gui"); s.guiActive = &other;
+        s.HandleRetainedSessionRequest(arena, "arenaStart"); CHECK(arenaCampaign.commands.size() == held);
+        s.guiActive = arena;
+        s.HandleRetainedSessionRequest(arena, "arenaBack");
+        CHECK(arena->named.back() == "subpageLeave" && s.retainedSubpageFrom == arena && !s.retainedSubpageDeeper && s.retainedSubpageArena &&
+              s.retainedSubpageUntil == commonObject.time + 300);
+        s.HandleRetainedSessionRequest(arena, "arenaTier0"); CHECK(arenaCampaign.commands.size() == held);  // none mid-change
+        commonObject.time += 300; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == page && page->state["from_arena"] == "1" && page->named.back() == "subpageReturn" && !s.retainedSubpageArena);
+        s.HandleRetainedSessionRequest(page, "campaigns"); commonObject.time += 350; s.UpdateRetainedSubpage();
+        s.OpenCampaignSelector(false); CHECK(page->state["from_arena"] == "0");  // any other return lands on the first row
+        // Back while going deeper reverses the change, as Campaign's does.
+        s.HandleRetainedSessionRequest(page, "campaignArena"); commonObject.time += 120;
+        sysEvent_t back; back.evType = SE_KEY; back.evValue = K_ESCAPE; back.evValue2 = 1;
+        CHECK(s.RetainedSubpageEvent(&back) && page->named.back() == "subpageReverse150" && s.retainedSubpageFrom == nullptr);
+        CHECK(arenaCampaign.browsers == 1);
+        // Reduced motion hands over at once.
+        cvarSystemObject.strings["ui_retainedReducedMotion"] = "1";
+        s.HandleRetainedSessionRequest(page, "campaignArena");
+        CHECK(arenaCampaign.browsers == 2 && s.retainedSubpageFrom == nullptr && page->named.back() != "subpageEnterArena");
+        s.guiActive = arena; s.HandleRetainedSessionRequest(arena, "arenaBack");
+        CHECK(s.guiActive == page && page->state["from_arena"] == "1" && s.retainedSubpageFrom == nullptr);
+        cvarSystemObject.strings["ui_retainedReducedMotion"] = "0";
+        // A campaign that must reload into its game directory first is selected
+        // as before; the browser presents after the reload.
+        auto reload = Session(true); home(); reload.OpenCampaignSelector(false); auto* first = reload.guiActive;
+        cvarSystemObject.strings["com_activeGameModule"] = "game_mp";
+        reload.HandleRetainedSessionRequest(first, "campaignArena");
+        CHECK((reload.selected == std::vector<std::string>{"arena"}) && reload.retainedSubpageFrom == nullptr && first->named.empty());
+        // Not installed, cannot load, stopped drawing, or the gate off: the
+        // stock browser, selected as before.
+        auto missing = Session(true); home(); fileSystemObject.files.erase("guis/menu/arena.q4ui");
+        missing.OpenCampaignSelector(false); auto* alone = missing.guiActive;
+        missing.HandleRetainedSessionRequest(alone, "campaignArena");
+        CHECK((missing.selected == std::vector<std::string>{"arena"}) && missing.RetainedArenaPage() == nullptr && commonObject.warnings.empty());
+        auto failed = Session(true); home();
+        auto* view = failed.RetainedArenaPage(); CHECK(view != nullptr); view->failed = true;
+        CHECK(failed.RetainedArenaPage() == nullptr && failed.RetainedArenaGui() == nullptr && commonObject.warnings.size() == 1 &&
+              Stock(failed) == std::vector<std::string>{"guis/menu/arena.q4ui"});
+        auto off = Session(false); CHECK(off.RetainedArenaPage() == nullptr && managerObject.loads.empty());
     }
     {   // The gate alone includes the SYSTEM page only once it lacks no stock setting and
         // each one works there; ui_retainedSystem opts into it until it falls back.
@@ -3230,7 +3313,7 @@ def main() -> int:
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
                        'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui',
-                       'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui'}
+                       'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3383,6 +3466,9 @@ def main() -> int:
     value_allowlist = cpp_allowlist(adapter, 'bool SessionMenuValueCommand(')
     player_settings = player_setting_rules(adapter)
     handled = set(re.findall(r'\{ "([A-Za-z][A-Za-z0-9]*)",\s+"main_b_', menu)) | set(re.findall(r'!idStr::Icmp\( request, "([A-Za-z][A-Za-z0-9]*)" \)', menu))
+    # The Arena page's verbs, each mapped to the campaign's own command.
+    arena_verbs = menu[menu.index('RETAINED_ARENA_VERBS[][2] = {'):menu.index('RETAINED_ARENA_VERB_COUNT')]
+    handled |= set(re.findall(r'\{ "(arena[A-Za-z0-9]*)", "arena', arena_verbs))
     assert allowlist == handled, f'allowlist {sorted(allowlist)} differs from session handlers {sorted(handled)}'
     for relative in ('content/baseoq4/pak0/guis/menu/title.q4ui', 'content/baseoq4/pak0/guis/menu/pause.q4ui',
                      'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui', 'content/baseoq4/pak0/guis/loading/loading.q4ui',
@@ -3425,8 +3511,10 @@ def main() -> int:
         'bool idSessionLocal::RetainedHomeInputBlocked(',
         'void idSessionLocal::UpdateRetainedHome(', 'idUserInterface *idSessionLocal::RetainedHomeDocument(',
         'bool idSessionLocal::RetainedPauseIsStrogg(', 'void idSessionLocal::RetainedHomeFrameEvent(',
+        'static bool Session_CampaignNeedsReload(',
         'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
         'void idSessionLocal::BeginRetainedSubpage(', 'void idSessionLocal::UpdateRetainedSubpage(',
+        'void idSessionLocal::PresentRetainedSubpage(',
         'bool idSessionLocal::RetainedSubpageEvent(', 'bool idSessionLocal::OpenRetainedNewCampaign(',
         'void idSessionLocal::BeginRetainedSibling(', 'void idSessionLocal::PresentRetainedSibling(',
         'void idSessionLocal::StartRetainedNewCampaign(',
@@ -3440,7 +3528,8 @@ def main() -> int:
         'void idSessionLocal::PublishRetainedDemoRows(', 'void idSessionLocal::PublishRetainedDemoSelection(',
         'void idSessionLocal::HandleRetainedDemosRequest(', 'void idSessionLocal::PublishRetainedMods(',
         'void idSessionLocal::SelectRetainedMod(', 'void idSessionLocal::OpenRestartMenu(',
-        'void idSessionLocal::PublishRetainedCredits(',
+        'void idSessionLocal::PublishRetainedCredits(', 'idUserInterface *idSessionLocal::RetainedArenaPage(',
+        'void idSessionLocal::HandleRetainedArenaRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

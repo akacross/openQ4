@@ -894,6 +894,12 @@
 - CREDITS on the title plays the original credits, rebuilt: the Raven logo,
   then every screen translating from Strogg runes under its scan bars.
 
+- ARENA on the single-player page opens a rebuilt Arena page: the five tiers
+  as a ladder beside the chosen tier's matches, the boss on its own larger
+  plate, the match's levelshot and rules, the difficulty and START MATCH,
+  with the original entrance as a match starts and the match report when
+  you come back. The bumpers switch tier.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

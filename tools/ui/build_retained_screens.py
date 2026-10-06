@@ -48,6 +48,7 @@ OUTPUTS = {
     "restartmenu": PAK0 / "guis" / "menu" / "restartmenu.q4ui",
     "credits": PAK0 / "guis" / "menu" / "credits.q4ui",
     "demos": PAK0 / "guis" / "menu" / "demos.q4ui",
+    "arena": PAK0 / "guis" / "menu" / "arena.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -590,7 +591,8 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                  frame_leave_ms: float = 250, dim: tuple = (), *, yes_event: str | None = None,
                  no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
                  height_u: float = 136.0, top_u: float = 155.0, actions_u: float = 96.0, contents: list | None = None,
-                 yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None) -> dict:
+                 yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None,
+                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -623,7 +625,9 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     section to the frame's edge, as the stock title ran past its rectangle.
     A list or entry dialog grows to `height_u` (146-400 u) at `top_u`, with
     its actions at `actions_u`, its own `contents` in place of the body and
-    its own action labels and first focus."""
+    its own action labels and first focus; a ledger grows to `width_dp`, and
+    actions whose labels run long widen to `action_w` with `action_text` dp
+    labels."""
     body_nodes = contents
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
@@ -635,7 +639,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     doc.events[shown] = [{"op": "setState", "values": {contents: True}}]
     doc.events[hide] = [{"op": "setState", "values": {contents: False}}, {"op": "playTimeline", "timeline": leave}]
     doc.events[hidden] = [{"op": "setState", "values": {visible: False}}]
-    width, height = 480.0, U * height_u     # 320x136 u, or grown
+    width, height = width_dp, U * height_u  # 320x136 u, or grown
     left = (CANVAS_W - width) / 2
     top = U * top_u                         # 155 u: 17 u above centre
     # The silhouette (modal_silhouette) and the title's place in its slot.
@@ -689,9 +693,13 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
         actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=CLOSE_W)]
         initial = initial or f"{ident}_close"
     else:
-        yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event)
-        no = action_plate(doc, f"{ident}_no", no_key, width - 33 - 180, U * actions_u, event=no_event or hide)
+        yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event,
+                           width=action_w)
+        no = action_plate(doc, f"{ident}_no", no_key, width - 33 - action_w, U * actions_u, event=no_event or hide, width=action_w)
         actions, initial = [yes, no], initial or f"{ident}_no"
+        if action_text != 20:
+            for plate in actions:
+                next(child for child in plate["children"] if child["id"].endswith("-label"))["properties"]["font-size"] = length(action_text)
     shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, *body, *actions])
     dialog = group(f"{ident}-dialog", absolute(left=left, top=top, width=width, height=height),
                    [glow, soft_glow, frame, shown_contents])
@@ -1438,11 +1446,12 @@ def campaign_document(campaigns: bool) -> dict:
                 label("title", crumb_key, {**absolute(left=0, top=U * TITLE_SLOT[1], width=U * PAGE_TITLE_W, height=U * PAGE_TITLE_H),
                                            **typeface("marine", 18, U * PAGE_TITLE_H, [1, 1, 1, 0.5]), "white-space": keyword("nowrap"),
                                            "transform": transform()})]),
-            # Going deeper, the CAMPAIGN label carries from its row into the
-            # slot at the step's foot (title.carry, 300 ms).
-            label("subpage-carry", "#str_230038", {**absolute(left=U * SUBPAGE_SLOT[0], top=U * SUBPAGE_SLOT[1], width=U * 314, height=U * 24.4),
-                  **typeface("marine", 24, U * 24.4, rgb(ORANGE)), "white-space": keyword("nowrap"), "opacity": number(0),
-                  "transform": transform(), "pointer-events": keyword("none")}),
+            # Going deeper, the CAMPAIGN or ARENA label carries from its row
+            # into the slot at the step's foot (title.carry, 300 ms).
+            *[label(ident, key, {**absolute(left=U * SUBPAGE_SLOT[0], top=U * SUBPAGE_SLOT[1], width=U * 314, height=U * 24.4),
+                    **typeface("marine", 24, U * 24.4, rgb(ORANGE)), "white-space": keyword("nowrap"), "opacity": number(0),
+                    "transform": transform(), "pointer-events": keyword("none")})
+              for ident, key in (("subpage-carry", "#str_230038"), ("arena-carry", "#str_42002"))],
         ]
     titles_group = group("titles", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2),
                                     "pointer-events": keyword("none")}, titles)
@@ -1526,8 +1535,10 @@ def campaign_document(campaigns: bool) -> dict:
         ]
         doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
     else:
-        start = {"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
-                                                            round(U * (nav_top + 2.8 - SUBPAGE_SLOT[1]), 3), 1, 1, 0]}
+        # Each carry starts on its row: CAMPAIGN the first, ARENA the second.
+        start, arena_start = ({"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
+                                                                          round(U * (nav_top + 30 * row + 2.8 - SUBPAGE_SLOT[1]), 3), 1, 1, 0]}
+                              for row in (0, 1))
         width, height, scale = U * 314, U * 24.4, 0.75
         end = {"type": "transform", "unit": "dp", "value": [round(-(1 - scale) * width / 2, 3), round(-(1 - scale) * height / 2, 3),
                                                            scale, scale, 0]}
@@ -1541,21 +1552,23 @@ def campaign_document(campaigns: bool) -> dict:
             track("title", "transform", [(0, identity), (1, identity)]),
             track("title", "color", [(0, white(0.5)), (1, white(0.5))]),
             track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (1, length(U * PAGE_TITLE_W))]),
-            track("subpage-carry", "opacity", [(0, number(0)), (1, number(0))]),
-            track("subpage-carry", "transform", [(0, start), (1, start)]),
-            track("subpage-carry", "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE)))]),
+            *[track(carry, prop, [(0, value), (1, value)]) for carry, origin in (("subpage-carry", start), ("arena-carry", arena_start))
+              for prop, value in (("opacity", number(0)), ("transform", origin), ("color", colour(rgb(ORANGE))))],
         ])
-        doc.timelines.add("subpageEnter", 350, [
-            track("content", "opacity", [(0, number(1)), (150, number(0)), (350, number(0))]),
-            track("content", "transform", [(0, identity), (300, swept_right), (350, swept_right)]),
-            track("title", "color", [(0, white(0.5)), (150, white(0.4)), (350, white(0.4))]),
-            track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (150, length(U * CRUMB_SPAN)), (350, length(U * CRUMB_SPAN))]),
-            track("band-top", "transform", [(0, page_top), (50, page_top, ACCEL), (350, sub_top)]),
-            track("subpage-carry", "opacity", [(0, number(1)), (1, number(1)), (350, number(1))]),
-            track("subpage-carry", "transform", [(0, start), (1, start), (50, start, ACCEL), (350, end)]),
-            track("subpage-carry", "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE))), (50, colour(rgb(ORANGE)), ACCEL),
-                                             (350, white(0.5))]),
-        ])
+        # Going deeper to Campaign or to Arena: the same change, the chosen
+        # row's label carrying.
+        for timeline, carry, origin in (("subpageEnter", "subpage-carry", start), ("subpageEnterArena", "arena-carry", arena_start)):
+            doc.timelines.add(timeline, 350, [
+                track("content", "opacity", [(0, number(1)), (150, number(0)), (350, number(0))]),
+                track("content", "transform", [(0, identity), (300, swept_right), (350, swept_right)]),
+                track("title", "color", [(0, white(0.5)), (150, white(0.4)), (350, white(0.4))]),
+                track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (150, length(U * CRUMB_SPAN)), (350, length(U * CRUMB_SPAN))]),
+                track("band-top", "transform", [(0, page_top), (50, page_top, ACCEL), (350, sub_top)]),
+                track(carry, "opacity", [(0, number(1)), (1, number(1)), (350, number(1))]),
+                track(carry, "transform", [(0, origin), (1, origin), (50, origin, ACCEL), (350, end)]),
+                track(carry, "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE))), (50, colour(rgb(ORANGE)), ACCEL),
+                                       (350, white(0.5))]),
+            ])
         for suffix, scale in variants:
             doc.timelines.add(f"crumbEnter{suffix}", 350, [
                 track("title", "transform", [(0, identity), (150, crumb_transform(scale)), (350, crumb_transform(scale))])])
@@ -1575,12 +1588,17 @@ def campaign_document(campaigns: bool) -> dict:
                 track("title", "color", [(0, white(0.4)), (duration, white(0.5))]),
                 track("title-clip", "width", [(0, length(U * CRUMB_SPAN)), (duration, length(U * PAGE_TITLE_W))]),
                 track("band-top", "transform", [(0, sub_top, ACCEL), (duration, page_top)]),
-                track("subpage-carry", "opacity", [(0, number(1)), (duration // 2, number(0)), (duration, number(0))]),
+                *[track(carry, "opacity", [(0, number(1)), (duration // 2, number(0)), (duration, number(0))])
+                  for carry in ("subpage-carry", "arena-carry")],
             ])
             doc.events[f"subpageReverse{duration}"] = [{"op": "playTimeline", "timeline": f"subpageReverse{duration}"}]
         doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
-        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}]
-        doc.events["subpageEnter"] = [{"op": "playTimeline", "timeline": "subpageEnter"}, *by_language(doc, "crumbEnter", fits)]
+        # Back from Arena (the session sets from_arena first) returns onto ARENA.
+        doc.state["from_arena"] = {"type": "boolean", "initial": False}
+        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"},
+                                    {"op": "if", "condition": {"state": "from_arena"}, "then": [{"op": "focus", "control": "arena"}]}]
+        for event in ("subpageEnter", "subpageEnterArena"):
+            doc.events[event] = [{"op": "playTimeline", "timeline": event}, *by_language(doc, "crumbEnter", fits)]
         doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles_group,
@@ -3013,6 +3031,7 @@ def main() -> int:
     from retained_demos import demos_document
     from retained_death import restart_menu_document
     from retained_credits import credits_document
+    from retained_arena import arena_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
@@ -3023,6 +3042,7 @@ def main() -> int:
                  "demos": demos_document(),
                  "restartmenu": restart_menu_document(),
                  "credits": credits_document(),
+                 "arena": arena_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():

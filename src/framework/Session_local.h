@@ -226,8 +226,14 @@ public:
 	virtual void		ExitMenu();
 	virtual void		GuiFrameEvents();
 	virtual void		SetGUI( idUserInterface *gui, HandleGuiCommand_t handle );
-	void OpenCampaignSelector( bool campaigns, bool siblingBack = false );
+	void OpenCampaignSelector( bool campaigns, bool siblingBack = false, bool fromArena = false );
 	void SelectCampaign( const char *campaign, bool start = false );
+	// Single Player's retained Arena sub-page (guis/menu/arena.q4ui): the
+	// Arena campaign's browser where it can present (NULL: the stock one
+	// presents), and the page while it is loaded, which the campaign
+	// publishes into.
+	idUserInterface *RetainedArenaPage();
+	idUserInterface *RetainedArenaGui() const { return guiRetainedArena; }
 	bool				OpenSystemSettings();
 	bool				ReturnSystemSettings();
 	void				ReportSystemSettings();
@@ -298,8 +304,10 @@ public:
 	int					retainedRosterCount;
 	int					retainedRosterConnecting;
 	bool				retainedRosterKnown;
-	// The Single Player page and Campaign sub-page change (spec 1.10).
-	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper );
+	// The Single Player page and its Campaign and Arena sub-pages change
+	// (spec 1.10); `arena` leads to or from Arena.
+	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper, bool arena = false );
+	void				PresentRetainedSubpage( bool deeper, bool arena );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
 	// Campaign's New Campaign sub-page (guis/menu/newcampaign.q4ui), the
@@ -335,6 +343,8 @@ public:
 	void				PublishRetainedDemoRows( idUserInterface *gui );
 	void				PublishRetainedDemoSelection( idUserInterface *gui, const char *error );
 	void				HandleRetainedDemosRequest( idUserInterface *gui, const char *request );
+	// The Arena page's verbs, which run the Arena campaign's own commands.
+	void				HandleRetainedArenaRequest( idUserInterface *gui, const char *request );
 	// The demo library's operations, which the legacy browser and the
 	// retained page share.
 	void				ScanDemoLibrary();
@@ -548,6 +558,7 @@ public:
 	int					retainedSubpageBegan;	// presentation time the change began
 	int					retainedSubpageUntil;	// presentation time of the hand-over
 	bool				retainedSubpageSibling;	// between Campaign and New Campaign, its sibling
+	bool				retainedSubpageArena;	// to or from the Arena sub-page
 	bool				retainedHomeReturning;
 	// The Load Game page: its document (NULL until it first loads), the home
 	// that handed off to it, a hand-off presenting it and when, whether the
@@ -616,6 +627,7 @@ public:
 	idUserInterface *	guiRestartMenu;
 	idUserInterface *	guiRetainedRestartMenu;	// the retained restart screen (NULL until it loads)
 	idUserInterface *	guiRetainedCredits;		// the retained Credits page (NULL until it loads)
+	idUserInterface *	guiRetainedArena;		// the retained Arena sub-page (NULL until it loads)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

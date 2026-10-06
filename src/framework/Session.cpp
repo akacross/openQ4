@@ -3811,6 +3811,7 @@ void idSessionLocal::Clear() {
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
 	retainedSubpageSibling = false;
+	retainedSubpageArena = false;
 	retainedHomeReturning = false;
 	guiRetainedLoad = NULL;
 	retainedPageHome = NULL;
@@ -3828,6 +3829,7 @@ void idSessionLocal::Clear() {
 	retainedModSelected = -1;
 	guiRetainedRestartMenu = NULL;
 	guiRetainedCredits = NULL;
+	guiRetainedArena = NULL;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;
@@ -9074,7 +9076,13 @@ void idSessionLocal::Init() {
 	// this synchronously from StartMenu made the first ESC press wait on image,
 	// material, and sound lookup before the GUI could be activated.
 	PrimeMainMenuGuiResources();
+	// An engine reload (a campaign's game directory, an Arena match's module)
+	// preloads the retained screens again: their pictures precache as the
+	// first start's do, never as late loads.
+	const bool retainedInsideLoad = declManager->GetInsideLoad();
+	declManager->SetInsideLoad( true );
 	PreloadRetainedScreens();
+	declManager->SetInsideLoad( retainedInsideLoad );
 	guiMainMenu_MapList = uiManager->AllocListGUI();
 	guiMainMenu_MapList->Config( guiMainMenu, "mapList" );
 	idAsyncNetwork::client.serverList.GUIConfig( guiMainMenu, "serverList" );

@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import struct
 import subprocess
 import time
@@ -37,6 +38,11 @@ ROOT = Path(__file__).resolve().parents[2]
 DONE = 'RETAINED_SCREENS_CAPTURE_COMPLETE'
 
 # Scenario -> (map to load or None for the title, console stages).
+# Splits a scenario: what follows runs after a map its page launches loads.
+AFTER_MAP = '@aftermap'
+# Where a scenario logs the game module its page reloads.
+MODULE_LOG = 'openq4-match.log'
+
 SCENARIOS = {
     'title': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/title.tga"',
@@ -425,6 +431,78 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
         'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
+    # Single Player's Arena sub-page (FLOW-011, FLOW-050): ARENA plays the
+    # change with its own carry and the campaign's browser presents at 350 ms,
+    # TIER 1 won and TIER 2's first qualifier with it (ui_arenaProgress 31).
+    # The bumpers' event moves to TIER 3 (locked: nothing moves) and back, a
+    # qualifier is chosen, the difficulty steps, RESET PROGRESS asks first and
+    # CANCEL keeps the progress; Back returns to Single Player onto ARENA.
+    'arena': (None, [
+        'set ui_arenaProgress 31', 'set ui_arenaSelectedTier 1', 'set ui_arenaSelectedMatch 1', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'screenshot "screenshots/arena-singleplayer.tga"',
+        'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/arena-change.tga"', 'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arena.tga"',
+        'openq4_retainedGui event onTabNext', 'waitMsec 400', 'ui_arenaSelectedTier', 'screenshot "screenshots/arena-tier-locked.tga"',
+        'openq4_retainedGui event onTabPrevious', 'waitMsec 400', 'ui_arenaSelectedTier', 'screenshot "screenshots/arena-tier-1.tga"',
+        'openq4_retainedGui event onTabNext', 'waitMsec 400', 'ui_arenaSelectedTier',
+        'openq4_retainedGui focus "match-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'ui_arenaSelectedMatch', 'screenshot "screenshots/arena-match.tga"',
+        'openq4_retainedGui focus arena_harder', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'ui_arenaDifficulty', 'screenshot "screenshots/arena-harder.tga"',
+        'openq4_retainedGui focus arena_reset', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 450',
+        'openq4_retainedGui report', 'screenshot "screenshots/arena-reset.tga"',
+        'openq4_retainedGui focus resetModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 450',
+        'ui_arenaProgress', 'screenshot "screenshots/arena-kept.tga"',
+        'openq4_retainedGui focus arena_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/arena-back.tga"', 'waitMsec 900', 'openq4_retainedGui report',
+        'screenshot "screenshots/arena-returned.tga"',
+    ]),
+    # An Arena match from the page: START MATCH plays the entrance and the
+    # campaign launches the first match in game_mp with its bot. Disconnecting
+    # abandons it: the campaign aborts the match, restores its settings and
+    # keeps its progress. The reloaded module logs to its own file.
+    'arenamatch': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'screenshot "screenshots/arenamatch-browser.tga"',
+        'set logFileName "logs/openq4-match.log"', 'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/arenamatch-entrance.tga"', AFTER_MAP,
+        'ui_retainedStatus', 'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'screenshot "screenshots/arenamatch-match.tga"',
+        'disconnect', 'waitMsec 3000', 'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'ui_arenaProgress', 'si_arenaCampaign',
+        'ui_retainedStatus', 'screenshot "screenshots/arenamatch-left.tga"',
+    ]),
+    # An Arena match that cannot start: the listen server's port is held
+    # (SCENARIO_PORTS), so after the entrance and the game module's reload the
+    # server cannot open and the campaign returns to the page with its result
+    # ledger, MATCH ABORTED and the reason; CONTINUE returns to the browser
+    # with the progress untouched. The campaign appends its launch behind the
+    # script, so the rest follows it through two appended steps
+    # (SCENARIO_FILES: vstr appends, where exec would insert; the console
+    # splits a bare name at a hyphen, so they have none). The log of the
+    # reloaded module goes to its own file, keeping the page's.
+    'arenafail': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'set arenaDefer "exec retained_arenafail_defer.cfg"', 'set arenaAfter "exec retained_arenafail_after.cfg"',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 400', 'screenshot "screenshots/arenafail-entrance.tga"', 'waitMsec 1500',
+        'vstr arenaDefer', AFTER_MAP,
+    ]),
+    # A whole Arena match to its result: the hardest difficulty's bot plays the
+    # first match out against the idle player, and the page reveals the
+    # campaign's result ledger from the black the match ended on.
+    'arenaresult': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 5',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1300', 'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 400', AFTER_MAP,
+        'screenshot "screenshots/arenaresult-match.tga"', 'waitMsec 120000', 'screenshot "screenshots/arenaresult-2min.tga"',
+        'waitMsec 120000', 'screenshot "screenshots/arenaresult-4min.tga"', 'waitMsec 120000', 'screenshot "screenshots/arenaresult-6min.tga"',
+        'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-7min.tga"',
+        'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-8min.tga"',
+    ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
     # screen's lines arrive in runes and translate to Latin under the scan
@@ -550,10 +628,25 @@ def stock_menu_without_demos(runtime: Path) -> str:
 
 
 # CVars a scenario sets beyond the common ones.
+# Ports a scenario holds on the loopback interface while it runs, and the
+# cfg files it chains to (the last one ends the run).
+SCENARIO_PORTS = {'arenafail': 27961}
+SCENARIO_FILES = {'arenafail': {
+    'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
+    'retained_arenafail_after.cfg': [
+        # In the hidden capture window the reloaded module presents its first
+        # frame at a screenshot, which reads black; the ledger reveals from it.
+        'waitMsec 3000', 'screenshot "screenshots/arenafail-reloaded.tga"', 'waitMsec 3000',
+        'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenafail-ledger.tga"', 'openq4_retainedGui focus resultModal_no', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenafail-browser.tga"'],
+}}
 SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
-                  'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'}}
+                  'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
+                  'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'
@@ -632,9 +725,27 @@ def run(args, scenario: str) -> dict:
         target = game / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content(args.runtime.resolve()))
-    lines = [f'echo RETAINED_STAGE {scenario}'] + stages + ['ui_retainedStatus', f'echo {DONE}', 'quit']
+    # A scenario whose page launches a map continues once that map has loaded
+    # (AFTER_MAP): the command buffer must be free for the launch meanwhile.
+    after = None
+    if AFTER_MAP in stages:
+        split = stages.index(AFTER_MAP)
+        stages, after = stages[:split], stages[split + 1:]
+    finish = ['ui_retainedStatus', f'echo {DONE}', 'quit']
+    lines = [f'echo RETAINED_STAGE {scenario}'] + stages + ([] if after is not None else finish)
     cfg = game / f'retained-{scenario}.cfg'
     cfg.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    chained = SCENARIO_FILES.get(scenario)
+    if after is not None and chained:
+        # The stage continues through chained files; the last one ends the run.
+        names = list(chained)
+        for name in names:
+            lines_after = chained[name] + (finish if name == names[-1] else [])
+            (game / name).write_text('\n'.join([f'echo RETAINED_STAGE {scenario} {name}'] + lines_after) + '\n', encoding='utf-8')
+        after = None
+    elif after is not None:
+        after_cfg = game / f'retained-{scenario}-after.cfg'
+        after_cfg.write_text('\n'.join([f'echo RETAINED_STAGE {scenario} after map'] + after + finish) + '\n', encoding='utf-8')
     width, height = args.size.split('x')
     overrides = {
         'fs_basepath': str(args.assets.resolve()), 'fs_savepath': str(output / 'save'), 'fs_devpath': str(output / 'save'),
@@ -670,6 +781,8 @@ def run(args, scenario: str) -> dict:
     elif level:
         command += ['+set', 'g_autoExecAfterMapLoad', cfg.name, '+set', 'g_autoExecAfterMapLoadDelayMs', '3000', '+map', level]
     else:
+        if after is not None:
+            command += ['+set', 'g_autoExecAfterMapLoad', after_cfg.name, '+set', 'g_autoExecAfterMapLoadDelayMs', '3000']
         command += ['+exec', cfg.name]
     options = {'env': {**os.environ, 'TEMP': str(ROOT / '.tmp'), 'TMP': str(ROOT / '.tmp')}}
     if os.name == 'nt':
@@ -678,16 +791,31 @@ def run(args, scenario: str) -> dict:
         startup.wShowWindow = 0
         options.update(startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
     started = time.monotonic()
-    with (output / 'process.log').open('w', encoding='utf-8') as process_log:
-        process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=process_log, stderr=subprocess.STDOUT, **options)
-        try:
-            returncode = process.wait(timeout=args.timeout)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-            returncode = None
+    # A held port stays on the loopback interface, which the engine's net_ip
+    # names for that scenario.
+    held = None
+    if scenario in SCENARIO_PORTS:
+        held = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        held.bind(('127.0.0.1', SCENARIO_PORTS[scenario]))
+    try:
+        with (output / 'process.log').open('w', encoding='utf-8') as process_log:
+            process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=process_log, stderr=subprocess.STDOUT, **options)
+            try:
+                returncode = process.wait(timeout=args.timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                returncode = None
+    finally:
+        if held is not None:
+            held.close()
     log_path = game / 'logs' / 'openq4.log'
     log = re.sub(r'\^[0-9]', '', log_path.read_text(encoding='utf-8', errors='replace')) if log_path.is_file() else ''
+    # A scenario whose page reloads the game module logs the reloaded module
+    # to its own file (MODULE_LOG), which continues this one.
+    module_log = game / 'logs' / MODULE_LOG
+    if module_log.is_file():
+        log += re.sub(r'\^[0-9]', '', module_log.read_text(encoding='utf-8', errors='replace'))
     shots = []
     for tga in sorted((game / 'screenshots').glob('*.tga')):
         png = to_png(tga)

@@ -13,6 +13,7 @@ for the final score.
 
 #include "Session_local.h"
 #include "ArenaCampaign.h"
+#include "../ui/UserInterfaceManaged.h"
 #include "async/AsyncNetwork.h"
 
 namespace {
@@ -908,6 +909,24 @@ static void ArenaResolveSelection( arenaCampaignState_t *state ) {
 	ui_arenaSelectedMatch.SetInteger( match );
 }
 
+// A match's levelshot: its map's loadscreen, else its thumbnail, else the
+// map's screenshot, else the generic loadscreen.
+static idStr ArenaLevelshot( const arenaMatch_t &match, const idDict *mapDecl ) {
+	idStr levelshot = "gfx/guis/loadscreens/generic";
+	if ( mapDecl != NULL ) {
+		levelshot = mapDecl->GetString( "loadimage" );
+		if ( levelshot.IsEmpty() ) {
+			levelshot = mapDecl->GetString( "mp_thumb" );
+		}
+	}
+	if ( levelshot.IsEmpty() ) {
+		char screenshot[MAX_STRING_CHARS];
+		fileSystem->FindMapScreenshot( match.map, screenshot, sizeof( screenshot ) );
+		levelshot = screenshot;
+	}
+	return levelshot;
+}
+
 static idStr ArenaBuildRoster( const arenaMatch_t &match ) {
 	idStr roster;
 	for ( int i = 0; i < match.bots.Num(); i++ ) {
@@ -983,6 +1002,24 @@ void idArenaCampaign::Init() {
 	state->gui = uiManager->FindGui( "guis/arena_menu.gui", true, false, true );
 	state->returnGui = NULL;
 	LoadCampaign();
+	// The levelshots, and the retained Arena page's pictures of them, resolve
+	// with the menus, so choosing a match never loads one mid-frame, and an
+	// engine reload precaches them as the first start does.
+	if ( state->loaded && sessLocal.RetainedArenaGui() != NULL ) {
+		const bool insideLoad = declManager->GetInsideLoad();
+		declManager->SetInsideLoad( true );
+		for ( int tierIndex = 0; tierIndex < state->tiers.Num(); tierIndex++ ) {
+			for ( int matchIndex = 0; matchIndex < state->tiers[tierIndex].matches.Num(); matchIndex++ ) {
+				const arenaMatch_t &match = state->tiers[tierIndex].matches[matchIndex];
+				const idDict *mapDecl = NULL;
+				ArenaMapSupportsMatch( match, &mapDecl );
+				const idStr levelshot = ArenaLevelshot( match, mapDecl );
+				declManager->FindMaterial( levelshot );
+				UI_RetainedPrecacheImage( levelshot.c_str() );
+			}
+		}
+		declManager->SetInsideLoad( insideLoad );
+	}
 
 	// Reaching game_mp completes the only module transition that is allowed to
 	// carry a live Arena transaction across session shutdown. If the replayed
@@ -1228,6 +1265,32 @@ bool idArenaCampaign::IsActive() const {
 
 /*
 ================
+idArenaCampaign::IsEntering
+================
+*/
+bool idArenaCampaign::IsEntering() const {
+	return state != NULL && state->transitionPhase == ARENA_TRANSITION_ENTRANCE;
+}
+
+/*
+================
+idArenaCampaign::PresentedGui
+
+The browser on screen, stock or retained (NULL: neither presents).
+================
+*/
+idUserInterface *idArenaCampaign::PresentedGui() const {
+	if ( state == NULL || sessLocal.guiActive == NULL ) {
+		return NULL;
+	}
+	if ( sessLocal.guiActive == state->gui || sessLocal.guiActive == sessLocal.RetainedArenaGui() ) {
+		return sessLocal.guiActive;
+	}
+	return NULL;
+}
+
+/*
+================
 idArenaCampaign::NeedsCleanup
 
 This is deliberately broader than IsActive.  It also catches interrupted
@@ -1294,18 +1357,25 @@ void idArenaCampaign::OpenBrowser() {
 		LoadCampaign();
 	}
 
-	if ( sessLocal.guiActive != state->gui ) {
-		state->returnGui = sessLocal.guiActive != NULL ? sessLocal.guiActive : sessLocal.guiMainMenu;
+	// The retained Arena page presents the browser where it can (Single
+	// Player's Arena sub-page, which it leaves through the session); else this
+	// one does.
+	idUserInterface *view = sessLocal.RetainedArenaPage();
+	if ( view == NULL ) {
+		view = state->gui;
+		if ( sessLocal.guiActive != state->gui ) {
+			state->returnGui = sessLocal.guiActive != NULL ? sessLocal.guiActive : sessLocal.guiMainMenu;
+		}
 	}
 	state->resetConfirmation = false;
 	state->view = 1;
 	// See OpenSelector: the browser needs this state before SetGUI runs its
 	// activation script or it can briefly choose the previous view's reveal.
 	UpdateGui();
-	sessLocal.SetGUI( state->gui, NULL );
+	sessLocal.SetGUI( view, NULL );
 	if ( state->resultRevealPending && state->result != 0 ) {
 		state->resultRevealPending = false;
-		state->gui->HandleNamedEvent( "arenaResultReveal" );
+		view->HandleNamedEvent( "arenaResultReveal" );
 	}
 #endif
 }
@@ -1370,8 +1440,20 @@ void idArenaCampaign::UpdateGui() {
 	if ( state == NULL || state->gui == NULL ) {
 		return;
 	}
+	PublishGui( state->gui );
+	// The retained Arena page reads the same state while it is loaded.
+	idUserInterface *page = sessLocal.RetainedArenaGui();
+	if ( page != NULL ) {
+		PublishGui( page );
+	}
+}
 
-	idUserInterface *gui = state->gui;
+/*
+================
+idArenaCampaign::PublishGui
+================
+*/
+void idArenaCampaign::PublishGui( idUserInterface *gui ) {
 	gui->SetStateInt( "arena_view", state->view );
 	gui->SetStateBool( "arena_loaded", state->loaded );
 	gui->SetStateInt( "arena_transitionPhase", state->transitionPhase );
@@ -1480,19 +1562,10 @@ void idArenaCampaign::UpdateGui() {
 	const bool mapAvailable = ArenaMapSupportsMatch( match, &mapDecl );
 
 	idStr mapName = match.map;
-	idStr levelshot = "gfx/guis/loadscreens/generic";
 	if ( mapDecl != NULL ) {
 		mapName = ArenaLocalized( mapDecl->GetString( "name", match.map.c_str() ) );
-		levelshot = mapDecl->GetString( "loadimage" );
-		if ( levelshot.IsEmpty() ) {
-			levelshot = mapDecl->GetString( "mp_thumb" );
-		}
 	}
-	if ( levelshot.IsEmpty() ) {
-		char screenshot[MAX_STRING_CHARS];
-		fileSystem->FindMapScreenshot( match.map, screenshot, sizeof( screenshot ) );
-		levelshot = screenshot;
-	}
+	const idStr levelshot = ArenaLevelshot( match, mapDecl );
 	declManager->FindMaterial( levelshot )->SetSort( SS_GUI );
 
 	gui->SetStateString( "arena_selectedTitle", ArenaLocalized( match.name ) );
@@ -1717,6 +1790,21 @@ bool idArenaCampaign::HandleGuiCommand( const char *menuCommand ) {
 			}
 			return true;
 		}
+		// The next unlocked tier before or after the chosen one, on its
+		// preferred match; nothing past the first or the last open tier.
+		if ( !idStr::Icmp( cmd, "arenaStepTier" ) && icmd < args.Argc() ) {
+			const int step = atoi( args.Argv( icmd++ ) ) < 0 ? -1 : 1;
+			const int progress = ui_arenaProgress.GetInteger();
+			for ( int tier = ui_arenaSelectedTier.GetInteger() + step; tier >= 0 && tier < ARENA_TIER_COUNT; tier += step ) {
+				if ( ArenaTierUnlocked( progress, tier ) ) {
+					ui_arenaSelectedTier.SetInteger( tier );
+					ui_arenaSelectedMatch.SetInteger( ArenaPreferredMatch( progress, tier ) );
+					UpdateGui();
+					break;
+				}
+			}
+			return true;
+		}
 		if ( !idStr::Icmp( cmd, "arenaSelectMatch" ) && icmd < args.Argc() ) {
 			const int match = atoi( args.Argv( icmd++ ) );
 			const int tier = ui_arenaSelectedTier.GetInteger();
@@ -1781,8 +1869,8 @@ void idArenaCampaign::RequestResetProgress() {
 	}
 	state->resetConfirmation = true;
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		state->gui->HandleNamedEvent( "arenaResetReveal" );
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( "arenaResetReveal" );
 	}
 }
 
@@ -1888,12 +1976,8 @@ void idArenaCampaign::DismissResult() {
 	state->transitionPhase = ARENA_TRANSITION_IDLE;
 	state->resetConfirmation = false;
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		if ( revealProgress ) {
-			state->gui->HandleNamedEvent( "arenaProgressReveal" );
-		} else {
-			state->gui->HandleNamedEvent( "arenaBrowserReveal" );
-		}
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( revealProgress ? "arenaProgressReveal" : "arenaBrowserReveal" );
 	}
 }
 
@@ -1943,8 +2027,8 @@ void idArenaCampaign::StartSelectedMatch() {
 		state->launchToken,
 		ARENA_ENTRANCE_MSEC );
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		state->gui->HandleNamedEvent( "arenaMatchLaunch" );
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( "arenaMatchLaunch" );
 	}
 }
 

@@ -200,6 +200,10 @@ LOAD GAME, MAIN MENU and EXIT GAME over the stock popup art.
 CREDITS on the title opens the retained [Credits page](../ui/retained-screens.md#credits-page):
 the stock credits' choreography compiled into one repeating timeline, its words
 read from the stock menu at runtime.
+ARENA on the Single Player page opens the retained [Arena page](../ui/retained-screens.md#arena-page),
+its second sub-page: the Arena campaign's tier ladder, matches, detail column,
+entrance and result ledger, the campaign publishing into it and keeping its
+authority.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

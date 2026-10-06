@@ -5000,6 +5000,31 @@ static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
 static const char *const RETAINED_RESTARTMENU_GUI = "guis/menu/restartmenu.q4ui";
 // The Credits page, which the title's CREDITS hands off to.
 static const char *const RETAINED_CREDITS_GUI = "guis/menu/credits.q4ui";
+// Single Player's Arena sub-page, the Arena campaign's browser, and the
+// campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
+static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
+static const char *const RETAINED_ARENA_VERBS[][2] = {
+	{ "arenaTier0", "arenaSelectTier 0" },
+	{ "arenaTier1", "arenaSelectTier 1" },
+	{ "arenaTier2", "arenaSelectTier 2" },
+	{ "arenaTier3", "arenaSelectTier 3" },
+	{ "arenaTier4", "arenaSelectTier 4" },
+	{ "arenaMatch0", "arenaSelectMatch 0" },
+	{ "arenaMatch1", "arenaSelectMatch 1" },
+	{ "arenaMatch2", "arenaSelectMatch 2" },
+	{ "arenaMatch3", "arenaSelectMatch 3" },
+	{ "arenaTierPrevious", "arenaStepTier -1" },
+	{ "arenaTierNext", "arenaStepTier 1" },
+	{ "arenaEasier", "arenaDifficulty -1" },
+	{ "arenaHarder", "arenaDifficulty 1" },
+	{ "arenaStart", "arenaStart" },
+	{ "arenaReset", "arenaReset" },
+	{ "arenaResetConfirm", "arenaResetConfirm" },
+	{ "arenaResetCancel", "arenaResetCancel" },
+	{ "arenaRetry", "arenaRetry" },
+	{ "arenaDismiss", "arenaDismissResult" },
+};
+static const int RETAINED_ARENA_VERB_COUNT = sizeof( RETAINED_ARENA_VERBS ) / sizeof( RETAINED_ARENA_VERBS[0] );
 static const int RETAINED_DEMO_ROWS = 64;
 // The title's MODS dialog lists this many mods (MOD_ROWS in
 // tools/ui/build_retained_screens.py).
@@ -5172,7 +5197,7 @@ idUserInterface *idSessionLocal::FindRetainedGui( const char *path, bool shared,
 #endif
 
 
-void idSessionLocal::OpenCampaignSelector( bool campaigns, bool siblingBack ) {
+void idSessionLocal::OpenCampaignSelector( bool campaigns, bool siblingBack, bool fromArena ) {
 #ifndef ID_DEDICATED
     // The stock selectors stand in when the retained one is off, missing or
     // cannot load.
@@ -5193,11 +5218,25 @@ void idSessionLocal::OpenCampaignSelector( bool campaigns, bool siblingBack ) {
         gui->SetStateBool( "sibling_back", siblingBack );
         gui->SetStateBool( "awakening_chosen", !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) );
         gui->StateChanged( common->GetPresentationTime() );
+    } else if ( gui != NULL ) {
+        // Back from Arena returns onto ARENA; the activation reads it.
+        gui->SetStateBool( "from_arena", fromArena );
+        gui->StateChanged( common->GetPresentationTime() );
     }
     SetGUI( gui, NULL );
     gui->StateChanged( common->GetPresentationTime() );
 #endif
 }
+
+#ifndef ID_DEDICATED
+// Whether entering a campaign's game directory reloads the engine first.
+static bool Session_CampaignNeedsReload( const char *gameDir ) {
+    return idStr::Icmp( fileSystem->GetActiveGameDir(), gameDir ) ||
+           idStr::Icmp( cvarSystem->GetCVarString( "fs_game" ), gameDir ) ||
+           cvarSystem->GetCVarString( "fs_game_base" )[0] ||
+           idStr::Icmp( cvarSystem->GetCVarString( "com_activeGameModule" ), "game_sp" );
+}
+#endif
 
 void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
 #ifndef ID_DEDICATED
@@ -5215,10 +5254,7 @@ void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
     const char *gameDir = awakening ? "q4xbase" : OPENQ4_GAMEDIR;
     // Consume one-shot command-line overrides before a full engine restart.
     common->StartupVariable( "si_gameType", true );
-    if ( idStr::Icmp( fileSystem->GetActiveGameDir(), gameDir ) ||
-         idStr::Icmp( cvarSystem->GetCVarString( "fs_game" ), gameDir ) ||
-         cvarSystem->GetCVarString( "fs_game_base" )[0] ||
-         idStr::Icmp( cvarSystem->GetCVarString( "com_activeGameModule" ), "game_sp" ) ) {
+    if ( Session_CampaignNeedsReload( gameDir ) ) {
         cvarSystem->SetCVarString( "fs_game", gameDir );
         cvarSystem->SetCVarString( "fs_game_base", "" );
         cvarSystem->SetCVarString( "si_gameType", "singleplayer" );
@@ -5414,27 +5450,24 @@ void idSessionLocal::DrawRetainedHome( int presentationTime ) {
 	guiRetainedHome->Redraw( presentationTime );
 }
 
-// The Single Player page and its Campaign sub-page are two documents (see
-// RETAINED_SUBPAGE_DEEPER_MSEC). When the other document cannot present, its
-// stock selector opens at once.
-void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper ) {
+// The Single Player page and its Campaign and Arena sub-pages are documents
+// of their own (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other document
+// cannot present, its stock screen opens at once.
+void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, bool arena ) {
 #ifndef ID_DEDICATED
 	HandleMainMenuCommands( "play main_menu_selection" );
-	if ( FindRetainedGui( deeper ? RETAINED_CAMPAIGNS_GUI : RETAINED_SINGLEPLAYER_GUI, true, false ) == NULL ||
-			cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
-		// The stock selector, or reduced motion: the other level at once.
-		OpenCampaignSelector( deeper );
-		if ( !deeper && guiActive != NULL && !idStr::Icmp( guiActive->Name(), RETAINED_SINGLEPLAYER_GUI ) ) {
-			guiActive->HandleNamedEvent( "subpageReturn" );
-			PumpApplicationActions( guiActive );
-		}
+	const char *other = !deeper ? RETAINED_SINGLEPLAYER_GUI : arena ? RETAINED_ARENA_GUI : RETAINED_CAMPAIGNS_GUI;
+	if ( FindRetainedGui( other, true, false ) == NULL || cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
+		// The stock screen, or reduced motion: the other level at once.
+		PresentRetainedSubpage( deeper, arena );
 		return;
 	}
-	gui->HandleNamedEvent( deeper ? "subpageEnter" : "subpageLeave" );
+	gui->HandleNamedEvent( deeper ? ( arena ? "subpageEnterArena" : "subpageEnter" ) : "subpageLeave" );
 	PumpApplicationActions( gui );
 	retainedSubpageFrom = gui;
 	retainedSubpageDeeper = deeper;
 	retainedSubpageSibling = false;
+	retainedSubpageArena = arena;
 	retainedSubpageBegan = common->GetPresentationTime();
 	retainedSubpageUntil = retainedSubpageBegan + ( deeper ? RETAINED_SUBPAGE_DEEPER_MSEC : RETAINED_SUBPAGE_BACK_MSEC );
 	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
@@ -5466,13 +5499,29 @@ void idSessionLocal::UpdateRetainedSubpage() {
 	}
 	// The arriving document's activation fades its backing in; the page
 	// coming back also fades its plates in.
-	OpenCampaignSelector( deeper );
+	PresentRetainedSubpage( deeper, retainedSubpageArena );
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_SUBPAGE handover deeper=%d gui=%s\n", deeper ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
+	}
+#endif
+}
+
+// The other level presents: Campaign (or the stock selector), the Arena
+// campaign's browser (the Arena page where it can), or Single Player coming
+// back, onto ARENA from Arena.
+void idSessionLocal::PresentRetainedSubpage( bool deeper, bool arena ) {
+#ifndef ID_DEDICATED
+	retainedSubpageArena = false;
+	if ( deeper && arena ) {
+		common->Printf( "CAMPAIGN_SELECTED id=arena gameDir=%s module=%s\n", OPENQ4_GAMEDIR,
+			cvarSystem->GetCVarString( "com_activeGameModule" ) );
+		arenaCampaign.OpenBrowser();
+		return;
+	}
+	OpenCampaignSelector( deeper, false, !deeper && arena );
 	if ( !deeper && guiActive != NULL && !idStr::Icmp( guiActive->Name(), RETAINED_SINGLEPLAYER_GUI ) ) {
 		guiActive->HandleNamedEvent( "subpageReturn" );
 		PumpApplicationActions( guiActive );
-	}
-	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
-		common->Printf( "RETAINED_SUBPAGE handover deeper=%d gui=%s\n", deeper ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
 	}
 #endif
 }
@@ -5655,6 +5704,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedArena ) {
+		// The Arena page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedArenaRequest( gui, request );
+		}
+		return;
+	}
     if ( gui && request && gui == guiActive && gui == guiRetainedRestartMenu ) {
         // The restart screen's plates run the stock screen's own commands.
         HandleMainMenuCommands( "play main_menu_selection" );
@@ -5679,7 +5735,17 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
         if ( !idStr::Icmp( request, "campaigns" ) ) BeginRetainedSubpage( gui, true );
         else if ( !idStr::Icmp( request, "campaignQuake4" ) ) SelectCampaign( "quake4" );
         else if ( !idStr::Icmp( request, "campaignAwakening" ) ) SelectCampaign( "awakening" );
-        else if ( !idStr::Icmp( request, "campaignArena" ) ) SelectCampaign( "arena" );
+        else if ( !idStr::Icmp( request, "campaignArena" ) ) {
+            // ARENA leads deeper to the Arena sub-page when the campaign needs
+            // no engine reload into its game directory first; else it is
+            // selected as before, and the browser presents after the reload.
+            if ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) && !Session_CampaignNeedsReload( OPENQ4_GAMEDIR ) &&
+                 RetainedArenaPage() != NULL ) {
+                BeginRetainedSubpage( gui, true, true );
+            } else {
+                SelectCampaign( "arena" );
+            }
+        }
         else if ( !idStr::Icmp( request, "campaignBack" ) ) BeginRetainedSubpage( gui, false );
         else if ( !idStr::Icmp( request, "campaignHome" ) ) StartMenu();
         return;
@@ -6316,6 +6382,66 @@ void idSessionLocal::OpenRestartMenu() {
 
 /*
 ===============
+idSessionLocal::RetainedArenaPage
+
+Single Player's Arena sub-page (section 9 "Arena Campaign", FLOW-011): the
+Arena campaign's browser, which idArenaCampaign::OpenBrowser presents where
+this returns it and publishes into while it is loaded. NULL with the gate off
+or when the page is not installed, cannot load or stopped drawing: the stock
+browser presents instead.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedArenaPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the browser back for good.
+	if ( guiRetainedArena != NULL && UI_RetainedViewFailed( guiRetainedArena ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_ARENA_GUI );
+		retainedStock.AddUnique( RETAINED_ARENA_GUI );
+		guiRetainedArena = NULL;
+	}
+	if ( !Session_RetainedScreensEnabled() ) {
+		return NULL;
+	}
+	if ( guiRetainedArena == NULL ) {
+		guiRetainedArena = FindRetainedGui( RETAINED_ARENA_GUI, true, false );
+	}
+	return guiRetainedArena;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedArenaRequest
+
+The Arena page's verbs. Each runs the Arena campaign's own command, which
+checks it again (a locked tier or match, a match it cannot start, a reset
+without progress); BACK climbs to Single Player. A change of level in
+progress, or the campaign's entrance, takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedArenaRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL || arenaCampaign.IsEntering() ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "arenaBack" ) ) {
+		BeginRetainedSubpage( gui, false, true );
+		return;
+	}
+	for ( int i = 0; i < RETAINED_ARENA_VERB_COUNT; ++i ) {
+		if ( !idStr::Icmp( request, RETAINED_ARENA_VERBS[i][0] ) ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			arenaCampaign.HandleGuiCommand( RETAINED_ARENA_VERBS[i][1] );
+			return;
+		}
+	}
+#endif
+}
+
+/*
+===============
 idSessionLocal::PublishRetainedMods
 
 The title's MODS dialog: every installed mod, as the stock list lists them,
@@ -6640,6 +6766,10 @@ void idSessionLocal::PreloadRetainedScreens() {
 	// The Demos page, which only the title reaches.
 	if ( guiRetainedDemos == NULL && guiRetainedTitle != NULL ) {
 		guiRetainedDemos = FindRetainedGui( RETAINED_DEMOS_GUI, true, false );
+	}
+	// The Arena page, which only the title reaches, through Single Player.
+	if ( guiRetainedArena == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedArena = FindRetainedGui( RETAINED_ARENA_GUI, true, false );
 	}
 #endif
 }
