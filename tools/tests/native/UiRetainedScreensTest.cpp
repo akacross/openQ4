@@ -3074,11 +3074,49 @@ static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 		"hidden, it rests in the sub-page state with its content out");
 }
 
+// The prompt bar's glyphs follow prompt.glyphs (section 13.5): the keyboard's
+// keycaps at 0, and at 1-5 each controller family's face button, 22 dp square
+// and centred on its verb, the bar still ending where it did.
+static void CheckPromptGlyphs(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	std::vector<Diagnostic> diagnostics; std::string error;
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/title.q4ui",diagnostics),"the title loads for its prompts");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	const char* const families[] = {"xbox","playstation","nintendo","steamdeck","generic"};
+	const auto display = [&](const std::string& node) {
+		const auto found = runtime.PresentedValue(node,"display"); return found ? found->text : std::string("?");
+	};
+	float end = -1;
+	for (int glyphs = 0; glyphs <= 5; ++glyphs) {
+		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,1+glyphs),"publish the prompt glyphs");
+		runtime.Frame(viewport,1.5+glyphs);
+		for (const std::string id : {"prompt-200747","prompt-200013"}) {
+			Check(display(id+"-cap") == (glyphs == 0 ? "block" : "none"),"the keycap shows only for the keyboard");
+			for (int family = 0; family < 5; ++family)
+				Check(display(id+"-"+families[family]) == (glyphs == family+1 ? "block" : "none"),"only the published family's button shows");
+			Bounds glyph, verb;
+			Check(runtime.GetBounds(id+"-glyph",glyph) && runtime.GetBounds(id+"-verb",verb),"the prompt is laid out");
+			if (glyphs > 0) {
+				Bounds face;
+				Check(runtime.GetBounds(id+"-"+families[glyphs-1],face) && Near(face.width,22) && Near(face.height,22) &&
+					Near(face.y+face.height/2,verb.y+verb.height/2,1),"a 22 dp face button centred on its verb");
+			}
+			Check(Near(verb.x,glyph.x+glyph.width+6,1),"the verb follows its glyph 6 dp on");
+		}
+		Bounds bar;
+		Check(runtime.GetBounds("prompts",bar),"the bar is laid out");
+		if (end < 0) end = bar.x+bar.width;
+		Check(Near(bar.x+bar.width,end,1),"the bar ends where it did");
+	}
+}
+
 int main(int argc, char** argv) {
 	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
+	CheckPromptGlyphs(host,argv[1]);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	{
 		const auto source = Read(argv[1]);
@@ -3807,13 +3845,21 @@ int main(int argc, char** argv) {
 		Check(runtime.RunEvent("FinishedLoading",2,effects,error),"FinishedLoading turns LOADING into the continue prompt");
 		const auto prompt = runtime.PresentedValue("progress-prompt-text","text");
 		Check(prompt && prompt->text == "#str_200937","the desktop continue prompt replaces LOADING");
-		Check(runtime.SetState({{"loading_controller",true}},error,2.1),"a controller was used last");
+		Check(runtime.SetState({{"prompt.glyphs",1.0}},error,2.1),"an Xbox controller was used last");
 		runtime.Frame(viewport,2.1);
 		const auto controllerPrompt = runtime.PresentedValue("progress-prompt-text","text");
 		const auto glyph = runtime.PresentedValue("progress-prompt-glyph","display");
-		Check(controllerPrompt && controllerPrompt->text == "#str_200984" && glyph && glyph->text == "block",
-			"a controller shows the south button and CONTINUE");
-		Check(runtime.SetState({{"loading_controller",false}},error,2.2),"back to the desktop prompt");
+		const auto xboxSouth = runtime.PresentedValue("progress-prompt-glyph-xbox","display");
+		const auto genericSouth = runtime.PresentedValue("progress-prompt-glyph-generic","display");
+		Check(controllerPrompt && controllerPrompt->text == "#str_200984" && glyph && glyph->text == "block" &&
+			xboxSouth && xboxSouth->text == "block" && genericSouth && genericSouth->text == "none",
+			"a controller shows its family's south button and CONTINUE");
+		Check(runtime.SetState({{"prompt.glyphs",5.0}},error,2.15),"a controller of no known family");
+		runtime.Frame(viewport,2.15);
+		const auto diamond = runtime.PresentedValue("progress-prompt-glyph-generic","display");
+		const auto noXbox = runtime.PresentedValue("progress-prompt-glyph-xbox","display");
+		Check(diamond && diamond->text == "block" && noXbox && noXbox->text == "none","a generic controller shows the diamond");
+		Check(runtime.SetState({{"prompt.glyphs",0.0}},error,2.2),"back to the desktop prompt");
 		const auto spCard = runtime.PresentedValue("server","display");
 		Check(spCard && spCard->text == "none","single player shows no server card");
 		Check(runtime.SetState({{"loading_mp",true},{"loading_ready",false},{"map_loading",1.0},{"server_name",std::string("openQ4 Test Server")},

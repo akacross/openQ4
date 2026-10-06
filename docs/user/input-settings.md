@@ -124,6 +124,39 @@ seta in_joystickMoveCurve 1.0
 
 SDL gamepads use SDL's standard controller database, so Xbox, PlayStation, Steam Input, and similar pads should not need axis remapping. Generic SDL joysticks use raw axes with these auto defaults:
 
+### Button Prompts
+
+Once you use a controller, menu prompts show its buttons instead of
+keyboard keys:
+
+- Xbox pads show A and B.
+- PlayStation pads show the cross and circle.
+- Switch pads show their B and A.
+- The Steam Deck's built-in controls show its own A and B.
+- Other pads show a diamond with the button to press filled in.
+
+The keyboard or mouse switches the prompts back to keys.
+
+If Steam Input or another remapper hides your real controller, choose the
+prompts yourself from the console:
+
+```cfg
+seta ui_promptStyle 3
+```
+
+| Value | Prompts |
+| --- | --- |
+| `0` (default) | Follow the device you used last |
+| `1` | Keyboard keys |
+| `2` | Xbox |
+| `3` | PlayStation |
+| `4` | Nintendo |
+| `5` | Steam Deck |
+| `6` | Generic |
+
+`listControllers` shows the prompt style detected for the connected
+controller on its `prompt glyphs:` line.
+
 Linux and macOS SDL3 builds opt into SDL's HIDAPI controller backends by default so PlayStation, Switch, Steam, Steam Deck, and Xbox-class controllers can expose the same button, stick, trigger, rumble, battery, gyro, and touchpad capabilities available through the shared SDL3 path. macOS support is a preview, and controllers have not yet been tested on a Mac. Run `listControllers` to confirm which SDL driver, hint state, and capabilities are active for a connected device.
 
 | Cvar | Auto default | What it changes |

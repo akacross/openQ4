@@ -3245,6 +3245,129 @@ int main() {
 """
 
 
+PROMPT_GLYPHS_SUPPORT = r"""
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <map>
+#include <string>
+static int checks=0;
+static void Check(bool ok,const char *what){++checks;if(!ok){std::printf("FAIL: %s\n",what);std::exit(1);}}
+struct idStr {
+    static int Icmp(const char *a,const char *b){
+        for(;;++a,++b){const int x=std::tolower(static_cast<unsigned char>(*a)),y=std::tolower(static_cast<unsigned char>(*b));
+            if(x!=y||!x)return x-y;}
+    }
+};
+struct {int value=0;int GetInteger()const{return value;}} ui_promptStyle;
+struct idKeyInput {static inline bool controller=false;static bool LastInputWasController(){return controller;}};
+std::map<std::string,std::string> cvars;
+struct CVars {const char *GetCVarString(const char *name){const auto found=cvars.find(name);return found==cvars.end()?"":found->second.c_str();}} cvarValue,*cvarSystem=&cvarValue;
+enum SDL_GamepadButton {SDL_GAMEPAD_BUTTON_SOUTH};
+enum SDL_GamepadButtonLabel {SDL_GAMEPAD_BUTTON_LABEL_UNKNOWN,SDL_GAMEPAD_BUTTON_LABEL_A,SDL_GAMEPAD_BUTTON_LABEL_B,SDL_GAMEPAD_BUTTON_LABEL_X,
+    SDL_GAMEPAD_BUTTON_LABEL_Y,SDL_GAMEPAD_BUTTON_LABEL_CROSS,SDL_GAMEPAD_BUTTON_LABEL_CIRCLE,SDL_GAMEPAD_BUTTON_LABEL_SQUARE,
+    SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE};
+struct SDL_Gamepad {SDL_GamepadButtonLabel south;};
+SDL_GamepadButtonLabel SDL_GetGamepadButtonLabel(SDL_Gamepad *pad,SDL_GamepadButton){return pad->south;}
+"""
+
+PROMPT_GLYPHS_MAIN = r"""
+int main(){
+    // The family by the label printed on the south button.
+    SDL_Gamepad xbox{SDL_GAMEPAD_BUTTON_LABEL_A},ps{SDL_GAMEPAD_BUTTON_LABEL_CROSS},nintendo{SDL_GAMEPAD_BUTTON_LABEL_B},
+        unknown{SDL_GAMEPAD_BUTTON_LABEL_UNKNOWN},odd{SDL_GAMEPAD_BUTTON_LABEL_X};
+    Check(!std::strcmp(SDL3_GamepadFamily(&xbox),"xbox"),"A on the south: Xbox");
+    Check(!std::strcmp(SDL3_GamepadFamily(&ps),"playstation"),"the cross on the south: PlayStation");
+    Check(!std::strcmp(SDL3_GamepadFamily(&nintendo),"nintendo"),"B on the south: Nintendo");
+    Check(!std::strcmp(SDL3_GamepadFamily(&unknown),"generic") && !std::strcmp(SDL3_GamepadFamily(&odd),"generic"),"no known label: generic");
+    cvars["com_platformProfile"]="SteamDeck";
+    Check(!std::strcmp(SDL3_GamepadFamily(&xbox),"steamdeck") && !std::strcmp(SDL3_GamepadFamily(&ps),"playstation"),
+        "the steamdeck profile's A pad is the Steam Deck");
+    cvars["com_platformProfile"]="default";
+    // The glyphs: keycaps unless a controller was used last, then its family.
+    const char *const families[]={"xbox","playstation","nintendo","steamdeck","generic","none","","XBOX"};
+    const int expected[]={1,2,3,4,5,5,5,1};
+    for(int i=0;i<8;++i){
+        cvars["in_gamepadFamily"]=families[i];
+        idKeyInput::controller=false;Check(RetainedUI_PromptGlyphs()==0,"the keyboard or mouse last: keycaps");
+        idKeyInput::controller=true;Check(RetainedUI_PromptGlyphs()==expected[i],"a controller last: its family");
+    }
+    // Prompt Style forces one whatever the device.
+    for(int style=1;style<=6;++style){
+        ui_promptStyle.value=style;
+        for(const bool controller:{false,true}){
+            idKeyInput::controller=controller;cvars["in_gamepadFamily"]="playstation";
+            Check(RetainedUI_PromptGlyphs()==style-1,"the Prompt Style forces its glyphs");
+        }
+    }
+    std::printf("ui_retained gate: %d prompt glyph checks passed\n",checks);
+    return 0;
+}
+"""
+
+
+def check_prompt_glyphs(compiler: str, directory: Path) -> None:
+    """Prompts follow the active device (section 13.5): compile the production
+    family mapping and glyph choice against stand-ins, then pin where the
+    platform sets the family and the adapter publishes the glyphs, and check
+    every document's glyph alternatives against the generator's families."""
+    retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
+    backend = (ROOT / 'src/sys/sdl3/sdl3_backend.cpp').read_text(encoding='utf-8')
+    adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace').replace('\r\n', '\n')
+    bodies = [function_body(backend, 'static const char *SDL3_GamepadFamily('), function_body(retained, 'int RetainedUI_PromptGlyphs(')]
+    source = directory / 'glyphs.cpp'
+    binary = directory / 'glyphs.exe'
+    source.write_text(PROMPT_GLYPHS_SUPPORT + '\n'.join(bodies) + PROMPT_GLYPHS_MAIN, encoding='utf-8')
+    subprocess.run([compiler, '-std=c++20', '-Wall', '-Wextra', '-Wno-unused-function', str(source), '-o', str(binary)], check=True)
+    result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=60)
+    sys.stdout.write(result.stdout)
+    sys.stderr.write(result.stderr)
+    assert result.returncode == 0, 'the prompt glyph checks failed'
+    # The platform: a ROM family the backend sets as a controller opens and
+    # clears as it closes, kept through a join without cheats; the archived
+    # Prompt Style with its seven values.
+    assert re.search(r'static idCVar in_gamepadFamily\("in_gamepadFamily", "none", CVAR_SYSTEM \| CVAR_ROM \| CVAR_NOCHEAT,', backend)
+    assert re.search(r'idCVar ui_promptStyle\("ui_promptStyle", "0", CVAR_GUI \| CVAR_INTEGER \| CVAR_ARCHIVE,[^;]*, 0, 6\);', retained, re.S)
+    assert 'in_gamepadFamily.SetString(SDL3_GamepadFamily(pad));' in function_body(backend, 'static bool SDL3_OpenGamepad(')
+    assert 'in_gamepadFamily.SetString("generic");' in function_body(backend, 'static bool SDL3_OpenJoystick(')
+    for signature in ('static void SDL3_CloseGamepad(', 'static void SDL3_CloseJoystick('):
+        assert 'in_gamepadFamily.SetString("none");' in function_body(backend, signature), signature
+    # The adapter publishes before the frame draws, so the frame that follows
+    # a change shows it.
+    redraw = function_body(adapter, 'void idUserInterfaceRetained::Redraw(')
+    assert redraw.index('impl->PublishPromptGlyphs();') < redraw.index('RetainedUI_DrawViewRoot(')
+    assert 'RetainedUI_PromptGlyphs()' in function_body(adapter, 'void PublishPromptGlyphs() {')
+    # Every document with prompts: the state, and per glyph group the keycap
+    # (or nothing) at 0 and each family's button at its index.
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import build_retained_screens as generator
+    documents = 0
+    for path in sorted((ROOT / 'content/baseoq4/pak0/guis').rglob('*.q4ui')):
+        document = json.loads(re.sub(r'^\s*//.*$', '', path.read_text(encoding='utf-8'), flags=re.M))
+        if generator.PROMPT_GLYPHS not in document.get('state', {}):
+            continue
+        documents += 1
+        assert document['state'][generator.PROMPT_GLYPHS] == {'type': 'number', 'initial': 0}, path.name
+        shown = {}
+        for binding in document.get('bindings', []):
+            value = binding['value']
+            if binding['property'] == 'display' and isinstance(value, dict) and value.get('op') == 'select':
+                condition = value['args'][0]
+                if condition.get('op') == '==' and condition['args'][0] == {'state': generator.PROMPT_GLYPHS}:
+                    assert value['args'][1:] == ['block', 'none'], (path.name, binding['id'])
+                    shown[binding['node']] = condition['args'][1]
+        groups = {node.rsplit('-', 1)[0] for node, index in shown.items() if index >= 1}
+        assert groups, path.name
+        for group_id in groups:
+            for index, family in enumerate(generator.GLYPH_FAMILIES, 1):
+                assert shown.get(f'{group_id}-{family}') == index, (path.name, group_id, family)
+            caps = [node for node, index in shown.items() if index == 0 and node.startswith(group_id)]
+            assert len(caps) <= 1, (path.name, group_id, caps)
+    assert documents == 7, documents
+    print(f'ui_retained gate: prompt glyphs follow the active device in {documents} documents')
+
+
 def check_loading_hold(compiler: str, directory: Path) -> None:
     """The loading screen held over a Welcome join (section 14.17): compile the
     production hold against a stand-in session and drive the listen server's
@@ -4160,11 +4283,13 @@ def main() -> int:
     for signature in ('void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel('):
         assert 'if ( !Session_RetainedScreensEnabled()' in function_body(menu, signature), f'{signature} must be gated'
     assert 'PreloadRetainedScreens();' in function_body(session, 'void idSessionLocal::Init(')
-    # The loading phase line and prompt device publish only while the retained
-    # loading screen presents the load, which only the gate can select.
+    # The loading phase line publishes only while the retained loading screen
+    # presents the load, which only the gate can select.
     for signature in ('void idSessionLocal::SetRetainedLoadingPhase(', 'void idSessionLocal::PublishRetainedLoadingCount(',
-                      'void idSessionLocal::PublishRetainedLoadingDevice(', 'void idSessionLocal::PublishRetainedLoadingTip('):
+                      'void idSessionLocal::PublishRetainedLoadingTip('):
         assert 'if ( !retainedLoadingActive || guiLoading == NULL' in function_body(session, signature), signature
+    # Its continue prompt follows prompt.glyphs, which the adapter owns.
+    assert 'loading_controller' not in session and 'PublishRetainedLoadingDevice' not in session
     loading = function_body(session, 'void idSessionLocal::LoadLoadingGui(')
     assert session.count('retainedLoadingActive = true;') == 1 and loading.index('if ( retainedLoading ) {') < loading.index('retainedLoadingActive = true;')
     # Tips: the first as the screen presents, then from the load's redraws;
@@ -4396,6 +4521,7 @@ def main() -> int:
             print(f'ui_retained gate: the Strogg faces resolve and {check_strogg_faces(compiler, Path(directory))} code points fold onto the rune face')
             check_server_card(compiler, Path(directory))
             check_loading_hold(compiler, Path(directory))
+            check_prompt_glyphs(compiler, Path(directory))
         return result.returncode
 
 

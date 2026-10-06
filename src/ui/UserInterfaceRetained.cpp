@@ -588,6 +588,18 @@ struct idUserInterfaceRetained::Impl {
 			else RuntimeView()->MenuAction(event.menu,event.down,RetainedUI_PresentationTime());
 		}
 	}
+	// Prompts follow the active device (section 13.5): a document that declares
+	// prompt.glyphs gets RetainedUI_PromptGlyphs in the frame it changes, the
+	// keyboard's keycaps or a controller family's face buttons.
+	void PublishPromptGlyphs() {
+		static const char* const name = "prompt.glyphs";
+		if (!document.Model().state.contains(name)) return;
+		const int glyphs = RetainedUI_PromptGlyphs();
+		if (state.FindKey(name) && state.GetInt(name) == glyphs) return;
+		state.SetInt(name,glyphs);
+		std::string error;
+		if (!RuntimeView()->SetState({{name,static_cast<double>(glyphs)}},error,RetainedUI_PresentationTime())) Error(error);
+	}
 	// Preserve undeclared and unrelated pending dictionary keys. Publish only
 	// the programs' explicit application writes, using round-trip numbers.
 	void PublishWrites(const StateValues& writes) {
@@ -1068,6 +1080,7 @@ void idUserInterfaceRetained::Redraw(int time, bool useAspectCorrection) {
 		if (!impl->RuntimeView()->HasEvent("onInit") || impl->RunEvent("onInit")) impl->initialized = true;
 	}
 	impl->AcceptInput();
+	impl->PublishPromptGlyphs();
 	const bool drawn = RetainedUI_DrawViewRoot(impl->view,viewport);
 	// Timeline completion programs run inside the frame; publish their writes.
 	if (auto* runtime = impl->RuntimeView()) impl->PublishWrites(runtime->TakeCompletionWrites());

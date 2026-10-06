@@ -597,7 +597,9 @@ On engine `a2b3d602526ebabe92b7e9ca6bc384d56827f7f4`, the retained runtime gains
 
 On engine `562ffb3597e8e263b0379081baea781666511784`, a controller's west and north face buttons run a document's secondary and tertiary events, and Join Game refreshes its list on west and sorts it by the next column on north. `INP-011` and `FLOW-050` gain evidence. Evidence: `.tmp/ui/retained-face-buttons-evidence/validation-evidence.json`, SHA-256 `fc90b152d4822bab61ea49b047678f0e5b035bd6932284ff83c2a7fe25134753`.
 
-There are **108 partial, 231 pending and one verified requirement**, counting the
+On engine `fd814b464b8d117856d55eace2fa94bd9863ff9a`, prompts follow the active device: the keyboard's keycaps or the controller family's face buttons, from the label SDL reports, with ui_promptStyle to force one. `INP-009` and `WID-019` move from pending to partial and `INP-011` gains evidence. Evidence: `.tmp/ui/retained-prompt-glyphs-evidence/validation-evidence.json`, SHA-256 `8246e1584cd199da491094441ac48f320d14fe796122ecb7a7e2991214ff004c`.
+
+There are **110 partial, 229 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

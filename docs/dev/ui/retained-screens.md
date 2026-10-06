@@ -131,7 +131,8 @@ after editing the script; `--check` fails when an output is stale.
   message line shows the save's levelshot, name and time; the same line explains
   whichever item has focus. SINGLE PLAYER, LOAD GAME, MULTIPLAYER and SETTINGS
   follow, and the secondary links and EXIT stay on the plinth. EXIT asks before
-  leaving. The prompt bar sits in the bottom band's raised section.
+  leaving. The prompt bar sits in the bottom band's raised section, its
+  glyphs following the active device ([prompt glyphs](#prompt-glyphs)).
 - **Pause** (section 13.7, single player). GAME PAUSED replaces the wordmark,
   RESUME leads, followed by SAVE GAME, LOAD GAME, RESTART LEVEL, OBJECTIVES,
   SETTINGS and QUIT TO MENU, the seven actions from 172 u (the plates' art is
@@ -256,7 +257,8 @@ after editing the script; `--check` fails when an output is stale.
   finishing) or the asset queue's count, and the percentage in the value
   color. When the load finishes, the phase line reports the load time and
   LOADING becomes the continue prompt for the last-used device: the desktop
-  prompt, or the south button and CONTINUE after controller input.
+  prompt, or the controller family's south button and CONTINUE
+  ([prompt glyphs](#prompt-glyphs)).
   Multiplayer keeps the band low: a card on the leading side holds the
   server's name in its header, then its address in Profont, the mode and the
   limits, the players by team, and the server's message (`si_motd`), and a
@@ -1392,10 +1394,50 @@ only while that screen presents the load: MAP before the render world loads,
 WORLD before the game builds the level, ASSETS while the renderer works
 through its model and image queues (their own loaded and total counts replace
 the phase's place), FINISHING after the renderer's level load, and the load
-time once the level is ready. The continue prompt follows
-`idKeyInput::LastInputWasController`, which reports the input family the key
-bindings already track; the wait for continue republishes it, so touching a
-controller or the mouse switches the prompt.
+time once the level is ready. The continue prompt follows `prompt.glyphs`
+like every prompt ([prompt glyphs](#prompt-glyphs)). The wait for continue
+redraws the screen each frame, so touching a controller or the mouse switches
+it. The session no longer publishes its own `loading_controller`.
+
+## Prompt glyphs
+
+Every prompt shows the active device's glyph (section 13.5). This covers
+the prompt bars of the title, Single Player, Campaign, the Marine and Strogg
+pause menus and the Multiplayer page, and the loading screen's continue
+prompt. While the adapter-owned `prompt.glyphs` is 0, a prompt shows the
+keyboard's keycap. At 1–5 it shows the controller family's face button that
+does the same in menus: south for Enter's Accept and east for Escape's Back
+([input routing](input-routing.md)).
+
+The glyphs are vector symbols in the family text color, whose shape and
+letter carry the identity:
+
+- **Xbox and Nintendo** print letters on a disc. Nintendo's A and B swap
+  places: B on the south, A on the east.
+- **PlayStation** prints its cross, circle, square and triangle on a disc.
+- **Steam Deck** prints its letters inside a ring.
+- **Generic** draws the four positions as a diamond, with the button's one
+  filled.
+
+The letters and symbols are strokes in a 22 dp box, so no font or string
+stands in for them. The prompt bar's glyph is 22 dp square and centered on
+its verb. The bar still ends at the stock Back position whichever glyph
+shows, because it is anchored at its trailing edge. The Strogg pause tints
+its glyphs as it tints its keycaps. The loading screen draws its south button
+at 18 dp, beside CONTINUE.
+
+Checks:
+
+- `ui_retained_gate.py` compiles the backend's family mapping and
+  `RetainedUI_PromptGlyphs` against stand-ins. It pins where the backend sets
+  and clears the family, and checks that the adapter publishes before the
+  frame draws. It also checks that each of the seven documents with prompts
+  binds every glyph to its family's index.
+- The adapter harness checks the publication: once per change, in the
+  session's state pushes, and never to a document without the state.
+- The native screens test lays out the title's bar at every value.
+- The `prompts` capture forces each style through `ui_promptStyle` and
+  touches no device. The `loading` capture shows the Xbox continue prompt.
 
 ## Hand-off to the Welcome card
 

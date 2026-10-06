@@ -43,6 +43,7 @@ Tuning and haptics:
 - Use `in_joystickRumble 0` to disable motor output, or tune strength with `in_joystickRumbleScale`.
 - The Steam Deck profile sets `in_joystickLowBatteryRumbleThreshold 20` and `in_joystickLowBatteryRumbleScale 0.75`, which caps effective rumble output while SDL reports a controller battery at or below 20 percent. This does not rewrite your configured rumble strength.
 - The Steam Deck profile enables native SDL gyro aiming with a conservative `in_gyroSensitivity 0.20`; raise or lower that cvar if gyro aim feels slow or fast.
+- With the Steam Deck profile, menu prompts show the Deck's own button glyphs once you use its controls. Set `ui_promptStyle` to pick another style; see [Input Settings](input-settings.md#button-prompts).
 - `in_touchpadMode 1` routes gamepad touchpad motion to menu/console cursor movement. Use `in_touchpadMode 2` for touchpad mouse-look, `0` to disable touchpad motion, or `3` to leave touchpad motion off while keeping touchpad button binds.
 - `in_touchscreen 1` routes direct touchscreen taps and drags to menus, console, and loading-continue input when SDL delivers native touch events.
 - The in-game menu exposes controller controls under `Settings -> Game Options -> Controller`, including stick layout, radial dead-zone, look sensitivity, look curve, invert-look, trigger threshold, rumble tuning, gyro, touchpad mode, touchscreen input, and low-battery rumble caps.

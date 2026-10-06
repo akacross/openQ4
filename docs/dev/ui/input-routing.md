@@ -46,10 +46,50 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Gamepad West / North | The document's secondary / tertiary action (`onSecondary`, `onTertiary`), on the same terms |
 
 SDL's gamepad South/East buttons map to engine `K_JOY3`/`K_JOY4` and West/North
-to `K_JOY6`/`K_JOY5`; the shoulders are distinct. Keyboard scancodes, controller buttons and pointer buttons have
+to `K_JOY6`/`K_JOY5`; the shoulders are distinct.
+
+**Prompt glyphs.** Prompts show the active device's glyphs (section 13.5).
+The engine already tracks the last device's family for key-binding hints
+(`idKeyInput::LastInputWasController`). A controller key or a deflected
+axis makes it a controller. A keyboard key, a mouse button or mouse
+movement makes it the desktop. The SDL3 backend reports the open controller's
+family in the read-only `in_gamepadFamily`, from the label SDL reports
+printed on its south button:
+
+- A is Xbox, or Steam Deck under the `steamdeck` platform profile.
+- The cross is PlayStation.
+- B is Nintendo.
+- Any other label is generic, as is a joystick SDL cannot map.
+- `none` means no controller is open.
+
+`listControllers` prints the family as `prompt glyphs:`. It is
+`CVAR_NOCHEAT`, so joining a server without cheats cannot reset it while the
+controller stays open.
+
+The archived `ui_promptStyle` forces the glyphs when a remapping layer hides
+the real device:
+
+| Value | Glyphs |
+| --- | --- |
+| 0 (default) | Follow the active device |
+| 1 | Keyboard keycaps |
+| 2 | Xbox |
+| 3 | PlayStation |
+| 4 | Nintendo |
+| 5 | Steam Deck |
+| 6 | Generic |
+
+`RetainedUI_PromptGlyphs` combines the three. The adapter publishes the
+result as `prompt.glyphs` to every document that declares it, before the
+frame that shows the change draws. The value is 0 for the keyboard's keycaps
+and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face
+buttons. Keyboard scancodes, controller buttons and pointer buttons have
 separate source IDs. Multiple sources mapped to Accept hold one logical press;
 releasing the first source cannot activate while another remains down. Key-up
 releases the action captured at key-down, including when Shift changes first.
+
+Evidence for prompt glyphs: `.tmp/ui/retained-prompt-glyphs-evidence/validation-evidence.json`,
+SHA-256 `8246e1584cd199da491094441ac48f320d14fe796122ecb7a7e2991214ff004c`.
 
 The device-independent `Input` adapter owns navigation repeat: immediate first
 navigation, 320 ms initial delay, then 110 ms between repeats. The newest held

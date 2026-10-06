@@ -3863,7 +3863,7 @@ void idSessionLocal::Clear() {
 	retainedPointerX = retainedPointerY = 0.0f;
 	retainedLoadingActive = false;
 	retainedLoadingPhase = 0;
-	retainedLoadingLoaded = retainedLoadingTotal = retainedLoadingDevice = -1;
+	retainedLoadingLoaded = retainedLoadingTotal = -1;
 	retainedLoadingTip = -1;
 	retainedLoadingTipSlot = 0;
 	retainedLoadingTipAt = 0;
@@ -5971,21 +5971,6 @@ void idSessionLocal::PublishRetainedLoadingCount() {
 	guiLoading->SetStateString( "loading_count", va( "%d/%d", loadingAssetQueueLoaded, loadingAssetQueueTotal ) );
 }
 
-void idSessionLocal::PublishRetainedLoadingDevice() {
-	// The continue prompt shows the active device: a controller's south button
-	// once a controller was used last, the desktop prompt otherwise.
-	if ( !retainedLoadingActive || guiLoading == NULL ) {
-		return;
-	}
-	const int device = idKeyInput::LastInputWasController() ? 1 : 0;
-	if ( device == retainedLoadingDevice ) {
-		return;
-	}
-	retainedLoadingDevice = device;
-	guiLoading->SetStateBool( "loading_controller", device != 0 );
-	guiLoading->StateChanged( common->GetPresentationTime() );
-}
-
 // The multiplayer arsenal holds this many kinds of item, as the stock row does.
 static const int RETAINED_ARSENAL_ICONS = 20;
 
@@ -6427,9 +6412,7 @@ void idSessionLocal::LoadLoadingGui( const char *mapName ) {
 			guiLoading->StateChanged( common->GetPresentationTime() );
 			// The shared document keeps its last load's line until reset.
 			retainedLoadingActive = true;
-			retainedLoadingDevice = -1;
 			SetRetainedLoadingPhase( RETAINED_LOAD_IDLE );
-			PublishRetainedLoadingDevice();
 			PublishRetainedLoadingTip( true );
 		}
 	}
@@ -6972,7 +6955,6 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 	if ( waitForSPContinue ) {
 		Session_BeginBlockingLoadPresentationFrame();
-		PublishRetainedLoadingDevice();
 		guiLoading->HandleNamedEvent( "FinishedLoading" );
 		guiLoading->StateChanged( common->GetPresentationTime() );
 		UpdateScreen();
@@ -7030,8 +7012,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 				if ( Session_FindPresentationCap() > 0 ) {
 					Session_BeginBlockingLoadPresentationFrame();
 				}
-				// Touching a controller, or the mouse, switches the prompt.
-				PublishRetainedLoadingDevice();
+				// Touching a controller, or the mouse, switches the prompt: the
+				// retained screen's adapter publishes prompt.glyphs as it redraws.
 				UpdateScreen();
 				if ( Session_FindPresentationCap() <= 0 ) {
 					Sys_Sleep( static_cast<int>( idMath::Ceil( common->GetUserCmdMsecFloat() ) ) );

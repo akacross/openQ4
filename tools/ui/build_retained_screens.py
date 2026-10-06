@@ -835,23 +835,147 @@ def mods_modal(doc: Document) -> dict:
     return modal
 
 
+# ------------------------------------------------------------- device glyphs
+
+# Prompts follow the active device (section 13.5). The adapter owns the state
+# prompt.glyphs: 0 shows the keyboard's keycaps, 1-5 a controller family's
+# face buttons in this order (RetainedUI_PromptGlyphs).
+PROMPT_GLYPHS = "prompt.glyphs"
+GLYPH_FAMILIES = ("xbox", "playstation", "nintendo", "steamdeck", "generic")
+# The label each family prints at each face position, as SDL reports it.
+FACE_LETTERS = {
+    "xbox": {"south": "A", "east": "B", "west": "X", "north": "Y"},
+    "nintendo": {"south": "B", "east": "A", "west": "Y", "north": "X"},
+    "steamdeck": {"south": "A", "east": "B", "west": "X", "north": "Y"},
+}
+PS_SYMBOLS = {"south": "cross", "east": "circle", "west": "square", "north": "triangle"}
+# A prompt's key and the face button that does the same in menus: Enter is
+# Accept (south), Escape is Back (east).
+FACE_FOR_KEY = {"#str_107019": "south", "#str_107020": "east"}
+GLYPH_INK = [0.04, 0.05, 0.035, 1]   # the keycap's key-name color
+
+
+def circle_path(ident: str, cx: float, cy: float, r: float, *, fill=None, line=None) -> dict:
+    """A circle as four cubic quarter arcs, in the node's own dp."""
+    k = 0.5523 * r
+
+    def at(dx, dy):
+        return point(cx + dx, cy + dy)
+    result = {"id": ident, "commands": [
+        {"id": "m", "op": "move", "points": [at(r, 0)]},
+        {"id": "a", "op": "cubic", "points": [at(r, k), at(k, r), at(0, r)]},
+        {"id": "b", "op": "cubic", "points": [at(-k, r), at(-r, k), at(-r, 0)]},
+        {"id": "c", "op": "cubic", "points": [at(-r, -k), at(-k, -r), at(0, -r)]},
+        {"id": "d", "op": "cubic", "points": [at(k, -r), at(r, -k), at(r, 0)]},
+        {"id": "z", "op": "close"}]}
+    if fill is not None:
+        result["fill"] = fill
+    if line is not None:
+        result["stroke"] = line
+    return result
+
+
+def face_mark(prefix: str, mark: str, scale: float, ink: list) -> list:
+    """A face button's letter or symbol drawn as strokes in a 22 dp box:
+    letters 9 dp tall, the PlayStation symbols 7.4-9 dp across."""
+    width = stroke(solid(ink), 1.9 * scale, minimum=1)
+
+    def line(name: str, points: list, closed: bool = False) -> dict:
+        return path(f"{prefix}-{name}", [(x * scale, y * scale) for x, y in points], closed=closed, stroke=width)
+
+    def curve(name: str, commands: list) -> dict:
+        built = []
+        for index, (op, points) in enumerate(commands):
+            built.append({"id": f"c{index}", "op": op, "points": [point(x * scale, y * scale) for x, y in points]})
+        return {"id": f"{prefix}-{name}", "commands": built, "stroke": width}
+    if mark == "A":
+        return [line("a1", [(7.4, 15.5), (11, 6.5), (14.6, 15.5)]), line("a2", [(8.8, 12.3), (13.2, 12.3)])]
+    if mark == "B":
+        return [curve("b1", [("move", [(8.2, 15.5)]), ("line", [(8.2, 6.5)]), ("line", [(11.3, 6.5)]),
+                             ("cubic", [(13.7, 6.5), (13.7, 10.9), (11.3, 10.9)]), ("line", [(8.2, 10.9)])]),
+                curve("b2", [("move", [(8.2, 10.9)]), ("line", [(11.8, 10.9)]),
+                             ("cubic", [(14.5, 10.9), (14.5, 15.5), (11.8, 15.5)]), ("line", [(8.2, 15.5)])])]
+    if mark == "X":
+        return [line("x1", [(7.6, 6.6), (14.4, 15.4)]), line("x2", [(14.4, 6.6), (7.6, 15.4)])]
+    if mark == "Y":
+        return [line("y1", [(7.6, 6.6), (11, 11.2), (14.4, 6.6)]), line("y2", [(11, 11.2), (11, 15.4)])]
+    if mark == "cross":
+        return [line("x1", [(7.3, 7.3), (14.7, 14.7)]), line("x2", [(14.7, 7.3), (7.3, 14.7)])]
+    if mark == "circle":
+        return [circle_path(f"{prefix}-o", 11 * scale, 11 * scale, 4.5 * scale, line=width)]
+    if mark == "square":
+        return [line("s", [(7.3, 7.3), (14.7, 7.3), (14.7, 14.7), (7.3, 14.7)], closed=True)]
+    if mark == "triangle":
+        return [line("t", [(11, 6.3), (15.5, 14.5), (6.5, 14.5)], closed=True)]
+    raise ValueError(mark)
+
+
+def face_glyph(ident: str, family: str, position: str, tint: list, size: float = 22) -> dict:
+    """One controller family's face button at `position` (section 13.5),
+    vector symbols in the family text color whose shape and letter carry the
+    identity: Xbox and Nintendo print letters on a disc (their east and south
+    letters swapped), PlayStation its four symbols, Steam Deck letters in a
+    ring, and a generic controller the four positions as a diamond with this
+    one filled."""
+    scale = size / 22
+    if family == "generic":
+        paths = []
+        for spot, (cx, cy) in (("north", (11, 4.3)), ("west", (4.3, 11)), ("east", (17.7, 11)), ("south", (11, 17.7))):
+            if spot == position:
+                paths.append(circle_path(f"dot-{spot}", cx * scale, cy * scale, 3.6 * scale, fill=solid(tint)))
+            else:
+                paths.append(circle_path(f"dot-{spot}", cx * scale, cy * scale, 2.7 * scale,
+                                         line=stroke(solid(tint), 1.3 * scale, minimum=1)))
+    elif family == "steamdeck":
+        paths = [circle_path("ring", 11 * scale, 11 * scale, 9.9 * scale, line=stroke(solid(tint), 1.5 * scale, minimum=1))]
+        paths += face_mark("mark", FACE_LETTERS[family][position], scale, tint)
+    else:
+        mark = PS_SYMBOLS[position] if family == "playstation" else FACE_LETTERS[family][position]
+        paths = [circle_path("disc", 11 * scale, 11 * scale, 10.6 * scale, fill=solid(tint))]
+        paths += face_mark("mark", mark, scale, GLYPH_INK)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(size),
+                          "height": length(size)}, paths)
+
+
+def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22) -> list:
+    """Each controller family's face button at `position`, each shown only
+    while prompt.glyphs names its family."""
+    doc.state.setdefault(PROMPT_GLYPHS, {"type": "number", "initial": 0})
+    nodes = []
+    for index, family in enumerate(GLYPH_FAMILIES, 1):
+        node = face_glyph(f"{ident}-{family}", family, position, tint, size)
+        doc.bind(f"{node['id']}.display", node["id"], "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, index]}, "block", "none"]})
+        nodes.append(node)
+    return nodes
+
+
 def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None,
                verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8])) -> dict:
     """The prompt bar in the bottom band's raised trailing section (section
-    13.4): a keycap plate with a 45-degree cut per prompt, then its verb."""
+    13.4): per prompt the active device's glyph, the keyboard's keycap plate
+    with a 45-degree cut or the controller family's face button that does
+    the same (section 13.5), then its verb."""
     items = []
+    tint = cap_tint or [1, 1, 1, 0.85]
     for key_name, verb in prompts:
-        cap = vector(f"prompt-{verb[5:]}-cap", {"position": keyword("relative"), "display": keyword("block"),
-                                                "height": length(22), "margin-right": length(6), "padding-left": length(8),
-                                                "padding-right": length(8)}, [
+        name = verb[5:]
+        cap = vector(f"prompt-{name}-cap", {"position": keyword("relative"), "display": keyword("block"),
+                                            "height": length(22), "padding-left": length(8), "padding-right": length(8)}, [
             path("cap", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (6, {"fraction": 1}), (0, {"fraction": 1, "dp": -6})],
-                 fill=solid(cap_tint or [1, 1, 1, 0.85]))],
-            [label(f"prompt-{verb[5:]}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
+                 fill=solid(tint))],
+            [label(f"prompt-{name}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
                     **typeface("lowpixel", 13, 22, [0.04, 0.05, 0.035, 1]), "white-space": keyword("nowrap")})])
-        face, size, tint = verb_face
-        verb_node = label(f"prompt-{verb[5:]}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
-            "margin-right": length(22), **typeface(face, size, 22, tint), "white-space": keyword("nowrap")})
-        items += [cap, verb_node]
+        doc.bind(f"prompt-{name}-cap.display", f"prompt-{name}-cap", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}, "block", "none"]})
+        glyph = group(f"prompt-{name}-glyph", {"position": keyword("relative"), "display": keyword("flex"),
+                                              "flex-direction": keyword("row"), "align-items": keyword("center"),
+                                              "height": length(22), "margin-right": length(6)},
+                      [cap] + device_glyphs(doc, f"prompt-{name}", FACE_FOR_KEY[key_name], tint))
+        face, size, verb_tint = verb_face
+        verb_node = label(f"prompt-{name}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
+            "margin-right": length(22), **typeface(face, size, 22, verb_tint), "white-space": keyword("nowrap")})
+        items += [glyph, verb_node]
     return group("prompts", {**absolute(top=U * 447, height=22, right=U * 12), "opacity": number(1),
                              "display": keyword("flex"), "flex-direction": keyword("row"), "align-items": keyword("center")}, items)
 
@@ -2668,7 +2792,6 @@ def loading_document() -> dict:
         "motion_reduced": {"type": "boolean", "initial": False, "cvar": "ui_retainedReducedMotion"},
         "loading_phase": {"type": "string", "initial": ""},
         "loading_count": {"type": "string", "initial": ""},
-        "loading_controller": {"type": "boolean", "initial": False},
         "loading_tip_a": {"type": "string", "initial": ""},
         "loading_tip_b": {"type": "string", "initial": ""},
         "server_message": {"type": "string", "initial": ""},
@@ -2862,23 +2985,19 @@ def loading_document() -> dict:
     bar_x, bar_w, tail = U * 392, U * 240, U * 8
     # Multiplayer never waits: when its load ends the prompt reads JOINING.
     joining = {"op": "&&", "args": [{"state": "loading_mp"}, {"op": ">=", "args": [{"state": "map_loading"}, 1]}]}
+    controller = {"op": "!", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}]}
     prompt = {"op": "select", "args": [{"state": "loading_ready"},
-              {"op": "select", "args": [{"state": "loading_controller"}, "#str_200984", "#str_200937"]},
+              {"op": "select", "args": [controller, "#str_200984", "#str_200937"]},
               {"op": "select", "args": [joining, "#str_230037", "#str_200938"]}]}
-    glyph_shown = {"op": "select", "args": [{"op": "&&", "args": [{"state": "loading_ready"}, {"state": "loading_controller"}]},
+    glyph_shown = {"op": "select", "args": [{"op": "&&", "args": [{"state": "loading_ready"}, controller]},
                                             "block", "none"]}
 
     def south_button(ident: str, tint: list) -> dict:
-        """The controller's face buttons as a diamond with the south one
-        filled: the platform-neutral confirm glyph."""
-        def ring(cx: float, cy: float, radius: float, sides: int = 12) -> list:
-            return [(round(cx + radius * math.cos(2 * math.pi * i / sides), 3), round(cy + radius * math.sin(2 * math.pi * i / sides), 3))
-                    for i in range(sides)]
-        paths = [path(name, ring(cx, cy, 2.6), stroke=stroke(solid(tint), 1.2, minimum=1))
-                 for name, (cx, cy) in (("north", (9, 3.5)), ("west", (3.5, 9)), ("east", (14.5, 9)))]
-        paths.append(path("south", ring(9, 14.5, 3.2), fill=solid(tint)))
-        return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(18),
-                              "height": length(18), "margin-right": length(8)}, paths)
+        """The confirm glyph: the active controller family's south button
+        (section 13.5); a generic controller's is the four positions as a
+        diamond with the south one filled."""
+        return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(18),
+                             "height": length(18), "margin-right": length(8)}, device_glyphs(doc, ident, "south", tint, 18))
 
     def prompt_row(ident: str, offset: float, tint: list) -> dict:
         return group(ident, {**absolute(top=U * 2 + offset, height=U * 22, right=tail - offset), "display": keyword("flex"),

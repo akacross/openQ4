@@ -43,6 +43,9 @@ AFTER_MAP = '@aftermap'
 # Where a scenario logs the game module its page reloads.
 MODULE_LOG = 'openq4-match.log'
 
+# ui_promptStyle's forced glyphs, in order.
+PROMPT_STYLES = ((1, 'keyboard'), (2, 'xbox'), (3, 'playstation'), (4, 'nintendo'), (5, 'steamdeck'), (6, 'generic'))
+
 SCENARIOS = {
     'title': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/title.tga"',
@@ -55,6 +58,18 @@ SCENARIOS = {
         'openq4_retainedGui focus nav_settings', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 250', 'screenshot "screenshots/title-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
         'screenshot "screenshots/title-settings.tga"',
+    ]),
+    # Prompts follow the active device (section 13.5): the Prompt Style forces
+    # the keyboard's keycaps and then each controller family on the title's
+    # prompt bar; no device is touched.
+    'prompts': (None, [
+        'waitMsec 4000',
+        *[step for style, name in PROMPT_STYLES for step in (
+            f'set ui_promptStyle {style}', 'waitMsec 400',
+            f'openq4_retainedGui inspect "prompt-200747-{"cap" if name == "keyboard" else name}"',
+            f'openq4_retainedGui inspect "prompt-200013-{"cap" if name == "keyboard" else name}"',
+            f'screenshot "screenshots/prompts-{name}.tga"')],
+        'set ui_promptStyle 0',
     ]),
     'pause': ('game/airdefense1', [
         'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/pause.tga"',
@@ -113,8 +128,9 @@ SCENARIOS = {
         'openq4_retainedGui pending loading_phase "LOAD TIME"', 'openq4_retainedGui pending loading_count "12.4 s"',
         'openq4_retainedGui event FinishedLoading', 'openq4_retainedGui state map_loading 1', 'waitMsec 600',
         'screenshot "screenshots/loading-ready.tga"',
-        'openq4_retainedGui state loading_controller 1', 'waitMsec 300', 'screenshot "screenshots/loading-controller.tga"',
-        'openq4_retainedGui state loading_controller 0',
+        # A controller's prompt: the Prompt Style stands in for one used last.
+        'set ui_promptStyle 2', 'waitMsec 300', 'openq4_retainedGui inspect "progress-prompt-glyph-xbox"',
+        'screenshot "screenshots/loading-controller.tga"', 'set ui_promptStyle 0',
         # Single player tips while the level loads, as the session publishes
         # them: a tip in slot A, then the next cross-fading in slot B (two of
         # the longest). A key must be quoted: the tokenizer splits an unquoted '#'.

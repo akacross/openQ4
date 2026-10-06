@@ -67,6 +67,11 @@ idCVar ui_retainedTrace("ui_retainedTrace", "0", CVAR_GUI | CVAR_BOOL | CVAR_NOC
 	"trace retained event commits and typed application dispatch for semantic validation");
 idCVar ui_retainedOpaqueBacking("ui_retainedOpaqueBacking", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,
 	"draw the opaque scrim behind retained modals instead of softening the screen beneath");
+// Section 13.5's Prompt Style: forces the prompt glyphs when a remapping layer
+// hides the real device.
+idCVar ui_promptStyle("ui_promptStyle", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE,
+	"menu prompt glyphs: 0 the active device's, 1 keyboard keys, 2 Xbox, 3 PlayStation, 4 Nintendo, 5 Steam Deck, "
+	"6 generic controller", 0, 6);
 // Documents read this to choose between soft focus and its scrim fallback.
 idCVar ui_retainedSoftFocus("ui_retainedSoftFocus", "0", CVAR_GUI | CVAR_BOOL | CVAR_ROM,
 	"whether retained modals soften the screen beneath: no opaque backing and a renderer that can blur it");
@@ -1301,6 +1306,20 @@ void RetainedUI_Draw() {
 	if (RetainedUI_DrawViewRoot(previewView,viewport)) RecordProfile(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-profileStart).count());
 }
 bool RetainedUI_IsOpen() { return applicationOpen.load(std::memory_order_acquire); }
+// Prompts follow the active device (section 13.5): 0 shows the keyboard's
+// keycaps, 1-5 a controller family's face buttons (Xbox, PlayStation,
+// Nintendo, Steam Deck, generic). ui_promptStyle forces one. Otherwise a
+// controller used last shows the family the platform reports for it
+// (in_gamepadFamily), or the generic one where it reports none.
+int RetainedUI_PromptGlyphs() {
+	const int style = ui_promptStyle.GetInteger();
+	if (style > 0) return style - 1;
+	if (!idKeyInput::LastInputWasController()) return 0;
+	static const char* const families[] = {"xbox","playstation","nintendo","steamdeck"};
+	const char* family = cvarSystem->GetCVarString("in_gamepadFamily");
+	for (int i = 0; i < 4; ++i) if (!idStr::Icmp(family,families[i])) return i + 1;
+	return 5;
+}
 int RetainedUI_ViewCount() { return static_cast<int>(views.size()); }
 void RetainedUI_PrecacheImage(const std::string& source, bool additive) {
 	if (source.empty() || !openq4::ui::ValidImageSource(source)) return;

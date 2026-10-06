@@ -287,10 +287,9 @@ public:
 	// screenshots the pause screen's Objectives page may show.
 	void				PrecacheRetainedLevelImages();
 	// The loader's phase and its place, or the asset queue's count, under the
-	// retained loading bar; and the device whose continue prompt it shows.
+	// retained loading bar.
 	void				SetRetainedLoadingPhase( int phase, const char *count = NULL );
 	void				PublishRetainedLoadingCount();
-	void				PublishRetainedLoadingDevice();
 	// Single player loading tips: the first when the screen presents, then the
 	// next every 6 s.
 	void				PublishRetainedLoadingTip( bool first );
@@ -657,7 +656,6 @@ public:
 	int					retainedLoadingPhase;
 	int					retainedLoadingLoaded;
 	int					retainedLoadingTotal;
-	int					retainedLoadingDevice;
 	int					retainedLoadingTip;		// index of the tip showing (-1: none)
 	int					retainedLoadingTipSlot;	// the label slot showing it (0: a, 1: b)
 	int					retainedLoadingTipAt;	// presentation time it was shown

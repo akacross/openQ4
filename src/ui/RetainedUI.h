@@ -77,6 +77,10 @@ void RetainedUI_LanguageChanged();
 // IsOpen is safe for the async usercmd thread; all other entry points run on
 // the engine thread. Preview documents do not acquire application input.
 bool RetainedUI_IsOpen();
+// The glyphs prompts show (section 13.5): 0 the keyboard's keycaps, 1-5 a
+// controller family's face buttons (Xbox, PlayStation, Nintendo, Steam Deck,
+// generic). Documents read it as the adapter-owned state prompt.glyphs.
+int RetainedUI_PromptGlyphs();
 unsigned RetainedUI_InputGeneration();
 // Registered retained views (documents holding an RmlUi context), for the
 // ui_retained gate report: zero while the stock interface presents everything.

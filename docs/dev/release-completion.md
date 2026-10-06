@@ -1503,6 +1503,13 @@
 - With a controller, the rebuilt server browser refreshes the list with the
   left face button and sorts it by the next column with the top one.
 
+- Menu prompts show your controller's buttons. After you use a controller,
+  the title, pause and loading screens show its buttons instead of keyboard
+  keys: A and B on Xbox pads, the cross and circle on PlayStation, Switch
+  labels, or the Steam Deck's own. The keyboard or mouse switches them back.
+  If Steam Input or another remapper hides your pad, `ui_promptStyle`
+  chooses the style (see the input guide).
+
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 

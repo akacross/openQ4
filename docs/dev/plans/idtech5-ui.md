@@ -161,7 +161,9 @@ Welcome card covers the connect-time join offer, by default now that all its
 pages are built, and a join's loading screen hands over to it.
 Event programs can move focus; Q, E and the shoulders page a document's
 tabs, the triggers its sections, and a controller's west and north run its
-secondary and tertiary actions. The [initializing screen](../ui/retained-screens.md#initializing-screen)
+secondary and tertiary actions. Prompts show the active device's glyphs:
+keycaps, or the controller family's face buttons (Xbox, PlayStation,
+Nintendo, Steam Deck or generic), which `ui_promptStyle` can force. The [initializing screen](../ui/retained-screens.md#initializing-screen)
 draws the stock picture rebuilt as vector layers from the first startup frame
 the renderer can draw until the menus are ready, with its turning rings, four
 accents, status line and step rule, and the title's wordmark is the same

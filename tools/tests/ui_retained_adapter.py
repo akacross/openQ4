@@ -603,6 +603,8 @@ bool RetainedUI_PrepareView(retainedUIView_t* view) { return view && view->runti
 bool RetainedUI_LoadView(retainedUIView_t*,const std::string&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return !rejectLoad; }
 bool RetainedUI_DefaultViewport(openq4::ui::Viewport& result) { result=viewport; return viewport.width>0 && viewport.height>0; }
 double RetainedUI_PresentationTime() { return presentationTime; }
+int promptGlyphsValue=0;
+int RetainedUI_PromptGlyphs() { return promptGlyphsValue; }
 void RetainedUI_PrecacheImage(const std::string&,bool) {}
 bool RetainedUI_DrawViewRoot(retainedUIView_t* view,const openq4::ui::Viewport&) {
     ++view->runtime.frames; view->runtime.pointerTransport.push_back("frame"); return !rejectDraw;
@@ -2301,6 +2303,35 @@ static void CheckTabKeys() {
     runtime.widgets.at("root").number->active=false;
     assert(faces().size()==3 && runtime.menu.empty());
 }
+// A document that declares prompt.glyphs gets RetainedUI_PromptGlyphs as
+// each frame draws, once per change, and the session's state pushes carry
+// the adapter's value; a document that does not declare it never gets it.
+static void CheckPromptGlyphs() {
+    assert(views.empty());const auto original=modelTemplate;
+    consoleObject.open=false;windowFocused=true;promptGlyphsValue=3;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();gui.Redraw(0);gui.Redraw(0);
+        assert(!runtime.state.contains("prompt.glyphs"));
+        for(const auto& call:runtime.stateCalls)assert(!call.contains("prompt.glyphs"));
+    }
+    modelTemplate.state["prompt.glyphs"]={0.0,""};promptGlyphsValue=0;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();
+        const auto published=[&]{size_t n=0;for(const auto& call:runtime.stateCalls)if(call.size()==1 && call.contains("prompt.glyphs"))++n;return n;};
+        const auto glyphs=[&]{return std::get<double>(runtime.state.at("prompt.glyphs"));};
+        gui.Redraw(0);
+        assert(published()==1 && glyphs()==0 && gui.GetStateInt("prompt.glyphs")==0);
+        gui.Redraw(0);assert(published()==1);
+        promptGlyphsValue=2;const auto frames=runtime.frames;gui.Redraw(0);
+        assert(published()==2 && glyphs()==2 && gui.GetStateInt("prompt.glyphs")==2 && runtime.frames==frames+1);
+        gui.StateChanged(0);assert(glyphs()==2);
+        promptGlyphsValue=5;gui.Redraw(0);promptGlyphsValue=0;gui.Redraw(0);
+        assert(published()==4 && glyphs()==0);
+    }
+    modelTemplate=original;promptGlyphsValue=0;
+}
 // Committed characters (SE_CHAR) type into the focused field, opening an
 // edit when none is open; a field with the focus takes the platform's
 // text input.
@@ -2594,6 +2625,7 @@ int main() {
     CheckNumberKeys();
     CheckTypedCharacters();
     CheckTabKeys();
+    CheckPromptGlyphs();
     std::puts("Retained adapter: Number diagnostic transport, delayed numeric identity and readback-before-acknowledgement; exactly-once Apply-and-exit receipts after complete queued batches, stationary wheel/pointer handoff, immutable value proposals/acknowledgements, authoritative settings return and authored Back, settings capability/draw ownership and state/lifecycle boundaries, ordered event/FIFO publication, restore suppression, pending dictionary, presentation delegation, framed saves, input suspension and cursor mapping passed");
 }
 '''
