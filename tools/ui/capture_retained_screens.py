@@ -531,6 +531,51 @@ SCENARIOS = {
         'waitMsec 250', 'screenshot "screenshots/multiplayer-back.tga"', 'waitMsec 1000', 'ui_retainedStatus',
         'screenshot "screenshots/multiplayer-title.tga"',
     ]),
+    # The Create Server sub-page (FLOW-050), opted in (ui_retainedMultiplayer,
+    # SCENARIO_CVARS) while it lacks the stock page's passwords and ban list:
+    # CREATE SERVER on the Multiplayer page goes deeper and the sub-page
+    # presents at 350 ms under the MULTIPLAYER crumb, the game type's maps
+    # listed and the chosen one's levelshot shown. Choosing CTF lists its maps
+    # again, ADVANCED OPTIONS opens the popup's options, and BACK climbs out
+    # onto CREATE SERVER.
+    'createserver': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui report',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 175', 'screenshot "screenshots/createserver-change.tga"', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/createserver.tga"',
+        'openq4_retainedGui focus "create-gametype"', 'waitMsec 100', 'openq4_retainedGui choice open "create-gametype"', 'waitMsec 400',
+        'screenshot "screenshots/createserver-gametypes.tga"',
+        'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0', 'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0',
+        'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'si_gameType', 'si_map',
+        'screenshot "screenshots/createserver-ctf.tga"',
+        'openq4_retainedGui event advancedModalShow', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/createserver-advanced.tga"',
+        'openq4_retainedGui event advancedModalHide', 'waitMsec 600',
+        'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/createserver-back.tga"', 'waitMsec 1200', 'openq4_retainedGui report',
+        'screenshot "screenshots/createserver-returned.tga"',
+    ]),
+    # CREATE SERVER from the sub-page starts the server as the stock page's
+    # does: the menu closes, the game module reloads into game_mp and the
+    # listen server loads the chosen map in the chosen game type (Team DM on
+    # its first map here). It listens on the loopback only (SCENARIO_CVARS),
+    # and the reloaded module logs to its own file.
+    'createserverstart': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1400', 'openq4_retainedGui focus "create-gametype"', 'waitMsec 100', 'openq4_retainedGui choice open "create-gametype"',
+        'waitMsec 400', 'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0', 'openq4_retainedGui menu down 1',
+        'openq4_retainedGui menu down 0', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'si_gameType', 'si_map', 'screenshot "screenshots/createserverstart-teamdm.tga"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus create_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
+        'si_gameType', 'si_map', 'ui_retainedStatus', 'screenshot "screenshots/createserverstart-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
     # screen's lines arrive in runes and translate to Latin under the scan
@@ -675,7 +720,9 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'system-mp-game': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
-                  'multiplayer': {'net_allowCheats': '1'}}
+                  'multiplayer': {'net_allowCheats': '1'},
+                  'createserver': {'ui_retainedMultiplayer': '1'},
+                  'createserverstart': {'ui_retainedMultiplayer': '1', 'net_ip': '127.0.0.1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'

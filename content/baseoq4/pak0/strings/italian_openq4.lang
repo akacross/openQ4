@@ -1245,4 +1245,10 @@
 	"#str_231120"	"Impossibile riprodurre la demo."
 	"#str_231121"	"Unisciti a una partita su un server, ospitane una tua o configura il tuo giocatore."
 	"#str_231122"	"IMPOSTAZIONI GIOCATORE"
+	"#str_231123"	"Inserisci un numero intero da 0 a 999."
+	"#str_231124"	"Inserisci un numero intero da 1 a 999."
+	"#str_231125"	"Inserisci un numero intero da 0 a 60."
+	"#str_231126"	"Inserisci un numero intero da 1 a 16."
+	"#str_231127"	"MAPPE PRECEDENTI"
+	"#str_231128"	"ALTRE MAPPE"
 }

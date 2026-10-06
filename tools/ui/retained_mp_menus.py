@@ -1189,11 +1189,11 @@ VOTE_HEAD_H = 24.0
 LABEL_LINE = 13.0                  # a two-line setting label's line pitch
 
 
-def row_face(wrap: bool) -> dict:
+def row_face(wrap: bool, row_h: float = VOTE_ROW_H) -> dict:
     """A setting row's label: one line at 15 dp, or two at 14 dp."""
     if wrap:
         return {**typeface("lowpixel", 14, LABEL_LINE, [1, 1, 1, 0.85]), "white-space": keyword("normal")}
-    return {**typeface("lowpixel", 15, VOTE_ROW_H, [1, 1, 1, 0.85]), "white-space": keyword("nowrap")}
+    return {**typeface("lowpixel", 15, row_h, [1, 1, 1, 0.85]), "white-space": keyword("nowrap")}
 
 
 def wrapped_width(text: str, size: float = 14, lines_allowed: int = 2) -> float:
@@ -1272,7 +1272,8 @@ def choice_popup(ident: str, entries: list, width: float) -> tuple[dict, list]:
 
 def value_row(doc: Document, ident: str, label_key: str | None, kind: str, width: float, value_x: float, *, value: dict, action: str,
               entries: list | None = None, count: dict | None = None, slider: tuple | None = None, allowed: dict | None = None,
-              shown: dict | None = None, accessible: str | None = None, wrap: bool = False) -> dict:
+              shown: dict | None = None, accessible: str | None = None, wrap: bool = False, row_h: float = VOTE_ROW_H,
+              placement: str = "card") -> dict:
     """A setting row (section 7): a light plate with the label 21 dp in and
     the value at the value column in marine.value, the whole row one control
     (a table cell has no label: its row's text names it). A choice unfolds
@@ -1280,8 +1281,11 @@ def value_row(doc: Document, ident: str, label_key: str | None, kind: str, width
     along a tick track with its number after it. `value` reads the setting
     back and `action` takes the new value. With `allowed` the row dims with
     the padlock after its label where it is false; with `shown` it shows only
-    where that is true. A `wrap` label takes two lines at 14 dp."""
+    where that is true. A `wrap` label takes two lines at 14 dp. `row_h` is
+    the row's height, 26 dp unless its page sets rows on a taller pitch;
+    `placement` the ancestor a choice's list unfolds within."""
     value_w = width - value_x - 12
+    middle = (row_h - VOTE_ROW_H) / 2 if row_h != VOTE_ROW_H else 0
     plate = vector(f"{ident}-plate", FULL, [
         path("plate", [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)],
              fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1)),
@@ -1290,43 +1294,44 @@ def value_row(doc: Document, ident: str, label_key: str | None, kind: str, width
         path("wash", [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)],
              fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(OLIVE, 0.45)), (1, rgb(OLIVE, 0.1))])),
     ])
-    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=VOTE_ROW_H), "opacity": number(0)}, [
-        path("rail", [(0, 7), (6, 1), (6, VOTE_ROW_H - 1), (0, VOTE_ROW_H - 1)], fill=solid(rgb(ORANGE)))])
+    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=row_h), "opacity": number(0)}, [
+        path("rail", [(0, 7), (6, 1), (6, row_h - 1), (0, row_h - 1)], fill=solid(rgb(ORANGE)))])
     children = [plate, wash, rail]
     if label_key is not None:
         # The label and, on a locked row, the padlock after it share the label
         # column; a locked row's label gives way to its lock.
         caption = label(f"{ident}-label", label_key, {"position": keyword("relative"), "display": keyword("block"), "flex-shrink": number(1),
-                        "min-width": length(0), **row_face(wrap), "overflow": keyword("hidden")})
+                        "min-width": length(0), **row_face(wrap, row_h), "overflow": keyword("hidden")})
         head_children = [caption]
         if allowed is not None:
             lock = padlock(f"{ident}-lock", rgb(ERROR))
             doc.bind(f"{ident}-lock.display", f"{ident}-lock", "display", {"op": "select", "args": [allowed, "none", "block"]})
             head_children.append(lock)
-        children.append(group(f"{ident}-head", {**absolute(left=21, top=0, width=value_x - 29, height=VOTE_ROW_H), "display": keyword("flex"),
+        children.append(group(f"{ident}-head", {**absolute(left=21, top=0, width=value_x - 29, height=row_h), "display": keyword("flex"),
                                                 "flex-direction": keyword("row"), "align-items": keyword("center")}, head_children))
     spec = {"role": kind, "label": accessible or label_key, "action": action, "value": value,
             "states": row_states(doc, ident, label_key is not None)}
     if kind == "choice":
         # Lists take the 14 dp face: the stock maps' names run long, in capitals.
-        value_node = label(f"{ident}-value", PLACEHOLDER, {**absolute(left=value_x, top=0, width=value_w - 14, height=VOTE_ROW_H),
-                           **typeface("lowpixel", 14, VOTE_ROW_H, rgb(VALUE)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
-        chevron = vector(f"{ident}-chevron", absolute(left=width - 24, top=10, width=12, height=6), [
+        value_node = label(f"{ident}-value", PLACEHOLDER, {**absolute(left=value_x, top=0, width=value_w - 14, height=row_h),
+                           **typeface("lowpixel", 14, row_h, rgb(VALUE)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+        chevron = vector(f"{ident}-chevron", absolute(left=width - 24, top=10 + middle, width=12, height=6), [
             path("chevron", [(0, 0), (6, 6), (12, 0)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5))])
         popup, options = choice_popup(ident, entries, value_w + 8)
         popup["properties"]["left"] = length(value_x - 8)
+        popup["properties"]["top"] = length(row_h)
         children += [value_node, chevron, popup]
         spec.update({"parts": {"popup": f"{ident}-popup", "viewport": f"{ident}-viewport", "content": f"{ident}-content",
                                "value": f"{ident}-value"},
                      "visibleRows": min(VOTE_VISIBLE_ROWS, len(entries)), "options": options})
         if count is not None:
             spec["optionCount"] = count
-        spec.update({"placementBounds": "card", "scrollbar": {"track": f"{ident}-scroll-track", "thumb": f"{ident}-scroll-thumb",
+        spec.update({"placementBounds": placement, "scrollbar": {"track": f"{ident}-scroll-track", "thumb": f"{ident}-scroll-thumb",
                                                               "lineStep": VOTE_OPTION_H, "minimumThumb": 24}})
     elif kind == "toggle":
-        box = vector(f"{ident}-box", absolute(left=value_x, top=6, width=14, height=14), [
+        box = vector(f"{ident}-box", absolute(left=value_x, top=6 + middle, width=14, height=14), [
             path("box", [(0.75, 0.75), (13.25, 0.75), (13.25, 13.25), (0.75, 13.25)], stroke=stroke(solid(rgb(VALUE)), 1.5))])
-        checked = group(f"{ident}-checked", {**absolute(left=value_x, top=6, width=14, height=14), "display": keyword("none")}, [
+        checked = group(f"{ident}-checked", {**absolute(left=value_x, top=6 + middle, width=14, height=14), "display": keyword("none")}, [
             vector(f"{ident}-mark", FULL, [path("mark", [(3.5, 3.5), (10.5, 3.5), (10.5, 10.5), (3.5, 10.5)], fill=solid(rgb(VALUE)))])])
         children += [box, checked]
         spec["parts"] = {"checked": f"{ident}-checked"}
@@ -1353,7 +1358,7 @@ def value_row(doc: Document, ident: str, label_key: str | None, kind: str, width
         spec.update({"minimum": minimum, "maximum": maximum, "step": step, "decimals": decimals, "orientation": "horizontal",
                      "parts": {"track": f"{ident}-track", "fill": f"{ident}-fill", "thumb": f"{ident}-thumb", "value": f"{ident}-value"}})
     row = group(ident, {"position": keyword("relative"), "display": keyword("none" if shown is not None else "block"), "width": length(width),
-                        "height": length(VOTE_ROW_H), "opacity": number(1), "flex-shrink": number(0)}, children, control=spec)
+                        "height": length(row_h), "opacity": number(1), "flex-shrink": number(0)}, children, control=spec)
     if shown is not None:
         doc.bind(f"{ident}.display", ident, "display", {"op": "select", "args": [shown, "block", "none"]})
     if allowed is not None:
@@ -2343,21 +2348,21 @@ def match_text(doc: Document, ident: str, head: str | None, state: str, left: fl
 
 
 def match_number_row(doc: Document, ident: str, label_key: str, width: float, value_x: float, *, value: dict, action: str,
-                     maximum: int, message: str) -> dict:
+                     maximum: int, message: str, minimum: int = 0, row_h: float = VOTE_ROW_H) -> dict:
     """A whole-number field as a setting row (section 7, with the SYSTEM page's
     precise field): the label in its column, then the value, which the player
-    edits from 0 to `maximum`; outside that the field says so in `message`
+    edits from `minimum` (0) to `maximum`; outside that the field says so in `message`
     under itself and asks nothing. Its value goes to `action`, and the game
     checks it again."""
     shape = [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)]
     plate = vector(f"{ident}-plate", FULL, [path("plate", shape, fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1))])
     wash = vector(f"{ident}-wash", {**FULL, "opacity": number(0)}, [
         path("wash", shape, fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(OLIVE, 0.45)), (1, rgb(OLIVE, 0.1))]))])
-    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=VOTE_ROW_H), "opacity": number(0)}, [
-        path("rail", [(0, 7), (6, 1), (6, VOTE_ROW_H - 1), (0, VOTE_ROW_H - 1)], fill=solid(rgb(ORANGE)))])
+    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=row_h), "opacity": number(0)}, [
+        path("rail", [(0, 7), (6, 1), (6, row_h - 1), (0, row_h - 1)], fill=solid(rgb(ORANGE)))])
     caption = label(f"{ident}-label", label_key, {"position": keyword("relative"), "display": keyword("block"), "flex-shrink": number(1),
                     "min-width": length(0), **row_face(True), "overflow": keyword("hidden")})
-    head = group(f"{ident}-head", {**absolute(left=21, top=0, width=value_x - 29, height=VOTE_ROW_H), "display": keyword("flex"),
+    head = group(f"{ident}-head", {**absolute(left=21, top=0, width=value_x - 29, height=row_h), "display": keyword("flex"),
                                    "flex-direction": keyword("row"), "align-items": keyword("center")}, [caption])
     field_w = width - value_x - 12
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
@@ -2370,7 +2375,8 @@ def match_number_row(doc: Document, ident: str, label_key: str, width: float, va
                          [path("field", whole, fill=solid([0, 0, 0, 0.6]), stroke=stroke(solid(rgb(OLIVE, 0.45)), 1))])
     text = label(f"{ident}-text", PLACEHOLDER, {**absolute(left=6, top=0, width=4096, height=VOTE_ROW_H - 4),
                  **typeface("lowpixel", 15, VOTE_ROW_H - 4, rgb(VALUE)), "white-space": keyword("pre"), "text-align": keyword("left")})
-    viewport = group(f"{ident}-viewport", {**absolute(left=value_x - 8, top=2, width=field_w, height=VOTE_ROW_H - 4),
+    viewport = group(f"{ident}-viewport", {**absolute(left=value_x - 8, top=2 + ((row_h - VOTE_ROW_H) / 2 if row_h != VOTE_ROW_H else 0), width=field_w,
+                                                      height=VOTE_ROW_H - 4),
                                            "overflow": keyword("hidden")},
                      [field_plate, ink(f"{ident}-selection", rgb(ORANGE, 0.4), 0, VOTE_ROW_H - 4), text,
                       ink(f"{ident}-caret", [1, 1, 1, 1], 1, VOTE_ROW_H - 4), ink(f"{ident}-composition", rgb(ORANGE), 0, 1)])
@@ -2378,14 +2384,14 @@ def match_number_row(doc: Document, ident: str, label_key: str, width: float, va
     need = max(b.text_width("lowpixel", text, 13) for text in table_text(message).values())
     if need > width - 33:
         raise SystemExit(f"the number field's message needs {need:.0f} dp, past its row's {width - 33:.0f} dp")
-    validation = label(f"{ident}-validation", message, {**absolute(left=21, top=VOTE_ROW_H + 1, width=width - 33, height=16),
+    validation = label(f"{ident}-validation", message, {**absolute(left=21, top=row_h + 1, width=width - 33, height=16),
                        **typeface("lowpixel", 13, 16, rgb(ERROR)), "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
                        "display": keyword("none")})
     parts = {part: f"{ident}-{part}" for part in ("viewport", "text", "selection", "caret", "composition", "validation")}
-    spec = {"role": "number", "label": label_key, "action": action, "value": value, "minimum": 0, "maximum": maximum, "integer": True,
+    spec = {"role": "number", "label": label_key, "action": action, "value": value, "minimum": minimum, "maximum": maximum, "integer": True,
             "exponent": False, "maxBytes": 8, "parts": parts, "states": row_states(doc, ident)}
     return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width),
-                         "height": length(VOTE_ROW_H), "opacity": number(1), "flex-shrink": number(0)},
+                         "height": length(row_h), "opacity": number(1), "flex-shrink": number(0)},
                  [plate, wash, rail, head, viewport, validation], control=spec)
 
 

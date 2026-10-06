@@ -1245,4 +1245,10 @@
 	"#str_231120"	"La démo n'a pas pu être lue."
 	"#str_231121"	"Rejoignez une partie sur un serveur, hébergez la vôtre ou configurez votre joueur."
 	"#str_231122"	"CONFIGURATION DU JOUEUR"
+	"#str_231123"	"Entrez un nombre entier de 0 à 999."
+	"#str_231124"	"Entrez un nombre entier de 1 à 999."
+	"#str_231125"	"Entrez un nombre entier de 0 à 60."
+	"#str_231126"	"Entrez un nombre entier de 1 à 16."
+	"#str_231127"	"CARTES PRÉCÉDENTES"
+	"#str_231128"	"PLUS DE CARTES"
 }

@@ -82,6 +82,7 @@ bool SessionMenuCommand(const std::string& command) {
         "arenaMatch2","arenaMatch3","arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart",
         "arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
         "multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
+        "createBack","createMap","createStart","createName","createMapCycle","createMapsNewer","createMapsOlder",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
@@ -91,14 +92,18 @@ bool SessionMenuCommand(const std::string& command) {
 // Session verbs a value control may request with its new value: the
 // multiplayer card's Vote page fields, its Settings pages' model lists and
 // crosshair, and its Match page's role, ballot target, rule value and series
-// format. The
-// session maps each verb to its field and the game checks the value against
-// the field's rules.
+// format, and the Create Server page's settings. The
+// session maps each verb to its field and the game, or for Create Server the
+// session, checks the value against the field's rules.
 bool SessionMenuValueCommand(const std::string& command) {
 	static const std::set<std::string> commands = {"mpVoteMap","mpVoteGameType","mpVoteTimeLimit","mpVoteFragLimit",
 		"mpVoteCaptureLimit","mpVoteTourneyLimit","mpVoteControlTime","mpVoteBalance","mpVoteShuffle","mpVoteRestart",
 		"mpVoteBuying","mpVoteKick","mpModelSelf","mpModelEnemy","mpModelTeam","mpCrosshair","mpMatchRole","mpMatchScope","mpMatchRuleValue",
-		"mpMatchSeriesProfile"};
+		"mpMatchSeriesProfile",
+		"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
+		"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
+		"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
+		"createBuying","createBots","createBotSkill"};
 	return commands.contains(command);
 }
 

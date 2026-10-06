@@ -52,7 +52,7 @@ idCVar gui_set_sys_scroll( "gui_set_sys_scroll", "0", CVAR_GUI | CVAR_INTEGER, "
 idCVar gui_set_audio_scroll( "gui_set_audio_scroll", "0", CVAR_GUI | CVAR_INTEGER, "audio menu scroll step", 0.0f, 0.0f );
 idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER, "game menu scroll step", 0, 61 );
 idCVar ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained SYSTEM page, which ui_retained includes only once every stock setting works there" );
-idCVar ui_retainedMultiplayer( "ui_retainedMultiplayer", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained multiplayer menu card, which ui_retained includes only once all its pages are built" );
+idCVar ui_retainedMultiplayer( "ui_retainedMultiplayer", "0", CVAR_GUI | CVAR_BOOL, "use the in-development retained multiplayer menus (the match card and Create Server), which ui_retained includes only once they offer everything the stock ones do" );
 // The single gate for the retained (RmlUi) interface, on by default. Each
 // screen presents its stock GUI instead when its retained document is missing
 // or cannot load, or when the legacy menu it covers lacks a page it hands off
@@ -113,6 +113,14 @@ static const char *const RETAINED_MP_ESCAPE_MISSING_PAGES[] = {
 };
 static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
 	NULL
+};
+// What the stock Create Server page offers that Multiplayer's retained Create
+// Server sub-page does not yet: the advanced options' two password fields and
+// the ban list. While any remain, CREATE SERVER opens the stock page and only
+// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
+// this list equal to what the two pages offer.
+static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
+	"g_password", "net_serverRemoteConsolePassword", "banlist", NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
 // slot's action again from the player's state when it is chosen.
@@ -206,6 +214,10 @@ static bool Session_RetainedMultiplayerEnabled( bool welcome ) {
 }
 
 #ifndef ID_DEDICATED
+static bool Session_RetainedCreateServerEnabled( void ) {
+	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_CREATE_SERVER_MISSING[0] == NULL );
+}
+
 // The stock button a card's hand-off to `page` presses, or NULL; `joinPanel`
 // says whether the stock menu shows the join panel.
 static const char *Session_RetainedMultiplayerStockPage( bool welcome, int page, bool joinPanel ) {
@@ -3421,82 +3433,10 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Icmp( cmd, "startMultiplayer" ) ) {
 			CommitStartServerMapSelection( guiMainMenu );
-			int dedicated = guiActive->State().GetInt( "dedicated" );
-			cvarSystem->SetCVarBool( "net_LANServer", guiActive->State().GetBool( "server_type" ) );
-			if ( gui_configServerRate.GetInteger() > 0 ) {
-				// guess the best rate for upstream, number of internet clients
-				if ( gui_configServerRate.GetInteger() == 5 || cvarSystem->GetCVarBool( "net_LANServer" ) ) {
-					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
-				} else {
-					// internet players
-					int n_clients = cvarSystem->GetCVarInteger( "si_maxPlayers" );
-					if ( !dedicated ) {
-						n_clients--;
-					}
-					int maxclients = 0;
-					switch ( gui_configServerRate.GetInteger() ) {
-						case 1:
-							// 128 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 8000 );
-							maxclients = 2;
-							break;
-						case 2:
-							// 256 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 9500 );
-							maxclients = 3;
-							break;
-						case 3:
-							// 384 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 10500 );
-							maxclients = 4;
-							break;
-						case 4:
-							// highest internet preset: treat as modern high-bandwidth connection
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
-							maxclients = 16;
-							break;
-						default:
-							// unknown preset: fall back to modern defaults
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 16000 );
-							maxclients = 16;
-							break;
-					}
-					if ( n_clients > maxclients ) {
-						const int adjustedMaxClients = dedicated ? maxclients : Min( 16, maxclients + 1 );
-						if ( MessageBox( MSG_OKCANCEL, va( common->GetLanguageDict()->GetString( "#str_04315" ), adjustedMaxClients ), common->GetLanguageDict()->GetString( "#str_04316" ), true, "OK" )[ 0 ] == '\0' ) {
-							continue;
-						}
-						cvarSystem->SetCVarInteger( "si_maxPlayers", adjustedMaxClients );
-					}
-				}
+			if ( StartMenuServer() ) {
+				return;
 			}
-
-			const int listenWarningLimit = GetListenServerPlayerWarningLimit(
-				gui_configServerRate.GetInteger(),
-				cvarSystem->GetCVarInteger( "net_serverMaxClientRate" ) );
-
-			if ( !dedicated &&
-				!cvarSystem->GetCVarBool( "net_LANServer" ) &&
-				listenWarningLimit < 16 &&
-				cvarSystem->GetCVarInteger( "si_maxPlayers" ) > listenWarningLimit ) {
-				// "Dedicated server mode is recommended for internet servers with more than 4 players. Continue in listen mode?"
-				if ( !MessageBox( MSG_YESNO, va( common->GetLanguageDict()->GetString( "#str_100625" ), listenWarningLimit ), common->GetLanguageDict()->GetString ( "#str_100626" ), true, "yes" )[ 0 ] ) {
-					continue;
-				}
-			}
-
-			if ( dedicated ) {
-				cvarSystem->SetCVarInteger( "net_serverDedicated", 1 );
-			} else {
-				cvarSystem->SetCVarInteger( "net_serverDedicated", 0 );
-			}
-
-
-
-			ExitMenu();
-			// may trigger a reloadEngine - APPEND
-			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "SpawnServer\n" );
-			return;
+			continue;
 		}
 
 		if ( !idStr::Icmp( cmd, "mpSkin")) {
@@ -3850,6 +3790,93 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			continue;
 		}
 	}
+}
+
+/*
+==============
+idSessionLocal::StartMenuServer
+
+Starts the server the menu set up, for the stock Create Server page and the
+retained one: the upstream rate's client limit and the listen-server warning
+ask first, and either answer No leaves the menu as it is (false). The map,
+game type and limits are in their CVars already.
+==============
+*/
+bool idSessionLocal::StartMenuServer() {
+	int dedicated = guiActive->State().GetInt( "dedicated" );
+	cvarSystem->SetCVarBool( "net_LANServer", guiActive->State().GetBool( "server_type" ) );
+	if ( gui_configServerRate.GetInteger() > 0 ) {
+		// guess the best rate for upstream, number of internet clients
+		if ( gui_configServerRate.GetInteger() == 5 || cvarSystem->GetCVarBool( "net_LANServer" ) ) {
+			cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
+		} else {
+			// internet players
+			int n_clients = cvarSystem->GetCVarInteger( "si_maxPlayers" );
+			if ( !dedicated ) {
+				n_clients--;
+			}
+			int maxclients = 0;
+			switch ( gui_configServerRate.GetInteger() ) {
+				case 1:
+					// 128 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 8000 );
+					maxclients = 2;
+					break;
+				case 2:
+					// 256 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 9500 );
+					maxclients = 3;
+					break;
+				case 3:
+					// 384 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 10500 );
+					maxclients = 4;
+					break;
+				case 4:
+					// highest internet preset: treat as modern high-bandwidth connection
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
+					maxclients = 16;
+					break;
+				default:
+					// unknown preset: fall back to modern defaults
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 16000 );
+					maxclients = 16;
+					break;
+			}
+			if ( n_clients > maxclients ) {
+				const int adjustedMaxClients = dedicated ? maxclients : Min( 16, maxclients + 1 );
+				if ( MessageBox( MSG_OKCANCEL, va( common->GetLanguageDict()->GetString( "#str_04315" ), adjustedMaxClients ), common->GetLanguageDict()->GetString( "#str_04316" ), true, "OK" )[ 0 ] == '\0' ) {
+					return false;
+				}
+				cvarSystem->SetCVarInteger( "si_maxPlayers", adjustedMaxClients );
+			}
+		}
+	}
+
+	const int listenWarningLimit = GetListenServerPlayerWarningLimit(
+		gui_configServerRate.GetInteger(),
+		cvarSystem->GetCVarInteger( "net_serverMaxClientRate" ) );
+
+	if ( !dedicated &&
+		!cvarSystem->GetCVarBool( "net_LANServer" ) &&
+		listenWarningLimit < 16 &&
+		cvarSystem->GetCVarInteger( "si_maxPlayers" ) > listenWarningLimit ) {
+		// "Dedicated server mode is recommended for internet servers with more than 4 players. Continue in listen mode?"
+		if ( !MessageBox( MSG_YESNO, va( common->GetLanguageDict()->GetString( "#str_100625" ), listenWarningLimit ), common->GetLanguageDict()->GetString ( "#str_100626" ), true, "yes" )[ 0 ] ) {
+			return false;
+		}
+	}
+
+	if ( dedicated ) {
+		cvarSystem->SetCVarInteger( "net_serverDedicated", 1 );
+	} else {
+		cvarSystem->SetCVarInteger( "net_serverDedicated", 0 );
+	}
+
+	ExitMenu();
+	// may trigger a reloadEngine - APPEND
+	cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "SpawnServer\n" );
+	return true;
 }
 
 /*
@@ -5015,6 +5042,60 @@ static const char *const RETAINED_CREDITS_GUI = "guis/menu/credits.q4ui";
 // as the stock Multiplayer page leaves, 500 ms after the choice.
 static const char *const RETAINED_MPPAGE_GUI = "guis/menu/multiplayer.q4ui";
 static const int RETAINED_MPPAGE_LEAVE_MSEC = 500;
+// Multiplayer's Create Server sub-page. Its map list holds this many maps at a
+// time (MAP_ROWS in tools/ui/retained_create_server.py), and its game types
+// are the stock choice's, in its order (mp_create_val4's values).
+static const char *const RETAINED_CREATE_SERVER_GUI = "guis/menu/createserver.q4ui";
+static const int RETAINED_CREATE_MAP_ROWS = 64;
+static const char *const RETAINED_CREATE_GAMETYPES[] = {
+	"DM", "Tourney", "Team DM", "CTF", "Arena CTF", "DeadZone", "Duel", "Clan Arena", "Freeze Tag", "Red Rover", "One Flag CTF",
+	"Arena One Flag CTF"
+};
+static const int RETAINED_CREATE_GAMETYPE_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_GAMETYPES ) / sizeof( RETAINED_CREATE_GAMETYPES[0] ) );
+// Each setting the page offers: the verb its control asks with
+// ("<verb> <value>"), the page state the session publishes it in
+// (create.<state>), its CVar and the range the session takes; a Boolean
+// setting publishes a Boolean. tools/ui/retained_create_server.py offers
+// the same.
+typedef struct retainedCreateSetting_s {
+	const char *	verb;
+	const char *	state;
+	const char *	cvar;
+	int				minimum;
+	int				maximum;
+	bool			boolean;
+} retainedCreateSetting_t;
+static const retainedCreateSetting_t RETAINED_CREATE_SETTINGS[] = {
+	{ "createLan",			"lan",			"net_menulanserver",		0, 1,	false },
+	{ "createDedicated",	"dedicated",	"net_serverMenuDedicated",	0, 1,	true },
+	{ "createAutoBalance",	"autobalance",	"si_autobalance",			0, 1,	true },
+	{ "createFragLimit",	"fraglimit",	"si_fragLimit",				0, 999,	false },
+	{ "createCaptureLimit",	"capturelimit",	"si_captureLimit",			1, 999,	false },
+	{ "createControlTime",	"controltime",	"si_controlTime",			1, 999,	false },
+	{ "createTimeLimit",	"timelimit",	"si_timeLimit",				0, 60,	false },
+	{ "createMaxPlayers",	"maxplayers",	"si_maxPlayers",			1, 16,	false },
+	{ "createMinPlayers",	"minplayers",	"si_minPlayers",			1, 16,	false },
+	{ "createVoting",		"voting",		"si_allowVoting",			0, 1,	true },
+	{ "createTeamDamage",	"teamdamage",	"si_teamDamage",			0, 1,	true },
+	{ "createTourneyLimit",	"tourneylimit",	"si_tourneyLimit",			1, 999,	false },
+	{ "createUsePass",		"usepass",		"si_usePass",				0, 1,	true },
+	{ "createServerMods",	"servermods",	"net_serverAllowServerMod",	0, 1,	true },
+	{ "createWeaponStay",	"weaponstay",	"si_weaponStay",			0, 1,	true },
+	{ "createPure",			"pure",			"si_pure",					0, 1,	true },
+	{ "createRate",			"rate",			"gui_configServerRate",		0, 5,	false },
+	{ "createReady",		"ready",		"si_useReady",				0, 1,	true },
+	{ "createSpectators",	"spectators",	"si_spectators",			0, 1,	true },
+	{ "createWarmup",		"warmup",		"si_warmup",				0, 1,	true },
+	{ "createVoice",		"voice",		"si_voiceChat",				0, 1,	true },
+	{ "createBuying",		"buying",		"si_isBuyingEnabled",		0, 1,	true },
+	{ "createBots",			"bots",			"bot_minPlayers",			0, 16,	false },
+	{ "createBotSkill",		"botskill",		"bot_skill",				1, 5,	false },
+};
+static const int RETAINED_CREATE_SETTING_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_SETTINGS ) / sizeof( RETAINED_CREATE_SETTINGS[0] ) );
+// The longest server name and map cycle the page takes (the stock fields'
+// maxchars).
+static const int RETAINED_CREATE_NAME_CHARS = 25;
+static const int RETAINED_CREATE_MAPCYCLE_CHARS = 200;
 // Single Player's Arena sub-page, the Arena campaign's browser, and the
 // campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
 static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
@@ -5478,24 +5559,27 @@ void idSessionLocal::DrawRetainedHome( int presentationTime ) {
 	guiRetainedHome->Redraw( presentationTime );
 }
 
-// The Single Player page and its Campaign and Arena sub-pages are documents
-// of their own (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other document
-// cannot present, its stock screen opens at once.
-void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, bool arena ) {
+// The Single Player page and its Campaign and Arena sub-pages, and the
+// Multiplayer page and its Create Server sub-page, are documents of their own
+// (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other document cannot present,
+// its stock screen opens at once.
+void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage ) {
 #ifndef ID_DEDICATED
 	HandleMainMenuCommands( "play main_menu_selection" );
-	const char *other = !deeper ? RETAINED_SINGLEPLAYER_GUI : arena ? RETAINED_ARENA_GUI : RETAINED_CAMPAIGNS_GUI;
+	const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER, arena = subpage == RETAINED_SUBPAGE_ARENA;
+	const char *other = create ? ( deeper ? RETAINED_CREATE_SERVER_GUI : RETAINED_MPPAGE_GUI ) :
+		!deeper ? RETAINED_SINGLEPLAYER_GUI : arena ? RETAINED_ARENA_GUI : RETAINED_CAMPAIGNS_GUI;
 	if ( FindRetainedGui( other, true, false ) == NULL || cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
 		// The stock screen, or reduced motion: the other level at once.
-		PresentRetainedSubpage( deeper, arena );
+		PresentRetainedSubpage( deeper, subpage );
 		return;
 	}
-	gui->HandleNamedEvent( deeper ? ( arena ? "subpageEnterArena" : "subpageEnter" ) : "subpageLeave" );
+	gui->HandleNamedEvent( !deeper ? "subpageLeave" : create ? "subpageEnterCreate" : arena ? "subpageEnterArena" : "subpageEnter" );
 	PumpApplicationActions( gui );
 	retainedSubpageFrom = gui;
 	retainedSubpageDeeper = deeper;
 	retainedSubpageSibling = false;
-	retainedSubpageArena = arena;
+	retainedSubpageKind = subpage;
 	retainedSubpageBegan = common->GetPresentationTime();
 	retainedSubpageUntil = retainedSubpageBegan + ( deeper ? RETAINED_SUBPAGE_DEEPER_MSEC : RETAINED_SUBPAGE_BACK_MSEC );
 	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
@@ -5527,7 +5611,7 @@ void idSessionLocal::UpdateRetainedSubpage() {
 	}
 	// The arriving document's activation fades its backing in; the page
 	// coming back also fades its plates in.
-	PresentRetainedSubpage( deeper, retainedSubpageArena );
+	PresentRetainedSubpage( deeper, retainedSubpageKind );
 	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
 		common->Printf( "RETAINED_SUBPAGE handover deeper=%d gui=%s\n", deeper ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
 	}
@@ -5535,11 +5619,22 @@ void idSessionLocal::UpdateRetainedSubpage() {
 }
 
 // The other level presents: Campaign (or the stock selector), the Arena
-// campaign's browser (the Arena page where it can), or Single Player coming
-// back, onto ARENA from Arena.
-void idSessionLocal::PresentRetainedSubpage( bool deeper, bool arena ) {
+// campaign's browser (the Arena page where it can), Create Server, or the page
+// coming back: Single Player, onto ARENA from Arena, or Multiplayer onto
+// CREATE SERVER.
+void idSessionLocal::PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage ) {
 #ifndef ID_DEDICATED
-	retainedSubpageArena = false;
+	const bool arena = subpage == RETAINED_SUBPAGE_ARENA;
+	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
+	if ( subpage == RETAINED_SUBPAGE_CREATE_SERVER ) {
+		if ( deeper ) {
+			OpenRetainedCreateServer();
+		} else if ( OpenRetainedMultiplayerPage( true ) ) {
+			guiActive->HandleNamedEvent( "subpageReturn" );
+			PumpApplicationActions( guiActive );
+		}
+		return;
+	}
 	if ( deeper && arena ) {
 		common->Printf( "CAMPAIGN_SELECTED id=arena gameDir=%s module=%s\n", OPENQ4_GAMEDIR,
 			cvarSystem->GetCVarString( "com_activeGameModule" ) );
@@ -5739,6 +5834,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedCreate ) {
+		// The Create Server sub-page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedCreateServerRequest( gui, request );
+		}
+		return;
+	}
 	if ( gui != NULL && request != NULL && gui == guiRetainedArena ) {
 		// The Arena page's verbs, while it presents.
 		if ( gui == guiActive ) {
@@ -5776,7 +5878,7 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
             // selected as before, and the browser presents after the reload.
             if ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) && !Session_CampaignNeedsReload( OPENQ4_GAMEDIR ) &&
                  RetainedArenaPage() != NULL ) {
-                BeginRetainedSubpage( gui, true, true );
+                BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_ARENA );
             } else {
                 SelectCampaign( "arena" );
             }
@@ -6493,12 +6595,13 @@ idUserInterface *idSessionLocal::RetainedMultiplayerPage() {
 ===============
 idSessionLocal::OpenRetainedMultiplayerPage
 
-Back from a stock Multiplayer page: the retained page presents at once, its
-arrival bringing its plates and description back. False when it cannot
-present: the stock Multiplayer page opens instead.
+Back from a stock Multiplayer page, or from Create Server (`fromCreate`, onto
+CREATE SERVER): the retained page presents at once, its arrival bringing its
+plates and description back. False when it cannot present: the stock
+Multiplayer page opens instead.
 ===============
 */
-bool idSessionLocal::OpenRetainedMultiplayerPage() {
+bool idSessionLocal::OpenRetainedMultiplayerPage( bool fromCreate ) {
 #ifndef ID_DEDICATED
 	idUserInterface *page = RetainedMultiplayerPage();
 	if ( page == NULL || guiMainMenu == NULL ) {
@@ -6506,6 +6609,9 @@ bool idSessionLocal::OpenRetainedMultiplayerPage() {
 	}
 	retainedMpPageDest = 0;
 	retainedPageHome = NULL;
+	// The activation reads it.
+	page->SetStateBool( "from_create", fromCreate );
+	page->StateChanged( common->GetPresentationTime() );
 	SetGUI( page, NULL );
 	return true;
 #else
@@ -6517,15 +6623,21 @@ bool idSessionLocal::OpenRetainedMultiplayerPage() {
 ===============
 idSessionLocal::HandleRetainedMultiplayerPageRequest
 
-The Multiplayer page's verbs. JOIN GAME, CREATE SERVER and PLAYER SETUP open
-the stock browser, Create Server and Settings pages once the page has left
-(UpdateRetainedMultiplayerPage); BACK returns the title, from the page dock
-as from a stock page. A page under way takes no further request.
+The Multiplayer page's verbs. JOIN GAME and PLAYER SETUP open the stock
+browser and Settings pages once the page has left
+(UpdateRetainedMultiplayerPage); CREATE SERVER goes deeper to the retained
+Create Server sub-page where it can present, else it opens the stock page the
+same way; BACK returns the title, from the page dock as from a stock page. A
+page or a change of level under way takes no further request.
 ===============
 */
 void idSessionLocal::HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
-	if ( retainedMpPageDest != 0 || guiMainMenu == NULL ) {
+	if ( retainedMpPageDest != 0 || retainedSubpageFrom != NULL || guiMainMenu == NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerCreate" ) && RetainedCreateServerPage() != NULL ) {
+		BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_CREATE_SERVER );
 		return;
 	}
 	if ( !idStr::Icmp( request, "multiplayerBack" ) ) {
@@ -6610,6 +6722,280 @@ void idSessionLocal::UpdateRetainedMultiplayerPage() {
 #endif
 }
 
+#ifndef ID_DEDICATED
+// The chosen game type's index among the page's, from si_gameType; a value
+// the page does not offer (singleplayer, say) reads as DM, as the stock
+// MAPScan reads it.
+static int Session_RetainedCreateGameType( void ) {
+	const char *gametype = cvarSystem->GetCVarString( "si_gameType" );
+	for ( int i = 0; i < RETAINED_CREATE_GAMETYPE_COUNT; ++i ) {
+		if ( !idStr::Icmp( gametype, RETAINED_CREATE_GAMETYPES[i] ) ) {
+			return i;
+		}
+	}
+	return 0;
+}
+
+// A setting's request, "<verb> <value>": its index in RETAINED_CREATE_SETTINGS
+// and the value, a whole number from -1 to 999.
+static bool Session_RetainedCreateSettingRequest( const char *request, int &setting, int &value ) {
+	const char *verbs[ RETAINED_CREATE_SETTING_COUNT ];
+	for ( int i = 0; i < RETAINED_CREATE_SETTING_COUNT; ++i ) {
+		verbs[i] = RETAINED_CREATE_SETTINGS[i].verb;
+	}
+	return Session_RetainedValueRequest( request, verbs, RETAINED_CREATE_SETTING_COUNT, setting, value );
+}
+
+// The text a field handed over, at most `limit` bytes and never cut inside a
+// UTF-8 sequence.
+static idStr Session_RetainedCreateText( idUserInterface *gui, const char *state, int limit ) {
+	idStr text = gui->State().GetString( state );
+	if ( text.Length() > limit ) {
+		int length = limit;
+		while ( length > 0 && ( static_cast<unsigned char>( text[ length ] ) & 0xC0 ) == 0x80 ) {
+			--length;
+		}
+		text.CapLength( length );
+	}
+	return text;
+}
+#endif
+
+/*
+===============
+idSessionLocal::RetainedCreateServerPage
+
+Multiplayer's retained Create Server sub-page where it can present: NULL while
+the session does not offer it (RETAINED_CREATE_SERVER_MISSING without
+ui_retainedMultiplayer), in a game, or when the page is not installed, cannot
+load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedCreateServerPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedCreate != NULL && UI_RetainedViewFailed( guiRetainedCreate ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_CREATE_SERVER_GUI );
+		retainedStock.AddUnique( RETAINED_CREATE_SERVER_GUI );
+		guiRetainedCreate = NULL;
+	}
+	if ( !Session_RetainedCreateServerEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	if ( guiRetainedCreate == NULL ) {
+		guiRetainedCreate = FindRetainedGui( RETAINED_CREATE_SERVER_GUI, true, false );
+	}
+	return guiRetainedCreate;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedCreateServer
+
+The Create Server sub-page presents with its settings and the chosen game
+type's maps published. Where it cannot, CREATE SERVER opens the stock page
+from the Multiplayer page, as its other sections do.
+===============
+*/
+void idSessionLocal::OpenRetainedCreateServer() {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedCreateServerPage();
+	if ( page == NULL ) {
+		if ( guiRetainedMpPage != NULL && guiActive == guiRetainedMpPage ) {
+			HandleRetainedMultiplayerPageRequest( guiRetainedMpPage, "multiplayerCreate" );
+		}
+		return;
+	}
+	PublishRetainedCreateServer( page );
+	PublishRetainedCreateMaps( page, true );
+	SetGUI( page, NULL );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedCreateServer
+
+The page's settings as their CVars hold them, within the ranges it offers,
+the server name and map cycle, and the chosen game type, which picks the
+limit row and the slot under Allow Voting.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateServer( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	for ( int i = 0; i < RETAINED_CREATE_SETTING_COUNT; ++i ) {
+		const retainedCreateSetting_t &setting = RETAINED_CREATE_SETTINGS[i];
+		const int value = idMath::ClampInt( setting.minimum, setting.maximum, cvarSystem->GetCVarInteger( setting.cvar ) );
+		if ( setting.boolean ) {
+			gui->SetStateBool( va( "create.%s", setting.state ), value != 0 );
+		} else {
+			gui->SetStateInt( va( "create.%s", setting.state ), value );
+		}
+	}
+	gui->SetStateString( "create.name", cvarSystem->GetCVarString( "si_name" ) );
+	gui->SetStateString( "create.mapcycle", cvarSystem->GetCVarString( "g_mapCycle" ) );
+	gui->SetStateInt( "create.gametype", Session_RetainedCreateGameType() );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedCreateMaps
+
+The chosen game type's maps as the stock page's MAPScan lists them: the maps
+whose decls play it, else every multiplayer map, si_map's own chosen where
+the list has it, else the first. A map's name loses its color codes, as the
+retained save labels do: the stock list drew them, the page draws plain text.
+`rescan` makes the list again; either way the page's rows, the choice and its
+levelshot follow, and si_map takes the choice, as the stock list's selection
+did.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateMaps( idUserInterface *gui, bool rescan ) {
+#ifndef ID_DEDICATED
+	if ( rescan ) {
+		const char *gametype = RETAINED_CREATE_GAMETYPES[ Session_RetainedCreateGameType() ];
+		const int count = fileSystem->GetNumMaps();
+		retainedCreateMaps.Clear();
+		for ( int pass = 0; pass < 2 && retainedCreateMaps.Num() == 0; ++pass ) {
+			for ( int i = 0; i < count; ++i ) {
+				const idDict *dict = fileSystem->GetMapDecl( i );
+				if ( pass == 0 ? MapSupportsStartServerGameType( dict, gametype ) : MapSupportsAnyMPGameType( dict ) ) {
+					retainedCreateMaps.Append( i );
+				}
+			}
+		}
+		retainedCreateMapSelected = retainedCreateMaps.Num() > 0 ? 0 : -1;
+		const idStr current = cvarSystem->GetCVarString( "si_map" );
+		for ( int i = 0; i < retainedCreateMaps.Num(); ++i ) {
+			if ( !current.Icmp( fileSystem->GetMapDecl( retainedCreateMaps[i] )->GetString( "path" ) ) ) {
+				retainedCreateMapSelected = i;
+				break;
+			}
+		}
+		retainedCreateMapFirst = retainedCreateMapSelected > 0 ?
+			retainedCreateMapSelected / RETAINED_CREATE_MAP_ROWS * RETAINED_CREATE_MAP_ROWS : 0;
+	}
+	for ( int row = 0; row < RETAINED_CREATE_MAP_ROWS; ++row ) {
+		const int index = retainedCreateMapFirst + row;
+		idStr name;
+		if ( index < retainedCreateMaps.Num() ) {
+			const idDict *dict = fileSystem->GetMapDecl( retainedCreateMaps[ index ] );
+			const char *key = dict->GetString( "name" );
+			name = common->GetLanguageDict()->GetString( key[0] != '\0' ? key : dict->GetString( "path" ) );
+			name.RemoveColors();
+		}
+		gui->SetStateString( va( "create.map%d", row ), name.c_str() );
+	}
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT;
+	if ( retainedCreateMapSelected >= 0 ) {
+		const char *path = fileSystem->GetMapDecl( retainedCreateMaps[ retainedCreateMapSelected ] )->GetString( "path" );
+		cvarSystem->SetCVarString( "si_map", path );
+		shot = RetainedPauseShot( path );
+	} else {
+		cvarSystem->SetCVarString( "si_map", "" );
+	}
+	gui->SetStateInt( "create.map_count", retainedCreateMaps.Num() );
+	gui->SetStateInt( "create.map_first", retainedCreateMapFirst );
+	gui->SetStateInt( "create.map_selected", retainedCreateMapSelected );
+	gui->SetStateString( "create.shot", shot.c_str() );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedCreateServerRequest
+
+The Create Server sub-page's verbs. A setting's verb carries its value, which
+the session checks against the setting's range before it writes the CVar;
+the player counts keep their order, a lower maximum lowering the minimum and
+a higher minimum raising the maximum. The game type lists its maps again. A
+map row chooses its map (create.pick) and the pagers page the list; the name
+and map cycle fields hand over their text; CREATE SERVER starts the server
+as the stock page's does; BACK climbs to the Multiplayer page. A change of
+level under way takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBack" ) ) {
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_CREATE_SERVER );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createStart" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		StartMenuServer();
+		return;
+	}
+	if ( !idStr::Icmp( request, "createMap" ) ) {
+		const int row = gui->State().GetInt( "create.pick", "-1" );
+		const int index = retainedCreateMapFirst + row;
+		if ( row >= 0 && row < RETAINED_CREATE_MAP_ROWS && index < retainedCreateMaps.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedCreateMapSelected = index;
+			PublishRetainedCreateMaps( gui, false );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "createMapsNewer" ) || !idStr::Icmp( request, "createMapsOlder" ) ) {
+		// A page further, its first map chosen going on, its last coming back.
+		const bool older = !idStr::Icmp( request, "createMapsOlder" );
+		const int first = retainedCreateMapFirst + ( older ? RETAINED_CREATE_MAP_ROWS : -RETAINED_CREATE_MAP_ROWS );
+		if ( first < 0 || first >= retainedCreateMaps.Num() ) {
+			return;
+		}
+		retainedCreateMapFirst = first;
+		retainedCreateMapSelected = older ? first : first + RETAINED_CREATE_MAP_ROWS - 1;
+		PublishRetainedCreateMaps( gui, false );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createName" ) || !idStr::Icmp( request, "createMapCycle" ) ) {
+		const bool name = !idStr::Icmp( request, "createName" );
+		const idStr text = Session_RetainedCreateText( gui, name ? "create.name" : "create.mapcycle",
+			name ? RETAINED_CREATE_NAME_CHARS : RETAINED_CREATE_MAPCYCLE_CHARS );
+		cvarSystem->SetCVarString( name ? "si_name" : "g_mapCycle", text.c_str() );
+		PublishRetainedCreateServer( gui );
+		return;
+	}
+	static const char *const gametypeVerb[] = { "createGameType" };
+	int field = -1, value = 0;
+	if ( Session_RetainedValueRequest( request, gametypeVerb, 1, field, value ) ) {
+		if ( value < 0 || value >= RETAINED_CREATE_GAMETYPE_COUNT ) {
+			common->Warning( "retained UI: Create Server asked for game type %d", value );
+			return;
+		}
+		cvarSystem->SetCVarString( "si_gameType", RETAINED_CREATE_GAMETYPES[ value ] );
+		PublishRetainedCreateServer( gui );
+		PublishRetainedCreateMaps( gui, true );
+		return;
+	}
+	if ( Session_RetainedCreateSettingRequest( request, field, value ) ) {
+		const retainedCreateSetting_t &setting = RETAINED_CREATE_SETTINGS[ field ];
+		if ( value < setting.minimum || value > setting.maximum ) {
+			common->Warning( "retained UI: Create Server asked for %s %d", setting.cvar, value );
+			return;
+		}
+		cvarSystem->SetCVarInteger( setting.cvar, value );
+		if ( !idStr::Icmp( setting.cvar, "si_maxPlayers" ) && cvarSystem->GetCVarInteger( "si_minPlayers" ) > value ) {
+			cvarSystem->SetCVarInteger( "si_minPlayers", value );
+		} else if ( !idStr::Icmp( setting.cvar, "si_minPlayers" ) && cvarSystem->GetCVarInteger( "si_maxPlayers" ) < value ) {
+			cvarSystem->SetCVarInteger( "si_maxPlayers", value );
+		}
+		PublishRetainedCreateServer( gui );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Create Server request '%s'", request );
+#endif
+}
+
 /*
 ===============
 idSessionLocal::HandleRetainedArenaRequest
@@ -6626,7 +7012,7 @@ void idSessionLocal::HandleRetainedArenaRequest( idUserInterface *gui, const cha
 		return;
 	}
 	if ( !idStr::Icmp( request, "arenaBack" ) ) {
-		BeginRetainedSubpage( gui, false, true );
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_ARENA );
 		return;
 	}
 	for ( int i = 0; i < RETAINED_ARENA_VERB_COUNT; ++i ) {
@@ -6974,6 +7360,17 @@ void idSessionLocal::PreloadRetainedScreens() {
 	// with the routes to its Multiplayer pages.
 	if ( guiRetainedMpPage == NULL && guiRetainedTitle != NULL && Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
 		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
+	}
+	// Its Create Server sub-page, where the session offers it, and every
+	// multiplayer map's levelshot, so choosing a map never loads one late.
+	if ( guiRetainedCreate == NULL && guiRetainedMpPage != NULL && Session_RetainedCreateServerEnabled() ) {
+		guiRetainedCreate = FindRetainedGui( RETAINED_CREATE_SERVER_GUI, true, false );
+		for ( int i = 0; guiRetainedCreate != NULL && i < fileSystem->GetNumMaps(); ++i ) {
+			const idDict *dict = fileSystem->GetMapDecl( i );
+			if ( MapSupportsAnyMPGameType( dict ) ) {
+				UI_RetainedPrecacheImage( RetainedPauseShot( dict->GetString( "path" ) ).c_str() );
+			}
+		}
 	}
 #endif
 }

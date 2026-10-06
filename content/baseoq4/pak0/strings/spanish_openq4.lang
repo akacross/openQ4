@@ -1241,4 +1241,10 @@
 	"#str_231120"	"No se pudo reproducir la demo."
 	"#str_231121"	"Únete a una partida en un servidor, crea la tuya o configura tu jugador."
 	"#str_231122"	"AJUSTES DEL JUGADOR"
+	"#str_231123"	"Introduce un número entero de 0 a 999."
+	"#str_231124"	"Introduce un número entero de 1 a 999."
+	"#str_231125"	"Introduce un número entero de 0 a 60."
+	"#str_231126"	"Introduce un número entero de 1 a 16."
+	"#str_231127"	"MAPAS ANTERIORES"
+	"#str_231128"	"MÁS MAPAS"
 }

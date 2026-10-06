@@ -273,13 +273,14 @@ def backing(ident: str = "load-backing") -> dict:
 
 
 def table_text(key: str) -> dict:
-    """`key` in every shipped language: the openQ4 tables, else the stock
-    GUI tables that openQ4 ships for every language."""
-    texts = localized(key)
-    if texts:
-        return texts
-    found = {}
+    """`key` in every shipped language, as the engine resolves it: a
+    language's openQ4 table, else the stock GUI table that openQ4 ships for
+    every language (a few stock strings are corrected in some languages'
+    openQ4 tables only)."""
+    found = localized(key)
     for language in LANGUAGES:
+        if language in found:
+            continue
         for line in (STRINGS / f"{language}_guis.lang").read_text(encoding="utf-8").splitlines():
             match = re.match(r'\s*"(#str_\d+)"\s+"(.*)"\s*$', line)
             if match and match.group(1) == key:

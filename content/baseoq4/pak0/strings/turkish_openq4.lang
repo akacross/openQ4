@@ -1241,4 +1241,10 @@
 	"#str_231120"	"Demo oynatılamadı."
 	"#str_231121"	"Bir sunucudaki maça katıl, kendi maçını aç ya da oyuncunu ayarla."
 	"#str_231122"	"OYUNCU AYARLARI"
+	"#str_231123"	"0 ile 999 arasında bir tam sayı gir."
+	"#str_231124"	"1 ile 999 arasında bir tam sayı gir."
+	"#str_231125"	"0 ile 60 arasında bir tam sayı gir."
+	"#str_231126"	"1 ile 16 arasında bir tam sayı gir."
+	"#str_231127"	"ÖNCEKİ HARİTALAR"
+	"#str_231128"	"DAHA FAZLA HARİTA"
 }

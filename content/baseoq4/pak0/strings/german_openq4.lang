@@ -1241,4 +1241,10 @@
 	"#str_231120"	"Die Demo konnte nicht abgespielt werden."
 	"#str_231121"	"Tritt einem Spiel auf einem Server bei, starte dein eigenes oder richte deinen Spieler ein."
 	"#str_231122"	"SPIELEREINSTELLUNGEN"
+	"#str_231123"	"Geben Sie eine ganze Zahl von 0 bis 999 ein."
+	"#str_231124"	"Geben Sie eine ganze Zahl von 1 bis 999 ein."
+	"#str_231125"	"Geben Sie eine ganze Zahl von 0 bis 60 ein."
+	"#str_231126"	"Geben Sie eine ganze Zahl von 1 bis 16 ein."
+	"#str_231127"	"VORHERIGE KARTEN"
+	"#str_231128"	"WEITERE KARTEN"
 }

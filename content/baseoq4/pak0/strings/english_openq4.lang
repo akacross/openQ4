@@ -1241,4 +1241,10 @@
 	"#str_231120"	"The demo could not be played."
 	"#str_231121"	"Join a match on a server, host your own or set up your player."
 	"#str_231122"	"PLAYER SETUP"
+	"#str_231123"	"Enter a whole number from 0 to 999."
+	"#str_231124"	"Enter a whole number from 1 to 999."
+	"#str_231125"	"Enter a whole number from 0 to 60."
+	"#str_231126"	"Enter a whole number from 1 to 16."
+	"#str_231127"	"PREVIOUS MAPS"
+	"#str_231128"	"MORE MAPS"
 }

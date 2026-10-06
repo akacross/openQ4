@@ -155,13 +155,18 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
 	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
 	"multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
+	"createBack","createMap","createStart","createName","createMapCycle","createMapsNewer","createMapsOlder",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
 static const std::set<std::string> SessionValueCommands = {"mpVoteMap","mpVoteGameType","mpVoteTimeLimit","mpVoteFragLimit",
 	"mpVoteCaptureLimit","mpVoteTourneyLimit","mpVoteControlTime","mpVoteBalance","mpVoteShuffle","mpVoteRestart","mpVoteBuying","mpVoteKick",
 	"mpModelSelf","mpModelEnemy","mpModelTeam","mpCrosshair","mpMatchRole","mpMatchScope","mpMatchRuleValue",
-	"mpMatchSeriesProfile"};
+	"mpMatchSeriesProfile",
+	"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
+	"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
+	"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
+	"createBuying","createBots","createBotSkill"};
 // The player settings the multiplayer card's Settings and Voice pages change.
 static const std::set<std::string> PlayerSettings = {"ui_handicap","cl_player_outline_enemy","cl_player_outline_team",
 	"cl_player_rimlight_enemy","cl_player_rimlight_team","cl_player_visibility_enemy_color","cl_player_visibility_team_color",
@@ -2556,15 +2561,170 @@ static void CheckMultiplayerPage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,2.31);
 	Check(Near(value("content","opacity"),0,.01f) && Near(value("content","transform",0),640*u,.05f) && Near(value("title","color",3),0,.01f) &&
 		Near(value("prompts","opacity"),0,.01f),"by 300 ms it has swept 640 u toward the trailing edge, its title and prompts out");
-	// Hidden, it rests, so it never presents moved.
+	// Hidden, it rests, so it never presents moved, its content out so a
+	// return fades it in from nothing.
 	Check(runtime.RunEvent("onDeactivate",3,effects,error),"the page leaves the screen");
 	runtime.Frame(viewport,3.05);
-	Check(Near(value("content","transform",0),0,.05f) && Near(value("content","opacity"),1,.01f) && Near(value("details","opacity"),0,.01f) &&
-		Near(value("title","color",3),.5f,.01f) && Near(value("prompts","opacity"),1,.01f),"hidden, it waits at rest with its description out");
+	Check(Near(value("content","transform",0),0,.05f) && Near(value("content","opacity"),0,.01f) && Near(value("details","opacity"),0,.01f) &&
+		Near(value("title","color",3),.5f,.01f) && Near(value("prompts","opacity"),1,.01f) && Near(value("create-carry","opacity"),0,.01f),
+		"hidden, it waits at rest with its content out");
+	// Arriving again puts its plates back at once.
+	Check(runtime.RunEvent("onActivate",3.1,effects,error),"the page arrives again");
+	runtime.Frame(viewport,3.15);
+	Check(Near(value("content","opacity"),1,.01f),"its plates show at once");
+	// CREATE SERVER goes deeper: the plates fade over 150 ms while the page
+	// sweeps 640 u; the title becomes the crumb; from 50 ms the band steps
+	// one notch and CREATE SERVER carries to the step's foot.
+	const float pageTop = 323*u, subTop = (323+97)*u;
+	Check(runtime.RunEvent("subpageEnterCreate",4,effects,error),"CREATE SERVER leads deeper");
+	runtime.Frame(viewport,4.075);
+	Check(Near(value("content","opacity"),.5f,.02f) && Near(value("content","transform",0),640*u/4,.5f) &&
+		value("band-top","transform",0) > pageTop && value("band-top","transform",0) < subTop,
+		"at 75 ms the plates are half gone, the page a quarter swept and the band stepping");
+	runtime.Frame(viewport,4.15);
+	Check(Near(value("title","color",3),.4f,.01f) && value("title","transform",2) < .81f && Near(value("content","opacity"),0,.01f),
+		"by 150 ms the title is the crumb and the plates are gone");
+	runtime.Frame(viewport,4.35);
+	Bounds carry;
+	Check(Near(value("band-top","transform",0),subTop,.05f) && Near(value("content","transform",0),640*u,.5f) &&
+		Near(value("create-carry","transform",2),.75f,.001f) && Near(value("create-carry","color",3),.5f,.01f) &&
+		runtime.GetBounds("create-carry",carry) && Near(carry.x,x0+136*u,1),
+		"at 350 ms the band has stepped, the page has swept and CREATE SERVER sits at the step's foot");
+	// Back from Create Server: hidden at the hand-over, the page returns at
+	// once docked and fades its content in over 150 ms, onto CREATE SERVER.
+	Check(runtime.RunEvent("onDeactivate",4.4,effects,error),"the page left the screen at the hand-over");
+	Check(runtime.SetState({{"from_create",true}},error,5) && runtime.RunEvent("onActivate",5,effects,error) &&
+		runtime.RunEvent("subpageReturn",5,effects,error),"the page returns from Create Server");
+	runtime.Frame(viewport,5.0005);
+	Check(Near(value("band-top","transform",0),pageTop,.05f),"its first frame already shows it docked");
+	runtime.Frame(viewport,5.075);
+	Check(Near(value("content","opacity"),.5f,.02f) && Near(value("title","transform",2),1,.001f) && Near(value("create-carry","opacity"),0,.01f) &&
+		runtime.FocusedControl() == "create","it fades back in place onto CREATE SERVER, its title in the slot and no carry");
+	// Back while going deeper: every part returns from where it stands.
+	runtime.Frame(viewport,5.3);
+	Check(runtime.RunEvent("subpageEnterCreate",6,effects,error),"CREATE SERVER leads deeper again");
+	runtime.Frame(viewport,6.12);
+	const float partway = value("band-top","transform",0);
+	Check(runtime.RunEvent("subpageReverse150",6.12,effects,error),"Back reverses the change");
+	runtime.Frame(viewport,6.3);
+	Check(partway > pageTop && Near(value("band-top","transform",0),pageTop,.05f) && Near(value("content","transform",0),0,.05f) &&
+		Near(value("content","opacity"),1,.01f) && Near(value("title","transform",2),1,.001f) && Near(value("create-carry","opacity"),0,.01f),
+		"by 150 ms the page is back as it was");
+}
+
+// The Create Server sub-page (FLOW-050): the stock Create Server page's
+// content in the sub-page state under MULTIPLAYER's crumb. Every setting's
+// control asks the session with its own verb; the game type picks the limit
+// row and the slot under Allow Voting and locks Auto Balance and Team Damage
+// outside team modes; the map list shows the maps the session publishes, the
+// chosen one lit; ADVANCED OPTIONS opens the stock popup's options as a dialog.
+static void CheckCreateServerPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.createserver" && document.Model().canvasHeight == 720,"the Create Server page validates");
+	CheckSessionActions(document);
+	const char* const verbs[] = {"createLan","createDedicated","createGameType","createAutoBalance","createFragLimit","createCaptureLimit",
+		"createControlTime","createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit",
+		"createUsePass","createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup",
+		"createVoice","createBuying","createBots","createBotSkill"};
+	for (const char* verb : verbs) {
+		const auto found = document.Model().actions.find(verb);
+		Check(found != document.Model().actions.end() && found->second.operation == "session.menuValue" &&
+			std::get<std::string>(found->second.arguments.at("command").literal) == verb,"each setting asks the session with its own verb");
+	}
+	const std::pair<const char*,const char*> menu[] = {{"back","createBack"},{"createMap","createMap"},{"createStart","createStart"},
+		{"createName","createName"},{"mapsNewer","createMapsNewer"},{"mapsOlder","createMapsOlder"},{"createMapCycle","createMapCycle"}};
+	for (const auto& [action, command] : menu) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
+			"the page's verbs reach the session");
+	}
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/createserver.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto value = [&](const std::string& node, const char* property, size_t index = 0) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a Create Server node is laid out"); return b; };
+	StateValues maps = {{"create.map_count",3.0},{"create.map_first",0.0},{"create.map_selected",1.0},{"create.map0",std::string("THE FRAGGING YARD")},
+		{"create.map1",std::string("SANDSTORM")},{"create.map2",std::string("THE LOST FLEET")},{"create.shot",std::string("gfx/guis/loadscreens/generic")},
+		{"create.gametype",0.0},{"create.fraglimit",20.0},{"create.maxplayers",8.0}};
+	Check(runtime.SetState(maps,error,0.4),"publish the page");
+	Check(runtime.RunEvent("onActivate",0.5,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.575);
+	Check(value("create-panel","opacity") > .3f && value("create-panel","opacity") < .7f && runtime.FocusedControl() == "create_start",
+		"its content fades in over 150 ms and CREATE SERVER takes the focus");
+	runtime.Frame(viewport,0.7);
+	// The 4:3 canvas at 1280x720: x = 160 dp, 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto shot = bounds("create-shot-back"), list = bounds("maps-list"), name = bounds("create-name"), start = bounds("create_start");
+	Check(Near(shot.x,x0+45*u,1) && Near(shot.y,75*u,1) && Near(shot.width,183*u,1) && Near(list.x,x0+42*u,1) && Near(list.y,219*u,1),
+		"the levelshot and the map list stand where the stock page's do");
+	Check(Near(name.x,x0+228*u,1) && Near(name.y,73*u,1) && Near(name.height,24*u,.5f) && Near(start.x,x0+244*u,1) && Near(start.y,397*u,1),
+		"the options start at 228,73 u on the 24 u pitch and CREATE SERVER stands at 244,397 u");
+	const auto lan = bounds("create-lan"), frag = bounds("create-fraglimit");
+	Check(Near(lan.y,(73+24)*u,1) && Near(frag.y,(73+24*5)*u,1),"each option takes the next 24 u row");
+	Check(text("map-1-name","text") == "SANDSTORM" && text("map-1-selected","display") == "block" && text("map-0-selected","display") == "none" &&
+		text("map-3","display") == "none","the published maps fill the list with the chosen one lit");
+	Check(text("crumb","text") == "#str_200002" && text("title","text") == "#str_200026" && Near(bounds("title").x,x0+136*u,1),
+		"MULTIPLAYER is the crumb and CREATE SERVER titles the sub-page at the step's foot");
+	Check(Near(value("band-top","transform",0),(323+97)*u,.05f),"the top band stands one notch on");
+	// The game type picks the rows: DM shows Frag Limit and Team Damage,
+	// locked with Auto Balance; CTF shows Capture Limit, unlocked; DeadZone
+	// Control Time; Tourney its round limit in Team Damage's place.
+	Check(text("create-fraglimit","display") == "block" && text("create-capturelimit","display") == "none" &&
+		text("create-teamdamage","display") == "block" && text("create-tourneylimit","display") == "none" &&
+		runtime.GetControlState("create-autobalance") == ControlState::Disabled &&
+		runtime.GetControlState("create-teamdamage") == ControlState::Disabled,"Deathmatch: Frag Limit, and the team settings locked");
+	Check(runtime.SetState({{"create.gametype",3.0}},error,0.8),"CTF");
+	runtime.Frame(viewport,0.85);
+	Check(text("create-fraglimit","display") == "none" && text("create-capturelimit","display") == "block" &&
+		runtime.GetControlState("create-autobalance") != ControlState::Disabled,"CTF: Capture Limit, and Auto Balance applies");
+	Check(runtime.SetState({{"create.gametype",5.0}},error,0.9),"DeadZone");
+	runtime.Frame(viewport,0.95);
+	Check(text("create-controltime","display") == "block" && text("create-capturelimit","display") == "none","DeadZone: Control Time");
+	Check(runtime.SetState({{"create.gametype",1.0}},error,1.0),"Tourney");
+	runtime.Frame(viewport,1.05);
+	Check(text("create-tourneylimit","display") == "block" && text("create-teamdamage","display") == "none" &&
+		text("create-fraglimit","display") == "block","Tourney: its round limit in Team Damage's place");
+	// A map row's first Accept asks for its map; Accept on the chosen one moves
+	// on to CREATE SERVER.
+	Check(runtime.RunEvent("mapRow2",1.1,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "createMap",
+		"a map row asks for its map");
+	Check(runtime.RunEvent("mapRow1",1.2,effects,error) && effects.actions.empty() && runtime.FocusedControl() == "create_start",
+		"Accept on the chosen map moves on to CREATE SERVER");
+	// ADVANCED OPTIONS opens the stock popup's options, its contents at 200 ms.
+	Check(runtime.RunEvent("advancedModalShow",1.3,effects,error),"ADVANCED OPTIONS opens its dialog");
+	runtime.Frame(viewport,1.55);
+	Check(text("advancedModal","display") == "block" && text("advancedModal-contents","display") == "block" &&
+		text("create-bots","display") == "block" && text("create-mapcycle","display") == "block","the dialog shows the advanced options");
+	Check(runtime.RunEvent("advancedModalHide",1.6,effects,error),"CLOSE ADVANCED OPTIONS");
+	runtime.Frame(viewport,2.0);
+	Check(text("advancedModal","display") == "none","the dialog closes");
+	Check(runtime.RunEvent("onBack",2.1,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back","Back asks to climb out");
+	// Back: the title drops at once and the band steps back while the crumb
+	// holds; the crumb returns over the last 150 ms; the page sweeps out.
+	Check(runtime.RunEvent("subpageLeave",3,effects,error),"Back climbs one level");
+	runtime.Frame(viewport,3.01);
+	Check(Near(value("title","color",3),0,.01f) && value("band-top","transform",0) < (323+97)*u,"the title drops and the band steps back");
+	runtime.Frame(viewport,3.3);
+	Check(Near(value("band-top","transform",0),323*u,.05f) && Near(value("crumb","transform",2),1,.001f) &&
+		Near(value("content","transform",0),-640*u,.5f) && Near(value("create-panel","opacity"),0,.01f),
+		"by 300 ms the band is docked, the crumb is the title and the page has swept out");
+	Check(runtime.RunEvent("onDeactivate",3.4,effects,error),"the page leaves the screen");
+	runtime.Frame(viewport,3.45);
+	Check(Near(value("title","color",3),.5f,.01f) && Near(value("content","transform",0),0,.05f) &&
+		Near(value("band-top","transform",0),(323+97)*u,.05f) && Near(value("create-panel","opacity"),0,.01f),
+		"hidden, it rests in the sub-page state with its content out");
 }
 
 int main(int argc, char** argv) {
-	Check(argc == 22,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui");
+	Check(argc == 23,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3667,6 +3827,7 @@ int main(int argc, char** argv) {
 	CheckCreditsPage(host,argv[19]);
 	CheckArenaPage(host,argv[5],argv[20]);
 	CheckMultiplayerPage(host,argv[21]);
+	CheckCreateServerPage(host,argv[22]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

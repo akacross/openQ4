@@ -50,6 +50,7 @@ OUTPUTS = {
     "demos": PAK0 / "guis" / "menu" / "demos.q4ui",
     "arena": PAK0 / "guis" / "menu" / "arena.q4ui",
     "multiplayer": PAK0 / "guis" / "menu" / "multiplayer.q4ui",
+    "createserver": PAK0 / "guis" / "menu" / "createserver.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
 }
@@ -593,7 +594,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                  no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
                  height_u: float = 136.0, top_u: float = 155.0, actions_u: float = 96.0, contents: list | None = None,
                  yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None,
-                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0) -> dict:
+                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0, close_w: float = CLOSE_W) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -628,7 +629,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     its actions at `actions_u`, its own `contents` in place of the body and
     its own action labels and first focus; a ledger grows to `width_dp`, and
     actions whose labels run long widen to `action_w` with `action_text` dp
-    labels."""
+    labels, or a notice's lone action to `close_w`."""
     body_nodes = contents
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
@@ -691,7 +692,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     # The modal's own programs may answer for it: `yes_event` in place of the
     # session action, `no_event` for No and back; each must hide the modal.
     if close_key:
-        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=CLOSE_W)]
+        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=close_w)]
         initial = initial or f"{ident}_close"
     else:
         yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event,
@@ -3034,6 +3035,7 @@ def main() -> int:
     from retained_credits import credits_document
     from retained_arena import arena_document
     from retained_mp_page import multiplayer_document
+    from retained_create_server import create_server_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(), "initializing": initializing_document(),
                  "weaponwheel": weapon_wheel_document(), "weaponwheel_strogg": weapon_wheel_strogg_document(),
@@ -3046,6 +3048,7 @@ def main() -> int:
                  "credits": credits_document(),
                  "arena": arena_document(),
                  "multiplayer": multiplayer_document(),
+                 "createserver": create_server_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document()}
     stale = []
     for name, document in documents.items():

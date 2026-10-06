@@ -76,10 +76,12 @@ struct idStr : std::string {
     int Find(char c) const { const auto at = find(c); return at == npos ? -1 : static_cast<int>(at); }
     idStr Left(int n) const { return idStr(substr(0, n)); }
     idStr Right(int n) const { return idStr(substr(size() - n)); }
-    // Color escapes: a caret and a digit or colon (idStr::IsEscape's color indices).
+    // Color escapes: a caret and a digit or colon (idStr::IsEscape's color
+    // indices), or a caret, c and three characters (its RGB color).
     void RemoveColors() {
         std::string out;
         for (size_t i = 0; i < size(); ++i) {
+            if ((*this)[i] == '^' && i + 4 < size() && std::tolower(static_cast<unsigned char>((*this)[i + 1])) == 'c') { i += 4; continue; }
             if ((*this)[i] == '^' && i + 1 < size() && (std::isdigit(static_cast<unsigned char>((*this)[i + 1])) || (*this)[i + 1] == ':')) { ++i; continue; }
             out += (*this)[i];
         }
@@ -87,6 +89,7 @@ struct idStr : std::string {
     }
     void StripTrailingWhitespace() { while (!empty() && std::isspace(static_cast<unsigned char>(back()))) pop_back(); }
     void Clear() { clear(); }
+    void CapLength(int length) { if (length < Length()) resize(length); }
     int Icmp(const char* other) const { return Icmp(c_str(), other); }
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
@@ -134,6 +137,10 @@ static const int MAX_ASYNC_CLIENTS = 32;
 #define OPENQ4_GAMEDIR "baseoq4"
 struct idFile {};
 struct idModInfo { idStr directory, displayName, version, releaseDate, website, author, requiredopenQ4Version, listLabel; };
+struct idDict {
+    std::map<std::string, std::string> values;
+    const char* GetString(const char* key, const char* fallback = "") const { const auto found = values.find(key); return found == values.end() ? fallback : found->second.c_str(); }
+};
 struct CVarSystem {
     std::map<std::string, std::string> strings;
     const char* GetCVarString(const char* name) const { const auto found = strings.find(name); return found == strings.end() ? "" : found->second.c_str(); }
@@ -168,6 +175,10 @@ struct FileSystem {
     } modList; int modLists = 0, modFrees = 0;
     ModList* ListMods() { ++modLists; return &modList; }
     void FreeModList(ModList*) { ++modFrees; }
+    // The installed maps' decls, in the file system's order.
+    std::vector<idDict> maps;
+    int GetNumMaps() const { return static_cast<int>(maps.size()); }
+    const idDict* GetMapDecl(int index) const { return index >= 0 && index < GetNumMaps() ? &maps[index] : nullptr; }
 } fileSystemObject, *fileSystem = &fileSystemObject;
 using idModList = FileSystem::ModList;
 struct ArenaCampaign {
@@ -176,11 +187,14 @@ struct ArenaCampaign {
     // The browser opening (the Arena page where it can), and the entrance holding it.
     int browsers = 0; bool entering = false; void OpenBrowser() { ++browsers; } bool IsEntering() const { return entering; }
 } arenaCampaign;
-struct idDict {
-    std::map<std::string, std::string> values;
-    const char* GetString(const char* key, const char* fallback = "") const { const auto found = values.find(key); return found == values.end() ? fallback : found->second.c_str(); }
-};
 struct MapSpawnData { idDict serverInfo; };
+// A map decl plays the game types it names with "1"; the production MAPScan
+// rules (MapDeclSupports and its aliases) live outside this harness.
+static bool MapSupportsStartServerGameType(const idDict* dict, const char* gametype) { return dict && std::string(dict->GetString(gametype)) == "1"; }
+static bool MapSupportsAnyMPGameType(const idDict* dict) {
+    for (const char* type : {"DM", "Team DM", "CTF", "Tourney", "Arena CTF", "DeadZone"}) if (MapSupportsStartServerGameType(dict, type)) return true;
+    return false;
+}
 static std::map<std::string, idDict> mapDecls;
 static bool Session_GetMapDeclDict(const char* map, const char*, idDict& out) {
     const auto found = mapDecls.find(map); if (found == mapDecls.end()) return false; out = found->second; return true;
@@ -336,6 +350,7 @@ static bool Session_MenuReadSaveDescription(const idStr& slot, sessionMenuSaveDe
 static const char* va(const char* fmt, ...) {
     static char text[1024]; va_list args; va_start(args, fmt); std::vsnprintf(text, sizeof(text), fmt, args); va_end(args); return text;
 }
+typedef enum { RETAINED_SUBPAGE_CAMPAIGN, RETAINED_SUBPAGE_ARENA, RETAINED_SUBPAGE_CREATE_SERVER } retainedSubpage_t;
 class idSessionLocal {
 public:
     idUserInterface *guiActive = nullptr, *guiMainMenu = nullptr, *guiTest = nullptr;
@@ -347,8 +362,9 @@ public:
     bool retainedSubpageSibling = false;
     idUserInterface* guiLoading = nullptr; bool retainedLoadingActive = false;
     int retainedLoadingTip = -1, retainedLoadingTipSlot = 0, retainedLoadingTipAt = 0; void PublishRetainedLoadingTip(bool);
-    void BeginRetainedSubpage(idUserInterface*, bool, bool = false); void UpdateRetainedSubpage(); bool RetainedSubpageEvent(const sysEvent_t*);
-    void PresentRetainedSubpage(bool, bool); bool retainedSubpageArena = false;
+    void BeginRetainedSubpage(idUserInterface*, bool, retainedSubpage_t = RETAINED_SUBPAGE_CAMPAIGN); void UpdateRetainedSubpage();
+    bool RetainedSubpageEvent(const sysEvent_t*);
+    void PresentRetainedSubpage(bool, retainedSubpage_t); retainedSubpage_t retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
     // Single Player's Arena sub-page.
     idUserInterface* guiRetainedArena = nullptr; idUserInterface* RetainedArenaPage();
     idUserInterface* RetainedArenaGui() const { return guiRetainedArena; } void HandleRetainedArenaRequest(idUserInterface*, const char*);
@@ -433,8 +449,13 @@ public:
     idUserInterface* guiRetainedCredits = nullptr; void PublishRetainedCredits(idUserInterface*);
     // The Multiplayer page; the stock page it leaves for, and when.
     idUserInterface* guiRetainedMpPage = nullptr; int retainedMpPageDest = 0, retainedMpPageAt = 0;
-    idUserInterface* RetainedMultiplayerPage(); bool OpenRetainedMultiplayerPage();
+    idUserInterface* RetainedMultiplayerPage(); bool OpenRetainedMultiplayerPage(bool = false);
     void HandleRetainedMultiplayerPageRequest(idUserInterface*, const char*); void UpdateRetainedMultiplayerPage();
+    // Its Create Server sub-page and the maps it lists; the servers started.
+    idUserInterface* guiRetainedCreate = nullptr; idList<int> retainedCreateMaps; int retainedCreateMapFirst = 0, retainedCreateMapSelected = -1;
+    idUserInterface* RetainedCreateServerPage(); void OpenRetainedCreateServer(); void PublishRetainedCreateServer(idUserInterface*);
+    void PublishRetainedCreateMaps(idUserInterface*, bool); void HandleRetainedCreateServerRequest(idUserInterface*, const char*);
+    int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
         ++saveLists;
@@ -476,14 +497,14 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
     "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
-    "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui"};
+    "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
 }
 static idSessionLocal Session(bool gate, bool inGame = false) {
     managerObject = Manager{}; commonObject = Common{}; commands = CommandSystem{}; legacy.clear(); legacyActions.clear(); precached.clear(); stickX = stickY = 0;
-    timeRuns.clear(); expressionWrites = 0;
+    timeRuns.clear(); expressionWrites = 0; fileSystemObject.maps.clear();
     legacyActionAvailable = true; preview = false; ui_retained.value = gate; ui_retainedSystem.value = false; ui_retainedMultiplayer.value = false;
     fileSystemObject.files = std::set<std::string>(std::begin(DOCUMENTS), std::end(DOCUMENTS)); arenaCampaign = ArenaCampaign{};
     fileSystemObject.gameDirFiles.clear(); fileSystemObject.opens = fileSystemObject.closes = 0; cvarSystemObject = CVarSystem{};
@@ -1042,6 +1063,99 @@ int main() {
             CHECK(std::find(managerObject.loads.begin(), managerObject.loads.end(), "guis/menu/multiplayer.q4ui") == managerObject.loads.end());
         }
     }
+    {   // The Create Server sub-page (FLOW-050): opt-in while the stock page
+        // offers what it does not (RETAINED_CREATE_SERVER_MISSING), CREATE SERVER
+        // then opening the stock page as before.
+        auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        CHECK(s.guiRetainedCreate == nullptr && s.RetainedCreateServerPage() == nullptr);
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        auto* page = s.guiRetainedMpPage; CHECK(s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate");
+        CHECK(s.retainedMpPageDest == 17 && page->named.back() == "depart" && s.retainedSubpageFrom == nullptr);
+    }
+    {   // Opted in: CREATE SERVER goes deeper as Campaign does, and at 350 ms the
+        // sub-page presents with the settings, the game type's maps (si_map's
+        // own chosen) and its levelshot published.
+        auto s = Session(true); ui_retainedMultiplayer.value = true;
+        fileSystemObject.maps = {idDict{{{"path", "mp/q4dm1"}, {"name", "#str_q4dm1"}, {"DM", "1"}, {"Team DM", "1"}}},
+                                 idDict{{{"path", "mp/q4ctf1"}, {"name", "^c560[^c870CMP^c560]^c998 Lost ^1Fleet"}, {"CTF", "1"}}},
+                                 idDict{{{"path", "mp/q4dm5"}, {"DM", "1"}}}};
+        fileSystemObject.screenshots["mp/q4dm5"] = "gfx/guis/loadscreens/q4dm5";
+        fileSystemObject.files.insert("gfx/guis/loadscreens/q4dm5.tga");
+        cvarSystemObject.strings = {{"si_gameType", "DM"}, {"si_map", "mp/q4dm5"}, {"si_name", "openQ4 Server"}, {"si_fragLimit", "20"},
+                                    {"si_maxPlayers", "8"}, {"si_minPlayers", "2"}, {"si_teamDamage", "1"}, {"g_mapCycle", "mapcycle"},
+                                    {"bot_skill", "9"}};
+        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* create = s.guiRetainedCreate;
+        CHECK(create && std::string(create->Name()) == "guis/menu/createserver.q4ui" && s.RetainedCreateServerPage() == create);
+        CHECK(std::count(precached.begin(), precached.end(), std::string("gfx/guis/loadscreens/q4dm5")) == 1);  // each map's levelshot
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        auto* page = s.guiRetainedMpPage; CHECK(s.guiActive == page);
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate");
+        CHECK(s.retainedSubpageFrom == page && page->named.back() == "subpageEnterCreate" && s.retainedSubpageDeeper &&
+              s.retainedSubpageKind == RETAINED_SUBPAGE_CREATE_SERVER && s.retainedSubpageUntil == commonObject.time + 350 &&
+              s.retainedMpPageDest == 0);
+        s.HandleRetainedSessionRequest(page, "multiplayerJoin"); CHECK(s.retainedMpPageDest == 0);  // nothing else meanwhile
+        commonObject.time += 350; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == create && s.retainedSubpageFrom == nullptr);
+        CHECK(create->state["create.gametype"] == "0" && create->state["create.fraglimit"] == "20" && create->state["create.maxplayers"] == "8" &&
+              create->state["create.teamdamage"] == "1" && create->state["create.botskill"] == "5" && create->state["create.name"] == "openQ4 Server");
+        CHECK(create->state["create.map_count"] == "2" && create->state["create.map0"] == "#str_q4dm1" && create->state["create.map1"] == "mp/q4dm5" &&
+              create->state["create.map2"] == "" && create->state["create.map_selected"] == "1" &&
+              create->state["create.shot"] == "gfx/guis/loadscreens/q4dm5" && cvarSystemObject.strings["si_map"] == "mp/q4dm5");
+        // Settings: in range a verb writes its CVar and the page follows; out of
+        // range it is refused and said; the player counts keep their order.
+        s.HandleRetainedSessionRequest(create, "createFragLimit 35"); CHECK(cvarSystemObject.strings["si_fragLimit"] == "35" && create->state["create.fraglimit"] == "35");
+        s.HandleRetainedSessionRequest(create, "createTimeLimit 61");
+        CHECK(cvarSystemObject.strings.count("si_timeLimit") == 0 && commonObject.warnings.back().find("si_timeLimit 61") != std::string::npos);
+        s.HandleRetainedSessionRequest(create, "createDedicated 1"); CHECK(cvarSystemObject.strings["net_serverMenuDedicated"] == "1" &&
+                                                                        create->state["create.dedicated"] == "1");
+        s.HandleRetainedSessionRequest(create, "createMaxPlayers 1"); CHECK(cvarSystemObject.strings["si_maxPlayers"] == "1" &&
+                                                                         cvarSystemObject.strings["si_minPlayers"] == "1");
+        s.HandleRetainedSessionRequest(create, "createMinPlayers 6"); CHECK(cvarSystemObject.strings["si_minPlayers"] == "6" &&
+                                                                         cvarSystemObject.strings["si_maxPlayers"] == "6");
+        s.HandleRetainedSessionRequest(create, "createBots 999"); CHECK(cvarSystemObject.strings.count("bot_minPlayers") == 0);
+        // The game type lists its maps again: CTF plays only q4ctf1, its name
+        // without the color codes the stock list drew.
+        s.HandleRetainedSessionRequest(create, "createGameType 3");
+        CHECK(cvarSystemObject.strings["si_gameType"] == "CTF" && create->state["create.gametype"] == "3" && create->state["create.map_count"] == "1" &&
+              create->state["create.map0"] == "[CMP] Lost Fleet" &&
+              create->state["create.map_selected"] == "0" && cvarSystemObject.strings["si_map"] == "mp/q4ctf1" &&
+              create->state["create.shot"] == "gfx/guis/loadscreens/generic");
+        s.HandleRetainedSessionRequest(create, "createGameType 12"); CHECK(cvarSystemObject.strings["si_gameType"] == "CTF");
+        // A game type no map declares lists every multiplayer map.
+        s.HandleRetainedSessionRequest(create, "createGameType 5");
+        CHECK(cvarSystemObject.strings["si_gameType"] == "DeadZone" && create->state["create.map_count"] == "3");
+        // A map row chooses its map; a row past the list does nothing.
+        create->state["create.pick"] = "2"; s.HandleRetainedSessionRequest(create, "createMap");
+        CHECK(create->state["create.map_selected"] == "2" && cvarSystemObject.strings["si_map"] == "mp/q4dm5" && s.played.back() == "play main_menu_selection");
+        create->state["create.pick"] = "7"; s.HandleRetainedSessionRequest(create, "createMap"); CHECK(create->state["create.map_selected"] == "2");
+        s.HandleRetainedSessionRequest(create, "createMapsOlder"); CHECK(s.retainedCreateMapFirst == 0);  // one page holds them all
+        // The fields hand over their text, at most the stock fields' lengths.
+        create->state["create.name"] = std::string(30, 'n'); s.HandleRetainedSessionRequest(create, "createName");
+        CHECK(cvarSystemObject.strings["si_name"] == std::string(25, 'n') && create->state["create.name"] == std::string(25, 'n'));
+        create->state["create.mapcycle"] = "duelcycle"; s.HandleRetainedSessionRequest(create, "createMapCycle");
+        CHECK(cvarSystemObject.strings["g_mapCycle"] == "duelcycle");
+        s.HandleRetainedSessionRequest(create, "unknown"); CHECK(commonObject.warnings.back().find("unhandled Create Server request") != std::string::npos);
+        // CREATE SERVER starts it as the stock page's does.
+        s.HandleRetainedSessionRequest(create, "createStart"); CHECK(s.serverStarts == 1);
+        // BACK climbs out: at 300 ms the Multiplayer page returns onto CREATE SERVER.
+        s.HandleRetainedSessionRequest(create, "createBack");
+        CHECK(s.retainedSubpageFrom == create && create->named.back() == "subpageLeave" && !s.retainedSubpageDeeper &&
+              s.retainedSubpageUntil == commonObject.time + 300);
+        s.HandleRetainedSessionRequest(create, "createStart"); CHECK(s.serverStarts == 1);  // nothing else meanwhile
+        commonObject.time += 300; s.UpdateRetainedSubpage();
+        CHECK(s.guiActive == page && page->state["from_create"] == "1" && page->named.back() == "subpageReturn" && s.retainedSubpageFrom == nullptr);
+        // Back while going deeper reverses the change on the page.
+        s.HandleRetainedSessionRequest(page, "multiplayerCreate"); commonObject.time += 120;
+        sysEvent_t back; back.evType = SE_KEY; back.evValue = K_ESCAPE; back.evValue2 = 1;
+        CHECK(s.RetainedSubpageEvent(&back) && page->named.back() == "subpageReverse150" && s.retainedSubpageFrom == nullptr && s.guiActive == page);
+        // A Create Server that stopped drawing hands CREATE SERVER back to the stock page.
+        create->failed = true; s.HandleRetainedSessionRequest(page, "multiplayerCreate");
+        CHECK(s.guiRetainedCreate == nullptr && s.retainedMpPageDest == 17 && commonObject.warnings.back().find("stopped drawing") != std::string::npos &&
+              (Stock(s) == std::vector<std::string>{"guis/menu/createserver.q4ui"}));
+        ui_retainedMultiplayer.value = false;
+    }
     {   // The title has no level to restart, and the Strogg pause keeps the stock page.
         auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
         title.HandleRetainedSessionRequest(title.guiRetainedHome, "restartLevel");
@@ -1321,10 +1435,11 @@ int main() {
         CHECK(page->state["from_arena"] == "0");
         s.HandleRetainedSessionRequest(page, "campaignArena");
         CHECK(s.guiActive == page && page->named.back() == "subpageEnterArena" && s.retainedSubpageFrom == page &&
-              s.retainedSubpageDeeper && s.retainedSubpageArena && s.retainedSubpageUntil == commonObject.time + 350 && s.selected.empty());
+              s.retainedSubpageDeeper && s.retainedSubpageKind == RETAINED_SUBPAGE_ARENA && s.retainedSubpageUntil == commonObject.time + 350 &&
+              s.selected.empty());
         commonObject.time += 349; s.UpdateRetainedSubpage(); CHECK(arenaCampaign.browsers == 0);
         commonObject.time += 1; s.UpdateRetainedSubpage();
-        CHECK(arenaCampaign.browsers == 1 && s.retainedSubpageFrom == nullptr && !s.retainedSubpageArena &&
+        CHECK(arenaCampaign.browsers == 1 && s.retainedSubpageFrom == nullptr && s.retainedSubpageKind != RETAINED_SUBPAGE_ARENA &&
               commonObject.output.find("CAMPAIGN_SELECTED id=arena gameDir=baseoq4") != std::string::npos);
         // The campaign presents the page (idArenaCampaign::OpenBrowser).
         auto* arena = s.RetainedArenaPage();
@@ -1350,11 +1465,11 @@ int main() {
         s.HandleRetainedSessionRequest(arena, "arenaStart"); CHECK(arenaCampaign.commands.size() == held);
         s.guiActive = arena;
         s.HandleRetainedSessionRequest(arena, "arenaBack");
-        CHECK(arena->named.back() == "subpageLeave" && s.retainedSubpageFrom == arena && !s.retainedSubpageDeeper && s.retainedSubpageArena &&
+        CHECK(arena->named.back() == "subpageLeave" && s.retainedSubpageFrom == arena && !s.retainedSubpageDeeper && s.retainedSubpageKind == RETAINED_SUBPAGE_ARENA &&
               s.retainedSubpageUntil == commonObject.time + 300);
         s.HandleRetainedSessionRequest(arena, "arenaTier0"); CHECK(arenaCampaign.commands.size() == held);  // none mid-change
         commonObject.time += 300; s.UpdateRetainedSubpage();
-        CHECK(s.guiActive == page && page->state["from_arena"] == "1" && page->named.back() == "subpageReturn" && !s.retainedSubpageArena);
+        CHECK(s.guiActive == page && page->state["from_arena"] == "1" && page->named.back() == "subpageReturn" && s.retainedSubpageKind != RETAINED_SUBPAGE_ARENA);
         s.HandleRetainedSessionRequest(page, "campaigns"); commonObject.time += 350; s.UpdateRetainedSubpage();
         s.OpenCampaignSelector(false); CHECK(page->state["from_arena"] == "0");  // any other return lands on the first row
         // Back while going deeper reverses the change, as Campaign's does.
@@ -3005,6 +3120,44 @@ def prompt_bar_fits(document: dict, name: str) -> None:
         assert needed <= room, f'{name}: the {language} prompt bar needs {needed:.0f} dp, past the card\'s {room:g} dp'
 
 
+def check_create_server(menu: str) -> None:
+    """The Create Server sub-page's tables against its generator, its opt-in
+    and what it does not offer yet."""
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_create_server as create
+    text = menu.replace('\r\n', '\n')
+    assert re.search(r'RETAINED_CREATE_MAP_ROWS = (\d+);', text).group(1) == str(create.MAP_ROWS)
+    gametypes = re.findall(r'"([^"]+)"', re.search(r'RETAINED_CREATE_GAMETYPES\[\] = \{([^}]*)\};', text).group(1))
+    assert tuple(gametypes) == create.GAMETYPES, gametypes
+    # Every game type has exactly one limit row (the page chooses it).
+    assert sorted([*create.FRAG_TYPES, *create.CAPTURE_TYPES, *create.CONTROL_TYPES]) == list(range(len(create.GAMETYPES)))
+    rows = re.findall(r'\{ "(create[A-Za-z]+)",\s+"([a-z]+)",\s+"([A-Za-z_]+)",\s+(-?\d+), (\d+),\s+(true|false) \}',
+                      re.search(r'RETAINED_CREATE_SETTINGS\[\] = \{(.*?)\n\};', text, re.S).group(1))
+    offered = [(verb, state, minimum, maximum, kind) for state, verb, _label, kind, minimum, maximum, _message in create.SETTINGS + create.ADVANCED
+               if state != 'gametype']
+    assert [(verb, state, int(low), int(high)) for verb, state, _cvar, low, high, _boolean in rows] == \
+        [(verb, state, low, high) for verb, state, low, high, _kind in offered], 'the session offers the generator\'s settings'
+    assert [boolean == 'true' for *_rest, boolean in rows] == [kind == 'toggle' for *_rest, kind in offered]
+    # The adapter takes exactly the page's verbs.
+    adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
+    assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if verb.startswith('create')} == \
+        {'createGameType'} | {verb for verb, *_rest in rows}
+    assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('create')} == \
+        {'createBack', 'createMap', 'createStart', 'createName', 'createMapCycle', 'createMapsNewer', 'createMapsOlder'}
+    # Opt-in while the stock page offers what this one does not: its two
+    # password fields and its ban list.
+    missing = re.search(r'RETAINED_CREATE_SERVER_MISSING\[\] = \{([^}]*)\};', text).group(1)
+    assert missing.strip().endswith('NULL') and re.findall(r'"([A-Za-z_]+)"', missing) == ['g_password', 'net_serverRemoteConsolePassword', 'banlist']
+    document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/createserver.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    cvars = {cvar for _verb, _state, cvar, *_rest in rows}
+    assert not cvars & {'g_password', 'net_serverRemoteConsolePassword'} and not any('ban' in name.lower() for name in document['actions'])
+    assert ('static bool Session_RetainedCreateServerEnabled( void ) {\n\treturn Session_RetainedScreensEnabled() && '
+            '( ui_retainedMultiplayer.GetBool() || RETAINED_CREATE_SERVER_MISSING[0] == NULL );') in text
+    # The stock page and this one start a server the same way.
+    assert 'CommitStartServerMapSelection( guiMainMenu );\n\t\t\tif ( StartMenuServer() ) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tcontinue;' in text
+    assert '\tStartMenuServer();' in function_body(text, 'void idSessionLocal::HandleRetainedCreateServerRequest(')
+
+
 def check_retained_multiplayer(menu: str, session: str) -> None:
     """The multiplayer card's contracts that the compiled cases cannot see:
     its opt-in and missing pages, the game's side of the cover protocol, the
@@ -3143,7 +3296,8 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     # verb with its control's value.
     assert 'vote' not in handoffs
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
-    value_verbs = cpp_allowlist(adapter, 'bool SessionMenuValueCommand(')
+    # (The Create Server page's verbs are check_create_server's.)
+    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith('create')}
     fields = re.findall(r'"(mpVote[A-Za-z]+)"', re.search(r'RETAINED_MP_VOTE_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
     appearance = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_APPEARANCE_VALUES\[\] = \{([^}]*)\};', menu).group(1))
     choices = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_MATCH_CHOICES\[\] = \{([^}]*)\};', menu).group(1))
@@ -3421,7 +3575,7 @@ def main() -> int:
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
                        'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
-                       'guis/menu/multiplayer.q4ui'}
+                       'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3458,6 +3612,7 @@ def main() -> int:
     assert menu.count('RETAINED_TITLE_GUI') == 3 and menu.count('RETAINED_PAUSE_GUI') == 4 and menu.count('RETAINED_LOADING_GUI') == 2
     assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 3
     check_retained_multiplayer(menu, session)
+    check_create_server(menu)
     check_retained_match(menu)
     for signature in ('void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel('):
         assert 'if ( !Session_RetainedScreensEnabled()' in function_body(menu, signature), f'{signature} must be gated'
@@ -3653,7 +3808,11 @@ def main() -> int:
         'void idSessionLocal::PublishRetainedCredits(', 'idUserInterface *idSessionLocal::RetainedArenaPage(',
         'void idSessionLocal::HandleRetainedArenaRequest(', 'idUserInterface *idSessionLocal::RetainedMultiplayerPage(',
         'bool idSessionLocal::OpenRetainedMultiplayerPage(', 'void idSessionLocal::HandleRetainedMultiplayerPageRequest(',
-        'void idSessionLocal::UpdateRetainedMultiplayerPage(',
+        'void idSessionLocal::UpdateRetainedMultiplayerPage(', 'static int Session_RetainedCreateGameType(',
+        'static bool Session_RetainedCreateSettingRequest(', 'static idStr Session_RetainedCreateText(',
+        'idUserInterface *idSessionLocal::RetainedCreateServerPage(', 'void idSessionLocal::OpenRetainedCreateServer(',
+        'void idSessionLocal::PublishRetainedCreateServer(', 'void idSessionLocal::PublishRetainedCreateMaps(',
+        'void idSessionLocal::HandleRetainedCreateServerRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

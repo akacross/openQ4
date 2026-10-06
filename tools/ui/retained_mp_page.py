@@ -11,17 +11,21 @@ page's level: its sections are the stock page's GAME BROWSER (as JOIN GAME),
 CREATE SERVER and SETTINGS (as PLAYER SETUP, section 13.7's name, which keeps
 it apart from the title's SETTINGS) on the home navigation plates from 181 u,
 with BACK under them, and the stock FRIENDS LIST, hidden in the stock menu and
-handled by nothing, is gone. A section opens its stock page for now: the
-page leaves as the stock Multiplayer page leaves for one (its plates fade
-over 150 ms as it sweeps 640 u toward the trailing edge over 300 ms) and the
-stock page takes over at 500 ms; its Back returns here (multiplayerOpen).
-BACK returns the title.
+handled by nothing, is gone. JOIN GAME and PLAYER SETUP open their stock pages
+for now: the page leaves as the stock Multiplayer page leaves for one (its
+plates fade over 150 ms as it sweeps 640 u toward the trailing edge over
+300 ms) and the stock page takes over at 500 ms; its Back returns here
+(multiplayerOpen). CREATE SERVER goes one level deeper to the retained Create
+Server sub-page where the session offers it, as Single Player's CAMPAIGN
+does, and opens its stock page as the others do where it does not. BACK
+returns the title.
 """
 from __future__ import annotations
 
-from build_retained_screens import (BOTTOM_TO_PAGE, CANVAS_W, FULL, PAGE_TITLE_H, PAGE_TITLE_W, TITLE_SLOT, TOP_TO_PAGE, U,
-                                    Document, absolute, colour, framing_bands, group, keyword, label, length, lit_field,
-                                    navigation_plate, number, prompt_bar, rgb, OLIVE, track, transform, typeface)
+from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SPAN, FULL, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W,
+                                    SUBPAGE_REVERSE_MS, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_PAGE, TOP_TO_SUBPAGE, U, Document, absolute,
+                                    by_language, colour, crumb_fits, crumb_transform, framing_bands, group, keyword, label, length,
+                                    lit_field, navigation_plate, number, prompt_bar, rgb, OLIVE, track, transform, typeface)
 from retained_difficulty import check_fits
 
 NAV_TOP = 181.0    # the stock Multiplayer page's first button (mp_b1)
@@ -30,6 +34,7 @@ SECTIONS = (("join", "#str_200187", "multiplayerJoin"), ("create", "#str_200026"
 DEPART_MS = 300    # the stock page's slide; the stock page arrives at 500 ms
 DETAILS = (210.0, 140.0)    # the content column's box, u
 DETAIL_TEXT, DETAIL_LINE = 18, 26
+CREATE_ROW = 1     # CREATE SERVER's place among the sections
 
 
 def check_multiplayer_fits() -> None:
@@ -48,12 +53,25 @@ def multiplayer_document() -> dict:
     home navigation plates and the page's description in the content column
     at 395,190 u, over the lit field; the prompt bar's Select and Back.
     onActivate   every arrival: the plates at once, the description fading in
-                 over 150 ms (content.in);
+                 over 150 ms (content.in); back from Create Server (the
+                 session sets from_create first) the focus is on CREATE
+                 SERVER;
     depart       a section opens its stock page: the plates fade over 150 ms
                  while the page sweeps 640 u toward the trailing edge over
                  300 ms, and the title and description go with them;
-    onDeactivate places it at rest while it is hidden, so it never presents
-                 moved."""
+    subpageEnterCreate  CREATE SERVER goes deeper, 350 ms: the plates fade
+                 over 150 ms while the page sweeps 640 u toward the trailing
+                 edge over 300 ms; MULTIPLAYER becomes the crumb (title.crumb,
+                 150 ms); from 50 ms the top band steps one notch (frame.step)
+                 and the CREATE SERVER label carries into the slot at the
+                 step's foot (title.carry, 300 ms);
+    subpageReturn  back from Create Server at 300 ms: the plates and the
+                 description fade in over 150 ms;
+    subpageReverseN  Back while it goes deeper: every part returns from where
+                 it stands over N ms (150-300 ms);
+    onDeactivate places it at rest while it is hidden, docked with its title
+                 in the slot and its content out, so it never presents moved
+                 and a return fades it in from nothing."""
     check_multiplayer_fits()
     doc = Document("openq4.multiplayer")
     doc.session("back", "multiplayerBack")
@@ -66,7 +84,7 @@ def multiplayer_document() -> dict:
     description = label("description", "#str_231121", {**absolute(left=0, top=0, width=U * DETAILS[0], height=U * DETAILS[1]),
                                                        **typeface("lowpixel", DETAIL_TEXT, DETAIL_LINE, rgb(OLIVE))})
     bands = framing_bands("band")
-    page_top = transform(*TOP_TO_PAGE)
+    page_top, sub_top = transform(*TOP_TO_PAGE), transform(*TOP_TO_SUBPAGE)
     bands[0]["properties"]["transform"] = page_top
     bands[1]["properties"]["transform"] = transform(*BOTTOM_TO_PAGE)
     canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
@@ -76,14 +94,27 @@ def multiplayer_document() -> dict:
         group("details", {**absolute(left=U * 395, top=U * 190, width=U * DETAILS[0], height=U * DETAILS[1]), "opacity": number(0)},
               [description]),
     ])
+    # Going deeper, the CREATE SERVER label carries from its row into the slot
+    # at the step's foot (title.carry, 300 ms).
+    carry_start = {"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
+                                                                round(U * (NAV_TOP + 30 * CREATE_ROW + 2.8 - SUBPAGE_SLOT[1]), 3), 1, 1, 0]}
+    carry_w, carry_h, carry_scale = U * 314, U * 24.4, 0.75
+    carry_end = {"type": "transform", "unit": "dp", "value": [round(-(1 - carry_scale) * carry_w / 2, 3),
+                                                              round(-(1 - carry_scale) * carry_h / 2, 3), carry_scale, carry_scale, 0]}
     titles = group("titles", {**canvas, "pointer-events": keyword("none")}, [
         group("title-clip", {**absolute(left=U * TITLE_SLOT[0], top=0, width=U * PAGE_TITLE_W, height=U * 40), "overflow": keyword("hidden")}, [
             label("title", "#str_200002", {**absolute(left=0, top=U * TITLE_SLOT[1], width=U * PAGE_TITLE_W, height=U * PAGE_TITLE_H),
                                            **typeface("marine", 18, U * PAGE_TITLE_H, [1, 1, 1, 0.5]), "white-space": keyword("nowrap"),
                                            "transform": transform()})]),
+        label("create-carry", "#str_200026", {**absolute(left=U * SUBPAGE_SLOT[0], top=U * SUBPAGE_SLOT[1], width=carry_w, height=carry_h),
+              **typeface("marine", 24, carry_h, rgb(ORANGE)), "white-space": keyword("nowrap"), "opacity": number(0),
+              "transform": carry_start, "pointer-events": keyword("none")}),
     ])
     white = lambda alpha: colour([1, 1, 1, alpha])
+    orange = colour(rgb(ORANGE))
     identity, swept = transform(), transform(640 * U, 0)
+    fits = crumb_fits("#str_200002")
+    variants = [("", CRUMB_SCALE)] + [(f"-{language}", fit) for language, fit in fits.items()]
     doc.timelines.add("arrive", 150, [
         track("content", "opacity", [(0, number(1)), (1, number(1)), (150, number(1))]),
         track("content", "transform", [(0, identity), (1, identity), (150, identity)]),
@@ -94,10 +125,15 @@ def multiplayer_document() -> dict:
     doc.timelines.add("rest", 1, [
         track("band-top", "transform", [(0, page_top), (1, page_top)]),
         track("content", "transform", [(0, identity), (1, identity)]),
-        track("content", "opacity", [(0, number(1)), (1, number(1))]),
+        track("content", "opacity", [(0, number(0)), (1, number(0))]),
         track("details", "opacity", [(0, number(0)), (1, number(0))]),
         track("title", "color", [(0, white(0.5)), (1, white(0.5))]),
+        track("title", "transform", [(0, identity), (1, identity)]),
+        track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (1, length(U * PAGE_TITLE_W))]),
         track("prompts", "opacity", [(0, number(1)), (1, number(1))]),
+        track("create-carry", "opacity", [(0, number(0)), (1, number(0))]),
+        track("create-carry", "transform", [(0, carry_start), (1, carry_start)]),
+        track("create-carry", "color", [(0, orange), (1, orange)]),
     ])
     doc.timelines.add("depart", DEPART_MS, [
         track("content", "opacity", [(0, number(1)), (150, number(0)), (DEPART_MS, number(0))]),
@@ -105,9 +141,42 @@ def multiplayer_document() -> dict:
         track("title", "color", [(0, white(0.5)), (150, white(0)), (DEPART_MS, white(0))]),
         track("prompts", "opacity", [(0, number(1)), (150, number(0)), (DEPART_MS, number(0))]),
     ])
-    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}]
+    doc.timelines.add("subpageEnterCreate", 350, [
+        track("content", "opacity", [(0, number(1)), (150, number(0)), (350, number(0))]),
+        track("content", "transform", [(0, identity), (300, swept), (350, swept)]),
+        track("title", "color", [(0, white(0.5)), (150, white(0.4)), (350, white(0.4))]),
+        track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (150, length(U * CRUMB_SPAN)), (350, length(U * CRUMB_SPAN))]),
+        track("band-top", "transform", [(0, page_top), (50, page_top, ACCEL), (350, sub_top)]),
+        track("create-carry", "opacity", [(0, number(1)), (1, number(1)), (350, number(1))]),
+        track("create-carry", "transform", [(0, carry_start), (1, carry_start), (50, carry_start, ACCEL), (350, carry_end)]),
+        track("create-carry", "color", [(0, orange), (1, orange), (50, orange, ACCEL), (350, white(0.5))]),
+    ])
+    for suffix, scale in variants:
+        doc.timelines.add(f"crumbEnter{suffix}", 350, [
+            track("title", "transform", [(0, identity), (150, crumb_transform(scale)), (350, crumb_transform(scale))])])
+    doc.timelines.add("subpageReturn", 150, [
+        track("content", "transform", [(0, identity), (1, identity), (150, identity)]),
+        track("content", "opacity", [(0, number(0)), (150, number(1))]),
+        track("details", "opacity", [(0, number(0)), (150, number(1))]),
+    ])
+    for duration in SUBPAGE_REVERSE_MS:
+        doc.timelines.add(f"subpageReverse{duration}", duration, [
+            track("content", "opacity", [(0, number(0)), (duration, number(1))]),
+            track("content", "transform", [(0, identity), (duration, identity)]),
+            track("title", "transform", [(0, identity), (duration, identity)]),
+            track("title", "color", [(0, white(0.4)), (duration, white(0.5))]),
+            track("title-clip", "width", [(0, length(U * CRUMB_SPAN)), (duration, length(U * PAGE_TITLE_W))]),
+            track("band-top", "transform", [(0, sub_top, ACCEL), (duration, page_top)]),
+            track("create-carry", "opacity", [(0, number(1)), (duration // 2, number(0)), (duration, number(0))]),
+        ])
+        doc.events[f"subpageReverse{duration}"] = [{"op": "playTimeline", "timeline": f"subpageReverse{duration}"}]
+    doc.state["from_create"] = {"type": "boolean", "initial": False}
+    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"},
+                                {"op": "if", "condition": {"state": "from_create"}, "then": [{"op": "focus", "control": "create"}]}]
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
     doc.events["depart"] = [{"op": "playTimeline", "timeline": "depart"}]
+    doc.events["subpageEnterCreate"] = [{"op": "playTimeline", "timeline": "subpageEnterCreate"}, *by_language(doc, "crumbEnter", fits)]
+    doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles,
         prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_230045")]),

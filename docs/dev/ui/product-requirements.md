@@ -577,6 +577,8 @@ On engine `9f25242bde0265eb52afccadb7206fa830af63ca` ARENA on the Single Player 
 
 On engine `473749c63833198215d4d6ef9d5ee3a579e45550` MULTIPLAYER on the title opens a retained Multiplayer page at the page level: JOIN GAME, CREATE SERVER and PLAYER SETUP open the stock browser, Create Server and Settings pages and return to it, and BACK returns the title. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-multiplayer-evidence/validation-evidence.json`, SHA-256 `f07ddc497858aca4c9c94abb64cb3bd966a53f7078c018c51f882c0f63c40393`.
 
+On engine `6a8bdb0c4026053ac2599824a0a2263668261297`, with `ui_retainedMultiplayer`, CREATE SERVER on the Multiplayer page goes deeper to a retained Create Server sub-page: the stock page's map selection, options and advanced options, the session owning each setting and starting the server as the stock page does. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-createserver-evidence/validation-evidence.json`, SHA-256 `a307268c17d9e94836bbd26d8f4684825f8787e11c35d2cf89f5a48ded4b0b33`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

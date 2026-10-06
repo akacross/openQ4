@@ -184,6 +184,13 @@ typedef struct {
 	openq4FramePacingBound_t	boundMode;
 } openq4FramePacingStats_t;
 
+// The retained sub-page a change of menu level goes to or comes back from.
+typedef enum {
+	RETAINED_SUBPAGE_CAMPAIGN,		// Single Player's Campaign
+	RETAINED_SUBPAGE_ARENA,			// Single Player's Arena
+	RETAINED_SUBPAGE_CREATE_SERVER	// Multiplayer's Create Server
+} retainedSubpage_t;
+
 const int USERCMD_PER_DEMO_FRAME	= 2;
 const int CONNECT_TRANSMIT_TIME		= 1000;
 const int MAX_LOGGED_USERCMDS		= 60*60*60;	// one hour of single player, 15 minutes of four player
@@ -304,10 +311,10 @@ public:
 	int					retainedRosterCount;
 	int					retainedRosterConnecting;
 	bool				retainedRosterKnown;
-	// The Single Player page and its Campaign and Arena sub-pages change
-	// (spec 1.10); `arena` leads to or from Arena.
-	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper, bool arena = false );
-	void				PresentRetainedSubpage( bool deeper, bool arena );
+	// A page and its sub-page change (spec 1.10): Single Player and its
+	// Campaign and Arena, Multiplayer and its Create Server.
+	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage = RETAINED_SUBPAGE_CAMPAIGN );
+	void				PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
 	// Campaign's New Campaign sub-page (guis/menu/newcampaign.q4ui), the
@@ -349,9 +356,19 @@ public:
 	// title's MULTIPLAYER hands off to: its sections open the stock pages
 	// after its departure, and their Back presents it again (multiplayerOpen).
 	idUserInterface *	RetainedMultiplayerPage();
-	bool				OpenRetainedMultiplayerPage();
+	bool				OpenRetainedMultiplayerPage( bool fromCreate = false );
 	void				HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request );
 	void				UpdateRetainedMultiplayerPage();
+	// The retained Create Server sub-page (guis/menu/createserver.q4ui), which
+	// CREATE SERVER on the Multiplayer page goes deeper to: the session owns
+	// its settings and publishes them (create.*), and CREATE SERVER starts the
+	// server as the stock page's does.
+	idUserInterface *	RetainedCreateServerPage();
+	void				OpenRetainedCreateServer();
+	void				PublishRetainedCreateServer( idUserInterface *gui );
+	void				PublishRetainedCreateMaps( idUserInterface *gui, bool rescan );
+	void				HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request );
+	bool				StartMenuServer();
 	// The demo library's operations, which the legacy browser and the
 	// retained page share.
 	void				ScanDemoLibrary();
@@ -565,7 +582,7 @@ public:
 	int					retainedSubpageBegan;	// presentation time the change began
 	int					retainedSubpageUntil;	// presentation time of the hand-over
 	bool				retainedSubpageSibling;	// between Campaign and New Campaign, its sibling
-	bool				retainedSubpageArena;	// to or from the Arena sub-page
+	retainedSubpage_t	retainedSubpageKind;	// the sub-page the change goes to or comes back from
 	bool				retainedHomeReturning;
 	// The Load Game page: its document (NULL until it first loads), the home
 	// that handed off to it, a hand-off presenting it and when, whether the
@@ -638,6 +655,10 @@ public:
 	idUserInterface *	guiRetainedMpPage;		// the retained Multiplayer page (NULL until it loads)
 	int					retainedMpPageDest;		// the stock Multiplayer page it is leaving for (0: none)
 	int					retainedMpPageAt;		// presentation time that page takes over
+	idUserInterface *	guiRetainedCreate;		// the retained Create Server sub-page (NULL until it loads)
+	idList<int>			retainedCreateMaps;		// the map decls the chosen game type plays, in list order
+	int					retainedCreateMapFirst;	// the first of them the list holds
+	int					retainedCreateMapSelected;	// the chosen one among them (-1: none)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

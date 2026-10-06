@@ -1241,4 +1241,10 @@
 	"#str_231120"	"A demót nem sikerült lejátszani."
 	"#str_231121"	"Csatlakozz egy szerveren futó meccshez, indítsd a sajátodat, vagy állítsd be a játékosodat."
 	"#str_231122"	"JÁTÉKOSBEÁLLÍTÁSOK"
+	"#str_231123"	"Adj meg egy egész számot 0 és 999 között."
+	"#str_231124"	"Adj meg egy egész számot 1 és 999 között."
+	"#str_231125"	"Adj meg egy egész számot 0 és 60 között."
+	"#str_231126"	"Adj meg egy egész számot 1 és 16 között."
+	"#str_231127"	"ELŐZŐ PÁLYÁK"
+	"#str_231128"	"TOVÁBBI PÁLYÁK"
 }

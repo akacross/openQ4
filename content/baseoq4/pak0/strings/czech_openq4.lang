@@ -1241,4 +1241,10 @@
 	"#str_231120"	"Demo se nepodařilo přehrát."
 	"#str_231121"	"Připoj se k zápasu na serveru, založ vlastní nebo si nastav hráče."
 	"#str_231122"	"NASTAVENÍ HRÁČE"
+	"#str_231123"	"Zadej celé číslo od 0 do 999."
+	"#str_231124"	"Zadej celé číslo od 1 do 999."
+	"#str_231125"	"Zadej celé číslo od 0 do 60."
+	"#str_231126"	"Zadej celé číslo od 1 do 16."
+	"#str_231127"	"PŘEDCHOZÍ MAPY"
+	"#str_231128"	"DALŠÍ MAPY"
 }

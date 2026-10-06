@@ -3811,7 +3811,7 @@ void idSessionLocal::Clear() {
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
 	retainedSubpageSibling = false;
-	retainedSubpageArena = false;
+	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
 	retainedHomeReturning = false;
 	guiRetainedLoad = NULL;
 	retainedPageHome = NULL;
@@ -3833,6 +3833,10 @@ void idSessionLocal::Clear() {
 	guiRetainedMpPage = NULL;
 	retainedMpPageDest = 0;
 	retainedMpPageAt = 0;
+	guiRetainedCreate = NULL;
+	retainedCreateMaps.Clear();
+	retainedCreateMapFirst = 0;
+	retainedCreateMapSelected = -1;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;

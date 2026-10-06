@@ -908,6 +908,12 @@
   CTF and Arena One Flag CTF when you pick them from the main menu. Before,
   those modes quietly fell back and the server started as Deathmatch.
 
+- Preview: with `ui_retainedMultiplayer 1`, CREATE SERVER on the Multiplayer
+  page slides one level down to a rebuilt Create Server page: the maps the
+  game type plays with the chosen map's picture, every server option and the
+  advanced options. Its password fields and ban list are still to come, so
+  the classic page stays the default.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

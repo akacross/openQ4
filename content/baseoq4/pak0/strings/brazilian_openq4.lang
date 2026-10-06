@@ -1241,4 +1241,10 @@
 	"#str_231120"	"Não foi possível reproduzir a demo."
 	"#str_231121"	"Entre em uma partida em um servidor, hospede a sua ou configure seu jogador."
 	"#str_231122"	"CONFIGURAÇÃO DO JOGADOR"
+	"#str_231123"	"Digite um número inteiro de 0 a 999."
+	"#str_231124"	"Digite um número inteiro de 1 a 999."
+	"#str_231125"	"Digite um número inteiro de 0 a 60."
+	"#str_231126"	"Digite um número inteiro de 1 a 16."
+	"#str_231127"	"MAPAS ANTERIORES"
+	"#str_231128"	"MAIS MAPAS"
 }
