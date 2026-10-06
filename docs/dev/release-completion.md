@@ -1496,6 +1496,10 @@
   or move to it with the keyboard or a controller, to see its address,
   players and settings beside it.
 
+- On Vulkan, the rebuilt title screen draws its frame again, and the rebuilt
+  menus no longer drop the details they draw last. Their geometry had
+  outgrown a per-frame buffer, which is now twice as large.
+
 - With a controller, the rebuilt server browser refreshes the list with the
   left face button and sorts it by the next column with the top one.
 

@@ -131,8 +131,11 @@ Executor state
 ====================
 */
 // world views stream all visible geometry through the rings each frame
-// (the vertex cache is CPU-backed); sized for q4dm2-scale 3D views
-static const int VK_VERTEX_RING_BYTES = 32 * 1024 * 1024;
+// (the vertex cache is CPU-backed). 32 MB held a q4dm2-scale 3D view, but the
+// retained title alone streams about 570k vertices (36 MB) a frame, so it
+// overflowed and lost its framing bands, and a retained menu draws over a
+// world view; 64 MB holds both.
+static const int VK_VERTEX_RING_BYTES = 64 * 1024 * 1024;
 static const int VK_INDEX_RING_BYTES = 8 * 1024 * 1024;
 static const int VK_GPU_SKINNING_WORKGROUP_SIZE = 64;
 static const int VK_GPU_SKINNING_MEMO_SIZE = 2048; // power of two
