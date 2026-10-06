@@ -503,6 +503,34 @@ SCENARIOS = {
         'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-7min.tga"',
         'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-8min.tga"',
     ]),
+    # The Multiplayer page (FLOW-050): MULTIPLAYER hands off and the page
+    # presents at 550 ms in the page state under its carried title. CREATE
+    # SERVER leaves it as the stock Multiplayer page leaves, and the stock
+    # Create Server page takes over at 500 ms; its BACK returns the retained
+    # page. JOIN GAME opens the stock browser on the LAN (openq4_browser
+    # source lan, so no master server is asked) and PLAYER SETUP the stock
+    # Settings page, and their BACK returns too; BACK returns the title from
+    # the page dock.
+    'multiplayer': (None, [
+        'waitMsec 4000', 'openq4_browser source lan',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/multiplayer-handoff.tga"', 'waitMsec 1000', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/multiplayer.tga"',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/multiplayer-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
+        'screenshot "screenshots/multiplayer-create.tga"',
+        'openq4_guiAction mp_b_create_back', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/multiplayer-returned.tga"',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 3000', 'screenshot "screenshots/multiplayer-browser.tga"',
+        'openq4_guiAction mp_b_browse_back', 'waitMsec 1500', 'openq4_retainedGui report',
+        'openq4_retainedGui focus setup', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'screenshot "screenshots/multiplayer-setup.tga"',
+        'openq4_guiAction mp_b_set_back', 'waitMsec 1500', 'openq4_retainedGui report',
+        'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/multiplayer-back.tga"', 'waitMsec 1000', 'ui_retainedStatus',
+        'screenshot "screenshots/multiplayer-title.tga"',
+    ]),
     # The Credits page: CREDITS hands off and the page presents at 550 ms on
     # its opaque backing; the Raven logo lights and goes out, then the first
     # screen's lines arrive in runes and translate to Latin under the scan
@@ -646,7 +674,8 @@ SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-opt
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
-                  'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'}}
+                  'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
+                  'multiplayer': {'net_allowCheats': '1'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'

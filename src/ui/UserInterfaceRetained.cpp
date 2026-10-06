@@ -81,6 +81,7 @@ bool SessionMenuCommand(const std::string& command) {
         "arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1",
         "arenaMatch2","arenaMatch3","arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart",
         "arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
+        "multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};

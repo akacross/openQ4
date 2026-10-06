@@ -900,6 +900,10 @@
   with the original entrance as a match starts and the match report when
   you come back. The bumpers switch tier.
 
+- MULTIPLAYER on the title opens a rebuilt Multiplayer page: JOIN GAME,
+  CREATE SERVER and PLAYER SETUP, each opening its page and coming back to
+  the Multiplayer page, and BACK to the title.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

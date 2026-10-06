@@ -718,6 +718,15 @@ bool UI_LegacyWindowExists( idUserInterface *gui, const char *windowName ) {
 	return legacy != NULL && legacy->HasWindow( windowName );
 }
 
+bool idUserInterfaceLocal::HasNamedEvent( const char *eventName ) const {
+	return desktop != NULL && eventName != NULL && eventName[ 0 ] != '\0' && desktop->HasNamedEvent( eventName );
+}
+
+bool UI_LegacyNamedEventExists( idUserInterface *gui, const char *eventName ) {
+	const idUserInterfaceLocal *legacy = dynamic_cast<idUserInterfaceLocal *>( gui );
+	return legacy != NULL && legacy->HasNamedEvent( eventName );
+}
+
 bool idUserInterfaceLocal::GetTextInputState( idRectangle &area, float &cursorOffset ) const {
 	if ( desktop == NULL ) {
 		return false;

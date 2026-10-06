@@ -1239,4 +1239,6 @@
 	"#str_231118"	"No demo matches this filter."
 	"#str_231119"	"The demo could not be deleted."
 	"#str_231120"	"The demo could not be played."
+	"#str_231121"	"Join a match on a server, host your own or set up your player."
+	"#str_231122"	"PLAYER SETUP"
 }

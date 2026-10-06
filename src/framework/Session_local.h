@@ -345,6 +345,13 @@ public:
 	void				HandleRetainedDemosRequest( idUserInterface *gui, const char *request );
 	// The Arena page's verbs, which run the Arena campaign's own commands.
 	void				HandleRetainedArenaRequest( idUserInterface *gui, const char *request );
+	// The retained Multiplayer page (guis/menu/multiplayer.q4ui), which the
+	// title's MULTIPLAYER hands off to: its sections open the stock pages
+	// after its departure, and their Back presents it again (multiplayerOpen).
+	idUserInterface *	RetainedMultiplayerPage();
+	bool				OpenRetainedMultiplayerPage();
+	void				HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request );
+	void				UpdateRetainedMultiplayerPage();
 	// The demo library's operations, which the legacy browser and the
 	// retained page share.
 	void				ScanDemoLibrary();
@@ -628,6 +635,9 @@ public:
 	idUserInterface *	guiRetainedRestartMenu;	// the retained restart screen (NULL until it loads)
 	idUserInterface *	guiRetainedCredits;		// the retained Credits page (NULL until it loads)
 	idUserInterface *	guiRetainedArena;		// the retained Arena sub-page (NULL until it loads)
+	idUserInterface *	guiRetainedMpPage;		// the retained Multiplayer page (NULL until it loads)
+	int					retainedMpPageDest;		// the stock Multiplayer page it is leaving for (0: none)
+	int					retainedMpPageAt;		// presentation time that page takes over
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

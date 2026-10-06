@@ -1137,6 +1137,20 @@ void idWindow::RunNamedEvent ( const char* eventName )
 
 /*
 ================
+idWindow::HasNamedEvent
+================
+*/
+bool idWindow::HasNamedEvent( const char* eventName ) const {
+	for ( int i = 0; i < namedEvents.Num(); i++ ) {
+		if ( !namedEvents[i]->mName.Icmp( eventName ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+================
 idWindow::Contains
 ================
 */

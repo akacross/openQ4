@@ -1239,4 +1239,6 @@
 	"#str_231118"	"Egyetlen demó sem felel meg ennek a szűrőnek."
 	"#str_231119"	"A demót nem sikerült törölni."
 	"#str_231120"	"A demót nem sikerült lejátszani."
+	"#str_231121"	"Csatlakozz egy szerveren futó meccshez, indítsd a sajátodat, vagy állítsd be a játékosodat."
+	"#str_231122"	"JÁTÉKOSBEÁLLÍTÁSOK"
 }

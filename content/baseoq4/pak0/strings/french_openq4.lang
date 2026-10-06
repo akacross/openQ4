@@ -1243,4 +1243,6 @@
 	"#str_231118"	"Aucune démo ne correspond à ce filtre."
 	"#str_231119"	"La démo n'a pas pu être supprimée."
 	"#str_231120"	"La démo n'a pas pu être lue."
+	"#str_231121"	"Rejoignez une partie sur un serveur, hébergez la vôtre ou configurez votre joueur."
+	"#str_231122"	"CONFIGURATION DU JOUEUR"
 }

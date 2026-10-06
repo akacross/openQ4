@@ -109,6 +109,7 @@ public:
 	// onBackAction when back is set, as a click on the window would.
 	bool						RunWindowAction( const char *windowName, bool back, idStr &command );
 	bool						HasWindow( const char *windowName ) const;
+	bool						HasNamedEvent( const char *eventName ) const;
 
 private:
 	bool						active;

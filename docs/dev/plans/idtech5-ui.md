@@ -204,6 +204,10 @@ ARENA on the Single Player page opens the retained [Arena page](../ui/retained-s
 its second sub-page: the Arena campaign's tier ladder, matches, detail column,
 entrance and result ledger, the campaign publishing into it and keeping its
 authority.
+MULTIPLAYER on the title opens the retained [Multiplayer page](../ui/retained-screens.md#multiplayer-page),
+the stock Multiplayer page's level: JOIN GAME, CREATE SERVER and PLAYER SETUP
+open the stock browser, Create Server and Settings pages, whose Back returns
+to it.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

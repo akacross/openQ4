@@ -120,6 +120,8 @@ void UI_RunTimeEvents( idUserInterface *gui, int time );
 bool UI_RunLegacyWindowAction( idUserInterface *gui, const char *windowName, bool back, idStr &command );
 // Whether a classic GUI defines the named window, visible or not.
 bool UI_LegacyWindowExists( idUserInterface *gui, const char *windowName );
+// Whether a classic GUI's desktop defines the named event.
+bool UI_LegacyNamedEventExists( idUserInterface *gui, const char *eventName );
 typedef void (*UI_ApplicationCommandCallback)( idUserInterface *gui, const char *command, void *context );
 // Pump only private typed requests. A null owner snapshots all pending managed
 // allocations; a specific owner drains a lifecycle queue before its release.

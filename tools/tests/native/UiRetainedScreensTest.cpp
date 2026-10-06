@@ -154,6 +154,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
 	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
 	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
+	"multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -2493,8 +2494,77 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 		"onto ARENA, with no carry");
 }
 
+// The Multiplayer page (FLOW-050): the stock Multiplayer page's level in the
+// page state. JOIN GAME, CREATE SERVER and PLAYER SETUP ask the session for
+// their stock pages and BACK for the title; a section's choice sends the page
+// away as the stock page leaves for one (its plates fade over 150 ms while it
+// sweeps 640 u toward the trailing edge over 300 ms), and hidden it rests.
+static void CheckMultiplayerPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.multiplayer" && document.Model().canvasHeight == 720,"the Multiplayer page validates");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> verbs[] = {{"back","multiplayerBack"},{"multiplayerJoin","multiplayerJoin"},
+		{"multiplayerCreate","multiplayerCreate"},{"multiplayerSetup","multiplayerSetup"}};
+	for (const auto& [action, command] : verbs) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
+			"each section asks the session for its page");
+	}
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/multiplayer.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto value = [&](const std::string& node, const char* property, size_t index = 0) {
+		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a Multiplayer node is laid out"); return b; };
+	runtime.Frame(viewport,0.5);
+	// The 4:3 canvas at 1280x720: x = 160 dp, 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const char* const rows[] = {"join","create","setup","back"};
+	const char* const keys[] = {"#str_200187","#str_200026","#str_231122","#str_230045"};
+	for (int row = 0; row < 4; ++row) {
+		const std::string label = std::string(rows[row]) + "-label";
+		const auto box = bounds(label);
+		Check(Near(box.x,x0+44*u) && Near(box.y,(181+30*row+2.8f)*u,.05f) && text(label,"text") == keys[row],
+			"the sections and BACK stand on the home navigation plates from 181 u, on their 30 u pitch");
+	}
+	const auto title = bounds("title"), details = bounds("details");
+	Check(Near(title.x,x0+39*u,1) && Near(title.y,19*u,1) && text("title","text") == "#str_200002","MULTIPLAYER titles the page in the top band's slot");
+	Check(Near(details.x,x0+395*u) && Near(details.y,190*u) && text("description","text") == "#str_231121",
+		"the description stands in the content column");
+	Check(Near(value("band-top","transform",0),323*u,.05f) && Near(value("band-top","transform",1),-63*u,.05f),"the top band is docked");
+	// Arriving: the plates at once, the description fading in over 150 ms.
+	Check(runtime.RunEvent("onActivate",1,effects,error),"the page arrives");
+	runtime.Frame(viewport,1.075);
+	Check(Near(value("content","opacity"),1,.01f) && value("details","opacity") > .3f && value("details","opacity") < .7f,
+		"the plates show at once and the description fades in");
+	runtime.Frame(viewport,1.2);
+	Check(Near(value("details","opacity"),1,.01f),"by 150 ms the description is in");
+	Check(runtime.RunEvent("onBack",1.3,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back",
+		"Back asks for the title");
+	// A section's choice: the page leaves as the stock page leaves for one.
+	Check(runtime.RunEvent("depart",2,effects,error),"a section sends the page away");
+	runtime.Frame(viewport,2.075);
+	const float fading = value("content","opacity"), swept = value("content","transform",0);
+	Check(fading > .3f && fading < .7f && swept > 100*u && swept < 400*u,"its plates fade over 150 ms while it sweeps");
+	runtime.Frame(viewport,2.31);
+	Check(Near(value("content","opacity"),0,.01f) && Near(value("content","transform",0),640*u,.05f) && Near(value("title","color",3),0,.01f) &&
+		Near(value("prompts","opacity"),0,.01f),"by 300 ms it has swept 640 u toward the trailing edge, its title and prompts out");
+	// Hidden, it rests, so it never presents moved.
+	Check(runtime.RunEvent("onDeactivate",3,effects,error),"the page leaves the screen");
+	runtime.Frame(viewport,3.05);
+	Check(Near(value("content","transform",0),0,.05f) && Near(value("content","opacity"),1,.01f) && Near(value("details","opacity"),0,.01f) &&
+		Near(value("title","color",3),.5f,.01f) && Near(value("prompts","opacity"),1,.01f),"hidden, it waits at rest with its description out");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 21,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui");
+	Check(argc == 22,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3596,6 +3666,7 @@ int main(int argc, char** argv) {
 	CheckRestartMenu(host,argv[18]);
 	CheckCreditsPage(host,argv[19]);
 	CheckArenaPage(host,argv[5],argv[20]);
+	CheckMultiplayerPage(host,argv[21]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

@@ -370,6 +370,8 @@ public:
 	idStr cmd;
 
 	virtual void RunNamedEvent		( const char* eventName );
+	// Whether this window defines the named event itself (not its children).
+	bool		HasNamedEvent		( const char* eventName ) const;
 
 	void		AddDefinedVar		( idWinVar* var );
 

@@ -575,6 +575,8 @@ On engine `acca732c88269a3619a207086fa52d59c5855029` CREDITS on the title opens 
 
 On engine `9f25242bde0265eb52afccadb7206fa830af63ca` ARENA on the Single Player page opens a retained Arena page, its second sub-page: the Arena campaign's tier ladder, matches, detail column, entrance and result ledger, the campaign publishing into it and keeping its authority. `FLOW-011` becomes partial; `FLOW-026` and `FLOW-050` gain evidence. Evidence: `.tmp/ui/retained-arena-evidence/validation-evidence.json`, SHA-256 `d47a2a28292827e6f85d91cbfef10f21fe7c8aa8c2f010c0883756cc3254360f`.
 
+On engine `473749c63833198215d4d6ef9d5ee3a579e45550` MULTIPLAYER on the title opens a retained Multiplayer page at the page level: JOIN GAME, CREATE SERVER and PLAYER SETUP open the stock browser, Create Server and Settings pages and return to it, and BACK returns the title. `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-multiplayer-evidence/validation-evidence.json`, SHA-256 `f07ddc497858aca4c9c94abb64cb3bd966a53f7078c018c51f882c0f63c40393`.
+
 There are **107 partial, 232 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

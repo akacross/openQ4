@@ -3830,6 +3830,9 @@ void idSessionLocal::Clear() {
 	guiRetainedRestartMenu = NULL;
 	guiRetainedCredits = NULL;
 	guiRetainedArena = NULL;
+	guiRetainedMpPage = NULL;
+	retainedMpPageDest = 0;
+	retainedMpPageAt = 0;
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;

@@ -3021,6 +3021,15 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			return;
 		}
 
+		// Back from a stock Multiplayer page: the retained Multiplayer page
+		// where it presents, else the stock one.
+		if ( !idStr::Icmp( cmd, "multiplayerOpen" ) ) {
+			if ( !OpenRetainedMultiplayerPage() && guiMainMenu != NULL ) {
+				guiMainMenu->HandleNamedEvent( "openMultiplayerStock" );
+			}
+			return;
+		}
+
 		if ( !idStr::Icmp( cmd, "reloadLanguage" ) ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_NOW, "reloadLanguage\n" );
 			continue;
@@ -4429,6 +4438,7 @@ void idSessionLocal::GuiFrameEvents() {
 	RetainedHomeFrameEvent();
 	UpdateRetainedSubpage();
 	UpdateRetainedPage();
+	UpdateRetainedMultiplayerPage();
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -5000,6 +5010,11 @@ static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
 static const char *const RETAINED_RESTARTMENU_GUI = "guis/menu/restartmenu.q4ui";
 // The Credits page, which the title's CREDITS hands off to.
 static const char *const RETAINED_CREDITS_GUI = "guis/menu/credits.q4ui";
+// The Multiplayer page, which the title's MULTIPLAYER hands off to. Its
+// sections open the stock Multiplayer pages (desktop::dest) once it has left
+// as the stock Multiplayer page leaves, 500 ms after the choice.
+static const char *const RETAINED_MPPAGE_GUI = "guis/menu/multiplayer.q4ui";
+static const int RETAINED_MPPAGE_LEAVE_MSEC = 500;
 // Single Player's Arena sub-page, the Arena campaign's browser, and the
 // campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
 static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
@@ -5099,6 +5114,19 @@ static const char *Session_RetainedHomeMissingPage( idUserInterface *menu ) {
 		}
 	}
 	return NULL;
+}
+
+// The retained Multiplayer page opens the legacy menu's own Multiplayer pages
+// and their Back returns it, through these events of the legacy menu: a main
+// menu without them (a mod's copy of an older one) keeps its own page.
+static bool Session_RetainedMultiplayerRoutes( idUserInterface *menu ) {
+	static const char *const events[] = { "openMultiplayerPage", "leaveMultiplayerPage", "openMultiplayerStock" };
+	for ( int i = 0; i < static_cast<int>( sizeof( events ) / sizeof( events[0] ) ); ++i ) {
+		if ( !UI_LegacyNamedEventExists( menu, events[i] ) ) {
+			return false;
+		}
+	}
+	return true;
 }
 
 // A save as the retained screens name it. The menu label a save writes is
@@ -5704,6 +5732,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedMpPage ) {
+		// The Multiplayer page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedMultiplayerPageRequest( gui, request );
+		}
+		return;
+	}
 	if ( gui != NULL && request != NULL && gui == guiRetainedArena ) {
 		// The Arena page's verbs, while it presents.
 		if ( gui == guiActive ) {
@@ -5808,7 +5843,8 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 	// LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS open their retained pages
 	// where those can present; else the stock pages below.
 	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ||
-			!idStr::Icmp( request, "demos" ) || !idStr::Icmp( request, "credits" ) ) && BeginRetainedPage( request ) ) {
+			!idStr::Icmp( request, "demos" ) || !idStr::Icmp( request, "credits" ) || !idStr::Icmp( request, "multiplayer" ) ) &&
+			BeginRetainedPage( request ) ) {
 		return;
 	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
@@ -5853,8 +5889,9 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 #ifndef ID_DEDICATED
 	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
 	const bool demos = !idStr::Icmp( request, "demos" ), credits = !idStr::Icmp( request, "credits" );
-	if ( ( !saving && !restarting && !demos && !credits && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
-			guiActive != guiMainMenu || ( credits && mapSpawned ) ||
+	const bool multiplayer = !idStr::Icmp( request, "multiplayer" );
+	if ( ( !saving && !restarting && !demos && !credits && !multiplayer && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
+			guiActive != guiMainMenu || ( ( credits || multiplayer ) && mapSpawned ) ||
 			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
 			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
 		return false;
@@ -5866,16 +5903,17 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
 	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
-		credits ? guiRetainedCredits : guiRetainedLoad;
+		credits ? guiRetainedCredits : multiplayer ? guiRetainedMpPage : guiRetainedLoad;
 	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
-		credits ? RETAINED_CREDITS_GUI : RETAINED_LOADGAME_GUI;
+		credits ? RETAINED_CREDITS_GUI : multiplayer ? RETAINED_MPPAGE_GUI : RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
 		retainedStock.AddUnique( path );
 		loaded = NULL;
 		return false;
 	}
-	idUserInterface *page = loaded != NULL ? loaded : FindRetainedGui( path, true, false );
+	// The Multiplayer page also needs the legacy menu's routes to its pages.
+	idUserInterface *page = multiplayer ? RetainedMultiplayerPage() : loaded != NULL ? loaded : FindRetainedGui( path, true, false );
 	if ( page == NULL ) {
 		return false;
 	}
@@ -5894,6 +5932,8 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 		PublishRetainedSavePage( page, -1 );
 	} else if ( credits ) {
 		PublishRetainedCredits( page );
+	} else if ( multiplayer ) {
+		retainedMpPageDest = 0;
 	} else if ( demos ) {
 		// Each arrival shows every demo, the newest selected.
 		retainedDemoFilter = 0;
@@ -5915,7 +5955,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 
 bool idSessionLocal::RetainedPageActive() const {
 	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
-		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits );
+		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits || guiActive == guiRetainedMpPage );
 }
 
 // The hand-off's end: the page presents over the home that handed off, which
@@ -6413,6 +6453,165 @@ idUserInterface *idSessionLocal::RetainedArenaPage() {
 
 /*
 ===============
+idSessionLocal::RetainedMultiplayerPage
+
+The retained Multiplayer page where it can present: NULL with the gate off,
+in a game, over a main menu without the routes to its Multiplayer pages, or
+when the page is not installed, cannot load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedMultiplayerPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedMpPage != NULL && UI_RetainedViewFailed( guiRetainedMpPage ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_MPPAGE_GUI );
+		retainedStock.AddUnique( RETAINED_MPPAGE_GUI );
+		guiRetainedMpPage = NULL;
+	}
+	if ( !Session_RetainedScreensEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	// Quietly, as a home screen over a main menu without its pages.
+	if ( !Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
+		if ( retainedStock.FindIndex( RETAINED_MPPAGE_GUI ) < 0 ) {
+			common->DPrintf( "retained UI: the main menu has no routes to its Multiplayer pages, so it presents its own instead of '%s'\n",
+				RETAINED_MPPAGE_GUI );
+			retainedStock.Append( RETAINED_MPPAGE_GUI );
+		}
+		return NULL;
+	}
+	if ( guiRetainedMpPage == NULL ) {
+		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
+	}
+	return guiRetainedMpPage;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedMultiplayerPage
+
+Back from a stock Multiplayer page: the retained page presents at once, its
+arrival bringing its plates and description back. False when it cannot
+present: the stock Multiplayer page opens instead.
+===============
+*/
+bool idSessionLocal::OpenRetainedMultiplayerPage() {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedMultiplayerPage();
+	if ( page == NULL || guiMainMenu == NULL ) {
+		return false;
+	}
+	retainedMpPageDest = 0;
+	retainedPageHome = NULL;
+	SetGUI( page, NULL );
+	return true;
+#else
+	return false;
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedMultiplayerPageRequest
+
+The Multiplayer page's verbs. JOIN GAME, CREATE SERVER and PLAYER SETUP open
+the stock browser, Create Server and Settings pages once the page has left
+(UpdateRetainedMultiplayerPage); BACK returns the title, from the page dock
+as from a stock page. A page under way takes no further request.
+===============
+*/
+void idSessionLocal::HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedMpPageDest != 0 || guiMainMenu == NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerBack" ) ) {
+		if ( MainMenuWindowStateEqualsInt( guiMainMenu, "desktop::curr", 0 ) &&
+				MainMenuWindowStateEqualsInt( guiMainMenu, "desktop::active", 0 ) ) {
+			// The legacy menu never left home: the title comes back as from
+			// any retained page.
+			ReturnRetainedPage();
+			return;
+		}
+		// After a stock Multiplayer page the legacy menu goes home as its own
+		// Multiplayer page does, and the retained home follows it.
+		HandleMainMenuCommands( "play main_menu_selection" );
+		UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+		guiMainMenu->SetPresentationValue( "desktop::curr", "3" );
+		guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+		retainedPageHome = NULL;
+		SetGUI( guiMainMenu, NULL );
+		guiMainMenu->HandleNamedEvent( "leaveMultiplayerPage" );
+		UpdateRetainedHome();
+		return;
+	}
+	int dest = 0;
+	if ( !idStr::Icmp( request, "multiplayerJoin" ) ) {
+		dest = 14;
+	} else if ( !idStr::Icmp( request, "multiplayerCreate" ) ) {
+		dest = 17;
+	} else if ( !idStr::Icmp( request, "multiplayerSetup" ) ) {
+		dest = 18;
+	} else {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	gui->HandleNamedEvent( "depart" );
+	PumpApplicationActions( gui );
+	retainedMpPageDest = dest;
+	retainedMpPageAt = common->GetPresentationTime() + RETAINED_MPPAGE_LEAVE_MSEC;
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateRetainedMultiplayerPage
+
+The stock page takes over when the Multiplayer page has left: the legacy menu
+presents in the page state with that page arriving (openMultiplayerPage).
+Anything else taking the screen first abandons it.
+===============
+*/
+void idSessionLocal::UpdateRetainedMultiplayerPage() {
+#ifndef ID_DEDICATED
+	if ( retainedMpPageDest == 0 ) {
+		return;
+	}
+	if ( guiActive != guiRetainedMpPage || guiMainMenu == NULL ) {
+		retainedMpPageDest = 0;
+		return;
+	}
+	if ( common->GetPresentationTime() < retainedMpPageAt ) {
+		return;
+	}
+	const int dest = retainedMpPageDest;
+	retainedMpPageDest = 0;
+	// The legacy menu's timelines stood still while the page presented; they
+	// catch up first, so none of their remaining steps lands on this state.
+	UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+	// The legacy menu activates on its Multiplayer page (desktop::curr 3), which
+	// keeps SetGUI from starting its intro; Create Server's own state would
+	// reset it home. The stock page's arrival takes the state from there. The
+	// values are written as the menu's own `set` writes them: a variable that
+	// kept its declared expression would get it back from the next EvalRegs.
+	guiMainMenu->SetPresentationValue( "desktop::curr", "3" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+	guiMainMenu->SetPresentationValue( "desktop::dest", va( "%d", dest ) );
+	retainedPageHome = NULL;
+	SetGUI( guiMainMenu, NULL );
+	guiMainMenu->HandleNamedEvent( "openMultiplayerPage" );
+	UpdateRetainedHome();
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_MPPAGE stock dest=%d\n", dest );
+	}
+#endif
+}
+
+/*
+===============
 idSessionLocal::HandleRetainedArenaRequest
 
 The Arena page's verbs. Each runs the Arena campaign's own command, which
@@ -6770,6 +6969,11 @@ void idSessionLocal::PreloadRetainedScreens() {
 	// The Arena page, which only the title reaches, through Single Player.
 	if ( guiRetainedArena == NULL && guiRetainedTitle != NULL ) {
 		guiRetainedArena = FindRetainedGui( RETAINED_ARENA_GUI, true, false );
+	}
+	// The Multiplayer page, which only the title reaches, over a main menu
+	// with the routes to its Multiplayer pages.
+	if ( guiRetainedMpPage == NULL && guiRetainedTitle != NULL && Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
+		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
 	}
 #endif
 }
