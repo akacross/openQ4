@@ -1232,4 +1232,11 @@
 	"#str_231111"	"A mentéshez életben kell lenned."
 	"#str_231112"	"Nincs elég szabad hely a lemezen a játék mentéséhez."
 	"#str_231113"	"Sikertelen küldetés után nem lehet menteni."
+	"#str_231114"	"NINCS DEMÓ"
+	"#str_231115"	"Az általad rögzített vagy a demos mappába másolt demók itt jelennek meg."
+	"#str_231116"	"ÚJABB DEMÓK"
+	"#str_231117"	"RÉGEBBI DEMÓK"
+	"#str_231118"	"Egyetlen demó sem felel meg ennek a szűrőnek."
+	"#str_231119"	"A demót nem sikerült törölni."
+	"#str_231120"	"A demót nem sikerült lejátszani."
 }

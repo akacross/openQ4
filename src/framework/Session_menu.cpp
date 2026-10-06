@@ -4990,6 +4990,14 @@ static const char *const RETAINED_NEWCAMPAIGN_GUI = "guis/menu/newcampaign.q4ui"
 static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
 static const char *const RETAINED_SAVEGAME_GUI = "guis/menu/savegame.q4ui";
 static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
+// The Demos page, which the title's DEMOS hands off to as LOAD GAME does to
+// its page. Its list holds this many demos at a time (ROWS in
+// tools/ui/retained_demos.py); demos.filter picks one of the legacy
+// browser's filters, 0 showing them all.
+static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
+static const int RETAINED_DEMO_ROWS = 64;
+static const char *const RETAINED_DEMO_FILTERS[] = { "all", "mvd", "render", "legacy", "incomplete" };
+static const int RETAINED_DEMO_FILTER_COUNT = sizeof( RETAINED_DEMO_FILTERS ) / sizeof( RETAINED_DEMO_FILTERS[0] );
 static const int RETAINED_LOAD_ROWS = 64;
 static const char *const RETAINED_LOAD_GENERIC_SHOT = "gfx/guis/loadscreens/generic";
 // The stock choreography shows a page 550 ms after its activation and a
@@ -5625,6 +5633,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedDemos ) {
+		// The Demos page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedDemosRequest( gui, request );
+		}
+		return;
+	}
     if ( gui && request && gui == guiActive && !idStr::Icmp( gui->Name(), RETAINED_NEWCAMPAIGN_GUI ) ) {
         // New Campaign: START GAME, or Back to Campaign. A change in
         // progress takes no further request.
@@ -5679,10 +5694,10 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		}
 		return;
 	}
-	// LOAD GAME, SAVE GAME and RESTART LEVEL open their retained pages where
-	// those can present; else the stock pages below.
-	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ) &&
-			BeginRetainedPage( request ) ) {
+	// LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS open their retained pages
+	// where those can present; else the stock pages below.
+	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ||
+			!idStr::Icmp( request, "demos" ) ) && BeginRetainedPage( request ) ) {
 		return;
 	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
@@ -5726,8 +5741,10 @@ present: the stock page then opens as before.
 bool idSessionLocal::BeginRetainedPage( const char *request ) {
 #ifndef ID_DEDICATED
 	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
-	if ( ( !saving && !restarting && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
-			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ) {
+	const bool demos = !idStr::Icmp( request, "demos" );
+	if ( ( !saving && !restarting && !demos && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL || guiActive != guiMainMenu ||
+			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
+			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
 		return false;
 	}
 	if ( retainedPagePending != NULL ) {
@@ -5736,8 +5753,9 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// Loaded with the other screens (PreloadRetainedScreens), or now when the
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
-	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : guiRetainedLoad;
-	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : RETAINED_LOADGAME_GUI;
+	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos : guiRetainedLoad;
+	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
+		RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
 		retainedStock.AddUnique( path );
@@ -5761,6 +5779,10 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 		page->SetStateString( "save.target", "" );
 		page->SetStateString( "save.notice", "" );
 		PublishRetainedSavePage( page, -1 );
+	} else if ( demos ) {
+		// Each arrival shows every demo, the newest selected.
+		retainedDemoFilter = 0;
+		PublishRetainedDemosPage( page, NULL, 0, NULL );
 	} else {
 		PublishRetainedLoadPage( page, 0, NULL );
 	}
@@ -5777,7 +5799,8 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 }
 
 bool idSessionLocal::RetainedPageActive() const {
-	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart );
+	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
+		guiActive == guiRetainedDemos );
 }
 
 // The hand-off's end: the page presents over the home that handed off, which
@@ -6202,6 +6225,180 @@ void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const c
 #endif
 }
 
+/*
+===============
+idSessionLocal::PublishRetainedDemosPage
+
+The Demos page's library: every recording, rescanned, that its filter shows,
+newest first. The demo at `selectPath` is selected where the filter still
+shows it, else the one at `selectRow` (the next after a deletion), else the
+first.
+===============
+*/
+void idSessionLocal::PublishRetainedDemosPage( idUserInterface *gui, const char *selectPath, int selectRow, const char *error ) {
+#ifndef ID_DEDICATED
+	ScanDemoLibrary();
+	retainedDemoFilter = idMath::ClampInt( 0, RETAINED_DEMO_FILTER_COUNT - 1, retainedDemoFilter );
+	retainedDemoRows.Clear();
+	for ( int i = 0; i < demoLibrary.Num(); ++i ) {
+		if ( Session_DemoEntryMatchesFilter( demoLibrary[i], RETAINED_DEMO_FILTERS[ retainedDemoFilter ] ) ) {
+			retainedDemoRows.Append( i );
+		}
+	}
+	const int count = retainedDemoRows.Num();
+	int select = count > 0 ? idMath::ClampInt( 0, count - 1, selectRow ) : -1;
+	for ( int row = 0; selectPath != NULL && row < count; ++row ) {
+		if ( !demoLibrary[ retainedDemoRows[row] ].path.Icmp( selectPath ) ) {
+			select = row;
+			break;
+		}
+	}
+	retainedDemoSelected = select;
+	retainedDemoFirst = select > 0 ? select / RETAINED_DEMO_ROWS * RETAINED_DEMO_ROWS : 0;
+	gui->SetStateInt( "demos.filter", retainedDemoFilter );
+	PublishRetainedDemoRows( gui );
+	PublishRetainedDemoSelection( gui, error );
+#endif
+}
+
+// Each row's demo: its name, map, date and duration.
+void idSessionLocal::PublishRetainedDemoRows( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	for ( int row = 0; row < RETAINED_DEMO_ROWS; ++row ) {
+		const int index = retainedDemoFirst + row;
+		sessionDemoText_t text;
+		if ( index < retainedDemoRows.Num() ) {
+			Session_DemoEntryText( demoLibrary[ retainedDemoRows[ index ] ], text );
+		}
+		gui->SetStateString( va( "demos.row%d.name", row ), text.name.c_str() );
+		gui->SetStateString( va( "demos.row%d.map", row ), text.map.c_str() );
+		gui->SetStateString( va( "demos.row%d.date", row ), text.date.c_str() );
+		gui->SetStateString( va( "demos.row%d.length", row ), text.length.c_str() );
+	}
+	gui->SetStateInt( "demos.count", retainedDemoRows.Num() );
+	gui->SetStateInt( "demos.first", retainedDemoFirst );
+#endif
+}
+
+// The selected demo: its map's levelshot (the generic picture without one),
+// its kind, status and details, what it can do, the delete confirmation's
+// question naming it, and why an operation failed.
+void idSessionLocal::PublishRetainedDemoSelection( idUserInterface *gui, const char *error ) {
+#ifndef ID_DEDICATED
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, confirm;
+	sessionDemoText_t text;
+	bool playable = false, canPlay = false, canDelete = false;
+	if ( retainedDemoSelected >= 0 && retainedDemoSelected < retainedDemoRows.Num() ) {
+		const demoLibraryEntry_t &entry = demoLibrary[ retainedDemoRows[ retainedDemoSelected ] ];
+		Session_DemoEntryText( entry, text );
+		if ( !entry.mapName.IsEmpty() ) {
+			shot = RetainedPauseShot( entry.mapName.c_str() );
+		}
+		playable = entry.playable;
+		canPlay = ( entry.capabilities & DEMO_CAP_PLAY ) != 0;
+		canDelete = ( entry.capabilities & DEMO_CAP_DELETE ) != 0;
+		confirm = va( common->GetLanguageDict()->GetString( "#str_41555" ), text.name.c_str() );
+	}
+	gui->SetStateInt( "demos.selected", retainedDemoSelected );
+	gui->SetStateString( "demos.shot", shot.c_str() );
+	gui->SetStateString( "demos.kind", text.kind.c_str() );
+	gui->SetStateString( "demos.status", text.status.c_str() );
+	gui->SetStateString( "demos.detail", text.detail.c_str() );
+	gui->SetStateBool( "demos.playable", playable );
+	gui->SetStateBool( "demos.canPlay", canPlay );
+	gui->SetStateBool( "demos.canDelete", canDelete );
+	gui->SetStateString( "demos.confirm", confirm.c_str() );
+	gui->SetStateString( "demos.error", error != NULL ? error : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedDemosRequest
+
+The Demos page's verbs. A row's first Accept selects its demo; PLAY, or
+Accept on the selected demo, plays it; DELETE deletes it once the page asked;
+REFRESH rescans; a filter tag sets or clears demos.filter; Back returns the
+title.
+===============
+*/
+void idSessionLocal::HandleRetainedDemosRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const int count = retainedDemoRows.Num();
+	const bool chosen = retainedDemoSelected >= 0 && retainedDemoSelected < count;
+	const idStr selectedPath = chosen ? demoLibrary[ retainedDemoRows[ retainedDemoSelected ] ].path : idStr();
+	if ( !idStr::Icmp( request, "demosBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosSelect" ) ) {
+		const int row = gui->State().GetInt( "demos.pick", "-1" );
+		const int index = retainedDemoFirst + row;
+		if ( row >= 0 && row < RETAINED_DEMO_ROWS && index < count ) {
+			retainedDemoSelected = index;
+			PublishRetainedDemoSelection( gui, NULL );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosNewer" ) || !idStr::Icmp( request, "demosOlder" ) ) {
+		// A page further: its first demo going to older ones, its last coming
+		// back to newer ones, is selected and focused.
+		const bool older = !idStr::Icmp( request, "demosOlder" );
+		const int first = retainedDemoFirst + ( older ? RETAINED_DEMO_ROWS : -RETAINED_DEMO_ROWS );
+		if ( first < 0 || first >= count ) {
+			return;
+		}
+		retainedDemoFirst = first;
+		retainedDemoSelected = older ? first : first + RETAINED_DEMO_ROWS - 1;
+		PublishRetainedDemoRows( gui );
+		PublishRetainedDemoSelection( gui, NULL );
+		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosRefresh" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		PublishRetainedDemosPage( gui, chosen ? selectedPath.c_str() : NULL, retainedDemoSelected > 0 ? retainedDemoSelected : 0, NULL );
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosFilter" ) ) {
+		retainedDemoFilter = gui->State().GetInt( "demos.filter", "0" );
+		PublishRetainedDemosPage( gui, chosen ? selectedPath.c_str() : NULL, 0, NULL );
+		return;
+	}
+	if ( !chosen ) {
+		return;
+	}
+	const int index = retainedDemoRows[ retainedDemoSelected ];
+	if ( !idStr::Icmp( request, "demosPlay" ) ) {
+		if ( ( demoLibrary[ index ].capabilities & DEMO_CAP_PLAY ) == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		// Playback takes the screen; a demo that could not start leaves the
+		// page here to say so.
+		if ( !PlayDemoLibraryEntry( index ) ) {
+			openq4::NativeInputBeforeSessionChange();
+			guiActive = gui;
+			PublishRetainedDemoSelection( gui, "#str_231120" );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosDelete" ) ) {
+		// The page asked first. The demo that takes the deleted one's place
+		// is selected; one that could not be deleted stays selected and says so.
+		const int at = retainedDemoSelected;
+		if ( !DeleteDemoLibraryFile( demoLibrary[ index ] ) ) {
+			PublishRetainedDemoSelection( gui, "#str_231119" );
+			return;
+		}
+		PublishRetainedDemosPage( gui, NULL, at, NULL );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Demos request '%s'", request );
+#endif
+}
+
 #ifndef ID_DEDICATED
 // A mod that ships its own loading screen under a stock name keeps it: the
 // file comes from the mod's own game directory (fs_game or fs_game_base),
@@ -6290,6 +6487,10 @@ void idSessionLocal::PreloadRetainedScreens() {
 	}
 	if ( guiRetainedRestart == NULL && guiRetainedPause != NULL ) {
 		guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
+	}
+	// The Demos page, which only the title reaches.
+	if ( guiRetainedDemos == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedDemos = FindRetainedGui( RETAINED_DEMOS_GUI, true, false );
 	}
 #endif
 }

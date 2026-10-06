@@ -1232,4 +1232,11 @@
 	"#str_231111"	"Debes estar vivo para guardar la partida."
 	"#str_231112"	"No hay espacio suficiente en la unidad para guardar la partida."
 	"#str_231113"	"No se puede guardar tras una misión fallida."
+	"#str_231114"	"NO HAY DEMOS"
+	"#str_231115"	"Las demos que grabes, o copies en la carpeta demos, aparecen aquí."
+	"#str_231116"	"DEMOS MÁS RECIENTES"
+	"#str_231117"	"DEMOS MÁS ANTIGUAS"
+	"#str_231118"	"Ninguna demo coincide con este filtro."
+	"#str_231119"	"No se pudo eliminar la demo."
+	"#str_231120"	"No se pudo reproducir la demo."
 }

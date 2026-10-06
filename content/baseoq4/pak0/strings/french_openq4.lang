@@ -1236,4 +1236,11 @@
 	"#str_231111"	"Vous devez être vivant pour sauvegarder la partie."
 	"#str_231112"	"Espace disque insuffisant pour sauvegarder la partie."
 	"#str_231113"	"Impossible de sauvegarder après un échec de mission."
+	"#str_231114"	"AUCUNE DÉMO"
+	"#str_231115"	"Les démos que vous enregistrez, ou copiez dans le dossier demos, apparaissent ici."
+	"#str_231116"	"DÉMOS PLUS RÉCENTES"
+	"#str_231117"	"DÉMOS PLUS ANCIENNES"
+	"#str_231118"	"Aucune démo ne correspond à ce filtre."
+	"#str_231119"	"La démo n'a pas pu être supprimée."
+	"#str_231120"	"La démo n'a pas pu être lue."
 }

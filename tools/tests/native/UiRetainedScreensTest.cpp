@@ -151,6 +151,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
+	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};
 // The value controls' verbs, which carry the control's new value.
@@ -1974,8 +1975,148 @@ static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const 
 	page.SetReducedMotion(false,8.2);
 }
 
+// The Demos page (FLOW-013): the library under its filter tags, the selected
+// demo's picture and lines, PLAY, DELETE and REFRESH, the confirmation that
+// names the demo, and the empty states. The session's verbs run through the
+// runtime.
+static void CheckDemosPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.demos" && document.Model().canvasHeight == 720,"the Demos page validates");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> verbs[] = {{"back","demosBack"},{"select","demosSelect"},{"play","demosPlay"},
+		{"delete","demosDelete"},{"refresh","demosRefresh"},{"filter","demosFilter"},{"newer","demosNewer"},{"older","demosOlder"}};
+	for (const auto& [action, command] : verbs) {
+		const auto found = document.Model().actions.find(action);
+		Check(found != document.Model().actions.end() && std::get<std::string>(found->second.arguments.at("command").literal) == command,
+			"each of the page's actions asks the session");
+	}
+	Check(!document.Model().FindNode("band-top") && document.Model().FindNode("demo-title"),
+		"the page is its content and its own title: the home that handed off draws the frame behind it");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/demos.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property); return value ? value->text : std::string("?");
+	};
+	const auto number = [&](const std::string& node, const char* property, size_t index = 0) {
+		const auto value = runtime.PresentedValue(node,property); return value ? static_cast<float>(value->data[index]) : -1.f;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a page node is laid out"); return b; };
+	const auto requested = [&](const char* action) {
+		return effects.actions.size() == 1 && effects.actions[0].action == action && effects.actions[0].operation == "session.menu";
+	};
+	// Two demos, newest first, the newest selected.
+	StateValues values{{"demos.count",2.0},{"demos.first",0.0},{"demos.selected",0.0},{"demos.filter",0.0},
+		{"demos.shot",std::string("gfx/guis/loadscreens/generic")},{"demos.kind",std::string("Render demo v10")},
+		{"demos.status",std::string("Playable")},{"demos.detail",std::string("Fixed recorded camera")},{"demos.playable",true},
+		{"demos.canPlay",true},{"demos.canDelete",true},{"demos.error",std::string()},
+		{"demos.confirm",std::string("Delete demo \"newer\"? This cannot be undone.")}};
+	const char* names[] = {"newer","older"};
+	for (int row = 0; row < 2; ++row) {
+		const auto key = "demos.row"+std::to_string(row);
+		values[key+".name"] = std::string(names[row]); values[key+".map"] = std::string("-");
+		values[key+".date"] = std::string("10/06/2026"); values[key+".length"] = std::string("--:--");
+	}
+	Check(runtime.SetState(values,error,0),"publish two demos");
+	runtime.Frame(viewport,1);
+	// The 4:3 canvas is 960 dp wide, centered: x = 160 dp at 1280x720; 1 u = 1.5 dp.
+	const float x0 = 160, u = 1.5f;
+	const auto shot = bounds("demo-shot-back");
+	Check(Near(shot.x,x0+25*u) && Near(shot.y,78*u) && Near(shot.width,183*u) && Near(shot.height,137*u),
+		"the picture keeps the stock 183x137 u at 25,78 u");
+	const auto play = bounds("demo_play"), remove = bounds("demo_delete"), refresh = bounds("demo_refresh");
+	Check(Near(play.x,x0+21*u) && Near(play.y,256*u) && Near(remove.y,293*u) && Near(refresh.x,x0+20*u) && Near(refresh.y,330*u),
+		"PLAY, DELETE and REFRESH are section plates on the stock 37 u pitch");
+	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
+	Check(Near(row0.x,x0+217*u) && Near(row0.y,78*u) && Near(row1.y-row0.y,20*u) && Near(row0.width,394*u),
+		"the rows run on the stock 20 u pitch from 217,78 u");
+	const auto mvd = bounds("tag-mvd"), render = bounds("tag-render"), incomplete = bounds("tag-incomplete");
+	Check(Near(mvd.x,x0+217*u) && Near(mvd.y,43*u) && Near(mvd.height,15*u) && render.x > mvd.x + mvd.width &&
+		incomplete.x + incomplete.width <= x0+(217+394)*u + .5f,"the filter tags line up over the headings within the list's width");
+	const auto name = bounds("demo-head-name"), map = bounds("demo-head-map"), date = bounds("demo-head-date"), length = bounds("demo-head-length");
+	Check(Near(name.y,63*u) && map.x > name.x && date.x > map.x && length.x > date.x,"NAME, MAP, DATE and DURATION head their columns");
+	Check(text("row-1","display") == "block" && text("row-2","display") == "none" && text("row-0-selected","display") == "block",
+		"the list shows the published demos with the newest selected");
+	Check(text("row-0-name","text") == "newer" && text("row-1-date","text") == "10/06/2026" && text("row-0-length","text") == "--:--",
+		"each row names its demo, its date and its duration");
+	Check(text("demo-kind","text") == "Render demo v10" && text("demo-status","text") == "Playable" &&
+		text("demo-detail","text") == "Fixed recorded camera" && Near(number("demo-status","color",1),1,.001f),
+		"the kind, status and details stand under the picture; a playable demo's status is white");
+	Check(text("demo-empty","display") == "none" && text("demo-error","display") == "none" && text("page-older","display") == "none",
+		"no empty state, failure or pager");
+	Check(text("tag-mvd-plate","display") == "block" && text("tag-mvd-plate-set","display") == "none" && text("tag-mvd-cross","display") == "none",
+		"no filter is set");
+	// Arriving: the panel and its title fade in over 150 ms and the newest demo has focus.
+	Check(runtime.RunEvent("onActivate",2,effects,error),"the page arrives");
+	runtime.Frame(viewport,2.001);
+	Check(number("demo-panel","opacity") < .05f,"the panel starts out");
+	runtime.Frame(viewport,2.2);
+	Check(Near(number("demo-panel","opacity"),1,.001f) && runtime.FocusedControl() == "row-0","the panel has faded in and the newest demo has focus");
+	// A row's first Accept selects its demo; Accept on the selected demo plays it.
+	Check(runtime.RunEvent("demosRow1",3,effects,error) && requested("select") && effects.stateChanges.count("demos.pick") &&
+		std::get<double>(effects.stateChanges.at("demos.pick")) == 1,"Accept on another demo selects it");
+	Check(runtime.RunEvent("demosRow0",3.1,effects,error) && requested("play"),"Accept on the selected demo plays it");
+	Check(runtime.CanActivateControl("demo_play",3.2) && runtime.CanActivateControl("demo_delete",3.2) &&
+		runtime.CanActivateControl("demo_refresh",3.2),"a playable, deletable selection enables the plates");
+	// A demo this build cannot play: PLAY rests disabled, Accept on it does
+	// nothing, and its status takes the error color.
+	Check(runtime.SetState({{"demos.canPlay",false},{"demos.playable",false},{"demos.canDelete",false},
+		{"demos.status",std::string("Unsupported by this build")}},error,3.3),"an unplayable demo");
+	runtime.Frame(viewport,3.4);
+	Check(!runtime.CanActivateControl("demo_play",3.4) && !runtime.CanActivateControl("demo_delete",3.4),"PLAY and DELETE rest disabled");
+	Check(runtime.RunEvent("demosRow0",3.5,effects,error) && effects.actions.empty(),"Accept on it does nothing");
+	Check(Near(number("demo-status","color",0),.894f,.01f) && Near(number("demo-status","color",1),.4275f,.01f),"its status is in the error color");
+	Check(runtime.SetState({{"demos.canPlay",true},{"demos.playable",true},{"demos.canDelete",true}},error,3.6),"playable again");
+	// DELETE asks first, naming the demo.
+	Check(runtime.RunEvent("deleteModalShow",4,effects,error) && effects.actions.empty(),"DELETE asks first");
+	runtime.Frame(viewport,4.3);
+	Check(text("deleteModal","display") == "block" && text("deleteModal-body","text") == "Delete demo \"newer\"? This cannot be undone." &&
+		runtime.FocusedControl() == "deleteModal_no","the confirmation names the demo and opens on NO");
+	Check(runtime.RunEvent("deleteConfirmed",4.4,effects,error) && requested("delete"),"YES deletes and closes the confirmation");
+	runtime.Frame(viewport,4.9);
+	Check(text("deleteModal","display") == "none","the confirmation has closed");
+	// A filter tag sets its filter, and clears it while set.
+	Check(runtime.RunEvent("filterTag1",5,effects,error) && requested("filter") && effects.stateChanges.count("demos.filter") &&
+		std::get<double>(effects.stateChanges.at("demos.filter")) == 1,"MULTI-VIEW sets its filter");
+	runtime.Frame(viewport,5.1);
+	Check(text("tag-mvd-plate","display") == "none" && text("tag-mvd-plate-set","display") == "block" && text("tag-mvd-cross","display") == "block" &&
+		text("tag-render-plate","display") == "block","the set tag rests brighter with its close cross");
+	Check(Near(number("tag-mvd-plate-set","opacity"),.6f,.001f) && Near(number("tag-render-plate","opacity"),.28f,.001f),
+		"set tags rest at 0.60, unset ones at 0.28");
+	Check(runtime.RunEvent("filterTag1",5.2,effects,error) && requested("filter") &&
+		std::get<double>(effects.stateChanges.at("demos.filter")) == 0,"Accept on the set tag clears it");
+	Check(runtime.RunEvent("filterTag3",5.3,effects,error) && std::get<double>(effects.stateChanges.at("demos.filter")) == 3,
+		"another tag replaces the filter");
+	// A failure says why over the foot of the picture.
+	Check(runtime.SetState({{"demos.error",std::string("#str_231119")}},error,6),"a failed deletion");
+	runtime.Frame(viewport,6.1);
+	const auto strip = bounds("demo-error");
+	Check(text("demo-error","display") == "block" && text("demo-error-text","text") == "#str_231119" && Near(strip.y,177*u),
+		"the reason fills the stock strip at the picture's foot");
+	// More demos than the list holds: the pager rows.
+	Check(runtime.SetState({{"demos.count",130.0},{"demos.first",64.0},{"demos.selected",64.0},{"demos.error",std::string()}},error,7),"a second page");
+	runtime.Frame(viewport,7.1);
+	Check(text("page-newer","display") == "block" && text("page-older","display") == "block","a middle page offers both neighbours");
+	// No demos: the empty state, its sentence telling a filter apart, and the
+	// plates disabled; REFRESH takes the focus.
+	Check(runtime.SetState({{"demos.count",0.0},{"demos.first",0.0},{"demos.selected",-1.0},{"demos.filter",0.0},{"demos.canPlay",false},
+		{"demos.canDelete",false}},error,8),"no demos");
+	runtime.Frame(viewport,8.1);
+	Check(text("demo-empty","display") == "block" && text("demo-empty-text","text") == "#str_231115" && text("row-0","display") == "none",
+		"the empty state says where demos come from");
+	Check(runtime.SetState({{"demos.filter",2.0}},error,8.2),"a filter hides them all");
+	runtime.Frame(viewport,8.3);
+	Check(text("demo-empty-text","text") == "#str_231118","the empty state says the filter hides them");
+	Check(runtime.RunEvent("onActivate",8.4,effects,error),"an empty page arrives");
+	runtime.Frame(viewport,8.6);
+	Check(runtime.FocusedControl() == "demo_refresh","REFRESH has focus");
+}
+
 int main(int argc, char** argv) {
-	Check(argc == 17,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui");
+	Check(argc == 18,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
@@ -3072,6 +3213,7 @@ int main(int argc, char** argv) {
 	CheckSavePage(host,argv[14]);
 	CheckRestartPage(host,argv[15]);
 	CheckNewCampaign(host,argv[6],argv[16]);
+	CheckDemosPage(host,argv[17]);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

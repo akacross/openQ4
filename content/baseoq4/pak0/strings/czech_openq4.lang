@@ -1232,4 +1232,11 @@
 	"#str_231111"	"Hru můžeš uložit, jen když jsi naživu."
 	"#str_231112"	"Na disku není dost místa pro uložení hry."
 	"#str_231113"	"Po selhání mise nelze ukládat."
+	"#str_231114"	"ŽÁDNÁ DEMA"
+	"#str_231115"	"Zde se zobrazí dema, která nahrajete nebo zkopírujete do složky demos."
+	"#str_231116"	"NOVĚJŠÍ DEMA"
+	"#str_231117"	"STARŠÍ DEMA"
+	"#str_231118"	"Tomuto filtru neodpovídá žádné demo."
+	"#str_231119"	"Demo se nepodařilo smazat."
+	"#str_231120"	"Demo se nepodařilo přehrát."
 }

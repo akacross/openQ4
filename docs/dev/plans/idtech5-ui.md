@@ -188,6 +188,10 @@ Accepting a campaign on the Campaign sub-page opens the retained
 [New Campaign page](../ui/retained-screens.md#new-campaign-page), the same
 choice with START GAME and TURBO MODE as Campaign's sibling sub-page, with
 page.leave and page.enter between the two.
+DEMOS on the title opens the retained
+[Demos page](../ui/retained-screens.md#demos-page): the demo library under
+filter tags, the selected demo's picture and lines, and PLAY, DELETE and
+REFRESH, on the Load Game page's construction.
 Sorting, filters, the Strogg pause's pages and in-field composition remain.
 No gate closes.
 

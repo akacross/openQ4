@@ -1236,4 +1236,11 @@
 	"#str_231111"	"Devi essere vivo per poter salvare la partita."
 	"#str_231112"	"Spazio insufficiente su disco per salvare la partita."
 	"#str_231113"	"Impossibile salvare dopo il fallimento di una missione."
+	"#str_231114"	"NESSUNA DEMO"
+	"#str_231115"	"Le demo che registri, o copi nella cartella demos, compaiono qui."
+	"#str_231116"	"DEMO PIÙ RECENTI"
+	"#str_231117"	"DEMO MENO RECENTI"
+	"#str_231118"	"Nessuna demo corrisponde a questo filtro."
+	"#str_231119"	"Impossibile eliminare la demo."
+	"#str_231120"	"Impossibile riprodurre la demo."
 }

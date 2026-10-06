@@ -1232,4 +1232,11 @@
 	"#str_231111"	"Você precisa estar vivo para salvar o jogo."
 	"#str_231112"	"Espaço em disco insuficiente para salvar o jogo."
 	"#str_231113"	"Não é possível salvar após uma missão fracassada."
+	"#str_231114"	"NENHUMA DEMO"
+	"#str_231115"	"As demos que você gravar, ou copiar para a pasta demos, aparecem aqui."
+	"#str_231116"	"DEMOS MAIS RECENTES"
+	"#str_231117"	"DEMOS MAIS ANTIGAS"
+	"#str_231118"	"Nenhuma demo corresponde a este filtro."
+	"#str_231119"	"Não foi possível excluir a demo."
+	"#str_231120"	"Não foi possível reproduzir a demo."
 }

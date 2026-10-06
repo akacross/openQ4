@@ -87,6 +87,7 @@ struct idStr : std::string {
     }
     void StripTrailingWhitespace() { while (!empty() && std::isspace(static_cast<unsigned char>(back()))) pop_back(); }
     void Clear() { clear(); }
+    int Icmp(const char* other) const { return Icmp(c_str(), other); }
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
 template<typename T> struct idList : std::vector<T> {
@@ -97,6 +98,24 @@ template<typename T> struct idList : std::vector<T> {
     void Clear() { this->clear(); }
 };
 using idStrList = idList<idStr>;
+// The demo library: what each entry offers, and the session's text for it
+// (the production text lives in Session_demo.cpp, outside this harness).
+enum { DEMO_CAP_PLAY = 1 << 0, DEMO_CAP_DELETE = 1 << 7 };
+enum demoLibraryType_t { DEMO_LIBRARY_MVD, DEMO_LIBRARY_RENDER };
+struct demoLibraryEntry_t {
+    demoLibraryType_t type = DEMO_LIBRARY_RENDER; int capabilities = 0; bool playable = false;
+    idStr path, displayName, mapName, status;
+};
+struct sessionDemoText_t { idStr name, map, date, length, kind, status, detail; };
+static bool Session_DemoEntryMatchesFilter(const demoLibraryEntry_t& entry, const char* filter) {
+    const std::string wanted = filter;
+    return wanted == "all" || (wanted == "mvd" && entry.type == DEMO_LIBRARY_MVD) || (wanted == "render" && entry.type == DEMO_LIBRARY_RENDER);
+}
+static void Session_DemoEntryText(const demoLibraryEntry_t& entry, sessionDemoText_t& out) {
+    out.name = entry.displayName; out.map = entry.mapName.empty() ? idStr("-") : entry.mapName; out.date = "10/06/2026";
+    out.length = "--:--"; out.kind = entry.type == DEMO_LIBRARY_MVD ? "Native MVD" : "Render demo"; out.status = entry.status;
+    out.detail = "detail";
+}
 struct fileTIME_T { int index; ID_TIME_T timeStamp; };
 struct Common {
     std::string output; std::vector<std::string> warnings, developer; int time = 1000, quits = 0;
@@ -341,6 +360,27 @@ public:
     }
     // The Restart Level page; the difficulties a level restarted at.
     idUserInterface* guiRetainedRestart = nullptr; void HandleRetainedRestartRequest(idUserInterface*, const char*);
+    // The Demos page; the library its scan finds (demoFiles), what was played
+    // and deleted, and refusals.
+    idUserInterface* guiRetainedDemos = nullptr; idList<int> retainedDemoRows;
+    int retainedDemoFirst = 0, retainedDemoSelected = -1, retainedDemoFilter = 0;
+    void PublishRetainedDemosPage(idUserInterface*, const char*, int, const char*); void PublishRetainedDemoRows(idUserInterface*);
+    void PublishRetainedDemoSelection(idUserInterface*, const char*); void HandleRetainedDemosRequest(idUserInterface*, const char*);
+    idList<demoLibraryEntry_t> demoLibrary; std::vector<demoLibraryEntry_t> demoFiles;
+    std::vector<std::string> playedDemos, deletedDemos; bool playRefuses = false, deleteRefuses = false, demoPlaying = false;
+    void ScanDemoLibrary() { demoLibrary.Clear(); for (const auto& e : demoFiles) demoLibrary.Append(e); }
+    bool PlayDemoLibraryEntry(int index) {
+        playedDemos.push_back(demoLibrary[index].path); if (playRefuses) { guiActive = nullptr; return false; }
+        guiActive = nullptr; return true;
+    }
+    bool DeleteDemoLibraryFile(const demoLibraryEntry_t& entry) {
+        if (deleteRefuses) return false;
+        deletedDemos.push_back(entry.path);
+        demoFiles.erase(std::remove_if(demoFiles.begin(), demoFiles.end(), [&](const demoLibraryEntry_t& e) { return e.path == entry.path; }),
+                        demoFiles.end());
+        return true;
+    }
+    bool IsDemoPlaybackActive() const { return demoPlaying; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
         ++saveLists;
@@ -381,7 +421,7 @@ MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
-    "guis/menu/newcampaign.q4ui"};
+    "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -691,6 +731,96 @@ int main() {
         s.HandleRetainedSessionRequest(page, "unknown");
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("Restart Level") != std::string::npos);
     }
+    {   // The Demos page (FLOW-013): the title's DEMOS hands off to it as LOAD GAME
+        // does. The library newest first under its filter, the newest selected;
+        // the verbs select, page, play, delete, refresh and filter.
+        auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        auto* title = s.guiRetainedHome; auto* page = s.guiRetainedDemos;
+        CHECK(title && page && std::string(page->Name()) == "guis/menu/demos.q4ui");
+        auto demo = [](const char* name, demoLibraryType_t type, bool playable, const char* map = "") {
+            demoLibraryEntry_t e; e.path = std::string("demos/") + name; e.displayName = name; e.type = type; e.playable = playable;
+            e.capabilities = (playable ? DEMO_CAP_PLAY : 0) | DEMO_CAP_DELETE; e.mapName = map; e.status = playable ? "Playable" : "Unsupported";
+            return e;
+        };
+        s.demoFiles = {demo("newest", DEMO_LIBRARY_RENDER, true), demo("middle", DEMO_LIBRARY_MVD, false, "mp/q4dm1"),
+                       demo("oldest", DEMO_LIBRARY_RENDER, true)};
+        s.HandleRetainedSessionRequest(title, "demos");
+        CHECK(legacyActions.empty() && s.retainedPagePending == page && title->named.back() == "depart");
+        CHECK(page->state["demos.count"] == "3" && page->state["demos.selected"] == "0" && page->state["demos.filter"] == "0" &&
+              page->state["demos.row0.name"] == "newest" && page->state["demos.row2.name"] == "oldest" &&
+              page->state["demos.row3.name"].empty() && page->state["demos.canPlay"] == "1" && page->state["demos.kind"] == "Render demo");
+        commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && s.retainedPageHome == title && s.RetainedPageActive());
+        // A row selects its demo, which brings its map's picture and status.
+        page->state["demos.pick"] = "1"; s.HandleRetainedSessionRequest(page, "demosSelect");
+        CHECK(page->state["demos.selected"] == "1" && page->state["demos.canPlay"] == "0" && page->state["demos.playable"] == "0" &&
+              page->state["demos.status"] == "Unsupported" && page->state["demos.shot"] == s.RetainedPauseShot("mp/q4dm1"));
+        page->state["demos.pick"] = "7"; s.HandleRetainedSessionRequest(page, "demosSelect"); CHECK(page->state["demos.selected"] == "1");
+        // PLAY needs a demo that can play.
+        s.HandleRetainedSessionRequest(page, "demosPlay"); CHECK(s.playedDemos.empty());
+        // A filter: MULTI-VIEW keeps the selected demo; RENDER drops it and selects the first.
+        page->state["demos.filter"] = "1"; s.HandleRetainedSessionRequest(page, "demosFilter");
+        CHECK(page->state["demos.count"] == "1" && page->state["demos.row0.name"] == "middle" && page->state["demos.selected"] == "0");
+        page->state["demos.filter"] = "2"; s.HandleRetainedSessionRequest(page, "demosFilter");
+        CHECK(page->state["demos.count"] == "2" && page->state["demos.row1.name"] == "oldest" && page->state["demos.selected"] == "0" &&
+              page->state["demos.filter"] == "2");
+        page->state["demos.filter"] = "9"; s.HandleRetainedSessionRequest(page, "demosFilter");
+        CHECK(page->state["demos.filter"] == "4" && page->state["demos.count"] == "0" && page->state["demos.selected"] == "-1");
+        page->state["demos.filter"] = "0"; s.HandleRetainedSessionRequest(page, "demosFilter");
+        CHECK(page->state["demos.count"] == "3" && page->state["demos.filter"] == "0");
+        // REFRESH rescans and keeps the selected demo, wherever it now stands.
+        page->state["demos.pick"] = "2"; s.HandleRetainedSessionRequest(page, "demosSelect");
+        s.demoFiles.insert(s.demoFiles.begin(), demo("fresh", DEMO_LIBRARY_RENDER, true));
+        s.HandleRetainedSessionRequest(page, "demosRefresh");
+        CHECK(page->state["demos.count"] == "4" && page->state["demos.selected"] == "3" && page->state["demos.row3.name"] == "oldest" &&
+              s.played.back() == "play main_menu_selection");
+        // DELETE (the page asked first): the next demo takes the deleted one's
+        // place; one that could not be deleted stays selected and says so.
+        page->state["demos.pick"] = "1"; s.HandleRetainedSessionRequest(page, "demosSelect");
+        s.HandleRetainedSessionRequest(page, "demosDelete");
+        CHECK((s.deletedDemos == std::vector<std::string>{"demos/newest"}) && page->state["demos.count"] == "3" &&
+              page->state["demos.selected"] == "1" && page->state["demos.row1.name"] == "middle" && page->state["demos.error"].empty());
+        s.deleteRefuses = true; s.HandleRetainedSessionRequest(page, "demosDelete");
+        CHECK(page->state["demos.count"] == "3" && page->state["demos.selected"] == "1" && page->state["demos.error"] == "#str_231119");
+        s.deleteRefuses = false;
+        // PLAY plays the selected demo, and playback takes the screen; a demo
+        // that cannot start leaves the page here, saying so.
+        page->state["demos.pick"] = "0"; s.HandleRetainedSessionRequest(page, "demosSelect");
+        s.playRefuses = true; s.HandleRetainedSessionRequest(page, "demosPlay");
+        CHECK((s.playedDemos == std::vector<std::string>{"demos/fresh"}) && s.guiActive == page && page->state["demos.error"] == "#str_231120");
+        s.playRefuses = false; s.HandleRetainedSessionRequest(page, "demosPlay");
+        CHECK(s.playedDemos.size() == 2 && s.guiActive == nullptr);
+        // Back returns the title with the bands.
+        s.guiActive = page; s.HandleRetainedSessionRequest(page, "demosBack");
+        CHECK(s.guiActive == s.guiMainMenu && title->named.back() == "returnHome");
+        s.guiActive = page; s.HandleRetainedSessionRequest(page, "unknown");
+        CHECK(!commonObject.warnings.empty() && commonObject.warnings.back().find("Demos") != std::string::npos);
+        // Pages of 64: more demos page through, selecting the first of the older
+        // page or the last of the newer one.
+        s.guiActive = s.guiMainMenu; s.UpdateRetainedHome(); s.demoFiles.clear();
+        for (int i = 0; i < 70; ++i) s.demoFiles.push_back(demo(("d" + std::to_string(i)).c_str(), DEMO_LIBRARY_RENDER, true));
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "demos"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && page->state["demos.count"] == "70" && page->state["demos.first"] == "0");
+        s.HandleRetainedSessionRequest(page, "demosOlder");
+        CHECK(page->state["demos.first"] == "64" && page->state["demos.selected"] == "64" && page->state["demos.row5.name"] == "d69" &&
+              page->named.back() == "pagedOlder");
+        s.HandleRetainedSessionRequest(page, "demosOlder"); CHECK(page->state["demos.first"] == "64");
+        s.HandleRetainedSessionRequest(page, "demosNewer");
+        CHECK(page->state["demos.first"] == "0" && page->state["demos.selected"] == "63" && page->named.back() == "pagedNewer");
+    }
+    {   // DEMOS keeps the stock browser in game, during playback, with the gate
+        // off and when the page is not installed.
+        auto ingame = Session(true, true); ingame.PreloadRetainedScreens(); ingame.UpdateRetainedHome();
+        CHECK(!ingame.BeginRetainedPage("demos") && ingame.retainedPagePending == nullptr);
+        auto playing = Session(true); playing.PreloadRetainedScreens(); playing.UpdateRetainedHome(); playing.demoPlaying = true;
+        playing.HandleRetainedSessionRequest(playing.guiRetainedHome, "demos");
+        CHECK(legacyActions.back() == "main_b_demos" && playing.retainedPagePending == nullptr);
+        auto missing = Session(true); fileSystemObject.files.erase("guis/menu/demos.q4ui");
+        missing.PreloadRetainedScreens(); missing.UpdateRetainedHome();
+        missing.HandleRetainedSessionRequest(missing.guiRetainedHome, "demos");
+        CHECK(missing.guiRetainedDemos == nullptr && legacyActions.back() == "main_b_demos" &&
+              (Stock(missing) == std::vector<std::string>{"guis/menu/demos.q4ui"}));
+    }
     {   // The title has no level to restart, and the Strogg pause keeps the stock page.
         auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
         title.HandleRetainedSessionRequest(title.guiRetainedHome, "restartLevel");
@@ -723,17 +853,18 @@ int main() {
     {   // Startup and single-player level loads resolve the screens and the pause levelshot.
         auto s = Session(true); s.PreloadRetainedScreens();
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/loadgame.q4ui",
-                                                            "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui"}) &&
+                                                            "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
+                                                            "guis/menu/demos.q4ui"}) &&
               s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
         CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 5 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 6 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 5 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 6 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 6 + cards);
+              managerObject.loads.size() == 7 + cards);
         CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
         CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
@@ -799,7 +930,8 @@ int main() {
         CHECK(s.guiRetainedHome == nullptr && !title->active && s.guiRetainedTitle == nullptr);
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("stopped drawing") != std::string::npos);
         s.UpdateRetainedHome(); s.PreloadRetainedScreens();
-        // title, then pause and the Load, Save Game and Restart Level pages
+        // title, then pause and the Load, Save Game and Restart Level pages; the
+        // Demos page, which only the title reaches, waits for a title
         CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 5 && commonObject.warnings.size() == 1);
     }
     {   // The campaign selectors: the retained ones while installed, the stock ones otherwise.
@@ -2988,7 +3120,8 @@ def main() -> int:
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
-                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui'}
+                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui',
+                       'guis/menu/demos.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -3194,7 +3327,9 @@ def main() -> int:
         'void idSessionLocal::HandleRetainedLoadRequest(', 'bool idSessionLocal::RetainedPageActive(',
         'void idSessionLocal::PublishRetainedSavePage(', 'void idSessionLocal::PublishRetainedSaveSelection(',
         'bool idSessionLocal::RetainedSaveGame(', 'void idSessionLocal::HandleRetainedSaveRequest(',
-        'void idSessionLocal::HandleRetainedRestartRequest(',
+        'void idSessionLocal::HandleRetainedRestartRequest(', 'void idSessionLocal::PublishRetainedDemosPage(',
+        'void idSessionLocal::PublishRetainedDemoRows(', 'void idSessionLocal::PublishRetainedDemoSelection(',
+        'void idSessionLocal::HandleRetainedDemosRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',

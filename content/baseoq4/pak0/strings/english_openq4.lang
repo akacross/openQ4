@@ -1232,4 +1232,11 @@
 	"#str_231111"	"You must be alive to save the game."
 	"#str_231112"	"Not enough drive space to save the game."
 	"#str_231113"	"You can't save after a failed mission."
+	"#str_231114"	"NO DEMOS"
+	"#str_231115"	"Demos you record, or copy into the demos folder, appear here."
+	"#str_231116"	"NEWER DEMOS"
+	"#str_231117"	"OLDER DEMOS"
+	"#str_231118"	"No demo matches this filter."
+	"#str_231119"	"The demo could not be deleted."
+	"#str_231120"	"The demo could not be played."
 }

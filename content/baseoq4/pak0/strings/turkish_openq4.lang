@@ -1232,4 +1232,11 @@
 	"#str_231111"	"Oyunu kaydetmek için hayatta olmalısın."
 	"#str_231112"	"Oyunu kaydetmek için yeterli disk alanı yok."
 	"#str_231113"	"Görev başarısız olduktan sonra kayıt yapılamaz."
+	"#str_231114"	"DEMO YOK"
+	"#str_231115"	"Kaydettiğin veya demos klasörüne kopyaladığın demolar burada görünür."
+	"#str_231116"	"DAHA YENİ DEMOLAR"
+	"#str_231117"	"DAHA ESKİ DEMOLAR"
+	"#str_231118"	"Bu filtreye uyan demo yok."
+	"#str_231119"	"Demo silinemedi."
+	"#str_231120"	"Demo oynatılamadı."
 }

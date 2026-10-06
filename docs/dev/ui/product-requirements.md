@@ -565,7 +565,9 @@ On engine `46052f8a0371c1b717decd1c7f999d4afdfc40f5` RESTART LEVEL on the Marine
 
 On engine `2302f048d4003c4f342f414b5c1c063e7091d10c` accepting a campaign on the Campaign sub-page opens a retained New Campaign page, Campaign's sibling, with page.leave and page.enter between the two, START GAME and TURBO MODE. `MOT-009` becomes partial; `FLOW-050` gains evidence. Evidence: `.tmp/ui/retained-newcampaign-evidence/validation-evidence.json`, SHA-256 `5ef64a6421c78346292a3e2ac037659cd23f554802638b963e330b426b42b92e`.
 
-There are **103 partial, 236 pending and one verified requirement**, counting the
+On engine `5e8a70555e43c9f86d984956a457a901db495f4d` DEMOS on the title opens a retained Demos page: the demo library under filter tags, the selected demo's picture and details, and PLAY, DELETE and REFRESH. `FLOW-013` becomes partial; `WID-009` gains evidence. Evidence: `.tmp/ui/retained-demos-evidence/validation-evidence.json`, SHA-256 `6af050d9337ba49f1906fc18bfc799af9adde4b8c2aa4b70dee997d98747ae9f`.
+
+There are **104 partial, 235 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

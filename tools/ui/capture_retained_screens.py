@@ -425,6 +425,31 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
         'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
+    # The Demos page (FLOW-013): two render demos recorded in the level, then
+    # the title's DEMOS hands off and the page presents at 550 ms with the
+    # newest selected. A filter that hides both shows the filtered empty
+    # state and clears again; DELETE asks naming the demo, and YES deletes it
+    # and selects the older one; PLAY plays it (8 s long, shot 2.5 s in), and
+    # demoStop ends playback.
+    'demos': ('game/airdefense1', [
+        'waitMsec 1000', 'recordDemo retainedolder', 'waitMsec 8000', 'stopRecording', 'waitMsec 500',
+        'recordDemo retainednewer', 'waitMsec 2500', 'stopRecording', 'waitMsec 500', 'disconnect', 'waitMsec 4000',
+        'openq4_retainedGui focus link_demos', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/demos-handoff.tga"', 'waitMsec 900', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/demos.tga"',
+        'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/demos-filtered.tga"',
+        'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/demos-cleared.tga"',
+        'openq4_retainedGui focus demo_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/demos-delete.tga"',
+        'openq4_retainedGui focus deleteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/demos-deleted.tga"',
+        'openq4_retainedGui focus demo_play', 'waitMsec 300', 'screenshot "screenshots/demos-play.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'ui_retainedStatus',
+        'screenshot "screenshots/demos-playing.tga"', 'demoStop', 'waitMsec 3000', 'ui_retainedStatus',
+        'screenshot "screenshots/demos-stopped.tga"',
+    ]),
     # The Restart Level page (FLOW-001): the pause's RESTART LEVEL hands off to
     # it at the level's difficulty. A plate chooses another, which the page
     # lights and describes; Back leaves the difficulty as it was, so the page

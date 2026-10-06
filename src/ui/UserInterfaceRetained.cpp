@@ -76,7 +76,8 @@ bool SessionMenuCommand(const std::string& command) {
         "campaigns","campaignQuake4","campaignAwakening","campaignArena","campaignBack","campaignHome",
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
         "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
-        "newgameStart","newgameBack",
+        "newgameStart","newgameBack","demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",
+        "demosNewer","demosOlder",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect"};

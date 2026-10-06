@@ -1258,4 +1258,11 @@
 	"#str_231111"	"Musisz żyć, aby zapisać grę."
 	"#str_231112"	"Za mało miejsca na dysku, aby zapisać grę."
 	"#str_231113"	"Nie można zapisać gry po nieudanej misji."
+	"#str_231114"	"BRAK DEM"
+	"#str_231115"	"Tu pojawiają się nagrane dema i dema skopiowane do folderu demos."
+	"#str_231116"	"NOWSZE DEMA"
+	"#str_231117"	"STARSZE DEMA"
+	"#str_231118"	"Żadne demo nie pasuje do tego filtru."
+	"#str_231119"	"Nie udało się usunąć dema."
+	"#str_231120"	"Nie udało się odtworzyć dema."
 }

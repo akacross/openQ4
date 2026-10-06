@@ -99,6 +99,18 @@ enum demoLibraryCapability_t {
 	DEMO_CAP_FULL_WORLD		= 1 << 8
 };
 
+// A library entry's text for the retained Demos page: its row and its
+// detail lines, capped as the legacy browser caps them.
+struct sessionDemoText_t {
+	idStr					name;
+	idStr					map;
+	idStr					date;
+	idStr					length;
+	idStr					kind;
+	idStr					status;
+	idStr					detail;
+};
+
 struct demoLibraryEntry_t {
 							demoLibraryEntry_t() :
 								type( DEMO_LIBRARY_UNKNOWN ),
@@ -127,6 +139,11 @@ struct demoLibraryEntry_t {
 	idStr					status;
 	idStr					details;
 };
+
+// Whether the legacy browser's filter (all, mvd, render, legacy or
+// incomplete) shows an entry, and an entry's text for the retained page.
+bool Session_DemoEntryMatchesFilter( const demoLibraryEntry_t &entry, const char *filter );
+void Session_DemoEntryText( const demoLibraryEntry_t &entry, sessionDemoText_t &out );
 
 typedef enum {
 	OPENQ4_FRAME_BOUND_UNKNOWN,
@@ -312,6 +329,17 @@ public:
 	// The retained Restart Level page (guis/menu/restartlevel.q4ui), which
 	// RESTART LEVEL on the Marine pause hands off to the same way.
 	void				HandleRetainedRestartRequest( idUserInterface *gui, const char *request );
+	// The retained Demos page (guis/menu/demos.q4ui), which the title's DEMOS
+	// hands off to the same way: the library, filtered, a page at a time.
+	void				PublishRetainedDemosPage( idUserInterface *gui, const char *selectPath, int selectRow, const char *error );
+	void				PublishRetainedDemoRows( idUserInterface *gui );
+	void				PublishRetainedDemoSelection( idUserInterface *gui, const char *error );
+	void				HandleRetainedDemosRequest( idUserInterface *gui, const char *request );
+	// The demo library's operations, which the legacy browser and the
+	// retained page share.
+	void				ScanDemoLibrary();
+	bool				PlayDemoLibraryEntry( int index );
+	bool				DeleteDemoLibraryFile( const demoLibraryEntry_t &entry );
 	// Why LoadGame last refused a save, before it left the current game.
 	enum loadGameFailure_t {
 		LOADGAME_FAILURE_NONE,
@@ -541,6 +569,14 @@ public:
 	idStr				retainedSaveTarget;
 	// The Restart Level page (NULL until it first loads).
 	idUserInterface *	guiRetainedRestart;
+	// The Demos page (NULL until it first loads): the library entries its
+	// filter shows (indices into demoLibrary, newest first), the first one
+	// its rows show, the selected one (-1: none) and the filter (0: all).
+	idUserInterface *	guiRetainedDemos;
+	idList<int>			retainedDemoRows;
+	int					retainedDemoFirst;
+	int					retainedDemoSelected;
+	int					retainedDemoFilter;
 	// The multiplayer Escape and Welcome cards, loaded inside each
 	// multiplayer level load; the card covering the game's menu now (NULL:
 	// none) and whether it is Welcome; a stock page that took the menu over
@@ -645,6 +681,7 @@ public:
 	void				OpenDemoMenu( bool browser = true );
 	void				CloseDemoMenu();
 	void				RefreshDemoLibrary();
+	void				RefreshDemoLibraryList();
 	void				UpdateDemoMenuGui();
 	bool				HandleDemoMenuCommand( const char *menuCommand );
 	bool				IsDemoPlaybackActive() const;

@@ -3824,6 +3824,11 @@ void idSessionLocal::Clear() {
 	guiRetainedSave = NULL;
 	retainedSaveTarget.Clear();
 	guiRetainedRestart = NULL;
+	guiRetainedDemos = NULL;
+	retainedDemoRows.Clear();
+	retainedDemoFirst = 0;
+	retainedDemoSelected = -1;
+	retainedDemoFilter = 0;
 	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
 	retainedMultiplayerWelcome = false;

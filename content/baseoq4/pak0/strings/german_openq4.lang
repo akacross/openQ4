@@ -1232,4 +1232,11 @@
 	"#str_231111"	"Du musst am Leben sein, um zu speichern."
 	"#str_231112"	"Nicht genügend Speicherplatz zum Speichern des Spiels."
 	"#str_231113"	"Nach einer gescheiterten Mission kann nicht gespeichert werden."
+	"#str_231114"	"KEINE DEMOS"
+	"#str_231115"	"Demos, die du aufnimmst oder in den Ordner demos kopierst, erscheinen hier."
+	"#str_231116"	"NEUERE DEMOS"
+	"#str_231117"	"ÄLTERE DEMOS"
+	"#str_231118"	"Keine Demo entspricht diesem Filter."
+	"#str_231119"	"Die Demo konnte nicht gelöscht werden."
+	"#str_231120"	"Die Demo konnte nicht abgespielt werden."
 }
