@@ -501,8 +501,20 @@
 
 - [x] Create Server's Server Type now takes effect: LAN keeps a hosted game off
   the Internet master servers and admits only players on your local network, as
-  in retail Quake 4. Dedicated still starts a listen server; host a dedicated
-  server with `openQ4-ded`.
+  in retail Quake 4.
+
+- [x] Create Server's Dedicated choice now hosts a dedicated server, as retail
+  Quake 4 did: the game window closes and the console window runs the server,
+  and closing it stops the server. It works from the single-player,
+  multiplayer and Awakening menus, and openQ4 can start again on the same
+  computer to join the server. Dedicated servers, `openQ4-ded` included, now
+  keep sound off for every map they load instead of decoding each map's sounds,
+  and keep the sound data that effects still read.
+
+- [x] A server you host keeps the network address and port set with `net_ip`,
+  `net_ip6` and `net_port`, as in retail Quake 4. Starting a match without
+  cheats reset them, so the next server you hosted, or a server reloading for
+  an addon map, listened on every interface and the default port.
 
 - [x] Consolidate SDK game sources and Awakening SP into the engine checkout;
   qualify campaign discovery, content/save isolation, stock/expansion save
