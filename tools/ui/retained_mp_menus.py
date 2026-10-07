@@ -112,9 +112,14 @@ def fitted_card_width(keys: list, prompts: tuple | None = None) -> float:
     strips = {language: sum(tab_slot(label_width(key, language)) for key in keys) for language in b.LANGUAGES}
     needed = max(strips.values()) * 1.02 + strip_chrome()
     if prompts is not None:
-        # Measured exactly as laid out, with 4 dp to spare.
+        # Measured exactly as laid out, with 4 dp to spare. A controller's
+        # glyphs (section 13.5) must fit wherever the keycaps do.
         bars = {language: prompt_width(language, *prompts) for language in b.LANGUAGES}
         needed = max(needed, max(bars.values()) + 4 + 2 * INSET)
+        glyph_bars = {language: prompt_width(language, *prompts, glyphs=True) for language in b.LANGUAGES}
+        if max(glyph_bars.values()) > max(bars.values()):
+            raise SystemExit("the card's controller prompt bar is wider than its keycap bar: "
+                             + ", ".join(f"{language} {round(width)}" for language, width in glyph_bars.items()))
     limit = VIEW_43 - 2 * SIDE_MARGIN
     if needed > limit:
         raise SystemExit(f"the card needs {needed:.0f} dp, past a 4:3 view's {limit:g} dp; tab strips: "
@@ -122,16 +127,18 @@ def fitted_card_width(keys: list, prompts: tuple | None = None) -> float:
     return max(ESCAPE_MIN_W, float(int(needed + 0.999)))
 
 
-def prompt_width(language: str, back_verb: str, links: list) -> float:
+def prompt_width(language: str, back_verb: str, links: list, glyphs: bool = False) -> float:
     """The prompt bar's natural width in `language` (prompt_row's layout):
-    each keycap padded 7 dp a side with 3 dp between caps and 6 dp after the
-    last, each verb with 18 dp after it, then the trailing links, 10.5 dp of
-    marker before each label and 21 dp between them."""
+    each keycap padded 7 dp a side, or with `glyphs` each controller button's
+    22 dp, with 3 dp between caps and 6 dp after the last, each verb with
+    18 dp after it, then the trailing links, 10.5 dp of marker before each
+    label and 21 dp between them."""
     def text(key: str) -> str:
         return any_text(key)[language]
 
     def caps(keys: list) -> float:
-        return sum(14 + b.text_width("lowpixel", text(key), 13) for key in keys) + 3 * (len(keys) - 1) + 6
+        widths = [PROMPT_H if glyphs else 14 + b.text_width("lowpixel", text(key), 13) for key in keys]
+        return sum(widths) + 3 * (len(keys) - 1) + 6
     width = 0.0
     for keys, verb in (([KEY_ESCAPE], back_verb), ([KEY_PREVIOUS, KEY_NEXT], VERB_TABS), ([KEY_ENTER], VERB_SELECT)):
         width += caps(keys) + b.text_width("marine", text(verb), 14) + 18
@@ -212,16 +219,27 @@ def keycap(ident: str, key: str, *, fixed: bool = False, event: str | None = Non
         props = {"position": keyword("relative"), "display": keyword("block"), "height": length(PROMPT_H)}
     name = label(f"{ident}-key", key, name_props)
     if fixed:
-        children = [vector(f"{ident}-cap", cap_props, [shape]), name]
+        children = [vector(f"{ident}-cap", {**cap_props, "display": keyword("block")}, [shape]), name]
     else:
         children = [vector(f"{ident}-cap", cap_props, [shape], [name])]
+    if doc is not None and key in b.FACE_FOR_KEY:
+        # Section 13.5: the keycap for the keyboard, otherwise the controller
+        # family's button that does the same, at the cap's size.
+        keyboard = {"op": "select", "args": [{"op": "==", "args": [{"state": b.PROMPT_GLYPHS}, 0]}, "block", "none"]}
+        for node in children:
+            doc.bind(f"{node['id']}.display", node["id"], "display", keyboard)
+        glyphs = b.device_glyphs(doc, ident, b.FACE_FOR_KEY[key], [1, 1, 1, 1], PROMPT_H, KEYCAP_W if fixed else None)
+        pad_props = (absolute(left=0, top=0, width=KEYCAP_W, height=PROMPT_H) if fixed else
+                     {"position": keyword("relative"), "height": length(PROMPT_H)})
+        children.append(group(f"{ident}-pad", {**pad_props, "display": keyword("none"), "opacity": number(0.85)}, glyphs))
+        doc.bind(f"{ident}-pad.display", f"{ident}-pad", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": b.PROMPT_GLYPHS}, 0]}, "none", "block"]})
     if event is None:
         return group(ident, props, children)
-    ids = doc.states(ident, {
-        "default": [(f"{ident}-cap", "opacity", number(0.85))], "hover": [(f"{ident}-cap", "opacity", number(1))],
-        "focus": [(f"{ident}-cap", "opacity", number(1))], "pressed": [(f"{ident}-cap", "opacity", number(1))],
-        "disabled": [(f"{ident}-cap", "opacity", number(0.4))],
-    })
+    tracks = {"default": 0.85, "hover": 1, "focus": 1, "pressed": 1, "disabled": 0.4}
+    ids = doc.states(ident, {state: [(f"{ident}-cap", "opacity", number(value))] +
+                             ([(f"{ident}-pad", "opacity", number(value))] if key in b.FACE_FOR_KEY else [])
+                             for state, value in tracks.items()})
     return group(ident, props, children, control={"role": "button", "label": key, "event": event, "states": ids})
 
 
@@ -2735,12 +2753,14 @@ PAGE_BUILDERS = {"team": team_page, "players": players_page, "vote": vote_page, 
                  "voice": voice_page, "server": server_page}
 
 
-def prompt_row(width: float, height: float, back_verb: str, trailing: list) -> dict:
+def prompt_row(doc: Document, width: float, height: float, back_verb: str, trailing: list) -> dict:
     """The prompt bar inside the card (section 14.18): Resume or Spectate on
     the back key, Tabs on Q and E, Select on Enter, then the trailing
-    actions, the destructive one last."""
+    actions, the destructive one last. Each key shows the active device's
+    glyph (section 13.5): its keycap, or the controller's east button,
+    shoulders and south button."""
     def prompt(ident: str, keys: list, verb: str) -> list:
-        caps = [keycap(f"prompt-{ident}-{n}", key) for n, key in enumerate(keys)]
+        caps = [keycap(f"prompt-{ident}-{n}", key, doc=doc) for n, key in enumerate(keys)]
         for cap in caps:
             cap["properties"]["margin-right"] = length(3 if cap is not caps[-1] else 6)
         return caps + [label(f"prompt-{ident}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
@@ -2903,7 +2923,7 @@ def welcome_document() -> dict:
                           "width": length(width), "height": length(height), "margin-left": length(-width / 2),
                           "margin-top": length(-height / 2), "opacity": number(0), "transform": transform()},
                  [card_frame(width, height), *card_header(doc, width, "mp.welcome.title", trailing), *tab_strip(doc, width, WELCOME_TABS),
-                  *pages, prompt_row(width, height, VERB_SPECTATE, actions)])
+                  *pages, prompt_row(doc, width, height, VERB_SPECTATE, actions)])
     leave = confirmation(doc, "leaveModal", LEAVE_SERVER, DISCONNECT_BODY, "mpDisconnect")
     chrome = group("chrome", {**FULL, "display": keyword("block")}, [card, leave])
     doc.bind("chrome.display", "chrome", "display", {"op": "select", "args": [{"state": "card.released"}, "none", "block"]})
@@ -2948,7 +2968,7 @@ def escape_document() -> dict:
                           "width": length(width), "height": length(height), "margin-left": length(-width / 2),
                           "margin-top": length(-height / 2), "opacity": number(0), "transform": transform()},
                  [card_frame(width, height), *card_header(doc, width, "mp.title", trailing), *tab_strip(doc, width, ESCAPE_TABS),
-                  *pages, prompt_row(width, height, VERB_RESUME, actions)])
+                  *pages, prompt_row(doc, width, height, VERB_RESUME, actions)])
     disconnect = confirmation(doc, "disconnectModal", DISCONNECT, DISCONNECT_BODY, "mpDisconnect")
     # Every way out hides the card and its modals at once; the backdrop
     # releases behind them.

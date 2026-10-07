@@ -3338,33 +3338,40 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
     redraw = function_body(adapter, 'void idUserInterfaceRetained::Redraw(')
     assert redraw.index('impl->PublishPromptGlyphs();') < redraw.index('RetainedUI_DrawViewRoot(')
     assert 'RetainedUI_PromptGlyphs()' in function_body(adapter, 'void PublishPromptGlyphs() {')
-    # Every document with prompts: the state, and per glyph group the keycap
-    # (or nothing) at 0 and each family's button at its index.
+    # Every document with prompts: the state, and per glyph group each
+    # family's button at its index, the keyboard's keycap at 0, and a pad
+    # shown for any controller.
     sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
     import build_retained_screens as generator
-    documents = 0
+    documents, shoulders = 0, 0
     for path in sorted((ROOT / 'content/baseoq4/pak0/guis').rglob('*.q4ui')):
         document = json.loads(re.sub(r'^\s*//.*$', '', path.read_text(encoding='utf-8'), flags=re.M))
         if generator.PROMPT_GLYPHS not in document.get('state', {}):
             continue
         documents += 1
         assert document['state'][generator.PROMPT_GLYPHS] == {'type': 'number', 'initial': 0}, path.name
-        shown = {}
+        shown, pads = {}, set()
         for binding in document.get('bindings', []):
             value = binding['value']
             if binding['property'] == 'display' and isinstance(value, dict) and value.get('op') == 'select':
                 condition = value['args'][0]
                 if condition.get('op') == '==' and condition['args'][0] == {'state': generator.PROMPT_GLYPHS}:
-                    assert value['args'][1:] == ['block', 'none'], (path.name, binding['id'])
-                    shown[binding['node']] = condition['args'][1]
+                    if value['args'][1:] == ['block', 'none']:
+                        shown[binding['node']] = condition['args'][1]
+                    else:
+                        assert value['args'][1:] == ['none', 'block'] and condition['args'][1] == 0, (path.name, binding['id'])
+                        pads.add(binding['node'])
         groups = {node.rsplit('-', 1)[0] for node, index in shown.items() if index >= 1}
         assert groups, path.name
         for group_id in groups:
             for index, family in enumerate(generator.GLYPH_FAMILIES, 1):
                 assert shown.get(f'{group_id}-{family}') == index, (path.name, group_id, family)
-            caps = [node for node, index in shown.items() if index == 0 and node.startswith(group_id)]
-            assert len(caps) <= 1, (path.name, group_id, caps)
-    assert documents == 7, documents
+        for pad in pads:
+            assert pad.endswith('-pad') and pad[:-len('-pad')] in groups, (path.name, pad)
+        shoulders += sum(1 for group_id in groups if group_id in ('tab-previous', 'tab-next', 'prompt-tabs-0', 'prompt-tabs-1'))
+    assert documents == 9, documents
+    # Both cards' tab keys and their Tabs prompt take the shoulders.
+    assert shoulders == 8, shoulders
     print(f'ui_retained gate: prompt glyphs follow the active device in {documents} documents')
 
 

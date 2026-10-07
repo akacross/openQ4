@@ -135,7 +135,9 @@ keyboard keys:
 - The Steam Deck's built-in controls show its own A and B.
 - Other pads show a diamond with the button to press filled in.
 
-The keyboard or mouse switches the prompts back to keys.
+In a multiplayer match's menu, the keys that switch tabs show your
+shoulder buttons: LB and RB, L1 and R1, or L and R. The keyboard or mouse
+switches the prompts back to keys.
 
 If Steam Input or another remapper hides your real controller, choose the
 prompts yourself from the console:

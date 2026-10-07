@@ -71,6 +71,18 @@ SCENARIOS = {
             f'screenshot "screenshots/prompts-{name}.tga"')],
         'set ui_promptStyle 0',
     ]),
+    # The multiplayer Escape card on a listen server (opted in): the Prompt
+    # Style forces each presentation on the strip's tab keys and the card's
+    # prompt bar, the shoulders for Q and E.
+    'mpcard-prompts': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        *[step for style, name in PROMPT_STYLES for step in (
+            f'set ui_promptStyle {style}', 'waitMsec 500',
+            *[f'openq4_retainedGui inspect "{key}-{"cap" if name == "keyboard" else name}"'
+              for key in ('tab-next', 'prompt-back-0', 'prompt-tabs-0', 'prompt-select-0')],
+            f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
+        'set ui_promptStyle 0',
+    ]),
     'pause': ('game/airdefense1', [
         'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/pause.tga"',
         'openq4_retainedGui focus nav_restart', 'waitMsec 400', 'screenshot "screenshots/pause-focus.tga"',
@@ -863,7 +875,7 @@ SCENARIO_FILES = {'arenafail': {
         'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
-SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
+SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},

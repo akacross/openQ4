@@ -3111,12 +3111,52 @@ static void CheckPromptGlyphs(ScreenHost& host, const char* path) {
 	}
 }
 
+// The Escape card's keys follow prompt.glyphs too (section 13.5): the strip's
+// Q and E keycaps become the family's shoulders in the same 20x22 dp, and the
+// prompt bar's Escape, Q, E and Enter its east button, shoulders and south
+// button, the bar still inside the card.
+static void CheckCardPromptGlyphs(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	std::vector<Diagnostic> diagnostics; std::string error;
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/mp_escape.q4ui",diagnostics),"the card loads for its prompts");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	const char* const families[] = {"xbox","playstation","nintendo","steamdeck","generic"};
+	const auto display = [&](const std::string& node) {
+		const auto found = runtime.PresentedValue(node,"display"); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a card key is laid out"); return b; };
+	Bounds keyCap;
+	for (int glyphs = 0; glyphs <= 5; ++glyphs) {
+		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,1+glyphs),"publish the prompt glyphs");
+		runtime.Frame(viewport,1.5+glyphs);
+		for (const std::string id : {"tab-previous","tab-next","prompt-back-0","prompt-tabs-0","prompt-tabs-1","prompt-select-0"}) {
+			Check(display(id+"-cap") == (glyphs == 0 ? "block" : "none") && display(id+"-pad") == (glyphs == 0 ? "none" : "block"),
+				"the keycap for the keyboard, the pad for a controller");
+			for (int family = 0; family < 5; ++family)
+				Check(display(id+"-"+families[family]) == (glyphs == family+1 ? "block" : "none"),"only the published family's button shows");
+		}
+		if (glyphs == 0) { keyCap = bounds("tab-next-cap"); continue; }
+		const std::string family = families[glyphs-1];
+		const auto shoulder = bounds("tab-next-"+family);
+		Check(Near(shoulder.x,keyCap.x,.5f) && Near(shoulder.y,keyCap.y,.5f) && Near(shoulder.width,20) && Near(shoulder.height,22),
+			"the strip's shoulder takes the keycap's 20x22 dp");
+		for (const std::string id : {"prompt-back-0","prompt-tabs-0","prompt-tabs-1","prompt-select-0"}) {
+			const auto glyph = bounds(id+"-"+family);
+			Check(Near(glyph.width,22) && Near(glyph.height,22),"a 22 dp button in the prompt bar");
+		}
+		const auto card = bounds("card"), disconnect = bounds("prompt-disconnect");
+		Check(disconnect.x+disconnect.width <= card.x+card.width-23,"the bar still ends inside the card");
+	}
+}
+
 int main(int argc, char** argv) {
 	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
 	CheckSchema();
 	ScreenHost host;
 	CheckTransformedClip(host);
 	CheckPromptGlyphs(host,argv[1]);
+	CheckCardPromptGlyphs(host,argv[7]);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	{
 		const auto source = Read(argv[1]);

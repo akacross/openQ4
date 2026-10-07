@@ -1401,13 +1401,18 @@ it. The session no longer publishes its own `loading_controller`.
 
 ## Prompt glyphs
 
-Every prompt shows the active device's glyph (section 13.5). This covers
-the prompt bars of the title, Single Player, Campaign, the Marine and Strogg
-pause menus and the Multiplayer page, and the loading screen's continue
-prompt. While the adapter-owned `prompt.glyphs` is 0, a prompt shows the
-keyboard's keycap. At 1–5 it shows the controller family's face button that
-does the same in menus: south for Enter's Accept and east for Escape's Back
-([input routing](input-routing.md)).
+Every prompt shows the active device's glyph (section 13.5). This covers:
+
+- the prompt bars of the title, Single Player, Campaign, the Marine and
+  Strogg pause menus and the Multiplayer page;
+- the loading screen's continue prompt;
+- the multiplayer cards' prompt bars and the Escape card's tab-strip keys
+  ([multiplayer menus](multiplayer-menus.md)).
+
+While the adapter-owned `prompt.glyphs` is 0, a prompt shows the keyboard's
+keycap. At 1–5 it shows the controller family's button that does the same in
+menus ([input routing](input-routing.md)): south for Enter's Accept, east for
+Escape's Back, and the left and right shoulders for the cards' Q and E.
 
 The glyphs are vector symbols in the family text color, whose shape and
 letter carry the identity:
@@ -1418,6 +1423,18 @@ letter carry the identity:
 - **Steam Deck** prints its letters inside a ring.
 - **Generic** draws the four positions as a diamond, with the button's one
   filled.
+
+Shoulders draw the bumper as a 13 dp plate rounded on its top corners with
+the family's label in strokes:
+
+- LB and RB on Xbox.
+- L1 and R1 on PlayStation, and in an outlined plate on Steam Deck.
+- L and R on Nintendo.
+- A generic controller's plate is outlined, with a chevron pointing to its
+  side.
+
+On the Escape card's tab strip, the shoulder takes the keycap's 20x22 dp and
+answers the tab key's states.
 
 The letters and symbols are strokes in a 22 dp box, so no font or string
 stands in for them. The prompt bar's glyph is 22 dp square and centered on
@@ -1431,13 +1448,16 @@ Checks:
 - `ui_retained_gate.py` compiles the backend's family mapping and
   `RetainedUI_PromptGlyphs` against stand-ins. It pins where the backend sets
   and clears the family, and checks that the adapter publishes before the
-  frame draws. It also checks that each of the seven documents with prompts
-  binds every glyph to its family's index.
+  frame draws. It also checks that each of the nine documents with prompts
+  binds every glyph to its family's index, and that both cards give the
+  shoulders to their tab keys and Tabs prompt.
 - The adapter harness checks the publication: once per change, in the
   session's state pushes, and never to a document without the state.
-- The native screens test lays out the title's bar at every value.
+- The native screens test lays out the title's bar at every value, and the
+  Escape card's strip keys and prompt bar at every value.
 - The `prompts` capture forces each style through `ui_promptStyle` and
   touches no device. The `loading` capture shows the Xbox continue prompt.
+  `mpcard-prompts` does the same on the Escape card over a listen server.
 
 ## Hand-off to the Welcome card
 

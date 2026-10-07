@@ -849,9 +849,17 @@ FACE_LETTERS = {
     "steamdeck": {"south": "A", "east": "B", "west": "X", "north": "Y"},
 }
 PS_SYMBOLS = {"south": "cross", "east": "circle", "west": "square", "north": "triangle"}
-# A prompt's key and the face button that does the same in menus: Enter is
-# Accept (south), Escape is Back (east).
-FACE_FOR_KEY = {"#str_107019": "south", "#str_107020": "east"}
+# The label each family prints on its shoulder buttons (the bumpers).
+SHOULDER_LABELS = {
+    "xbox": {"left": "LB", "right": "RB"},
+    "playstation": {"left": "L1", "right": "R1"},
+    "nintendo": {"left": "L", "right": "R"},
+    "steamdeck": {"left": "L1", "right": "R1"},
+}
+# A prompt's key and the button that does the same in menus: Enter is
+# Accept (south), Escape is Back (east), and the cards' Q and E are the
+# previous and next tab (the shoulders).
+FACE_FOR_KEY = {"#str_107019": "south", "#str_107020": "east", "#str_231009": "left", "#str_231010": "right"}
 GLYPH_INK = [0.04, 0.05, 0.035, 1]   # the keycap's key-name color
 
 
@@ -937,13 +945,93 @@ def face_glyph(ident: str, family: str, position: str, tint: list, size: float =
                           "height": length(size)}, paths)
 
 
-def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22) -> list:
-    """Each controller family's face button at `position`, each shown only
-    while prompt.glyphs names its family."""
+def small_letters(prefix: str, text: str, left: float, top: float, height: float, ink: list, width: float) -> list:
+    """Shoulder labels (L, R, B and 1) drawn as strokes, `height` dp tall from
+    (`left`, `top`), each glyph 0.55 of its height wide and 0.25 apart."""
+    line = stroke(solid(ink), width, minimum=1)
+    glyph_w, gap = height * 0.55, height * 0.25
+    paths = []
+    x = left
+    for index, char in enumerate(text):
+        name = f"{prefix}-{index}"
+        bottom, middle, right = top + height, top + height * 0.5, x + glyph_w
+        if char == "L":
+            paths.append(path(name, [(x, top), (x, bottom), (right, bottom)], closed=False, stroke=line))
+        elif char == "1":
+            paths.append(path(name, [(x + glyph_w * 0.2, top + height * 0.22), (x + glyph_w * 0.6, top),
+                                     (x + glyph_w * 0.6, bottom)], closed=False, stroke=line))
+        elif char in "BR":
+            bowl = right - glyph_w * 0.15
+            commands = [{"id": "m", "op": "move", "points": [point(x, bottom)]},
+                        {"id": "s", "op": "line", "points": [point(x, top)]},
+                        {"id": "t", "op": "line", "points": [point(x + glyph_w * 0.5, top)]},
+                        {"id": "u", "op": "cubic", "points": [point(bowl, top), point(bowl, middle), point(x + glyph_w * 0.5, middle)]},
+                        {"id": "v", "op": "line", "points": [point(x, middle)]}]
+            if char == "B":
+                commands += [{"id": "w", "op": "move", "points": [point(x + glyph_w * 0.5, middle)]},
+                             {"id": "x", "op": "cubic", "points": [point(right, middle), point(right, bottom),
+                                                                   point(x + glyph_w * 0.5, bottom)]},
+                             {"id": "y", "op": "line", "points": [point(x, bottom)]}]
+            else:
+                commands += [{"id": "w", "op": "move", "points": [point(x + glyph_w * 0.45, middle)]},
+                             {"id": "x", "op": "line", "points": [point(right, bottom)]}]
+            paths.append({"id": name, "commands": commands, "stroke": line})
+        else:
+            raise ValueError(char)
+        x = right + gap
+    return paths
+
+
+def shoulder_glyph(ident: str, family: str, side: str, tint: list, width: float = 22, height: float = 22) -> dict:
+    """One controller family's shoulder button (`side` "left" or "right"),
+    the bumper drawn as a 13 dp plate rounded on its top corners: Xbox,
+    PlayStation and Nintendo print their label on the plate, Steam Deck in
+    an outlined plate, and a generic controller shows an outlined plate with
+    a chevron pointing to its side."""
+    top, bottom, inset, radius = (height - 13) / 2, (height + 13) / 2, 1.0, 4.0
+    k = 0.5523 * radius
+    right = width - inset
+    plate = [{"id": "m", "op": "move", "points": [point(inset, bottom)]},
+             {"id": "a", "op": "line", "points": [point(inset, top + radius)]},
+             {"id": "b", "op": "cubic", "points": [point(inset, top + radius - k), point(inset + radius - k, top), point(inset + radius, top)]},
+             {"id": "c", "op": "line", "points": [point(right - radius, top)]},
+             {"id": "d", "op": "cubic", "points": [point(right - radius + k, top), point(right, top + radius - k), point(right, top + radius)]},
+             {"id": "e", "op": "line", "points": [point(right, bottom)]},
+             {"id": "z", "op": "close"}]
+    letters_h = 6.6
+    if family == "generic":
+        paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+        mid, tip, back = (top + bottom) / 2, (width / 2 - 2.6 if side == "left" else width / 2 + 2.6), \
+            (width / 2 + 1.4 if side == "left" else width / 2 - 1.4)
+        paths.append(path("chevron", [(back, mid - 3.2), (tip, mid), (back, mid + 3.2)], closed=False,
+                          stroke=stroke(solid(tint), 1.5, minimum=1)))
+    else:
+        text = SHOULDER_LABELS[family][side]
+        text_w = len(text) * letters_h * 0.55 + (len(text) - 1) * letters_h * 0.25
+        left = (width - text_w) / 2
+        letters_top = (top + bottom - letters_h) / 2
+        if family == "steamdeck":
+            paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, tint, 1.4)
+        else:
+            paths = [{"id": "plate", "commands": plate, "fill": solid(tint)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, GLYPH_INK, 1.4)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width),
+                          "height": length(height)}, paths)
+
+
+def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22,
+                  width: float | None = None) -> list:
+    """Each controller family's button at `position` (a face position, or
+    the "left" or "right" shoulder), each shown only while prompt.glyphs
+    names its family. A shoulder is `width` dp wide (default `size`)."""
     doc.state.setdefault(PROMPT_GLYPHS, {"type": "number", "initial": 0})
     nodes = []
     for index, family in enumerate(GLYPH_FAMILIES, 1):
-        node = face_glyph(f"{ident}-{family}", family, position, tint, size)
+        if position in ("left", "right"):
+            node = shoulder_glyph(f"{ident}-{family}", family, position, tint, width or size, size)
+        else:
+            node = face_glyph(f"{ident}-{family}", family, position, tint, size)
         doc.bind(f"{node['id']}.display", node["id"], "display",
                  {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, index]}, "block", "none"]})
         nodes.append(node)

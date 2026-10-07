@@ -82,8 +82,8 @@ the real device:
 `RetainedUI_PromptGlyphs` combines the three. The adapter publishes the
 result as `prompt.glyphs` to every document that declares it, before the
 frame that shows the change draws. The value is 0 for the keyboard's keycaps
-and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face
-buttons. Keyboard scancodes, controller buttons and pointer buttons have
+and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face and
+shoulder buttons. Keyboard scancodes, controller buttons and pointer buttons have
 separate source IDs. Multiple sources mapped to Accept hold one logical press;
 releasing the first source cannot activate while another remains down. Key-up
 releases the action captured at key-down, including when Shift changes first.

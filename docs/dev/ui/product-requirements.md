@@ -599,6 +599,8 @@ On engine `562ffb3597e8e263b0379081baea781666511784`, a controller's west and no
 
 On engine `fd814b464b8d117856d55eace2fa94bd9863ff9a`, prompts follow the active device: the keyboard's keycaps or the controller family's face buttons, from the label SDL reports, with ui_promptStyle to force one. `INP-009` and `WID-019` move from pending to partial and `INP-011` gains evidence. Evidence: `.tmp/ui/retained-prompt-glyphs-evidence/validation-evidence.json`, SHA-256 `8246e1584cd199da491094441ac48f320d14fe796122ecb7a7e2991214ff004c`.
 
+On engine `58ca62c695a54106fe6b20f7d01f67b0e951f585`, the multiplayer cards' prompt bars and the Escape card's tab keys show the active device's glyphs, the shoulders for Q and E. `INP-011`, `WID-019` and `FLOW-046` gain evidence. Evidence: `.tmp/ui/retained-card-glyphs-evidence/validation-evidence.json`, SHA-256 `a8373b906eb04c74ddcd5de1d8d3e1dc6edcead176b5ccdcd2769b16f8a4cd75`.
+
 There are **110 partial, 229 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
