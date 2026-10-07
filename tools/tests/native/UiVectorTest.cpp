@@ -83,6 +83,30 @@ static double PixelArea(const VectorMesh& mesh, int x, int y) {
 	}
 	return result;
 }
+// How many triangles claim pixel centre (x+.5, y+.5): the top-left rule on a
+// 1/256 pixel grid, as GPUs rasterize. Overlapping triangles claim it twice.
+static int CentreClaims(const VectorMesh& mesh, int x, int y) {
+	int claims = 0;
+	const long long cx = x*256LL+128, cy = y*256LL+128;
+	for (size_t i = 0; i < mesh.indices.size(); i += 3) {
+		long long px[3], py[3];
+		for (int j = 0; j < 3; ++j) {
+			px[j] = std::llround(static_cast<float>(mesh.vertices[mesh.indices[i+j]].x)*256.0);
+			py[j] = std::llround(static_cast<float>(mesh.vertices[mesh.indices[i+j]].y)*256.0);
+		}
+		auto edge = [&](int a, int b, long long qx, long long qy) { return (px[b]-px[a])*(qy-py[a])-(py[b]-py[a])*(qx-px[a]); };
+		if (edge(0,1,px[2],py[2]) == 0) continue;
+		if (edge(0,1,px[2],py[2]) < 0) { std::swap(px[1],px[2]); std::swap(py[1],py[2]); }
+		bool inside = true;
+		for (int e = 0; e < 3 && inside; ++e) {
+			const int a = e, b = (e+1)%3;
+			const long long w = edge(a,b,cx,cy), dx = px[b]-px[a], dy = py[b]-py[a];
+			inside = w > 0 || (w == 0 && (dy > 0 || (dy == 0 && dx < 0)));
+		}
+		claims += inside;
+	}
+	return claims;
+}
 static void CoverageChecks() {
 	VectorOptions options; VectorMesh mesh; std::string error;
 	auto build = [&](const VectorPath& path) {
@@ -127,6 +151,29 @@ static void CoverageChecks() {
 	path = {}; path.fill.type = PaintType::Solid;
 	Polygon(path,{P(0,0),P(12,12),P(0,12),P(12,0)});
 	compare(path,{1,0,0,1,.375,.125},1);
+	{
+		// A 45-degree band cuts the same cells in every row, one pixel along:
+		// its partial cells and interior become three sheared quads, which
+		// sample exactly like the cells they replace.
+		path = {}; path.fill.type = PaintType::Solid;
+		Polygon(path,{P(0,0),P(3,0),P(15,12),P(12,12)});
+		// At a fractional phase the first and last rows stay cells; the eleven
+		// rows between share five sheared quads (65 cells become 15 shapes).
+		compare(path,{1,0,0,1,.375,.25},1);
+		Check(mesh.vertices.size() <= 4*16,"45-degree band edges merge into sheared quads");
+		// On whole pixels each row is a half cell, two whole cells and a half cell.
+		compare(path,{1,0,0,1,0,0},1);
+		Check(mesh.vertices.size() == 4*3,"whole-pixel 45-degree band merges into three sheared quads");
+		// Mirrored, the slant runs the other way.
+		compare(path,{-1,0,0,1,15.625,.25},1);
+		Check(mesh.vertices.size() <= 4*16,"mirrored 45-degree band merges into sheared quads");
+		for (int y = 0; y < 12; ++y) for (int x = -1; x < 17; ++x) Check(CentreClaims(mesh,x,y) <= 1,"sheared quads claim each pixel centre once");
+		// A gradient interpolates across each quad, so it keeps rectangles.
+		path.fill.type = PaintType::Linear; path.fill.from = P(-100,0); path.fill.to = P(100,0);
+		path.fill.stops = {{0,{1,0,0,1}},{1,{0,0,1,1}}};
+		options.transform = {1,0,0,1,.375,.25}; build(path);
+		for (const auto& v : mesh.vertices) Check(v.x == std::floor(v.x),"gradient coverage keeps whole-pixel rectangles");
+	}
 	path = {}; path.stroke.paint.type = PaintType::Solid; path.stroke.paint.colour = {.5,.8,.2,.5};
 	path.stroke.widthDp = 1.25; path.stroke.cap = StrokeCap::Round; path.stroke.join = StrokeJoin::Round;
 	path.commands = {Command(PathOperation::Move,{P(1,1)}),Command(PathOperation::Line,{P(10,10)}),Command(PathOperation::Line,{P(1,10)}),Command(PathOperation::Line,{P(10,1)})};
@@ -228,6 +275,21 @@ int main() {
 	build(path); Check(Near(Area(mesh),1000),"butt stroke width and cap area");
 	path.stroke.cap = StrokeCap::Square; build(path); Check(Near(Area(mesh),1100),"square caps extend by half width");
 	path.stroke.cap = StrokeCap::Round; build(path); Check(Near(Area(mesh),1000+3.141592653589793*25,5),"round caps union without translucent overdraw");
+	{
+		// A wide round-joined stroke whose segments and joins overlap everywhere:
+		// one region, triangulated from its boundary, with shared vertices and
+		// no overlapping triangles (a translucent or additive paint would add
+		// twice wherever two claimed the same pixel centre).
+		auto wide = path; wide.id = "wide-zigzag"; wide.stroke.widthDp = 18; wide.stroke.join = StrokeJoin::Round;
+		wide.commands = {Command(PathOperation::Move,{P(5,5)})};
+		for (int i = 1; i <= 12; ++i) wide.commands.push_back(Command(PathOperation::Line,{P(5+i*7,i%2 ? 40 : 5)}));
+		auto coverage = options; coverage.antialias = true;
+		VectorMesh covered; Check(TessellatePath(wide,coverage,covered,error),"compile wide stroke coverage");
+		build(wide);
+		Check(mesh.vertices.size()*2 < mesh.indices.size(),"region triangles share their vertices");
+		Check(Near(Area(mesh),AlphaMass(covered),.01),"region triangles cover the stroke union once");
+		for (int y = -5; y < 55; ++y) for (int x = -5; x < 100; ++x) Check(CentreClaims(mesh,x,y) <= 1,"region triangles claim each pixel centre once");
+	}
 	path = Rectangle(); path.fill.type = PaintType::None; path.stroke.paint.type = PaintType::Solid; path.stroke.widthDp = 10;
 	build(path); Check(Near(Area(mesh),3600),"miter joins form a closed stroke ring without overlap");
 	path.stroke.join = StrokeJoin::Bevel; build(path); Check(Near(Area(mesh),3550),"bevel join geometry");

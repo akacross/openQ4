@@ -132,13 +132,13 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/vector-paths.md",
       "scope": "Native paths, fills, stroke unions and linear paints; all required primitive variants, production artwork and editor unfinished.",
-      "sha256": "ee9353ecb2f61dc3ca8903ae0d60f0587337659d1517aec3165ad631b191f289"
+      "sha256": "110c74c32c8ae2d55c81af9af977896586eb6f09ff556b1e499e7a364a9dba86"
     },
     "coverage-foundation": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/coverage-antialiasing.md",
       "scope": "Independent analytic coverage checks and limited backend captures; broad matrix and optimized fractional motion unfinished.",
-      "sha256": "930be48b61e79dfaa280419fa7260d009a250cd2e07e4d1ce3a3c896fa94edfe"
+      "sha256": "d94df02a107be99499bbedd010f37e2fce5cee89350862731133da8711b68d21"
     },
     "composition-foundation": {
       "kind": "implementation_checkpoint",
@@ -174,7 +174,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/runtime-performance.md",
       "scope": "Debug CPU fixture counters; release GPU/frame pacing/resource budgets unqualified.",
-      "sha256": "40dc56a57b45ee024e55cc73aa52fe0b766b12e501c8b46ce7ab4685207a0f23"
+      "sha256": "29a7d98adfb8dabbba74b501c76d99a499763c452d479540c292988da4910c59"
     },
     "instance-persistence-foundation": {
       "kind": "qualified_foundation_checkpoint",

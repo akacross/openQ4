@@ -734,6 +734,55 @@ int main(int argc, char** argv) {
 		pixel(1,(1-.5f*maskAlpha)*.5f*maskAlpha,1-.5f*maskAlpha,.25f*maskAlpha*maskAlpha);
 		pixel(2,0,1,0); pixel(3,0,1,0);
 	}
+	{
+		// Masked paint uploads in tiles and skips those outside the mask's hull,
+		// as the emblem glint's whole rim under its wedge does. A 360 px ring
+		// under a quadrant mask, then turned a half: the ring still shows
+		// wherever the mask does, and well under its whole mesh is submitted.
+		const std::string ringDocument = R"json({"format":"openq4-ui","version":1,"id":"masked-ring",
+		 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","value":100,"unit":"%"},"height":{"type":"length","value":100,"unit":"%"},
+		  "background-color":{"type":"color","value":[0,1,0,1]}},"children":[
+		  {"id":"turn","type":"group","mask":{"paths":[{"id":"quadrant","fill":{"type":"solid","color":{"type":"color","value":[1,1,1,1]}},"commands":[
+		    {"id":"a","op":"move","points":[[200,200]]},{"id":"b","op":"line","points":[[200,0]]},
+		    {"id":"c","op":"line","points":[[400,0]]},{"id":"d","op":"line","points":[[400,200]]},{"id":"e","op":"close"}]}]},
+		   "properties":{"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","value":100,"unit":"px"},"top":{"type":"length","value":100,"unit":"px"},
+		    "width":{"type":"length","value":400,"unit":"px"},"height":{"type":"length","value":400,"unit":"px"},
+		    "transform":{"type":"transform","unit":"px","value":[0,0,1,1,0]}},"children":[
+		   {"id":"ring","type":"vector","properties":{"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","value":0,"unit":"px"},
+		     "top":{"type":"length","value":0,"unit":"px"},"width":{"type":"length","value":400,"unit":"px"},"height":{"type":"length","value":400,"unit":"px"}},
+		    "paths":[{"id":"rim","stroke":{"paint":{"type":"solid","color":{"type":"color","value":[1,0,0,1]}},"widthDp":4},"commands":[
+		     {"id":"a","op":"move","points":[[380,200]]},{"id":"b","op":"cubic","points":[[380,299.41],[299.41,380],[200,380]]},
+		     {"id":"c","op":"cubic","points":[[100.59,380],[20,299.41],[20,200]]},{"id":"d","op":"cubic","points":[[20,100.59],[100.59,20],[200,20]]},
+		     {"id":"e","op":"cubic","points":[[299.41,20],[380,100.59],[380,200]]},{"id":"f","op":"close"}]}]}]}]}})json";
+		std::string unmasked = ringDocument;
+		unmasked.erase(unmasked.find("\"mask\":"),unmasked.find("\"properties\":{\"position\":{\"type\":\"keyword\",\"value\":\"absolute\"},\"left\":{\"type\":\"length\",\"value\":100")-unmasked.find("\"mask\":"));
+		// Its own runtime: the shared one's clock must not move past later checks.
+		Runtime ring(host);
+		Check(ring.Initialize(),"initialize the masked ring runtime");
+		const Viewport view;
+		auto frame = [&](double time) { host.ClearSamples(); ring.Frame(view,time); };
+		host.samplePoints.clear();
+		Check(ring.LoadDocument(unmasked,"ring.q4ui",diagnostics),"load the unmasked ring");
+		frame(1); frame(1.1);
+		const auto whole = ring.Statistics().submittedVertices;
+		Check(ring.LoadDocument(ringDocument,"masked-ring.q4ui",diagnostics),"load the ring under a quadrant mask");
+		// The ring (centre 300,300, radius 180) inside the top-right quadrant
+		// mask at -45, -10 and -80 degrees, outside it at -135 and 45 degrees,
+		// and the mask off the ring.
+		host.samplePoints = {{427.37f,172.63f},{477.37f,268.63f},{331.37f,122.63f},{172.37f,172.63f},{427.37f,427.63f},{400.37f,200.63f}};
+		frame(2); frame(2.1);
+		pixel(0,1,0,0); pixel(1,1,0,0); pixel(2,1,0,0); pixel(3,0,1,0); pixel(4,0,1,0); pixel(5,0,1,0);
+		Check(ring.Statistics().submittedVertices*2 < whole,"masked paint outside the mask's hull is not submitted");
+		// Turned a half about its centre: the mask now covers the bottom-left
+		// quadrant of the unchanged ring.
+		Check(ring.LoadDocument(std::string(ringDocument).replace(ringDocument.find("[0,0,1,1,0]"),11,"[0,0,1,1,180]"),"turned-ring.q4ui",diagnostics),
+			"load the turned masked ring");
+		host.samplePoints = {{172.37f,427.63f},{122.37f,331.63f},{268.37f,477.63f},{427.37f,172.63f},{172.37f,172.63f},{200.37f,400.63f}};
+		frame(3); frame(3.1);
+		pixel(0,1,0,0); pixel(1,1,0,0); pixel(2,1,0,0); pixel(3,0,1,0); pixel(4,0,1,0); pixel(5,0,1,0);
+		Check(ring.Statistics().submittedVertices*2 < whole,"a turned mask's hull still bounds what is submitted");
+		ring.CloseDocument(); ring.Shutdown();
+	}
 	host.samplePoints.clear();
 	std::ifstream interactionFile(argc > 1 ? argv[1] : "tools/ui/fixtures/interaction-smoke.q4ui",std::ios::binary);
 	Check(interactionFile.good(),"open canonical interaction qualification fixture");

@@ -37,7 +37,17 @@ integration of a varying paint color over a partially covered shape.
 
 The result is untextured native geometry. Adjacent cells with equal coverage
 merge into spans, and identical spans merge vertically into quads. A large
-axis-aligned solid interior can therefore become one quad. No baked bitmap,
+axis-aligned solid interior can therefore become one quad. With a solid paint
+a span may also continue one pixel to either side of the span above it, each
+end moving one way: the run becomes a sheared quad whose sides cross every
+row's centre line exactly at that row's ends, which are whole pixels, so it
+covers the same pixel centres as its cells. A 45-degree edge cuts the same cells
+in every row one pixel along, so its partial cells and the interior beside it
+become a few quads. A row joins a sheared quad only when its cells upload the
+same 8-bit colour at full opacity, and a vertical run keeps the coverage of its
+first row, as rectangles always did: a cell on a rounding tie (an exact half
+pixel) keeps the colour it had. Gradients keep rectangles, because their colour
+is interpolated across each quad. No baked bitmap,
 coverage texture atlas, fixed-resolution SVG raster or GPU-specific path is
 introduced. Density and fractional position changes regenerate coverage at the
 actual output pixel grid.

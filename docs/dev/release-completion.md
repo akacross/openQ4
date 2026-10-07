@@ -1512,6 +1512,10 @@
   menus no longer drop the details they draw last. Their geometry had
   outgrown a per-frame buffer, which is now twice as large.
 
+- The rebuilt title screen now draws the same picture from about a fifth of
+  the geometry, mostly the glow around its QUAKE 4 lettering, so each frame
+  costs less, and the start-up screen and other rebuilt menus are lighter too.
+
 - With a controller, the rebuilt server browser refreshes the list with the
   left face button and sorts it by the next column with the top one.
 

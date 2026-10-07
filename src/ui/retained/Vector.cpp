@@ -228,6 +228,7 @@ public:
 		} else Validate(source.colour);
 	}
 	double Parameter(VectorPoint point) const { return Dot(inverse.Apply(point)-from,direction)/length2; }
+	bool Solid() const { return source.type != PaintType::Linear; }
 	VectorColour Colour(VectorPoint point) const {
 		if (source.type != PaintType::Linear) return Premultiply(source.colour);
 		const double t = std::clamp(Parameter(point),0.0,1.0);
@@ -333,32 +334,69 @@ public:
 			}
 		}
 	}
-	void Emit(const Paint& paint, VectorMesh& output) {
+	void Emit(const Paint& paint, VectorMesh& output, PathBlend blend) {
 		std::sort(events.begin(),events.end(),[](const Event& a, const Event& b) {
 			return a.y != b.y ? a.y < b.y : a.x < b.x;
 		});
-		struct Rectangle { int left, top, right, bottom; double coverage; };
-		std::vector<Rectangle> rectangles;
+		// Runs of one coverage stacked row on row become one shape. A shape's
+		// row k spans [left+dl*k, right+dr*k): a rectangle when both slants are
+		// zero, else (one colour only) a quad whose sides cross each row's
+		// centre line exactly at that row's ends, which are whole pixels, so
+		// it covers the same pixel centres as the rectangles it replaces.
+		// A 45-degree edge cuts the same cells in every row, one pixel along.
+		struct Shape { int left, top, right, bottom; double coverage; int dl = 0, dr = 0; };
+		std::vector<Shape> shapes;
+		const bool slants = paint.Solid();
+		// Every row of a shape is drawn with one coverage, and coverage merges
+		// within 1e-12. A run of a vertical chain (the same span row on row,
+		// within 1e-12 of the chain's first row) keeps that first row's
+		// coverage, as rectangles always did. A row joins a sheared shape only
+		// when its cells upload the same colour at full opacity, as
+		// VectorElement quantizes each blend: a cell can sit on an 8-bit
+		// rounding tie, an exact half pixel on a diagonal or a vertical edge.
+		const auto paintColour = paint.Colour({});
+		auto bytes = [&](double coverage) {
+			auto unit = [](double value) { return static_cast<int>(std::round(std::clamp(value,0.0,1.0)*255)); };
+			const double r = paintColour.r*coverage, g = paintColour.g*coverage, b = paintColour.b*coverage, a = paintColour.a*coverage;
+			if (blend == PathBlend::Multiply) return std::array<int,4>{unit(1-a+r),unit(1-a+g),unit(1-a+b),unit(a)};
+			return std::array<int,4>{unit(r),unit(g),unit(b),blend == PathBlend::Additive ? 0 : unit(a)};
+		};
 		// A row's runs reach emit left to right and never overlap, so they are
 		// already in key order: a binary search of the previous row's runs
-		// finds a rectangle to extend.
-		struct Run { int left, right; size_t rectangle; };
+		// finds a shape to extend.
+		struct Run { int left, right; size_t shape; double chain; };
 		std::vector<Run> previous, current;
+		int previousRow = std::numeric_limits<int>::min();
 		size_t index = 0;
 		while (index < events.size()) {
 			const int row = events[index].y;
 			current.clear();
+			// A shape continues only from the row just above, once per row, with
+			// its coverage and, past its first row, its slants.
+			auto extend = [&](const Run& run, int dl, int dr, double chain) {
+				auto& shape = shapes[run.shape];
+				if (shape.bottom != row || (shape.bottom-shape.top > 1 && (shape.dl != dl || shape.dr != dr))) return false;
+				if (!dl && !dr ? chain != shape.coverage :
+					!(std::abs(shape.coverage-chain) < 1e-12) || bytes(chain) != bytes(shape.coverage)) return false;
+				shape.dl = dl; shape.dr = dr; shape.bottom = row+1;
+				return true;
+			};
 			auto emit = [&](int left, int right, double coverage) {
 				if (left >= right || coverage == 0) return;
 				const auto found = std::lower_bound(previous.begin(),previous.end(),std::make_pair(left,right),
 					[](const Run& run, const std::pair<int,int>& key) { return std::make_pair(run.left,run.right) < key; });
-				if (found != previous.end() && found->left == left && found->right == right && rectangles[found->rectangle].bottom == row &&
-					std::abs(rectangles[found->rectangle].coverage-coverage) < 1e-12) {
-					rectangles[found->rectangle].bottom = row+1; current.push_back({left,right,found->rectangle});
-				} else {
-					Require(rectangles.size() < options.maximumVertices/4,"coverage exceeds output rectangle budget");
-					current.push_back({left,right,rectangles.size()}); rectangles.push_back({left,row,right,row+1,coverage});
+				const bool above = previousRow == row-1 && found != previous.end() && found->left == left && found->right == right;
+				const double chain = above && std::abs(found->chain-coverage) < 1e-12 ? found->chain : coverage;
+				if (above && extend(*found,0,0,chain)) { current.push_back({left,right,found->shape,chain}); return; }
+				if (slants) {
+					for (auto run = std::lower_bound(previous.begin(),previous.end(),left-1,
+						[](const Run& run, int key) { return run.left < key; }); run != previous.end() && run->left <= left+1; ++run) {
+						const int dl = left-run->left, dr = right-run->right;
+						if ((dl || dr) && dr >= -1 && dr <= 1 && extend(*run,dl,dr,chain)) { current.push_back({left,right,run->shape,chain}); return; }
+					}
 				}
+				Require(shapes.size() < options.maximumVertices/4,"coverage exceeds output rectangle budget");
+				current.push_back({left,right,shapes.size(),chain}); shapes.push_back({left,row,right,row+1,chain});
 			};
 			double sum = 0, pendingCoverage = 0;
 			int pendingLeft = events[index].x, pendingRight = pendingLeft;
@@ -382,14 +420,15 @@ public:
 			}
 			emit(pendingLeft,pendingRight,pendingCoverage);
 			Require(std::abs(sum) < 1e-7,"coverage row has an unclosed boundary");
-			previous.swap(current);
+			previous.swap(current); previousRow = row;
 		}
 		std::vector<VectorPoint> cell(4);
-		for (const auto& r : rectangles) {
-			cell[0] = {static_cast<double>(r.left),static_cast<double>(r.top)};
-			cell[1] = {static_cast<double>(r.right),static_cast<double>(r.top)};
-			cell[2] = {static_cast<double>(r.right),static_cast<double>(r.bottom)};
-			cell[3] = {static_cast<double>(r.left),static_cast<double>(r.bottom)};
+		for (const auto& r : shapes) {
+			const double rows = r.bottom-r.top;
+			cell[0] = {r.left-r.dl*.5,static_cast<double>(r.top)};
+			cell[1] = {r.right-r.dr*.5,static_cast<double>(r.top)};
+			cell[2] = {r.right+r.dr*(rows-.5),static_cast<double>(r.bottom)};
+			cell[3] = {r.left+r.dl*(rows-.5),static_cast<double>(r.bottom)};
 			paint.Shape(cell,output,options,r.coverage);
 		}
 	}
@@ -417,11 +456,55 @@ private:
 	size_t work = 0;
 };
 
-void Fill(const Contours& contours, FillRule rule, const VectorPaint& paint, const VectorOptions& options, VectorMesh& output) {
+using Tessellator = std::unique_ptr<TESStesselator,decltype(&tessDeleteTess)>;
+// Triangulate a region given by its boundary contours (interior on the left,
+// none crossing) as indexed triangles of one solid colour sharing their
+// vertices. The contours' vertices and edges are the boundary's own, so the
+// triangles cover exactly the pixel centres the region's arrangement did.
+void SolidRegion(TESSalloc& allocator, const TESSreal* points, int vertexCount, const TESSindex* contours, int contourCount,
+	const Paint& paint, const VectorOptions& options, VectorMesh& output) {
+	Tessellator tess(tessNewTess(&allocator),tessDeleteTess);
+	Require(tess != nullptr,"cannot allocate polygon tessellator");
+	for (int i = 0; i < contourCount; ++i) {
+		const int base = contours[i*2], count = contours[i*2+1];
+		Require(base >= 0 && count >= 0 && base <= vertexCount && count <= vertexCount-base,"invalid boundary contour output");
+		if (count < 3) continue;
+		tessAddContour(tess.get(),2,points+base*2,2*sizeof(TESSreal),count);
+		Require(tessGetStatus(tess.get()) == TESS_STATUS_OK,"polygon input rejected or exceeds memory budget");
+	}
+	const TESSreal normal[3] = {0,0,1};
+	Require(tessTesselate(tess.get(),TESS_WINDING_ODD,TESS_POLYGONS,3,2,normal) != 0,"polygon tessellation failed or exceeds memory budget");
+	const int count = tessGetVertexCount(tess.get()), triangles = tessGetElementCount(tess.get());
+	Require(count >= 0 && triangles >= 0,"invalid polygon output");
+	const TESSreal* vertices = tessGetVertices(tess.get());
+	const TESSindex* elements = tessGetElements(tess.get());
+	const auto colour = paint.Colour({});
+	std::vector<int> shared(static_cast<size_t>(count),-1);
+	for (int i = 0; i < triangles; ++i) {
+		int corner[3];
+		for (int j = 0; j < 3; ++j) {
+			corner[j] = elements[i*3+j];
+			Require(corner[j] >= 0 && corner[j] < count,"invalid polygon output index");
+		}
+		const VectorPoint a{vertices[corner[0]*2],vertices[corner[0]*2+1]}, b{vertices[corner[1]*2],vertices[corner[1]*2+1]},
+			c{vertices[corner[2]*2],vertices[corner[2]*2+1]};
+		if (std::abs(Cross(b-a,c-a))*.5 < 1e-12) continue; // As Paint::Polygon drops slivers.
+		for (const int index : corner) {
+			auto& slot = shared[static_cast<size_t>(index)];
+			if (slot < 0) {
+				Require(output.vertices.size() < options.maximumVertices,"paint subdivision exceeds output vertex budget");
+				slot = static_cast<int>(output.vertices.size());
+				output.vertices.push_back({vertices[index*2],vertices[index*2+1],colour.r,colour.g,colour.b,colour.a});
+			}
+			output.indices.push_back(slot);
+		}
+	}
+}
+void Fill(const Contours& contours, FillRule rule, const VectorPaint& paint, PathBlend blend, const VectorOptions& options, VectorMesh& output) {
 	AllocationBudget budget;
 	TESSalloc allocator{};
 	allocator.memalloc = Allocate; allocator.memrealloc = Reallocate; allocator.memfree = Deallocate; allocator.userData = &budget;
-	std::unique_ptr<TESStesselator,decltype(&tessDeleteTess)> tess(tessNewTess(&allocator),tessDeleteTess);
+	Tessellator tess(tessNewTess(&allocator),tessDeleteTess);
 	Require(tess != nullptr,"cannot allocate polygon tessellator");
 	size_t vertices = 0;
 	for (const auto& contour : contours) {
@@ -437,13 +520,20 @@ void Fill(const Contours& contours, FillRule rule, const VectorPaint& paint, con
 		vertices += contour.points.size();
 	}
 	if (!vertices) return;
+	// A plain solid fill paints only its region, however the arrangement cut
+	// it up. Triangulating the arrangement keeps every internal edge, and a
+	// wide stroke's overlapping segments and joins cross each other everywhere:
+	// the title wordmark's 24 halo strokes made 0.46 million unshared vertices.
+	// Resolve the region's boundary first, then triangulate only that.
+	const bool region = !options.antialias && paint.type != PaintType::Linear;
 	const TESSreal normal[3] = {0,0,1};
-	Require(tessTesselate(tess.get(),rule == FillRule::EvenOdd ? TESS_WINDING_ODD : TESS_WINDING_NONZERO,options.antialias ? TESS_BOUNDARY_CONTOURS : TESS_POLYGONS,3,2,normal) != 0,"polygon tessellation failed or exceeds memory budget");
+	Require(tessTesselate(tess.get(),rule == FillRule::EvenOdd ? TESS_WINDING_ODD : TESS_WINDING_NONZERO,options.antialias || region ? TESS_BOUNDARY_CONTOURS : TESS_POLYGONS,3,2,normal) != 0,"polygon tessellation failed or exceeds memory budget");
 	const int vertexCount = tessGetVertexCount(tess.get()), elementCount = tessGetElementCount(tess.get());
 	Require(vertexCount >= 0 && static_cast<size_t>(vertexCount) <= options.maximumVertices,"polygon intersections exceed vertex budget");
 	const TESSreal* points = tessGetVertices(tess.get());
 	const TESSindex* indices = tessGetElements(tess.get());
 	Paint evaluator(paint,options);
+	if (region) { SolidRegion(allocator,points,vertexCount,indices,elementCount,evaluator,options,output); return; }
 	if (options.antialias) {
 		Coverage coverage(options);
 		for (int i = 0; i < elementCount; ++i) {
@@ -454,7 +544,7 @@ void Fill(const Contours& contours, FillRule rule, const VectorPaint& paint, con
 				coverage.Edge({points[a*2],points[a*2+1]},{points[b*2],points[b*2+1]});
 			}
 		}
-		coverage.Emit(evaluator,output); return;
+		coverage.Emit(evaluator,output,blend); return;
 	}
 	std::vector<VectorPoint> triangle(3);
 	for (int i = 0; i < elementCount; ++i) {
@@ -499,11 +589,11 @@ bool TessellatePath(const VectorPath& path, const VectorOptions& options, Vector
 			VectorOptions pathOptions = options;
 			pathOptions.antialias = options.antialias && path.antialias;
 			const auto contours = Flatten(pathOptions).Run(path);
-			if (path.fill.type != PaintType::None) Fill(contours,path.fillRule,path.fill,pathOptions,candidate);
+			if (path.fill.type != PaintType::None) Fill(contours,path.fillRule,path.fill,path.blend,pathOptions,candidate);
 			if (path.stroke.paint.type != PaintType::None) {
 				Require(std::isfinite(path.stroke.widthDp) && path.stroke.widthDp >= 0 && std::isfinite(path.stroke.minimumPixels) && path.stroke.minimumPixels >= 0 && std::isfinite(path.stroke.miterLimit) && path.stroke.miterLimit >= 1,"invalid stroke width, minimum pixel width or miter limit");
 				const auto stroke = StrokeContours(contours,path.stroke,pathOptions);
-				Fill(stroke,FillRule::NonZero,path.stroke.paint,pathOptions,candidate);
+				Fill(stroke,FillRule::NonZero,path.stroke.paint,path.blend,pathOptions,candidate);
 			}
 		}
 		output = std::move(candidate); return true;

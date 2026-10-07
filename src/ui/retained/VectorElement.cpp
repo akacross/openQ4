@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
+#include <map>
 
 namespace openq4::ui {
 namespace {
@@ -88,7 +90,40 @@ bool VectorGeometry::HitTest(Rml::Element& element, Rml::Vector2f point) {
 	for (const auto& mesh : hitGeometry) if (HitTestPaintedMesh(mesh,local)) return true;
 	return false;
 }
-void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
+bool VectorGeometry::Hull(const VectorTransform& transform, double widthDp, double heightDp, Rml::Rectanglef& hull) const {
+	constexpr double none = std::numeric_limits<double>::infinity();
+	double left = none, top = none, right = -none, bottom = -none;
+	const double scale = transform.MaximumScale();
+	const double minimumScale = scale > 0 ? std::abs(transform.a*transform.d-transform.b*transform.c)/scale : 0;
+	for (const auto& path : paths) {
+		// A stroke reaches half its width (StrokeContours' minimum included)
+		// past its path, and a miter join up to its limit times that.
+		double reach = 0;
+		if (path.stroke.paint.type != PaintType::None) {
+			const double width = minimumScale > 0 ? std::max(path.stroke.widthDp,path.stroke.minimumPixels/minimumScale) : path.stroke.widthDp;
+			reach = .5*width*scale*std::max(path.stroke.miterLimit,1.5);
+		}
+		for (const auto& command : path.commands) {
+			const unsigned count = command.op == PathOperation::Close ? 0 : command.op == PathOperation::Quadratic ? 2 :
+				command.op == PathOperation::Cubic ? 3 : 1;
+			// Curves stay inside their control points' hull.
+			for (unsigned i = 0; i < count; ++i) {
+				const auto p = transform.Apply(command.points[i].Resolve(widthDp,heightDp));
+				if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(reach)) return false;
+				left = std::min(left,p.x-reach); right = std::max(right,p.x+reach);
+				top = std::min(top,p.y-reach); bottom = std::max(bottom,p.y+reach);
+			}
+		}
+	}
+	// No paths: an explicitly empty mask, which shows nothing.
+	if (!(left <= right && top <= bottom)) { hull = Rml::Rectanglef::FromCorners({-1e30f,-1e30f},{-1e30f,-1e30f}); return true; }
+	// Coverage reaches the cells an edge crosses; two pixels also absorb the
+	// float difference between this box and the mask's own projection.
+	hull = Rml::Rectanglef::FromCorners({static_cast<float>(left-2),static_cast<float>(top-2)},
+		{static_cast<float>(right+2),static_cast<float>(bottom+2)});
+	return true;
+}
+void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity, bool masked, const Rml::Rectanglef* support) {
 	auto* manager = element.GetRenderManager();
 	if (paths.empty() || !host || !manager || !element.GetContext()) return;
 	++statistics->vectorElements;
@@ -153,14 +188,15 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 		}
 	} else ++statistics->vectorCacheHits;
 	for (const auto& mesh : compiled) statistics->visibleVectorCacheBytes += mesh.vertices.capacity()*sizeof(VectorVertex)+mesh.indices.capacity()*sizeof(int);
-	if (rebuild || opacity != previousOpacity) {
-		geometry.clear(); geometryBlends.clear(); previousOpacity = opacity;
+	if (rebuild || opacity != previousOpacity || masked != tiled) {
+		geometry.clear(); geometryBlends.clear(); geometryBounds.clear(); previousOpacity = opacity; tiled = masked;
+		std::vector<Rml::Vertex> vertices;
+		std::vector<int> local;
 		for (size_t index = 0; index < compiled.size(); ++index) {
 			const auto& cached = compiled[index];
 			const auto blend = compiledBlends[index];
 			const auto upload = std::chrono::steady_clock::now();
-			Rml::Mesh mesh;
-			mesh.vertices.reserve(cached.vertices.size());
+			vertices.clear(); vertices.reserve(cached.vertices.size());
 			auto channel = [&](double value) { return static_cast<Rml::byte>(std::round(std::clamp(value*opacity,0.0,1.0)*255)); };
 			auto unit = [](double value) { return static_cast<Rml::byte>(std::round(std::clamp(value,0.0,1.0)*255)); };
 			for (const auto& v : cached.vertices) {
@@ -173,11 +209,36 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 					const double alpha = std::clamp(v.a*opacity,0.0,1.0);
 					colour = Rml::ColourbPremultiplied(unit(1-alpha+v.r*opacity),unit(1-alpha+v.g*opacity),unit(1-alpha+v.b*opacity),unit(alpha));
 				}
-				mesh.vertices.push_back({{static_cast<float>(v.x),static_cast<float>(v.y)},colour,{0,0}});
+				vertices.push_back({{static_cast<float>(v.x),static_cast<float>(v.y)},colour,{0,0}});
 			}
-			mesh.indices.assign(cached.indices.begin(),cached.indices.end());
-			geometry.push_back(manager->MakeGeometry(std::move(mesh)));
-			geometryBlends.push_back(blend);
+			auto add = [&](Rml::Mesh mesh) {
+				auto bounds = Rml::Rectanglef::FromPosition(mesh.vertices.front().position);
+				for (const auto& vertex : mesh.vertices) bounds = bounds.Join(vertex.position);
+				geometry.push_back(manager->MakeGeometry(std::move(mesh)));
+				geometryBlends.push_back(blend); geometryBounds.push_back(bounds);
+			};
+			if (!masked) add({std::move(vertices),{cached.indices.begin(),cached.indices.end()}});
+			else {
+				// A path's triangles never overlap, so their order is free: group
+				// them in 64-pixel tiles by their first vertex, which keeps each
+				// coverage cell's and gradient piece's fan in one tile.
+				std::map<std::pair<int,int>,std::vector<size_t>> tiles;
+				for (size_t i = 0; i + 2 < cached.indices.size(); i += 3) {
+					const auto& first = cached.vertices[cached.indices[i]];
+					tiles[{static_cast<int>(std::floor(first.x/64)),static_cast<int>(std::floor(first.y/64))}].push_back(i);
+				}
+				local.assign(vertices.size(),-1);
+				for (const auto& [tile, triangles] : tiles) {
+					Rml::Mesh mesh;
+					for (const size_t i : triangles) for (size_t j = 0; j < 3; ++j) {
+						const int source = cached.indices[i+j];
+						if (local[source] < 0) { local[source] = static_cast<int>(mesh.vertices.size()); mesh.vertices.push_back(vertices[source]); }
+						mesh.indices.push_back(local[source]);
+					}
+					for (const size_t i : triangles) for (size_t j = 0; j < 3; ++j) local[cached.indices[i+j]] = -1;
+					add(std::move(mesh));
+				}
+			}
 			++statistics->vectorUploads;
 			statistics->vectorUploadMilliseconds += std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-upload).count();
 		}
@@ -187,12 +248,56 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 	// Geometry is already in output pixels. Submit through the render manager
 	// to retain its clipping/lifetime/order contract without a second transform.
 	manager->SetTransform(nullptr);
+	const Rml::Vector2f translation{static_cast<float>(offsetX),static_cast<float>(offsetY)};
 	for (size_t index = 0; index < geometry.size(); ++index) {
-		const Rml::Vector2f translation{static_cast<float>(offsetX),static_cast<float>(offsetY)};
+		// Outside its masks' hull a tile's light is multiplied by zero.
+		if (support) {
+			const auto& bounds = geometryBounds[index];
+			if (bounds.Left()+translation.x > support->Right() || bounds.Right()+translation.x < support->Left() ||
+				bounds.Top()+translation.y > support->Bottom() || bounds.Bottom()+translation.y < support->Top()) continue;
+		}
 		if (geometryBlends[index] == PathBlend::Multiply) geometry[index].Render(translation,multiply);
 		else geometry[index].Render(translation);
 	}
 	manager->SetState(state);
+}
+bool VectorElement::MaskHull(Rml::Rectanglef& hull) {
+	if (!hasMask || !GetContext()) return false;
+	const double density = GetContext()->GetDensityIndependentPixelRatio();
+	const auto size = GetBox().GetSize(Rml::BoxArea::Border);
+	Rml::Array<Rml::Vector2f,4> quad;
+	if (!std::isfinite(density) || density <= 0 || size.x <= 0 || size.y <= 0 ||
+		!Rml::ElementUtilities::GetBorderBoxQuad(quad,this)) return false;
+	// The mask renders only on an affine box, as hit testing assumes.
+	if ((quad[2]-(quad[1]+quad[3]-quad[0])).Magnitude() > .05f) return false;
+	const double width = size.x/density, height = size.y/density;
+	const VectorTransform transform{(quad[1].x-quad[0].x)/width,(quad[1].y-quad[0].y)/width,
+		(quad[3].x-quad[0].x)/height,(quad[3].y-quad[0].y)/height,quad[0].x,quad[0].y};
+	return mask.Hull(transform,width,height,hull);
+}
+void VectorElement::OnRender() {
+	// Paint under a mask, this element's or an ancestor's, shows only where
+	// the mask is nonzero: the emblem glint's whole rim stays put under a
+	// wedge an eighth of a turn wide. Such paint uploads in tiles, and tiles
+	// outside every mask's hull are skipped. An unknown hull bounds nothing.
+	bool masked = false, known = false;
+	Rml::Rectanglef support;
+	for (Rml::Element* element = this; element; element = element->GetParentNode()) {
+		if (element->GetTagName() != "q4-node" && element->GetTagName() != "q4-vector") continue;
+		auto& vector = static_cast<VectorElement&>(*element);
+		if (!vector.hasMask) continue;
+		masked = true;
+		Rml::Rectanglef hull;
+		if (!vector.MaskHull(hull)) continue;
+		support = !known ? hull : Rml::Rectanglef::FromCorners(
+			{std::max(support.Left(),hull.Left()),std::max(support.Top(),hull.Top())},
+			{std::min(support.Right(),hull.Right()),std::min(support.Bottom(),hull.Bottom())});
+		known = true;
+	}
+	// Disjoint hulls leave nothing to show.
+	if (known && (support.Right() < support.Left() || support.Bottom() < support.Top()))
+		support = Rml::Rectanglef::FromCorners({-1e30f,-1e30f},{-1e30f,-1e30f});
+	paint.Render(*this,true,masked,known ? &support : nullptr);
 }
 void VectorElement::Configure(const Node& node, Host& owner, RuntimeStatistics& measurements) {
 	hasMask = node.mask.has_value();

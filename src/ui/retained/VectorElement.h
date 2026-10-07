@@ -20,7 +20,13 @@ public:
 	// Copy authored paths and shared host ownership only; compiled geometry is
 	// always invalidated, including when replacing an already rendered copy.
 	void CopyArtworkFrom(const VectorGeometry& source);
-	void Render(Rml::Element& element, bool inheritOpacity);
+	// `masked` paint shows only through masks, transparent outside `support`
+	// (output pixels; null when no hull is known this frame). It uploads in
+	// tiles, and tiles wholly outside the support are not submitted.
+	void Render(Rml::Element& element, bool inheritOpacity, bool masked = false, const Rml::Rectanglef* support = nullptr);
+	// The output-pixel box these paths can cover under an affine dp-to-output
+	// transform, padded for coverage cells and stroke reach. False for none.
+	bool Hull(const VectorTransform& transform, double widthDp, double heightDp, Rml::Rectanglef& hull) const;
 	bool HitTest(Rml::Element& element, Rml::Vector2f outputPoint);
 	bool HasHitArea(Rml::Element& element);
 private:
@@ -33,6 +39,8 @@ private:
 	std::vector<PathBlend> compiledBlends; // Parallel to compiled.
 	std::vector<Rml::Geometry> geometry;
 	std::vector<PathBlend> geometryBlends; // Parallel to geometry.
+	std::vector<Rml::Rectanglef> geometryBounds; // Parallel to geometry, before the whole-pixel offset.
+	bool tiled = false;
 	Rml::Texture multiply;
 	Host* host = nullptr;
 	RuntimeStatistics* statistics = nullptr;
@@ -48,8 +56,11 @@ public:
 	void RenderMask() { mask.Render(*this,false); }
 	bool AllowsMaskedPoint(Rml::Vector2f point) { return !hasMask || mask.HitTest(*this,point); }
 	bool HasMaskArea() { return !hasMask || mask.HasHitArea(*this); }
+	// Where this element's mask can be nonzero, in output pixels. False when
+	// it has no mask or its box cannot place one (the hull is then unknown).
+	bool MaskHull(Rml::Rectanglef& hull);
 protected:
-	void OnRender() override { paint.Render(*this,true); }
+	void OnRender() override;
 private:
 	VectorGeometry paint, mask;
 	bool hasMask = false;

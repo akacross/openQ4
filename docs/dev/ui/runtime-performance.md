@@ -305,6 +305,101 @@ tessellated every frame. Fifteen layers remain, for the 0.4-opacity rails and
 markers and for the glint and its mask. A cold first frame takes 45-50 ms,
 most of it stroke unions, the reticle grid alone 28 ms.
 
+## Retained title vertices
+
+7 October 2026. The traced QUAKE 4 wordmark that the title shares with the
+initializing screen took the retained title from the 127,000 vertices above to
+about 569,500 vertices and 211,800 triangles a frame at 1280x720
+(`openq4_retainedGui inspect screen`). At 64 bytes per engine vertex that is
+36 MB through the GUI path every frame. It overflowed Vulkan's 32 MB per-frame
+geometry ring, which dropped the title's framing bands until the ring doubled.
+The wordmark's glow is 24 plain (`antialias: false`) strokes of rising width
+around every letter contour, and those strokes alone made 437,000 vertices.
+
+| Title element, native `--screen` benchmark at 1280x720 | Before | After |
+| --- | ---: | ---: |
+| Wordmark: 24 halo strokes and the letters | 442,122 | 12,815 |
+| Framing bands: fill and ten rim strokes each | 64,568 | 53,944 |
+| Emblem: multiply shadow and rim | 25,028 | 24,452 |
+| Emblem glint rim, under its turning wedge | 16,352 | 8,592 |
+| Reticle grid | 12,928 | 12,928 |
+| Navigation plates and prompt bar | 2,784 | 1,860 |
+| Whole screen | 569,574 | 120,375 |
+
+Each element's count is what hiding it alone removes; the glint's depends on
+the wedge's angle. In the engine the title reports 567,900 to 569,300 vertices
+before and 116,300 to 116,900 after, with motion on, on OpenGL and Vulkan alike.
+The initializing screen falls from 444,100 to 285,300. In the benchmark Join
+Game falls from 94,200 to 81,900, Multiplayer from 84,400 to 72,900, Create
+Server from 90,700 to 77,700 and the pause menu from 82,300 to 70,000.
+
+- **Region triangulation.** libtess2's polygon output triangulates the planar
+  arrangement of all its input contours. A stroke's union is one quad per
+  segment and one fan per join, and a wide stroke's quads and fans overlap
+  everywhere, so every monotone piece of the arrangement became its own
+  triangles, at three unshared vertices each: 35,600 vertices for the widest
+  halo stroke. A plain solid path now takes libtess2's boundary contours and
+  triangulates only those, in a second pass, with shared vertices: 321 for that
+  stroke. The boundary's vertices and edges are the arrangement's own, so the
+  same pixel centres are covered. Gradients still clip the arrangement's
+  triangles at their stops.
+- **45-degree coverage shapes.** Coverage cells merge into spans of equal
+  coverage and identical spans into quads. With a solid paint, a span that
+  continues one pixel to either side of the span above it, each end moving
+  steadily, now joins it as a sheared quad: the quad crosses each row's centre
+  line exactly at that row's ends, whole pixels, so it covers the same pixel
+  centres. A row joins only when its cells upload the same 8-bit colour at full
+  opacity, and a vertical run keeps its first row's coverage as before, so a
+  cell on a rounding tie (an exact half pixel) keeps its colour. The plates'
+  45-degree chamfers merge this way; the band cuts, traced from the stock art
+  at 41 to 45 degrees, only partly.
+- **Masked tiles.** The glint is the emblem's whole rim drawn under a wedge
+  mask an eighth of a turn wide. Outside the hull of a mask's paths, padded
+  for stroke reach and coverage, the mask is transparent and its layer gains
+  nothing. Paint under a mask, its element's own or an ancestor's, now uploads
+  in 64-pixel tiles, and tiles wholly outside the hull are not submitted. Each
+  tile keeps its own host mesh, so the turning wedge converts nothing.
+
+The halo's union is also cheaper to compile: alternating runs of the native
+benchmark put the title's cold first frame at 223 ms against 260 ms before.
+Warm frames are unchanged within the machine's noise.
+
+Verification:
+
+- `openq4-ui-vector` checks that a wide round-joined zigzag's plain triangles
+  share their vertices, cover the antialiased union's area and claim no pixel
+  centre twice under a 1/256-pixel top-left rasterizer, and that a 45-degree
+  band compiles to three sheared quads on whole pixels (at most sixteen at a
+  fractional phase or mirrored) matching the independent per-pixel area
+  oracle, while a gradient band keeps whole-pixel rectangles.
+- `openq4-retained-ui` puts a ring under a quadrant mask, then turns it half a
+  turn: the ring shows wherever the mask does, the masked frame submits under
+  half the unmasked ring's vertices, and the check fails with culling disabled.
+- A local harness compiled the previous tessellator beside this one and
+  rasterized both meshes of every path and mask of the 24 production documents
+  and 14 fixtures at nine output transforms (scales 0.75 to 2, sub-pixel phases,
+  a 30-degree turn and a pointer lean), at pixel centres on a 1/256-pixel grid
+  with the top-left rule and the upload's 8-bit colour. Across 23 production
+  documents and 14 fixtures (84,726 cases) every mesh covers the same centres
+  in the same colour, except 13 wordmark halo strokes that differ by one or two
+  pixels in one faint layer, where the old arrangement's overlapping slivers
+  counted a centre two or three times (a finer grid confirms it).
+- Engine captures with reduced motion, from a baseline client and this one on
+  one runtime, are byte-identical on OpenGL and Vulkan, and OpenGL matches
+  Vulkan, for the title (home, depth, focus, exit, depart and settings
+  hand-off), the initializing screen, the campaign sub-page, MODS, Multiplayer,
+  Create Server, New Campaign, the empty Load Game page and every prompt style:
+  51 screenshots on each renderer. The glint, which reduced motion hides, was
+  captured with its turn frozen at six angles through a private-mod title, and
+  is byte-identical too; there the title submits 115,700 to 120,200 vertices,
+  depending on the wedge's angle, against 567,500 to 569,600.
+
+What remains is about 117,000 vertices, nearly all antialiased coverage cells:
+two to five per row along every edge of the emblem, bands, grid and letters,
+at four vertices each. The initializing screen's turning rings (its teeth and
+sweep, about 250,000 vertices at 1280x720) are tessellated at a new angle every
+frame.
+
 ## Large documents
 
 5 October 2026. The multiplayer Escape card (`mp_escape.q4ui`) is the largest
