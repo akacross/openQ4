@@ -5844,7 +5844,7 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 		retainedSubpageFrom->HandleEvent( event, common->GetPresentationTime() );
 		return true;
 	}
-	const bool back = event->evType == SE_KEY && ( event->evValue == K_ESCAPE || event->evValue == K_JOY4 ||
+	const bool back = event->evType == SE_KEY && ( event->evValue == K_ESCAPE || idKeyInput::MenuControllerKey( event->evValue ) == K_JOY4 ||
 		event->evValue == K_JOY7 || event->evValue == K_JOY8 );
 	if ( back && retainedSubpageDeeper && !retainedSubpageSibling ) {
 		const int stepped = idMath::ClampInt( 0, RETAINED_SUBPAGE_STEP_MSEC,

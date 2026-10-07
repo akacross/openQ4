@@ -1515,6 +1515,10 @@
 - With a controller, the rebuilt server browser refreshes the list with the
   left face button and sorts it by the next column with the top one.
 
+- On a Nintendo-layout controller, menus confirm with A and go back with B,
+  as Switch games do, and the prompts show it. `in_swapConfirmBack` chooses
+  either way for any controller (see the input guide).
+
 - Menu prompts show your controller's buttons. After you use a controller,
   the title, pause and loading screens and the multiplayer menu show its
   buttons instead of keyboard keys: A and B on Xbox pads, the cross and

@@ -211,7 +211,8 @@ static bool TranslateControllerMenuKey( const sysEvent_t *sourceEvent, sysEvent_
 	translatedEvent = *sourceEvent;
 	focusDirection = 0;
 
-	switch ( sourceEvent->evValue ) {
+	// Confirm and Back may trade the south and east buttons (section 13.5).
+	switch ( idKeyInput::MenuControllerKey( sourceEvent->evValue ) ) {
 		case K_JOY1:
 			translatedEvent.evValue = K_PGUP;
 			return true;

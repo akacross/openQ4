@@ -69,7 +69,15 @@ SCENARIOS = {
             f'openq4_retainedGui inspect "prompt-200747-{"cap" if name == "keyboard" else name}"',
             f'openq4_retainedGui inspect "prompt-200013-{"cap" if name == "keyboard" else name}"',
             f'screenshot "screenshots/prompts-{name}.tga"')],
-        'set ui_promptStyle 0',
+        # Swap Confirm and Back forced on: SELECT shows the east button and
+        # EXIT the south one.
+        'set in_swapConfirmBack 2',
+        *[step for style, name in ((2, 'xbox'), (4, 'nintendo')) for step in (
+            f'set ui_promptStyle {style}', 'waitMsec 400',
+            f'openq4_retainedGui inspect "prompt-200747-{name}-swapped"',
+            f'openq4_retainedGui inspect "prompt-200013-{name}-swapped"',
+            f'screenshot "screenshots/prompts-{name}-swapped.tga"')],
+        'set in_swapConfirmBack 0', 'set ui_promptStyle 0',
     ]),
     # The multiplayer Escape card on a listen server (opted in): the Prompt
     # Style forces each presentation on the strip's tab keys and the card's

@@ -601,6 +601,8 @@ On engine `fd814b464b8d117856d55eace2fa94bd9863ff9a`, prompts follow the active 
 
 On engine `58ca62c695a54106fe6b20f7d01f67b0e951f585`, the multiplayer cards' prompt bars and the Escape card's tab keys show the active device's glyphs, the shoulders for Q and E. `INP-011`, `WID-019` and `FLOW-046` gain evidence. Evidence: `.tmp/ui/retained-card-glyphs-evidence/validation-evidence.json`, SHA-256 `a8373b906eb04c74ddcd5de1d8d3e1dc6edcead176b5ccdcd2769b16f8a4cd75`.
 
+On engine `f137d9408cacfbdef208176299bbf1b5a7aca01c`, Nintendo layouts confirm on the east button by default and in_swapConfirmBack forces either convention in every menu, with the prompts following. `INP-011` gains evidence. Evidence: `.tmp/ui/retained-confirm-swap-evidence/validation-evidence.json`, SHA-256 `3f3d402b39d24c8fe5926b1bfd16fe7ab791975460ef3493bbc8a35c60342b67`.
+
 There are **110 partial, 229 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

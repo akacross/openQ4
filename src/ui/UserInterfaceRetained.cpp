@@ -593,12 +593,23 @@ struct idUserInterfaceRetained::Impl {
 	// keyboard's keycaps or a controller family's face buttons.
 	void PublishPromptGlyphs() {
 		static const char* const name = "prompt.glyphs";
-		if (!document.Model().state.contains(name)) return;
-		const int glyphs = RetainedUI_PromptGlyphs();
-		if (state.FindKey(name) && state.GetInt(name) == glyphs) return;
-		state.SetInt(name,glyphs);
+		static const char* const swapped = "prompt.swapped";
+		StateValues changed;
+		if (document.Model().state.contains(name)) {
+			const int glyphs = RetainedUI_PromptGlyphs();
+			if (!state.FindKey(name) || state.GetInt(name) != glyphs) {
+				state.SetInt(name,glyphs); changed.emplace(name,static_cast<double>(glyphs));
+			}
+		}
+		// Whether east confirms: an Accept prompt shows the east button then.
+		if (document.Model().state.contains(swapped)) {
+			const bool swap = RetainedUI_PromptSwapped();
+			if (!state.FindKey(swapped) || state.GetBool(swapped) != swap) {
+				state.SetBool(swapped,swap); changed.emplace(swapped,swap);
+			}
+		}
 		std::string error;
-		if (!RuntimeView()->SetState({{name,static_cast<double>(glyphs)}},error,RetainedUI_PresentationTime())) Error(error);
+		if (!changed.empty() && !RuntimeView()->SetState(changed,error,RetainedUI_PresentationTime())) Error(error);
 	}
 	// Preserve undeclared and unrelated pending dictionary keys. Publish only
 	// the programs' explicit application writes, using round-trip numbers.
@@ -754,7 +765,9 @@ struct idUserInterfaceRetained::Impl {
 			case 'c': if (control && !shift) clipboard = uiClipboardOperation_t::Copy; mapped = control; break;
 			case 'x': if (control && !shift) clipboard = uiClipboardOperation_t::Cut; mapped = control; break;
 			case 'v': if (control && !shift) clipboard = uiClipboardOperation_t::Paste; mapped = control; break;
-			case K_ENTER: case K_KP_ENTER: case K_JOY3: commit = true; break;
+			case K_ENTER: case K_KP_ENTER: commit = true; break;
+			// The confirm button commits, south or east (section 13.5).
+			case K_JOY3: case K_JOY4: commit = idKeyInput::MenuControllerKey(key) == K_JOY3; mapped = commit; break;
 			// Space belongs to native text delivery while a field is editing.
 			// It must not also activate the field as an ordinary menu button.
 			case K_SPACE: break;
@@ -988,7 +1001,8 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 		if (event->evType == SE_KEY && !event->evValue2) impl->input.ReleaseQuarantined(event->evValue);
 		// Failure must never strand the session behind an unavailable menu.
 		if (impl->active && event->evType == SE_KEY && event->evValue2 &&
-			(event->evValue == K_ESCAPE || event->evValue == K_JOY4 || event->evValue == K_JOY7 || event->evValue == K_JOY8)) {
+			(event->evValue == K_ESCAPE || idKeyInput::MenuControllerKey(event->evValue) == K_JOY4 || event->evValue == K_JOY7 ||
+			event->evValue == K_JOY8)) {
 			openq4::NativeInputBeforeUiChange(0,impl->textBackend);
 			impl->close = true;
 		}
@@ -1021,7 +1035,10 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 			}
 		} else {
 			MenuInput action; bool mapped = true;
-			switch (key) {
+			// Confirm and Back may trade the south and east buttons (section
+			// 13.5); the physical key stays the source, so a release matches
+			// its press.
+			switch (idKeyInput::MenuControllerKey(key)) {
 				case K_TAB: action = (hasMetadata ? metadata.shift : impl->held.contains(K_SHIFT) || idKeyInput::IsDown(K_SHIFT)) ? MenuInput::Previous : MenuInput::Next; break;
 				case K_UPARROW: case K_JOY9: action = MenuInput::Up; break;
 				case K_DOWNARROW: case K_JOY10: action = MenuInput::Down; break;

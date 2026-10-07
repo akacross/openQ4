@@ -37,8 +37,8 @@ revision; the parity test checks the pinned files as well as the working tree.
 | --- | --- |
 | Tab / Shift+Tab | Next / previous eligible control |
 | Arrow keys / D-pad | Spatial navigation |
-| Enter, keypad Enter, Space / gamepad South | Accept on paired release |
-| Escape / gamepad East, Start, Back | Pop the current modal scope, then close the root menu |
+| Enter, keypad Enter, Space / gamepad South (East while swapped) | Accept on paired release |
+| Escape / gamepad East (South while swapped), Start, Back | Pop the current modal scope, then close the root menu |
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
@@ -47,6 +47,26 @@ revision; the parity test checks the pinned files as well as the working tree.
 
 SDL's gamepad South/East buttons map to engine `K_JOY3`/`K_JOY4` and West/North
 to `K_JOY6`/`K_JOY5`; the shoulders are distinct.
+
+**Swap Confirm and Back.** Nintendo layouts confirm on the east button,
+where their A sits, and go back on the south button (section 13.5). The
+archived `in_swapConfirmBack` decides:
+
+| Value | Menus confirm on |
+| --- | --- |
+| 0 (default) | East for a Nintendo layout (`in_gamepadFamily` nintendo), south otherwise |
+| 1 | South |
+| 2 | East |
+
+`idKeyInput::MenuControllerKey` trades the south and east buttons while
+confirm is swapped. Every menu input path translates through it: the stock
+windows' controller translation, the retained adapter's menu keys and a text
+field's commit, the retained runtime's `MapMenuKey`, and the sub-page change's
+Back. The physical button stays the input's source, so a release ends what its
+press began even if the swap changes in between. In-game bindings never swap.
+
+Evidence for Swap Confirm and Back: `.tmp/ui/retained-confirm-swap-evidence/validation-evidence.json`,
+SHA-256 `3f3d402b39d24c8fe5926b1bfd16fe7ab791975460ef3493bbc8a35c60342b67`.
 
 **Prompt glyphs.** Prompts show the active device's glyphs (section 13.5).
 The engine already tracks the last device's family for key-binding hints
@@ -83,7 +103,8 @@ the real device:
 result as `prompt.glyphs` to every document that declares it, before the
 frame that shows the change draws. The value is 0 for the keyboard's keycaps
 and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face and
-shoulder buttons. Keyboard scancodes, controller buttons and pointer buttons have
+shoulder buttons. The adapter also publishes `prompt.swapped`
+(`RetainedUI_PromptSwapped`, the swap above) to documents that declare it. Keyboard scancodes, controller buttons and pointer buttons have
 separate source IDs. Multiple sources mapped to Accept hold one logical press;
 releasing the first source cannot activate while another remains down. Key-up
 releases the action captured at key-down, including when Shift changes first.

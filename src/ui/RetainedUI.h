@@ -81,6 +81,9 @@ bool RetainedUI_IsOpen();
 // controller family's face buttons (Xbox, PlayStation, Nintendo, Steam Deck,
 // generic). Documents read it as the adapter-owned state prompt.glyphs.
 int RetainedUI_PromptGlyphs();
+// Whether menus confirm on the east face button (section 13.5's Swap Confirm
+// and Back); documents read it as the adapter-owned state prompt.swapped.
+bool RetainedUI_PromptSwapped();
 unsigned RetainedUI_InputGeneration();
 // Registered retained views (documents holding an RmlUi context), for the
 // ui_retained gate report: zero while the stock interface presents everything.

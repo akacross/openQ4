@@ -3109,6 +3109,19 @@ static void CheckPromptGlyphs(ScreenHost& host, const char* path) {
 		if (end < 0) end = bar.x+bar.width;
 		Check(Near(bar.x+bar.width,end,1),"the bar ends where it did");
 	}
+	// Swap Confirm and Back: with confirm on east, SELECT shows each family's
+	// east button and EXIT its south one, the same 22 dp.
+	Check(runtime.SetState({{"prompt.swapped",true}},error,10),"confirm moves east");
+	for (int glyphs = 1; glyphs <= 5; ++glyphs) {
+		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,10.1+glyphs),"publish the prompt glyphs");
+		runtime.Frame(viewport,10.5+glyphs);
+		const std::string family = families[glyphs-1];
+		for (const std::string id : {"prompt-200747","prompt-200013"}) {
+			Check(display(id+"-"+family) == "none" && display(id+"-"+family+"-swapped") == "block","the other position's button shows");
+			Bounds face;
+			Check(runtime.GetBounds(id+"-"+family+"-swapped",face) && Near(face.width,22) && Near(face.height,22),"at the same size");
+		}
+	}
 }
 
 // The Escape card's keys follow prompt.glyphs too (section 13.5): the strip's
@@ -3148,6 +3161,11 @@ static void CheckCardPromptGlyphs(ScreenHost& host, const char* path) {
 		const auto card = bounds("card"), disconnect = bounds("prompt-disconnect");
 		Check(disconnect.x+disconnect.width <= card.x+card.width-23,"the bar still ends inside the card");
 	}
+	// Swap Confirm and Back moves Resume's and Select's buttons, not the tabs'.
+	Check(runtime.SetState({{"prompt.swapped",true},{"prompt.glyphs",3.0}},error,10),"Nintendo, confirm east");
+	runtime.Frame(viewport,10.5);
+	Check(display("prompt-back-0-nintendo-swapped") == "block" && display("prompt-select-0-nintendo-swapped") == "block" &&
+		display("prompt-back-0-nintendo") == "none" && display("tab-next-nintendo") == "block","Resume and Select trade buttons");
 }
 
 int main(int argc, char** argv) {

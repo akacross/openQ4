@@ -46,6 +46,8 @@ int SDL3_JoyKeyFromOrdinal(int button) { return K_JOY3+button; }
 void SDL3_PostControllerKeyEvent(int key,bool down,int time);
 std::map<int,int> inputKeys;
 struct idKeyInput {
+    static inline bool swapped=false;
+    static int MenuControllerKey(int key) { return swapped && (key==K_JOY3 || key==K_JOY4) ? (key==K_JOY3 ? K_JOY4 : K_JOY3) : key; }
     static inline bool held[K_LAST_KEY]={};
     static inline int bindings[K_LAST_KEY]={};
     static bool IsDown(int key) { return key>=0 && key<K_LAST_KEY && held[key]; }
@@ -134,6 +136,12 @@ int main() {
     assert(MapMenuKey(K_JOY3,action) && action==MenuInput::Accept);
     assert(MapMenuKey(K_JOY4,action) && action==MenuInput::Back);
     assert(!MapMenuKey(K_JOY1,action)); // SDL maps this to the left shoulder.
+    // Swap Confirm and Back: east accepts and south goes back.
+    idKeyInput::swapped=true;
+    assert(MapMenuKey(K_JOY4,action) && action==MenuInput::Accept);
+    assert(MapMenuKey(K_JOY3,action) && action==MenuInput::Back);
+    assert(MapMenuKey(K_ENTER,action) && action==MenuInput::Accept);
+    idKeyInput::swapped=false;
     inputKeys[101]=K_SHIFT; inputKeys[102]=K_SHIFT;
     assert(MapMenuKey(K_TAB,action) && action==MenuInput::Previous);
     inputKeys.erase(101);

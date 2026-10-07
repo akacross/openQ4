@@ -124,6 +124,25 @@ seta in_joystickMoveCurve 1.0
 
 SDL gamepads use SDL's standard controller database, so Xbox, PlayStation, Steam Input, and similar pads should not need axis remapping. Generic SDL joysticks use raw axes with these auto defaults:
 
+### Confirm and Back
+
+On a Nintendo-layout controller, menus confirm with A (the right button) and
+go back with B (the bottom button), as Switch games do. Other controllers
+confirm with the bottom button. To choose for any controller, use the
+console:
+
+```cfg
+seta in_swapConfirmBack 2
+```
+
+| Value | Menus confirm with |
+| --- | --- |
+| `0` (default) | The right button on Nintendo layouts, the bottom button otherwise |
+| `1` | The bottom button |
+| `2` | The right button |
+
+The menu prompts follow the choice. In-game bindings are not affected.
+
 ### Button Prompts
 
 Once you use a controller, menu prompts show its buttons instead of

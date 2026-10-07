@@ -841,6 +841,10 @@ def mods_modal(doc: Document) -> dict:
 # prompt.glyphs: 0 shows the keyboard's keycaps, 1-5 a controller family's
 # face buttons in this order (RetainedUI_PromptGlyphs).
 PROMPT_GLYPHS = "prompt.glyphs"
+# Whether menus confirm on the east face button (Swap Confirm and Back): the
+# Accept and Back prompts then show each other's position.
+PROMPT_SWAPPED = "prompt.swapped"
+SWAPPED_FACE = {"south": "east", "east": "south"}
 GLYPH_FAMILIES = ("xbox", "playstation", "nintendo", "steamdeck", "generic")
 # The label each family prints at each face position, as SDL reports it.
 FACE_LETTERS = {
@@ -1024,17 +1028,28 @@ def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: fl
                   width: float | None = None) -> list:
     """Each controller family's button at `position` (a face position, or
     the "left" or "right" shoulder), each shown only while prompt.glyphs
-    names its family. A shoulder is `width` dp wide (default `size`)."""
+    names its family. A shoulder is `width` dp wide (default `size`). An
+    Accept or Back prompt (south or east) also carries each family's button
+    at the other of the two, shown while prompt.swapped says confirm has
+    moved east (`<ident>-<family>-swapped`)."""
     doc.state.setdefault(PROMPT_GLYPHS, {"type": "number", "initial": 0})
+    swaps = position in SWAPPED_FACE
+    if swaps:
+        doc.state.setdefault(PROMPT_SWAPPED, {"type": "boolean", "initial": False})
     nodes = []
     for index, family in enumerate(GLYPH_FAMILIES, 1):
-        if position in ("left", "right"):
-            node = shoulder_glyph(f"{ident}-{family}", family, position, tint, width or size, size)
-        else:
-            node = face_glyph(f"{ident}-{family}", family, position, tint, size)
-        doc.bind(f"{node['id']}.display", node["id"], "display",
-                 {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, index]}, "block", "none"]})
-        nodes.append(node)
+        same = {"op": "==", "args": [{"state": PROMPT_GLYPHS}, index]}
+        variants = [(f"{ident}-{family}", position, same)]
+        if swaps:
+            variants = [(f"{ident}-{family}", position, {"op": "&&", "args": [same, {"op": "!", "args": [{"state": PROMPT_SWAPPED}]}]}),
+                        (f"{ident}-{family}-swapped", SWAPPED_FACE[position], {"op": "&&", "args": [same, {"state": PROMPT_SWAPPED}]})]
+        for node_id, spot, condition in variants:
+            if spot in ("left", "right"):
+                node = shoulder_glyph(node_id, family, spot, tint, width or size, size)
+            else:
+                node = face_glyph(node_id, family, spot, tint, size)
+            doc.bind(f"{node_id}.display", node_id, "display", {"op": "select", "args": [condition, "block", "none"]})
+            nodes.append(node)
     return nodes
 
 

@@ -327,6 +327,53 @@ bool idKeyInput::LastInputWasController( void ) {
 
 /*
 ===================
+Key_MenuConfirmSwapped
+
+in_swapConfirmBack 1 keeps confirm on the south face button and 2 moves it
+east; 0 follows the controller, swapping for a Nintendo layout, whose A sits
+east (section 13.5).
+===================
+*/
+static idCVar in_swapConfirmBack( "in_swapConfirmBack", "0", CVAR_SYSTEM | CVAR_INTEGER | CVAR_ARCHIVE,
+	"menu confirm and back on a controller: 0 automatic (Nintendo layouts confirm on the east button), "
+	"1 the south button confirms, 2 the east button confirms", 0, 2 );
+
+static bool Key_MenuConfirmSwapped( int setting, const char *family ) {
+	if ( setting == 1 ) {
+		return false;
+	}
+	if ( setting == 2 ) {
+		return true;
+	}
+	return family != NULL && idStr::Icmp( family, "nintendo" ) == 0;
+}
+
+/*
+===================
+idKeyInput::MenuConfirmSwapped
+===================
+*/
+bool idKeyInput::MenuConfirmSwapped( void ) {
+	return Key_MenuConfirmSwapped( in_swapConfirmBack.GetInteger(), cvarSystem->GetCVarString( "in_gamepadFamily" ) );
+}
+
+/*
+===================
+idKeyInput::MenuControllerKey
+
+The south and east face buttons trade places in menus while the confirm
+button is swapped; every other key is itself.
+===================
+*/
+int idKeyInput::MenuControllerKey( int keynum ) {
+	if ( ( keynum == K_JOY3 || keynum == K_JOY4 ) && MenuConfirmSwapped() ) {
+		return keynum == K_JOY3 ? K_JOY4 : K_JOY3;
+	}
+	return keynum;
+}
+
+/*
+===================
 idKeyInput::StringToKeyNum
 
 Returns a key number to be used to index keys[] by looking at

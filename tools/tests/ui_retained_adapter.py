@@ -54,7 +54,11 @@ struct idVec2 { idVec2(float=0,float=0) {} } vec2_origin;
 enum { SE_KEY=1,SE_MOUSE,SE_CHAR,K_TAB=10,K_SHIFT,K_UPARROW,K_DOWNARROW,K_LEFTARROW,K_RIGHTARROW,
        K_ENTER,K_KP_ENTER,K_SPACE,K_ESCAPE,K_MOUSE1,K_JOY1,K_JOY2,K_JOY3,K_JOY4,K_JOY5,K_JOY6,K_JOY7,K_JOY8,K_JOY9,K_JOY10,K_JOY11,K_JOY12,K_JOY15,K_JOY16,
        K_HOME,K_END,K_PGUP,K_PGDN,K_MWHEELUP,K_MWHEELDOWN,K_CTRL,K_ALT,K_RIGHT_ALT,K_BACKSPACE,K_DEL,K_INS,K_LAST_KEY=512 };
-struct idKeyInput { static inline bool shift=false; static bool IsDown(int key) { return key==K_SHIFT && shift; } };
+struct idKeyInput {
+    static inline bool shift=false,swapped=false;
+    static bool IsDown(int key) { return key==K_SHIFT && shift; }
+    static int MenuControllerKey(int key) { return swapped && (key==K_JOY3 || key==K_JOY4) ? (key==K_JOY3 ? K_JOY4 : K_JOY3) : key; }
+};
 class idFile {
 public:
     std::string bytes;
@@ -605,6 +609,8 @@ bool RetainedUI_DefaultViewport(openq4::ui::Viewport& result) { result=viewport;
 double RetainedUI_PresentationTime() { return presentationTime; }
 int promptGlyphsValue=0;
 int RetainedUI_PromptGlyphs() { return promptGlyphsValue; }
+bool promptSwappedValue=false;
+bool RetainedUI_PromptSwapped() { return promptSwappedValue; }
 void RetainedUI_PrecacheImage(const std::string&,bool) {}
 bool RetainedUI_DrawViewRoot(retainedUIView_t* view,const openq4::ui::Viewport&) {
     ++view->runtime.frames; view->runtime.pointerTransport.push_back("frame"); return !rejectDraw;
@@ -2332,6 +2338,49 @@ static void CheckPromptGlyphs() {
     }
     modelTemplate=original;promptGlyphsValue=0;
 }
+// prompt.swapped follows Swap Confirm and Back the same way: once per change,
+// before the frame draws, and only to a document that declares it.
+static void CheckPromptSwapped() {
+    assert(views.empty());const auto original=modelTemplate;
+    consoleObject.open=false;windowFocused=true;promptSwappedValue=true;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+        assert(!Live().state.contains("prompt.swapped"));
+    }
+    modelTemplate.state["prompt.swapped"]={false,""};promptSwappedValue=false;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();
+        const auto published=[&]{size_t n=0;for(const auto& call:runtime.stateCalls)if(call.size()==1 && call.contains("prompt.swapped"))++n;return n;};
+        gui.Redraw(0);
+        assert(published()==1 && !std::get<bool>(runtime.state.at("prompt.swapped")));
+        gui.Redraw(0);assert(published()==1);
+        promptSwappedValue=true;gui.Redraw(0);
+        assert(published()==2 && std::get<bool>(runtime.state.at("prompt.swapped")) && gui.GetStateBool("prompt.swapped"));
+        gui.StateChanged(0);assert(std::get<bool>(runtime.state.at("prompt.swapped")));
+    }
+    modelTemplate=original;promptSwappedValue=false;
+}
+// Confirm and Back on a controller (section 13.5): south accepts and east
+// goes back, or the other way round while confirm is swapped, and a release
+// ends what its press began even when the swap changes in between.
+static void CheckConfirmSwap() {
+    assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;eventPlans={};
+    idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+    auto& runtime=Live();
+    const auto pulse=[&](int key){const auto before=runtime.menu.size();Key(gui,key,true);Key(gui,key,false);
+        assert(runtime.menu.size()==before+2 && runtime.menu[before].second && !runtime.menu.back().second &&
+               runtime.menu[before].first==runtime.menu.back().first);return runtime.menu[before].first;};
+    idKeyInput::swapped=false;
+    assert(pulse(K_JOY3)==MenuInput::Accept && pulse(K_JOY4)==MenuInput::Back);
+    idKeyInput::swapped=true;
+    assert(pulse(K_JOY4)==MenuInput::Accept && pulse(K_JOY3)==MenuInput::Back);
+    const auto before=runtime.menu.size();
+    Key(gui,K_JOY4,true);idKeyInput::swapped=false;Key(gui,K_JOY4,false);
+    assert(runtime.menu.size()==before+2 && runtime.menu[before]==std::make_pair(MenuInput::Accept,true) &&
+           runtime.menu.back()==std::make_pair(MenuInput::Accept,false));
+    idKeyInput::swapped=false;
+}
 // Committed characters (SE_CHAR) type into the focused field, opening an
 // edit when none is open; a field with the focus takes the platform's
 // text input.
@@ -2626,6 +2675,8 @@ int main() {
     CheckTypedCharacters();
     CheckTabKeys();
     CheckPromptGlyphs();
+    CheckPromptSwapped();
+    CheckConfirmSwap();
     std::puts("Retained adapter: Number diagnostic transport, delayed numeric identity and readback-before-acknowledgement; exactly-once Apply-and-exit receipts after complete queued batches, stationary wheel/pointer handoff, immutable value proposals/acknowledgements, authoritative settings return and authored Back, settings capability/draw ownership and state/lifecycle boundaries, ordered event/FIFO publication, restore suppression, pending dictionary, presentation delegation, framed saves, input suspension and cursor mapping passed");
 }
 '''

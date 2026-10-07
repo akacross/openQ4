@@ -235,13 +235,16 @@ struct CVar { bool value = false; bool GetBool() const { return value; } } ui_re
 // Key bindings: a bound command's key as the key lists name it ("^ikHH"),
 // and a key's name by number.
 struct idKeyInput {
+    static inline bool swapped = false;
+    static int MenuControllerKey(int key);
     static std::map<std::string, std::string>& Bound() { static std::map<std::string, std::string> bound; return bound; }
     static const char* KeysFromBinding(const char* bind) { const auto found = Bound().find(bind); return found != Bound().end() ? found->second.c_str() : "Unbound"; }
     static const char* KeyNumToString(int key, bool) { static std::string name; name = key == 0x8b ? "F1" : "#str_07133"; return name.c_str(); }
 };
 enum { SE_NONE = 0, CMD_EXEC_APPEND = 1, SE_KEY = 2, SE_MOUSE = 3 };
 enum { CMD_EXEC_NOW = 4 };
-enum { K_ESCAPE = 27, K_ENTER = 13, K_JOY4 = 200, K_JOY7 = 203, K_JOY8 = 204 };
+enum { K_ESCAPE = 27, K_ENTER = 13, K_JOY3 = 199, K_JOY4 = 200, K_JOY7 = 203, K_JOY8 = 204 };
+int idKeyInput::MenuControllerKey(int key) { return swapped && (key == K_JOY3 || key == K_JOY4) ? (key == K_JOY3 ? K_JOY4 : K_JOY3) : key; }
 struct sysEvent_t { int evType = SE_NONE, evValue = 0, evValue2 = 0; };
 struct idKeyValue { idStr value; const idStr& GetValue() const { return value; } };
 struct idUserInterface {
@@ -1734,6 +1737,15 @@ int main() {
         s.HandleRetainedSessionRequest(page, "campaigns"); commonObject.time += 280;
         sysEvent_t pad = back; pad.evValue = K_JOY4;
         CHECK(s.RetainedSubpageEvent(&pad) && page->named.back() == "subpageReverse250");
+        // With confirm on east (Swap Confirm and Back), east does not go back
+        // and south does.
+        idKeyInput::swapped = true;
+        s.HandleRetainedSessionRequest(page, "campaigns"); commonObject.time += 280;
+        const auto named = page->named.size();
+        CHECK(s.RetainedSubpageEvent(&pad) && page->named.size() == named && s.retainedSubpageFrom != nullptr);
+        sysEvent_t south = back; south.evValue = K_JOY3;
+        CHECK(s.RetainedSubpageEvent(&south) && page->named.back() == "subpageReverse250" && s.retainedSubpageFrom == nullptr);
+        idKeyInput::swapped = false;
         // Reduced motion hands over at once: the arrival's 80 ms fade is the change.
         cvarSystemObject.strings["ui_retainedReducedMotion"] = "1";
         s.HandleRetainedSessionRequest(page, "campaigns");
@@ -3261,7 +3273,12 @@ struct idStr {
     }
 };
 struct {int value=0;int GetInteger()const{return value;}} ui_promptStyle;
-struct idKeyInput {static inline bool controller=false;static bool LastInputWasController(){return controller;}};
+struct idKeyInput {
+    static inline bool controller=false;static bool LastInputWasController(){return controller;}
+    static bool MenuConfirmSwapped(void);static int MenuControllerKey(int keynum);
+};
+enum {K_JOY3=3,K_JOY4=4};
+struct {int value=0;int GetInteger()const{return value;}} in_swapConfirmBack;
 std::map<std::string,std::string> cvars;
 struct CVars {const char *GetCVarString(const char *name){const auto found=cvars.find(name);return found==cvars.end()?"":found->second.c_str();}} cvarValue,*cvarSystem=&cvarValue;
 enum SDL_GamepadButton {SDL_GAMEPAD_BUTTON_SOUTH};
@@ -3301,6 +3318,20 @@ int main(){
             Check(RetainedUI_PromptGlyphs()==style-1,"the Prompt Style forces its glyphs");
         }
     }
+    // Swap Confirm and Back: automatic swaps a Nintendo layout only, 1 keeps
+    // confirm south and 2 moves it east; only the south and east keys trade.
+    for(const char *family:{"nintendo","Nintendo","xbox","playstation","steamdeck","generic","none",""}){
+        cvars["in_gamepadFamily"]=family;
+        const bool nintendo=!idStr::Icmp(family,"nintendo");
+        in_swapConfirmBack.value=0;
+        Check(idKeyInput::MenuConfirmSwapped()==nintendo,"automatic swaps a Nintendo layout only");
+        Check(idKeyInput::MenuControllerKey(K_JOY3)==(nintendo?K_JOY4:K_JOY3) && idKeyInput::MenuControllerKey(K_JOY4)==(nintendo?K_JOY3:K_JOY4),
+            "south and east trade places while swapped");
+        in_swapConfirmBack.value=1;Check(!idKeyInput::MenuConfirmSwapped() && idKeyInput::MenuControllerKey(K_JOY3)==K_JOY3,"1 keeps confirm south");
+        in_swapConfirmBack.value=2;Check(idKeyInput::MenuConfirmSwapped() && idKeyInput::MenuControllerKey(K_JOY4)==K_JOY3,"2 moves confirm east");
+        Check(idKeyInput::MenuControllerKey(7)==7 && idKeyInput::MenuControllerKey(13)==13,"every other key is itself");
+    }
+    in_swapConfirmBack.value=0;
     std::printf("ui_retained gate: %d prompt glyph checks passed\n",checks);
     return 0;
 }
@@ -3315,7 +3346,10 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
     retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
     backend = (ROOT / 'src/sys/sdl3/sdl3_backend.cpp').read_text(encoding='utf-8')
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace').replace('\r\n', '\n')
-    bodies = [function_body(backend, 'static const char *SDL3_GamepadFamily('), function_body(retained, 'int RetainedUI_PromptGlyphs(')]
+    keys = (ROOT / 'src/framework/KeyInput.cpp').read_text(encoding='utf-8', errors='replace')
+    bodies = [function_body(backend, 'static const char *SDL3_GamepadFamily('), function_body(retained, 'int RetainedUI_PromptGlyphs('),
+              function_body(keys, 'static bool Key_MenuConfirmSwapped('), function_body(keys, 'bool idKeyInput::MenuConfirmSwapped('),
+              function_body(keys, 'int idKeyInput::MenuControllerKey(')]
     source = directory / 'glyphs.cpp'
     binary = directory / 'glyphs.exe'
     source.write_text(PROMPT_GLYPHS_SUPPORT + '\n'.join(bodies) + PROMPT_GLYPHS_MAIN, encoding='utf-8')
@@ -3337,13 +3371,39 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
     # a change shows it.
     redraw = function_body(adapter, 'void idUserInterfaceRetained::Redraw(')
     assert redraw.index('impl->PublishPromptGlyphs();') < redraw.index('RetainedUI_DrawViewRoot(')
-    assert 'RetainedUI_PromptGlyphs()' in function_body(adapter, 'void PublishPromptGlyphs() {')
+    publish = function_body(adapter, 'void PublishPromptGlyphs() {')
+    assert 'RetainedUI_PromptGlyphs()' in publish and 'RetainedUI_PromptSwapped()' in publish
+    # Swap Confirm and Back: one archived setting, and every menu input path
+    # translates the south and east buttons through it.
+    assert re.search(r'static idCVar in_swapConfirmBack\( "in_swapConfirmBack", "0", CVAR_SYSTEM \| CVAR_INTEGER \| CVAR_ARCHIVE,[^;]*, 0, 2 \);',
+                     keys, re.S)
+    window = (ROOT / 'src/ui/Window.cpp').read_text(encoding='utf-8', errors='replace')
+    assert 'switch ( idKeyInput::MenuControllerKey( sourceEvent->evValue ) ) {' in function_body(window, 'static bool TranslateControllerMenuKey(')
+    assert 'switch (idKeyInput::MenuControllerKey(key)) {' in function_body(retained, 'bool MapMenuKey(')
+    assert adapter.count('idKeyInput::MenuControllerKey(') == 3, 'the menu keys, the text commit and the failure close'
+    menu_source = (ROOT / 'src/framework/Session_menu.cpp').read_text(encoding='utf-8', errors='replace')
+    assert 'idKeyInput::MenuControllerKey( event->evValue ) == K_JOY4' in function_body(menu_source, 'bool idSessionLocal::RetainedSubpageEvent(')
     # Every document with prompts: the state, and per glyph group each
     # family's button at its index, the keyboard's keycap at 0, and a pad
     # shown for any controller.
     sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
     import build_retained_screens as generator
-    documents, shoulders = 0, 0
+    glyphs_state, swapped_state = {'state': generator.PROMPT_GLYPHS}, {'state': generator.PROMPT_SWAPPED}
+
+    def glyph_condition(condition: dict):
+        """(index, swapped) for a glyph binding's condition, swapped None
+        unless the binding depends on prompt.swapped; None for others."""
+        if condition.get('op') == '==' and condition['args'][0] == glyphs_state:
+            return condition['args'][1], None
+        if condition.get('op') == '&&' and len(condition['args']) == 2:
+            first, second = condition['args']
+            if first.get('op') == '==' and first['args'][0] == glyphs_state:
+                if second == swapped_state:
+                    return first['args'][1], True
+                if second == {'op': '!', 'args': [swapped_state]}:
+                    return first['args'][1], False
+        return None
+    documents, shoulders, swapping = 0, 0, 0
     for path in sorted((ROOT / 'content/baseoq4/pak0/guis').rglob('*.q4ui')):
         document = json.loads(re.sub(r'^\s*//.*$', '', path.read_text(encoding='utf-8'), flags=re.M))
         if generator.PROMPT_GLYPHS not in document.get('state', {}):
@@ -3354,24 +3414,43 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
         for binding in document.get('bindings', []):
             value = binding['value']
             if binding['property'] == 'display' and isinstance(value, dict) and value.get('op') == 'select':
-                condition = value['args'][0]
-                if condition.get('op') == '==' and condition['args'][0] == {'state': generator.PROMPT_GLYPHS}:
-                    if value['args'][1:] == ['block', 'none']:
-                        shown[binding['node']] = condition['args'][1]
-                    else:
-                        assert value['args'][1:] == ['none', 'block'] and condition['args'][1] == 0, (path.name, binding['id'])
-                        pads.add(binding['node'])
-        groups = {node.rsplit('-', 1)[0] for node, index in shown.items() if index >= 1}
+                parsed = glyph_condition(value['args'][0])
+                if parsed is None:
+                    continue
+                if value['args'][1:] == ['block', 'none']:
+                    shown[binding['node']] = parsed
+                else:
+                    assert value['args'][1:] == ['none', 'block'] and parsed == (0, None), (path.name, binding['id'])
+                    pads.add(binding['node'])
+        groups = {}
+        for node, (index, swapped) in shown.items():
+            if index < 1:
+                continue
+            suffix = f'-{generator.GLYPH_FAMILIES[index - 1]}' + ('-swapped' if swapped else '')
+            assert node.endswith(suffix), (path.name, node)
+            groups.setdefault(node[:-len(suffix)], set()).add(swapped)
         assert groups, path.name
-        for group_id in groups:
+        for group_id, kinds in groups.items():
             for index, family in enumerate(generator.GLYPH_FAMILIES, 1):
-                assert shown.get(f'{group_id}-{family}') == index, (path.name, group_id, family)
+                if kinds == {None}:
+                    assert shown.get(f'{group_id}-{family}') == (index, None), (path.name, group_id, family)
+                else:
+                    # An Accept or Back prompt: its own position unless
+                    # confirm moved east, the other position while it has.
+                    assert kinds == {False, True}, (path.name, group_id, kinds)
+                    assert shown.get(f'{group_id}-{family}') == (index, False), (path.name, group_id, family)
+                    assert shown.get(f'{group_id}-{family}-swapped') == (index, True), (path.name, group_id, family)
+            swapping += kinds == {False, True}
+        if any(kinds == {False, True} for kinds in groups.values()):
+            assert document['state'][generator.PROMPT_SWAPPED] == {'type': 'boolean', 'initial': False}, path.name
         for pad in pads:
             assert pad.endswith('-pad') and pad[:-len('-pad')] in groups, (path.name, pad)
         shoulders += sum(1 for group_id in groups if group_id in ('tab-previous', 'tab-next', 'prompt-tabs-0', 'prompt-tabs-1'))
     assert documents == 9, documents
-    # Both cards' tab keys and their Tabs prompt take the shoulders.
+    # Both cards' tab keys and their Tabs prompt take the shoulders; every
+    # Accept and Back prompt follows Swap Confirm and Back.
     assert shoulders == 8, shoulders
+    assert swapping == 18, swapping
     print(f'ui_retained gate: prompt glyphs follow the active device in {documents} documents')
 
 

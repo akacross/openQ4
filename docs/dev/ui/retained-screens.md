@@ -1436,6 +1436,13 @@ the family's label in strokes:
 On the Escape card's tab strip, the shoulder takes the keycap's 20x22 dp and
 answers the tab key's states.
 
+Accept and Back prompts follow Swap Confirm and Back
+([input routing](input-routing.md)). Each also carries every family's button
+at the other of the two positions (`<prompt>-<family>-swapped`), shown while
+the adapter-owned `prompt.swapped` is set. So a Nintendo pad's SELECT shows
+its east A and EXIT its south B, and a forced swap on an Xbox pad shows B and
+A.
+
 The letters and symbols are strokes in a 22 dp box, so no font or string
 stands in for them. The prompt bar's glyph is 22 dp square and centered on
 its verb. The bar still ends at the stock Back position whichever glyph
@@ -1445,8 +1452,11 @@ at 18 dp, beside CONTINUE.
 
 Checks:
 
-- `ui_retained_gate.py` compiles the backend's family mapping and
-  `RetainedUI_PromptGlyphs` against stand-ins. It pins where the backend sets
+- `ui_retained_gate.py` compiles the backend's family mapping,
+  `RetainedUI_PromptGlyphs` and the swap (`in_swapConfirmBack` and
+  `idKeyInput::MenuControllerKey`) against stand-ins, pins every menu input
+  path's translation, and checks that the 18 Accept and Back glyph groups
+  carry both positions. It pins where the backend sets
   and clears the family, and checks that the adapter publishes before the
   frame draws. It also checks that each of the nine documents with prompts
   binds every glyph to its family's index, and that both cards give the
@@ -1455,8 +1465,8 @@ Checks:
   session's state pushes, and never to a document without the state.
 - The native screens test lays out the title's bar at every value, and the
   Escape card's strip keys and prompt bar at every value.
-- The `prompts` capture forces each style through `ui_promptStyle` and
-  touches no device. The `loading` capture shows the Xbox continue prompt.
+- The `prompts` capture forces each style through `ui_promptStyle`, then
+  Xbox and Nintendo with `in_swapConfirmBack 2`, and touches no device. The `loading` capture shows the Xbox continue prompt.
   `mpcard-prompts` does the same on the Escape card over a listen server.
 
 ## Hand-off to the Welcome card

@@ -726,7 +726,8 @@ void ReleaseQuarantinedInput(const retainedUIInput_t& event) {
 }
 bool MapMenuKey(int key, openq4::ui::MenuInput& action) {
 	using openq4::ui::MenuInput;
-	switch (key) {
+	// Confirm and Back may trade the south and east buttons (section 13.5).
+	switch (idKeyInput::MenuControllerKey(key)) {
 		case K_TAB: {
 			bool shift = idKeyInput::IsDown(K_SHIFT);
 			for (const auto& held : inputKeys) if (held.second == K_SHIFT) shift = true;
@@ -1311,6 +1312,7 @@ bool RetainedUI_IsOpen() { return applicationOpen.load(std::memory_order_acquire
 // Nintendo, Steam Deck, generic). ui_promptStyle forces one. Otherwise a
 // controller used last shows the family the platform reports for it
 // (in_gamepadFamily), or the generic one where it reports none.
+bool RetainedUI_PromptSwapped() { return idKeyInput::MenuConfirmSwapped(); }
 int RetainedUI_PromptGlyphs() {
 	const int style = ui_promptStyle.GetInteger();
 	if (style > 0) return style - 1;
