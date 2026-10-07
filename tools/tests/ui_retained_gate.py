@@ -1380,6 +1380,14 @@ int main() {
         CHECK(join->state["join.row2.name"] == "10.0.0.2:28004" && join->state["join.row2.ping"] == "0" && join->state["join.row2.players"] == "32/8" &&
               join->state["join.row2.lock"] == "1" && join->state["join.row2.type"] == "Freeze Tag" && join->state["join.row3.name"] == "" &&
               join->state["join.row3.lock"] == "0");
+        // Network quality (section 13.13) beside each ping: 85 ms three bars,
+        // 12 ms and the floored 0 four, an empty row none.
+        CHECK(join->state["join.row0.quality"] == "3" && join->state["join.row1.quality"] == "4" && join->state["join.row2.quality"] == "4" &&
+              join->state["join.row3.quality"] == "0");
+        CHECK(Session_NetworkQualityBars(60, 0) == 4 && Session_NetworkQualityBars(61, 0) == 3 && Session_NetworkQualityBars(120, 0) == 3 &&
+              Session_NetworkQualityBars(121, 0) == 2 && Session_NetworkQualityBars(200, 0) == 2 && Session_NetworkQualityBars(201, 0) == 1 &&
+              Session_NetworkQualityBars(10, 1.9f) == 4 && Session_NetworkQualityBars(10, 2.0f) == 3 && Session_NetworkQualityBars(10, 6.0f) == 1 &&
+              Session_NetworkQualityBars(500, 20.0f) == 1);
         // The dedicated server's and the repeater's symbols; the mod filter as
         // the scan wrote it, read as players' text; nothing chosen, so no
         // levelshot and no favorite.
@@ -4576,6 +4584,7 @@ def main() -> int:
         'static bool Session_BanListRow(', 'void idSessionLocal::PublishRetainedCreateBans(',
         'void idSessionLocal::HandleRetainedCreateServerRequest(', 'static void Session_ScanServers(',
         'idUserInterface *idSessionLocal::RetainedJoinGamePage(', 'void idSessionLocal::OpenRetainedJoinGame(',
+        'static int Session_NetworkQualityBars(',
         'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::PublishRetainedJoinDetail(',
         'void idSessionLocal::UpdateRetainedJoinGame(',
         'void idSessionLocal::HandleRetainedJoinGameRequest(',

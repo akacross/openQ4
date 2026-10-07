@@ -1218,7 +1218,18 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   repeater's symbol, PLAYERS, GAMETYPE and MAP. The symbols sit on their
   16 dp tiles with the cut upper-leading corner as section 9's symbol table
   draws them: a gold star, a padlock, a server case with its green power
-  light, a television with its antennas and color bars. The columns after the
+  light, a television with its antennas and color bars. Each ping follows
+  its network quality (section 13.13), drawn as four bars rising like slider
+  ticks from PING's stop:
+  - four bars to 60 ms, three to 120 ms, two to 200 ms and one above
+    (`Session_NetworkQualityBars`, which takes a bar off per 2% of packet loss
+    where loss is known; the browser hears none);
+  - lit in `status.success` at three and four bars, `status.warning` at two
+    and `status.error` at one, the rest faint;
+  - 1.6 u wide, 0.9 u apart, rising from 2.4 to 7.2 u on the row text's
+    baseline, with the ping's text following at 292 u.
+
+  The columns after the
   name are wider than the stock ones, so every language's heading fits beside
   the sort's chevron, which follows the heading's longest translation. The
   scan's status line at 41,291 u (175 u, which every language's status fits),
@@ -1237,7 +1248,8 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   how many it holds), that none matches the current filters.
 - **List.** The session owns it. While the page presents it lists the
   servers the scan found and the filter passes, in the sort's order, a page
-  at a time (`join.row<i>.*`), with their count and how many the scan holds,
+  at a time (`join.row<i>.*`, the ping's bars as `join.row<i>.quality`),
+  with their count and how many the scan holds,
   the scan's status line (the stock page's `sortNotice`), whether a scan
   runs, its progress (`join.progress` and `join.notice`, the stock page's
   `loadPct` and `loadNotice`), the source, the mod filter (`filterMod`,
@@ -2000,6 +2012,9 @@ SHA-256 `5b7857f09bfd8f65fd8cfa22264375b890b55387090450c5ca5010fd6b034e46`.
 
 The runtime's detail card and Join Game's server details: `.tmp/ui/retained-detail-card-evidence/validation-evidence.json`,
 SHA-256 `f756cd836ed5469f16f0f60658c9568d31f35bff637eb694493c464dc0f58854`.
+
+Join Game's network quality bars: `.tmp/ui/retained-network-quality-evidence/validation-evidence.json`,
+SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
 
 ## Known limitations
 

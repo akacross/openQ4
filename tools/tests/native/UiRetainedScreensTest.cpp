@@ -2754,8 +2754,10 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		Near(bounds("server-1-ded").width,16,.5f),"the symbols' 16 dp tiles sit centered in their stock columns");
 	Check(text("server-0-fav","display") == "block" && text("server-1-fav","display") == "none" && text("server-1-lock","display") == "block" &&
 		text("server-0-lock","display") == "none","a favorite shows its star and a password its lock");
-	Check(Near(bounds("server-0-ping").x,bounds("server-0").x+279*u,1) && Near(bounds("server-1").y,bounds("server-0").y+18*u,1),
-		"the rows keep the stock 18 u pitch and their columns");
+	// PING's column starts at the stock 279 u with its network quality bars;
+	// the ping's text follows them at 292 u.
+	Check(Near(bounds("server-0-bar-1").x,bounds("server-0").x+280*u,1) && Near(bounds("server-0-ping").x,bounds("server-0").x+292*u,1) &&
+		Near(bounds("server-1").y,bounds("server-0").y+18*u,1),"the rows keep the stock 18 u pitch and their columns");
 	Check(text("servers-newer","display") == "none" && text("servers-older","display") == "none","one page holds them all");
 	// The details card: each row names its row; focusing one makes it the
 	// subject (join.detail); the card shows once the session's details describe
@@ -2800,6 +2802,25 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"join.lan",true}},error,1.04),"the LAN");
 	runtime.Frame(viewport,1.05);
 	Check(text("join_internet-lit","display") == "none" && text("join_lan-lit","display") == "block","the LAN tag lights");
+	// Network quality (section 13.13) beside the ping: two bars lit in the
+	// warning color, the other two faint; four in the success color; one in
+	// the error color. The ping's text follows the bars in its column.
+	const auto barIs = [&](const std::string& node, float r, float g, float b, float alpha) {
+		const auto found = runtime.PresentedValue(node,"background-color");
+		return found && Near(static_cast<float>(found->data[0]),r,.01f) && Near(static_cast<float>(found->data[1]),g,.01f) &&
+			Near(static_cast<float>(found->data[2]),b,.01f) && Near(static_cast<float>(found->data[3]),alpha,.01f);
+	};
+	Check(runtime.SetState({{"join.row1.quality",2.0},{"join.row2.quality",4.0},{"join.row3.quality",1.0}},error,1.06),"three rows' quality");
+	runtime.Frame(viewport,1.07);
+	Check(barIs("server-1-bar-1",0xE3/255.f,0xAD/255.f,0x36/255.f,.9f) && barIs("server-1-bar-2",0xE3/255.f,0xAD/255.f,0x36/255.f,.9f) &&
+		barIs("server-1-bar-3",1,1,1,.18f) && barIs("server-1-bar-4",1,1,1,.18f),"two bars lit in the warning color");
+	Check(barIs("server-2-bar-4",0xB5/255.f,0xC7/255.f,0x84/255.f,.9f) && barIs("server-3-bar-1",0xE4/255.f,0x6D/255.f,0x56/255.f,.9f) &&
+		barIs("server-3-bar-2",1,1,1,.18f),"four in the success color, one in the error color");
+	{
+		const auto first = bounds("server-1-bar-1"), last = bounds("server-1-bar-4"), ping = bounds("server-1-ping");
+		Check(last.height > first.height && Near(last.y+last.height,first.y+first.height,.5f) && ping.x > last.x+last.width &&
+			Near(first.x,bounds("server-1").x+280*u,1),"the bars rise from the column's start and the ping follows them");
+	}
 	// A row's first Accept asks for its server; once chosen it is lit, JOIN
 	// SERVER applies and Accept on it moves on to JOIN SERVER.
 	Check(runtime.RunEvent("serverRow1",1.1,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "joinPick",

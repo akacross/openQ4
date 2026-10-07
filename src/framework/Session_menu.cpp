@@ -7347,6 +7347,25 @@ chosen while a scan may list it again, or while the scan holds it and a
 filter or search hides it. A first page of -1 pages to the chosen server.
 ===============
 */
+/*
+===============
+Session_NetworkQualityBars
+
+Section 13.13's network quality: four bars to 60 ms, three to 120 ms, two to
+200 ms and one above, each 2% of packet loss taking one away, never below
+one.
+===============
+*/
+#ifndef ID_DEDICATED
+static int Session_NetworkQualityBars( int ping, float lossPercent ) {
+	int bars = ping <= 60 ? 4 : ping <= 120 ? 3 : ping <= 200 ? 2 : 1;
+	if ( lossPercent > 0.0f ) {
+		bars -= static_cast<int>( lossPercent / 2.0f );
+	}
+	return Max( 1, bars );
+}
+#endif
+
 void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 #ifndef ID_DEDICATED
 	idServerScan &servers = idAsyncNetwork::client.serverList;
@@ -7396,6 +7415,8 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 		gui->SetStateBool( va( "join.row%d.rep", row ), server != NULL && server->serverInfo.GetBool( "si_repeater" ) );
 		gui->SetStateString( va( "join.row%d.name", row ), name.c_str() );
 		gui->SetStateString( va( "join.row%d.ping", row ), ping.c_str() );
+		// The browser hears no packet loss, so the ping alone sets the bars.
+		gui->SetStateInt( va( "join.row%d.quality", row ), server != NULL ? Session_NetworkQualityBars( Max( 0, server->ping ), 0.0f ) : 0 );
 		gui->SetStateString( va( "join.row%d.players", row ), players.c_str() );
 		gui->SetStateString( va( "join.row%d.type", row ), type.c_str() );
 		gui->SetStateString( va( "join.row%d.map", row ), map.c_str() );

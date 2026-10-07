@@ -33,7 +33,9 @@ game types. When a filter hides the selected server, Join Server is disabled
 until you select a visible server, and the list tells you when the filters
 hide every server. **Refresh List** updates the currently known addresses;
 **Get New List** runs discovery again. The bar under the list fills as
-servers answer and names the step the scan is on. Point at a server, or
+servers answer and names the step the scan is on. Bars beside each ping
+show the connection's quality: four up to 60 ms, three to 120 ms, two to
+200 ms and one above, turning amber at two bars and red at one. Point at a server, or
 move to it with the keyboard or a controller, to see its address, players
 and settings in a card beside it. With a controller, the left face button
 refreshes the list and the top one sorts it by the next column.

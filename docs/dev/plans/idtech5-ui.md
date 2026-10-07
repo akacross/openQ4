@@ -223,7 +223,8 @@ JOIN GAME goes deeper to the retained
 server browser's list with its sources, column sorts, symbols, mod filter,
 favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
 PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, a
-server's players and settings in the stock tooltip's card beside the
+network quality bars beside each ping, a server's players and settings in
+the stock tooltip's card beside the
 pointer's or the focused row (the runtime's detail card), a controller's
 west refreshing the list and north sorting it by the next column, the session
 publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.

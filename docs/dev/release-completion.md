@@ -1516,6 +1516,10 @@
   the geometry, mostly the glow around its QUAKE 4 lettering, so each frame
   costs less, and the start-up screen and other rebuilt menus are lighter too.
 
+- The rebuilt server browser shows each server's connection quality as bars
+  beside its ping, from four green bars on a fast server down to one red
+  bar.
+
 - With a controller, the rebuilt server browser refreshes the list with the
   left face button and sorts it by the next column with the top one.
 

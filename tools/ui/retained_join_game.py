@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 
-from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, Document, absolute, action_plate, confirmation, group,
+from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, Document, absolute, action_plate, colour, confirmation, group,
                                     keyword, label, length, linear, number, objectives_scrollbar, path, rgb, solid, stroke, text_width,
                                     typeface, vector)
 from retained_create_server import BACK, header_band, text_row
@@ -71,6 +71,15 @@ SYMBOL = 16.0                              # dp: a list symbol's tile
 # color bars.
 CASE_GRAY, CASE_PANEL, POWER_GREEN = "#A5AAB5", "#394D52", "#18BE08"
 TV_GRAY, TV_SCREEN, TV_BARS = "#ADAAA5", "#141414", ("#B4B45A", "#31DBA5", "#CE1052", "#08088A")
+# Section 13.13's network quality beside the ping: four bars rising like
+# slider ticks from the column's start, lit up to the row's quality in the
+# status color of its worst (success at three and four, warning at two, error
+# at one), the rest faint; the ping follows them.
+QUALITY_BARS = 4
+BAR_W, BAR_GAP, BAR_LOW, BAR_STEP = 1.6, 0.9, 2.4, 1.6     # u: width, gap, the first bar's height, each next one's rise
+BAR_BOTTOM = 12.2                          # u: the bars stand on the row text's baseline
+QUALITY_COLORS = ("#E46D56", "#E3AD36", "#B5C784")         # status.error, status.warning, status.success
+BAR_UNLIT = [1, 1, 1, 0.18]
 MOD = (27.0, 46.0, 59.0)                   # u: mp_browse_mod, "MOD:" right-aligned, clear of the spinner
 MOD_VALUE = (113.0, 150.0)                 # u: mp_browse_filter_mod, inside the spinner squares
 MOD_SPIN = ((88.0, "joinModPrevious", "previous"), (266.0, "joinModNext", "next"))  # u: the spinner squares, 22x16
@@ -159,6 +168,30 @@ def symbol(ident: str, kind: str, opacity: float = 1) -> dict:
                           "opacity": number(opacity), "pointer-events": keyword("none")}, paths)
 
 
+def quality_bars(doc: Document, ident: str, key: str, left: float) -> tuple:
+    """A row's network quality (join.row<i>.quality, 0-4) as four bars from
+    `left` (u), and where the ping's text starts after them."""
+    doc.state[f"{key}.quality"] = {"type": "number", "initial": 0}
+    quality = {"state": f"{key}.quality"}
+    lit = [rgb(color, 0.9) for color in QUALITY_COLORS]
+    bars = []
+    for bar in range(1, QUALITY_BARS + 1):
+        height = BAR_LOW + (bar - 1) * BAR_STEP
+        x = left + 1.0 + (bar - 1) * (BAR_W + BAR_GAP)
+        node = f"{ident}-bar-{bar}"
+
+        def component(channel: int) -> dict:
+            worst = {"op": "select", "args": [{"op": ">=", "args": [quality, 3]}, lit[2][channel],
+                                              {"op": "select", "args": [{"op": "==", "args": [quality, 2]}, lit[1][channel], lit[0][channel]]}]}
+            return {"op": "select", "args": [{"op": ">=", "args": [quality, bar]}, worst, BAR_UNLIT[channel]]}
+        bars.append(group(node, {**absolute(left=round(U * x, 3), top=round(U * (BAR_BOTTOM - height), 3), width=round(U * BAR_W, 3),
+                                            height=round(U * height, 3)), "background-color": colour(BAR_UNLIT),
+                                 "pointer-events": keyword("none")}))
+        doc.bind(f"{node}.background-color", node, "background-color", [component(channel) for channel in range(4)])
+    text_left = left + 1.0 + QUALITY_BARS * (BAR_W + BAR_GAP) + 2.0
+    return bars, text_left
+
+
 def server_row(doc: Document, index: int, row_w: float) -> dict:
     """One of the list's rows: a server's symbols (favorite, password,
     dedicated server, repeater) and its name, ping, players, game type and map
@@ -179,6 +212,11 @@ def server_row(doc: Document, index: int, row_w: float) -> dict:
             cells.append(icon)
             continue
         doc.state[f"{key}.{column}"] = {"type": "string", "initial": ""}
+        if column == "ping":
+            bars, text_left = quality_bars(doc, ident, key, left)
+            cells += bars
+            column_w -= text_left - left
+            left = text_left
         cells.append(label(node, PLACEHOLDER, {**absolute(left=U * left, top=0, width=U * column_w - 4, height=height),
                                                 **typeface("lowpixel", CELL_TEXT, height, tint), "white-space": keyword("nowrap"),
                                                 "overflow": keyword("hidden"), "pointer-events": keyword("none")}))

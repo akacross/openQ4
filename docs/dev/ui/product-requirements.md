@@ -605,7 +605,9 @@ On engine `58ca62c695a54106fe6b20f7d01f67b0e951f585`, the multiplayer cards' pro
 
 On engine `f137d9408cacfbdef208176299bbf1b5a7aca01c`, Nintendo layouts confirm on the east button by default and in_swapConfirmBack forces either convention in every menu, with the prompts following. `INP-011` gains evidence. Evidence: `.tmp/ui/retained-confirm-swap-evidence/validation-evidence.json`, SHA-256 `3f3d402b39d24c8fe5926b1bfd16fe7ab791975460ef3493bbc8a35c60342b67`.
 
-There are **110 partial, 229 pending and one verified requirement**, counting the
+On engine `35311b0e5d880a428b1311cdb925608d8d6c4e3a`, the server browser shows each server's network quality as four bars beside its ping. `WID-029` moves from pending to partial. Evidence: `.tmp/ui/retained-network-quality-evidence/validation-evidence.json`, SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
+
+There are **111 partial, 228 pending and one verified requirement**, counting the
 33 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
