@@ -180,6 +180,37 @@ static void ChoiceStepping() {
 	single.Press(MenuInput::Right); Check(single.Actions().empty(),"a choice without eligible options proposes nothing");
 	single.input.SetEnabled("choice",false); single.Press(MenuInput::Right); Check(single.Actions().empty(),"a disabled choice never steps");
 }
+// The most recent device sets the presentation (section 13.4): under the
+// pointer's lead only the control under it is lit, and the focus waits for
+// the next navigation input. A focus whose control turns ineligible resumes
+// from where it stood.
+static void FocusPresentation() {
+	Fixture f; Check(f.input.Focus("button") && f.input.State("button") == ControlState::Focus,"the keyboard's lead shows the focus");
+	f.input.SetPointerPresentation(true); f.input.Hover("toggle");
+	Check(f.input.State("button") == ControlState::Default && f.input.State("toggle") == ControlState::Hover && f.input.Focused() == "button",
+		"the pointer's lead lights only the control under it and keeps the focus");
+	f.input.Hover(""); Check(f.input.State("button") == ControlState::Default,"a focused button rests while the pointer leads");
+	Check(f.input.Focus("slider") && f.input.State("slider") == ControlState::Focus,"a value control keeps showing its focus");
+	f.input.Focus("button"); f.input.SetPointerPresentation(false);
+	Check(f.input.State("button") == ControlState::Focus,"the keyboard's next lead shows the focus again");
+	f.input.SetPointerPresentation(true); f.input.Hover("button"); f.input.Pointer(true);
+	Check(f.input.State("button") == ControlState::Pressed,"a press still shows");
+	f.input.Pointer(false); Check(f.input.State("button") == ControlState::Hover && f.Actions().size() == 1,"a click activates and leaves hover");
+	f.input.SetPointerPresentation(false); f.input.Hover("");
+}
+static void LostFocusResumes() {
+	Fixture f; f.input.Focus("toggle"); f.input.SetEnabled("toggle",false);
+	Check(f.input.Focused().empty(),"focus never stays on a disabled control");
+	f.Press(MenuInput::Down); Check(f.input.Focused() == "slider","Down moves on from the lost control, not from the first");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false);
+	f.Press(MenuInput::Up); Check(f.input.Focused() == "button","Up moves on from the lost control");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false); f.input.SetEnabled("toggle",true);
+	f.Press(MenuInput::Down); Check(f.input.Focused() == "toggle","a lost control that can take focus again resumes it");
+	f.input.SetEnabled("toggle",false); f.Press(MenuInput::Next); Check(f.input.Focused() == "slider","tab order resumes after the lost control");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false); f.input.Focus("choice");
+	f.input.SetEnabled("toggle",true); f.input.Focus(""); f.Press(MenuInput::Down);
+	Check(f.input.Focused() == "button","a focus set since forgets the lost control");
+}
 static void ChoicePointerAndReadback() {
 	Fixture f; f.Accept("choice"); f.input.PointerPart("choice",{},"o1"); f.input.Pointer(true); f.input.Pointer(false);
 	Check(f.Actions().empty() && f.View("choice").popupOpen,"disabled row pointer press and release cannot commit");
@@ -239,6 +270,7 @@ static void QueueBound() {
 	Check(!std::get<bool>(*a.back().proposal),"overflow did not mutate queued values");
 }
 int main() {
-	ButtonAndToggle(); AtomicReadbacks(); SliderKeyboard(); SliderPointerAndCancel(); ChoiceNavigation(); ChoiceStepping(); ChoicePointerAndReadback(); PersistenceAndLifetime(); QueueBound();
+	ButtonAndToggle(); AtomicReadbacks(); SliderKeyboard(); SliderPointerAndCancel(); ChoiceNavigation(); ChoiceStepping(); FocusPresentation(); LostFocusResumes();
+	ChoicePointerAndReadback(); PersistenceAndLifetime(); QueueBound();
 	std::printf("PASS: value interaction (%u assertions)\n",checks); return 0;
 }

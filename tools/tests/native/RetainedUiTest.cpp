@@ -853,6 +853,19 @@ int main(int argc, char** argv) {
 	Check(runtime.GetControlState("reference-controls") == ControlState::Default,"viewport change reprojects stationary window input");
 	viewport.originX = 30; runtime.Frame(viewport,24.1);
 	Check(runtime.GetControlState("reference-controls") == ControlState::Hover,"restored viewport recovers hover without moving a device");
+	// The most recent device sets the presentation (section 13.4): a program's
+	// focus shows until the pointer moves, which then lights only the control
+	// under it; the next navigation input resumes from the focus and shows it.
+	Check(runtime.SetControlEnabled("reference-system",true,24.2) && runtime.FocusControl("reference-system",24.2),"focus a button by program");
+	Check(runtime.GetControlState("reference-system") == ControlState::Focus && runtime.GetControlState("reference-controls") == ControlState::Default,
+		"a program's focus leads: it shows, and the stationary pointer's hover clears");
+	runtime.PointerMove((hitX+30)/2,(hitY+20)/2,24.3);
+	Check(runtime.GetControlState("reference-controls") == ControlState::Hover && runtime.GetControlState("reference-system") == ControlState::Default &&
+		runtime.FocusedControl() == "reference-system","moving the pointer lights only the control under it and keeps the focus");
+	runtime.MenuAction(MenuInput::Up,true,24.4); runtime.MenuAction(MenuInput::Up,false,24.4);
+	Check(runtime.FocusedControl() == "reference-controls" && runtime.GetControlState("reference-controls") == ControlState::Focus,
+		"the next navigation input resumes from the focus and shows it");
+	runtime.FocusControl("",24.5);
 	Document interactionEdit;
 	Check(interactionEdit.Load(interactionSource,diagnostics),"load editable control schema");
 	Check(!interactionEdit.ReplaceValue("/root/children/0/children/1/control/action","\"quit; exec file\"",diagnostics),"actions are semantic IDs, not executable command text");

@@ -136,11 +136,11 @@ bool NativeUnsettled(const NativeTextEditorView& view) {
 // or an actual move construction. Native views themselves are immutable.
 #define OQ4_INTERACTION_FIELDS(X) \
 	X(document) X(focused) X(hovered) X(armed) X(pointerHeld) X(acceptHeld) X(backHeld) X(pointerArm) X(overflowed) \
-	X(items) X(order) X(parents) X(modals) X(authoredModals) X(modalToken) X(numberEpoch) X(modalBlocked) X(focusPending) \
+	X(items) X(order) X(parents) X(modals) X(authoredModals) X(modalToken) X(numberEpoch) X(modalBlocked) X(focusPending) X(pointerPresentation) \
 	X(pendingFocus) X(heldNavigation) X(blockedNavigation) X(feedback) X(actions) X(dragging) X(popup) X(highlight) \
 	X(pointerOption) X(armedOption) X(pointerFraction) X(dragPreview) X(popupAcceptArm) X(nativeControl) \
     X(pointerScrollThumb) X(scrollGrabFraction) X(scrollSource) X(scrollCommands) X(pointerChoiceTrack) X(choiceScrollArm) X(popupToken) \
-    X(popupMeasured)
+    X(popupMeasured) X(lostFocus) X(focusBounds)
 Interaction::Interaction() : authority(ProposalToken()) {}
 Interaction::~Interaction() = default;
 Interaction::Interaction(const Interaction& other) : authority(other.authority), candidate(true) {
@@ -209,7 +209,8 @@ void Interaction::Reset(const DocumentModel& model) {
 	document = model.id; focused.clear(); hovered.clear(); armed.clear();
 	CancelGesture(); pointerOption.clear(); pointerFraction.reset();
 	items.clear(); order.clear(); parents.clear(); modals.clear(); feedback.clear(); actions.clear(); overflowed = false;
-	authoredModals.clear(); modalBlocked = focusPending = false; pendingFocus.clear();
+	authoredModals.clear(); modalBlocked = focusPending = pointerPresentation = false; pendingFocus.clear();
+	lostFocus.clear(); focusBounds = {};
 	modalToken = ProposalToken(); numberEpoch = ProposalToken(); blockedNavigation = heldNavigation;
 	std::vector<std::pair<const Node*,std::string>> pending{{&model.root,{}}};
 	while (!pending.empty()) {
@@ -902,6 +903,11 @@ void Interaction::RetireNumber(const std::string& id, Item& item) {
 	item.number.reset(); item.pending.reset(); item.rejected.reset(); item.proposalToken = 0;
 	std::erase_if(actions,[&](const ControlAction& action) { return action.node == id && action.editSession != 0; });
 }
+bool Interaction::IdleNumber(const Item& item) {
+	const auto& editor = *item.number;
+	return editor.detached && !editor.native && !editor.buffer.Composition() && !editor.conflict && !item.pending &&
+		editor.buffer.State().text == editor.baselineText;
+}
 void Interaction::DetachNumber(const std::string& id, Item& item) {
 	if (!item.number) return;
 	DropNumberNative(id,item);
@@ -1237,11 +1243,15 @@ void Interaction::InvalidateLayout() {
 bool Interaction::Focus(const std::string& id) {
 	if (focusPending && !id.empty()) return false;
 	if (!id.empty() && !Eligible(id)) return false;
-	focusPending = false; pendingFocus.clear();
+	focusPending = false; pendingFocus.clear(); lostFocus.clear();
 	if (focused != id) { CancelGesture(); focused = id; }
 	Refresh(); return true;
 }
 void Interaction::Hover(const std::string& id) { PointerPart(id); }
+void Interaction::SetPointerPresentation(bool pointer) {
+	if (pointerPresentation == pointer) return;
+	pointerPresentation = pointer; Refresh();
+}
 void Interaction::PointerPart(const std::string& id, std::optional<double> fraction, const std::string& option, bool scrollThumb, bool choiceTrack) {
 	pointerScrollThumb = scrollThumb;pointerChoiceTrack=choiceTrack;
 	hovered = !focusPending && Eligible(id) ? id : std::string{};
@@ -1365,7 +1375,9 @@ void Interaction::Input(MenuInput input, bool down) {
 	} else if (input == MenuInput::Back) {
 		if (down && !backHeld) {
 			if (!popup.empty() || !dragging.empty() || (!armed.empty() && items.at(armed).control.role==ControlRole::Scrollbar)) CancelGesture();
-			else if (items.contains(focused) && items.at(focused).number) {
+			// Back first cancels an edit; an editor left with nothing to cancel
+			// lets Back through rather than swallowing it.
+			else if (items.contains(focused) && items.at(focused).number && !IdleNumber(items.at(focused))) {
 				auto& item = items.at(focused);
 				if (item.number->buffer.Composition()) {
 					item.number->buffer.CancelComposition(); item.number->identity.revision = item.number->draftRevision = ProposalToken();
@@ -1484,25 +1496,40 @@ bool Interaction::PopModal() {
 void Interaction::Navigate(MenuInput input) {
 	static const char* names[] = {"next","previous","up","down","left","right"};
 	if (input < MenuInput::Next || input > MenuInput::Right) return;
+	const auto name = names[static_cast<unsigned>(input)];
+	const bool ordered = input == MenuInput::Next || input == MenuInput::Previous;
 	if (!Eligible(focused)) {
+		// A focus whose control turned hidden or disabled resumes on it once
+		// it can take focus again, else moves on from where it stood.
+		if (const auto lost = items.find(lostFocus); lost != items.end()) {
+			// A copy: Focus forgets the lost control as it takes the focus.
+			if (Eligible(lostFocus)) { Focus(std::string(lostFocus)); return; }
+			const auto explicitTarget = lost->second.control.navigation.find(name);
+			auto next = explicitTarget != lost->second.control.navigation.end() && Eligible(explicitTarget->second) ? explicitTarget->second :
+				ordered ? Following(lostFocus,input) : focusBounds.visible ? Toward(focusBounds,lostFocus,input) : std::string{};
+			if (!next.empty()) { Focus(next); return; }
+		}
 		if (input == MenuInput::Previous) { for (auto it = order.rbegin(); it != order.rend(); ++it) if (Eligible(*it)) { Focus(*it); return; } }
 		Focus(First()); return;
 	}
 	const auto& item = items.at(focused);
-	const auto explicitTarget = item.control.navigation.find(names[static_cast<unsigned>(input)]);
+	const auto explicitTarget = item.control.navigation.find(name);
 	if (explicitTarget != item.control.navigation.end() && Eligible(explicitTarget->second)) { Focus(explicitTarget->second); return; }
-	if (input == MenuInput::Next || input == MenuInput::Previous) {
-		const auto current = std::find(order.begin(),order.end(),focused)-order.begin();
-		for (size_t n = 1; n <= order.size(); ++n) {
-			const auto i = (current+order.size()+(input == MenuInput::Next ? n : order.size()-n))%order.size();
-			if (Eligible(order[i])) { Focus(order[i]); break; }
-		}
-		return;
+	const auto next = ordered ? Following(focused,input) : Toward(item.bounds,focused,input);
+	if (!next.empty()) Focus(next);
+}
+std::string Interaction::Following(const std::string& from, MenuInput input) const {
+	const auto current = std::find(order.begin(),order.end(),from)-order.begin();
+	for (size_t n = 1; n <= order.size(); ++n) {
+		const auto i = (current+order.size()+(input == MenuInput::Next ? n : order.size()-n))%order.size();
+		if (Eligible(order[i])) return order[i];
 	}
-	const auto& a = item.bounds;
+	return {};
+}
+std::string Interaction::Toward(const ControlBounds& a, const std::string& from, MenuInput input) const {
 	const double ax = a.x+a.width*.5, ay = a.y+a.height*.5;
 	double best = std::numeric_limits<double>::infinity(); std::string next;
-	for (const auto& id : order) if (id != focused && Eligible(id)) {
+	for (const auto& id : order) if (id != from && Eligible(id)) {
 		const auto& b = items.at(id).bounds;
 		const double dx = b.x+b.width*.5-ax, dy = b.y+b.height*.5-ay;
 		const bool horizontal = input == MenuInput::Left || input == MenuInput::Right;
@@ -1512,18 +1539,25 @@ void Interaction::Navigate(MenuInput input) {
 		const double score = forward*forward+4*lateral*lateral;
 		if (score < best) { best = score; next = id; }
 	}
-	if (!next.empty()) Focus(next);
+	return next;
 }
 void Interaction::Refresh() {
 	if ((!dragging.empty() && !Eligible(dragging)) || (!popup.empty() && !Eligible(popup))) CancelGesture();
-	if (focusPending || !Eligible(focused)) focused.clear();
+	if (focusPending || !Eligible(focused)) {
+		// A focus whose control turned ineligible is remembered where it stood;
+		// one a restore holds back for layout is not lost.
+		if (!focusPending && !focused.empty()) lostFocus = focused;
+		focused.clear();
+	} else { lostFocus.clear(); focusBounds = items.at(focused).bounds; }
 	if (!Eligible(hovered)) hovered.clear();
 	if (!Eligible(armed)) armed.clear();
 	for (auto& [id,item] : items) {
 		if (item.number && !item.number->detached && (focused != id || focusPending || !Eligible(id))) DetachNumber(id,item);
+		const bool focusShown = focused == id && (!pointerPresentation ||
+			(item.control.role != ControlRole::Button && item.control.role != ControlRole::Toggle));
 		const auto state = (!item.control.enabled || (item.control.role==ControlRole::Scrollbar && (!item.scroll || !item.scroll->available || !item.scroll->geometry.usable))) ? ControlState::Disabled :
 			armed == id && (!pointerArm || hovered == id || dragging == id) ? ControlState::Pressed :
-			focused == id ? ControlState::Focus : hovered == id ? ControlState::Hover : ControlState::Default;
+			focusShown ? ControlState::Focus : hovered == id ? ControlState::Hover : ControlState::Default;
 		if (!item.known || item.state != state) { item.known = true; item.state = state; feedback.push_back({id,item.control.states.at(state),state}); }
 	}
 }
@@ -1584,7 +1618,8 @@ bool Interaction::Restore(const InteractionSnapshot& snapshot, std::string& erro
 		}
 		candidate.focused.clear();
 	}
-	candidate.CancelGesture(); candidate.hovered.clear(); candidate.pointerArm = false;
+	candidate.CancelGesture(); candidate.hovered.clear(); candidate.pointerArm = false; candidate.pointerPresentation = false;
+	candidate.lostFocus.clear(); candidate.focusBounds = {};
 	candidate.pointerOption.clear(); candidate.pointerFraction.reset();
 	for (auto& [id,item] : candidate.items) { item.pending.reset(); item.rejected.reset(); item.proposalToken = 0; item.number.reset(); }
 	candidate.feedback.clear(); candidate.actions.clear(); candidate.overflowed = false;

@@ -933,6 +933,10 @@ struct Runtime::Impl {
 	float windowPointerX = 0, windowPointerY = 0;
 	bool pointerPresent = false;
 	bool pointerNavigation = false;
+	// Which device leads (section 13.4): the pointer once it moves or
+	// presses, the keyboard or controller once a menu input or a program's
+	// focus arrives. The interaction shows focus only while they lead.
+	void SetPointerNavigation(bool pointer) { pointerNavigation = pointer; interaction.SetPointerPresentation(pointer); }
 	// The detail card (DocumentModel::detail): its subject, whether the pointer
 	// chose it, and the card's last placement relative to its containing block.
 	std::string detailSubject;
@@ -1018,7 +1022,7 @@ struct Runtime::Impl {
 	// Focus a program asked for: now, when the control can take it, else
 	// after the next frame's layout.
 	void RequestFocus(const std::string& id) {
-		pointerNavigation = false;
+		SetPointerNavigation(false);
 		if (interaction.Focus(id)) { pendingFocus.clear(); RevealFocus(); }
 		else pendingFocus = id;
 	}
@@ -1808,6 +1812,8 @@ bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double sec
 		interaction.Cancel();
 		// A press/hover is transient. Preserve a continuous transition toward
 		// its persistent focus/default feedback instead of reviving pressed ink.
+		// The pointer's lead is too: a restore starts with focus shown.
+		interaction.SetPointerPresentation(false);
 		for (const auto& feedback : interaction.TakeFeedback()) motion.Play(feedback.timeline,now);
 		const auto playback = motion.Capture(now);
 		if (!motion.Restore(playback,now,error,true)) return false;
@@ -2248,7 +2254,7 @@ void Runtime::Frame(const Viewport& viewport, double seconds) {
 	impl->UpdateInteraction(-1,true);
 	if (!impl->pendingFocus.empty()) {
 		const auto focus = std::move(impl->pendingFocus); impl->pendingFocus.clear();
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
 		if (impl->interaction.Focus(focus)) { impl->RevealFocus(); impl->Feedback(impl->time); }
 	}
 	const auto end = std::chrono::steady_clock::now();
@@ -2297,7 +2303,7 @@ RuntimeStatistics Runtime::Statistics() const {
 void Runtime::PointerMove(float x, float y, double seconds) {
     if(!Mutate())return;
 
-	impl->pointerNavigation = true;
+	impl->SetPointerNavigation(true);
 	impl->pointerPresent = std::isfinite(x) && std::isfinite(y);
 	impl->windowPointerX = x; impl->windowPointerY = y;
 	impl->viewport.WindowToDocument(x,y,impl->pointerX,impl->pointerY);
@@ -2305,7 +2311,7 @@ void Runtime::PointerMove(float x, float y, double seconds) {
 }
 void Runtime::PointerButton(bool down, double seconds) {
     if(!Mutate())return;
- impl->pointerNavigation = true; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
+ impl->SetPointerNavigation(true); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
  if(down) impl->RememberFocusLayout();
  impl->Feedback(seconds); }
 void Runtime::PointerWheel(int rows, double seconds) {
@@ -2321,7 +2327,7 @@ void Runtime::PointerWheel(int rows, double seconds) {
 		// Keep this selection through layout and subsequent wheel events. The
 		// stationary pointer must not reselect its old row on the next frame;
 		// an actual pointer move or button event restores pointer navigation.
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
         const auto* node=impl->canonical->Model().FindNode(id);
         const auto* choice=node&&node->control?std::get_if<ChoiceSpec>(&node->control->widget):nullptr;
         if(choice&&choice->scrollbar) {
@@ -2351,19 +2357,19 @@ void Runtime::MenuAction(MenuInput input, bool down, double seconds) {
 	if (down && input != MenuInput::Back && !impl->interaction.CapturedPointerControl().empty()) impl->interaction.Cancel();
 	if (down) impl->pendingFocus.clear();
 	const auto before = impl->interaction.Focused();
-	impl->pointerNavigation = false; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
+	impl->SetPointerNavigation(false); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
 	if (impl->interaction.Focused() != before) impl->RevealFocus();
 }
 void Runtime::CancelInput(double seconds) {
     if(!Mutate())return;
- impl->pointerPresent = impl->pointerNavigation = false; impl->interaction.Cancel(); impl->Feedback(seconds); }
+ impl->pointerPresent = false; impl->SetPointerNavigation(false); impl->interaction.Cancel(); impl->Feedback(seconds); }
 void Runtime::ReleaseInputSources() {
     if(!Mutate())return;
  impl->interaction.ReleaseInputSources(); }
 bool Runtime::FocusControl(const std::string& id, double seconds) {
     if(!Mutate())return false;
 
-	impl->pointerNavigation = false; impl->pendingFocus.clear();
+	impl->SetPointerNavigation(false); impl->pendingFocus.clear();
 	if(!impl->UpdateInteraction(seconds,false,true))return false; const bool result = impl->interaction.Focus(id);
 	if (result) impl->RevealFocus();
 	impl->Feedback(seconds); return result;
@@ -2536,7 +2542,7 @@ bool Runtime::FocusNumberDraft(const NumberDraftBarrier& expected,const std::str
 	if (!impl->PrepareNumberEdit(seconds,error)) return false;
 	if (!impl->RefreshNumberFocusLayout(error)) return false;
 	const bool result=impl->interaction.FocusNumberDraft(expected,control,error);
-	if (result) { impl->pointerNavigation = false; impl->RevealFocus(); }
+	if (result) { impl->SetPointerNavigation(false); impl->RevealFocus(); }
 	impl->Feedback(seconds); return result;
 }
 std::optional<NumberTextGeometry> Runtime::GetNumberGeometry(const std::string& id) const {
