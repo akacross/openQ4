@@ -201,6 +201,7 @@ struct ControlReadback {
 	// options. An absent count means every option.
 	std::vector<std::string> optionLabels;
 	std::optional<std::size_t> optionCount;
+	bool operator==(const ControlReadback&) const = default;
 };
 struct ModalSpec {
 	std::string initialFocus;

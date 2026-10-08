@@ -957,6 +957,9 @@ struct Runtime::Impl {
 	// The motion stamp of the last pass that applied every value (0: none
 	// yet, or a pass left a value for a later one).
 	std::uint64_t appliedMotionRevision = 0;
+	// Counts ApplyMotion's passes that can write presentation; value controls
+	// reassert a settled closed list only after one (ValueControlView::Paint).
+	std::uint64_t presentationPass = 1;
 	float appliedInputTextRatio = 0;
 	// Canonical ids by one breadth-first walk from the document, in
 	// GetElementById's own order and first match, so a load resolves every
@@ -1462,7 +1465,7 @@ struct Runtime::Impl {
 		if (!stateChanged && appliedInputs.size() >= motion.Values().size() && appliedMotionRevision != 0 &&
 			appliedMotionRevision == motion.Revision()) return current();
 		const auto passRevision = motion.Revision();
-		appliedMotionRevision = 0;
+		appliedMotionRevision = 0; ++presentationPass;
 		bool complete = true;
 		Stats().motionInputsScanned += motion.Values().size();
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
@@ -2215,7 +2218,8 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 			impl->document->GetElementById(focusedNode->id) : nullptr;
 		const auto numberSize = focusedNumber ? focusedNumber->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
 		bool painted = impl->valueView.Paint(impl->interaction,impl->state.ControlValues(),viewport.width,viewport.height,viewport.DpRatio(),
-			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; });
+			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; },
+			impl->presentationPass);
 		painted |= std::exchange(impl->scrollLayoutDirty,false);
 		painted |= impl->numberView.Paint(impl->interaction,viewport.DpRatio(),impl->time,impl->motion.ReducedMotion());
 		if (!painted && !focusChanged && !revealed) break;

@@ -125,6 +125,12 @@ struct ValueControlView::Impl {
 		std::optional<PlacementContext> ceilingContext;
 		// The options the list last painted; the rest are hidden and unmeasured.
 		std::size_t optionCount = std::numeric_limits<std::size_t>::max();
+		// What a closed choice's last paint read, and in which presentation
+		// pass: nothing else writes its rows, so the same readback in the same
+		// pass needs no reassertion.
+		std::optional<ControlReadback> painted;
+		std::uint64_t paintedPass = 0;
+		bool paintedOpen = false;
 	};
 	struct Applied { std::string requested, actual; };
 	Rml::ElementDocument* document = nullptr;
@@ -595,7 +601,7 @@ bool ValueControlView::Initialize(const DocumentModel& model, Rml::ElementDocume
 	impl = std::move(candidate); return true;
 }
 bool ValueControlView::Paint(Interaction& interaction, const std::map<std::string,ControlReadback>& readbacks,
-	int width, int height, float ratio, const std::function<double(const std::string&)>& opacity) {
+	int width, int height, float ratio, const std::function<double(const std::string&)>& opacity, std::uint64_t pass) {
 	if (!impl->document || !std::isfinite(ratio) || ratio <= 0) return false;
 	impl->Validate(interaction,width,height,ratio,false);
 	impl->width=width;impl->height=height;impl->ratio=ratio;
@@ -622,6 +628,10 @@ bool ValueControlView::Paint(Interaction& interaction, const std::map<std::strin
 			changed |= impl->Property(slider->thumb,slider->vertical ? "top" : "left",Pixels(start+static_cast<float>(travel*(slider->vertical ? 1-fraction : fraction))));
 			changed |= impl->Text(slider->valueText,Number(value,static_cast<int>(slider->decimals)));
 		} else if (const auto* choice = std::get_if<ChoiceSpec>(&entry.control.widget)) {
+			// A settled closed list: its value, labels, availability and rows
+			// stand as its last paint left them.
+			if (pass != 0 && !view->popupOpen && !entry.paintedOpen && entry.paintedPass == pass && entry.painted == accepted) continue;
+			entry.painted = accepted; entry.paintedPass = pass; entry.paintedOpen = view->popupOpen;
 			std::string value = impl->ValueText(accepted.value);
 			entry.optionCount = accepted.optionCount ? std::min(*accepted.optionCount,choice->options.size()) : choice->options.size();
 			bool rows = false;
