@@ -5493,6 +5493,12 @@ idUserInterface *idSessionLocal::FindRetainedGui( const char *path, bool shared,
 		common->DPrintf( "retained UI: '%s' is not installed; the stock screen presents instead\n", path );
 	} else if ( ( gui = uiManager->FindGui( path, true, !shared, shared ) ) == NULL ) {
 		common->Warning( "retained UI: '%s' could not be loaded; the stock screen stays in use", path );
+	} else if ( UI_RetainedViewFailed( gui ) ) {
+		// A shared view that failed to come back after a renderer or language
+		// change draws nothing: the pages found here each time (Single Player,
+		// Campaign, New Campaign) hand back to the stock screen as the others do.
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
+		gui = NULL;
 	}
 	if ( gui == NULL ) {
 		retainedStock.Append( path );

@@ -1781,6 +1781,14 @@ int main() {
         missing.OpenCampaignSelector(false); CHECK(arenaCampaign.selectors == 2 && commonObject.warnings.empty());
         auto broken = Session(true); managerObject.fail = true; broken.OpenCampaignSelector(false);
         CHECK(arenaCampaign.selectors == 1 && commonObject.warnings.size() == 1);
+        // The Single Player page, found each time it opens, whose view stopped
+        // drawing: the stock selector, reported once.
+        auto stopped = Session(true); stopped.OpenCampaignSelector(false); auto* drawn = stopped.guiActive;
+        CHECK(drawn != nullptr && std::string(drawn->Name()) == "guis/menu/singleplayer.q4ui");
+        drawn->failed = true; stopped.OpenCampaignSelector(false);
+        CHECK(arenaCampaign.selectors == 1 && Stock(stopped) == std::vector<std::string>{"guis/menu/singleplayer.q4ui"} &&
+              commonObject.warnings.size() == 1 && commonObject.warnings[0].find("stopped drawing") != std::string::npos);
+        stopped.OpenCampaignSelector(false); CHECK(arenaCampaign.selectors == 2 && commonObject.warnings.size() == 1);
     }
     {   // Single player loading tips: the first when the screen presents, then the
         // next every 6 s in the other slot; multiplayer runs the arsenal instead.
