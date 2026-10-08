@@ -47,7 +47,14 @@ public:
 	// advancing, or reduced motion jumped every track at once. Cancellation,
 	// replay and losing every track to another timeline never complete.
 	std::vector<std::string> TakeCompleted();
+	// A stamp that changes with every write that can change Values(): a
+	// sample, a play, a cancel, a reduced-motion jump, an external write, a
+	// restore or a reset. Stamps are unique across copies, so an unchanged
+	// stamp means the values are the ones read when it was taken.
+	std::uint64_t Revision() const { return revision; }
 private:
+	void Touch();
+	std::uint64_t revision = 0;
 	void NoteCompleted(const std::string& id);
 	std::vector<std::string> completed;
 	struct Playing {

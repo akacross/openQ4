@@ -950,6 +950,9 @@ struct Runtime::Impl {
 	struct AppliedInput { PropertyKey key; Value value; bool bound = false; };
 	std::vector<AppliedInput> appliedInputs;
 	std::uint64_t appliedInputRevision = 0;
+	// The motion stamp of the last pass that applied every value (0: none
+	// yet, or a pass left a value for a later one).
+	std::uint64_t appliedMotionRevision = 0;
 	float appliedInputTextRatio = 0;
 	// Canonical ids by one breadth-first walk from the document, in
 	// GetElementById's own order and first match, so a load resolves every
@@ -1448,6 +1451,16 @@ struct Runtime::Impl {
 		}
 		const bool stateChanged = appliedInputRevision != state.Revision();
 		appliedInputRevision = state.Revision();
+		// A pass reads the motion values, the state bindings own, the text
+		// ratio and the language, which a reload replaces with the document.
+		// While none has changed since a complete pass, there is nothing to
+		// apply: a settled screen walks none of its authored values.
+		if (!stateChanged && appliedInputs.size() >= motion.Values().size() && appliedMotionRevision != 0 &&
+			appliedMotionRevision == motion.Revision()) return current();
+		const auto passRevision = motion.Revision();
+		appliedMotionRevision = 0;
+		bool complete = true;
+		Stats().motionInputsScanned += motion.Values().size();
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
 		size_t inputIndex = 0;
 		for (const auto& [key,animated] : motion.Values()) {
@@ -1484,7 +1497,7 @@ struct Runtime::Impl {
 				applied[key] = string; input = {key,animated,owned}; continue;
 			}
 			auto* element = CanonicalElement(key.first);
-			if (!element) continue;
+			if (!element) { complete = false; continue; }
 			if (value.type == ValueType::Text) element->SetInnerRML(Rml::StringUtilities::EncodeRml(string));
 			else if (value.type == ValueType::Image) {
 				const auto* node = canonical->Model().FindNode(key.first);
@@ -1494,6 +1507,7 @@ struct Runtime::Impl {
 			if(!current())return false;
 			applied[key] = string; input = {key,animated,owned};
 		}
+		if (complete) appliedMotionRevision = passRevision;
         return current();
 	}
 };

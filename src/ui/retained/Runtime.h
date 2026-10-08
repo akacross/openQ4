@@ -94,6 +94,9 @@ struct RuntimeStatistics {
 	std::uint64_t clipMasks = 0, clipMaskFallbacks = 0;
 	// Shared service residency, sampled by Statistics(); idle backends are reused.
 	std::uint64_t activeContexts = 0, residentBackends = 0;
+	// Authored property values the frame's presentation passes walked: none
+	// while nothing they read has changed since the last complete pass.
+	std::uint64_t motionInputsScanned = 0;
 };
 
 class Host {

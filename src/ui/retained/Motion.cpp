@@ -1,11 +1,14 @@
 // Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
 #include "Motion.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <set>
 
 namespace openq4::ui {
 namespace {
+// Shared by every Motion and its copies, so no two writes share a stamp.
+std::atomic<std::uint64_t> motionRevisions{0};
 void BaseValues(const Node& node, PropertyValues& values) {
 	for (const auto& [name,value] : node.properties) values[{node.id,name}] = value;
 	for (const auto& child : node.children) BaseValues(child,values);
@@ -20,7 +23,9 @@ void Motion::Reset(const DocumentModel& model) {
 	values = *authored;
 	timelines = std::move(loaded); base = std::move(authored);
 	clock = 0; sampled = false;
+	Touch();
 }
+void Motion::Touch() { revision = ++motionRevisions; }
 Value Motion::Sample(const Track& track, double milliseconds) {
 	if (milliseconds <= track.keys.front().atMs) return track.keys.front().value;
 	for (size_t i = 1; i < track.keys.size(); ++i) {
@@ -34,6 +39,7 @@ void Motion::Advance(double seconds) {
 	if (std::isfinite(seconds)) clock = std::max(clock,seconds);
 	if (sampled && sampledClock == clock) return;
 	sampled = true; sampledClock = clock;
+	if (!playing.empty()) Touch();
 	std::vector<std::string> finished;
 	for (auto it = playing.begin(); it != playing.end();) {
 		auto& item = it->second;
@@ -83,6 +89,7 @@ bool Motion::Play(const std::string& id, double seconds) {
 	}
 	// Reduced motion can jump every track to its end: the timeline is complete.
 	if (!IsPlaying(id)) NoteCompleted(id);
+	Touch();
 	return true;
 }
 void Motion::Pause(const std::string& id, double seconds) {
@@ -99,12 +106,14 @@ void Motion::Cancel(const std::string& id, CancelPolicy policy, double seconds) 
 		if (it->second.owner != id) { ++it; continue; }
 		if (policy == CancelPolicy::RestoreBase) values[it->first] = base->at(it->first);
 		it = playing.erase(it);
+		Touch();
 	}
 }
 void Motion::SetReducedMotion(bool enabled, double seconds) {
 	Advance(seconds);
 	if (reducedMotion == enabled) return;
 	reducedMotion = enabled;
+	Touch();
 	if (!enabled) return; // Never resurrect cancelled decorative movement.
 	std::vector<std::string> jumped;
 	for (auto it = playing.begin(); it != playing.end();) {
@@ -164,6 +173,7 @@ bool Motion::WriteValues(const PropertyValues& changes, std::string& error) {
 	}
 	for (const auto& [key,value] : changes) values[key] = value;
 	sampled = false; // A playing track writes again on its next sample.
+	Touch();
 	return true;
 }
 bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string& error, bool allowStaticValues) {
@@ -209,6 +219,7 @@ bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string
 	}
 	candidate.Advance(seconds);
 	*this = std::move(candidate);
+	Touch();
 	return true;
 }
 } // namespace openq4::ui

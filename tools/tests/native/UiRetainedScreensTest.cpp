@@ -1699,6 +1699,17 @@ static void CheckLoadPage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"load.ingame",true}},error,8),"the page in game");
 	runtime.Frame(viewport,8.1);
 	Check(text("load_newgame","display") == "none","in game the empty page offers no NEW GAME");
+	// Settled, a frame walks none of the page's authored values; a state
+	// change walks them once more, and the page settles again.
+	for (double t = 9; t < 12; t += 1.0/60) runtime.Frame(viewport,t);
+	runtime.Frame(viewport,12);
+	Check(runtime.Statistics().motionInputsScanned == 0,"a settled page walks none of its authored values");
+	Check(runtime.SetState({{"load.ingame",false}},error,12.1),"the page at the title again");
+	runtime.Frame(viewport,12.2);
+	Check(runtime.Statistics().motionInputsScanned > 0 && text("load_newgame","display") == "block","a state change applies its values again");
+	for (double t = 12.3; t < 15; t += 1.0/60) runtime.Frame(viewport,t);
+	runtime.Frame(viewport,15);
+	Check(runtime.Statistics().motionInputsScanned == 0,"and the page settles once more");
 }
 
 // The Save Game page: the saves under SAVE NAME and LOCATION, the name in a
