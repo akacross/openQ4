@@ -584,7 +584,7 @@ public:
     // The Credits page.
     idUserInterface* guiRetainedCredits = nullptr; void PublishRetainedCredits(idUserInterface*);
     // The Multiplayer page; the stock page it leaves for, and when.
-    idUserInterface* guiRetainedMpPage = nullptr; int retainedMpPageDest = 0, retainedMpPageAt = 0;
+    idUserInterface* guiRetainedMpPage = nullptr; int retainedMpPageDest = 0, retainedMpPageLeft = 0, retainedMpPageAt = 0;
     idUserInterface* RetainedMultiplayerPage(); bool OpenRetainedMultiplayerPage(const char* = nullptr);
     void HandleRetainedMultiplayerPageRequest(idUserInterface*, const char*); void UpdateRetainedMultiplayerPage();
     // Its Create Server sub-page and the maps it lists; the servers started.
@@ -1162,9 +1162,12 @@ int main() {
         auto s = Session(true); s.PreloadRetainedScreens(); s.UpdateRetainedHome();
         auto* title = s.guiRetainedHome; auto* page = s.guiRetainedMpPage;
         CHECK(page && std::string(page->Name()) == "guis/menu/multiplayer.q4ui" && s.RetainedMultiplayerPage() == page);
+        page->state["from_create"] = page->state["from_join"] = page->state["from_setup"] = "1";
         s.HandleRetainedSessionRequest(title, "multiplayer");
         CHECK(legacyActions.empty() && s.retainedPagePending == page && title->named.back() == "depart" &&
               title->named[title->named.size() - 2] == "carry_multiplayer");
+        // From the title the page starts on its primary action: no section to return onto.
+        CHECK(page->state["from_create"] == "0" && page->state["from_join"] == "0" && page->state["from_setup"] == "0");
         commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         CHECK(s.guiActive == page && s.RetainedPageActive() && s.retainedPageHome == title);
         s.HandleRetainedSessionRequest(page, "unknown"); CHECK(s.guiActive == page && s.retainedMpPageDest == 0);
@@ -1183,7 +1186,7 @@ int main() {
         CHECK(s.retainedMpPageDest == 18 && s.played.size() == sounds + 1 && s.guiActive == page && s.retainedSubpageFrom == nullptr);
         commonObject.time += 499; s.UpdateRetainedMultiplayerPage(); CHECK(s.guiActive == page && timeRuns.empty());
         commonObject.time += 1; s.UpdateRetainedMultiplayerPage();
-        CHECK(s.guiActive == s.guiMainMenu && s.retainedMpPageDest == 0 && s.retainedPageHome == nullptr);
+        CHECK(s.guiActive == s.guiMainMenu && s.retainedMpPageDest == 0 && s.retainedPageHome == nullptr && s.retainedMpPageLeft == 18);
         CHECK(legacy["desktop::curr"] == 3 && legacy["desktop::active"] == 1 && legacy["desktop::dest"] == 18 && expressionWrites == 0 &&
               s.guiMainMenu->named.back() == "openMultiplayerPage" &&
               (timeRuns == std::vector<std::string>{"guis/mainmenu.gui"}));  // its timelines caught up first
@@ -1191,6 +1194,10 @@ int main() {
         // Its Back: the stock page leaves for the Multiplayer page and the retained one presents at once.
         legacy["desktop::curr"] = 18; legacy["desktop::dest"] = 3;
         CHECK(s.OpenRetainedMultiplayerPage() && s.guiActive == page && s.retainedPageHome == nullptr && s.retainedMpPageDest == 0);
+        // Onto the section whose stock page it left (multiplayerOpen names it).
+        CHECK(s.OpenRetainedMultiplayerPage("setup") && page->state["from_setup"] == "1" && page->state["from_join"] == "0" &&
+              page->state["from_create"] == "0");
+        CHECK(s.OpenRetainedMultiplayerPage("join") && page->state["from_setup"] == "0" && page->state["from_join"] == "1");
         // PLAYER SETUP chooses the Settings page again.
         for (const auto& [verb, dest] : {std::pair<const char*, int>{"multiplayerSetup", 18}}) {
             s.HandleRetainedSessionRequest(page, verb); CHECK(s.retainedMpPageDest == dest);
@@ -4436,9 +4443,13 @@ def main() -> int:
     assert 'UI_RetainedViewFailed( home )' in home_document and 'retainedStock.AddUnique( path );' in home_document
     assert 'retainedStock.Clear();' in function_body(session, 'void idSessionLocal::Clear(')
     # Back from a stock Multiplayer page asks the session, which presents the
-    # retained page where it can and the stock one otherwise; the legacy menu
-    # supplies the three events the page's routes run.
-    assert ('if ( !idStr::Icmp( cmd, "multiplayerOpen" ) ) {\n\t\t\tif ( !OpenRetainedMultiplayerPage() && guiMainMenu != NULL ) {\n'
+    # retained page where it can, onto the section that opened that page,
+    # and the stock one otherwise; the legacy menu supplies the three events
+    # the page's routes run.
+    assert ('if ( !idStr::Icmp( cmd, "multiplayerOpen" ) ) {\n\t\t\tconst int left = retainedMpPageLeft;\n'
+            '\t\t\tretainedMpPageLeft = 0;\n'
+            '\t\t\tconst char *section = left == 14 ? "join" : left == 17 ? "create" : left == 18 ? "setup" : NULL;\n'
+            '\t\t\tif ( !OpenRetainedMultiplayerPage( section ) && guiMainMenu != NULL ) {\n'
             '\t\t\t\tguiMainMenu->HandleNamedEvent( "openMultiplayerStock" );') in main_menu
     legacy_menu = (ROOT / 'content/baseoq4/pak0/guis/mainmenu.gui').read_text(encoding='utf-8', errors='replace')
     assert legacy_menu.count('set "cmd" "multiplayerOpen" ;') == 4

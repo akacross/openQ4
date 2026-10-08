@@ -3146,9 +3146,13 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 		}
 
 		// Back from a stock Multiplayer page: the retained Multiplayer page
-		// where it presents, else the stock one.
+		// where it presents, onto the section that opened that page, else the
+		// stock one.
 		if ( !idStr::Icmp( cmd, "multiplayerOpen" ) ) {
-			if ( !OpenRetainedMultiplayerPage() && guiMainMenu != NULL ) {
+			const int left = retainedMpPageLeft;
+			retainedMpPageLeft = 0;
+			const char *section = left == 14 ? "join" : left == 17 ? "create" : left == 18 ? "setup" : NULL;
+			if ( !OpenRetainedMultiplayerPage( section ) && guiMainMenu != NULL ) {
 				guiMainMenu->HandleNamedEvent( "openMultiplayerStock" );
 			}
 			return;
@@ -6306,6 +6310,11 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 		PublishRetainedCredits( page );
 	} else if ( multiplayer ) {
 		retainedMpPageDest = 0;
+		// From the title the page starts on its primary action.
+		page->SetStateBool( "from_create", false );
+		page->SetStateBool( "from_join", false );
+		page->SetStateBool( "from_setup", false );
+		page->StateChanged( common->GetPresentationTime() );
 	} else if ( demos ) {
 		// Each arrival shows every demo, the newest selected.
 		retainedDemoFilter = 0;
@@ -6910,6 +6919,7 @@ bool idSessionLocal::OpenRetainedMultiplayerPage( const char *section ) {
 	// The activation reads them.
 	page->SetStateBool( "from_create", section != NULL && !idStr::Icmp( section, "create" ) );
 	page->SetStateBool( "from_join", section != NULL && !idStr::Icmp( section, "join" ) );
+	page->SetStateBool( "from_setup", section != NULL && !idStr::Icmp( section, "setup" ) );
 	page->StateChanged( common->GetPresentationTime() );
 	SetGUI( page, NULL );
 	return true;
@@ -7004,6 +7014,7 @@ void idSessionLocal::UpdateRetainedMultiplayerPage() {
 	}
 	const int dest = retainedMpPageDest;
 	retainedMpPageDest = 0;
+	retainedMpPageLeft = dest;
 	// The legacy menu's timelines stood still while the page presented; they
 	// catch up first, so none of their remaining steps lands on this state.
 	UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );

@@ -118,7 +118,8 @@
     "values": {"objectives.visible": false, "objectives.leaving": false, "pause.released": false}
    },
    {"op": "playTimeline", "timeline": "open"},
-   {"op": "playTimeline", "timeline": "translate"}
+   {"op": "playTimeline", "timeline": "translate"},
+   {"op": "focus", "control": "nav_resume"}
   ],
   "returnHome": [{"op": "playTimeline", "timeline": "returnHome"}, {"op": "playTimeline", "timeline": "translateReturn"}],
   "release": [{"op": "setState", "values": {"pause.released": true}}, {"op": "playTimeline", "timeline": "release"}],
@@ -126,7 +127,11 @@
    {
     "op": "if",
     "condition": {"state": "pause.released"},
-    "then": [{"op": "setState", "values": {"pause.released": false}}, {"op": "playTimeline", "timeline": "unrelease"}]
+    "then": [
+     {"op": "setState", "values": {"pause.released": false}},
+     {"op": "playTimeline", "timeline": "unrelease"},
+     {"op": "focus", "control": "nav_resume"}
+    ]
    }
   ]
  },

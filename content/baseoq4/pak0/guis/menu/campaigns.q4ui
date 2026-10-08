@@ -202,12 +202,12 @@
     "then": [
      {"op": "setState", "values": {"sibling_back": false}},
      {"op": "playTimeline", "timeline": "siblingEnterBack"},
-     {"op": "playTimeline", "timeline": "detailsIn"},
-     {"op": "focus", "control": "quake4"},
-     {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}
+     {"op": "playTimeline", "timeline": "detailsIn"}
     ],
     "else": [{"op": "playTimeline", "timeline": "arrive"}]
-   }
+   },
+   {"op": "focus", "control": "quake4"},
+   {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}
   ],
   "subpageLeave": [
    {"op": "playTimeline", "timeline": "subpageLeave"},

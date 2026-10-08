@@ -9,6 +9,7 @@
  "state": {
   "from_create": {"type": "boolean", "initial": false},
   "from_join": {"type": "boolean", "initial": false},
+  "from_setup": {"type": "boolean", "initial": false},
   "language": {"type": "string", "initial": "", "cvar": "sys_lang"},
   "prompt.glyphs": {"type": "number", "initial": 0},
   "prompt.swapped": {"type": "boolean", "initial": false}
@@ -27,8 +28,10 @@
   "subpageReverse300": [{"op": "playTimeline", "timeline": "subpageReverse300"}],
   "onActivate": [
    {"op": "playTimeline", "timeline": "arrive"},
+   {"op": "focus", "control": "join"},
    {"op": "if", "condition": {"state": "from_create"}, "then": [{"op": "focus", "control": "create"}]},
-   {"op": "if", "condition": {"state": "from_join"}, "then": [{"op": "focus", "control": "join"}]}
+   {"op": "if", "condition": {"state": "from_join"}, "then": [{"op": "focus", "control": "join"}]},
+   {"op": "if", "condition": {"state": "from_setup"}, "then": [{"op": "focus", "control": "setup"}]}
   ],
   "onDeactivate": [{"op": "playTimeline", "timeline": "rest"}],
   "depart": [{"op": "playTimeline", "timeline": "depart"}],

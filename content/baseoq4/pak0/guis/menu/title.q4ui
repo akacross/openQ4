@@ -592,6 +592,15 @@
     "then": [{"op": "playTimeline", "timeline": "carry-settings-continue"}],
     "else": [{"op": "playTimeline", "timeline": "carry-settings"}]
    }
+  ],
+  "open": [
+   {"op": "playTimeline", "timeline": "open"},
+   {
+    "op": "if",
+    "condition": {"state": "menu_continue"},
+    "then": [{"op": "focus", "control": "nav_continue"}],
+    "else": [{"op": "focus", "control": "nav_singleplayer"}]
+   }
   ]
  },
  "bindings": [

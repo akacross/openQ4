@@ -54,9 +54,9 @@ def multiplayer_document() -> dict:
     home navigation plates and the page's description in the content column
     at 395,190 u, over the lit field; the prompt bar's Select and Back.
     onActivate   every arrival: the plates at once, the description fading in
-                 over 150 ms (content.in); back from a sub-page (the session
-                 sets from_create or from_join first) the focus is on its
-                 section;
+                 over 150 ms (content.in) and the focus on JOIN GAME; back
+                 from a section (the session sets from_create, from_join or
+                 from_setup first) the focus is on that section;
     depart       a section opens its stock page: the plates fade over 150 ms
                  while the page sweeps 640 u toward the trailing edge over
                  300 ms, and the title and description go with them;
@@ -177,10 +177,14 @@ def multiplayer_document() -> dict:
               for ident, *_rest in DEEPER],
         ])
         doc.events[f"subpageReverse{duration}"] = [{"op": "playTimeline", "timeline": f"subpageReverse{duration}"}]
-    for ident, *_rest in DEEPER:
+    # Back from a section returns onto it (the session sets from_<section>
+    # first, PLAYER SETUP's stock page included); arriving from the title
+    # focuses JOIN GAME, the primary action (section 13.4).
+    returns = [ident for ident, *_rest in DEEPER] + ["setup"]
+    for ident in returns:
         doc.state[f"from_{ident}"] = {"type": "boolean", "initial": False}
-    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}] + [
-        {"op": "if", "condition": {"state": f"from_{ident}"}, "then": [{"op": "focus", "control": ident}]} for ident, *_rest in DEEPER]
+    doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}, {"op": "focus", "control": "join"}] + [
+        {"op": "if", "condition": {"state": f"from_{ident}"}, "then": [{"op": "focus", "control": ident}]} for ident in returns]
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
     doc.events["depart"] = [{"op": "playTimeline", "timeline": "depart"}]
     for _ident, _row, _key, timeline in DEEPER:

@@ -117,14 +117,19 @@
     "op": "setState",
     "values": {"objectives.visible": false, "objectives.leaving": false, "pause.released": false}
    },
-   {"op": "playTimeline", "timeline": "open"}
+   {"op": "playTimeline", "timeline": "open"},
+   {"op": "focus", "control": "nav_resume"}
   ],
   "release": [{"op": "setState", "values": {"pause.released": true}}, {"op": "playTimeline", "timeline": "release"}],
   "onActivate": [
    {
     "op": "if",
     "condition": {"state": "pause.released"},
-    "then": [{"op": "setState", "values": {"pause.released": false}}, {"op": "playTimeline", "timeline": "unrelease"}]
+    "then": [
+     {"op": "setState", "values": {"pause.released": false}},
+     {"op": "playTimeline", "timeline": "unrelease"},
+     {"op": "focus", "control": "nav_resume"}
+    ]
    }
   ]
  },

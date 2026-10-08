@@ -3845,6 +3845,7 @@ void idSessionLocal::Clear() {
 	guiRetainedArena = NULL;
 	guiRetainedMpPage = NULL;
 	retainedMpPageDest = 0;
+	retainedMpPageLeft = 0;
 	retainedMpPageAt = 0;
 	guiRetainedCreate = NULL;
 	retainedCreateMaps.Clear();

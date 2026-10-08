@@ -26,7 +26,12 @@
   "onDeactivate": [{"op": "playTimeline", "timeline": "rest"}],
   "onActivate": [
    {"op": "playTimeline", "timeline": "arrive"},
-   {"op": "if", "condition": {"state": "from_arena"}, "then": [{"op": "focus", "control": "arena"}]}
+   {
+    "op": "if",
+    "condition": {"state": "from_arena"},
+    "then": [{"op": "focus", "control": "arena"}],
+    "else": [{"op": "focus", "control": "campaign"}]
+   }
   ],
   "subpageEnter": [
    {"op": "playTimeline", "timeline": "subpageEnter"},

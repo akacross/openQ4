@@ -676,6 +676,7 @@ public:
 	idUserInterface *	guiRetainedArena;		// the retained Arena sub-page (NULL until it loads)
 	idUserInterface *	guiRetainedMpPage;		// the retained Multiplayer page (NULL until it loads)
 	int					retainedMpPageDest;		// the stock Multiplayer page it is leaving for (0: none)
+	int					retainedMpPageLeft;		// the stock Multiplayer page it last left for, which Back returns from
 	int					retainedMpPageAt;		// presentation time that page takes over
 	idUserInterface *	guiRetainedCreate;		// the retained Create Server sub-page (NULL until it loads)
 	idList<int>			retainedCreateMaps;		// the map decls the chosen game type plays, in list order

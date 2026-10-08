@@ -1479,6 +1479,13 @@ def title_document() -> dict:
     band_motion(doc, "band", "home", [("wordmark", "opacity", number(1), number(0)),
                                       ("home-stage", "opacity", number(1), number(0))], quick=("plinth", "prompts"))
     hide_carry_at_home(doc)
+    # Opening the menu focuses its primary action (section 13.4): CONTINUE
+    # while there is a save to continue, else SINGLE PLAYER. Coming back from
+    # a page (returnHome) keeps the focus on the item that led there.
+    doc.events["open"] = [{"op": "playTimeline", "timeline": "open"},
+                          {"op": "if", "condition": {"state": "menu_continue"},
+                           "then": [{"op": "focus", "control": "nav_continue"}],
+                           "else": [{"op": "focus", "control": "nav_singleplayer"}]}]
     return doc.build(root)
 
 
@@ -1659,7 +1666,8 @@ def campaign_document(campaigns: bool) -> dict:
                   step's foot (title.carry, 300 ms going deeper);
     onActivate    every arrival: a page's own plates at once at rest, its
                   backing fading in over 150 ms (content.in), so the sub-page
-                  presented at 350 ms needs nothing more;
+                  presented at 350 ms needs nothing more, and the focus on its
+                  primary action or the row that led back to it;
     subpageLeave  on the sub-page, 300 ms: its title drops at once, it sweeps
                   640 u toward the leading edge over 300 ms with its plates
                   (screen.return, linear), its backing fades over 250 ms
@@ -1818,16 +1826,19 @@ def campaign_document(campaigns: bool) -> dict:
                                        "then": [{"op": "playTimeline", "timeline": "restAway"}]}]
         # Back from New Campaign (the session sets sibling_back first) comes in
         # from the leading edge onto the campaign that led there; every other
-        # arrival shows the sub-page at once.
+        # arrival shows the sub-page at once. Either way the focus is on the
+        # campaign being played, QUAKE 4 unless it is the expansion (section
+        # 13.4's primary action, or the one last chosen).
+        chosen = [{"op": "focus", "control": "quake4"},
+                  {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}]
         doc.events["onActivate"] = [
             *by_language(doc, "crumbRest", fits),
             {"op": "setState", "values": {"sibling_away": False}},
             {"op": "if", "condition": {"state": "sibling_back"},
              "then": [{"op": "setState", "values": {"sibling_back": False}},
-                      {"op": "playTimeline", "timeline": "siblingEnterBack"}, {"op": "playTimeline", "timeline": "detailsIn"},
-                      {"op": "focus", "control": "quake4"},
-                      {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}],
+                      {"op": "playTimeline", "timeline": "siblingEnterBack"}, {"op": "playTimeline", "timeline": "detailsIn"}],
              "else": [{"op": "playTimeline", "timeline": "arrive"}]},
+            *chosen,
         ]
         doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
     else:
@@ -1889,10 +1900,13 @@ def campaign_document(campaigns: bool) -> dict:
             ])
             doc.events[f"subpageReverse{duration}"] = [{"op": "playTimeline", "timeline": f"subpageReverse{duration}"}]
         doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
-        # Back from Arena (the session sets from_arena first) returns onto ARENA.
+        # Back from Arena (the session sets from_arena first) returns onto ARENA;
+        # every other arrival focuses CAMPAIGN, the primary action (section
+        # 13.4), which Back from Campaign returns onto too.
         doc.state["from_arena"] = {"type": "boolean", "initial": False}
         doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"},
-                                    {"op": "if", "condition": {"state": "from_arena"}, "then": [{"op": "focus", "control": "arena"}]}]
+                                    {"op": "if", "condition": {"state": "from_arena"}, "then": [{"op": "focus", "control": "arena"}],
+                                     "else": [{"op": "focus", "control": "campaign"}]}]
         for event in ("subpageEnter", "subpageEnterArena"):
             doc.events[event] = [{"op": "playTimeline", "timeline": event}, *by_language(doc, "crumbEnter", fits)]
         doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
@@ -2862,7 +2876,10 @@ def pause_document(strogg: bool = False) -> dict:
     # opening starts at home without the Objectives page, prompts showing.
     opening["tracks"] += [track("scrim", "opacity", [(0, number(1)), (1, number(1)), (250, number(1))])]
     reset = {"op": "setState", "values": {"objectives.visible": False, "objectives.leaving": False, "pause.released": False}}
-    doc.events["open"] = [reset, *doc.events.get("open", [{"op": "playTimeline", "timeline": "open"}])]
+    # Each opening focuses RESUME, the primary action (section 13.4); a page's
+    # Back (returnHome) keeps the focus on the item that led there.
+    resume = {"op": "focus", "control": "nav_resume"}
+    doc.events["open"] = [reset, *doc.events.get("open", [{"op": "playTimeline", "timeline": "open"}]), resume]
     # Returning to the game closes the screen at once (section 8), but the
     # softened view, or the scrim standing in for it, releases over 250 ms as
     # the modal backdrop does (section 4); the session keeps drawing the
@@ -2882,9 +2899,10 @@ def pause_document(strogg: bool = False) -> dict:
         track("scene-softfocus", "backdrop-saturate", [(0, number(1)), (1, number(1)), (250, number(SOFT_FOCUS_SATURATION))]),
         track("scrim", "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]),
     ])
+    # The release hid every action, and its focus with it: RESUME takes it.
     doc.events["onActivate"] = [{"op": "if", "condition": {"state": "pause.released"},
                                  "then": [{"op": "setState", "values": {"pause.released": False}},
-                                          {"op": "playTimeline", "timeline": "unrelease"}]}]
+                                          {"op": "playTimeline", "timeline": "unrelease"}, resume]}]
     return doc.build(root)
 
 
