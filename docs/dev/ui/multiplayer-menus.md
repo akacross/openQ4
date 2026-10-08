@@ -991,9 +991,6 @@ The card's acceptance continues under `FLOW-046`.
   and the stock menu then keeps the menu until it closes; the card does not
   come back over it. So do the Settings pages' name and clan, and a Match
   Control list's rows past the card's.
-- Joining a team through Match Control commits but leaves a listen server's
-  player on their team, on the stock page as on the card (seen in B9b's
-  probes; a separate game fix).
 - Choosing an unavailable action does not announce its reason to the
   accessibility text backing yet, and a controller gives no rumble.
 - The Team page has no Tourney queue or arena controls; Tourney offers what
@@ -1026,9 +1023,9 @@ The card's acceptance continues under `FLOW-046`.
   then shows whom the call would kick before Call Vote sends it.
 - The map list holds 48 maps; a server with more for one game type lists the
   first 48.
-- Lists and check boxes take Left and Right as focus moves and change only on
-  accept; sliders step with them (decision D2 is open). A list's value shows
-  one frame after the game accepts it.
+- Check boxes take Left and Right as focus moves and change only on accept;
+  sliders and closed lists step with them, as section 13.5 asks of cycling
+  values. A list's value shows one frame after the game accepts it.
 - A managed match's refusals on the Vote page have no live probe yet.
 - The Vote page's Vote Yes and Vote No keys and the Voice page's push-to-talk
   key show the keyboard bindings the session publishes, not a controller's

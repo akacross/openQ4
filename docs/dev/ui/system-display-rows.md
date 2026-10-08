@@ -94,10 +94,10 @@ the nine device option rows.
 
 ## Known limitations
 
-- Like every retained dropdown, the rows cannot step their value with left
-  and right, which the visual specification asks of cycling values; Accept
-  opens the list. A list that cannot fit one wrapped row therefore leaves no
-  other way to change the value on this page. The engine lays the page out in
+- Like every retained dropdown, the rows step their value with left and
+  right, as the visual specification asks of cycling values, and Accept
+  opens the list, so a list that cannot fit one wrapped row still leaves a
+  way to change the value. The engine lays the page out in
   at least 640×480 dp, where the stale "not connected" labels fit at every
   text size; a long connected monitor name that wraps to four or more lines at
   200% text can still refuse at that floor.

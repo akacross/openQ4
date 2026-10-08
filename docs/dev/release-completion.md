@@ -1539,6 +1539,32 @@
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.
 
+- The rebuilt menus no longer leave you stranded: Back on Single Player
+  returns to the title instead of an empty menu; Back on the death screen no
+  longer drops you out of the level; the death screen's LOAD GAME opens the
+  new Load Game page; a multiplayer join that fails or is cancelled brings
+  you back to the server list instead of the title; and CONTINUE with a save
+  that cannot be loaded opens the Load Game page and says why instead of
+  doing nothing.
+
+- Dropdowns change with left and right (arrow keys, D-pad or stick), as the
+  original menus' options did. On the multiplayer Welcome card the stick no
+  longer keeps moving the focus after you let go.
+
+- Create Server's ADVANCED OPTIONS button sits under the server options
+  again instead of over the page title, UPDATES checks for a new version
+  without leaving the title, and menus keep their sound after you switch
+  windows or the video restarts.
+
+- Menu text fits in every language: the title's links, the MODS dialog and
+  the quit dialog's title no longer run off their frames, the SELECT prompt
+  is translated correctly in Spanish, Italian and French, and the pause and
+  loading screens name the Warlord difficulty and openQ4's own multiplayer
+  modes in your language.
+
+- The rebuilt multiplayer menu cards and server browser use far less CPU
+  while you are on them.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

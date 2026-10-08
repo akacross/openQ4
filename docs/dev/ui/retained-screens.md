@@ -418,11 +418,21 @@ a real page hand-off, and the home state starts without it.
 
 The title and pause screens cover the legacy main menu while it rests at its
 home state; the legacy menu stays active underneath and keeps every page.
-Choosing SINGLE PLAYER, SETTINGS or UPDATES runs the legacy home button's own
-action (MODS opens the title's own dialog), and the retained screen plays its
+Choosing SINGLE PLAYER or SETTINGS runs the legacy home button's own action
+(MODS opens the title's own dialog), and the retained screen plays its
 departure for the 550 ms (200 ms for a pop-up) the stock page takes to appear.
 Back on a legacy page returns to the retained screen as soon as the page starts
-to leave. LOAD GAME, SAVE GAME, RESTART LEVEL, DEMOS, CREDITS and MULTIPLAYER
+to leave. Back on the retained Single Player page runs the legacy menu's own
+return from that hand-off (`returnFromSinglePlayer`, as the stock selector
+does) unseen, and the menu rests at home at once, so the title comes back
+with its bands returning from the page dock
+(`idSessionLocal::ReturnRetainedSinglePlayerHome`). UPDATES runs the legacy
+button's update check in place: no pop-up opens, so the title keeps its
+content and its input until the check's answer arrives as a stock message
+box. A stock message box over the home (that answer, a failed connection)
+keeps the retained home drawn behind it, still and without input, where the
+legacy menu stood, and the home takes the screen back as it was when the box
+closes. LOAD GAME, SAVE GAME, RESTART LEVEL, DEMOS, CREDITS and MULTIPLAYER
 hand off the same way to their retained pages ([Load Game](#load-game-page),
 [Save Game](#save-game-page), [Restart Level](#restart-level-page),
 [Demos](#demos-page), [Credits](#credits-page) and
@@ -725,7 +735,8 @@ break.
   NEW GAME, which opens the Single Player page. The plates rest disabled.
 - **CONTINUE.** The title's CONTINUE line showed the save's raw label, color
   codes and tab included. It now shows the save's name, then its level and
-  when it was written.
+  when it was written. A newest save that LoadGame refuses opens this page on
+  it with the reason, as LOAD GAME on it would, instead of nothing.
 - **Text.** The page adds `#str_231100` to `#str_231107` to all twelve tables.
   The generator measures every language's text in its box and fails
   otherwise: the plates, headings and pager rows on one line, the empty
@@ -1245,7 +1256,11 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   the chosen server is one); BACK in the bottom band. An empty list says so,
   unless a scan is still running: that no server was found, or, when the
   scan holds servers that the filters or a search all hide (`join.listed`,
-  how many it holds), that none matches the current filters.
+  how many it holds), that none matches the current filters. A join from the
+  page, by JOIN SERVER or JOIN IP ADDRESS, that fails or is aborted comes
+  back to this list, as the stock browser kept it: when the menu next rests
+  at home without a level, Join Game presents instead of the title, once
+  (`retainedJoinReturn`); a join that loads its map forgets it.
 - **List.** The session owns it. While the page presents it lists the
   servers the scan found and the filter passes, in the sort's order, a page
   at a time (`join.row<i>.*`, the ping's bars as `join.row<i>.quality`),
@@ -2018,6 +2033,9 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
 
 ## Known limitations
 
+The [menu audit](menu-audit.md) of 8 October 2026 records what it fixed and
+what remains across every retained menu.
+
 - The initializing screen's first frame loads, lays out and compiles its
   document: about 0.9 s on a loaded machine, part of it the Marine font and
   RmlUi's first use, which the title would otherwise pay. A 300% capture is
@@ -2033,8 +2051,8 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
   than tracing along their paths.
 - The Load Game page lists the saves newest first only. It has none of
   section 13.7's list sorting, filter tags or refresh, and it pages by 64 rows
-  rather than virtualizing. The Strogg pause's LOAD GAME and every SAVE GAME
-  keep the stock pages. A save's own screenshot loads when first shown,
+  rather than virtualizing. The Strogg pause's LOAD GAME, SAVE GAME and
+  RESTART LEVEL keep the stock pages. A save's own screenshot loads when first shown,
   outside a level load, as on the stock page. The title's CONTINUE detail
   joins the level and the date with an unlocalized hyphen.
 
@@ -2059,7 +2077,7 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
   inside a composition layer gets no soft focus, because only the base
   surface is read. Only the confirmation width exists.
 - The multiplayer Escape card is opt-in (`ui_retainedMultiplayer`) while its
-  Match and Admin pages hand off to the stock menu; the Welcome card presents
+  Admin page hands off to the stock menu; the Welcome card presents
   by default ([multiplayer menus](multiplayer-menus.md#known-limitations)).
   The retained home screen is never presented in a multiplayer game.
 - The Welcome card's own opening runs on the clock the load left standing
@@ -2070,8 +2088,7 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
   stock Settings page through the stock within-a-screen change instead of a
   sub-page. The retained Join Game shows a server's players and rules in the
   stock tooltip's card rather than a docked detail column, and has no prompt
-  bar yet (Join, Spectate and Favorite); the controller's north and west do
-  not yet sort and refresh it. Player Setup
+  bar yet (Join, Spectate and Favorite). Player Setup
   does not yet edit in place,
   Demos is not yet among its sections, and
   Campaign's Chapters is not yet a level of its own; New Campaign is
@@ -2088,10 +2105,10 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
   frame at a screenshot, which reads black.
 - The SYSTEM page stays opt-in until every stock setting works there:
   presets cannot be applied from it. Its Display Device list offers the
-  first eight displays only, and
-  like every retained dropdown it cannot step its value with left and right,
-  so where a list cannot open at all there is no other way to change it
-  ([SYSTEM display rows](system-display-rows.md#known-limitations)).
+  first eight displays only
+  ([SYSTEM display rows](system-display-rows.md#known-limitations)). Like
+  every retained dropdown it steps its value with left and right, so a list
+  that cannot open can still be changed.
 - The loading screen has no touch prompt (touch counts as desktop input).
   The arsenal fills in only
   where the map spawns its items: a listen server's own load, not a client

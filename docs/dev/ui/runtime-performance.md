@@ -460,10 +460,48 @@ The native screens test, which loads the Escape card four times, fell from
 mutations, the native suite and the script tests that read these sources pass.
 
 What remains: parsing the 7.6 MB source and reading its nodes take most of the
-load, the Escape card's frame is mostly RmlUi's layout of its 4,499 nodes, and
+load, the Escape card's frame was mostly the presentation pass over its values
+(see [Settled frames](#settled-frames)), and
 each event or completion program still copies the motion and state's live
 values: up to 100 ms on the Escape card's page and modal changes in the
 native screens test.
+
+## Settled frames
+
+8 October 2026. Main-thread stack samples of the screen benchmark on the
+Escape card (cdb, 30 samples) put about two thirds of a settled frame in
+`Runtime::Impl::ApplyMotion` and most of the rest in `ValueControlView::Paint`,
+not in RmlUi's layout. Every frame the presentation pass walked all 34,395
+authored values, comparing each against the input it last applied: two string
+compares per key, and the 1,269 text values translated and looked up again.
+
+`Motion` now stamps every write that can change its values (a sample, a play,
+a cancel, a reduced-motion jump, an external write, a restore, a reset) from a
+counter shared by all copies, so an unchanged stamp means unchanged values.
+`ApplyMotion` returns at once while the stamp, the state revision and the text
+ratio are those of its last complete pass; a language change reloads the
+document. A pass that finds an element missing leaves the next pass complete.
+`RuntimeStatistics::motionInputsScanned` counts the values a frame's passes
+walk, and the native screens test pins it at zero on a settled Load Game page
+and above zero after a state change. Documents with a looping timeline, such
+as the title's montage and glint, still walk their values each frame.
+
+Same machine and build type as above, 60 frames at 1280x720 after the settle:
+
+| Document | Frame p50 before | Frame p50 after | Update p50 before | Update p50 after |
+| --- | ---: | ---: | ---: | ---: |
+| `mp_escape.q4ui` | 14.21 ms | 5.85 ms | 13.44 ms | 5.07 ms |
+| `mp_welcome.q4ui` | 0.82 ms | 0.28 ms | 0.71 ms | 0.18 ms |
+| `joingame.q4ui` | 1.89 ms | 0.50 ms | – | 0.25 ms |
+| `createserver.q4ui` | 1.66 ms | 0.89 ms | – | 0.61 ms |
+| `loadgame.q4ui` | 0.41 ms | 0.17 ms | – | 0.08 ms |
+| `pause.q4ui` | 0.39 ms | 0.16 ms | – | 0.07 ms |
+| `title.q4ui` | 1.09 ms | 1.02 ms | – | 0.37 ms |
+
+What remains on the Escape card is `ValueControlView::Paint`, which reasserts
+every choice option's label, availability and display each frame through
+string-keyed lookups and RML readbacks (`GetInnerRML`); a fingerprint of each
+entry's readback and view state could skip settled entries the same way.
 
 ## Remaining requirements
 
