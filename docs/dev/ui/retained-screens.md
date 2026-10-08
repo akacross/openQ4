@@ -189,12 +189,12 @@ after editing the script; `--check` fails when an output is stale.
     objective one plate shows the stock static screenshot and its line beside
     it, in Lowpixel 0.31 and #D0DEB6.
   - **Scrolling and Back.** The list scrolls under its bar with the wheel, the
-    stick, the keys or a drag; the bar holds focus. The prompt bar gives way
-    to Back at 532,441 u in the docked bottom band, and Back (or the back
-    input) fades the page while the bands come home. The page closes when
-    they arrive; a second Back during that leave changes nothing. In the
-    Strogg family Back is a Strogg plate with its shoulder and an R_Strogg
-    label. A reopened list starts at its first entry, and a pause that closed
+    stick, the keys or a drag; the bar holds focus. The pause's prompt bar
+    gives way to the page's, Back alone at 532,441 u in the docked bottom
+    band ([page prompt bars](#page-prompt-bars)), and Back (or the back input) fades
+    the page while the bands come home. The page closes when they arrive; a
+    second Back during that leave changes nothing. In the Strogg family
+    Back's glyph takes #FFCC00 and its verb R_Strogg. A reopened list starts at its first entry, and a pause that closed
     without Back, as a console load closes it, opens at home without the
     page.
   - **Data.** The game publishes each objective's title, description and
@@ -445,8 +445,8 @@ hand off the same way to their retained pages ([Load Game](#load-game-page),
 [Demos](#demos-page), [Credits](#credits-page) and
 [Multiplayer](#multiplayer-page)), and to the stock pages from the Strogg pause
 or when a page cannot present. The departure fades the plinth
-and the prompt bar with it, since a page's own BACK stands where the prompts
-were. CONTINUE, RESUME, QUIT TO MENU and EXIT are handled by the session
+and the prompt bar with it, since a page brings its own
+([page prompt bars](#page-prompt-bars)). CONTINUE, RESUME, QUIT TO MENU and EXIT are handled by the session
 directly.
 
 Documents request these through a typed `session.menu` operation whose
@@ -717,7 +717,8 @@ break.
   on `bg_line`'s light: #FF9C00 at 0.01, 0.16 under the pointer or focus and
   0.41 for the selected save, with the white 0.50 rule. The focused row takes
   the home plates' orange inset, and the scrollbar sits in the list's last
-  16 u. BACK is at 532,441 u. The stock page's backing (`grad2`: `bg_darkgrad2`
+  16 u. The prompt bar is in the bottom band, Back at 532,441 u
+  ([page prompt bars](#page-prompt-bars)). The stock page's backing (`grad2`: `bg_darkgrad2`
   black at 0.60 across the view, clear to 18.4 % of its width and opaque from
   34 % to 91.8 %) darkens the trailing side.
 - **Saves.** The session lists the saves newest first, as LoadGame accepts
@@ -781,8 +782,9 @@ the Strogg pause keeps the stock page.
   opaque to 44 %, half at 62 % and clear by 88 %) holds the name field at
   49,382 u, 344x20 u, in Lowpixel 20 dp (textscale 0.28). SAVE GAME is the
   section plate at 397,370 u; its label may run past the plate's faded end
-  toward the canvas edge, as the stock one did in French. BACK is at
-  532,441 u, over the stock page's backing.
+  toward the canvas edge, as the stock one did in French. The prompt bar is
+  in the bottom band, Back at 532,441 u ([page prompt bars](#page-prompt-bars)), over
+  the stock page's backing.
 - **The name.** A [text field](numeric-fields.md#text-fields) of up to 32
   bytes. Typing into it opens it, as Accept does; an empty field shows "Name
   this save" in white 0.35, and while it is edited empty the line above the
@@ -831,7 +833,8 @@ stock page, and the title has no level to restart.
   band rows 4-27 of 32, a 45-degree cut from row 14, the olive rail and fill
   at 0.49 fading out by 95 %, at 0.40 and full strength under the pointer or
   focus) with its 18 u corner marker and the Marine label (textscale 0.33).
-  BACK is at 532,441 u, over the stock page's backing.
+  The prompt bar is in the bottom band, Back at 532,441 u
+  ([page prompt bars](#page-prompt-bars)), over the stock page's backing.
 - **Choosing.** A plate chooses its difficulty on the page; nothing reaches
   the session. RESTART LEVEL restarts the level at the choice
   (`RestartLevelAtSkill`, with the autosave's loadout), and Back leaves the
@@ -863,8 +866,9 @@ Arena opens its own sub-page, the [Arena page](#arena-page).
   five difficulty plates with the chosen one lit, its description, and START
   GAME as the enlarged primary plate. TURBO MODE stands under it at 237,272 u
   (the same plate, its Marine label at textscale 0.27) with its value at
-  489,280 u, ON in orange or OFF, as the stock `turboCheck` showed it. BACK is
-  at 532,441 u in the bottom band, over the stock page's backing.
+  489,280 u, ON in orange or OFF, as the stock `turboCheck` showed it. The
+  prompt bar is in the bottom band, Back at 532,441 u
+  ([page prompt bars](#page-prompt-bars)), over the stock page's backing.
 - **Choosing and starting.** Each arrival starts at CORPORAL with turbo mode
   off, as the stock page did. A plate chooses and TURBO MODE toggles on the
   page; nothing reaches the session until START GAME, which sets `g_skill`
@@ -984,8 +988,9 @@ as before; playback keeps its legacy controls.
   DATE and DURATION and the olive rule, its rows on the stock 20 u pitch.
   Above the headings the filter tags (section 13.13) stand at 43 u: small
   header-band plates with a 45-degree cut and an olive rail, 0.28 unset and
-  0.60 with a close cross when set, lit under the pointer or focus. BACK is at
-  532,441 u, over the stock page's backing.
+  0.60 with a close cross when set, lit under the pointer or focus. The
+  prompt bar is in the bottom band, Back at 532,441 u
+  ([page prompt bars](#page-prompt-bars)), over the stock page's backing.
 - **Library.** The session rescans `demos/` for every publication and lists
   the recordings newest first, filtered: MULTI-VIEW, RENDER, LEGACY or
   INCOMPLETE, the legacy browser's filters, or every recording with no tag
@@ -1064,8 +1069,8 @@ CREDITS on the title opens `guis/menu/credits.q4ui`, generated by
   as additive light.
 - **Page.** The page stands on the stock backing at full strength (section 8:
   opaque for Credits) under its own CREDITS title, which fades in with the
-  panel (content.in) since nothing carried it from the plinth; BACK is at
-  532,441 u. Every arrival starts the loop over from the logo, and leaving
+  panel (content.in) since nothing carried it from the plinth; the prompt
+  bar's Back, alone, is at 532,441 u ([page prompt bars](#page-prompt-bars)). Every arrival starts the loop over from the logo, and leaving
   stops it with every screen out. In game, or when the page cannot present,
   the stock page opens as before.
 
@@ -1145,8 +1150,8 @@ there only `ui_retainedMultiplayer 1` offers the page.
   maps the chosen game type plays (42,219 u, 20 u rows, 64 a page with pager
   rows past them); SERVER OPTIONS from 228,73 u as section 7 setting rows on
   the stock 24 u pitch, the value column 180 u in; ADVANCED OPTIONS under
-  them; the enlarged CREATE SERVER plate at 244,397 u; BACK in the bottom band
-  at 532,441 u. The rows are the stock page's: Server Name (a text field),
+  them; the enlarged CREATE SERVER plate at 244,397 u; the prompt bar in the
+  bottom band, Back at 532,441 u ([page prompt bars](#page-prompt-bars)). The rows are the stock page's: Server Name (a text field),
   Server Type, Dedicated, Gametype (the stock twelve), Auto Balance, the limit
   (Frag Limit, Capture Limit for the CTF families or Control Time for
   DeadZone), Time Limit, Max Players, Min Players, Allow Voting, and Team
@@ -1261,7 +1266,8 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   server's levelshot in the stock frame, at 240,337 u so the favorite toggle
   clears it; JOIN SERVER, enabled once a server is chosen, at 385,330 u, and
   under it the favorite toggle (ADD TO FAVORITES, or REMOVE FAVORITE while
-  the chosen server is one); BACK in the bottom band. An empty list says so,
+  the chosen server is one); the prompt bar in the bottom band
+  ([page prompt bars](#page-prompt-bars)). An empty list says so,
   unless a scan is still running: that no server was found, or, when the
   scan holds servers that the filters or a search all hide (`join.listed`,
   how many it holds), that none matches the current filters. A join from the
@@ -1434,12 +1440,61 @@ like every prompt ([prompt glyphs](#prompt-glyphs)). The wait for continue
 redraws the screen each frame, so touching a controller or the mouse switches
 it. The session no longer publishes its own `loading_controller`.
 
+## Page prompt bars
+
+Every page in the docked state carries section 13.4's prompt bar in the
+bottom band's raised trailing section, which spans 375.1-717.9 u of the
+canvas at every aspect. Back keeps the stock Back position: its 45 dp target
+starts where the stock BACK plate's did, at 532,441 u, with its glyph 8 dp in
+and its verb, BACK, 6 dp after the glyph. SELECT, the focused control's
+Accept, ends 22 dp before Back's glyph. Each prompt is the title's
+construction: the active device's glyph ([prompt glyphs](#prompt-glyphs))
+and a Marine 14 dp verb at 0.80.
+
+- **Pages.** Load Game, Save Game, Restart Level, New Campaign, Demos,
+  Credits, Create Server, Join Game and the pause's Objectives page carry the
+  bar in place of the stock BACK plate. Back is a button with the plate's
+  control ID (`load_back`, `credits_back` and so on) and the page's Back.
+  With the pointer anywhere in its target, its verb turns orange and its
+  glyph lights from 0.85 to full; focus also underlines it, and a press
+  insets it 1 dp. SELECT is a legend for Enter or the south button and never
+  takes the pointer: a click would act on a focus that the pointer
+  presentation hides. Credits and the Objectives page show Back alone, since
+  Accept has nothing else to do there. The Strogg Objectives page tints its
+  glyph #FFCC00 and sets BACK in R_Strogg #FCFFC8, turning #FFCC00.
+- **Single Player, Campaign and Multiplayer** show the same bar in the same
+  place, as legends, since their own BACK is in the content. The bar keeps
+  its place between Multiplayer and Create Server or Join Game, and between
+  Campaign and New Campaign. At 21:9 it stays on the raised section, where
+  the view-anchored bar hung past it.
+- **Fit.** `check_page_prompts` fails generation unless every shipped
+  language's prompts fit, with the wider of each keycap and a controller
+  button: Back's verb ends at least 8 dp inside the 4:3 view, and SELECT
+  starts inside the bar, 5 u past the riser. Spanish is the tightest: 17 dp
+  clear in Marine and 13 dp in R_Strogg.
+- **Pointer.** The bar's box runs from 380 u to the 4:3 view's trailing edge
+  and covers no control of the page's own. Legend bars, the title's and the
+  pauses' included, never take the pointer, so the pause's faded bar cannot
+  cover the Objectives page's Back.
+
+Checks:
+
+- The native screens test lays out each page's bar at 16:9 and 21:9 in the
+  same canvas place, Back's glyph at every `prompt.glyphs` value and SELECT
+  where it shows. The pointer over SELECT lights nothing and a click there
+  does nothing; anywhere in Back's target the pointer lights Back, and a
+  click runs the page's Back. Single Player's, Campaign's and Multiplayer's
+  legends take no input.
+- `ui_retained_gate.py` checks every page's glyph groups with the others'
+  ([prompt glyphs](#prompt-glyphs)).
+
 ## Prompt glyphs
 
 Every prompt shows the active device's glyph (section 13.5). This covers:
 
 - the prompt bars of the title, Single Player, Campaign, the Marine and
-  Strogg pause menus and the Multiplayer page;
+  Strogg pause menus and the Multiplayer page, and the pages' own
+  ([page prompt bars](#page-prompt-bars));
 - the loading screen's continue prompt;
 - the multiplayer cards' prompt bars and the Escape card's tab-strip keys
   ([multiplayer menus](multiplayer-menus.md)).
@@ -1480,8 +1535,9 @@ A.
 
 The letters and symbols are strokes in a 22 dp box, so no font or string
 stands in for them. The prompt bar's glyph is 22 dp square and centered on
-its verb. The bar still ends at the stock Back position whichever glyph
-shows, because it is anchored at its trailing edge. The Strogg pause tints
+its verb. The title's and the pauses' bars still end where they did
+whichever glyph shows, because they are anchored at their trailing edge; a
+page's bar is anchored at Back's target instead. The Strogg pause tints
 its glyphs as it tints its keycaps. The loading screen draws its south button
 at 18 dp, beside CONTINUE.
 
@@ -1490,16 +1546,17 @@ Checks:
 - `ui_retained_gate.py` compiles the backend's family mapping,
   `RetainedUI_PromptGlyphs` and the swap (`in_swapConfirmBack` and
   `idKeyInput::MenuControllerKey`) against stand-ins, pins every menu input
-  path's translation, and checks that the 18 Accept and Back glyph groups
+  path's translation, and checks that the 35 Accept and Back glyph groups
   carry both positions. It pins where the backend sets
   and clears the family, and checks that the adapter publishes before the
-  frame draws. It also checks that each of the nine documents with prompts
+  frame draws. It also checks that each of the 17 documents with prompts
   binds every glyph to its family's index, and that both cards give the
   shoulders to their tab keys and Tabs prompt.
 - The adapter harness checks the publication: once per change, in the
   session's state pushes, and never to a document without the state.
-- The native screens test lays out the title's bar at every value, and the
-  Escape card's strip keys and prompt bar at every value.
+- The native screens test lays out the title's bar at every value, the
+  pages' bars ([page prompt bars](#page-prompt-bars)), and the Escape card's strip
+  keys and prompt bar at every value.
 - The `prompts` capture forces each style through `ui_promptStyle`, then
   Xbox and Nintendo with `in_swapConfirmBack 2`, and touches no device. The `loading` capture shows the Xbox continue prompt.
   `mpcard-prompts` does the same on the Escape card over a listen server.
@@ -1557,7 +1614,7 @@ first opening among that time.
   the bands home and a second Back ignored, a reopened list at its top, a
   pause opening without the page, the empty state's static and line, the
   level block's rows with their state, and the Strogg page's heading, serial,
-  BACK plate and return. It checks that the back bar lies under the bands.
+  BACK prompt and return. It checks that the back bar lies under the bands.
 - `openq4-retained-ui` and `openq4-ui-document` cover timeline completion
   programs: firing once at the end, cancellation, replay, pause, reduced
   motion and a snapshot taken while a completion is due, and the rejected

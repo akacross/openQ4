@@ -18,14 +18,15 @@ from the legacy main menu when the page opens (idSessionLocal::
 PublishRetainedCredits) into credits.<window>, which each label shows. The
 page stands on an opaque backing, as section 8 gives Credits, under its own
 CREDITS title, which fades in with the backing since nothing carried it from
-the plinth; BACK is in the bottom band at 532,441 u.
+the plinth; the prompt bar is in the bottom band, its BACK, the page's one
+control, where the stock BACK plate stood at 532,441 u.
 """
 from __future__ import annotations
 
 import re
 
-from build_retained_screens import (ACCEL, CANVAS_W, FULL, ORANGE, ROOT, TITLE_SLOT, U, Document, absolute, action_plate, colour,
-                                    font, group, keyword, label, length, linear, number, path, picture, rgb, track, transform,
+from build_retained_screens import (ACCEL, CANVAS_W, FULL, ORANGE, ROOT, TITLE_SLOT, U, Document, absolute, colour, font, group,
+                                    keyword, label, length, linear, number, page_prompts, path, picture, rgb, track, transform,
                                     typeface, vector)
 from retained_saves import BACKING_STOPS, backing_x
 
@@ -290,7 +291,8 @@ def credits_document() -> dict:
     doc.events["onActivate"] = stop + [{"op": "playTimeline", "timeline": "creditsRest"}, {"op": "playTimeline", "timeline": "arrive"},
                                        {"op": "playTimeline", "timeline": "creditsLoop"}, {"op": "focus", "control": "credits_back"}]
     doc.events["onDeactivate"] = stop + [{"op": "playTimeline", "timeline": "creditsRest"}]
-    # The opaque backing (section 8), the page's own title and BACK.
+    # The opaque backing (section 8), the page's own title and the prompt bar,
+    # BACK alone: Accept has nothing else to do here.
     first, last = BACKING_STOPS[0][0], BACKING_STOPS[-1][0]
     stops = [(round((f - first) / (last - first), 4), [0, 0, 0, alpha]) for f, alpha in BACKING_STOPS]
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
@@ -298,7 +300,7 @@ def credits_document() -> dict:
         path("backing", whole, fill=linear((backing_x(first), 0), (backing_x(last), 0), stops))])
     title = label("credits-title", "#str_200012", {**absolute(left=U * TITLE_SLOT[0], top=U * TITLE_SLOT[1], width=U * 300,
                   height=U * 24.4 * 0.75), **typeface("marine", 18, U * 24.4 * 0.75, [1, 1, 1, 0.5]), "white-space": keyword("nowrap")})
-    back = action_plate(doc, "credits_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "credits_back", action="back", select=False)
     canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
     panel = group("credits-panel", {**FULL, "opacity": number(0)}, [
         backing, group("credits-stage", canvas, [logo, *screens]), group("credits-chrome", canvas, [title, back])])

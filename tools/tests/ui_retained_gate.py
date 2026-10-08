@@ -3552,11 +3552,13 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
         for pad in pads:
             assert pad.endswith('-pad') and pad[:-len('-pad')] in groups, (path.name, pad)
         shoulders += sum(1 for group_id in groups if group_id in ('tab-previous', 'tab-next', 'prompt-tabs-0', 'prompt-tabs-1'))
-    assert documents == 9, documents
+    # The title, both pauses, Single Player, Campaign and Multiplayer, the
+    # eight pages with their own prompt bars, the loading screen and both cards.
+    assert documents == 17, documents
     # Both cards' tab keys and their Tabs prompt take the shoulders; every
     # Accept and Back prompt follows Swap Confirm and Back.
     assert shoulders == 8, shoulders
-    assert swapping == 18, swapping
+    assert swapping == 35, swapping
     print(f'ui_retained gate: prompt glyphs follow the active device in {documents} documents')
 
 

@@ -15,8 +15,8 @@ SELECTION over the chosen map's levelshot (183x137 u at 45,75 u in the 1 u
 a page of MAP_ROWS at a time); SERVER OPTIONS from 228,73 u as section 7
 setting rows on the stock 24 u pitch, the value column 180 u in; ADVANCED
 OPTIONS under them, which opens the stock popup's options as a dialog; the
-enlarged CREATE SERVER plate at 244,397 u; BACK in the bottom band at
-532,441 u.
+enlarged CREATE SERVER plate at 244,397 u; the prompt bar in the bottom band,
+its BACK where the stock BACK plate stood at 532,441 u.
 
 The session owns every setting: it publishes create.* and each control asks
 for a change through its own verb (RETAINED_CREATE_SETTINGS), which the
@@ -35,8 +35,8 @@ from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE
                                     PAGE_TITLE_H, PAGE_TITLE_W, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_PAGE, TOP_TO_SUBPAGE, U, VALUE,
                                     Document, absolute, action_plate, by_language, colour, confirmation, crumb_fits,
                                     crumb_transform, framing_bands, group, keyword, label, length, linear, lit_field, number,
-                                    objectives_scrollbar, page_title, path, rgb, solid, stroke, text_width, track, transform,
-                                    typeface, vector)
+                                    objectives_scrollbar, page_prompts, page_title, path, rgb, solid, stroke, text_width, track,
+                                    transform, typeface, vector)
 from retained_difficulty import check_fits, primary_plate
 from retained_mp_menus import match_number_row, row_face, row_states as setting_states, value_row
 from retained_saves import PLACEHOLDER, backing, pager_row, picture_frame, row_plates, row_states, table_text
@@ -61,7 +61,6 @@ ROW_PITCH = 24.0
 VALUE_X = 180.0                           # mp_create_val*: 408 u, 180 u into the row
 ADVANCED_BUTTON_TOP = 367.0               # mp_create_advbtn
 START = (244.0, 397.0, 275.0, 37.0)       # mp_create_serverbtn
-BACK = (532.0, 441.0, 109.0)              # mp_create_back
 NAME_BYTES = 25                           # mp_create_val1: maxchars 25
 
 # The setting rows: (state, verb, label, kind, minimum, maximum, message).
@@ -440,7 +439,7 @@ def check_create_fits() -> None:
     rows check their own messages."""
     one_line = [("#str_200050", "lowpixel", 14, U * MAPS_HEAD[2]), ("#str_200051", "lowpixel", 14, U * OPTIONS_HEAD[2]),
                 ("#str_200026", "marine", 23.7, U * 215), ("#str_200065", "marine", 20, U * 377 - 30),
-                ("#str_200018", "marine", 20, U * BACK[2] - 30), ("#str_231127", "marine", 16, U * (MAP_LIST[2] - 16 - 18)),
+                ("#str_231127", "marine", 16, U * (MAP_LIST[2] - 16 - 18)),
                 ("#str_231128", "marine", 16, U * (MAP_LIST[2] - 16 - 18)), ("#str_200052", "lowpixel", 15, U * VALUE_X - 29)]
     one_line += [(label_key, "lowpixel", 15, U * VALUE_X - 29) for _, _, label_key, *_ in SETTINGS]
     one_line += [(label_key, "lowpixel", 15, U * ADVANCED_VALUE_X - 29) for _, _, label_key, *_ in ADVANCED]
@@ -537,7 +536,7 @@ def create_server_document() -> dict:
                             width=U * OPTIONS[2])
     start = primary_plate(doc, "create_start", "#str_200026", *START, action="createStart", label_box=(43.0, 6.0, 215.0, 25.0), text=23.7,
                           marker=(13.0, 9.5, 18.0))
-    back = action_plate(doc, "create_back", "#str_200018", U * BACK[0], U * BACK[1], action="back", width=U * BACK[2])
+    back = page_prompts(doc, "create_back", action="back")
 
     modal = advanced_dialog(doc)
     return subpage_document(doc, "create", "#str_200002", "#str_200026", "create_start",

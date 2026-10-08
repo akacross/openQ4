@@ -1115,34 +1115,153 @@ def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: fl
     return nodes
 
 
+def prompt_glyph(doc: Document, ident: str, key_name: str, tint: list[float], extra: dict | None = None) -> dict:
+    """A prompt's glyph for the active device (section 13.5), 6 dp before its
+    verb: the keyboard's keycap, `key_name` in Lowpixel on a 22 dp plate with
+    a 45-degree cut, or the controller family's button that does the same.
+    `extra` adds properties to the glyph's group."""
+    cap = vector(f"{ident}-cap", {"position": keyword("relative"), "display": keyword("block"),
+                                  "height": length(22), "padding-left": length(8), "padding-right": length(8)}, [
+        path("cap", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (6, {"fraction": 1}), (0, {"fraction": 1, "dp": -6})],
+             fill=solid(tint))],
+        [label(f"{ident}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
+                **typeface("lowpixel", 13, 22, [0.04, 0.05, 0.035, 1]), "white-space": keyword("nowrap")})])
+    doc.bind(f"{ident}-cap.display", f"{ident}-cap", "display",
+             {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}, "block", "none"]})
+    return group(f"{ident}-glyph", {"position": keyword("relative"), "display": keyword("flex"),
+                                    "flex-direction": keyword("row"), "align-items": keyword("center"),
+                                    "height": length(22), "margin-right": length(6), **(extra or {})},
+                 [cap] + device_glyphs(doc, ident, FACE_FOR_KEY[key_name], tint))
+
+
 def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None,
                verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8])) -> dict:
     """The prompt bar in the bottom band's raised trailing section (section
     13.4): per prompt the active device's glyph, the keyboard's keycap plate
     with a 45-degree cut or the controller family's face button that does
-    the same (section 13.5), then its verb."""
+    the same (section 13.5), then its verb. The prompts are legends, which
+    never take the pointer from what lies under them."""
     items = []
     tint = cap_tint or [1, 1, 1, 0.85]
     for key_name, verb in prompts:
         name = verb[5:]
-        cap = vector(f"prompt-{name}-cap", {"position": keyword("relative"), "display": keyword("block"),
-                                            "height": length(22), "padding-left": length(8), "padding-right": length(8)}, [
-            path("cap", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (6, {"fraction": 1}), (0, {"fraction": 1, "dp": -6})],
-                 fill=solid(tint))],
-            [label(f"prompt-{name}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
-                    **typeface("lowpixel", 13, 22, [0.04, 0.05, 0.035, 1]), "white-space": keyword("nowrap")})])
-        doc.bind(f"prompt-{name}-cap.display", f"prompt-{name}-cap", "display",
-                 {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}, "block", "none"]})
-        glyph = group(f"prompt-{name}-glyph", {"position": keyword("relative"), "display": keyword("flex"),
-                                              "flex-direction": keyword("row"), "align-items": keyword("center"),
-                                              "height": length(22), "margin-right": length(6)},
-                      [cap] + device_glyphs(doc, f"prompt-{name}", FACE_FOR_KEY[key_name], tint))
+        glyph = prompt_glyph(doc, f"prompt-{name}", key_name, tint)
         face, size, verb_tint = verb_face
         verb_node = label(f"prompt-{name}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
             "margin-right": length(22), **typeface(face, size, 22, verb_tint), "white-space": keyword("nowrap")})
         items += [glyph, verb_node]
-    return group("prompts", {**absolute(top=U * 447, height=22, right=U * 12), "opacity": number(1),
+    return group("prompts", {**absolute(top=U * 447, height=22, right=U * 12), "opacity": number(1), "pointer-events": keyword("none"),
                              "display": keyword("flex"), "flex-direction": keyword("row"), "align-items": keyword("center")}, items)
+
+
+# A page's prompt bar (section 13.4) in the docked bottom band's raised
+# trailing section, which spans 375.1-717.9 u of the canvas at every aspect:
+# Back's 45 dp target where the stock BACK plate's stood, from 532,441 u, its
+# glyph 8 dp in and its verb after it, and SELECT leading it 22 dp before.
+# The bar's box runs from past the section's riser to the 4:3 view's
+# trailing edge, under no control of the page's own.
+PROMPT_SELECT, PROMPT_BACK = "#str_231042", "#str_230045"
+KEY_ENTER, KEY_ESCAPE = "#str_107019", "#str_107020"
+PROMPT_TARGET = 45.0             # the stock plate's target height
+PROMPT_PAD = 8.0                 # Back's target either side of its glyph and verb
+PAGE_BACK_X = U * 532 + PROMPT_PAD   # canvas dp: Back's glyph
+PAGE_BAR_TOP = U * 441           # the stock BACK plate's top
+PAGE_BAR_LEFT = U * 380          # 5 u past the riser
+PAGE_BAR_W = CANVAS_W - PAGE_BAR_LEFT
+
+
+def engine_text(key: str) -> dict:
+    """`key` in every shipped language as the engine resolves it: the last of
+    the language's tables to define it (openQ4's own sort last), else
+    English."""
+    texts = {}
+    for language in ("english",) + LANGUAGES:
+        for table in sorted(STRINGS.glob(f"{language}_*.lang")):
+            for line in table.read_text(encoding="utf-8").splitlines():
+                match = re.match(r'\s*"(#str_\d+)"\s+"(.*)"\s*$', line)
+                if match and match.group(1) == key:
+                    texts[language] = match.group(2)
+    return {language: texts.get(language, texts["english"]) for language in LANGUAGES}
+
+
+def check_page_prompts(select: bool, face: str, size: float) -> None:
+    """Every shipped language's prompts fit a page's bar with the wider of
+    each keycap and a controller button: Back's verb ends 8 dp inside the 4:3
+    view's trailing edge, and SELECT starts inside the bar. Generation fails
+    otherwise."""
+    texts = {key: engine_text(key) for key in (KEY_ENTER, KEY_ESCAPE, PROMPT_SELECT, PROMPT_BACK)}
+
+    def glyph(key: str, language: str) -> float:
+        return max(22.0, 16 + text_width("lowpixel", texts[key][language], 13))
+    for language in LANGUAGES:
+        end = PAGE_BACK_X + glyph(KEY_ESCAPE, language) + 6 + text_width(face, texts[PROMPT_BACK][language], size)
+        if end > CANVAS_W - 8:
+            raise SystemExit(f"the prompt bar's Back in {language} ends at {end:.0f} dp, past {CANVAS_W - 8:g}")
+        start = PAGE_BACK_X - 22 - glyph(KEY_ENTER, language) - 6 - text_width(face, texts[PROMPT_SELECT][language], size)
+        if select and start < PAGE_BAR_LEFT:
+            raise SystemExit(f"the prompt bar's SELECT in {language} starts at {start:.0f} dp, before {PAGE_BAR_LEFT:g}")
+
+
+def page_prompts(doc: Document, back: str | None = None, *, action: str | None = None, event: str | None = None,
+                 select: bool = True, in_canvas: bool = True, ident: str = "prompts", cap_tint: list[float] | None = None,
+                 verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8]), hot: str = ORANGE) -> dict:
+    """A page's prompt bar (section 13.4): SELECT, the focused control's
+    Accept, then BACK at the trailing end, in the glyphs of the active
+    device. With `action` or `event` Back is the button `back`, standing in
+    for the stock BACK plate in its 45 dp target: the pointer or focus turns
+    its verb `hot` and lights its glyph, focus underlines it and a press
+    insets it 1 dp. Otherwise both are legends. Legends never take the
+    pointer. `select` False leaves SELECT out where Accept has nothing to do.
+    The bar sits in a 4:3 canvas group, or with `in_canvas` False in a node
+    spanning the view."""
+    face, size, verb_tint = verb_face
+    check_page_prompts(select, face, size)
+    tint = cap_tint or [1, 1, 1, 0.85]
+    middle = (PROMPT_TARGET - 22) / 2
+    back_x = PAGE_BACK_X - PAGE_BAR_LEFT
+
+    def verb_label(node: str, key: str, more: dict | None = None) -> dict:
+        return label(node, key, {"position": keyword("relative"), "display": keyword("block"), **typeface(face, size, 22, verb_tint),
+                                 "white-space": keyword("nowrap"), **(more or {})})
+    lead = []
+    if select:
+        name = f"prompt-{PROMPT_SELECT[5:]}"
+        lead = [prompt_glyph(doc, name, KEY_ENTER, tint), verb_label(f"{name}-verb", PROMPT_SELECT)]
+    leading = group(f"{ident}-lead", {**absolute(top=middle, height=22, right=PAGE_BAR_W - back_x + 22), "display": keyword("flex"),
+                                      "flex-direction": keyword("row"), "align-items": keyword("center"),
+                                      "pointer-events": keyword("none")}, lead)
+    legends = action is None and event is None
+    if legends:
+        name = f"prompt-{PROMPT_BACK[5:]}"
+        back_node = group(f"{ident}-back", {**absolute(left=back_x, top=middle, height=22), "display": keyword("flex"),
+                                            "flex-direction": keyword("row"), "align-items": keyword("center")},
+                          [prompt_glyph(doc, name, KEY_ESCAPE, tint), verb_label(f"{name}-verb", PROMPT_BACK)])
+    else:
+        # The glyph is painted opaque and rests at the legends' 0.85.
+        glyph = prompt_glyph(doc, back, KEY_ESCAPE, tint[:3] + [1], {"opacity": number(0.85), "transform": transform()})
+        focus = vector(f"{back}-focus", {**absolute(left=PROMPT_PAD, top=middle + 22 + 2, height=2), "right": length(PROMPT_PAD),
+                                         "opacity": number(0), "pointer-events": keyword("none")}, [
+            path("inset", [(0, 1), ({"fraction": 1}, 1)], closed=False, stroke=stroke(solid(rgb(hot)), 1.2))])
+        lit, pressed, rest = colour(rgb(hot)), transform(tx=1, ty=1), transform()
+
+        def feedback(glyph_alpha: float, tint_value: dict, moved: dict, underline: float) -> list:
+            return [(f"{back}-glyph", "opacity", number(glyph_alpha)), (f"{back}-glyph", "transform", moved),
+                    (f"{back}-label", "color", tint_value), (f"{back}-label", "transform", moved), (f"{back}-focus", "opacity", number(underline))]
+        ids = doc.states(back, {"default": feedback(0.85, colour(verb_tint), rest, 0), "hover": feedback(1, lit, rest, 0),
+                                "focus": feedback(1, lit, rest, 1), "pressed": feedback(1, lit, pressed, 1),
+                                "disabled": feedback(0.4, colour(verb_tint[:3] + [0.4]), rest, 0)})
+        control = {"role": "button", "label": PROMPT_BACK, "states": ids}
+        control.update({"action": action} if action else {"event": event})
+        back_node = group(back, {**absolute(left=back_x - PROMPT_PAD, top=0, height=PROMPT_TARGET), "display": keyword("flex"),
+                                 "flex-direction": keyword("row"), "align-items": keyword("center"), "padding-left": length(PROMPT_PAD),
+                                 "padding-right": length(PROMPT_PAD)},
+                          [glyph, verb_label(f"{back}-label", PROMPT_BACK, {"transform": transform()}), focus], control=control)
+    box = absolute(left=PAGE_BAR_LEFT, top=PAGE_BAR_TOP, width=PAGE_BAR_W, height=PROMPT_TARGET)
+    if not in_canvas:
+        box.update({"left": length(50, "%"), "margin-left": length(-CANVAS_W / 2 + PAGE_BAR_LEFT)})
+    if legends:
+        box["pointer-events"] = keyword("none")
+    return group(ident, {**box, "opacity": number(1)}, [leading, back_node])
 
 
 # --------------------------------------------------------------- choreography
@@ -1912,7 +2031,8 @@ def campaign_document(campaigns: bool) -> dict:
         doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles_group,
-        prompt_bar(doc, [("#str_107019", "#str_231042"), ("#str_107020", "#str_230045")]),
+        # The pages' prompt bar, as legends: the page's own BACK is its button.
+        page_prompts(doc, in_canvas=False),
     ]))
 
 
@@ -2554,50 +2674,6 @@ def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, ho
                           "parts": {"track": f"{ident}-track", "thumb": f"{ident}-thumb"}, "states": ids})
 
 
-def strogg_action_plate(doc: Document, ident: str, key: str, left: float, top: float, *, event: str, width: float) -> dict:
-    """An action plate in the Strogg family: the Marine plate's 35 dp band
-    in a 45 dp target, ending in the 30-degree shoulder of the Strogg
-    navigation plates, its #F59512 rail along the foot, up the trailing
-    edge and over the shoulder, the slanted marker, and an R_Strogg label in
-    #FCFFC8 turning #FFCC00 on hover and focus."""
-    band_top, band_bottom = 5.0, 40.0
-    shoulder_x, shoulder_y = U * 16, U * 9.2
-    fill = [(0, rgb(ST_LINE, 0.49)), (0.33, rgb(ST_LINE, 0.49)), (1, rgb(ST_LINE, 0.12))]
-    rail = [(0, rgb(ST_LINE, 0.9)), (0.55, rgb(ST_LINE, 0.9)), (1, rgb(ST_LINE, 0.45))]
-    plate = vector(f"{ident}-plate", {**absolute(left=0, top=0, width=width, height=45), "opacity": number(0.4)}, [
-        path("fill", [(0, band_top), (width - shoulder_x, band_top), (width, band_top + shoulder_y), (width, band_bottom), (0, band_bottom)],
-             fill=linear((0, 0), (width, 0), fill)),
-        path("rail", [(0.75, band_top), (0.75, band_bottom - 0.75), (width - 0.75, band_bottom - 0.75), (width - 0.75, band_top + shoulder_y),
-                      (width - shoulder_x, band_top + 0.75), (width * 0.6, band_top + 0.75)],
-             closed=False, stroke=stroke(linear((0, 0), (width, 0), rail), 1.5)),
-    ])
-    focus = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=width, height=45), "opacity": number(0)}, [
-        path("inset", [(3.5, band_bottom - 3.5), (width - shoulder_x - 4, band_bottom - 3.5)], closed=False,
-             stroke=stroke(solid(rgb(ST_SELECT)), 1.2))])
-
-    def slanted(name: str, tint: list[float], alpha: float) -> dict:
-        return vector(name, {**absolute(left=14, top=14, width=10, height=9), "opacity": number(alpha)}, [
-            path("mark", [(2.4, 0), (9.6, 0), (7.2, 9), (0, 9)], fill=solid(tint))])
-    marker_rest, marker_hot = slanted(f"{ident}-marker", rgb(ST_LINE), 0.4), slanted(f"{ident}-marker-hot", rgb(ST_SELECT), 0)
-    text_node = label(f"{ident}-label", key, {**absolute(left=28, top=0, width=width - 32, height=45),
-        **typeface("r_strogg", 20, 45, rgb(ST_READ, 0.8)), "white-space": keyword("nowrap"), "transform": transform()})
-    rest, lit = colour(rgb(ST_READ, 0.8)), colour(rgb(ST_SELECT))
-    ids = doc.states(ident, {
-        "default": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)), (f"{ident}-marker-hot", "opacity", number(0)),
-                    (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", rest), (f"{ident}-label", "transform", transform())],
-        "hover": [(f"{ident}-plate", "opacity", number(0.8)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                  (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(sx=1.03, sy=1.03))],
-        "focus": [(f"{ident}-plate", "opacity", number(0.8)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                  (f"{ident}-focus", "opacity", number(1)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(sx=1.03, sy=1.03))],
-        "pressed": [(f"{ident}-plate", "opacity", number(1)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                    (f"{ident}-focus", "opacity", number(1)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(tx=1, ty=1, sx=1.03, sy=1.03))],
-        "disabled": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)), (f"{ident}-marker-hot", "opacity", number(0)),
-                     (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", colour(rgb(ST_READ, 0.4))), (f"{ident}-label", "transform", transform())],
-    })
-    return group(ident, absolute(left=left, top=top, width=width, height=45), [plate, focus, marker_rest, marker_hot, text_node],
-                 control={"role": "button", "label": key, "states": ids, "event": event})
-
-
 def objectives_page(doc: Document, strogg: bool) -> tuple:
     """The OBJECTIVES page (sections 13.7 and 14.11). Choosing OBJECTIVES
     docks the bands as a page hand-off does and carries the label into the
@@ -2610,11 +2686,11 @@ def objectives_page(doc: Document, strogg: bool) -> tuple:
     the stock construction whose titles wrap to two lines and descriptions
     wrap without a limit; the completed ones follow under COMPLETED, title
     only at 0.40 with a check. The list scrolls with the wheel, the stick or
-    the bar, and Back (the plate at 532,441 u, or the back input) returns
-    to the pause with the bands. The Strogg family keeps the construction
-    with #FF9000 frames, #FF9900 markers, an R_Strogg heading and the STROGG
-    NET serial. Returns the back bar, which lies under the framing bands,
-    and the page."""
+    the bar, and Back (the prompt bar's BACK where the stock plate stood at
+    532,441 u, or the back input) returns to the pause with the bands. The
+    Strogg family keeps the construction with #FF9000 frames, #FF9900
+    markers, an R_Strogg heading and the STROGG NET serial. Returns the back
+    bar, which lies under the framing bands, and the page."""
     frame_tint = ST_OBJ_FRAME if strogg else OBJ_FRAME
     mark_tint = ST_OBJ_MARK if strogg else OBJ_FRAME
     hot = ST_SELECT if strogg else ORANGE
@@ -2718,10 +2794,9 @@ def objectives_page(doc: Document, strogg: bool) -> tuple:
         height=U * (OBJ_BOTTOM - OBJ_TOP)), "overflow": keyword("auto")}, [column])
     scrollbar = objectives_scrollbar(doc, "objectives_scroll", "objectives-list", frame_tint, hot,
                                      U * (OBJ_LEFT + OBJ_WIDTH) + 2, U * OBJ_TOP, U * (OBJ_BOTTOM - OBJ_TOP))
-    if strogg:
-        back = strogg_action_plate(doc, "objectives_back", "#str_200018", U * 532, U * 441, event="objectivesHide", width=U * 109)
-    else:
-        back = action_plate(doc, "objectives_back", "#str_200018", U * 532, U * 441, event="objectivesHide", width=U * 109)
+    # The prompt bar holds BACK alone: Accept has nothing to do on the page.
+    family = {"cap_tint": rgb(ST_SELECT, 0.85), "verb_face": ("r_strogg", 14, rgb(ST_READ, 0.8)), "hot": ST_SELECT} if strogg else {}
+    back = page_prompts(doc, "objectives_back", event="objectivesHide", select=False, ident="objectives-prompts", **family)
     canvas = group("objectives-canvas", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
                                          "margin-left": length(-CANVAS_W / 2)}, [heading, viewport, scrollbar, back])
     content = group("objectives-content", {**FULL, "opacity": number(0)}, [canvas])

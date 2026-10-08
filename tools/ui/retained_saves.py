@@ -9,8 +9,8 @@ BeginRetainedPage). The page keeps the stock composition of section 9: the
 selected save's preview, 183x137 u at 25,78 u in a 1 u #414624 border, with
 its date and time below it on the leading side; LOAD GAME and DELETE GAME as
 section navigation plates under them; the saves on the trailing side under
-Lowpixel SAVE NAME and LOCATION headings and an olive rule; BACK in the bottom
-band at 532,441 u.
+Lowpixel SAVE NAME and LOCATION headings and an olive rule; the prompt bar in
+the bottom band, its BACK where the stock BACK plate stood at 532,441 u.
 
 The session publishes the saves newest first. The list holds ROWS rows and
 pages through more saves, so the document stays the same size however many
@@ -35,8 +35,8 @@ import re
 
 from build_retained_screens import (CANVAS_W, CLOSE_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, PICTURE, RAIL_DARK, STRINGS, U,
                                     Document, absolute, action_plate, colour, confirmation, font, group, keyword, label, length,
-                                    linear, localized, marker_path, number, objectives_scrollbar, path, picture, rgb, solid,
-                                    stroke, text_width, track, transform, typeface, vector)
+                                    linear, localized, marker_path, number, objectives_scrollbar, page_prompts, path, picture,
+                                    rgb, solid, stroke, text_width, track, transform, typeface, vector)
 
 ROWS = 64                      # RETAINED_LOAD_ROWS in the session: the saves the list holds at a time
 PLACEHOLDER = "#str_230030"    # bound labels' text before their first binding
@@ -315,8 +315,7 @@ def check_text_fits() -> None:
     one_line = (("#str_200001", "marine", 22.3, U * 186), ("#str_200021", "marine", 22.3, U * 186),
                 ("#str_200925", "lowpixel", 13, U * (LOCATION_X - 4)), ("#str_200926", "lowpixel", 13, U * (ROW_W - LOCATION_X)),
                 ("#str_231100", "marine", 20, U * ROW_W), ("#str_231106", "marine", 16, U * (ROW_W - 18)),
-                ("#str_231107", "marine", 16, U * (ROW_W - 18)), ("#str_200000", "marine", 20, newgame_width() - 30),
-                ("#str_200018", "marine", 20, U * 109 - 30))
+                ("#str_231107", "marine", 16, U * (ROW_W - 18)), ("#str_200000", "marine", 20, newgame_width() - 30))
     wrapped = (("#str_231101", "lowpixel", 17, U * ROW_W, 2),) + tuple(
         (key, "lowpixel", 15, U * (ERROR_STRIP[2] - 8), 3) for key in ("#str_231102", "#str_231103", "#str_231104", "#str_231105"))
     for key, face, size, width in one_line:
@@ -414,7 +413,7 @@ def load_game_document() -> dict:
              {"op": "select", "args": [{"op": "==", "args": [{"state": "load.count"}, 0]}, "block", "none"]})
     doc.bind("load_newgame.display", "load_newgame", "display", {"op": "select", "args": [{"state": "load.ingame"}, "none", "block"]})
 
-    back = action_plate(doc, "load_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "load_back", action="back")
     # The plates show at once, under the title the home carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     panel = group("load-panel", {**FULL, "opacity": number(1)}, [*shot_parts, error, date, time_node, *headings, viewport, scrollbar,
@@ -447,7 +446,7 @@ def load_game_document() -> dict:
 # Marine pause's SAVE GAME hands off to it as LOAD GAME does to its page. The
 # saves fill the content column under SAVE NAME and LOCATION headings, 570 u
 # wide; the name plate (b1_dark) and the SAVE GAME plate (b2_dark) stand under
-# the list, and BACK in the bottom band.
+# the list, and the prompt bar in the bottom band.
 SAVE_LIST_LEFT, SAVE_LIST_TOP, SAVE_LIST_H = 35.0, 78.0, 285.0
 SAVE_ROW_W = 550.0                          # tabstops 0, 180 and 550: the scrollbar takes the last 20 u
 SAVE_LIST_W = 570.0
@@ -538,7 +537,7 @@ def check_save_text_fits() -> None:
     one_line = (("#str_200003", "marine", 22.3, U * SAVE_LABEL_W), ("#str_200925", "lowpixel", 13, U * (LOCATION_X - 4)),
                 ("#str_200926", "lowpixel", 13, U * (SAVE_ROW_W - LOCATION_X)), ("#str_231100", "marine", 20, U * SAVE_ROW_W),
                 ("#str_231106", "marine", 16, U * (SAVE_ROW_W - 18)), ("#str_231107", "marine", 16, U * (SAVE_ROW_W - 18)),
-                ("#str_200018", "marine", 20, U * 109 - 30), ("#str_200923", "marine", 20, CLOSE_W - 30),
+                ("#str_200923", "marine", 20, CLOSE_W - 30),
                 ("#str_231108", "lowpixel", 14, U * NAME_FIELD[2]), ("#str_231109", "lowpixel", NAME_TEXT, U * NAME_FIELD[2]),
                 ("#str_200252", "marine", 20, WIDE_TITLE_W), ("#str_200266", "marine", 20, TITLE_W))
     body = 480 - 66
@@ -631,7 +630,7 @@ def save_game_document() -> dict:
     doc.bind("save_go.enabled", "save_go", "enabled",
              {"op": "||", "args": [{"op": "!=", "args": [{"state": "save.name"}, ""]}, {"state": "ui.numberDraftsPending"}]})
     field = name_field(doc)
-    back = action_plate(doc, "save_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "save_back", action="back")
     panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(), field, back])
     stage = group("save-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
                   [save_plate, panel])

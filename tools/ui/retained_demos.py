@@ -9,7 +9,8 @@ and status below it; PLAY, DELETE and REFRESH as section navigation plates
 under them; the demos on the trailing side under Lowpixel NAME, MAP, DATE and
 DURATION headings and an olive rule, with filter tags above (section 13.13:
 small header-band plates, the set one at 0.60 with its close cross, the rest
-at 0.28); BACK in the bottom band at 532,441 u.
+at 0.28); the prompt bar in the bottom band, its BACK where the stock BACK
+plate stood at 532,441 u.
 
 The session publishes the library newest first, filtered (the legacy
 browser's MULTI-VIEW, RENDER, LEGACY and INCOMPLETE; none set shows them
@@ -25,9 +26,9 @@ own title does when nothing carried it.
 """
 from __future__ import annotations
 
-from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, ORANGE, TITLE_SLOT, U, Document, absolute, action_plate,
-                                    colour, confirmation, font, group, keyword, label, length, number, objectives_scrollbar, path,
-                                    rgb, solid, stroke, text_width, track, typeface, vector)
+from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, ORANGE, TITLE_SLOT, U, Document, absolute, colour,
+                                    confirmation, font, group, keyword, label, length, number, objectives_scrollbar, page_prompts,
+                                    path, rgb, solid, stroke, text_width, track, typeface, vector)
 from retained_saves import (ERROR, ERROR_LINE, ERROR_STRIP, HEADING, LIST_H, LIST_LEFT, LIST_TOP, LIST_W, PLACEHOLDER, PREVIEW,
                             ROW_H, ROW_W, RULE_Y, backing, lines_needed, pager_row, picture_frame, row_plates, row_states,
                             section_plate, table_text)
@@ -144,7 +145,7 @@ def check_demo_text_fits() -> None:
     one_line = [(key, "marine", 22.3, U * 186) for _, key, *_ in PLATES]
     one_line += [(key, "lowpixel", 13, U * (column_w - 4)) for _, key, _, column_w in COLUMNS]
     one_line += [("#str_231114", "marine", 20, U * ROW_W), ("#str_231116", "marine", 16, U * (ROW_W - 18)),
-                 ("#str_231117", "marine", 16, U * (ROW_W - 18)), ("#str_200018", "marine", 20, U * 109 - 30),
+                 ("#str_231117", "marine", 16, U * (ROW_W - 18)),
                  (TITLE, "marine", 18, U * 300), ("#str_41556", "marine", 18, 316)]
     wrapped = [("#str_231115", "lowpixel", 17, U * ROW_W, 2), ("#str_231118", "lowpixel", 17, U * ROW_W, 2),
                ("#str_231119", "lowpixel", 15, U * (ERROR_STRIP[2] - 8), 3), ("#str_231120", "lowpixel", 15, U * (ERROR_STRIP[2] - 8), 3)]
@@ -258,7 +259,7 @@ def demos_document() -> dict:
     doc.bind("demo-empty-text.text", "demo-empty-text", "text",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "demos.filter"}, 0]}, "#str_231115", "#str_231118"]})
 
-    back = action_plate(doc, "demo_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "demo_back", action="back")
     title = label("demo-title", TITLE, {**absolute(left=U * TITLE_SLOT[0], top=U * TITLE_SLOT[1], width=U * 300, height=U * 24.4 * 0.75),
                   **typeface("marine", 18, U * 24.4 * 0.75, [1, 1, 1, 0.5]), "white-space": keyword("nowrap")})
     # The plates show at once; the title, the panel and the backing fade in

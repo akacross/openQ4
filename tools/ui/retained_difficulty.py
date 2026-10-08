@@ -9,8 +9,8 @@ action is the enlarged plate. The layout is the stock p_newgame (openQ4's own
 mainmenu.gui, whose in-game Difficulty page is the same page retitled): five
 b2_dark plates on a 30 u pitch from 21,172 u, the chosen one lit; the chosen
 difficulty's description at 239,181 u in Lowpixel (textscale 0.25) at 0.60;
-the primary plate (b6_light) at 237,222 u, 356x43 u; BACK in the bottom band
-at 532,441 u.
+the primary plate (b6_light) at 237,222 u, 356x43 u; the prompt bar in the
+bottom band, its BACK where the stock BACK plate stood at 532,441 u.
 
 The pause's RESTART LEVEL hands off to restartlevel.q4ui as LOAD GAME does to
 its page (idSessionLocal::BeginRetainedPage): the page is the stock page's
@@ -28,8 +28,8 @@ from __future__ import annotations
 
 from build_retained_screens import (BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SLOT, CRUMB_SPAN, FULL, LANGUAGES, MARKER,
                                     OLIVE, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_SUBPAGE, U,
-                                    Document, absolute, action_plate, by_language, colour, crumb_fits, crumb_transform, font,
-                                    framing_bands, group, keyword, label, length, linear, lit_field, marker_path, number,
+                                    Document, absolute, by_language, colour, crumb_fits, crumb_transform, font, framing_bands,
+                                    group, keyword, label, length, linear, lit_field, marker_path, number, page_prompts,
                                     page_title, path, rgb, sibling_motion, solid, stroke, text_width, track, transform,
                                     typeface, vector)
 from retained_saves import backing, lines_needed, section_plate, table_text
@@ -169,7 +169,7 @@ def check_fits(one_line: tuple, wrapped: tuple) -> None:
 def restart_level_document() -> dict:
     lines = int(U * DESCRIPTION[3] // DESCRIPTION_LINE)
     check_fits(tuple((name, "marine", 22.3, U * 186) for name, _ in DIFFICULTIES) +
-               (("#str_229983", "marine", PRIMARY_TEXT, U * PRIMARY_LABEL[2]), ("#str_200018", "marine", 20, U * 109 - 30)),
+               (("#str_229983", "marine", PRIMARY_TEXT, U * PRIMARY_LABEL[2]),),
                tuple((text, "lowpixel", DESCRIPTION_TEXT, U * DESCRIPTION[2], lines) for _, text in DIFFICULTIES))
     doc = Document("openq4.restartlevel")
     doc.state["restart.skill"] = {"type": "number", "initial": 1}
@@ -179,7 +179,7 @@ def restart_level_document() -> dict:
     plates = difficulty_plates(doc, "restart.skill")
     description = difficulty_description(doc, "restart-description", "restart.skill")
     go = primary_plate(doc, "restart_go", "#str_229983", *PRIMARY, action="go")
-    back = action_plate(doc, "restart_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "restart_back", action="back")
     # The plates show at once, under the title the pause carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     panel = group("restart-panel", {**FULL, "opacity": number(1)}, [description, go, back])
@@ -233,8 +233,7 @@ def check_new_campaign_fits() -> None:
                 ("#str_41119", "marine", TURBO_TEXT, U * PRIMARY_LABEL[2]),
                 ("#str_41120", "marine", TURBO_VALUE_TEXT, U * TURBO_VALUE[2]),
                 ("#str_41121", "marine", TURBO_VALUE_TEXT, U * TURBO_VALUE[2]),
-                ("#str_230039", "marine", 18, U * PAGE_TITLE_W), ("#str_230040", "marine", 18, U * PAGE_TITLE_W),
-                ("#str_200018", "marine", 20, U * 109 - 30)),
+                ("#str_230039", "marine", 18, U * PAGE_TITLE_W), ("#str_230040", "marine", 18, U * PAGE_TITLE_W)),
                tuple((text, "lowpixel", DESCRIPTION_TEXT, U * DESCRIPTION[2], lines) for _, text in DIFFICULTIES))
 
 
@@ -245,13 +244,13 @@ def new_campaign_document() -> dict:
     sub-page's sibling and holds the sub-page state as it does: the top band
     one notch on, the bottom band docked, SINGLE PLAYER as the crumb and the
     campaign's name (newgame.awakening) as the title at the step's foot, with
-    the stock page's backing and BACK in the bottom band. The session plays
-    siblingLeave on Campaign and presents this at 140 ms; its activation
-    plays siblingEnter (page.enter from the trailing edge), and Back plays
-    siblingLeaveBack before Campaign returns. It waits hidden, so that an
-    arrival never shows it at rest first. Each arrival starts at CORPORAL
-    with turbo mode off, as the stock page did (the session resets both),
-    and START GAME starts the campaign at the choice."""
+    the stock page's backing and the prompt bar in the bottom band. The
+    session plays siblingLeave on Campaign and presents this at 140 ms; its
+    activation plays siblingEnter (page.enter from the trailing edge), and
+    Back plays siblingLeaveBack before Campaign returns. It waits hidden, so
+    that an arrival never shows it at rest first. Each arrival starts at
+    CORPORAL with turbo mode off, as the stock page did (the session resets
+    both), and START GAME starts the campaign at the choice."""
     check_new_campaign_fits()
     doc = Document("openq4.newcampaign")
     doc.state.update({"newgame.skill": {"type": "number", "initial": 1}, "newgame.turbo": {"type": "boolean", "initial": False},
@@ -263,7 +262,7 @@ def new_campaign_document() -> dict:
     description = difficulty_description(doc, "newgame-description", "newgame.skill")
     start = primary_plate(doc, "newgame_start", "#str_200020", *PRIMARY, action="start")
     turbo = turbo_plate(doc, "newgame_turbo", "newgame.turbo")
-    back = action_plate(doc, "newgame_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    back = page_prompts(doc, "newgame_back", action="back")
     canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
     content = group("content", {**canvas, "transform": transform(), "opacity": number(0)}, [*plates, description, start, turbo])
     bands = framing_bands("band")

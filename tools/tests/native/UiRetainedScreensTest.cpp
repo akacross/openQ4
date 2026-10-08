@@ -4,6 +4,7 @@
 // documents (content/baseoq4/pak0/guis) loaded, laid out and driven by state.
 #include "src/ui/retained/Runtime.h"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -3210,6 +3211,95 @@ static void CheckCardPromptGlyphs(ScreenHost& host, const char* path) {
 		display("prompt-back-0-nintendo") == "none" && display("tab-next-nintendo") == "block","Resume and Select trade buttons");
 }
 
+// A page's prompt bar (section 13.4) in the docked band's raised trailing
+// section, at the same canvas place in every view: Back's 45 dp target where
+// the stock BACK plate's stood (532,441 u), its glyph 8 dp in and its verb
+// 6 dp on, ending inside the 4:3 view, and SELECT ending 22 dp before it
+// where Accept has something to do. Back's glyph follows prompt.glyphs; the
+// pointer lights Back, whose click runs the page's Back, and passes over
+// SELECT, a legend. With `back` empty both are legends (Single Player,
+// Campaign and Multiplayer, whose own BACK is in the content). `bar` names
+// the bar, `open` an event that shows it.
+static void CheckPagePrompts(ScreenHost& host, const char* path, const char* name, const std::string& back, const char* action,
+	const char* event, bool select, const char* open = nullptr, const std::string& bar = "prompts") {
+	const auto source = Read(path);
+	std::vector<Diagnostic> diagnostics; std::string error;
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,name,diagnostics),"a page loads for its prompt bar");
+	Runtime::EventEffects effects;
+	if (open) Check(runtime.RunEvent(open,1,effects,error),"the page opens");
+	const char* const families[] = {"xbox","playstation","nintendo","steamdeck","generic"};
+	const auto display = [&](const std::string& node) {
+		const auto found = runtime.PresentedValue(node,"display"); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a prompt is laid out"); return b; };
+	const std::string glyphId = back.empty() ? "prompt-230045" : back;
+	const std::string verbId = back.empty() ? "prompt-230045-verb" : back+"-label";
+	Viewport viewport; viewport.canvasHeight = 720; viewport.height = 720;
+	double now = 2;
+	for (const int width : {1280,1680}) {
+		viewport.width = width;
+		runtime.Frame(viewport,now += .5);
+		const float canvas = (width-960)*.5f;
+		const auto glyph = bounds(glyphId+"-glyph"), verb = bounds(verbId);
+		Check(Near(glyph.x,canvas+532*1.5f+8,.5f) && Near(glyph.y+glyph.height/2,441*1.5f+22.5f,.5f),"Back's glyph stands where the stock plate's target begins");
+		Check(Near(verb.x,glyph.x+glyph.width+6,1) && verb.x+verb.width <= canvas+960-8,"its verb follows it and ends inside the 4:3 view");
+		if (!back.empty()) {
+			const auto target = bounds(back);
+			Check(Near(target.x,canvas+532*1.5f,.5f) && Near(target.y,441*1.5f,.5f) && Near(target.height,45,.5f) &&
+				Near(target.x+target.width,verb.x+verb.width+8,1),"Back's target is the stock plate's 45 dp, 8 dp past its glyph and verb");
+		}
+		Check((bounds(bar+"-lead").width > 0) == select,"SELECT shows where Accept has something to do");
+		if (select) {
+			const auto selectGlyph = bounds("prompt-231042-glyph"), selectVerb = bounds("prompt-231042-verb");
+			Check(Near(selectVerb.x+selectVerb.width,glyph.x-22,1) && selectGlyph.x >= canvas+380*1.5f-.5f &&
+				Near(selectGlyph.y,glyph.y,.5f),"SELECT ends 22 dp before Back, inside the raised section");
+		}
+	}
+	for (int glyphs = 0; glyphs <= 5; ++glyphs) {
+		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,now += .1),"publish the prompt glyphs");
+		runtime.Frame(viewport,now += .1);
+		Check(display(glyphId+"-cap") == (glyphs == 0 ? "block" : "none"),"Back's keycap shows only for the keyboard");
+		for (int family = 0; family < 5; ++family)
+			Check(display(glyphId+"-"+families[family]) == (glyphs == family+1 ? "block" : "none"),"Back shows the published family's east button");
+		if (glyphs > 0) {
+			const auto face = bounds(glyphId+"-"+families[glyphs-1]);
+			Check(Near(face.width,22) && Near(face.height,22),"a 22 dp button");
+		}
+	}
+	Check(runtime.SetState({{"prompt.glyphs",0.0}},error,now += .1),"back to the keyboard");
+	runtime.Frame(viewport,now += .1);
+	if (back.empty()) {
+		Check(!runtime.CanActivateControl("prompts-back",now) && !runtime.CanActivateControl("prompt-230045-glyph",now),"the legends take no input");
+		return;
+	}
+	// The pointer over SELECT lights nothing; over Back it lights Back, and a
+	// click runs the page's Back.
+	if (select) {
+		const auto legend = bounds("prompt-231042-verb");
+		runtime.PointerMove(legend.x+legend.width/2,legend.y+legend.height/2,now += .1);
+		runtime.Frame(viewport,now += .1);
+		Check(runtime.GetControlState(back) == ControlState::Default,"SELECT is a legend");
+		runtime.PointerButton(true,now); runtime.PointerButton(false,now += .02);
+		Check(runtime.TakeActions().empty(),"a click on SELECT does nothing");
+	}
+	const auto target = bounds(back);
+	runtime.PointerMove(target.x+target.width-3,target.y+target.height-3,now += .1);
+	runtime.Frame(viewport,now += .1);
+	const auto lit = runtime.PresentedValue(back+"-label","color");
+	const auto glyphLit = runtime.PresentedValue(back+"-glyph","opacity");
+	// Orange (#E38900) or the Strogg #FFCC00, where the rest is white or #FCFFC8.
+	Check(runtime.GetControlState(back) == ControlState::Hover && lit && lit->data[0] > .85f && lit->data[2] < .1f && glyphLit &&
+		Near(static_cast<float>(glyphLit->data[0]),1,.01f),"the pointer anywhere in the target lights Back and its glyph");
+	runtime.PointerButton(true,now); runtime.PointerButton(false,now += .02);
+	const auto actions = runtime.TakeActions();
+	// Event names are canonical, in lower case.
+	std::string canonical = event ? event : "";
+	std::transform(canonical.begin(),canonical.end(),canonical.begin(),[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	Check(actions.size() == 1 && actions[0].node == back && (action ? actions[0].action == action : actions[0].event == canonical),
+		"a click runs the page's Back");
+}
+
 int main(int argc, char** argv) {
 	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
 	CheckSchema();
@@ -3217,6 +3307,19 @@ int main(int argc, char** argv) {
 	CheckTransformedClip(host);
 	CheckPromptGlyphs(host,argv[1]);
 	CheckCardPromptGlyphs(host,argv[7]);
+	CheckPagePrompts(host,argv[13],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[14],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[15],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[16],"guis/menu/newcampaign.q4ui","newgame_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[17],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[19],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
+	CheckPagePrompts(host,argv[22],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[23],"guis/menu/joingame.q4ui","join_back","back",nullptr,true);
+	CheckPagePrompts(host,argv[2],"guis/menu/pause.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow","objectives-prompts");
+	CheckPagePrompts(host,argv[4],"guis/menu/pause_strogg.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow",
+		"objectives-prompts");
+	for (const int page : {5,6,21})
+		CheckPagePrompts(host,argv[page],page == 21 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	{
 		const auto source = Read(argv[1]);

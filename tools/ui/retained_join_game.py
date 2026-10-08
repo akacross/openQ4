@@ -15,13 +15,13 @@ the sort's column marked (a heading sorts by its column, and again the other
 way); the scan's status at 41,291 u, a player search's tag after it, and
 CLEAR SORTING; the scan's progress bar and its notice at 21,312 u; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
 PLAYER/CLAN from 19,330 u; the chosen server's levelshot at 240,337 u; JOIN
-SERVER at 385,330 u and the favorite toggle under it; BACK in the bottom
-band. JOIN IP ADDRESS and FIND PLAYER/CLAN open their dialogs (section 6's
-entry dialog): an address the session connects to, and a name it searches
-the list for. The list's symbols (favorite, password, dedicated server,
-repeater) sit on their tiles as section 9's symbol table draws them; the
-stock PunkBuster column is gone (a discontinued service, no replacement
-column).
+SERVER at 385,330 u and the favorite toggle under it; the prompt bar in the
+bottom band, its BACK where the stock BACK plate stood. JOIN IP ADDRESS and
+FIND PLAYER/CLAN open their dialogs (section 6's entry dialog): an address the
+session connects to, and a name it searches the list for. The list's symbols
+(favorite, password, dedicated server, repeater) sit on their tiles as section
+9's symbol table draws them; the stock PunkBuster column is gone (a
+discontinued service, no replacement column).
 
 The session owns the list: it publishes the scan's visible servers a page of
 JOIN_ROWS at a time (join.row<i>.*), their count, the scan's status, the
@@ -35,9 +35,9 @@ from __future__ import annotations
 import math
 
 from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, Document, absolute, action_plate, colour, confirmation, group,
-                                    keyword, label, length, linear, number, objectives_scrollbar, path, rgb, solid, stroke, text_width,
-                                    typeface, vector)
-from retained_create_server import BACK, header_band, text_row
+                                    keyword, label, length, linear, number, objectives_scrollbar, page_prompts, path, rgb, solid, stroke,
+                                    text_width, typeface, vector)
+from retained_create_server import header_band, text_row
 from retained_difficulty import check_fits, primary_plate
 from retained_saves import ERROR, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
 from retained_subpage import subpage_document
@@ -671,6 +671,6 @@ def join_game_document() -> dict:
     doc.bind("join_favorite-label.text", "join_favorite-label", "text",
              {"op": "select", "args": [{"state": "join.favorite"}, FAVORITE_KEYS[1], FAVORITE_KEYS[0]]})
     doc.bind("join_favorite.enabled", "join_favorite", "enabled", {"op": ">=", "args": [{"state": "join.selected"}, 0]})
-    back = action_plate(doc, "join_back", "#str_200018", U * BACK[0], U * BACK[1], action="back", width=U * BACK[2])
+    back = page_prompts(doc, "join_back", action="back")
     return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back, detail_card(doc)],
                             [join_ip_modal(doc), find_modal(doc)])

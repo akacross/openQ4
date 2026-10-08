@@ -31,6 +31,13 @@ out of scope. It extends the [retained screens](retained-screens.md),
   the strings and the Escape card's paint. The probe scenarios `probe-focus`,
   `probe-focus-pause` and `probe-ellipsis` (the audit's kit, beside the
   harness) show them in the engine.
+- **A third pass** gave the pages section 13.4's prompt bar. Its design was
+  chosen from two sketches drawn over engine captures: the title's band
+  prompts, or the stock BACK plate with a glyph in place of its marker.
+  Engine captures show every page's bar in English at 16:9, with Xbox
+  glyphs, in Spanish (Marine and Strogg, the tightest fit), in German at 4:3
+  and in Russian at 21:9; the kit's `probe-page-prompts` switches one page
+  through every glyph style and Swap Confirm and Back.
 
 ## Fixed
 
@@ -65,6 +72,8 @@ out of scope. It extends the [retained screens](retained-screens.md),
 | Low | Spanish read ATRÁS for Back in the prompts and the Single Player, Campaign and Multiplayer pages, VOLVER on the other pages. | Both read VOLVER, the stock word. |
 | Low | Polish and Russian showed the save names, the save refusals, OK, Cancel and the keycaps in English: they ship no code string table. | Their openQ4 tables carry the sixteen code strings the menus use. |
 | Low | Each launch's menu preload read every community map's levelshot out of its package and wrote it into the save path again (`FindMapScreenshot`). | A levelshot extracted by an earlier launch is reused. |
+| Medium | Load Game, Save Game, Restart Level, New Campaign, Demos, Credits, Create Server, Join Game and the pause's Objectives page kept the stock BACK plate in the docked bottom band, so controller and keyboard players saw device glyphs only on the title, pause, Single Player, Campaign and Multiplayer screens. | Each page's bottom band carries section 13.4's prompt bar: SELECT and BACK in the active device's glyphs, Back a button where the stock plate stood, which the pointer lights ([page prompt bars](retained-screens.md#page-prompt-bars)). |
+| Low | At 21:9 the Single Player, Campaign and Multiplayer prompt bars hung past the bottom band's raised section, and their place differed from the pages'. | They stand where the pages' bars do, on the raised section at every aspect. |
 
 The [retained screens](retained-screens.md#known-limitations) and
 [multiplayer menus](multiplayer-menus.md#known-limitations) known limitations
@@ -76,6 +85,15 @@ fixed.
 
 Highest impact first.
 
+- **Pointer reach.** The mouse cannot reach Load Game's LOAD GAME and DELETE
+  GAME, Restart Level's and New Campaign's difficulty plates, New Campaign's
+  START GAME and TURBO MODE, or Demos' REFRESH: a full-size group that comes
+  after them in the document, the page's `*-panel` or New Campaign's
+  `back-stage`, takes the pointer's hits. A native probe that moved the
+  pointer to every enabled control's centre found them; Demos' PLAY and
+  DELETE and Save Game's SAVE GAME were disabled in it and sit the same way.
+  The keyboard and controllers reach them, and engine captures, which send no
+  input, never showed it.
 - **Settings.** GAME, CONTROLS and AUDIO, the Load Defaults dialog and Player
   Setup are the stock pages, and the retained SYSTEM page stays opt-in until
   presets can be applied ([effect execution](settings-effect-execution.md)).
@@ -85,12 +103,6 @@ Highest impact first.
   debugoptimized build, 1.7 s of it the levelshots. (The levelshots of
   community maps, which `FindMapScreenshot` extracted into the save path on
   every launch, are now reused once extracted.)
-- **Prompt bars.** Pages (Load, Save, Restart Level, New Campaign, Demos,
-  Credits, Create Server, Join Game) and the Objectives page keep the stock
-  BACK plate in the docked bottom band, so controller players see device
-  glyphs only on the title, pause, Single Player, Campaign and Multiplayer
-  screens. Section 13.4 makes that raised section the prompt bar on every
-  screen, Back at its trailing end; the pages need that design pass.
 - **SYSTEM's initial focus.** The opt-in SYSTEM page still opens with nothing
   focused. Its activation begins a settings draft, and whether its first row
   can take focus at that moment was not probed, so its initial focus waits
@@ -102,3 +114,9 @@ Highest impact first.
   string keys in every language. The Italian and Polish crumbs of long titles
   are cut at the 13 dp floor.
 - **Join Game** republishes all 64 rows on every change of the scan.
+- **Prompt bar verbs.** Every bar names Accept SELECT, whatever the focused
+  control does, and lists no contextual action: Join Game's west and north
+  buttons refresh and sort with no prompt. Section 13.4's verbs that follow
+  focus (LOAD GAME on the chosen save) need the runtime to publish the
+  focused control's prompt, and short verbs in every language, since the
+  plates' own labels overrun the bar in French and Italian.
