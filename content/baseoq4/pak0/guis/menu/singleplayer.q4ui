@@ -204,14 +204,14 @@
  },
  "bindings": [
   {
-   "id": "prompt-200747-cap.display",
-   "node": "prompt-200747-cap",
+   "id": "prompt-231042-cap.display",
+   "node": "prompt-231042-cap",
    "property": "display",
    "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 0]}, "block", "none"]}
   },
   {
-   "id": "prompt-200747-xbox.display",
-   "node": "prompt-200747-xbox",
+   "id": "prompt-231042-xbox.display",
+   "node": "prompt-231042-xbox",
    "property": "display",
    "value": {
     "op": "select",
@@ -226,8 +226,8 @@
    }
   },
   {
-   "id": "prompt-200747-xbox-swapped.display",
-   "node": "prompt-200747-xbox-swapped",
+   "id": "prompt-231042-xbox-swapped.display",
+   "node": "prompt-231042-xbox-swapped",
    "property": "display",
    "value": {
     "op": "select",
@@ -239,8 +239,8 @@
    }
   },
   {
-   "id": "prompt-200747-playstation.display",
-   "node": "prompt-200747-playstation",
+   "id": "prompt-231042-playstation.display",
+   "node": "prompt-231042-playstation",
    "property": "display",
    "value": {
     "op": "select",
@@ -255,8 +255,8 @@
    }
   },
   {
-   "id": "prompt-200747-playstation-swapped.display",
-   "node": "prompt-200747-playstation-swapped",
+   "id": "prompt-231042-playstation-swapped.display",
+   "node": "prompt-231042-playstation-swapped",
    "property": "display",
    "value": {
     "op": "select",
@@ -268,8 +268,8 @@
    }
   },
   {
-   "id": "prompt-200747-nintendo.display",
-   "node": "prompt-200747-nintendo",
+   "id": "prompt-231042-nintendo.display",
+   "node": "prompt-231042-nintendo",
    "property": "display",
    "value": {
     "op": "select",
@@ -284,8 +284,8 @@
    }
   },
   {
-   "id": "prompt-200747-nintendo-swapped.display",
-   "node": "prompt-200747-nintendo-swapped",
+   "id": "prompt-231042-nintendo-swapped.display",
+   "node": "prompt-231042-nintendo-swapped",
    "property": "display",
    "value": {
     "op": "select",
@@ -297,8 +297,8 @@
    }
   },
   {
-   "id": "prompt-200747-steamdeck.display",
-   "node": "prompt-200747-steamdeck",
+   "id": "prompt-231042-steamdeck.display",
+   "node": "prompt-231042-steamdeck",
    "property": "display",
    "value": {
     "op": "select",
@@ -313,8 +313,8 @@
    }
   },
   {
-   "id": "prompt-200747-steamdeck-swapped.display",
-   "node": "prompt-200747-steamdeck-swapped",
+   "id": "prompt-231042-steamdeck-swapped.display",
+   "node": "prompt-231042-steamdeck-swapped",
    "property": "display",
    "value": {
     "op": "select",
@@ -326,8 +326,8 @@
    }
   },
   {
-   "id": "prompt-200747-generic.display",
-   "node": "prompt-200747-generic",
+   "id": "prompt-231042-generic.display",
+   "node": "prompt-231042-generic",
    "property": "display",
    "value": {
     "op": "select",
@@ -342,8 +342,8 @@
    }
   },
   {
-   "id": "prompt-200747-generic-swapped.display",
-   "node": "prompt-200747-generic-swapped",
+   "id": "prompt-231042-generic-swapped.display",
+   "node": "prompt-231042-generic-swapped",
    "property": "display",
    "value": {
     "op": "select",
@@ -5983,7 +5983,7 @@
     },
     "children": [
      {
-      "id": "prompt-200747-glyph",
+      "id": "prompt-231042-glyph",
       "type": "group",
       "properties": {
        "position": {"type": "keyword", "value": "relative"},
@@ -5995,7 +5995,7 @@
       },
       "children": [
        {
-        "id": "prompt-200747-cap",
+        "id": "prompt-231042-cap",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6020,7 +6020,7 @@
         ],
         "children": [
          {
-          "id": "prompt-200747-key",
+          "id": "prompt-231042-key",
           "type": "text",
           "properties": {
            "text": {"type": "text", "value": "#str_107019"},
@@ -6036,7 +6036,7 @@
         ]
        },
        {
-        "id": "prompt-200747-xbox",
+        "id": "prompt-231042-xbox",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6086,7 +6086,7 @@
         ]
        },
        {
-        "id": "prompt-200747-xbox-swapped",
+        "id": "prompt-231042-xbox-swapped",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6143,7 +6143,7 @@
         ]
        },
        {
-        "id": "prompt-200747-playstation",
+        "id": "prompt-231042-playstation",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6189,7 +6189,7 @@
         ]
        },
        {
-        "id": "prompt-200747-playstation-swapped",
+        "id": "prompt-231042-playstation-swapped",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6231,7 +6231,7 @@
         ]
        },
        {
-        "id": "prompt-200747-nintendo",
+        "id": "prompt-231042-nintendo",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6288,7 +6288,7 @@
         ]
        },
        {
-        "id": "prompt-200747-nintendo-swapped",
+        "id": "prompt-231042-nintendo-swapped",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6338,7 +6338,7 @@
         ]
        },
        {
-        "id": "prompt-200747-steamdeck",
+        "id": "prompt-231042-steamdeck",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6394,7 +6394,7 @@
         ]
        },
        {
-        "id": "prompt-200747-steamdeck-swapped",
+        "id": "prompt-231042-steamdeck-swapped",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6457,7 +6457,7 @@
         ]
        },
        {
-        "id": "prompt-200747-generic",
+        "id": "prompt-231042-generic",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6535,7 +6535,7 @@
         ]
        },
        {
-        "id": "prompt-200747-generic-swapped",
+        "id": "prompt-231042-generic-swapped",
         "type": "vector",
         "properties": {
          "position": {"type": "keyword", "value": "relative"},
@@ -6615,10 +6615,10 @@
       ]
      },
      {
-      "id": "prompt-200747-verb",
+      "id": "prompt-231042-verb",
       "type": "text",
       "properties": {
-       "text": {"type": "text", "value": "#str_200747"},
+       "text": {"type": "text", "value": "#str_231042"},
        "position": {"type": "keyword", "value": "relative"},
        "display": {"type": "keyword", "value": "block"},
        "margin-right": {"type": "length", "value": 22, "unit": "dp"},

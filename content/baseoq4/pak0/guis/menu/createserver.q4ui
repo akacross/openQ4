@@ -1333,12 +1333,264 @@
    }
   ],
   "onActivate": [
-   {"op": "playTimeline", "timeline": "crumbRest"},
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "language"}, "brazilian"]},
+    "then": [{"op": "playTimeline", "timeline": "crumbRest-brazilian"}],
+    "else": [
+     {
+      "op": "if",
+      "condition": {"op": "==", "args": [{"state": "language"}, "czech"]},
+      "then": [{"op": "playTimeline", "timeline": "crumbRest-czech"}],
+      "else": [
+       {
+        "op": "if",
+        "condition": {"op": "==", "args": [{"state": "language"}, "english"]},
+        "then": [{"op": "playTimeline", "timeline": "crumbRest-english"}],
+        "else": [
+         {
+          "op": "if",
+          "condition": {"op": "==", "args": [{"state": "language"}, "french"]},
+          "then": [{"op": "playTimeline", "timeline": "crumbRest-french"}],
+          "else": [
+           {
+            "op": "if",
+            "condition": {"op": "==", "args": [{"state": "language"}, "german"]},
+            "then": [{"op": "playTimeline", "timeline": "crumbRest-german"}],
+            "else": [
+             {
+              "op": "if",
+              "condition": {"op": "==", "args": [{"state": "language"}, "hungarian"]},
+              "then": [{"op": "playTimeline", "timeline": "crumbRest-hungarian"}],
+              "else": [
+               {
+                "op": "if",
+                "condition": {"op": "==", "args": [{"state": "language"}, "italian"]},
+                "then": [{"op": "playTimeline", "timeline": "crumbRest-italian"}],
+                "else": [
+                 {
+                  "op": "if",
+                  "condition": {"op": "==", "args": [{"state": "language"}, "polish"]},
+                  "then": [{"op": "playTimeline", "timeline": "crumbRest-polish"}],
+                  "else": [
+                   {
+                    "op": "if",
+                    "condition": {"op": "==", "args": [{"state": "language"}, "russian"]},
+                    "then": [{"op": "playTimeline", "timeline": "crumbRest-russian"}],
+                    "else": [
+                     {
+                      "op": "if",
+                      "condition": {"op": "==", "args": [{"state": "language"}, "spanish"]},
+                      "then": [{"op": "playTimeline", "timeline": "crumbRest-spanish"}],
+                      "else": [
+                       {
+                        "op": "if",
+                        "condition": {"op": "==", "args": [{"state": "language"}, "turkish"]},
+                        "then": [{"op": "playTimeline", "timeline": "crumbRest-turkish"}],
+                        "else": [
+                         {
+                          "op": "if",
+                          "condition": {"op": "==", "args": [{"state": "language"}, "ukrainian"]},
+                          "then": [{"op": "playTimeline", "timeline": "crumbRest-ukrainian"}],
+                          "else": [{"op": "playTimeline", "timeline": "crumbRest"}]
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
    {"op": "playTimeline", "timeline": "arrive"},
    {"op": "focus", "control": "create_start"}
   ],
-  "onDeactivate": [{"op": "playTimeline", "timeline": "rest"}, {"op": "playTimeline", "timeline": "crumbRest"}],
-  "subpageLeave": [{"op": "playTimeline", "timeline": "subpageLeave"}, {"op": "playTimeline", "timeline": "crumbReturn"}]
+  "onDeactivate": [
+   {"op": "playTimeline", "timeline": "rest"},
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "language"}, "brazilian"]},
+    "then": [{"op": "playTimeline", "timeline": "crumbRest-brazilian"}],
+    "else": [
+     {
+      "op": "if",
+      "condition": {"op": "==", "args": [{"state": "language"}, "czech"]},
+      "then": [{"op": "playTimeline", "timeline": "crumbRest-czech"}],
+      "else": [
+       {
+        "op": "if",
+        "condition": {"op": "==", "args": [{"state": "language"}, "english"]},
+        "then": [{"op": "playTimeline", "timeline": "crumbRest-english"}],
+        "else": [
+         {
+          "op": "if",
+          "condition": {"op": "==", "args": [{"state": "language"}, "french"]},
+          "then": [{"op": "playTimeline", "timeline": "crumbRest-french"}],
+          "else": [
+           {
+            "op": "if",
+            "condition": {"op": "==", "args": [{"state": "language"}, "german"]},
+            "then": [{"op": "playTimeline", "timeline": "crumbRest-german"}],
+            "else": [
+             {
+              "op": "if",
+              "condition": {"op": "==", "args": [{"state": "language"}, "hungarian"]},
+              "then": [{"op": "playTimeline", "timeline": "crumbRest-hungarian"}],
+              "else": [
+               {
+                "op": "if",
+                "condition": {"op": "==", "args": [{"state": "language"}, "italian"]},
+                "then": [{"op": "playTimeline", "timeline": "crumbRest-italian"}],
+                "else": [
+                 {
+                  "op": "if",
+                  "condition": {"op": "==", "args": [{"state": "language"}, "polish"]},
+                  "then": [{"op": "playTimeline", "timeline": "crumbRest-polish"}],
+                  "else": [
+                   {
+                    "op": "if",
+                    "condition": {"op": "==", "args": [{"state": "language"}, "russian"]},
+                    "then": [{"op": "playTimeline", "timeline": "crumbRest-russian"}],
+                    "else": [
+                     {
+                      "op": "if",
+                      "condition": {"op": "==", "args": [{"state": "language"}, "spanish"]},
+                      "then": [{"op": "playTimeline", "timeline": "crumbRest-spanish"}],
+                      "else": [
+                       {
+                        "op": "if",
+                        "condition": {"op": "==", "args": [{"state": "language"}, "turkish"]},
+                        "then": [{"op": "playTimeline", "timeline": "crumbRest-turkish"}],
+                        "else": [
+                         {
+                          "op": "if",
+                          "condition": {"op": "==", "args": [{"state": "language"}, "ukrainian"]},
+                          "then": [{"op": "playTimeline", "timeline": "crumbRest-ukrainian"}],
+                          "else": [{"op": "playTimeline", "timeline": "crumbRest"}]
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "subpageLeave": [
+   {"op": "playTimeline", "timeline": "subpageLeave"},
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "language"}, "brazilian"]},
+    "then": [{"op": "playTimeline", "timeline": "crumbReturn-brazilian"}],
+    "else": [
+     {
+      "op": "if",
+      "condition": {"op": "==", "args": [{"state": "language"}, "czech"]},
+      "then": [{"op": "playTimeline", "timeline": "crumbReturn-czech"}],
+      "else": [
+       {
+        "op": "if",
+        "condition": {"op": "==", "args": [{"state": "language"}, "english"]},
+        "then": [{"op": "playTimeline", "timeline": "crumbReturn-english"}],
+        "else": [
+         {
+          "op": "if",
+          "condition": {"op": "==", "args": [{"state": "language"}, "french"]},
+          "then": [{"op": "playTimeline", "timeline": "crumbReturn-french"}],
+          "else": [
+           {
+            "op": "if",
+            "condition": {"op": "==", "args": [{"state": "language"}, "german"]},
+            "then": [{"op": "playTimeline", "timeline": "crumbReturn-german"}],
+            "else": [
+             {
+              "op": "if",
+              "condition": {"op": "==", "args": [{"state": "language"}, "hungarian"]},
+              "then": [{"op": "playTimeline", "timeline": "crumbReturn-hungarian"}],
+              "else": [
+               {
+                "op": "if",
+                "condition": {"op": "==", "args": [{"state": "language"}, "italian"]},
+                "then": [{"op": "playTimeline", "timeline": "crumbReturn-italian"}],
+                "else": [
+                 {
+                  "op": "if",
+                  "condition": {"op": "==", "args": [{"state": "language"}, "polish"]},
+                  "then": [{"op": "playTimeline", "timeline": "crumbReturn-polish"}],
+                  "else": [
+                   {
+                    "op": "if",
+                    "condition": {"op": "==", "args": [{"state": "language"}, "russian"]},
+                    "then": [{"op": "playTimeline", "timeline": "crumbReturn-russian"}],
+                    "else": [
+                     {
+                      "op": "if",
+                      "condition": {"op": "==", "args": [{"state": "language"}, "spanish"]},
+                      "then": [{"op": "playTimeline", "timeline": "crumbReturn-spanish"}],
+                      "else": [
+                       {
+                        "op": "if",
+                        "condition": {"op": "==", "args": [{"state": "language"}, "turkish"]},
+                        "then": [{"op": "playTimeline", "timeline": "crumbReturn-turkish"}],
+                        "else": [
+                         {
+                          "op": "if",
+                          "condition": {"op": "==", "args": [{"state": "language"}, "ukrainian"]},
+                          "then": [{"op": "playTimeline", "timeline": "crumbReturn-ukrainian"}],
+                          "else": [{"op": "playTimeline", "timeline": "crumbReturn"}]
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
  },
  "bindings": [
   {"id": "create-shot.image", "node": "create-shot", "property": "image", "value": {"state": "create.shot"}},
@@ -26510,6 +26762,354 @@
      ]
     }
    ]
+  },
+  {
+   "id": "crumbRest-english",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-english",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-french",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.328, -13.265, 0.7985, 0.7985, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.328, -13.265, 0.7985, 0.7985, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-french",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.328, -13.265, 0.7985, 0.7985, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.328, -13.265, 0.7985, 0.7985, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-german",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.677, -13.286, 0.797, 0.797, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.677, -13.286, 0.797, 0.797, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-german",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.677, -13.286, 0.797, 0.797, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.677, -13.286, 0.797, 0.797, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-italian",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-italian",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-polish",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-polish",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-russian",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-russian",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-spanish",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.023, -14.283, 0.7243, 0.7243, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-62.023, -14.283, 0.7243, 0.7243, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-spanish",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.023, -14.283, 0.7243, 0.7243, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-62.023, -14.283, 0.7243, 0.7243, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-brazilian",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-brazilian",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-62.5, -14.312, 0.7222, 0.7222, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-czech",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-czech",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-hungarian",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-hungarian",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-45.0, -13.245, 0.8, 0.8, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-turkish",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.378, -14.305, 0.7228, 0.7228, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-62.378, -14.305, 0.7228, 0.7228, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-turkish",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-62.378, -14.305, 0.7228, 0.7228, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-62.378, -14.305, 0.7228, 0.7228, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbRest-ukrainian",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-48.87, -13.481, 0.7828, 0.7828, 0]}},
+      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [-48.87, -13.481, 0.7828, 0.7828, 0]}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumbReturn-ukrainian",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "crumb",
+     "property": "transform",
+     "keys": [
+      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-48.87, -13.481, 0.7828, 0.7828, 0]}},
+      {"atMs": 150, "value": {"type": "transform", "unit": "dp", "value": [-48.87, -13.481, 0.7828, 0.7828, 0]}},
+      {"atMs": 300, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
+     ]
+    }
+   ]
   }
  ],
  "root": {
@@ -49041,7 +49641,7 @@
         "properties": {
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 342.0, "unit": "dp"},
-         "top": {"type": "length", "value": 29.5, "unit": "dp"},
+         "top": {"type": "length", "value": 545.5, "unit": "dp"},
          "width": {"type": "length", "value": 565.5, "unit": "dp"},
          "height": {"type": "length", "value": 45, "unit": "dp"}
         },

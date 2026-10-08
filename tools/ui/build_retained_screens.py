@@ -489,17 +489,59 @@ def link(doc: Document, ident: str, key: str, *, action: str | None = None, even
                  [marker, hot, text_node], control=control)
 
 
-def plinth(doc: Document, links: list) -> dict:
+def merged_text(key: str) -> dict:
+    """`key` in every shipped language, as the engine resolves it: a
+    language's openQ4 table, else the stock GUI table openQ4 ships for it."""
+    found = localized(key)
+    for language in LANGUAGES:
+        if language not in found:
+            for line in (STRINGS / f"{language}_guis.lang").read_text(encoding="utf-8").splitlines():
+                match = re.match(r'\s*"(#str_\d+)"\s+"(.*)"\s*$', line)
+                if match and match.group(1) == key:
+                    found[language] = match.group(2)
+    return found
+
+
+# The plinth's links: Marine 16 dp after a 7 u marker, 14 u apart (link()).
+LINK_MARKER_U, LINK_GAP_U = 7, 14
+
+
+def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> dict:
+    """The plinth's width for each shipped language whose links outrun the
+    stock width: the last link's text ends where the trailing cut crosses
+    the text's middle."""
+    texts = {key: merged_text(key) for key in keys}
+    widths = {}
+    for language in LANGUAGES:
+        end = lead + sum(U * LINK_MARKER_U + text_width("marine", texts[key].get(language) or texts[key]["english"], 16) + U * LINK_GAP_U
+                         for key in keys) - U * LINK_GAP_U
+        needed = round(end + trail_cut / 2, 1)
+        if needed > width + 1:
+            widths[language] = needed
+    return widths
+
+
+def plinth(doc: Document, links: list, keys: tuple = ()) -> dict:
     """The link plinth (bg2, Appendix B.1): 24-361 u by 403-422 u, a 45-degree
-    lower-leading cut and a parallel trailing cut, marine.plinth at 0.30."""
+    lower-leading cut and a parallel trailing cut, marine.plinth at 0.30.
+    Where a language's link labels (`keys`) outrun it, the plinth runs on to
+    hold them, its trailing cut moving with its end."""
     left, right, top, bottom = 24.0, 361.2, 403.3, 422.1
     width, height = U * (right - left), U * (bottom - top)
     lead_cut, trail_cut = U * 11.2, U * 19.2
-    shape = path("plinth", [(0, 0), (width - trail_cut, 0), (width, height), (lead_cut, height), (0, height - lead_cut)],
-                 fill=solid(rgb(PLINTH, 0.3)))
+    shape = path("plinth", [(0, 0), ({"fraction": 1, "dp": round(-trail_cut, 3)}, 0), ({"fraction": 1}, height), (lead_cut, height),
+                            (0, height - lead_cut)], fill=solid(rgb(PLINTH, 0.3)))
     row = group("plinth-links", {**absolute(left=U * (32 - left), top=U * -0.3, height=U * 17),
                                   "display": keyword("flex"), "flex-direction": keyword("row"),
                                   "align-items": keyword("flex-start")}, links)
+    widths = plinth_widths(keys, width, U * (32 - left), trail_cut) if keys else {}
+    if widths:
+        if "language" not in doc.state:
+            doc.state["language"] = {"type": "string", "initial": "", "cvar": "sys_lang"}
+        value = round(width, 3)
+        for language in sorted(widths, reverse=True):
+            value = {"op": "select", "args": [{"op": "==", "args": [{"state": "language"}, language]}, widths[language], value]}
+        doc.bind("plinth.width", "plinth", "width", value)
     return vector("plinth", {**absolute(left=U * left, top=U * top, width=width, height=height), "opacity": number(1)}, [shape], [row])
 
 
@@ -686,6 +728,14 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     # do, its baseline 13.5 dp down where the stock one sits.
     foot = slot_lead + slot_depth
     title_end = right - 6 if wide_title else slot_trail - slot_depth
+    if title_key.startswith("#str_"):
+        # Marine 20 dp at -0.075 em: every shipped language's title must fit
+        # its box, which clips the outline while the fill runs on.
+        needed, language = max((text_width("marine", text, 20) - 1.5 * (len(text) - 1), language)
+                               for language, text in merged_text(title_key).items())
+        if needed > title_end - foot:
+            raise ValueError(f"{ident}: the {language} title {title_key} needs {needed:.1f} dp of {title_end - foot:.1f}"
+                             + ("" if wide_title else "; pass wide_title=True"))
     title = outlined_label(f"{ident}-title", title_key,
                            absolute(left=round(foot, 4), top=-4, width=round(title_end - foot, 4), height=24),
                            {**typeface("marine", 20, 24, [1, 1, 1, 0.9]), "letter-spacing": length(-0.075, "em"),
@@ -774,7 +824,15 @@ def mods_modal(doc: Document) -> dict:
         doc.state[f"mods.{detail}"] = {"type": "string", "initial": ""}
     doc.session("modsSelect", "modsSelect")
     doc.session("modsLoad", "modsLoad")
+    # LOAD MOD and CANCEL plates take every language's longest label and
+    # 50 dp, at least the stock 180 dp, and the dialog both plates beside
+    # each other with its 30 and 33 dp margins and a 12 dp gap; the list grows
+    # with the dialog.
+    longest = max(text_width("marine", text, 20) for key in ("#str_200167", "#str_200168") for text in merged_text(key).values())
+    action_w = round(max(180.0, longest + 50), 1)
+    dialog_w = round(max(480.0, 2 * action_w + 30 + 33 + 12), 1)
     left, top, list_w, list_h = MODS_LIST
+    list_w = round(list_w + (dialog_w - 480.0) / U, 1)
     heading = {**typeface("lowpixel", 13, U * 12, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
     parts = [
         label("mods-head-name", "#str_41110", {**absolute(left=U * left, top=U * MODS_HEAD_TOP, width=U * (MODS_VERSION_X - 4), height=U * 12), **heading}),
@@ -813,17 +871,21 @@ def mods_modal(doc: Document) -> dict:
                        [column_node]))
     parts.append(objectives_scrollbar(doc, "mods_scroll", "mods-list", OLIVE, ORANGE, U * (left + list_w) - 24, U * top, U * list_h,
                                       line_step=U * MODS_ROW_H, key="#str_200166"))
+    # The values start where every language's longest detail label ends.
+    value_x = max(MODS_VALUE_X, math.ceil(max(text_width("lowpixel", text, 13) for _, key in MODS_DETAILS
+                                              for text in merged_text(key).values()) / U) + 4)
     for index, (detail, key) in enumerate(MODS_DETAILS):
         y = U * (MODS_DETAIL_TOP + MODS_DETAIL_PITCH * index)
-        parts.append(label(f"mods-{detail}-label", key, {**absolute(left=U * left, top=y, width=U * (MODS_VALUE_X - 4), height=U * 14),
+        parts.append(label(f"mods-{detail}-label", key, {**absolute(left=U * left, top=y, width=U * (value_x - 4), height=U * 14),
                            **typeface("lowpixel", 13, U * 14, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
         value = f"mods-{detail}"
-        parts.append(label(value, "#str_230030", {**absolute(left=U * (left + MODS_VALUE_X), top=y, width=U * (list_w - MODS_VALUE_X), height=U * 14),
+        parts.append(label(value, "#str_230030", {**absolute(left=U * (left + value_x), top=y, width=U * (list_w - value_x), height=U * 14),
                            **typeface("lowpixel", 15, U * 14, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
         doc.bind(f"{value}.text", value, "text", {"state": f"mods.{detail}"})
     modal = confirmation(doc, "modsModal", "#str_200166", "#str_230030", None, yes_event="modsLoadConfirmed",
                          dim=(("wordmark", "opacity", number(1), number(0.4)),), height_u=MODS_HEIGHT, top_u=MODS_TOP,
-                         actions_u=MODS_HEIGHT - 40, contents=parts, yes_key="#str_200167", no_key="#str_200168")
+                         actions_u=MODS_HEIGHT - 40, contents=parts, yes_key="#str_200167", no_key="#str_200168",
+                         width_dp=dialog_w, action_w=action_w)
     # The dialog opens on CANCEL, as the stock modals open on NO, and moves to
     # the selected mod once its contents show.
     doc.events["modsModalShown"] = doc.events["modsModalShown"] + [
@@ -1397,7 +1459,7 @@ def title_document() -> dict:
     content = group("home", {**FULL, "transform": transform(), "opacity": number(1)}, [
         group("home-content", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}, [
             nav,
-            plinth(doc, links),
+            plinth(doc, links, ("#str_200010", "#str_41500", "#str_200011", "#str_200012", "#str_200013")),
         ]),
     ])
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"),
@@ -1407,7 +1469,7 @@ def title_document() -> dict:
         stage,
         depth_layer(doc, "depth-frame", 0.33, framing_bands("band")),
         content,
-        prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_200013")]),
+        prompt_bar(doc, [("#str_107019", "#str_231042"), ("#str_107020", "#str_200013")]),
         title_carry(doc, [("singlePlayer", "#str_42000", 212.2), ("loadGame", "#str_200001", 242.2),
                           ("multiplayer", "#str_200002", 272.2), ("settings", "#str_200009", 302.2)], continue_rows=True),
         exit_modal,
@@ -1527,7 +1589,7 @@ def crumb_fits(key: str) -> dict:
     truncates)."""
     span, floor = U * CRUMB_SPAN - 2, 13 / 18
     return {language: max(floor, min(CRUMB_SCALE, span / text_width("marine", text, 18)))
-            for language, text in localized(key).items()}
+            for language, text in merged_text(key).items()}
 
 
 def by_language(doc: Document, prefix: str, fits: dict) -> list:
@@ -1836,7 +1898,7 @@ def campaign_document(campaigns: bool) -> dict:
         doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles_group,
-        prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_230045")]),
+        prompt_bar(doc, [("#str_107019", "#str_231042"), ("#str_107020", "#str_230045")]),
     ]))
 
 
@@ -2699,7 +2761,9 @@ def pause_document(strogg: bool = False) -> dict:
     doc.session("settings", "settings")
     doc.session("quitToMenu", "quitToMenu")
     doc.session("quit", "quit")
-    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu")
+    # QUIT CURRENT GAME outruns the lit slot in French: it runs on over the
+    # raised trailing section, as the longer dialog titles do.
+    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu", wide_title=True)
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200)
     doc.events["onBack"] = [{"op": "action", "action": "resume"}]
     items = [("nav_resume", "#str_200381", "resume", None), ("nav_savegame", "#str_200003", "saveGame", None),
@@ -2743,7 +2807,7 @@ def pause_document(strogg: bool = False) -> dict:
         path("lead", [(0, 0), (vx(413), 0), (vx(413), {"fraction": 1}), (0, {"fraction": 1})],
              fill=linear((vx(-107), 0), (vx(413), 0), [(0, [0, 0, 0, 0.7]), (0.55, [0, 0, 0, 0.35]), (1, [0, 0, 0, 0])])),
     ])
-    prompts = [("#str_107019", "#str_200747"), ("#str_107020", "#str_200381")]
+    prompts = [("#str_107019", "#str_231042"), ("#str_107020", "#str_200381")]
     carries = [("saveGame", "#str_200003", 212.2), ("loadGame", "#str_200001", 242.2),
                ("restartLevel", "#str_229983", 272.2), ("objectives", "#str_200380", 302.2),
                ("settings", "#str_200009", 332.2)]

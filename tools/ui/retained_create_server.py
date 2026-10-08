@@ -59,7 +59,7 @@ MAP_ROW_H = 20.0
 OPTIONS = (228.0, 73.0, 377.0)            # mp_create_b1-b12: 377 u on a 24 u pitch
 ROW_PITCH = 24.0
 VALUE_X = 180.0                           # mp_create_val*: 408 u, 180 u into the row
-ADVANCED_TOP = 367.0                      # mp_create_advbtn
+ADVANCED_BUTTON_TOP = 367.0               # mp_create_advbtn
 START = (244.0, 397.0, 275.0, 37.0)       # mp_create_serverbtn
 BACK = (532.0, 441.0, 109.0)              # mp_create_back
 NAME_BYTES = 25                           # mp_create_val1: maxchars 25
@@ -533,7 +533,7 @@ def create_server_document() -> dict:
     column = group("create-options", {**absolute(left=U * OPTIONS[0], top=U * OPTIONS[1], width=U * OPTIONS[2],
                                                  height=U * ROW_PITCH * 11),
                                       "display": keyword("flex"), "flex-direction": keyword("column")}, [name, *rows])
-    advanced = action_plate(doc, "create_advanced", "#str_200065", U * OPTIONS[0], U * ADVANCED_TOP - 5, event="advancedModalShow",
+    advanced = action_plate(doc, "create_advanced", "#str_200065", U * OPTIONS[0], U * ADVANCED_BUTTON_TOP - 5, event="advancedModalShow",
                             width=U * OPTIONS[2])
     start = primary_plate(doc, "create_start", "#str_200026", *START, action="createStart", label_box=(43.0, 6.0, 215.0, 25.0), text=23.7,
                           marker=(13.0, 9.5, 18.0))

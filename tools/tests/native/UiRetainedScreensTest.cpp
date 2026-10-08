@@ -2161,11 +2161,16 @@ static void CheckModsDialog(ScreenHost& host, const char* path) {
 		"the contents show with the selected mod focused");
 	// The 4:3 canvas starts at 160 dp at 1280x720; 1 u = 1.5 dp.
 	const float x0 = 160, u = 1.5f;
+	// The dialog is at least the stock 320 u and as wide as every language's
+	// LOAD MOD and CANCEL plates need, centered, 280 u tall.
 	const auto dialog = bounds("modsModal-dialog");
-	Check(Near(dialog.x,x0+160*u) && Near(dialog.y,83*u) && Near(dialog.width,320*u) && Near(dialog.height,280*u),
-		"the list dialog is the modal grown to 320x280 u, its centre 17 u above the view's");
+	Check(dialog.width >= 320*u-.01f && Near(dialog.x,x0+(960-dialog.width)/2) && Near(dialog.y,83*u) && Near(dialog.height,280*u),
+		"the list dialog is the modal grown to 280 u, centred, its centre 17 u above the view's");
+	const auto yes = bounds("modsModal_yes"), no = bounds("modsModal_no");
+	Check(yes.width >= 180-.01f && Near(yes.width,no.width) && yes.x+yes.width < no.x && no.x+no.width <= dialog.x+dialog.width,
+		"LOAD MOD and CANCEL share one width that fits every language, side by side inside the dialog");
 	const auto row0 = bounds("mods-row-0"), row1 = bounds("mods-row-1");
-	Check(Near(row0.x,x0+(160+22)*u) && Near(row0.y,(83+25)*u) && Near(row1.y-row0.y,20*u),"the rows run on 20 u from the list's corner");
+	Check(Near(row0.x,dialog.x+22*u) && Near(row0.y,(83+25)*u) && Near(row1.y-row0.y,20*u),"the rows run on 20 u from the list's corner");
 	Check(text("mods-row-1-selected","display") == "block" && text("mods-row-0-selected","display") == "none" &&
 		text("mods-row-2","display") == "none","two rows show, the selected mod lit");
 	Check(text("mods-row-1-name","text") == "The Awakening" && text("mods-row-0-version","text") == "0.13","each row names its mod and version");
@@ -3112,7 +3117,7 @@ static void CheckPromptGlyphs(ScreenHost& host, const char* path) {
 	for (int glyphs = 0; glyphs <= 5; ++glyphs) {
 		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,1+glyphs),"publish the prompt glyphs");
 		runtime.Frame(viewport,1.5+glyphs);
-		for (const std::string id : {"prompt-200747","prompt-200013"}) {
+		for (const std::string id : {"prompt-231042","prompt-200013"}) {
 			Check(display(id+"-cap") == (glyphs == 0 ? "block" : "none"),"the keycap shows only for the keyboard");
 			for (int family = 0; family < 5; ++family)
 				Check(display(id+"-"+families[family]) == (glyphs == family+1 ? "block" : "none"),"only the published family's button shows");
@@ -3137,7 +3142,7 @@ static void CheckPromptGlyphs(ScreenHost& host, const char* path) {
 		Check(runtime.SetState({{"prompt.glyphs",static_cast<double>(glyphs)}},error,10.1+glyphs),"publish the prompt glyphs");
 		runtime.Frame(viewport,10.5+glyphs);
 		const std::string family = families[glyphs-1];
-		for (const std::string id : {"prompt-200747","prompt-200013"}) {
+		for (const std::string id : {"prompt-231042","prompt-200013"}) {
 			Check(display(id+"-"+family) == "none" && display(id+"-"+family+"-swapped") == "block","the other position's button shows");
 			Bounds face;
 			Check(runtime.GetBounds(id+"-"+family+"-swapped",face) && Near(face.width,22) && Near(face.height,22),"at the same size");

@@ -188,5 +188,5 @@ def multiplayer_document() -> dict:
     doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles,
-        prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_230045")]),
+        prompt_bar(doc, [("#str_107019", "#str_231042"), ("#str_107020", "#str_230045")]),
     ]))

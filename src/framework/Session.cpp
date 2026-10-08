@@ -2629,9 +2629,10 @@ static void Session_DrawLevelshotBounds() {
 }
 
 // The current difficulty's localized name, as the retained pause and loading
-// screens show it.
+// screens show it: the names the difficulty pages give, Warlord the fifth
+// (the Arena's NIGHTMARE is another ladder's).
 static const char *Session_GetSkillName( void ) {
-	static const char *skills[] = { "#str_200014", "#str_200015", "#str_200016", "#str_200017", "#str_42063" };
+	static const char *skills[] = { "#str_200014", "#str_200015", "#str_200016", "#str_200017", "#str_41117" };
 	return common->GetLanguageDict()->GetString( skills[ idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) ) ] );
 }
 
@@ -2663,6 +2664,16 @@ static const char *Session_GetLongMPGameTypeName( const char *gametype ) {
 	}
 	if ( !idStr::Icmp( gametype, "DeadZone" ) ) {
 		return common->GetLocalizedString( "#str_122001" );
+	}
+	// openQ4's own modes, by the names mp/GameTypes.cpp gives them.
+	static const char *const openQ4Modes[][2] = {
+		{ "Duel", "#str_41300" }, { "Clan Arena", "#str_41301" }, { "Freeze Tag", "#str_41302" }, { "Red Rover", "#str_41303" },
+		{ "Overload", "#str_41304" }, { "Harvester", "#str_41305" }, { "Domination", "#str_41306" }, { "Attack Defend", "#str_41307" }
+	};
+	for ( int i = 0; i < static_cast<int>( sizeof( openQ4Modes ) / sizeof( openQ4Modes[0] ) ); ++i ) {
+		if ( !idStr::Icmp( gametype, openQ4Modes[i][0] ) ) {
+			return common->GetLocalizedString( openQ4Modes[i][1] );
+		}
 	}
 
 	return gametype;
