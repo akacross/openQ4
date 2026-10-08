@@ -1000,6 +1000,26 @@ void Interaction::SliderKey(MenuInput input) {
 	}
 	if (value != std::get<double>(EditingValue(item))) Propose(focused,value);
 }
+bool Interaction::ChoiceKey(MenuInput input) {
+	auto& item = items.at(focused); const auto& options = std::get<ChoiceSpec>(item.control.widget).options;
+	// The eligible options in order, and where the current value stands among
+	// them; a value no option holds steps to the first or the last.
+	std::vector<size_t> eligible;
+	size_t current = options.size();
+	const auto& value = EditingValue(item);
+	for (size_t i = 0; i < options.size(); ++i) if (OptionEligible(item,i)) {
+		if (options[i].value == value) current = eligible.size();
+		eligible.push_back(i);
+	}
+	const bool matched = current < eligible.size();
+	if (eligible.empty() || (matched && eligible.size() == 1)) return false;
+	armed.clear();
+	const bool next = input == MenuInput::Right;
+	const size_t step = !matched ? (next ? 0 : eligible.size()-1) :
+		next ? (current+1)%eligible.size() : (current+eligible.size()-1)%eligible.size();
+	Propose(focused,options[eligible[step]].value);
+	return true;
+}
 bool Interaction::OptionEligible(const Item& item, size_t index) const {
 	// Options past a counted list's length are hidden, so never eligible.
 	return item.readback && (!item.readback->optionCount || index < *item.readback->optionCount) &&
@@ -1368,6 +1388,10 @@ void Interaction::Input(MenuInput input, bool down) {
         else if (Eligible(focused) && items.at(focused).control.role == ControlRole::Slider &&
 			(input == MenuInput::Home || input == MenuInput::End || input == MenuInput::PageUp || input == MenuInput::PageDown ||
 			(std::get<SliderSpec>(items.at(focused).control.widget).vertical ? input == MenuInput::Up || input == MenuInput::Down : input == MenuInput::Left || input == MenuInput::Right))) SliderKey(input);
+		// Left and right change the focused value (section 13.5): a closed
+		// choice steps; one with nothing to step to lets them move focus.
+		else if (Eligible(focused) && items.at(focused).control.role == ControlRole::Choice &&
+			(input == MenuInput::Left || input == MenuInput::Right) && ChoiceKey(input)) {}
 		else Navigate(input);
 	}
 	Refresh();

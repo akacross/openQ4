@@ -380,6 +380,9 @@ private:
 	bool OptionEligible(const Item& item, size_t index) const;
 	void KeepHighlightVisible();
 	void SliderKey(MenuInput input);
+	// Left and right step a closed choice through its eligible options and
+	// wrap, as a stock choiceDef cycles; false where it has none to step to.
+	bool ChoiceKey(MenuInput input);
 	void ScrollKey(MenuInput input);
 	void QueueScroll(const std::string&, ScrollStep, bool drag = false);
     bool MoveChoiceScroll(const std::string&, ScrollStep, bool drag = false);
