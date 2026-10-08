@@ -46,6 +46,13 @@ must target child parts, preserving the button's hit box. A button establishes
 box. An explicit authored position takes precedence.
 
 Feedback chooses disabled, pressed, focus, hover, then default in that order.
+The most recent input device sets the presentation (section 13.4): while the
+pointer leads, because it moved or pressed last, a focused button or toggle
+presents as hover under the pointer and default elsewhere, so only the control
+under the pointer is lit and two items never show at once. The focus itself
+stays for the next navigation input, and a keyboard, controller or program
+focus shows it again. Value controls keep presenting focus, as an edit in
+progress must.
 State changes play the authored timeline through the existing monotonic motion
 evaluator. Interruption retargets from the current sample; reduced motion follows
 the same evaluator policy as other UI motion. Feedback is initialized at document
@@ -96,7 +103,12 @@ navigation skips disabled/hidden/out-of-scope controls. Directional navigation
 selects the nearest forward candidate using squared forward distance plus four
 times squared lateral distance; ties preserve source order. Tab wraps within the
 active scope. With no focus, forward navigation chooses the first eligible
-control and reverse tab chooses the last.
+control and reverse tab chooses the last. A focus whose control turned hidden,
+disabled or clipped is remembered where it stood: the next navigation input
+focuses that control again once it can take focus, or else moves on from its
+last bounds as if it still held the focus (its explicit link, the next in tab
+order, or the nearest control in that direction), and only then falls back to
+the first or last.
 
 The runtime API accepts window-coordinate pointer movement, primary-pointer
 down/up and semantic `MenuInput` requests. Window pixel density and viewport

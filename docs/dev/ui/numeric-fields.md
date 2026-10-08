@@ -29,7 +29,11 @@ Leaving a field, changing modal scope or losing usable input retires the live
 session and composition while preserving the draft and its undo/redo history.
 Returning to the field starts a fresh session. For a bound native editor,
 cancellation first abandons native presentation and preserves the stable draft;
-a later explicit local cancellation discards it. An external setting change preserves dirty text and marks
+a later explicit local cancellation discards it. Back on a field whose editor
+was left holding nothing to cancel (its text is the baseline, with no
+composition, conflict, proposal or native presentation) passes to the page as
+it would on any other control, rather than spending a press retiring that
+editor. An external setting change preserves dirty text and marks
 a conflict. Beginning the edit again does not discard the conflict:
 
 - **Keep draft:** explicitly adopt the current accepted baseline while retaining

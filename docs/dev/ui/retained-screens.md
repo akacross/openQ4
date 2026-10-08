@@ -131,7 +131,11 @@ after editing the script; `--check` fails when an output is stale.
   message line shows the save's levelshot, name and time; the same line explains
   whichever item has focus. SINGLE PLAYER, LOAD GAME, MULTIPLAYER and SETTINGS
   follow, and the secondary links and EXIT stay on the plinth. EXIT asks before
-  leaving. The prompt bar sits in the bottom band's raised section, its
+  leaving. Opening the menu focuses its primary action (section 13.4),
+  CONTINUE or, without a save, SINGLE PLAYER, so a controller's first Accept
+  acts; coming back from a page keeps the focus on the item that led there.
+  While the mouse leads, only the item under the pointer is lit
+  ([interaction](interaction.md)), so a mouse player never sees two. The prompt bar sits in the bottom band's raised section, its
   glyphs following the active device ([prompt glyphs](#prompt-glyphs)).
 - **Pause** (section 13.7, single player). GAME PAUSED replaces the wordmark,
   RESUME leads, followed by SAVE GAME, LOAD GAME, RESTART LEVEL, OBJECTIVES,
@@ -161,8 +165,9 @@ after editing the script; `--check` fails when an output is stale.
   with no input and no cursor. Pausing again during the release reopens the
   screen at once, and a disconnect or level load ends the release. Every
   activation after a release shows the screen again and ramps the softened
-  view back in, including a return through a page's Back; like the first
-  pause, it opens with no action focused.
+  view back in, including a return through a page's Back. Every opening, and
+  every return after a release, focuses RESUME; a page's Back returns the
+  focus to the item that led there.
 - **Objectives page** (sections 13.7 and 14.11). OBJECTIVES opens the
   objectives display in its Remastered form as a page of the pause:
   - **Hand-off.** Choosing it docks the bands as a page hand-off does and
@@ -311,7 +316,9 @@ after editing the script; `--check` fails when an output is stale.
   `campaigns.q4ui`, sections 8 and 9, the sub-page level of 1.10). The Single
   Player page titles itself in the top band's slot at 39,19 u, where the
   title's carry lands. Its Campaign and Arena sections each open a
-  sub-page, Arena the [Arena page](#arena-page):
+  sub-page, Arena the [Arena page](#arena-page). The page arrives with the
+  focus on CAMPAIGN and the Campaign sub-page on the campaign being played,
+  QUAKE 4 unless it is the expansion:
   - **Sub-page state.** The top band stands one notch pitch (97 u) further
     toward the trailing edge while the bottom band stays docked. The parent
     title is the crumb in the band's thin span at 39,12 u and 0.40, cut at
@@ -1077,6 +1084,7 @@ Multiplayer page's level (section 9 "Menu levels", FLOW-050).
   13.7's name, which keeps it apart from the title's SETTINGS). The stock
   FRIENDS LIST, which the stock menu hides and nothing handles, is gone. The
   generator fails when a language's label or description would not fit.
+  Arriving from the title focuses JOIN GAME, the primary action.
 - **Sections.** CREATE SERVER goes one level deeper to the retained
   [Create Server sub-page](#create-server-sub-page), and JOIN GAME to the
   retained [Join Game sub-page](#join-game-sub-page) where the session offers

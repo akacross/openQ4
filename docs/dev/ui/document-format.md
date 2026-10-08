@@ -75,7 +75,9 @@ The property registry in `Document.cpp` currently supports:
 - Relative/absolute positioning, display, overflow, box sizing, flex direction,
   wrapping, justification, alignment and grow/shrink.
 - Font family/size, line height, letter spacing, color, text alignment and
-  whitespace policy, plus localized text content.
+  whitespace policy, plus localized text content. `text-overflow` (`clip` or
+  `ellipsis`) on a node whose `overflow` cuts its text ends a cut line in an
+  ellipsis rather than mid-letter.
 - Background and border colors, opacity, a composed transform and backdrop
   soft focus.
 

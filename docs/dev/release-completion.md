@@ -1565,6 +1565,23 @@
 - The rebuilt multiplayer menu cards and server browser use far less CPU
   while you are on them.
 
+- Controllers and keyboards start on the right item: the title, the pause
+  screen, Single Player, Campaign and Multiplayer open with their main
+  choice selected, so the first press of A or Enter does something, and
+  Back returns you to the item you came from. With the mouse, only the item
+  under the pointer lights up.
+
+- When a selected button is switched off or a server row disappears, the
+  next move picks up from where the selection was instead of jumping to the
+  top of the page, and Back on a number field you have not changed leaves
+  the page on the first press.
+
+- Long server and map names in the server browser end in an ellipsis
+  instead of being cut mid-letter. Spanish shows the same word for Back
+  everywhere, and Polish and Russian translate the save names (Quicksave,
+  Checkpoint, Map Start), save warnings and dialog buttons that still
+  appeared in English.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -498,10 +498,33 @@ Same machine and build type as above, 60 frames at 1280x720 after the settle:
 | `pause.q4ui` | 0.39 ms | 0.16 ms | – | 0.07 ms |
 | `title.q4ui` | 1.09 ms | 1.02 ms | – | 0.37 ms |
 
-What remains on the Escape card is `ValueControlView::Paint`, which reasserts
-every choice option's label, availability and display each frame through
-string-keyed lookups and RML readbacks (`GetInnerRML`); a fingerprint of each
-entry's readback and view state could skip settled entries the same way.
+What remained on the Escape card was `ValueControlView::Paint`, which
+reasserted every choice option's label, availability and display each frame
+through string-keyed lookups and RML readbacks (`GetInnerRML`).
+
+### Settled lists
+
+The runtime now counts `ApplyMotion`'s passes that can write presentation
+and hands the count to `ValueControlView::Paint`. A closed list whose
+readback (value, labels, availability and option count) equals the one its
+last paint applied in the same pass is left as painted: nothing else writes
+its rows. An open list, a changed readback or a new pass paints in full, and
+a count of 0 keeps the old behaviour. A document whose timelines loop, such
+as the title, starts a pass every frame, so its lists would still paint in
+full; Join Game and the title have none.
+
+Interleaved A/B, the same build with and without the skip, alternating runs,
+median frame p50 of five runs of 60 frames at 1280x720 (debugoptimized). The
+machine ran lighter than for the table above, where the Escape card measured
+5.85 ms:
+
+| Document | Without | With |
+| --- | ---: | ---: |
+| `mp_escape.q4ui` | 2.13 ms | 0.67 ms |
+| `createserver.q4ui` | 0.91 ms | 0.62 ms |
+| `mp_welcome.q4ui` | 0.26 ms | 0.18 ms |
+| `joingame.q4ui` | 0.52 ms | 0.51 ms |
+| `title.q4ui` | 1.10 ms | 1.00 ms |
 
 ## Remaining requirements
 

@@ -26,6 +26,11 @@ out of scope. It extends the [retained screens](retained-screens.md),
   `createserver-stepping`.
 - **CPU measurements** with `openq4-retained-ui-benchmark --screen` and
   main-thread stack samples taken by attaching cdb to it.
+- **A second round** the same day took the remaining list's tractable items:
+  focus and pointer presentation, the failed-view fallback, Join Game's names,
+  the strings and the Escape card's paint. The probe scenarios `probe-focus`,
+  `probe-focus-pause` and `probe-ellipsis` (the audit's kit, beside the
+  harness) show them in the engine.
 
 ## Fixed
 
@@ -50,6 +55,16 @@ out of scope. It extends the [retained screens](retained-screens.md),
 | Low | The pause's QUIT CURRENT GAME title was clipped in French. | It runs over the raised trailing section, and the generator fails any dialog title that does not fit in some language. |
 | Low | The MODS dialog clipped LOAD MOD in nine languages and its detail labels in five. | The dialog and its plates are as wide as the longest language, and the values start after the longest label. |
 | Low | The Create Server, Join Game and Multiplayer crumbs never shrank: their fit read only openQ4's own string tables. | The fit reads the stock tables too, so they shrink like the others, down to the 13 dp floor. |
+| Medium | The title, both pause screens, Single Player, Campaign and Multiplayer opened with nothing focused, so a controller's first Accept did nothing (section 13.4 puts initial focus on the primary action). | Each opens on its primary action: CONTINUE or SINGLE PLAYER, RESUME, CAMPAIGN, the campaign being played, JOIN GAME. Back returns onto the item that led away, PLAYER SETUP's stock page included. |
+| Medium | A focused item stayed lit while the mouse hovered another: two items lit, and on the title two message lines drawn over each other. | The most recent device sets the presentation: while the mouse leads, only the item under the pointer is lit (`Interaction::SetPointerPresentation`). |
+| Medium | A focused control that turned hidden or disabled (SYSTEM's Apply, a Join Game row a refresh removed) lost the focus, and the next move started again at the top of the page. | The next move resumes on it, or moves on from where it stood. |
+| Medium | The Escape card still spent about 2.1 ms on a settled frame (debugoptimized) reasserting every closed list's options. | A closed list whose readback has not changed since its last paint is left as painted: 0.7 ms. |
+| Low | Back on a number field whose editor held nothing to cancel was swallowed once. | It reaches the page. |
+| Low | Single Player, Campaign and New Campaign kept presenting a view that stopped drawing after a renderer or language change. | They hand over to the stock screen, as the other pages do. |
+| Low | Join Game cut long server names and maps mid-letter. | They end in an ellipsis (`text-overflow`, new to the document format). |
+| Low | Spanish read ATRÁS for Back in the prompts and the Single Player, Campaign and Multiplayer pages, VOLVER on the other pages. | Both read VOLVER, the stock word. |
+| Low | Polish and Russian showed the save names, the save refusals, OK, Cancel and the keycaps in English: they ship no code string table. | Their openQ4 tables carry the sixteen code strings the menus use. |
+| Low | Each launch's menu preload read every community map's levelshot out of its package and wrote it into the save path again (`FindMapScreenshot`). | A levelshot extracted by an earlier launch is reused. |
 
 The [retained screens](retained-screens.md#known-limitations) and
 [multiplayer menus](multiplayer-menus.md#known-limitations) known limitations
@@ -67,31 +82,23 @@ Highest impact first.
   Going to them from the retained title swaps the whole backdrop.
 - **Startup preload.** The title waits while every retained page loads and
   every multiplayer map's levelshot is precached, about 6 s on a
-  debugoptimized build, 1.7 s of it the levelshots. The levelshots of
-  community maps are also extracted into the save path on every launch
-  (`FindMapScreenshot`).
+  debugoptimized build, 1.7 s of it the levelshots. (The levelshots of
+  community maps, which `FindMapScreenshot` extracted into the save path on
+  every launch, are now reused once extracted.)
 - **Prompt bars.** Pages (Load, Save, Restart Level, New Campaign, Demos,
-  Credits, Create Server, Join Game) keep the stock BACK plate, so controller
-  players see device glyphs only on the title, pause, Single Player, Campaign
-  and Multiplayer screens (section 13.4 asks for the bar on every screen).
-- **Focus.** The title, both pause screens and the SYSTEM page open with
-  nothing focused (section 13.4 puts initial focus on
-  the primary action), so the first press of Enter does nothing. At page
-  level a focused control that turns disabled or hidden loses focus without
-  a replacement (SYSTEM's Apply), and Back can be swallowed once by a
-  detached, clean number editor.
+  Credits, Create Server, Join Game) and the Objectives page keep the stock
+  BACK plate in the docked bottom band, so controller players see device
+  glyphs only on the title, pause, Single Player, Campaign and Multiplayer
+  screens. Section 13.4 makes that raised section the prompt bar on every
+  screen, Back at its trailing end; the pages need that design pass.
+- **SYSTEM's initial focus.** The opt-in SYSTEM page still opens with nothing
+  focused. Its activation begins a settings draft, and whether its first row
+  can take focus at that moment was not probed, so its initial focus waits
+  for an engine check.
 - **Strings.** Separators are joined in C++ (the CONTINUE detail's " - ", the
-  pause time line's order and " · ", "%.1f s"); Polish and Russian lack the
-  stock code strings, so ENTER and ESCAPE keycaps and save labels stay
-  English; Demos and the Match page mix case where the stock is all caps;
-  BACK uses two keys (`#str_230045` and `#str_200018`), which differ in
-  Spanish. The Italian and Polish crumbs of long titles are cut at the 13 dp
-  floor.
-- **The Escape card's frame** is still about 5.9 ms on a settled screen
-  (debugoptimized): `ValueControlView::Paint` reasserts every choice option
-  each frame.
-- **Join Game** republishes all 64 rows on every scan change, and its MAP
-  column cuts long names mid-letter.
-- **The "stopped drawing" fallback** is checked for home screens each frame,
-  but not inside `FindRetainedGui`, so Single Player, Campaign and New
-  Campaign keep reusing a failed view.
+  pause time line's order and " · ", "%.1f s"). Demos' column headings and
+  actions are mixed case where Join Game's headings are capitals, and RmlUi's
+  `text-transform` changes ASCII letters only, so capitals need their own
+  string keys in every language. The Italian and Polish crumbs of long titles
+  are cut at the 13 dp floor.
+- **Join Game** republishes all 64 rows on every change of the scan.
