@@ -333,6 +333,7 @@ public:
 	bool				BeginRetainedPage( const char *request );
 	void				UpdateRetainedPage();
 	void				ReturnRetainedPage();
+	void				ReturnRetainedSinglePlayerHome();
 	void				DrawRetainedPageHome( int presentationTime );
 	void				PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error );
 	void				PublishRetainedLoadRows( idUserInterface *gui );
@@ -604,6 +605,8 @@ public:
 	bool				retainedSubpageSibling;	// between Campaign and New Campaign, its sibling
 	retainedSubpage_t	retainedSubpageKind;	// the sub-page the change goes to or comes back from
 	bool				retainedHomeReturning;
+	bool				retainedHomeUnderMessage;	// a stock message box covers the presented home
+	bool				retainedJoinReturn;		// a join from Join Game is under way: a return finds its list
 	// The Load Game page: its document (NULL until it first loads), the home
 	// that handed off to it, a hand-off presenting it and when, whether the
 	// home presents coming back from it, and its saves (newest first, with

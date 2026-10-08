@@ -28,7 +28,8 @@
    {"op": "playTimeline", "timeline": "exitModalLeave"}
   ],
   "exitModalHidden": [{"op": "setState", "values": {"exitModal.visible": false}}],
-  "onActivate": [{"op": "focus", "control": "death_restart"}]
+  "onActivate": [{"op": "focus", "control": "death_restart"}],
+  "onBack": [{"op": "focus", "control": "death_restart"}]
  },
  "bindings": [
   {

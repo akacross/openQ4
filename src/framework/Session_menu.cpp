@@ -1969,6 +1969,11 @@ bool idSessionLocal::RetainedInputTarget() const {
 	if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
 		return true;
 	}
+	// The multiplayer card takes the game menu's input while it covers it,
+	// and repeats a press that is never released as the home screen would.
+	if ( RetainedMultiplayerCovers() ) {
+		return true;
+	}
 	return UI_IsRetainedPath( guiActive->Name() );
 }
 
@@ -4112,6 +4117,9 @@ void idSessionLocal::DispatchCommand( idUserInterface *gui, const char *menuComm
 			else if ( gui == guiTest ) TestGUI( NULL );
 			else if ( gui == guiRetainedHome ) HandleRetainedSessionRequest( gui, "resume" );
 			else if ( gui == guiRetainedMultiplayer ) HandleRetainedMultiplayerRequest( gui, "mpClose" );
+			// The death screen stays: closing it would leave a player with no
+			// level and no way back, and the stock screen took no Escape.
+			else if ( gui == guiRetainedRestartMenu ) {}
 			else if ( gui == guiActive ) ExitMenu();
 		}
 		return;
@@ -5330,23 +5338,31 @@ static const int RETAINED_SUBPAGE_STEP_MSEC = 300;
 // at once, and the arrival's 80 ms fade is the change.
 static const int RETAINED_SIBLING_LEAVE_MSEC = 140;
 
+typedef enum {
+	RETAINED_HANDOFF_PAGE,		// a page: the bands dock and the label carries into its title slot
+	RETAINED_HANDOFF_POPUP,		// a pop-up over the home state
+	RETAINED_HANDOFF_IN_PLACE	// an action the home stays over, whose answer is a message box
+} retainedHandoffKind_t;
+
 typedef struct retainedHandoff_s {
-	const char *	request;
-	const char *	window;		// the legacy home button whose action opens the page
-	bool			popup;		// a pop-up over the home state, not a page
+	const char *			request;
+	const char *			window;		// the legacy home button whose action opens the page
+	retainedHandoffKind_t	kind;
 } retainedHandoff_t;
 
 static const retainedHandoff_t RETAINED_HANDOFFS[] = {
-	{ "singlePlayer",	"main_b_newgame",		false },
-	{ "loadGame",		"main_b_loadgame",		false },
-	{ "saveGame",		"main_b_savegame",		false },
-	{ "multiplayer",	"main_b_multiplayer",	false },
-	{ "settings",		"main_b_settings",		false },
-	{ "credits",		"main_b_credits",		false },
-	{ "demos",			"main_b_demos",			false },
-	{ "restartLevel",	"main_b_difficulty",	false },
-	{ "mods",			"main_b_mods",			true },
-	{ "updates",		"main_b_updates",		true },
+	{ "singlePlayer",	"main_b_newgame",		RETAINED_HANDOFF_PAGE },
+	{ "loadGame",		"main_b_loadgame",		RETAINED_HANDOFF_PAGE },
+	{ "saveGame",		"main_b_savegame",		RETAINED_HANDOFF_PAGE },
+	{ "multiplayer",	"main_b_multiplayer",	RETAINED_HANDOFF_PAGE },
+	{ "settings",		"main_b_settings",		RETAINED_HANDOFF_PAGE },
+	{ "credits",		"main_b_credits",		RETAINED_HANDOFF_PAGE },
+	{ "demos",			"main_b_demos",			RETAINED_HANDOFF_PAGE },
+	{ "restartLevel",	"main_b_difficulty",	RETAINED_HANDOFF_PAGE },
+	{ "mods",			"main_b_mods",			RETAINED_HANDOFF_POPUP },
+	// The update check opens no pop-up: its answer comes as a message box
+	// over the home, up to 2 s later (idAsyncClient::HandleDownloads).
+	{ "updates",		"main_b_updates",		RETAINED_HANDOFF_IN_PLACE },
 };
 
 // Legacy pop-ups drawn over the home state keep the framing bands at home.
@@ -5589,6 +5605,17 @@ void idSessionLocal::UpdateRetainedHome() {
 		guiRetainedReleasing = NULL;
 		retainedReleaseUntil = 0;
 	}
+	// A stock message box over the legacy home (the update check's answer, a
+	// failed connection): the retained home stays behind it, still and
+	// without input, where the stock menu stood, and takes the screen back as
+	// it was once the box closes.
+	if ( guiRetainedHome != NULL && guiActive != NULL && guiActive == guiMsg && guiMsgRestore == guiMainMenu ) {
+		if ( !retainedHomeUnderMessage ) {
+			retainedHomeUnderMessage = true;
+			guiRetainedHome->Activate( false, now );
+		}
+		return;
+	}
 	const bool context = Session_RetainedScreensEnabled() && guiMainMenu != NULL && guiActive == guiMainMenu &&
 		guiTest == NULL && !RetainedUI_IsOpen() && ( !mapSpawned || !IsMultiplayer() );
 	if ( context && !MainMenuWindowStateIsNonZero( guiMainMenu, "desktop::video_check" ) ) {
@@ -5613,10 +5640,29 @@ void idSessionLocal::UpdateRetainedHome() {
 			}
 		}
 	}
+	if ( mapSpawned ) {
+		retainedJoinReturn = false;
+	} else if ( retainedJoinReturn && want != NULL && want == guiRetainedTitle && guiRetainedHome == NULL ) {
+		// Back at the menu after a join from Join Game that failed or was
+		// aborted: the list it was joined from, as the stock browser kept it,
+		// rather than the title.
+		retainedJoinReturn = false;
+		OpenRetainedJoinGame();
+		if ( guiActive != guiMainMenu ) {
+			retainedHomeReturning = false;
+			return;
+		}
+	}
 	if ( want == guiRetainedHome ) {
+		if ( retainedHomeUnderMessage && want != NULL ) {
+			// The message box closed over the home it covered.
+			want->Activate( true, now );
+		}
+		retainedHomeUnderMessage = false;
 		retainedHomeReturning = returning;
 		return;
 	}
+	retainedHomeUnderMessage = false;
 	idUserInterface *previous = guiRetainedHome;
 	guiRetainedHome = NULL;
 	retainedHandoffUntil = 0;
@@ -5813,6 +5859,12 @@ void idSessionLocal::PresentRetainedSubpage( bool deeper, retainedSubpage_t subp
 		} else if ( OpenRetainedMultiplayerPage( create ? "create" : "join" ) ) {
 			guiActive->HandleNamedEvent( "subpageReturn" );
 			PumpApplicationActions( guiActive );
+		} else if ( guiMainMenu != NULL ) {
+			// The Multiplayer page cannot present (its view stopped drawing,
+			// or the gate went off): Back finds the stock Multiplayer page,
+			// as Back from a stock page does, rather than staying put.
+			SetGUI( guiMainMenu, NULL );
+			guiMainMenu->HandleNamedEvent( "openMultiplayerStock" );
 		}
 		return;
 	}
@@ -5966,6 +6018,18 @@ void idSessionLocal::StartRetainedNewCampaign( idUserInterface *gui ) {
 #endif
 }
 
+#ifndef ID_DEDICATED
+// Why a save could not be loaded, as LoadGame found it before it left the
+// current game.
+static const char *Session_LoadFailureText( int failure ) {
+	switch ( failure ) {
+		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
+		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
+		default:										return "#str_231104";
+	}
+}
+#endif
+
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
 	if ( gui != NULL && gui == guiRetainedMultiplayer ) {
@@ -6040,7 +6104,16 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
         // The restart screen's plates run the stock screen's own commands.
         HandleMainMenuCommands( "play main_menu_selection" );
         if ( !idStr::Icmp( request, "deathRestart" ) ) HandleRestartMenuCommands( "restart" );
-        else if ( !idStr::Icmp( request, "deathLoad" ) ) HandleRestartMenuCommands( "disconnect mainmenu fromRestart_toLoad" );
+        else if ( !idStr::Icmp( request, "deathLoad" ) ) {
+            // LOAD GAME leaves for the title and opens the retained Load Game
+            // page there, as the title's own LOAD GAME does; the stock page
+            // where that cannot present.
+            HandleRestartMenuCommands( "disconnect mainmenu" );
+            UpdateRetainedHome();
+            if ( !BeginRetainedPage( "loadGame" ) && guiMainMenu != NULL ) {
+                guiMainMenu->HandleNamedEvent( "fromRestart_toLoad" );
+            }
+        }
         else if ( !idStr::Icmp( request, "deathMenu" ) ) HandleRestartMenuCommands( "disconnect mainmenu" );
         else if ( !idStr::Icmp( request, "quit" ) ) common->Quit();
         return;
@@ -6072,7 +6145,7 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
             }
         }
         else if ( !idStr::Icmp( request, "campaignBack" ) ) BeginRetainedSubpage( gui, false );
-        else if ( !idStr::Icmp( request, "campaignHome" ) ) StartMenu();
+        else if ( !idStr::Icmp( request, "campaignHome" ) ) ReturnRetainedSinglePlayerHome();
         return;
     }
 	if ( gui == NULL || request == NULL || gui != guiRetainedHome || guiActive != guiMainMenu ) {
@@ -6105,7 +6178,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		if ( fileTimes.Num() > 0 ) {
 			HandleMainMenuCommands( "play main_menu_selection" );
 			const idStr slot = fileList[ fileTimes[0].index ];
-			LoadGame( slot.c_str() );
+			// LoadGame refuses a save it cannot use before it leaves the
+			// title: the Load Game page opens on that save and says why, as
+			// its own LOAD GAME would, rather than nothing happening.
+			if ( !LoadGame( slot.c_str() ) && guiRetainedHome != NULL && guiActive == guiMainMenu && BeginRetainedPage( "loadGame" ) &&
+					retainedPagePending != NULL ) {
+				PublishRetainedLoadSave( retainedPagePending, Session_LoadFailureText( loadGameFailure ) );
+			}
 		}
 		return;
 	}
@@ -6147,12 +6226,15 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 			common->Warning( "retained UI: '%s' is unavailable from the current menu", request );
 			return;
 		}
-		retainedHandoffUntil = now + ( handoff.popup ? RETAINED_POPUP_HANDOFF_MSEC : RETAINED_PAGE_HANDOFF_MSEC );
-		if ( !handoff.popup ) {
-			// The chosen label travels into the page's title slot (section 13.8).
-			guiRetainedHome->HandleNamedEvent( va( "carry_%s", handoff.request ) );
+		const bool popup = handoff.kind == RETAINED_HANDOFF_POPUP;
+		if ( handoff.kind != RETAINED_HANDOFF_IN_PLACE ) {
+			retainedHandoffUntil = now + ( popup ? RETAINED_POPUP_HANDOFF_MSEC : RETAINED_PAGE_HANDOFF_MSEC );
+			if ( !popup ) {
+				// The chosen label travels into the page's title slot (section 13.8).
+				guiRetainedHome->HandleNamedEvent( va( "carry_%s", handoff.request ) );
+			}
+			guiRetainedHome->HandleNamedEvent( popup ? "departPopup" : "depart" );
 		}
-		guiRetainedHome->HandleNamedEvent( handoff.popup ? "departPopup" : "depart" );
 		if ( command.Length() > 0 ) {
 			// The legacy action's own command, such as its selection sound.
 			DispatchCommand( guiMainMenu, command.c_str() );
@@ -6296,6 +6378,45 @@ void idSessionLocal::ReturnRetainedPage() {
 
 /*
 ===============
+idSessionLocal::ReturnRetainedSinglePlayerHome
+
+Back on the Single Player page. The title's SINGLE PLAYER ran the legacy home
+button's own action, whose choreography took the legacy menu off its home
+(Single Player's hand-off, desktop::dest 37, the home panel hidden). Its own
+return, which the stock selector runs too (returnFromSinglePlayer), puts the
+panel and its rails back unseen under the retained title, and the menu rests
+at home at once, so the title takes the screen back with the bands coming home
+from the page dock, as from any page. Without a legacy main menu, the menu
+starts as before.
+===============
+*/
+void idSessionLocal::ReturnRetainedSinglePlayerHome() {
+#ifndef ID_DEDICATED
+	if ( guiMainMenu == NULL ) {
+		StartMenu();
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	// The legacy menu's timelines stood still while the page presented; they
+	// catch up first, so none of their remaining steps lands on its home.
+	UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+	// Off its home, the menu's activation starts no intro, as the selector's
+	// own return keeps it (ArenaCampaign's return to the main menu).
+	guiMainMenu->SetPresentationValue( "desktop::curr", "1" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+	SetGUI( guiMainMenu, NULL );
+	guiMainMenu->HandleNamedEvent( "returnFromSinglePlayer" );
+	guiMainMenu->SetPresentationValue( "desktop::curr", "0" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "0" );
+	guiMainMenu->SetPresentationValue( "desktop::dest", "0" );
+	retainedPageReturn = true;
+	UpdateRetainedHome();
+	retainedPageReturn = false;
+#endif
+}
+
+/*
+===============
 idSessionLocal::DrawRetainedPageHome
 
 A stock page lives in the main menu, over its home's backdrop and docked
@@ -6321,18 +6442,6 @@ void idSessionLocal::DrawRetainedPageHome( int presentationTime ) {
 	}
 #endif
 }
-
-#ifndef ID_DEDICATED
-// Why a save could not be loaded, as LoadGame found it before it left the
-// current game.
-static const char *Session_LoadFailureText( int failure ) {
-	switch ( failure ) {
-		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
-		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
-		default:										return "#str_231104";
-	}
-}
-#endif
 
 /*
 ===============
@@ -7552,6 +7661,8 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 			return;
 		}
 		HandleMainMenuCommands( "play main_menu_selection" );
+		// A join that fails or is aborted comes back to this list.
+		retainedJoinReturn = true;
 		idCmdArgs connectArgs;
 		connectArgs.AppendArg( "connect" );
 		connectArgs.AppendArg( retainedJoinAddress.c_str() );
@@ -7575,7 +7686,9 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 		}
 		HandleMainMenuCommands( "play main_menu_selection" );
 		idStr error;
+		retainedJoinReturn = true;
 		if ( !Session_ConnectToTypedAddress( address.c_str(), error ) ) {
+			retainedJoinReturn = false;
 			gui->SetStateString( "join.addressError", Session_RetainedPlayerText( error.c_str(), 160, 2 ).c_str() );
 			gui->StateChanged( common->GetPresentationTime() );
 			return;

@@ -139,6 +139,7 @@ static bool RetainedUI_IsOpen(){return preview;}
 static void RetainedUI_Close(){preview=false;}
 static void RetainedUI_FrameInput(){CHECK(false);}
 static bool UI_RetainedSettingsDocument(idUserInterface* gui){CHECK(gui && !gui->active);return gui->valid;}
+static bool UI_IsRetainedPath(const char* qpath){const std::string p=qpath?qpath:"";return p.size()>=5&&p.compare(p.size()-5,5,".q4ui")==0;}
 static bool UI_RetainedSettingsCanReturn(idUserInterface* gui){CHECK(gui && !gui->retired);return gui->canReturn;}
 static int menuProfileSaveVarsMsec=0,menuProfileMainVarsMsec=0;
 static int Sys_Milliseconds(){return 10;}
@@ -171,7 +172,7 @@ struct idSessionLocal {
     // Nor does the multiplayer card, or a loading screen held over a join: these scenarios have no match.
     void UpdateRetainedMultiplayer(){}void RetainedMultiplayerFrameEvent(){}
     idUserInterface* guiLoadingHold=nullptr;void UpdateRetainedLoadingHold(){}
-    idUserInterface* guiRetainedMultiplayer=nullptr;
+    idUserInterface* guiRetainedMultiplayer=nullptr,*guiRetainedRestartMenu=nullptr;
     void HandleRetainedMultiplayerRequest(idUserInterface*,const char*){CHECK(false);}void HandleGameMenuReturn(const char*){CHECK(false);}
     void HandleRetainedSessionRequest(idUserInterface*,const char*){CHECK(false);}
     void SetSaveGameGuiVars(){}void SetMainMenuGuiVars(bool){++mainRefresh;}
@@ -277,6 +278,14 @@ int main(){
         s.session.guiMsgRestore=child;s.session.guiActive=s.session.guiMsg;
         s.session.SetPlayingSoundWorld();CHECK(s.session.requestedSoundWorld==&s.menuSound);
         CHECK(!s.session.ReturnSystemSettings() && !child->retired);
+        {   // A retained front-end screen without a level plays the menu's sounds;
+            // a retained screen over a level, such as the death screen, the game's.
+            idUserInterface* active=s.session.guiActive;idUserInterface front("guis/menu/singleplayer.q4ui");
+            s.session.guiActive=&front;s.session.mapSpawned=false;s.session.SetPlayingSoundWorld();
+            CHECK(s.session.requestedSoundWorld==&s.menuSound);
+            s.session.mapSpawned=true;s.session.SetPlayingSoundWorld();CHECK(s.session.requestedSoundWorld==&s.gameSound);
+            s.session.guiActive=active;
+        }
         s.session.ExitMenu();CHECK(s.session.guiActive==s.session.guiMsg && s.session.guiMsgRestore==child && !child->retired && s.gameSound.unpauses==0);
         s.session.CloseSystemSettings();CHECK(child->retired && !s.session.guiMsgRestore && !s.session.guiSystem);
         s.session.CloseSystemSettings();CHECK(s.manager.frees==1);

@@ -5,8 +5,9 @@ The pump turns a held D-pad or face button, or a deflected analog stick, into
 repeated menu key presses. Retained views pair every press with its release
 and repeat a press until it is released, and the stick never sends a release,
 so the pump completes each step on any retained input target: the home screen
-over the legacy menu, or an active retained document such as the SYSTEM page.
-Legacy GUIs keep receiving presses alone, as before.
+over the legacy menu, the multiplayer card over the game's menu, or an active
+retained document such as the SYSTEM page. Legacy GUIs keep receiving presses
+alone, as before.
 """
 from pathlib import Path
 import hashlib
@@ -44,9 +45,12 @@ struct idUserInterface { std::string name; explicit idUserInterface(const char* 
 struct Delivered { int key, down; };
 struct idSessionLocal {
     idUserInterface *guiActive = nullptr, *guiMainMenu = nullptr, *guiRetainedHome = nullptr;
+    // Whether the retained multiplayer card covers the game's menu (guiActive).
+    bool cardCovers = false;
     std::vector<Delivered> events;
     void MenuEvent(const sysEvent_t* e) { events.push_back({e->evValue, e->evValue2}); }
     bool RetainedHomePresenting() const { return guiRetainedHome != nullptr; }
+    bool RetainedMultiplayerCovers() const { return cardCovers; }
     bool RetainedInputTarget() const;
 };
 '''
@@ -93,6 +97,16 @@ int main() {
         idSessionLocal s; s.guiActive = &game; s.guiMainMenu = &legacy; s.guiRetainedHome = &home; CHECK(!s.RetainedInputTarget());
         stickYaw = -100; step(s, 0); CHECK(s.events.size() == 1 && s.events[0].down == 1);
         stickYaw = 0; step(s, 0);
+    }
+    {   // The multiplayer card over the game's menu takes its input: the stick's
+        // steps pair, so the card never holds a press the stick cannot release,
+        // and centring the stick ends them.
+        idUserInterface game("guis/mpmain.gui");
+        idSessionLocal s; s.guiActive = &game; s.guiMainMenu = &legacy; s.cardCovers = true; CHECK(s.RetainedInputTarget());
+        stickPitch = 100; step(s, 0);
+        CHECK(s.events.size() == 2 && s.events[0].down == 1 && s.events[1].down == 0 && s.events[0].key == s.events[1].key);
+        stickPitch = 0; step(s, 200); step(s, 200);
+        CHECK(s.events.size() == 2 && Downs(s) * 2 == int(s.events.size()));
     }
     std::printf("Controller menu pump: %d checks passed\n", checks);
 }

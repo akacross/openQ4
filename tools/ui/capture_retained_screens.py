@@ -66,7 +66,7 @@ SCENARIOS = {
         'waitMsec 4000',
         *[step for style, name in PROMPT_STYLES for step in (
             f'set ui_promptStyle {style}', 'waitMsec 400',
-            f'openq4_retainedGui inspect "prompt-200747-{"cap" if name == "keyboard" else name}"',
+            f'openq4_retainedGui inspect "prompt-231042-{"cap" if name == "keyboard" else name}"',
             f'openq4_retainedGui inspect "prompt-200013-{"cap" if name == "keyboard" else name}"',
             f'screenshot "screenshots/prompts-{name}.tga"')],
         # Swap Confirm and Back forced on: SELECT shows the east button and
@@ -74,7 +74,7 @@ SCENARIOS = {
         'set in_swapConfirmBack 2',
         *[step for style, name in ((2, 'xbox'), (4, 'nintendo')) for step in (
             f'set ui_promptStyle {style}', 'waitMsec 400',
-            f'openq4_retainedGui inspect "prompt-200747-{name}-swapped"',
+            f'openq4_retainedGui inspect "prompt-231042-{name}-swapped"',
             f'openq4_retainedGui inspect "prompt-200013-{name}-swapped"',
             f'screenshot "screenshots/prompts-{name}-swapped.tga"')],
         'set in_swapConfirmBack 0', 'set ui_promptStyle 0',
@@ -764,8 +764,45 @@ SCENARIOS = {
         'openq4_retainedGui focus death_exit', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'screenshot "screenshots/death-exit.tga"',
         'openq4_retainedGui focus exitModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 500', 'openq4_retainedGui focus death_restart', 'openq4_retainedGui menu accept 1',
+        # Back keeps the screen and returns the focus to RESTART.
+        'waitMsec 500', 'openq4_retainedGui focus death_exit', 'openq4_retainedGui menu back 1', 'openq4_retainedGui menu back 0',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/death-back.tga"',
+        'openq4_retainedGui focus death_restart', 'openq4_retainedGui menu accept 1',
         'openq4_retainedGui menu accept 0', 'waitMsec 12000', 'ui_retainedStatus', 'screenshot "screenshots/death-restarted.tga"',
+    ]),
+    # The death screen's LOAD GAME: the retained Load Game page over the title.
+    'death-load': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Before death"', 'waitMsec 1500', 'kill', 'waitMsec 15000', 'ui_retainedStatus',
+        'openq4_retainedGui focus death_load', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 3000', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/death-load-page.tga"',
+    ]),
+    # Back on the Single Player page the title's SINGLE PLAYER opened returns
+    # the title, its bands coming home and SINGLE PLAYER still focused.
+    'singleplayer-back': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_singleplayer', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1800', 'ui_retainedStatus', 'screenshot "screenshots/singleplayer-page.tga"',
+        'openq4_retainedGui menu back 1', 'openq4_retainedGui menu back 0', 'waitMsec 1500', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/singleplayer-back.tga"',
+    ]),
+    # UPDATES checks in place: the title keeps its content, and the answer, a
+    # stock message box, comes over the retained title.
+    'updates': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_updates', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'ui_retainedStatus', 'screenshot "screenshots/updates-checking.tga"',
+        'waitMsec 3500', 'ui_retainedStatus', 'screenshot "screenshots/updates-answer.tga"',
+    ]),
+    # Left and right step Create Server's Gametype with its list closed, and
+    # wrap at either end.
+    'createserver-stepping': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2000', 'openq4_retainedGui focus "create-gametype"', 'waitMsec 200', 'si_gameType',
+        'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 400', 'si_gameType',
+        'openq4_retainedGui widget "create-gametype"', 'screenshot "screenshots/stepping-right.tga"',
+        'openq4_retainedGui menu left 1', 'openq4_retainedGui menu left 0', 'waitMsec 200',
+        'openq4_retainedGui menu left 1', 'openq4_retainedGui menu left 0', 'waitMsec 400', 'si_gameType',
+        'openq4_retainedGui widget "create-gametype"', 'screenshot "screenshots/stepping-left.tga"',
     ]),
     # MODS on the title (section 6): the list dialog opens over the title with
     # the installed mods, the current game's selected and focused, and the

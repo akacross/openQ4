@@ -500,6 +500,10 @@ public:
     void StartRetainedNewCampaign(idUserInterface*);
     std::vector<std::string> started; void StartNewGame(const char* map) { started.push_back(map); }
     bool retainedHomeReturning = false;
+    // A stock message box (guiMsg) over the GUI it covers (guiMsgRestore).
+    idUserInterface *guiMsg = nullptr, *guiMsgRestore = nullptr; bool retainedHomeUnderMessage = false;
+    // A join from Join Game under way: a return to the menu finds its list.
+    bool retainedJoinReturn = false;
     idStrList retainedStock;
     int retainedHandoffUntil = 0;
     float retainedPointerX = 0, retainedPointerY = 0;
@@ -530,7 +534,7 @@ public:
     idUserInterface *guiRetainedLoad = nullptr, *retainedPageHome = nullptr, *retainedPagePending = nullptr;
     int retainedPageAt = 0; bool retainedPageReturn = false;
     idStrList retainedLoadSlots; idList<ID_TIME_T> retainedLoadTimes; int retainedLoadFirst = 0, retainedLoadSelected = -1;
-    bool BeginRetainedPage(const char*); void UpdateRetainedPage(); void ReturnRetainedPage();
+    bool BeginRetainedPage(const char*); void UpdateRetainedPage(); void ReturnRetainedPage(); void ReturnRetainedSinglePlayerHome();
     void PublishRetainedLoadPage(idUserInterface*, int, const char*); void PublishRetainedLoadRows(idUserInterface*);
     void PublishRetainedLoadSave(idUserInterface*, const char*); void HandleRetainedLoadRequest(idUserInterface*, const char*);
     // The Save Game page, which shares the list. SaveGame saves under a name,
@@ -571,7 +575,12 @@ public:
     void PublishRetainedMods(idUserInterface*); void SelectRetainedMod(idUserInterface*, int);
     // The restart screen after a death; the stock screen's commands it ran.
     idUserInterface *guiRestartMenu = nullptr, *guiRetainedRestartMenu = nullptr; void OpenRestartMenu();
-    std::vector<std::string> restartCommands; void HandleRestartMenuCommands(const char* command) { restartCommands.push_back(command); }
+    // A disconnect to the main menu leaves the game for the legacy menu (Stop, StartMenu).
+    std::vector<std::string> restartCommands;
+    void HandleRestartMenuCommands(const char* command) {
+        restartCommands.push_back(command);
+        if (std::string(command).rfind("disconnect mainmenu", 0) == 0) { mapSpawned = false; guiActive = guiMainMenu; }
+    }
     // The Credits page.
     idUserInterface* guiRetainedCredits = nullptr; void PublishRetainedCredits(idUserInterface*);
     // The Multiplayer page; the stock page it leaves for, and when.
@@ -714,11 +723,29 @@ int main() {
         legacy["desktop::active"] = 1; legacy["desktop::dest"] = 0; s.UpdateRetainedHome();
         CHECK(s.guiRetainedHome == title && title->named.back() == "returnHome" && !s.RetainedHomeInputBlocked());
         CHECK(managerObject.loads.size() == 1);
-        // Closing a home pop-up only reveals the content. (MODS opens the
-        // title's own dialog instead; UPDATES keeps the stock pop-up.)
-        s.HandleRetainedSessionRequest(title, "updates"); CHECK(legacyActions.back() == "main_b_updates" && title->named.back() == "departPopup");
-        CHECK(title->named[title->named.size() - 2] != "carry_updates"); // a pop-up leaves the title where it is
-        commonObject.time += 201; legacy["desktop::curr"] = 5; legacy["desktop::active"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);
+        // UPDATES runs its check in place: no pop-up opens, so the title keeps
+        // its content and its input; the answer comes as a message box.
+        {
+            const size_t before = title->named.size();
+            s.HandleRetainedSessionRequest(title, "updates");
+            CHECK(legacyActions.back() == "main_b_updates" && title->named.size() == before && !s.RetainedHomeInputBlocked());
+            CHECK(s.dispatched.back() == "play main_menu_selection");
+            s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == title && title->active);
+        }
+        // The box covers the title, which stays behind it without input, and
+        // takes the screen back as it was when the box closes.
+        {
+            idUserInterface box("guis/msg.gui"); s.guiMsg = &box;
+            const size_t before = title->named.size(); const int deactivations = title->deactivations;
+            s.guiMsgRestore = s.guiMainMenu; s.guiActive = &box; s.UpdateRetainedHome();
+            CHECK(s.guiRetainedHome == title && !title->active && title->deactivations == deactivations + 1 && s.retainedHomeUnderMessage);
+            s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == title && title->deactivations == deactivations + 1);
+            s.guiActive = s.guiMainMenu; s.guiMsgRestore = nullptr; s.UpdateRetainedHome();
+            CHECK(s.guiRetainedHome == title && title->active && !s.retainedHomeUnderMessage && title->named.size() == before);
+            s.guiMsg = nullptr;
+        }
+        // Closing a stock pop-up over the home only reveals the content.
+        legacy["desktop::curr"] = 5; legacy["desktop::active"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == nullptr);
         legacy["desktop::active"] = 1; legacy["desktop::dest"] = 0; s.UpdateRetainedHome(); CHECK(s.guiRetainedHome == title && title->named.back() == "open");
         // Session verbs never become console text; quit uses the stock path.
         s.HandleRetainedSessionRequest(title, "continue"); CHECK(s.loadedGames == std::vector<std::string>{"quick"});
@@ -1068,9 +1095,24 @@ int main() {
         s.OpenRestartMenu(); CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "deathRestart");
         CHECK(s.restartCommands.back() == "restart" && s.played.back() == "play main_menu_selection");
-        s.HandleRetainedSessionRequest(page, "deathLoad"); CHECK(s.restartCommands.back() == "disconnect mainmenu fromRestart_toLoad");
+        // LOAD GAME leaves for the title, which opens its retained Load Game
+        // page as its own LOAD GAME does, never the legacy menu's stock page.
+        s.HandleRetainedSessionRequest(page, "deathLoad");
+        CHECK(s.restartCommands.back() == "disconnect mainmenu" && s.guiRetainedHome == s.guiRetainedTitle);
+        CHECK(s.retainedPagePending == s.guiRetainedLoad && s.guiRetainedLoad != nullptr && s.RetainedHomeInputBlocked());
+        CHECK(std::find(s.guiMainMenu->named.begin(), s.guiMainMenu->named.end(), "fromRestart_toLoad") == s.guiMainMenu->named.end());
+        s.mapSpawned = true; s.OpenRestartMenu(); CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "deathMenu"); CHECK(s.restartCommands.back() == "disconnect mainmenu");
+        s.mapSpawned = true; s.OpenRestartMenu();
         s.HandleRetainedSessionRequest(page, "quit"); CHECK(commonObject.quits == 1 && s.restartCommands.size() == 3);
+        {   // A Load Game page that cannot present: the stock page, as before.
+            auto stockLoad = Session(true, true); stockLoad.PreloadRetainedScreens(); stockLoad.guiRestartMenu = &stock;
+            fileSystemObject.files.erase("guis/menu/loadgame.q4ui"); stockLoad.retainedStock.Append(idStr("guis/menu/loadgame.q4ui"));
+            stockLoad.guiRetainedLoad = nullptr; stockLoad.OpenRestartMenu();
+            stockLoad.HandleRetainedSessionRequest(stockLoad.guiActive, "deathLoad");
+            CHECK(stockLoad.retainedPagePending == nullptr && stockLoad.guiMainMenu->named.back() == "fromRestart_toLoad");
+            fileSystemObject.files.insert("guis/menu/loadgame.q4ui");
+        }
         // The gate off, the screen not installed, or a view that stopped drawing:
         // the stock screen, the last for good.
         auto off = Session(false, true); off.guiRestartMenu = &stock; off.OpenRestartMenu(); CHECK(off.guiActive == &stock);
@@ -1452,8 +1494,10 @@ int main() {
         join->state["join.address"] = "bad address"; s.HandleRetainedSessionRequest(join, "joinConnect");
         CHECK(typedAddresses.back() == "bad address" && join->state["join.addressError"] == "Cannot join bad address" &&
               commands.buffered.size() == connects && (join->named.empty() || join->named.back() != "joinIpModalHide"));
+        CHECK(!s.retainedJoinReturn);  // nothing joined, nothing to come back to
         join->state["join.address"] = std::string(120, 'a'); s.HandleRetainedSessionRequest(join, "joinConnect");
         CHECK(typedAddresses.back() == std::string(99, 'a') && join->named.back() == "joinIpModalHide");  // the stock field's 99
+        CHECK(s.retainedJoinReturn); s.retainedJoinReturn = false;  // a typed join comes back to the list too
         commands.buffered.resize(connects);
         // FIND PLAYER/CLAN searches the list for the name entered; its tag
         // ends the search.
@@ -1538,6 +1582,13 @@ int main() {
         // kept, never the page's.
         join->state["join.row5.name"] = "forged"; s.HandleRetainedSessionRequest(join, "joinServer");
         CHECK(commands.buffered.size() == buffered + 3 && commands.buffered.back() == "connect 10.0.1.69:28004");
+        // A join that fails or is aborted comes back to this list: when the
+        // menu next rests at home, Join Game presents instead of the title,
+        // once. A join that loads its map forgets the list.
+        CHECK(s.retainedJoinReturn && s.guiRetainedHome == nullptr);
+        s.guiActive = s.guiMainMenu; s.UpdateRetainedHome();
+        CHECK(s.guiActive == join && !s.retainedJoinReturn && s.guiRetainedHome == nullptr);
+        s.retainedJoinReturn = true; s.mapSpawned = true; s.UpdateRetainedHome(); CHECK(!s.retainedJoinReturn); s.mapSpawned = false;
         s.HandleRetainedSessionRequest(join, "unknown"); CHECK(commonObject.warnings.back().find("unhandled Join Game request") != std::string::npos);
         // BACK climbs out: at 300 ms the Multiplayer page returns onto JOIN
         // GAME, and the list no longer follows the scan.
@@ -1551,6 +1602,11 @@ int main() {
         // JOIN GAME again opens on the page holding the chosen server.
         s.HandleRetainedSessionRequest(page, "multiplayerJoin"); commonObject.time += 350; s.UpdateRetainedSubpage();
         CHECK(s.guiActive == join && join->state["join.first"] == "64" && join->state["join.selected"] == "69");
+        // Back where the Multiplayer page stopped drawing finds the stock
+        // Multiplayer page instead of staying on the sub-page.
+        page->failed = true; s.PresentRetainedSubpage(false, RETAINED_SUBPAGE_JOIN_GAME);
+        CHECK(s.guiActive == s.guiMainMenu && s.guiMainMenu->named.back() == "openMultiplayerStock" && s.guiRetainedMpPage == nullptr);
+        page->failed = false; s.retainedStock.Clear(); s.guiRetainedMpPage = page; s.OpenRetainedJoinGame(); CHECK(s.guiActive == join);
         // Back while going deeper reverses the change on the page.
         s.HandleRetainedSessionRequest(join, "joinBack"); commonObject.time += 300; s.UpdateRetainedSubpage(); CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "multiplayerJoin"); commonObject.time += 120;
@@ -1575,6 +1631,18 @@ int main() {
         auto s = Session(true); s.UpdateRetainedHome();
         CHECK(s.guiRetainedHome->state["menu_continue"] == "0");
         s.HandleRetainedSessionRequest(s.guiRetainedHome, "continue"); CHECK(s.loadedGames.empty());
+    }
+    {   // A newest save LoadGame refuses: CONTINUE opens the Load Game page on
+        // it and says why, instead of nothing happening.
+        auto s = Session(true); s.saves = {"quick", "autosave"}; s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_DAMAGED;
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "continue");
+        CHECK(s.loadedGames == std::vector<std::string>{"quick"} && s.guiRetainedLoad != nullptr && s.retainedPagePending == s.guiRetainedLoad);
+        CHECK(s.guiRetainedLoad->state["load.selected"] == "0" && s.guiRetainedLoad->state["load.error"] == "#str_231103");
+        // A save that loads leaves the title as before, with no page.
+        auto t = Session(true); t.saves = {"quick"}; t.PreloadRetainedScreens(); t.UpdateRetainedHome();
+        t.HandleRetainedSessionRequest(t.guiRetainedHome, "continue");
+        CHECK(t.loadedGames == std::vector<std::string>{"quick"} && t.retainedPagePending == nullptr);
     }
     {   // Single-player pause and its verbs; multiplayer keeps the stock in-game menu.
         auto s = Session(true, true); s.UpdateRetainedHome();
@@ -1677,6 +1745,21 @@ int main() {
         // title, then pause, the Load, Save Game and Restart Level pages and the
         // restart screen; the Demos page, which only the title reaches, waits for a title
         CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 6 && commonObject.warnings.size() == 1);
+    }
+    {   // Back on the Single Player page the title's SINGLE PLAYER opened: the
+        // legacy home button's choreography left the legacy menu off its home
+        // (the hand-off's dest 37); its own return puts it back, unseen, and the
+        // title takes the screen back at once with the bands coming home.
+        auto s = Session(true); s.OpenCampaignSelector(false); auto* page = s.guiActive;
+        CHECK(page && std::string(page->Name()) == "guis/menu/singleplayer.q4ui");
+        legacy["desktop::curr"] = 0; legacy["desktop::active"] = 1; legacy["desktop::dest"] = 37;
+        const size_t played = s.played.size();
+        s.HandleRetainedSessionRequest(page, "campaignHome");
+        CHECK(s.guiActive == s.guiMainMenu && legacy["desktop::curr"] == 0 && legacy["desktop::active"] == 0 && legacy["desktop::dest"] == 0);
+        CHECK(std::find(s.guiMainMenu->named.begin(), s.guiMainMenu->named.end(), "returnFromSinglePlayer") != s.guiMainMenu->named.end());
+        CHECK(s.guiRetainedHome != nullptr && s.guiRetainedHome == s.guiRetainedTitle && s.guiRetainedHome->active &&
+              s.guiRetainedHome->named.back() == "returnHome" && !s.retainedPageReturn);
+        CHECK(s.played.size() == played + 1 && s.played.back() == "play main_menu_selection" && s.menus == 0);
     }
     {   // The campaign selectors: the retained ones while installed, the stock ones otherwise.
         auto s = Session(true); s.OpenCampaignSelector(false);
@@ -4558,14 +4641,15 @@ def main() -> int:
         'void idSessionLocal::UpdateRetainedHome(', 'idUserInterface *idSessionLocal::RetainedHomeDocument(',
         'bool idSessionLocal::RetainedPauseIsStrogg(', 'void idSessionLocal::RetainedHomeFrameEvent(',
         'static bool Session_CampaignNeedsReload(',
-        'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
+        'static const char *Session_LoadFailureText(', 'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
         'void idSessionLocal::BeginRetainedSubpage(', 'void idSessionLocal::UpdateRetainedSubpage(',
         'void idSessionLocal::PresentRetainedSubpage(',
         'bool idSessionLocal::RetainedSubpageEvent(', 'bool idSessionLocal::OpenRetainedNewCampaign(',
         'void idSessionLocal::BeginRetainedSibling(', 'void idSessionLocal::PresentRetainedSibling(',
         'void idSessionLocal::StartRetainedNewCampaign(',
         'bool idSessionLocal::BeginRetainedPage(', 'void idSessionLocal::UpdateRetainedPage(', 'void idSessionLocal::ReturnRetainedPage(',
-        'static const char *Session_LoadFailureText(', 'void idSessionLocal::PublishRetainedLoadPage(',
+        'void idSessionLocal::ReturnRetainedSinglePlayerHome(',
+        'void idSessionLocal::PublishRetainedLoadPage(',
         'void idSessionLocal::PublishRetainedLoadRows(', 'void idSessionLocal::PublishRetainedLoadSave(',
         'void idSessionLocal::HandleRetainedLoadRequest(', 'bool idSessionLocal::RetainedPageActive(',
         'void idSessionLocal::PublishRetainedSavePage(', 'void idSessionLocal::PublishRetainedSaveSelection(',

@@ -65,7 +65,7 @@ struct idSessionLocal {
     void SelectCampaign(const char*) { assert(false); }
     void OpenCampaignSelector(bool) { assert(false); }
     // ui_retained home screens are covered by the retained screens suite.
-    idUserInterface* guiRetainedHome=nullptr;
+    idUserInterface* guiRetainedHome=nullptr,*guiRetainedRestartMenu=nullptr;
     void UpdateRetainedHome() {}
     void RetainedHomeFrameEvent() {}
     void UpdateRetainedSubpage() {}

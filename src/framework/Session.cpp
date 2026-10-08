@@ -3824,6 +3824,8 @@ void idSessionLocal::Clear() {
 	retainedSubpageSibling = false;
 	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
 	retainedHomeReturning = false;
+	retainedHomeUnderMessage = false;
+	retainedJoinReturn = false;
 	guiRetainedLoad = NULL;
 	retainedPageHome = NULL;
 	retainedPagePending = NULL;
@@ -8378,7 +8380,13 @@ void idSessionLocal::Draw() {
 		
 		// draw the frozen gui in the background
 		if ( guiActive == guiMsg && guiMsgRestore ) {
-			guiMsgRestore->Redraw( presentationTime );
+			if ( guiMsgRestore == guiMainMenu && guiRetainedHome != NULL ) {
+				// The retained home that covers the legacy menu stays behind the
+				// box (UpdateRetainedHome), as the legacy menu would.
+				DrawRetainedHome( presentationTime );
+			} else {
+				guiMsgRestore->Redraw( presentationTime );
+			}
 		}
 		
 		// draw the menus full screen
@@ -9270,9 +9278,12 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
-	// A retained page stands in for a main-menu page.
+	// A retained page stands in for a main-menu page, and so does every
+	// retained front-end screen presented without a level: Single Player and
+	// its sub-pages, the Multiplayer page and its sub-pages.
 	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
-			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ) ) {
+			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ||
+			( !mapSpawned && UI_IsRetainedPath( guiActive->Name() ) ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );
 	} else {
 		SetPlayingSoundWorld( sw );

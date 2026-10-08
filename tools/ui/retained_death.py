@@ -87,6 +87,10 @@ def restart_menu_document() -> dict:
                   [restart_wordmark(), dialog])
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200)
     doc.events["onActivate"] = [{"op": "focus", "control": "death_restart"}]
+    # Back keeps the screen, as the stock screen took no Escape: without a
+    # level behind it, closing would strand the player. It returns the focus
+    # to RESTART.
+    doc.events["onBack"] = [{"op": "focus", "control": "death_restart"}]
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 0.94]), "font-family": font("marine"), "font-size": length(16),
                             "color": colour([1, 1, 1, 0.8])}, [stage, exit_modal])
     return doc.build(root)
