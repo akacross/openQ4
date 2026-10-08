@@ -34,6 +34,8 @@ bool ValidProperty(const std::string& name, const Value& value) {
 			{"overflow",{"visible","hidden","auto","scroll"}}, {"text-align",{"left","center","right"}},
 			{"white-space",{"normal","pre","nowrap","pre-wrap","pre-line"}},
 			{"word-break",{"normal","break-all","break-word"}},
+			// Text cut by its node's overflow ends in an ellipsis rather than mid-letter.
+			{"text-overflow",{"clip","ellipsis"}},
 			{"flex-direction",{"row","row-reverse","column","column-reverse"}},
 			{"flex-wrap",{"nowrap","wrap","wrap-reverse"}},
 			{"justify-content",{"flex-start","flex-end","center","space-between","space-around","space-evenly"}},

@@ -217,9 +217,12 @@ def server_row(doc: Document, index: int, row_w: float) -> dict:
             cells += bars
             column_w -= text_left - left
             left = text_left
+        # A server's name or map longer than its column ends in an ellipsis
+        # rather than mid-letter.
         cells.append(label(node, PLACEHOLDER, {**absolute(left=U * left, top=0, width=U * column_w - 4, height=height),
                                                 **typeface("lowpixel", CELL_TEXT, height, tint), "white-space": keyword("nowrap"),
-                                                "overflow": keyword("hidden"), "pointer-events": keyword("none")}))
+                                                "overflow": keyword("hidden"), "text-overflow": keyword("ellipsis"),
+                                                "pointer-events": keyword("none")}))
         doc.bind(f"{node}.text", node, "text", {"state": f"{key}.{column}"})
         texts.append(node)
     chosen = {"op": "+", "args": [{"state": "join.first"}, index]}

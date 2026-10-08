@@ -55360,6 +55360,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -55431,6 +55432,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -55559,6 +55561,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -55578,6 +55581,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -55597,6 +55601,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -56029,6 +56034,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56100,6 +56106,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56228,6 +56235,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56247,6 +56255,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56266,6 +56275,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -56698,6 +56708,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56769,6 +56780,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56897,6 +56909,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56916,6 +56929,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -56935,6 +56949,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -57367,6 +57382,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -57438,6 +57454,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -57566,6 +57583,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -57585,6 +57603,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -57604,6 +57623,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -58036,6 +58056,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58107,6 +58128,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58235,6 +58257,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58254,6 +58277,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58273,6 +58297,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -58705,6 +58730,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58776,6 +58802,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58904,6 +58931,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58923,6 +58951,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -58942,6 +58971,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -59374,6 +59404,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -59445,6 +59476,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -59573,6 +59605,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -59592,6 +59625,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -59611,6 +59645,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -60043,6 +60078,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60114,6 +60150,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60242,6 +60279,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60261,6 +60299,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60280,6 +60319,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -60712,6 +60752,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60783,6 +60824,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60911,6 +60953,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60930,6 +60973,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -60949,6 +60993,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -61381,6 +61426,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -61452,6 +61498,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -61580,6 +61627,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -61599,6 +61647,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -61618,6 +61667,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -62050,6 +62100,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62121,6 +62172,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62249,6 +62301,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62268,6 +62321,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62287,6 +62341,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -62719,6 +62774,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62790,6 +62846,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62918,6 +62975,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62937,6 +62995,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -62956,6 +63015,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -63388,6 +63448,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -63459,6 +63520,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -63587,6 +63649,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -63606,6 +63669,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -63625,6 +63689,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -64057,6 +64122,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64128,6 +64194,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64256,6 +64323,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64275,6 +64343,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64294,6 +64363,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -64726,6 +64796,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64797,6 +64868,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64925,6 +64997,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64944,6 +65017,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -64963,6 +65037,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -65395,6 +65470,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -65466,6 +65542,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -65594,6 +65671,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -65613,6 +65691,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -65632,6 +65711,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -66064,6 +66144,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66135,6 +66216,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66263,6 +66345,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66282,6 +66365,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66301,6 +66385,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -66733,6 +66818,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66804,6 +66890,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66932,6 +67019,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66951,6 +67039,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -66970,6 +67059,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -67402,6 +67492,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -67473,6 +67564,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -67601,6 +67693,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -67620,6 +67713,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -67639,6 +67733,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -68071,6 +68166,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68142,6 +68238,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68270,6 +68367,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68289,6 +68387,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68308,6 +68407,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -68740,6 +68840,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68811,6 +68912,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68939,6 +69041,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68958,6 +69061,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -68977,6 +69081,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -69409,6 +69514,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -69480,6 +69586,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -69608,6 +69715,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -69627,6 +69735,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -69646,6 +69755,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -70078,6 +70188,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70149,6 +70260,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70277,6 +70389,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70296,6 +70409,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70315,6 +70429,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -70747,6 +70862,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70818,6 +70934,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70946,6 +71063,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70965,6 +71083,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -70984,6 +71103,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -71416,6 +71536,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -71487,6 +71608,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -71615,6 +71737,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -71634,6 +71757,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -71653,6 +71777,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -72085,6 +72210,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72156,6 +72282,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72284,6 +72411,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72303,6 +72431,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72322,6 +72451,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -72754,6 +72884,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72825,6 +72956,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72953,6 +73085,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72972,6 +73105,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -72991,6 +73125,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -73423,6 +73558,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -73494,6 +73630,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -73622,6 +73759,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -73641,6 +73779,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -73660,6 +73799,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -74092,6 +74232,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74163,6 +74304,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74291,6 +74433,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74310,6 +74453,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74329,6 +74473,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -74761,6 +74906,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74832,6 +74978,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74960,6 +75107,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74979,6 +75127,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -74998,6 +75147,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -75430,6 +75580,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -75501,6 +75652,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -75629,6 +75781,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -75648,6 +75801,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -75667,6 +75821,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -76099,6 +76254,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76170,6 +76326,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76298,6 +76455,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76317,6 +76475,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76336,6 +76495,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -76768,6 +76928,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76839,6 +77000,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76967,6 +77129,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -76986,6 +77149,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -77005,6 +77169,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -77437,6 +77602,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -77508,6 +77674,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -77636,6 +77803,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -77655,6 +77823,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -77674,6 +77843,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -78106,6 +78276,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78177,6 +78348,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78305,6 +78477,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78324,6 +78497,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78343,6 +78517,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -78775,6 +78950,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78846,6 +79022,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78974,6 +79151,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -78993,6 +79171,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -79012,6 +79191,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -79444,6 +79624,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -79515,6 +79696,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -79643,6 +79825,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -79662,6 +79845,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -79681,6 +79865,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -80113,6 +80298,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80184,6 +80370,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80312,6 +80499,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80331,6 +80519,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80350,6 +80539,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -80782,6 +80972,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80853,6 +81044,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -80981,6 +81173,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81000,6 +81193,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81019,6 +81213,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -81451,6 +81646,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81522,6 +81718,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81650,6 +81847,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81669,6 +81867,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -81688,6 +81887,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -82120,6 +82320,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82191,6 +82392,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82319,6 +82521,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82338,6 +82541,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82357,6 +82561,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -82789,6 +82994,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82860,6 +83066,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -82988,6 +83195,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83007,6 +83215,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83026,6 +83235,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -83458,6 +83668,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83529,6 +83740,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83657,6 +83869,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83676,6 +83889,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -83695,6 +83909,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -84127,6 +84342,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84198,6 +84414,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84326,6 +84543,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84345,6 +84563,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84364,6 +84583,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -84796,6 +85016,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84867,6 +85088,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -84995,6 +85217,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85014,6 +85237,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85033,6 +85257,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -85465,6 +85690,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85536,6 +85762,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85664,6 +85891,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85683,6 +85911,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -85702,6 +85931,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -86134,6 +86364,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -86205,6 +86436,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -86333,6 +86565,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -86352,6 +86585,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -86371,6 +86605,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -86803,6 +87038,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -86874,6 +87110,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87002,6 +87239,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87021,6 +87259,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87040,6 +87279,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -87472,6 +87712,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87543,6 +87784,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87671,6 +87913,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87690,6 +87933,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -87709,6 +87953,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -88141,6 +88386,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -88212,6 +88458,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -88340,6 +88587,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -88359,6 +88607,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -88378,6 +88627,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -88810,6 +89060,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -88881,6 +89132,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89009,6 +89261,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89028,6 +89281,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89047,6 +89301,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -89479,6 +89734,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89550,6 +89806,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89678,6 +89935,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89697,6 +89955,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -89716,6 +89975,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -90148,6 +90408,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -90219,6 +90480,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -90347,6 +90609,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -90366,6 +90629,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -90385,6 +90649,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -90817,6 +91082,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -90888,6 +91154,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91016,6 +91283,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91035,6 +91303,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91054,6 +91323,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -91486,6 +91756,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91557,6 +91828,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91685,6 +91957,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91704,6 +91977,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -91723,6 +91997,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -92155,6 +92430,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -92226,6 +92502,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -92354,6 +92631,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -92373,6 +92651,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -92392,6 +92671,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -92824,6 +93104,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -92895,6 +93176,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93023,6 +93305,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93042,6 +93325,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93061,6 +93345,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -93493,6 +93778,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93564,6 +93850,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93692,6 +93979,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93711,6 +93999,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -93730,6 +94019,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -94162,6 +94452,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -94233,6 +94524,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -94361,6 +94653,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -94380,6 +94673,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -94399,6 +94693,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -94831,6 +95126,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -94902,6 +95198,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95030,6 +95327,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95049,6 +95347,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95068,6 +95367,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -95500,6 +95800,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95571,6 +95872,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95699,6 +96001,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95718,6 +96021,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -95737,6 +96041,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -96169,6 +96474,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -96240,6 +96546,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -96368,6 +96675,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -96387,6 +96695,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -96406,6 +96715,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -96838,6 +97148,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -96909,6 +97220,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97037,6 +97349,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97056,6 +97369,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97075,6 +97389,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }
@@ -97507,6 +97822,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97578,6 +97894,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97706,6 +98023,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97725,6 +98043,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              },
@@ -97744,6 +98063,7 @@
                "color": {"type": "color", "value": [1, 1, 1, 0.8]},
                "white-space": {"type": "keyword", "value": "nowrap"},
                "overflow": {"type": "keyword", "value": "hidden"},
+               "text-overflow": {"type": "keyword", "value": "ellipsis"},
                "pointer-events": {"type": "keyword", "value": "none"}
               }
              }

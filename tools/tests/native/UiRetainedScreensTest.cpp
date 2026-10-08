@@ -2763,6 +2763,11 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(text("join-empty","display") == "none" && text("server-2","display") == "block" && text("server-3","display") == "none" &&
 		text("server-0-name","text") == "Refinement Arena" && text("server-0-players","text") == "1/8" && text("server-0-map","text") == "Fragging Yard" &&
 		text("server-1-ping","text") == "40","the servers fill their rows at the stock tab stops");
+	Check(text("server-0-name","text-overflow") == "ellipsis" && text("server-2-map","text-overflow") == "ellipsis" &&
+		text("server-0-name","overflow") == "hidden","a name or map longer than its column ends in an ellipsis, not mid-letter");
+	Value overflow; overflow.type = ValueType::Keyword; overflow.text = "clip";
+	const bool clips = ValidProperty("text-overflow",overflow); overflow.text = "fade";
+	Check(clips && !ValidProperty("text-overflow",overflow),"text-overflow takes clip or ellipsis only");
 	Check(text("server-1-ded","display") == "block" && text("server-0-ded","display") == "none" && text("server-2-rep","display") == "block" &&
 		text("server-1-rep","display") == "none" && text("join-mod-value","text") == "All",
 		"a dedicated server and a repeater show their symbols, and MOD its filter");
