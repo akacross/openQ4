@@ -8373,12 +8373,19 @@ void idFileSystemLocal::FindMapScreenshot( const char *path, char *buf, int len 
 		// try to extract from an addon
 		file = OpenFileReadFlags( buf, FSFLAG_SEARCH_ADDONS );
 		if ( file ) {
-			// save it out to an addon splash directory
+			// save it out to an addon splash directory, unless an earlier
+			// launch already did: the same size, written since the addon
 			int dlen = file->Length();
+			const ID_TIME_T addonTime = file->Timestamp();
+			idStr::snPrintf( buf, len, "guis/assets/splash/addon/%s.tga", mapname.c_str() );
+			ID_TIME_T extractedTime = FILE_NOT_FOUND_TIMESTAMP;
+			if ( ReadFile( buf, NULL, &extractedTime ) == dlen && extractedTime != FILE_NOT_FOUND_TIMESTAMP && extractedTime >= addonTime ) {
+				CloseFile( file );
+				return;
+			}
 			char *data = new char[ dlen ];
 			file->Read( data, dlen );
 			CloseFile( file );
-			idStr::snPrintf( buf, len, "guis/assets/splash/addon/%s.tga", mapname.c_str() );
 			WriteFile( buf, data, dlen );
 			delete[] data;
 		} else {
