@@ -684,7 +684,7 @@ without affecting players:
   covered and the refused verbs. It also pins the missing-pages list to the
   document, the stock buttons to the generator, the game's side of the
   protocol, and the frame, input and draw order.
-- `openq4-ui-retained-screens` loads the card into the real runtime: centered
+- `openq4-ui-retained-screens-mp-card` loads the card into the real runtime: centered
   and the same size at 1280x720, 1920x1080 and 1024x768, the opening and its
   reduced-motion form, the tab programs and their wrap, the cross-fade with
   the leaving page out of reach, the hand-off and Back actions, the prompt bar

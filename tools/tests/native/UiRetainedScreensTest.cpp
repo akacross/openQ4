@@ -3467,28 +3467,37 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 	host.recordDraws = true;
 }
 
+// Each group of documents is its own meson test, so the suite runs the
+// groups side by side: together the checks take about 35 s of CPU, most of
+// it parsing and loading the documents (the 8 MB Escape card above all), and
+// as one test they timed out on loaded machines. A group keeps its checks'
+// order; with no group every check runs.
 int main(int argc, char** argv) {
-	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
-	CheckSchema();
+	Check(argc == 24 || argc == 25,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui [group]");
+	const std::string group = argc == 25 ? argv[24] : "";
+	bool known = group.empty();
+	const auto runs = [&](const char* name) { const bool selected = group.empty() || group == name; known = known || selected; return selected; };
+	if (runs("menus")) CheckSchema();
 	ScreenHost host;
-	CheckTransformedClip(host);
-	CheckPromptGlyphs(host,argv[1]);
-	CheckCardPromptGlyphs(host,argv[7]);
-	CheckPagePrompts(host,argv[13],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[14],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[15],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[16],"guis/menu/newcampaign.q4ui","newgame_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[17],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[19],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
-	CheckPagePrompts(host,argv[22],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[23],"guis/menu/joingame.q4ui","join_back","back",nullptr,true);
-	CheckPagePrompts(host,argv[2],"guis/menu/pause.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow","objectives-prompts");
-	CheckPagePrompts(host,argv[4],"guis/menu/pause_strogg.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow",
+	if (runs("menus")) CheckTransformedClip(host);
+	if (runs("menus")) CheckPromptGlyphs(host,argv[1]);
+	if (runs("mp-card")) CheckCardPromptGlyphs(host,argv[7]);
+	if (runs("pages")) CheckPagePrompts(host,argv[13],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[14],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[15],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[16],"guis/menu/newcampaign.q4ui","newgame_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[17],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[19],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
+	if (runs("mp-pages")) CheckPagePrompts(host,argv[22],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
+	if (runs("mp-pages")) CheckPagePrompts(host,argv[23],"guis/menu/joingame.q4ui","join_back","back",nullptr,true);
+	if (runs("menus")) CheckPagePrompts(host,argv[2],"guis/menu/pause.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow","objectives-prompts");
+	if (runs("menus")) CheckPagePrompts(host,argv[4],"guis/menu/pause_strogg.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow",
 		"objectives-prompts");
 	for (const int page : {5,6,21})
-		CheckPagePrompts(host,argv[page],page == 21 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
+		if (runs(page == 21 ? "mp-pages" : "pages"))
+			CheckPagePrompts(host,argv[page],page == 21 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
-	{
+	if (runs("menus")) {
 		const auto source = Read(argv[1]);
 		Document document; std::vector<Diagnostic> diagnostics;
 		if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
@@ -3739,7 +3748,7 @@ int main(int argc, char** argv) {
 		}
 	}
 	// Pause: the level block binds the mission, difficulty, objectives and shot.
-	{
+	if (runs("menus")) {
 		const auto source = Read(argv[2]);
 		Document document; std::vector<Diagnostic> diagnostics;
 		const bool valid = document.Load(source,diagnostics);
@@ -4036,7 +4045,7 @@ int main(int argc, char** argv) {
 	}
 	// Strogg pause (section 13.7): the Marine pause's level block and verbs in
 	// the Strogg family, every label arriving in runes and translating.
-	{
+	if (runs("menus")) {
 		const auto source = Read(argv[4]);
 		Document document; std::vector<Diagnostic> diagnostics;
 		const bool valid = document.Load(source,diagnostics);
@@ -4171,7 +4180,7 @@ int main(int argc, char** argv) {
 		Check(translating && Near(static_cast<float>(translating->data[0]),0,.001f),"returning plays the translation again");
 	}
 	// Loading: progress, the continue prompt and the multiplayer server card.
-	{
+	if (runs("loading-hud")) {
 		const auto source = Read(argv[3]);
 		Document document; std::vector<Diagnostic> diagnostics;
 		Check(document.Load(source,diagnostics) && document.Model().id == "openq4.loading" && document.Model().actions.empty(),"loading document validates");
@@ -4394,7 +4403,7 @@ int main(int argc, char** argv) {
 	}
 	// The Single Player page and its Campaign sub-page (sections 8 and 9, the
 	// sub-page level of 1.10): their rest states, going deeper and Back.
-	{
+	if (runs("pages")) {
 		const auto pageSource = Read(argv[5]);
 		const auto subSource = Read(argv[6]);
 		Document pageDocument, subDocument; std::vector<Diagnostic> diagnostics;
@@ -4575,30 +4584,31 @@ int main(int argc, char** argv) {
 			"reduced motion fades the arrival in within 80 ms");
 		sub.SetReducedMotion(false,7.2);
 	}
-	CheckEscape(host,argv[7]);
-	CheckVote(host,argv[7]);
-	CheckMatch(host,argv[7]);
-	CheckSettings(host,argv[7],argv[8]);
-	CheckWelcome(host,argv[8]);
-	CheckInitializing(host,argv[9]);
-	CheckWeaponWheel(host,argv[10]);
-	CheckStroggWheel(host,argv[11]);
-	CheckMultiplayerWheel(host,argv[12]);
-	CheckLoadPage(host,argv[13]);
-	CheckSavePage(host,argv[14]);
-	CheckRestartPage(host,argv[15]);
-	CheckNewCampaign(host,argv[6],argv[16]);
-	CheckDemosPage(host,argv[17]);
-	CheckModsDialog(host,argv[1]);
-	CheckRestartMenu(host,argv[18]);
-	CheckCreditsPage(host,argv[19]);
-	CheckArenaPage(host,argv[5],argv[20]);
-	CheckMultiplayerPage(host,argv[21]);
-	CheckCreateServerPage(host,argv[22]);
-	CheckCreateServerBanList(host,argv[22]);
-	CheckJoinGamePage(host,argv[23]);
-	CheckMenusPointerReach(host,argv);
+	if (runs("mp-card")) CheckEscape(host,argv[7]);
+	if (runs("mp-vote-match")) CheckVote(host,argv[7]);
+	if (runs("mp-vote-match")) CheckMatch(host,argv[7]);
+	if (runs("mp-settings-welcome")) CheckSettings(host,argv[7],argv[8]);
+	if (runs("mp-settings-welcome")) CheckWelcome(host,argv[8]);
+	if (runs("loading-hud")) CheckInitializing(host,argv[9]);
+	if (runs("loading-hud")) CheckWeaponWheel(host,argv[10]);
+	if (runs("loading-hud")) CheckStroggWheel(host,argv[11]);
+	if (runs("loading-hud")) CheckMultiplayerWheel(host,argv[12]);
+	if (runs("pages")) CheckLoadPage(host,argv[13]);
+	if (runs("pages")) CheckSavePage(host,argv[14]);
+	if (runs("pages")) CheckRestartPage(host,argv[15]);
+	if (runs("pages")) CheckNewCampaign(host,argv[6],argv[16]);
+	if (runs("pages")) CheckDemosPage(host,argv[17]);
+	if (runs("menus")) CheckModsDialog(host,argv[1]);
+	if (runs("pages")) CheckRestartMenu(host,argv[18]);
+	if (runs("pages")) CheckCreditsPage(host,argv[19]);
+	if (runs("pages")) CheckArenaPage(host,argv[5],argv[20]);
+	if (runs("mp-pages")) CheckMultiplayerPage(host,argv[21]);
+	if (runs("mp-pages")) CheckCreateServerPage(host,argv[22]);
+	if (runs("mp-pages")) CheckCreateServerBanList(host,argv[22]);
+	if (runs("mp-pages")) CheckJoinGamePage(host,argv[23]);
+	if (runs("pointer-reach")) CheckMenusPointerReach(host,argv);
+	Check(known,"a group the test knows");
 	Check(host.errors == 0,"no retained diagnostics");
-	std::printf("retained screens: %d checks passed\n",checks);
+	std::printf("retained screens%s%s: %d checks passed\n",group.empty() ? "" : " ",group.c_str(),checks);
 	return 0;
 }

@@ -1600,7 +1600,7 @@ first opening among that time.
 
 ## Validation
 
-- `openq4-ui-retained-screens` (native) loads the four production documents,
+- `openq4-ui-retained-screens-*` (native) loads the four production documents,
   lays them out at 1280x720 (the title also at 1920x1080) and drives their
   state. It checks the schema additions, the additive and multiplied draws,
   the transformed clip, the emblem glint and its reduced-motion rule, the
@@ -1630,6 +1630,10 @@ first opening among that time.
   pause opening without the page, the empty state's static and line, the
   level block's rows with their state, and the Strogg page's heading, serial,
   BACK prompt and return. It checks that the back bar lies under the bands.
+  It runs as one meson test per group of documents,
+  `openq4-ui-retained-screens-<group>` (`menus`, `loading-hud`, `pages`,
+  `mp-pages`, `mp-card`, `mp-vote-match` and `mp-settings-welcome`), side
+  by side in the suite; given no group, its executable runs every check.
 - `openq4-retained-ui` and `openq4-ui-document` cover timeline completion
   programs: firing once at the end, cancellation, replay, pause, reduced
   motion and a snapshot taken while a completion is due, and the rejected
