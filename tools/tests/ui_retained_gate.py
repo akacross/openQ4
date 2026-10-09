@@ -4599,6 +4599,15 @@ def main() -> int:
     change = function_body(session, 'void idSessionLocal::ExecuteMapChange(')
     assert change.index('game->SpawnPlayer( i, false, NULL );') < change.index('PrecacheRetainedLevelImages();') < \
         change.index('renderSystem->EndLevelLoad();') < change.index('declManager->EndLevelLoad();')
+    # A map change keeps an unchanged retained document's view. Inside the
+    # load, after its purge, the document's pictures resolve again, and its
+    # input, programs and session requests drop, as a new view's would.
+    assert change.index('declManager->BeginLevelLoad();') < change.index('uiManager->BeginLevelLoad();') < \
+        change.index('UI_ReloadForLevelLoad();') < change.index('PrimeMainMenuGuiResources();') < change.index('LoadLoadingGui( mapString );')
+    assert 'uiManager->Reload(' not in change
+    keep = function_body(adapter, 'bool idUserInterfaceRetained::KeepForLevelLoad(')
+    assert keep.index('std::memcmp(data,source.data(),source.size()) == 0') < keep.index('impl->Quarantine(false,true,true);') < \
+        keep.index('PrecacheImages(impl->document.Model().root);')
     images = game[game.index('!idStr::Icmp( menuCommand, "retainedLevelImages" )'):]
     assert 'ent->IsType( idObjective::GetClassType() )' in images[:images.index('gui->SetStateInt( "level_image_count", images );')]
     assert 'player->inventory.objectiveNames[ i ].screenshot' in images[:images.index('gui->SetStateInt( "level_image_count", images );')]

@@ -6740,7 +6740,9 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 
 	uiManager->BeginLevelLoad();
-	uiManager->Reload( true );
+	// Every GUI's media resolve again inside the load; an unchanged retained
+	// document keeps its view instead of re-initializing.
+	UI_ReloadForLevelLoad();
 #ifndef ID_DEDICATED
 	// Level-load purging clears media-use marks established at session startup.
 	// Re-reference every in-game menu resource while the normal precache window

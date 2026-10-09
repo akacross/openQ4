@@ -650,13 +650,112 @@ What remains:
   title's first two seconds, before the idle frames have finished, reads the
   levelshots still waiting in one frame (708 ms in the rush probe). Decoding
   levelshots on the job system's workers would remove it.
-- **Map changes.** Every map change re-initializes every loaded GUI
+- **Map changes.** Every map change re-initialized every loaded GUI
   (`uiManager->Reload( true )` in `ExecuteMapChange`), the retained pages
   included: the startup's document work again, now one parse per page, on
-  the main thread.
+  the main thread. The retained pages now keep their views
+  ([map changes](#map-changes)).
 - **Outside the menus.** Of the remaining wait before the title, hashing
   `pak0.pk4` and `pak1.pk4` (800 MB) against the executable's checksums takes
   about 1.4 s on every launch, and compiling the game's scripts about 1.2 s.
+
+## Map changes
+
+9 October 2026. Every map change re-initialized every loaded GUI
+(`uiManager->Reload( true )` in `idSessionLocal::ExecuteMapChange`). With
+`ui_retained 1` that took in every retained page: the eight the title reaches
+at the first map change, and from the second on also both pause screens, Save
+Game, Restart Level, the death screen, the loading screen and the weapon
+wheel. Each read and parsed its document again, built a new view (markup,
+elements, bindings) and restored the old view's snapshot into it: the
+startup's document work again, on the main thread, inside the load. A restart
+of the same map did it too.
+
+The reload comes from Doom 3. The level load's purge
+(`idDeclManagerLocal::BeginLevelLoad`) defaults every declaration not parsed
+outside a level load, and the image manager frees every image a level load
+read. A stock GUI's windows hold material pointers, and parsing it again finds
+them inside the load, so their images load with the level instead of on the
+first draw after it. A retained page needs less. The materials its view holds
+survive a purge as objects, and its text and layers draw from generated
+resources. What it needs is for the pictures it names to resolve again inside
+the load: the preload and the level loads parse them as load media
+(`SetInsideLoad`), so every map change purges them, and a purged picture drawn
+later is parsed again mid-frame ("Loading non pre-cached material decl"), its
+image read then too where a level load had read it. A language or renderer
+change already rebuilds every retained view on its own (`RefreshResources`).
+
+What changed: the map change calls `UI_ReloadForLevelLoad`. The stock GUIs
+re-initialize as before. A retained page whose document reads back byte for
+byte unchanged keeps its view (`idUserInterfaceRetained::KeepForLevelLoad`):
+the pictures it names resolve again inside the load, as its reload had them
+do, and its pending input, programs and session requests are dropped, as a new
+view would drop them. A changed document, or a view that cannot be prepared,
+re-initializes as before; `reloadGuis all` still re-initializes everything;
+pictures bound to state still resolve where their publishers precache them.
+Each kept page logs `RETAINED_GUI_KEPT`.
+
+Interleaved chains of map changes, the build before (`5d378666`) against this
+one, in ABBA order: six rounds of each in single player and five in
+multiplayer. Debugoptimized, hidden 1280x720 OpenGL window, `s_noSound 1`,
+each side with its own warm save path and the same `pak0.pk4` (the older
+client's embedded checksum patched to it), console verbs only. Single player
+starts at the title and runs `map game/airdefense1`, then `game/airdefense2`
+and `game/airdefense1` again; multiplayer runs a listen server's
+`spawnServer mp/q4dm1` from the title, then `mp/q4dm2`. Timestamps
+(`com_timestampPrints 2`) give the GUIs' share of each change, from the
+level-load purge to the loading screen's first state, and `com_speeds` the
+frame that held the whole change, from the wipe to the autosave. Medians, and
+the median of each round's difference:
+
+| Map change | Retained pages | GUIs, before | GUIs, after | Whole change, before | Whole change, after | Difference |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Title to airdefense1 | 8 | 2.18 s | 0.65 s | 11.1 s | 9.6 s | -1.8 s |
+| airdefense1 to airdefense2 | 15 | 2.53 s | 0.57 s | 6.3 s | 4.4 s | -2.1 s |
+| airdefense2 to airdefense1 | 16 | 2.76 s | 0.66 s | 11.1 s | 9.6 s | -2.2 s |
+| Title to mp/q4dm1 | 8 | 2.12 s | 0.59 s | 5.3 s | 3.8 s | -1.5 s |
+| mp/q4dm1 to mp/q4dm2 | 11 | 2.77 s | 0.65 s | 5.5 s | 3.3 s | -2.2 s |
+
+Re-initialized, the retained pages took 1.5 to 2.1 s of each change; kept,
+47 to 85 ms, mostly reading each document back to compare it (Join Game's
+4.3 MB the most, 12 to 19 ms). With the Escape card opted in
+(`ui_retainedMultiplayer 1`, three rounds) the second multiplayer change
+re-initialized 12 pages, the 7.8 MB card among them, in 3.4 s and kept them
+in 127 ms: the whole change went from 7.0 to 3.5 s. The 120 frames after
+each load were as smooth in both builds (longest 20 to 32 ms), and no
+"Loading non pre-cached" warning named a retained picture in either; the
+other warnings, player models and tables, were the same in both.
+
+Hand-offs after the second single-player map change, two runs of each build
+alternating (the kit's `probe-mapchange-sp`: a save on airdefense1, a map
+change to airdefense2, then the pause, SAVE GAME, LOAD GAME and RESTART LEVEL
+and back, a death and the death screen's LOAD GAME), longest frame over each
+step:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| The pause | 119, 107 ms | 101, 101 ms |
+| SAVE GAME | 62, 54 ms | 42, 46 ms |
+| LOAD GAME | 54, 55 ms | 38, 38 ms |
+| RESTART LEVEL | 41, 31 ms | 31, 31 ms |
+| The death screen | 148, 154 ms | 128, 145 ms |
+| Its LOAD GAME | 228, 162 ms | 230, 220 ms |
+
+Single runs vary by tens of milliseconds. With `fs_debug 1` over the steps
+both builds opened the same files: the saves, the soft focus's shader and the
+levelshots the front end's idle frames precache once the level is over (the
+probe starts in the level, so the title never read them); no picture was read
+late.
+
+What remains:
+
+- **The stock GUIs.** The stock GUIs, the main menu among them, still
+  re-initialize at every map change, and from the second on the last level's
+  own GUIs with them: with the level-load purge before them, 0.2 to 0.5 s of
+  each change (medians 0.22, 0.45 and 0.52 s in single player, 0.27 and
+  0.51 s in multiplayer). A stock GUI's windows hold their materials, so
+  keeping one would mean resolving them again window by window instead of
+  parsing it.
 
 ## Remaining requirements
 

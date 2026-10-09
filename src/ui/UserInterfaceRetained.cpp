@@ -901,6 +901,32 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	return true;
 }
 
+// A map change's reload of an unchanged source keeps the view: a new one
+// would restore the same snapshot, after the startup's document work again.
+// The load needs the pictures the document names, whose materials its purge
+// defaulted, to resolve again inside it, as a reload's would. And as a new
+// view starts, input, programs and session requests from before it are
+// dropped. Bound pictures resolve when their publishers precache them.
+bool idUserInterfaceRetained::KeepForLevelLoad() {
+	if (!impl->view || !impl->Prepare()) return false;
+	void* data = nullptr;
+	const int size = fileSystem->ReadFile(impl->path.c_str(),&data);
+	const auto& source = impl->document.Source();
+	const bool same = size >= 0 && data && static_cast<size_t>(size) == source.size() &&
+		std::memcmp(data,source.data(),source.size()) == 0;
+	if (data) fileSystem->FreeFile(data);
+	const auto textDocument = same ? UI_NextTextLifetime() : 0;
+	if (!textDocument) return false;
+	impl->Quarantine(false,true,true);
+	impl->textDocument = textDocument;
+	if (impl->settingsClosePending) UI_SettingsCloseOwner(impl->settingsOwner);
+	impl->settingsClosePending = false;
+	impl->lastError.clear();
+	PrecacheImages(impl->document.Model().root);
+	common->Printf("RETAINED_GUI_KEPT %s\n",impl->path.c_str());
+	return true;
+}
+
 const idDict& idUserInterfaceRetained::State() const { return impl->state; }
 void idUserInterfaceRetained::DeleteStateVar(const char* name) { if (impl->CallerState(name)) impl->state.Delete(name); }
 void idUserInterfaceRetained::SetStateString(const char* name, const char* value) { if (impl->CallerState(name)) impl->state.Set(name,value); }

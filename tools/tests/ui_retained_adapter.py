@@ -613,7 +613,8 @@ int promptGlyphsValue=0;
 int RetainedUI_PromptGlyphs() { return promptGlyphsValue; }
 bool promptSwappedValue=false;
 bool RetainedUI_PromptSwapped() { return promptSwappedValue; }
-void RetainedUI_PrecacheImage(const std::string&,bool) {}
+static std::vector<std::string> precachedImages;
+void RetainedUI_PrecacheImage(const std::string& source,bool) { precachedImages.push_back(source); }
 bool RetainedUI_DrawViewRoot(retainedUIView_t* view,const openq4::ui::Viewport&) {
     ++view->runtime.frames; view->runtime.pointerTransport.push_back("frame"); return !rejectDraw;
 }
@@ -953,6 +954,39 @@ static void CheckCompletionWrites() {
     assert(Live().completionTakes>takes && Live().completionWrites.empty());
     assert(gui.GetStateBool("flag") && std::string(gui.GetStateString("text"))=="finished" &&
            std::string(gui.GetStateString("unrelated"))=="unmodified");
+}
+// A map change keeps the view of an unchanged source: its view and state stay,
+// the pictures the document names are precached again, and its input, programs
+// and session requests drop, as a new view's would. A changed source, or a
+// view that cannot draw, re-initializes instead.
+static void CheckLevelLoadKeep() {
+    assert(views.empty()); cvars=CVars{}; consoleObject.open=false; windowFocused=true;
+    eventPlans={{"queue",{{},{Brightness(1.2)}}}}; eventHistory.clear();
+    const auto root=modelTemplate.root;
+    Node picture; picture.id="picture";
+    Value image; image.type=ValueType::Image; image.text="gfx/guis/kept";
+    picture.properties.emplace("image",image);
+    modelTemplate.root.children.push_back(picture);
+    {
+        idUserInterfaceRetained gui;
+        assert(gui.InitFromFile("test.q4ui")); gui.Activate(true,0); gui.Redraw(0);
+        const auto* view=views.front();
+        gui.SetStateFloat("number",1.5f); gui.StateChanged(0);
+        gui.HandleNamedEvent("queue"); assert(*gui.PendingApplicationCommand());
+        const int cancels=Live().cancels; precachedImages.clear();
+        assert(gui.KeepForLevelLoad());
+        assert(views.size()==1 && views.front()==view && Live().cancels==cancels+1);
+        assert(!*gui.PendingApplicationCommand() && cvars.writes==0);
+        assert(std::get<double>(Live().state.at("number"))==1.5);
+        assert(precachedImages==std::vector<std::string>{"gfx/guis/kept"});
+        assert(commonObject.prints.back()=="RETAINED_GUI_KEPT test.q4ui\n");
+        files.sources["test.q4ui"]="edited";
+        assert(!gui.KeepForLevelLoad() && views.front()==view && precachedImages.size()==1);
+        files.sources["test.q4ui"]="valid";
+        Live().loaded=false; assert(!gui.KeepForLevelLoad()); Live().loaded=true;
+        assert(gui.KeepForLevelLoad() && precachedImages.size()==2);
+    }
+    modelTemplate.root=root; eventPlans={};
 }
 static void CheckEventBridge() {
     assert(views.empty()); cvars=CVars{}; consoleObject.open=false; windowFocused=true;
@@ -2658,6 +2692,7 @@ int main() {
     unsafe.events["nameentered"]; assert(ValidateApplication(unsafe,error));
     CheckEventBridge();
     CheckCompletionWrites();
+    CheckLevelLoadKeep();
     CheckEventEligibility();
     CheckNodeInspection();
     CheckSettingsBoundary();
@@ -2761,6 +2796,11 @@ def main():
         ('text-key-selection-lost', 'movement && shift,error,now', 'false,error,now'),
         ('stale-semantic-number', 'if (pending.cancellable || pending.source.editSession)', 'if (pending.cancellable)'),
         ('ack-without-publication', 'accepted && synchronized', 'accepted'),
+        ('kept-view-holds-programs', 'impl->Quarantine(false,true,true);', ''),
+        ('kept-changed-source',
+         'const bool same = size >= 0 && data && static_cast<size_t>(size) == source.size() &&\n\t\tstd::memcmp(data,source.data(),source.size()) == 0;',
+         'const bool same = size >= 0 && data;'),
+        ('kept-pictures-unresolved', 'impl->lastError.clear();\n\tPrecacheImages(impl->document.Model().root);', 'impl->lastError.clear();'),
         ('ack-before-readback',
          'const bool synchronized = impl->SyncSettings();\n\t\t\tif (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted && synchronized);',
          'if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);\n\t\t\timpl->SyncSettings();'),

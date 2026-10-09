@@ -125,6 +125,8 @@ public:
     void BeginLevelLoad();
     void EndLevelLoad();
     void Reload(bool);
+    void ReloadForLevelLoad();
+    void ReloadGuis(bool,bool);
     void ListGuis() const;
     idUserInterface* Alloc() const;
     void DeAlloc(idUserInterface*);
@@ -153,6 +155,9 @@ static std::function<void()> onBackendDestroy;
 static bool recycleAllocation=false;
 static void* recycledAllocation=nullptr;
 static std::vector<std::string> applicationActions;
+// Whether a retained stand-in keeps what it has loaded at a level load.
+static bool keepRetained=false;
+static int keepQueries=0;
 class idUserInterfaceLocal : public idUserInterfaceManaged {
 public:
     explicit idUserInterfaceLocal(bool managed=true) : idUserInterfaceManaged(managed) {}
@@ -273,6 +278,7 @@ public:
         return true;
     }
     const char* PendingApplicationCommand() const override { return pendingActions.empty()?"":"retained-pending"; }
+    bool KeepForLevelLoad() override { ++keepQueries; return keepRetained; }
     void HandleNamedEvent(const char* name) override {
         if(!idStr::Cmp(name,"queue"))pendingActions.push_back(state.GetString("queuedAction","named"));
         else idUserInterfaceLocal::HandleNamedEvent(name);
@@ -557,6 +563,29 @@ int main() {
     assert(first->loads==3 && replacement->loads==2);
     manager.Shutdown(); Empty();
 
+    // A map change's reload re-initializes every GUI but one that keeps what
+    // it has loaded, which a deferred wrapper asks of its backend; a reload
+    // the console asks for re-initializes them all the same.
+    first=Load("level-first.gui");
+#ifndef ID_DEDICATED
+    auto* kept=static_cast<idUserInterfaceLocal*>(manager.FindGui("level-kept.q4ui",true));
+    auto* wrapped=manager.Alloc();
+    assert(wrapped->InitFromFile("level-wrapped.q4ui"));
+    wrapped->SetStateString("text","application text");
+    keepRetained=true; UI_ReloadForLevelLoad();
+    assert(first->loads==2 && kept->loads==1 && keepQueries==2);
+    assert(!idStr::Icmp(wrapped->GetStateString("text"),"application text"));
+    manager.Reload(true);
+    assert(first->loads==3 && kept->loads==2 && keepQueries==2);
+    assert(!idStr::Icmp(wrapped->GetStateString("text"),"parser default"));
+    keepRetained=false; UI_ReloadForLevelLoad();
+    assert(first->loads==4 && kept->loads==3 && keepQueries==4);
+#else
+    UI_ReloadForLevelLoad();
+    assert(first->loads==2);
+#endif
+    manager.Shutdown(); Empty();
+
     // One object can occur in loaded/demo subsets; a blank demo allocation is
     // still owned. Shutdown destroys both exactly once and is repeatable.
     auto dual=Load("dual.gui"); dual->PublishDemo(); dual->ChangeThinking(true);
@@ -565,8 +594,8 @@ int main() {
     manager.Shutdown();
     assert(destroyed==beforeShutdown+1); Empty(); // blank deferred has no child
     manager.Shutdown(); Empty();
-    assert(recycledAllocation==nullptr && retainedShutdowns==6);
-    std::puts("GUI manager lifecycle: deferred routing/state/save/actions, ownership, direct deletion, refs, uniqueness, material retention, reload and callback address reuse passed");
+    assert(recycledAllocation==nullptr && retainedShutdowns==7);
+    std::puts("GUI manager lifecycle: deferred routing/state/save/actions, ownership, direct deletion, refs, uniqueness, material retention, reload, level-load keep and callback address reuse passed");
 }
 '''
 
@@ -604,6 +633,9 @@ def production_source():
         'void idUserInterfaceManagerLocal::BeginLevelLoad()',
         'void idUserInterfaceManagerLocal::EndLevelLoad()',
         'void idUserInterfaceManagerLocal::Reload(',
+        'void UI_ReloadForLevelLoad(',
+        'void idUserInterfaceManagerLocal::ReloadForLevelLoad(',
+        'void idUserInterfaceManagerLocal::ReloadGuis(',
         'void idUserInterfaceManagerLocal::ListGuis()',
         'idUserInterface *idUserInterfaceManagerLocal::Alloc(',
         'void idUserInterfaceManagerLocal::DeAlloc(',

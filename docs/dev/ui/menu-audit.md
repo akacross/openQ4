@@ -43,6 +43,10 @@ out of scope. It extends the [retained screens](retained-screens.md),
   interleaved startups of the builds before and after, and engine probes
   over the hand-offs, measured the change
   ([startup preload](runtime-performance.md#startup-preload)).
+- **A fifth pass** shortened map changes. Timestamped chains of single-player
+  and multiplayer map changes, interleaved between the builds before and
+  after, and an engine probe over the pause's hand-offs after a second map
+  change measured the change ([map changes](runtime-performance.md#map-changes)).
 
 ## Fixed
 
@@ -81,6 +85,7 @@ out of scope. It extends the [retained screens](retained-screens.md),
 | Low | At 21:9 the Single Player, Campaign and Multiplayer prompt bars hung past the bottom band's raised section, and their place differed from the pages'. | They stand where the pages' bars do, on the raised section at every aspect. |
 | Medium | The title waited while every retained page loaded, each parsed twice, and every multiplayer map's and Arena match's levelshot precached: its first frame came 13.6 s after launch on a debugoptimized build, 6.8 s of it the session's initialization. | Each page is parsed once, on the job system's workers where it can be, and validates without building unused diagnostics; the pause screens, Save Game, Restart Level and the death screen load with the first level; the levelshots precache on idle front-end frames, and Create Server and the Arena page read any still waiting. The title comes at 8.8 s, after 2.1 s of session initialization ([startup preload](runtime-performance.md#startup-preload)). |
 | High | The mouse could not reach Load Game's LOAD GAME and DELETE GAME, Save Game's SAVE GAME, Restart Level's and New Campaign's difficulty plates, New Campaign's START GAME and TURBO MODE, or Demos' PLAY, DELETE and REFRESH. Hit testing takes the topmost box under the pointer, and a full-size group after them in the document, the page's `*-panel` or New Campaign's canvas-size `back-stage`, took their hits even at opacity 0. The keyboard and controllers reached them, and engine captures, which send no input, never showed it. A section plate's box was also its whole 208x52 u art, so on the 30 u difficulty pitch the next plate took the foot of each band. | The plates follow the panel in their page, and New Campaign's prompt bar spans the view on its own. A section plate's target is its 30 u pitch around its band (section 3), from its leading rail to where the plate fades out or its widest label ends, and its art takes no hits, so a plate never covers the next one or the save and demo lists beside it. A native probe moves the pointer to the centre of every control each retained menu screen shows, its tabs and dialogs included, and expects it lit (`CheckMenusPointerReach`); it found nothing else. |
+| Medium | Every map change re-initialized every retained page loaded, the startup's document work again on the main thread: 1.5 to 2.1 s of each map change on a debugoptimized build, for 8 to 16 pages. | A page whose document is unchanged keeps its view through the load: the pictures it names resolve again inside it, and its pending input and requests are dropped, as a new view's would be. Kept, they take 47 to 85 ms, and a map change is 1.5 to 2.2 s shorter in single player and multiplayer, its hand-offs as smooth ([map changes](runtime-performance.md#map-changes)). |
 
 The [retained screens](retained-screens.md#known-limitations) and
 [multiplayer menus](multiplayer-menus.md#known-limitations) known limitations
@@ -96,12 +101,12 @@ Highest impact first.
   Setup are the stock pages, and the retained SYSTEM page stays opt-in until
   presets can be applied ([effect execution](settings-effect-execution.md)).
   Going to them from the retained title swaps the whole backdrop.
-- **Map changes.** Every map change re-initializes every loaded GUI, the
-  retained pages included, on the main thread: the startup's document work
-  again. And opening Create Server or the Arena page in the title's first
-  two seconds, before its idle frames have read every levelshot, reads the
-  rest in one long frame
-  ([startup preload](runtime-performance.md#startup-preload)).
+- **Map changes.** The stock GUIs, the main menu among them, still
+  re-initialize at every map change: with the level-load purge before them,
+  0.2 to 0.5 s of each ([map changes](runtime-performance.md#map-changes)).
+  And opening Create Server or the Arena page in the title's first two
+  seconds, before its idle frames have read every levelshot, reads the rest
+  in one long frame ([startup preload](runtime-performance.md#startup-preload)).
 - **SYSTEM's initial focus.** The opt-in SYSTEM page still opens with nothing
   focused. Its activation begins a settings draft, and whether its first row
   can take focus at that moment was not probed, so its initial focus waits

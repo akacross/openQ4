@@ -153,6 +153,7 @@ public:
 	virtual void				BeginLevelLoad();
 	virtual void				EndLevelLoad();
 	virtual void				Reload( bool all );
+	void						ReloadForLevelLoad();
 	virtual void				ListGuis() const;
 	virtual bool				CheckGui( const char *qpath ) const;
 	virtual idUserInterface *	Alloc( void ) const;
@@ -201,6 +202,7 @@ public:
 private:
 	idUserInterfaceManaged* NativeTextResolve(uiNativeTextRouteProbe_t,void*,const openq4::ui::TextEditorIdentity&) const noexcept;
 	bool NativeTextCheck(uiNativeTextRouteProbe_t,void*,const openq4::ui::NativeTextEditorBarrier&) const noexcept;
+	void						ReloadGuis( bool all, bool levelLoad );
 	void						RegisterAllocation( idUserInterfaceManaged *gui );
 	void						RegisterGui( idUserInterfaceManaged *gui );
 	void						RegisterDemoGui( idUserInterfaceManaged *gui );

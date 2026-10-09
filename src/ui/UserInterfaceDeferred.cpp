@@ -170,6 +170,9 @@ bool idUserInterfaceDeferred::DispatchApplicationActions( const char *command, b
 bool idUserInterfaceDeferred::TakeSessionRequest( const char *command, idStr &out ) {
 	return backend != NULL && backend->TakeSessionRequest( command, out );
 }
+bool idUserInterfaceDeferred::KeepForLevelLoad() {
+	return backend != NULL && backend->KeepForLevelLoad();
+}
 const char *idUserInterfaceDeferred::PendingApplicationCommand() const {
 	return backend != NULL ? backend->PendingApplicationCommand() : "";
 }

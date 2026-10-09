@@ -81,6 +81,7 @@ public:
 		const openq4::ui::TextInputEvent& input, std::string& error) override;
 	bool TakeClipboardRequest(const char* command, uiClipboardRequest_t& out) override;
 	bool TakeSessionRequest(const char* command, idStr& out) override;
+	bool KeepForLevelLoad() override;
 	bool QueryClipboardEditor(uiNumberEditorSnapshot_t& out, std::string& error) override;
 	bool ReplaceClipboardSelection(const uiNumberEditorTarget_t& expected,
 		std::string_view text, std::string& error) override;

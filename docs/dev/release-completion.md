@@ -1602,6 +1602,10 @@
   menus and the pages only a level reaches load with your first level; and
   the multiplayer and Arena map pictures load while the title is up.
 
+- Changing levels and multiplayer maps is quicker with the modern menus on:
+  their pages now keep what they have loaded through a level change instead
+  of being rebuilt every time.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

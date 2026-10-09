@@ -125,6 +125,10 @@ void UI_RunTimeEvents( idUserInterface *gui, int time ) {
 	uiManagerLocal.RunTimeEvents( gui, time );
 }
 
+void UI_ReloadForLevelLoad() {
+	uiManagerLocal.ReloadForLevelLoad();
+}
+
 void idUserInterfaceManagerLocal::RunTimeEvents( idUserInterface *gui, int time ) {
 	for ( int i = 0; i < allocations.Num(); ++i ) {
 		if ( allocations[i] == gui ) { allocations[i]->RunTimeEvents( time ); return; }
@@ -855,6 +859,17 @@ void idUserInterfaceManagerLocal::RegisterIcon( const char *code, const char *sh
 // RAVEN END
 
 void idUserInterfaceManagerLocal::Reload( bool all ) {
+	ReloadGuis( all, false );
+}
+
+// A map change's reload, after BeginLevelLoad: every GUI re-initializes so
+// that the media it references resolve again inside the load, whose purge
+// defaulted them. A GUI that can keep what it has loaded does so instead.
+void idUserInterfaceManagerLocal::ReloadForLevelLoad() {
+	ReloadGuis( true, true );
+}
+
+void idUserInterfaceManagerLocal::ReloadGuis( bool all, bool levelLoad ) {
 	ID_TIME_T ts;
 
 	const idList<idUserInterfaceManaged*> reloadGuis = guis;
@@ -865,6 +880,9 @@ void idUserInterfaceManagerLocal::Reload( bool all ) {
 	for ( int i = 0; i < reloadGuis.Num(); i++ ) {
 		idUserInterfaceManaged *gui = reloadGuis[ i ];
 		if ( guis.Find( gui ) == NULL || gui->allocationId != identities[ i ] ) {
+			continue;
+		}
+		if ( levelLoad && gui->KeepForLevelLoad() ) {
 			continue;
 		}
 		// InitFromFile may replace the owned source string while parsing.
