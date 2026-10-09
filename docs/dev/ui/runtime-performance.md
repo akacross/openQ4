@@ -685,8 +685,9 @@ later is parsed again mid-frame ("Loading non pre-cached material decl"), its
 image read then too where a level load had read it. A language or renderer
 change already rebuilds every retained view on its own (`RefreshResources`).
 
-What changed: the map change calls `UI_ReloadForLevelLoad`. The stock GUIs
-re-initialize as before. A retained page whose document reads back byte for
+The first change made map changes call `UI_ReloadForLevelLoad`, initially
+leaving stock GUI re-initialization intact (the follow-up below removes it).
+A retained page whose document reads back byte for
 byte unchanged keeps its view (`idUserInterfaceRetained::KeepForLevelLoad`):
 the pictures it names resolve again inside the load, as its reload had them
 do, and its pending input, programs and session requests are dropped, as a new
@@ -747,15 +748,119 @@ levelshots the front end's idle frames precache once the level is over (the
 probe starts in the level, so the title never read them); no picture was read
 late.
 
-What remains:
+### Stock GUI reuse
 
-- **The stock GUIs.** The stock GUIs, the main menu among them, still
-  re-initialize at every map change, and from the second on the last level's
-  own GUIs with them: with the level-load purge before them, 0.2 to 0.5 s of
-  each change (medians 0.22, 0.45 and 0.52 s in single player, 0.27 and
-  0.51 s in multiplayer). A stock GUI's windows hold their materials, so
-  keeping one would mean resolving them again window by window instead of
-  parsing it.
+9 October 2026, follow-up to the retained-page change. `GUI_LEVEL_PURGE_DONE`
+(with `com_showLevelLoadTimes 1` and `com_timestampPrints 2`) now separates
+level-load setup and the declaration/renderer/sound/BSE purge from the first
+stock GUI. The earlier table's stock estimate included that preceding work.
+
+An unchanged stock GUI now implements the same `KeepForLevelLoad` hook. It
+keeps its parsed window tree, compares the root and every included source
+byte for byte, and resolves its media inside the load. The parser observation
+also remembers failed include candidates: adding a file that takes precedence
+invalidates the cache even if the previously selected include is unchanged.
+Explicit `reloadGuis all`, language reloads, changed/missing sources, failed
+parses, incremental editor parses and GUIs restored from a save or demo use the full
+reload. Custom game/editor widgets and native chat surfaces retain their
+existing reload path.
+
+A background-only walk is insufficient. During the original parse a scoped
+declaration observer records materials, script-only background alternatives,
+script sounds, expression tables and widget resources. Re-finding those
+references after the purge restores their contents and level-use marks;
+GUI material sorting is reapplied. The live window walk also references
+current backgrounds, including simple windows and directly assigned scroller
+backgrounds, and expression tables. Slider thumbs refresh their dimensions.
+Previously displayed model previews rebuild their render-world references
+inside the load so the model purge cannot leave a stale preview behind.
+
+Window identities survive; their authored presentation/script values are
+restored from an in-memory snapshot taken immediately after parsing. This
+resets a previously open Load/Save subpage, timeline flags, transitions and
+focus just as a fresh parse did. Constructor-assigned scroller backgrounds
+are retained separately because they have no authored background name in
+the snapshot. The backend repeats initialization/activation and drops
+pending commands and bind handling.
+The `text` and `name` dictionary defaults reset as in `InitFromFile`; other
+game-published values stay live. GUI state publishers continue to update
+bound pictures normally. The cache
+is engine-private, counted in `listGuis`, and does not change game-module or
+save-file formats. The source/media observation scopes are thread-local and
+inactive outside parsing; no replacement game assets are added.
+
+Four interleaved pairs per mode (AB, BA, AB, BA), after a separate warm-up
+for each side, measured 40 map changes. Windows x64 debugoptimized, OpenGL,
+1280x720 hidden/windowed, 60 fps, sound disabled, stock installed assets and
+`ui_retained 1`; no device input. The client was the only runtime difference:
+before was `37f1d1d5` plus the purge marker, SHA-256 prefix
+`2be75b8952b9177d`; after was `c442b13083dd6903`. Renderer/game modules and
+both staged packages matched. Peer clients and CPU tests were paused; free
+commit checks were 25–29 GB. Timings below are milliseconds; before/after
+columns are medians, and savings are medians of paired differences.
+
+| Map change | Stock before → after | Stock saved | Setup/purge before → after | Whole change saved |
+| --- | ---: | ---: | ---: | ---: |
+| Title → `game/airdefense1` | 176.0 → 13.5 | 162.5 | 1.0 → 2.0 | 222.5 |
+| → `game/airdefense2` | 327.5 → 62.5 | 266.5 | 57.0 → 58.5 | 385.0 |
+| → `game/airdefense1` | 355.5 → 61.5 | 294.0 | 33.5 → 36.5 | 432.5 |
+| Title → `mp/q4dm1` | 173.0 → 17.5 | 156.0 | 1.5 → 2.0 | 169.5 |
+| → `mp/q4dm2` | 325.5 → 62.5 | 262.0 | 19.5 → 20.5 | 329.5 |
+
+The stock share falls 81–92%. The candidate keeps 8 stock GUIs from the
+title, 49 then 46 in the SP chain, and 29 on the second MP change. Setup/purge
+paired differences are only 0–2 ms. Whole-change savings use the frame that
+contains the change, including the wipe and autosave. For the longest of the
+first 120 post-load frames, paired median differences range from −0.5 to
++2.5 ms; the first MP map moves from a 20 ms median to 22 ms. Every SP change
+and each second MP change has zero non-precached warnings. Both clients emit
+the same 68 existing warnings on the first MP map (player/entity/effect
+definitions and menu/weapon media); names and multiplicities match in every
+pair.
+
+Two interleaved pairs of hand-offs after the second SP map change, longest
+frame over each step:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| Pause | 87, 81 ms | 76, 80 ms |
+| SAVE GAME | 38, 32 ms | 28, 29 ms |
+| LOAD GAME | 29, 27 ms | 29, 26 ms |
+| RESTART LEVEL | 22, 25 ms | 23, 19 ms |
+| Resume | 18, 18 ms | 18, 18 ms |
+| Death | 104, 105 ms | 104, 104 ms |
+| Death screen's LOAD GAME | 152, 151 ms | 147, 143 ms |
+
+All steps complete and the engine screenshots show the expected pages.
+`fs_debug 1` records identical file-read counters in every pair: no new late
+image reads. These direct-to-map probes skip title warm-up, so both builds
+still open 300 images (123 distinct paths) during the hand-offs, including
+existing deferred levelshots, objective and player-preview textures. Both
+also produce the same 27 precache warnings after the first load. Those
+baseline reads/warnings remain; this change does not claim to remove them.
+
+A separate stock-only pair (`ui_retained 0`) saves on airdefense1, changes to
+airdefense2, displays reused monitor GUIs, opens Pause/Save/Load, and restores
+the saved airdefense1 while Load Game is open. Pause and Save then reopen
+correctly, with no unreachable actions or errors and identical precache
+warnings. Engine captures confirm the menu defaults and reused monitor bank.
+This caught an earlier prototype retaining its open Load subpage; restoring
+the authored window snapshot fixes it without rebuilding the tree.
+
+The fast menu gate, all 51 related script checks (including the new compiled
+stock-cache regression), and all 160 native checks pass. The full suites
+passed after the authored-state reset fix; the final dictionary-default
+adjustment also passed its targeted script checks and the full native suite.
+The regression exercises byte changes, failed include candidates, scoped
+observation, authored-state reset, purge re-referencing and the real
+window/scroller traversal.
+Evidence is under `.tmp/mapchange/`: `stock-defaults-{sp,mp}-report.txt`,
+`stock-defaults-warning-check.json`, `stock-defaults-handoff-comparison.json`,
+`stock-defaults-identity.log`, `stock-defaults-before-identity.log`,
+`stock-defaults-screen-comparison.json`, `stock-defaults-gate.log`,
+`stock-defaults-scripts.log`, `stock-final-native.log`, `test-summary.json`,
+and `runs/stock-defaults-*` (logs and engine captures).
+The fixed independent runtimes are `.tmp/runtime/mc-stock-{before,after}/`.
 
 ## Remaining requirements
 

@@ -2,6 +2,15 @@
 
 ## 0.13.2 release candidate
 
+- [x] Reuse unchanged stock GUI trees across map changes. Re-reference their
+  parse-time materials, sounds and tables inside the load, including window
+  backgrounds and model previews; compare the source and include bytes before
+  reuse, and reset authored window state. Four interleaved SP/MP pairs cut
+  stock GUI time 81–92%; paired hand-offs and stock save restores pass with
+  matching file-read/warning counters. Fast gate, 51 scripts and 160 native
+  checks pass.
+  See [map changes](ui/runtime-performance.md#map-changes).
+
 - [x] Make temporal AA production quality and the default upscaler (idTech 6
   roadmap: complete motion ownership). The velocity pass now owns every moving
   surface per pixel on OpenGL and Vulkan: exact vectors for rigid entities,

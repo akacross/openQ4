@@ -6739,6 +6739,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		}
 	}
 
+	if ( com_showLevelLoadTimes.GetBool() ) common->Printf( "GUI_LEVEL_PURGE_DONE\n" );
 	uiManager->BeginLevelLoad();
 	// Every GUI's media resolve again inside the load; an unchanged retained
 	// document keeps its view instead of re-initializing.

@@ -33,6 +33,8 @@ class idWindow;
 class idWinVec4;
 class idChatWindow;
 
+struct LegacyLevelLoadCache;
+
 class idUserInterfaceLocal : public idUserInterfaceManaged {
 	friend class idUserInterfaceManagerLocal;
 public:
@@ -44,6 +46,7 @@ public:
 	virtual bool				IsInteractive() const;
 	virtual void				SetInteractive(bool interactive);
 	virtual bool				InitFromFile( const char *qpath, bool rebuild = true, bool cache = true );
+	virtual bool KeepForLevelLoad() override;
 	virtual const char *		HandleEvent( const sysEvent_t *event, int time, bool *updateVisuals );
 	virtual void				HandleNamedEvent( const char* namedEvent );
 	virtual void				Redraw( int time, bool useAspectCorrection = true );
@@ -112,6 +115,7 @@ public:
 	bool						HasNamedEvent( const char *eventName ) const;
 
 private:
+	std::unique_ptr<LegacyLevelLoadCache> levelLoadCache;
 	bool						active;
 	bool						loading;
 	bool						interactive;

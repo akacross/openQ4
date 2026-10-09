@@ -36,6 +36,7 @@ public:
 	virtual ~idRenderWindow();
 
 	virtual void PostParse();
+	virtual void RefreshForLevelLoad() override;
 	virtual void Draw( int time, float x, float y );
 	virtual size_t Allocated() { return idWindow::Allocated(); };
 	virtual idWinVar *GetWinVarByName( const char *_name, bool winLookup = false, drawWin_t **owner = NULL );

@@ -450,6 +450,18 @@ void idRenderWindow::Draw( int time, float x, float y ) {
 	world->RenderScene( &refdef );
 }
 
+void idRenderWindow::RefreshForLevelLoad() {
+    idWindow::RefreshForLevelLoad();
+    const bool hadModel = modelDef[0] != -1;
+    needsRender = true;
+    updateAnimation = true;
+    if (hadModel && gameEdit) {
+        UpdateRenderVars();
+        PreRender();
+        BuildAnimation(gui->GetTime());
+    }
+}
+
 void idRenderWindow::PostParse() {
 	idWindow::PostParse();
 }

@@ -324,6 +324,9 @@ public:
 	bool			WriteSaveGameString( const char *string, idFile *savefile );
 	bool			WriteSaveGameTransition( idTransitionData &trans, idFile *savefile );
 	bool			WriteSaveGameChildReference( idWindow *child, idFile *savefile, const char *fieldName, bool allowDescendant );
+	bool CanKeepForLevelLoad() const;
+	void CaptureForLevelLoad();
+	virtual void RefreshForLevelLoad();
 	virtual void	WriteToSaveGame( idFile *savefile );
 	bool			ReadSaveGameString( idStr &string, idFile *savefile );
 	bool			ReadSaveGameTransition( idTransitionData & trans, idFile *savefile );
@@ -514,6 +517,7 @@ protected:
 	idList<idWinVar*> updateVars;
 
 	idRectangle textRect;			// text extented rect
+	const idMaterial *levelLoadDirectBackground = NULL;
 	const idMaterial *background;         // background asset  
 
 	idWindow *parent;				// parent window
