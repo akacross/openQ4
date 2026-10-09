@@ -89,8 +89,13 @@ bool Identifier(const std::string& text) {
 	return true;
 }
 std::string PointerPart(const std::string& text) {
+	if (text.find_first_of("~/") == std::string::npos) return text;
 	std::string result;
-	for (char c : text) result += c == '~' ? "~0" : c == '/' ? "~1" : std::string(1,c);
+	for (char c : text) {
+		if (c == '~') result += "~0";
+		else if (c == '/') result += "~1";
+		else result += c;
+	}
 	return result;
 }
 void Diagnose(std::vector<Diagnostic>& output, const std::string& source,
@@ -101,7 +106,7 @@ void Diagnose(std::vector<Diagnostic>& output, const std::string& source,
 	}
 	output.push_back(std::move(d));
 }
-bool Utf8(const std::string& text, size_t& bad) {
+bool Utf8(std::string_view text, size_t& bad) {
 	for (size_t i = 0; i < text.size();) {
 		bad = i;
 		const unsigned char c = text[i++];
@@ -220,11 +225,15 @@ std::vector<std::string> ExpandedProperties(const std::string& name) {
 	const auto found = shorthands.find(name);
 	return found == shorthands.end() ? std::vector<std::string>{name} : found->second;
 }
+// A passing check builds neither its pointer nor its message. A document runs
+// hundreds of thousands of checks, and building each one's diagnostic before
+// it ran was most of the validation time.
+#define Require(condition, at, path, message) do { if (!(condition)) Fail(at,path,message); } while (false)
 class Validator {
 public:
 	Validator(const std::string& text, std::vector<Diagnostic>& errors) : source(text), diagnostics(errors) {}
 	DocumentModel Read(const Json::Value& root) {
-		FiniteTree(root,"");
+		FiniteTree(root);
 		Fields(root,"",{"format","version","id","canvas","tokens","root","timelines","state","bindings","actions","presentationVariables","aliases","events","detail","editor","extensions"});
 		Require(root["format"] == "openq4-ui",root,"/format","Expected format 'openq4-ui'");
 		Require(root["version"].isUInt() && root["version"].asUInt() == 1,root["version"],"/version","Unsupported document version; expected 1");
@@ -745,26 +754,60 @@ private:
 		}
 		bindingTargets = std::move(targets);
 	}
-	void Require(bool condition, const Json::Value& at, const std::string& path, const std::string& message) {
-		if (condition) return;
+	[[noreturn]] void Fail(const Json::Value& at, const std::string& path, const std::string& message) {
 		Diagnose(diagnostics,source,path,message,static_cast<size_t>(std::max<ptrdiff_t>(0,at.getOffsetStart())));
 		throw ValidationError{};
 	}
+	static std::string_view MemberName(const Json::Value::const_iterator& member) {
+		const char* end = nullptr;
+		const char* begin = member.memberName(&end);
+		return begin ? std::string_view(begin,static_cast<size_t>(end-begin)) : std::string_view();
+	}
 	void Fields(const Json::Value& value, const std::string& path, std::initializer_list<std::string_view> allowed) {
 		Require(value.isObject(),value,path,"Expected an object");
-		for (const auto& name : value.getMemberNames())
-			Require(std::find(allowed.begin(),allowed.end(),name) != allowed.end(),value[name],path+"/"+PointerPart(name),"Unknown field; extension data belongs in 'extensions'");
+		for (auto member = value.begin(); member != value.end(); ++member)
+			Require(std::find(allowed.begin(),allowed.end(),MemberName(member)) != allowed.end(),*member,path+"/"+PointerPart(std::string(MemberName(member))),"Unknown field; extension data belongs in 'extensions'");
 		if (value.isMember("extensions")) Require(value["extensions"].isObject(),value["extensions"],path+"/extensions","Extensions must be an object");
 	}
-	void FiniteTree(const Json::Value& v, const std::string& path) {
-		if (v.isNumeric()) Require(std::isfinite(v.asDouble()),v,path,"Non-finite numbers are not supported");
+	// The first non-finite number, invalid string or invalid key, visiting
+	// members in key order and keys before their values; a key's fault is its
+	// object's. A passing tree builds no pointers.
+	static const Json::Value* FiniteFault(const Json::Value& v, const char*& message) {
 		size_t bad = 0;
-		if (v.isString()) Require(Utf8(v.asString(),bad),v,path,"Invalid Unicode or NUL in string");
-		if (v.isObject()) for (const auto& name : v.getMemberNames()) {
-			Require(Utf8(name,bad),v,path,"Invalid Unicode or NUL in object key");
-			FiniteTree(v[name],path+"/"+PointerPart(name));
+		if (v.isNumeric() && !std::isfinite(v.asDouble())) { message = "Non-finite numbers are not supported"; return &v; }
+		const char* begin = nullptr; const char* end = nullptr;
+		if (v.isString() && v.getString(&begin,&end) && !Utf8(std::string_view(begin,static_cast<size_t>(end-begin)),bad)) {
+			message = "Invalid Unicode or NUL in string"; return &v;
 		}
-		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) FiniteTree(v[i],path+"/"+std::to_string(i));
+		if (v.isObject()) for (auto member = v.begin(); member != v.end(); ++member) {
+			if (!Utf8(MemberName(member),bad)) { message = "Invalid Unicode or NUL in object key"; return &v; }
+			if (const auto* fault = FiniteFault(*member,message)) return fault;
+		}
+		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) if (const auto* fault = FiniteFault(v[i],message)) return fault;
+		return nullptr;
+	}
+	static bool PointerTo(const Json::Value& v, const Json::Value* target, std::string& path) {
+		if (&v == target) return true;
+		const size_t length = path.size();
+		if (v.isObject()) for (auto member = v.begin(); member != v.end(); ++member) {
+			path += "/"+PointerPart(std::string(MemberName(member)));
+			if (PointerTo(*member,target,path)) return true;
+			path.resize(length);
+		}
+		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) {
+			path += "/"+std::to_string(i);
+			if (PointerTo(v[i],target,path)) return true;
+			path.resize(length);
+		}
+		return false;
+	}
+	void FiniteTree(const Json::Value& root) {
+		const char* message = nullptr;
+		const auto* fault = FiniteFault(root,message);
+		if (!fault) return;
+		std::string path;
+		PointerTo(root,fault,path);
+		Fail(*fault,path,message);
 	}
 	std::string Id(const Json::Value& value, const std::string& path) {
 		Require(value.isString() && Identifier(value.asString()),value,path,"Expected a stable ID (1..128 ASCII letters, digits, '.', '_' or '-')");
@@ -903,7 +946,7 @@ private:
 			Fields(command,p,{"id","op","points","extensions"});
 			PathCommand parsed; parsed.id = Id(command["id"],p+"/id");
 			Require(ids.insert(parsed.id).second,command["id"],p+"/id","Duplicate path command ID");
-			const std::map<std::string,std::pair<PathOperation,unsigned>> operations = {
+			static const std::map<std::string,std::pair<PathOperation,unsigned>> operations = {
 				{"move",{PathOperation::Move,1}},{"line",{PathOperation::Line,1}},{"quadratic",{PathOperation::Quadratic,2}},
 				{"cubic",{PathOperation::Cubic,3}},{"close",{PathOperation::Close,0}}};
 			Require(command["op"].isString(),command["op"],p+"/op","Expected path operation");
@@ -1114,7 +1157,7 @@ private:
 				parsed.enabled = control["enabled"].asBool();
 			}
 			Fields(control["states"],p+"/states",{"default","hover","focus","pressed","disabled","extensions"});
-			const std::map<std::string,ControlState> states = {{"default",ControlState::Default},{"hover",ControlState::Hover},
+			static const std::map<std::string,ControlState> states = {{"default",ControlState::Default},{"hover",ControlState::Hover},
 				{"focus",ControlState::Focus},{"pressed",ControlState::Pressed},{"disabled",ControlState::Disabled}};
 			for (const auto& [name,state] : states) parsed.states[state] = Id(control["states"][name],p+"/states/"+name);
 			if (control.isMember("navigation")) {
@@ -1538,6 +1581,7 @@ private:
 	// ownership checks look a pair up instead of scanning every track.
 	std::set<std::pair<std::string,std::string>> trackTargets, bindingTargets;
 };
+#undef Require
 const Node* Find(const Node& node, const std::string& id) {
 	if (node.id == id) return &node;
 	for (const auto& child : node.children) if (auto* found = Find(child,id)) return found;

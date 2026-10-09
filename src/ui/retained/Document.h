@@ -289,14 +289,16 @@ bool ParseStateValues(const std::string& source, StateValues& values, std::vecto
 // Canonical JSONC source is retained verbatim. DOM source offsets make edits
 // transactional and preserve comments/extension fields outside the edited span.
 // JsonCpp and its DOM do not cross this library boundary.
+// A load or an edit replaces the parsed document and never changes it, so a
+// copy shares it: a GUI and its view validate one document once.
 class Document {
 public:
 	Document();
 	~Document();
 	Document(Document&&) noexcept;
 	Document& operator=(Document&&) noexcept;
-	Document(const Document&) = delete;
-	Document& operator=(const Document&) = delete;
+	Document(const Document&) = default;
+	Document& operator=(const Document&) = default;
 	bool Load(const std::string& source, std::vector<Diagnostic>& diagnostics);
 	bool ReplaceValue(const std::string& jsonPointer, const std::string& jsonValue,
 		std::vector<Diagnostic>& diagnostics);
@@ -307,7 +309,7 @@ public:
 	std::string BuildMarkup() const;
 private:
 	struct Impl;
-	std::unique_ptr<Impl> impl;
+	std::shared_ptr<Impl> impl;
 };
 
 } // namespace openq4::ui

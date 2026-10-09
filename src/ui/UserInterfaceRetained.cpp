@@ -864,7 +864,8 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	if (!impl->textBackend || !textDocument) { impl->Error("GUI text lifetime exhausted"); return false; }
 	auto* view = RetainedUI_CreateView(Impl::ResourceEvent,impl.get());
 	if (!view) return false;
-	bool valid = RetainedUI_LoadView(view,source,path,diagnostics);
+	// The view shares the document validated above instead of parsing it again.
+	bool valid = RetainedUI_LoadParsedView(view,candidate,path,diagnostics);
 	if (valid) valid = snapshot.empty() ? RetainedUI_ViewRuntime(view)->SetState(application,error,RetainedUI_PresentationTime()) :
 		RetainedUI_ViewRuntime(view)->RestoreSnapshot(snapshot,error,RetainedUI_PresentationTime());
 	if (!valid) {

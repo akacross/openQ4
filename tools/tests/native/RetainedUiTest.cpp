@@ -452,6 +452,40 @@ static void CheckDetailCard(TestHost& host) {
 	Check(values.contains("subject") && runtime.GetStateValue("picked",values["picked"]) && !runtime.GetStateValue("absent",values["subject"]),
 		"one state reads without copying the rest; an undeclared one is refused");
 }
+// A document parsed once serves both a GUI and its view: a copy shares the
+// parsed source and model, an edit of one copy replaces only its own, and a
+// runtime loaded from the parsed document presents as one loaded from the
+// source.
+static void CheckSharedDocument(TestHost& host) {
+	const std::string source = R"json({"format":"openq4-ui","version":1,"id":"shared",
+	 "state":{"wide":{"type":"boolean","initial":true}},
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","value":100,"unit":"%"},"height":{"type":"length","value":100,"unit":"%"}},
+	  "children":[{"id":"bar","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},
+	   "left":{"type":"length","value":20,"unit":"dp"},"top":{"type":"length","value":30,"unit":"dp"},
+	   "width":{"type":"length","value":100,"unit":"dp"},"height":{"type":"length","value":10,"unit":"dp"},"opacity":{"type":"number","value":1}}}]},
+	 "bindings":[{"id":"barFade","node":"bar","property":"opacity","value":{"op":"select","args":[{"state":"wide"},0.5,1]}}]})json";
+	std::vector<Diagnostic> diagnostics;
+	Document parsed;
+	Check(parsed.Load(source,diagnostics),"the shared document loads");
+	Document copy = parsed;
+	Check(&copy.Model() == &parsed.Model() && copy.Source() == parsed.Source(),"a copy shares the parsed source and model");
+	Check(copy.ReplaceValue("/root/children/0/properties/left/value","40",diagnostics) &&
+		&copy.Model() != &parsed.Model() && parsed.Source() == source && parsed.Model().FindNode("bar") != nullptr,
+		"an edit replaces only the edited copy's document");
+	Runtime fromSource(host), fromDocument(host), fromNothing(host);
+	Check(fromSource.Initialize() && fromSource.LoadDocument(source,"shared.q4ui",diagnostics),"load the shared document from its source");
+	Check(fromDocument.Initialize() && fromDocument.LoadDocument(parsed,"shared.q4ui",diagnostics) && diagnostics.empty(),
+		"load the shared document as parsed");
+	Check(fromNothing.Initialize() && !fromNothing.LoadDocument(Document(),"empty.q4ui",diagnostics) && !fromNothing.IsLoaded(),
+		"a document that never loaded is refused");
+	Viewport viewport; viewport.width = 1280; viewport.height = 720;
+	fromSource.Frame(viewport,1); fromDocument.Frame(viewport,1);
+	Bounds a{}, b{};
+	const auto fadeA = fromSource.PresentedValue("bar","opacity"), fadeB = fromDocument.PresentedValue("bar","opacity");
+	Check(fromSource.GetBounds("bar",a) && fromDocument.GetBounds("bar",b) && Near(a.x,b.x) && Near(a.y,b.y) && Near(a.width,b.width) &&
+		fadeA && fadeB && std::abs(fadeA->data[0]-0.5) < 0.01 && std::abs(fadeB->data[0]-0.5) < 0.01 && fromSource.GetState() == fromDocument.GetState(),
+		"a runtime loaded from the parsed document presents as one loaded from the source");
+}
 
 int main(int argc, char** argv) {
 	CheckTypedActionDescriptors();
@@ -1310,7 +1344,8 @@ int main(int argc, char** argv) {
 	Check(host.errors==0,"no library warnings or errors");
 	CheckCompletionPrograms(host);
 	CheckDetailCard(host);
+	CheckSharedDocument(host);
 	CheckSoftFocus(host);
 	CheckRetainedMeshes(host);
-	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, detail cards, soft focus and retained meshes passed");
+	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, detail cards, shared documents, soft focus and retained meshes passed");
 }

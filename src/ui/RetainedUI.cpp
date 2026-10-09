@@ -1037,6 +1037,17 @@ bool RetainedUI_LoadView(retainedUIView_t* view, const std::string& source, cons
 	}
 	return LoadViewDocument(*view,source,path,true,diagnostics);
 }
+bool RetainedUI_LoadParsedView(retainedUIView_t* view, const openq4::ui::Document& document, const std::string& path,
+	std::vector<openq4::ui::Diagnostic>& diagnostics) {
+	diagnostics.clear();
+	if (!RegisteredView(view) || !RefreshResources() || !RegisteredView(view) || view->edit->destroyPending) {
+		diagnostics.push_back({"","Retained view is unavailable during resource lifecycle changes"}); return false;
+	}
+	TouchEdit(*view);
+	if (!view->runtime->LoadDocument(document,path,diagnostics)) return false;
+	view->source = document.Source(); view->path = path; view->canonical = true; view->failed = false;
+	return true;
+}
 bool RetainedUI_PrepareView(retainedUIView_t* view) {
 	return RegisteredView(view) && RefreshResources() && RegisteredView(view) && !view->edit->destroyPending && !view->failed && view->runtime->IsLoaded();
 }
@@ -1434,6 +1445,7 @@ retainedUIView_t* RetainedUI_CreateView(retainedUIViewCallback_t,void*) { return
 void RetainedUI_DestroyView(retainedUIView_t*) {}
 openq4::ui::Runtime* RetainedUI_ViewRuntime(retainedUIView_t*) { return nullptr; }
 bool RetainedUI_LoadView(retainedUIView_t*,const std::string&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
+bool RetainedUI_LoadParsedView(retainedUIView_t*,const openq4::ui::Document&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
 bool RetainedUI_PrepareView(retainedUIView_t*) { return false; }
 bool RetainedUI_DrawViewRoot(retainedUIView_t*,const openq4::ui::Viewport&) { return false; }
 bool RetainedUI_QueryEditIdentity(retainedUIView_t*,retainedUIEditIdentity_t&) noexcept{return false;}

@@ -197,6 +197,8 @@ public:
 	// Integration-spike entry point, not the canonical editor serialization.
 	bool LoadMarkup(const std::string& markup, const std::string& sourcePath);
 	bool LoadDocument(const std::string& source, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
+	// A document its caller already loaded, shared rather than parsed again.
+	bool LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
 	bool SetState(const StateValues& changes, std::string& error, double monotonicSeconds);
 	StateValues GetState(bool includeHostSources = true) const;
 	// One state's value without copying the rest; false when it is undeclared.
@@ -342,6 +344,7 @@ private:
     std::shared_ptr<Canvas> canvas;
     bool Mutate(bool cleanup=false) noexcept;
     bool Layout(const Viewport&,double);
+    bool LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
     struct Impl;
 	std::unique_ptr<Impl> impl;
 };

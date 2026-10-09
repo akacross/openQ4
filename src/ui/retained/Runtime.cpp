@@ -1718,6 +1718,15 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 
 	auto candidate = std::make_unique<Document>();
 	if (!candidate->Load(source,diagnostics)) return false;
+	return LoadCanonical(std::move(candidate),sourcePath,diagnostics);
+}
+bool Runtime::LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
+    if(!Mutate())return false;
+	diagnostics.clear();
+	if (document.Source().empty()) return false; // Never loaded.
+	return LoadCanonical(std::make_unique<Document>(document),sourcePath,diagnostics);
+}
+bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
 	if (!LoadMarkup(candidate->BuildMarkup(),sourcePath)) return false;
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	impl->motion.Reset(candidate->Model());
