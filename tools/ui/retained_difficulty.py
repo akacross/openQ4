@@ -182,9 +182,10 @@ def restart_level_document() -> dict:
     back = page_prompts(doc, "restart_back", action="back")
     # The plates show at once, under the title the pause carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
+    # The plates follow the panel, whose full-size box would take their hits.
     panel = group("restart-panel", {**FULL, "opacity": number(1)}, [description, go, back])
     stage = group("restart-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
-                                    "margin-left": length(-CANVAS_W / 2)}, [*plates, panel])
+                                    "margin-left": length(-CANVAS_W / 2)}, [panel, *plates])
     doc.timelines.add("arrive", 150, [track(node, "opacity", [(0, number(0)), (1, number(0)), (150, number(1))])
                                       for node in ("restart-panel", "restart-backing")])
     doc.timelines.add("rest", 1, [track(node, "opacity", [(0, number(0)), (1, number(0))])
@@ -262,7 +263,10 @@ def new_campaign_document() -> dict:
     description = difficulty_description(doc, "newgame-description", "newgame.skill")
     start = primary_plate(doc, "newgame_start", "#str_200020", *PRIMARY, action="start")
     turbo = turbo_plate(doc, "newgame_turbo", "newgame.turbo")
-    back = page_prompts(doc, "newgame_back", action="back")
+    # The prompt bar spans the view on its own, so no canvas-size group over
+    # the content takes the plates' hits; it waits hidden with the page.
+    prompts = page_prompts(doc, "newgame_back", action="back", in_canvas=False)
+    prompts["properties"]["opacity"] = number(0)
     canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
     content = group("content", {**canvas, "transform": transform(), "opacity": number(0)}, [*plates, description, start, turbo])
     bands = framing_bands("band")
@@ -281,10 +285,9 @@ def new_campaign_document() -> dict:
     doc.bind("title.text", "title", "text", {"op": "select", "args": [{"state": "newgame.awakening"}, "#str_230040", "#str_230039"]})
     backing_node = backing("newgame-backing")
     backing_node["properties"]["opacity"] = number(0)
-    back_stage = group("back-stage", {**canvas, "opacity": number(0)}, [back])
     shown, hidden = colour([1, 1, 1, 0.5]), colour([1, 1, 1, 0])
     sibling_motion(doc, [("content", "opacity", number(1), number(0), True), ("title", "color", shown, hidden, True),
-                         ("back-stage", "opacity", number(1), number(0), False),
+                         ("prompts", "opacity", number(1), number(0), False),
                          ("newgame-backing", "opacity", number(1), number(0), False)], later=True)
     for suffix, scale in [("", CRUMB_SCALE)] + [(f"-{language}", fit) for language, fit in fits.items()]:
         fitted = crumb_transform(scale)
@@ -294,7 +297,7 @@ def new_campaign_document() -> dict:
         track("content", "opacity", [(0, number(0)), (1, number(0))]),
         track("title", "transform", [(0, transform()), (1, transform())]),
         track("title", "color", [(0, hidden), (1, hidden)]),
-        track("back-stage", "opacity", [(0, number(0)), (1, number(0))]),
+        track("prompts", "opacity", [(0, number(0)), (1, number(0))]),
         track("newgame-backing", "opacity", [(0, number(0)), (1, number(0))]),
     ])
     doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "siblingEnter"}, *by_language(doc, "crumbRest", fits),
@@ -303,5 +306,5 @@ def new_campaign_document() -> dict:
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits)]
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"), "font-size": length(16),
                             "color": colour([1, 1, 1, 0.8])},
-                 [*lit_field("field", 0.7), *bands, backing_node, content, titles, back_stage])
+                 [*lit_field("field", 0.7), *bands, backing_node, content, titles, prompts])
     return doc.build(root)

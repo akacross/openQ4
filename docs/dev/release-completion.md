@@ -1579,6 +1579,13 @@
   was, and you can still click it. On wide screens the Single Player,
   Campaign and Multiplayer prompts no longer run past the bottom frame.
 
+- The mouse now works on every button of the rebuilt Load Game, Save Game,
+  Restart Level, New Campaign and Demos pages. LOAD GAME, DELETE GAME, SAVE
+  GAME, the difficulties, START GAME, TURBO MODE, PLAY, DELETE and REFRESH
+  ignored the pointer before (the keyboard and controllers always reached
+  them), and pointing at the lower edge of a difficulty no longer lights the
+  one below it.
+
 - When a selected button is switched off or a server row disappears, the
   next move picks up from where the selection was instead of jumping to the
   top of the page, and Back on a number field you have not changed leaves

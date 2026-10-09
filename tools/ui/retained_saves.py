@@ -55,6 +55,8 @@ ROW_W, ROW_H = 394.0, 20.0                 # tabstops 0, 180 and 394: the scroll
 LOCATION_X = 180.0
 HEAD_TOP = 63.0
 RULE_Y = 77.6                              # horiz_line2's two centre texels, drawn at 75 u by 6 u
+PLATE_PITCH = 30.0                         # a section plate's target: the navigation pitch (section 3)
+PLATE_FADE = 208 * 0.94                    # u: where a section plate's fill and rail are gone
 
 
 def section_plate(doc: Document, ident: str, key: str, left: float, top: float, *, action: str | None = None,
@@ -69,7 +71,12 @@ def section_plate(doc: Document, ident: str, key: str, left: float, top: float, 
     label is `label_w` u wide, past the plate's faded end where it may run.
     With `selected`, an expression, the plate lights while it holds the
     choice, as the stock New Game page lights its difficulty: the plate at
-    full strength and its label orange, whatever its feedback."""
+    full strength and its label orange, whatever its feedback.
+    The control is the plate's target (section 3): its 30 u pitch centred on
+    the band, from the leading rail to where the plate fades out or the label
+    ends in the widest language. The art around it never takes the pointer,
+    so a plate takes no hits over the next plate on its pitch or the list
+    beside it."""
     width, height = U * 208, U * 52
     band_top, band_bottom, cut = U * 13.0, U * 37.4, U * 11.4
     fade = [(0, [0, 0, 0, 1]), (0.57, [0, 0, 0, 1]), (0.72, [0, 0, 0, 0.5]), (0.94, [0, 0, 0, 0]), (1, [0, 0, 0, 0])]
@@ -131,7 +138,10 @@ def section_plate(doc: Document, ident: str, key: str, left: float, top: float, 
         control["action"] = action
     else:
         control["event"] = event
-    return group(ident, absolute(left=U * left, top=U * top, width=width, height=height), parts, control=control)
+    inset = (band_top + band_bottom - U * PLATE_PITCH) / 2
+    reach = max(U * PLATE_FADE, U * 18 + max(text_width("marine", text, 22.3) for text in table_text(key).values()))
+    art = group(f"{ident}-art", {**absolute(left=0, top=-inset, width=width, height=height), "pointer-events": keyword("none")}, parts)
+    return group(ident, absolute(left=U * left, top=U * top + inset, width=reach, height=U * PLATE_PITCH), [art], control=control)
 
 
 def row_light(alpha: float) -> list:
@@ -416,10 +426,11 @@ def load_game_document() -> dict:
     back = page_prompts(doc, "load_back", action="back")
     # The plates show at once, under the title the home carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
+    # The plates follow the panel, whose full-size box would take their hits.
     panel = group("load-panel", {**FULL, "opacity": number(1)}, [*shot_parts, error, date, time_node, *headings, viewport, scrollbar,
                                                                   empty, back])
     stage = group("load-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
-                  [*plates, panel])
+                  [panel, *plates])
 
     modal = confirmation(doc, "deleteModal", "#str_200021", "#str_200245", None, yes_event="deleteConfirmed")
     doc.events["deleteConfirmed"] = [{"op": "call", "event": "deleteModalHide"}, {"op": "action", "action": "delete"}]
@@ -631,9 +642,10 @@ def save_game_document() -> dict:
              {"op": "||", "args": [{"op": "!=", "args": [{"state": "save.name"}, ""]}, {"state": "ui.numberDraftsPending"}]})
     field = name_field(doc)
     back = page_prompts(doc, "save_back", action="back")
+    # SAVE GAME follows the panel, whose full-size box would take its hits.
     panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(), field, back])
     stage = group("save-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
-                  [save_plate, panel])
+                  [panel, save_plate])
 
     # Saving over a save asks first and names it; an autosave, or a save the
     # session refuses, says why.

@@ -72,10 +72,11 @@ struct ScreenHost final : Host {
 		return 100+materials.size();
 	}
 	std::uintptr_t MultiplyMaterial() override { return multiply; }
+	bool recordDraws = true;   // the pointer probe reads no submissions
 	void Draw(const std::vector<Vertex>& vertices, const std::vector<int>& indices, std::uintptr_t material) override {
 		Check(indices.size()%3 == 0,"triangle topology");
 		for (int index : indices) Check(index >= 0 && static_cast<size_t>(index) < vertices.size(),"valid indices");
-		draws.push_back({vertices,material});
+		if (recordDraws) draws.push_back({vertices,material});
 	}
 	std::uint64_t RenderFrame() const override { return frame; }
 	std::vector<float> compositeOpacities;
@@ -1635,9 +1636,13 @@ static void CheckLoadPage(ScreenHost& host, const char* path) {
 	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
 	Check(Near(row0.x,x0+217*u) && Near(row0.y,78*u) && Near(row1.y-row0.y,20*u) && Near(row0.width,394*u),
 		"the rows run on the stock 20 u pitch from 217,78 u");
-	const auto load = bounds("load_go"), remove = bounds("load_delete");
+	const auto load = bounds("load_go-plate"), remove = bounds("load_delete-plate"), target = bounds("load_go");
 	Check(Near(load.x,x0+21*u) && Near(load.y,256*u) && Near(remove.x,x0+20*u) && Near(remove.y,293*u),
 		"LOAD GAME and DELETE GAME are the stock section plates");
+	// A plate's target is its 30 u pitch around the band, ending where the
+	// plate fades out: short of the list beside it (section 3).
+	Check(Near(target.x,load.x) && Near(target.y,(256+10.2f)*u) && Near(target.height,30*u) && target.x+target.width < row0.x,
+		"LOAD GAME's target is its 45 dp pitch, short of the list");
 	Check(text("row-2","display") == "block" && text("row-3","display") == "none","the list shows the published saves");
 	Check(text("row-1-selected","display") == "block" && text("row-0-selected","display") == "none","the selected save is lit");
 	Check(text("row-0-name","text") == "Medic" && text("row-2-location","text") == "Air Defense Trenches","each row names its save and its level");
@@ -1680,6 +1685,13 @@ static void CheckLoadPage(ScreenHost& host, const char* path) {
 	Check(text("page-newer","display") == "block" && text("page-older","display") == "block" && text("row-63","display") == "block",
 		"a middle page offers both neighbours");
 	Check(text("row-0-selected","display") == "block" && text("row-1-selected","display") == "none","the selection follows the window");
+	// LOAD GAME's art reaches past the list's leading edge, its target never:
+	// the pointer there, level with LOAD GAME, lights the row.
+	const auto row9 = bounds("row-9");
+	const float edgeX = row9.x+2*u, edgeY = row9.y+row9.height/2;
+	runtime.PointerMove(edgeX,edgeY,6.15);
+	Check(edgeX < load.x+load.width && edgeY > load.y && edgeY < load.y+load.height && runtime.GetControlState("row-9") == ControlState::Hover,
+		"the list's leading edge beside LOAD GAME is the row's");
 	Check(runtime.SetState({{"load.first",128.0},{"load.selected",128.0}},error,6.2),"the last page");
 	runtime.Frame(viewport,6.3);
 	Check(text("page-older","display") == "none" && text("row-1","display") == "block" && text("row-2","display") == "none",
@@ -1752,7 +1764,7 @@ static void CheckSavePage(ScreenHost& host, const char* path) {
 	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
 	Check(Near(row0.x,x0+35*u) && Near(row0.y,78*u) && Near(row1.y-row0.y,20*u) && Near(row0.width,550*u),
 		"the rows run on the stock 20 u pitch across the content column from 35,78 u");
-	const auto plate = bounds("save-name-plate"), name = bounds("save-name"), save = bounds("save_go");
+	const auto plate = bounds("save-name-plate"), name = bounds("save-name"), save = bounds("save_go-plate");
 	Check(Near(plate.x,x0+4*u) && Near(plate.y,370*u) && Near(plate.width,484*u) && Near(plate.height,52*u),"the name plate is the stock 484x52 u at 4,370 u");
 	Check(Near(name.x,x0+49*u) && Near(name.y,382*u) && Near(name.width,344*u) && Near(name.height,20*u),"the field is the stock 344x20 u at 49,382 u");
 	Check(Near(save.x,x0+397*u) && Near(save.y,370*u),"SAVE GAME is the stock section plate at 397,370 u");
@@ -1837,9 +1849,14 @@ static void CheckRestartPage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,1);
 	// The 4:3 canvas is 960 dp wide, centered: x = 160 dp at 1280x720; 1 u = 1.5 dp.
 	const float x0 = 160, u = 1.5f;
-	const auto first = bounds("skill-0"), second = bounds("skill-1"), primary = bounds("restart_go"), description = bounds("restart-description");
+	const auto first = bounds("skill-0-plate"), second = bounds("skill-1-plate"), primary = bounds("restart_go"), description = bounds("restart-description");
 	Check(Near(first.x,x0+21*u) && Near(first.y,172*u) && Near(second.x,x0+20*u) && Near(second.y-first.y,30*u),
 		"the difficulty plates keep the stock 30 u pitch from 21,172 u");
+	// Each plate's target is its pitch around its band (section 3): the
+	// targets meet, so no plate takes the pointer over its neighbour's band.
+	const auto firstTarget = bounds("skill-0"), secondTarget = bounds("skill-1");
+	Check(Near(firstTarget.y,(172+10.2f)*u) && Near(firstTarget.height,30*u) && Near(secondTarget.y,firstTarget.y+firstTarget.height),
+		"the plates' 45 dp targets meet on their pitch");
 	Check(Near(primary.x,x0+237*u) && Near(primary.y,222*u) && Near(primary.width,356*u) && Near(primary.height,43*u),
 		"RESTART LEVEL is the stock 356x43 u primary plate at 237,222 u");
 	Check(Near(description.x,x0+239*u) && Near(description.y,181*u),"the description stands at 239,181 u");
@@ -1857,6 +1874,10 @@ static void CheckRestartPage(ScreenHost& host, const char* path) {
 	Check(text("skill-4-plate-lit","display") == "block" && text("skill-2-plate-lit","display") == "none" &&
 		text("restart-description","text") == "#str_41118","the new choice is lit and described");
 	Check(runtime.CanActivateControl("restart_go",3.2) && runtime.CanActivateControl("restart_back",3.2),"RESTART LEVEL and BACK are live");
+	// The pointer on the foot of a plate's band lights that plate, not the
+	// next one, whose plate art starts above it.
+	runtime.PointerMove(first.x+100*u,first.y+36*u,3.3);
+	Check(first.y+36*u > second.y && runtime.GetControlState("skill-0") == ControlState::Hover,"the foot of PRIVATE's band is PRIVATE's");
 }
 
 // Campaign's New Campaign, its sibling sub-page (section 9 "New game",
@@ -1889,7 +1910,7 @@ static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const 
 	Check(page.SetState({{"newgame.skill",1.0},{"newgame.turbo",false},{"newgame.awakening",false}},error,0),"the session resets the page");
 	page.Frame(viewport,1);
 	Check(Near(value(page,"content","opacity",0),0,tight) && Near(value(page,"title","color",3),0,tight) &&
-		Near(value(page,"back-stage","opacity",0),0,tight) && Near(value(page,"newgame-backing","opacity",0),0,tight),"the page waits hidden");
+		Near(value(page,"prompts","opacity",0),0,tight) && Near(value(page,"newgame-backing","opacity",0),0,tight),"the page waits hidden");
 	// page.enter from the trailing edge: from 12 dp and nothing to rest over 220 ms.
 	Check(page.RunEvent("onActivate",2,effects,error),"the page arrives");
 	page.Frame(viewport,2);
@@ -1900,13 +1921,13 @@ static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const 
 	page.Frame(viewport,2.23);
 	Check(Near(value(page,"content","opacity",0),1,tight) && Near(value(page,"content","transform",0),0,.01f) &&
 		Near(value(page,"title","color",3),.5f,tight) && Near(value(page,"title","transform",0),0,.01f) &&
-		Near(value(page,"back-stage","opacity",0),1,tight) && Near(value(page,"newgame-backing","opacity",0),1,tight),
+		Near(value(page,"prompts","opacity",0),1,tight) && Near(value(page,"newgame-backing","opacity",0),1,tight),
 		"by 220 ms it is at rest with its title, backing and BACK");
 	Check(page.FocusedControl() == "skill-1","CORPORAL, the reset choice, has focus");
 	// The stock layout on the 4:3 canvas (x = 160 dp at 1280x720; 1 u = 1.5 dp).
 	const float x0 = 160, u = 1.5f;
 	const auto bounds = [&](const std::string& id) { Bounds b; Check(page.GetBounds(id,b),"a page node is laid out"); return b; };
-	const auto first = bounds("skill-0"), primary = bounds("newgame_start"), turbo = bounds("newgame_turbo"), title = bounds("title"),
+	const auto first = bounds("skill-0-plate"), primary = bounds("newgame_start"), turbo = bounds("newgame_turbo"), title = bounds("title"),
 		turboValue = bounds("newgame_turbo-off"), description = bounds("newgame-description");
 	Check(Near(first.x,x0+21*u) && Near(first.y,172*u),"the difficulty plates keep the stock place");
 	Check(Near(description.x,x0+239*u) && Near(description.y,181*u),"the description stands at 239,181 u");
@@ -1950,7 +1971,7 @@ static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const 
 	Check(leaving > .1f && leaving < 7.9f && value(page,"content","opacity",0) < .99f,"it departs toward the trailing edge");
 	page.Frame(viewport,3.14);
 	Check(Near(value(page,"content","transform",0),8,.01f) && Near(value(page,"content","opacity",0),0,tight) &&
-		Near(value(page,"title","color",3),0,tight) && Near(value(page,"back-stage","opacity",0),0,tight),"by 140 ms it is gone");
+		Near(value(page,"title","color",3),0,tight) && Near(value(page,"prompts","opacity",0),0,tight),"by 140 ms it is gone");
 	Check(page.RunEvent("onDeactivate",3.2,effects,error),"the page leaves the screen");
 	page.Frame(viewport,3.21);
 	Check(Near(value(page,"content","transform",0),0,.01f) && Near(value(page,"content","opacity",0),0,tight),"hidden, it waits at rest and out");
@@ -2051,7 +2072,7 @@ static void CheckDemosPage(ScreenHost& host, const char* path) {
 	const auto shot = bounds("demo-shot-back");
 	Check(Near(shot.x,x0+25*u) && Near(shot.y,78*u) && Near(shot.width,183*u) && Near(shot.height,137*u),
 		"the picture keeps the stock 183x137 u at 25,78 u");
-	const auto play = bounds("demo_play"), remove = bounds("demo_delete"), refresh = bounds("demo_refresh");
+	const auto play = bounds("demo_play-plate"), remove = bounds("demo_delete-plate"), refresh = bounds("demo_refresh-plate");
 	Check(Near(play.x,x0+21*u) && Near(play.y,256*u) && Near(remove.y,293*u) && Near(refresh.x,x0+20*u) && Near(refresh.y,330*u),
 		"PLAY, DELETE and REFRESH are section plates on the stock 37 u pitch");
 	const auto row0 = bounds("row-0"), row1 = bounds("row-1");
@@ -3300,6 +3321,152 @@ static void CheckPagePrompts(ScreenHost& host, const char* path, const char* nam
 		"a click runs the page's Back");
 }
 
+// The controls under `node`, each with the nodes over it and the clipping
+// groups among them.
+struct ReachTarget { std::string id; std::vector<std::string> ancestors, clips; };
+static void ReachTargets(const Node& node, std::vector<std::string>& ancestors, std::vector<std::string>& clips,
+	std::vector<ReachTarget>& targets) {
+	if (node.control) targets.push_back({node.id,ancestors,clips});
+	const auto overflow = node.properties.find("overflow");
+	const bool clipping = overflow != node.properties.end() && overflow->second.text != "visible";
+	ancestors.push_back(node.id);
+	if (clipping) clips.push_back(node.id);
+	for (const auto& child : node.children) ReachTargets(child,ancestors,clips,targets);
+	if (clipping) clips.pop_back();
+	ancestors.pop_back();
+}
+
+// Pointer reach (the menu audit): the pointer at the centre of every control
+// that can take input lights that control. Hit testing takes the topmost box
+// under the pointer, so a full-size group later in a document takes the hits
+// of every control under it, even at opacity 0; the keyboard, controllers and
+// engine captures never hit-test, so only the pointer shows it. `values`
+// publish the page (its rows shown, its plates enabled) and `arrive` brings it
+// in; then each tab and up to `dialogs` of its dialogs (the Objectives page
+// among them) are probed over the page at rest. A control a list clips out of
+// view is reached by scrolling it in, and is left out. Returns the controls
+// the pointer reached.
+static std::set<std::string> CheckPointerReach(ScreenHost& host, const char* path, const char* name, const StateValues& values,
+	const char* arrive, size_t dialogs = 64) {
+	Document document; std::vector<Diagnostic> diagnostics;
+	Check(document.Load(Read(path),diagnostics),"a page loads for the pointer probe");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(document,name,diagnostics),"the page loads into a runtime for the pointer probe");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; Runtime::EventEffects effects;
+	double now = 1;
+	Check(values.empty() || runtime.SetState(values,error,now),"publish the page for the pointer probe");
+	std::vector<std::string> ancestors, clips; std::vector<ReachTarget> targets;
+	ReachTargets(document.Model().root,ancestors,clips,targets);
+	std::set<std::string> reached;
+	std::vector<std::string> missed;
+	const auto settle = [&](const std::string& event) {
+		const bool ran = runtime.RunEvent(event,now += .1,effects,error);
+		if (!ran) std::fprintf(stderr,"%s: %s did not run: %s\n",name,event.c_str(),error.c_str());
+		Check(ran,"a pointer probe step runs");
+		runtime.Frame(viewport,now += 1);   // every arrival, tab and dialog settles within a second
+	};
+	const auto probe = [&]() {
+		// A focused field, list or slider keeps its focus under the pointer, a
+		// focused button lets it go: hand the focus to a button first.
+		const auto* focused = document.Model().FindNode(runtime.FocusedControl());
+		if (focused && focused->control && focused->control->role != ControlRole::Button && focused->control->role != ControlRole::Toggle)
+			for (const auto& target : targets)
+				if (document.Model().FindNode(target.id)->control->role == ControlRole::Button && runtime.CanActivateControl(target.id,now) &&
+					runtime.FocusControl(target.id,now)) break;
+		const auto hidden = [&](const std::string& id) {
+			const auto display = runtime.PresentedValue(id,"display"); return display && display->text == "none";
+		};
+		for (const auto& target : targets) {
+			if (hidden(target.id) || std::any_of(target.ancestors.begin(),target.ancestors.end(),hidden)) continue;
+			// The centre of what shows of it: in the view and inside every
+			// clipping group over it (a plate may bleed off the view's edge).
+			Bounds box;
+			if (!runtime.GetBounds(target.id,box)) continue;
+			float left = std::max(box.x,0.f), top = std::max(box.y,0.f);
+			float right = std::min(box.x+box.width,static_cast<float>(viewport.width)), bottom = std::min(box.y+box.height,static_cast<float>(viewport.height));
+			for (const auto& clip : target.clips) {
+				Bounds view;
+				if (!runtime.GetBounds(clip,view)) { right = left; break; }
+				left = std::max(left,view.x); top = std::max(top,view.y);
+				right = std::min(right,view.x+view.width); bottom = std::min(bottom,view.y+view.height);
+			}
+			if (right-left < 1 || bottom-top < 1 || !runtime.CanActivateControl(target.id,now)) continue;
+			// The hit test runs as the pointer moves; the state is current at once.
+			runtime.PointerMove((left+right)*.5f,(top+bottom)*.5f,now += .01);
+			if (runtime.GetControlState(target.id) == ControlState::Hover) reached.insert(target.id);
+			else missed.push_back(target.id);
+		}
+	};
+	settle(arrive);
+	probe();
+	// Each tab, then each dialog or page that shows over the screen.
+	for (const bool tabs : {true,false})
+		for (const auto& [event,program] : document.Model().events) {
+			if (tabs ? !event.starts_with("tab_") : !event.ends_with("show")) continue;
+			if (!tabs && dialogs-- == 0) break;
+			settle(event);
+			probe();
+			const auto hide = event.substr(0,event.size()-4)+"hide";
+			if (!tabs && runtime.HasEvent(hide)) settle(hide);
+		}
+	for (const auto& id : missed) std::fprintf(stderr,"%s: the pointer at the centre of %s does not reach it\n",name,id.c_str());
+	if (reached.empty()) std::fprintf(stderr,"%s: the pointer probe found no control to reach\n",name);
+	Check(missed.empty() && !reached.empty(),"the pointer reaches every control at its centre");
+	return reached;
+}
+
+// Every retained menu screen under the pointer probe. The pages are published
+// so that their rows show and their plates are enabled, and the probe must
+// reach the plates a later full-size group once covered: Load Game's, Restart
+// Level's, New Campaign's, Demos' and Save Game's.
+static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
+	host.recordDraws = false;
+	const auto probed = [](const std::set<std::string>& reached, std::initializer_list<const char*> ids) {
+		bool all = true;
+		for (const char* id : ids) if (!reached.contains(id)) { std::fprintf(stderr,"pointer probe: %s was not probed\n",id); all = false; }
+		return all;
+	};
+	Check(probed(CheckPointerReach(host,argv[13],"guis/menu/loadgame.q4ui",{{"load.count",1.0},{"load.first",0.0},{"load.selected",0.0}},
+		"onActivate"),{"row-0","load_go","load_delete","load_back","deleteModal_yes","deleteModal_no"}),
+		"Load Game's plates, save, BACK and confirmation take the pointer");
+	Check(probed(CheckPointerReach(host,argv[13],"guis/menu/loadgame.q4ui",{},"onActivate"),{"load_newgame","load_back"}),
+		"the empty Load Game page's NEW GAME takes the pointer");
+	Check(probed(CheckPointerReach(host,argv[14],"guis/menu/savegame.q4ui",{{"save.count",1.0},{"save.first",0.0},{"save.selected",0.0},
+		{"save.name",std::string("Medic")}},"onActivate"),{"row-0","save-name","save_go","save_back","overwriteModal_yes","overwriteModal_no",
+		"noticeModal_close"}),"Save Game's plate, name, save, BACK and dialogs take the pointer");
+	Check(probed(CheckPointerReach(host,argv[15],"guis/menu/restartlevel.q4ui",{},"onActivate"),
+		{"skill-0","skill-1","skill-2","skill-3","skill-4","restart_go","restart_back"}),"Restart Level's plates take the pointer");
+	Check(probed(CheckPointerReach(host,argv[16],"guis/menu/newcampaign.q4ui",{},"onActivate"),
+		{"skill-0","skill-1","skill-2","skill-3","skill-4","newgame_start","newgame_turbo","newgame_back"}),"New Campaign's plates take the pointer");
+	Check(probed(CheckPointerReach(host,argv[17],"guis/menu/demos.q4ui",{{"demos.count",1.0},{"demos.first",0.0},{"demos.selected",0.0},
+		{"demos.canPlay",true},{"demos.canDelete",true}},"onActivate"),{"row-0","tag-mvd","tag-render","tag-legacy","tag-incomplete","demo_play",
+		"demo_delete","demo_refresh","demo_back","deleteModal_yes","deleteModal_no"}),"Demos' plates, tags, demo, BACK and confirmation take the pointer");
+	Check(probed(CheckPointerReach(host,argv[19],"guis/menu/credits.q4ui",{},"onActivate"),{"credits_back"}),"Credits' BACK takes the pointer");
+	Check(probed(CheckPointerReach(host,argv[22],"guis/menu/createserver.q4ui",{{"create.map_count",3.0},{"create.map_first",0.0},
+		{"create.map_selected",1.0}},"onActivate"),{"create_start","create_back","create-name","map-0","map-2"}),
+		"Create Server's options, maps and dialogs take the pointer");
+	Check(probed(CheckPointerReach(host,argv[23],"guis/menu/joingame.q4ui",{{"join.count",3.0},{"join.first",0.0},{"join.selected",0.0},
+		{"join.listed",3.0}},"onActivate"),{"server-0","server-2","join_server","join_newlist","join_refresh","join_back"}),
+		"Join Game's servers, actions and dialogs take the pointer");
+	// The homes, sub-pages and cards: every control they show. The Escape
+	// card's sixteen confirmations are one construction over the same card, and
+	// each costs two of its 90 ms frames: one stands for them.
+	CheckPointerReach(host,argv[1],"guis/menu/title.q4ui",{{"menu_continue",true}},"open");
+	CheckPointerReach(host,argv[2],"guis/menu/pause.q4ui",{},"open");
+	CheckPointerReach(host,argv[4],"guis/menu/pause_strogg.q4ui",{},"open");
+	CheckPointerReach(host,argv[5],"guis/menu/singleplayer.q4ui",{},"onActivate");
+	CheckPointerReach(host,argv[6],"guis/menu/campaigns.q4ui",{},"onActivate");
+	CheckPointerReach(host,argv[7],"guis/menu/mp_escape.q4ui",{{"mp.action0.shown",true},{"mp.action0.available",true},
+		{"mp.action1.shown",true},{"mp.action1.available",true}},"open",1);
+	CheckPointerReach(host,argv[8],"guis/menu/mp_welcome.q4ui",{},"open");
+	CheckPointerReach(host,argv[18],"guis/menu/restartmenu.q4ui",{},"onActivate");
+	CheckPointerReach(host,argv[20],"guis/menu/arena.q4ui",{{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},
+		{"arenaCampaignProgress",5.0}},"onActivate");
+	CheckPointerReach(host,argv[21],"guis/menu/multiplayer.q4ui",{},"onActivate");
+	host.recordDraws = true;
+}
+
 int main(int argc, char** argv) {
 	Check(argc == 24,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui");
 	CheckSchema();
@@ -4430,6 +4597,7 @@ int main(int argc, char** argv) {
 	CheckCreateServerPage(host,argv[22]);
 	CheckCreateServerBanList(host,argv[22]);
 	CheckJoinGamePage(host,argv[23]);
+	CheckMenusPointerReach(host,argv);
 	Check(host.errors == 0,"no retained diagnostics");
 	std::printf("retained screens: %d checks passed\n",checks);
 	return 0;

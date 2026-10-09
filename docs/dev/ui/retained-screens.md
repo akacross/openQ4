@@ -716,8 +716,13 @@ break.
   section navigation plates: `b2_dark` at 21,256 and 20,293 u (Appendix B.1),
   208x52 u, with the band rows 13-37.4 u, the lower-leading cut from row 32,
   the #CCCC51 rail and the fill opaque to 57 %, half at 72 % and clear by
-  94 %. The list is at 217,78 u, 410x325 u, under SAVE NAME and LOCATION
-  (Lowpixel 13 dp at 0.40) and an olive rule at 0.26. Its 20 u rows put the
+  94 %. A section plate's target is its 30 u pitch around the band (45 dp,
+  section 3), from the leading rail to where the plate fades out or its
+  widest label ends. Its art takes no hits, so the target stops short of the
+  list, and the plates follow the page's full-size panel in the document,
+  whose box would otherwise take their hits. The list is at 217,78 u,
+  410x325 u, under SAVE NAME and LOCATION (Lowpixel 13 dp at 0.40) and an
+  olive rule at 0.26. Its 20 u rows put the
   name and the level at the stock tabstops, 0 and 180 u, in Lowpixel 15.8 dp
   on `bg_line`'s light: #FF9C00 at 0.01, 0.16 under the pointer or focus and
   0.41 for the selected save, with the white 0.50 rule. The focused row takes

@@ -263,11 +263,12 @@ def demos_document() -> dict:
     title = label("demo-title", TITLE, {**absolute(left=U * TITLE_SLOT[0], top=U * TITLE_SLOT[1], width=U * 300, height=U * 24.4 * 0.75),
                   **typeface("marine", 18, U * 24.4 * 0.75, [1, 1, 1, 0.5]), "white-space": keyword("nowrap")})
     # The plates show at once; the title, the panel and the backing fade in
-    # over 150 ms (content.in), as a stock page's do.
+    # over 150 ms (content.in), as a stock page's do. The plates follow the
+    # panel, whose full-size box would take their hits.
     panel = group("demo-panel", {**FULL, "opacity": number(1)}, [title, *shot_parts, error, kind, status, note, *tags, *headings,
                                                                   viewport, scrollbar, empty, back])
     stage = group("demo-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
-                  [*plates, panel])
+                  [panel, *plates])
 
     modal = confirmation(doc, "deleteModal", "#str_41556", PLACEHOLDER, None, yes_event="deleteConfirmed")
     doc.bind("deleteModal-body.text", "deleteModal-body", "text", {"state": "demos.confirm"})

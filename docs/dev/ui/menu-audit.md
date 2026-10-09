@@ -80,6 +80,7 @@ out of scope. It extends the [retained screens](retained-screens.md),
 | Medium | Load Game, Save Game, Restart Level, New Campaign, Demos, Credits, Create Server, Join Game and the pause's Objectives page kept the stock BACK plate in the docked bottom band, so controller and keyboard players saw device glyphs only on the title, pause, Single Player, Campaign and Multiplayer screens. | Each page's bottom band carries section 13.4's prompt bar: SELECT and BACK in the active device's glyphs, Back a button where the stock plate stood, which the pointer lights ([page prompt bars](retained-screens.md#page-prompt-bars)). |
 | Low | At 21:9 the Single Player, Campaign and Multiplayer prompt bars hung past the bottom band's raised section, and their place differed from the pages'. | They stand where the pages' bars do, on the raised section at every aspect. |
 | Medium | The title waited while every retained page loaded, each parsed twice, and every multiplayer map's and Arena match's levelshot precached: its first frame came 13.6 s after launch on a debugoptimized build, 6.8 s of it the session's initialization. | Each page is parsed once, on the job system's workers where it can be, and validates without building unused diagnostics; the pause screens, Save Game, Restart Level and the death screen load with the first level; the levelshots precache on idle front-end frames, and Create Server and the Arena page read any still waiting. The title comes at 8.8 s, after 2.1 s of session initialization ([startup preload](runtime-performance.md#startup-preload)). |
+| High | The mouse could not reach Load Game's LOAD GAME and DELETE GAME, Save Game's SAVE GAME, Restart Level's and New Campaign's difficulty plates, New Campaign's START GAME and TURBO MODE, or Demos' PLAY, DELETE and REFRESH. Hit testing takes the topmost box under the pointer, and a full-size group after them in the document, the page's `*-panel` or New Campaign's canvas-size `back-stage`, took their hits even at opacity 0. The keyboard and controllers reached them, and engine captures, which send no input, never showed it. A section plate's box was also its whole 208x52 u art, so on the 30 u difficulty pitch the next plate took the foot of each band. | The plates follow the panel in their page, and New Campaign's prompt bar spans the view on its own. A section plate's target is its 30 u pitch around its band (section 3), from its leading rail to where the plate fades out or its widest label ends, and its art takes no hits, so a plate never covers the next one or the save and demo lists beside it. A native probe moves the pointer to the centre of every control each retained menu screen shows, its tabs and dialogs included, and expects it lit (`CheckMenusPointerReach`); it found nothing else. |
 
 The [retained screens](retained-screens.md#known-limitations) and
 [multiplayer menus](multiplayer-menus.md#known-limitations) known limitations
@@ -91,15 +92,6 @@ fixed.
 
 Highest impact first.
 
-- **Pointer reach.** The mouse cannot reach Load Game's LOAD GAME and DELETE
-  GAME, Restart Level's and New Campaign's difficulty plates, New Campaign's
-  START GAME and TURBO MODE, or Demos' REFRESH: a full-size group that comes
-  after them in the document, the page's `*-panel` or New Campaign's
-  `back-stage`, takes the pointer's hits. A native probe that moved the
-  pointer to every enabled control's centre found them; Demos' PLAY and
-  DELETE and Save Game's SAVE GAME were disabled in it and sit the same way.
-  The keyboard and controllers reach them, and engine captures, which send no
-  input, never showed it.
 - **Settings.** GAME, CONTROLS and AUDIO, the Load Defaults dialog and Player
   Setup are the stock pages, and the retained SYSTEM page stays opt-in until
   presets can be applied ([effect execution](settings-effect-execution.md)).
