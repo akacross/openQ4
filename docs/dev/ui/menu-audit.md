@@ -38,6 +38,11 @@ out of scope. It extends the [retained screens](retained-screens.md),
   glyphs, in Spanish (Marine and Strogg, the tightest fit), in German at 4:3
   and in Russian at 21:9; the kit's `probe-page-prompts` switches one page
   through every glyph style and Swap Confirm and Back.
+- **A fourth pass** shortened the wait for the title. Timestamped startups
+  with temporary laps and the screen benchmark found where it went;
+  interleaved startups of the builds before and after, and engine probes
+  over the hand-offs, measured the change
+  ([startup preload](runtime-performance.md#startup-preload)).
 
 ## Fixed
 
@@ -74,6 +79,7 @@ out of scope. It extends the [retained screens](retained-screens.md),
 | Low | Each launch's menu preload read every community map's levelshot out of its package and wrote it into the save path again (`FindMapScreenshot`). | A levelshot extracted by an earlier launch is reused. |
 | Medium | Load Game, Save Game, Restart Level, New Campaign, Demos, Credits, Create Server, Join Game and the pause's Objectives page kept the stock BACK plate in the docked bottom band, so controller and keyboard players saw device glyphs only on the title, pause, Single Player, Campaign and Multiplayer screens. | Each page's bottom band carries section 13.4's prompt bar: SELECT and BACK in the active device's glyphs, Back a button where the stock plate stood, which the pointer lights ([page prompt bars](retained-screens.md#page-prompt-bars)). |
 | Low | At 21:9 the Single Player, Campaign and Multiplayer prompt bars hung past the bottom band's raised section, and their place differed from the pages'. | They stand where the pages' bars do, on the raised section at every aspect. |
+| Medium | The title waited while every retained page loaded, each parsed twice, and every multiplayer map's and Arena match's levelshot precached: its first frame came 13.6 s after launch on a debugoptimized build, 6.8 s of it the session's initialization. | Each page is parsed once, on the job system's workers where it can be, and validates without building unused diagnostics; the pause screens, Save Game, Restart Level and the death screen load with the first level; the levelshots precache on idle front-end frames, and Create Server and the Arena page read any still waiting. The title comes at 8.8 s, after 2.1 s of session initialization ([startup preload](runtime-performance.md#startup-preload)). |
 
 The [retained screens](retained-screens.md#known-limitations) and
 [multiplayer menus](multiplayer-menus.md#known-limitations) known limitations
@@ -98,11 +104,12 @@ Highest impact first.
   Setup are the stock pages, and the retained SYSTEM page stays opt-in until
   presets can be applied ([effect execution](settings-effect-execution.md)).
   Going to them from the retained title swaps the whole backdrop.
-- **Startup preload.** The title waits while every retained page loads and
-  every multiplayer map's levelshot is precached, about 6 s on a
-  debugoptimized build, 1.7 s of it the levelshots. (The levelshots of
-  community maps, which `FindMapScreenshot` extracted into the save path on
-  every launch, are now reused once extracted.)
+- **Map changes.** Every map change re-initializes every loaded GUI, the
+  retained pages included, on the main thread: the startup's document work
+  again. And opening Create Server or the Arena page in the title's first
+  two seconds, before its idle frames have read every levelshot, reads the
+  rest in one long frame
+  ([startup preload](runtime-performance.md#startup-preload)).
 - **SYSTEM's initial focus.** The opt-in SYSTEM page still opens with nothing
   focused. Its activation begins a settings draft, and whether its first row
   can take focus at that moment was not probed, so its initial focus waits

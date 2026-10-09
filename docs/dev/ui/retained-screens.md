@@ -522,17 +522,22 @@ than the presented home screen.
 ## Pictures and precaching
 
 A document's own pictures resolve when it loads. With the gate on at startup,
-the title, pause and Load Game documents load with the stock menus, with the
-generic picture a save without one shows, and each single-player level load
-resolves the pause document and its levelshot, so opening a screen reads no
-file mid-frame. `_retainedMultiply` is a generated material and needs no
-precache. These preloads run as a load, so an engine reload (a campaign's game
-directory, an Arena match's game module) resolves them again without reporting
-late loads, and so does the Arena campaign's levelshot precache
-([Arena page](#arena-page)). A picture first drawn outside a load, such as a
-document opened with
-`testGUI`, the gate switched on in the menu, or a save's own screenshot (as on
-the stock page), still loads on demand and reports it once.
+the title and the pages it reaches load with the stock menus, the Load Game
+page with the generic picture a save without one shows, and each
+single-player level load resolves the pause documents, the pages only they
+reach and the restart screen (each once a session), and the level's
+levelshot, so opening a screen reads no file mid-frame
+([startup preload](runtime-performance.md#startup-preload)). Every
+multiplayer map's levelshot and every Arena match's precache on the front
+end's idle frames, and Create Server and the Arena page each read their own
+still waiting when they open ([Create Server](#create-server-sub-page),
+[Arena page](#arena-page)). `_retainedMultiply` is a generated material and
+needs no precache. These preloads and precaches run as a load, so they report
+no late loads, and an engine reload (a campaign's game directory, an Arena
+match's game module) resolves them again, the levelshots at once. A picture
+first drawn outside a load, such as a document opened with `testGUI`, the
+gate switched on in the menu, or a save's own screenshot (as on the stock
+page), still loads on demand and reports it once.
 
 ## Diagnostics
 
@@ -770,7 +775,7 @@ the Strogg pause keeps the stock page.
 - **Hand-off.** As the Load Game page's: the pause docks its bands and carries
   SAVE GAME into the title slot, the page presents at 550 ms over the pause,
   which keeps drawing behind it, and Back returns the pause with the bands.
-  The page loads with the stock menus at startup. Each arrival starts with no
+  The page loads with the first single-player level. Each arrival starts with no
   name and no save selected, as the stock page's field did, and focuses the
   name.
 - **Composition** (section 9, the stock `p_savegame`). The saves fill the
@@ -821,7 +826,7 @@ stock page, and the title has no level to restart.
 
 - **Hand-off.** As the Load Game page's: the pause docks its bands and carries
   RESTART LEVEL into the title slot, and the page presents at 550 ms over the
-  pause. It loads with the stock menus at startup and opens at the level's
+  pause. It loads with the first single-player level and opens at the level's
   difficulty (`g_skill`), focused.
 - **Composition** (section 9 "New game", the stock `p_newgame`, which openQ4's
   in-game Difficulty page retitled). Five section plates (`b2_dark`) on a
@@ -952,11 +957,14 @@ page's backing.
   RETRY after a defeat or REPLAY after a win or a draw, where the match can be
   played again, then NEXT after a win short of the last, RETURN, or CONTINUE
   after an aborted match. Back dismisses it.
-- **Pictures.** The campaign precaches every match's levelshot for the page
-  as it loads with the menus. The session's retained preloads and that
-  precache run as a load (`declManager->SetInsideLoad`), so an engine reload
-  (an Arena match's game module, a campaign's game directory) precaches them
-  as the first start does instead of reporting late loads.
+- **Pictures.** As it loads with the menus, the campaign queues every
+  match's levelshot for the front end's idle frames, which precache a few a
+  frame once a menu has presented for a second, and the page reads any still
+  waiting when it opens, so choosing a match never loads one. The session's
+  retained preloads and those precaches run as a load
+  (`declManager->SetInsideLoad`), so they report no late loads, and an engine
+  reload (an Arena match's game module, a campaign's game directory)
+  precaches the levelshots at once, inside its load.
 - **Captures.** `arena` drives the page from Single Player with progress
   set, `arenamatch` starts a real match and disconnects from it, and
   `arenafail` holds the server's port (on the loopback interface, which
@@ -1198,7 +1206,9 @@ there only `ui_retainedMultiplayer 1` offers the page.
   entered (`RETAINED_CREATE_TEXTS`), at most the stock fields' 25 bytes for
   the name, 200 for the map cycle and 16 for each password, never cut inside
   a character; the map cycle and the passwords may be empty. Every
-  multiplayer map's levelshot precaches with the page.
+  multiplayer map's levelshot precaches on the front end's idle frames, a
+  few a frame once a menu has presented for a second, and the page reads
+  any still waiting when it opens, so browsing the maps never loads one.
 - **CREATE SERVER** starts the server through `StartMenuServer`, which the
   stock page's `startMultiplayer` now calls too: the upstream rate's client
   limit and the listen-server warning ask first, then the menu closes and the

@@ -1590,6 +1590,11 @@
   Checkpoint, Map Start), save warnings and dialog buttons that still
   appeared in English.
 
+- The title screen appears sooner after launch. Each rebuilt menu is now
+  read once instead of twice, partly on spare processor cores; the pause
+  menus and the pages only a level reaches load with your first level; and
+  the multiplayer and Arena map pictures load while the title is up.
+
 - Multiplayer maps load faster and the in-match menu is smooth again: the
   modern Escape menu, which loads with every multiplayer map, now loads about
   fifteen times faster and draws its frames in a fraction of the time, and

@@ -4612,6 +4612,7 @@ void idSessionLocal::GuiFrameEvents() {
 	UpdateRetainedMultiplayerPage();
 	UpdateRetainedJoinGame();
 	UpdateBrowserTooltip();
+	PrecacheRetainedLevelshots( false );
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -5317,6 +5318,11 @@ static const char *const RETAINED_DEMO_FILTERS[] = { "all", "mvd", "render", "le
 static const int RETAINED_DEMO_FILTER_COUNT = sizeof( RETAINED_DEMO_FILTERS ) / sizeof( RETAINED_DEMO_FILTERS[0] );
 static const int RETAINED_LOAD_ROWS = 64;
 static const char *const RETAINED_LOAD_GENERIC_SHOT = "gfx/guis/loadscreens/generic";
+// Multiplayer levelshots precache on idle front-end frames: none until the
+// title has presented for this long, then as many a frame as fit this long
+// (at least one).
+static const int RETAINED_LEVELSHOT_DELAY_MSEC = 1000;
+static const int RETAINED_LEVELSHOT_FRAME_MSEC = 4;
 // The stock choreography shows a page 550 ms after its activation and a
 // home-state pop-up at once (specification section 8); the retained screen
 // covers the legacy departure for that long before the page takes over.
@@ -7129,6 +7135,9 @@ void idSessionLocal::OpenRetainedCreateServer() {
 		}
 		return;
 	}
+	// Any levelshot the idle frames have not read yet, so browsing the maps
+	// never loads one.
+	PrecacheRetainedLevelshots( true );
 	PublishRetainedCreateServer( page );
 	PublishRetainedCreateMaps( page, true );
 	SetGUI( page, NULL );
@@ -8114,39 +8123,42 @@ idUserInterface *idSessionLocal::SelectRetainedLoadingGui( idUserInterface *lega
 #endif
 }
 
+void idSessionLocal::PrefetchRetainedScreens() {
+#ifndef ID_DEDICATED
+	// PreloadRetainedScreens' documents, in its order, the title first. The
+	// pages a gate or a missing page will refuse are parsed for nothing.
+	if ( !Session_RetainedScreensEnabled() ) {
+		return;
+	}
+	const char *const documents[] = {
+		RETAINED_TITLE_GUI, RETAINED_LOADGAME_GUI, RETAINED_CREDITS_GUI, RETAINED_DEMOS_GUI, RETAINED_ARENA_GUI,
+		RETAINED_MPPAGE_GUI, Session_RetainedCreateServerEnabled() ? RETAINED_CREATE_SERVER_GUI : NULL,
+		Session_RetainedJoinGameEnabled() ? RETAINED_JOIN_GAME_GUI : NULL
+	};
+	UI_RetainedPrefetchDocuments( documents, static_cast<int>( sizeof( documents ) / sizeof( documents[0] ) ) );
+#endif
+}
+
 void idSessionLocal::PreloadRetainedScreens() {
 #ifndef ID_DEDICATED
 	// Loaded with the stock menus, so a document's own pictures resolve
-	// before the first menu opens.
+	// before the first menu opens. Only the screens the title reaches: the
+	// pause screens and the pages only they reach load with a level
+	// (PrepareRetainedLevel), and the title waits for none of them.
 	if ( !Session_RetainedScreensEnabled() ) {
 		return;
 	}
 	if ( guiRetainedTitle == NULL ) {
 		guiRetainedTitle = FindRetainedGui( RETAINED_TITLE_GUI, false, true );
 	}
-	if ( guiRetainedPause == NULL ) {
-		guiRetainedPause = FindRetainedGui( RETAINED_PAUSE_GUI, false, true );
-	}
 	// The Load Game page too, which only a retained home reaches, so LOAD
 	// GAME never stalls its hand-off on a load (about 0.2 s), and the picture
 	// a save without one shows.
-	if ( guiRetainedLoad == NULL && ( guiRetainedTitle != NULL || guiRetainedPause != NULL ) ) {
+	if ( guiRetainedLoad == NULL && guiRetainedTitle != NULL ) {
 		guiRetainedLoad = FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
 		if ( guiRetainedLoad != NULL ) {
 			UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
 		}
-	}
-	// The Save Game and Restart Level pages likewise, which only the Marine
-	// pause reaches.
-	if ( guiRetainedSave == NULL && guiRetainedPause != NULL ) {
-		guiRetainedSave = FindRetainedGui( RETAINED_SAVEGAME_GUI, true, false );
-	}
-	if ( guiRetainedRestart == NULL && guiRetainedPause != NULL ) {
-		guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
-	}
-	// The restart screen, which only a level reaches.
-	if ( guiRetainedRestartMenu == NULL && guiRetainedPause != NULL ) {
-		guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
 	}
 	// The Credits page, which only the title reaches.
 	if ( guiRetainedCredits == NULL && guiRetainedTitle != NULL ) {
@@ -8165,14 +8177,22 @@ void idSessionLocal::PreloadRetainedScreens() {
 	if ( guiRetainedMpPage == NULL && guiRetainedTitle != NULL && Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
 		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
 	}
-	// Its Create Server sub-page, where the session offers it, and every
-	// multiplayer map's levelshot, so choosing a map never loads one late.
+	// Its Create Server sub-page, where the session offers it. Every
+	// multiplayer map's levelshot precaches too, so choosing a map never loads
+	// one late, but on the title's idle frames (PrecacheRetainedLevelshots):
+	// read here, they held the title back by over a second.
 	if ( guiRetainedCreate == NULL && guiRetainedMpPage != NULL && Session_RetainedCreateServerEnabled() ) {
 		guiRetainedCreate = FindRetainedGui( RETAINED_CREATE_SERVER_GUI, true, false );
+		retainedLevelshots.Clear();
+		retainedLevelshotsFrom = 0;
 		for ( int i = 0; guiRetainedCreate != NULL && i < fileSystem->GetNumMaps(); ++i ) {
 			const idDict *dict = fileSystem->GetMapDecl( i );
 			if ( MapSupportsAnyMPGameType( dict ) ) {
-				UI_RetainedPrecacheImage( RetainedPauseShot( dict->GetString( "path" ) ).c_str() );
+				retainedLevelshot_t shot;
+				shot.name = dict->GetString( "path" );
+				shot.map = true;
+				shot.material = false;
+				retainedLevelshots.Append( shot );
 			}
 		}
 	}
@@ -8222,6 +8242,27 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 	if ( guiRetainedPauseStrogg == NULL ) {
 		guiRetainedPauseStrogg = FindRetainedGui( RETAINED_PAUSE_STROGG_GUI, false, true );
 	}
+	// The pages only the Marine pause reaches, so its SAVE GAME and RESTART
+	// LEVEL never stall their hand-offs on a load, and the restart screen,
+	// which only a level reaches; each loads with the first level that needs
+	// it. The Load Game page loaded with the title unless that could not.
+	if ( guiRetainedPause != NULL ) {
+		if ( guiRetainedLoad == NULL ) {
+			guiRetainedLoad = FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
+			if ( guiRetainedLoad != NULL ) {
+				UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
+			}
+		}
+		if ( guiRetainedSave == NULL ) {
+			guiRetainedSave = FindRetainedGui( RETAINED_SAVEGAME_GUI, true, false );
+		}
+		if ( guiRetainedRestart == NULL ) {
+			guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
+		}
+		if ( guiRetainedRestartMenu == NULL ) {
+			guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
+		}
+	}
 	// The pause screen's time line reports the newest save's age; read it
 	// here, inside the load, and keep it as saves are written.
 	idStrList saves;
@@ -8229,6 +8270,78 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 	GetSaveGameList( saves, times );
 	retainedNewestSave = times.Num() > 0 ? times[0].timeStamp : 0;
 	UI_RetainedPrecacheImage( RetainedPauseShot( mapPath ).c_str() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PrecacheRetainedLevelshots
+
+Create Server shows its chosen map's levelshot, so every multiplayer map's
+precaches before the page can browse them (PreloadRetainedScreens lists
+them), and so do the Arena campaign's levelshots for its page
+(QueueRetainedLevelshot). The front end's idle frames read them, a few each
+frame once a menu has presented for a second, so the title's opening plays
+undisturbed; each page reads its own still waiting when it opens, with
+`all`. A level in play waits for the front end again.
+===============
+*/
+void idSessionLocal::PrecacheRetainedLevelshots( bool all, bool maps ) {
+#ifndef ID_DEDICATED
+	if ( retainedLevelshots.Num() == 0 ) {
+		return;
+	}
+	const int now = Sys_Milliseconds();
+	if ( !all ) {
+		if ( mapSpawned || guiActive == NULL ) {
+			return;
+		}
+		if ( retainedLevelshotsFrom == 0 ) {
+			retainedLevelshotsFrom = now + RETAINED_LEVELSHOT_DELAY_MSEC;
+		}
+		if ( now < retainedLevelshotsFrom ) {
+			return;
+		}
+	}
+	// Each is a precache, as the startup's were, not a late load.
+	const bool insideLoad = declManager->GetInsideLoad();
+	declManager->SetInsideLoad( true );
+	int read = 0;
+	for ( int i = 0; i < retainedLevelshots.Num(); ) {
+		if ( all && retainedLevelshots[ i ].map != maps ) {
+			++i;	// the other page's
+			continue;
+		}
+		if ( !all && read > 0 && Sys_Milliseconds() - now >= RETAINED_LEVELSHOT_FRAME_MSEC ) {
+			break;	// the frame's share is spent
+		}
+		const retainedLevelshot_t shot = retainedLevelshots[ i ];
+		retainedLevelshots.RemoveIndex( i );
+		++read;
+		if ( shot.map ) {
+			UI_RetainedPrecacheImage( RetainedPauseShot( shot.name.c_str() ).c_str() );
+			continue;
+		}
+		if ( shot.material ) {
+			declManager->FindMaterial( shot.name.c_str() );
+		}
+		UI_RetainedPrecacheImage( shot.name.c_str() );
+	}
+	declManager->SetInsideLoad( insideLoad );
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_LEVELSHOTS %s read=%d left=%d ms=%d\n", !all ? "idle" : maps ? "maps" : "pictures", read,
+			retainedLevelshots.Num(), Sys_Milliseconds() - now );
+	}
+#endif
+}
+
+void idSessionLocal::QueueRetainedLevelshot( const char *picture, bool material ) {
+#ifndef ID_DEDICATED
+	retainedLevelshot_t shot;
+	shot.name = picture;
+	shot.map = false;
+	shot.material = material;
+	retainedLevelshots.Append( shot );
 #endif
 }
 

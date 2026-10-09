@@ -101,6 +101,10 @@ template<typename T> struct idList : std::vector<T> {
     int FindIndex(const T& v) const { for (size_t i = 0; i < this->size(); ++i) if ((*this)[i] == v) return static_cast<int>(i); return -1; }
     int AddUnique(const T& v) { const int i = FindIndex(v); if (i >= 0) return i; Append(v); return Num() - 1; }
     void Clear() { this->clear(); }
+    bool RemoveIndex(int index) {
+        if (index < 0 || index >= Num()) return false;
+        this->erase(this->begin() + index); return true;
+    }
 };
 using idStrList = idList<idStr>;
 // The demo library: what each entry offers, and the session's text for it
@@ -360,7 +364,17 @@ static bool UI_RunLegacyWindowAction(idUserInterface*, const char* window, bool 
 }
 static bool UI_RetainedImageSource(const char* source) { return source && !std::strstr(source, ".."); }
 static std::vector<std::string> precached, reloaded;
-static void UI_RetainedPrecacheImage(const char* source) { precached.push_back(source); }
+struct DeclManager {
+    bool insideLoad = false; std::vector<std::string> materials;
+    bool GetInsideLoad() const { return insideLoad; }
+    void SetInsideLoad(bool value) { insideLoad = value; }
+    const void* FindMaterial(const char* name) { materials.push_back(name); return nullptr; }
+} declManagerObject, *declManager = &declManagerObject;
+static int precacheCost = 0, latePrecaches = 0;
+static void UI_RetainedPrecacheImage(const char* source) {
+    precached.push_back(source); sysMilliseconds += precacheCost;
+    if (!declManagerObject.insideLoad) ++latePrecaches;
+}
 static void UI_RetainedReloadImage(const char* source) { reloaded.push_back(source); }
 // Windows a mod's own main menu lacks, and a retained view that stopped drawing.
 static std::set<std::string> legacyMissing, legacyEventsMissing;
@@ -589,6 +603,9 @@ public:
     void HandleRetainedMultiplayerPageRequest(idUserInterface*, const char*); void UpdateRetainedMultiplayerPage();
     // Its Create Server sub-page and the maps it lists; the servers started.
     idUserInterface* guiRetainedCreate = nullptr; idList<int> retainedCreateMaps; int retainedCreateMapFirst = 0, retainedCreateMapSelected = -1;
+    struct retainedLevelshot_t { idStr name; bool map = false, material = false; };
+    idList<retainedLevelshot_t> retainedLevelshots; int retainedLevelshotsFrom = 0; void PrecacheRetainedLevelshots(bool, bool = true);
+    void QueueRetainedLevelshot(const char*, bool);
     idUserInterface* RetainedCreateServerPage(); void OpenRetainedCreateServer(); void PublishRetainedCreateServer(idUserInterface*);
     void PublishRetainedCreateMaps(idUserInterface*, bool); void HandleRetainedCreateServerRequest(idUserInterface*, const char*);
     idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
@@ -647,6 +664,7 @@ static std::vector<std::string> Stock(const idSessionLocal& session) {
 }
 static idSessionLocal Session(bool gate, bool inGame = false) {
     managerObject = Manager{}; commonObject = Common{}; commands = CommandSystem{}; legacy.clear(); legacyActions.clear(); precached.clear(); stickX = stickY = 0;
+    declManagerObject = DeclManager{}; precacheCost = 0; latePrecaches = 0;
     timeRuns.clear(); expressionWrites = 0; fileSystemObject.maps.clear();
     legacyActionAvailable = true; preview = false; ui_retained.value = gate; ui_retainedSystem.value = false; ui_retainedMultiplayer.value = false;
     fileSystemObject.files = std::set<std::string>(std::begin(DOCUMENTS), std::end(DOCUMENTS)); arenaCampaign = ArenaCampaign{};
@@ -882,7 +900,7 @@ int main() {
         // name unless one is being typed; SAVE GAME saves under the name, asks
         // first over a save, refuses an autosave and says why a save failed.
         auto s = Session(true, true); s.saves = {"quick", "medic"};
-        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        s.PreloadRetainedScreens(); s.PrepareRetainedLevel("game/airdefense1", false); s.UpdateRetainedHome();
         auto* pause = s.guiRetainedHome; auto* page = s.guiRetainedSave;
         CHECK(pause && page && std::string(page->Name()) == "guis/menu/savegame.q4ui");
         s.HandleRetainedSessionRequest(pause, "saveGame");
@@ -952,7 +970,7 @@ int main() {
         // it as LOAD GAME does, at the level's difficulty. The choice stays on the
         // page; RESTART LEVEL restarts the level at it and Back changes nothing.
         auto s = Session(true, true); cvarSystemObject.strings["g_skill"] = "3";
-        s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        s.PreloadRetainedScreens(); s.PrepareRetainedLevel("game/airdefense1", false); s.UpdateRetainedHome();
         auto* pause = s.guiRetainedHome; auto* page = s.guiRetainedRestart;
         CHECK(pause && page && std::string(page->Name()) == "guis/menu/restartlevel.q4ui");
         s.HandleRetainedSessionRequest(pause, "restartLevel");
@@ -1088,7 +1106,7 @@ int main() {
     }
     {   // After the player dies, the retained restart screen (FLOW-005) presents;
         // its plates run the stock screen's own commands.
-        auto s = Session(true, true); s.PreloadRetainedScreens();
+        auto s = Session(true, true); s.PreloadRetainedScreens(); s.PrepareRetainedLevel("game/airdefense1", false);
         auto* page = s.guiRetainedRestartMenu;
         CHECK(page && std::string(page->Name()) == "guis/menu/restartmenu.q4ui");
         idUserInterface stock("guis/restart.gui"); s.guiRestartMenu = &stock;
@@ -1120,6 +1138,7 @@ int main() {
         missing.PreloadRetainedScreens(); missing.OpenRestartMenu();
         CHECK(missing.guiActive == &stock && missing.guiRetainedRestartMenu == nullptr);
         auto failed = Session(true, true); failed.guiRestartMenu = &stock; failed.PreloadRetainedScreens();
+        failed.PrepareRetainedLevel("game/airdefense1", false);
         failed.guiRetainedRestartMenu->failed = true; failed.OpenRestartMenu();
         CHECK(failed.guiActive == &stock && failed.guiRetainedRestartMenu == nullptr &&
               commonObject.warnings.back().find("stopped drawing") != std::string::npos);
@@ -1273,7 +1292,8 @@ int main() {
         s.PreloadRetainedScreens(); s.UpdateRetainedHome();
         auto* create = s.guiRetainedCreate;
         CHECK(create && std::string(create->Name()) == "guis/menu/createserver.q4ui" && s.RetainedCreateServerPage() == create);
-        CHECK(std::count(precached.begin(), precached.end(), std::string("gfx/guis/loadscreens/q4dm5")) == 1);  // each map's levelshot
+        // Each map's levelshot waits for the title's idle frames, or for the page.
+        CHECK(s.retainedLevelshots.Num() == 3 && std::count(precached.begin(), precached.end(), std::string("gfx/guis/loadscreens/q4dm5")) == 0);
         s.HandleRetainedSessionRequest(s.guiRetainedHome, "multiplayer"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         auto* page = s.guiRetainedMpPage; CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "multiplayerCreate");
@@ -1281,8 +1301,11 @@ int main() {
               s.retainedSubpageKind == RETAINED_SUBPAGE_CREATE_SERVER && s.retainedSubpageUntil == commonObject.time + 350 &&
               s.retainedMpPageDest == 0);
         s.HandleRetainedSessionRequest(page, "multiplayerJoin"); CHECK(s.retainedMpPageDest == 0);  // nothing else meanwhile
-        commonObject.time += 350; s.UpdateRetainedSubpage();
+        const int late = latePrecaches; commonObject.time += 350; s.UpdateRetainedSubpage();
         CHECK(s.guiActive == create && s.retainedSubpageFrom == nullptr);
+        // The page read every levelshot still waiting, each once, as precaches.
+        CHECK(s.retainedLevelshots.Num() == 0 && latePrecaches == late);
+        CHECK(std::count(precached.begin(), precached.end(), std::string("gfx/guis/loadscreens/q4dm5")) == 1);
         CHECK(create->state["create.gametype"] == "0" && create->state["create.fraglimit"] == "20" && create->state["create.maxplayers"] == "8" &&
               create->state["create.teamdamage"] == "1" && create->state["create.botskill"] == "5" && create->state["create.name"] == "openQ4 Server");
         CHECK(create->state["create.password"] == "hunter2" && create->state["create.rconpassword"] == "" && create->state["create.mapcycle"] == "mapcycle");
@@ -1666,27 +1689,72 @@ int main() {
         CHECK(test.guiRetainedHome == nullptr && managerObject.loads.empty());
         auto open = Session(true); preview = true; open.UpdateRetainedHome(); CHECK(open.guiRetainedHome == nullptr);
     }
-    {   // Startup and single-player level loads resolve the screens and the pause levelshot.
+    {   // Startup resolves the screens the title reaches; a single-player level
+        // load, the pause screens and the pages only they reach, and the pause
+        // levelshot.
         auto s = Session(true); s.PreloadRetainedScreens();
-        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/loadgame.q4ui",
-                                                            "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
-                                                            "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
-                                                            "guis/menu/demos.q4ui", "guis/menu/arena.q4ui",
+        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/title.q4ui", "guis/menu/loadgame.q4ui",
+                                                            "guis/menu/credits.q4ui", "guis/menu/demos.q4ui", "guis/menu/arena.q4ui",
                                                             "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui",
                                                             "guis/menu/joingame.q4ui"}) &&
-              s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr);
-        CHECK(!managerObject.flags[2].unique && managerObject.flags[2].shared);  // the page is one shared document
+              s.guiRetainedHome == nullptr && s.guiRetainedLoad != nullptr && s.guiRetainedPause == nullptr && s.guiRetainedSave == nullptr);
+        CHECK(!managerObject.flags[1].unique && managerObject.flags[1].shared);  // the page is one shared document
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic"}));  // a save without a picture shows it
-        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 12 && s.guiRetainedHome == s.guiRetainedTitle);
+        s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 8 && s.guiRetainedHome == s.guiRetainedTitle);
         // A multiplayer level loads each card whose pages are all built.
         const size_t cards = (RETAINED_MP_ESCAPE_MISSING_PAGES[0] == NULL ? 1 : 0) + (RETAINED_MP_WELCOME_MISSING_PAGES[0] == NULL ? 1 : 0);
-        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 12 + cards);
+        s.PrepareRetainedLevel("mp/q4dm1", true); CHECK(precached.size() == 1 && managerObject.loads.size() == 8 + cards);
         s.PrepareRetainedLevel("game/airdefense1", false);
         CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/generic", "gfx/guis/loadscreens/generic"}) &&
-              managerObject.loads.size() == 13 + cards);
-        CHECK(managerObject.loads.back() == "guis/menu/pause_strogg.q4ui");  // either family may pause the level
+              (std::vector<std::string>(managerObject.loads.begin() + 8 + cards, managerObject.loads.end()) ==
+               std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui",  // either family may pause the level
+                                        "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui", "guis/menu/restartmenu.q4ui"}));
+        s.PrepareRetainedLevel("game/airdefense1", false); CHECK(managerObject.loads.size() == 13 + cards);  // once a session
         auto late = Session(true); late.PrepareRetainedLevel("game/airdefense1", false); // the gate switched on after startup
-        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui"}) && precached.size() == 1);
+        CHECK((managerObject.loads == std::vector<std::string>{"guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/menu/loadgame.q4ui",
+                                                            "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
+                                                            "guis/menu/restartmenu.q4ui"}) && precached.size() == 2);
+    }
+    {   // The multiplayer levelshots: queued at startup, read on the front end's
+        // idle frames once the title has presented for a second, as many as fit
+        // 4 ms a frame (at least one), each as a precache; none while a level
+        // plays, and Create Server reads all still waiting.
+        auto s = Session(true);
+        fileSystemObject.maps = {idDict{{{"path", "mp/q4dm1"}, {"DM", "1"}}}, idDict{{{"path", "mp/q4dm2"}, {"DM", "1"}}},
+                                 idDict{{{"path", "mp/q4dm3"}, {"DM", "1"}}}, idDict{{{"path", "mp/q4dm4"}, {"DM", "1"}}},
+                                 idDict{{{"path", "game/airdefense1"}}}};
+        declManagerObject.insideLoad = true; s.PreloadRetainedScreens(); declManagerObject.insideLoad = false;  // as Init does
+        s.UpdateRetainedHome();
+        CHECK(s.retainedLevelshots.Num() == 4 && precached.size() == 1);  // the Load page's generic shot only
+        precacheCost = 3; sysMilliseconds = 100;
+        s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 1 && s.retainedLevelshotsFrom == 1100);
+        sysMilliseconds = 1099; s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 1);
+        sysMilliseconds = 1100; s.PrecacheRetainedLevelshots(false);  // 3 ms, then 6: two fit
+        CHECK(precached.size() == 3 && s.retainedLevelshots.Num() == 2 && latePrecaches == 0 && !declManagerObject.insideLoad);
+        precacheCost = 10; s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 4 && s.retainedLevelshots.Num() == 1);
+        s.mapSpawned = true; s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 4);
+        s.mapSpawned = false; s.guiActive = nullptr; s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 4);
+        s.PrecacheRetainedLevelshots(true); CHECK(precached.size() == 5 && s.retainedLevelshots.Num() == 0 && latePrecaches == 0);
+        s.guiActive = s.guiMainMenu; s.PrecacheRetainedLevelshots(false); CHECK(precached.size() == 5);
+        // A precache inside a load stays inside it.
+        auto inside = Session(true); fileSystemObject.maps = {idDict{{{"path", "mp/q4dm1"}, {"DM", "1"}}}};
+        declManagerObject.insideLoad = true; inside.PreloadRetainedScreens(); inside.PrecacheRetainedLevelshots(true);
+        CHECK(declManagerObject.insideLoad && latePrecaches == 0 && inside.retainedLevelshots.Num() == 0);
+        // A queued picture, as the Arena campaign queues its levelshots: its
+        // stock material and its retained picture, after the maps.
+        auto arena = Session(true); fileSystemObject.maps = {idDict{{{"path", "mp/q4dm1"}, {"DM", "1"}}}};
+        declManagerObject.insideLoad = true; arena.PreloadRetainedScreens(); declManagerObject.insideLoad = false;
+        arena.QueueRetainedLevelshot("gfx/guis/loadscreens/arena_q4dm1", true);
+        CHECK(arena.retainedLevelshots.Num() == 2 && declManagerObject.materials.empty());
+        // Each page reads only its own kind: the Arena page its pictures,
+        // Create Server the maps.
+        precached.clear(); arena.PrecacheRetainedLevelshots(true, false);
+        CHECK((precached == std::vector<std::string>{"gfx/guis/loadscreens/arena_q4dm1"}) &&
+              (declManagerObject.materials == std::vector<std::string>{"gfx/guis/loadscreens/arena_q4dm1"}) &&
+              arena.retainedLevelshots.Num() == 1 && arena.retainedLevelshots[0].map && latePrecaches == 0);
+        arena.PrecacheRetainedLevelshots(true);
+        CHECK(precached.size() == 2 && precached.back() == "gfx/guis/loadscreens/generic" && arena.retainedLevelshots.Num() == 0);
+        precacheCost = 0; sysMilliseconds = 0;
     }
     {   // Loading: stock screens only, one shared instance, and a failed load reports once.
         auto s = Session(true); idUserInterface generic("guis/loading/generic.gui"), intro("guis/loading/intro.gui"), custom("guis/map/mylevel.gui");
@@ -1749,9 +1817,9 @@ int main() {
         CHECK(s.guiRetainedHome == nullptr && !title->active && s.guiRetainedTitle == nullptr);
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("stopped drawing") != std::string::npos);
         s.UpdateRetainedHome(); s.PreloadRetainedScreens();
-        // title, then pause, the Load, Save Game and Restart Level pages and the
-        // restart screen; the Demos page, which only the title reaches, waits for a title
-        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 6 && commonObject.warnings.size() == 1);
+        // Only the title loaded: the pages it reaches wait for a title, and the
+        // pause screens and their pages for a level.
+        CHECK(s.guiRetainedHome == nullptr && managerObject.loads.size() == 1 && commonObject.warnings.size() == 1);
     }
     {   // Back on the Single Player page the title's SINGLE PLAYER opened: the
         // legacy home button's choreography left the legacy menu off its home
@@ -4472,7 +4540,7 @@ def main() -> int:
     campaign_selector = function_body(menu, 'void idSessionLocal::OpenCampaignSelector(')
     assert 'Session_RetainedScreensEnabled() ?' in campaign_selector and 'arenaCampaign.OpenSelector();' in campaign_selector
     assert 'FindGui( "guis/campaign_menu.gui"' in campaign_selector
-    assert menu.count('RETAINED_TITLE_GUI') == 3 and menu.count('RETAINED_PAUSE_GUI') == 4 and menu.count('RETAINED_LOADING_GUI') == 2
+    assert menu.count('RETAINED_TITLE_GUI') == 4 and menu.count('RETAINED_PAUSE_GUI') == 3 and menu.count('RETAINED_LOADING_GUI') == 2
     assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 3
     check_retained_multiplayer(menu, session)
     check_create_server(menu)
@@ -4695,6 +4763,7 @@ def main() -> int:
         'void idSessionLocal::HandleRetainedJoinGameRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
+        'void idSessionLocal::PrecacheRetainedLevelshots(', 'void idSessionLocal::QueueRetainedLevelshot(',
         'static bool Session_IsGameMenu(', 'bool idSessionLocal::RetainedMultiplayerCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',
         'void idSessionLocal::RetireRetainedMultiplayer(', 'void idSessionLocal::RetainedMultiplayerFrameEvent(',
         'void idSessionLocal::HandleGameMenuReturn(', 'void idSessionLocal::HandleRetainedMultiplayerRequest(',

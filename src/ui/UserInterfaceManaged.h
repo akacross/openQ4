@@ -112,6 +112,11 @@ bool UI_RetainedImageSource( const char *source );
 void UI_RetainedPrecacheImage( const char *source );
 // Rereads a picture whose file a newer save may have replaced.
 void UI_RetainedReloadImage( const char *source );
+// Parses retained documents on the job system's workers ahead of their loads:
+// a load of one whose source is unchanged takes its parse instead of parsing.
+// Clear drops the parses no load took, after their workers finish.
+void UI_RetainedPrefetchDocuments( const char *const *paths, int count );
+void UI_RetainedPrefetchClear();
 // Advance a live GUI's timelines and time events without drawing it.
 void UI_RunTimeEvents( idUserInterface *gui, int time );
 // Engine-scripted validation for classic GUIs: runs a window's onAction script,

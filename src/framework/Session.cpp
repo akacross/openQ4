@@ -3848,6 +3848,8 @@ void idSessionLocal::Clear() {
 	retainedMpPageLeft = 0;
 	retainedMpPageAt = 0;
 	guiRetainedCreate = NULL;
+	retainedLevelshots.Clear();
+	retainedLevelshotsFrom = 0;
 	retainedCreateMaps.Clear();
 	retainedCreateMapFirst = 0;
 	retainedCreateMapSelected = -1;
@@ -9171,6 +9173,8 @@ void idSessionLocal::Init() {
 	common->Printf( "Dedicated server: skipping client GUI preload.\n" );
 #else
 	Session_DeclareMultiplayerMenuGameCVars();
+	// The retained screens' documents parse on workers while the stock menus load.
+	PrefetchRetainedScreens();
 #ifndef ID_DEMO_BUILD
 	guiMainMenu = uiManager->FindGui( "guis/mainmenu.gui", true, false, true );
 #else
@@ -9186,6 +9190,7 @@ void idSessionLocal::Init() {
 	const bool retainedInsideLoad = declManager->GetInsideLoad();
 	declManager->SetInsideLoad( true );
 	PreloadRetainedScreens();
+	UI_RetainedPrefetchClear();
 	declManager->SetInsideLoad( retainedInsideLoad );
 	guiMainMenu_MapList = uiManager->AllocListGUI();
 	guiMainMenu_MapList->Config( guiMainMenu, "mapList" );
@@ -9197,6 +9202,12 @@ void idSessionLocal::Init() {
 	guiIntro = uiManager->FindGui( "guis/intro.gui", true, false, true );
 	InitDemoSystem();
 	arenaCampaign.Init();
+	// An engine reload (a campaign's game directory, an Arena match's module)
+	// is a load: its levelshots precache now, not on the front end's idle frames.
+	if ( common->IsInitialized() ) {
+		PrecacheRetainedLevelshots( true, true );
+		PrecacheRetainedLevelshots( true, false );
+	}
 #endif
 
 	whiteMaterial = declManager->FindMaterial( "_white" );

@@ -526,6 +526,138 @@ machine ran lighter than for the table above, where the Escape card measured
 | `joingame.q4ui` | 0.52 ms | 0.51 ms |
 | `title.q4ui` | 1.10 ms | 1.00 ms |
 
+## Startup preload
+
+9 October 2026. With `ui_retained 1` the title waited while the session
+loaded every retained page it might hand off to and precached every
+multiplayer map's levelshot (`idSessionLocal::PreloadRetainedScreens`, inside
+`idSessionLocal::Init`), then every Arena match's (`idArenaCampaign::Init`).
+Timestamped startups (`com_timestampPrints 2`) of a build with temporary laps
+around each step split the twelve pages' loads; medians of three, on a
+debugoptimized build, where the laps add some cost of their own:
+
+| Step, over the twelve pages | Time |
+| --- | ---: |
+| The GUI's parse and validation of the document | 1,989 ms |
+| The view's load: the runtime parsed and validated the same document again, then built its markup, elements and bindings | 2,691 ms |
+| The GUI's application values and first state | 1,307 ms |
+| The 50 multiplayer levelshots | 338 ms |
+
+Join Game (1,390 ms), Create Server (794 ms) and Demos (630 ms) were the
+largest pages. The levelshots had cost 1.7 s while community maps' were
+extracted again on every launch, which `a82b13ab` stopped. The Arena's 20
+match levelshots, largely the multiplayer maps' pictures, took another
+0.3 s after those, or 0.65 s once they no longer loaded first.
+
+What changed:
+
+- **One parse per load.** A `Document` copy now shares its parsed source and
+  model: a load or an edit replaces the parsed document and never changes
+  it. The GUI hands its validated document to its view
+  (`RetainedUI_LoadParsedView`, `Runtime::LoadDocument( const Document& )`),
+  so each page is parsed once. Every later load gains too: the pages a level
+  loads, and the reload of every GUI at each map change.
+- **Cheaper validation.** A check builds its pointer and message only when it
+  fails (`Require` became a macro over `Fail`). The finiteness walk builds no
+  pointers and finds the failing value's pointer only on failure; field
+  checks read member names in place instead of copying them; the
+  per-command and per-control lookup tables are built once. Diagnostics are
+  unchanged: the native document tests compare pointers and messages. The
+  runtime's own load of the twelve pages, which includes its parse, fell
+  from 1,882 to 1,228 ms (`openq4-retained-ui-benchmark --screen`
+  `load_ms`, interleaved, five runs each).
+- **Parsing on the job system's workers.** Before the stock main menu loads,
+  the session reads the startup documents and queues one parse each on the
+  job system (`PrefetchRetainedScreens`, `UI_RetainedPrefetchDocuments`). A
+  page's load takes its parse when the source is unchanged, waiting for it
+  if it is still running, and keeps only the markup, element and binding
+  work on the main thread. Parses no load took are dropped after the
+  preload. A synchronous job system (`jobs_enable 0`, `jobs_deterministic 1`)
+  or a full job queue leaves the load to parse inline, as before.
+- **Only what the title reaches.** Startup loads the title, Load Game,
+  Credits, Demos, Arena, Multiplayer, Create Server and Join Game. The pause
+  screens, the pages only they reach (Save Game, Restart Level) and the
+  death screen load with the first single-player level
+  (`PrepareRetainedLevel`), once a session, as the Strogg pause already did.
+- **Levelshots on idle frames.** Startup lists the multiplayer maps and the
+  Arena matches (`QueueRetainedLevelshot`). Once a front-end menu has
+  presented for a second, each frame precaches as many of their levelshots
+  as fit 4 ms, at least one, as precaches rather than late loads
+  (`PrecacheRetainedLevelshots`). Create Server reads any map levelshot
+  still waiting when it opens, and the Arena page any match levelshot, so
+  browsing either never loads one. A level in play holds the queue until the
+  front end returns, and an engine reload, already a load, reads it at once.
+  `ui_retainedTrace 1` logs each step (`RETAINED_LEVELSHOTS`).
+
+Two interleaved A/Bs against the build before this work (`03ddba97`), each of
+eight rounds: hidden 1280x720 OpenGL window, `s_noSound 1`, debugoptimized,
+each side with its own warm save path, every launch quitting from its
+autoexec. All sides read the same `pak0.pk4` (the older copies' embedded
+checksum was patched to it), so they load identical documents. The first
+rotated the order of three builds to separate the steps; the second
+alternated the final build with the baseline. The first title frame is timed
+from the log's opening at process start. Medians:
+
+| Build | First title frame | Session initialization | Pages loaded at startup |
+| --- | ---: | ---: | ---: |
+| Before | 14.2 s | 6.9 s | 12 |
+| One parse, cheaper validation, level pages and multiplayer levelshots deferred | 9.5 s | 3.3 s | 8 |
+| The same, parsing on workers | 9.2 s | 2.7 s | 8 |
+
+| Build | First title frame | Session initialization |
+| --- | ---: | ---: |
+| Before | 13.6 s | 6.8 s |
+| After: the above, and the Arena levelshots on idle frames | 8.8 s | 2.1 s |
+
+Paired by round, the title came 4.7 s sooner (median; 3.6 to 4.9 s in seven
+rounds, and 13.4 s in one where the machine stalled the baseline's launch).
+Two traced startups (`ui_retainedTrace 1`) read all 70 levelshots in 66
+and 68 idle frames, from 0.6-0.8 s to 2.1-2.3 s after the first title frame:
+0.6-0.75 s of reading in all, at most 38 ms of it in one frame.
+
+Hand-offs, engine probes with console verbs only (the menu audit's capture
+harness with the probe scenarios `probe-preload-settled`,
+`probe-preload-rush` and `probe-preload-arena-rush`), longest frame over each
+step. The settled probe waits six seconds at the title first; the rush
+probes go to their page as soon as they reach the title, within its first
+two seconds:
+
+| Probe | Step | Before | After |
+| --- | --- | ---: | ---: |
+| Settled | The title's first six seconds | 422 ms | 410 ms |
+| Settled | LOAD GAME | 35 ms | 50 ms |
+| Settled | MULTIPLAYER | 99 ms | 93 ms |
+| Settled | CREATE SERVER | 122 ms | 118 ms |
+| Settled | Browsing 12 maps | 43 ms | 57 ms |
+| Rush | MULTIPLAYER | 84 ms | 52 ms |
+| Rush | CREATE SERVER | 108 ms | 708 ms |
+| Rush | Browsing 12 maps | 46 ms | 41 ms |
+| Arena rush | SINGLE PLAYER | 72 ms | 62 ms |
+| Arena rush | ARENA | 109 ms | 278 ms |
+
+One run of each probe varies by tens of milliseconds: the first A/B's
+probes, without the Arena change, measured the settled LOAD GAME at 76 and
+31 ms, MULTIPLAYER at 121 and 77 ms, CREATE SERVER at 147 and 92 ms and the
+browsing at 67 and 53 ms. The title's longest frame is its first. In the
+settled probe the idle frames read all 70 levelshots, at most 33 ms of a
+frame; in the rush probe Create Server opened with 35 of the 50 map
+levelshots still waiting and read them in 575 ms, and the Arena page read
+its 20 in 181 ms. Browsing stays smooth either way.
+
+What remains:
+
+- **A page opened at once.** Opening Create Server or the Arena page in the
+  title's first two seconds, before the idle frames have finished, reads the
+  levelshots still waiting in one frame (708 ms in the rush probe). Decoding
+  levelshots on the job system's workers would remove it.
+- **Map changes.** Every map change re-initializes every loaded GUI
+  (`uiManager->Reload( true )` in `ExecuteMapChange`), the retained pages
+  included: the startup's document work again, now one parse per page, on
+  the main thread.
+- **Outside the menus.** Of the remaining wait before the title, hashing
+  `pak0.pk4` and `pak1.pk4` (800 MB) against the executable's checksums takes
+  about 1.4 s on every launch, and compiling the game's scripts about 1.2 s.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

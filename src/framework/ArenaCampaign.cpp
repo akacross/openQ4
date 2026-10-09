@@ -1002,23 +1002,19 @@ void idArenaCampaign::Init() {
 	state->gui = uiManager->FindGui( "guis/arena_menu.gui", true, false, true );
 	state->returnGui = NULL;
 	LoadCampaign();
-	// The levelshots, and the retained Arena page's pictures of them, resolve
-	// with the menus, so choosing a match never loads one mid-frame, and an
-	// engine reload precaches them as the first start does.
+	// The levelshots, and the retained Arena page's pictures of them, precache
+	// on the front end's idle frames, and the page reads any still waiting when
+	// it opens, so choosing a match never loads one mid-frame. Read here, they
+	// held the title back; an engine reload still precaches them in its load.
 	if ( state->loaded && sessLocal.RetainedArenaGui() != NULL ) {
-		const bool insideLoad = declManager->GetInsideLoad();
-		declManager->SetInsideLoad( true );
 		for ( int tierIndex = 0; tierIndex < state->tiers.Num(); tierIndex++ ) {
 			for ( int matchIndex = 0; matchIndex < state->tiers[tierIndex].matches.Num(); matchIndex++ ) {
 				const arenaMatch_t &match = state->tiers[tierIndex].matches[matchIndex];
 				const idDict *mapDecl = NULL;
 				ArenaMapSupportsMatch( match, &mapDecl );
-				const idStr levelshot = ArenaLevelshot( match, mapDecl );
-				declManager->FindMaterial( levelshot );
-				UI_RetainedPrecacheImage( levelshot.c_str() );
+				sessLocal.QueueRetainedLevelshot( ArenaLevelshot( match, mapDecl ).c_str(), true );
 			}
 		}
-		declManager->SetInsideLoad( insideLoad );
 	}
 
 	// Reaching game_mp completes the only module transition that is allowed to
@@ -1366,6 +1362,9 @@ void idArenaCampaign::OpenBrowser() {
 		if ( sessLocal.guiActive != state->gui ) {
 			state->returnGui = sessLocal.guiActive != NULL ? sessLocal.guiActive : sessLocal.guiMainMenu;
 		}
+	} else {
+		// Any levelshot the front end's idle frames have not read yet (Init).
+		sessLocal.PrecacheRetainedLevelshots( true, false );
 	}
 	state->resetConfirmation = false;
 	state->view = 1;

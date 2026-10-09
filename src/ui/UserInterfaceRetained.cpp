@@ -11,6 +11,7 @@
 #include "retained/TextEditCommand.h"
 #include "../sys/KeyEventMetadata.h"
 #include "application/SettingsTransaction.h"
+#include "../framework/ParallelJobSystem.h"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -836,6 +837,9 @@ void idUserInterfaceRetained::SetUniqued(bool value) { impl->unique = value; }
 size_t idUserInterfaceRetained::Size() { return sizeof(*this)+sizeof(Impl)+impl->state.Allocated()+impl->document.Source().size(); }
 int idUserInterfaceRetained::NumTransitions() { return static_cast<int>(impl->document.Model().timelines.size()); }
 
+// The parse UI_RetainedPrefetchDocuments made of this source, if it made one.
+bool UI_RetainedTakePrefetched(const std::string& path, const std::string& source, Document& document);
+
 bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool cache) {
 	if (!UI_IsRetainedPath(qpath)) return false;
 	const std::string path(qpath);
@@ -849,7 +853,7 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	const std::string source(static_cast<const char*>(data),static_cast<size_t>(size));
 	fileSystem->FreeFile(data);
 	Document candidate; std::vector<Diagnostic> diagnostics; std::string error;
-	if (!candidate.Load(source,diagnostics)) {
+	if (!UI_RetainedTakePrefetched(path,source,candidate) && !candidate.Load(source,diagnostics)) {
 		for (const auto& diagnostic : diagnostics) common->Warning("retained GUI %s:%u:%u %s: %s",path.c_str(),
 			static_cast<unsigned>(diagnostic.line),static_cast<unsigned>(diagnostic.column),diagnostic.pointer.c_str(),diagnostic.message.c_str());
 		return false;
@@ -1737,7 +1741,71 @@ int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<
 	return static_cast<int>(names.size());
 }
 
+namespace {
+// A document a load will ask for, parsed on a worker meanwhile. The job reads
+// only its entry, and the entry's job is its last member, so destroying an
+// entry first cancels or waits for the parse.
+struct PrefetchedDocument {
+	std::string path, source;
+	Document document;
+	std::vector<Diagnostic> diagnostics;
+	bool loaded = false;
+	std::unique_ptr<idJobList> job;
+};
+std::vector<std::unique_ptr<PrefetchedDocument>> prefetchedDocuments;
+void ParsePrefetchedDocument(const idJobContext& context) {
+	auto& entry = *static_cast<PrefetchedDocument*>(context.data);
+	if (!context.IsCancellationRequested()) entry.loaded = entry.document.Load(entry.source,entry.diagnostics);
+}
+}
+
+void UI_RetainedPrefetchDocuments( const char *const *paths, int count ) {
+	// Parsed inline, they would only move the wait.
+	if ( paths == NULL || !jobSystem.IsInitialized() || jobSystem.IsSynchronous() ) return;
+	for ( int i = 0; i < count; ++i ) {
+		const char *path = paths[i];
+		if ( path == NULL || !UI_IsRetainedPath( path ) ||
+				std::any_of( prefetchedDocuments.begin(), prefetchedDocuments.end(), [&]( const auto &entry ) { return entry->path == path; } ) ) {
+			continue;
+		}
+		// The file system stays on this thread; the worker gets the bytes.
+		void *data = nullptr;
+		const int size = fileSystem->ReadFile( path, &data );
+		if ( size <= 0 || data == nullptr || size > 16 * 1024 * 1024 ) {
+			if ( data != nullptr ) fileSystem->FreeFile( data );
+			continue;
+		}
+		auto entry = std::make_unique<PrefetchedDocument>();
+		entry->path = path;
+		entry->source.assign( static_cast<const char *>( data ), static_cast<size_t>( size ) );
+		fileSystem->FreeFile( data );
+		entry->job = jobSystem.CreateJobList( "retained-document-parse", 1 );
+		if ( !entry->job || !entry->job->AddJob( ParsePrefetchedDocument, entry.get() ) ) continue;
+		const idJobSubmitResult submitted = entry->job->Submit();
+		if ( submitted != idJobSubmitResult::ACCEPTED && submitted != idJobSubmitResult::EXECUTED_SYNCHRONOUSLY ) continue;
+		prefetchedDocuments.push_back( std::move( entry ) );
+	}
+}
+
+bool UI_RetainedTakePrefetched(const std::string& path, const std::string& source, Document& document) {
+	const auto found = std::find_if(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return entry->path == path; });
+	if (found == prefetchedDocuments.end()) return false;
+	const auto entry = std::move(*found);
+	prefetchedDocuments.erase(found);
+	// A parse that failed, or of a source that has changed since, is made again
+	// by the load, which reports its diagnostics.
+	if (!entry->job->Wait() || !entry->loaded || entry->source != source) return false;
+	document = std::move(entry->document);
+	return true;
+}
+
+void UI_RetainedPrefetchClear() {
+	prefetchedDocuments.clear();
+}
+
 #else
+void UI_RetainedPrefetchDocuments( const char *const *, int ) {}
+void UI_RetainedPrefetchClear() {}
 bool UI_RetainedImageSource( const char * ) { return false; }
 void UI_RetainedPrecacheImage( const char * ) {}
 void UI_RetainedReloadImage( const char * ) {}

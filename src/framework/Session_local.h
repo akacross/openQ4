@@ -280,9 +280,19 @@ public:
 	// page, or the stock page when it cannot open.
 	void				OpenSystemSettingsRoute( bool fromMultiplayer );
 	// Resolve the screens and their pictures where the stock menus resolve
-	// theirs: at startup, and inside each single-player level load.
+	// theirs: at startup the screens the title reaches, and inside each
+	// single-player level load those a level reaches.
 	void				PreloadRetainedScreens();
+	// Starts parsing PreloadRetainedScreens' documents on the job system's
+	// workers, while the stock menus load.
+	void				PrefetchRetainedScreens();
 	void				PrepareRetainedLevel( const char *mapPath, bool multiplayer );
+	// Every multiplayer map's levelshot for Create Server, and the Arena
+	// campaign's for its page: a few on each idle front-end frame, or when
+	// `all` is set every one still waiting of a page's kind, the maps' or not.
+	void				PrecacheRetainedLevelshots( bool all, bool maps = true );
+	// A levelshot for those frames; `material` precaches its stock material too.
+	void				QueueRetainedLevelshot( const char *picture, bool material );
 	// After the game spawns the map, still inside the load: the objective
 	// screenshots the pause screen's Objectives page may show.
 	void				PrecacheRetainedLevelImages();
@@ -679,6 +689,13 @@ public:
 	int					retainedMpPageLeft;		// the stock Multiplayer page it last left for, which Back returns from
 	int					retainedMpPageAt;		// presentation time that page takes over
 	idUserInterface *	guiRetainedCreate;		// the retained Create Server sub-page (NULL until it loads)
+	struct retainedLevelshot_t {
+		idStr			name;					// a multiplayer map's path, or a picture
+		bool			map;					// a map, whose levelshot RetainedPauseShot chooses
+		bool			material;				// a picture whose stock material precaches too
+	};
+	idList<retainedLevelshot_t> retainedLevelshots;	// levelshots still to precache
+	int					retainedLevelshotsFrom;	// when idle frames start precaching them (0: not yet set)
 	idList<int>			retainedCreateMaps;		// the map decls the chosen game type plays, in list order
 	int					retainedCreateMapFirst;	// the first of them the list holds
 	int					retainedCreateMapSelected;	// the chosen one among them (-1: none)
