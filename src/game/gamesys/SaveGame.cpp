@@ -112,6 +112,33 @@ struct openQ4SaveGameSnapshot_t {
 static const int OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_SWIM_SPEED = 661;
 static const int OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_LIQUID_SOUND = 721;
 
+// A saved GUI's window tree is positional: its bytes follow the window, variable
+// and script layout parsed from the .gui file, which the save does not record.
+// openQ4 commit 38bdc687 rewrote both player HUDs in the same change that moved the
+// payload to v4, so every v3 save carries these exact earlier definitions. They
+// are kept unchanged under guis/savegame/v3/ only to decode that window tree.
+struct openQ4SaveGameGuiLayout_t {
+	const char *gui;
+	const char *v3Layout;
+};
+
+static const openQ4SaveGameGuiLayout_t openQ4SaveGameV3GuiLayouts[] = {
+	{ "guis/hud.gui", "guis/savegame/v3/hud.gui" },
+	{ "guis/hud_strogg.gui", "guis/savegame/v3/hud_strogg.gui" },
+};
+
+static const char *SaveGame_FindGuiLayoutForPayload( const char *gui, int payloadVersion ) {
+	if ( payloadVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
+		return NULL;
+	}
+	for ( int i = 0; i < static_cast<int>( sizeof( openQ4SaveGameV3GuiLayouts ) / sizeof( openQ4SaveGameV3GuiLayouts[0] ) ); i++ ) {
+		if ( idStr::Icmp( gui, openQ4SaveGameV3GuiLayouts[i].gui ) == 0 ) {
+			return openQ4SaveGameV3GuiLayouts[i].v3Layout;
+		}
+	}
+	return NULL;
+}
+
 static const int MAX_SAVEGAME_OBJECTS = MAX_GENTITIES + MAX_CENTITIES + 4096;
 static const int MAX_SAVEGAME_DICT_ENTRIES = 16384;
 
@@ -1990,15 +2017,80 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 		ReadBool( unique );
 		ui = uiManager->FindGui( name, true, unique );
 		if ( ui ) {
-			if ( ui->ReadFromSaveGame( file ) == false ) {
+			const char *payloadLayout = SaveGame_FindGuiLayoutForPayload( name, openQ4SaveGameCompatibilityVersion );
+			if ( payloadLayout != NULL ) {
+				ReadUserInterfaceWithLayout( ui, name, payloadLayout );
+			} else if ( ui->ReadFromSaveGame( file ) == false ) {
 				Error( "idSaveGame::ReadUserInterface: ui failed to read properly\n" );
-			} else {
-// RAVEN BEGIN
-				UpdateGuiParms( ui, args );
-// RAVEN END
 			}
+// RAVEN BEGIN
+			UpdateGuiParms( ui, args );
+// RAVEN END
 		}
 	}
+}
+
+/*
+================
+idRestoreGame::ReadUserInterfaceWithLayout
+
+Reads a GUI whose saved window tree follows an earlier definition than the one
+this build loads. A private instance of that definition consumes the window tree
+with every normal check, then hands its state dictionary and interaction flags to
+the live GUI. Window-local animation progress is not carried over: the live
+window tree starts from its definition, as it does when a map spawns the GUI.
+================
+*/
+class idScopedSavedLayoutGui {
+public:
+	explicit idScopedSavedLayoutGui( idUserInterface *savedGui ) : gui( savedGui ) {
+	}
+
+	~idScopedSavedLayoutGui( void ) {
+		if ( gui != NULL ) {
+			uiManager->DeAlloc( gui );
+		}
+	}
+
+	idUserInterface *gui;
+
+private:
+	idScopedSavedLayoutGui( const idScopedSavedLayoutGui & );
+	idScopedSavedLayoutGui &operator=( const idScopedSavedLayoutGui & );
+};
+
+void idRestoreGame::ReadUserInterfaceWithLayout( idUserInterface *ui, const char *name, const char *layout ) {
+	const int offset = file->Tell();
+	// Released on every exit, including the error unwinds a failed read raises.
+	idScopedSavedLayoutGui scopedSaved( uiManager->FindGui( layout, true, true ) );
+	idUserInterface *saved = scopedSaved.gui;
+	if ( saved == NULL ) {
+		Error( "idRestoreGame::ReadUserInterface: v%d gui '%s' at offset %d needs its saved layout '%s', which is missing",
+			openQ4SaveGameCompatibilityVersion, name, offset, layout );
+	}
+	if ( saved->ReadFromSaveGame( file ) == false ) {
+		Error( "idRestoreGame::ReadUserInterface: v%d gui '%s' at offset %d failed to read with its saved layout '%s'",
+			openQ4SaveGameCompatibilityVersion, name, offset, layout );
+	}
+
+	const idDict &savedState = saved->State();
+	const idDict liveState = ui->State();
+	for ( int i = 0; i < liveState.GetNumKeyVals(); i++ ) {
+		const idKeyValue *kv = liveState.GetKeyVal( i );
+		if ( kv != NULL && savedState.FindKey( kv->GetKey() ) == NULL ) {
+			ui->DeleteStateVar( kv->GetKey() );
+		}
+	}
+	for ( int i = 0; i < savedState.GetNumKeyVals(); i++ ) {
+		const idKeyValue *kv = savedState.GetKeyVal( i );
+		ui->SetStateString( kv->GetKey(), kv->GetValue() );
+	}
+	ui->SetInteractive( saved->IsInteractive() );
+	ui->SetUniqued( saved->IsUniqued() );
+	ui->SetCursor( saved->CursorX(), saved->CursorY() );
+
+	common->Printf( "Restored v%d gui '%s' through its saved layout '%s' (%d state values; window animations restart)\n",
+		openQ4SaveGameCompatibilityVersion, name, layout, savedState.GetNumKeyVals() );
 }
 
 // RAVEN BEGIN
@@ -2797,6 +2889,12 @@ bool idRestoreGame::HasOpenQ4PlayerLiquidSaveFieldForBuild( int firstBuildWithFi
 	if ( !openQ4SaveGameHasCompatibilityStamp ||
 		 openQ4SaveGameCompatibilityVersion < OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
 		return false;
+	}
+	// Both fields entered the save inside v3, so only a v3 payload can lack them.
+	// Every later writer emits them, whatever commit count its build was stamped
+	// with: a source archive stamps 0 and a shallow clone 1.
+	if ( openQ4SaveGameCompatibilityVersion > OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
+		return true;
 	}
 
 	return buildNumber >= firstBuildWithField;

@@ -2,6 +2,32 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Restore v0.10-v0.13.2 (format 3) saves. 0.14.000 rewrote both player HUD
+  definitions in the change that introduced format 4, but its format-3 decoder
+  kept parsing the saved HUD window tree with the new definitions. Every format-3
+  save therefore failed part way through its player HUD, after the running map
+  had been torn down. The verbatim format-3 HUD definitions now ship under
+  `guis/savegame/v3/`, and both game libraries decode format-3 HUDs through them.
+  `savegame_gui_layout_contract.py` pins every serialized openQ4 GUI by format, so
+  an edit to one fails until it is classified.
+- [x] Stop format-4 restores depending on the writer's commit count. Builds from a
+  source archive (build 0) or shallow clone (build 1) refused their own saves in
+  preflight, and their payloads were read against the v3 liquid-field thresholds.
+  The build floor and those thresholds now apply to format 3 only.
+- [x] Add `savegame_restore_matrix.py`, an opt-in runtime check that restores
+  existing saves with a staged client, optionally under rewritten build numbers,
+  and confirms the input files are unchanged. Linux x64 results, including real
+  v0.13.2 saves that 0.14.000 cannot restore, are in
+  [Savegame Reliability](savegame-reliability.md#cross-build-restore-matrix-2026-10-13-linux-x64).
+  Windows, macOS and ARM64 restores were not run.
+
+Candidate save release wording: Saves from openQ4 0.10 through 0.13.2 load again.
+0.14.000 could not restore them, despite its upgrade note saying they would. Your
+original save files were never changed, so slots that failed in 0.14.000 work
+after updating. HUD animations that were mid-flight when such a save was made
+restart on load. Format-4 saves from 0.14.000 are unaffected. Builds compiled from
+a source archive or shallow Git clone now load their own saves.
+
 - [x] Reduce repeated hidden HUD animation checks without changing animation
   phase, appearance or reveal behavior. Eight optimized native UI suites pass.
   Matched 720p gameplay comparisons in both condition orders add 2.60-4.32%
