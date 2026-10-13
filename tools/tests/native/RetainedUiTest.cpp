@@ -645,9 +645,11 @@ static void CheckHiddenPresentation(TestHost& host) {
 	Check(runtime.LoadDocument(source,"hidden-layout.q4ui",diagnostics),"load hidden presentation fixture");
 	runtime.Frame({},0);
 	Check(runtime.PlayTimeline("grow",0),"start hidden size animation");
+	runtime.Frame({},.25);
 	runtime.Frame({},.5);
-	Check(runtime.Statistics().layoutUpdates==0 && Near(float(runtime.PresentedValue("growing","width")->data[0]),60),
-		"hidden animation advances without updating visible layout");
+	Check(runtime.Statistics().layoutUpdates==0 && runtime.Statistics().motionInputsScanned==0 &&
+		Near(float(runtime.PresentedValue("growing","width")->data[0]),60),
+		"hidden animation advances without repeating property or layout work");
 	Check(runtime.SetState({{"shown",true}},error,.5),"reveal animated branch");
 	runtime.Frame({},.5);
 	Check(runtime.Statistics().layoutUpdates==1 && runtime.GetBounds("growing",bounds) && Near(bounds.width,60),

@@ -1496,7 +1496,7 @@ struct Runtime::Impl {
 	// ApplyMotion's last applied input for each motion value, by position,
 	// whether a binding owns it, and the state revision and text ratio it was
 	// formatted under.
-	struct AppliedInput { PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; };
+	struct AppliedInput { PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false; };
 	std::vector<AppliedInput> appliedInputs;
 	std::vector<PropertyKey> deferredInputs;
 	std::uint64_t appliedInputRevision = 0;
@@ -1915,7 +1915,8 @@ struct Runtime::Impl {
         const auto current=[&]{return !expected || (ownerCanvas->alive && !ownerCanvas->retiring && ownerCanvas->identity==*expected);};
         if (!document || !canonical || !current()) return false;
 		const float textRatio=viewport.TextRatio();
-		if (!applied.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
+		const bool flushDeferred = presentationDirty && !deferredInputs.empty();
+		if (!flushDeferred && !applied.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
 			appliedMotionRevision && appliedMotionRevision==motion.Revision() && appliedInputs.size()>=motion.Values().size()) return current();
 		// The inherited document default participates once. Explicit absolute
 		// typography below replaces it; em values use the resulting parent/font
@@ -1945,7 +1946,7 @@ struct Runtime::Impl {
 		// apply: a settled screen walks none of its authored values.
 		std::vector<PropertyKey> changedKeys;
 		const bool partial = motion.TakeChanged(changedKeys);
-		if (!stateChanged && appliedInputs.size() >= motion.Values().size() && appliedMotionRevision != 0 &&
+		if (!flushDeferred && !stateChanged && appliedInputs.size() >= motion.Values().size() && appliedMotionRevision != 0 &&
 			appliedMotionRevision == motion.Revision()) return current();
 		const auto passRevision = motion.Revision();
 		// The incremental pass serves frames. An input-time refresh (a
@@ -1958,7 +1959,7 @@ struct Runtime::Impl {
 		// A display transition flushes pending inline styles before RmlUi resolves
 		// the newly visible tree. In between, invisible animation still advances
 		// in Motion without repeatedly parsing filters/transforms nobody can see.
-		const bool deferHidden=incremental && controls.empty() && !scrollView.HasScrollbars() &&
+		const bool deferHidden=incremental && !presentationDirty && controls.empty() && !scrollView.HasScrollbars() &&
 			!interaction.HasAuthoredModals() && !pointerPresent &&
 			std::none_of(changedKeys.begin(),changedKeys.end(),[](const PropertyKey& key){return key.second=="display";});
 		if (!deferHidden) {
@@ -1984,7 +1985,8 @@ struct Runtime::Impl {
 				input.element=element;
 				for (auto* ancestor=element;ancestor;ancestor=ancestor->GetParentNode())
 					if (ancestor->GetComputedValues().display()==Rml::Style::Display::None) {
-						if (std::find(deferredInputs.begin(),deferredInputs.end(),key)==deferredInputs.end()) deferredInputs.push_back(key);
+						if (!input.deferred) deferredInputs.push_back(key);
+						input.deferred=true;
 						input.key={}; // A deferred bound value has not reached its element yet.
 						return current();
 					}
@@ -2072,12 +2074,19 @@ struct Runtime::Impl {
 			// values changed (all of them after a full evaluation).
 			std::sort(changedKeys.begin(),changedKeys.end());
 			changedKeys.erase(std::unique(changedKeys.begin(),changedKeys.end()),changedKeys.end());
-			Stats().motionInputsScanned += changedKeys.size();
 			for (const auto& key : changedKeys) {
 				const auto index = inputIndexes.find(key);
+				if (index == inputIndexes.end()) continue;
+				auto& input = appliedInputs[index->second];
+				// A deferred property's branch cannot become visible while the
+				// presentation and its display bindings remain unchanged. Its
+				// timeline still samples in Motion; read the latest value when a
+				// later display/layout change flushes the deferred inputs.
+				if (deferHidden && !presentationDirty && input.deferred) continue;
+				++Stats().motionInputsScanned;
 				const auto animated = motion.Values().find(key);
-				if (index == inputIndexes.end() || animated == motion.Values().end()) continue;
-				if (!apply(appliedInputs[index->second],key,animated->second)) return false;
+				if (animated == motion.Values().end()) continue;
+				if (!apply(input,key,animated->second)) return false;
 			}
 			if (complete) appliedMotionRevision = passRevision;
 			return current();

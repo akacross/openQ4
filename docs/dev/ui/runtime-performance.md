@@ -652,6 +652,73 @@ the user requested a pause after this validation pass. Test reservations are
 released at the checkpoint. CPU frontend work remains the main investigation
 direction; changing already-cached SVG icon sources does not remove that work.
 
+## Hidden animation input reuse (13 October 2026)
+
+Hidden presentation branches now retain their deferred-input status. Their
+timelines keep advancing, while repeated state/value lookups and ancestor
+visibility walks wait until a display or presentation change. Revealing a
+branch applies its current values before layout; visible animation, input and
+the installed legacy ECG/radio/voice bitmaps keep their existing behavior.
+Native regression checks cover zero repeated hidden-property scans, current
+and completed-value reveal, and document replacement. Eight optimized UI
+suites pass.
+
+The coordinated 1280x720, 8x MSAA, uncapped gameplay repeat uses four five-second
+windows per condition, six seconds of settling and ABBA ordering. Whole-window
+means include every interval. Q4DM1/OpenGL measures 3.371 ms legacy versus
+3.459 ms retained (+2.60%); Air Defense 1/Vulkan measures 2.565 versus 2.640 ms
+(+2.93%). MP root CPU p50 falls from 0.091 to 0.070 ms and actual animation
+input scans from about 12 to 2 per frame. The baseline had substantial host
+variation, so this does not isolate the whole-frame benefit of the small
+runtime change. Reversing the condition order confirms 3.438 versus 3.587 ms
+on MP/OpenGL (+4.32%) and 2.524 versus 2.569 ms on SP/Vulkan (+1.79%). Both
+balanced orders therefore place the new UI within 1.8-4.3% of legacy in these
+two scenes. This qualifies near-legacy performance on the tested Windows
+machine, not zero overhead or other-platform performance. Each completed
+candidate verifies that its runtime hashes remain unchanged throughout the run.
+
+Fresh engine captures qualify the Marine, Strogg and multiplayer bitmap graphs
+on OpenGL and Vulkan: all six animated pairs change and all six Reduced Motion
+pairs remain identical. Native audio fixtures compile no paths after warm-up;
+both visible MP voice displays add about 0.0032 ms of host CPU work. Live
+microphone/network voice is outside this capture fixture. The coordinated scope
+fix also preserves Vulkan dialog text with atlas caching and replay enabled.
+Evidence and full settings are in `.tmp/ui-near-legacy-20261013/REPORT.md`.
+This follow-up preserves the shipping legacy-UI default; the broader negligible
+overhead requirement below remains open.
+
+## Complementary renderer checks (13 October 2026)
+
+The same staged build was then tested in single-player/OpenGL and
+multiplayer/Vulkan, with the same 1280x720, MSAA 8, uncapped settings, 25-second
+warm-up, six-second settling and four five-second windows per condition. Each
+scene was repeated with the condition order reversed. Every interval contributes
+to the means; no slow windows were discarded.
+
+| Scene and condition order | Legacy ms | New UI ms | Difference |
+| --- | ---: | ---: | ---: |
+| Air Defense 1 SP / OpenGL, ABBA twice | 3.552 | 3.634 | +2.31% |
+| Air Defense 1 SP / OpenGL, BAAB twice | 3.971 | 3.787 | -4.63% |
+| Q4DM1 MP / Vulkan, ABBA twice | 2.480 | 2.521 | +1.66% |
+| Q4DM1 MP / Vulkan, BAAB twice | 2.515 | 2.519 | +0.13% |
+
+The reverse OpenGL run contains a pronounced legacy-side slowdown; the negative
+difference is not evidence that the new UI is intrinsically faster. Vulkan's
+individual balanced blocks also vary. These measurements support near parity in
+the sampled gameplay, but cannot resolve an exact small overhead under this host
+variation. The MP fixture is a solo listen server, not a populated match.
+
+Retained root CPU p50 is 0.0567-0.0639 ms in SP and 0.0681-0.0858 ms in MP.
+All four 300-frame profiles report zero layout rebuilds; actual animated-property
+scans remain about one per SP frame and two per MP frame. Source polling,
+property application and draw submission account for the remaining bounded work.
+There is no additional dominant UI bottleneck demonstrated by these profiles,
+so this follow-up makes no runtime or content changes. Engine screenshots confirm
+the expected HUD gauges and crosshair in both combinations. All four runs use
+identical runtime hashes, unchanged during sampling and matching the staged build.
+Logs, full settings, per-window results and captures are recorded in
+`.tmp/ui-cross-api-20261013/REPORT.md`.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

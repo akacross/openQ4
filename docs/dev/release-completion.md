@@ -1,5 +1,25 @@
 # openQ4 Release Completion List
 
+## Post-0.14.000 corrections
+
+- [x] Reduce repeated hidden HUD animation checks without changing animation
+  phase, appearance or reveal behavior. Eight optimized native UI suites pass.
+  Matched 720p gameplay comparisons in both condition orders add 2.60-4.32%
+  frame time in MP/OpenGL and 1.79-2.93% in SP/Vulkan. Fresh engine captures
+  qualify animation and Reduced Motion for all three bitmap graph families on
+  both renderers. This establishes near-legacy performance in the tested scenes,
+  not zero overhead or other-platform qualification. Evidence:
+  `.tmp/ui-near-legacy-20261013/REPORT.md`. Legacy UI remains the shipping default.
+  Complementary SP/OpenGL and MP/Vulkan checks also show near parity: first-order
+  differences are +2.31% and +1.66%; reversing order gives -4.63% and +0.13% with
+  substantial run-to-run variation. All four profiles avoid layout rebuilds.
+  No additional runtime change was warranted by these profiles. Evidence:
+  `.tmp/ui-cross-api-20261013/REPORT.md`.
+
+Candidate UI release wording: The optional new UI does less work on hidden HUD
+animations, improving gameplay performance while preserving its appearance and
+animation. ECG and radio/voice graphs retain their legacy bitmap animation.
+
 ## 0.14.000 release
 
 - [x] Restore the shipping `ui_retained 0` default because retained gameplay
