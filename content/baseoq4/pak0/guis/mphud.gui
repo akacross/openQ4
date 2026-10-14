@@ -9,8 +9,14 @@ windowDef Desktop
 	float	"igOffset"	282-((32*"gui::ig_awards")/2)
 	// Arena Campaign presentation is local to the HUD.  Ordinary multiplayer
 	// never fires these events and therefore never sees the cinematic layer.
+	// Mode 1 is the countdown entrance, 2 the victory tableau and 3 an opponent
+	// introduction.  Hold keeps a frame the introductions opened instead of
+	// collapsing and reopening it; Clearing lets a later card cancel the
+	// pending end of a clear that was still fading out.
 	float	"arena_presentVisible"	0
 	float	"arena_presentMode"	0
+	float	"arena_presentHold"	0
+	float	"arena_presentClearing"	0
 	definevec4	"white"	1,1,1,1
 	definevec4	"white_5"	1,1,1,0.5
 	definevec4	"white_0"	1,1,1,0
@@ -77,25 +83,53 @@ windowDef Desktop
 	// stopTransitions can only reach the caller's own subtree.  Only the Desktop
 	// can therefore retire another presentation timeline's still-running fades,
 	// so each entry point clears the two it is replacing before restarting.
-	onNamedEvent arenaCampaignEntrance {
+	onNamedEvent arenaCampaignIntroduce {
+		stopTransitions "oq4_arena_present_entrance" ;
 		stopTransitions "oq4_arena_present_victory" ;
 		stopTransitions "oq4_arena_present_clear" ;
+		set "Desktop::arena_presentClearing" "0" ;
+		// The first combatant opens the frame; the rest only swap the copy.
+		if ( "Desktop::arena_presentVisible" == 1 && "Desktop::arena_presentMode" == 3 ) {
+			set "Desktop::arena_presentHold" "1" ;
+		} else {
+			set "Desktop::arena_presentHold" "0" ;
+		}
+		set "Desktop::arena_presentVisible" "1" ;
+		set "Desktop::arena_presentMode" "3" ;
+		resetTime "oq4_arena_present_intro" "0" ;
+	}
+
+	onNamedEvent arenaCampaignEntrance {
+		stopTransitions "oq4_arena_present_intro" ;
+		stopTransitions "oq4_arena_present_victory" ;
+		stopTransitions "oq4_arena_present_clear" ;
+		set "Desktop::arena_presentClearing" "0" ;
+		// The countdown entrance takes over a frame the introductions left open.
+		if ( "Desktop::arena_presentVisible" == 1 && "Desktop::arena_presentMode" == 3 ) {
+			set "Desktop::arena_presentHold" "1" ;
+		} else {
+			set "Desktop::arena_presentHold" "0" ;
+		}
 		set "Desktop::arena_presentVisible" "1" ;
 		set "Desktop::arena_presentMode" "1" ;
 		resetTime "oq4_arena_present_entrance" "0" ;
 	}
 
 	onNamedEvent arenaCampaignVictory {
+		stopTransitions "oq4_arena_present_intro" ;
 		stopTransitions "oq4_arena_present_entrance" ;
 		stopTransitions "oq4_arena_present_clear" ;
+		set "Desktop::arena_presentClearing" "0" ;
 		set "Desktop::arena_presentVisible" "1" ;
 		set "Desktop::arena_presentMode" "2" ;
 		resetTime "oq4_arena_present_victory" "0" ;
 	}
 
 	onNamedEvent arenaCampaignPresentationClear {
+		stopTransitions "oq4_arena_present_intro" ;
 		stopTransitions "oq4_arena_present_entrance" ;
 		stopTransitions "oq4_arena_present_victory" ;
+		set "Desktop::arena_presentClearing" "1" ;
 		resetTime "oq4_arena_present_clear" "0" ;
 	}
 	
@@ -4613,9 +4647,9 @@ windowDef Desktop
 	windowDef oq4_arena_entrance_kicker
 	{
 		rect	80,151,480,22
-		visible	( "Desktop::arena_presentVisible" == 1 && "Desktop::arena_presentMode" == 1 )
+		visible	( "Desktop::arena_presentVisible" == 1 && ( "Desktop::arena_presentMode" == 1 || "Desktop::arena_presentMode" == 3 ) )
 		forecolor	0.95,0.72,0.25,0
-		text	"#str_42079"
+		text	"gui::arena_presentKicker"
 		textscale	0.22
 		textalign	1
 		font	"fonts/lowpixel"
@@ -4625,7 +4659,7 @@ windowDef Desktop
 	windowDef oq4_arena_entrance_title
 	{
 		rect	48,181,544,56
-		visible	( "Desktop::arena_presentVisible" == 1 && "Desktop::arena_presentMode" == 1 )
+		visible	( "Desktop::arena_presentVisible" == 1 && ( "Desktop::arena_presentMode" == 1 || "Desktop::arena_presentMode" == 3 ) )
 		forecolor	1,0.97,0.84,0
 		text	"gui::arena_presentTitle"
 		textscale	0.52
@@ -4637,7 +4671,7 @@ windowDef Desktop
 	windowDef oq4_arena_entrance_subtitle
 	{
 		rect	80,244,480,24
-		visible	( "Desktop::arena_presentVisible" == 1 && "Desktop::arena_presentMode" == 1 )
+		visible	( "Desktop::arena_presentVisible" == 1 && ( "Desktop::arena_presentMode" == 1 || "Desktop::arena_presentMode" == 3 ) )
 		forecolor	0.78,0.84,0.69,0
 		text	"gui::arena_presentSubtitle"
 		textscale	0.22
@@ -4744,6 +4778,50 @@ windowDef Desktop
 		noevents	1
 	}
 
+	// One beat per introduced combatant.  The first opens the frame at a lighter
+	// shade than the entrance, so the fighter reads clearly; every beat fades
+	// its own copy in.  Nothing here closes the frame: the countdown entrance
+	// takes it over, or a clear retires it.
+	windowDef oq4_arena_present_intro
+	{
+		rect	0,0,1,1
+		visible	1
+		notime	1
+
+		onTime 0 {
+			stopTransitions "oq4_arena_present_intro" ;
+			set "oq4_arena_entrance_kicker::forecolor" "0.95,0.72,0.25,0" ;
+			set "oq4_arena_entrance_title::forecolor" "1,0.97,0.84,0" ;
+			set "oq4_arena_entrance_subtitle::forecolor" "0.78,0.84,0.69,0" ;
+			set "oq4_arena_entrance_ready::forecolor" "0.95,0.49,0.06,0" ;
+			if ( "Desktop::arena_presentHold" == 1 ) {
+				// Already framed: settle any interrupted fade on the held frame.
+				set "oq4_arena_frame::open" "1" ;
+				set "oq4_arena_present_shade::backcolor" "0,0,0,0.3" ;
+				set "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0.9" ;
+				set "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0.9" ;
+			} else {
+				set "oq4_arena_frame::open" "0" ;
+				set "oq4_arena_present_shade::backcolor" "0,0,0,0" ;
+				set "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" ;
+				set "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" ;
+				transition "oq4_arena_present_shade::backcolor" "0,0,0,0" "0,0,0,0.3" "400" ;
+				transition "oq4_arena_frame::open" "0" "1" "400" ;
+				transition "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
+				transition "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
+			}
+		}
+
+		onTime 60 {
+			transition "oq4_arena_entrance_kicker::forecolor" "0.95,0.72,0.25,0" "0.95,0.72,0.25,1" "260" ;
+		}
+
+		onTime 140 {
+			transition "oq4_arena_entrance_title::forecolor" "1,0.97,0.84,0" "1,0.97,0.84,1" "320" ;
+			transition "oq4_arena_entrance_subtitle::forecolor" "0.78,0.84,0.69,0" "0.78,0.84,0.69,1" "320" ;
+		}
+	}
+
 	windowDef oq4_arena_present_entrance
 	{
 		rect	0,0,1,1
@@ -4755,18 +4833,27 @@ windowDef Desktop
 			// timeline can clear the transitions it owns and nothing else.  The
 			// Desktop event that starts this timeline stops the sibling ones.
 			stopTransitions "oq4_arena_present_entrance" ;
-			set "oq4_arena_frame::open" "0" ;
-			set "oq4_arena_present_shade::backcolor" "0,0,0,0" ;
-			set "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" ;
-			set "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" ;
 			set "oq4_arena_entrance_kicker::forecolor" "0.95,0.72,0.25,0" ;
 			set "oq4_arena_entrance_title::forecolor" "1,0.97,0.84,0" ;
 			set "oq4_arena_entrance_subtitle::forecolor" "0.78,0.84,0.69,0" ;
 			set "oq4_arena_entrance_ready::forecolor" "0.95,0.49,0.06,0" ;
-			transition "oq4_arena_present_shade::backcolor" "0,0,0,0" "0,0,0,0.42" "400" ;
-			transition "oq4_arena_frame::open" "0" "1" "400" ;
-			transition "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
-			transition "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
+			if ( "Desktop::arena_presentHold" == 1 ) {
+				// The introductions left the frame open: keep it and only deepen
+				// the shade, instead of collapsing the bars to reopen them.
+				set "oq4_arena_frame::open" "1" ;
+				set "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0.9" ;
+				set "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0.9" ;
+				transition "oq4_arena_present_shade::backcolor" "0,0,0,0.3" "0,0,0,0.42" "400" ;
+			} else {
+				set "oq4_arena_frame::open" "0" ;
+				set "oq4_arena_present_shade::backcolor" "0,0,0,0" ;
+				set "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" ;
+				set "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" ;
+				transition "oq4_arena_present_shade::backcolor" "0,0,0,0" "0,0,0,0.42" "400" ;
+				transition "oq4_arena_frame::open" "0" "1" "400" ;
+				transition "oq4_arena_rule_top::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
+				transition "oq4_arena_rule_bottom::backcolor" "0.95,0.49,0.06,0" "0.95,0.49,0.06,0.9" "500" ;
+			}
 		}
 
 		onTime 220 {
@@ -4803,8 +4890,10 @@ windowDef Desktop
 		}
 
 		onTime 4000 {
-			set "oq4_arena_frame::open" "0" ;
-			set "Desktop::arena_presentVisible" "0" ;
+			if ( "Desktop::arena_presentMode" == 1 ) {
+				set "oq4_arena_frame::open" "0" ;
+				set "Desktop::arena_presentVisible" "0" ;
+			}
 		}
 	}
 
@@ -4872,6 +4961,11 @@ windowDef Desktop
 			// clear can arrive during either one.
 			if ( "Desktop::arena_presentMode" == 1 ) {
 				transition "oq4_arena_present_shade::backcolor" "0,0,0,0.42" "0,0,0,0" "350" ;
+			} else if ( "Desktop::arena_presentMode" == 3 ) {
+				transition "oq4_arena_present_shade::backcolor" "0,0,0,0.3" "0,0,0,0" "350" ;
+				transition "oq4_arena_entrance_kicker::forecolor" "0.95,0.72,0.25,1" "0.95,0.72,0.25,0" "250" ;
+				transition "oq4_arena_entrance_title::forecolor" "1,0.97,0.84,1" "1,0.97,0.84,0" "250" ;
+				transition "oq4_arena_entrance_subtitle::forecolor" "0.78,0.84,0.69,1" "0.78,0.84,0.69,0" "250" ;
 			} else {
 				transition "oq4_arena_present_shade::backcolor" "0,0,0,0.18" "0,0,0,0" "350" ;
 			}
@@ -4888,10 +4982,15 @@ windowDef Desktop
 			transition "oq4_arena_recording_result::forecolor" "0.67,0.75,0.56,0.9" "0.67,0.75,0.56,0" "250" ;
 		}
 
+		// A card armed while this was fading cancelled it: onTime events are not
+		// stopped by stopTransitions, so the hide checks it is still wanted.
 		onTime 400 {
-			set "oq4_arena_frame::open" "0" ;
-			set "Desktop::arena_presentVisible" "0" ;
-			set "Desktop::arena_presentMode" "0" ;
+			if ( "Desktop::arena_presentClearing" == 1 ) {
+				set "oq4_arena_frame::open" "0" ;
+				set "Desktop::arena_presentVisible" "0" ;
+				set "Desktop::arena_presentMode" "0" ;
+				set "Desktop::arena_presentClearing" "0" ;
+			}
 		}
 	}
 

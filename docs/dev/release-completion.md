@@ -2,6 +2,31 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Audit and refine the single-player Arena Campaign. Match start: the
+  GAMEON edge no longer cancels the spawn-in, so the camera move, the "three,
+  two, one" count and "Fight" with control are restored; the warmup
+  introduction arms once, films each combatant face-on (the shared camera
+  placed every authored angle on the wrong side), has its own HUD mode with a
+  held letterbox, introduces teammates before opponents, and its card shows on
+  the Remastered HUD. Presentation: no crosshair or status bar over cinematic
+  shots; the campaign publishes its match card so Duels read as Duels on the
+  entrance, scoreboard and loading card; the board is headed by the match; the
+  Remastered champion card shows the victor, who is framed below the result
+  lines; a draw is announced as a tie; the tableau orbit follows look input
+  for a dead player; the stats beat has no chat entry, Escape line or cursor.
+  Play: Arena matches pause behind their menus with every deadline rebased;
+  leaving returns to the browser with a "Match abandoned" report and Retry; a
+  failed launch's report names its match; Escape or fire skips the ceremony;
+  emptied sides, forfeits and aborts end as "Match aborted" instead of a win,
+  and the Admin actions are refused. Browser: coalesced timeline commands
+  survive `arenaBlockInput`, overlays refuse the controls beneath them, tier
+  briefings no longer name locked bosses (12 languages), IN PROGRESS tiers,
+  NEXT to the next unwon match, awards after completion, wrapped award lists.
+  New cheat `openq4_arenaCeremony` drives a match end to end without input;
+  runtime evidence and remaining gaps are in
+  [the ceremony notes](arena-campaign-ceremony.md). See
+  [candidate player-facing notes](releases/arena-refinements.md).
+
 - [x] Review and refine the multiplayer bots across combat safety, personality,
   tactics, navigation and presentation. Combat: a world or mover hit no longer
   switches off the splash cover tests, the speculative projectile sweep ignores
@@ -27,7 +52,6 @@
   counts, q4dm5 pickup refusals six to one, and the known q4ctf5 void and vertical
   pad limits unchanged. Numbers are tabled in the bots design record. See [implementation](mp-bots.md) and
   [candidate player-facing notes](releases/mp-bot-refinements.md).
-
 
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and
