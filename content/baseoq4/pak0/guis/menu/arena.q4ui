@@ -42,6 +42,7 @@
   "arena_resultHasUnlock": {"type": "boolean", "initial": false},
   "arena_resultHasAwards": {"type": "boolean", "initial": false},
   "arena_resultCanRetry": {"type": "boolean", "initial": false},
+  "arena_resultUnlockedCampaign": {"type": "boolean", "initial": false},
   "arena_tier0_locked": {"type": "boolean", "initial": false},
   "arena_tier0_selected": {"type": "boolean", "initial": false},
   "arena_tier0_completed": {"type": "boolean", "initial": false},
@@ -686,7 +687,7 @@
     "args": [
      {
       "op": "&&",
-      "args": [{"state": "arena_campaignComplete"}, {"op": "==", "args": [{"state": "arena_result"}, 1]}]
+      "args": [{"state": "arena_resultUnlockedCampaign"}, {"op": "==", "args": [{"state": "arena_result"}, 1]}]
      },
      "block",
      "none"
@@ -738,16 +739,7 @@
     "args": [
      {
       "op": "&&",
-      "args": [
-       {"state": "arena_resultHasAwards"},
-       {
-        "op": "||",
-        "args": [
-         {"op": "!", "args": [{"state": "arena_campaignComplete"}]},
-         {"op": "!", "args": [{"op": "==", "args": [{"state": "arena_result"}, 1]}]}
-        ]
-       }
-      ]
+      "args": [{"state": "arena_resultHasAwards"}, {"op": "!", "args": [{"state": "arena_resultUnlockedCampaign"}]}]
      },
      "block",
      "none"
@@ -813,7 +805,13 @@
          {"op": "==", "args": [{"state": "arena_result"}, 1]},
          {
           "op": "||",
-          "args": [{"op": "==", "args": [{"state": "arena_result"}, 2]}, {"op": "==", "args": [{"state": "arena_result"}, 4]}]
+          "args": [
+           {"op": "==", "args": [{"state": "arena_result"}, 2]},
+           {
+            "op": "||",
+            "args": [{"op": "==", "args": [{"state": "arena_result"}, 4]}, {"op": "==", "args": [{"state": "arena_result"}, 3]}]
+           }
+          ]
          }
         ]
        }
@@ -828,7 +826,17 @@
    "id": "resultModal_yes-label.text",
    "node": "resultModal_yes-label",
    "property": "text",
-   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "arena_result"}, 2]}, "#str_42033", "#str_42076"]}
+   "value": {
+    "op": "select",
+    "args": [
+     {
+      "op": "||",
+      "args": [{"op": "==", "args": [{"state": "arena_result"}, 2]}, {"op": "==", "args": [{"state": "arena_result"}, 3]}]
+     },
+     "#str_42033",
+     "#str_42076"
+    ]
+   }
   },
   {
    "id": "resultModal_no-label.text",
@@ -837,7 +845,13 @@
    "value": {
     "op": "select",
     "args": [
-     {"op": "==", "args": [{"state": "arena_result"}, 3]},
+     {
+      "op": "&&",
+      "args": [
+       {"op": "==", "args": [{"state": "arena_result"}, 3]},
+       {"op": "!", "args": [{"state": "arena_resultCanRetry"}]}
+      ]
+     },
      "#str_42025",
      {
       "op": "select",
@@ -17308,13 +17322,13 @@
                  "left": {"type": "length", "value": 210, "unit": "dp"},
                  "top": {"type": "length", "value": 254, "unit": "dp"},
                  "width": {"type": "length", "value": 324.0, "unit": "dp"},
-                 "height": {"type": "length", "value": 22, "unit": "dp"},
+                 "height": {"type": "length", "value": 38, "unit": "dp"},
                  "font-family": {"type": "font", "value": "lowpixel"},
                  "font-size": {"type": "length", "value": 15, "unit": "dp"},
-                 "line-height": {"type": "length", "value": 22, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 19, "unit": "dp"},
                  "color": {"type": "color", "value": [0.95, 0.87, 0.6, 1]},
                  "text-align": {"type": "keyword", "value": "right"},
-                 "white-space": {"type": "keyword", "value": "nowrap"},
+                 "white-space": {"type": "keyword", "value": "normal"},
                  "overflow": {"type": "keyword", "value": "hidden"},
                  "pointer-events": {"type": "keyword", "value": "none"}
                 }

@@ -2,6 +2,19 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Mirror the Arena audit's match report in the modern Arena page. After
+  a match the opponents left or the player abandoned, it offers RETRY and
+  RETURN where the match can be played again and CONTINUE otherwise;
+  CAMPAIGN COMPLETE replaces the awards only on the win that completed the
+  campaign, so later replays keep theirs; award lines wrap; and the audit's
+  new texts fit in every language. The report still opens on its safe
+  action. Native result checks, the UI gate and OpenGL captures of the
+  Arena browser, a start failure and an abandoned match pass.
+
+Candidate UI release wording: The modern Arena page's match report matches
+the classic one: a match that ended early can be retried, and a replayed
+win shows its awards instead of the campaign-complete banner.
+
 - [x] Give the campaign difficulty page its parents' prompt bar, so the bar
   stays where Single Player's and Campaign's is instead of jumping to the
   title's position on the last step. The native legend-bar check covers the

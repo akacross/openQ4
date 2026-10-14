@@ -2445,7 +2445,22 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 	campaign["arena_result"] = 3.0;
 	Check(runtime.SetState(campaign,error,6.5),"an aborted match");
 	runtime.Frame(viewport,6.51);
-	Check(text("resultModal_yes","display") == "none" && text("resultModal_no-label","text") == "#str_42025","an aborted match only CONTINUEs");
+	Check(text("resultModal_yes","display") == "block" && text("resultModal_yes-label","text") == "#str_42033" &&
+		text("resultModal_no-label","text") == "#str_42034","an aborted match that can be played again: RETRY and RETURN");
+	campaign["arena_resultCanRetry"] = false;
+	Check(runtime.SetState(campaign,error,6.52),"one that cannot");
+	runtime.Frame(viewport,6.53);
+	Check(text("resultModal_yes","display") == "none" && text("resultModal_no-label","text") == "#str_42025","otherwise it only CONTINUEs");
+	// The banner is the completing win's; a later win keeps its awards.
+	campaign["arena_result"] = 1.0; campaign["arena_campaignComplete"] = true; campaign["arena_resultHasAwards"] = true;
+	campaign["arena_resultAwardLine"] = std::string("Excellent x2");
+	Check(runtime.SetState(campaign,error,6.54),"a win once the campaign is complete");
+	runtime.Frame(viewport,6.55);
+	Check(text("result-awards-row","display") == "block" && text("result-complete","display") == "none","a replay's awards show");
+	campaign["arena_resultUnlockedCampaign"] = true;
+	Check(runtime.SetState(campaign,error,6.56),"the win that completed it");
+	runtime.Frame(viewport,6.57);
+	Check(text("result-awards-row","display") == "none" && text("result-complete","display") == "block","its banner takes their place");
 	Check(runtime.RunEvent("resultDismiss",6.6,effects,error) && acted("dismiss"),"CONTINUE dismisses the ledger");
 	runtime.Frame(viewport,7);
 	Check(text("resultModal","display") == "none","and it closes");

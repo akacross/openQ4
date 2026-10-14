@@ -992,11 +992,15 @@ page's backing.
   report's 396 u, titled MATCH REVIEW and revealed in the stock phases from
   the black the match ended on, which lifts over 720 ms. The result shows over
   its green, red or amber accent with the match from 260 ms, the message and
-  score from 610 ms, what it unlocked and the awards (or CAMPAIGN COMPLETE)
-  from 930 ms, and at 1260 ms the actions, with the focus on the second:
-  RETRY after a defeat or REPLAY after a win or a draw, where the match can be
-  played again, then NEXT after a win short of the last, RETURN, or CONTINUE
-  after an aborted match. Back dismisses it.
+  score from 610 ms, what it unlocked and the awards (or CAMPAIGN COMPLETE,
+  on the win that completed the campaign: `arena_resultUnlockedCampaign`)
+  from 930 ms, an award line taking a second line where it needs one, and at
+  1260 ms the actions, with the focus on the second: RETRY after a defeat or
+  an aborted match (the opponents left, or the player abandoned it) or REPLAY
+  after a win or a draw, where the match can be played again, then NEXT
+  after a win short of the last, RETURN, or CONTINUE after an aborted match
+  that cannot be played again. Back dismisses it. The campaign holds every
+  other browser command while the report or the reset prompt is open.
 - **Pictures.** As it loads with the menus, the campaign queues every
   match's levelshot for the front end's idle frames, which precache a few a
   frame once a menu has presented for a second, and the page reads any still

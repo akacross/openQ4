@@ -45,7 +45,8 @@ the authoritative result and the progress.
   green, red or amber accent, the match, then the message and score
   (610 ms), then what it unlocked and the awards, or CAMPAIGN COMPLETE
   (930 ms), and at 1260 ms the actions: RETRY or REPLAY where the match can be
-  played again, and NEXT, RETURN or CONTINUE.
+  played again, and NEXT, RETURN or, after an aborted match that cannot be,
+  CONTINUE.
 """
 from __future__ import annotations
 
@@ -274,7 +275,7 @@ def published_states(doc: Document) -> None:
                "arena_levelshot", "arena_difficultyName", "arena_progress", "arena_resultTitle", "arena_resultMatchName",
                "arena_resultMessage", "arena_resultScore", "arena_resultUnlock", "arena_resultAwardLine"]
     flags = ["arena_loaded", "arena_transitioning", "arena_canStart", "arena_campaignComplete", "arena_resultHasScore",
-             "arena_resultHasUnlock", "arena_resultHasAwards", "arena_resultCanRetry"]
+             "arena_resultHasUnlock", "arena_resultHasAwards", "arena_resultCanRetry", "arena_resultUnlockedCampaign"]
     numbers = ["arena_difficulty", "arenaCampaignProgress", "arena_result"]
     for kind, count in (("tier", TIERS), ("match", MATCHES)):
         for index in range(count):
@@ -499,33 +500,42 @@ def result_modal(doc: Document) -> dict:
     row_label = {"white-space": keyword("nowrap"), "overflow": keyword("hidden")}
     value_right = {"text-align": keyword("right"), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
 
-    def row(ident, key, top, state, flag, tint, size=17):
+    wrap_right = {"text-align": keyword("right"), "white-space": keyword("normal"), "overflow": keyword("hidden")}
+
+    def row(ident, key, top, state, flag, tint, size=17, lines=1):
         label_node = text_at(f"result-{ident}-label", 60, top + 2, 150, 20, "lowpixel", 15, [1, 1, 1, 0.5], None, row_label, key=key)
-        value = text_at(f"result-{ident}", 210, top, width - 270, 22, "lowpixel", size, tint, state, value_right)
+        if lines > 1:
+            value = text_at(f"result-{ident}", 210, top, width - 270, 19 * lines, "lowpixel", size, tint, state, wrap_right, line=19)
+        else:
+            value = text_at(f"result-{ident}", 210, top, width - 270, 22, "lowpixel", size, tint, state, value_right)
         holder = group(f"result-{ident}-row", {**FULL, "display": keyword("none")}, [label_node, value])
         doc.bind(f"result-{ident}-row.display", f"result-{ident}-row", "display", shown(flag))
         return holder
-    awards_shown = {"op": "&&", "args": [{"state": "arena_resultHasAwards"},
-                                         {"op": "||", "args": [{"op": "!", "args": [complete]}, {"op": "!", "args": [won]}]}]}
+    # The win that completed the campaign earns the banner in the awards'
+    # place; live progress (arena_campaignComplete) stays set on every later
+    # replay and would bury their awards.
+    unlocked = {"state": "arena_resultUnlockedCampaign"}
+    awards_shown = {"op": "&&", "args": [{"state": "arena_resultHasAwards"}, {"op": "!", "args": [unlocked]}]}
     champion = text_at("result-complete", 60, 254, width - 120, 22, "lowpixel", 17, rgb(DONE), None, centred, key="#str_42026")
     champion["properties"]["display"] = keyword("none")
-    doc.bind("result-complete.display", "result-complete", "display", shown({"op": "&&", "args": [complete, won]}))
+    doc.bind("result-complete.display", "result-complete", "display", shown({"op": "&&", "args": [unlocked, won]}))
     phase2 = group("result-phase2", {**FULL, "opacity": number(0)}, [
         text_at("result-message", 40, 134, width - 80, 66, "lowpixel", 17, [1, 1, 1, 0.75], "arena_resultMessage",
                 {"text-align": keyword("center"), "white-space": keyword("normal"), "overflow": keyword("hidden")}, line=22),
         row("score", "#str_42018", 206, "arena_resultScore", {"state": "arena_resultHasScore"}, rgb(VALUE))])
     phase3 = group("result-phase3", {**FULL, "opacity": number(0)}, [
         row("unlock", "#str_42019", 230, "arena_resultUnlock", {"state": "arena_resultHasUnlock"}, rgb(DONE)),
-        row("awards", "#str_42154", 254, "arena_resultAwardLine", awards_shown, [0.95, 0.87, 0.6, 1], size=15),
+        row("awards", "#str_42154", 254, "arena_resultAwardLine", awards_shown, [0.95, 0.87, 0.6, 1], size=15, lines=2),
         champion])
     actions_u = RESULT_HEIGHT - 40
     modal = confirmation(doc, "resultModal", "#str_42080", PLACEHOLDER, None, yes_event="resultRetry", no_event="resultDismiss",
                          height_u=RESULT_HEIGHT, top_u=RESULT_TOP, actions_u=actions_u, contents=[phase1, phase2, phase3],
                          yes_key="#str_42033", no_key="#str_42034", initial="resultModal_no", width_dp=RESULT_WIDTH,
                          action_w=RESULT_ACTION_W, action_text=RESULT_ACTION_TEXT)
-    # The actions wait for the reveal: RETRY after a defeat, REPLAY after a
-    # win or a draw, where the match can be played again; then NEXT after a
-    # win short of the last, RETURN, or CONTINUE after an aborted match.
+    # The actions wait for the reveal: RETRY after a defeat or an aborted
+    # match, REPLAY after a win or a draw, where the match can be played
+    # again; then NEXT after a win short of the last, RETURN, or CONTINUE
+    # after an aborted match that cannot be played again.
     contents = find(modal, "resultModal-contents")
     plates = [child for child in contents["children"] if child["id"] in ("resultModal_yes", "resultModal_no")]
     for plate in plates:
@@ -533,11 +543,12 @@ def result_modal(doc: Document) -> dict:
         plate["properties"]["display"] = keyword("block")
     contents["children"].append(group("result-actions", {**FULL, "display": keyword("none")}, plates))
     doc.bind("result-actions.display", "result-actions", "display", shown({"state": "result.ready"}))
-    doc.bind("resultModal_yes.display", "resultModal_yes", "display",
-             shown({"op": "&&", "args": [{"state": "arena_resultCanRetry"}, any_of(won, lost, drew)]}))
-    doc.bind("resultModal_yes-label.text", "resultModal_yes-label", "text", {"op": "select", "args": [lost, "#str_42033", "#str_42076"]})
+    can_retry = {"state": "arena_resultCanRetry"}
+    doc.bind("resultModal_yes.display", "resultModal_yes", "display", shown({"op": "&&", "args": [can_retry, any_of(won, lost, drew, aborted)]}))
+    doc.bind("resultModal_yes-label.text", "resultModal_yes-label", "text", {"op": "select", "args": [any_of(lost, aborted), "#str_42033", "#str_42076"]})
     doc.bind("resultModal_no-label.text", "resultModal_no-label", "text", {"op": "select", "args": [
-        aborted, "#str_42025", {"op": "select", "args": [{"op": "&&", "args": [won, {"op": "!", "args": [complete]}]}, "#str_42032", "#str_42034"]}]})
+        {"op": "&&", "args": [aborted, {"op": "!", "args": [can_retry]}]}, "#str_42025",
+        {"op": "select", "args": [{"op": "&&", "args": [won, {"op": "!", "args": [complete]}]}, "#str_42032", "#str_42034"]}]})
     doc.session("retry", "arenaRetry")
     doc.session("dismiss", "arenaDismiss")
     hide = [{"op": "setState", "values": {"result.ready": False}}, {"op": "call", "event": "resultModalHide"}]
@@ -592,7 +603,8 @@ def check_arena_fits() -> None:
     one_line = tuple((key, "marine", TIER_TEXT, plate_label(LADDER[2])) for key in TIER_KEYS)
     one_line += tuple((key, "marine", MATCH_TEXT, plate_label(COLUMN[2])) for key in MATCH_KEYS[:BOSS])
     one_line += (("#str_42024", "marine", BOSS_TEXT, U * COLUMN[2] - U * 22),)
-    one_line += tuple((key, "lowpixel", STATUS_TEXT, plate_label(LADDER[2])) for key in ("#str_42022", "#str_42023", "#str_42045", "#str_42065"))
+    one_line += tuple((key, "lowpixel", STATUS_TEXT, plate_label(LADDER[2])) for key in ("#str_42022", "#str_42023", "#str_42045", "#str_42065",
+                                                                                       "#str_42039"))
     one_line += (("#str_42007", "lowpixel", 13, head(LADDER[2])), ("#str_42008", "lowpixel", 13, head(COLUMN[2])),
                  ("#str_42070", "lowpixel", 13, head(COLUMN[2])), ("#str_42026", "lowpixel", 13, head(LADDER[2])),
                  ("#str_42011", "marine", RESET_TEXT, head(LADDER[2]) - U * 7), ("#str_42009", "lowpixel", 13, U * DETAIL_W),
@@ -612,14 +624,15 @@ def check_arena_fits() -> None:
     one_line += tuple((f"#str_{number_}", "marine", 32, U * 448) for number_ in range(42100, 42140, 2))
     one_line += tuple((f"#str_{number_}", "lowpixel", BODY_TEXT, U * (DETAIL_W - INFO_VALUE_X)) for number_ in range(42200, 42205))
     one_line += tuple((f"#str_{number_}", "lowpixel", 16, U * (DETAIL_W - 44)) for number_ in range(42060, 42065))
-    one_line += tuple((key, "marine", 28, RESULT_WIDTH - 66) for key in ("#str_42030", "#str_42031", "#str_42068", "#str_42077"))
+    one_line += tuple((key, "marine", 28, RESULT_WIDTH - 66) for key in ("#str_42030", "#str_42031", "#str_42068", "#str_42077", "#str_42163"))
     one_line += tuple((key, "lowpixel", 17, RESULT_WIDTH - 270) for key in ("#str_42045", "#str_42046", "#str_42047"))
     wrapped = (("#str_42049", "lowpixel", 13, head(COLUMN[2]), 3), ("#str_42071", "lowpixel", 13, head(COLUMN[2]), 2),
                ("#str_42073", "lowpixel", 17, reset_w - 66, 4))
     wrapped += tuple((f"#str_{number_}", "lowpixel", BRIEFING_TEXT, head(COLUMN[2]), 3) for number_ in range(42055, 42060))
     wrapped += tuple((f"#str_{number_}", "lowpixel", BODY_TEXT, U * DETAIL_W, 3) for number_ in range(42101, 42140, 2))
     wrapped += tuple((key, "lowpixel", 17, RESULT_WIDTH - 80, 3)
-                     for key in ("#str_42066", "#str_42067", "#str_42069", "#str_42078", "#str_42150", "#str_42151"))
+                     for key in ("#str_42066", "#str_42067", "#str_42069", "#str_42078", "#str_42150", "#str_42151", "#str_42161",
+                                 "#str_42162", "#str_42164"))
     check_fits(one_line, wrapped)
 
 
