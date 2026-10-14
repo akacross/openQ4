@@ -29,8 +29,9 @@ the authoritative result and the progress.
   chosen match starts it. The bumpers (and Q and E) switch tier.
 - **Briefing and detail.** Under the matches the chosen tier's briefing: its
   name, description and path to the next tier. The detail column shows the
-  chosen match's levelshot, name, description, map, game type, roster, limits
-  and skill, the difficulty between its - and + steps, and START MATCH, the
+  chosen match's levelshot with its best result across the foot, name,
+  description, map, game type, roster, limits and skill, the difficulty
+  between its - and + steps, and START MATCH, the
   enlarged primary plate, live only while the campaign can start that match.
 - **Progress.** Under the ladder, CAMPAIGN PROGRESS with its count and bar,
   CAMPAIGN COMPLETE once the last boss falls, and RESET PROGRESS, which asks
@@ -42,8 +43,9 @@ the authoritative result and the progress.
   campaign holds the entrance every control is out.
 - **Result.** Back from a match the page reveals the stock ledger as a modal
   from the black the match ended on: MATCH REVIEW, the result over its
-  green, red or amber accent, the match, then the message and score
-  (610 ms), then what it unlocked and the awards, or CAMPAIGN COMPLETE
+  green, red or amber accent, the match, then the message and score, NEW
+  BEST where a replay beat the record (610 ms), then what it unlocked and
+  the awards, or CAMPAIGN COMPLETE
   (930 ms), and at 1260 ms the actions: RETRY or REPLAY where the match can be
   played again, and NEXT, RETURN or, after an aborted match that cannot be,
   CONTINUE.
@@ -55,9 +57,9 @@ from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE
                                     TOP_TO_PAGE, TOP_TO_SUBPAGE, U, VALUE, Document, absolute, action_plate, by_language,
                                     colour, confirmation, crumb_fits, crumb_transform, font, framing_bands, group, keyword,
                                     label, length, linear, link, lit_field, marker_path, number, page_title, path, rgb, solid,
-                                    stroke, track, transform, typeface, vector)
+                                    stroke, text_width, track, transform, typeface, vector, LANGUAGES)
 from retained_difficulty import check_fits, primary_plate
-from retained_saves import PLACEHOLDER, backing, picture_frame
+from retained_saves import PLACEHOLDER, backing, picture_frame, table_text
 
 TIERS, MATCHES, BOSS = 5, 4, 3
 TIER_KEYS = ("#str_42091", "#str_42092", "#str_42093", "#str_42094", "#str_42095")   # TIER 1-5
@@ -97,6 +99,8 @@ RESULT_WIDTH = U * 396
 RESULT_ACTION_W, RESULT_ACTION_TEXT = 260.0, 18.0
 RESET_ACTION_W, RESET_ACTION_TEXT = 205.0, 18.0
 RESET_W, RESET_TOP, RESET_HEIGHT = 480.0, 148.0, 150.0   # the stock modal grown 14 u, its centre held
+BEST_H = 23.0                      # u: the best-result band at the levelshot's foot, its label over the record
+NEW_BEST_W = 156.0                 # dp: the stock tag's 104 u
 
 
 def plate_shape(w: float, h: float) -> tuple:
@@ -273,9 +277,10 @@ def published_states(doc: Document) -> None:
     strings = ["arena_selectedTierName", "arena_selectedTierDescription", "arena_selectedTitle", "arena_selectedDescription",
                "arena_selectedMap", "arena_selectedGameType", "arena_selectedRoster", "arena_selectedLimits", "arena_selectedSkill",
                "arena_levelshot", "arena_difficultyName", "arena_progress", "arena_resultTitle", "arena_resultMatchName",
-               "arena_resultMessage", "arena_resultScore", "arena_resultUnlock", "arena_resultAwardLine"]
+               "arena_resultMessage", "arena_resultScore", "arena_resultUnlock", "arena_resultAwardLine", "arena_selectedBest"]
     flags = ["arena_loaded", "arena_transitioning", "arena_canStart", "arena_campaignComplete", "arena_resultHasScore",
-             "arena_resultHasUnlock", "arena_resultHasAwards", "arena_resultCanRetry", "arena_resultUnlockedCampaign"]
+             "arena_resultHasUnlock", "arena_resultHasAwards", "arena_resultCanRetry", "arena_resultUnlockedCampaign",
+             "arena_selectedBestVisible", "arena_selectedHasBest", "arena_resultNewBest", "arena_canReset"]
     numbers = ["arena_difficulty", "arenaCampaignProgress", "arena_result"]
     for kind, count in (("tier", TIERS), ("match", MATCHES)):
         for index in range(count):
@@ -353,7 +358,9 @@ def briefing(doc: Document) -> list:
 def progress(doc: Document) -> list:
     """CAMPAIGN PROGRESS under the ladder: the published line, the bar filling
     by a twentieth a match, CAMPAIGN COMPLETE once the last boss falls, and
-    RESET PROGRESS, which asks first."""
+    RESET PROGRESS, which asks first. A lost first match leaves a best result
+    but no win, so the campaign says when there is anything to reset
+    (arena_canReset)."""
     left, width = LADDER[0] + 4, LADDER[2] - 4
     bar_w = U * width
     track_node = vector("arena-progress-track", absolute(left=U * left, top=U * (PROGRESS_TOP + 15), width=bar_w, height=U * 3), [
@@ -369,7 +376,7 @@ def progress(doc: Document) -> list:
     reset = link(doc, "arena_reset", "#str_42011", action="reset")
     next(child for child in reset["children"] if child["id"] == "arena_reset-label")["properties"]["font-size"] = length(RESET_TEXT)
     doc.bind("arena_reset.enabled", "arena_reset", "enabled",
-             {"op": "&&", "args": [{"op": ">", "args": [{"state": "arenaCampaignProgress"}, 0]}, OPEN]})
+             {"op": "&&", "args": [{"state": "arena_canReset"}, OPEN]})
     reset_row = group("arena-reset-row", {**absolute(left=U * left, top=U * (PROGRESS_TOP + 40), width=U * width, height=U * 17)}, [reset])
     return [text_line("arena-progress", "", left, PROGRESS_TOP, width, 13, "lowpixel", 15, rgb(VALUE), state="arena_progress", doc=doc),
             track_node, fill, complete, reset_row]
@@ -383,10 +390,31 @@ def detail(doc: Document) -> list:
     # The levelshot fills its frame, as the stock browser's stretched one did.
     shot[1]["properties"]["image-fit"] = keyword("cover")
     doc.bind("arena-shot.image", "arena-shot", "image", {"state": "arena_levelshot"})
+    # The chosen match's best result across the foot of its levelshot, inside
+    # the border, as the stock browser draws it: in amber where there is a
+    # record, dim while it reads No result yet; a locked match has none. The
+    # narrower column puts the label over the record.
+    band = vector("arena-best-band", absolute(left=0, top=0, width=U * (width - 2), height=U * BEST_H), [
+        path("band", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})],
+             fill=solid([0.015, 0.018, 0.015, 0.84])),
+        path("rule", [(0, 0.5), ({"fraction": 1}, 0.5)], closed=False, stroke=stroke(solid([0.55, 0.61, 0.34, 0.7]), 1))])
+    recorded = text_line("arena-best-value", "", 6, 10.5, width - 14, 12, "lowpixel", 14, [0.95, 0.72, 0.25, 1],
+                         state="arena_selectedBest", doc=doc)
+    unplayed = text_line("arena-best-none", "", 6, 10.5, width - 14, 12, "lowpixel", 14, [0.61, 0.67, 0.5, 1],
+                         state="arena_selectedBest", doc=doc)
+    for line_node in (recorded, unplayed):
+        line_node["properties"]["display"] = keyword("none")    # the bindings below choose one
+    best = group("arena-best", {**absolute(left=U * (x + 1), top=U * (SHOT_TOP + SHOT_H - 1 - BEST_H), width=U * (width - 2),
+                                           height=U * BEST_H), "display": keyword("none"), "pointer-events": keyword("none")}, [
+        band, text_line("arena-best-label", "#str_42040", 6, 2, width - 14, 9, "lowpixel", 13, [0.57, 0.63, 0.45, 1]),
+        recorded, unplayed])
+    doc.bind("arena-best.display", "arena-best", "display", shown({"state": "arena_selectedBestVisible"}))
+    doc.bind("arena-best-value.display", "arena-best-value", "display", shown({"state": "arena_selectedHasBest"}))
+    doc.bind("arena-best-none.display", "arena-best-none", "display", shown({"op": "!", "args": [{"state": "arena_selectedHasBest"}]}))
     rule = vector("arena-title-rule", absolute(left=U * x, top=U * (TITLE_TOP + 16), width=U * width, height=1.5), [
         path("rule", [(0, 0.75), ({"fraction": 1}, 0.75)], closed=False, stroke=stroke(linear((0, 0), ({"fraction": 1}, 0), [
             (0, rgb(ORANGE, 0.9)), (0.7, rgb(ORANGE, 0.6)), (1, rgb(ORANGE, 0))]), 1.5))])
-    nodes = [*shot,
+    nodes = [shot[0], shot[1], best, shot[2],
              text_line("arena-match-title", "", x, TITLE_TOP, width, 14, "marine", TITLE_TEXT, [0.98, 0.94, 0.8, 1], state="arena_selectedTitle", doc=doc),
              rule,
              text_line("arena-match-description", "", x, TITLE_TOP + 20, width, 36, "lowpixel", BODY_TEXT, [1, 1, 1, 0.7],
@@ -519,10 +547,19 @@ def result_modal(doc: Document) -> dict:
     champion = text_at("result-complete", 60, 254, width - 120, 22, "lowpixel", 17, rgb(DONE), None, centred, key="#str_42026")
     champion["properties"]["display"] = keyword("none")
     doc.bind("result-complete.display", "result-complete", "display", shown({"op": "&&", "args": [unlocked, won]}))
+    # NEW BEST, where a replay beat the match's recorded best, rides the score
+    # row left of the right-aligned score, as the stock tag does.
+    new_best = group("result-new-best", {**absolute(left=210, top=207, width=NEW_BEST_W, height=20), "display": keyword("none"),
+                                           "pointer-events": keyword("none")}, [
+        vector("result-new-best-tag", absolute(left=0, top=0, width=NEW_BEST_W, height=20), [
+            path("tag", [(0.5, 0.5), ({"fraction": 1, "dp": -0.5}, 0.5), ({"fraction": 1, "dp": -0.5}, {"fraction": 1, "dp": -0.5}),
+                          (0.5, {"fraction": 1, "dp": -0.5})], fill=solid([0.12, 0.24, 0.08, 0.95]), stroke=stroke(solid([0.5, 0.74, 0.28, 1]), 1))]),
+        text_at("result-new-best-label", 0, 0, NEW_BEST_W, 20, "lowpixel", 13, [0.88, 1, 0.7, 1], None, centred, key="#str_42165")])
+    doc.bind("result-new-best.display", "result-new-best", "display", shown({"state": "arena_resultNewBest"}))
     phase2 = group("result-phase2", {**FULL, "opacity": number(0)}, [
         text_at("result-message", 40, 134, width - 80, 66, "lowpixel", 17, [1, 1, 1, 0.75], "arena_resultMessage",
                 {"text-align": keyword("center"), "white-space": keyword("normal"), "overflow": keyword("hidden")}, line=22),
-        row("score", "#str_42018", 206, "arena_resultScore", {"state": "arena_resultHasScore"}, rgb(VALUE))])
+        row("score", "#str_42018", 206, "arena_resultScore", {"state": "arena_resultHasScore"}, rgb(VALUE)), new_best])
     phase3 = group("result-phase3", {**FULL, "opacity": number(0)}, [
         row("unlock", "#str_42019", 230, "arena_resultUnlock", {"state": "arena_resultHasUnlock"}, rgb(DONE)),
         row("awards", "#str_42154", 254, "arena_resultAwardLine", awards_shown, [0.95, 0.87, 0.6, 1], size=15, lines=2),
@@ -614,6 +651,17 @@ def check_arena_fits() -> None:
                  ("#str_42019", "lowpixel", 15, 150), ("#str_42154", "lowpixel", 15, 150), ("#str_42026", "lowpixel", 17, RESULT_WIDTH - 120),
                  ("#str_42011", "marine", 20, reset_w * 374 / 512 - 34))
     one_line += tuple((key, "marine", RESET_ACTION_TEXT, RESET_ACTION_W - 30) for key in ("#str_42075", "#str_42074"))
+    best_w = U * (DETAIL_W - 14)
+    one_line += (("#str_42040", "lowpixel", 13, best_w), ("#str_42166", "lowpixel", 14, best_w), ("#str_42165", "lowpixel", 13, NEW_BEST_W - 8))
+    # The record as ArenaDescribeBest joins it: the widest result, a two-digit
+    # score and the widest difficulty.
+    for language in LANGUAGES:
+        def widest(keys: tuple) -> float:
+            return max(text_width("lowpixel", table_text(key)[language], 14) for key in keys)
+        need = (widest(("#str_42030", "#str_42031", "#str_42077")) + text_width("lowpixel", "   99 - 99   ", 14) +
+                widest(tuple(f"#str_{number_}" for number_ in range(42060, 42065))))
+        if need > best_w:
+            raise SystemExit(f"the best result in {language} needs {need:.0f} dp of {best_w:.0f}")
     one_line += tuple((key, "lowpixel", 13, U * (INFO_VALUE_X - 4)) for _, key, _, _, _ in INFO)
     one_line += tuple((key, "marine", RESULT_ACTION_TEXT, RESULT_ACTION_W - 30)
                       for key in ("#str_42033", "#str_42076", "#str_42032", "#str_42034", "#str_42025"))

@@ -975,7 +975,16 @@ page's backing.
   live only while the campaign can start the match. Under the ladder,
   CAMPAIGN PROGRESS with its count and a bar filling by a twentieth a match,
   CAMPAIGN COMPLETE once the last boss falls, and RESET PROGRESS.
-- **Reset.** RESET PROGRESS, live while there is progress, asks the
+- **Best result.** An unlocked match's best result crosses the foot of its
+  levelshot inside the border, as the stock browser's band does: BEST RESULT
+  over the record the campaign publishes (`arena_selectedBest`), in amber
+  where there is one and dim while it reads No result yet. The column is
+  narrower than the stock browser's, so the label stands over the record
+  instead of beside it; generation checks both, and the widest record
+  (result, two-digit score, difficulty), in every language. A replay that
+  beat the record shows NEW BEST on the ledger's score row.
+- **Reset.** RESET PROGRESS, live while there is progress or a best result
+  to clear (`arena_canReset`), asks the
   campaign, which raises `arenaResetReveal`; the stock modal, grown 14 u and
   titled RESET PROGRESS, says what it clears and asks on CANCEL. RESET clears
   the progress; CANCEL or Back keeps it.

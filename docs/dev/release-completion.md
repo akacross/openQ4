@@ -2,6 +2,16 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Show the Arena best results on the modern Arena page: an unlocked
+  match's record across the foot of its levelshot (BEST RESULT over the
+  record; generation checks both, and the widest record, in every
+  language), NEW BEST on the report's score row, and RESET PROGRESS live
+  whenever there is anything to clear. The native Arena and pointer checks
+  and the Arena campaign contract pass.
+
+Candidate UI release wording: The modern Arena page shows each match's
+best result and marks a new one, as the classic page does.
+
 - [x] Open the campaign difficulty page on the chosen difficulty. It arrived
   with nothing focused, so a controller's first press went to PRIVATE and
   Accept did nothing; like Restart Level's page it now focuses the chosen

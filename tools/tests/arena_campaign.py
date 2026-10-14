@@ -2892,7 +2892,8 @@ def validate_best_results() -> None:
     if "ui_arenaBest" in abandoned:
         raise AssertionError("an abandoned match must not touch the best results")
 
-    update_body = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    # PublishGui publishes to the stock browser and the retained page alike.
+    update_body = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
     for token in (
         '"arena_selectedBestVisible"',
         '"arena_selectedHasBest"',

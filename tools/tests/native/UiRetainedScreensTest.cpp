@@ -2318,6 +2318,8 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 	// The campaign publishes its browser: TIER 1 complete, TIER 2 chosen with
 	// its first qualifier won and its second chosen, its boss still locked.
 	StateValues campaign = {{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},{"arenaCampaignProgress",5.0},
+		{"arena_canReset",true},{"arena_selectedBestVisible",true},{"arena_selectedHasBest",true},
+		{"arena_selectedBest",std::string("VICTORY   1 - 0   VETERAN")},
 		{"arena_progress",std::string("CAMPAIGN PROGRESS  5 / 20")},{"arena_selectedTitle",std::string("Shifting Lines")},
 		{"arena_selectedTierName",std::string("Ironworks")},{"arena_difficultyName",std::string("Veteran")},
 		{"arena_levelshot",std::string("gfx/guis/loadscreens/generic")}};
@@ -2344,6 +2346,11 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 	Check(Near(start.x,x0+404*u) && Near(start.y,354*u) && Near(start.width,226*u) && Near(start.height,43*u),
 		"START MATCH is the enlarged primary plate at the foot of the detail column");
 	Check(Near(shot.x,x0+405*u) && Near(shot.y,59*u),"the levelshot leads the detail column");
+	// The chosen match's best result across the foot of its levelshot.
+	const auto best = bounds("arena-best");
+	Check(Near(best.x,shot.x,.5f) && Near(best.width,shot.width,.5f) && Near(best.y+best.height,shot.y+shot.height,.5f) && Near(best.height,23*u,.5f) &&
+		text("arena-best-value","display") == "block" && text("arena-best-none","display") == "none" &&
+		text("arena-best-value","text") == "VICTORY   1 - 0   VETERAN","a record shows in amber across the levelshot's foot");
 	Check(Near(back.x,x0+532*u) && Near(back.y,441*u) && Near(title.x,x0+136*u,1) && Near(title.y,19*u,1),
 		"BACK stands in the bottom band and ARENA titles the page at the step's foot");
 	Check(text("title","text") == "#str_42002" && text("crumb","text") == "#str_42000","SINGLE PLAYER is the crumb, ARENA the title");
@@ -2393,10 +2400,10 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 	Check(runtime.SetState(campaign,error,1.95) && runtime.CanActivateControl("arena_easier",1.96) && !runtime.CanActivateControl("arena_harder",1.96),
 		"the hardest only down");
 	// RESET PROGRESS asks with the stock modal once the campaign holds the request.
-	campaign["arenaCampaignProgress"] = 0.0;
-	Check(runtime.SetState(campaign,error,2) && !runtime.CanActivateControl("arena_reset",2.01),"nothing to reset without progress");
-	campaign["arenaCampaignProgress"] = 5.0;
-	Check(runtime.SetState(campaign,error,2.05) && runtime.CanActivateControl("arena_reset",2.06),"RESET PROGRESS is live with progress");
+	campaign["arena_canReset"] = false;
+	Check(runtime.SetState(campaign,error,2) && !runtime.CanActivateControl("arena_reset",2.01),"nothing to reset without progress or a record");
+	campaign["arena_canReset"] = true;
+	Check(runtime.SetState(campaign,error,2.05) && runtime.CanActivateControl("arena_reset",2.06),"RESET PROGRESS is live with something to clear");
 	Check(runtime.RunEvent("arenaResetReveal",2.1,effects,error),"the campaign asks for the confirmation");
 	runtime.Frame(viewport,2.4);
 	Check(text("resetModal","display") == "block" && runtime.FocusedControl() == "resetModal_no" &&
@@ -2433,6 +2440,12 @@ static void CheckArenaPage(ScreenHost& host, const char* pagePath, const char* p
 	runtime.Frame(viewport,5.8);
 	Check(Near(value("result-phase2","opacity"),1,.01f) && text("result-score-row","display") == "block" && text("result-score","text") == "15  -  9",
 		"then the message and score");
+	Check(text("result-new-best","display") == "none","no NEW BEST short of the record");
+	campaign["arena_resultNewBest"] = true;
+	Check(runtime.SetState(campaign,error,5.81),"a replay beat the record");
+	runtime.Frame(viewport,5.82);
+	Check(text("result-new-best","display") == "block" && bounds("result-new-best").x+bounds("result-new-best").width < bounds("result-score").x+
+		bounds("result-score").width,"NEW BEST rides the score row");
 	runtime.Frame(viewport,6.3);
 	Check(text("result-actions","display") == "block" && runtime.FocusedControl() == "resultModal_no" &&
 		Near(value("arena-curtain","opacity"),0,.01f),"at 1260 ms the actions, on the safe one");
@@ -3416,7 +3429,7 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 	CheckPointerReach(host,argv[8],"guis/menu/mp_welcome.q4ui",{},"open");
 	CheckPointerReach(host,argv[23],"guis/menu/restartmenu.q4ui",{},"onActivate");
 	CheckPointerReach(host,argv[25],"guis/menu/arena.q4ui",{{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},
-		{"arenaCampaignProgress",5.0}},"onActivate");
+		{"arenaCampaignProgress",5.0},{"arena_canReset",true}},"onActivate");
 	CheckPointerReach(host,argv[26],"guis/menu/multiplayer.q4ui",{},"onActivate");
 	host.recordDraws = true;
 }
