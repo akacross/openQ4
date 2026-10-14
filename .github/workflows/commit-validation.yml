@@ -143,6 +143,7 @@ jobs:
             tools/tests/demo_playback.py \
             tools/tests/docs_link_integrity.py \
             tools/tests/dmap_render_geometry_lifecycle.py \
+            tools/tests/dmap_vertex_sharing.py \
             tools/tests/fatal_error_startup_safety.py \
             tools/tests/android_build.py \
             tools/tests/android_touch_input.py \
@@ -521,6 +522,7 @@ jobs:
           python tools/tests/demo_playback.py
           python tools/tests/docs_link_integrity.py
           python tools/tests/dmap_render_geometry_lifecycle.py
+          python tools/tests/dmap_vertex_sharing.py
           python tools/tests/fatal_error_startup_safety.py
           python tools/tests/android_build.py
           python tools/tests/android_touch_input.py

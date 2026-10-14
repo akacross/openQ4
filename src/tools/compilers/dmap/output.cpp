@@ -31,6 +31,12 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "dmap.h"
 
+#include <array>
+#include <cmath>
+#include <functional>
+#include <unordered_map>
+#include <vector>
+
 //=================================================================================
 
 
@@ -181,6 +187,22 @@ static bool MatchVert( const idDrawVert *a, const idDrawVert *b ) {
 	return true;
 }
 
+// Unit-sized spatial buckets keep the epsilon search local. Search both sides
+// of a bucket boundary and retain the earliest matching vertex, just as the
+// original linear search did. Float keys avoid narrowing large map coordinates
+// to an integer; floor() still makes every key an integral position.
+typedef std::array<float, 3> mapTriVertexCell_t;
+
+struct mapTriVertexCellHash_t {
+	size_t operator()( const mapTriVertexCell_t &cell ) const {
+		size_t hash = 0;
+		for ( int i = 0; i < 3; i++ ) {
+			hash ^= std::hash<float>()( cell[i] ) + size_t( 0x9e3779b9u ) + ( hash << 6 ) + ( hash >> 2 );
+		}
+		return hash;
+	}
+};
+
 /*
 ====================
 ShareMapTriVerts
@@ -189,47 +211,85 @@ Converts independent triangles to shared vertex triangles
 ====================
 */
 srfTriangles_t	*ShareMapTriVerts( const mapTri_t *tris ) {
-	const mapTri_t	*step;
-	int			count;
-	int			i, j;
-	int			numVerts;
-	int			numIndexes;
-	srfTriangles_t	*uTri;
+	const int count = CountTriList( tris );
+	if ( count < 0 || count > idMath::INT_MAX / 3 ) {
+		common->Error( "ShareMapTriVerts: too many triangles (%i)", count );
+		return NULL;
+	}
 
-	// unique the vertexes
-	count = CountTriList( tris );
+	srfTriangles_t *uTri = R_AllocStaticTriSurf();
+	const int numIndexes = count * 3;
+	R_AllocStaticTriSurfIndexes( uTri, numIndexes );
+	if ( numIndexes != 0 && uTri->indexes == NULL ) {
+		R_FreeStaticTriSurf( uTri );
+		common->Error( "ShareMapTriVerts: could not allocate %i indexes", numIndexes );
+		return NULL;
+	}
 
-	uTri = R_AllocStaticTriSurf();
-	R_AllocStaticTriSurfVerts( uTri, count * 3 );
-	R_AllocStaticTriSurfIndexes( uTri, count * 3 );
+	// Keep references to the first occurrence of each vertex until sharing is
+	// complete. Reserving three full vertices per triangle can exceed the heap's
+	// single-allocation limit even when the shared surface is small (#181).
+	std::vector<const idDrawVert *> uniqueVerts;
+	std::unordered_map<mapTriVertexCell_t, std::vector<int>, mapTriVertexCellHash_t> cells;
+	int index = 0;
+	for ( const mapTri_t *step = tris; step; step = step->next ) {
+		for ( int i = 0; i < 3; i++ ) {
+			const idDrawVert *dv = &step->v[i];
+			mapTriVertexCell_t cell;
+			float neighbors[3][2];
+			int numNeighbors[3];
+			for ( int axis = 0; axis < 3; axis++ ) {
+				if ( !std::isfinite( dv->xyz[axis] ) ) {
+					R_FreeStaticTriSurf( uTri );
+					common->Error( "ShareMapTriVerts: non-finite vertex position" );
+					return NULL;
+				}
+				cell[axis] = float( std::floor( double( dv->xyz[axis] ) ) );
+				// Leave room for rounding in MatchVert's float subtraction.
+				neighbors[axis][0] = float( std::floor( double( dv->xyz[axis] ) - 2 * XYZ_EPSILON ) );
+				neighbors[axis][1] = float( std::floor( double( dv->xyz[axis] ) + 2 * XYZ_EPSILON ) );
+				numNeighbors[axis] = neighbors[axis][0] == neighbors[axis][1] ? 1 : 2;
+			}
 
-	numVerts = 0;
-	numIndexes = 0;
-
-	for ( step = tris ; step ; step = step->next ) {
-		for ( i = 0 ; i < 3 ; i++ ) {
-			const idDrawVert	*dv;
-
-			dv = &step->v[i];
-
-			// search for a match
-			for ( j = 0 ; j < numVerts ; j++ ) {
-				if ( MatchVert( &uTri->verts[j], dv ) ) {
-					break;
+			int match = int( uniqueVerts.size() );
+			for ( int x = 0; x < numNeighbors[0]; x++ ) {
+				for ( int y = 0; y < numNeighbors[1]; y++ ) {
+					for ( int z = 0; z < numNeighbors[2]; z++ ) {
+						const mapTriVertexCell_t neighbor = { neighbors[0][x], neighbors[1][y], neighbors[2][z] };
+						const auto found = cells.find( neighbor );
+						if ( found == cells.end() ) {
+							continue;
+						}
+						for ( int candidate : found->second ) {
+							if ( candidate < match && MatchVert( uniqueVerts[candidate], dv ) ) {
+								match = candidate;
+								break;
+							}
+						}
+					}
 				}
 			}
-			if ( j == numVerts ) {
-				numVerts++;
-				uTri->verts[j].xyz = dv->xyz;
-				uTri->verts[j].normal = dv->normal;
-				uTri->verts[j].st[0] = dv->st[0];
-				uTri->verts[j].st[1] = dv->st[1];
+			if ( match == int( uniqueVerts.size() ) ) {
+				uniqueVerts.push_back( dv );
+				cells[cell].push_back( match );
 			}
-
-			uTri->indexes[numIndexes++] = j;
+			uTri->indexes[index++] = match;
 		}
 	}
 
+	const int numVerts = int( uniqueVerts.size() );
+	R_AllocStaticTriSurfVerts( uTri, numVerts );
+	if ( numVerts != 0 && uTri->verts == NULL ) {
+		R_FreeStaticTriSurf( uTri );
+		common->Error( "ShareMapTriVerts: could not allocate %i shared vertices", numVerts );
+		return NULL;
+	}
+	for ( int i = 0; i < numVerts; i++ ) {
+		uTri->verts[i].Clear();
+		uTri->verts[i].xyz = uniqueVerts[i]->xyz;
+		uTri->verts[i].normal = uniqueVerts[i]->normal;
+		uTri->verts[i].st = uniqueVerts[i]->st;
+	}
 	uTri->numVerts = numVerts;
 	uTri->numIndexes = numIndexes;
 
@@ -435,6 +495,7 @@ typedef struct interactionTris_s {
 		// vertexes because they had different planes, texture coordinates, or lights.
 		// Different mergeGroups will stay in separate surfaces.
 		ambient = NULL;
+		mapTri_t **ambientTail = &ambient;
 
 		// each light that illuminates any of the groups in the surface will
 		// get its own list of indexes out of the original surface
@@ -450,7 +511,10 @@ typedef struct interactionTris_s {
 
 			// copy it out to the ambient list
 			copy = CopyTriList( groupStep->triList );
-			ambient = MergeTriLists( ambient, copy );
+			*ambientTail = copy;
+			while ( *ambientTail ) {
+				ambientTail = &(*ambientTail)->next;
+			}
 			groupStep->surfaceEmited = true;
 
 			// duplicate it into an interaction for each groupLight

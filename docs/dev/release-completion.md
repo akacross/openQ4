@@ -2,6 +2,23 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Qualify the `hub2` map compiler crash fix from
+  [#181](https://github.com/themuffinator/openQ4/issues/181). Allocate shared
+  vertices by their actual count, retain matching/order behavior, reject failed
+  allocations safely, and avoid repeated triangle-list rescans during T-junction
+  repair and output assembly. Windows MSVC and Clang native regression tests and
+  Linux sanitizer checks pass. The supplied map completes geometry, collision
+  and navigation compilation, with a 503-second geometry pass and normal exit.
+  Gameplay remains blocked by its oversized surface exceeding the renderer's
+  existing index limit; keep #181 open for that follow-up.
+  See [compiler storage and regression coverage](dmap-compilation.md).
+
+Candidate release wording: Large, heavily split maps such as `hub2` compile
+without crashing on an oversized temporary vertex allocation. Surface sharing
+and T-junction list assembly also do less repeated work. Rebuild affected maps
+with the updated engine. The supplied `hub2` map still exceeds a separate runtime
+surface limit and is not yet qualified for gameplay.
+
 - [x] Reduce repeated hidden HUD animation checks without changing animation
   phase, appearance or reveal behavior. Eight optimized native UI suites pass.
   Matched 720p gameplay comparisons in both condition orders add 2.60-4.32%

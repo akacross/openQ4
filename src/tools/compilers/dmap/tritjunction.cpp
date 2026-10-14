@@ -494,9 +494,15 @@ void	FixAreaGroupsTjunctions( optimizeGroup_t *groupList ) {
 		}
 
 		newList = NULL;
+		mapTri_t **tail = &newList;
 		for ( tri = group->triList ; tri ; tri = tri->next ) {
 			fixed = FixTriangleAgainstHash( tri );
-			newList = MergeTriLists( newList, fixed );
+			// Large split surfaces must not rescan the accumulated list for
+			// every input triangle. Preserve the same output order with a tail.
+			*tail = fixed;
+			while ( *tail ) {
+				tail = &(*tail)->next;
+			}
 		}
 		FreeTriList( group->triList );
 		group->triList = newList;
@@ -648,9 +654,13 @@ void	FixGlobalTjunctions( uEntity_t *e ) {
 			}
 
 			mapTri_t *newList = NULL;
+			mapTri_t **tail = &newList;
 			for ( mapTri_t *tri = group->triList ; tri ; tri = tri->next ) {
 				mapTri_t *fixed = FixTriangleAgainstHash( tri );
-				newList = MergeTriLists( newList, fixed );
+				*tail = fixed;
+				while ( *tail ) {
+					tail = &(*tail)->next;
+				}
 			}
 			FreeTriList( group->triList );
 			group->triList = newList;
