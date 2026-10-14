@@ -416,7 +416,7 @@
 	"#str_42070"	"ODPRAWA SZCZEBLA"
 	"#str_42071"	"3 KWALIFIKACJE  >  BOSS  >  KOLEJNY SZCZEBEL"
 	"#str_42072"	"ZRESETOWAĆ POSTĘPY ARENY?"
-	"#str_42073"	"Trwale kasuje zwycięstwa i odblokowania Areny. Nie wpływa na zapisy misji ani ustawienia gry wieloosobowej."
+	"#str_42073"	"Trwale kasuje zwycięstwa, najlepsze wyniki i odblokowania Areny. Nie wpływa na zapisy misji ani ustawienia gry wieloosobowej."
 	"#str_42074"	"ANULUJ"
 	"#str_42075"	"RESETUJ"
 	"#str_42076"	"POWTÓRZ"
@@ -497,6 +497,8 @@
 	"#str_42162"	"Opuszczono mecz. Nic nie zostało zapisane, a postępy kampanii pozostają bez zmian."
 	"#str_42163"	"MECZ PORZUCONY"
 	"#str_42164"	"Zwycięstwo potwierdzone. Ten mecz był już w twoim dorobku."
+	"#str_42165"	"NOWY REKORD"
+	"#str_42166"	"Brak wyniku"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Typ gry"

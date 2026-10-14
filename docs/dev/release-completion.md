@@ -2,6 +2,19 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Keep a best result for every Arena Campaign match. The archived
+  `ui_arenaBest` records each match's best outcome, score line and difficulty
+  (win > draw > loss, then margin, then difficulty, then score). It is repaired
+  with the progress mask: malformed, duplicate, locked or inconsistent entries
+  are dropped. `FinishPendingCompletion` updates it from contested results only
+  (aborted and abandoned matches never touch it). Reset Progress clears it and
+  is offered while either record is non-empty. The browser shows the record
+  across the foot of the levelshot ("No result yet" for an open match), and
+  the match report tags a beaten record **NEW BEST** (`#str_42165`/`#str_42166`
+  and a reworded reset prompt in all 12 tables). See
+  [the ceremony notes](arena-campaign-ceremony.md#best-results) and
+  [candidate player-facing notes](releases/arena-refinements.md).
+
 - [x] Audit and refine the single-player Arena Campaign. Match start: the
   GAMEON edge no longer cancels the spawn-in, so the camera move, the "three,
   two, one" count and "Fight" with control are restored; the warmup

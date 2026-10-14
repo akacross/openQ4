@@ -613,6 +613,8 @@ def validate_localization(campaign: Campaign) -> None:
         | {f"#str_{value}" for value in range(42100, 42140)}
         # Arena launch and handoff failure reporting.
         | {f"#str_{value}" for value in range(42150, 42154)}
+        # Per-match best result.
+        | {"#str_42165", "#str_42166"}
         | {f"#str_{value}" for value in range(42200, 42205)}
     )
     referenced_ids = {
@@ -649,6 +651,7 @@ def validate_localization(campaign: Campaign) -> None:
         "#str_42030": "VICTORY",
         "#str_42031": "DEFEAT",
         "#str_42033": "RETRY",
+        "#str_42040": "BEST RESULT",
         "#str_42041": "Frags",
         "#str_42042": "Minutes",
         "#str_42043": "Rounds",
@@ -684,6 +687,9 @@ def validate_localization(campaign: Campaign) -> None:
         "#str_42093": "TIER 3",
         "#str_42094": "TIER 4",
         "#str_42095": "TIER 5",
+        "#str_42073": "Permanently clears Arena wins, best results and unlocks. Mission saves and multiplayer settings are not affected.",
+        "#str_42165": "NEW BEST",
+        "#str_42166": "No result yet",
         "#str_42200": "Deathmatch",
         "#str_42201": "Duel",
         "#str_42202": "Team Deathmatch",
@@ -846,8 +852,8 @@ def validate_menu_hooks() -> None:
     )
     require_regex(
         arena_menu,
-        r"windowDef\s+arena_browser_reset_disabled\s*\{.*?arenaCampaignProgress\"\s*==\s*0",
-        "disabled zero-progress reset",
+        r"windowDef\s+arena_browser_reset_disabled\s*\{.*?arena_canReset\"\s*==\s*0",
+        "disabled reset with nothing on the record",
     )
 
     esc_handler = function_body(arena_menu, "onESC")
@@ -2794,6 +2800,164 @@ def validate_result_contract() -> None:
         require(is_arena_match, token, "Arena ceremony must be confined to the local listen server")
 
 
+def validate_best_results() -> None:
+    """Pin the per-match best result: its persistence, repair, ordering and UI.
+
+    ui_arenaBest sits beside ui_arenaProgress and must agree with it, so it is
+    repaired with it, cleared with it, and only a contested result can change
+    it. The ordering model below mirrors ArenaBestResultBeats.
+    """
+
+    arena = read(ROOT / "src" / "framework" / "ArenaCampaign.cpp")
+    arena_menu = read(ARENA_MENU)
+
+    for token in (
+        '"ui_arenaBest", ""',
+        "CVAR_SYSTEM | CVAR_ARCHIVE,",
+        "struct arenaBestResult_t",
+        "static bool ArenaBestResultValid",
+        "static bool ArenaBestResultBeats",
+        "static arenaBestResult_t ArenaEffectiveBest",
+        "static int ArenaReadBestResults",
+        "static idStr ArenaWriteBestResults",
+        "static void ArenaRepairPersistedBest()",
+        "static const int outcomeRank[] = { 0, 2, 1 };",
+    ):
+        require(arena, token, "Arena best-result record")
+
+    repair_progress = function_body(arena, "static void ArenaRepairPersistedProgress()")
+    require(
+        repair_progress,
+        "ArenaRepairPersistedBest();",
+        "best results are repaired against the repaired progress",
+    )
+    read_body = function_body(
+        arena,
+        "static int ArenaReadBestResults( const char *text, int progress, "
+        "arenaBestResult_t results[ARENA_TOTAL_MATCHES] )",
+    )
+    for token in (
+        "fieldCount != 5",
+        "ArenaParseBoundedInteger( fields[0].c_str(), 0, ARENA_TOTAL_MATCHES - 1, index )",
+        "ARENA_OUTCOME_LOSS, ARENA_OUTCOME_DRAW, result.outcome",
+        "ArenaParseBoundedInteger( fields[4].c_str(), 1, 5, result.difficulty )",
+        "!ArenaBestResultValid( result ) || results[index].recorded",
+        "!ArenaMatchUnlocked( progress, tier, match )",
+        "( result.outcome == ARENA_OUTCOME_WIN ) != ArenaMatchComplete( progress, tier, match )",
+    ):
+        require(read_body, token, "strict Arena best-result parsing")
+    if "atoi(" in read_body:
+        raise AssertionError("Arena best results must not accept partial integers")
+
+    load_body = function_body(arena, "bool idArenaCampaign::LoadCampaign()")
+    require(load_body, 'ui_arenaBest.SetString( "" );', "a new campaign version clears best results")
+    reset_body = function_body(arena, "void idArenaCampaign::ResetProgress()")
+    require(reset_body, 'ui_arenaBest.SetString( "" );', "Reset Progress clears best results")
+    for signature in (
+        "void idArenaCampaign::RequestResetProgress()",
+        "void idArenaCampaign::ResetProgress()",
+    ):
+        require(
+            function_body(arena, signature),
+            "ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults()",
+            "best results alone make Reset Progress available",
+        )
+
+    finish_body = function_body(arena, "void idArenaCampaign::FinishPendingCompletion()")
+    for token in (
+        "if ( state->pendingOutcome != ARENA_OUTCOME_ABORTED ) {",
+        "ArenaReadBestResults( ui_arenaBest.GetString(), previousProgress, bestResults );",
+        "ArenaEffectiveBest( bestResults[matchIndex], previousProgress, tier, match )",
+        "ArenaBestResultBeats( candidate, record )",
+        "newBest = bestResults[matchIndex].recorded;",
+        "state->resultNewBest = newBest;",
+        "state->matchDifficulty",
+    ):
+        require(finish_body, token, "Arena best result updated from a contested result")
+    if finish_body.index("ArenaReadBestResults(") > finish_body.index("progress |= ArenaMatchBit"):
+        raise AssertionError("the best result must be read against the progress before this win")
+    require(
+        function_body(arena, "void idArenaCampaign::PopulateBots()"),
+        "state->matchDifficulty = difficulty;",
+        "the best result keeps the difficulty the match was played on",
+    )
+    abandoned = function_body(arena, "void idArenaCampaign::ReportAbandoned( int token )")
+    if "ui_arenaBest" in abandoned:
+        raise AssertionError("an abandoned match must not touch the best results")
+
+    update_body = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    for token in (
+        '"arena_selectedBestVisible"',
+        '"arena_selectedHasBest"',
+        '"arena_selectedBest"',
+        '"#str_42166"',
+        '"arena_canReset", progress != 0 || ArenaHasBestResults()',
+        '"arena_resultNewBest", state->result != 0 && state->resultNewBest',
+    ):
+        require(update_body, token, "Arena best-result GUI state")
+
+    for window, tokens in (
+        ("arena_best_label", ('"#str_42040"', "arena_selectedBestVisible")),
+        ("arena_best_value", ('"gui::arena_selectedBest"', 'arena_selectedHasBest" == 1')),
+        ("arena_best_none", ('"gui::arena_selectedBest"', 'arena_selectedHasBest" == 0')),
+        ("arena_result_new_best", ('"#str_42165"', "arena_resultNewBest")),
+        ("arena_browser_reset", ('arena_canReset" == 1',)),
+    ):
+        body = gui_window_body(arena_menu, window)
+        for token in tokens:
+            require(body, token, f"Arena browser {window}")
+
+    # parse_language holds the CP1252 tables to their font set; here every
+    # table, whatever its script, only has to carry the strings.
+    tables = sorted(STRINGS_DIR.glob("*_openq4.lang"))
+    if len(tables) != 12:
+        raise AssertionError(f"expected 12 openQ4 language tables, found {len(tables)}")
+    for path in tables:
+        text = path.read_text(encoding="utf-8-sig")
+        for key in ("#str_42040", "#str_42165", "#str_42166"):
+            if not re.search(rf'"{key}"\s+"[^"\s][^"]*"', text):
+                raise AssertionError(f"{path.name} lacks Arena best-result string {key}")
+
+    # Ordering model: win > draw > loss, then margin, then difficulty, then the
+    # higher score; a scoreless record loses to a scored one of its outcome.
+    rank = {0: 0, 1: 2, 2: 1}
+
+    def beats(candidate: tuple, record: tuple | None) -> bool:
+        if record is None:
+            return True
+        c_outcome, c_player, c_opponent, c_difficulty = candidate
+        r_outcome, r_player, r_opponent, r_difficulty = record
+        if rank[c_outcome] != rank[r_outcome]:
+            return rank[c_outcome] > rank[r_outcome]
+        c_scored = c_player is not None
+        if c_scored != (r_player is not None):
+            return c_scored
+        if c_scored and c_player - c_opponent != r_player - r_opponent:
+            return c_player - c_opponent > r_player - r_opponent
+        if c_difficulty != r_difficulty:
+            return c_difficulty > r_difficulty
+        return c_scored and c_player > r_player
+
+    ordering_cases = (
+        ((1, 10, 3, 3), None, True),
+        ((2, 5, 5, 3), (0, 1, 10, 5), True),
+        ((0, 9, 10, 3), (2, 5, 5, 3), False),
+        ((1, 10, 9, 5), (1, 10, 3, 1), False),
+        ((1, 10, 2, 1), (1, 10, 3, 5), True),
+        ((1, 10, 3, 4), (1, 10, 3, 3), True),
+        ((1, 12, 5, 3), (1, 10, 3, 3), True),
+        ((1, 10, 3, 3), (1, 10, 3, 3), False),
+        # A match won before best results were kept: a scoreless win.
+        ((1, 10, 9, 1), (1, None, None, 0), True),
+        ((2, 5, 5, 5), (1, None, None, 0), False),
+    )
+    for candidate, record, expected in ordering_cases:
+        if beats(candidate, record) != expected:
+            raise AssertionError(
+                f"Arena best-result ordering drifted: {candidate} vs {record}"
+            )
+
+
 def validate_ceremony_flow() -> None:
     """Pin the ordered SP Arena match ceremony.
 
@@ -3247,6 +3411,7 @@ def main() -> int:
     validate_game_hooks()
     validate_failure_reporting()
     validate_result_contract()
+    validate_best_results()
     validate_ceremony_flow()
     validate_ceremony_presentation()
     validate_docs()

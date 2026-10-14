@@ -27,6 +27,14 @@
   card now shows the tier and the match's place in it ("BOOT CAMP / QUALIFIER 1"),
   Duels are called Duels on the card, scoreboard and loading screen, and the
   scoreboard is headed by the match name rather than a server name and address.
+- **Best results for every match.** The Arena browser now shows each match's
+  best result across the foot of its picture: the outcome, the score and the
+  difficulty you played it on. Replay a match and beat it, and the match report
+  marks your score **NEW BEST**. A win beats a draw, a draw beats a defeat, and
+  then the wider margin and the harder difficulty count. Matches won in an
+  earlier version show **VICTORY** until you replay them. **Reset Progress**
+  clears best results too, and it is now offered as soon as any match has a
+  result, not only after a win.
 - **Victory screen fixes.** The modern HUD's champion card now shows the
   winner's name. The victor is framed from the front, below the result and
   score rather than under them, and you can steer the orbit even when you were
@@ -64,4 +72,5 @@
 
 - Replace the complete package: the engine and both game modules change
   together, and the updated menus, HUD and translations ship in `pak0`.
-- Campaign progress, saves and settings are unaffected.
+- Campaign progress, saves and settings are unaffected. Best results start
+  recording with your next Arena match.

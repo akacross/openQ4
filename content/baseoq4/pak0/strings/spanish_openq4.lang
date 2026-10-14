@@ -407,7 +407,7 @@
 	"#str_42070"	"INFORME DEL NIVEL"
 	"#str_42071"	"3 CLASIF.  >  JEFE  >  SIGUIENTE NIVEL"
 	"#str_42072"	"¿REINICIAR EL PROGRESO?"
-	"#str_42073"	"Borra definitivamente victorias y desbloqueos de Arena. Las partidas y ajustes no cambian."
+	"#str_42073"	"Borra definitivamente victorias, mejores resultados y desbloqueos de Arena. Las partidas y ajustes no cambian."
 	"#str_42074"	"CANCELAR"
 	"#str_42075"	"REINICIAR"
 	"#str_42076"	"REPETIR"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Abandonaste la partida. No se registró nada y tu progreso de campaña no ha cambiado."
 	"#str_42163"	"PARTIDA ABANDONADA"
 	"#str_42164"	"Victoria confirmada. Esta partida ya estaba en tu historial."
+	"#str_42165"	"NUEVO RÉCORD"
+	"#str_42166"	"Sin resultado aún"
 
 	// Reglas y perfiles de partidas competitivas
 	"#str_41600"	"Tipo de partida"

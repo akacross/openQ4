@@ -407,7 +407,7 @@
 	"#str_42070"	"INSTRUKTÁŽ STUPNĚ"
 	"#str_42071"	"3 KVALIFIKACE  >  BOSS  >  DALŠÍ STUPEŇ"
 	"#str_42072"	"VYNULOVAT POSTUP V ARÉNĚ?"
-	"#str_42073"	"Trvale smaže výhry a odemčené stupně arénové kampaně. Uložené hry z misí a nastavení hry více hráčů zůstanou beze změny."
+	"#str_42073"	"Trvale smaže výhry, rekordy a odemčené stupně arénové kampaně. Uložené hry z misí a nastavení hry více hráčů zůstanou beze změny."
 	"#str_42074"	"ZRUŠIT"
 	"#str_42075"	"VYNULOVAT"
 	"#str_42076"	"OPAKOVAT"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Opustil jsi zápas. Nic se nezaznamenalo a postup v kampani se nezměnil."
 	"#str_42163"	"ZÁPAS OPUŠTĚN"
 	"#str_42164"	"Vítězství potvrzeno. Tento zápas už v tvém záznamu byl."
+	"#str_42165"	"NOVÝ REKORD"
+	"#str_42166"	"Zatím bez výsledku"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Typ hry"

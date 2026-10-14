@@ -114,6 +114,14 @@ static idCVar ui_arenaProgress(
 	"arena campaign completion bit mask",
 	0, ARENA_PROGRESS_MASK );
 
+// Each played match's best result, beside the win bits it must agree with:
+// space-separated "<match>:<outcome>:<player>:<opponent>:<difficulty>"
+// entries, match a zero-based index and outcome 0 loss, 1 win, 2 draw.
+static idCVar ui_arenaBest(
+	"ui_arenaBest", "",
+	CVAR_SYSTEM | CVAR_ARCHIVE,
+	"arena campaign best result per match" );
+
 static idCVar ui_arenaDifficulty(
 	"ui_arenaDifficulty", "3",
 	CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_INTEGER,
@@ -428,17 +436,20 @@ static int ArenaCanonicalProgress( int progress ) {
 	return canonical;
 }
 
+static void ArenaRepairPersistedBest();
+
+// The best results are checked against the repaired progress, so they are
+// always repaired with it.
 static void ArenaRepairPersistedProgress() {
 	const int persisted = ui_arenaProgress.GetInteger();
 	const int canonical = ArenaCanonicalProgress( persisted );
-	if ( canonical == persisted ) {
-		return;
+	if ( canonical != persisted ) {
+		common->Warning(
+			"arena campaign: repaired non-canonical progress mask 0x%x to 0x%x",
+			persisted, canonical );
+		ui_arenaProgress.SetInteger( canonical );
 	}
-
-	common->Warning(
-		"arena campaign: repaired non-canonical progress mask 0x%x to 0x%x",
-		persisted, canonical );
-	ui_arenaProgress.SetInteger( canonical );
+	ArenaRepairPersistedBest();
 }
 
 static bool ArenaParseBoundedInteger( const char *text, int minimum, int maximum, int &value ) {
@@ -504,6 +515,203 @@ static int ArenaCountCompleted( int progress ) {
 		}
 	}
 	return completed;
+}
+
+// A match's best result. game_mp derives the outcome from the two scores, so a
+// result with both scores must agree with them; a loss handed over without
+// scores (the player never took a side) records the outcome alone.
+struct arenaBestResult_t {
+	bool	recorded;
+	int		outcome;
+	int		playerScore;
+	int		opponentScore;
+	int		difficulty;
+
+	arenaBestResult_t() :
+		recorded( false ),
+		outcome( ARENA_OUTCOME_LOSS ),
+		playerScore( ARENA_SCORE_UNAVAILABLE ),
+		opponentScore( ARENA_SCORE_UNAVAILABLE ),
+		difficulty( 0 ) {
+	}
+};
+
+static bool ArenaBestHasScore( const arenaBestResult_t &result ) {
+	return result.playerScore != ARENA_SCORE_UNAVAILABLE &&
+		result.opponentScore != ARENA_SCORE_UNAVAILABLE;
+}
+
+// A recorded result the campaign could have produced: an outcome game_mp
+// records, both scores or neither, and an outcome that agrees with its scores.
+static bool ArenaBestResultValid( const arenaBestResult_t &result ) {
+	if ( result.outcome != ARENA_OUTCOME_LOSS && result.outcome != ARENA_OUTCOME_WIN &&
+		 result.outcome != ARENA_OUTCOME_DRAW ) {
+		return false;
+	}
+	if ( result.difficulty < 1 || result.difficulty > 5 ) {
+		return false;
+	}
+	if ( ( result.playerScore == ARENA_SCORE_UNAVAILABLE ) != ( result.opponentScore == ARENA_SCORE_UNAVAILABLE ) ) {
+		return false;
+	}
+	if ( !ArenaBestHasScore( result ) ) {
+		return true;
+	}
+	const int margin = result.playerScore - result.opponentScore;
+	return result.outcome == ARENA_OUTCOME_WIN ? margin > 0 :
+		( result.outcome == ARENA_OUTCOME_DRAW ? margin == 0 : margin < 0 );
+}
+
+// Win, then draw, then loss; then the wider margin; then the harder setting;
+// then the higher score. A tie keeps the record that was set first.
+static bool ArenaBestResultBeats( const arenaBestResult_t &candidate, const arenaBestResult_t &record ) {
+	if ( !record.recorded ) {
+		return candidate.recorded;
+	}
+	static const int outcomeRank[] = { 0, 2, 1 };	// loss, win, draw
+	const int candidateRank = outcomeRank[candidate.outcome];
+	const int recordRank = outcomeRank[record.outcome];
+	if ( candidateRank != recordRank ) {
+		return candidateRank > recordRank;
+	}
+	const bool candidateScored = ArenaBestHasScore( candidate );
+	if ( candidateScored != ArenaBestHasScore( record ) ) {
+		return candidateScored;
+	}
+	if ( candidateScored ) {
+		const int candidateMargin = candidate.playerScore - candidate.opponentScore;
+		const int recordMargin = record.playerScore - record.opponentScore;
+		if ( candidateMargin != recordMargin ) {
+			return candidateMargin > recordMargin;
+		}
+	}
+	if ( candidate.difficulty != record.difficulty ) {
+		return candidate.difficulty > record.difficulty;
+	}
+	return candidateScored && candidate.playerScore > record.playerScore;
+}
+
+// The record a match carries: its persisted best result, or for a match won
+// before best results were kept, a scoreless win that any new win beats.
+static arenaBestResult_t ArenaEffectiveBest( const arenaBestResult_t &persisted, int progress, int tier, int match ) {
+	if ( persisted.recorded || !ArenaMatchComplete( progress, tier, match ) ) {
+		return persisted;
+	}
+	arenaBestResult_t legacyWin;
+	legacyWin.recorded = true;
+	legacyWin.outcome = ARENA_OUTCOME_WIN;
+	return legacyWin;
+}
+
+// Parses ui_arenaBest against a canonical progress mask, keeping only entries
+// that are well formed, in range, unique and consistent with it: the match must
+// be unlocked, and it holds a win exactly when it is complete. Returns the
+// number of entries dropped.
+static int ArenaReadBestResults( const char *text, int progress, arenaBestResult_t results[ARENA_TOTAL_MATCHES] ) {
+	for ( int i = 0; i < ARENA_TOTAL_MATCHES; i++ ) {
+		results[i] = arenaBestResult_t();
+	}
+
+	int dropped = 0;
+	const idStr persisted = text != NULL ? text : "";
+	int cursor = 0;
+	while ( cursor < persisted.Length() ) {
+		if ( persisted[cursor] == ' ' ) {
+			cursor++;
+			continue;
+		}
+		int end = cursor;
+		while ( end < persisted.Length() && persisted[end] != ' ' ) {
+			end++;
+		}
+		const idStr entry = persisted.Mid( cursor, end - cursor );
+		cursor = end;
+
+		idStr fields[5];
+		int fieldCount = 0;
+		int fieldStart = 0;
+		for ( int i = 0; i <= entry.Length() && fieldCount <= 5; i++ ) {
+			if ( i == entry.Length() || entry[i] == ':' ) {
+				if ( fieldCount < 5 ) {
+					fields[fieldCount] = entry.Mid( fieldStart, i - fieldStart );
+				}
+				fieldCount++;
+				fieldStart = i + 1;
+			}
+		}
+
+		int index = 0;
+		arenaBestResult_t result;
+		result.recorded = true;
+		if ( fieldCount != 5 ||
+			 !ArenaParseBoundedInteger( fields[0].c_str(), 0, ARENA_TOTAL_MATCHES - 1, index ) ||
+			 !ArenaParseBoundedInteger( fields[1].c_str(), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_DRAW, result.outcome ) ||
+			 !ArenaParseBoundedInteger( fields[2].c_str(), -9999, 9999, result.playerScore ) ||
+			 !ArenaParseBoundedInteger( fields[3].c_str(), -9999, 9999, result.opponentScore ) ||
+			 !ArenaParseBoundedInteger( fields[4].c_str(), 1, 5, result.difficulty ) ||
+			 !ArenaBestResultValid( result ) || results[index].recorded ) {
+			dropped++;
+			continue;
+		}
+		const int tier = index / ARENA_MATCHES_PER_TIER;
+		const int match = index % ARENA_MATCHES_PER_TIER;
+		if ( !ArenaMatchUnlocked( progress, tier, match ) ||
+			 ( result.outcome == ARENA_OUTCOME_WIN ) != ArenaMatchComplete( progress, tier, match ) ) {
+			dropped++;
+			continue;
+		}
+		results[index] = result;
+	}
+	return dropped;
+}
+
+static idStr ArenaWriteBestResults( const arenaBestResult_t results[ARENA_TOTAL_MATCHES] ) {
+	idStr text;
+	for ( int i = 0; i < ARENA_TOTAL_MATCHES; i++ ) {
+		if ( !results[i].recorded ) {
+			continue;
+		}
+		if ( !text.IsEmpty() ) {
+			text += " ";
+		}
+		text += va( "%d:%d:%d:%d:%d", i, results[i].outcome,
+			results[i].playerScore, results[i].opponentScore, results[i].difficulty );
+	}
+	return text;
+}
+
+static bool ArenaHasBestResults() {
+	return ui_arenaBest.GetString()[0] != '\0';
+}
+
+// Rewrites ui_arenaBest in canonical form when it is malformed, out of range or
+// disagrees with the (already repaired) progress mask.
+static void ArenaRepairPersistedBest() {
+	arenaBestResult_t results[ARENA_TOTAL_MATCHES];
+	const int dropped = ArenaReadBestResults( ui_arenaBest.GetString(), ui_arenaProgress.GetInteger(), results );
+	const idStr canonical = ArenaWriteBestResults( results );
+	if ( canonical == ui_arenaBest.GetString() ) {
+		return;
+	}
+	common->Warning(
+		"arena campaign: repaired best results '%s' to '%s' (%d entries dropped)",
+		ui_arenaBest.GetString(), canonical.c_str(), dropped );
+	ui_arenaBest.SetString( canonical );
+}
+
+// "VICTORY   10 - 3   VETERAN"; a match won before best results were kept has
+// the outcome alone.
+static idStr ArenaDescribeBest( const arenaBestResult_t &result ) {
+	idStr text = ArenaLocalized( result.outcome == ARENA_OUTCOME_WIN ? "#str_42030" :
+		( result.outcome == ARENA_OUTCOME_DRAW ? "#str_42077" : "#str_42031" ) );
+	if ( ArenaBestHasScore( result ) ) {
+		text += va( "   %d - %d", result.playerScore, result.opponentScore );
+	}
+	if ( result.difficulty >= 1 && result.difficulty <= 5 ) {
+		text += "   ";
+		text += ArenaLocalized( ArenaDifficultyStringKey( result.difficulty ) );
+	}
+	return text;
 }
 
 static const idDict *ArenaFindMapDecl( const idStr &map ) {
@@ -743,6 +951,7 @@ struct arenaCampaignState_t {
 	int						pendingPlayerScore;
 	int						pendingOpponentScore;
 	int						pendingAwards;
+	int						matchDifficulty;
 	int						result;
 	int						resultFailure;
 	int						resultPlayerScore;
@@ -758,6 +967,7 @@ struct arenaCampaignState_t {
 	bool					resultUnlockedTier;
 	bool					resultUnlockedCampaign;
 	bool					resultRevealPending;
+	bool					resultNewBest;
 	bool					returnWipeHeld;
 	bool					resetConfirmation;
 	idStr					resultUnlock;
@@ -783,6 +993,7 @@ struct arenaCampaignState_t {
 		pendingPlayerScore( 0 ),
 		pendingOpponentScore( 0 ),
 		pendingAwards( 0 ),
+		matchDifficulty( 0 ),
 		result( 0 ),
 		resultFailure( ARENA_FAILURE_NONE ),
 		resultPlayerScore( 0 ),
@@ -798,6 +1009,7 @@ struct arenaCampaignState_t {
 		resultUnlockedTier( false ),
 		resultUnlockedCampaign( false ),
 		resultRevealPending( false ),
+		resultNewBest( false ),
 		returnWipeHeld( false ),
 		resetConfirmation( false ) {
 	}
@@ -825,6 +1037,7 @@ static void ArenaClearResultMetadata( arenaCampaignState_t *state ) {
 	state->resultUnlockedTier = false;
 	state->resultUnlockedCampaign = false;
 	state->resultRevealPending = false;
+	state->resultNewBest = false;
 	state->resultUnlock.Clear();
 	state->resultTierName.Clear();
 	state->resultMatchName.Clear();
@@ -1350,6 +1563,7 @@ bool idArenaCampaign::LoadCampaign() {
 	if ( ui_arenaProgressVersion.GetInteger() != state->version ) {
 		ui_arenaProgressVersion.SetInteger( state->version );
 		ui_arenaProgress.SetInteger( 0 );
+		ui_arenaBest.SetString( "" );
 		ui_arenaSelectedTier.SetInteger( 0 );
 		ui_arenaSelectedMatch.SetInteger( 0 );
 	} else {
@@ -1572,6 +1786,11 @@ void idArenaCampaign::UpdateGui() {
 		gui->SetStateBool( "arena_progressChanged", false );
 		gui->SetStateBool( "arena_campaignComplete", false );
 		gui->SetStateBool( "arena_resetConfirm", false );
+		gui->SetStateBool( "arena_canReset", false );
+		gui->SetStateBool( "arena_selectedBestVisible", false );
+		gui->SetStateBool( "arena_selectedHasBest", false );
+		gui->SetStateString( "arena_selectedBest", "" );
+		gui->SetStateBool( "arena_resultNewBest", false );
 		gui->SetStateInt( "arena_result", 0 );
 		gui->SetStateBool( "arena_resultCanRetry", false );
 		gui->SetStateBool( "arena_resultHasScore", false );
@@ -1675,6 +1894,19 @@ void idArenaCampaign::UpdateGui() {
 		"arena_selectedSkill",
 		minimumSkill == maximumSkill ? va( "%d", minimumSkill ) : va( "%d - %d", minimumSkill, maximumSkill ) );
 	gui->SetStateString( "arena_levelshot", levelshot );
+
+	// The selected match's best result. A locked match has none to show; an
+	// open one says so until it has been played to a result.
+	arenaBestResult_t bestResults[ARENA_TOTAL_MATCHES];
+	ArenaReadBestResults( ui_arenaBest.GetString(), progress, bestResults );
+	const arenaBestResult_t selectedBest = ArenaEffectiveBest(
+		bestResults[ArenaMatchIndex( selectedTier, selectedMatch )], progress, selectedTier, selectedMatch );
+	gui->SetStateBool( "arena_selectedBestVisible", ArenaMatchUnlocked( progress, selectedTier, selectedMatch ) );
+	gui->SetStateBool( "arena_selectedHasBest", selectedBest.recorded );
+	gui->SetStateString(
+		"arena_selectedBest",
+		selectedBest.recorded ? ArenaDescribeBest( selectedBest ).c_str() : ArenaLocalized( "#str_42166" ) );
+	gui->SetStateBool( "arena_canReset", progress != 0 || ArenaHasBestResults() );
 	gui->SetStateString( "arena_difficultyName", ArenaLocalized( ArenaDifficultyStringKey( ui_arenaDifficulty.GetInteger() ) ) );
 	gui->SetStateInt( "arena_difficulty", ui_arenaDifficulty.GetInteger() );
 	gui->SetStateString(
@@ -1696,6 +1928,7 @@ void idArenaCampaign::UpdateGui() {
 	gui->SetStateBool( "arena_resultUnlockedBoss", state->resultUnlockedBoss );
 	gui->SetStateBool( "arena_resultUnlockedTier", state->resultUnlockedTier );
 	gui->SetStateBool( "arena_resultUnlockedCampaign", state->resultUnlockedCampaign );
+	gui->SetStateBool( "arena_resultNewBest", state->result != 0 && state->resultNewBest );
 	gui->SetStateString(
 		"arena_resultTierName",
 		state->resultTierName.IsEmpty() ? "" : ArenaLocalized( state->resultTierName ) );
@@ -1953,7 +2186,7 @@ void idArenaCampaign::RequestResetProgress() {
 		return;
 	}
 	ArenaRepairPersistedProgress();
-	if ( ui_arenaProgress.GetInteger() == 0 ) {
+	if ( ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults() ) {
 		return;
 	}
 	state->resetConfirmation = true;
@@ -1986,12 +2219,13 @@ void idArenaCampaign::ResetProgress() {
 		return;
 	}
 	ArenaRepairPersistedProgress();
-	if ( ui_arenaProgress.GetInteger() == 0 ) {
+	if ( ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults() ) {
 		state->resetConfirmation = false;
 		UpdateGui();
 		return;
 	}
 	ui_arenaProgress.SetInteger( 0 );
+	ui_arenaBest.SetString( "" );
 	ui_arenaSelectedTier.SetInteger( 0 );
 	ui_arenaSelectedMatch.SetInteger( 0 );
 	ArenaClearResultMetadata( state );
@@ -1999,6 +2233,7 @@ void idArenaCampaign::ResetProgress() {
 	state->transitionDeadlineMsec = 0;
 	state->launchToken = 0;
 	state->resetConfirmation = false;
+	common->Printf( "arena campaign: progress and best results reset\n" );
 	UpdateGui();
 }
 
@@ -2459,6 +2694,7 @@ void idArenaCampaign::PopulateBots() {
 	}
 
 	state->botsPopulated = true;
+	state->matchDifficulty = difficulty;
 	common->Printf(
 		"arena campaign: populated match %d with %d bots at difficulty %d\n",
 		ui_arenaActiveMatch.GetInteger(), match->bots.Num(), difficulty );
@@ -2582,6 +2818,42 @@ void idArenaCampaign::FinishPendingCompletion() {
 	int progress = previousProgress;
 	const bool won = state->pendingOutcome == ARENA_OUTCOME_WIN;
 	const bool newlyCompleted = won && !ArenaMatchComplete( previousProgress, tier, match );
+
+	// The match's best result. Only a contested result competes: an aborted
+	// match records nothing, and an abandoned one never reaches this point.
+	// NEW BEST is shown only when a result already on the record is beaten.
+	bool newBest = false;
+	if ( state->pendingOutcome != ARENA_OUTCOME_ABORTED ) {
+		arenaBestResult_t bestResults[ARENA_TOTAL_MATCHES];
+		ArenaReadBestResults( ui_arenaBest.GetString(), previousProgress, bestResults );
+		const int matchIndex = ArenaMatchIndex( tier, match );
+		const arenaBestResult_t record = ArenaEffectiveBest( bestResults[matchIndex], previousProgress, tier, match );
+		arenaBestResult_t candidate;
+		candidate.recorded = true;
+		candidate.outcome = state->pendingOutcome;
+		candidate.playerScore = state->pendingPlayerScore;
+		candidate.opponentScore = state->pendingOpponentScore;
+		candidate.difficulty = state->matchDifficulty >= 1 && state->matchDifficulty <= 5
+			? state->matchDifficulty : ui_arenaDifficulty.GetInteger();
+		if ( !ArenaBestResultValid( candidate ) ) {
+			common->Warning(
+				"arena campaign: match %d result (%d, %d-%d) cannot be a best result",
+				state->pendingToken, candidate.outcome, candidate.playerScore, candidate.opponentScore );
+		} else if ( ArenaBestResultBeats( candidate, record ) ) {
+			newBest = bestResults[matchIndex].recorded;
+			bestResults[matchIndex] = candidate;
+			ui_arenaBest.SetString( ArenaWriteBestResults( bestResults ) );
+			common->Printf(
+				"arena campaign: %s for match %d: %s\n",
+				newBest ? "new best result" : "first best result",
+				state->pendingToken, ui_arenaBest.GetString() );
+		} else {
+			common->Printf(
+				"arena campaign: match %d result did not beat its best result\n",
+				state->pendingToken );
+		}
+	}
+
 	if ( newlyCompleted ) {
 		progress |= ArenaMatchBit( tier, match );
 		ui_arenaProgress.SetInteger( progress );
@@ -2612,6 +2884,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 	state->resultUnlockedBoss = unlockedBoss;
 	state->resultUnlockedTier = unlockedTier;
 	state->resultUnlockedCampaign = unlockedCampaign;
+	state->resultNewBest = newBest;
 	state->resultRevealPending = true;
 	state->resultTierName = state->tiers[tier].name;
 	state->resultMatchName = completedMatch->name;
@@ -2635,6 +2908,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 	state->pendingOpponentScore = 0;
 	state->pendingAwards = 0;
 	state->botsPopulated = false;
+	state->matchDifficulty = 0;
 	state->transitionPhase = ARENA_TRANSITION_RESULT;
 	state->transitionDeadlineMsec = 0;
 	state->launchToken = 0;
@@ -2703,6 +2977,7 @@ void idArenaCampaign::AbortMatch() {
 	state->pendingPlayerScore = 0;
 	state->pendingOpponentScore = 0;
 	state->botsPopulated = false;
+	state->matchDifficulty = 0;
 	state->moduleTransitionPending = false;
 	state->transitionPhase = ARENA_TRANSITION_IDLE;
 	state->transitionDeadlineMsec = 0;
