@@ -2,6 +2,33 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Review and refine the multiplayer bots across combat safety, personality,
+  tactics, navigation and presentation. Combat: a world or mover hit no longer
+  switches off the splash cover tests, the speculative projectile sweep ignores
+  water, splash maths carry the shooter's damage powerups and price a direct
+  hit at its direct damage, an impact beside a team-mate is refused for the
+  knockback even with team damage off, and napalm globs are hazards once at
+  rest. Personality: `initiative` bends reaction by a quarter at most and keeps
+  a quarter of the aim settle, `itemFocus` weighs pickups against enemies,
+  `aimLead`/`aimLeadError` clamp at 1, `pursuit` no longer over-extrapolates a
+  lost target, queued chat lines are not overwritten, skill variance reflects
+  off the range ends. Tactics: orders that resolve to nothing leave the bot in
+  role allocation; Dead Zone reads one holder and the rules clear both slots on
+  a hand-over. Navigation: shortcuts refuse pits and pain floor, transport
+  goals use the pad's brush, stale-edge validation sweeps recorded movers only,
+  the cell hash mixes both coordinates, failed snaps retry after five seconds,
+  partial step lifts are accepted, recovery hops are rate limited. Presentation:
+  look-ahead view, idle sweep, personality-chosen carried weapon, combat
+  footwork no longer silences stuck detection past a light strafe. The twelve
+  in-tree bot suites pass. Live evidence: a same-day A/B of HEAD's module against
+  the refined one, eight skill-4 bots for two minutes per map from an optimised
+  candidate runtime, plus a five-map rerun (DM, DeadZone, Freeze Tag, CTF) of the
+  final module; identical navmeshes, no regression in stuck, give-up or no-route
+  counts, q4dm5 pickup refusals six to one, and the known q4ctf5 void and vertical
+  pad limits unchanged. Numbers are tabled in the bots design record. See [implementation](mp-bots.md) and
+  [candidate player-facing notes](releases/mp-bot-refinements.md).
+
+
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and
   zero-duration motion samples; handle bit-message boundary cases and large

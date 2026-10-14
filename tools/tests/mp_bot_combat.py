@@ -135,7 +135,7 @@ def main() -> None:
     require(line_safety, "if ( hitPlayer )", "hostile intercept is useful")
     require(
         line_safety,
-        "BotCombatSplashThreatensPlayer( intendedFoe, hit,",
+        "BotCombatSplashThreatensPlayer( intendedFoe, BotCombatSplashIgnore( hit, NULL ),",
         "trajectory-aware direct-or-splash target reach",
     )
     splash_player = function_body(source, "static bool BotCombatSplashThreatensPlayer")

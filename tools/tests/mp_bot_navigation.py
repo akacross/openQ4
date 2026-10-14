@@ -603,20 +603,20 @@ def validate_navmesh() -> None:
     require(heuristic, "nodeLandmark - goalLandmark", "rvNavMesh::Heuristic backward landmark bound")
     require(heuristic, "node * NAV_LANDMARK_STRIDE", "rvNavMesh::Heuristic node-major landmark rows")
     require(heuristic, "return NAV_INFINITE_COST;", "rvNavMesh::Heuristic unreachable proof")
-    require(find_path, "rejectedLinks", "rvNavMesh::FindPath blocked-edge repair")
+    require(find_path, "linkRejectTag", "rvNavMesh::FindPath blocked-edge repair")
     require(find_path, "LinkTraversable(", "rvNavMesh::FindPath live route validation")
-    require(find_path, "idList<int> rejectedLinks", "rvNavMesh::FindPath local repair exclusions")
+    require(find_path, "linkRejectTag[link] = rejectSerial;", "rvNavMesh::FindPath local repair exclusions")
     require(find_path, "LandingSurvivable( nodes[nodePath[i]].origin, landing, maxImpactDelta )", "rvNavMesh::FindPath health-aware selected-edge validation")
     require(find_path, "SetTravelCost(", "rvNavMesh::FindPath weighted route cost")
     # A goal beside a pad cannot be stood on; its nearest node is the arrival.
-    require(find_path, "TransportAt( standing ) >= 0", "rvNavMesh::FindPath transport-side goals")
+    require(find_path, "TransportAtFloor( routeGoal ) >= 0", "rvNavMesh::FindPath transport-side goals")
     # A chased player in a spot no node fits is approached, not refused.
     require(find_path, "goalNode == -1 && nearGoal", "rvNavMesh::FindPath pursuit near-goal")
     # A refused final leg stands when the goal's snap proved the walk the other
     # way, or when the box stops within touch of a goal set against a wall.
     require(find_path, "WalkableLine( routeGoal, last )", "rvNavMesh::FindPath reverse-proven final leg")
     require(find_path, "LegTouchesGoal( last, routeGoal, touch )", "rvNavMesh::FindPath goal within touch")
-    require(find_path, "TransportAt( goalBox ) < 0", "rvNavMesh::FindPath no reverse proof into a pad")
+    require(find_path, "TransportAtFloor( routeGoal ) < 0", "rvNavMesh::FindPath no reverse proof into a pad")
     if find_path.count("path.routeStart = routeStart;") != find_path.count("return true;") + 1:
         raise AssertionError(
             "FindPathInternal must record the grounded route start on every success path; "
@@ -671,8 +671,16 @@ def validate_navmesh() -> None:
     require(grid_validation, "DynamicSolidNear( swept )", "rvNavMesh::LinkTraversable broad phase")
     dynamic = nav[nav.index("bool rvNavMesh::DynamicTranslation") :]
     dynamic = dynamic[: dynamic.index("\n}\n") + 3]
-    require(dynamic, "NavIsDynamicSolid( blocker ) && !NavDoorIsWalkActivated( blocker )",
-            "rvNavMesh::DynamicTranslation blocks only on movers")
+    # The sweep asks only the recorded dynamic solids, never players or static
+    # props: the pass-entity form spent one of its two passes on the bot's own
+    # body and declared a link clear once a third static blocker turned up.
+    require(dynamic, "dynamicSolids[i]", "rvNavMesh::DynamicTranslation sweeps recorded movers only")
+    require(dynamic, "NavDoorIsWalkActivated( ent )", "rvNavMesh::DynamicTranslation passes walk doors")
+    if "TranslationEntities(" in dynamic:
+        raise AssertionError(
+            "rvNavMesh::DynamicTranslation sweeps every solid entity again; players and static "
+            "props must not take part in live link validation"
+        )
     if "TryStep(" in grid_validation:
         raise AssertionError(
             "LinkTraversable re-samples generated grid topology; live repair must only "
@@ -685,7 +693,7 @@ def validate_navmesh() -> None:
         )
     require(
         nav,
-        "gameLocal.TranslationEntities(",
+        "collisionModelManager->Translation( &hit, start, end, &navAgentTrace",
         "rvNavMesh dynamic route-edge entity sweep",
     )
     require(traversable, "IsActive( TH_THINK )", "rvNavMesh::LinkTraversable live jump pad")

@@ -93,8 +93,11 @@ static const botTraitDef_t botTraitTable[] = {
 	BOTTRAIT( aimTremorRateHz,		0.05f,		10.0f,		0.6f,		0.8f,		1.1f,		1.4f,		1.8f ),
 	BOTTRAIT( aimTrackError,		0.0f,		20.0f,		2.8f,		2.1f,		1.5f,		0.8f,		0.3f ),
 	BOTTRAIT( aimSettleMsec,		0.0f,		2000.0f,	240.0f,		200.0f,		170.0f,		110.0f,		60.0f ),
-	BOTTRAIT( aimLead,				0.0f,		1.5f,		0.10f,		0.35f,		0.60f,		0.82f,		0.97f ),
-	BOTTRAIT( aimLeadError,			0.0f,		2.0f,		0.45f,		0.32f,		0.20f,		0.11f,		0.05f ),
+	// Both are fractions of the computed lead.  A lead past 1.0 aims ahead of
+	// where the target will be, and an error past 1.0 lets the per-burst roll
+	// go negative, so the clamps stop at the header's documented 0..1.
+	BOTTRAIT( aimLead,				0.0f,		1.0f,		0.10f,		0.35f,		0.60f,		0.82f,		0.97f ),
+	BOTTRAIT( aimLeadError,			0.0f,		1.0f,		0.45f,		0.32f,		0.20f,		0.11f,		0.05f ),
 
 	// -- trigger --
 	BOTTRAIT( fireConeDeg,			0.25f,		45.0f,		14.0f,		10.0f,		6.5f,		4.0f,		2.0f ),
@@ -430,7 +433,13 @@ static void BotMergeWeaponBias( botTraits_t &traits, const idList<botWeaponBias_
 
 		if ( slot == -1 ) {
 			if ( traits.numWeaponBias >= BOT_MAX_WEAPON_BIAS ) {
-				continue;		// already warned about at load time
+				// Each layer was checked against the cap on its own at load
+				// time; the merged set of a parent style, a style and a
+				// character is only known here, and a dropped opinion with no
+				// diagnostic is a character that quietly plays someone else.
+				gameLocal.Warning( "bot weapon bias for '%s' dropped: more than %d weapons have an opinion once the style and character layers merge",
+								   list[i].weapon.c_str(), BOT_MAX_WEAPON_BIAS );
+				continue;
 			}
 			slot = traits.numWeaponBias++;
 			traits.weaponBias[slot].weapon = list[i].weapon;
@@ -800,6 +809,11 @@ bool rvBotCharacter::ParseChatBlock( idLexer &lexer, const char *sourceName ) {
 
 	if ( !lexer.ReadTokenOnLine( &token ) ) {
 		gameLocal.Warning( "bot file '%s' line %d: 'chat' with no event name", sourceName, lexer.GetLineNum() );
+		// Consume the block that follows, or its lines read as unknown keys
+		// and its closing brace ends the enclosing character early.
+		if ( lexer.PeekTokenString( "{" ) ) {
+			lexer.SkipBracedSection();
+		}
 		return true;
 	}
 
@@ -922,6 +936,9 @@ bool rvBotCharacter::ParseReplyBlock( idLexer &lexer, const char *sourceName ) {
 
 	if ( !lexer.ReadTokenOnLine( &token ) ) {
 		gameLocal.Warning( "bot file '%s' line %d: 'reply' with no rule name", sourceName, lexer.GetLineNum() );
+		if ( lexer.PeekTokenString( "{" ) ) {
+			lexer.SkipBracedSection();		// see ParseChatBlock
+		}
 		return true;
 	}
 	rule.name = token;
@@ -1160,11 +1177,16 @@ bool rvBotCharacter::Parse( idLexer &lexer, const char *sourceName ) {
 		} else if ( token.Icmp( "skillBand" ) == 0 ) {
 			if ( BotParseNumber( lexer, number, sourceName, "skillBand" ) ) {
 				minSkill = idMath::ClampInt( 1, BOT_SKILL_LEVELS, (int)number );
+				maxSkill = minSkill;
 
-				if ( BotParseNumber( lexer, number, sourceName, "skillBand" ) ) {
-					maxSkill = idMath::ClampInt( minSkill, BOT_SKILL_LEVELS, (int)number );
-				} else {
-					maxSkill = minSkill;
+				// "skillBand 5" is a one-level band and must not warn that the
+				// second value is missing; only a value that is there is read.
+				idToken second;
+				if ( lexer.ReadTokenOnLine( &second ) ) {
+					lexer.UnreadToken( &second );
+					if ( BotParseNumber( lexer, number, sourceName, "skillBand" ) ) {
+						maxSkill = idMath::ClampInt( minSkill, BOT_SKILL_LEVELS, (int)number );
+					}
 				}
 			}
 			lexer.SkipRestOfLine();
@@ -1921,7 +1943,18 @@ float rvBotCharacterManager::EffectiveSkill( int skillLevel, float variance, int
 
 	BotSeededRandom( rnd, seed );
 
-	return idMath::ClampFloat( 1.0f, (float)BOT_SKILL_LEVELS, level + rnd.CRandomFloat() * variance );
+	// Reflected off the ends rather than clamped: clamping bot_skill 1 with a
+	// variance of 1 left half the roster at exactly 1.0, when "either side"
+	// means a spread.  A roll that would leave the range comes back in by the
+	// same amount, so the size of the spread is kept and only its side changes.
+	float effective = level + rnd.CRandomFloat() * variance;
+	if ( effective < 1.0f ) {
+		effective = 2.0f - effective;
+	} else if ( effective > (float)BOT_SKILL_LEVELS ) {
+		effective = 2.0f * (float)BOT_SKILL_LEVELS - effective;
+	}
+
+	return idMath::ClampFloat( 1.0f, (float)BOT_SKILL_LEVELS, effective );
 }
 
 /*

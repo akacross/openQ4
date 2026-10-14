@@ -13946,7 +13946,13 @@ void idMultiplayerGame::ReportZoneController(int team, int pCount, int situation
 	// Someone took control of a zone, report this to the 
 	if ( situation == DZ_MARINES_TAKEN || situation == DZ_STROGG_TAKEN || situation == DZ_MARINE_TO_STROGG ||
 		situation == DZ_STROGG_TO_MARINE || situation == DZ_MARINE_REGAIN || situation == DZ_STROGG_REGAIN ) {
+		// openQ4: one holder at a time.  Clearing only the Marine slot (where the
+		// deadlock is recorded) left the previous holder's TAKEN in place after a
+		// hand-over or a regain, so both slots read TAKEN until that team later
+		// lost the zone outright, and anything reading the slots - the HUD's
+		// zone owner, the bots' role allocation - saw two owners.
 		dzGameState->SetDZState(TEAM_MARINE, DZ_NONE); // Clear hacked deadlock
+		dzGameState->SetDZState(TEAM_STROGG, DZ_NONE);
 		dzGameState->SetDZState(team, DZ_TAKEN);
 	}
 

@@ -194,6 +194,14 @@ def validate_perception_and_damage(
         "rvBot::UpdateAim exposed-point consumption",
     )
 
+    # Reaction is competence; a style's eagerness bends it by a quarter at most.
+    acquire = function_body(bot, "void rvBot::AcquireEnemy", "rvBot::AcquireEnemy")
+    require(
+        acquire,
+        "1.25f - 0.5f * idMath::ClampFloat( 0.0f, 1.0f, traits.initiative )",
+        "rvBot::AcquireEnemy bounded initiative reaction scale",
+    )
+
     damage = function_body(player, "void idPlayer::Damage", "idPlayer::Damage")
     require(
         damage,
@@ -575,6 +583,8 @@ def validate_weapons_aim_and_fire(bot: str, combat: str) -> None:
             "!IsEnemy( self, foe )",
             "onTargetTime += gameLocal.GetMSec()",
             "onTargetTime >= settleMsec",
+            # Initiative is taste: it may shorten the settle, never remove it.
+            "Max( 0.25f, 2.0f - traits.initiative * 2.0f )",
             "BOTMISTAKE_MISTIMEDSHOT",
             "const bool singleShot",
             "gameLocal.time < nextSingleShotTime",
@@ -641,7 +651,7 @@ def validate_weapons_aim_and_fire(bot: str, combat: str) -> None:
             # which the deliberate aim error usually prevents.
             "if ( !hit )",
             "if ( hitPlayer )",
-            "BotCombatSplashThreatensPlayer( intendedFoe, hit,",
+            "BotCombatSplashThreatensPlayer( intendedFoe, BotCombatSplashIgnore( hit, NULL ),",
         ),
         "BotCombatLineOfFireIsSafe trajectory, safety and usefulness contract",
     )

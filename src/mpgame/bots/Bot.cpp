@@ -89,6 +89,10 @@ static const int	BOT_PATIENCE_HOLD_MSEC	= 4000;		// how long a maximally patient
 static const float	BOT_DEFEND_RADIUS		= 320.0f;	// useful perimeter around an authored team base
 static const float	BOT_FLAG_TOUCH_RADIUS	= 24.0f;	// inside this a 32-wide hull overlaps the 40-wide flag trigger
 static const float	BOT_HOLD_STEP			= 48.0f;	// how far a holding bot's combat step is checked ahead
+static const float	BOT_LOOK_AHEAD			= 320.0f;	// how far along its route an unengaged bot watches
+static const float	BOT_SCAN_HALF_ANGLE		= 55.0f;	// degrees either side of its facing a standing bot sweeps
+static const float	BOT_SCAN_PERIOD_SEC		= 7.0f;		// one sweep out and back
+static const float	BOT_COMBAT_STEER_DOT	= 0.85f;	// combat owns the feet once it bends the route past ~30 degrees
 
 static bool BotBrakeAtEdge( idPlayer *self, idVec3 &moveDir );
 
@@ -606,6 +610,9 @@ rvBot::rvBot( void ) {
 	aimTrackValid		= false;
 	aimAngVel			= 0.0f;
 	aimLeadRoll			= 1.0f;
+	idleScan			= false;
+	scanStartTime		= 0;
+	scanBaseYaw			= 0.0f;
 
 	for ( int i = 0; i < 4; i++ ) {
 		tremorPhase[i] = 0.0f;
@@ -918,6 +925,8 @@ void rvBot::OnSpawn( void ) {
 	aimTrackValid		= false;
 	aimAngVel			= 0.0f;
 	aimLeadRoll			= 1.0f;
+	idleScan			= false;
+	scanStartTime		= 0;
 
 	mistake				= BOTMISTAKE_NONE;
 	mistakeEndTime		= 0;
@@ -946,8 +955,9 @@ void rvBot::OnSpawn( void ) {
 	targetPickBest		= ( gameLocal.random.RandomFloat() < traits.targetSelection );
 
 	// A pending chat line deliberately survives: a bot that dies one second
-	// after a frag should still get its line out, and the death event queues
-	// over the top of it anyway.
+	// after a frag should still get its line out.  The death line that would
+	// follow it is dropped rather than queued over the top: one voice, one
+	// line at a time.
 
 	idPlayer *self = GetPlayer();
 	if ( self ) {
@@ -1511,7 +1521,13 @@ void rvBot::AcquireEnemy( idPlayer *self, idPlayer *foe, bool fresh ) {
 						  idMath::ClampFloat( 0.0f, 1.0f, offAxis / Max( traits.peripheralAngle, 1.0f ) );
 	const float base	= fresh ? traits.reactionMsec : traits.reactionMsec * traits.reacquireFraction;
 	const float jitter	= gameLocal.random.CRandomFloat() * traits.reactionVarianceMsec;
-	const float initiativeScale = 1.5f - traits.initiative;
+
+	// Initiative is taste, not competence, so it bends the reaction by a
+	// quarter at most: 0.75 at the eager end, 1.25 at the deliberate one.
+	// The old 1.5 - initiative halved a bot's reaction at 1.0, and content
+	// reaches 1.0 - the rusher style adds 0.30 to a skill-1 baseline of 0.80 -
+	// which put a "genuinely poor" bot on a skill-4 reaction.
+	const float initiativeScale = 1.25f - 0.5f * idMath::ClampFloat( 0.0f, 1.0f, traits.initiative );
 
 	enemyFireTime	= gameLocal.time + Max( 0, (int)( ( base + jitter + periph ) * initiativeScale ) );
 	onTargetTime	= 0;
@@ -2377,7 +2393,11 @@ bool rvBot::RecoverToNavMesh( idPlayer *self, usercmd_t &cmd ) {
 				}
 			}
 			ApplyMove( moveDir, cmd );
-			if ( !braking ) {
+			// The hop over whatever stands between the bot and its node is
+			// proved by a whole simulated flight, up to a hundred box sweeps.
+			// A stranded bot asked for it on every other grounded frame; four
+			// times a second is as often as the obstacle changes.
+			if ( !braking && ( ( gameLocal.framenum + clientNum ) % 16 ) == 0 ) {
 				TryDodgeJump( self, moveDir, cmd );
 			}
 			return true;
@@ -3123,7 +3143,11 @@ void rvBot::UpdateGoal( idPlayer *self ) {
 	if ( !objectiveAvailable || wantHealth || objectivePriority < 85.0f ) {
 		item = PickItemGoal( self, itemPath, itemUtility );
 	}
-	float itemPriority = item ? 10.0f + itemUtility * 5.0f : 0.0f;
+	// itemFocus is how much a pickup outweighs an enemy for this personality:
+	// a roamer plays the map, a hunter barely looks down.  Only the item's own
+	// worth scales; the need-driven bonuses below - arming up, health at the
+	// edge of death, a pickup a few steps away - are not matters of taste.
+	float itemPriority = item ? ( 10.0f + itemUtility * 5.0f ) * ( 0.5f + idMath::ClampFloat( 0.0f, 1.0f, traits.itemFocus ) ) : 0.0f;
 	const bool itemIsHealth = item && item->spawnArgs.GetInt( "inv_health", "0" ) > 0;
 	const bool itemIsArmor = item && item->spawnArgs.GetInt( "inv_armor", "0" ) > 0;
 	const int maxHealth = Max( 1, self->inventory.maxHealth );
@@ -4198,6 +4222,19 @@ void rvBot::ScheduleDodge( const idVec3 &threatDirection, const idVec3 *threatPo
 				return;
 			}
 		}
+	} else if ( threatPoint ) {
+		// Something lying still - a fused grenade that rolled up, a napalm
+		// glob burning beside the feet - has no line of travel to step across.
+		// The only sensible step is straight away from it; a strafe around the
+		// enemy can walk right over it.
+		idPlayer *self = GetPlayer();
+		if ( self ) {
+			idVec3 away = self->GetPhysics()->GetOrigin() - *threatPoint;
+			away.z = 0.0f;
+			if ( away.Normalize() > 0.0f ) {
+				dodgeDirection = away;
+			}
+		}
 	}
 
 	strafeSide = ( gameLocal.random.RandomFloat() < 0.5f ) ? -1.0f : 1.0f;
@@ -4504,6 +4541,10 @@ rvBot::UpdateMovement
 void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 	const idVec3 origin = self->GetPhysics()->GetOrigin();
 
+	// Only the two deliberate waits below stand watch; everything else, a
+	// frame between goals included, keeps the view where it was.
+	idleScan = false;
+
 	TrackDamage( self );
 	if ( HoldDodgeJump( self, cmd ) ) {
 		return;
@@ -4654,8 +4695,13 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 				 itemHeight <= BOT_CORNER_REACH_Z &&
 				 itemDelta.LengthSqr() < BOT_ITEM_ARRIVED * BOT_ITEM_ARRIVED ) {
 				if ( bot_debug.GetInteger() >= 1 ) {
-					gameLocal.Printf( "bot %s: '%s' did not pick up, looking elsewhere\n",
-									  name.c_str(), goal->GetClassname() );
+					// The entity's own class name, not the C++ class: every
+					// pickup is an 'idItem', and a log of those says nothing
+					// about which weapon, pack or pedestal keeps refusing.
+					gameLocal.Printf( "bot %s: '%s' did not pick up at %s (%.0f away, %.0f up), looking elsewhere\n",
+									  name.c_str(), goal->spawnArgs.GetString( "classname", goal->GetClassname() ),
+									  goal->GetPhysics()->GetOrigin().ToString( 0 ), itemDelta.Length(),
+									  goal->GetPhysics()->GetOrigin().z - origin.z );
 				}
 				AbandonGoal( BOT_GOAL_AVOID_MSEC );
 			}
@@ -4684,6 +4730,7 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 					// Standing still deliberately: no movement, and no recovery
 					// either, because this bot is not lost.  Incoming fire ends
 					// the wait; a camper still gets out of the way of a rocket.
+					idleScan = true;
 					return;
 				}
 			}
@@ -4772,6 +4819,7 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 		// Holding an item spot is a decision, not being stranded.
 		if ( waitingForItem ) {
 			noRouteSince = 0;
+			idleScan = true;
 			return;
 		}
 
@@ -4922,7 +4970,6 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 			const float push		= idMath::ClampFloat( -1.0f, 1.0f, err * 2.0f ) * traits.rangeDiscipline * willingness;
 
 			moveDir += toFoe * push;
-			combatSteeringTime = gameLocal.time;
 
 			// Sidestep so the bot is not a straight line target.  Inside the
 			// fighting band it always dodges a little; once it is actually
@@ -4948,6 +4995,17 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 			}
 
 			moveDir.Normalize();
+
+			// Combat owns the feet - and with them silences the stuck detector
+			// and the goal give-up - only once it bends the route materially.
+			// Stamping on every frame an enemy was in view left a bot pressed
+			// against a lip for the whole of a long-range duel, with nothing to
+			// free it until line of sight broke.  Holding range at about the
+			// right distance with a light strafe still walks the route, and
+			// progress along it is still the right measure of being stuck.
+			if ( moveDir * routeDir < BOT_COMBAT_STEER_DOT ) {
+				combatSteeringTime = gameLocal.time;
+			}
 		}
 	}
 
@@ -5256,6 +5314,70 @@ static bool BotFeetAimPoint( idPlayer *self, idPlayer *foe, const idVec3 &eye, i
 
 /*
 ================
+rvBot::IdleAimPoint
+
+With nothing to shoot at, a player looks where they are going, not at their
+feet.  The next corner can be a step away and well under the eye line, and a
+bot that aimed at it walked every tight route staring at the floor.  The view
+rests a good way along the route instead, at eye height over the floor there,
+so stairs and ramps tilt it and a corridor keeps it level.  Standing watch -
+a patient bot on a finished wander, or one waiting for a timed item - it
+sweeps the room either side of the facing it stopped with, which is also what
+lets an ambusher notice someone coming in from the flank.  Movement is never
+affected: ApplyMove resolves a world-space direction against whatever the
+view yaw is.
+================
+*/
+idVec3 rvBot::IdleAimPoint( idPlayer *self, const idVec3 &eye ) {
+	const idVec3 origin = self->GetPhysics()->GetOrigin();
+	const float eyeHeight = eye.z - origin.z;
+
+	if ( pathCorner >= 0 && pathCorner < path.Num() ) {
+		scanStartTime = 0;
+
+		idVec3 from = origin;
+		float remaining = BOT_LOOK_AHEAD;
+		for ( int i = pathCorner; i < path.Num(); i++ ) {
+			const idVec3 &to = path[i].origin;
+			idVec3 leg = to - from;
+			leg.z = 0.0f;
+			const float length = leg.Length();
+			if ( length > 0.0f && length >= remaining ) {
+				idVec3 point = from + ( to - from ) * ( remaining / length );
+				point.z += eyeHeight;
+				return point;
+			}
+			remaining -= length;
+			from = to;
+		}
+
+		// A short route: watch where it ends.
+		idVec3 point = path[path.Num() - 1].origin;
+		point.z += eyeHeight;
+		return point;
+	}
+
+	if ( !idleScan ) {
+		scanStartTime = 0;
+		return eye + aimAngles.ToForward() * 256.0f;
+	}
+
+	// The sweep starts from the current facing so the view never jumps, and
+	// neighbouring bots start out opposite ways so a pair standing together
+	// does not turn in step.
+	if ( !scanStartTime ) {
+		scanStartTime	= gameLocal.time;
+		scanBaseYaw		= aimAngles.yaw;
+	}
+	const float sweep	= idMath::TWO_PI * MS2SEC( gameLocal.time - scanStartTime ) / BOT_SCAN_PERIOD_SEC;
+	const float side	= ( clientNum & 1 ) ? -1.0f : 1.0f;
+	const idAngles look( 0.0f, scanBaseYaw + side * BOT_SCAN_HALF_ANGLE * idMath::Sin( sweep ), 0.0f );
+
+	return eye + look.ToForward() * 256.0f;
+}
+
+/*
+================
 rvBot::UpdateAim
 
 The bot aims at where it BELIEVES the target is, which trails the truth; the
@@ -5330,10 +5452,12 @@ void rvBot::UpdateAim( idPlayer *self, usercmd_t &cmd ) {
 		} else if ( !MistakeActive( BOTMISTAKE_LOSETRACK ) ) {
 			// Briefly extrapolate the last observed velocity, with confidence
 			// fading to zero.  This predicts a doorway exit without tracking live
-			// physics through the wall.
+			// physics through the wall.  pursuit runs to 2 for how long a chase
+			// lasts; as a gain on the target's speed it stops at 1, or a hunter
+			// led a door exit at 1.4 times the speed it saw.
 			const float unseen = MS2SEC( gameLocal.time - enemyLastSeenTime );
 			const float confidence = idMath::ClampFloat( 0.0f, 1.0f, 1.0f - unseen / 0.75f );
-			aimBelief += enemyLastSeenVelocity * ( dt * traits.pursuit * confidence );
+			aimBelief += enemyLastSeenVelocity * ( dt * Min( 1.0f, traits.pursuit ) * confidence );
 		}
 
 		aimPoint = aimBelief;
@@ -5369,11 +5493,8 @@ void rvBot::UpdateAim( idPlayer *self, usercmd_t &cmd ) {
 		}
 
 		aimPointValid = true;
-	} else if ( pathCorner < path.Num() ) {
-		aimPoint = path[pathCorner].origin;
-		aimPoint.z += pm_normalheight.GetFloat() * 0.5f;
 	} else {
-		aimPoint = eye + aimAngles.ToForward() * 256.0f;
+		aimPoint = IdleAimPoint( self, eye );
 	}
 
 	idVec3 dir = aimPoint - eye;
@@ -5585,7 +5706,14 @@ void rvBot::UpdateWeapon( idPlayer *self ) {
 	}
 
 	idPlayer *	foe		= enemy.GetEntity();
-	float		range	= BOT_WEAPON_RANGE_SPLIT * 2.0f;
+
+	// With nobody in mind, carry the gun for the fight this personality
+	// expects rather than for a thousand units of open ground.  Crossing a
+	// map with the rail gun out meant switching when the fight started at
+	// close range and losing the first half second of it; a sniper still
+	// keeps the rail, a rusher the shotgun, and a baseline bot the rocket
+	// launcher or the lightning gun, which is what a player carries.
+	float		range	= traits.combatRange;
 
 	if ( foe ) {
 		range = ( enemyLastSeenOrigin - self->GetPhysics()->GetOrigin() ).Length();
@@ -5828,7 +5956,10 @@ void rvBot::UpdateFire( idPlayer *self, usercmd_t &cmd ) {
 	const float turnRate		= idMath::Sqrt( aimRate.pitch * aimRate.pitch + aimRate.yaw * aimRate.yaw );
 	const float fireCone		= traits.fireConeDeg * ( 0.5f + traits.initiative );
 	const float holdTurnRate	= traits.holdFireTurnRate * ( 0.5f + traits.initiative );
-	const int settleMsec		= (int)( traits.aimSettleMsec * ( 2.0f - traits.initiative * 2.0f ) );
+	// The settle shrinks with initiative but never to nothing: at 1.0 the old
+	// factor reached zero and a rusher fired the frame the cone was entered,
+	// whatever its skill.  A quarter of the authored settle is the floor.
+	const int settleMsec		= (int)( traits.aimSettleMsec * Max( 0.25f, 2.0f - traits.initiative * 2.0f ) );
 
 	// Two gates, and the second one matters as much as the first: a view still
 	// swinging hard is not aimed at anything, it is passing over it.
@@ -5943,6 +6074,13 @@ void rvBot::QueueChat( rvBotChatEvent event, const char *other, const char *weap
 	if ( bot_chat.GetInteger() <= 0 || !bot_characters.GetBool() ) {
 		return;
 	}
+	// A line already being typed is not replaced.  At bot_chat 2 the per-bot
+	// throttle (3 s) is shorter than the longest typing delay (5 s), so a
+	// frag a few seconds after a death used to overwrite the death line after
+	// its throttle stamp had already been spent: one reservation, no line.
+	if ( !chatPending.IsEmpty() ) {
+		return;
+	}
 
 	float chatiness = traits.chatiness;
 
@@ -6003,6 +6141,9 @@ void rvBot::QueueOrderAck( const char *commander ) {
 	}
 	if ( bot_chat.GetInteger() <= 0 || !bot_characters.GetBool() ) {
 		return;
+	}
+	if ( !chatPending.IsEmpty() ) {
+		return;		// still typing something else; the order itself is already in force
 	}
 
 	botChatTokens_t tokens;
@@ -6373,6 +6514,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( nextSingleShotTime );
 	SHIFT_BOT_TIME( mistakeEndTime );
 	SHIFT_BOT_TIME( nextMistakeTime );
+	SHIFT_BOT_TIME( scanStartTime );
 
 	// -- dodging --
 	// damageStamp mirrors idPlayer::lastDmgTime, which idPlayer shifts for the
@@ -6500,7 +6642,7 @@ void rvBot::Think( usercmd_t &cmd ) {
 			goalLabel += objectiveNames[idMath::ClampInt( 0, 8, objectiveKind )];
 		}
 
-		gameLocal.Printf( "bot %s [%s/%s skill %.1f]: at %s hp %d armor %d goal %s corner %d/%d remain %.0f enemy %s mistake %s%s\n",
+		gameLocal.Printf( "bot %s [%s/%s skill %.1f]: at %s hp %d armor %d goal %s corner %d/%d remain %.0f enemy %s view %.0f/%.0f%s mistake %s%s\n",
 						  name.c_str(),
 						  character ? character->GetName() : "-",
 						  character ? character->GetStyleName() : "-",
@@ -6512,6 +6654,7 @@ void rvBot::Think( usercmd_t &cmd ) {
 						  pathCorner, path.Num(),
 						  PathDistanceRemaining( self->GetPhysics()->GetOrigin() ),
 						  foe ? BotDisplayName( foe ) : "-",
+						  aimAngles.pitch, aimAngles.yaw, scanStartTime ? " scanning" : "",
 						  mistakeNames[idMath::ClampInt( 0, BOTMISTAKE_NUM - 1, ( gameLocal.time < mistakeEndTime ) ? mistake : BOTMISTAKE_NONE )],
 						  ( cmd.buttons & BUTTON_ATTACK ) ? " FIRING" : "" );
 	}
