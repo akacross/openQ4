@@ -303,6 +303,11 @@ public:
 	bool					NaturalPadLanding( int padEntityNum, idVec3 &landing ) const;
 	bool					LandingSurvivable( const idVec3 &from, const navCorner_t &corner, float maxImpactDelta ) const;
 	bool					LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const;
+	// Diagnostics: would a route leg between these points be accepted as a
+	// walk now, and if not, which test refuses it.
+	bool					WalkLegAccepted( const idVec3 &from, const idVec3 &to, const char **failure ) const {
+								return WalkableLine( from, to, failure );
+							}
 	// A grounded hull can overhang a rim even though its center is unsupported.
 	// Only recovery uses this short, continuously supported path back inland.
 	bool					RecoveryStepClear( const idVec3 &origin, const idVec3 &target ) const;
@@ -370,6 +375,9 @@ private:
 										idVec3 &landing, float *flightSeconds = NULL, float *impactDelta = NULL ) const;
 	bool					PadLandings( idEntity *pad, int from, const idBounds &entryBounds, int targetNode,
 										 idList<int> &landings, idList<float> &costs ) const;
+	bool					PadFlightReaches( idEntity *pad, const idVec3 *launches, int numLaunches,
+											  const idVec3 &target, float &centreFlight, bool natural ) const;
+	int						NearestLandingNode( const idVec3 &touchdown, int from, const idBounds &entryBounds ) const;
 	void					SealTransportVolumes( void );
 	void					CompactLinks( void );
 	bool					LineEntersTransport( const idVec3 &from, const idVec3 &to ) const;
@@ -411,6 +419,9 @@ private:
 	// -- routing --
 	bool					FindPathInternal( const idVec3 &start, const idVec3 &goal, rvNavPath &path,
 											  bool nearGoal, float maxImpactDelta ) const;
+	// A corner-to-corner leg: a climbing or descending line is proven from
+	// either side of its corner as well, where the bot may count it reached.
+	bool					WalkableLeg( const idVec3 &from, const idVec3 &to ) const;
 	// failure, when given, names the first test a refused line failed.
 	bool					WalkableLine( const idVec3 &from, const idVec3 &to,
 										  const char **failure = NULL ) const;

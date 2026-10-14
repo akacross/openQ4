@@ -65,6 +65,17 @@
   counts, q4dm5 pickup refusals six to one, and the known q4ctf5 void and vertical
   pad limits unchanged. Numbers are tabled in the bots design record. See [implementation](mp-bots.md) and
   [candidate player-facing notes](releases/mp-bot-refinements.md).
+- [x] Fix the two navigation stops that review measured but did not fix, in the
+  navmesh: q4ctf1's string-pulled walk corners above a riser or on the side of
+  its ramp (the shortcut sweep climbed with the line and cleared the riser's
+  top; floor samples now may climb more than a step only across a slope or a
+  stair, and a climbing leg is proven from either side of its corner), and
+  q4dz1's vertical-pad bounce (the natural landing's node hung half a hull
+  over the shaft; it is now the nearest supported node, proven from the pad's
+  centre ridden or steered as the bot flies it). The stuck report names the
+  leg and the navmesh's verdict on it. Twelve suites pass; the fixture runs the
+  production shortcut proof. Live: 120 s, eight bots per map - both stops gone,
+  q4ctf1 stuck reports 6 to 3, q4dz1 pad timeouts 2 to 0.
 
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and

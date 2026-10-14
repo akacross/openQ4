@@ -84,7 +84,20 @@ the configured player hull clears the sampled move:
    every side a standing box can touch the volume from - a bot is thrown where
    it first touches the pad, not from its centre - up to four landings a pad. That is the only way
    onto the ledge beside q4dm1's vertical pads, whose arc falls straight back
-   down their shaft. A bot rides a natural landing without steering, as long as
+   down their shaft. The natural landing's node is the nearest one to the
+   touchdown with floor under the middle of the hull, and the flight from the
+   centre has to come down on it flown as the bot flies it - ridden where the
+   pad's own arc comes down on the node, steered for it otherwise. (q4ctf1's
+   pad 17 slides its arc along a wall and comes down ten units past its node;
+   steering for that node takes the flight off a ledge 192 units lower, and a
+   bot rides it instead. A directional pad entered from its side throws a bot
+   down beside the ledge, as q4dm5's forty pads do, and the bot recovers from
+   there: the natural landing is not held to every side.)
+   q4dz1's vertical pads sit in a shaft whose ledge the arc from the centre
+   just catches; the nearest node to that touchdown hung half a hull over the
+   shaft, and from the front of the pad, where every bot enters, a flight
+   steered for it came down short, into the shaft, and bounced until the
+   traversal timed out. A bot rides a natural landing without steering, as long as
    the ridden arc lands on or past the node and within a box of its line -
    braking onto the node slowed flyers under the bots behind them, and over
    q4ctf5's gap they met in the air. Steering is `NavAirSteer`, shared with the
@@ -177,7 +190,23 @@ also refuses ground more than a step below both of its ends - a pit between
 them that the graph classed as a drop in and a jump out, each with its own
 proof and penalty, which a chord across a sunken panel or a drain used to walk
 the bot into - and survivable pain floor the graph priced to avoid, unless the
-walk starts and ends in it.
+walk starts and ends in it. The sweep is a straight line between two lifted
+endpoints, so on a line that climbs it rises with the line and clears the top
+of a riser the player on the floor walks into: q4ctf1's string-pulled walks
+from the low floor onto the lip of its 64-unit platform, and onto the side of
+its ramp, passed both sweeps and every drop-tolerance sample, and the bot
+pressed against the wall under its corner until the stuck detector threw the
+route away. The floor samples say where the ground really rises, so
+consecutive samples, the endpoints included, climb more than a step only
+where the ground sampled between them climbs at most a step on either side,
+which a 45-degree slope or a stair of player-height steps does and a riser
+does not, however the samples fall on it. A bot also counts a corner as
+reached up to 28 units short of it or beside it, so a string-pulled leg that
+climbs or descends more than a step is proven from either side of its corner
+as well: q4ctf1's lip nodes along the north edge of its ramp stand on a
+sliver of the ramp a step above the floor beside them, and the line from one
+ran diagonally up the lip while the bot, a hull's width north of it on the
+floor, walked into the ramp's side.
 
 The node chain is then string-pulled: a corner is dropped when the shortcut is
 proven, and smoothing never skips a link that has to be entered deliberately.
@@ -1347,7 +1376,9 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   allocated slot, bots re-begun after a map change, user info restored on every
   update, bots thinking before entities, and the navmesh deriving its agent
   from the movement cvars. It guards the body-free agent sweep, walk-door
-  classification, transport sealing and the walk slope bound, weighted route
+  classification, transport sealing, the walk slope bound and its per-sample
+  rise bound, the natural pad landing's supported node and centre proof,
+  weighted route
   costs, the landmark heuristic and goal pricing, dynamic-only edge validation
   and repair, roaming retries, off-route recovery, the drop push-through, and
   the action entry/airborne/grounded-exit contract.
@@ -1373,7 +1404,11 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   with the same no-damage surface and water reductions as player physics.
   Running-drop cases reject small islands and preserve broad lower floors;
   landing continuation cases distinguish connected ground from a gap or rim,
-  with low-ceiling, small-lip and boosted-hop regressions.
+  with low-ceiling, small-lip and boosted-hop regressions. The production
+  `WalkableLine` runs on the same world: q4ctf1's chord onto the lip of a
+  64-unit platform and a corner on a 48-unit lip are refused for their rise
+  between samples and onto the end, while the same climb as a stair of
+  player-height steps, level ground, a single step up and a step down walk.
 - `tools/tests/mp_bot_regressions.py` compiles the production decision
   functions against a deterministic world: goal replacement and stall
   recovery, inventory changes, hearing and item timing, fight-or-flight,
@@ -1449,7 +1484,8 @@ minutes on `q4dm5`, `q4dm1` and `q4ctf1`.
 
 Both q4dm5 deaths followed rocket knockback into the void, the documented
 limit; the repeated q4ctf1 stop at -2596 884 186 (a walk corner 57 units above
-the floor the bots reach it from) is in both runs and predates the review. The
+the floor the bots reach it from) is in both runs and predates the review - it
+is the string-pull sweep clearing a riser, fixed the same day (below). The
 "after" think times overlapped a parallel module build on the same box. The
 final module's rerun, with no build running but with the box otherwise about
 half again as busy as during the baseline (`cpu_cores_busy` 0.79-0.96 against
@@ -1479,7 +1515,42 @@ launcher rather than the rail gun between fights there, so more of the hits
 that start a fall are rockets, which is also how players die on that map.
 q4dz1's two timeouts were one bot bouncing on a vertical pad whose ledge needs
 air control, the q4dm1 pad case on another map. Neither pattern is new to this
-build, and both remain listed under the known limits.
+build; both were fixed in the navmesh the same day (below).
+
+The same-day follow-up fixed both in the navmesh (the per-sample rise and
+side-of-corner proofs for string-pulled legs, and the supported, centre-proven
+natural pad landing) and was measured the same way, eight skill-4 bots for two
+minutes per map from an optimised candidate runtime on loopback, twice on the
+two maps concerned and once on the two pad-heavy DM maps as a regression
+check:
+
+| map (mode) | kills | deaths to the map | stuck | no route | given up | timeouts | think ms | nav ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4ctf1 (CTF), run 1 | 17 | 0 | 3 | 0 | 0 | 0 | 0.95 | 0.44 |
+| q4ctf1 (CTF), run 2 | 17 | 0 | 7 | 0 | 1 | 0 | 0.89 | 0.37 |
+| q4dz1 (DeadZone), run 1 | 24 | 0 | 8 | 0 | 0 | 0 | 0.64 | 0.16 |
+| q4dz1 (DeadZone), run 2 | 25 | 0 | 6 | 0 | 0 | 0 | 0.68 | 0.18 |
+| q4dm5 (DM) | 21 | 0 | 8 | 0 | 1 | 0 | 0.75 | 0.30 |
+| q4dm1 (DM) | 33 | 0 | 0 | 0 | 0 | 0 | 0.68 | 0.22 |
+
+No bot pressed against the wall under the q4ctf1 ramp corner in either run,
+and no pad traversal timed out on q4dz1 in either; both of q4dz1's vertical
+pads were completed onto their ledge. Each stuck report now names the leg the
+bot could not finish and the navmesh's current verdict on it, which is how
+the remaining reports were read: on q4ctf1 they are bots walked off the
+platform's rim or the ramp's side by combat footwork mid-duel and then far
+from their corner, plus the rim walk along the 64-unit platform's edge nodes
+that hang four units past its riser (the pre-review runs show the same
+"off route ... below corner" pattern); on q4dz1 they moved to the catwalk rim
+at (±196, ∓2250..2396, 384), whose edge nodes hang over a 190-unit drop and
+which the pre-review baseline also stopped at three times in its own run. The
+navmeshes are identical to the review's in areas, components and dead ends on
+all four maps; the only link changes are the pad landing nodes - q4dz1's two
+vertical pads land a hull further onto the ledge, q4dm5's pad 15 and 29 and
+q4dm1's pad 18 land on the supported node beside their old one, and q4ctf1's
+pad 17 is unchanged. An earlier candidate that held the natural landing to
+every side of the pad sealed twenty of q4dm5's pads and split q4ctf1 into
+nine areas; that is why the natural landing is proven from the centre only.
 
 That single-map result does not qualify every stock map. The subsequent
 32-map sweep found world deaths on q4dm8, q4ctf3, q4ctf5 and q4dz3. Follow-up

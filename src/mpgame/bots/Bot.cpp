@@ -5189,11 +5189,21 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 			if ( stuckChecks >= 2 && path.Num() > 0 ) {
 				if ( bot_debug.GetBool() ) {
 					static const char *travelNames[] = { "walk", "drop", "jump", "jumppad", "teleport" };
-					gameLocal.Printf( "bot %s: stuck at %s corner %d/%d %s at %s (%.0f away, %.0f up) goal %d\n",
+					// The leg the bot could not finish, and whether the navmesh
+					// would still accept it as a walk: a leg it still accepts
+					// is a shortcut proof at fault, one it refuses came from
+					// somewhere else - a graph link, or ground that has moved.
+					const idVec3 &legStart = ( pathCorner > 0 ) ? path[pathCorner - 1].origin : path.RouteStart();
+					const char *verdict = "-";
+					if ( corner.travelType == NAVTRAVEL_WALK ) {
+						verdict = "walkable";
+						navMesh.WalkLegAccepted( legStart, corner.origin, &verdict );
+					}
+					gameLocal.Printf( "bot %s: stuck at %s corner %d/%d %s at %s (%.0f away, %.0f up) goal %d, leg from %s %s\n",
 									  name.c_str(), origin.ToString( 0 ), pathCorner, path.Num(),
 									  travelNames[idMath::ClampInt( 0, NAVTRAVEL_NUM - 1, corner.travelType )],
 									  corner.origin.ToString( 0 ), cornerDistance, corner.origin.z - origin.z,
-									  goalType );
+									  goalType, legStart.ToString( 0 ), verdict );
 				}
 
 				path.Clear();

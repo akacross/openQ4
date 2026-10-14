@@ -449,9 +449,36 @@ def validate_navmesh() -> None:
     require(landings_fn, "standing.IntersectsBounds( entryBounds )", "rvNavMesh::PadLandings no trampoline landings")
     require(landings_fn, "NAV_PAD_LEVEL_BAND", "rvNavMesh::PadLandings one candidate per floor level")
     require(landings_fn, "NavLandingSupported( node.origin )", "rvNavMesh::PadLandings supported candidates")
-    require(landings_fn, "NAV_PAD_LANDING_REACH", "rvNavMesh::PadLandings keeps only landings the flight makes")
-    require(landings_fn, "for ( int l = 0; l < numLaunches && everyLaunch; l++ )",
+    # The natural landing is held to the same proof as an air-control one: its
+    # node has floor under the middle of the hull, and the flight, steered for
+    # it, reaches it from every side a bot enters by.  q4dz1's vertical pads
+    # linked a node hanging over their shaft that only the centre's arc hit.
+    require(landings_fn, "NearestLandingNode( landing, from, entryBounds )",
+            "rvNavMesh::PadLandings natural landing on a supported node")
+    require(landings_fn, "PadFlightReaches( pad, launches, 1, nodes[landed].origin, flight, true )",
+            "rvNavMesh::PadLandings natural landing proven from the centre as the bot flies it")
+    require(landings_fn, "PadFlightReaches( pad, launches, numLaunches, nodes[candidate].origin, centreFlight, false )",
             "rvNavMesh::PadLandings air-control landings hold from every side a bot enters by")
+    reaches_fn = nav[nav.index("bool rvNavMesh::PadFlightReaches") :]
+    reaches_fn = reaches_fn[: reaches_fn.index("\n}\n") + 3]
+    require(reaches_fn, "for ( int l = 0; l < numLaunches; l++ )", "rvNavMesh::PadFlightReaches every launch")
+    # A natural landing is flown as the bot flies it: ridden when the pad's
+    # own arc comes down on it (q4ctf1's pad 17 slides along a wall; steering
+    # for its node drops the flight 192 units), steered for otherwise.
+    require(reaches_fn, "natural && PadLanding( pad, launches[l], NULL, landing, &flight )",
+            "rvNavMesh::PadFlightReaches rides a natural landing the arc reaches")
+    require(reaches_fn, "NavPadArcRidden( launches[l], landing, target )", "rvNavMesh::PadFlightReaches ridden test")
+    require(reaches_fn, "PadLanding( pad, launches[l], &target, landing, &flight )", "rvNavMesh::PadFlightReaches steers for the landing")
+    require(reaches_fn, "NAV_PAD_LANDING_REACH", "rvNavMesh::PadFlightReaches keeps only landings the flight makes")
+    ridden_fn = nav[nav.index("static bool NavPadArcRidden") :]
+    ridden_fn = ridden_fn[: ridden_fn.index("\n}\n") + 3]
+    require(ridden_fn, "along <= NAV_PAD_RIDE_SHORT", "NavPadArcRidden lands on or past the node, as BotRidesPadArc")
+    require(ridden_fn, "Square( NAV_PAD_RIDE_SIDE )", "NavPadArcRidden within a hull to the side")
+    nearest_fn = nav[nav.index("int rvNavMesh::NearestLandingNode") :]
+    nearest_fn = nearest_fn[: nearest_fn.index("\n}\n") + 3]
+    require(nearest_fn, "NavLandingSupported( node.origin )", "rvNavMesh::NearestLandingNode supported node")
+    require(nearest_fn, "standing.IntersectsBounds( entryBounds )", "rvNavMesh::NearestLandingNode never on the pad")
+    require(nearest_fn, "NAVNODE_TRANSPORT", "rvNavMesh::NearestLandingNode never on a transport")
     pad = nav[nav.index("bool rvNavMesh::PadLanding") :]
     pad = pad[: pad.index("\n}\n") + 3]
     require(pad, "GetCurrentGravity( pad )", "rvNavMesh::PadLanding pad gravity")
@@ -505,6 +532,26 @@ def validate_navmesh() -> None:
     # A shortcut steeper than a walk is another floor, however clear the sweep.
     require(walkable, "stepSize + flat.Length()", "rvNavMesh::WalkableLine walk slope bound")
     require(walkable, "Max( 2,", "rvNavMesh::WalkableLine interior ground sample")
+    # The straight sweep climbs with the line and clears a riser's top; the
+    # floor samples, endpoints included, may not rise more than a step plus
+    # the ground between them.  q4ctf1 string-pulled walks onto the lip of a
+    # 64-unit platform and the side of a ramp that way.
+    require(walkable, "floor.z - previousFloor > stepSize", "rvNavMesh::WalkableLine per-sample rise bound")
+    require(walkable, "betweenFloor.z - previousFloor > stepSize + NAV_WALK_RISE_SLACK", "rvNavMesh::WalkableLine bisected rise")
+    require(walkable, "rises more than a step between samples", "rvNavMesh::WalkableLine interior rise refused")
+    require(walkable, "rises more than a step onto its end", "rvNavMesh::WalkableLine end rise refused")
+    # A bot reaches a corner up to a corner's reach beside it, so a string-pulled
+    # leg that climbs or descends is proven from either side of its corner too:
+    # q4ctf1's lip nodes along its ramp proved a diagonal line the bot, on the
+    # floor beside it, could not take.
+    leg = nav[nav.index("bool rvNavMesh::WalkableLeg") :]
+    leg = leg[: leg.index("\n}\n") + 3]
+    require(leg, "WalkableLine( from + side, to ) && WalkableLine( from - side, to )", "rvNavMesh::WalkableLeg side proofs")
+    require(leg, "NAV_LEG_SIDE_SLACK", "rvNavMesh::WalkableLeg corner reach slack")
+    pull = nav[nav.index("void rvNavMesh::StringPull") :]
+    pull = pull[: pull.index("\n}\n") + 3]
+    require(pull, "WalkableLeg( nodes[nodePath[i]].origin, nodes[nodePath[j]].origin )", "rvNavMesh::StringPull proves legs from beside the corner")
+    require(pull, "WalkableLeg( lastOrigin, goal )", "rvNavMesh::StringPull proves the final leg from beside the corner")
     require_order(
         walkable,
         "NAV_GROUND_OFFSET",
