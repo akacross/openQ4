@@ -46,6 +46,13 @@ must target child parts, preserving the button's hit box. A button establishes
 box. An explicit authored position takes precedence.
 
 Feedback chooses disabled, pressed, focus, hover, then default in that order.
+The most recent input device sets the presentation (section 13.4): while the
+pointer leads, because it moved or pressed last, a focused button or toggle
+presents as hover under the pointer and default elsewhere, so only the control
+under the pointer is lit and two items never show at once. The focus itself
+stays for the next navigation input, and a keyboard, controller or program
+focus shows it again. Value controls keep presenting focus, as an edit in
+progress must.
 State changes play the authored timeline through the existing monotonic motion
 evaluator. Interruption retargets from the current sample; reduced motion follows
 the same evaluator policy as other UI motion. Feedback is initialized at document
@@ -53,6 +60,37 @@ load, before subsequent explicit application timelines acquire ownership.
 The [fixture](../../../tools/ui/fixtures/interaction-smoke.q4ui) uses separate
 editable orange inset rails, label color and a 1 dp pressed label offset. Its
 right-hand panel is a test input scope, not an accepted production modal design.
+
+### Detail cards
+
+A document may define one detail card (section 7's hover card, WID-025), and
+buttons may name a detail for it:
+
+```json
+"detail": {"state": "join.detail", "card": "join-detail", "none": -1}
+```
+
+A button's `"detail": 3` names its subject value. The subject is the control
+the pointer is over while the pointer moved last, and otherwise the focused
+control after keyboard, controller or programmatic focus. Each layout writes
+the subject's value, or `none` (default -1) when the subject names no detail
+or there is none, to `state`, which must be a declared number. Bindings then
+show the card and its content. The runtime owns this state: a host's
+application state never resets it, and the adapter mirrors it back to the
+host's dictionary after each frame, so the session can describe the subject.
+
+The runtime then places `card` by its measured box. Under the pointer, it
+sits 6 dp right of and below the pointer; once the pointer is more than
+555 dp into the card's containing block, its trailing edge sits 28 dp past
+the pointer. Under a focused control, it sits 6 dp under the control at the
+control's leading edge, and over the control when it would cross the view's
+edge. It always stays 16 dp inside the view. A hidden card is not placed.
+
+The card must be a node below the root holding no controls. Bindings and
+timelines cannot own its `left` or `top`, and no control naming a detail
+may sit inside it. It never takes the focus, and it should not take the
+pointer (`pointer-events: none`). `UiDocumentTest` holds the schema, and
+`RetainedUiTest` holds the subject and the placement.
 
 ## Interaction ownership
 
@@ -65,7 +103,12 @@ navigation skips disabled/hidden/out-of-scope controls. Directional navigation
 selects the nearest forward candidate using squared forward distance plus four
 times squared lateral distance; ties preserve source order. Tab wraps within the
 active scope. With no focus, forward navigation chooses the first eligible
-control and reverse tab chooses the last.
+control and reverse tab chooses the last. A focus whose control turned hidden,
+disabled or clipped is remembered where it stood: the next navigation input
+focuses that control again once it can take focus, or else moves on from its
+last bounds as if it still held the focus (its explicit link, the next in tab
+order, or the nearest control in that direction), and only then falls back to
+the first or last.
 
 The runtime API accepts window-coordinate pointer movement, primary-pointer
 down/up and semantic `MenuInput` requests. Window pixel density and viewport

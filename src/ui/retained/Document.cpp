@@ -33,7 +33,9 @@ bool ValidProperty(const std::string& name, const Value& value) {
 			{"image-align-x",{"left","center","right"}}, {"image-align-y",{"top","center","bottom"}},
 			{"overflow",{"visible","hidden","auto","scroll"}}, {"text-align",{"left","center","right"}},
 			{"white-space",{"normal","pre","nowrap","pre-wrap","pre-line"}},
-			{"word-break",{"normal","break-all","break-word"}}, {"text-overflow",{"clip","ellipsis"}},
+			{"word-break",{"normal","break-all","break-word"}},
+			// Text cut by its node's overflow ends in an ellipsis rather than mid-letter.
+			{"text-overflow",{"clip","ellipsis"}},
 			{"flex-direction",{"row","row-reverse","column","column-reverse"}},
 			{"flex-wrap",{"nowrap","wrap","wrap-reverse"}},
 			{"justify-content",{"flex-start","flex-end","center","space-between","space-around","space-evenly"}},
@@ -91,8 +93,13 @@ bool Identifier(const std::string& text) {
 	return true;
 }
 std::string PointerPart(const std::string& text) {
+	if (text.find_first_of("~/") == std::string::npos) return text;
 	std::string result;
-	for (char c : text) result += c == '~' ? "~0" : c == '/' ? "~1" : std::string(1,c);
+	for (char c : text) {
+		if (c == '~') result += "~0";
+		else if (c == '/') result += "~1";
+		else result += c;
+	}
 	return result;
 }
 void Diagnose(std::vector<Diagnostic>& output, const std::string& source,
@@ -103,7 +110,7 @@ void Diagnose(std::vector<Diagnostic>& output, const std::string& source,
 	}
 	output.push_back(std::move(d));
 }
-bool Utf8(const std::string& text, size_t& bad) {
+bool Utf8(std::string_view text, size_t& bad) {
 	for (size_t i = 0; i < text.size();) {
 		bad = i;
 		const unsigned char c = text[i++];
@@ -222,12 +229,16 @@ std::vector<std::string> ExpandedProperties(const std::string& name) {
 	const auto found = shorthands.find(name);
 	return found == shorthands.end() ? std::vector<std::string>{name} : found->second;
 }
+// A passing check builds neither its pointer nor its message. A document runs
+// hundreds of thousands of checks, and building each one's diagnostic before
+// it ran was most of the validation time.
+#define Require(condition, at, path, message) do { if (!(condition)) Fail(at,path,message); } while (false)
 class Validator {
 public:
 	Validator(const std::string& text, std::vector<Diagnostic>& errors) : source(text), diagnostics(errors) {}
 	DocumentModel Read(const Json::Value& root) {
-		FiniteTree(root,"");
-		Fields(root,"",{"format","version","id","canvas","tokens","root","timelines","state","bindings","actions","presentationVariables","aliases","events","editor","extensions"});
+		FiniteTree(root);
+		Fields(root,"",{"format","version","id","canvas","tokens","root","timelines","state","bindings","actions","presentationVariables","aliases","events","detail","editor","extensions"});
 		Require(root["format"] == "openq4-ui",root,"/format","Expected format 'openq4-ui'");
 		Require(root["version"].isUInt() && root["version"].asUInt() == 1,root["version"],"/version","Unsupported document version; expected 1");
 		model.id = Id(root["id"],"/id");
@@ -248,6 +259,7 @@ public:
 		ReadState(root);
 		ReadPresentationVariables(root);
 		model.root = ReadNode(root["root"],"/root",0);
+		model.IndexNodes(); // The tree is complete; validation resolves its references.
 		if (root.isMember("timelines")) {
 			Require(root["timelines"].isArray(),root["timelines"],"/timelines","Expected a timeline array");
 			std::set<std::string> ids;
@@ -257,12 +269,14 @@ public:
 				model.timelines.push_back(std::move(timeline));
 			}
 		}
+		for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks) trackTargets.insert({track.node,track.property});
 		ReadBindings(root);
 		ReadAliases(root);
 		ReadActions(root);
 		ReadEvents(root);
 		ValidateCompletions(root);
 		ValidateControls(root["root"],model.root,"/root",false);
+		ReadDetail(root);
 		State initial; std::string stateError;
 		Require(initial.Reset(model,stateError),root["bindings"],"/bindings",stateError);
 		std::string lastModal;
@@ -270,6 +284,41 @@ public:
 		return std::move(model);
 	}
 private:
+	// The detail card: a declared numeric state, a card node holding no
+	// controls whose left and top the runtime owns, and a definition whenever a
+	// control names a detail.
+	void ReadDetail(const Json::Value& root) {
+		if (!root.isMember("detail")) {
+			Require(detailControls.empty(),root,detailControls.empty() ? "" : detailControls.front().second,
+				"A control's detail requires the document's detail definition");
+			return;
+		}
+		const auto& detail = root["detail"];
+		Fields(detail,"/detail",{"state","card","none","extensions"});
+		DetailSpec spec;
+		spec.state = Id(detail["state"],"/detail/state");
+		spec.card = Id(detail["card"],"/detail/card");
+		if (detail.isMember("none")) spec.none = Numeric(detail["none"],"/detail/none",-1e9,1e9);
+		const auto declared = model.state.find(spec.state);
+		Require(declared != model.state.end() && std::holds_alternative<double>(declared->second.initial),detail["state"],"/detail/state",
+			"The detail state must be a declared number");
+		const auto* card = model.FindNode(spec.card);
+		Require(card != nullptr && card->id != model.root.id,detail["card"],"/detail/card","The detail card must be a node below the root");
+		Require(!HasControl(*card),detail["card"],"/detail/card","The detail card cannot hold controls");
+		for (const auto* property : {"left","top"}) {
+			Require(!trackTargets.contains({card->id,property}),detail["card"],"/detail/card","The runtime places the detail card; its left and top cannot be animated");
+			for (const auto& binding : model.bindings)
+				Require(!(binding.node == card->id && binding.property == property),detail["card"],"/detail/card","The runtime places the detail card; its left and top cannot be bound");
+		}
+		for (const auto& [id,path] : detailControls)
+			Require(!Descendant(id,card->id),root,path,"A control naming a detail cannot sit inside the detail card");
+		model.detail = std::move(spec);
+	}
+	static bool HasControl(const Node& node) {
+		if (node.control) return true;
+		for (const auto& child : node.children) if (HasControl(child)) return true;
+		return false;
+	}
 	void ValidateInitialModals(const Json::Value& sourceNode, const Node& node, const std::string& path,
 		const PropertyValues& bound, bool inherited, const std::string& parent, std::string& last) {
 		const auto expression = bound.find({node.id,"display"});
@@ -690,8 +739,7 @@ private:
 			for (const auto& property : properties) {
 				Require(enabled || node->properties.contains(property),value,path,"Bound properties require explicit base values");
 				Require(targets.insert({binding.node,property}).second,value,path,"Multiple bindings own the same effective property");
-				for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks)
-					Require(track.node != binding.node || track.property != property,value,path,"A binding and timeline cannot own the same property; use separate presentation/content nodes");
+				Require(!trackTargets.contains({binding.node,property}),value,path,"A binding and timeline cannot own the same property; use separate presentation/content nodes");
 				Binding effective = binding; effective.property = property;
 				if (!enabled) effective.prototype = node->properties.at(property);
 				const auto type = effective.prototype.type;
@@ -709,27 +757,62 @@ private:
 				model.bindings.push_back(std::move(effective));
 			}
 		}
+		bindingTargets = std::move(targets);
 	}
-	void Require(bool condition, const Json::Value& at, const std::string& path, const std::string& message) {
-		if (condition) return;
+	[[noreturn]] void Fail(const Json::Value& at, const std::string& path, const std::string& message) {
 		Diagnose(diagnostics,source,path,message,static_cast<size_t>(std::max<ptrdiff_t>(0,at.getOffsetStart())));
 		throw ValidationError{};
 	}
+	static std::string_view MemberName(const Json::Value::const_iterator& member) {
+		const char* end = nullptr;
+		const char* begin = member.memberName(&end);
+		return begin ? std::string_view(begin,static_cast<size_t>(end-begin)) : std::string_view();
+	}
 	void Fields(const Json::Value& value, const std::string& path, std::initializer_list<std::string_view> allowed) {
 		Require(value.isObject(),value,path,"Expected an object");
-		for (const auto& name : value.getMemberNames())
-			Require(std::find(allowed.begin(),allowed.end(),name) != allowed.end(),value[name],path+"/"+PointerPart(name),"Unknown field; extension data belongs in 'extensions'");
+		for (auto member = value.begin(); member != value.end(); ++member)
+			Require(std::find(allowed.begin(),allowed.end(),MemberName(member)) != allowed.end(),*member,path+"/"+PointerPart(std::string(MemberName(member))),"Unknown field; extension data belongs in 'extensions'");
 		if (value.isMember("extensions")) Require(value["extensions"].isObject(),value["extensions"],path+"/extensions","Extensions must be an object");
 	}
-	void FiniteTree(const Json::Value& v, const std::string& path) {
-		if (v.isNumeric()) Require(std::isfinite(v.asDouble()),v,path,"Non-finite numbers are not supported");
+	// The first non-finite number, invalid string or invalid key, visiting
+	// members in key order and keys before their values; a key's fault is its
+	// object's. A passing tree builds no pointers.
+	static const Json::Value* FiniteFault(const Json::Value& v, const char*& message) {
 		size_t bad = 0;
-		if (v.isString()) Require(Utf8(v.asString(),bad),v,path,"Invalid Unicode or NUL in string");
-		if (v.isObject()) for (const auto& name : v.getMemberNames()) {
-			Require(Utf8(name,bad),v,path,"Invalid Unicode or NUL in object key");
-			FiniteTree(v[name],path+"/"+PointerPart(name));
+		if (v.isNumeric() && !std::isfinite(v.asDouble())) { message = "Non-finite numbers are not supported"; return &v; }
+		const char* begin = nullptr; const char* end = nullptr;
+		if (v.isString() && v.getString(&begin,&end) && !Utf8(std::string_view(begin,static_cast<size_t>(end-begin)),bad)) {
+			message = "Invalid Unicode or NUL in string"; return &v;
 		}
-		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) FiniteTree(v[i],path+"/"+std::to_string(i));
+		if (v.isObject()) for (auto member = v.begin(); member != v.end(); ++member) {
+			if (!Utf8(MemberName(member),bad)) { message = "Invalid Unicode or NUL in object key"; return &v; }
+			if (const auto* fault = FiniteFault(*member,message)) return fault;
+		}
+		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) if (const auto* fault = FiniteFault(v[i],message)) return fault;
+		return nullptr;
+	}
+	static bool PointerTo(const Json::Value& v, const Json::Value* target, std::string& path) {
+		if (&v == target) return true;
+		const size_t length = path.size();
+		if (v.isObject()) for (auto member = v.begin(); member != v.end(); ++member) {
+			path += "/"+PointerPart(std::string(MemberName(member)));
+			if (PointerTo(*member,target,path)) return true;
+			path.resize(length);
+		}
+		if (v.isArray()) for (Json::ArrayIndex i = 0; i < v.size(); ++i) {
+			path += "/"+std::to_string(i);
+			if (PointerTo(v[i],target,path)) return true;
+			path.resize(length);
+		}
+		return false;
+	}
+	void FiniteTree(const Json::Value& root) {
+		const char* message = nullptr;
+		const auto* fault = FiniteFault(root,message);
+		if (!fault) return;
+		std::string path;
+		PointerTo(root,fault,path);
+		Fail(*fault,path,message);
 	}
 	std::string Id(const Json::Value& value, const std::string& path) {
 		Require(value.isString() && Identifier(value.asString()),value,path,"Expected a stable ID (1..128 ASCII letters, digits, '.', '_' or '-')");
@@ -868,7 +951,7 @@ private:
 			Fields(command,p,{"id","op","points","extensions"});
 			PathCommand parsed; parsed.id = Id(command["id"],p+"/id");
 			Require(ids.insert(parsed.id).second,command["id"],p+"/id","Duplicate path command ID");
-			const std::map<std::string,std::pair<PathOperation,unsigned>> operations = {
+			static const std::map<std::string,std::pair<PathOperation,unsigned>> operations = {
 				{"move",{PathOperation::Move,1}},{"line",{PathOperation::Line,1}},{"quadratic",{PathOperation::Quadratic,2}},
 				{"cubic",{PathOperation::Cubic,3}},{"close",{PathOperation::Close,0}}};
 			Require(command["op"].isString(),command["op"],p+"/op","Expected path operation");
@@ -913,18 +996,23 @@ private:
 			const auto& control = value["control"]; const auto p = path+"/control";
 			Require(control.isObject() && control["role"].isString(),control,p,"Expected a semantic control role");
 			const auto role = control["role"].asString();
-			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","extensions"});
+			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","detail","extensions"});
 			else if (role == "toggle") Fields(control,p,{"role","action","label","enabled","states","navigation","value","mixed","parts","extensions"});
 			else if (role == "slider") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","step","decimals","orientation","parts","extensions"});
 			else if (role == "choice") Fields(control,p,{"role","action","label","enabled","states","navigation","value","parts","visibleRows","options","optionCount","scrollbar","placementBounds","extensions"});
 			else if (role == "number") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","exponent","integer","maxBytes","parts","extensions"});
+			else if (role == "text") Fields(control,p,{"role","action","label","enabled","states","navigation","value","maxBytes","allowEmpty","masked","parts","extensions"});
 			else if (role == "scrollbar") Fields(control,p,{"role","label","enabled","states","navigation","viewport","orientation","lineStep","minimumThumb","parts","extensions"});
-            else Require(false,control["role"],p+"/role","Supported roles are button, toggle, slider, choice, number and scrollbar");
+            else Require(false,control["role"],p+"/role","Supported roles are button, toggle, slider, choice, number, text and scrollbar");
 			result.control.emplace(); auto& parsed = *result.control;
 			Require(role == "scrollbar" || control.isMember("action") != control.isMember("event"),control,p,"Controls require exactly one action or event");
 			if (control.isMember("action")) parsed.action = Id(control["action"],p+"/action");
 			else if (role != "scrollbar") parsed.event = EventName(control["event"],p+"/event");
 			parsed.label = ControlLabel(control["label"],p+"/label");
+			if (control.isMember("detail")) {
+				parsed.detail = Numeric(control["detail"],p+"/detail",-1e9,1e9);
+				detailControls.emplace_back(result.id,p+"/detail");
+			}
 			if (role == "scrollbar") {
                 parsed.role = ControlRole::Scrollbar;ScrollSpec spec;
                 spec.viewport = Id(control["viewport"],p+"/viewport");
@@ -977,14 +1065,20 @@ private:
 					spec.track = Id(parts["track"],at+"/track"); spec.fill = Id(parts["fill"],at+"/fill");
 					spec.thumb = Id(parts["thumb"],at+"/thumb"); spec.valueText = Id(parts["value"],at+"/value");
 					parsed.widget = std::move(spec);
-				} else if (role == "number") {
+				} else if (role == "number" || role == "text") {
+					// A text field shares the Number editor; its value is its text.
 					parsed.role = ControlRole::Number;
-					Require(parsed.value->type == 0,control["value"],p+"/value","Number values must be numeric");
+					const bool textField = role == "text";
+					Require(parsed.value->type == (textField ? 2u : 0u),control["value"],p+"/value",
+						textField ? "Text values must be strings" : "Number values must be numeric");
 					Fields(parts,at,{"viewport","text","selection","caret","composition","validation","extensions"});
 					NumberSpec spec;
-					spec.minimum = Numeric(control["minimum"],p+"/minimum",-1e12,1e12);
-					spec.maximum = Numeric(control["maximum"],p+"/maximum",-1e12,1e12);
-					Require(spec.minimum <= spec.maximum,control,p,"Number bounds must be ordered");
+					spec.textField = textField;
+					if (!textField) {
+						spec.minimum = Numeric(control["minimum"],p+"/minimum",-1e12,1e12);
+						spec.maximum = Numeric(control["maximum"],p+"/maximum",-1e12,1e12);
+						Require(spec.minimum <= spec.maximum,control,p,"Number bounds must be ordered");
+					}
 					if (control.isMember("exponent")) {
 						Require(control["exponent"].isBool(),control["exponent"],p+"/exponent","Number exponent policy must be Boolean");
 						spec.exponent = control["exponent"].asBool();
@@ -999,6 +1093,12 @@ private:
 							control["maxBytes"],p+"/maxBytes","Number edit size must be 1..65536 bytes");
 						spec.maxBytes = control["maxBytes"].asUInt();
 					}
+					// Text-only policies; Fields refuses them on a number.
+					for (const auto& [key,flag] : {std::pair{"allowEmpty",&spec.allowEmpty},std::pair{"masked",&spec.masked}})
+						if (control.isMember(key)) {
+							Require(control[key].isBool(),control[key],p+"/"+key,"Text field policy must be Boolean");
+							*flag = control[key].asBool();
+						}
 					spec.viewport = Id(parts["viewport"],at+"/viewport"); spec.text = Id(parts["text"],at+"/text");
 					spec.selection = Id(parts["selection"],at+"/selection"); spec.caret = Id(parts["caret"],at+"/caret");
 					spec.composition = Id(parts["composition"],at+"/composition"); spec.validation = Id(parts["validation"],at+"/validation");
@@ -1069,7 +1169,7 @@ private:
 				parsed.enabled = control["enabled"].asBool();
 			}
 			Fields(control["states"],p+"/states",{"default","hover","focus","pressed","disabled","extensions"});
-			const std::map<std::string,ControlState> states = {{"default",ControlState::Default},{"hover",ControlState::Hover},
+			static const std::map<std::string,ControlState> states = {{"default",ControlState::Default},{"hover",ControlState::Hover},
 				{"focus",ControlState::Focus},{"pressed",ControlState::Pressed},{"disabled",ControlState::Disabled}};
 			for (const auto& [name,state] : states) parsed.states[state] = Id(control["states"][name],p+"/states/"+name);
 			if (control.isMember("navigation")) {
@@ -1354,10 +1454,10 @@ private:
 				for (size_t j = 0; j < i; ++j) separate(option.node,choice->options[j].node);
 			}
 		}
-		for (const auto& binding : model.bindings)
-			Require(!owned.contains({binding.node,binding.property}),value,path,"A binding cannot own a runtime widget property");
-		for (const auto& timeline : model.timelines) for (const auto& track : timeline.tracks)
-			Require(!owned.contains({track.node,track.property}),value,path,"A timeline cannot own a runtime widget property");
+		for (const auto& target : owned)
+			Require(!bindingTargets.contains(target),value,path,"A binding cannot own a runtime widget property");
+		for (const auto& target : owned)
+			Require(!trackTargets.contains(target),value,path,"A timeline cannot own a runtime widget property");
 		for (const auto& [name,alias] : model.aliases) {
 			if (alias.node.empty()) continue;
 			const auto targets = alias.property == "rect" ? std::vector<std::string>{"left","top","width","height"} :
@@ -1493,7 +1593,12 @@ private:
 	size_t eventStepCount = 0;
 	std::set<std::string> nodeIds;
 	unsigned nodeCount = 0;
+	std::vector<std::pair<std::string,std::string>> detailControls; // Controls naming a detail, with their JSON pointers.
+	// The (node, property) pairs that timeline tracks and bindings own, so
+	// ownership checks look a pair up instead of scanning every track.
+	std::set<std::pair<std::string,std::string>> trackTargets, bindingTargets;
 };
+#undef Require
 const Node* Find(const Node& node, const std::string& id) {
 	if (node.id == id) return &node;
 	for (const auto& child : node.children) if (auto* found = Find(child,id)) return found;
@@ -1620,7 +1725,21 @@ bool ParseStateValues(const std::string& source, StateValues& values, std::vecto
 	}
 	values = std::move(candidate); return true;
 }
-const Node* DocumentModel::FindNode(const std::string& id) const { return Find(root,id); }
+const Node* DocumentModel::FindNode(const std::string& id) const {
+	if (nodeIndex.nodes.empty()) return Find(root,id);
+	const auto found = nodeIndex.nodes.find(id);
+	return found == nodeIndex.nodes.end() ? nullptr : found->second;
+}
+void DocumentModel::IndexNodes() {
+	// Pre-order, first ID wins: the order Find answers in.
+	nodeIndex.nodes.clear();
+	std::vector<const Node*> pending{&root};
+	while (!pending.empty()) {
+		const auto* node = pending.back(); pending.pop_back();
+		nodeIndex.nodes.emplace(node->id,node);
+		for (auto child = node->children.rbegin(); child != node->children.rend(); ++child) pending.push_back(&*child);
+	}
+}
 bool HasImageCoordinates(const Node& node) {
 	return node.properties.contains("image-offset-x") || node.properties.contains("image-offset-y") ||
 		node.properties.contains("image-scale-x") || node.properties.contains("image-scale-y");
@@ -1694,6 +1813,7 @@ bool Document::Load(const std::string& source, std::vector<Diagnostic>& diagnost
 	if (!Parse(source,candidate->root,diagnostics)) return false;
 	try { candidate->model = Validator(source,diagnostics).Read(candidate->root); }
 	catch (const ValidationError&) { return false; }
+	candidate->model.IndexNodes();
 	impl = std::move(candidate);
 	return true;
 }

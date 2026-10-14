@@ -13,8 +13,10 @@ def fit_page(ui, root):
                         if isinstance(point[1],(int,float)):
                             point[1]={'fraction':1,'dp':round(point[1]-720,4)}
         elif node['id']=='prompts':
-            node['properties'].pop('top')
-            node['properties']['bottom']=ui.length(720-ui.U*447-22)
+            # The bar keeps its place above the bottom band's edge, whichever
+            # bar it is: the title's 22 dp legends or a page's 45 dp target.
+            top=node['properties'].pop('top')['value']
+            node['properties']['bottom']=ui.length(round(720-top-node['properties']['height']['value'],4))
         elif node['id']=='content':
             node['properties']['top']=ui.length(50,'%')
             node['properties']['margin-top']=ui.length(-360)

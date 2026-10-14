@@ -88,12 +88,12 @@ static const char *const RETAINED_SYSTEM_MISSING_SETTINGS[] = {
 // Settings the retained page has a control for that cannot yet do what the
 // stock page did, which keep it out of the gate too: a Performance Preset or
 // Auto-Detect cannot be applied (its image, audio and renderer resource
-// effects have no apply path), and the size fields take no typed digits (no
-// native text input route).
+// effects have no apply path). The size fields take typed digits since the
+// adapter types committed characters into the focused field.
 // ui_retained_gate.py derives this list from those reasons, so the page joins
 // the gate once both lists are empty.
 static const char *const RETAINED_SYSTEM_INCOMPLETE_SETTINGS[] = {
-	"com_performancePreset", "r_customHeight", "r_customWidth", "r_windowHeight", "r_windowWidth", NULL
+	"com_performancePreset", NULL
 };
 
 static bool Session_RetainedSystemEnabled( void ) {
@@ -119,6 +119,23 @@ static const char *const RETAINED_MP_ESCAPE_MISSING_PAGES[] = {
 	"admin", NULL
 };
 static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
+	NULL
+};
+// What the stock Create Server page offers that Multiplayer's retained Create
+// Server sub-page does not yet: nothing now. While anything remains, CREATE
+// SERVER opens the stock page and only ui_retainedMultiplayer opts into the
+// sub-page. ui_retained_gate.py keeps this list equal to what the two pages
+// offer.
+static const char *const RETAINED_CREATE_SERVER_MISSING[] = {
+	NULL
+};
+// What the stock Join Game page (the server browser) offers that
+// Multiplayer's retained Join Game sub-page does not yet: nothing now. While
+// anything remains, JOIN GAME opens the stock browser and only
+// ui_retainedMultiplayer opts into the sub-page. ui_retained_gate.py keeps
+// this list equal to what the two pages offer (the stock PunkBuster column, a
+// discontinued service, needs no replacement).
+static const char *const RETAINED_JOIN_GAME_MISSING[] = {
 	NULL
 };
 // The Team page's action slots (card.team_action); the game derives each
@@ -219,6 +236,14 @@ static const char *const RETAINED_MP_SUMMARY_GUI = "guis/menu/mp_summary.q4ui";
 #ifndef ID_DEDICATED
 static bool Session_RetainedSummaryEnabled( void ) {
 	return ui_retainedMultiplayer.GetBool() || Session_RetainedScreensEnabled();
+}
+
+static bool Session_RetainedCreateServerEnabled( void ) {
+	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_CREATE_SERVER_MISSING[0] == NULL );
+}
+
+static bool Session_RetainedJoinGameEnabled( void ) {
+	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_JOIN_GAME_MISSING[0] == NULL );
 }
 
 // The stock button a card's hand-off to `page` presses, or NULL; `joinPanel`
@@ -1961,6 +1986,11 @@ bool idSessionLocal::RetainedInputTarget() const {
 	if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
 		return true;
 	}
+	// The multiplayer card takes the game menu's input while it covers it,
+	// and repeats a press that is never released as the home screen would.
+	if ( RetainedMultiplayerCovers() ) {
+		return true;
+	}
 	return UI_IsRetainedPath( guiActive->Name() );
 }
 
@@ -2099,7 +2129,12 @@ idListSaveGameCompare
 ===============
 */
 ID_INLINE int idListSaveGameCompare( const fileTIME_T *a, const fileTIME_T *b ) {
-	return b->timeStamp - a->timeStamp;
+	// Newest first; saves written in the same second keep their list order
+	// (alphabetical, see GetSaveGameList), so a refresh never swaps them.
+	if ( a->timeStamp != b->timeStamp ) {
+		return b->timeStamp > a->timeStamp ? 1 : -1;
+	}
+	return a->index - b->index;
 }
 
 static const int SESSION_MENU_MAX_SAVE_DESCRIPTION_BYTES = 8192;
@@ -2442,6 +2477,29 @@ static bool Session_MenuReadSaveDescription( const idStr &slotName, sessionMenuS
 	return valid;
 }
 
+// Whether a save already holds `saveName`'s slot, and whether that save is an
+// autosave, which the player cannot save over: it names its own picture or
+// carries the no-overwrite mark.
+enum sessionMenuSaveSlot_t { SESSION_SAVE_SLOT_FREE, SESSION_SAVE_SLOT_TAKEN, SESSION_SAVE_SLOT_AUTOSAVE };
+static sessionMenuSaveSlot_t Session_MenuSaveSlotState( const char *saveName ) {
+	idStr saveSlotName = saveName;
+	sessLocal.ScrubSaveGameFileName( saveSlotName );
+	idStr saveFileName = "savegames/" + saveSlotName;
+	saveFileName.SetFileExtension( ".save" );
+	idStr game = cvarSystem->GetCVarString( "fs_game" );
+	idFile *file = game.Length() ? fileSystem->OpenFileRead( saveFileName, true, game ) : fileSystem->OpenFileRead( saveFileName );
+	if ( file == NULL ) {
+		return SESSION_SAVE_SLOT_FREE;
+	}
+	fileSystem->CloseFile( file );
+	sessionMenuSaveDescription_t description;
+	if ( Session_MenuReadSaveDescription( saveSlotName, description ) &&
+			( description.screenshot.Length() > 0 || description.noOverwrite ) ) {
+		return SESSION_SAVE_SLOT_AUTOSAVE;
+	}
+	return SESSION_SAVE_SLOT_TAKEN;
+}
+
 /*
 ===============
 idSessionLocal::GetSaveGameList
@@ -2462,6 +2520,9 @@ void idSessionLocal::GetSaveGameList( idStrList &fileList, idList<fileTIME_T> &f
 	
 	rawFileList = files->GetList();
 	fileSystem->FreeFileList( files );
+	// Alphabetical, so saves written in the same second always list in one
+	// order (idListSaveGameCompare keeps it).
+	rawFileList.Sort();
 
 	fileList.Clear();
 	fileTimes.Clear();
@@ -2737,33 +2798,13 @@ bool idSessionLocal::HandleSaveGameMenuCommand( idCmdArgs &args, int &icmd ) {
 
 			// First see if the file already exists unless they pass '1' to authorize the overwrite
 			if ( icmd == args.Argc() || atoi(args.Argv( icmd++ )) == 0 ) {
-				idStr saveFileName = saveGameName;
-				sessLocal.ScrubSaveGameFileName( saveFileName );
-				saveFileName = "savegames/" + saveFileName;
-				saveFileName.SetFileExtension(".save");
-
-				idStr game = cvarSystem->GetCVarString( "fs_game" );
-				idFile *file;
-				if(game.Length()) {
-					file = fileSystem->OpenFileRead( saveFileName, true, game );
-				} else {
-					file = fileSystem->OpenFileRead( saveFileName );
+				const sessionMenuSaveSlot_t slot = Session_MenuSaveSlotState( saveGameName );
+				if ( slot == SESSION_SAVE_SLOT_AUTOSAVE ) {
+					// NOTE: base/ gui doesn't handle that one
+					guiActive->HandleNamedEvent( "autosaveOverwriteError" );
+					return true;
 				}
-				
-				if ( file != NULL ) {
-					fileSystem->CloseFile( file );
-
-					// The file exists, see if it's an autosave
-					idStr saveSlotName = saveGameName;
-					sessLocal.ScrubSaveGameFileName( saveSlotName );
-					sessionMenuSaveDescription_t description;
-					if ( Session_MenuReadSaveDescription( saveSlotName, description ) ) {
-						if ( description.screenshot.Length() > 0 || description.noOverwrite ) {
-							// NOTE: base/ gui doesn't handle that one
-							guiActive->HandleNamedEvent( "autosaveOverwriteError" );
-							return true;
-						}
-					}
+				if ( slot == SESSION_SAVE_SLOT_TAKEN ) {
 					guiActive->HandleNamedEvent( "saveGameOverwrite" );
 					return true;
 				}
@@ -2988,6 +3029,96 @@ static void MainMenuApplyNewGameOptions( idUserInterface *gui ) {
 
 /*
 ==============
+Session_BanListRow
+
+A ban list row as the game publishes it on a menu (idGameLocal::PopulateBanList):
+"N:  name\tguid". The name follows the row number's ":  "; the GUID is the
+text after the tab, as retail's REMOVE BAN read it. False without a GUID.
+==============
+*/
+static bool Session_BanListRow( const char *row, idStr &name, idStr &guid ) {
+	const char *tab = row != NULL ? strchr( row, '\t' ) : NULL;
+	if ( tab == NULL || tab[1] == '\0' ) {
+		return false;
+	}
+	const char *colon = strstr( row, ":  " );
+	const char *start = colon != NULL && colon < tab ? colon + 3 : row;
+	name.Clear();
+	name.Append( start, static_cast<int>( tab - start ) );
+	guid = tab + 1;
+	return true;
+}
+
+// The stock browser's GET NEW LIST (UpdateServers) or REFRESH LIST
+// (RefreshServers) on a source: a new list asks the LAN, or the master
+// server and the favorites, and ends a player search, as retail's search was
+// a list of its own; a refresh asks the LAN again, or the listed servers.
+static void Session_ScanServers( bool lan, bool newList ) {
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	if ( newList ) {
+		servers.SetPlayerSearch( "" );
+		servers.GUIInit();
+	}
+	if ( lan ) {
+		cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
+	} else if ( newList ) {
+		idAsyncNetwork::GetNETServers();
+		servers.AddFavoriteServers();
+	} else {
+		servers.NetScan();
+	}
+}
+
+/*
+==============
+Session_ConnectToTypedAddress
+
+JOIN IP ADDRESS: connects to an address the player typed, checked before it
+reaches the command system (a hostname or IPv6 literal never becomes console
+text) and resolved, the default port added. False, with the message saying
+why (#str_06734), when it is not an address it can join.
+==============
+*/
+static bool Session_ConnectToTypedAddress( const char *text, idStr &error ) {
+	netadr_t address;
+	bool valid = text != NULL && text[0] != '\0' && strlen( text ) < 256;
+	for ( const unsigned char *p = reinterpret_cast<const unsigned char *>( text ); valid && *p; ++p ) {
+		valid = *p > 32 && *p != 127 && *p != '"' && *p != ';' && *p != '\\';
+	}
+	if ( !valid || !Sys_StringToNetAdr( text, &address, true ) ||
+		( address.type != NA_IP && address.type != NA_IP6 && address.type != NA_LOOPBACK ) ) {
+		error = va( common->GetLanguageDict()->GetString( "#str_06734" ), text != NULL ? text : "" );
+		return false;
+	}
+	if ( !address.port ) {
+		address.port = PORT_SERVER;
+	}
+	idCmdArgs connectArgs;
+	connectArgs.AppendArg( "connect" );
+	connectArgs.AppendArg( Sys_NetAdrToString( address ) );
+	cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
+	return true;
+}
+
+/*
+==============
+Session_LocalAddressText
+
+This machine's address as JOIN IP ADDRESS shows the player ("your ip
+address:"), as retail's getClientIP published it: its first non-loopback
+IPv4 interface's, without a port; empty when it has none.
+==============
+*/
+static idStr Session_LocalAddressText( void ) {
+	netadr_t address;
+	if ( !Sys_GetLocalIPAddress( address ) ) {
+		return "";
+	}
+	return va( "%i.%i.%i.%i", address.ip[0], address.ip[1], address.ip[2], address.ip[3] );
+}
+
+/*
+==============
 idSessionLocal::HandleMainMenuCommands
 
 Executes any commands returned by the gui
@@ -3028,6 +3159,19 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Icmp( cmd, "singlePlayerOpen" ) ) {
 			OpenCampaignSelector( false );
+			return;
+		}
+
+		// Back from a stock Multiplayer page: the retained Multiplayer page
+		// where it presents, onto the section that opened that page, else the
+		// stock one.
+		if ( !idStr::Icmp( cmd, "multiplayerOpen" ) ) {
+			const int left = retainedMpPageLeft;
+			retainedMpPageLeft = 0;
+			const char *section = left == 14 ? "join" : left == 17 ? "create" : left == 18 ? "setup" : NULL;
+			if ( !OpenRetainedMultiplayerPage( section ) && guiMainMenu != NULL ) {
+				guiMainMenu->HandleNamedEvent( "openMultiplayerStock" );
+			}
 			return;
 		}
 
@@ -3230,23 +3374,8 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			continue;
 		}
 
-		if ( !idStr::Icmp( cmd, "UpdateServers" ) ) {
-			idAsyncNetwork::client.serverList.GUIInit();
-			if ( guiActive->State().GetBool( "lanSet" ) ) {
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
-			} else {
-				idAsyncNetwork::GetNETServers();
-				idAsyncNetwork::client.serverList.AddFavoriteServers();
-			}
-			continue;
-		}
-
-		if ( !idStr::Icmp( cmd, "RefreshServers" ) ) {
-			if ( guiActive->State().GetBool( "lanSet" ) ) {
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "LANScan" );
-			} else {
-				idAsyncNetwork::client.serverList.NetScan( );
-			}
+		if ( !idStr::Icmp( cmd, "UpdateServers" ) || !idStr::Icmp( cmd, "RefreshServers" ) ) {
+			Session_ScanServers( guiActive->State().GetBool( "lanSet" ), !idStr::Icmp( cmd, "UpdateServers" ) );
 			continue;
 		}
 
@@ -3397,112 +3526,70 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 				continue;
 			}
 
-			// Validate before handing a typed argument to the command system.
-			// A hostname or IPv6 literal must never become console command text.
-			netadr_t address;
-			bool valid = strlen( s ) < 256;
-			for ( const unsigned char *p = reinterpret_cast<const unsigned char *>( s ); valid && *p; ++p ) {
-				valid = *p > 32 && *p != 127 && *p != '"' && *p != ';' && *p != '\\';
-			}
-			if ( !valid || !Sys_StringToNetAdr( s, &address, true ) ||
-				( address.type != NA_IP && address.type != NA_IP6 && address.type != NA_LOOPBACK ) ) {
-				MessageBox( MSG_OK, va( common->GetLanguageDict()->GetString( "#str_06734" ), s ),
-					common->GetLanguageDict()->GetString( "#str_06735" ), true );
+			idStr error;
+			if ( !Session_ConnectToTypedAddress( s, error ) ) {
+				MessageBox( MSG_OK, error.c_str(), common->GetLanguageDict()->GetString( "#str_06735" ), true );
 				continue;
 			}
-			if ( !address.port ) {
-				address.port = PORT_SERVER;
-			}
-			idCmdArgs connectArgs;
-			connectArgs.AppendArg( "connect" );
-			connectArgs.AppendArg( Sys_NetAdrToString( address ) );
-			cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
 			return;
+		}
+
+		// JOIN IP ADDRESS's "your ip address:", as retail's session published it.
+		if ( !idStr::Icmp( cmd, "getClientIP" ) ) {
+			guiMainMenu->SetStateString( "net_ip", Session_LocalAddressText().c_str() );
+			continue;
+		}
+
+		// FIND PLAYER/CLAN: retail asked the master server for the servers the
+		// player or clan was on, which no master answers now; the list is
+		// searched for the name instead (SetPlayerSearch), until a new list.
+		if ( !idStr::Icmp( cmd, "playerClanSearch" ) ) {
+			idAsyncNetwork::client.serverList.SetPlayerSearch( guiActive->State().GetString( "playerclan_search" ) );
+			continue;
+		}
+
+		// The stock Create Server page's player-count guards and its advanced
+		// popup's ban list, as retail's session handled them: the counts keep
+		// their order, the game publishes its ban list on the menu
+		// (sa_banList_item_N), and REMOVE BAN removes the chosen row's GUID.
+		if ( !idStr::Icmp( cmd, "checkMinPlayers" ) ) {
+			const int maxPlayers = cvarSystem->GetCVarInteger( "si_maxPlayers" );
+			if ( maxPlayers < cvarSystem->GetCVarInteger( "si_minPlayers" ) ) {
+				cvarSystem->SetCVarInteger( "si_minPlayers", maxPlayers );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "checkMaxPlayers" ) ) {
+			const int minPlayers = cvarSystem->GetCVarInteger( "si_minPlayers" );
+			if ( minPlayers > cvarSystem->GetCVarInteger( "si_maxPlayers" ) ) {
+				cvarSystem->SetCVarInteger( "si_maxPlayers", minPlayers );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "populateBanList" ) ) {
+			if ( game != NULL && guiActive != NULL ) {
+				game->PopulateBanList( guiActive );
+			}
+			continue;
+		}
+		if ( !idStr::Icmp( cmd, "handleServerAdminRemoveBan" ) ) {
+			const int selected = guiActive != NULL ? guiActive->State().GetInt( "sa_banList_sel_0", "-1" ) : -1;
+			if ( selected >= 0 && game != NULL ) {
+				idStr name, guid;
+				if ( Session_BanListRow( guiActive->State().GetString( va( "sa_banList_item_%d", selected ) ), name, guid ) ) {
+					game->RemoveGuidFromBanList( guid.c_str() );
+				}
+				game->PopulateBanList( guiActive );
+			}
+			continue;
 		}
 
 		if ( !idStr::Icmp( cmd, "startMultiplayer" ) ) {
 			CommitStartServerMapSelection( guiMainMenu );
-			// Create Server binds Server Type and Dedicated to CVars, which retail
-			// Quake4.exe 1.4.2 reads here; Quake 4's menu never sets Doom 3's
-			// "server_type" and "dedicated" GUI keys.
-			cvarSystem->SetCVarBool( "net_LANServer", cvarSystem->GetCVarBool( "net_menulanserver" ) );
-			// Dedicated turns this client into a dedicated server in SpawnServer:
-			// the window closes and the system console runs the server.
-			const int dedicated = cvarSystem->GetCVarBool( "net_serverMenuDedicated" ) ? 1 : 0;
-			if ( gui_configServerRate.GetInteger() > 0 ) {
-				// guess the best rate for upstream, number of internet clients
-				if ( gui_configServerRate.GetInteger() == 5 || cvarSystem->GetCVarBool( "net_LANServer" ) ) {
-					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
-				} else {
-					// internet players
-					int n_clients = cvarSystem->GetCVarInteger( "si_maxPlayers" );
-					if ( !dedicated ) {
-						n_clients--;
-					}
-					int maxclients = 0;
-					switch ( gui_configServerRate.GetInteger() ) {
-						case 1:
-							// 128 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 8000 );
-							maxclients = 2;
-							break;
-						case 2:
-							// 256 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 9500 );
-							maxclients = 3;
-							break;
-						case 3:
-							// 384 kbits
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 10500 );
-							maxclients = 4;
-							break;
-						case 4:
-							// highest internet preset: treat as modern high-bandwidth connection
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
-							maxclients = 16;
-							break;
-						default:
-							// unknown preset: fall back to modern defaults
-							cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 16000 );
-							maxclients = 16;
-							break;
-					}
-					if ( n_clients > maxclients ) {
-						const int adjustedMaxClients = dedicated ? maxclients : Min( 16, maxclients + 1 );
-						if ( MessageBox( MSG_OKCANCEL, va( common->GetLanguageDict()->GetString( "#str_04315" ), adjustedMaxClients ), common->GetLanguageDict()->GetString( "#str_04316" ), true, "OK" )[ 0 ] == '\0' ) {
-							continue;
-						}
-						cvarSystem->SetCVarInteger( "si_maxPlayers", adjustedMaxClients );
-					}
-				}
+			if ( StartMenuServer() ) {
+				return;
 			}
-
-			const int listenWarningLimit = GetListenServerPlayerWarningLimit(
-				gui_configServerRate.GetInteger(),
-				cvarSystem->GetCVarInteger( "net_serverMaxClientRate" ) );
-
-			if ( !dedicated &&
-				!cvarSystem->GetCVarBool( "net_LANServer" ) &&
-				listenWarningLimit < 16 &&
-				cvarSystem->GetCVarInteger( "si_maxPlayers" ) > listenWarningLimit ) {
-				// "Dedicated server mode is recommended for internet servers with more than 4 players. Continue in listen mode?"
-				if ( !MessageBox( MSG_YESNO, va( common->GetLanguageDict()->GetString( "#str_100625" ), listenWarningLimit ), common->GetLanguageDict()->GetString ( "#str_100626" ), true, "yes" )[ 0 ] ) {
-					continue;
-				}
-			}
-
-			if ( dedicated ) {
-				cvarSystem->SetCVarInteger( "net_serverDedicated", 1 );
-			} else {
-				cvarSystem->SetCVarInteger( "net_serverDedicated", 0 );
-			}
-
-
-
-			ExitMenu();
-			// may trigger a reloadEngine - APPEND
-			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "SpawnServer\n" );
-			return;
+			continue;
 		}
 
 		if ( !idStr::Icmp( cmd, "mpSkin")) {
@@ -3860,6 +3947,98 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 /*
 ==============
+idSessionLocal::StartMenuServer
+
+Starts the server the menu set up, for the stock Create Server page and the
+retained one: the upstream rate's client limit and the listen-server warning
+ask first, and either answer No leaves the menu as it is (false). The map,
+game type and limits are in their CVars already.
+==============
+*/
+bool idSessionLocal::StartMenuServer() {
+	// Create Server binds Server Type and Dedicated to CVars, which retail
+	// Quake4.exe 1.4.2 reads here; Quake 4's menu never sets Doom 3's
+	// "server_type" and "dedicated" GUI keys.
+	cvarSystem->SetCVarBool( "net_LANServer", cvarSystem->GetCVarBool( "net_menulanserver" ) );
+	// Dedicated turns this client into a dedicated server in SpawnServer:
+	// the window closes and the system console runs the server.
+	const int dedicated = cvarSystem->GetCVarBool( "net_serverMenuDedicated" ) ? 1 : 0;
+	if ( gui_configServerRate.GetInteger() > 0 ) {
+		// guess the best rate for upstream, number of internet clients
+		if ( gui_configServerRate.GetInteger() == 5 || cvarSystem->GetCVarBool( "net_LANServer" ) ) {
+			cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
+		} else {
+			// internet players
+			int n_clients = cvarSystem->GetCVarInteger( "si_maxPlayers" );
+			if ( !dedicated ) {
+				n_clients--;
+			}
+			int maxclients = 0;
+			switch ( gui_configServerRate.GetInteger() ) {
+				case 1:
+					// 128 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 8000 );
+					maxclients = 2;
+					break;
+				case 2:
+					// 256 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 9500 );
+					maxclients = 3;
+					break;
+				case 3:
+					// 384 kbits
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 10500 );
+					maxclients = 4;
+					break;
+				case 4:
+					// highest internet preset: treat as modern high-bandwidth connection
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 25600 );
+					maxclients = 16;
+					break;
+				default:
+					// unknown preset: fall back to modern defaults
+					cvarSystem->SetCVarInteger( "net_serverMaxClientRate", 16000 );
+					maxclients = 16;
+					break;
+			}
+			if ( n_clients > maxclients ) {
+				const int adjustedMaxClients = dedicated ? maxclients : Min( 16, maxclients + 1 );
+				if ( MessageBox( MSG_OKCANCEL, va( common->GetLanguageDict()->GetString( "#str_04315" ), adjustedMaxClients ), common->GetLanguageDict()->GetString( "#str_04316" ), true, "OK" )[ 0 ] == '\0' ) {
+					return false;
+				}
+				cvarSystem->SetCVarInteger( "si_maxPlayers", adjustedMaxClients );
+			}
+		}
+	}
+
+	const int listenWarningLimit = GetListenServerPlayerWarningLimit(
+		gui_configServerRate.GetInteger(),
+		cvarSystem->GetCVarInteger( "net_serverMaxClientRate" ) );
+
+	if ( !dedicated &&
+		!cvarSystem->GetCVarBool( "net_LANServer" ) &&
+		listenWarningLimit < 16 &&
+		cvarSystem->GetCVarInteger( "si_maxPlayers" ) > listenWarningLimit ) {
+		// "Dedicated server mode is recommended for internet servers with more than 4 players. Continue in listen mode?"
+		if ( !MessageBox( MSG_YESNO, va( common->GetLanguageDict()->GetString( "#str_100625" ), listenWarningLimit ), common->GetLanguageDict()->GetString ( "#str_100626" ), true, "yes" )[ 0 ] ) {
+			return false;
+		}
+	}
+
+	if ( dedicated ) {
+		cvarSystem->SetCVarInteger( "net_serverDedicated", 1 );
+	} else {
+		cvarSystem->SetCVarInteger( "net_serverDedicated", 0 );
+	}
+
+	ExitMenu();
+	// may trigger a reloadEngine - APPEND
+	cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "SpawnServer\n" );
+	return true;
+}
+
+/*
+==============
 idSessionLocal::HandleChatMenuCommands
 
 Executes any commands returned by the gui
@@ -3964,6 +4143,9 @@ void idSessionLocal::DispatchCommand( idUserInterface *gui, const char *menuComm
 			else if ( gui == guiTest ) TestGUI( NULL );
 			else if ( gui == guiRetainedHome ) HandleRetainedSessionRequest( gui, "resume" );
 			else if ( gui == guiRetainedMultiplayer ) HandleRetainedMultiplayerRequest( gui, "mpClose" );
+			// The death screen stays: closing it would leave a player with no
+			// level and no way back, and the stock screen took no Escape.
+			else if ( gui == guiRetainedRestartMenu ) {}
 			else if ( gui == guiActive ) ExitMenu();
 		}
 		return;
@@ -4456,6 +4638,11 @@ void idSessionLocal::GuiFrameEvents() {
 	UpdateRetainedHome();
 	RetainedHomeFrameEvent();
 	UpdateRetainedSubpage();
+	UpdateRetainedPage();
+	UpdateRetainedMultiplayerPage();
+	UpdateRetainedJoinGame();
+	UpdateBrowserTooltip();
+	PrecacheRetainedLevelshots( false );
 	// Likewise the multiplayer card, before its menu's own frame.
 	UpdateRetainedMultiplayer();
 	RetainedMultiplayerFrameEvent();
@@ -5011,6 +5198,162 @@ static const char *const RETAINED_LOADING_GUI = "guis/loading/loading.q4ui";
 static const char *const RETAINED_SINGLEPLAYER_GUI = "guis/menu/singleplayer.q4ui";
 static const char *const RETAINED_CAMPAIGNS_GUI = "guis/menu/campaigns.q4ui";
 static const char *const RETAINED_SKILL_GUI = "guis/menu/campaign_skill.q4ui";
+// The Load Game page, which LOAD GAME on the title and the Marine pause hands
+// off to as to a stock page. Its list holds this many saves at a time and
+// pages through more (ROWS in tools/ui/retained_saves.py); a save without a
+// picture shows the stock page's generic one.
+static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
+static const char *const RETAINED_SAVEGAME_GUI = "guis/menu/savegame.q4ui";
+static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
+// The Demos page, which the title's DEMOS hands off to as LOAD GAME does to
+// its page. Its list holds this many demos at a time (ROWS in
+// tools/ui/retained_demos.py); demos.filter picks one of the legacy
+// browser's filters, 0 showing them all.
+static const char *const RETAINED_DEMOS_GUI = "guis/menu/demos.q4ui";
+// The restart screen single player shows after the player dies (the stock
+// guis/restart.gui).
+static const char *const RETAINED_RESTARTMENU_GUI = "guis/menu/restartmenu.q4ui";
+// The Credits page, which the title's CREDITS hands off to.
+static const char *const RETAINED_CREDITS_GUI = "guis/menu/credits.q4ui";
+// The Multiplayer page, which the title's MULTIPLAYER hands off to. Its
+// sections open the stock Multiplayer pages (desktop::dest) once it has left
+// as the stock Multiplayer page leaves, 500 ms after the choice.
+static const char *const RETAINED_MPPAGE_GUI = "guis/menu/multiplayer.q4ui";
+static const int RETAINED_MPPAGE_LEAVE_MSEC = 500;
+// Multiplayer's Create Server sub-page. Its map list holds this many maps at a
+// time (MAP_ROWS in tools/ui/retained_create_server.py), and its game types
+// are the stock choice's, in its order (mp_create_val4's values).
+static const char *const RETAINED_CREATE_SERVER_GUI = "guis/menu/createserver.q4ui";
+static const int RETAINED_CREATE_MAP_ROWS = 64;
+static const char *const RETAINED_CREATE_GAMETYPES[] = {
+	"DM", "Tourney", "Team DM", "CTF", "Arena CTF", "DeadZone", "Duel", "Clan Arena", "Freeze Tag", "Red Rover", "One Flag CTF",
+	"Arena One Flag CTF"
+};
+static const int RETAINED_CREATE_GAMETYPE_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_GAMETYPES ) / sizeof( RETAINED_CREATE_GAMETYPES[0] ) );
+// Each setting the page offers: the verb its control asks with
+// ("<verb> <value>"), the page state the session publishes it in
+// (create.<state>), its CVar and the range the session takes; a Boolean
+// setting publishes a Boolean. tools/ui/retained_create_server.py offers
+// the same.
+typedef struct retainedCreateSetting_s {
+	const char *	verb;
+	const char *	state;
+	const char *	cvar;
+	int				minimum;
+	int				maximum;
+	bool			boolean;
+} retainedCreateSetting_t;
+static const retainedCreateSetting_t RETAINED_CREATE_SETTINGS[] = {
+	{ "createLan",			"lan",			"net_menulanserver",		0, 1,	false },
+	{ "createDedicated",	"dedicated",	"net_serverMenuDedicated",	0, 1,	true },
+	{ "createAutoBalance",	"autobalance",	"si_autobalance",			0, 1,	true },
+	{ "createFragLimit",	"fraglimit",	"si_fragLimit",				0, 999,	false },
+	{ "createCaptureLimit",	"capturelimit",	"si_captureLimit",			1, 999,	false },
+	{ "createControlTime",	"controltime",	"si_controlTime",			1, 999,	false },
+	{ "createTimeLimit",	"timelimit",	"si_timeLimit",				0, 60,	false },
+	{ "createMaxPlayers",	"maxplayers",	"si_maxPlayers",			1, 16,	false },
+	{ "createMinPlayers",	"minplayers",	"si_minPlayers",			1, 16,	false },
+	{ "createVoting",		"voting",		"si_allowVoting",			0, 1,	true },
+	{ "createTeamDamage",	"teamdamage",	"si_teamDamage",			0, 1,	true },
+	{ "createTourneyLimit",	"tourneylimit",	"si_tourneyLimit",			1, 999,	false },
+	{ "createUsePass",		"usepass",		"si_usePass",				0, 1,	true },
+	{ "createServerMods",	"servermods",	"net_serverAllowServerMod",	0, 1,	true },
+	{ "createWeaponStay",	"weaponstay",	"si_weaponStay",			0, 1,	true },
+	{ "createPure",			"pure",			"si_pure",					0, 1,	true },
+	{ "createRate",			"rate",			"gui_configServerRate",		0, 5,	false },
+	{ "createReady",		"ready",		"si_useReady",				0, 1,	true },
+	{ "createSpectators",	"spectators",	"si_spectators",			0, 1,	true },
+	{ "createWarmup",		"warmup",		"si_warmup",				0, 1,	true },
+	{ "createVoice",		"voice",		"si_voiceChat",				0, 1,	true },
+	{ "createBuying",		"buying",		"si_isBuyingEnabled",		0, 1,	true },
+	{ "createBots",			"bots",			"bot_minPlayers",			0, 16,	false },
+	{ "createBotSkill",		"botskill",		"bot_skill",				1, 5,	false },
+};
+static const int RETAINED_CREATE_SETTING_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_SETTINGS ) / sizeof( RETAINED_CREATE_SETTINGS[0] ) );
+// The page's text fields: the verb a field asks with once its text is in its
+// page state, that state, the CVar the session writes and the most bytes it
+// takes (the stock fields' maxchars). The passwords are masked fields.
+typedef struct retainedCreateText_s {
+	const char *	verb;
+	const char *	state;
+	const char *	cvar;
+	int				limit;
+} retainedCreateText_t;
+static const retainedCreateText_t RETAINED_CREATE_TEXTS[] = {
+	{ "createName",			"create.name",			"si_name",							25 },
+	{ "createMapCycle",		"create.mapcycle",		"g_mapCycle",						200 },
+	{ "createPassword",		"create.password",		"g_password",						16 },
+	{ "createRconPassword",	"create.rconpassword",	"net_serverRemoteConsolePassword",	16 },
+};
+static const int RETAINED_CREATE_TEXT_COUNT = static_cast<int>( sizeof( RETAINED_CREATE_TEXTS ) / sizeof( RETAINED_CREATE_TEXTS[0] ) );
+// PLAYER BAN LIST's rows (BAN_ROWS in tools/ui/retained_create_server.py):
+// the page lists the first this many bans; removing one brings up the next.
+static const int RETAINED_CREATE_BAN_ROWS = 32;
+// Multiplayer's Join Game sub-page, the server browser. Its list holds this
+// many servers at a time (JOIN_ROWS in tools/ui/retained_join_game.py), and
+// each column heading asks to sort by its column (the sort the page's
+// join.sort names, COLUMNS in the generator).
+static const char *const RETAINED_JOIN_GAME_GUI = "guis/menu/joingame.q4ui";
+static const int RETAINED_JOIN_ROWS = 64;
+// The details card's lines: the stock tooltip's player list holds 11 of its
+// 12 u items, and the scan describes 7 settings (DETAIL_PLAYERS and
+// DETAIL_SETTINGS in the generator).
+static const int RETAINED_JOIN_DETAIL_PLAYERS = 11;
+static const int RETAINED_JOIN_DETAIL_SETTINGS = 7;
+typedef struct retainedJoinSort_s {
+	const char *	verb;
+	serverSort_t	sort;
+} retainedJoinSort_t;
+static const retainedJoinSort_t RETAINED_JOIN_SORTS[] = {
+	{ "joinSortFavorite",	SORT_FAVORITE },
+	{ "joinSortLocked",		SORT_PASSWORD },
+	{ "joinSortDedicated",	SORT_DEDICATED },
+	{ "joinSortName",		SORT_SERVERNAME },
+	{ "joinSortPing",		SORT_PING },
+	{ "joinSortRepeater",	SORT_REPEATER },
+	{ "joinSortPlayers",	SORT_PLAYERS },
+	{ "joinSortGameType",	SORT_GAMETYPE },
+	{ "joinSortMap",		SORT_MAP },
+};
+static const int RETAINED_JOIN_SORT_COUNT = static_cast<int>( sizeof( RETAINED_JOIN_SORTS ) / sizeof( RETAINED_JOIN_SORTS[0] ) );
+// Single Player's Arena sub-page, the Arena campaign's browser, and the
+// campaign command each of its verbs runs (idArenaCampaign::HandleGuiCommand).
+static const char *const RETAINED_ARENA_GUI = "guis/menu/arena.q4ui";
+static const char *const RETAINED_ARENA_VERBS[][2] = {
+	{ "arenaTier0", "arenaSelectTier 0" },
+	{ "arenaTier1", "arenaSelectTier 1" },
+	{ "arenaTier2", "arenaSelectTier 2" },
+	{ "arenaTier3", "arenaSelectTier 3" },
+	{ "arenaTier4", "arenaSelectTier 4" },
+	{ "arenaMatch0", "arenaSelectMatch 0" },
+	{ "arenaMatch1", "arenaSelectMatch 1" },
+	{ "arenaMatch2", "arenaSelectMatch 2" },
+	{ "arenaMatch3", "arenaSelectMatch 3" },
+	{ "arenaTierPrevious", "arenaStepTier -1" },
+	{ "arenaTierNext", "arenaStepTier 1" },
+	{ "arenaEasier", "arenaDifficulty -1" },
+	{ "arenaHarder", "arenaDifficulty 1" },
+	{ "arenaStart", "arenaStart" },
+	{ "arenaReset", "arenaReset" },
+	{ "arenaResetConfirm", "arenaResetConfirm" },
+	{ "arenaResetCancel", "arenaResetCancel" },
+	{ "arenaRetry", "arenaRetry" },
+	{ "arenaDismiss", "arenaDismissResult" },
+};
+static const int RETAINED_ARENA_VERB_COUNT = sizeof( RETAINED_ARENA_VERBS ) / sizeof( RETAINED_ARENA_VERBS[0] );
+static const int RETAINED_DEMO_ROWS = 64;
+// The title's MODS dialog lists this many mods (MOD_ROWS in
+// tools/ui/build_retained_screens.py).
+static const int RETAINED_MOD_ROWS = 32;
+static const char *const RETAINED_DEMO_FILTERS[] = { "all", "mvd", "render", "legacy", "incomplete" };
+static const int RETAINED_DEMO_FILTER_COUNT = sizeof( RETAINED_DEMO_FILTERS ) / sizeof( RETAINED_DEMO_FILTERS[0] );
+static const int RETAINED_LOAD_ROWS = 64;
+static const char *const RETAINED_LOAD_GENERIC_SHOT = "gfx/guis/loadscreens/generic";
+// Multiplayer levelshots precache on idle front-end frames: none until the
+// title has presented for this long, then as many a frame as fit this long
+// (at least one).
+static const int RETAINED_LEVELSHOT_DELAY_MSEC = 1000;
+static const int RETAINED_LEVELSHOT_FRAME_MSEC = 4;
 // The stock choreography shows a page 550 ms after its activation and a
 // home-state pop-up at once (specification section 8); the retained screen
 // covers the legacy departure for that long before the page takes over.
@@ -5031,23 +5374,31 @@ static const int RETAINED_SUBPAGE_BACK_MSEC = 300;
 static const int RETAINED_SUBPAGE_STEP_START_MSEC = 50;
 static const int RETAINED_SUBPAGE_STEP_MSEC = 300;
 
+typedef enum {
+	RETAINED_HANDOFF_PAGE,		// a page: the bands dock and the label carries into its title slot
+	RETAINED_HANDOFF_POPUP,		// a pop-up over the home state
+	RETAINED_HANDOFF_IN_PLACE	// an action the home stays over, whose answer is a message box
+} retainedHandoffKind_t;
+
 typedef struct retainedHandoff_s {
-	const char *	request;
-	const char *	window;		// the legacy home button whose action opens the page
-	bool			popup;		// a pop-up over the home state, not a page
+	const char *			request;
+	const char *			window;		// the legacy home button whose action opens the page
+	retainedHandoffKind_t	kind;
 } retainedHandoff_t;
 
 static const retainedHandoff_t RETAINED_HANDOFFS[] = {
-	{ "singlePlayer",	"main_b_newgame",		false },
-	{ "loadGame",		"main_b_loadgame",		false },
-	{ "saveGame",		"main_b_savegame",		false },
-	{ "multiplayer",	"main_b_multiplayer",	false },
-	{ "settings",		"main_b_settings",		false },
-	{ "credits",		"main_b_credits",		false },
-	{ "demos",			"main_b_demos",			false },
-	{ "restartLevel",	"main_b_difficulty",	false },
-	{ "mods",			"main_b_mods",			true },
-	{ "updates",		"main_b_updates",		true },
+	{ "singlePlayer",	"main_b_newgame",		RETAINED_HANDOFF_PAGE },
+	{ "loadGame",		"main_b_loadgame",		RETAINED_HANDOFF_PAGE },
+	{ "saveGame",		"main_b_savegame",		RETAINED_HANDOFF_PAGE },
+	{ "multiplayer",	"main_b_multiplayer",	RETAINED_HANDOFF_PAGE },
+	{ "settings",		"main_b_settings",		RETAINED_HANDOFF_PAGE },
+	{ "credits",		"main_b_credits",		RETAINED_HANDOFF_PAGE },
+	{ "demos",			"main_b_demos",			RETAINED_HANDOFF_PAGE },
+	{ "restartLevel",	"main_b_difficulty",	RETAINED_HANDOFF_PAGE },
+	{ "mods",			"main_b_mods",			RETAINED_HANDOFF_POPUP },
+	// The update check opens no pop-up: its answer comes as a message box
+	// over the home, up to 2 s later (idAsyncClient::HandleDownloads).
+	{ "updates",		"main_b_updates",		RETAINED_HANDOFF_IN_PLACE },
 };
 
 // Legacy pop-ups drawn over the home state keep the framing bands at home.
@@ -5074,37 +5425,78 @@ static const char *Session_RetainedHomeMissingPage( idUserInterface *menu ) {
 	return NULL;
 }
 
-// The title screen's CONTINUE resumes the newest save and describes it.
+// The retained Multiplayer page opens the legacy menu's own Multiplayer pages
+// and their Back returns it, through these events of the legacy menu: a main
+// menu without them (a mod's copy of an older one) keeps its own page.
+static bool Session_RetainedMultiplayerRoutes( idUserInterface *menu ) {
+	static const char *const events[] = { "openMultiplayerPage", "leaveMultiplayerPage", "openMultiplayerStock" };
+	for ( int i = 0; i < static_cast<int>( sizeof( events ) / sizeof( events[0] ) ); ++i ) {
+		if ( !UI_LegacyNamedEventExists( menu, events[i] ) ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// A save as the retained screens name it. The menu label a save writes is
+// "^:name\t^0level" (idSessionLocal::SaveGame): its name and level, colors
+// removed; a save without one shows its slot.
+static void Session_RetainedSaveLabel( const idStr &slot, const sessionMenuSaveDescription_t &description, bool described,
+		idStr &name, idStr &location ) {
+	const idStr text = described && description.description.Length() > 0 ? description.description : slot;
+	const int tab = text.Find( '\t' );
+	name = tab >= 0 ? text.Left( tab ) : text;
+	location = tab >= 0 ? text.Right( text.Length() - tab - 1 ) : idStr();
+	name.RemoveColors();
+	location.RemoveColors();
+	name.StripTrailingWhitespace();
+	location.StripTrailingWhitespace();
+}
+
+// A save's picture: an autosave names its level's loadscreen; any other save
+// keeps its own screenshot beside it, as the stock Load Game page shows it,
+// reread since a newer save may have replaced it. Without either, `fallback`.
+static idStr Session_RetainedSaveShot( const idStr &slot, const sessionMenuSaveDescription_t &description, bool described,
+		const char *fallback ) {
+	if ( described && description.screenshot.Length() > 0 ) {
+		return UI_RetainedImageSource( description.screenshot.c_str() ) ? description.screenshot : idStr( fallback );
+	}
+	const idStr preview = va( "savegames/%s.tga", slot.c_str() );
+	if ( UI_RetainedImageSource( preview.c_str() ) && fileSystem->ReadFile( preview.c_str(), NULL, NULL ) > 0 ) {
+		UI_RetainedReloadImage( preview.c_str() );
+		return preview;
+	}
+	return fallback;
+}
+
+// When a save was written: the stamp's date and time, split at its tab.
+static void Session_RetainedSaveStamp( ID_TIME_T timeStamp, idStr &date, idStr &time ) {
+	const idStr stamp = Sys_TimeStampToStr( timeStamp );
+	const int tab = stamp.Find( '\t' );
+	date = tab >= 0 ? stamp.Left( tab ) : stamp;
+	time = tab >= 0 ? stamp.Right( stamp.Length() - tab - 1 ) : idStr();
+}
+
+// The title screen's CONTINUE resumes the newest save and describes it: its
+// name, then its level and when it was written. Without a picture, none shows.
 static void Session_PublishRetainedTitleState( idUserInterface *gui, idSessionLocal *session ) {
 	idStrList fileList;
 	idList<fileTIME_T> fileTimes;
 	session->GetSaveGameList( fileList, fileTimes );
 	const bool hasSave = fileTimes.Num() > 0;
-	idStr title, detail, shot;
+	idStr name, location, date, time, shot, detail;
 	if ( hasSave ) {
 		const idStr &slot = fileList[ fileTimes[0].index ];
 		sessionMenuSaveDescription_t description;
 		const bool described = Session_MenuReadSaveDescription( slot, description );
-		title = described && description.description.Length() > 0 ? description.description : slot;
-		detail = Sys_TimeStampToStr( fileTimes[0].timeStamp );
-		if ( described && description.screenshot.Length() > 0 ) {
-			// An autosave names its level's loadscreen.
-			if ( UI_RetainedImageSource( description.screenshot.c_str() ) ) {
-				shot = description.screenshot;
-			}
-		} else {
-			// Other saves keep their own screenshot beside the save, as the
-			// stock Load Game page shows it. Without one, no picture shows.
-			const idStr preview = va( "savegames/%s.tga", slot.c_str() );
-			if ( UI_RetainedImageSource( preview.c_str() ) && fileSystem->ReadFile( preview.c_str(), NULL, NULL ) > 0 ) {
-				shot = preview;
-				// A newer save may have replaced the picture since it last showed.
-				UI_RetainedReloadImage( shot.c_str() );
-			}
-		}
+		Session_RetainedSaveLabel( slot, description, described, name, location );
+		Session_RetainedSaveStamp( fileTimes[0].timeStamp, date, time );
+		shot = Session_RetainedSaveShot( slot, description, described, "" );
+		detail = location.Length() > 0 ? va( "%s - %s %s", location.c_str(), date.c_str(), time.c_str() ) :
+			va( "%s %s", date.c_str(), time.c_str() );
 	}
 	gui->SetStateBool( "menu_continue", hasSave );
-	gui->SetStateString( "menu_continue_title", title.c_str() );
+	gui->SetStateString( "menu_continue_title", name.c_str() );
 	gui->SetStateString( "menu_continue_detail", detail.c_str() );
 	gui->SetStateString( "menu_continue_shot", shot.c_str() );
 	gui->StateChanged( common->GetPresentationTime() );
@@ -5133,6 +5525,13 @@ idUserInterface *idSessionLocal::FindRetainedGui( const char *path, bool shared,
 		common->DPrintf( "retained UI: '%s' is not installed; the stock screen presents instead\n", path );
 	} else if ( ( gui = uiManager->FindGui( path, true, !shared, shared ) ) == NULL ) {
 		common->Warning( "retained UI: '%s' could not be loaded; the stock screen stays in use", path );
+	} else if ( UI_RetainedViewFailed( gui ) ) {
+		// A shared view that failed to come back after a renderer or language
+		// change draws nothing: the pages found here each time (Single Player,
+		// Campaign, the campaign difficulty page) hand back to the stock screen as
+		// the others do.
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
+		gui = NULL;
 	}
 	if ( gui == NULL ) {
 		retainedStock.Append( path );
@@ -5142,7 +5541,7 @@ idUserInterface *idSessionLocal::FindRetainedGui( const char *path, bool shared,
 #endif
 
 
-void idSessionLocal::OpenCampaignSelector( bool campaigns ) {
+void idSessionLocal::OpenCampaignSelector( bool campaigns, bool fromArena ) {
 #ifndef ID_DEDICATED
     // The stock selectors stand in when the retained one is off, missing or
     // cannot load.
@@ -5158,11 +5557,28 @@ void idSessionLocal::OpenCampaignSelector( bool campaigns ) {
         const idCampaignContentInfo info = fileSystem->GetAwakeningContentInfo();
         gui->SetStateBool( "awakening_ready", info.ready );
         gui->SetStateBool( "awakening_present", info.present );
+        // The activation focuses the campaign being played.
+        gui->SetStateBool( "awakening_chosen", !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) );
+        gui->StateChanged( common->GetPresentationTime() );
+    } else if ( gui != NULL ) {
+        // Back from Arena returns onto ARENA; the activation reads it.
+        gui->SetStateBool( "from_arena", fromArena );
+        gui->StateChanged( common->GetPresentationTime() );
     }
     SetGUI( gui, NULL );
     gui->StateChanged( common->GetPresentationTime() );
 #endif
 }
+
+#ifndef ID_DEDICATED
+// Whether entering a campaign's game directory reloads the engine first.
+static bool Session_CampaignNeedsReload( const char *gameDir ) {
+    return idStr::Icmp( fileSystem->GetActiveGameDir(), gameDir ) ||
+           idStr::Icmp( cvarSystem->GetCVarString( "fs_game" ), gameDir ) ||
+           cvarSystem->GetCVarString( "fs_game_base" )[0] ||
+           idStr::Icmp( cvarSystem->GetCVarString( "com_activeGameModule" ), "game_sp" );
+}
+#endif
 
 void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
 #ifndef ID_DEDICATED
@@ -5180,10 +5596,7 @@ void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
     const char *gameDir = awakening ? "q4xbase" : OPENQ4_GAMEDIR;
     // Consume one-shot command-line overrides before a full engine restart.
     common->StartupVariable( "si_gameType", true );
-    if ( idStr::Icmp( fileSystem->GetActiveGameDir(), gameDir ) ||
-         idStr::Icmp( cvarSystem->GetCVarString( "fs_game" ), gameDir ) ||
-         cvarSystem->GetCVarString( "fs_game_base" )[0] ||
-         idStr::Icmp( cvarSystem->GetCVarString( "com_activeGameModule" ), "game_sp" ) ) {
+    if ( Session_CampaignNeedsReload( gameDir ) ) {
         cvarSystem->SetCVarString( "fs_game", gameDir );
         cvarSystem->SetCVarString( "fs_game_base", "" );
         cvarSystem->SetCVarString( "si_gameType", "singleplayer" );
@@ -5269,6 +5682,17 @@ void idSessionLocal::UpdateRetainedHome() {
 		guiRetainedReleasing = NULL;
 		retainedReleaseUntil = 0;
 	}
+	// A stock message box over the legacy home (the update check's answer, a
+	// failed connection): the retained home stays behind it, still and
+	// without input, where the stock menu stood, and takes the screen back as
+	// it was once the box closes.
+	if ( guiRetainedHome != NULL && guiActive != NULL && guiActive == guiMsg && guiMsgRestore == guiMainMenu ) {
+		if ( !retainedHomeUnderMessage ) {
+			retainedHomeUnderMessage = true;
+			guiRetainedHome->Activate( false, now );
+		}
+		return;
+	}
 	const bool context = Session_RetainedScreensEnabled() && guiMainMenu != NULL && guiActive == guiMainMenu &&
 		guiTest == NULL && !RetainedUI_IsOpen() && ( !mapSpawned || !IsMultiplayer() );
 	if ( context && !MainMenuWindowStateIsNonZero( guiMainMenu, "desktop::video_check" ) ) {
@@ -5293,10 +5717,29 @@ void idSessionLocal::UpdateRetainedHome() {
 			}
 		}
 	}
+	if ( mapSpawned ) {
+		retainedJoinReturn = false;
+	} else if ( retainedJoinReturn && want != NULL && want == guiRetainedTitle && guiRetainedHome == NULL ) {
+		// Back at the menu after a join from Join Game that failed or was
+		// aborted: the list it was joined from, as the stock browser kept it,
+		// rather than the title.
+		retainedJoinReturn = false;
+		OpenRetainedJoinGame();
+		if ( guiActive != guiMainMenu ) {
+			retainedHomeReturning = false;
+			return;
+		}
+	}
 	if ( want == guiRetainedHome ) {
+		if ( retainedHomeUnderMessage && want != NULL ) {
+			// The message box closed over the home it covered.
+			want->Activate( true, now );
+		}
+		retainedHomeUnderMessage = false;
 		retainedHomeReturning = returning;
 		return;
 	}
+	retainedHomeUnderMessage = false;
 	idUserInterface *previous = guiRetainedHome;
 	guiRetainedHome = NULL;
 	retainedHandoffUntil = 0;
@@ -5322,9 +5765,10 @@ void idSessionLocal::UpdateRetainedHome() {
 		}
 		guiRetainedHome = want;
 		want->Activate( true, now );
-		// A page leaving for home brings the bands back from their page dock;
-		// opening the menu, or closing a home pop-up, only reveals the content.
-		want->HandleNamedEvent( returning && !fromPopup ? "returnHome" : "open" );
+		// A page leaving for home, stock or retained, brings the bands back
+		// from their page dock; opening the menu, or closing a home pop-up,
+		// only reveals the content.
+		want->HandleNamedEvent( ( returning && !fromPopup ) || retainedPageReturn ? "returnHome" : "open" );
 		PumpApplicationActions( want );
 	}
 	retainedHomeReturning = returning;
@@ -5414,26 +5858,29 @@ void idSessionLocal::DrawRetainedHome( int presentationTime ) {
 	guiRetainedHome->Redraw( presentationTime );
 }
 
-// The Single Player page and its Campaign sub-page are two documents (see
-// RETAINED_SUBPAGE_DEEPER_MSEC). When the other document cannot present, its
-// stock selector opens at once.
-void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper ) {
+// The Single Player page and its Campaign and Arena sub-pages, and the
+// Multiplayer page and its Create Server and Join Game sub-pages, are
+// documents of their own (see RETAINED_SUBPAGE_DEEPER_MSEC). When the other
+// document cannot present, its stock screen opens at once.
+void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage ) {
 #ifndef ID_DEDICATED
 	retainedDetailTarget = 0;
-	if ( FindRetainedGui( deeper ? RETAINED_CAMPAIGNS_GUI : RETAINED_SINGLEPLAYER_GUI, true, false ) == NULL ||
-			cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
-		// The stock selector, or reduced motion: the other level at once.
-		OpenCampaignSelector( deeper );
-		if ( !deeper && guiActive != NULL && !idStr::Icmp( guiActive->Name(), RETAINED_SINGLEPLAYER_GUI ) ) {
-			guiActive->HandleNamedEvent( "subpageReturn" );
-			PumpApplicationActions( guiActive );
-		}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER, join = subpage == RETAINED_SUBPAGE_JOIN_GAME;
+	const bool arena = subpage == RETAINED_SUBPAGE_ARENA;
+	const char *other = create || join ? ( !deeper ? RETAINED_MPPAGE_GUI : create ? RETAINED_CREATE_SERVER_GUI : RETAINED_JOIN_GAME_GUI ) :
+		!deeper ? RETAINED_SINGLEPLAYER_GUI : arena ? RETAINED_ARENA_GUI : RETAINED_CAMPAIGNS_GUI;
+	if ( FindRetainedGui( other, true, false ) == NULL || cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
+		// The stock screen, or reduced motion: the other level at once.
+		PresentRetainedSubpage( deeper, subpage );
 		return;
 	}
-	gui->HandleNamedEvent( deeper ? "subpageEnter" : "subpageLeave" );
+	gui->HandleNamedEvent( !deeper ? "subpageLeave" : create ? "subpageEnterCreate" : join ? "subpageEnterJoin" :
+		arena ? "subpageEnterArena" : "subpageEnter" );
 	PumpApplicationActions( gui );
 	retainedSubpageFrom = gui;
 	retainedSubpageDeeper = deeper;
+	retainedSubpageKind = subpage;
 	retainedSubpageBegan = common->GetPresentationTime();
 	retainedSubpageUntil = retainedSubpageBegan + ( deeper ? RETAINED_SUBPAGE_DEEPER_MSEC : RETAINED_SUBPAGE_BACK_MSEC );
 	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
@@ -5468,13 +5915,49 @@ void idSessionLocal::UpdateRetainedSubpage() {
 	}
 	// The arriving document's activation fades its backing in; the page
 	// coming back also fades its plates in.
-	OpenCampaignSelector( deeper );
+	PresentRetainedSubpage( deeper, retainedSubpageKind );
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_SUBPAGE handover deeper=%d gui=%s\n", deeper ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
+	}
+#endif
+}
+
+// The other level presents: Campaign (or the stock selector), the Arena
+// campaign's browser (the Arena page where it can), Create Server, Join Game,
+// or the page coming back: Single Player, onto ARENA from Arena, or
+// Multiplayer onto CREATE SERVER or JOIN GAME.
+void idSessionLocal::PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage ) {
+#ifndef ID_DEDICATED
+	const bool arena = subpage == RETAINED_SUBPAGE_ARENA;
+	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
+	if ( subpage == RETAINED_SUBPAGE_CREATE_SERVER || subpage == RETAINED_SUBPAGE_JOIN_GAME ) {
+		const bool create = subpage == RETAINED_SUBPAGE_CREATE_SERVER;
+		if ( deeper && create ) {
+			OpenRetainedCreateServer();
+		} else if ( deeper ) {
+			OpenRetainedJoinGame();
+		} else if ( OpenRetainedMultiplayerPage( create ? "create" : "join" ) ) {
+			guiActive->HandleNamedEvent( "subpageReturn" );
+			PumpApplicationActions( guiActive );
+		} else if ( guiMainMenu != NULL ) {
+			// The Multiplayer page cannot present (its view stopped drawing,
+			// or the gate went off): Back finds the stock Multiplayer page,
+			// as Back from a stock page does, rather than staying put.
+			SetGUI( guiMainMenu, NULL );
+			guiMainMenu->HandleNamedEvent( "openMultiplayerStock" );
+		}
+		return;
+	}
+	if ( deeper && arena ) {
+		common->Printf( "CAMPAIGN_SELECTED id=arena gameDir=%s module=%s\n", OPENQ4_GAMEDIR,
+			cvarSystem->GetCVarString( "com_activeGameModule" ) );
+		arenaCampaign.OpenBrowser();
+		return;
+	}
+	OpenCampaignSelector( deeper, !deeper && arena );
 	if ( !deeper && guiActive != NULL && !idStr::Icmp( guiActive->Name(), RETAINED_SINGLEPLAYER_GUI ) ) {
 		guiActive->HandleNamedEvent( "subpageReturn" );
 		PumpApplicationActions( guiActive );
-	}
-	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
-		common->Printf( "RETAINED_SUBPAGE handover deeper=%d gui=%s\n", deeper ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
 	}
 #endif
 }
@@ -5493,7 +5976,7 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 		retainedSubpageFrom->HandleEvent( event, common->GetPresentationTime() );
 		return true;
 	}
-	const bool back = event->evType == SE_KEY && ( event->evValue == K_ESCAPE || event->evValue == K_JOY4 ||
+	const bool back = event->evType == SE_KEY && ( event->evValue == K_ESCAPE || idKeyInput::MenuControllerKey( event->evValue ) == K_JOY4 ||
 		event->evValue == K_JOY7 || event->evValue == K_JOY8 );
 	if ( back && retainedSubpageDeeper ) {
 		const int stepped = idMath::ClampInt( 0, RETAINED_SUBPAGE_STEP_MSEC,
@@ -5513,6 +5996,18 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 	return false;
 #endif
 }
+
+#ifndef ID_DEDICATED
+// Why a save could not be loaded, as LoadGame found it before it left the
+// current game.
+static const char *Session_LoadFailureText( int failure ) {
+	switch ( failure ) {
+		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
+		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
+		default:										return "#str_231104";
+	}
+}
+#endif
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
@@ -5539,6 +6034,87 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		HandleRetainedMultiplayerRequest( gui, request );
 		return;
 	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedLoad ) {
+		// The Load Game page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedLoadRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedSave ) {
+		// The Save Game page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedSaveRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedRestart ) {
+		// The Restart Level page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedRestartRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedCredits ) {
+		// The Credits page's one verb, Back, while it presents.
+		if ( gui == guiActive && !idStr::Icmp( request, "creditsBack" ) ) {
+			ReturnRetainedPage();
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedDemos ) {
+		// The Demos page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedDemosRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedMpPage ) {
+		// The Multiplayer page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedMultiplayerPageRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedCreate ) {
+		// The Create Server sub-page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedCreateServerRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedJoin ) {
+		// The Join Game sub-page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedJoinGameRequest( gui, request );
+		}
+		return;
+	}
+	if ( gui != NULL && request != NULL && gui == guiRetainedArena ) {
+		// The Arena page's verbs, while it presents.
+		if ( gui == guiActive ) {
+			HandleRetainedArenaRequest( gui, request );
+		}
+		return;
+	}
+    if ( gui && request && gui == guiActive && gui == guiRetainedRestartMenu ) {
+        // The restart screen's plates run the stock screen's own commands.
+        HandleMainMenuCommands( "play main_menu_selection" );
+        if ( !idStr::Icmp( request, "deathRestart" ) ) HandleRestartMenuCommands( "restart" );
+        else if ( !idStr::Icmp( request, "deathLoad" ) ) {
+            // LOAD GAME leaves for the title and opens the retained Load Game
+            // page there, as the title's own LOAD GAME does; the stock page
+            // where that cannot present.
+            HandleRestartMenuCommands( "disconnect mainmenu" );
+            UpdateRetainedHome();
+            if ( !BeginRetainedPage( "loadGame" ) && guiMainMenu != NULL ) {
+                guiMainMenu->HandleNamedEvent( "fromRestart_toLoad" );
+            }
+        }
+        else if ( !idStr::Icmp( request, "deathMenu" ) ) HandleRestartMenuCommands( "disconnect mainmenu" );
+        else if ( !idStr::Icmp( request, "quit" ) ) common->Quit();
+        return;
+    }
     if ( gui && request && gui == guiActive &&
          ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) || !idStr::Icmp( gui->Name(), RETAINED_CAMPAIGNS_GUI ) ) ) {
         // A change of level in progress takes no further request.
@@ -5546,9 +6122,19 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
         if ( !idStr::Icmp( request, "campaigns" ) ) BeginRetainedSubpage( gui, true );
         else if ( !idStr::Icmp( request, "campaignQuake4" ) ) BeginRetainedCampaignSkill( gui, "quake4" );
         else if ( !idStr::Icmp( request, "campaignAwakening" ) ) BeginRetainedCampaignSkill( gui, "awakening" );
-        else if ( !idStr::Icmp( request, "campaignArena" ) ) SelectCampaign( "arena" );
+        else if ( !idStr::Icmp( request, "campaignArena" ) ) {
+            // ARENA leads deeper to the Arena sub-page when the campaign needs
+            // no engine reload into its game directory first; else it is
+            // selected as before, and the browser presents after the reload.
+            if ( !idStr::Icmp( gui->Name(), RETAINED_SINGLEPLAYER_GUI ) && !Session_CampaignNeedsReload( OPENQ4_GAMEDIR ) &&
+                 RetainedArenaPage() != NULL ) {
+                BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_ARENA );
+            } else {
+                SelectCampaign( "arena" );
+            }
+        }
         else if ( !idStr::Icmp( request, "campaignBack" ) ) BeginRetainedSubpage( gui, false );
-        else if ( !idStr::Icmp( request, "campaignHome" ) ) StartMenu();
+        else if ( !idStr::Icmp( request, "campaignHome" ) ) ReturnRetainedSinglePlayerHome();
         return;
     }
 	if ( gui == NULL || request == NULL || gui != guiRetainedHome || guiActive != guiMainMenu ) {
@@ -5581,8 +6167,42 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		if ( fileTimes.Num() > 0 ) {
 			HandleMainMenuCommands( "play main_menu_selection" );
 			const idStr slot = fileList[ fileTimes[0].index ];
-			LoadGame( slot.c_str() );
+			// LoadGame refuses a save it cannot use before it leaves the
+			// title: the Load Game page opens on that save and says why, as
+			// its own LOAD GAME would, rather than nothing happening.
+			if ( !LoadGame( slot.c_str() ) && guiRetainedHome != NULL && guiActive == guiMainMenu && BeginRetainedPage( "loadGame" ) &&
+					retainedPagePending != NULL ) {
+				PublishRetainedLoadSave( retainedPagePending, Session_LoadFailureText( loadGameFailure ) );
+			}
 		}
+		return;
+	}
+	// MODS opens the title's own dialog with the installed mods; the pause has
+	// no MODS. A row selects its mod, and LOAD MOD restarts the engine into it
+	// as the stock LOAD MOD does.
+	if ( !idStr::Icmp( request, "mods" ) && guiRetainedHome == guiRetainedTitle ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		PublishRetainedMods( guiRetainedHome );
+		guiRetainedHome->HandleNamedEvent( "modsModalShow" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "modsSelect" ) ) {
+		SelectRetainedMod( guiRetainedHome, guiRetainedHome->State().GetInt( "mods.pick", "-1" ) );
+		return;
+	}
+	if ( !idStr::Icmp( request, "modsLoad" ) ) {
+		if ( retainedModSelected >= 0 && retainedModSelected < modsList.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			cvarSystem->SetCVarString( "fs_game", modsList[ retainedModSelected ].directory.c_str() );
+			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "reloadEngine menu\n" );
+		}
+		return;
+	}
+	// LOAD GAME, SAVE GAME, RESTART LEVEL and DEMOS open their retained pages
+	// where those can present; else the stock pages below.
+	if ( ( !idStr::Icmp( request, "loadGame" ) || !idStr::Icmp( request, "saveGame" ) || !idStr::Icmp( request, "restartLevel" ) ||
+			!idStr::Icmp( request, "demos" ) || !idStr::Icmp( request, "credits" ) || !idStr::Icmp( request, "multiplayer" ) ) &&
+			BeginRetainedPage( request ) ) {
 		return;
 	}
 	for ( int i = 0; i < static_cast<int>( sizeof( RETAINED_HANDOFFS ) / sizeof( RETAINED_HANDOFFS[0] ) ); ++i ) {
@@ -5595,12 +6215,15 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 			common->Warning( "retained UI: '%s' is unavailable from the current menu", request );
 			return;
 		}
-		retainedHandoffUntil = now + ( handoff.popup ? RETAINED_POPUP_HANDOFF_MSEC : RETAINED_PAGE_HANDOFF_MSEC );
-		if ( !handoff.popup ) {
-			// The chosen label travels into the page's title slot (section 13.8).
-			guiRetainedHome->HandleNamedEvent( va( "carry_%s", handoff.request ) );
+		const bool popup = handoff.kind == RETAINED_HANDOFF_POPUP;
+		if ( handoff.kind != RETAINED_HANDOFF_IN_PLACE ) {
+			retainedHandoffUntil = now + ( popup ? RETAINED_POPUP_HANDOFF_MSEC : RETAINED_PAGE_HANDOFF_MSEC );
+			if ( !popup ) {
+				// The chosen label travels into the page's title slot (section 13.8).
+				guiRetainedHome->HandleNamedEvent( va( "carry_%s", handoff.request ) );
+			}
+			guiRetainedHome->HandleNamedEvent( popup ? "departPopup" : "depart" );
 		}
-		guiRetainedHome->HandleNamedEvent( handoff.popup ? "departPopup" : "depart" );
 		if ( command.Length() > 0 ) {
 			// The legacy action's own command, such as its selection sound.
 			DispatchCommand( guiMainMenu, command.c_str() );
@@ -5608,6 +6231,1809 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		return;
 	}
 	common->Warning( "retained UI: unhandled session request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::BeginRetainedPage
+
+LOAD GAME on the title or the Marine pause, and SAVE GAME and RESTART LEVEL
+on the Marine pause: the home plays a page hand-off (the bands dock and the
+label carries into the title slot) and the page presents at 550 ms, when the
+stock page would (UpdateRetainedPage). The Strogg pause keeps the stock
+pages, whose family the Marine pages would break. False when the page cannot
+present: the stock page then opens as before.
+===============
+*/
+bool idSessionLocal::BeginRetainedPage( const char *request ) {
+#ifndef ID_DEDICATED
+	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
+	const bool demos = !idStr::Icmp( request, "demos" ), credits = !idStr::Icmp( request, "credits" );
+	const bool multiplayer = !idStr::Icmp( request, "multiplayer" );
+	if ( ( !saving && !restarting && !demos && !credits && !multiplayer && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
+			guiActive != guiMainMenu || ( ( credits || multiplayer ) && mapSpawned ) ||
+			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
+			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
+		return false;
+	}
+	if ( retainedPagePending != NULL ) {
+		return true;	// already handing off
+	}
+	// Loaded with the other screens (PreloadRetainedScreens), or now when the
+	// gate came on after startup. A view that stopped drawing after a renderer
+	// or language change hands the page back to the stock one for good.
+	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
+		credits ? guiRetainedCredits : multiplayer ? guiRetainedMpPage : guiRetainedLoad;
+	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
+		credits ? RETAINED_CREDITS_GUI : multiplayer ? RETAINED_MPPAGE_GUI : RETAINED_LOADGAME_GUI;
+	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
+		retainedStock.AddUnique( path );
+		loaded = NULL;
+		return false;
+	}
+	// The Multiplayer page also needs the legacy menu's routes to its pages.
+	idUserInterface *page = multiplayer ? RetainedMultiplayerPage() : loaded != NULL ? loaded : FindRetainedGui( path, true, false );
+	if ( page == NULL ) {
+		return false;
+	}
+	loaded = page;
+	// The saves, read while the home hands off: the newest selected to load,
+	// none to save over. Each arrival to save starts with no name, as the
+	// stock page's field did; a restart starts at the level's difficulty.
+	if ( restarting ) {
+		page->SetStateInt( "restart.skill", idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) ) );
+		page->StateChanged( common->GetPresentationTime() );
+	} else if ( saving ) {
+		retainedSaveTarget.Clear();
+		page->SetStateString( "save.name", "" );
+		page->SetStateString( "save.target", "" );
+		page->SetStateString( "save.notice", "" );
+		PublishRetainedSavePage( page, -1 );
+	} else if ( credits ) {
+		PublishRetainedCredits( page );
+	} else if ( multiplayer ) {
+		retainedMpPageDest = 0;
+		// From the title the page starts on its primary action.
+		page->SetStateBool( "from_create", false );
+		page->SetStateBool( "from_join", false );
+		page->SetStateBool( "from_setup", false );
+		page->StateChanged( common->GetPresentationTime() );
+	} else if ( demos ) {
+		// Each arrival shows every demo, the newest selected.
+		retainedDemoFilter = 0;
+		PublishRetainedDemosPage( page, NULL, 0, NULL );
+	} else {
+		PublishRetainedLoadPage( page, 0, NULL );
+	}
+	retainedHandoffUntil = common->GetPresentationTime() + RETAINED_PAGE_HANDOFF_MSEC;
+	retainedPagePending = page;
+	retainedPageAt = retainedHandoffUntil;
+	guiRetainedHome->HandleNamedEvent( va( "carry_%s", request ) );
+	guiRetainedHome->HandleNamedEvent( "depart" );
+	HandleMainMenuCommands( "play main_menu_selection" );
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool idSessionLocal::RetainedPageActive() const {
+	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
+		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits || guiActive == guiRetainedMpPage );
+}
+
+// The hand-off's end: the page presents over the home that handed off, which
+// stops taking input on the same frame. Anything else taking the screen first
+// abandons it.
+void idSessionLocal::UpdateRetainedPage() {
+#ifndef ID_DEDICATED
+	if ( retainedPagePending == NULL ) {
+		return;
+	}
+	if ( guiActive != guiMainMenu || guiRetainedHome == NULL ) {
+		retainedPagePending = NULL;
+		return;
+	}
+	if ( common->GetPresentationTime() < retainedPageAt ) {
+		return;
+	}
+	idUserInterface *page = retainedPagePending;
+	retainedPagePending = NULL;
+	if ( page == guiRetainedLoad ) {
+		page->SetStateBool( "load.ingame", mapSpawned );
+	}
+	// The home keeps drawing behind the page (DrawRetainedPageHome).
+	retainedPageHome = guiRetainedHome;
+	SetGUI( page, NULL );
+	UpdateRetainedHome();
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_PAGE present gui=%s\n", page->Name() );
+	}
+#endif
+}
+
+// Back on the page: the home presents at once and brings the bands back from
+// the page dock, as it does when a stock page leaves.
+void idSessionLocal::ReturnRetainedPage() {
+#ifndef ID_DEDICATED
+	if ( !RetainedPageActive() || guiMainMenu == NULL ) {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	SetGUI( guiMainMenu, NULL );
+	retainedPageReturn = true;
+	UpdateRetainedHome();
+	retainedPageReturn = false;
+	retainedPageHome = NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::ReturnRetainedSinglePlayerHome
+
+Back on the Single Player page. The title's SINGLE PLAYER ran the legacy home
+button's own action, whose choreography took the legacy menu off its home
+(Single Player's hand-off, desktop::dest 37, the home panel hidden). Its own
+return, which the stock selector runs too (returnFromSinglePlayer), puts the
+panel and its rails back unseen under the retained title, and the menu rests
+at home at once, so the title takes the screen back with the bands coming home
+from the page dock, as from any page. Without a legacy main menu, the menu
+starts as before.
+===============
+*/
+void idSessionLocal::ReturnRetainedSinglePlayerHome() {
+#ifndef ID_DEDICATED
+	if ( guiMainMenu == NULL ) {
+		StartMenu();
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	// The legacy menu's timelines stood still while the page presented; they
+	// catch up first, so none of their remaining steps lands on its home.
+	UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+	// Off its home, the menu's activation starts no intro, as the selector's
+	// own return keeps it (ArenaCampaign's return to the main menu).
+	guiMainMenu->SetPresentationValue( "desktop::curr", "1" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+	SetGUI( guiMainMenu, NULL );
+	guiMainMenu->HandleNamedEvent( "returnFromSinglePlayer" );
+	guiMainMenu->SetPresentationValue( "desktop::curr", "0" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "0" );
+	guiMainMenu->SetPresentationValue( "desktop::dest", "0" );
+	retainedPageReturn = true;
+	UpdateRetainedHome();
+	retainedPageReturn = false;
+#endif
+}
+
+/*
+===============
+idSessionLocal::DrawRetainedPageHome
+
+A stock page lives in the main menu, over its home's backdrop and docked
+bands; the retained Load Game page is that page's content alone. The home
+that handed off keeps drawing behind it as the departure left it: the title's
+montage, or the pause over the softened game. Its carried label is the page's
+title.
+===============
+*/
+void idSessionLocal::DrawRetainedPageHome( int presentationTime ) {
+#ifndef ID_DEDICATED
+	if ( mapSpawned && !com_skipGameDraw.GetBool() && GetLocalClientNum() >= 0 ) {
+		if ( !game->Draw( GetLocalClientNum() ) ) {
+			renderSystem->SetColor( colorBlack );
+			renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 0, 1, 1, declManager->FindMaterial( "_white" ) );
+		}
+	} else if ( retainedPageHome == NULL ) {
+		renderSystem->SetColor( colorBlack );
+		renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 0, 1, 1, declManager->FindMaterial( "_white" ) );
+	}
+	if ( retainedPageHome != NULL ) {
+		retainedPageHome->Redraw( presentationTime );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedLoadPage
+
+The Load Game page's saves, newest first. `select` is the save to select,
+clamped to the list (-1: none), and `error` the reason to show over its
+picture (NULL: none). The rows hold the RETAINED_LOAD_ROWS saves around the
+selection.
+===============
+*/
+void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error ) {
+#ifndef ID_DEDICATED
+	idStrList files;
+	idList<fileTIME_T> times;
+	GetSaveGameList( files, times );
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	for ( int i = 0; i < times.Num(); ++i ) {
+		retainedLoadSlots.Append( files[ times[i].index ] );
+		retainedLoadTimes.Append( times[i].timeStamp );
+	}
+	const int count = retainedLoadSlots.Num();
+	retainedLoadSelected = count > 0 && select >= 0 ? idMath::ClampInt( 0, count - 1, select ) : -1;
+	retainedLoadFirst = retainedLoadSelected > 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	PublishRetainedLoadRows( gui );
+	PublishRetainedLoadSave( gui, error );
+#endif
+}
+
+// Each row's save: its name and level, on the Load or the Save Game page.
+void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	const char *list = gui == guiRetainedSave ? "save" : "load";
+	for ( int row = 0; row < RETAINED_LOAD_ROWS; ++row ) {
+		const int index = retainedLoadFirst + row;
+		idStr name, location;
+		if ( index < retainedLoadSlots.Num() ) {
+			sessionMenuSaveDescription_t description;
+			const bool described = Session_MenuReadSaveDescription( retainedLoadSlots[ index ], description );
+			Session_RetainedSaveLabel( retainedLoadSlots[ index ], description, described, name, location );
+		}
+		gui->SetStateString( va( "%s.row%d.name", list, row ), name.c_str() );
+		gui->SetStateString( va( "%s.row%d.location", list, row ), location.c_str() );
+	}
+	gui->SetStateInt( va( "%s.count", list ), retainedLoadSlots.Num() );
+	gui->SetStateInt( va( "%s.first", list ), retainedLoadFirst );
+#endif
+}
+
+// The selected save: its picture, its date and time, and why it failed.
+void idSessionLocal::PublishRetainedLoadSave( idUserInterface *gui, const char *error ) {
+#ifndef ID_DEDICATED
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time;
+	if ( retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() ) {
+		const idStr &slot = retainedLoadSlots[ retainedLoadSelected ];
+		sessionMenuSaveDescription_t description;
+		const bool described = Session_MenuReadSaveDescription( slot, description );
+		shot = Session_RetainedSaveShot( slot, description, described, RETAINED_LOAD_GENERIC_SHOT );
+		Session_RetainedSaveStamp( retainedLoadTimes[ retainedLoadSelected ], date, time );
+	}
+	gui->SetStateInt( "load.selected", retainedLoadSelected );
+	gui->SetStateString( "load.shot", shot.c_str() );
+	gui->SetStateString( "load.date", date.c_str() );
+	gui->SetStateString( "load.time", time.c_str() );
+	gui->SetStateString( "load.error", error != NULL ? error : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedLoadRequest
+
+The Load Game page's verbs. A row reports itself in load.pick and the session
+checks it against the saves it shows; every other verb acts on the selected
+save. A save that cannot be loaded or deleted stays selected and says why.
+===============
+*/
+void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const int count = retainedLoadSlots.Num();
+	if ( !idStr::Icmp( request, "loadBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadSelect" ) ) {
+		const int row = gui->State().GetInt( "load.pick", "-1" );
+		const int index = retainedLoadFirst + row;
+		if ( row >= 0 && row < RETAINED_LOAD_ROWS && index < count ) {
+			retainedLoadSelected = index;
+			PublishRetainedLoadSave( gui, NULL );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadNewer" ) || !idStr::Icmp( request, "loadOlder" ) ) {
+		// A page further: its first save going to older ones, its last coming
+		// back to newer ones, is selected and focused.
+		const bool older = !idStr::Icmp( request, "loadOlder" );
+		const int first = retainedLoadFirst + ( older ? RETAINED_LOAD_ROWS : -RETAINED_LOAD_ROWS );
+		if ( first < 0 || first >= count ) {
+			return;
+		}
+		retainedLoadFirst = first;
+		retainedLoadSelected = older ? first : first + RETAINED_LOAD_ROWS - 1;
+		PublishRetainedLoadRows( gui );
+		PublishRetainedLoadSave( gui, NULL );
+		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
+		return;
+	}
+	const bool chosen = retainedLoadSelected >= 0 && retainedLoadSelected < count;
+	if ( !idStr::Icmp( request, "loadSave" ) ) {
+		if ( !chosen ) {
+			return;
+		}
+		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
+		HandleMainMenuCommands( "play main_menu_selection" );
+		// LoadGame refuses a save it cannot use before it leaves the current
+		// game, so the page is still here to say why.
+		if ( !LoadGame( slot.c_str() ) && guiActive == gui ) {
+			PublishRetainedLoadSave( gui, Session_LoadFailureText( loadGameFailure ) );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadDelete" ) ) {
+		if ( !chosen ) {
+			return;
+		}
+		// The page asked first. The save that takes the deleted one's place is
+		// selected; one that is still there stays selected and says so.
+		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
+		const int at = retainedLoadSelected;
+		DeleteGame( slot.c_str() );
+		PublishRetainedLoadPage( gui, at, NULL );
+		const int remaining = retainedLoadSlots.FindIndex( slot );
+		if ( remaining >= 0 ) {
+			PublishRetainedLoadPage( gui, remaining, "#str_231105" );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "loadNewGame" ) ) {
+		// No saves at the title: the Single Player page starts a game.
+		if ( !mapSpawned ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			OpenCampaignSelector( false );
+		}
+		return;
+	}
+	common->Warning( "retained UI: unhandled Load Game request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedSavePage
+
+The Save Game page's saves, newest first, as the Load Game page lists them,
+with `select` selected (-1: none).
+===============
+*/
+void idSessionLocal::PublishRetainedSavePage( idUserInterface *gui, int select ) {
+#ifndef ID_DEDICATED
+	idStrList files;
+	idList<fileTIME_T> times;
+	GetSaveGameList( files, times );
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	for ( int i = 0; i < times.Num(); ++i ) {
+		retainedLoadSlots.Append( files[ times[i].index ] );
+		retainedLoadTimes.Append( times[i].timeStamp );
+	}
+	const int count = retainedLoadSlots.Num();
+	retainedLoadSelected = count > 0 && select >= 0 ? idMath::ClampInt( 0, count - 1, select ) : -1;
+	retainedLoadFirst = retainedLoadSelected > 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	PublishRetainedLoadRows( gui );
+	PublishRetainedSaveSelection( gui, false );
+#endif
+}
+
+// The selected save and, with `name`, its name in the name field, as the
+// stock page's updateSaveGameInfo filled it, unless a name is being typed
+// there: the field never loses typed text to a selection.
+void idSessionLocal::PublishRetainedSaveSelection( idUserInterface *gui, bool name ) {
+#ifndef ID_DEDICATED
+	gui->SetStateInt( "save.selected", retainedLoadSelected );
+	if ( name && retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() &&
+			!gui->State().GetBool( "ui.numberDraftsPending" ) ) {
+		const idStr &slot = retainedLoadSlots[ retainedLoadSelected ];
+		sessionMenuSaveDescription_t description;
+		idStr saveName = Session_MenuReadSaveDescription( slot, description ) ? description.saveName : slot;
+		saveName.RemoveColors();
+		gui->SetStateString( "save.name", saveName.c_str() );
+	}
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::RetainedSaveGame
+
+Saves the game under `name` from the Save Game page. A save the session
+refuses says why in the page's notice instead of the stock message box; a
+saved game takes the list's top row, selected.
+===============
+*/
+bool idSessionLocal::RetainedSaveGame( idUserInterface *gui, const char *name ) {
+#ifndef ID_DEDICATED
+	const char *refusal = NULL;
+	if ( !mapSpawned || IsMultiplayer() || game->InCinematic() ) {
+		refusal = "#str_231110";
+	} else if ( game->GetPersistentPlayerInfo( 0 ).GetInt( "health" ) <= 0 ) {
+		refusal = "#str_231111";
+	} else if ( Sys_GetDriveFreeSpace( cvarSystem->GetCVarString( "fs_savepath" ) ) < 25 ) {
+		refusal = "#str_231112";
+	} else if ( objectiveFailed ) {
+		refusal = "#str_231113";
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	if ( refusal == NULL && !SaveGame( name, ST_REGULAR ) ) {
+		refusal = "#str_231110";
+	}
+	if ( refusal != NULL ) {
+		gui->SetStateString( "save.notice", refusal );
+		gui->StateChanged( common->GetPresentationTime() );
+		gui->HandleNamedEvent( "noticeModalShow" );
+		return false;
+	}
+	// The save is now the newest. The name stays, ready to save again.
+	PublishRetainedSavePage( gui, 0 );
+	return true;
+#else
+	return false;
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedSaveRequest
+
+The Save Game page's verbs. A row reports itself in save.pick, as on the
+Load Game page; SAVE GAME saves under the name the page holds in save.name,
+asking first over an existing save and refusing to save over an autosave.
+===============
+*/
+void idSessionLocal::HandleRetainedSaveRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const int count = retainedLoadSlots.Num();
+	if ( !idStr::Icmp( request, "saveBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "saveSelect" ) ) {
+		const int row = gui->State().GetInt( "save.pick", "-1" );
+		const int index = retainedLoadFirst + row;
+		if ( row >= 0 && row < RETAINED_LOAD_ROWS && index < count ) {
+			retainedLoadSelected = index;
+			PublishRetainedSaveSelection( gui, true );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "saveNewer" ) || !idStr::Icmp( request, "saveOlder" ) ) {
+		const bool older = !idStr::Icmp( request, "saveOlder" );
+		const int first = retainedLoadFirst + ( older ? RETAINED_LOAD_ROWS : -RETAINED_LOAD_ROWS );
+		if ( first < 0 || first >= count ) {
+			return;
+		}
+		retainedLoadFirst = first;
+		retainedLoadSelected = older ? first : first + RETAINED_LOAD_ROWS - 1;
+		PublishRetainedLoadRows( gui );
+		PublishRetainedSaveSelection( gui, true );
+		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "saveSave" ) ) {
+		idStr name = gui->State().GetString( "save.name" );
+		name.StripTrailingWhitespace();
+		if ( name.Length() == 0 ) {
+			return;
+		}
+		const sessionMenuSaveSlot_t slot = Session_MenuSaveSlotState( name.c_str() );
+		if ( slot == SESSION_SAVE_SLOT_AUTOSAVE ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			gui->SetStateString( "save.notice", "#str_200982" );
+			gui->StateChanged( common->GetPresentationTime() );
+			gui->HandleNamedEvent( "noticeModalShow" );
+			return;
+		}
+		if ( slot == SESSION_SAVE_SLOT_TAKEN ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedSaveTarget = name;
+			gui->SetStateString( "save.target", name.c_str() );
+			gui->StateChanged( common->GetPresentationTime() );
+			gui->HandleNamedEvent( "overwriteModalShow" );
+			return;
+		}
+		RetainedSaveGame( gui, name.c_str() );
+		return;
+	}
+	if ( !idStr::Icmp( request, "saveOverwrite" ) ) {
+		// The page asked first; the save it asked about, whatever the field
+		// has come to hold since.
+		if ( retainedSaveTarget.Length() > 0 ) {
+			const idStr target = retainedSaveTarget;
+			retainedSaveTarget.Clear();
+			RetainedSaveGame( gui, target.c_str() );
+		}
+		return;
+	}
+	common->Warning( "retained UI: unhandled Save Game request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedRestartRequest
+
+The Restart Level page's verbs. The page holds the chosen difficulty in
+restart.skill; RESTART LEVEL restarts the level at it, and Back leaves the
+level's difficulty as it was.
+===============
+*/
+void idSessionLocal::HandleRetainedRestartRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( !idStr::Icmp( request, "restartBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "restartGo" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		RestartLevelAtSkill( idMath::ClampInt( 0, 4, gui->State().GetInt( "restart.skill", "1" ) ) );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Restart Level request '%s'", request );
+#endif
+}
+
+// The Credits page's words: every line's text, read from the legacy main
+// menu's credits window of the same name (credits.<window>), so the generated
+// page carries none of them.
+void idSessionLocal::PublishRetainedCredits( idUserInterface *page ) {
+#ifndef ID_DEDICATED
+	std::vector<std::string> names;
+	UI_RetainedStateNames( page, "credits.", names );
+	for ( const std::string &name : names ) {
+		idStr text;
+		if ( guiMainMenu == NULL || !guiMainMenu->GetPresentationValue( va( "%s::text", name.c_str() + 8 ), text ) ) {
+			text.Clear();
+		}
+		page->SetStateString( name.c_str(), text.c_str() );
+	}
+	page->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+// After the player dies the level unloads and the restart screen offers its
+// choices: the retained one where it can present, else the stock one.
+void idSessionLocal::OpenRestartMenu() {
+#ifndef ID_DEDICATED
+	// Loaded with the pause, or now when the gate came on after the level
+	// loaded. A view that stopped drawing hands the screen back for good.
+	if ( guiRetainedRestartMenu != NULL && UI_RetainedViewFailed( guiRetainedRestartMenu ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_RESTARTMENU_GUI );
+		retainedStock.AddUnique( RETAINED_RESTARTMENU_GUI );
+		guiRetainedRestartMenu = NULL;
+	}
+	if ( Session_RetainedScreensEnabled() && guiRetainedRestartMenu == NULL ) {
+		guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
+	}
+	if ( Session_RetainedScreensEnabled() && guiRetainedRestartMenu != NULL ) {
+		SetGUI( guiRetainedRestartMenu, NULL );
+		return;
+	}
+#endif
+	SetGUI( guiRestartMenu, NULL );
+}
+
+/*
+===============
+idSessionLocal::RetainedArenaPage
+
+Single Player's Arena sub-page (section 9 "Arena Campaign", FLOW-011): the
+Arena campaign's browser, which idArenaCampaign::OpenBrowser presents where
+this returns it and publishes into while it is loaded. NULL with the gate off
+or when the page is not installed, cannot load or stopped drawing: the stock
+browser presents instead.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedArenaPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the browser back for good.
+	if ( guiRetainedArena != NULL && UI_RetainedViewFailed( guiRetainedArena ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_ARENA_GUI );
+		retainedStock.AddUnique( RETAINED_ARENA_GUI );
+		guiRetainedArena = NULL;
+	}
+	if ( !Session_RetainedScreensEnabled() ) {
+		return NULL;
+	}
+	if ( guiRetainedArena == NULL ) {
+		guiRetainedArena = FindRetainedGui( RETAINED_ARENA_GUI, true, false );
+	}
+	return guiRetainedArena;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::RetainedMultiplayerPage
+
+The retained Multiplayer page where it can present: NULL with the gate off,
+in a game, over a main menu without the routes to its Multiplayer pages, or
+when the page is not installed, cannot load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedMultiplayerPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedMpPage != NULL && UI_RetainedViewFailed( guiRetainedMpPage ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_MPPAGE_GUI );
+		retainedStock.AddUnique( RETAINED_MPPAGE_GUI );
+		guiRetainedMpPage = NULL;
+	}
+	if ( !Session_RetainedScreensEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	// Quietly, as a home screen over a main menu without its pages.
+	if ( !Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
+		if ( retainedStock.FindIndex( RETAINED_MPPAGE_GUI ) < 0 ) {
+			common->DPrintf( "retained UI: the main menu has no routes to its Multiplayer pages, so it presents its own instead of '%s'\n",
+				RETAINED_MPPAGE_GUI );
+			retainedStock.Append( RETAINED_MPPAGE_GUI );
+		}
+		return NULL;
+	}
+	if ( guiRetainedMpPage == NULL ) {
+		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
+	}
+	return guiRetainedMpPage;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedMultiplayerPage
+
+Back from a stock Multiplayer page, or from a sub-page onto its section
+(`section`: "create" from Create Server, "join" from Join Game): the
+retained page presents at once, its arrival bringing its plates and
+description back. False when it cannot present: the stock Multiplayer page
+opens instead.
+===============
+*/
+bool idSessionLocal::OpenRetainedMultiplayerPage( const char *section ) {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedMultiplayerPage();
+	if ( page == NULL || guiMainMenu == NULL ) {
+		return false;
+	}
+	retainedMpPageDest = 0;
+	retainedPageHome = NULL;
+	// The activation reads them.
+	page->SetStateBool( "from_create", section != NULL && !idStr::Icmp( section, "create" ) );
+	page->SetStateBool( "from_join", section != NULL && !idStr::Icmp( section, "join" ) );
+	page->SetStateBool( "from_setup", section != NULL && !idStr::Icmp( section, "setup" ) );
+	page->StateChanged( common->GetPresentationTime() );
+	SetGUI( page, NULL );
+	return true;
+#else
+	return false;
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedMultiplayerPageRequest
+
+The Multiplayer page's verbs. PLAYER SETUP opens the stock Settings page
+once the page has left (UpdateRetainedMultiplayerPage); JOIN GAME and CREATE
+SERVER go deeper to the retained Join Game and Create Server sub-pages where
+they can present, else they open the stock browser and Create Server pages
+the same way; BACK returns the title, from the page dock as from a stock
+page. A page or a change of level under way takes no further request.
+===============
+*/
+void idSessionLocal::HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedMpPageDest != 0 || retainedSubpageFrom != NULL || guiMainMenu == NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerCreate" ) && RetainedCreateServerPage() != NULL ) {
+		BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_CREATE_SERVER );
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerJoin" ) && RetainedJoinGamePage() != NULL ) {
+		BeginRetainedSubpage( gui, true, RETAINED_SUBPAGE_JOIN_GAME );
+		return;
+	}
+	if ( !idStr::Icmp( request, "multiplayerBack" ) ) {
+		if ( MainMenuWindowStateEqualsInt( guiMainMenu, "desktop::curr", 0 ) &&
+				MainMenuWindowStateEqualsInt( guiMainMenu, "desktop::active", 0 ) ) {
+			// The legacy menu never left home: the title comes back as from
+			// any retained page.
+			ReturnRetainedPage();
+			return;
+		}
+		// After a stock Multiplayer page the legacy menu goes home as its own
+		// Multiplayer page does, and the retained home follows it.
+		HandleMainMenuCommands( "play main_menu_selection" );
+		UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+		guiMainMenu->SetPresentationValue( "desktop::curr", "3" );
+		guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+		retainedPageHome = NULL;
+		SetGUI( guiMainMenu, NULL );
+		guiMainMenu->HandleNamedEvent( "leaveMultiplayerPage" );
+		UpdateRetainedHome();
+		return;
+	}
+	int dest = 0;
+	if ( !idStr::Icmp( request, "multiplayerJoin" ) ) {
+		dest = 14;
+	} else if ( !idStr::Icmp( request, "multiplayerCreate" ) ) {
+		dest = 17;
+	} else if ( !idStr::Icmp( request, "multiplayerSetup" ) ) {
+		dest = 18;
+	} else {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	gui->HandleNamedEvent( "depart" );
+	PumpApplicationActions( gui );
+	retainedMpPageDest = dest;
+	retainedMpPageAt = common->GetPresentationTime() + RETAINED_MPPAGE_LEAVE_MSEC;
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateRetainedMultiplayerPage
+
+The stock page takes over when the Multiplayer page has left: the legacy menu
+presents in the page state with that page arriving (openMultiplayerPage).
+Anything else taking the screen first abandons it.
+===============
+*/
+void idSessionLocal::UpdateRetainedMultiplayerPage() {
+#ifndef ID_DEDICATED
+	if ( retainedMpPageDest == 0 ) {
+		return;
+	}
+	if ( guiActive != guiRetainedMpPage || guiMainMenu == NULL ) {
+		retainedMpPageDest = 0;
+		return;
+	}
+	if ( common->GetPresentationTime() < retainedMpPageAt ) {
+		return;
+	}
+	const int dest = retainedMpPageDest;
+	retainedMpPageDest = 0;
+	retainedMpPageLeft = dest;
+	// The legacy menu's timelines stood still while the page presented; they
+	// catch up first, so none of their remaining steps lands on this state.
+	UI_RunTimeEvents( guiMainMenu, common->GetPresentationTime() );
+	// The legacy menu activates on its Multiplayer page (desktop::curr 3), which
+	// keeps SetGUI from starting its intro; Create Server's own state would
+	// reset it home. The stock page's arrival takes the state from there. The
+	// values are written as the menu's own `set` writes them: a variable that
+	// kept its declared expression would get it back from the next EvalRegs.
+	guiMainMenu->SetPresentationValue( "desktop::curr", "3" );
+	guiMainMenu->SetPresentationValue( "desktop::active", "1" );
+	guiMainMenu->SetPresentationValue( "desktop::dest", va( "%d", dest ) );
+	retainedPageHome = NULL;
+	SetGUI( guiMainMenu, NULL );
+	guiMainMenu->HandleNamedEvent( "openMultiplayerPage" );
+	UpdateRetainedHome();
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_MPPAGE stock dest=%d\n", dest );
+	}
+#endif
+}
+
+#ifndef ID_DEDICATED
+// The chosen game type's index among the page's, from si_gameType; a value
+// the page does not offer (singleplayer, say) reads as DM, as the stock
+// MAPScan reads it.
+static int Session_RetainedCreateGameType( void ) {
+	const char *gametype = cvarSystem->GetCVarString( "si_gameType" );
+	for ( int i = 0; i < RETAINED_CREATE_GAMETYPE_COUNT; ++i ) {
+		if ( !idStr::Icmp( gametype, RETAINED_CREATE_GAMETYPES[i] ) ) {
+			return i;
+		}
+	}
+	return 0;
+}
+
+// A setting's request, "<verb> <value>": its index in RETAINED_CREATE_SETTINGS
+// and the value, a whole number from -1 to 999.
+static bool Session_RetainedCreateSettingRequest( const char *request, int &setting, int &value ) {
+	const char *verbs[ RETAINED_CREATE_SETTING_COUNT ];
+	for ( int i = 0; i < RETAINED_CREATE_SETTING_COUNT; ++i ) {
+		verbs[i] = RETAINED_CREATE_SETTINGS[i].verb;
+	}
+	return Session_RetainedValueRequest( request, verbs, RETAINED_CREATE_SETTING_COUNT, setting, value );
+}
+
+// The text a field handed over, at most `limit` bytes and never cut inside a
+// UTF-8 sequence.
+static idStr Session_RetainedCreateText( idUserInterface *gui, const char *state, int limit ) {
+	idStr text = gui->State().GetString( state );
+	if ( text.Length() > limit ) {
+		int length = limit;
+		while ( length > 0 && ( static_cast<unsigned char>( text[ length ] ) & 0xC0 ) == 0x80 ) {
+			--length;
+		}
+		text.CapLength( length );
+	}
+	return text;
+}
+#endif
+
+/*
+===============
+idSessionLocal::RetainedCreateServerPage
+
+Multiplayer's retained Create Server sub-page where it can present: NULL while
+the session does not offer it (RETAINED_CREATE_SERVER_MISSING without
+ui_retainedMultiplayer), in a game, or when the page is not installed, cannot
+load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedCreateServerPage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedCreate != NULL && UI_RetainedViewFailed( guiRetainedCreate ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_CREATE_SERVER_GUI );
+		retainedStock.AddUnique( RETAINED_CREATE_SERVER_GUI );
+		guiRetainedCreate = NULL;
+	}
+	if ( !Session_RetainedCreateServerEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	if ( guiRetainedCreate == NULL ) {
+		guiRetainedCreate = FindRetainedGui( RETAINED_CREATE_SERVER_GUI, true, false );
+	}
+	return guiRetainedCreate;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedCreateServer
+
+The Create Server sub-page presents with its settings and the chosen game
+type's maps published. Where it cannot, CREATE SERVER opens the stock page
+from the Multiplayer page, as its other sections do.
+===============
+*/
+void idSessionLocal::OpenRetainedCreateServer() {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedCreateServerPage();
+	if ( page == NULL ) {
+		if ( guiRetainedMpPage != NULL && guiActive == guiRetainedMpPage ) {
+			HandleRetainedMultiplayerPageRequest( guiRetainedMpPage, "multiplayerCreate" );
+		}
+		return;
+	}
+	// Any levelshot the idle frames have not read yet, so browsing the maps
+	// never loads one.
+	PrecacheRetainedLevelshots( true );
+	PublishRetainedCreateServer( page );
+	PublishRetainedCreateMaps( page, true );
+	SetGUI( page, NULL );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedCreateServer
+
+The page's settings as their CVars hold them, within the ranges it offers,
+its text fields' (RETAINED_CREATE_TEXTS), and the chosen game type, which
+picks the limit row and the slot under Allow Voting.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateServer( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	for ( int i = 0; i < RETAINED_CREATE_SETTING_COUNT; ++i ) {
+		const retainedCreateSetting_t &setting = RETAINED_CREATE_SETTINGS[i];
+		const int value = idMath::ClampInt( setting.minimum, setting.maximum, cvarSystem->GetCVarInteger( setting.cvar ) );
+		if ( setting.boolean ) {
+			gui->SetStateBool( va( "create.%s", setting.state ), value != 0 );
+		} else {
+			gui->SetStateInt( va( "create.%s", setting.state ), value );
+		}
+	}
+	for ( int i = 0; i < RETAINED_CREATE_TEXT_COUNT; ++i ) {
+		gui->SetStateString( RETAINED_CREATE_TEXTS[i].state, cvarSystem->GetCVarString( RETAINED_CREATE_TEXTS[i].cvar ) );
+	}
+	gui->SetStateInt( "create.gametype", Session_RetainedCreateGameType() );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedCreateMaps
+
+The chosen game type's maps as the stock page's MAPScan lists them: the maps
+whose decls play it, else every multiplayer map, si_map's own chosen where
+the list has it, else the first. A map's name loses its color codes, as the
+retained save labels do: the stock list drew them, the page draws plain text.
+`rescan` makes the list again; either way the page's rows, the choice and its
+levelshot follow, and si_map takes the choice, as the stock list's selection
+did.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateMaps( idUserInterface *gui, bool rescan ) {
+#ifndef ID_DEDICATED
+	if ( rescan ) {
+		const char *gametype = RETAINED_CREATE_GAMETYPES[ Session_RetainedCreateGameType() ];
+		const int count = fileSystem->GetNumMaps();
+		retainedCreateMaps.Clear();
+		for ( int pass = 0; pass < 2 && retainedCreateMaps.Num() == 0; ++pass ) {
+			for ( int i = 0; i < count; ++i ) {
+				const idDict *dict = fileSystem->GetMapDecl( i );
+				if ( pass == 0 ? MapSupportsStartServerGameType( dict, gametype ) : MapSupportsAnyMPGameType( dict ) ) {
+					retainedCreateMaps.Append( i );
+				}
+			}
+		}
+		retainedCreateMapSelected = retainedCreateMaps.Num() > 0 ? 0 : -1;
+		const idStr current = cvarSystem->GetCVarString( "si_map" );
+		for ( int i = 0; i < retainedCreateMaps.Num(); ++i ) {
+			if ( !current.Icmp( fileSystem->GetMapDecl( retainedCreateMaps[i] )->GetString( "path" ) ) ) {
+				retainedCreateMapSelected = i;
+				break;
+			}
+		}
+		retainedCreateMapFirst = retainedCreateMapSelected > 0 ?
+			retainedCreateMapSelected / RETAINED_CREATE_MAP_ROWS * RETAINED_CREATE_MAP_ROWS : 0;
+	}
+	for ( int row = 0; row < RETAINED_CREATE_MAP_ROWS; ++row ) {
+		const int index = retainedCreateMapFirst + row;
+		idStr name;
+		if ( index < retainedCreateMaps.Num() ) {
+			const idDict *dict = fileSystem->GetMapDecl( retainedCreateMaps[ index ] );
+			const char *key = dict->GetString( "name" );
+			name = common->GetLanguageDict()->GetString( key[0] != '\0' ? key : dict->GetString( "path" ) );
+			name.RemoveColors();
+		}
+		gui->SetStateString( va( "create.map%d", row ), name.c_str() );
+	}
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT;
+	if ( retainedCreateMapSelected >= 0 ) {
+		const char *path = fileSystem->GetMapDecl( retainedCreateMaps[ retainedCreateMapSelected ] )->GetString( "path" );
+		cvarSystem->SetCVarString( "si_map", path );
+		shot = RetainedPauseShot( path );
+	} else {
+		cvarSystem->SetCVarString( "si_map", "" );
+	}
+	gui->SetStateInt( "create.map_count", retainedCreateMaps.Num() );
+	gui->SetStateInt( "create.map_first", retainedCreateMapFirst );
+	gui->SetStateInt( "create.map_selected", retainedCreateMapSelected );
+	gui->SetStateString( "create.shot", shot.c_str() );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedCreateBans
+
+The local server's ban list on the page's PLAYER BAN LIST: the game publishes
+it on the stock menu as the stock popup reads it, and each row reaches the
+page as its name (colors removed) and GUID, at most RETAINED_CREATE_BAN_ROWS;
+the session keeps the GUIDs, and no row is chosen.
+===============
+*/
+void idSessionLocal::PublishRetainedCreateBans( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	retainedCreateBanGuids.Clear();
+	retainedCreateBanSelected = -1;
+	if ( game != NULL && guiMainMenu != NULL ) {
+		game->PopulateBanList( guiMainMenu );
+		for ( int row = 0; row < RETAINED_CREATE_BAN_ROWS; ++row ) {
+			const idKeyValue *item = guiMainMenu->State().FindKey( va( "sa_banList_item_%d", row ) );
+			idStr name, guid;
+			if ( item == NULL || !Session_BanListRow( item->GetValue().c_str(), name, guid ) ) {
+				break;
+			}
+			name.RemoveColors();
+			gui->SetStateString( va( "create.ban%d.name", row ), name.c_str() );
+			gui->SetStateString( va( "create.ban%d.guid", row ), guid.c_str() );
+			retainedCreateBanGuids.Append( guid );
+		}
+	}
+	gui->SetStateInt( "create.ban_count", retainedCreateBanGuids.Num() );
+	gui->SetStateInt( "create.ban_selected", -1 );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedCreateServerRequest
+
+The Create Server sub-page's verbs. A setting's verb carries its value, which
+the session checks against the setting's range before it writes the CVar;
+the player counts keep their order, a lower maximum lowering the minimum and
+a higher minimum raising the maximum. The game type lists its maps again. A
+map row chooses its map (create.pick) and the pagers page the list; a text
+field hands over its text, which the session caps at the field's stock
+length; PLAYER BAN LIST lists the bans, a row chooses its ban
+(create.ban_pick) and REMOVE BAN removes it; CREATE SERVER starts the server
+as the stock page's does; BACK climbs to the Multiplayer page. A change of
+level under way takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBack" ) ) {
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_CREATE_SERVER );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createStart" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		StartMenuServer();
+		return;
+	}
+	if ( !idStr::Icmp( request, "createMap" ) ) {
+		const int row = gui->State().GetInt( "create.pick", "-1" );
+		const int index = retainedCreateMapFirst + row;
+		if ( row >= 0 && row < RETAINED_CREATE_MAP_ROWS && index < retainedCreateMaps.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedCreateMapSelected = index;
+			PublishRetainedCreateMaps( gui, false );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "createMapsNewer" ) || !idStr::Icmp( request, "createMapsOlder" ) ) {
+		// A page further, its first map chosen going on, its last coming back.
+		const bool older = !idStr::Icmp( request, "createMapsOlder" );
+		const int first = retainedCreateMapFirst + ( older ? RETAINED_CREATE_MAP_ROWS : -RETAINED_CREATE_MAP_ROWS );
+		if ( first < 0 || first >= retainedCreateMaps.Num() ) {
+			return;
+		}
+		retainedCreateMapFirst = first;
+		retainedCreateMapSelected = older ? first : first + RETAINED_CREATE_MAP_ROWS - 1;
+		PublishRetainedCreateMaps( gui, false );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanList" ) ) {
+		PublishRetainedCreateBans( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanPick" ) ) {
+		const int row = gui->State().GetInt( "create.ban_pick", "-1" );
+		if ( row >= 0 && row < retainedCreateBanGuids.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedCreateBanSelected = row;
+			gui->SetStateInt( "create.ban_selected", row );
+			gui->StateChanged( common->GetPresentationTime() );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "createBanRemove" ) ) {
+		// The chosen row's GUID as the session published it, never the page's.
+		if ( retainedCreateBanSelected >= 0 && retainedCreateBanSelected < retainedCreateBanGuids.Num() && game != NULL ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			game->RemoveGuidFromBanList( retainedCreateBanGuids[ retainedCreateBanSelected ].c_str() );
+			PublishRetainedCreateBans( gui );
+		}
+		return;
+	}
+	for ( int i = 0; i < RETAINED_CREATE_TEXT_COUNT; ++i ) {
+		const retainedCreateText_t &field = RETAINED_CREATE_TEXTS[i];
+		if ( !idStr::Icmp( request, field.verb ) ) {
+			const idStr text = Session_RetainedCreateText( gui, field.state, field.limit );
+			cvarSystem->SetCVarString( field.cvar, text.c_str() );
+			PublishRetainedCreateServer( gui );
+			return;
+		}
+	}
+	static const char *const gametypeVerb[] = { "createGameType" };
+	int field = -1, value = 0;
+	if ( Session_RetainedValueRequest( request, gametypeVerb, 1, field, value ) ) {
+		if ( value < 0 || value >= RETAINED_CREATE_GAMETYPE_COUNT ) {
+			common->Warning( "retained UI: Create Server asked for game type %d", value );
+			return;
+		}
+		cvarSystem->SetCVarString( "si_gameType", RETAINED_CREATE_GAMETYPES[ value ] );
+		PublishRetainedCreateServer( gui );
+		PublishRetainedCreateMaps( gui, true );
+		return;
+	}
+	if ( Session_RetainedCreateSettingRequest( request, field, value ) ) {
+		const retainedCreateSetting_t &setting = RETAINED_CREATE_SETTINGS[ field ];
+		if ( value < setting.minimum || value > setting.maximum ) {
+			common->Warning( "retained UI: Create Server asked for %s %d", setting.cvar, value );
+			return;
+		}
+		cvarSystem->SetCVarInteger( setting.cvar, value );
+		if ( !idStr::Icmp( setting.cvar, "si_maxPlayers" ) && cvarSystem->GetCVarInteger( "si_minPlayers" ) > value ) {
+			cvarSystem->SetCVarInteger( "si_minPlayers", value );
+		} else if ( !idStr::Icmp( setting.cvar, "si_minPlayers" ) && cvarSystem->GetCVarInteger( "si_maxPlayers" ) < value ) {
+			cvarSystem->SetCVarInteger( "si_maxPlayers", value );
+		}
+		PublishRetainedCreateServer( gui );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Create Server request '%s'", request );
+#endif
+}
+
+
+/*
+===============
+idSessionLocal::RetainedJoinGamePage
+
+Multiplayer's retained Join Game sub-page where it can present: NULL while the
+session does not offer it (RETAINED_JOIN_GAME_MISSING without
+ui_retainedMultiplayer), in a game, or when the page is not installed, cannot
+load or stopped drawing.
+===============
+*/
+idUserInterface *idSessionLocal::RetainedJoinGamePage() {
+#ifndef ID_DEDICATED
+	// A view that stopped drawing hands the page back for good.
+	if ( guiRetainedJoin != NULL && UI_RetainedViewFailed( guiRetainedJoin ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_JOIN_GAME_GUI );
+		retainedStock.AddUnique( RETAINED_JOIN_GAME_GUI );
+		guiRetainedJoin = NULL;
+	}
+	if ( !Session_RetainedJoinGameEnabled() || mapSpawned ) {
+		return NULL;
+	}
+	if ( guiRetainedJoin == NULL ) {
+		guiRetainedJoin = FindRetainedGui( RETAINED_JOIN_GAME_GUI, true, false );
+	}
+	return guiRetainedJoin;
+#else
+	return NULL;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedJoinGame
+
+The Join Game sub-page presents as the stock browser opens
+(InitServerBrowser: the favorites read, the mod filter checked), with the
+servers the last scan found listed from the page holding the chosen one. Where
+it cannot, JOIN GAME opens the stock browser from the Multiplayer page, as
+its other sections do.
+===============
+*/
+void idSessionLocal::OpenRetainedJoinGame() {
+#ifndef ID_DEDICATED
+	idUserInterface *page = RetainedJoinGamePage();
+	if ( page == NULL ) {
+		if ( guiRetainedMpPage != NULL && guiActive == guiRetainedMpPage ) {
+			HandleRetainedMultiplayerPageRequest( guiRetainedMpPage, "multiplayerJoin" );
+		}
+		return;
+	}
+	idAsyncNetwork::client.serverList.GUIInit();
+	retainedJoinFirst = -1;
+	page->SetStateString( "join.clientip", Session_LocalAddressText().c_str() );
+	PublishRetainedJoinGame( page );
+	SetGUI( page, NULL );
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateBrowserTooltip
+
+The stock browser's server tooltip, as retail's session kept it: each frame
+the classic main menu is the active GUI, the scan shows the hovered row's
+server (its address, players and settings) or hides the tooltip.
+===============
+*/
+void idSessionLocal::UpdateBrowserTooltip() {
+#ifndef ID_DEDICATED
+	if ( guiActive != NULL && guiActive == guiMainMenu ) {
+		idAsyncNetwork::client.serverList.GUIUpdateHover();
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedJoinGame
+
+The servers the scan found and the filter passes, in the sort's order: the
+list's page (join.row<i>.*: favorite, password, dedicated server, name,
+ping, repeater, players, game type and map, the server's own text read as a
+player's), their count, how many the scan holds (join.listed, which tells a
+list the filters empty apart), the scan's status line (the stock page's
+sortNotice) and whether it runs, its progress (join.progress and
+join.notice, the stock page's loadPct and loadNotice), the source the legacy
+menu keeps
+(gui::lanSet, which the scans read), the mod filter (filterMod, which the
+scan writes there), the sort and its direction, and which server is chosen
+(join.selected), by the address the session kept, with its levelshot and
+whether it is a favorite. A chosen server the list stops holding stays
+chosen while a scan may list it again, or while the scan holds it and a
+filter or search hides it. A first page of -1 pages to the chosen server.
+===============
+*/
+/*
+===============
+Session_NetworkQualityBars
+
+Section 13.13's network quality: four bars to 60 ms, three to 120 ms, two to
+200 ms and one above, each 2% of packet loss taking one away, never below
+one.
+===============
+*/
+#ifndef ID_DEDICATED
+static int Session_NetworkQualityBars( int ping, float lossPercent ) {
+	int bars = ping <= 60 ? 4 : ping <= 120 ? 3 : ping <= 200 ? 2 : 1;
+	if ( lossPercent > 0.0f ) {
+		bars -= static_cast<int>( lossPercent / 2.0f );
+	}
+	return Max( 1, bars );
+}
+#endif
+
+void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	retainedJoinRevision = servers.GetRevision();
+	servers.VisibleServers( retainedJoinServers );
+	const int count = retainedJoinServers.Num();
+	const bool scanning = servers.GetState() != idServerScan::IDLE;
+	int selected = -1;
+	for ( int i = 0; i < count && retainedJoinAddress.Length() > 0 && selected < 0; ++i ) {
+		if ( !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
+			selected = i;
+		}
+	}
+	if ( selected < 0 && !scanning ) {
+		// A filter or a search may hide the chosen server; it stays chosen
+		// while the scan still holds it.
+		bool held = false;
+		for ( int i = 0; i < servers.Num() && !held && retainedJoinAddress.Length() > 0; ++i ) {
+			held = !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ i ].adr ) );
+		}
+		if ( !held ) {
+			retainedJoinAddress.Clear();
+		}
+	}
+	if ( retainedJoinFirst < 0 ) {
+		retainedJoinFirst = selected > 0 ? selected / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS : 0;
+	}
+	retainedJoinFirst = idMath::ClampInt( 0, Max( 0, count - 1 ) / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS, retainedJoinFirst );
+	for ( int row = 0; row < RETAINED_JOIN_ROWS; ++row ) {
+		const int index = retainedJoinFirst + row;
+		const networkServer_t *server = index < count ? &servers[ retainedJoinServers[ index ] ] : NULL;
+		idStr name, ping, players, type, map;
+		if ( server != NULL ) {
+			name = Session_RetainedPlayerText( server->serverInfo.GetString( "si_name" ), 96, 1 );
+			if ( name.Length() == 0 ) {
+				name = Sys_NetAdrToString( server->adr );
+			}
+			ping = va( "%d", Max( 0, server->ping ) );
+			players = va( "%d/%d", idMath::ClampInt( 0, MAX_ASYNC_CLIENTS, server->clients ),
+				idMath::ClampInt( 0, MAX_ASYNC_CLIENTS, server->serverInfo.GetInt( "si_maxPlayers" ) ) );
+			type = Session_RetainedPlayerText( idServerScan::GameTypeName( server->serverInfo.GetString( "si_gameType" ) ), 64, 1 );
+			map = Session_RetainedPlayerText( server->serverInfo.GetString( "si_mapName" ), 64, 1 );
+		}
+		gui->SetStateBool( va( "join.row%d.fav", row ), server != NULL && servers.IsFavoriteServer( retainedJoinServers[ index ] ) );
+		gui->SetStateBool( va( "join.row%d.lock", row ), server != NULL && server->serverInfo.GetBool( "si_usePass" ) );
+		gui->SetStateBool( va( "join.row%d.ded", row ), server != NULL && server->serverInfo.GetInt( "net_serverDedicated" ) != 0 );
+		gui->SetStateBool( va( "join.row%d.rep", row ), server != NULL && server->serverInfo.GetBool( "si_repeater" ) );
+		gui->SetStateString( va( "join.row%d.name", row ), name.c_str() );
+		gui->SetStateString( va( "join.row%d.ping", row ), ping.c_str() );
+		// The browser hears no packet loss, so the ping alone sets the bars.
+		gui->SetStateInt( va( "join.row%d.quality", row ), server != NULL ? Session_NetworkQualityBars( Max( 0, server->ping ), 0.0f ) : 0 );
+		gui->SetStateString( va( "join.row%d.players", row ), players.c_str() );
+		gui->SetStateString( va( "join.row%d.type", row ), type.c_str() );
+		gui->SetStateString( va( "join.row%d.map", row ), map.c_str() );
+	}
+	// The chosen server's levelshot, looked up again only when its map
+	// changes; a map path the browser may not look up shows the generic art.
+	const int chosen = selected >= 0 ? retainedJoinServers[ selected ] : -1;
+	const char *chosenMap = chosen >= 0 ? servers[ chosen ].serverInfo.GetString( "si_map" ) : "";
+	if ( chosen < 0 ) {
+		retainedJoinShotMap.Clear();
+		retainedJoinShot.Clear();
+	} else if ( retainedJoinShot.Length() == 0 || retainedJoinShotMap.Cmp( chosenMap ) != 0 ) {
+		retainedJoinShotMap = chosenMap;
+		retainedJoinShot = idServerScan::ValidMapPath( chosenMap ) ? RetainedPauseShot( chosenMap ) : idStr( "gfx/guis/loadscreens/generic" );
+		UI_RetainedPrecacheImage( retainedJoinShot.c_str() );
+	}
+	gui->SetStateString( "join.shot", retainedJoinShot.c_str() );
+	gui->SetStateBool( "join.favorite", chosen >= 0 && servers.IsFavoriteServer( chosen ) );
+	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
+		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
+	gui->SetStateString( "join.search", Session_RetainedPlayerText( servers.GetPlayerSearch(), 64, 1 ).c_str() );
+	// The notice can name a server, whose text is read as a player's.
+	gui->SetStateFloat( "join.progress", servers.GetLoadProgress() );
+	gui->SetStateString( "join.notice", Session_RetainedPlayerText( servers.GetLoadNotice(), 160, 1 ).c_str() );
+	bool ascending = true;
+	const serverSort_t sort = servers.GetSorting( ascending );
+	gui->SetStateInt( "join.count", count );
+	gui->SetStateInt( "join.listed", servers.Num() );
+	gui->SetStateInt( "join.first", retainedJoinFirst );
+	gui->SetStateInt( "join.selected", selected );
+	gui->SetStateInt( "join.sort", static_cast<int>( sort ) );
+	gui->SetStateBool( "join.ascending", ascending );
+	gui->SetStateBool( "join.lan", guiMainMenu != NULL && guiMainMenu->State().GetBool( "lanSet" ) );
+	gui->SetStateBool( "join.scanning", scanning );
+	gui->SetStateString( "join.status", guiMainMenu != NULL ? guiMainMenu->State().GetString( "sortNotice" ) : "" );
+	// The rows may now hold other servers: the details card's again.
+	PublishRetainedJoinDetail( gui );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::UpdateRetainedJoinGame
+
+Each frame the Join Game sub-page presents: the list again once the scan
+has moved on (a server answered, a sort or filter changed, the status
+changed), and the details card's server once the row under the pointer or
+the focus changes.
+===============
+*/
+void idSessionLocal::UpdateRetainedJoinGame() {
+#ifndef ID_DEDICATED
+	if ( guiRetainedJoin == NULL || guiActive != guiRetainedJoin ) {
+		return;
+	}
+	if ( idAsyncNetwork::client.serverList.GetRevision() != retainedJoinRevision ) {
+		PublishRetainedJoinGame( guiRetainedJoin );
+	} else if ( guiRetainedJoin->State().GetInt( "join.detail", "-1" ) != retainedJoinDetailRow ) {
+		PublishRetainedJoinDetail( guiRetainedJoin );
+		guiRetainedJoin->StateChanged( common->GetPresentationTime() );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedJoinDetail
+
+The details card's server: the page row under the pointer or the focus
+(join.detail, which the runtime writes as they move) names one of the
+listed servers, whose address, players and settings the session publishes
+as the stock browser's tooltip shows them (idServerScan::GetServerDetails),
+read as players' text, with the row they describe (join.detail.row), which
+shows the card once it matches the row. A row without a server publishes
+none.
+===============
+*/
+void idSessionLocal::PublishRetainedJoinDetail( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	const int row = gui->State().GetInt( "join.detail", "-1" );
+	const int at = retainedJoinFirst + row;
+	const int index = row >= 0 && at >= 0 && at < retainedJoinServers.Num() ? retainedJoinServers[ at ] : -1;
+	idStr address;
+	idStrList players, settings;
+	const bool described = idAsyncNetwork::client.serverList.GetServerDetails( index, address, players, settings );
+	retainedJoinDetailRow = row;
+	gui->SetStateInt( "join.detail.row", described ? row : -1 );
+	gui->SetStateString( "join.detail.address", Session_RetainedPlayerText( address.c_str(), 64, 1 ).c_str() );
+	for ( int i = 0; i < RETAINED_JOIN_DETAIL_PLAYERS; ++i ) {
+		const idStr player = i < players.Num() ? Session_RetainedPlayerText( players[ i ].c_str(), 64, 1 ) : idStr();
+		gui->SetStateString( va( "join.detail.player%d", i ), player.c_str() );
+	}
+	for ( int i = 0; i < RETAINED_JOIN_DETAIL_SETTINGS; ++i ) {
+		const idStr setting = i < settings.Num() ? Session_RetainedPlayerText( settings[ i ].c_str(), 128, 1 ) : idStr();
+		gui->SetStateString( va( "join.detail.setting%d", i ), setting.c_str() );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedJoinGameRequest
+
+The Join Game sub-page's verbs, the stock browser's commands on the source
+the legacy menu keeps (gui::lanSet): INTERNET and LAN choose the source and
+get a new list from it, as the stock tags do; GET NEW LIST gets a new list
+and REFRESH LIST asks again; a column heading sorts by its column, and again
+the other way, and CLEAR SORTING lists the servers as they answered; MOD's
+spinner shows the previous or next mod the list holds; a row chooses its
+server (join.pick) and the pagers page the list; the favorite toggle adds
+the chosen server to the favorites or takes it off; JOIN SERVER connects to
+the chosen server by the address the session kept, never the page's; BACK
+climbs to the Multiplayer page. JOIN IP ADDRESS connects to the address
+the player entered (join.address), as the stock popup's does, or says why it
+cannot (join.addressError); FIND PLAYER/CLAN searches the list for the name
+the player entered (join.find), and the search's tag ends it. A change of
+level under way takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL ) {
+		return;
+	}
+	idServerScan &servers = idAsyncNetwork::client.serverList;
+	if ( !idStr::Icmp( request, "joinBack" ) ) {
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_JOIN_GAME );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinServer" ) ) {
+		if ( gui->State().GetInt( "join.selected", "-1" ) < 0 || retainedJoinAddress.Length() == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		// A join that fails or is aborted comes back to this list.
+		retainedJoinReturn = true;
+		idCmdArgs connectArgs;
+		connectArgs.AppendArg( "connect" );
+		connectArgs.AppendArg( retainedJoinAddress.c_str() );
+		cmdSystem->BufferCommandArgs( CMD_EXEC_NOW, connectArgs );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinPick" ) ) {
+		const int row = gui->State().GetInt( "join.pick", "-1" );
+		const int index = retainedJoinFirst + row;
+		if ( row >= 0 && row < RETAINED_JOIN_ROWS && index < retainedJoinServers.Num() && retainedJoinServers[ index ] < servers.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedJoinAddress = Sys_NetAdrToString( servers[ retainedJoinServers[ index ] ].adr );
+			PublishRetainedJoinGame( gui );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinConnect" ) ) {
+		const idStr address = Session_RetainedCreateText( gui, "join.address", 99 );
+		if ( address.Length() == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		idStr error;
+		retainedJoinReturn = true;
+		if ( !Session_ConnectToTypedAddress( address.c_str(), error ) ) {
+			retainedJoinReturn = false;
+			gui->SetStateString( "join.addressError", Session_RetainedPlayerText( error.c_str(), 160, 2 ).c_str() );
+			gui->StateChanged( common->GetPresentationTime() );
+			return;
+		}
+		// Connecting: the dialog closes, so a return to the menu finds the list.
+		gui->HandleNamedEvent( "joinIpModalHide" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinSearch" ) || !idStr::Icmp( request, "joinSearchClear" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.SetPlayerSearch( !idStr::Icmp( request, "joinSearch" ) ? Session_RetainedCreateText( gui, "join.find", 99 ).c_str() : "" );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinFavorite" ) ) {
+		for ( int i = 0; i < retainedJoinServers.Num() && retainedJoinAddress.Length() > 0; ++i ) {
+			if ( !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
+				HandleMainMenuCommands( "play main_menu_selection" );
+				servers.ToggleFavoriteServer( retainedJoinServers[ i ] );
+				PublishRetainedJoinGame( gui );
+				break;
+			}
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinModPrevious" ) || !idStr::Icmp( request, "joinModNext" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.UpdateFilterByMod( !idStr::Icmp( request, "joinModNext" ) ? 1 : -1 );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinNewer" ) || !idStr::Icmp( request, "joinOlder" ) ) {
+		const int first = retainedJoinFirst + ( !idStr::Icmp( request, "joinOlder" ) ? RETAINED_JOIN_ROWS : -RETAINED_JOIN_ROWS );
+		if ( first >= 0 && first < retainedJoinServers.Num() ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			retainedJoinFirst = first;
+			PublishRetainedJoinGame( gui );
+		}
+		return;
+	}
+	if ( guiMainMenu == NULL ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinSourceInternet" ) || !idStr::Icmp( request, "joinSourceLan" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		guiMainMenu->SetStateBool( "lanSet", !idStr::Icmp( request, "joinSourceLan" ) );
+		guiMainMenu->StateChanged( common->GetPresentationTime() );
+		Session_ScanServers( guiMainMenu->State().GetBool( "lanSet" ), true );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinNewList" ) || !idStr::Icmp( request, "joinRefresh" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		Session_ScanServers( guiMainMenu->State().GetBool( "lanSet" ), !idStr::Icmp( request, "joinNewList" ) );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinClearSort" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.ResetSorting();
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	for ( int i = 0; i < RETAINED_JOIN_SORT_COUNT; ++i ) {
+		if ( !idStr::Icmp( request, RETAINED_JOIN_SORTS[i].verb ) ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			servers.SetSorting( RETAINED_JOIN_SORTS[i].sort );
+			PublishRetainedJoinGame( gui );
+			return;
+		}
+	}
+	// The controller's north (section 13.5): the list sorted by the column
+	// after the sort's among the text columns, ascending, from PING when the
+	// list is unsorted or sorted by a symbol.
+	if ( !idStr::Icmp( request, "joinSortNext" ) ) {
+		static const serverSort_t order[] = { SORT_PING, SORT_SERVERNAME, SORT_PLAYERS, SORT_GAMETYPE, SORT_MAP };
+		const int count = static_cast<int>( sizeof( order ) / sizeof( order[0] ) );
+		bool ascending = true;
+		const serverSort_t current = servers.GetSorting( ascending );
+		int next = 0;
+		for ( int i = 0; i < count; ++i ) {
+			if ( order[i] == current ) {
+				next = ( i + 1 ) % count;
+			}
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.SetSorting( order[ next ] );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Join Game request '%s'", request );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedArenaRequest
+
+The Arena page's verbs. Each runs the Arena campaign's own command, which
+checks it again (a locked tier or match, a match it cannot start, a reset
+without progress); BACK climbs to Single Player. A change of level in
+progress, or the campaign's entrance, takes none.
+===============
+*/
+void idSessionLocal::HandleRetainedArenaRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( retainedSubpageFrom != NULL || arenaCampaign.IsEntering() ) {
+		return;
+	}
+	if ( !idStr::Icmp( request, "arenaBack" ) ) {
+		BeginRetainedSubpage( gui, false, RETAINED_SUBPAGE_ARENA );
+		return;
+	}
+	for ( int i = 0; i < RETAINED_ARENA_VERB_COUNT; ++i ) {
+		if ( !idStr::Icmp( request, RETAINED_ARENA_VERBS[i][0] ) ) {
+			HandleMainMenuCommands( "play main_menu_selection" );
+			arenaCampaign.HandleGuiCommand( RETAINED_ARENA_VERBS[i][1] );
+			return;
+		}
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedMods
+
+The title's MODS dialog: every installed mod, as the stock list lists them,
+the current game's selected, and the selected mod's details. The dialog holds
+RETAINED_MOD_ROWS of them.
+===============
+*/
+void idSessionLocal::PublishRetainedMods( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	idModList *list = fileSystem->ListMods();
+	const idStr current = cvarSystem->GetCVarString( "fs_game" );
+	modsList.Clear();
+	int select = -1;
+	for ( int i = 0; i < list->GetNumMods() && modsList.Num() < RETAINED_MOD_ROWS; ++i ) {
+		modsList.Append( list->GetInfo( i ) );
+		if ( select < 0 && !current.Icmp( modsList[ modsList.Num() - 1 ].directory.c_str() ) ) {
+			select = modsList.Num() - 1;
+		}
+	}
+	fileSystem->FreeModList( list );
+	for ( int row = 0; row < RETAINED_MOD_ROWS; ++row ) {
+		const idModInfo *info = row < modsList.Num() ? &modsList[ row ] : NULL;
+		gui->SetStateString( va( "mods.row%d.name", row ), info == NULL ? "" :
+			( info->displayName.Length() > 0 ? info->displayName.c_str() : info->directory.c_str() ) );
+		gui->SetStateString( va( "mods.row%d.version", row ), info == NULL ? "" : info->version.c_str() );
+	}
+	gui->SetStateInt( "mods.count", modsList.Num() );
+	SelectRetainedMod( gui, select >= 0 ? select : 0 );
+#endif
+}
+
+// A row's first Accept: its mod's author, release date, required engine and
+// directory.
+void idSessionLocal::SelectRetainedMod( idUserInterface *gui, int row ) {
+#ifndef ID_DEDICATED
+	if ( modsList.Num() == 0 ) {
+		retainedModSelected = -1;
+	} else if ( row >= 0 && row < modsList.Num() ) {
+		retainedModSelected = row;
+	}
+	const idModInfo *info = retainedModSelected >= 0 ? &modsList[ retainedModSelected ] : NULL;
+	gui->SetStateInt( "mods.selected", retainedModSelected );
+	gui->SetStateString( "mods.author", info != NULL ? info->author.c_str() : "" );
+	gui->SetStateString( "mods.date", info != NULL ? info->releaseDate.c_str() : "" );
+	gui->SetStateString( "mods.engine", info != NULL ? info->requiredopenQ4Version.c_str() : "" );
+	gui->SetStateString( "mods.directory", info != NULL ? info->directory.c_str() : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedDemosPage
+
+The Demos page's library: every recording, rescanned, that its filter shows,
+newest first. The demo at `selectPath` is selected where the filter still
+shows it, else the one at `selectRow` (the next after a deletion), else the
+first.
+===============
+*/
+void idSessionLocal::PublishRetainedDemosPage( idUserInterface *gui, const char *selectPath, int selectRow, const char *error ) {
+#ifndef ID_DEDICATED
+	ScanDemoLibrary();
+	retainedDemoFilter = idMath::ClampInt( 0, RETAINED_DEMO_FILTER_COUNT - 1, retainedDemoFilter );
+	retainedDemoRows.Clear();
+	for ( int i = 0; i < demoLibrary.Num(); ++i ) {
+		if ( Session_DemoEntryMatchesFilter( demoLibrary[i], RETAINED_DEMO_FILTERS[ retainedDemoFilter ] ) ) {
+			retainedDemoRows.Append( i );
+		}
+	}
+	const int count = retainedDemoRows.Num();
+	int select = count > 0 ? idMath::ClampInt( 0, count - 1, selectRow ) : -1;
+	for ( int row = 0; selectPath != NULL && row < count; ++row ) {
+		if ( !demoLibrary[ retainedDemoRows[row] ].path.Icmp( selectPath ) ) {
+			select = row;
+			break;
+		}
+	}
+	retainedDemoSelected = select;
+	retainedDemoFirst = select > 0 ? select / RETAINED_DEMO_ROWS * RETAINED_DEMO_ROWS : 0;
+	gui->SetStateInt( "demos.filter", retainedDemoFilter );
+	PublishRetainedDemoRows( gui );
+	PublishRetainedDemoSelection( gui, error );
+#endif
+}
+
+// Each row's demo: its name, map, date and duration.
+void idSessionLocal::PublishRetainedDemoRows( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	for ( int row = 0; row < RETAINED_DEMO_ROWS; ++row ) {
+		const int index = retainedDemoFirst + row;
+		sessionDemoText_t text;
+		if ( index < retainedDemoRows.Num() ) {
+			Session_DemoEntryText( demoLibrary[ retainedDemoRows[ index ] ], text );
+		}
+		gui->SetStateString( va( "demos.row%d.name", row ), text.name.c_str() );
+		gui->SetStateString( va( "demos.row%d.map", row ), text.map.c_str() );
+		gui->SetStateString( va( "demos.row%d.date", row ), text.date.c_str() );
+		gui->SetStateString( va( "demos.row%d.length", row ), text.length.c_str() );
+	}
+	gui->SetStateInt( "demos.count", retainedDemoRows.Num() );
+	gui->SetStateInt( "demos.first", retainedDemoFirst );
+#endif
+}
+
+// The selected demo: its map's levelshot (the generic picture without one),
+// its kind, status and details, what it can do, the delete confirmation's
+// question naming it, and why an operation failed.
+void idSessionLocal::PublishRetainedDemoSelection( idUserInterface *gui, const char *error ) {
+#ifndef ID_DEDICATED
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, confirm;
+	sessionDemoText_t text;
+	bool playable = false, canPlay = false, canDelete = false;
+	if ( retainedDemoSelected >= 0 && retainedDemoSelected < retainedDemoRows.Num() ) {
+		const demoLibraryEntry_t &entry = demoLibrary[ retainedDemoRows[ retainedDemoSelected ] ];
+		Session_DemoEntryText( entry, text );
+		if ( !entry.mapName.IsEmpty() ) {
+			shot = RetainedPauseShot( entry.mapName.c_str() );
+		}
+		playable = entry.playable;
+		canPlay = ( entry.capabilities & DEMO_CAP_PLAY ) != 0;
+		canDelete = ( entry.capabilities & DEMO_CAP_DELETE ) != 0;
+		confirm = va( common->GetLanguageDict()->GetString( "#str_41555" ), text.name.c_str() );
+	}
+	gui->SetStateInt( "demos.selected", retainedDemoSelected );
+	gui->SetStateString( "demos.shot", shot.c_str() );
+	gui->SetStateString( "demos.kind", text.kind.c_str() );
+	gui->SetStateString( "demos.status", text.status.c_str() );
+	gui->SetStateString( "demos.detail", text.detail.c_str() );
+	gui->SetStateBool( "demos.playable", playable );
+	gui->SetStateBool( "demos.canPlay", canPlay );
+	gui->SetStateBool( "demos.canDelete", canDelete );
+	gui->SetStateString( "demos.confirm", confirm.c_str() );
+	gui->SetStateString( "demos.error", error != NULL ? error : "" );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedDemosRequest
+
+The Demos page's verbs. A row's first Accept selects its demo; PLAY, or
+Accept on the selected demo, plays it; DELETE deletes it once the page asked;
+REFRESH rescans; a filter tag sets or clears demos.filter; Back returns the
+title.
+===============
+*/
+void idSessionLocal::HandleRetainedDemosRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const int count = retainedDemoRows.Num();
+	const bool chosen = retainedDemoSelected >= 0 && retainedDemoSelected < count;
+	const idStr selectedPath = chosen ? demoLibrary[ retainedDemoRows[ retainedDemoSelected ] ].path : idStr();
+	if ( !idStr::Icmp( request, "demosBack" ) ) {
+		ReturnRetainedPage();
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosSelect" ) ) {
+		const int row = gui->State().GetInt( "demos.pick", "-1" );
+		const int index = retainedDemoFirst + row;
+		if ( row >= 0 && row < RETAINED_DEMO_ROWS && index < count ) {
+			retainedDemoSelected = index;
+			PublishRetainedDemoSelection( gui, NULL );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosNewer" ) || !idStr::Icmp( request, "demosOlder" ) ) {
+		// A page further: its first demo going to older ones, its last coming
+		// back to newer ones, is selected and focused.
+		const bool older = !idStr::Icmp( request, "demosOlder" );
+		const int first = retainedDemoFirst + ( older ? RETAINED_DEMO_ROWS : -RETAINED_DEMO_ROWS );
+		if ( first < 0 || first >= count ) {
+			return;
+		}
+		retainedDemoFirst = first;
+		retainedDemoSelected = older ? first : first + RETAINED_DEMO_ROWS - 1;
+		PublishRetainedDemoRows( gui );
+		PublishRetainedDemoSelection( gui, NULL );
+		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosRefresh" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		PublishRetainedDemosPage( gui, chosen ? selectedPath.c_str() : NULL, retainedDemoSelected > 0 ? retainedDemoSelected : 0, NULL );
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosFilter" ) ) {
+		retainedDemoFilter = gui->State().GetInt( "demos.filter", "0" );
+		PublishRetainedDemosPage( gui, chosen ? selectedPath.c_str() : NULL, 0, NULL );
+		return;
+	}
+	if ( !chosen ) {
+		return;
+	}
+	const int index = retainedDemoRows[ retainedDemoSelected ];
+	if ( !idStr::Icmp( request, "demosPlay" ) ) {
+		if ( ( demoLibrary[ index ].capabilities & DEMO_CAP_PLAY ) == 0 ) {
+			return;
+		}
+		HandleMainMenuCommands( "play main_menu_selection" );
+		// Playback takes the screen; a demo that could not start leaves the
+		// page here to say so.
+		if ( !PlayDemoLibraryEntry( index ) ) {
+			openq4::NativeInputBeforeSessionChange();
+			guiActive = gui;
+			PublishRetainedDemoSelection( gui, "#str_231120" );
+		}
+		return;
+	}
+	if ( !idStr::Icmp( request, "demosDelete" ) ) {
+		// The page asked first. The demo that takes the deleted one's place
+		// is selected; one that could not be deleted stays selected and says so.
+		const int at = retainedDemoSelected;
+		if ( !DeleteDemoLibraryFile( demoLibrary[ index ] ) ) {
+			PublishRetainedDemoSelection( gui, "#str_231119" );
+			return;
+		}
+		PublishRetainedDemosPage( gui, NULL, at, NULL );
+		return;
+	}
+	common->Warning( "retained UI: unhandled Demos request '%s'", request );
 #endif
 }
 
@@ -5670,18 +8096,82 @@ idUserInterface *idSessionLocal::SelectRetainedLoadingGui( idUserInterface *lega
 #endif
 }
 
+void idSessionLocal::PrefetchRetainedScreens() {
+#ifndef ID_DEDICATED
+	// PreloadRetainedScreens' documents, in its order, the title first. The
+	// pages a gate or a missing page will refuse are parsed for nothing.
+	if ( !Session_RetainedScreensEnabled() ) {
+		return;
+	}
+	const char *const documents[] = {
+		RETAINED_TITLE_GUI, RETAINED_LOADGAME_GUI, RETAINED_CREDITS_GUI, RETAINED_DEMOS_GUI, RETAINED_ARENA_GUI,
+		RETAINED_MPPAGE_GUI, Session_RetainedCreateServerEnabled() ? RETAINED_CREATE_SERVER_GUI : NULL,
+		Session_RetainedJoinGameEnabled() ? RETAINED_JOIN_GAME_GUI : NULL
+	};
+	UI_RetainedPrefetchDocuments( documents, static_cast<int>( sizeof( documents ) / sizeof( documents[0] ) ) );
+#endif
+}
+
 void idSessionLocal::PreloadRetainedScreens() {
 #ifndef ID_DEDICATED
 	// Loaded with the stock menus, so a document's own pictures resolve
-	// before the first menu opens.
+	// before the first menu opens. Only the screens the title reaches: the
+	// pause screens and the pages only they reach load with a level
+	// (PrepareRetainedLevel), and the title waits for none of them.
 	if ( !Session_RetainedScreensEnabled() ) {
 		return;
 	}
 	if ( guiRetainedTitle == NULL ) {
 		guiRetainedTitle = FindRetainedGui( RETAINED_TITLE_GUI, false, true );
 	}
-	if ( guiRetainedPause == NULL ) {
-		guiRetainedPause = FindRetainedGui( RETAINED_PAUSE_GUI, false, true );
+	// The Load Game page too, which only a retained home reaches, so LOAD
+	// GAME never stalls its hand-off on a load (about 0.2 s), and the picture
+	// a save without one shows.
+	if ( guiRetainedLoad == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedLoad = FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
+		if ( guiRetainedLoad != NULL ) {
+			UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
+		}
+	}
+	// The Credits page, which only the title reaches.
+	if ( guiRetainedCredits == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedCredits = FindRetainedGui( RETAINED_CREDITS_GUI, true, false );
+	}
+	// The Demos page, which only the title reaches.
+	if ( guiRetainedDemos == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedDemos = FindRetainedGui( RETAINED_DEMOS_GUI, true, false );
+	}
+	// The Arena page, which only the title reaches, through Single Player.
+	if ( guiRetainedArena == NULL && guiRetainedTitle != NULL ) {
+		guiRetainedArena = FindRetainedGui( RETAINED_ARENA_GUI, true, false );
+	}
+	// The Multiplayer page, which only the title reaches, over a main menu
+	// with the routes to its Multiplayer pages.
+	if ( guiRetainedMpPage == NULL && guiRetainedTitle != NULL && Session_RetainedMultiplayerRoutes( guiMainMenu ) ) {
+		guiRetainedMpPage = FindRetainedGui( RETAINED_MPPAGE_GUI, true, false );
+	}
+	// Its Create Server sub-page, where the session offers it. Every
+	// multiplayer map's levelshot precaches too, so choosing a map never loads
+	// one late, but on the title's idle frames (PrecacheRetainedLevelshots):
+	// read here, they held the title back by over a second.
+	if ( guiRetainedCreate == NULL && guiRetainedMpPage != NULL && Session_RetainedCreateServerEnabled() ) {
+		guiRetainedCreate = FindRetainedGui( RETAINED_CREATE_SERVER_GUI, true, false );
+		retainedLevelshots.Clear();
+		retainedLevelshotsFrom = 0;
+		for ( int i = 0; guiRetainedCreate != NULL && i < fileSystem->GetNumMaps(); ++i ) {
+			const idDict *dict = fileSystem->GetMapDecl( i );
+			if ( MapSupportsAnyMPGameType( dict ) ) {
+				retainedLevelshot_t shot;
+				shot.name = dict->GetString( "path" );
+				shot.map = true;
+				shot.material = false;
+				retainedLevelshots.Append( shot );
+			}
+		}
+	}
+	// Its Join Game sub-page, where the session offers it.
+	if ( guiRetainedJoin == NULL && guiRetainedMpPage != NULL && Session_RetainedJoinGameEnabled() ) {
+		guiRetainedJoin = FindRetainedGui( RETAINED_JOIN_GAME_GUI, true, false );
 	}
 #endif
 }
@@ -5731,6 +8221,27 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 	if ( guiRetainedPauseStrogg == NULL ) {
 		guiRetainedPauseStrogg = FindRetainedGui( RETAINED_PAUSE_STROGG_GUI, false, true );
 	}
+	// The pages only the Marine pause reaches, so its SAVE GAME and RESTART
+	// LEVEL never stall their hand-offs on a load, and the restart screen,
+	// which only a level reaches; each loads with the first level that needs
+	// it. The Load Game page loaded with the title unless that could not.
+	if ( guiRetainedPause != NULL ) {
+		if ( guiRetainedLoad == NULL ) {
+			guiRetainedLoad = FindRetainedGui( RETAINED_LOADGAME_GUI, true, false );
+			if ( guiRetainedLoad != NULL ) {
+				UI_RetainedPrecacheImage( RETAINED_LOAD_GENERIC_SHOT );
+			}
+		}
+		if ( guiRetainedSave == NULL ) {
+			guiRetainedSave = FindRetainedGui( RETAINED_SAVEGAME_GUI, true, false );
+		}
+		if ( guiRetainedRestart == NULL ) {
+			guiRetainedRestart = FindRetainedGui( RETAINED_RESTART_GUI, true, false );
+		}
+		if ( guiRetainedRestartMenu == NULL ) {
+			guiRetainedRestartMenu = FindRetainedGui( RETAINED_RESTARTMENU_GUI, true, false );
+		}
+	}
 	// The pause screen's time line reports the newest save's age; read it
 	// here, inside the load, and keep it as saves are written.
 	idStrList saves;
@@ -5738,6 +8249,78 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 	GetSaveGameList( saves, times );
 	retainedNewestSave = times.Num() > 0 ? times[0].timeStamp : 0;
 	UI_RetainedPrecacheImage( RetainedPauseShot( mapPath ).c_str() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::PrecacheRetainedLevelshots
+
+Create Server shows its chosen map's levelshot, so every multiplayer map's
+precaches before the page can browse them (PreloadRetainedScreens lists
+them), and so do the Arena campaign's levelshots for its page
+(QueueRetainedLevelshot). The front end's idle frames read them, a few each
+frame once a menu has presented for a second, so the title's opening plays
+undisturbed; each page reads its own still waiting when it opens, with
+`all`. A level in play waits for the front end again.
+===============
+*/
+void idSessionLocal::PrecacheRetainedLevelshots( bool all, bool maps ) {
+#ifndef ID_DEDICATED
+	if ( retainedLevelshots.Num() == 0 ) {
+		return;
+	}
+	const int now = Sys_Milliseconds();
+	if ( !all ) {
+		if ( mapSpawned || guiActive == NULL ) {
+			return;
+		}
+		if ( retainedLevelshotsFrom == 0 ) {
+			retainedLevelshotsFrom = now + RETAINED_LEVELSHOT_DELAY_MSEC;
+		}
+		if ( now < retainedLevelshotsFrom ) {
+			return;
+		}
+	}
+	// Each is a precache, as the startup's were, not a late load.
+	const bool insideLoad = declManager->GetInsideLoad();
+	declManager->SetInsideLoad( true );
+	int read = 0;
+	for ( int i = 0; i < retainedLevelshots.Num(); ) {
+		if ( all && retainedLevelshots[ i ].map != maps ) {
+			++i;	// the other page's
+			continue;
+		}
+		if ( !all && read > 0 && Sys_Milliseconds() - now >= RETAINED_LEVELSHOT_FRAME_MSEC ) {
+			break;	// the frame's share is spent
+		}
+		const retainedLevelshot_t shot = retainedLevelshots[ i ];
+		retainedLevelshots.RemoveIndex( i );
+		++read;
+		if ( shot.map ) {
+			UI_RetainedPrecacheImage( RetainedPauseShot( shot.name.c_str() ).c_str() );
+			continue;
+		}
+		if ( shot.material ) {
+			declManager->FindMaterial( shot.name.c_str() );
+		}
+		UI_RetainedPrecacheImage( shot.name.c_str() );
+	}
+	declManager->SetInsideLoad( insideLoad );
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_LEVELSHOTS %s read=%d left=%d ms=%d\n", !all ? "idle" : maps ? "maps" : "pictures", read,
+			retainedLevelshots.Num(), Sys_Milliseconds() - now );
+	}
+#endif
+}
+
+void idSessionLocal::QueueRetainedLevelshot( const char *picture, bool material ) {
+#ifndef ID_DEDICATED
+	retainedLevelshot_t shot;
+	shot.name = picture;
+	shot.map = false;
+	shot.material = material;
+	retainedLevelshots.Append( shot );
 #endif
 }
 

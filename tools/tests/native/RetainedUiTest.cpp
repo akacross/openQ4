@@ -1061,6 +1061,111 @@ static void CheckCompoundPlateCache(TestHost& host) {
 	host.cacheLayers=false; host.replayFrames=true; host.samplePoints.clear();
 }
 
+// A detail card. The subject is the control the pointer is over after the
+// pointer moved, the focused control after keyboard or controller input, and
+// none on a control without a detail; its detail goes to the detail state,
+// whose binding shows the card. The card sits 6 dp under a focused control,
+// over it near the view's edge, 6 dp from the pointer, with its trailing edge
+// 28 dp past the pointer beyond 555 dp, and always 16 dp inside the view.
+static void CheckDetailCard(TestHost& host) {
+	const auto box = [](const char* id, double left, double top, double width, double height) {
+		return std::string(R"({"id":")")+id+R"(","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},)"
+			R"("opacity":{"type":"number","value":1},"left":{"type":"length","value":)"+std::to_string(left)+R"(,"unit":"dp"},"top":{"type":"length","value":)"+std::to_string(top)+
+			R"(,"unit":"dp"},"width":{"type":"length","value":)"+std::to_string(width)+R"(,"unit":"dp"},"height":{"type":"length","value":)"+
+			std::to_string(height)+R"(,"unit":"dp"})";
+	};
+	// A button with its feedback timeline (every state lights its own box).
+	const auto button = [](const char* id, const char* detail) {
+		const std::string lit = std::string(id)+"-lit";
+		return std::string(R"(,"control":{"role":"button","event":"pick","label":"#str_)")+id+R"(","states":{"default":")"+lit+
+			R"(","hover":")"+lit+R"(","focus":")"+lit+R"(","pressed":")"+lit+R"(","disabled":")"+lit+R"("})"+detail+"}}";
+	};
+	const auto lit = [](const char* id) {
+		return std::string(R"({"id":")")+id+R"(-lit","durationMs":100,"tracks":[{"node":")"+id+R"(","property":"opacity","keys":[)"
+			R"({"atMs":0,"value":{"type":"number","value":1}},{"atMs":100,"value":{"type":"number","value":0.8}}]}]})";
+	};
+	const std::string source = R"json({"format":"openq4-ui","version":1,"id":"detail-card",
+	 "state":{"subject":{"type":"number","initial":-1},"picked":{"type":"boolean","initial":false}},
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","value":100,"unit":"%"},"height":{"type":"length","value":100,"unit":"%"}},
+	  "children":[)json"+box("upper",40,40,1220,30)+"}"+button("upper",R"(,"detail":0)")+","+
+	   box("lower",40,650,300,30)+"}"+button("lower",R"(,"detail":1)")+","+
+	   box("plain",40,300,300,30)+"}"+button("plain","")+","+
+	   box("card",0,0,200,100)+R"json(,"display":{"type":"keyword","value":"none"},"pointer-events":{"type":"keyword","value":"none"}}}]},
+	 "timelines":[)json"+lit("upper")+","+lit("lower")+","+lit("plain")+R"json(],
+	 "bindings":[{"id":"shown","node":"card","property":"display","value":{"op":"select","args":[{"op":">=","args":[{"state":"subject"},0]},"block","none"]}}],
+	 "events":{"pick":[{"op":"setState","values":{"picked":true}}]},
+	 "detail":{"state":"subject","card":"card"}})json";
+	Runtime runtime(host);
+	std::vector<Diagnostic> diagnostics;
+	const bool loaded = runtime.Initialize() && runtime.LoadDocument(source,"detail-card.q4ui",diagnostics);
+	for (const auto& d : diagnostics) std::fprintf(stderr,"%s %s\n",d.pointer.c_str(),d.message.c_str());
+	Check(loaded,"the detail card document loads");
+	Viewport viewport; viewport.width = 1280; viewport.height = 720;
+	const auto subject = [&] { StateValue value; return runtime.GetStateValue("subject",value) ? std::get<double>(value) : -99.0; };
+	const auto card = [&] { Bounds b{}; runtime.GetBounds("card",b); return b; };
+	// A hidden element keeps its last box; whether it shows is its presented display.
+	const auto shown = [&] { const auto display = runtime.PresentedValue("card","display"); return display && display->text != "none"; };
+	Check(runtime.FocusControl("upper",1),"focus the upper control");
+	runtime.Frame(viewport,1.1);
+	Check(subject() == 0 && shown() && Near(card().x,40) && Near(card().y,76) && Near(card().width,200),
+		"the focused control's detail shows the card 6 dp under it, at its leading edge");
+	Check(runtime.FocusControl("lower",1.2),"focus the lower control");
+	runtime.Frame(viewport,1.3);
+	Check(subject() == 1 && Near(card().x,40) && Near(card().y,650-6-100),"near the view's edge the card sits over the control");
+	Check(runtime.FocusControl("plain",1.4),"focus a control without a detail");
+	runtime.Frame(viewport,1.5);
+	Check(subject() == -1 && !shown(),"a control without a detail hides the card");
+	runtime.PointerMove(100,50,1.6); runtime.Frame(viewport,1.7);
+	Check(subject() == 0 && Near(card().x,106) && Near(card().y,56),"the pointer's control is the subject; the card sits 6 dp from the pointer");
+	runtime.PointerMove(700,55,1.8); runtime.Frame(viewport,1.9);
+	Check(subject() == 0 && Near(card().x,700+28-200),"past 555 dp the card's trailing edge sits 28 dp past the pointer");
+	runtime.PointerMove(1250,60,2.0); runtime.Frame(viewport,2.1);
+	Check(subject() == 0 && Near(card().x,1280-16-200),"and stays 16 dp inside the view");
+	runtime.PointerMove(900,500,2.2); runtime.Frame(viewport,2.3);
+	Check(subject() == -1 && !shown(),"the pointer over no control hides the card");
+	Check(runtime.FocusedControl() == "plain","the card never takes the focus");
+	runtime.MenuAction(MenuInput::Up,true,2.4); runtime.MenuAction(MenuInput::Up,false,2.41); runtime.Frame(viewport,2.5);
+	Check(runtime.FocusedControl() != "plain" && subject() == (runtime.FocusedControl() == "upper" ? 0 : 1),
+		"keyboard or controller input makes the focused control the subject again");
+	StateValues values = runtime.GetState(false);
+	Check(values.contains("subject") && runtime.GetStateValue("picked",values["picked"]) && !runtime.GetStateValue("absent",values["subject"]),
+		"one state reads without copying the rest; an undeclared one is refused");
+}
+// A document parsed once serves both a GUI and its view: a copy shares the
+// parsed source and model, an edit of one copy replaces only its own, and a
+// runtime loaded from the parsed document presents as one loaded from the
+// source.
+static void CheckSharedDocument(TestHost& host) {
+	const std::string source = R"json({"format":"openq4-ui","version":1,"id":"shared",
+	 "state":{"wide":{"type":"boolean","initial":true}},
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","value":100,"unit":"%"},"height":{"type":"length","value":100,"unit":"%"}},
+	  "children":[{"id":"bar","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},
+	   "left":{"type":"length","value":20,"unit":"dp"},"top":{"type":"length","value":30,"unit":"dp"},
+	   "width":{"type":"length","value":100,"unit":"dp"},"height":{"type":"length","value":10,"unit":"dp"},"opacity":{"type":"number","value":1}}}]},
+	 "bindings":[{"id":"barFade","node":"bar","property":"opacity","value":{"op":"select","args":[{"state":"wide"},0.5,1]}}]})json";
+	std::vector<Diagnostic> diagnostics;
+	Document parsed;
+	Check(parsed.Load(source,diagnostics),"the shared document loads");
+	Document copy = parsed;
+	Check(&copy.Model() == &parsed.Model() && copy.Source() == parsed.Source(),"a copy shares the parsed source and model");
+	Check(copy.ReplaceValue("/root/children/0/properties/left/value","40",diagnostics) &&
+		&copy.Model() != &parsed.Model() && parsed.Source() == source && parsed.Model().FindNode("bar") != nullptr,
+		"an edit replaces only the edited copy's document");
+	Runtime fromSource(host), fromDocument(host), fromNothing(host);
+	Check(fromSource.Initialize() && fromSource.LoadDocument(source,"shared.q4ui",diagnostics),"load the shared document from its source");
+	Check(fromDocument.Initialize() && fromDocument.LoadDocument(parsed,"shared.q4ui",diagnostics) && diagnostics.empty(),
+		"load the shared document as parsed");
+	Check(fromNothing.Initialize() && !fromNothing.LoadDocument(Document(),"empty.q4ui",diagnostics) && !fromNothing.IsLoaded(),
+		"a document that never loaded is refused");
+	Viewport viewport; viewport.width = 1280; viewport.height = 720;
+	fromSource.Frame(viewport,1); fromDocument.Frame(viewport,1);
+	Bounds a{}, b{};
+	const auto fadeA = fromSource.PresentedValue("bar","opacity"), fadeB = fromDocument.PresentedValue("bar","opacity");
+	Check(fromSource.GetBounds("bar",a) && fromDocument.GetBounds("bar",b) && Near(a.x,b.x) && Near(a.y,b.y) && Near(a.width,b.width) &&
+		fadeA && fadeB && std::abs(fadeA->data[0]-0.5) < 0.01 && std::abs(fadeB->data[0]-0.5) < 0.01 && fromSource.GetState() == fromDocument.GetState(),
+		"a runtime loaded from the parsed document presents as one loaded from the source");
+}
+
 int main(int argc, char** argv) {
 	CheckInitializationPacing();
 	CheckTypedActionDescriptors();
@@ -1562,6 +1667,19 @@ int main(int argc, char** argv) {
 	Check(runtime.GetControlState("reference-controls") == ControlState::Default,"viewport change reprojects stationary window input");
 	viewport.originX = 30; runtime.Frame(viewport,24.1);
 	Check(runtime.GetControlState("reference-controls") == ControlState::Hover,"restored viewport recovers hover without moving a device");
+	// The most recent device sets the presentation (section 13.4): a program's
+	// focus shows until the pointer moves, which then lights only the control
+	// under it; the next navigation input resumes from the focus and shows it.
+	Check(runtime.SetControlEnabled("reference-system",true,24.2) && runtime.FocusControl("reference-system",24.2),"focus a button by program");
+	Check(runtime.GetControlState("reference-system") == ControlState::Focus && runtime.GetControlState("reference-controls") == ControlState::Default,
+		"a program's focus leads: it shows, and the stationary pointer's hover clears");
+	runtime.PointerMove((hitX+30)/2,(hitY+20)/2,24.3);
+	Check(runtime.GetControlState("reference-controls") == ControlState::Hover && runtime.GetControlState("reference-system") == ControlState::Default &&
+		runtime.FocusedControl() == "reference-system","moving the pointer lights only the control under it and keeps the focus");
+	runtime.MenuAction(MenuInput::Up,true,24.4); runtime.MenuAction(MenuInput::Up,false,24.4);
+	Check(runtime.FocusedControl() == "reference-controls" && runtime.GetControlState("reference-controls") == ControlState::Focus,
+		"the next navigation input resumes from the focus and shows it");
+	runtime.FocusControl("",24.5);
 	Document interactionEdit;
 	Check(interactionEdit.Load(interactionSource,diagnostics),"load editable control schema");
 	Check(!interactionEdit.ReplaceValue("/root/children/0/children/1/control/action","\"quit; exec file\"",diagnostics),"actions are semantic IDs, not executable command text");
@@ -2005,6 +2123,8 @@ int main(int argc, char** argv) {
 	host.samplePoints.clear();
 	Check(host.errors==0,"no library warnings or errors");
 	CheckCompletionPrograms(host);
+	CheckDetailCard(host);
+	CheckSharedDocument(host);
 	CheckSoftFocus(host);
 	CheckDirectBackdrop(host);
 	CheckSpeedStreak(host);
@@ -2020,5 +2140,5 @@ int main(int argc, char** argv) {
 	CheckCoverageRaster();
 	CheckHiddenPresentation(host);
 	CheckCompoundPlateCache(host);
-	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, soft focus and retained meshes passed");
+	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, detail cards, shared documents, soft focus and retained meshes passed");
 }

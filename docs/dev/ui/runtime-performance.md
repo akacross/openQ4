@@ -160,6 +160,16 @@ calls, submitted vertices, and layers pushed and elided:
 & builddir/openq4-retained-ui-benchmark.exe --screen content/baseoq4/pak0/guis/menu/title.q4ui 240 1280 720
 ```
 
+An optional sixth argument names a document event that runs after the settle,
+so the timed frames show what it opens; `first_ms` is the frame that opens
+it. Create Server's ADVANCED OPTIONS, with PLAYER BAN LIST nested in it,
+opens in a 2.8-3.4 ms first frame against 2.5-2.7 ms without the list
+(debugoptimized, two runs each, 30 frames at 1280x720):
+
+```powershell
+& builddir/openq4-retained-ui-benchmark.exe --screen content/baseoq4/pak0/guis/menu/createserver.q4ui 30 1280 720 advancedModalShow
+```
+
 ## Gameplay evidence
 
 The final hidden, windowed runs used the registered engine screenshot command
@@ -1140,6 +1150,468 @@ OpenGL pause/resize/restart/resume captures passed; Vulkan pixel qualification
 was not run after the timing rejection. All prototype changes are removed;
 `backdrop-cache-rejection.json` and `rejected-backdrop-cache/` preserve the
 results and implementation. This does not change the accepted parity findings.
+
+## Large documents
+
+5 October 2026. The multiplayer Escape card (`mp_escape.q4ui`) is the largest
+retained document: 7.6 MB, 4,499 nodes, 366 controls, 2,173 bindings, 1,925
+timelines with 5,240 tracks and 34,395 authored properties. The game loads it
+with every multiplayer map, and on a debugoptimized build its load took
+8-12 s and each frame half a second, because several steps did work
+proportional to the whole document once per node, binding, track or changed
+property:
+
+- **Node and element lookup.** `DocumentModel::FindNode` searched the tree and
+  RmlUi's `GetElementById` searches the whole document breadth-first. A load
+  configured each node with two searches and the value view resolved every
+  node with one; each frame resolved every changed property, every control's
+  bounds and every focus query the same way. A validated document's model now
+  indexes its node IDs (a copy starts unindexed and searches), and the runtime
+  resolves each canonical node's element once per load into a map that lives
+  as long as the document. Canonical elements never change while it is open:
+  text nodes own no canonical children, and a choice popup moves under the
+  document but lives on. The value view and number fields take the same
+  lookup.
+- **Validation.** Each binding was checked against every timeline track, and
+  each widget control against every binding and track. Both now look the
+  owned (node, property) pairs up in sets built once.
+- **Applied properties.** A new state revision made `ApplyMotion` format all
+  34,395 properties again. Only the properties bindings own can change with
+  the state, so the rest keep their fast path.
+- **Modals and eligibility.** The modal check visited every node on every
+  state read and binding pass; it now visits only the nodes on a path from the
+  root to an authored modal. Input eligibility records only controls and skips
+  the subtree under an ineligible node, whose controls read as ineligible.
+- **State reads.** Each frame's read of the CVar sources copied the whole
+  state; it now copies it only when a source has changed.
+- **Transactional copies.** Events and completion programs evaluate on copies
+  of the state and motion. The document's timelines, authored values,
+  declarations and bindings never change after a load, so copies share them
+  and duplicate only live values.
+- **Playing tracks.** Every play first advanced every playing track, so the
+  hundreds of control feedback timelines started at load sampled one another
+  quadratically. Sampling again at the same clock reproduces the same values,
+  so a burst of plays at one clock samples once; a presentation write or a
+  restore still forces a fresh sample.
+
+`openq4-retained-ui-benchmark --screen` now also reports `load_ms`, the
+runtime's document load. One machine (Windows 11, debugoptimized), the
+committed runtime (`dde802ef`) against this change, three runs each, 240
+frames at 1280x720 after the four-second settle; medians:
+
+| Document | Load before | Load after | Frame p50 before | Frame p50 after | Frame p95 before | Frame p95 after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `mp_escape.q4ui` | 9,484 ms | 624 ms | 504.0 ms | 13.4 ms | 764.3 ms | 61.0 ms |
+| `mp_welcome.q4ui` | 231 ms | 117 ms | 4.50 ms | 0.73 ms | 5.25 ms | 0.85 ms |
+| `title.q4ui` | 80 ms | 78 ms | 0.96 ms | 0.67 ms | 1.12 ms | 0.88 ms |
+| `pause.q4ui` | 70 ms | 63 ms | 1.12 ms | 0.29 ms | 1.23 ms | 0.36 ms |
+
+The native screens test, which loads the Escape card four times, fell from
+104-187 s to 42 s. The canvas suite (`ui_document_canvas.py`) and its 30
+mutations, the native suite and the script tests that read these sources pass.
+
+What remains: parsing the 7.6 MB source and reading its nodes take most of the
+load, the Escape card's frame was mostly the presentation pass over its values
+(see [Settled frames](#settled-frames)), and
+each event or completion program still copies the motion and state's live
+values: up to 100 ms on the Escape card's page and modal changes in the
+native screens test.
+
+## Settled frames
+
+8 October 2026. Main-thread stack samples of the screen benchmark on the
+Escape card (cdb, 30 samples) put about two thirds of a settled frame in
+`Runtime::Impl::ApplyMotion` and most of the rest in `ValueControlView::Paint`,
+not in RmlUi's layout. Every frame the presentation pass walked all 34,395
+authored values, comparing each against the input it last applied: two string
+compares per key, and the 1,269 text values translated and looked up again.
+
+`Motion` now stamps every write that can change its values (a sample, a play,
+a cancel, a reduced-motion jump, an external write, a restore, a reset) from a
+counter shared by all copies, so an unchanged stamp means unchanged values.
+`ApplyMotion` returns at once while the stamp, the state revision and the text
+ratio are those of its last complete pass; a language change reloads the
+document. A pass that finds an element missing leaves the next pass complete.
+`RuntimeStatistics::motionInputsScanned` counts the values a frame's passes
+walk, and the native screens test pins it at zero on a settled Load Game page
+and above zero after a state change. Documents with a looping timeline, such
+as the title's montage and glint, still walk their values each frame.
+
+Same machine and build type as above, 60 frames at 1280x720 after the settle:
+
+| Document | Frame p50 before | Frame p50 after | Update p50 before | Update p50 after |
+| --- | ---: | ---: | ---: | ---: |
+| `mp_escape.q4ui` | 14.21 ms | 5.85 ms | 13.44 ms | 5.07 ms |
+| `mp_welcome.q4ui` | 0.82 ms | 0.28 ms | 0.71 ms | 0.18 ms |
+| `joingame.q4ui` | 1.89 ms | 0.50 ms | – | 0.25 ms |
+| `createserver.q4ui` | 1.66 ms | 0.89 ms | – | 0.61 ms |
+| `loadgame.q4ui` | 0.41 ms | 0.17 ms | – | 0.08 ms |
+| `pause.q4ui` | 0.39 ms | 0.16 ms | – | 0.07 ms |
+| `title.q4ui` | 1.09 ms | 1.02 ms | – | 0.37 ms |
+
+What remained on the Escape card was `ValueControlView::Paint`, which
+reasserted every choice option's label, availability and display each frame
+through string-keyed lookups and RML readbacks (`GetInnerRML`).
+
+### Settled lists
+
+The runtime now counts `ApplyMotion`'s passes that can write presentation
+and hands the count to `ValueControlView::Paint`. A closed list whose
+readback (value, labels, availability and option count) equals the one its
+last paint applied in the same pass is left as painted: nothing else writes
+its rows. An open list, a changed readback or a new pass paints in full, and
+a count of 0 keeps the old behaviour. A document whose timelines loop, such
+as the title, starts a pass every frame, so its lists would still paint in
+full; Join Game and the title have none.
+
+Interleaved A/B, the same build with and without the skip, alternating runs,
+median frame p50 of five runs of 60 frames at 1280x720 (debugoptimized). The
+machine ran lighter than for the table above, where the Escape card measured
+5.85 ms:
+
+| Document | Without | With |
+| --- | ---: | ---: |
+| `mp_escape.q4ui` | 2.13 ms | 0.67 ms |
+| `createserver.q4ui` | 0.91 ms | 0.62 ms |
+| `mp_welcome.q4ui` | 0.26 ms | 0.18 ms |
+| `joingame.q4ui` | 0.52 ms | 0.51 ms |
+| `title.q4ui` | 1.10 ms | 1.00 ms |
+
+## Startup preload
+
+9 October 2026. With `ui_retained 1` the title waited while the session
+loaded every retained page it might hand off to and precached every
+multiplayer map's levelshot (`idSessionLocal::PreloadRetainedScreens`, inside
+`idSessionLocal::Init`), then every Arena match's (`idArenaCampaign::Init`).
+Timestamped startups (`com_timestampPrints 2`) of a build with temporary laps
+around each step split the twelve pages' loads; medians of three, on a
+debugoptimized build, where the laps add some cost of their own:
+
+| Step, over the twelve pages | Time |
+| --- | ---: |
+| The GUI's parse and validation of the document | 1,989 ms |
+| The view's load: the runtime parsed and validated the same document again, then built its markup, elements and bindings | 2,691 ms |
+| The GUI's application values and first state | 1,307 ms |
+| The 50 multiplayer levelshots | 338 ms |
+
+Join Game (1,390 ms), Create Server (794 ms) and Demos (630 ms) were the
+largest pages. The levelshots had cost 1.7 s while community maps' were
+extracted again on every launch, which `a82b13ab` stopped. The Arena's 20
+match levelshots, largely the multiplayer maps' pictures, took another
+0.3 s after those, or 0.65 s once they no longer loaded first.
+
+What changed:
+
+- **One parse per load.** A `Document` copy now shares its parsed source and
+  model: a load or an edit replaces the parsed document and never changes
+  it. The GUI hands its validated document to its view
+  (`RetainedUI_LoadParsedView`, `Runtime::LoadDocument( const Document& )`),
+  so each page is parsed once. Every later load gains too: the pages a level
+  loads, and the reload of every GUI at each map change.
+- **Cheaper validation.** A check builds its pointer and message only when it
+  fails (`Require` became a macro over `Fail`). The finiteness walk builds no
+  pointers and finds the failing value's pointer only on failure; field
+  checks read member names in place instead of copying them; the
+  per-command and per-control lookup tables are built once. Diagnostics are
+  unchanged: the native document tests compare pointers and messages. The
+  runtime's own load of the twelve pages, which includes its parse, fell
+  from 1,882 to 1,228 ms (`openq4-retained-ui-benchmark --screen`
+  `load_ms`, interleaved, five runs each).
+- **Parsing on the job system's workers.** Before the stock main menu loads,
+  the session reads the startup documents and queues one parse each on the
+  job system (`PrefetchRetainedScreens`, `UI_RetainedPrefetchDocuments`). A
+  page's load takes its parse when the source is unchanged, waiting for it
+  if it is still running, and keeps only the markup, element and binding
+  work on the main thread. Parses no load took are dropped after the
+  preload. A synchronous job system (`jobs_enable 0`, `jobs_deterministic 1`)
+  or a full job queue leaves the load to parse inline, as before.
+- **Only what the title reaches.** Startup loads the title, Load Game,
+  Credits, Demos, Arena, Multiplayer, Create Server and Join Game. The pause
+  screens, the pages only they reach (Save Game, Restart Level) and the
+  death screen load with the first single-player level
+  (`PrepareRetainedLevel`), once a session, as the Strogg pause already did.
+- **Levelshots on idle frames.** Startup lists the multiplayer maps and the
+  Arena matches (`QueueRetainedLevelshot`). Once a front-end menu has
+  presented for a second, each frame precaches as many of their levelshots
+  as fit 4 ms, at least one, as precaches rather than late loads
+  (`PrecacheRetainedLevelshots`). Create Server reads any map levelshot
+  still waiting when it opens, and the Arena page any match levelshot, so
+  browsing either never loads one. A level in play holds the queue until the
+  front end returns, and an engine reload, already a load, reads it at once.
+  `ui_retainedTrace 1` logs each step (`RETAINED_LEVELSHOTS`).
+
+Two interleaved A/Bs against the build before this work (`03ddba97`), each of
+eight rounds: hidden 1280x720 OpenGL window, `s_noSound 1`, debugoptimized,
+each side with its own warm save path, every launch quitting from its
+autoexec. All sides read the same `pak0.pk4` (the older copies' embedded
+checksum was patched to it), so they load identical documents. The first
+rotated the order of three builds to separate the steps; the second
+alternated the final build with the baseline. The first title frame is timed
+from the log's opening at process start. Medians:
+
+| Build | First title frame | Session initialization | Pages loaded at startup |
+| --- | ---: | ---: | ---: |
+| Before | 14.2 s | 6.9 s | 12 |
+| One parse, cheaper validation, level pages and multiplayer levelshots deferred | 9.5 s | 3.3 s | 8 |
+| The same, parsing on workers | 9.2 s | 2.7 s | 8 |
+
+| Build | First title frame | Session initialization |
+| --- | ---: | ---: |
+| Before | 13.6 s | 6.8 s |
+| After: the above, and the Arena levelshots on idle frames | 8.8 s | 2.1 s |
+
+Paired by round, the title came 4.7 s sooner (median; 3.6 to 4.9 s in seven
+rounds, and 13.4 s in one where the machine stalled the baseline's launch).
+Two traced startups (`ui_retainedTrace 1`) read all 70 levelshots in 66
+and 68 idle frames, from 0.6-0.8 s to 2.1-2.3 s after the first title frame:
+0.6-0.75 s of reading in all, at most 38 ms of it in one frame.
+
+Hand-offs, engine probes with console verbs only (the menu audit's capture
+harness with the probe scenarios `probe-preload-settled`,
+`probe-preload-rush` and `probe-preload-arena-rush`), longest frame over each
+step. The settled probe waits six seconds at the title first; the rush
+probes go to their page as soon as they reach the title, within its first
+two seconds:
+
+| Probe | Step | Before | After |
+| --- | --- | ---: | ---: |
+| Settled | The title's first six seconds | 422 ms | 410 ms |
+| Settled | LOAD GAME | 35 ms | 50 ms |
+| Settled | MULTIPLAYER | 99 ms | 93 ms |
+| Settled | CREATE SERVER | 122 ms | 118 ms |
+| Settled | Browsing 12 maps | 43 ms | 57 ms |
+| Rush | MULTIPLAYER | 84 ms | 52 ms |
+| Rush | CREATE SERVER | 108 ms | 708 ms |
+| Rush | Browsing 12 maps | 46 ms | 41 ms |
+| Arena rush | SINGLE PLAYER | 72 ms | 62 ms |
+| Arena rush | ARENA | 109 ms | 278 ms |
+
+One run of each probe varies by tens of milliseconds: the first A/B's
+probes, without the Arena change, measured the settled LOAD GAME at 76 and
+31 ms, MULTIPLAYER at 121 and 77 ms, CREATE SERVER at 147 and 92 ms and the
+browsing at 67 and 53 ms. The title's longest frame is its first. In the
+settled probe the idle frames read all 70 levelshots, at most 33 ms of a
+frame; in the rush probe Create Server opened with 35 of the 50 map
+levelshots still waiting and read them in 575 ms, and the Arena page read
+its 20 in 181 ms. Browsing stays smooth either way.
+
+What remains:
+
+- **A page opened at once.** Opening Create Server or the Arena page in the
+  title's first two seconds, before the idle frames have finished, reads the
+  levelshots still waiting in one frame (708 ms in the rush probe). Decoding
+  levelshots on the job system's workers would remove it.
+- **Map changes.** Every map change re-initialized every loaded GUI
+  (`uiManager->Reload( true )` in `ExecuteMapChange`), the retained pages
+  included: the startup's document work again, now one parse per page, on
+  the main thread. The retained pages now keep their views
+  ([map changes](#map-changes)).
+- **Outside the menus.** Of the remaining wait before the title, hashing
+  `pak0.pk4` and `pak1.pk4` (800 MB) against the executable's checksums takes
+  about 1.4 s on every launch, and compiling the game's scripts about 1.2 s.
+
+## Map changes
+
+9 October 2026. Every map change re-initialized every loaded GUI
+(`uiManager->Reload( true )` in `idSessionLocal::ExecuteMapChange`). With
+`ui_retained 1` that took in every retained page: the eight the title reaches
+at the first map change, and from the second on also both pause screens, Save
+Game, Restart Level, the death screen, the loading screen and the weapon
+wheel. Each read and parsed its document again, built a new view (markup,
+elements, bindings) and restored the old view's snapshot into it: the
+startup's document work again, on the main thread, inside the load. A restart
+of the same map did it too.
+
+The reload comes from Doom 3. The level load's purge
+(`idDeclManagerLocal::BeginLevelLoad`) defaults every declaration not parsed
+outside a level load, and the image manager frees every image a level load
+read. A stock GUI's windows hold material pointers, and parsing it again finds
+them inside the load, so their images load with the level instead of on the
+first draw after it. A retained page needs less. The materials its view holds
+survive a purge as objects, and its text and layers draw from generated
+resources. What it needs is for the pictures it names to resolve again inside
+the load: the preload and the level loads parse them as load media
+(`SetInsideLoad`), so every map change purges them, and a purged picture drawn
+later is parsed again mid-frame ("Loading non pre-cached material decl"), its
+image read then too where a level load had read it. A language or renderer
+change already rebuilds every retained view on its own (`RefreshResources`).
+
+The first change made map changes call `UI_ReloadForLevelLoad`, initially
+leaving stock GUI re-initialization intact (the follow-up below removes it).
+A retained page whose document reads back byte for
+byte unchanged keeps its view (`idUserInterfaceRetained::KeepForLevelLoad`):
+the pictures it names resolve again inside the load, as its reload had them
+do, and its pending input, programs and session requests are dropped, as a new
+view would drop them. A changed document, or a view that cannot be prepared,
+re-initializes as before; `reloadGuis all` still re-initializes everything;
+pictures bound to state still resolve where their publishers precache them.
+Each kept page logs `RETAINED_GUI_KEPT`.
+
+Interleaved chains of map changes, the build before (`5d378666`) against this
+one, in ABBA order: six rounds of each in single player and five in
+multiplayer. Debugoptimized, hidden 1280x720 OpenGL window, `s_noSound 1`,
+each side with its own warm save path and the same `pak0.pk4` (the older
+client's embedded checksum patched to it), console verbs only. Single player
+starts at the title and runs `map game/airdefense1`, then `game/airdefense2`
+and `game/airdefense1` again; multiplayer runs a listen server's
+`spawnServer mp/q4dm1` from the title, then `mp/q4dm2`. Timestamps
+(`com_timestampPrints 2`) give the GUIs' share of each change, from the
+level-load purge to the loading screen's first state, and `com_speeds` the
+frame that held the whole change, from the wipe to the autosave. Medians, and
+the median of each round's difference:
+
+| Map change | Retained pages | GUIs, before | GUIs, after | Whole change, before | Whole change, after | Difference |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Title to airdefense1 | 8 | 2.18 s | 0.65 s | 11.1 s | 9.6 s | -1.8 s |
+| airdefense1 to airdefense2 | 15 | 2.53 s | 0.57 s | 6.3 s | 4.4 s | -2.1 s |
+| airdefense2 to airdefense1 | 16 | 2.76 s | 0.66 s | 11.1 s | 9.6 s | -2.2 s |
+| Title to mp/q4dm1 | 8 | 2.12 s | 0.59 s | 5.3 s | 3.8 s | -1.5 s |
+| mp/q4dm1 to mp/q4dm2 | 11 | 2.77 s | 0.65 s | 5.5 s | 3.3 s | -2.2 s |
+
+Re-initialized, the retained pages took 1.5 to 2.1 s of each change; kept,
+47 to 85 ms, mostly reading each document back to compare it (Join Game's
+4.3 MB the most, 12 to 19 ms). With the Escape card opted in
+(`ui_retainedMultiplayer 1`, three rounds) the second multiplayer change
+re-initialized 12 pages, the 7.8 MB card among them, in 3.4 s and kept them
+in 127 ms: the whole change went from 7.0 to 3.5 s. The 120 frames after
+each load were as smooth in both builds (longest 20 to 32 ms), and no
+"Loading non pre-cached" warning named a retained picture in either; the
+other warnings, player models and tables, were the same in both.
+
+Hand-offs after the second single-player map change, two runs of each build
+alternating (the kit's `probe-mapchange-sp`: a save on airdefense1, a map
+change to airdefense2, then the pause, SAVE GAME, LOAD GAME and RESTART LEVEL
+and back, a death and the death screen's LOAD GAME), longest frame over each
+step:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| The pause | 119, 107 ms | 101, 101 ms |
+| SAVE GAME | 62, 54 ms | 42, 46 ms |
+| LOAD GAME | 54, 55 ms | 38, 38 ms |
+| RESTART LEVEL | 41, 31 ms | 31, 31 ms |
+| The death screen | 148, 154 ms | 128, 145 ms |
+| Its LOAD GAME | 228, 162 ms | 230, 220 ms |
+
+Single runs vary by tens of milliseconds. With `fs_debug 1` over the steps
+both builds opened the same files: the saves, the soft focus's shader and the
+levelshots the front end's idle frames precache once the level is over (the
+probe starts in the level, so the title never read them); no picture was read
+late.
+
+### Stock GUI reuse
+
+9 October 2026, follow-up to the retained-page change. `GUI_LEVEL_PURGE_DONE`
+(with `com_showLevelLoadTimes 1` and `com_timestampPrints 2`) now separates
+level-load setup and the declaration/renderer/sound/BSE purge from the first
+stock GUI. The earlier table's stock estimate included that preceding work.
+
+An unchanged stock GUI now implements the same `KeepForLevelLoad` hook. It
+keeps its parsed window tree, compares the root and every included source
+byte for byte, and resolves its media inside the load. The parser observation
+also remembers failed include candidates: adding a file that takes precedence
+invalidates the cache even if the previously selected include is unchanged.
+Explicit `reloadGuis all`, language reloads, changed/missing sources, failed
+parses, incremental editor parses and GUIs restored from a save or demo use the full
+reload. Custom game/editor widgets and native chat surfaces retain their
+existing reload path.
+
+A background-only walk is insufficient. During the original parse a scoped
+declaration observer records materials, script-only background alternatives,
+script sounds, expression tables and widget resources. Re-finding those
+references after the purge restores their contents and level-use marks;
+GUI material sorting is reapplied. The live window walk also references
+current backgrounds, including simple windows and directly assigned scroller
+backgrounds, and expression tables. Slider thumbs refresh their dimensions.
+Previously displayed model previews rebuild their render-world references
+inside the load so the model purge cannot leave a stale preview behind.
+
+Window identities survive; their authored presentation/script values are
+restored from an in-memory snapshot taken immediately after parsing. This
+resets a previously open Load/Save subpage, timeline flags, transitions and
+focus just as a fresh parse did. Constructor-assigned scroller backgrounds
+are retained separately because they have no authored background name in
+the snapshot. The backend repeats initialization/activation and drops
+pending commands and bind handling.
+The `text` and `name` dictionary defaults reset as in `InitFromFile`; other
+game-published values stay live. GUI state publishers continue to update
+bound pictures normally. The cache
+is engine-private, counted in `listGuis`, and does not change game-module or
+save-file formats. The source/media observation scopes are thread-local and
+inactive outside parsing; no replacement game assets are added.
+
+Four interleaved pairs per mode (AB, BA, AB, BA), after a separate warm-up
+for each side, measured 40 map changes. Windows x64 debugoptimized, OpenGL,
+1280x720 hidden/windowed, 60 fps, sound disabled, stock installed assets and
+`ui_retained 1`; no device input. The client was the only runtime difference:
+before was `37f1d1d5` plus the purge marker, SHA-256 prefix
+`2be75b8952b9177d`; after was `c442b13083dd6903`. Renderer/game modules and
+both staged packages matched. Peer clients and CPU tests were paused; free
+commit checks were 25–29 GB. Timings below are milliseconds; before/after
+columns are medians, and savings are medians of paired differences.
+
+| Map change | Stock before → after | Stock saved | Setup/purge before → after | Whole change saved |
+| --- | ---: | ---: | ---: | ---: |
+| Title → `game/airdefense1` | 176.0 → 13.5 | 162.5 | 1.0 → 2.0 | 222.5 |
+| → `game/airdefense2` | 327.5 → 62.5 | 266.5 | 57.0 → 58.5 | 385.0 |
+| → `game/airdefense1` | 355.5 → 61.5 | 294.0 | 33.5 → 36.5 | 432.5 |
+| Title → `mp/q4dm1` | 173.0 → 17.5 | 156.0 | 1.5 → 2.0 | 169.5 |
+| → `mp/q4dm2` | 325.5 → 62.5 | 262.0 | 19.5 → 20.5 | 329.5 |
+
+The stock share falls 81–92%. The candidate keeps 8 stock GUIs from the
+title, 49 then 46 in the SP chain, and 29 on the second MP change. Setup/purge
+paired differences are only 0–2 ms. Whole-change savings use the frame that
+contains the change, including the wipe and autosave. For the longest of the
+first 120 post-load frames, paired median differences range from −0.5 to
++2.5 ms; the first MP map moves from a 20 ms median to 22 ms. Every SP change
+and each second MP change has zero non-precached warnings. Both clients emit
+the same 68 existing warnings on the first MP map (player/entity/effect
+definitions and menu/weapon media); names and multiplicities match in every
+pair.
+
+Two interleaved pairs of hand-offs after the second SP map change, longest
+frame over each step:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| Pause | 87, 81 ms | 76, 80 ms |
+| SAVE GAME | 38, 32 ms | 28, 29 ms |
+| LOAD GAME | 29, 27 ms | 29, 26 ms |
+| RESTART LEVEL | 22, 25 ms | 23, 19 ms |
+| Resume | 18, 18 ms | 18, 18 ms |
+| Death | 104, 105 ms | 104, 104 ms |
+| Death screen's LOAD GAME | 152, 151 ms | 147, 143 ms |
+
+All steps complete and the engine screenshots show the expected pages.
+`fs_debug 1` records identical file-read counters in every pair: no new late
+image reads. These direct-to-map probes skip title warm-up, so both builds
+still open 300 images (123 distinct paths) during the hand-offs, including
+existing deferred levelshots, objective and player-preview textures. Both
+also produce the same 27 precache warnings after the first load. Those
+baseline reads/warnings remain; this change does not claim to remove them.
+
+A separate stock-only pair (`ui_retained 0`) saves on airdefense1, changes to
+airdefense2, displays reused monitor GUIs, opens Pause/Save/Load, and restores
+the saved airdefense1 while Load Game is open. Pause and Save then reopen
+correctly, with no unreachable actions or errors and identical precache
+warnings. Engine captures confirm the menu defaults and reused monitor bank.
+This caught an earlier prototype retaining its open Load subpage; restoring
+the authored window snapshot fixes it without rebuilding the tree.
+
+The fast menu gate, all 51 related script checks (including the new compiled
+stock-cache regression), and all 160 native checks pass. The full suites
+passed after the authored-state reset fix; the final dictionary-default
+adjustment also passed its targeted script checks and the full native suite.
+The regression exercises byte changes, failed include candidates, scoped
+observation, authored-state reset, purge re-referencing and the real
+window/scroller traversal.
+Evidence is under `.tmp/mapchange/`: `stock-defaults-{sp,mp}-report.txt`,
+`stock-defaults-warning-check.json`, `stock-defaults-handoff-comparison.json`,
+`stock-defaults-identity.log`, `stock-defaults-before-identity.log`,
+`stock-defaults-screen-comparison.json`, `stock-defaults-gate.log`,
+`stock-defaults-scripts.log`, `stock-final-native.log`, `test-summary.json`,
+and `runs/stock-defaults-*` (logs and engine captures).
+The fixed independent runtimes are `.tmp/runtime/mc-stock-{before,after}/`.
 
 ## Remaining requirements
 

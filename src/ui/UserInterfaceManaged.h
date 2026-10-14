@@ -35,6 +35,11 @@ public:
 	// Front accepted session.menu verb of this exact dispatch marker, FIFO.
 	// Verbs name session operations; they are never console command text.
 	virtual bool TakeSessionRequest( const char *command, idStr &out ) { return false; }
+	// A map change re-initializes every GUI so that its media resolve again
+	// inside the level load, whose purge defaulted them (UI_ReloadForLevelLoad).
+	// True when this GUI has done what the load needs without re-initializing,
+	// keeping what it has loaded; false re-initializes it from its source.
+	virtual bool KeepForLevelLoad() { return false; }
 	// Only the manager calls these with an already checked outer allocation.
 	// Deferred wrappers forward that identity to their unregistered backend.
 	virtual openq4::ui::TextBrokerContext QueryTextContext(std::uint64_t allocation,
@@ -112,14 +117,26 @@ bool UI_RetainedImageSource( const char *source );
 void UI_RetainedPrecacheImage( const char *source );
 // Rereads a picture whose file a newer save may have replaced.
 void UI_RetainedReloadImage( const char *source );
+// Parses retained documents on the job system's workers ahead of their loads:
+// a load of one whose source is unchanged takes its parse instead of parsing.
+// Clear drops the parses no load took, after their workers finish.
+void UI_RetainedPrefetchDocuments( const char *const *paths, int count );
+void UI_RetainedPrefetchClear();
 // Advance a live GUI's timelines and time events without drawing it.
 void UI_RunTimeEvents( idUserInterface *gui, int time );
+// A map change's reload, inside the level load (ExecuteMapChange): every GUI
+// re-initializes, as uiManager->Reload( true ) does, except one that keeps
+// what it has loaded (KeepForLevelLoad): a retained document whose source is
+// unchanged keeps its view and resolves its pictures again.
+void UI_ReloadForLevelLoad();
 // Engine-scripted validation for classic GUIs: runs a window's onAction script,
 // or its onBackAction when back is set, as a click on the window would, and
 // returns the command it issued. No device input is read or synthesized.
 bool UI_RunLegacyWindowAction( idUserInterface *gui, const char *windowName, bool back, idStr &command );
 // Whether a classic GUI defines the named window, visible or not.
 bool UI_LegacyWindowExists( idUserInterface *gui, const char *windowName );
+// Whether a classic GUI's desktop defines the named event.
+bool UI_LegacyNamedEventExists( idUserInterface *gui, const char *eventName );
 typedef void (*UI_ApplicationCommandCallback)( idUserInterface *gui, const char *command, void *context );
 // Pump only private typed requests. A null owner snapshots all pending managed
 // allocations; a specific owner drains a lifecycle queue before its release.

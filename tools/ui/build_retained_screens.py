@@ -40,6 +40,16 @@ OUTPUTS = {
     "singleplayer": PAK0 / "guis" / "menu" / "singleplayer.q4ui",
     "campaigns": PAK0 / "guis" / "menu" / "campaigns.q4ui",
     "skill": PAK0 / "guis" / "menu" / "campaign_skill.q4ui",
+    "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
+    "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
+    "restartlevel": PAK0 / "guis" / "menu" / "restartlevel.q4ui",
+    "restartmenu": PAK0 / "guis" / "menu" / "restartmenu.q4ui",
+    "credits": PAK0 / "guis" / "menu" / "credits.q4ui",
+    "demos": PAK0 / "guis" / "menu" / "demos.q4ui",
+    "arena": PAK0 / "guis" / "menu" / "arena.q4ui",
+    "multiplayer": PAK0 / "guis" / "menu" / "multiplayer.q4ui",
+    "createserver": PAK0 / "guis" / "menu" / "createserver.q4ui",
+    "joingame": PAK0 / "guis" / "menu" / "joingame.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
     "mp_summary": PAK0 / "guis" / "menu" / "mp_summary.q4ui",
@@ -320,6 +330,8 @@ class Document:
         self.actions: dict = {}
         self.events: dict = {}
         self.bindings: list = []
+        # The document's detail card (state, card, none): see Document.h's DetailSpec.
+        self.detail: dict | None = None
 
     def bind(self, ident: str, node: str, prop: str, value) -> None:
         self.bindings.append({"id": ident, "node": node, "property": prop, "value": value})
@@ -355,6 +367,8 @@ class Document:
             result["events"] = self.events
         if self.bindings:
             result["bindings"] = self.bindings
+        if self.detail:
+            result["detail"] = self.detail
         result["timelines"] = self.timelines.items
         result["root"] = root
         if extras:
@@ -474,17 +488,59 @@ def link(doc: Document, ident: str, key: str, *, action: str | None = None, even
                  [marker, hot, text_node], control=control)
 
 
-def plinth(doc: Document, links: list) -> dict:
+def merged_text(key: str) -> dict:
+    """`key` in every shipped language, as the engine resolves it: a
+    language's openQ4 table, else the stock GUI table openQ4 ships for it."""
+    found = localized(key)
+    for language in LANGUAGES:
+        if language not in found:
+            for line in (STRINGS / f"{language}_guis.lang").read_text(encoding="utf-8").splitlines():
+                match = re.match(r'\s*"(#str_\d+)"\s+"(.*)"\s*$', line)
+                if match and match.group(1) == key:
+                    found[language] = match.group(2)
+    return found
+
+
+# The plinth's links: Marine 16 dp after a 7 u marker, 14 u apart (link()).
+LINK_MARKER_U, LINK_GAP_U = 7, 14
+
+
+def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> dict:
+    """The plinth's width for each shipped language whose links outrun the
+    stock width: the last link's text ends where the trailing cut crosses
+    the text's middle."""
+    texts = {key: merged_text(key) for key in keys}
+    widths = {}
+    for language in LANGUAGES:
+        end = lead + sum(U * LINK_MARKER_U + text_width("marine", texts[key].get(language) or texts[key]["english"], 16) + U * LINK_GAP_U
+                         for key in keys) - U * LINK_GAP_U
+        needed = round(end + trail_cut / 2, 1)
+        if needed > width + 1:
+            widths[language] = needed
+    return widths
+
+
+def plinth(doc: Document, links: list, keys: tuple = ()) -> dict:
     """The link plinth (bg2, Appendix B.1): 24-361 u by 403-422 u, a 45-degree
-    lower-leading cut and a parallel trailing cut, marine.plinth at 0.30."""
+    lower-leading cut and a parallel trailing cut, marine.plinth at 0.30.
+    Where a language's link labels (`keys`) outrun it, the plinth runs on to
+    hold them, its trailing cut moving with its end."""
     left, right, top, bottom = 24.0, 361.2, 403.3, 422.1
     width, height = U * (right - left), U * (bottom - top)
     lead_cut, trail_cut = U * 11.2, U * 19.2
-    shape = path("plinth", [(0, 0), (width - trail_cut, 0), (width, height), (lead_cut, height), (0, height - lead_cut)],
-                 fill=solid(rgb(PLINTH, 0.3)))
+    shape = path("plinth", [(0, 0), ({"fraction": 1, "dp": round(-trail_cut, 3)}, 0), ({"fraction": 1}, height), (lead_cut, height),
+                            (0, height - lead_cut)], fill=solid(rgb(PLINTH, 0.3)))
     row = group("plinth-links", {**absolute(left=U * (32 - left), top=U * -0.3, height=U * 17),
                                   "display": keyword("flex"), "flex-direction": keyword("row"),
                                   "align-items": keyword("flex-start")}, links)
+    widths = plinth_widths(keys, width, U * (32 - left), trail_cut) if keys else {}
+    if widths:
+        if "language" not in doc.state:
+            doc.state["language"] = {"type": "string", "initial": "", "cvar": "sys_lang"}
+        value = round(width, 3)
+        for language in sorted(widths, reverse=True):
+            value = {"op": "select", "args": [{"op": "==", "args": [{"state": "language"}, language]}, widths[language], value]}
+        doc.bind("plinth.width", "plinth", "width", value)
     return vector("plinth", {**absolute(left=U * left, top=U * top, width=width, height=height), "opacity": number(1)}, [shape], [row])
 
 
@@ -558,9 +614,33 @@ SOFT_FOCUS_BLUR = 5 * U   # modal.softfocus: a 5 u Gaussian (section 4)
 SOFT_FOCUS_SATURATION = 0.8
 
 
+CLOSE_W = 210.0  # a notice's lone action is wider than YES and NO, so every language's CLOSE fits
+
+
+def modal_silhouette(width: float, height: float):
+    """The stock popup art's silhouette in a `width` x `height` dp dialog:
+    popup_top, popup_mid and popup_btm stretch 512 texels across the rect, the
+    art starting at texel 7 and ending after 504 (6.5625 dp in from each side
+    at 480 dp); the raised sections start 4 of popup_top's 32 rows down
+    (3.5625 dp) and the bottom edge leaves 6 of popup_btm's 64 rows (5.34 dp).
+    The tooth's top ends at texel 14 and the slot opens to texel 388, about 73%
+    of the width; black at 0.70 with a 17 dp slot and a 38 dp chamfer."""
+    inset, raised, bottom = width * 7 / 512, 3.5625, height - 5.34375
+    slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
+    slot_depth, chamfer = 17.0, 38.0
+    right = width - inset
+    return path("frame", [(inset, raised), (slot_lead, raised), (slot_lead + slot_depth, raised + slot_depth),
+                          (slot_trail - slot_depth, raised + slot_depth), (slot_trail, raised), (right, raised),
+                          (right, bottom), (inset + chamfer, bottom), (inset, bottom - chamfer)],
+                fill=solid([0, 0, 0, 0.7]))
+
+
 def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_action: str | None,
                  frame_leave_ms: float = 250, dim: tuple = (), *, yes_event: str | None = None,
-                 no_event: str | None = None) -> dict:
+                 no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
+                 height_u: float = 136.0, top_u: float = 155.0, actions_u: float = 96.0, contents: list | None = None,
+                 yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None,
+                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0, close_w: float = CLOSE_W) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -586,7 +666,17 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     are the hidden values, so the first key's retarget never flashes the
     scrim. `dim` lists (node, property, lit, dimmed) that dim over 200 ms on
     enter and return from 50 ms over 150 ms on leave, as the Exit and Mods
-    modals dim the wordmark to 40% gray."""
+    modals dim the wordmark to 40% gray. With `close_key` the dialog is a
+    notice: one action with that label stands in YES's place and closes it,
+    as the stock overwrite popup's CLOSE does. With `wide_title` a title too
+    long for the lit slot in some language runs on over the raised trailing
+    section to the frame's edge, as the stock title ran past its rectangle.
+    A list or entry dialog grows to `height_u` (146-400 u) at `top_u`, with
+    its actions at `actions_u`, its own `contents` in place of the body and
+    its own action labels and first focus; a ledger grows to `width_dp`, and
+    actions whose labels run long widen to `action_w` with `action_text` dp
+    labels, or a notice's lone action to `close_w`."""
+    body_nodes = contents
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
     doc.state[contents] = {"type": "boolean", "initial": False}
@@ -597,22 +687,15 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     doc.events[shown] = [{"op": "setState", "values": {contents: True}}]
     doc.events[hide] = [{"op": "setState", "values": {contents: False}}, {"op": "playTimeline", "timeline": leave}]
     doc.events[hidden] = [{"op": "setState", "values": {visible: False}}]
-    width, height = 480.0, 204.0          # 320x136 u
+    width, height = width_dp, U * height_u  # 320x136 u, or grown
     left = (CANVAS_W - width) / 2
-    top = U * 155                           # 17 u above centre
-    # popup_top/mid/btm stretch 512 texels across the rect: the art starts at
-    # texel 7 and ends after 504 (6.5625 dp in from each side), its raised
-    # sections start 4 of popup_top's 32 rows down (3.5625 dp) and its bottom
-    # edge leaves 6 of popup_btm's 64 rows (5.34 dp). The tooth's top ends at
-    # texel 14 and the slot opens to texel 388, about 73% of the width.
-    inset, raised, bottom = width * 7 / 512, 3.5625, height - 5.34375
+    top = U * top_u                         # 155 u: 17 u above centre
+    # The silhouette (modal_silhouette) and the title's place in its slot.
+    inset = width * 7 / 512
     slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
-    slot_depth, chamfer = 17.0, 38.0
+    slot_depth = 17.0
     right = width - inset
-    silhouette = path("frame", [(inset, raised), (slot_lead, raised), (slot_lead + slot_depth, raised + slot_depth),
-                                (slot_trail - slot_depth, raised + slot_depth), (slot_trail, raised), (right, raised),
-                                (right, bottom), (inset + chamfer, bottom), (inset, bottom - chamfer)],
-                      fill=solid([0, 0, 0, 0.7]))
+    silhouette = modal_silhouette(width, height)
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
     glow_top, glow_bottom = -U * 87, height + U * 108
     glow = vector(f"{ident}-glow", {**absolute(left=0, top=glow_top, width=width, height=glow_bottom - glow_top), "opacity": number(0),
@@ -643,19 +726,37 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     # hang from the raised top line into the lit slot, as the stock title's
     # do, its baseline 13.5 dp down where the stock one sits.
     foot = slot_lead + slot_depth
+    title_end = right - 6 if wide_title else slot_trail - slot_depth
+    if title_key.startswith("#str_"):
+        # Marine 20 dp at -0.075 em: every shipped language's title must fit
+        # its box, which clips the outline while the fill runs on.
+        needed, language = max((text_width("marine", text, 20) - 1.5 * (len(text) - 1), language)
+                               for language, text in merged_text(title_key).items())
+        if needed > title_end - foot:
+            raise ValueError(f"{ident}: the {language} title {title_key} needs {needed:.1f} dp of {title_end - foot:.1f}"
+                             + ("" if wide_title else "; pass wide_title=True"))
     title = outlined_label(f"{ident}-title", title_key,
-                           absolute(left=round(foot, 4), top=-4, width=round(slot_trail - slot_depth - foot, 4), height=24),
+                           absolute(left=round(foot, 4), top=-4, width=round(title_end - foot, 4), height=24),
                            {**typeface("marine", 20, 24, [1, 1, 1, 0.9]), "letter-spacing": length(-0.075, "em"),
                             "white-space": keyword("nowrap")}, [1, 1, 1, 0.9], [0, 0, 0, 0.85])
     # The stock body box starts 45 u down (first baseline 87.5 dp) and runs
     # to the actions at 96 u.
-    body = label(f"{ident}-body", body_key, {**absolute(left=33, top=71, width=width - 66, height=73),
-        **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})
+    body = [label(f"{ident}-body", body_key, {**absolute(left=33, top=71, width=width - 66, height=73),
+        **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})] if body_nodes is None else body_nodes
     # The modal's own programs may answer for it: `yes_event` in place of the
     # session action, `no_event` for No and back; each must hide the modal.
-    yes = action_plate(doc, f"{ident}_yes", "#str_200157", 30, U * 96, action=None if yes_event else yes_action, event=yes_event)
-    no = action_plate(doc, f"{ident}_no", "#str_200158", width - 33 - 180, U * 96, event=no_event or hide)
-    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, body, yes, no])
+    if close_key:
+        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=close_w)]
+        initial = initial or f"{ident}_close"
+    else:
+        yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event,
+                           width=action_w)
+        no = action_plate(doc, f"{ident}_no", no_key, width - 33 - action_w, U * actions_u, event=no_event or hide, width=action_w)
+        actions, initial = [yes, no], initial or f"{ident}_no"
+        if action_text != 20:
+            for plate in actions:
+                next(child for child in plate["children"] if child["id"].endswith("-label"))["properties"]["font-size"] = length(action_text)
+    shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, *body, *actions])
     dialog = group(f"{ident}-dialog", absolute(left=left, top=top, width=width, height=height),
                    [glow, soft_glow, frame, shown_contents])
     stage = group(f"{ident}-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
@@ -666,7 +767,7 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                                             "backdrop-saturate": number(1)})
     scrim = group(f"{ident}-scrim", {**FULL, "display": keyword("block"), "background-color": colour([0, 0, 0, 0])})
     node = group(ident, {**FULL, "display": keyword("none")}, [softened, scrim, stage],
-                 modal={"initialFocus": f"{ident}_no", "back": no_event or hide})
+                 modal={"initialFocus": initial, "back": no_event or hide})
     doc.bind(f"{ident}.display", ident, "display", {"op": "select", "args": [{"state": visible}, "block", "none"]})
     doc.bind(f"{ident}.contents", f"{ident}-contents", "display", {"op": "select", "args": [{"state": contents}, "block", "none"]})
     for part, soft in ((f"{ident}-softfocus", True), (f"{ident}-scrim", False), (f"{ident}-glow", False), (f"{ident}-glow-soft", True)):
@@ -695,34 +796,482 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     return node
 
 
+# MODS (section 6, the list dialog): the modal grown from 136 u to 280 u, its
+# centre 17 u above the view's as the modal's is.
+MOD_ROWS = 32                             # RETAINED_MOD_ROWS in the session
+MODS_TOP, MODS_HEIGHT = 83.0, 280.0       # u
+MODS_LIST = (22.0, 25.0, 274.0, 147.0)    # u, in the dialog: the stock pop_mods_list
+MODS_HEAD_TOP, MODS_ROW_H, MODS_VERSION_X = 12.0, 20.0, 200.0
+MODS_DETAIL_TOP, MODS_DETAIL_PITCH, MODS_VALUE_X = 178.0, 15.0, 98.0
+MODS_DETAILS = (("author", "#str_41112"), ("date", "#str_41113"), ("engine", "#str_41114"), ("directory", "#str_41115"))
+
+
+def mods_modal(doc: Document) -> dict:
+    """MODS (section 6): the stock modal construction grown into a list dialog,
+    its title MODIFICATIONS. Its body holds the installed mods under NAME and
+    VERSION headings and an olive rule, on 20 u rows with the list's light and
+    a scrollbar, then the selected mod's author, release date, required engine
+    and directory, and LOAD MOD and CANCEL stand where YES and NO do. The
+    session publishes the mods before the dialog shows (mods.*), the current
+    game's selected. A row's first Accept selects its mod; Accept on the
+    selected mod, or LOAD MOD, loads it. The wordmark dims to 40% gray, as for
+    EXIT."""
+    from retained_saves import row_plates, row_states
+    doc.state.update({"mods.count": {"type": "number", "initial": 0}, "mods.selected": {"type": "number", "initial": -1},
+                      "mods.pick": {"type": "number", "initial": -1}})
+    for detail, _ in MODS_DETAILS:
+        doc.state[f"mods.{detail}"] = {"type": "string", "initial": ""}
+    doc.session("modsSelect", "modsSelect")
+    doc.session("modsLoad", "modsLoad")
+    # LOAD MOD and CANCEL plates take every language's longest label and
+    # 50 dp, at least the stock 180 dp, and the dialog both plates beside
+    # each other with its 30 and 33 dp margins and a 12 dp gap; the list grows
+    # with the dialog.
+    longest = max(text_width("marine", text, 20) for key in ("#str_200167", "#str_200168") for text in merged_text(key).values())
+    action_w = round(max(180.0, longest + 50), 1)
+    dialog_w = round(max(480.0, 2 * action_w + 30 + 33 + 12), 1)
+    left, top, list_w, list_h = MODS_LIST
+    list_w = round(list_w + (dialog_w - 480.0) / U, 1)
+    heading = {**typeface("lowpixel", 13, U * 12, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+    parts = [
+        label("mods-head-name", "#str_41110", {**absolute(left=U * left, top=U * MODS_HEAD_TOP, width=U * (MODS_VERSION_X - 4), height=U * 12), **heading}),
+        label("mods-head-version", "#str_41111", {**absolute(left=U * (left + MODS_VERSION_X), top=U * MODS_HEAD_TOP,
+              width=U * (list_w - MODS_VERSION_X), height=U * 12), **heading}),
+        vector("mods-rule", absolute(left=U * left, top=U * top - 0.6, width=U * list_w, height=1.2), [
+            path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.26)), 1.2))]),
+    ]
+    rows = []
+    width, height = U * (list_w - 16), U * MODS_ROW_H
+    cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
+    tints = ([1, 1, 1, 0.9], [1, 1, 1, 0.65])
+    for index in range(MOD_ROWS):
+        ident, key = f"mods-row-{index}", f"mods.row{index}"
+        cells = []
+        for column, left_u, column_w, tint in (("name", 4, MODS_VERSION_X - 8, tints[0]), ("version", MODS_VERSION_X, list_w - 16 - MODS_VERSION_X - 4, tints[1])):
+            doc.state[f"{key}.{column}"] = {"type": "string", "initial": ""}
+            node = f"{ident}-{column}"
+            cells.append(label(node, "#str_230030", {**absolute(left=U * left_u, top=0, width=U * column_w, height=height),
+                                                     **typeface("lowpixel", 15.8, height, tint), **cell}))
+            doc.bind(f"{node}.text", node, "text", {"state": f"{key}.{column}"})
+        doc.bind(f"{ident}.display", ident, "display",
+                 {"op": "select", "args": [{"op": "<", "args": [index, {"state": "mods.count"}]}, "block", "none"]})
+        doc.bind(f"{ident}-selected.display", f"{ident}-selected", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": "mods.selected"}, index]}, "block", "none"]})
+        event = f"modsRow{index}"
+        doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": "mods.selected"}, index]},
+                              "then": [{"op": "call", "event": "modsLoadConfirmed"}],
+                              "else": [{"op": "setState", "values": {"mods.pick": index}}, {"op": "action", "action": "modsSelect"}]}]
+        ids = row_states(doc, ident, (f"{ident}-name", f"{ident}-version"), tints)
+        rows.append(group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
+                                  "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
+                          control={"role": "button", "label": "#str_230030", "event": event, "states": ids}))
+    column_node = group("mods-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")}, rows)
+    parts.append(group("mods-list", {**absolute(left=U * left, top=U * top, width=width, height=U * list_h), "overflow": keyword("auto")},
+                       [column_node]))
+    parts.append(objectives_scrollbar(doc, "mods_scroll", "mods-list", OLIVE, ORANGE, U * (left + list_w) - 24, U * top, U * list_h,
+                                      line_step=U * MODS_ROW_H, key="#str_200166"))
+    # The values start where every language's longest detail label ends.
+    value_x = max(MODS_VALUE_X, math.ceil(max(text_width("lowpixel", text, 13) for _, key in MODS_DETAILS
+                                              for text in merged_text(key).values()) / U) + 4)
+    for index, (detail, key) in enumerate(MODS_DETAILS):
+        y = U * (MODS_DETAIL_TOP + MODS_DETAIL_PITCH * index)
+        parts.append(label(f"mods-{detail}-label", key, {**absolute(left=U * left, top=y, width=U * (value_x - 4), height=U * 14),
+                           **typeface("lowpixel", 13, U * 14, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
+        value = f"mods-{detail}"
+        parts.append(label(value, "#str_230030", {**absolute(left=U * (left + value_x), top=y, width=U * (list_w - value_x), height=U * 14),
+                           **typeface("lowpixel", 15, U * 14, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
+        doc.bind(f"{value}.text", value, "text", {"state": f"mods.{detail}"})
+    modal = confirmation(doc, "modsModal", "#str_200166", "#str_230030", None, yes_event="modsLoadConfirmed",
+                         dim=(("wordmark", "image-color", colour([1, 1, 1, 1]), colour([0.4, 0.4, 0.4, 1])),), height_u=MODS_HEIGHT, top_u=MODS_TOP,
+                         actions_u=MODS_HEIGHT - 40, contents=parts, yes_key="#str_200167", no_key="#str_200168",
+                         width_dp=dialog_w, action_w=action_w)
+    # The dialog opens on CANCEL, as the stock modals open on NO, and moves to
+    # the selected mod once its contents show.
+    doc.events["modsModalShown"] = doc.events["modsModalShown"] + [
+        {"op": "if", "condition": {"op": "==", "args": [{"state": "mods.selected"}, index]},
+         "then": [{"op": "focus", "control": f"mods-row-{index}"}]} for index in range(MOD_ROWS)]
+    doc.events["modsLoadConfirmed"] = [{"op": "if", "condition": {"op": ">=", "args": [{"state": "mods.selected"}, 0]},
+                                        "then": [{"op": "call", "event": "modsModalHide"}, {"op": "action", "action": "modsLoad"}]}]
+    doc.bind("modsModal_yes.enabled", "modsModal_yes", "enabled", {"op": ">=", "args": [{"state": "mods.selected"}, 0]})
+    return modal
+
+
+# ------------------------------------------------------------- device glyphs
+
+# Prompts follow the active device (section 13.5). The adapter owns the state
+# prompt.glyphs: 0 shows the keyboard's keycaps, 1-5 a controller family's
+# face buttons in this order (RetainedUI_PromptGlyphs).
+PROMPT_GLYPHS = "prompt.glyphs"
+# Whether menus confirm on the east face button (Swap Confirm and Back): the
+# Accept and Back prompts then show each other's position.
+PROMPT_SWAPPED = "prompt.swapped"
+SWAPPED_FACE = {"south": "east", "east": "south"}
+GLYPH_FAMILIES = ("xbox", "playstation", "nintendo", "steamdeck", "generic")
+# The label each family prints at each face position, as SDL reports it.
+FACE_LETTERS = {
+    "xbox": {"south": "A", "east": "B", "west": "X", "north": "Y"},
+    "nintendo": {"south": "B", "east": "A", "west": "Y", "north": "X"},
+    "steamdeck": {"south": "A", "east": "B", "west": "X", "north": "Y"},
+}
+PS_SYMBOLS = {"south": "cross", "east": "circle", "west": "square", "north": "triangle"}
+# The label each family prints on its shoulder buttons (the bumpers).
+SHOULDER_LABELS = {
+    "xbox": {"left": "LB", "right": "RB"},
+    "playstation": {"left": "L1", "right": "R1"},
+    "nintendo": {"left": "L", "right": "R"},
+    "steamdeck": {"left": "L1", "right": "R1"},
+}
+# A prompt's key and the button that does the same in menus: Enter is
+# Accept (south), Escape is Back (east), and the cards' Q and E are the
+# previous and next tab (the shoulders).
+FACE_FOR_KEY = {"#str_107019": "south", "#str_107020": "east", "#str_231009": "left", "#str_231010": "right"}
+GLYPH_INK = [0.04, 0.05, 0.035, 1]   # the keycap's key-name color
+
+
+def circle_path(ident: str, cx: float, cy: float, r: float, *, fill=None, line=None) -> dict:
+    """A circle as four cubic quarter arcs, in the node's own dp."""
+    k = 0.5523 * r
+
+    def at(dx, dy):
+        return point(cx + dx, cy + dy)
+    result = {"id": ident, "commands": [
+        {"id": "m", "op": "move", "points": [at(r, 0)]},
+        {"id": "a", "op": "cubic", "points": [at(r, k), at(k, r), at(0, r)]},
+        {"id": "b", "op": "cubic", "points": [at(-k, r), at(-r, k), at(-r, 0)]},
+        {"id": "c", "op": "cubic", "points": [at(-r, -k), at(-k, -r), at(0, -r)]},
+        {"id": "d", "op": "cubic", "points": [at(k, -r), at(r, -k), at(r, 0)]},
+        {"id": "z", "op": "close"}]}
+    if fill is not None:
+        result["fill"] = fill
+    if line is not None:
+        result["stroke"] = line
+    return result
+
+
+def face_mark(prefix: str, mark: str, scale: float, ink: list) -> list:
+    """A face button's letter or symbol drawn as strokes in a 22 dp box:
+    letters 9 dp tall, the PlayStation symbols 7.4-9 dp across."""
+    width = stroke(solid(ink), 1.9 * scale, minimum=1)
+
+    def line(name: str, points: list, closed: bool = False) -> dict:
+        return path(f"{prefix}-{name}", [(x * scale, y * scale) for x, y in points], closed=closed, stroke=width)
+
+    def curve(name: str, commands: list) -> dict:
+        built = []
+        for index, (op, points) in enumerate(commands):
+            built.append({"id": f"c{index}", "op": op, "points": [point(x * scale, y * scale) for x, y in points]})
+        return {"id": f"{prefix}-{name}", "commands": built, "stroke": width}
+    if mark == "A":
+        return [line("a1", [(7.4, 15.5), (11, 6.5), (14.6, 15.5)]), line("a2", [(8.8, 12.3), (13.2, 12.3)])]
+    if mark == "B":
+        return [curve("b1", [("move", [(8.2, 15.5)]), ("line", [(8.2, 6.5)]), ("line", [(11.3, 6.5)]),
+                             ("cubic", [(13.7, 6.5), (13.7, 10.9), (11.3, 10.9)]), ("line", [(8.2, 10.9)])]),
+                curve("b2", [("move", [(8.2, 10.9)]), ("line", [(11.8, 10.9)]),
+                             ("cubic", [(14.5, 10.9), (14.5, 15.5), (11.8, 15.5)]), ("line", [(8.2, 15.5)])])]
+    if mark == "X":
+        return [line("x1", [(7.6, 6.6), (14.4, 15.4)]), line("x2", [(14.4, 6.6), (7.6, 15.4)])]
+    if mark == "Y":
+        return [line("y1", [(7.6, 6.6), (11, 11.2), (14.4, 6.6)]), line("y2", [(11, 11.2), (11, 15.4)])]
+    if mark == "cross":
+        return [line("x1", [(7.3, 7.3), (14.7, 14.7)]), line("x2", [(14.7, 7.3), (7.3, 14.7)])]
+    if mark == "circle":
+        return [circle_path(f"{prefix}-o", 11 * scale, 11 * scale, 4.5 * scale, line=width)]
+    if mark == "square":
+        return [line("s", [(7.3, 7.3), (14.7, 7.3), (14.7, 14.7), (7.3, 14.7)], closed=True)]
+    if mark == "triangle":
+        return [line("t", [(11, 6.3), (15.5, 14.5), (6.5, 14.5)], closed=True)]
+    raise ValueError(mark)
+
+
+def face_glyph(ident: str, family: str, position: str, tint: list, size: float = 22) -> dict:
+    """One controller family's face button at `position` (section 13.5),
+    vector symbols in the family text color whose shape and letter carry the
+    identity: Xbox and Nintendo print letters on a disc (their east and south
+    letters swapped), PlayStation its four symbols, Steam Deck letters in a
+    ring, and a generic controller the four positions as a diamond with this
+    one filled."""
+    scale = size / 22
+    if family == "generic":
+        paths = []
+        for spot, (cx, cy) in (("north", (11, 4.3)), ("west", (4.3, 11)), ("east", (17.7, 11)), ("south", (11, 17.7))):
+            if spot == position:
+                paths.append(circle_path(f"dot-{spot}", cx * scale, cy * scale, 3.6 * scale, fill=solid(tint)))
+            else:
+                paths.append(circle_path(f"dot-{spot}", cx * scale, cy * scale, 2.7 * scale,
+                                         line=stroke(solid(tint), 1.3 * scale, minimum=1)))
+    elif family == "steamdeck":
+        paths = [circle_path("ring", 11 * scale, 11 * scale, 9.9 * scale, line=stroke(solid(tint), 1.5 * scale, minimum=1))]
+        paths += face_mark("mark", FACE_LETTERS[family][position], scale, tint)
+    else:
+        mark = PS_SYMBOLS[position] if family == "playstation" else FACE_LETTERS[family][position]
+        paths = [circle_path("disc", 11 * scale, 11 * scale, 10.6 * scale, fill=solid(tint))]
+        paths += face_mark("mark", mark, scale, GLYPH_INK)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(size),
+                          "height": length(size)}, paths)
+
+
+def small_letters(prefix: str, text: str, left: float, top: float, height: float, ink: list, width: float) -> list:
+    """Shoulder labels (L, R, B and 1) drawn as strokes, `height` dp tall from
+    (`left`, `top`), each glyph 0.55 of its height wide and 0.25 apart."""
+    line = stroke(solid(ink), width, minimum=1)
+    glyph_w, gap = height * 0.55, height * 0.25
+    paths = []
+    x = left
+    for index, char in enumerate(text):
+        name = f"{prefix}-{index}"
+        bottom, middle, right = top + height, top + height * 0.5, x + glyph_w
+        if char == "L":
+            paths.append(path(name, [(x, top), (x, bottom), (right, bottom)], closed=False, stroke=line))
+        elif char == "1":
+            paths.append(path(name, [(x + glyph_w * 0.2, top + height * 0.22), (x + glyph_w * 0.6, top),
+                                     (x + glyph_w * 0.6, bottom)], closed=False, stroke=line))
+        elif char in "BR":
+            bowl = right - glyph_w * 0.15
+            commands = [{"id": "m", "op": "move", "points": [point(x, bottom)]},
+                        {"id": "s", "op": "line", "points": [point(x, top)]},
+                        {"id": "t", "op": "line", "points": [point(x + glyph_w * 0.5, top)]},
+                        {"id": "u", "op": "cubic", "points": [point(bowl, top), point(bowl, middle), point(x + glyph_w * 0.5, middle)]},
+                        {"id": "v", "op": "line", "points": [point(x, middle)]}]
+            if char == "B":
+                commands += [{"id": "w", "op": "move", "points": [point(x + glyph_w * 0.5, middle)]},
+                             {"id": "x", "op": "cubic", "points": [point(right, middle), point(right, bottom),
+                                                                   point(x + glyph_w * 0.5, bottom)]},
+                             {"id": "y", "op": "line", "points": [point(x, bottom)]}]
+            else:
+                commands += [{"id": "w", "op": "move", "points": [point(x + glyph_w * 0.45, middle)]},
+                             {"id": "x", "op": "line", "points": [point(right, bottom)]}]
+            paths.append({"id": name, "commands": commands, "stroke": line})
+        else:
+            raise ValueError(char)
+        x = right + gap
+    return paths
+
+
+def shoulder_glyph(ident: str, family: str, side: str, tint: list, width: float = 22, height: float = 22) -> dict:
+    """One controller family's shoulder button (`side` "left" or "right"),
+    the bumper drawn as a 13 dp plate rounded on its top corners: Xbox,
+    PlayStation and Nintendo print their label on the plate, Steam Deck in
+    an outlined plate, and a generic controller shows an outlined plate with
+    a chevron pointing to its side."""
+    top, bottom, inset, radius = (height - 13) / 2, (height + 13) / 2, 1.0, 4.0
+    k = 0.5523 * radius
+    right = width - inset
+    plate = [{"id": "m", "op": "move", "points": [point(inset, bottom)]},
+             {"id": "a", "op": "line", "points": [point(inset, top + radius)]},
+             {"id": "b", "op": "cubic", "points": [point(inset, top + radius - k), point(inset + radius - k, top), point(inset + radius, top)]},
+             {"id": "c", "op": "line", "points": [point(right - radius, top)]},
+             {"id": "d", "op": "cubic", "points": [point(right - radius + k, top), point(right, top + radius - k), point(right, top + radius)]},
+             {"id": "e", "op": "line", "points": [point(right, bottom)]},
+             {"id": "z", "op": "close"}]
+    letters_h = 6.6
+    if family == "generic":
+        paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+        mid, tip, back = (top + bottom) / 2, (width / 2 - 2.6 if side == "left" else width / 2 + 2.6), \
+            (width / 2 + 1.4 if side == "left" else width / 2 - 1.4)
+        paths.append(path("chevron", [(back, mid - 3.2), (tip, mid), (back, mid + 3.2)], closed=False,
+                          stroke=stroke(solid(tint), 1.5, minimum=1)))
+    else:
+        text = SHOULDER_LABELS[family][side]
+        text_w = len(text) * letters_h * 0.55 + (len(text) - 1) * letters_h * 0.25
+        left = (width - text_w) / 2
+        letters_top = (top + bottom - letters_h) / 2
+        if family == "steamdeck":
+            paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, tint, 1.4)
+        else:
+            paths = [{"id": "plate", "commands": plate, "fill": solid(tint)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, GLYPH_INK, 1.4)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width),
+                          "height": length(height)}, paths)
+
+
+def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22,
+                  width: float | None = None) -> list:
+    """Each controller family's button at `position` (a face position, or
+    the "left" or "right" shoulder), each shown only while prompt.glyphs
+    names its family. A shoulder is `width` dp wide (default `size`). An
+    Accept or Back prompt (south or east) also carries each family's button
+    at the other of the two, shown while prompt.swapped says confirm has
+    moved east (`<ident>-<family>-swapped`)."""
+    doc.state.setdefault(PROMPT_GLYPHS, {"type": "number", "initial": 0})
+    swaps = position in SWAPPED_FACE
+    if swaps:
+        doc.state.setdefault(PROMPT_SWAPPED, {"type": "boolean", "initial": False})
+    nodes = []
+    for index, family in enumerate(GLYPH_FAMILIES, 1):
+        same = {"op": "==", "args": [{"state": PROMPT_GLYPHS}, index]}
+        variants = [(f"{ident}-{family}", position, same)]
+        if swaps:
+            variants = [(f"{ident}-{family}", position, {"op": "&&", "args": [same, {"op": "!", "args": [{"state": PROMPT_SWAPPED}]}]}),
+                        (f"{ident}-{family}-swapped", SWAPPED_FACE[position], {"op": "&&", "args": [same, {"state": PROMPT_SWAPPED}]})]
+        for node_id, spot, condition in variants:
+            if spot in ("left", "right"):
+                node = shoulder_glyph(node_id, family, spot, tint, width or size, size)
+            else:
+                node = face_glyph(node_id, family, spot, tint, size)
+            doc.bind(f"{node_id}.display", node_id, "display", {"op": "select", "args": [condition, "block", "none"]})
+            nodes.append(node)
+    return nodes
+
+
+def prompt_glyph(doc: Document, ident: str, key_name: str, tint: list[float], extra: dict | None = None) -> dict:
+    """A prompt's glyph for the active device (section 13.5), 6 dp before its
+    verb: the keyboard's keycap, `key_name` in Lowpixel on a 22 dp plate with
+    a 45-degree cut, or the controller family's button that does the same.
+    `extra` adds properties to the glyph's group."""
+    cap = vector(f"{ident}-cap", {"position": keyword("relative"), "display": keyword("block"),
+                                  "height": length(22), "padding-left": length(8), "padding-right": length(8)}, [
+        path("cap", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (6, {"fraction": 1}), (0, {"fraction": 1, "dp": -6})],
+             fill=solid(tint))],
+        [label(f"{ident}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
+                **typeface("lowpixel", 13, 22, [0.04, 0.05, 0.035, 1]), "white-space": keyword("nowrap")})])
+    doc.bind(f"{ident}-cap.display", f"{ident}-cap", "display",
+             {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}, "block", "none"]})
+    return group(f"{ident}-glyph", {"position": keyword("relative"), "display": keyword("flex"),
+                                    "flex-direction": keyword("row"), "align-items": keyword("center"),
+                                    "height": length(22), "margin-right": length(6), **(extra or {})},
+                 [cap] + device_glyphs(doc, ident, FACE_FOR_KEY[key_name], tint))
+
+
 def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None,
                verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8])) -> dict:
     """The prompt bar in the bottom band's raised trailing section (section
-    13.4): a keycap plate with a 45-degree cut per prompt, then its verb."""
+    13.4): per prompt the active device's glyph, the keyboard's keycap plate
+    with a 45-degree cut or the controller family's face button that does
+    the same (section 13.5), then its verb. The prompts are legends, which
+    never take the pointer from what lies under them."""
     items = []
+    tint = cap_tint or [1, 1, 1, 0.85]
     for key_name, verb in prompts:
-        cap = vector(f"prompt-{verb[5:]}-cap", {"position": keyword("relative"), "display": keyword("block"),
-                                                "height": length(22), "margin-right": length(6), "padding-left": length(8),
-                                                "padding-right": length(8)}, [
-            path("cap", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (6, {"fraction": 1}), (0, {"fraction": 1, "dp": -6})],
-                 fill=solid(cap_tint or [1, 1, 1, 0.85]))],
-            [label(f"prompt-{verb[5:]}-key", key_name, {"position": keyword("relative"), "display": keyword("block"),
-                    **typeface("lowpixel", 13, 22, [0.04, 0.05, 0.035, 1]), "white-space": keyword("nowrap")})])
-        face, size, tint = verb_face
-        verb_node = label(f"prompt-{verb[5:]}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
-            "margin-right": length(22), **typeface(face, size, 22, tint), "white-space": keyword("nowrap")})
-        items += [cap, verb_node]
-    return group("prompts", {**absolute(top=U * 447, height=22, right=U * 12), "opacity": number(1),
+        name = verb[5:]
+        glyph = prompt_glyph(doc, f"prompt-{name}", key_name, tint)
+        face, size, verb_tint = verb_face
+        verb_node = label(f"prompt-{name}-verb", verb, {"position": keyword("relative"), "display": keyword("block"),
+            "margin-right": length(22), **typeface(face, size, 22, verb_tint), "white-space": keyword("nowrap")})
+        items += [glyph, verb_node]
+    return group("prompts", {**absolute(top=U * 447, height=22, right=U * 12), "opacity": number(1), "pointer-events": keyword("none"),
                              "display": keyword("flex"), "flex-direction": keyword("row"), "align-items": keyword("center")}, items)
+
+
+# A page's prompt bar (section 13.4) in the docked bottom band's raised
+# trailing section, which spans 375.1-717.9 u of the canvas at every aspect:
+# Back's 45 dp target where the stock BACK plate's stood, from 532,441 u, its
+# glyph 8 dp in and its verb after it, and SELECT leading it 22 dp before.
+# The bar's box runs from past the section's riser to the 4:3 view's
+# trailing edge, under no control of the page's own.
+PROMPT_SELECT, PROMPT_BACK = "#str_231042", "#str_230045"
+KEY_ENTER, KEY_ESCAPE = "#str_107019", "#str_107020"
+PROMPT_TARGET = 45.0             # the stock plate's target height
+PROMPT_PAD = 8.0                 # Back's target either side of its glyph and verb
+PAGE_BACK_X = U * 532 + PROMPT_PAD   # canvas dp: Back's glyph
+PAGE_BAR_TOP = U * 441           # the stock BACK plate's top
+PAGE_BAR_LEFT = U * 380          # 5 u past the riser
+PAGE_BAR_W = CANVAS_W - PAGE_BAR_LEFT
+
+
+def engine_text(key: str) -> dict:
+    """`key` in every shipped language as the engine resolves it: the last of
+    the language's tables to define it (openQ4's own sort last), else
+    English."""
+    texts = {}
+    for language in ("english",) + LANGUAGES:
+        for table in sorted(STRINGS.glob(f"{language}_*.lang")):
+            for line in table.read_text(encoding="utf-8").splitlines():
+                match = re.match(r'\s*"(#str_\d+)"\s+"(.*)"\s*$', line)
+                if match and match.group(1) == key:
+                    texts[language] = match.group(2)
+    return {language: texts.get(language, texts["english"]) for language in LANGUAGES}
+
+
+def check_page_prompts(select: bool, face: str, size: float) -> None:
+    """Every shipped language's prompts fit a page's bar with the wider of
+    each keycap and a controller button: Back's verb ends 8 dp inside the 4:3
+    view's trailing edge, and SELECT starts inside the bar. Generation fails
+    otherwise."""
+    texts = {key: engine_text(key) for key in (KEY_ENTER, KEY_ESCAPE, PROMPT_SELECT, PROMPT_BACK)}
+
+    def glyph(key: str, language: str) -> float:
+        return max(22.0, 16 + text_width("lowpixel", texts[key][language], 13))
+    for language in LANGUAGES:
+        end = PAGE_BACK_X + glyph(KEY_ESCAPE, language) + 6 + text_width(face, texts[PROMPT_BACK][language], size)
+        if end > CANVAS_W - 8:
+            raise SystemExit(f"the prompt bar's Back in {language} ends at {end:.0f} dp, past {CANVAS_W - 8:g}")
+        start = PAGE_BACK_X - 22 - glyph(KEY_ENTER, language) - 6 - text_width(face, texts[PROMPT_SELECT][language], size)
+        if select and start < PAGE_BAR_LEFT:
+            raise SystemExit(f"the prompt bar's SELECT in {language} starts at {start:.0f} dp, before {PAGE_BAR_LEFT:g}")
+
+
+def page_prompts(doc: Document, back: str | None = None, *, action: str | None = None, event: str | None = None,
+                 select: bool = True, in_canvas: bool = True, ident: str = "prompts", cap_tint: list[float] | None = None,
+                 verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8]), hot: str = ORANGE) -> dict:
+    """A page's prompt bar (section 13.4): SELECT, the focused control's
+    Accept, then BACK at the trailing end, in the glyphs of the active
+    device. With `action` or `event` Back is the button `back`, standing in
+    for the stock BACK plate in its 45 dp target: the pointer or focus turns
+    its verb `hot` and lights its glyph, focus underlines it and a press
+    insets it 1 dp. Otherwise both are legends. Legends never take the
+    pointer. `select` False leaves SELECT out where Accept has nothing to do.
+    The bar sits in a 4:3 canvas group, or with `in_canvas` False in a node
+    spanning the view."""
+    face, size, verb_tint = verb_face
+    check_page_prompts(select, face, size)
+    tint = cap_tint or [1, 1, 1, 0.85]
+    middle = (PROMPT_TARGET - 22) / 2
+    back_x = PAGE_BACK_X - PAGE_BAR_LEFT
+
+    def verb_label(node: str, key: str, more: dict | None = None) -> dict:
+        return label(node, key, {"position": keyword("relative"), "display": keyword("block"), **typeface(face, size, 22, verb_tint),
+                                 "white-space": keyword("nowrap"), **(more or {})})
+    lead = []
+    if select:
+        name = f"prompt-{PROMPT_SELECT[5:]}"
+        lead = [prompt_glyph(doc, name, KEY_ENTER, tint), verb_label(f"{name}-verb", PROMPT_SELECT)]
+    leading = group(f"{ident}-lead", {**absolute(top=middle, height=22, right=PAGE_BAR_W - back_x + 22), "display": keyword("flex"),
+                                      "flex-direction": keyword("row"), "align-items": keyword("center"),
+                                      "pointer-events": keyword("none")}, lead)
+    legends = action is None and event is None
+    if legends:
+        name = f"prompt-{PROMPT_BACK[5:]}"
+        back_node = group(f"{ident}-back", {**absolute(left=back_x, top=middle, height=22), "display": keyword("flex"),
+                                            "flex-direction": keyword("row"), "align-items": keyword("center")},
+                          [prompt_glyph(doc, name, KEY_ESCAPE, tint), verb_label(f"{name}-verb", PROMPT_BACK)])
+    else:
+        # The glyph is painted opaque and rests at the legends' 0.85.
+        glyph = prompt_glyph(doc, back, KEY_ESCAPE, tint[:3] + [1], {"opacity": number(0.85), "transform": transform()})
+        focus = vector(f"{back}-focus", {**absolute(left=PROMPT_PAD, top=middle + 22 + 2, height=2), "right": length(PROMPT_PAD),
+                                         "opacity": number(0), "pointer-events": keyword("none")}, [
+            path("inset", [(0, 1), ({"fraction": 1}, 1)], closed=False, stroke=stroke(solid(rgb(hot)), 1.2))])
+        lit, pressed, rest = colour(rgb(hot)), transform(tx=1, ty=1), transform()
+
+        def feedback(glyph_alpha: float, tint_value: dict, moved: dict, underline: float) -> list:
+            return [(f"{back}-glyph", "opacity", number(glyph_alpha)), (f"{back}-glyph", "transform", moved),
+                    (f"{back}-label", "color", tint_value), (f"{back}-label", "transform", moved), (f"{back}-focus", "opacity", number(underline))]
+        ids = doc.states(back, {"default": feedback(0.85, colour(verb_tint), rest, 0), "hover": feedback(1, lit, rest, 0),
+                                "focus": feedback(1, lit, rest, 1), "pressed": feedback(1, lit, pressed, 1),
+                                "disabled": feedback(0.4, colour(verb_tint[:3] + [0.4]), rest, 0)})
+        control = {"role": "button", "label": PROMPT_BACK, "states": ids}
+        control.update({"action": action} if action else {"event": event})
+        back_node = group(back, {**absolute(left=back_x - PROMPT_PAD, top=0, height=PROMPT_TARGET), "display": keyword("flex"),
+                                 "flex-direction": keyword("row"), "align-items": keyword("center"), "padding-left": length(PROMPT_PAD),
+                                 "padding-right": length(PROMPT_PAD)},
+                          [glyph, verb_label(f"{back}-label", PROMPT_BACK, {"transform": transform()}), focus], control=control)
+    box = absolute(left=PAGE_BAR_LEFT, top=PAGE_BAR_TOP, width=PAGE_BAR_W, height=PROMPT_TARGET)
+    if not in_canvas:
+        box.update({"left": length(50, "%"), "margin-left": length(-CANVAS_W / 2 + PAGE_BAR_LEFT)})
+    if legends:
+        box["pointer-events"] = keyword("none")
+    return group(ident, {**box, "opacity": number(1)}, [leading, back_node])
 
 
 # --------------------------------------------------------------- choreography
 
 def band_motion(doc: Document, prefix: str, content: str, extra_home: list, quick: tuple = ()) -> None:
     """Section 8 stock choreography, sampled every presented frame:
-    open        menu.fade from black over 250 ms, bands already home;
-    depart      content out over 250 ms, the `quick` nodes (secondary links
-                and the plinth) over 50 ms; from 50 ms frame.dock and
+    open        menu.fade from black over 250 ms, bands already home, the
+                quick nodes shown at once;
+    depart      content out over 250 ms, the `quick` nodes (the plinth and
+                the prompt bar, which a page's own BACK replaces) over 50 ms;
+                from 50 ms frame.dock and
                 screen.depart, both accel(250, 250) over 500 ms;
     departPopup content out over 150 ms, bands stay home;
     returnHome  bands from their page dock home over 500 ms accel(250, 250);
@@ -737,7 +1286,7 @@ def band_motion(doc: Document, prefix: str, content: str, extra_home: list, quic
         track(top, "transform", [(0, home), (250, home)]),
         track(bottom, "transform", [(0, home), (250, home)]),
     ] + [track(node, prop, [(0, lit), (250, lit)]) for node, prop, lit, dark in lights]
-      + [track(node, "opacity", [(0, number(1)), (250, number(1))]) for node in quick])
+      + [track(node, "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]) for node in quick])
     doc.timelines.add("depart", 550, [
         track(content, "opacity", [(0, number(1)), (250, number(0)), (550, number(0))]),
         track(content, "transform", [(0, transform()), (50, transform(), ACCEL), (550, transform(640 * U, 0))]),
@@ -836,10 +1385,12 @@ def title_carry(doc: Document, items: list, continue_rows: bool = False, face: s
 
 def hide_carry_at_home(doc: Document) -> None:
     """Opening the menu, or coming back from a page, starts without a carried
-    title; the page's own title has taken over by then."""
+    title: a page's title leaves at once on Back (anim_loadOut drops it in
+    0 ms). A play retargets its first key to the current value, so the label
+    is hidden by 1 ms rather than faded out."""
     for timeline in doc.timelines.items:
         if timeline["id"] in ("open", "returnHome"):
-            timeline["tracks"].append(track("title-carry", "opacity", [(0, number(0)), (timeline["durationMs"], number(0))]))
+            timeline["tracks"].append(track("title-carry", "opacity", [(0, number(0)), (1, number(0)), (timeline["durationMs"], number(0))]))
 
 
 # ------------------------------------------------------------------ the emblem
@@ -978,6 +1529,7 @@ def title_document() -> dict:
     doc.session("quit", "quit")
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200,
                               dim=(("wordmark", "image-color", colour([1, 1, 1, 1]), colour([0.4, 0.4, 0.4, 1])),))
+    mods_dialog = mods_modal(doc)
     doc.events["onBack"] = [{"op": "call", "event": "exitModalShow"}]
 
     # The message line at 44,364 u explains the focused item (section 13.7):
@@ -1025,7 +1577,7 @@ def title_document() -> dict:
     content = group("home", {**FULL, "transform": transform(), "opacity": number(1)}, [
         group("home-content", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}, [
             nav,
-            plinth(doc, links),
+            plinth(doc, links, ("#str_200010", "#str_41500", "#str_200011", "#str_200012", "#str_200013")),
         ]),
     ])
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"),
@@ -1038,15 +1590,23 @@ def title_document() -> dict:
         stage,
         group("depth-frame", {**FULL, "pointer-events": keyword("none")}, framing_bands("band")),
         content,
-        prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_200013")]),
+        prompt_bar(doc, [("#str_107019", "#str_231042"), ("#str_107020", "#str_200013")]),
         title_carry(doc, [("singlePlayer", "#str_42000", 212.2), ("loadGame", "#str_200001", 242.2),
                           ("multiplayer", "#str_200002", 272.2), ("settings", "#str_200009", 302.2)], continue_rows=True),
         exit_modal,
+        mods_dialog,
         group("fade", {**FULL, "background-color": colour([0, 0, 0, 0]), "pointer-events": keyword("none")}),
     ])
     band_motion(doc, "band", "home", [("wordmark", "image-color", colour([1, 1, 1, 1]), colour([1, 1, 1, 0])),
-                                      ("home-stage", "opacity", number(1), number(0))], quick=("plinth",))
+                                      ("home-stage", "opacity", number(1), number(0))], quick=("plinth", "prompts"))
     hide_carry_at_home(doc)
+    # Opening the menu focuses its primary action (section 13.4): CONTINUE
+    # while there is a save to continue, else SINGLE PLAYER. Coming back from
+    # a page (returnHome) keeps the focus on the item that led there.
+    doc.events["open"] = [{"op": "playTimeline", "timeline": "open"},
+                          {"op": "if", "condition": {"state": "menu_continue"},
+                           "then": [{"op": "focus", "control": "nav_continue"}],
+                           "else": [{"op": "focus", "control": "nav_singleplayer"}]}]
     return doc.build(root)
 
 
@@ -1096,7 +1656,9 @@ def localized(key: str) -> dict:
 
 @lru_cache(maxsize=8)
 def font_metrics(face: str) -> tuple:
-    """Read each shipped face once per build, shared by all localized rows."""
+    """A shipped face's units per em, each mapped code point's advance in
+    font units and the advance of '?', which stands in for a missing glyph;
+    read once per face and shared by all localized rows."""
     data = (ROOT / "content" / "baseoq4" / "pak0" / "fonts" / f"{face}.ttf").read_bytes()
     tables = {}
     for index in range(struct.unpack(">H", data[4:6])[0]):
@@ -1140,7 +1702,9 @@ def font_metrics(face: str) -> tuple:
 
 
 def text_width(face: str, text: str, size: float) -> float:
-    """Native unkerned glyph advances in dp, '?' for missing characters."""
+    """The width in dp of `text` set in a shipped face at `size` dp, as the
+    retained host lays it out: each glyph's advance at pixels / unitsPerEm,
+    no kerning, '?' for a missing glyph."""
     units, advances, fallback = font_metrics(face)
     return sum(advances.get(ord(char), fallback) for char in text) * size / units
 
@@ -1152,7 +1716,7 @@ def crumb_fits(key: str) -> dict:
     truncates)."""
     span, floor = U * CRUMB_SPAN - 2, 13 / 18
     return {language: max(floor, min(CRUMB_SCALE, span / text_width("marine", text, 18)))
-            for language, text in localized(key).items()}
+            for language, text in merged_text(key).items()}
 
 
 def by_language(doc: Document, prefix: str, fits: dict) -> list:
@@ -1188,7 +1752,8 @@ def campaign_document(campaigns: bool) -> dict:
                   step's foot (title.carry, 300 ms going deeper);
     onActivate    every arrival: a page's own plates at once at rest, its
                   backing fading in over 150 ms (content.in), so the sub-page
-                  presented at 350 ms needs nothing more;
+                  presented at 350 ms needs nothing more, and the focus on its
+                  primary action or the row that led back to it;
     subpageLeave  on the sub-page, 300 ms: its title drops at once, it sweeps
                   640 u toward the leading edge over 300 ms with its plates
                   (screen.return, linear), its backing fades over 250 ms
@@ -1209,7 +1774,8 @@ def campaign_document(campaigns: bool) -> dict:
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
     if campaigns:
         doc.state.update({"awakening_ready": {"type": "boolean", "initial": False},
-                          "awakening_present": {"type": "boolean", "initial": False}})
+                          "awakening_present": {"type": "boolean", "initial": False},
+                          "awakening_chosen": {"type": "boolean", "initial": False}})
         rows = [("quake4", "#str_230039", "campaignQuake4"),
                 ("awakening", "#str_230040", "campaignAwakening")]
     else:
@@ -1264,11 +1830,12 @@ def campaign_document(campaigns: bool) -> dict:
                 label("title", crumb_key, {**absolute(left=0, top=U * TITLE_SLOT[1], width=U * PAGE_TITLE_W, height=U * PAGE_TITLE_H),
                                            **typeface("marine", 18, U * PAGE_TITLE_H, [1, 1, 1, 0.5]), "white-space": keyword("nowrap"),
                                            "transform": transform()})]),
-            # Going deeper, the CAMPAIGN label carries from its row into the
-            # slot at the step's foot (title.carry, 300 ms).
-            label("subpage-carry", "#str_230038", {**absolute(left=U * SUBPAGE_SLOT[0], top=U * SUBPAGE_SLOT[1], width=U * 314, height=U * 24.4),
-                  **typeface("marine", 24, U * 24.4, rgb(ORANGE)), "white-space": keyword("nowrap"), "opacity": number(0),
-                  "transform": transform(), "pointer-events": keyword("none")}),
+            # Going deeper, the CAMPAIGN or ARENA label carries from its row
+            # into the slot at the step's foot (title.carry, 300 ms).
+            *[label(ident, key, {**absolute(left=U * SUBPAGE_SLOT[0], top=U * SUBPAGE_SLOT[1], width=U * 314, height=U * 24.4),
+                    **typeface("marine", 24, U * 24.4, rgb(ORANGE)), "white-space": keyword("nowrap"), "opacity": number(0),
+                    "transform": transform(), "pointer-events": keyword("none")})
+              for ident, key in (("subpage-carry", "#str_230038"), ("arena-carry", "#str_42002"))],
         ]
     titles_group = group("titles", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2),
                                     "pointer-events": keyword("none")}, titles)
@@ -1310,11 +1877,18 @@ def campaign_document(campaigns: bool) -> dict:
             doc.timelines.add(f"crumbRest{suffix}", 1, [track("crumb", "transform", [(0, fitted), (1, fitted)])])
             doc.timelines.add(f"crumbReturn{suffix}", 300, [track("crumb", "transform", [(0, fitted), (150, fitted), (300, identity)])])
         doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits)]
-        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}, *by_language(doc, "crumbRest", fits)]
+        # Every arrival shows the sub-page at once, with the focus on the
+        # campaign being played: QUAKE 4 unless it is the expansion (section
+        # 13.4's primary action, or the one last chosen).
+        chosen = [{"op": "focus", "control": "quake4"},
+                  {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}]
+        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}, *by_language(doc, "crumbRest", fits), *chosen]
         doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
     else:
-        start = {"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
-                                                            round(U * (nav_top + 2.8 - SUBPAGE_SLOT[1]), 3), 1, 1, 0]}
+        # Each carry starts on its row: CAMPAIGN the first, ARENA the second.
+        start, arena_start = ({"type": "transform", "unit": "dp", "value": [round(U * (44 - SUBPAGE_SLOT[0]), 3),
+                                                                          round(U * (nav_top + 30 * row + 2.8 - SUBPAGE_SLOT[1]), 3), 1, 1, 0]}
+                              for row in (0, 1))
         width, height, scale = U * 314, U * 24.4, 0.75
         end = {"type": "transform", "unit": "dp", "value": [round(-(1 - scale) * width / 2, 3), round(-(1 - scale) * height / 2, 3),
                                                            scale, scale, 0]}
@@ -1328,21 +1902,23 @@ def campaign_document(campaigns: bool) -> dict:
             track("title", "transform", [(0, identity), (1, identity)]),
             track("title", "color", [(0, white(0.5)), (1, white(0.5))]),
             track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (1, length(U * PAGE_TITLE_W))]),
-            track("subpage-carry", "opacity", [(0, number(0)), (1, number(0))]),
-            track("subpage-carry", "transform", [(0, start), (1, start)]),
-            track("subpage-carry", "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE)))]),
+            *[track(carry, prop, [(0, value), (1, value)]) for carry, origin in (("subpage-carry", start), ("arena-carry", arena_start))
+              for prop, value in (("opacity", number(0)), ("transform", origin), ("color", colour(rgb(ORANGE))))],
         ])
-        doc.timelines.add("subpageEnter", 350, [
-            track("content", "opacity", [(0, number(1)), (150, number(0)), (350, number(0))]),
-            track("content", "transform", [(0, identity), (300, swept_right), (350, swept_right)]),
-            track("title", "color", [(0, white(0.5)), (150, white(0.4)), (350, white(0.4))]),
-            track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (150, length(U * CRUMB_SPAN)), (350, length(U * CRUMB_SPAN))]),
-            track("band-top", "transform", [(0, page_top), (50, page_top, ACCEL), (350, sub_top)]),
-            track("subpage-carry", "opacity", [(0, number(1)), (1, number(1)), (350, number(1))]),
-            track("subpage-carry", "transform", [(0, start), (1, start), (50, start, ACCEL), (350, end)]),
-            track("subpage-carry", "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE))), (50, colour(rgb(ORANGE)), ACCEL),
-                                             (350, white(0.5))]),
-        ])
+        # Going deeper to Campaign or to Arena: the same change, the chosen
+        # row's label carrying.
+        for timeline, carry, origin in (("subpageEnter", "subpage-carry", start), ("subpageEnterArena", "arena-carry", arena_start)):
+            doc.timelines.add(timeline, 350, [
+                track("content", "opacity", [(0, number(1)), (150, number(0)), (350, number(0))]),
+                track("content", "transform", [(0, identity), (300, swept_right), (350, swept_right)]),
+                track("title", "color", [(0, white(0.5)), (150, white(0.4)), (350, white(0.4))]),
+                track("title-clip", "width", [(0, length(U * PAGE_TITLE_W)), (150, length(U * CRUMB_SPAN)), (350, length(U * CRUMB_SPAN))]),
+                track("band-top", "transform", [(0, page_top), (50, page_top, ACCEL), (350, sub_top)]),
+                track(carry, "opacity", [(0, number(1)), (1, number(1)), (350, number(1))]),
+                track(carry, "transform", [(0, origin), (1, origin), (50, origin, ACCEL), (350, end)]),
+                track(carry, "color", [(0, colour(rgb(ORANGE))), (1, colour(rgb(ORANGE))), (50, colour(rgb(ORANGE)), ACCEL),
+                                       (350, white(0.5))]),
+            ])
         for suffix, scale in variants:
             doc.timelines.add(f"crumbEnter{suffix}", 350, [
                 track("title", "transform", [(0, identity), (150, crumb_transform(scale)), (350, crumb_transform(scale))])])
@@ -1362,12 +1938,20 @@ def campaign_document(campaigns: bool) -> dict:
                 track("title", "color", [(0, white(0.4)), (duration, white(0.5))]),
                 track("title-clip", "width", [(0, length(U * CRUMB_SPAN)), (duration, length(U * PAGE_TITLE_W))]),
                 track("band-top", "transform", [(0, sub_top, ACCEL), (duration, page_top)]),
-                track("subpage-carry", "opacity", [(0, number(1)), (duration // 2, number(0)), (duration, number(0))]),
+                *[track(carry, "opacity", [(0, number(1)), (duration // 2, number(0)), (duration, number(0))])
+                  for carry in ("subpage-carry", "arena-carry")],
             ])
             doc.events[f"subpageReverse{duration}"] = [{"op": "playTimeline", "timeline": f"subpageReverse{duration}"}]
         doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
-        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"}]
-        doc.events["subpageEnter"] = [{"op": "playTimeline", "timeline": "subpageEnter"}, *by_language(doc, "crumbEnter", fits)]
+        # Back from Arena (the session sets from_arena first) returns onto ARENA;
+        # every other arrival focuses CAMPAIGN, the primary action (section
+        # 13.4), which Back from Campaign returns onto too.
+        doc.state["from_arena"] = {"type": "boolean", "initial": False}
+        doc.events["onActivate"] = [{"op": "playTimeline", "timeline": "arrive"},
+                                    {"op": "if", "condition": {"state": "from_arena"}, "then": [{"op": "focus", "control": "arena"}],
+                                     "else": [{"op": "focus", "control": "campaign"}]}]
+        for event in ("subpageEnter", "subpageEnterArena"):
+            doc.events[event] = [{"op": "playTimeline", "timeline": event}, *by_language(doc, "crumbEnter", fits)]
         doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
     import retained_menu_levels
     if campaigns:
@@ -1377,7 +1961,8 @@ def campaign_document(campaigns: bool) -> dict:
         titles_group["children"].append(retained_menu_levels.child_transition(types.SimpleNamespace(**globals()),doc,3,[("Quake4","#str_230039"),("Awakening","#str_230040")],"#str_230038"))
     result = doc.build(retained_menu_levels.fit_page(types.SimpleNamespace(**globals()),group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles_group,
-        prompt_bar(doc, [("#str_107019", "#str_200747"), ("#str_107020", "#str_230045")]),
+        # The pages' prompt bar, as legends: the page's own BACK is its button.
+        page_prompts(doc, in_canvas=False),
     ])))
     result["canvas"]["minWidth"] = 960
     return result
@@ -1991,10 +2576,12 @@ def objective_frame(ident: str, tint: str) -> dict:
     ])
 
 
-def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, hot: str, left: float, top: float, height: float) -> dict:
+def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, hot: str, left: float, top: float, height: float,
+                         line_step: float = U * 48, key: str = "#str_200380") -> dict:
     """The list's scrollbar at the plates' trailing end (the atlas): a thin
     trough at 0.15 and a thumb at 0.55 in the frame color, the family's
-    focus color on hover, focus and press. Scroll position stays view state."""
+    focus color on hover, focus and press. Scroll position stays view state.
+    `line_step` is one entry of the list it scrolls, `key` the list's name."""
     trough = vector(f"{ident}-trough", {**absolute(left=0, top=0), "width": length(100, "%"), "height": length(100, "%"),
                                         "pointer-events": keyword("none")}, [
         path("line", [(15.75, 0), (20.25, 0), (20.25, {"fraction": 1}), (15.75, {"fraction": 1})], fill=solid(rgb(tint, 0.15)))])
@@ -2014,53 +2601,9 @@ def objectives_scrollbar(doc: Document, ident: str, viewport: str, tint: str, ho
         "disabled": [(f"{ident}-thumb-base", "opacity", number(0.4)), (f"{ident}-thumb-active", "opacity", number(0))],
     })
     return group(ident, {**absolute(left=left, top=top, width=36, height=height)}, [track_node],
-                 control={"role": "scrollbar", "label": "#str_200380", "viewport": viewport, "orientation": "vertical",
-                          "lineStep": round(U * 48, 3), "minimumThumb": 36,
+                 control={"role": "scrollbar", "label": key, "viewport": viewport, "orientation": "vertical",
+                          "lineStep": round(line_step, 3), "minimumThumb": 36,
                           "parts": {"track": f"{ident}-track", "thumb": f"{ident}-thumb"}, "states": ids})
-
-
-def strogg_action_plate(doc: Document, ident: str, key: str, left: float, top: float, *, event: str, width: float) -> dict:
-    """An action plate in the Strogg family: the Marine plate's 35 dp band
-    in a 45 dp target, ending in the 30-degree shoulder of the Strogg
-    navigation plates, its #F59512 rail along the foot, up the trailing
-    edge and over the shoulder, the slanted marker, and an R_Strogg label in
-    #FCFFC8 turning #FFCC00 on hover and focus."""
-    band_top, band_bottom = 5.0, 40.0
-    shoulder_x, shoulder_y = U * 16, U * 9.2
-    fill = [(0, rgb(ST_LINE, 0.49)), (0.33, rgb(ST_LINE, 0.49)), (1, rgb(ST_LINE, 0.12))]
-    rail = [(0, rgb(ST_LINE, 0.9)), (0.55, rgb(ST_LINE, 0.9)), (1, rgb(ST_LINE, 0.45))]
-    plate = vector(f"{ident}-plate", {**absolute(left=0, top=0, width=width, height=45), "opacity": number(0.4)}, [
-        path("fill", [(0, band_top), (width - shoulder_x, band_top), (width, band_top + shoulder_y), (width, band_bottom), (0, band_bottom)],
-             fill=linear((0, 0), (width, 0), fill)),
-        path("rail", [(0.75, band_top), (0.75, band_bottom - 0.75), (width - 0.75, band_bottom - 0.75), (width - 0.75, band_top + shoulder_y),
-                      (width - shoulder_x, band_top + 0.75), (width * 0.6, band_top + 0.75)],
-             closed=False, stroke=stroke(linear((0, 0), (width, 0), rail), 1.5)),
-    ])
-    focus = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=width, height=45), "opacity": number(0)}, [
-        path("inset", [(3.5, band_bottom - 3.5), (width - shoulder_x - 4, band_bottom - 3.5)], closed=False,
-             stroke=stroke(solid(rgb(ST_SELECT)), 1.2))])
-
-    def slanted(name: str, tint: list[float], alpha: float) -> dict:
-        return vector(name, {**absolute(left=14, top=14, width=10, height=9), "opacity": number(alpha)}, [
-            path("mark", [(2.4, 0), (9.6, 0), (7.2, 9), (0, 9)], fill=solid(tint))])
-    marker_rest, marker_hot = slanted(f"{ident}-marker", rgb(ST_LINE), 0.4), slanted(f"{ident}-marker-hot", rgb(ST_SELECT), 0)
-    text_node = label(f"{ident}-label", key, {**absolute(left=28, top=0, width=width - 32, height=45),
-        **typeface("r_strogg", 20, 45, rgb(ST_READ, 0.8)), "white-space": keyword("nowrap"), "transform": transform()})
-    rest, lit = colour(rgb(ST_READ, 0.8)), colour(rgb(ST_SELECT))
-    ids = doc.states(ident, {
-        "default": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)), (f"{ident}-marker-hot", "opacity", number(0)),
-                    (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", rest), (f"{ident}-label", "transform", transform())],
-        "hover": [(f"{ident}-plate", "opacity", number(0.8)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                  (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(sx=1.03, sy=1.03))],
-        "focus": [(f"{ident}-plate", "opacity", number(0.8)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                  (f"{ident}-focus", "opacity", number(1)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(sx=1.03, sy=1.03))],
-        "pressed": [(f"{ident}-plate", "opacity", number(1)), (f"{ident}-marker", "opacity", number(0)), (f"{ident}-marker-hot", "opacity", number(1)),
-                    (f"{ident}-focus", "opacity", number(1)), (f"{ident}-label", "color", lit), (f"{ident}-label", "transform", transform(tx=1, ty=1, sx=1.03, sy=1.03))],
-        "disabled": [(f"{ident}-plate", "opacity", number(0.4)), (f"{ident}-marker", "opacity", number(0.4)), (f"{ident}-marker-hot", "opacity", number(0)),
-                     (f"{ident}-focus", "opacity", number(0)), (f"{ident}-label", "color", colour(rgb(ST_READ, 0.4))), (f"{ident}-label", "transform", transform())],
-    })
-    return group(ident, absolute(left=left, top=top, width=width, height=45), [plate, focus, marker_rest, marker_hot, text_node],
-                 control={"role": "button", "label": key, "states": ids, "event": event})
 
 
 def objectives_page(doc: Document, strogg: bool) -> tuple:
@@ -2075,11 +2618,11 @@ def objectives_page(doc: Document, strogg: bool) -> tuple:
     the stock construction whose titles wrap to two lines and descriptions
     wrap without a limit; the completed ones follow under COMPLETED, title
     only at 0.40 with a check. The list scrolls with the wheel, the stick or
-    the bar, and Back (the plate at 532,441 u, or the back input) returns
-    to the pause with the bands. The Strogg family keeps the construction
-    with #FF9000 frames, #FF9900 markers, an R_Strogg heading and the STROGG
-    NET serial. Returns the back bar, which lies under the framing bands,
-    and the page."""
+    the bar, and Back (the prompt bar's BACK where the stock plate stood at
+    532,441 u, or the back input) returns to the pause with the bands. The
+    Strogg family keeps the construction with #FF9000 frames, #FF9900
+    markers, an R_Strogg heading and the STROGG NET serial. Returns the back
+    bar, which lies under the framing bands, and the page."""
     frame_tint = ST_OBJ_FRAME if strogg else OBJ_FRAME
     mark_tint = ST_OBJ_MARK if strogg else OBJ_FRAME
     hot = ST_SELECT if strogg else ORANGE
@@ -2183,10 +2726,9 @@ def objectives_page(doc: Document, strogg: bool) -> tuple:
         height=U * (OBJ_BOTTOM - OBJ_TOP)), "overflow": keyword("auto")}, [column])
     scrollbar = objectives_scrollbar(doc, "objectives_scroll", "objectives-list", frame_tint, hot,
                                      U * (OBJ_LEFT + OBJ_WIDTH) + 2, U * OBJ_TOP, U * (OBJ_BOTTOM - OBJ_TOP))
-    if strogg:
-        back = strogg_action_plate(doc, "objectives_back", "#str_200018", U * 532, U * 441, event="objectivesHide", width=U * 109)
-    else:
-        back = action_plate(doc, "objectives_back", "#str_200018", U * 532, U * 441, event="objectivesHide", width=U * 109)
+    # The prompt bar holds BACK alone: Accept has nothing to do on the page.
+    family = {"cap_tint": rgb(ST_SELECT, 0.85), "verb_face": ("r_strogg", 14, rgb(ST_READ, 0.8)), "hot": ST_SELECT} if strogg else {}
+    back = page_prompts(doc, "objectives_back", event="objectivesHide", select=False, ident="objectives-prompts", **family)
     canvas = group("objectives-canvas", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"),
                                          "margin-left": length(-CANVAS_W / 2)}, [heading, viewport, scrollbar, back])
     content = group("objectives-content", {**FULL, "opacity": number(0)}, [canvas])
@@ -2240,7 +2782,9 @@ def pause_document(strogg: bool = False) -> dict:
     doc.session("settings", "settings")
     doc.session("quitToMenu", "quitToMenu")
     doc.session("quit", "quit")
-    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu")
+    # QUIT CURRENT GAME outruns the lit slot in French: it runs on over the
+    # raised trailing section, as the longer dialog titles do.
+    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu", wide_title=True)
     exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200)
     doc.events["onBack"] = [{"op": "action", "action": "resume"}]
     items = [("nav_resume", "#str_200381", "resume", None), ("nav_savegame", "#str_200003", "saveGame", None),
@@ -2284,7 +2828,7 @@ def pause_document(strogg: bool = False) -> dict:
         path("lead", [(0, 0), (vx(413), 0), (vx(413), {"fraction": 1}), (0, {"fraction": 1})],
              fill=linear((vx(-107), 0), (vx(413), 0), [(0, [0, 0, 0, 0.7]), (0.55, [0, 0, 0, 0.35]), (1, [0, 0, 0, 0])])),
     ])
-    prompts = [("#str_107019", "#str_200747"), ("#str_107020", "#str_200381")]
+    prompts = [("#str_107019", "#str_231042"), ("#str_107020", "#str_200381")]
     carries = [("saveGame", "#str_200003", 212.2), ("loadGame", "#str_200001", 242.2),
                ("restartLevel", "#str_229983", 272.2), ("objectives", "#str_200380", 302.2),
                ("settings", "#str_200009", 332.2)]
@@ -2322,7 +2866,7 @@ def pause_document(strogg: bool = False) -> dict:
         scrim,
         chrome,
     ])
-    band_motion(doc, "band", "home", [], quick=("plinth",))
+    band_motion(doc, "band", "home", [], quick=("plinth", "prompts"))
     # The softened view rests at modal.softfocus, so a page's return keeps it.
     # A play retargets its first key from the current value, and the pause
     # document outlives each pause; the second key restarts the ramp from
@@ -2337,9 +2881,12 @@ def pause_document(strogg: bool = False) -> dict:
         translation.finish(doc)
     # A pause can close without Back (a console load or disconnect); every
     # opening starts at home without the Objectives page, prompts showing.
-    opening["tracks"] += [track(node, "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]) for node in ("prompts", "scrim")]
+    opening["tracks"] += [track("scrim", "opacity", [(0, number(1)), (1, number(1)), (250, number(1))])]
     reset = {"op": "setState", "values": {"objectives.visible": False, "objectives.leaving": False, "pause.released": False}}
-    doc.events["open"] = [reset, *doc.events.get("open", [{"op": "playTimeline", "timeline": "open"}])]
+    # Each opening focuses RESUME, the primary action (section 13.4); a page's
+    # Back (returnHome) keeps the focus on the item that led there.
+    resume = {"op": "focus", "control": "nav_resume"}
+    doc.events["open"] = [reset, *doc.events.get("open", [{"op": "playTimeline", "timeline": "open"}]), resume]
     # Returning to the game closes the screen at once (section 8), but the
     # softened view, or the scrim standing in for it, releases over 250 ms as
     # the modal backdrop does (section 4); the session keeps drawing the
@@ -2359,9 +2906,10 @@ def pause_document(strogg: bool = False) -> dict:
         track("scene-softfocus", "backdrop-saturate", [(0, number(1)), (1, number(1)), (250, number(SOFT_FOCUS_SATURATION))]),
         track("scrim", "opacity", [(0, number(1)), (1, number(1)), (250, number(1))]),
     ])
+    # The release hid every action, and its focus with it: RESUME takes it.
     doc.events["onActivate"] = [{"op": "if", "condition": {"state": "pause.released"},
                                  "then": [{"op": "setState", "values": {"pause.released": False}},
-                                          {"op": "playTimeline", "timeline": "unrelease"}]}]
+                                          {"op": "playTimeline", "timeline": "unrelease"}, resume]}]
     return doc.build(root)
 
 
@@ -2436,7 +2984,6 @@ def loading_document() -> dict:
         "motion_reduced": {"type": "boolean", "initial": False, "cvar": "ui_retainedReducedMotion"},
         "loading_phase": {"type": "string", "initial": ""},
         "loading_count": {"type": "string", "initial": ""},
-        "loading_controller": {"type": "boolean", "initial": False},
         "loading_tip_a": {"type": "string", "initial": ""},
         "loading_tip_b": {"type": "string", "initial": ""},
         "server_message": {"type": "string", "initial": ""},
@@ -2636,23 +3183,19 @@ def loading_document() -> dict:
     bar_x, bar_w, tail = U * 392, U * 240, U * 8
     # Multiplayer never waits: when its load ends the prompt reads JOINING.
     joining = {"op": "&&", "args": [{"state": "loading_mp"}, {"op": ">=", "args": [{"state": "map_loading"}, 1]}]}
+    controller = {"op": "!", "args": [{"op": "==", "args": [{"state": PROMPT_GLYPHS}, 0]}]}
     prompt = {"op": "select", "args": [{"state": "loading_ready"},
-              {"op": "select", "args": [{"state": "loading_controller"}, "#str_200984", "#str_200937"]},
+              {"op": "select", "args": [controller, "#str_200984", "#str_200937"]},
               {"op": "select", "args": [joining, "#str_230037", "#str_200938"]}]}
-    glyph_shown = {"op": "select", "args": [{"op": "&&", "args": [{"state": "loading_ready"}, {"state": "loading_controller"}]},
+    glyph_shown = {"op": "select", "args": [{"op": "&&", "args": [{"state": "loading_ready"}, controller]},
                                             "block", "none"]}
 
     def south_button(ident: str, tint: list) -> dict:
-        """The controller's face buttons as a diamond with the south one
-        filled: the platform-neutral confirm glyph."""
-        def ring(cx: float, cy: float, radius: float, sides: int = 12) -> list:
-            return [(round(cx + radius * math.cos(2 * math.pi * i / sides), 3), round(cy + radius * math.sin(2 * math.pi * i / sides), 3))
-                    for i in range(sides)]
-        paths = [path(name, ring(cx, cy, 2.6), stroke=stroke(solid(tint), 1.2, minimum=1))
-                 for name, (cx, cy) in (("north", (9, 3.5)), ("west", (3.5, 9)), ("east", (14.5, 9)))]
-        paths.append(path("south", ring(9, 14.5, 3.2), fill=solid(tint)))
-        return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(18),
-                              "height": length(18), "margin-right": length(8)}, paths)
+        """The confirm glyph: the active controller family's south button
+        (section 13.5); a generic controller's is the four positions as a
+        diamond with the south one filled."""
+        return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(18),
+                             "height": length(18), "margin-right": length(8)}, device_glyphs(doc, ident, "south", tint, 18))
 
     def prompt_row(ident: str, offset: float, tint: list) -> dict:
         return group(ident, {**absolute(top=U * 2 + offset, height=U * 22, right=tail - offset), "display": keyword("flex"),
@@ -2799,13 +3342,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
     args = parser.parse_args()
-    # The multiplayer menus live in their own module, which builds on this one.
+    # The multiplayer menus and the retained pages live in their own
+    # modules, which build on this one.
     from retained_mp_menus import escape_document, welcome_document
     from retained_mp_summary import summary_document
+    from retained_saves import load_game_document, save_game_document
+    from retained_difficulty import restart_level_document
+    from retained_demos import demos_document
+    from retained_death import restart_menu_document
+    from retained_credits import credits_document
+    from retained_arena import arena_document
+    from retained_mp_page import multiplayer_document
+    from retained_create_server import create_server_document
+    from retained_join_game import join_game_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
                  "skill": retained_menu_levels.skill_document(types.SimpleNamespace(**globals())),
+                 "loadgame": load_game_document(), "savegame": save_game_document(), "restartlevel": restart_level_document(),
+                 "demos": demos_document(),
+                 "restartmenu": restart_menu_document(),
+                 "credits": credits_document(),
+                 "arena": arena_document(),
+                 "multiplayer": multiplayer_document(),
+                 "createserver": create_server_document(),
+                 "joingame": join_game_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document(), "mp_summary": summary_document()}
     stale = []
     for name, document in documents.items():

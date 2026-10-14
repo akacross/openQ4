@@ -760,6 +760,14 @@ if build_engine or get_option('build_native_tests')
     )
     test('openq4-ui-number-runtime', openq4_ui_number_runtime_test,
       args: [meson.project_source_root() / 'tools/ui/fixtures/number-edit-smoke.q4ui'], timeout: 30)
+    openq4_ui_text_field_test = executable(
+      'openq4-ui-text-field-test',
+      files('tools/tests/native/UiTextFieldTest.cpp'),
+      include_directories: root_include_dir,
+      dependencies: [openq4_retained_dep, rmlui_project.get_variable('rmlui_dep'), jsoncpp_project.get_variable('jsoncpp_dep')],
+      install: false,
+    )
+    test('openq4-ui-text-field', openq4_ui_text_field_test, timeout: 30)
     openq4_ui_focus_reveal_test = executable(
       'openq4-ui-focus-reveal-test',
       files('tools/tests/native/UiFocusRevealTest.cpp'),
@@ -943,25 +951,42 @@ if build_engine or get_option('build_native_tests')
       dependencies: openq4_retained_dep,
       install: false,
     )
-    test('openq4-ui-retained-screens', openq4_ui_retained_screens_test,
-      args: [meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/title.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/pause.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/loading/loading.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/singleplayer.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/campaigns.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_escape.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_welcome.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/machinegun_scope.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/railgun_scope.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/nailgun_scope.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/loading/initialization.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/campaign_skill.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/view_effects.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_marine.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_marine_awakening.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_strogg.q4ui',
-             meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_strogg_awakening.q4ui'], timeout: 240)
+    # One test per group of documents (the groups in the test's main), so the
+    # suite runs them side by side.
+    retained_screens_documents = [meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/title.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/pause.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/loading/loading.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/pause_strogg.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/singleplayer.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/campaigns.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_escape.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_welcome.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/machinegun_scope.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/railgun_scope.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/weapons/nailgun_scope.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/loading/initialization.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/campaign_skill.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/view_effects.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_marine.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_marine_awakening.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_strogg.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/weapon_wheel_strogg_awakening.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/loadgame.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/savegame.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/restartlevel.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/demos.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/restartmenu.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/credits.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/arena.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/multiplayer.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/createserver.q4ui',
+      meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/joingame.q4ui']
+    retained_screens_groups = {'menus': 120, 'loading-hud': 120, 'pages': 120, 'mp-pages': 120, 'mp-card': 120,
+      'mp-vote-match': 120, 'mp-settings-welcome': 120, 'pointer-reach': 120, 'optics': 240}
+    foreach group, timeout : retained_screens_groups
+      test('openq4-ui-retained-screens-' + group, openq4_ui_retained_screens_test,
+        args: retained_screens_documents + [group], timeout: timeout)
+    endforeach
     test('openq4-ui-view-effects', openq4_ui_retained_screens_test,
       args: ['--view-effects', meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/view_effects.q4ui'], timeout: 60)
     # The match summary card (ui-visual-design.md 14.14).

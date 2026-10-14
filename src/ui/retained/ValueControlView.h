@@ -19,11 +19,18 @@ public:
 	ValueControlView();
 	~ValueControlView();
 	void Reset();
+	// find resolves a canonical node's element; without it, the document is
+	// searched for each node.
 	bool Initialize(const DocumentModel& model, Rml::ElementDocument& document,
-		std::function<std::string(const std::string&)> translate, std::string& error);
+		std::function<std::string(const std::string&)> translate, std::string& error,
+		const std::function<Rml::Element*(const std::string&)>& find = {});
 	// Returns true when derived properties changed and another layout is needed.
+	// `presentationPass` counts the caller's passes that write presentation: a
+	// closed choice whose readback is unchanged since its last paint in the same
+	// pass is left as painted; 0 reasserts every control.
 	bool Paint(Interaction& interaction, const std::map<std::string,ControlReadback>& readbacks,
-		int width, int height, float dpRatio, const std::function<double(const std::string&)>& opacity);
+		int width, int height, float dpRatio, const std::function<double(const std::string&)>& opacity,
+		std::uint64_t presentationPass = 0);
 	// Use the actual clipped Rml hit, except a captured slider projects outside
 	// its track. Coordinates are the same physical viewport pixels as RmlUi.
 	bool ChoiceScrollFresh(const std::string&, const Interaction&) const;

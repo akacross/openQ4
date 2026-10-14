@@ -99,6 +99,18 @@ enum demoLibraryCapability_t {
 	DEMO_CAP_FULL_WORLD		= 1 << 8
 };
 
+// A library entry's text for the retained Demos page: its row and its
+// detail lines, capped as the legacy browser caps them.
+struct sessionDemoText_t {
+	idStr					name;
+	idStr					map;
+	idStr					date;
+	idStr					length;
+	idStr					kind;
+	idStr					status;
+	idStr					detail;
+};
+
 struct demoLibraryEntry_t {
 							demoLibraryEntry_t() :
 								type( DEMO_LIBRARY_UNKNOWN ),
@@ -127,6 +139,11 @@ struct demoLibraryEntry_t {
 	idStr					status;
 	idStr					details;
 };
+
+// Whether the legacy browser's filter (all, mvd, render, legacy or
+// incomplete) shows an entry, and an entry's text for the retained page.
+bool Session_DemoEntryMatchesFilter( const demoLibraryEntry_t &entry, const char *filter );
+void Session_DemoEntryText( const demoLibraryEntry_t &entry, sessionDemoText_t &out );
 
 typedef enum {
 	OPENQ4_FRAME_BOUND_UNKNOWN,
@@ -166,6 +183,19 @@ typedef struct {
 	openq4AsyncTimingStats_t	asyncStats;
 	openq4FramePacingBound_t	boundMode;
 } openq4FramePacingStats_t;
+
+// The retained sub-page a change of menu level goes to or comes back from.
+typedef enum {
+	RETAINED_SUBPAGE_CAMPAIGN,		// Single Player's Campaign
+	RETAINED_SUBPAGE_ARENA,			// Single Player's Arena
+	RETAINED_SUBPAGE_CREATE_SERVER,	// Multiplayer's Create Server
+	RETAINED_SUBPAGE_JOIN_GAME		// Multiplayer's Join Game, the server browser
+} retainedSubpage_t;
+
+// Player- or server-supplied text for a retained screen (Session.cpp): escapes,
+// controls and malformed UTF-8 dropped, at most maxBytes bytes on maxLines
+// lines, never read as a #str_ key.
+idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines );
 
 const int USERCMD_PER_DEMO_FRAME	= 2;
 const int CONNECT_TRANSMIT_TIME		= 1000;
@@ -214,10 +244,16 @@ public:
 	virtual void		ExitMenu();
 	virtual void		GuiFrameEvents();
 	virtual void		SetGUI( idUserInterface *gui, HandleGuiCommand_t handle );
-	void OpenCampaignSelector( bool campaigns );
+	void OpenCampaignSelector( bool campaigns, bool fromArena = false );
 	void SelectCampaign( const char *campaign, bool start = false );
 	bool OpenRetainedCampaignSkill();
 	void BeginRetainedCampaignSkill( idUserInterface *from, const char *campaign, bool back = false );
+	// Single Player's retained Arena sub-page (guis/menu/arena.q4ui): the
+	// Arena campaign's browser where it can present (NULL: the stock one
+	// presents), and the page while it is loaded, which the campaign
+	// publishes into.
+	idUserInterface *RetainedArenaPage();
+	idUserInterface *RetainedArenaGui() const { return guiRetainedArena; }
 	bool				OpenSystemSettings();
 	bool				ReturnSystemSettings();
 	void				ReportSystemSettings();
@@ -251,17 +287,26 @@ public:
 	// page, or the stock page when it cannot open.
 	void				OpenSystemSettingsRoute( bool fromMultiplayer );
 	// Resolve the screens and their pictures where the stock menus resolve
-	// theirs: at startup, and inside each single-player level load.
+	// theirs: at startup the screens the title reaches, and inside each
+	// single-player level load those a level reaches.
 	void				PreloadRetainedScreens();
+	// Starts parsing PreloadRetainedScreens' documents on the job system's
+	// workers, while the stock menus load.
+	void				PrefetchRetainedScreens();
 	void				PrepareRetainedLevel( const char *mapPath, bool multiplayer );
+	// Every multiplayer map's levelshot for Create Server, and the Arena
+	// campaign's for its page: a few on each idle front-end frame, or when
+	// `all` is set every one still waiting of a page's kind, the maps' or not.
+	void				PrecacheRetainedLevelshots( bool all, bool maps = true );
+	// A levelshot for those frames; `material` precaches its stock material too.
+	void				QueueRetainedLevelshot( const char *picture, bool material );
 	// After the game spawns the map, still inside the load: the objective
 	// screenshots the pause screen's Objectives page may show.
 	void				PrecacheRetainedLevelImages();
 	// The loader's phase and its place, or the asset queue's count, under the
-	// retained loading bar; and the device whose continue prompt it shows.
+	// retained loading bar.
 	void				SetRetainedLoadingPhase( int phase, const char *count = NULL );
 	void				PublishRetainedLoadingCount();
-	void				PublishRetainedLoadingDevice();
 	// Single player loading tips: the first when the screen presents, then the
 	// next every 6 s.
 	void				PublishRetainedLoadingTip( bool first );
@@ -288,10 +333,87 @@ public:
 	int					retainedRosterCount;
 	int					retainedRosterConnecting;
 	bool				retainedRosterKnown;
-	// The Single Player page and Campaign sub-page change (spec 1.10).
-	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper );
+	// A page and its sub-page change (spec 1.10): Single Player and its
+	// Campaign and Arena, Multiplayer and its Create Server and Join Game.
+	void				BeginRetainedSubpage( idUserInterface *gui, bool deeper, retainedSubpage_t subpage = RETAINED_SUBPAGE_CAMPAIGN );
+	void				PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
+	// The retained Load Game page (guis/menu/loadgame.q4ui): LOAD GAME on the
+	// title and the Marine pause hands off to it as to a stock page.
+	bool				BeginRetainedPage( const char *request );
+	void				UpdateRetainedPage();
+	void				ReturnRetainedPage();
+	void				ReturnRetainedSinglePlayerHome();
+	void				DrawRetainedPageHome( int presentationTime );
+	void				PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error );
+	void				PublishRetainedLoadRows( idUserInterface *gui );
+	void				PublishRetainedLoadSave( idUserInterface *gui, const char *error );
+	void				HandleRetainedLoadRequest( idUserInterface *gui, const char *request );
+	// The retained Save Game page (guis/menu/savegame.q4ui): SAVE GAME on the
+	// Marine pause hands off to it the same way. RetainedPageActive is true
+	// while either page presents.
+	bool				RetainedPageActive() const;
+	void				PublishRetainedSavePage( idUserInterface *gui, int select );
+	void				PublishRetainedSaveSelection( idUserInterface *gui, bool name );
+	void				HandleRetainedSaveRequest( idUserInterface *gui, const char *request );
+	bool				RetainedSaveGame( idUserInterface *gui, const char *name );
+	// The retained Restart Level page (guis/menu/restartlevel.q4ui), which
+	// RESTART LEVEL on the Marine pause hands off to the same way.
+	void				HandleRetainedRestartRequest( idUserInterface *gui, const char *request );
+	// The retained Demos page (guis/menu/demos.q4ui), which the title's DEMOS
+	// hands off to the same way: the library, filtered, a page at a time.
+	void				PublishRetainedDemosPage( idUserInterface *gui, const char *selectPath, int selectRow, const char *error );
+	void				PublishRetainedDemoRows( idUserInterface *gui );
+	void				PublishRetainedDemoSelection( idUserInterface *gui, const char *error );
+	void				HandleRetainedDemosRequest( idUserInterface *gui, const char *request );
+	// The Arena page's verbs, which run the Arena campaign's own commands.
+	void				HandleRetainedArenaRequest( idUserInterface *gui, const char *request );
+	// The retained Multiplayer page (guis/menu/multiplayer.q4ui), which the
+	// title's MULTIPLAYER hands off to: its sections open the stock pages
+	// after its departure, and their Back presents it again (multiplayerOpen);
+	// back from a sub-page it returns onto that sub-page's section.
+	idUserInterface *	RetainedMultiplayerPage();
+	bool				OpenRetainedMultiplayerPage( const char *section = NULL );
+	void				HandleRetainedMultiplayerPageRequest( idUserInterface *gui, const char *request );
+	void				UpdateRetainedMultiplayerPage();
+	// The retained Create Server sub-page (guis/menu/createserver.q4ui), which
+	// CREATE SERVER on the Multiplayer page goes deeper to: the session owns
+	// its settings and publishes them (create.*), and CREATE SERVER starts the
+	// server as the stock page's does.
+	idUserInterface *	RetainedCreateServerPage();
+	void				OpenRetainedCreateServer();
+	void				PublishRetainedCreateServer( idUserInterface *gui );
+	void				PublishRetainedCreateMaps( idUserInterface *gui, bool rescan );
+	void				PublishRetainedCreateBans( idUserInterface *gui );
+	void				HandleRetainedCreateServerRequest( idUserInterface *gui, const char *request );
+	bool				StartMenuServer();
+	// The retained Join Game sub-page (guis/menu/joingame.q4ui), which JOIN
+	// GAME on the Multiplayer page goes deeper to: the session lists the
+	// server scan's servers (join.*) as the scan finds them, and JOIN SERVER
+	// connects to the chosen one.
+	idUserInterface *	RetainedJoinGamePage();
+	void				OpenRetainedJoinGame();
+	void				PublishRetainedJoinGame( idUserInterface *gui );
+	void				PublishRetainedJoinDetail( idUserInterface *gui );
+	void				UpdateRetainedJoinGame();
+	// The stock browser's server tooltip, kept for the hovered row while the
+	// classic main menu runs (idServerScan::GUIUpdateHover).
+	void				UpdateBrowserTooltip();
+	void				HandleRetainedJoinGameRequest( idUserInterface *gui, const char *request );
+	// The demo library's operations, which the legacy browser and the
+	// retained page share.
+	void				ScanDemoLibrary();
+	bool				PlayDemoLibraryEntry( int index );
+	bool				DeleteDemoLibraryFile( const demoLibraryEntry_t &entry );
+	// Why LoadGame last refused a save, before it left the current game.
+	enum loadGameFailure_t {
+		LOADGAME_FAILURE_NONE,
+		LOADGAME_FAILURE_UNREADABLE,	// missing, or unreadable
+		LOADGAME_FAILURE_DAMAGED,		// truncated, damaged or from an incompatible version
+		LOADGAME_FAILURE_MAP			// its level is not installed
+	};
+	loadGameFailure_t	loadGameFailure;
 	// The multiplayer menu card (section 14.18) covers the game's own menu
 	// while it is open over a match; the game keeps the menu, its state and
 	// its commands, and publishes the card's mp.* keys.
@@ -505,7 +627,38 @@ public:
 	idStr                   retainedDetailCampaign;
 	bool                    wipeToBlack = false;
 	int                     wipeFadeStarted = 0, wipeFadeDuration = 0;
+	retainedSubpage_t	retainedSubpageKind;	// the sub-page the change goes to or comes back from
 	bool				retainedHomeReturning;
+	bool				retainedHomeUnderMessage;	// a stock message box covers the presented home
+	bool				retainedJoinReturn;		// a join from Join Game is under way: a return finds its list
+	// The Load Game page: its document (NULL until it first loads), the home
+	// that handed off to it, a hand-off presenting it and when, whether the
+	// home presents coming back from it, and its saves (newest first, with
+	// when each was written), the first save its rows show and the selected
+	// save (-1: none).
+	idUserInterface *	guiRetainedLoad;
+	idUserInterface *	retainedPageHome;		// the home drawing behind the page
+	idUserInterface *	retainedPagePending;
+	int					retainedPageAt;
+	bool				retainedPageReturn;
+	idStrList			retainedLoadSlots;
+	idList<ID_TIME_T>	retainedLoadTimes;
+	int					retainedLoadFirst;
+	int					retainedLoadSelected;
+	// The Save Game page (NULL until it first loads), which shares the list
+	// above, and the save its overwrite dialog asks about.
+	idUserInterface *	guiRetainedSave;
+	idStr				retainedSaveTarget;
+	// The Restart Level page (NULL until it first loads).
+	idUserInterface *	guiRetainedRestart;
+	// The Demos page (NULL until it first loads): the library entries its
+	// filter shows (indices into demoLibrary, newest first), the first one
+	// its rows show, the selected one (-1: none) and the filter (0: all).
+	idUserInterface *	guiRetainedDemos;
+	idList<int>			retainedDemoRows;
+	int					retainedDemoFirst;
+	int					retainedDemoSelected;
+	int					retainedDemoFilter;
 	// The multiplayer Escape and Welcome cards, loaded inside each
 	// multiplayer level load; the card covering the game's menu now (NULL:
 	// none) and whether it is Welcome; a stock page that took the menu over
@@ -535,7 +688,6 @@ public:
 	int					retainedLoadingPhase;
 	int					retainedLoadingLoaded;
 	int					retainedLoadingTotal;
-	int					retainedLoadingDevice;
 	int					retainedLoadingTip;		// index of the tip showing (-1: none)
 	int					retainedLoadingTipSlot;	// the label slot showing it (0: a, 1: b)
 	int					retainedLoadingTipAt;	// presentation time it was shown
@@ -548,6 +700,34 @@ public:
 	idUserInterface *	guiDemoMenu;
 	idListGUI *			guiDemoList;
 	idUserInterface *	guiRestartMenu;
+	idUserInterface *	guiRetainedRestartMenu;	// the retained restart screen (NULL until it loads)
+	idUserInterface *	guiRetainedCredits;		// the retained Credits page (NULL until it loads)
+	idUserInterface *	guiRetainedArena;		// the retained Arena sub-page (NULL until it loads)
+	idUserInterface *	guiRetainedMpPage;		// the retained Multiplayer page (NULL until it loads)
+	int					retainedMpPageDest;		// the stock Multiplayer page it is leaving for (0: none)
+	int					retainedMpPageLeft;		// the stock Multiplayer page it last left for, which Back returns from
+	int					retainedMpPageAt;		// presentation time that page takes over
+	idUserInterface *	guiRetainedCreate;		// the retained Create Server sub-page (NULL until it loads)
+	struct retainedLevelshot_t {
+		idStr			name;					// a multiplayer map's path, or a picture
+		bool			map;					// a map, whose levelshot RetainedPauseShot chooses
+		bool			material;				// a picture whose stock material precaches too
+	};
+	idList<retainedLevelshot_t> retainedLevelshots;	// levelshots still to precache
+	int					retainedLevelshotsFrom;	// when idle frames start precaching them (0: not yet set)
+	idList<int>			retainedCreateMaps;		// the map decls the chosen game type plays, in list order
+	int					retainedCreateMapFirst;	// the first of them the list holds
+	int					retainedCreateMapSelected;	// the chosen one among them (-1: none)
+	idStrList			retainedCreateBanGuids;		// PLAYER BAN LIST's rows' GUIDs, in list order
+	int					retainedCreateBanSelected;	// the chosen row (-1: none)
+	idUserInterface *	guiRetainedJoin;		// the retained Join Game sub-page (NULL until it loads)
+	idList<int>			retainedJoinServers;	// the scan's servers the list shows, in list order
+	int					retainedJoinFirst;		// the first of them the list holds
+	idStr				retainedJoinAddress;	// the chosen server's address (empty: none)
+	int					retainedJoinRevision;	// the scan's revision the page shows (-1: none yet)
+	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
+	idStr				retainedJoinShot;		// that levelshot
+	int					retainedJoinDetailRow;	// the page row whose server's details the page holds (-1: none)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;
@@ -615,6 +795,7 @@ public:
 	void				OpenDemoMenu( bool browser = true );
 	void				CloseDemoMenu();
 	void				RefreshDemoLibrary();
+	void				RefreshDemoLibraryList();
 	void				UpdateDemoMenuGui();
 	bool				HandleDemoMenuCommand( const char *menuCommand );
 	bool				IsDemoPlaybackActive() const;
@@ -698,6 +879,15 @@ public:
 	void				SetMainMenuBackgroundMontageGuiVars( void );
 	void				PrimeMainMenuGuiResources( void );
 	void				SetModsMenuGuiVars( void );
+	// The title's MODS dialog: the mods it lists (modsList) and the selected one.
+	void				PublishRetainedMods( idUserInterface *gui );
+	void				SelectRetainedMod( idUserInterface *gui, int row );
+	// After the player dies: the retained restart screen, else the stock one.
+	void				OpenRestartMenu();
+	// The retained Credits page (guis/menu/credits.q4ui), which the title's
+	// CREDITS hands off to: its lines read from the legacy credits windows.
+	void				PublishRetainedCredits( idUserInterface *page );
+	int					retainedModSelected;
 	void				UpdateModsMenuGuiVars( void );
 	void				SetMainMenuSkin( void );
 	

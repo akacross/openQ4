@@ -1690,6 +1690,16 @@ struct Runtime::Impl {
 	float windowPointerX = 0, windowPointerY = 0;
 	bool pointerPresent = false;
 	bool pointerNavigation = false;
+	// Which device leads (section 13.4): the pointer once it moves or
+	// presses, the keyboard or controller once a menu input or a program's
+	// focus arrives. The interaction shows focus only while they lead.
+	void SetPointerNavigation(bool pointer) { pointerNavigation = pointer; interaction.SetPointerPresentation(pointer); }
+	// The detail card (DocumentModel::detail): its subject, whether the pointer
+	// chose it, and the card's last placement relative to its containing block.
+	std::string detailSubject;
+	bool detailByPointer = false;
+	float detailLeft = 0, detailTop = 0;
+	bool detailPlaced = false;
 	// A program's focus request that the current layout could not take: its
 	// control appears with the same state change. The next frame's layout
 	// takes it, or it lapses.
@@ -1705,6 +1715,9 @@ struct Runtime::Impl {
 	// The motion stamp of the last pass that applied every value (0: none
 	// yet, or a pass left a value for a later one).
 	std::uint64_t appliedMotionRevision = 0;
+	// Counts ApplyMotion's passes that can write presentation; value controls
+	// reassert a settled closed list only after one (ValueControlView::Paint).
+	std::uint64_t presentationPass = 1;
 	// Each motion value's position in appliedInputs (keys are fixed per document).
 	struct PropertyHash {
 		size_t operator()(const PropertyKey& key) const noexcept {
@@ -1741,9 +1754,9 @@ struct Runtime::Impl {
 		}
 		if ((modals ? bool(node.modal) : bool(node.control)) || !result.children.empty()) {
 			result.node=&node;
-			interactionAncestors.insert(document->GetElementById(node.id));
+			interactionAncestors.insert(CanonicalElement(node.id));
 			if (!modals && (node.control || node.mask)) {
-				result.element=document->GetElementById(node.id);
+				result.element=CanonicalElement(node.id);
 				if (node.control) elementIndex.emplace(node.id,result.element);
 			}
 		}
@@ -1752,6 +1765,16 @@ struct Runtime::Impl {
 	Rml::Element* IndexedElement(const std::string& id) const {
 		const auto found = elementIndex.find(id);
 		return found == elementIndex.end() ? nullptr : found->second;
+	}
+	// Canonical node elements by ID, resolved once per load. A canonical
+	// document keeps every node's element until it closes (text nodes own no
+	// canonical children; a choice popup moves under the document but lives
+	// on), so frames resolve IDs here instead of searching the document,
+	// which RmlUi does breadth-first over every element.
+	std::unordered_map<std::string,Rml::Element*> canonicalElements;
+	Rml::Element* CanonicalElement(const std::string& id) const {
+		const auto found = canonicalElements.find(id);
+		return found != canonicalElements.end() ? found->second : document ? document->GetElementById(id) : nullptr;
 	}
 	bool initialized = false;
 	std::map<std::string,bool> inputAllowed;
@@ -1790,7 +1813,7 @@ struct Runtime::Impl {
 	// Focus a program asked for: now, when the control can take it, else
 	// after the next frame's layout.
 	void RequestFocus(const std::string& id) {
-		pointerNavigation = false;
+		SetPointerNavigation(false);
 		if (interaction.Focus(id)) { pendingFocus.clear(); RevealFocus(); }
 		else pendingFocus = id;
 	}
@@ -1873,7 +1896,7 @@ struct Runtime::Impl {
 			const Node* current = pending.back(); pending.pop_back();
 			const auto overflow = current->properties.find("overflow");
 			if (overflow != current->properties.end() && (overflow->second.text == "auto" || overflow->second.text == "scroll"))
-				if (auto* element = document ? document->GetElementById(current->id) : nullptr) { element->SetScrollTop(0); element->SetScrollLeft(0); }
+				if (auto* element = CanonicalElement(current->id)) { element->SetScrollTop(0); element->SetScrollLeft(0); }
 			for (const auto& child : current->children) pending.push_back(&child);
 		}
 	}
@@ -1925,10 +1948,61 @@ struct Runtime::Impl {
 		if (std::isfinite(seconds)) time = std::max(time,seconds);
 		for (const auto& change : interaction.TakeFeedback()) motion.Play(change.timeline,time);
 	}
+	// Writes the detail subject's detail to the detail state: the control the
+	// pointer is over while the pointer moved last, otherwise the focused
+	// control, or the definition's `none` without one that names a detail.
+	// True when the state changed (its bindings are then applied).
+	bool UpdateDetailSubject() {
+		if (!canonical || !canonical->Model().detail) return false;
+		const auto& spec = *canonical->Model().detail;
+		std::string subject = pointerNavigation ? (pointerPresent ? interaction.Hovered() : std::string{}) : interaction.Focused();
+		const auto* node = subject.empty() ? nullptr : canonical->Model().FindNode(subject);
+		if (!node || !node->control || !node->control->detail) subject.clear();
+		if (subject != detailSubject || pointerNavigation != detailByPointer) detailPlaced = false;
+		detailSubject = subject; detailByPointer = pointerNavigation;
+		const StateValues change{{spec.state, subject.empty() ? spec.none : *node->control->detail}};
+		if (!state.WouldChange(change)) return false;
+		State candidate = state; std::string error;
+		if (!candidate.Set(change,error) || !ValidModals(candidate,motion,error)) { host.Log(true,error); return false; }
+		state = std::move(candidate); ApplyControlBindings(); ApplyMotion(); return true;
+	}
+	// Places the detail card beside its subject by the card's measured box
+	// (DetailSpec). A hidden card is not placed. True when it moved.
+	bool PlaceDetailCard() {
+		if (!canonical || !canonical->Model().detail || detailSubject.empty()) return false;
+		auto* card = CanonicalElement(canonical->Model().detail->card);
+		auto* subject = CanonicalElement(detailSubject);
+		if (!card || !subject) return false;
+		const auto size = card->GetBox().GetSize(Rml::BoxArea::Border);
+		if (size.x <= 0 || size.y <= 0) return false;
+		auto* parent = card->GetOffsetParent();
+		const auto origin = parent ? parent->GetAbsoluteOffset(Rml::BoxArea::Padding) : Rml::Vector2f{};
+		const float dp = viewport.DpRatio(), gap = 6*dp, edge = 16*dp;
+		const float viewWidth = static_cast<float>(viewport.width), viewHeight = static_cast<float>(viewport.height);
+		float x = 0, y = 0;
+		if (detailByPointer) {
+			x = pointerX-origin.x > 555*dp ? pointerX+28*dp-size.x : pointerX+gap;
+			y = pointerY+gap;
+			if (y+size.y > viewHeight-edge) y = pointerY-gap-size.y;
+		} else {
+			const auto at = subject->GetAbsoluteOffset(Rml::BoxArea::Border);
+			const auto box = subject->GetBox().GetSize(Rml::BoxArea::Border);
+			x = at.x; y = at.y+box.y+gap;
+			if (y+size.y > viewHeight-edge) y = at.y-gap-size.y;
+		}
+		x = std::clamp(x,edge,std::max(edge,viewWidth-edge-size.x));
+		y = std::clamp(y,edge,std::max(edge,viewHeight-edge-size.y));
+		const float left = x-origin.x, top = y-origin.y;
+		if (detailPlaced && std::abs(left-detailLeft) < .25f && std::abs(top-detailTop) < .25f) return false;
+		detailLeft = left; detailTop = top; detailPlaced = true;
+		card->SetProperty(Rml::PropertyId::Left,Rml::Property(left,Rml::Unit::PX));
+		card->SetProperty(Rml::PropertyId::Top,Rml::Property(top,Rml::Unit::PX));
+		return true;
+	}
 	Rml::Element* NumberViewport(Rml::Element* element) const {
 		const auto* node = element && canonical ? canonical->Model().FindNode(element->GetId()) : nullptr;
 		const auto* number = node && node->control ? std::get_if<NumberSpec>(&node->control->widget) : nullptr;
-		return number ? document->GetElementById(number->viewport) : nullptr;
+		return number ? CanonicalElement(number->viewport) : nullptr;
 	}
 	static bool ProjectedBounds(Rml::Element* element, Rml::Element* parent, Rml::Vector2f& minimum, Rml::Vector2f& maximum) {
 		Rml::Array<Rml::Vector2f,4> quad;
@@ -1962,7 +2036,7 @@ struct Runtime::Impl {
 	std::vector<Rml::Vector2f> FocusLayout() const {
 		std::vector<Rml::Vector2f> result;
 		if (!document || interaction.Focused().empty()) return result;
-		auto* target = document->GetElementById(interaction.Focused());
+		auto* target = CanonicalElement(interaction.Focused());
 		if (auto* viewport = NumberViewport(target)) target = viewport;
 		for (auto* element = target; element && element != document; element = element->GetParentNode()) {
 			// Relative layout and client extents exclude scroll offsets. A user
@@ -1975,7 +2049,7 @@ struct Runtime::Impl {
 	}
 	bool FocusVisible() const {
 		if (!document || interaction.Focused().empty()) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		Rml::Array<Rml::Vector2f,4> quad;
 		if (!element || !element->IsVisible(true) || !Rml::ElementUtilities::GetBorderBoxQuad(quad,element)) return false;
 		for (auto* parent = element->GetParentNode(); parent; parent = parent->GetParentNode()) {
@@ -1996,7 +2070,7 @@ struct Runtime::Impl {
 	}
 	bool RevealFocus(bool preserveAuthoredAxes = false) {
 		if (!document || !context || interaction.Focused().empty()) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		if (!element) return false;
 		const float margin = 4.f * viewport.DpRatio();
 		if (!std::isfinite(margin) || margin <= 0) return false;
@@ -2195,7 +2269,7 @@ struct Runtime::Impl {
 			changedKeys.insert(changedKeys.end(),deferredInputs.begin(),deferredInputs.end());
 			deferredInputs.clear();
 		}
-		appliedMotionRevision = 0;
+		appliedMotionRevision = 0; ++presentationPass;
 		bool complete = true;
 		// One input: formats it only when it changed, then applies it.
 		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated) -> bool {
@@ -2207,7 +2281,7 @@ struct Runtime::Impl {
 			const bool owned = bound != state.Properties().end();
 			const auto& value = owned ? bound->second : animated;
 			if (deferHidden) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				// A hidden animated property may never have needed an inline
 				// write. Keep its resolved element even while deferring the value,
 				// otherwise every sample searches the entire document again.
@@ -2222,7 +2296,7 @@ struct Runtime::Impl {
 			}
 			const bool coordinates=key.second == "image-offset-x" || key.second == "image-offset-y" || key.second == "image-scale-x" || key.second == "image-scale-y";
 			if (coordinates) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				if (!element) { complete=false; return true; }
 				static_cast<VectorElement*>(element)->SetImageCoordinate(key.second,value.data[0]);
 				input={key,animated,owned,element}; return current();
@@ -2231,7 +2305,7 @@ struct Runtime::Impl {
 			// A decorative leaf beside canonical buttons can replay its isolated
 			// fade. Owned widgets, interactive ancestry and compound groups keep
 			// their ordinary style/layout update and filter preparation.
-			auto* opacityElement=opacity ? (input.element ? input.element : document->GetElementById(key.first)) : nullptr;
+			auto* opacityElement=opacity ? (input.element ? input.element : CanonicalElement(key.first)) : nullptr;
 			const bool paintOpacity=opacityElement && incremental && !presentationDirty &&
 				!scrollView.HasScrollbars() && ((controls.empty() && !interaction.HasAuthoredModals() && !pointerPresent) ||
 				(layoutWidgets.empty() && !interactionAncestors.count(opacityElement) && static_cast<VectorElement*>(opacityElement)->ReplayOpacity()));
@@ -2252,7 +2326,7 @@ struct Runtime::Impl {
 			// parent order. Controls, modals and scrolling retain full layout.
 			if (incremental && !presentationDirty && key.second=="transform" &&
 				value.type==ValueType::Transform && !scrollView.HasScrollbars()) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				if (element && !interactionAncestors.count(element)) {
 					if (!static_cast<VectorElement*>(element)->SetPresentationTransform(value,viewport.DpRatio(),
 						{float(viewport.width),float(viewport.height)})) {
@@ -2290,7 +2364,7 @@ struct Runtime::Impl {
 			}
 			// Canonical elements survive property/text edits and owned-widget
 			// reparenting. These handles reset with the document or its snapshot.
-			auto* element = input.element ? input.element : document->GetElementById(key.first);
+			auto* element = input.element ? input.element : CanonicalElement(key.first);
 			if (!element) { complete = false; return true; }
 			if (opacity && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) string.insert(0,"q4-");
 			auto previous = applied.find(key);
@@ -2512,6 +2586,7 @@ void Runtime::Shutdown() {
 	}
 	impl->context = nullptr;
 	impl->document = nullptr;
+	impl->canonicalElements.clear();
 	impl->boundsElements.clear();
 	impl->inputBranches={}; impl->modalBranches={}; impl->interactionAncestors.clear(); impl->elementIndex.clear(); impl->layoutWidgets.clear();
 	impl->hud = nullptr;
@@ -2550,6 +2625,7 @@ void Runtime::CloseDocument() {
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	impl->document->Close();
 	impl->document = nullptr;
+	impl->canonicalElements.clear();
 	impl->context->Update();
 }
 bool Runtime::LoadMarkup(const std::string& markup, const std::string& sourcePath) {
@@ -2570,6 +2646,15 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 
 	auto candidate = std::make_unique<Document>();
 	if (!candidate->Load(source,diagnostics)) return false;
+	return LoadCanonical(std::move(candidate),sourcePath,diagnostics);
+}
+bool Runtime::LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
+    if(!Mutate())return false;
+	diagnostics.clear();
+	if (document.Source().empty()) return false; // Never loaded.
+	return LoadCanonical(std::make_unique<Document>(document),sourcePath,diagnostics);
+}
+bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
 	if (!LoadMarkup(candidate->BuildMarkup(),sourcePath)) return false;
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	impl->motion.Reset(candidate->Model());
@@ -2580,18 +2665,34 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 		impl->stateSources.push_back({id,declaration.cvar,declaration.initial.index()});
 	impl->canonical = std::move(candidate);
 	impl->sourcePath = sourcePath;
+	// Every element by ID from one breadth-first walk, in GetElementById's own
+	// order and first match, so the load resolves each node without a search.
+	std::unordered_map<std::string_view,Rml::Element*> loaded;
+	{
+		std::vector<Rml::Element*> queue{impl->document};
+		for (size_t next = 0; next < queue.size(); ++next) {
+			auto* element = queue[next];
+			if (!element->GetId().empty()) loaded.emplace(element->GetId(),element);
+			for (int child = 0; child < element->GetNumChildren(); ++child) queue.push_back(element->GetChild(child));
+		}
+	}
+	const auto find = [&](const std::string& id) -> Rml::Element* {
+		const auto found = loaded.find(id);
+		return found == loaded.end() ? nullptr : found->second;
+	};
 	std::vector<const Node*> nodes{&impl->canonical->Model().root};
 	while (!nodes.empty()) {
 		const auto* node = nodes.back(); nodes.pop_back();
+		auto* element = find(node->id);
 		if (node->control) {
 			impl->controls.push_back(node->id);
-			if (node->control->role!=ControlRole::Button)
-				if (auto* element=impl->document->GetElementById(node->id)) impl->layoutWidgets.push_back(element);
+			if (node->control->role!=ControlRole::Button && element) impl->layoutWidgets.push_back(element);
 		}
-		// Canonical subtrees preserve paint order when opacity crosses 1 and
-		// their temporary filter layer appears or disappears.
-		if (auto* element = impl->document->GetElementById(node->id)) element->SetProperty("z-index","0");
-		if (auto* element = impl->document->GetElementById(node->id)) {
+		if (element) {
+			// Canonical subtrees preserve paint order when opacity crosses 1 and
+			// their temporary filter layer appears or disappears.
+			element->SetProperty("z-index","0");
+			impl->canonicalElements.emplace(node->id,element);
 			static_cast<VectorElement*>(element)->Configure(*node,impl->host,impl->Stats());
 			static_cast<VectorElement*>(element)->SetImageSamplingInterface(&impl->backend->renderer);
 			static_cast<VectorElement*>(element)->SetLinearMaskInterface(&impl->backend->renderer);
@@ -2599,7 +2700,8 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 		for (const auto& child : node->children) nodes.push_back(&child);
 	}
 	if (!impl->valueView.Initialize(impl->canonical->Model(),*impl->document,
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError)) {
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
 	if (!impl->scrollView.Initialize(impl->canonical->Model(),*impl->document,stateError)) {
@@ -2607,7 +2709,8 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
     }
     if (!impl->numberView.Initialize(impl->canonical->Model(),*impl->document,
 		[owner=impl.get()](std::uintptr_t face,std::string_view text,float spacing) { return owner->services->fonts.QueryRun(face,text,spacing); },
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError)) {
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
 	impl->inputBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,false);
@@ -2661,6 +2764,11 @@ StateValues Runtime::GetState(bool includeHostSources) const {
 	return values;
 }
 std::uint64_t Runtime::StateRevision() const { return impl->state.Revision(); }
+bool Runtime::GetStateValue(const std::string& id, StateValue& value) const {
+	const auto found = impl->state.Variables().find(id);
+	if (found == impl->state.Variables().end()) return false;
+	value = found->second; return true;
+}
 bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double seconds) const {
 	error.clear();
 	if (!impl->canonical || !impl->document) { error = "Snapshots require a loaded canonical document"; return false; }
@@ -2691,6 +2799,8 @@ bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double sec
 		interaction.Cancel();
 		// A press/hover is transient. Preserve a continuous transition toward
 		// its persistent focus/default feedback instead of reviving pressed ink.
+		// The pointer's lead is too: a restore starts with focus shown.
+		interaction.SetPointerPresentation(false);
 		for (const auto& feedback : interaction.TakeFeedback()) motion.Play(feedback.timeline,now);
 		const auto playback = motion.Capture(now);
 		if (!motion.Restore(playback,now,error,true)) return false;
@@ -3121,10 +3231,11 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 		if (focusChanged) impl->ApplyMotion();
 		const auto* focusedNode = impl->canonical ? impl->canonical->Model().FindNode(impl->interaction.Focused()) : nullptr;
 		auto* focusedNumber = focusedNode && focusedNode->control && focusedNode->control->role == ControlRole::Number ?
-			impl->document->GetElementById(focusedNode->id) : nullptr;
+			impl->CanonicalElement(focusedNode->id) : nullptr;
 		const auto numberSize = focusedNumber ? focusedNumber->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
 		bool painted = impl->valueView.Paint(impl->interaction,impl->state.ControlValues(),viewport.width,viewport.height,viewport.DpRatio(),
-			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; });
+			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; },
+			impl->presentationPass);
 		painted |= std::exchange(impl->scrollLayoutDirty,false);
 		painted |= impl->numberView.Paint(impl->interaction,viewport.DpRatio(),impl->time,impl->motion.ReducedMotion());
 		if (!painted && !focusChanged && !revealed) break;
@@ -3137,8 +3248,14 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 		}
 	}
 	impl->preserveRestoredScroll=false;
-	if (layoutUpdated) impl->context->GetRootElement()->UpdateGeometryForProjection();
-	if (layoutUpdated || settleInteraction) impl->RememberFocusLayout();
+	// The detail card follows the subject this layout settled on: its detail
+	// shows the card and its content, then the card's measured box places it.
+	bool detailChanged = false;
+	if (impl->UpdateDetailSubject()) { impl->context->Update(); detailChanged = true; }
+	if (impl->PlaceDetailCard()) { impl->context->Update(); detailChanged = true; }
+	if (detailChanged) { impl->presentationDirty=false; impl->paintDirty=true; }
+	if (layoutUpdated || detailChanged) impl->context->GetRootElement()->UpdateGeometryForProjection();
+	if (layoutUpdated || settleInteraction || detailChanged) impl->RememberFocusLayout();
 	impl->Stats().layoutMilliseconds+=std::chrono::duration<double,std::milli>(impl->Stats().Now()-presentationEnd).count();
 	return true;
 }
@@ -3179,7 +3296,7 @@ bool Runtime::Frame(const Viewport& viewport, double seconds) {
 		impl->UpdateInteraction(-1,true);
 	if (!impl->pendingFocus.empty()) {
 		const auto focus = std::move(impl->pendingFocus); impl->pendingFocus.clear();
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
 		if (impl->interaction.Focus(focus)) { impl->RevealFocus(); impl->Feedback(impl->time); }
 	}
 	const auto end = statistics.Now();
@@ -3196,7 +3313,7 @@ bool Runtime::GetBounds(const std::string& id, Bounds& bounds) const {
 		if (found != impl->boundsElements.end()) element = found->second;
 	}
 	if (!element && impl->document) {
-		element = impl->document->GetElementById(id);
+		element = impl->CanonicalElement(id);
 		if (element && impl->canonical && impl->canonical->Model().FindNode(id)) impl->boundsElements.emplace(id,element);
 	}
 	if (!element) return false;
@@ -3237,7 +3354,7 @@ RuntimeStatistics Runtime::Statistics() const {
 void Runtime::PointerMove(float x, float y, double seconds) {
     if(!Mutate())return;
 
-	impl->pointerNavigation = true;
+	impl->SetPointerNavigation(true);
 	impl->pointerPresent = std::isfinite(x) && std::isfinite(y);
 	impl->windowPointerX = x; impl->windowPointerY = y;
 	impl->viewport.WindowToDocument(x,y,impl->pointerX,impl->pointerY);
@@ -3245,7 +3362,7 @@ void Runtime::PointerMove(float x, float y, double seconds) {
 }
 void Runtime::PointerButton(bool down, double seconds) {
     if(!Mutate())return;
- impl->pointerNavigation = true; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
+ impl->SetPointerNavigation(true); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
  if(down) impl->RememberFocusLayout();
  impl->Feedback(seconds); }
 void Runtime::PointerWheel(int rows, double seconds) {
@@ -3261,7 +3378,7 @@ void Runtime::PointerWheel(int rows, double seconds) {
 		// Keep this selection through layout and subsequent wheel events. The
 		// stationary pointer must not reselect its old row on the next frame;
 		// an actual pointer move or button event restores pointer navigation.
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
         const auto* node=impl->canonical->Model().FindNode(id);
         const auto* choice=node&&node->control?std::get_if<ChoiceSpec>(&node->control->widget):nullptr;
         if(choice&&choice->scrollbar) {
@@ -3292,19 +3409,19 @@ void Runtime::MenuAction(MenuInput input, bool down, double seconds) {
 	if (down && input != MenuInput::Back && !impl->interaction.CapturedPointerControl().empty()) impl->interaction.Cancel();
 	if (down) impl->pendingFocus.clear();
 	const auto before = impl->interaction.Focused();
-	impl->pointerNavigation = false; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
+	impl->SetPointerNavigation(false); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
 	if (impl->interaction.Focused() != before) impl->RevealFocus();
 }
 void Runtime::CancelInput(double seconds) {
     if(!Mutate())return;
- impl->pointerPresent = impl->pointerNavigation = false; impl->interaction.Cancel(); impl->Feedback(seconds); }
+ impl->pointerPresent = false; impl->SetPointerNavigation(false); impl->interaction.Cancel(); impl->Feedback(seconds); }
 void Runtime::ReleaseInputSources() {
     if(!Mutate())return;
  impl->interaction.ReleaseInputSources(); }
 bool Runtime::FocusControl(const std::string& id, double seconds) {
     if(!Mutate())return false;
 
-	impl->pointerNavigation = false; impl->pendingFocus.clear();
+	impl->SetPointerNavigation(false); impl->pendingFocus.clear();
 	if(!impl->UpdateInteraction(seconds,false,true))return false; const bool result = impl->interaction.Focus(id);
 	if (result) impl->RevealFocus();
 	impl->Feedback(seconds); return result;
@@ -3478,7 +3595,7 @@ bool Runtime::FocusNumberDraft(const NumberDraftBarrier& expected,const std::str
 	if (!impl->PrepareNumberEdit(seconds,error)) return false;
 	if (!impl->RefreshNumberFocusLayout(error)) return false;
 	const bool result=impl->interaction.FocusNumberDraft(expected,control,error);
-	if (result) { impl->pointerNavigation = false; impl->RevealFocus(); }
+	if (result) { impl->SetPointerNavigation(false); impl->RevealFocus(); }
 	impl->Feedback(seconds); return result;
 }
 std::optional<NumberTextGeometry> Runtime::GetNumberGeometry(const std::string& id) const {

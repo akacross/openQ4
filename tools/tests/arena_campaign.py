@@ -1570,13 +1570,15 @@ def validate_engine_hooks() -> None:
 
     open_browser = function_body(arena, "void idArenaCampaign::OpenBrowser()")
     open_selector = function_body(arena, "void idArenaCampaign::OpenSelector()")
-    for name, body, view in (
-        ("selector", open_selector, "state->view = 0;"),
-        ("browser", open_browser, "state->view = 1;"),
+    # The browser presents the retained Arena page where it can, else its own.
+    require(open_browser, "idUserInterface *view = sessLocal.RetainedArenaPage();", "retained Arena page presentation")
+    for name, body, view, present in (
+        ("selector", open_selector, "state->view = 0;", "sessLocal.SetGUI( state->gui, NULL );"),
+        ("browser", open_browser, "state->view = 1;", "sessLocal.SetGUI( view, NULL );"),
     ):
         view_index = body.find(view)
         update_index = body.find("UpdateGui();", view_index)
-        set_gui_index = body.find("sessLocal.SetGUI( state->gui, NULL );", view_index)
+        set_gui_index = body.find(present, view_index)
         if not 0 <= view_index < update_index < set_gui_index:
             raise AssertionError(
                 f"Arena {name} GUI state must be published before synchronous activation"
@@ -1657,7 +1659,12 @@ def validate_engine_hooks() -> None:
         if forbidden in dismiss_result:
             raise AssertionError("DismissResult must preserve completed-match metadata")
 
-    update_body = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    # UpdateGui publishes the browser's state into the stock browser and, while
+    # it is loaded, the retained Arena page alike (PublishGui).
+    update_gui = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    for token in ("PublishGui( state->gui );", "idUserInterface *page = sessLocal.RetainedArenaGui();", "PublishGui( page );"):
+        require(update_gui, token, "Arena state published to both browsers")
+    update_body = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
     require(
         update_body,
         'SetStateInt( "arenaCampaignProgress"',
@@ -2463,7 +2470,7 @@ def validate_failure_reporting() -> None:
     # The unloaded branch has to publish a whole board: the per-slot keys below
     # it are never written on this path, and an unset arena_tier%d_locked reads
     # as 0, drawing every tier and match as unlocked over blank rows.
-    unloaded = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    unloaded = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
     unloaded = unloaded.split("if ( !state->loaded ) {", 1)[1].split("\n\t\treturn;", 1)[0]
     for token in (
         'va( "arena_tier%d_locked", tierIndex ), true',

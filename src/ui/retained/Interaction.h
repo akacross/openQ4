@@ -42,9 +42,11 @@ struct NumberNativeCandidate {
     NumberEditIdentity identity;
     std::uint64_t modalToken=0;
 };
-enum class NumberEditNotice { None, ClipboardReadFailed, ClipboardWriteFailed, ClipboardRejected };
+// ClipboardMasked: a masked field refused a copy or cut (it stays last).
+enum class NumberEditNotice { None, ClipboardReadFailed, ClipboardWriteFailed, ClipboardRejected, ClipboardMasked };
 struct NumberEditView {
 	NumberEditNotice notice = NumberEditNotice::None;
+	bool masked = false; // The field presents a mask (NumberSpec::masked).
 	TextEditState state;
 	std::optional<TextInputEvent> composition;
 	NumberEditIdentity identity;
@@ -191,6 +193,12 @@ public:
 	bool SetEnabled(const std::string& id, bool enabled);
 	bool Focus(const std::string& id);
 	void Hover(const std::string& id);
+	// The most recent input device sets the presentation (section 13.4).
+	// While the pointer leads, a focused button or toggle shows as the pointer
+	// finds it, hovered or at rest, so only the control under the pointer is
+	// lit; the focus stays for the next navigation input. Value controls keep
+	// showing focus, as an edit in progress must.
+	void SetPointerPresentation(bool pointer);
 	// Layout supplies a track fraction (increasing toward maximum, including
 	// outside-track values during capture) or a stable popup option ID.
 	void PointerPart(const std::string& id, std::optional<double> trackFraction = {}, const std::string& option = {}, bool scrollThumb = false, bool choiceTrack = false);
@@ -211,6 +219,7 @@ public:
 	bool PushModal(const std::string& root);
 	bool PopModal();
 	std::string Focused() const { return focused; }
+	std::string Hovered() const { return hovered; }
 	std::string Modal() const { return modals.empty() ? std::string{} : modals.back().root; }
 	std::optional<ControlState> State(const std::string& id) const;
 	std::vector<ControlFeedback> TakeFeedback();
@@ -344,6 +353,10 @@ private:
 	bool Eligible(const std::string& id) const;
 	std::string First() const;
 	void Navigate(MenuInput input);
+	// The eligible control after `from` in tab order (Next or Previous), and
+	// the nearest one from `bounds` in a direction; empty when there is none.
+	std::string Following(const std::string& from, MenuInput input) const;
+	std::string Toward(const ControlBounds& bounds, const std::string& from, MenuInput input) const;
 	void Activate(const std::string& id);
 	bool Propose(const std::string& id, const StateValue& value);
 	Item* EditableNumber(const std::string& id, NumberEditIdentity expected, std::string& error);
@@ -352,6 +365,9 @@ private:
 	bool RebaseNumber(Item& item, std::string& error);
 	void RetireNumber(const std::string& id, Item& item);
 	void DetachNumber(const std::string& id, Item& item);
+	// A detached editor holding nothing to cancel: its text is the baseline,
+	// with no composition, conflict, proposal or native presentation.
+	static bool IdleNumber(const Item& item);
 	void DropNumberNative(const std::string& id, Item& item);
 	Item* NativeNumber(const NativeTextEditorBarrier& expected, std::string& error);
 	bool PublishNumberNative(const NativeTextEditorBarrier& expected, std::unique_ptr<NativeTextEditor> prepared,
@@ -377,6 +393,9 @@ private:
 	bool OptionEligible(const Item& item, size_t index) const;
 	void KeepHighlightVisible();
 	void SliderKey(MenuInput input);
+	// Left and right step a closed choice through its eligible options and
+	// wrap, as a stock choiceDef cycles; false where it has none to step to.
+	bool ChoiceKey(MenuInput input);
 	void ScrollKey(MenuInput input);
 	void QueueScroll(const std::string&, ScrollStep, bool drag = false);
     bool MoveChoiceScroll(const std::string&, ScrollStep, bool drag = false);
@@ -394,8 +413,13 @@ private:
 	std::map<std::string,ModalSpec> authoredModals;
 	std::uint64_t modalToken = 0;
 	std::uint64_t numberEpoch = 0;
-	bool modalBlocked = false, focusPending = false;
+	bool modalBlocked = false, focusPending = false, pointerPresentation = false;
 	std::string pendingFocus;
+	// Where the focus stood when its control last turned hidden, disabled or
+	// clipped: the next navigation input resumes there rather than at the
+	// first control, since focus never stays on such a control (section 13.4).
+	std::string lostFocus;
+	ControlBounds focusBounds;
 	std::set<MenuInput> heldNavigation, blockedNavigation;
 	std::vector<ControlFeedback> feedback;
 	std::vector<ControlAction> actions;

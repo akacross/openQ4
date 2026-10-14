@@ -21,6 +21,9 @@ bool Interaction::ObserveNumberNativeCandidate(NumberNativeCandidate& out) const
     const auto found=items.find(focused);
     if(found==items.end() || found->second.control.role!=ControlRole::Number || !found->second.number ||
         !found->second.readback || found->second.pending)return false;
+    // The text services would read a masked field's plain text.
+    const auto* spec=std::get_if<NumberSpec>(&found->second.control.widget);
+    if(!spec || spec->masked)return false;
     const auto& editor=*found->second.number;
     if(editor.detached || editor.native || editor.conflict || editor.buffer.Composition() ||
         !editor.identity.session || !editor.identity.revision)return false;
@@ -49,6 +52,7 @@ bool HasScrollOffset(const Control& control) {
 }
 bool ValidNumber(const Control& control) {
 	const auto* spec = std::get_if<NumberSpec>(&control.widget);
+	if (spec && spec->textField) return control.value && control.value->type == 2 && spec->maxBytes > 0 && spec->maxBytes <= TextInputMaxBytes;
 	return spec && control.value && control.value->type == 0 && std::isfinite(spec->minimum) &&
 		std::isfinite(spec->maximum) && spec->minimum <= spec->maximum &&
 		(!spec->integer || std::ceil(spec->minimum) <= std::floor(spec->maximum)) && spec->maxBytes > 0 && spec->maxBytes <= TextInputMaxBytes;
@@ -87,6 +91,42 @@ TextNumberPolicy NumberPolicy(const Control& control) {
 	const auto& spec = std::get<NumberSpec>(control.widget);
 	return {spec.minimum,spec.maximum,spec.exponent,spec.integer};
 }
+// A Number control's draft as its value: the parsed number, or for a text
+// field (role "text") the text itself, which must not be empty unless the
+// field allows it. Failure leaves the value unchanged.
+TextNumberStatus ParseDraft(const Control& control, std::string_view text, StateValue& value) {
+	if (const auto& spec = std::get<NumberSpec>(control.widget); spec.textField) {
+		if (text.empty() && !spec.allowEmpty) return TextNumberStatus::Empty;
+		value = std::string(text); return TextNumberStatus::Valid;
+	}
+	double number = 0;
+	const auto status = ParseTextNumber(text,NumberPolicy(control),number);
+	if (status == TextNumberStatus::Valid) value = number;
+	return status;
+}
+// A readback as the field's draft text: a number in the field's syntax, or a
+// text field's string as it stands, within the field's size.
+bool FormatDraft(const Control& control, const StateValue& value, std::string& text, std::string& error) {
+	const auto& spec = std::get<NumberSpec>(control.widget);
+	if (spec.textField) {
+		const auto* string = std::get_if<std::string>(&value);
+		if (!string || string->size() > spec.maxBytes) { error = "Text field value must be a string within its size"; return false; }
+		text = *string; return true;
+	}
+	const auto* number = std::get_if<double>(&value);
+	if (!number) { error = "Number field value must be numeric"; return false; }
+	return FormatTextNumber(*number,NumberPolicy(control),text,error);
+}
+// The numeric baseline an editor and its snapshot keep; a text field keeps
+// only its baseline text.
+double DraftBaseline(const StateValue& value) {
+	const auto* number = std::get_if<double>(&value);
+	return number ? *number : 0;
+}
+// Whether a readback has the value type of the field's role.
+bool DraftReadback(const Control& control, const StateValue& value) {
+	return std::get<NumberSpec>(control.widget).textField ? std::holds_alternative<std::string>(value) : std::holds_alternative<double>(value);
+}
 bool NativeUnsettled(const NativeTextEditorView& view) {
 	return view.barrier.collectionOpen || view.barrier.group || view.awaitingSettlement || !view.presentation.compositions.empty();
 }
@@ -96,11 +136,11 @@ bool NativeUnsettled(const NativeTextEditorView& view) {
 // or an actual move construction. Native views themselves are immutable.
 #define OQ4_INTERACTION_FIELDS(X) \
 	X(document) X(focused) X(hovered) X(armed) X(pointerHeld) X(acceptHeld) X(backHeld) X(pointerArm) X(overflowed) \
-	X(items) X(order) X(parents) X(modals) X(authoredModals) X(modalToken) X(numberEpoch) X(modalBlocked) X(focusPending) \
+	X(items) X(order) X(parents) X(modals) X(authoredModals) X(modalToken) X(numberEpoch) X(modalBlocked) X(focusPending) X(pointerPresentation) \
 	X(pendingFocus) X(heldNavigation) X(blockedNavigation) X(feedback) X(actions) X(dragging) X(popup) X(highlight) \
 	X(pointerOption) X(armedOption) X(pointerFraction) X(dragPreview) X(popupAcceptArm) X(nativeControl) \
     X(pointerScrollThumb) X(scrollGrabFraction) X(scrollSource) X(scrollCommands) X(pointerChoiceTrack) X(choiceScrollArm) X(popupToken) \
-    X(popupMeasured)
+    X(popupMeasured) X(lostFocus) X(focusBounds)
 Interaction::Interaction() : authority(ProposalToken()) {}
 Interaction::~Interaction() = default;
 Interaction::Interaction(const Interaction& other) : authority(other.authority), candidate(true) {
@@ -169,7 +209,8 @@ void Interaction::Reset(const DocumentModel& model) {
 	document = model.id; focused.clear(); hovered.clear(); armed.clear();
 	CancelGesture(); pointerOption.clear(); pointerFraction.reset();
 	items.clear(); order.clear(); parents.clear(); modals.clear(); feedback.clear(); actions.clear(); overflowed = false;
-	authoredModals.clear(); modalBlocked = focusPending = false; pendingFocus.clear();
+	authoredModals.clear(); modalBlocked = focusPending = pointerPresentation = false; pendingFocus.clear();
+	lostFocus.clear(); focusBounds = {};
 	modalToken = ProposalToken(); numberEpoch = ProposalToken(); blockedNavigation = heldNavigation;
 	std::vector<std::pair<const Node*,std::string>> pending{{&model.root,{}}};
 	while (!pending.empty()) {
@@ -466,15 +507,16 @@ std::optional<WidgetViewState> Interaction::Widget(const std::string& id) const 
 		const auto& editor = *item.number;
 		NumberEditView number;
 		number.state = editor.buffer.State(); number.composition = editor.buffer.Composition(); number.identity = editor.identity;
-		double parsed = 0;
-		number.status = ParseTextNumber(number.state.text,NumberPolicy(item.control),parsed);
+		StateValue parsed;
+		number.status = ParseDraft(item.control,number.state.text,parsed);
 		number.dirty = number.state.text != editor.baselineText || number.composition.has_value();
 		number.conflict = editor.conflict; number.canUndo = editor.buffer.CanUndo(); number.canRedo = editor.buffer.CanRedo();
 		number.active = !editor.detached; number.notice = editor.notice;
+		number.masked = std::get<NumberSpec>(item.control.widget).masked;
 		if (editor.native) {
 			number.nativePresentation = editor.native->presentation;
 			number.nativeUnsettled = NativeUnsettled(*editor.native);
-			number.status = ParseTextNumber(number.nativePresentation->text,NumberPolicy(item.control),parsed);
+			number.status = ParseDraft(item.control,number.nativePresentation->text,parsed);
 			number.dirty = number.dirty || number.nativePresentation->text != editor.baselineText;
 			number.canUndo = number.canRedo = false;
 		}
@@ -487,9 +529,9 @@ bool Interaction::RebaseNumber(Item& item, std::string& error) {
 	editor.draftLifetime = editor.draftRevision = ProposalToken();
 	if (!editor.draftLifetime) { error = "Number draft identity exhausted"; return false; }
 	const auto& spec = std::get<NumberSpec>(item.control.widget);
-	editor.baselineValue = std::get<double>(item.readback->value);
+	editor.baselineValue = DraftBaseline(item.readback->value);
 	editor.detached = !item.number || item.number->detached;
-	if (!FormatTextNumber(editor.baselineValue,NumberPolicy(item.control),editor.baselineText,error) ||
+	if (!FormatDraft(item.control,item.readback->value,editor.baselineText,error) ||
 		!editor.buffer.Reset(editor.baselineText,{spec.maxBytes,false,false},error) ||
 		!editor.buffer.SetSelection(0,editor.baselineText.size(),error)) return false;
 	if (!editor.detached) {
@@ -532,8 +574,8 @@ bool Interaction::ResolveNumberConflict(const std::string& id, NumberEditIdentit
 	}
 	auto& item = found->second; NumberEditor candidate = *item.number;
 	const auto& spec = std::get<NumberSpec>(item.control.widget);
-	candidate.baselineValue = std::get<double>(item.readback->value);
-	if (!FormatTextNumber(candidate.baselineValue,NumberPolicy(item.control),candidate.baselineText,error)) return false;
+	candidate.baselineValue = DraftBaseline(item.readback->value);
+	if (!FormatDraft(item.control,item.readback->value,candidate.baselineText,error)) return false;
 	TextEditBuffer baseline;
 	if (!baseline.Reset(candidate.baselineText,{spec.maxBytes,false,false},error) ||
 		!baseline.SetSelection(0,candidate.baselineText.size(),error)) return false;
@@ -798,7 +840,7 @@ bool Interaction::ApplyNumberInput(const std::string& id, NumberEditIdentity exp
 }
 bool Interaction::SetNumberNotice(const std::string& id, NumberEditIdentity expected, NumberEditNotice notice, std::string& error) {
 	auto* item = EditableNumber(id,expected,error); if (!item) return false;
-	if (notice < NumberEditNotice::None || notice > NumberEditNotice::ClipboardRejected || item->number->buffer.Composition()) {
+	if (notice < NumberEditNotice::None || notice > NumberEditNotice::ClipboardMasked || item->number->buffer.Composition()) {
 		error = "Number clipboard notice is invalid or composing"; return false;
 	}
 	item->number->notice = notice; return true;
@@ -837,8 +879,8 @@ bool Interaction::ApplyNumberOperation(const std::string& id, NumberEditIdentity
 }
 bool Interaction::CommitNumberEdit(const std::string& id, NumberEditIdentity expected, std::string& error) {
 	auto* item = EditableNumber(id,expected,error); if (!item) return false;
-	double value = 0;
-	if (item->number->buffer.Composition() || ParseTextNumber(item->number->buffer.State().text,NumberPolicy(item->control),value) != TextNumberStatus::Valid) {
+	StateValue value;
+	if (item->number->buffer.Composition() || ParseDraft(item->control,item->number->buffer.State().text,value) != TextNumberStatus::Valid) {
 		error = "Number text is incomplete, invalid, out of range or composing"; return false;
 	}
 	if (!modalToken || !Propose(id,value)) { error = "Number proposal could not be queued"; return false; }
@@ -860,6 +902,11 @@ void Interaction::RetireNumber(const std::string& id, Item& item) {
 	if (item.number) numberEpoch = ProposalToken();
 	item.number.reset(); item.pending.reset(); item.rejected.reset(); item.proposalToken = 0;
 	std::erase_if(actions,[&](const ControlAction& action) { return action.node == id && action.editSession != 0; });
+}
+bool Interaction::IdleNumber(const Item& item) {
+	const auto& editor = *item.number;
+	return editor.detached && !editor.native && !editor.buffer.Composition() && !editor.conflict && !item.pending &&
+		editor.buffer.State().text == editor.baselineText;
 }
 void Interaction::DetachNumber(const std::string& id, Item& item) {
 	if (!item.number) return;
@@ -894,8 +941,8 @@ bool Interaction::QueryNumberDrafts(NumberDraftSummary& out, std::string& error)
 		const auto& text = editor.native ? editor.native->presentation.text : editor.buffer.State().text;
 		const bool dirty = editor.buffer.State().text != editor.baselineText || text != editor.baselineText || composing;
 		if (!dirty && !editor.conflict && !item.pending && !composing && !nativeUnsettled) continue;
-		double value = 0;
-		candidate.blocking.push_back({id,ParseTextNumber(text,NumberPolicy(item.control),value),
+		StateValue value;
+		candidate.blocking.push_back({id,ParseDraft(item.control,text,value),
 			dirty,editor.conflict,item.pending.has_value(),composing,!editor.detached,nativeUnsettled});
 	}
 	out = std::move(candidate); return true;
@@ -958,6 +1005,26 @@ void Interaction::SliderKey(MenuInput input) {
 		value = SliderTickValue(spec,next);
 	}
 	if (value != std::get<double>(EditingValue(item))) Propose(focused,value);
+}
+bool Interaction::ChoiceKey(MenuInput input) {
+	auto& item = items.at(focused); const auto& options = std::get<ChoiceSpec>(item.control.widget).options;
+	// The eligible options in order, and where the current value stands among
+	// them; a value no option holds steps to the first or the last.
+	std::vector<size_t> eligible;
+	size_t current = options.size();
+	const auto& value = EditingValue(item);
+	for (size_t i = 0; i < options.size(); ++i) if (OptionEligible(item,i)) {
+		if (options[i].value == value) current = eligible.size();
+		eligible.push_back(i);
+	}
+	const bool matched = current < eligible.size();
+	if (eligible.empty() || (matched && eligible.size() == 1)) return false;
+	armed.clear();
+	const bool next = input == MenuInput::Right;
+	const size_t step = !matched ? (next ? 0 : eligible.size()-1) :
+		next ? (current+1)%eligible.size() : (current+eligible.size()-1)%eligible.size();
+	Propose(focused,options[eligible[step]].value);
+	return true;
 }
 bool Interaction::OptionEligible(const Item& item, size_t index) const {
 	// Options past a counted list's length are hidden, so never eligible.
@@ -1083,11 +1150,12 @@ bool Interaction::RestoreWidgets(const ValueWidgetSnapshot& snapshot, std::strin
 		if (value.firstVisible > maximum) { error = "Restored widget scroll is outside its range"; return false; }
 		if (value.number) {
 			const auto& item = found->second; const auto& saved = *value.number;
-			if (!ValidNumber(item.control) || !item.readback || !std::holds_alternative<double>(item.readback->value) ||
+			if (!ValidNumber(item.control) || !item.readback || !DraftReadback(item.control,item.readback->value) ||
 				!ValidStateValue(saved.baselineValue)) { error = "Invalid restored numeric source or baseline"; return false; }
 			const auto& spec = std::get<NumberSpec>(item.control.widget);
+			// A text field's baseline is its text; a number's must be its value's canonical text.
 			std::string canonical;
-			if (!FormatTextNumber(saved.baselineValue,NumberPolicy(item.control),canonical,error)) return false;
+			if (!FormatDraft(item.control,spec.textField ? StateValue(saved.baselineText) : StateValue(saved.baselineValue),canonical,error)) return false;
 			if (canonical != saved.baselineText) { error = "Restored numeric baseline is not canonical for its source policy"; return false; }
 			TextEditBuffer baseline;
 			if (!baseline.Reset(saved.baselineText,{spec.maxBytes,false,false},error)) return false;
@@ -1096,11 +1164,13 @@ bool Interaction::RestoreWidgets(const ValueWidgetSnapshot& snapshot, std::strin
 			if (!editor.draftLifetime) { error = "Number draft identity exhausted"; return false; }
 			if (!editor.buffer.RestoreHistory(saved.state,{saved.undo,saved.redo},{spec.maxBytes,false,false},error)) return false;
 			editor.baselineText = saved.baselineText; editor.baselineValue = saved.baselineValue; editor.conflict = saved.conflict;
-			if (std::get<double>(item.readback->value) != saved.baselineValue) {
+			const bool moved = spec.textField ? std::get<std::string>(item.readback->value) != saved.baselineText :
+				std::get<double>(item.readback->value) != saved.baselineValue;
+			if (moved) {
 				if (saved.state.text != saved.baselineText || saved.conflict) editor.conflict = true;
 				else {
-					editor.baselineValue = std::get<double>(item.readback->value);
-					if (!FormatTextNumber(editor.baselineValue,NumberPolicy(item.control),editor.baselineText,error) ||
+					editor.baselineValue = DraftBaseline(item.readback->value);
+					if (!FormatDraft(item.control,item.readback->value,editor.baselineText,error) ||
 						!editor.buffer.Reset(editor.baselineText,{spec.maxBytes,false,false},error) ||
 						!editor.buffer.SetSelection(0,editor.baselineText.size(),error)) return false;
 				}
@@ -1173,11 +1243,15 @@ void Interaction::InvalidateLayout() {
 bool Interaction::Focus(const std::string& id) {
 	if (focusPending && !id.empty()) return false;
 	if (!id.empty() && !Eligible(id)) return false;
-	focusPending = false; pendingFocus.clear();
+	focusPending = false; pendingFocus.clear(); lostFocus.clear();
 	if (focused != id) { CancelGesture(); focused = id; }
 	Refresh(); return true;
 }
 void Interaction::Hover(const std::string& id) { PointerPart(id); }
+void Interaction::SetPointerPresentation(bool pointer) {
+	if (pointerPresentation == pointer) return;
+	pointerPresentation = pointer; Refresh();
+}
 void Interaction::PointerPart(const std::string& id, std::optional<double> fraction, const std::string& option, bool scrollThumb, bool choiceTrack) {
 	pointerScrollThumb = scrollThumb;pointerChoiceTrack=choiceTrack;
 	hovered = !focusPending && Eligible(id) ? id : std::string{};
@@ -1301,7 +1375,9 @@ void Interaction::Input(MenuInput input, bool down) {
 	} else if (input == MenuInput::Back) {
 		if (down && !backHeld) {
 			if (!popup.empty() || !dragging.empty() || (!armed.empty() && items.at(armed).control.role==ControlRole::Scrollbar)) CancelGesture();
-			else if (items.contains(focused) && items.at(focused).number) {
+			// Back first cancels an edit; an editor left with nothing to cancel
+			// lets Back through rather than swallowing it.
+			else if (items.contains(focused) && items.at(focused).number && !IdleNumber(items.at(focused))) {
 				auto& item = items.at(focused);
 				if (item.number->buffer.Composition()) {
 					item.number->buffer.CancelComposition(); item.number->identity.revision = item.number->draftRevision = ProposalToken();
@@ -1324,6 +1400,10 @@ void Interaction::Input(MenuInput input, bool down) {
         else if (Eligible(focused) && items.at(focused).control.role == ControlRole::Slider &&
 			(input == MenuInput::Home || input == MenuInput::End || input == MenuInput::PageUp || input == MenuInput::PageDown ||
 			(std::get<SliderSpec>(items.at(focused).control.widget).vertical ? input == MenuInput::Up || input == MenuInput::Down : input == MenuInput::Left || input == MenuInput::Right))) SliderKey(input);
+		// Left and right change the focused value (section 13.5): a closed
+		// choice steps; one with nothing to step to lets them move focus.
+		else if (Eligible(focused) && items.at(focused).control.role == ControlRole::Choice &&
+			(input == MenuInput::Left || input == MenuInput::Right) && ChoiceKey(input)) {}
 		else Navigate(input);
 	}
 	Refresh();
@@ -1416,25 +1496,40 @@ bool Interaction::PopModal() {
 void Interaction::Navigate(MenuInput input) {
 	static const char* names[] = {"next","previous","up","down","left","right"};
 	if (input < MenuInput::Next || input > MenuInput::Right) return;
+	const auto name = names[static_cast<unsigned>(input)];
+	const bool ordered = input == MenuInput::Next || input == MenuInput::Previous;
 	if (!Eligible(focused)) {
+		// A focus whose control turned hidden or disabled resumes on it once
+		// it can take focus again, else moves on from where it stood.
+		if (const auto lost = items.find(lostFocus); lost != items.end()) {
+			// A copy: Focus forgets the lost control as it takes the focus.
+			if (Eligible(lostFocus)) { Focus(std::string(lostFocus)); return; }
+			const auto explicitTarget = lost->second.control.navigation.find(name);
+			auto next = explicitTarget != lost->second.control.navigation.end() && Eligible(explicitTarget->second) ? explicitTarget->second :
+				ordered ? Following(lostFocus,input) : focusBounds.visible ? Toward(focusBounds,lostFocus,input) : std::string{};
+			if (!next.empty()) { Focus(next); return; }
+		}
 		if (input == MenuInput::Previous) { for (auto it = order.rbegin(); it != order.rend(); ++it) if (Eligible(*it)) { Focus(*it); return; } }
 		Focus(First()); return;
 	}
 	const auto& item = items.at(focused);
-	const auto explicitTarget = item.control.navigation.find(names[static_cast<unsigned>(input)]);
+	const auto explicitTarget = item.control.navigation.find(name);
 	if (explicitTarget != item.control.navigation.end() && Eligible(explicitTarget->second)) { Focus(explicitTarget->second); return; }
-	if (input == MenuInput::Next || input == MenuInput::Previous) {
-		const auto current = std::find(order.begin(),order.end(),focused)-order.begin();
-		for (size_t n = 1; n <= order.size(); ++n) {
-			const auto i = (current+order.size()+(input == MenuInput::Next ? n : order.size()-n))%order.size();
-			if (Eligible(order[i])) { Focus(order[i]); break; }
-		}
-		return;
+	const auto next = ordered ? Following(focused,input) : Toward(item.bounds,focused,input);
+	if (!next.empty()) Focus(next);
+}
+std::string Interaction::Following(const std::string& from, MenuInput input) const {
+	const auto current = std::find(order.begin(),order.end(),from)-order.begin();
+	for (size_t n = 1; n <= order.size(); ++n) {
+		const auto i = (current+order.size()+(input == MenuInput::Next ? n : order.size()-n))%order.size();
+		if (Eligible(order[i])) return order[i];
 	}
-	const auto& a = item.bounds;
+	return {};
+}
+std::string Interaction::Toward(const ControlBounds& a, const std::string& from, MenuInput input) const {
 	const double ax = a.x+a.width*.5, ay = a.y+a.height*.5;
 	double best = std::numeric_limits<double>::infinity(); std::string next;
-	for (const auto& id : order) if (id != focused && Eligible(id)) {
+	for (const auto& id : order) if (id != from && Eligible(id)) {
 		const auto& b = items.at(id).bounds;
 		const double dx = b.x+b.width*.5-ax, dy = b.y+b.height*.5-ay;
 		const bool horizontal = input == MenuInput::Left || input == MenuInput::Right;
@@ -1444,18 +1539,25 @@ void Interaction::Navigate(MenuInput input) {
 		const double score = forward*forward+4*lateral*lateral;
 		if (score < best) { best = score; next = id; }
 	}
-	if (!next.empty()) Focus(next);
+	return next;
 }
 void Interaction::Refresh() {
 	if ((!dragging.empty() && !Eligible(dragging)) || (!popup.empty() && !Eligible(popup))) CancelGesture();
-	if (focusPending || !Eligible(focused)) focused.clear();
+	if (focusPending || !Eligible(focused)) {
+		// A focus whose control turned ineligible is remembered where it stood;
+		// one a restore holds back for layout is not lost.
+		if (!focusPending && !focused.empty()) lostFocus = focused;
+		focused.clear();
+	} else { lostFocus.clear(); focusBounds = items.at(focused).bounds; }
 	if (!Eligible(hovered)) hovered.clear();
 	if (!Eligible(armed)) armed.clear();
 	for (auto& [id,item] : items) {
 		if (item.number && !item.number->detached && (focused != id || focusPending || !Eligible(id))) DetachNumber(id,item);
+		const bool focusShown = focused == id && (!pointerPresentation ||
+			(item.control.role != ControlRole::Button && item.control.role != ControlRole::Toggle));
 		const auto state = (!item.control.enabled || (item.control.role==ControlRole::Scrollbar && (!item.scroll || !item.scroll->available || !item.scroll->geometry.usable))) ? ControlState::Disabled :
 			armed == id && (!pointerArm || hovered == id || dragging == id) ? ControlState::Pressed :
-			focused == id ? ControlState::Focus : hovered == id ? ControlState::Hover : ControlState::Default;
+			focusShown ? ControlState::Focus : hovered == id ? ControlState::Hover : ControlState::Default;
 		if (!item.known || item.state != state) { item.known = true; item.state = state; feedback.push_back({id,item.control.states.at(state),state}); }
 	}
 }
@@ -1516,7 +1618,8 @@ bool Interaction::Restore(const InteractionSnapshot& snapshot, std::string& erro
 		}
 		candidate.focused.clear();
 	}
-	candidate.CancelGesture(); candidate.hovered.clear(); candidate.pointerArm = false;
+	candidate.CancelGesture(); candidate.hovered.clear(); candidate.pointerArm = false; candidate.pointerPresentation = false;
+	candidate.lostFocus.clear(); candidate.focusBounds = {};
 	candidate.pointerOption.clear(); candidate.pointerFraction.reset();
 	for (auto& [id,item] : candidate.items) { item.pending.reset(); item.rejected.reset(); item.proposalToken = 0; item.number.reset(); }
 	candidate.feedback.clear(); candidate.actions.clear(); candidate.overflowed = false;

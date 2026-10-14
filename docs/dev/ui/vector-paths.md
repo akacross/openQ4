@@ -64,6 +64,17 @@ joins do not repeatedly blend a translucent stroke.
 | `join` | `miter` | `miter`, `bevel`, `round` |
 | `miterLimit` | 4 | Longer miters fall back to bevel |
 
+A path's optional `antialias` (default true) set to false compiles plain
+triangles instead of [coverage](coverage-antialiasing.md): for broad tonal
+fields whose edges step by a level or so, where coverage only costs the
+rasterizing of every row the shape spans (the initializing screen's rings).
+With a solid paint the triangles come from the region's resolved boundary,
+not from libtess2's arrangement, which keeps every edge where a stroke's
+segments and joins overlap, and they share their vertices. The boundary's
+vertices and edges are the arrangement's own, so the same pixel centres are
+covered; the title wordmark's 24 halo strokes fell from 437,000 vertices to
+about 8,000. Gradients still split the arrangement's triangles at their stops.
+
 Round joins/caps adapt to output density. Explicit zero-length strokes support
 round/square caps; move-only contours do not produce dots. Butt caps stop at their
 endpoints. Stroke inside/outside alignment, dashes and variable width remain open.

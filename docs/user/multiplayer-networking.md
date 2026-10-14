@@ -20,16 +20,36 @@ This guide covers openQ4 multiplayer networking behavior and the cvars used to t
 
 ## Find and join a server
 
-Open **Multiplayer > Browse**, then choose **Internet** or **LAN**. The list
-shows the server name, ping, player count, game type and map, with the stock
-icons for favorites, passwords and dedicated servers. Select a row to see its
-address and map preview, then choose **Join**. Passworded servers use the
-existing password prompt.
+Open **Multiplayer > Join Game**, then choose **Internet** or **LAN**. The
+list shows the server name, ping, player count, game type and map, with the
+stock icons for favorites, passwords, dedicated servers and Q4TV repeaters.
+Select a row to see its map preview, then choose **Join Server**. Passworded
+servers use the existing password prompt.
 
-Click a column heading to sort. Filters can hide full or empty servers,
-passworded servers, game types or mods. When a filter hides the selected
-server, Join is disabled until you select a visible server. Refresh updates
-the currently known addresses; Get New List runs discovery again.
+Choose a column heading to sort, and **Clear Sorting** to list servers in the
+order they answered. **Mod** shows one mod's servers; the `gui_filter_*`
+console settings can also hide full or empty servers, passworded servers or
+game types. When a filter hides the selected server, Join Server is disabled
+until you select a visible server, and the list tells you when the filters
+hide every server. **Refresh List** updates the currently known addresses;
+**Get New List** runs discovery again. The bar under the list fills as
+servers answer and names the step the scan is on. Bars beside each ping
+show the connection's quality: four up to 60 ms, three to 120 ms, two to
+200 ms and one above, turning amber at two bars and red at one. Point at a server, or
+move to it with the keyboard or a controller, to see its address, players
+and settings in a card beside it. With a controller, the left face button
+refreshes the list and the top one sorts it by the next column.
+
+**Join IP Address** connects to an address you type, in any form the direct
+connections below accept, and shows your own IP address to pass on to
+friends. An address that cannot be joined keeps the dialog open with the
+reason.
+
+**Find Player/Clan** shows only the listed servers with a player whose name
+contains what you type, ignoring colors and case; a clan tag counts as part of
+the name. The search shows as a tag below the list: select it to end the
+search. Get New List ends it as well. The original game asked id's master
+server for this search, which no longer answers.
 
 The favorite control saves the selected server's address locally. Favorites
 are queried alongside Internet discovery, so a saved address can still appear

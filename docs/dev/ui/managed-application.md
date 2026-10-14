@@ -79,6 +79,7 @@ The first fixed application catalog is intentionally small:
 | `settings.brightness.set` | One finite numeric `value`, 0.5–2.0 inclusive | Set archived `r_brightness`, then verify live readback |
 | `settings.shadows.set` | One Boolean `value` | Set archived `r_shadows`, then verify live readback |
 | `ui.dismiss` | Empty object | Ask the owning session to close the current view |
+| `ui.state.set` | A literal string `key`, the control's `value` input and an optional literal `event` | Write a [text field](numeric-fields.md#text-fields)'s committed value into the document's own declared state of that type, then run the named event |
 
 These are actual renderer settings used by the existing system page. They do
 not require video restart. They are not a substitute for its 28 choices, three

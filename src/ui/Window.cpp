@@ -214,7 +214,8 @@ static bool TranslateControllerMenuKey( const sysEvent_t *sourceEvent, sysEvent_
 	translatedEvent = *sourceEvent;
 	focusDirection = 0;
 
-	switch ( sourceEvent->evValue ) {
+	// Confirm and Back may trade the south and east buttons (section 13.5).
+	switch ( idKeyInput::MenuControllerKey( sourceEvent->evValue ) ) {
 		case K_JOY1:
 			translatedEvent.evValue = K_PGUP;
 			return true;
@@ -1136,6 +1137,20 @@ void idWindow::RunNamedEvent ( const char* eventName )
 	for ( i = 0; i < c; i++ ) {
 		children[i]->RunNamedEvent ( eventName );
 	}
+}
+
+/*
+================
+idWindow::HasNamedEvent
+================
+*/
+bool idWindow::HasNamedEvent( const char* eventName ) const {
+	for ( int i = 0; i < namedEvents.Num(); i++ ) {
+		if ( !namedEvents[i]->mName.Icmp( eventName ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /*
@@ -2137,6 +2152,54 @@ void idWindow::SetupBackground() {
 		}
 	}
 	backGroundName.SetMaterialPtr(&background);
+}
+
+bool idWindow::CanKeepForLevelLoad() const {
+    // Custom game/editor widgets can own state outside the ordinary window
+    // tree. Keep their existing full reload until they have a refresh path.
+    const auto& type = typeid(*this);
+    if (type != typeid(idWindow) && type != typeid(idBindWindow) && type != typeid(idChoiceWindow) &&
+        type != typeid(idEditWindow) && type != typeid(idFieldWindow) && type != typeid(idListWindow) &&
+        type != typeid(idSliderWindow) && type != typeid(idRenderWindow)) return false;
+    for (int i = 0; i < children.Num(); ++i)
+        if (!children[i]->CanKeepForLevelLoad()) return false;
+    return true;
+}
+
+void idWindow::CaptureForLevelLoad() {
+    // The save stream stores authored background names; scrollers also have
+    // constructor-assigned backgrounds with no name variable to serialize.
+    levelLoadDirectBackground = background && !backGroundName.c_str()[0] ? background : NULL;
+    for (int i = 0; i < children.Num(); ++i) children[i]->CaptureForLevelLoad();
+}
+
+void idWindow::RefreshForLevelLoad() {
+    if (!background && levelLoadDirectBackground) background = levelLoadDirectBackground;
+    // Scrollers install a background directly, without backGroundName. Use
+    // the live material identity so their defaults survive too.
+    if (background) {
+        const idStr materialName = background->GetName();
+        background = declManager->FindMaterial(materialName);
+        background->SetImageClassifications(1);
+        if (!background->TestMaterialFlag(MF_DEFAULTED) && background->GetSort() < SS_POST_PROCESS)
+            background->SetSort(SS_GUI);
+    }
+    for (int i = 0; i < numOps; ++i) {
+        if (ops[i].opType == WOP_TYPE_TABLE) {
+            const idDecl* table = declManager->DeclByIndex(DECL_TABLE, ops[i].a, false);
+            declManager->FindType(DECL_TABLE, table->GetName());
+        }
+    }
+    for (int i = 0; i < drawWindows.Num(); ++i) {
+        if (drawWindows[i].simp) {
+            idSimpleWindow* simple = drawWindows[i].simp;
+            if (simple->background) {
+                simple->background = declManager->FindMaterial(simple->background->GetName());
+                simple->background->SetSort(SS_GUI);
+            }
+        }
+    }
+    for (int i = 0; i < children.Num(); ++i) children[i]->RefreshForLevelLoad();
 }
 
 /*

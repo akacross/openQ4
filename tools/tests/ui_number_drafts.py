@@ -26,6 +26,7 @@ def runtime_unit():
       bool UpdateInteraction(double,bool,bool){++updates;interaction.SetBounds(bounds);return true;}
       bool RefreshNumberFocusLayout(std::string& error){++focusLayouts;if(!layoutValid){error="bad layout";return false;}interaction.SetBounds(bounds,true);return true;}
       void RevealFocus(){++reveals;}void Feedback(double){++feedback;}
+      void SetPointerNavigation(bool pointer){pointerNavigation=pointer;interaction.SetPointerPresentation(pointer);}
     '''+prepare+'''};
     class Runtime {public:GuardImpl* impl;
       bool Mutate(){return true;}

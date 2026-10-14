@@ -1,0 +1,725 @@
+"""The retained Arena sub-page (docs/dev/ui-visual-design.md section 9, "Menu
+levels" and "Arena Campaign", with sections 6 and 8; FLOW-011, FLOW-026 and
+FLOW-050).
+
+Built by tools/ui/build_retained_screens.py, which writes and checks it with
+the other retained screens. ARENA on the Single Player page opens it as the
+page's second sub-page through the change Campaign takes: the page sweeps out
+as its title becomes the crumb and the ARENA label carries to the step's foot,
+and at 350 ms this document presents (idSessionLocal::BeginRetainedSubpage).
+Back plays its half and Single Player returns with ARENA focused. After the
+engine reloads into the campaign's game directory, and back from a match, it
+presents at once.
+
+The page is the Arena campaign's browser. idArenaCampaign publishes into it
+the state it publishes to the stock guis/arena_menu.gui (PublishGui), its
+words already in the player's language, and the page's verbs reach the
+campaign's own commands (idSessionLocal::HandleRetainedArenaRequest), so the
+campaign keeps every rule: which tiers and matches are open, the entrance,
+the authoritative result and the progress.
+
+- **Ladder.** The five tiers form a vertical ladder of plates in the section
+  navigation, the matches of the chosen tier a second column beside it: three
+  qualifiers, then the boss match on a larger plate with an orange edge while
+  it waits. A locked tier or match is dimmed with the lock symbol and cannot
+  be chosen; a completed one carries the check and a green edge; the chosen
+  one is lit, its label orange over an orange wash. Each plate says LOCKED,
+  AVAILABLE, BOSS READY or COMPLETE under its label. A plate's first Accept
+  chooses it; Accept on the chosen tier moves to its chosen match, and on the
+  chosen match starts it. The bumpers (and Q and E) switch tier.
+- **Briefing and detail.** Under the matches the chosen tier's briefing: its
+  name, description and path to the next tier. The detail column shows the
+  chosen match's levelshot, name, description, map, game type, roster, limits
+  and skill, the difficulty between its - and + steps, and START MATCH, the
+  enlarged primary plate, live only while the campaign can start that match.
+- **Progress.** Under the ladder, CAMPAIGN PROGRESS with its count and bar,
+  CAMPAIGN COMPLETE once the last boss falls, and RESET PROGRESS, which asks
+  with the stock modal first.
+- **Entrance.** Starting a match plays the stock entrance on the page: the
+  screen darkens to 0.72 over 320 ms as the card with ENTERING THE ARENA, the
+  match, its game type and map and PREPARE FOR COMBAT scales in, and from
+  760 ms everything goes to black for the hand-over at 1250 ms. While the
+  campaign holds the entrance every control is out.
+- **Result.** Back from a match the page reveals the stock ledger as a modal
+  from the black the match ended on: MATCH REVIEW, the result over its
+  green, red or amber accent, the match, then the message and score
+  (610 ms), then what it unlocked and the awards, or CAMPAIGN COMPLETE
+  (930 ms), and at 1260 ms the actions: RETRY or REPLAY where the match can be
+  played again, and NEXT, RETURN or CONTINUE.
+"""
+from __future__ import annotations
+
+from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SLOT, CRUMB_SPAN, EASE_OUT, FULL,
+                                    MARKER, OLIVE, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W, RAIL_DARK, SUBPAGE_SLOT, TITLE_SLOT,
+                                    TOP_TO_PAGE, TOP_TO_SUBPAGE, U, VALUE, Document, absolute, action_plate, by_language,
+                                    colour, confirmation, crumb_fits, crumb_transform, font, framing_bands, group, keyword,
+                                    label, length, linear, link, lit_field, marker_path, number, page_title, path, rgb, solid,
+                                    stroke, track, transform, typeface, vector)
+from retained_difficulty import check_fits, primary_plate
+from retained_saves import PLACEHOLDER, backing, picture_frame
+
+TIERS, MATCHES, BOSS = 5, 4, 3
+TIER_KEYS = ("#str_42091", "#str_42092", "#str_42093", "#str_42094", "#str_42095")   # TIER 1-5
+MATCH_KEYS = ("#str_42088", "#str_42089", "#str_42090", "#str_42024")                # QUALIFIER 1-3, BOSS MATCH
+DONE = "#A3EB61"                   # a completed tier or match: the stock check (0.64, 0.92, 0.38)
+LOCK = [0.78, 0.8, 0.7, 0.85]      # the stock lock
+WIN, LOSS, DRAW = "#80CC47", "#D13312", "#EB9E1F"   # the result accents (arena_result_*_accent)
+
+# The page on the 4:3 canvas, in source units.
+HEAD_TOP = 58.0                                 # the column headings
+LADDER = (16.0, 72.0, 170.0, 40.0, 44.0)        # the tiers: left, top, width, height, pitch
+COLUMN = (196.0, 72.0, 202.0, 36.0, 40.0)       # QUALIFIER 1-3
+BOSS_TOP, BOSS_H = 194.0, 50.0                  # the boss match's larger plate
+BRIEFING_TOP = 254.0
+PROGRESS_TOP = 298.0
+DETAIL_X, DETAIL_W = 404.0, 226.0
+SHOT_TOP, SHOT_H = 58.0, 112.0
+TITLE_TOP = 176.0
+INFO = (("map", "#str_42013", "arena_selectedMap", 236.0, 1), ("gametype", "#str_42014", "arena_selectedGameType", 249.0, 1),
+        ("roster", "#str_42015", "arena_selectedRoster", 262.0, 2), ("limits", "#str_42016", "arena_selectedLimits", 288.0, 1),
+        ("skill", "#str_42035", "arena_selectedSkill", 301.0, 1))
+INFO_VALUE_X = 76.0                             # the values, from the column's edge
+DIFFICULTY_TOP = 317.0                          # DIFFICULTY, its steps 13 u under it
+START_TOP = 354.0
+TIER_TEXT, MATCH_TEXT, BOSS_TEXT, STATUS_TEXT = 20.0, 18.0, 22.0, 13.0   # dp
+TITLE_TEXT = 17.0                               # dp: the tier's and the match's names
+BODY_TEXT, BODY_LINE = 14.0, 18.0               # dp: descriptions
+BRIEFING_TEXT = 13.0                            # dp: the tier's, in the narrower column
+HEAD = [1, 1, 1, 0.4]                           # headings and row labels
+RESET_TEXT = 15.0                               # dp: RESET PROGRESS
+
+# The result ledger: the stock report's 396 u width (594 dp), the modal grown
+# to 250 u with its centre where the stock modal's is; its actions are wide
+# enough for every language's RETRY.
+RESULT_TOP, RESULT_HEIGHT = 98.0, 250.0
+RESULT_WIDTH = U * 396
+RESULT_ACTION_W, RESULT_ACTION_TEXT = 260.0, 18.0
+RESET_ACTION_W, RESET_ACTION_TEXT = 205.0, 18.0
+RESET_W, RESET_TOP, RESET_HEIGHT = 480.0, 148.0, 150.0   # the stock modal grown 14 u, its centre held
+
+
+def plate_shape(w: float, h: float) -> tuple:
+    """The plate's band (2 u in from its top and foot) and its 9 u
+    lower-leading cut."""
+    return U * 2, h - U * 2, U * 9
+
+
+def fade(tint: list[float]) -> list:
+    """A section plate's fill and rail falloff (b2_dark, Appendix B.1): full to
+    57 % of the width, half at 72 % and gone by 94 %."""
+    return [(0, tint), (0.57, tint), (0.72, tint[:3] + [tint[3] * 0.5]), (0.94, tint[:3] + [0]), (1, tint[:3] + [0])]
+
+
+def plate_paths(w: float, h: float) -> list:
+    top, bottom, cut = plate_shape(w, h)
+    return [path("fill", [(0, top), (w, top), (w, bottom), (cut, bottom), (0, bottom - cut)],
+                 fill=linear((0, 0), (w, 0), fade([0, 0, 0, 1]))),
+            path("rail", [(0.75, top), (0.75, bottom - cut), (cut, bottom - 0.75), (w, bottom - 0.75)], closed=False,
+                 stroke=stroke(linear((0, 0), (w, 0), fade(rgb(RAIL_DARK))), 1.5))]
+
+
+def padlock(ident: str, left: float, top: float, tint: list) -> dict:
+    """The lock symbol: a shackle over a body, 12x14 dp."""
+    return vector(ident, {**absolute(left=left, top=top, width=12, height=14), "display": keyword("none"),
+                          "pointer-events": keyword("none")}, [
+        path("shackle", [(3, 7), (3, 3.5), (4.5, 1.5), (7.5, 1.5), (9, 3.5), (9, 7)], closed=False, stroke=stroke(solid(tint), 1.5)),
+        path("body", [(1, 6.5), (11, 6.5), (11, 13.5), (1, 13.5)], fill=solid(tint)),
+    ])
+
+
+def check(ident: str, left: float, top: float, tint: list) -> dict:
+    """The completed check, 12x11 dp."""
+    return vector(ident, {**absolute(left=left, top=top, width=12, height=11), "display": keyword("none"),
+                          "pointer-events": keyword("none")}, [
+        path("check", [(0, 6), (3.6, 9.9), (10.5, 1.8)], closed=False, stroke=stroke(solid(tint), 2.1, join="round", cap="round"))])
+
+
+def shown(condition) -> dict:
+    return {"op": "select", "args": [condition, "block", "none"]}
+
+
+def all_of(*conditions) -> dict:
+    """The conjunction of `conditions` (the expressions' && is binary)."""
+    result = conditions[-1]
+    for condition in reversed(conditions[:-1]):
+        result = {"op": "&&", "args": [condition, result]}
+    return result
+
+
+def any_of(*conditions) -> dict:
+    result = conditions[-1]
+    for condition in reversed(conditions[:-1]):
+        result = {"op": "||", "args": [condition, result]}
+    return result
+
+
+def arena_plate(doc: Document, ident: str, key: str, left: float, top: float, width: float, height: float, prefix: str,
+                event: str, *, size: float, boss: bool = False) -> dict:
+    """A tier's or a match's plate in the ladder: the section plate's dark band
+    with its #CCCC51 rail, corner marker and Marine label, the published
+    status under the label, the lock or the check at its trailing end, and
+    the published choice lit over an orange wash. `prefix` names the plate's
+    published state (`prefix`_status, _locked, _selected and _completed). The
+    boss's larger plate runs its label the full width and carries the lock
+    or the check at the end of its status line."""
+    w, h = U * width, U * height
+    top_y, bottom_y, cut = plate_shape(w, h)
+    locked, selected, completed = ({"state": f"{prefix}_{name}"} for name in ("locked", "selected", "completed"))
+    whole = absolute(left=0, top=0, width=w, height=h)
+    plate = vector(f"{ident}-plate", {**whole, "opacity": number(0.4)}, plate_paths(w, h))
+    lit = vector(f"{ident}-plate-lit", {**whole, "display": keyword("none"), "pointer-events": keyword("none")}, plate_paths(w, h))
+    band = [(0, top_y), (w, top_y), (w, bottom_y), (cut, bottom_y), (0, bottom_y - cut)]
+    wash = vector(f"{ident}-wash", {**whole, "display": keyword("none"), "pointer-events": keyword("none")}, [
+        path("wash", band, fill=linear((0, 0), (w, 0), fade(rgb(ORANGE, 0.23))))])
+    edge = [(0, top_y), (U * 2.5, top_y), (U * 2.5, bottom_y - cut), (0, bottom_y - cut)]
+    done = vector(f"{ident}-done", {**whole, "display": keyword("none"), "pointer-events": keyword("none")}, [
+        path("edge", edge, fill=solid(rgb(DONE, 0.95)))])
+    parts = [plate, lit, wash, done]
+    doc.bind(f"{ident}-plate-lit.display", f"{ident}-plate-lit", "display", shown(selected))
+    doc.bind(f"{ident}-wash.display", f"{ident}-wash", "display", shown(selected))
+    doc.bind(f"{ident}-done.display", f"{ident}-done", "display", shown(completed))
+    if boss:
+        # The boss waits behind an orange edge once the qualifiers open it.
+        ready = vector(f"{ident}-ready", {**whole, "display": keyword("none"), "pointer-events": keyword("none")}, [
+            path("edge", edge, fill=solid(rgb(ORANGE, 0.95)))])
+        parts.append(ready)
+        doc.bind(f"{ident}-ready.display", f"{ident}-ready", "display",
+                 shown({"op": "&&", "args": [{"op": "!", "args": [locked]}, {"op": "!", "args": [completed]}]}))
+    focus = vector(f"{ident}-focus", {**whole, "opacity": number(0)}, [
+        path("inset", [(cut + 2, bottom_y - 3.2), (round(w * 0.72, 3), bottom_y - 3.2)], closed=False, stroke=stroke(solid(rgb(ORANGE)), 1.2))])
+    mark = (U * 7, top_y + U * 4, U * (6 if boss else 5))
+    marker_rest = vector(f"{ident}-marker", {**whole, "opacity": number(0.4)}, [marker_path("mark", *mark, rgb(MARKER))])
+    marker_hot = vector(f"{ident}-marker-hot", {**whole, "opacity": number(0)}, [marker_path("mark", *mark, rgb(ORANGE))])
+    text_box = absolute(left=U * 16, top=top_y + U * (4 if boss else 3), width=w - U * (22 if boss else 40), height=round(size * 1.1, 3))
+    text_node = label(f"{ident}-label", key, {**text_box, **typeface("marine", size, round(size * 1.1, 3), [1, 1, 1, 0.8]),
+                                              "white-space": keyword("nowrap"), "transform": transform(), "display": keyword("block")})
+    text_lit = label(f"{ident}-label-lit", key, {**text_box, **typeface("marine", size, round(size * 1.1, 3), rgb(ORANGE)),
+                                                 "white-space": keyword("nowrap"), "transform": transform(), "display": keyword("none")})
+    doc.bind(f"{ident}-label.display", f"{ident}-label", "display", {"op": "select", "args": [selected, "none", "block"]})
+    doc.bind(f"{ident}-label-lit.display", f"{ident}-label-lit", "display", shown(selected))
+    status_top = bottom_y - U * (14 if boss else 13)
+    status = label(f"{ident}-status", PLACEHOLDER, {**absolute(left=U * 16, top=status_top, width=w - U * 40, height=U * 10),
+                   **typeface("lowpixel", STATUS_TEXT, U * 10, [1, 1, 1, 0.55]), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+    doc.bind(f"{ident}-status.text", f"{ident}-status", "text", {"state": f"{prefix}_status"})
+    middle = status_top + U * 5 if boss else h / 2
+    lock = padlock(f"{ident}-lock", w - U * 20, round(middle - 7, 3), LOCK)
+    tick = check(f"{ident}-check", w - U * 20, round(middle - 5.5, 3), rgb(DONE))
+    doc.bind(f"{ident}-lock.display", f"{ident}-lock", "display", shown(locked))
+    doc.bind(f"{ident}-check.display", f"{ident}-check", "display",
+             shown({"op": "&&", "args": [completed, {"op": "!", "args": [locked]}]}))
+    parts += [focus, marker_rest, marker_hot, text_node, text_lit, status, lock, tick]
+
+    def state(plate_alpha, marker, hot, inset, tint, moved, status_alpha):
+        return [(f"{ident}-plate", "opacity", number(plate_alpha)), (f"{ident}-marker", "opacity", number(marker)),
+                (f"{ident}-marker-hot", "opacity", number(hot)), (f"{ident}-focus", "opacity", number(inset)),
+                (f"{ident}-label", "color", colour(tint)), (f"{ident}-label", "transform", moved),
+                (f"{ident}-label-lit", "transform", moved), (f"{ident}-status", "color", colour([1, 1, 1, status_alpha]))]
+    ids = doc.states(ident, {
+        "default": state(0.4, 0.4, 0, 0, [1, 1, 1, 0.8], transform(), 0.55),
+        "hover": state(0.8, 0, 1, 0, rgb(ORANGE), transform(sx=1.03, sy=1.03), 0.75),
+        "focus": state(0.8, 0, 1, 1, rgb(ORANGE), transform(sx=1.03, sy=1.03), 0.75),
+        "pressed": state(1, 0, 1, 1, rgb(ORANGE), transform(tx=1, ty=1, sx=1.03, sy=1.03), 0.75),
+        "disabled": state(0.25, 0.25, 0, 0, [1, 1, 1, 0.3], transform(), 0.3),
+    })
+    doc.bind(f"{ident}.enabled", ident, "enabled", {"op": "&&", "args": [{"op": "!", "args": [locked]}, OPEN]})
+    return group(ident, absolute(left=U * left, top=U * top, width=w, height=h), parts,
+                 control={"role": "button", "label": key, "event": event, "states": ids})
+
+
+# Every control is out while the campaign holds its entrance or return.
+OPEN = {"op": "!", "args": [{"state": "arena_transitioning"}]}
+
+
+def stepper(doc: Document, ident: str, key: str, left: float, top: float, action: str, live: dict) -> dict:
+    """A difficulty step: a 20x18 u light plate with a 3 u lower-leading cut
+    and its rail, the Marine - or + on it; the pointer and focus light it and
+    turn its sign orange, as the action plates do."""
+    w, h, cut = U * 20, U * 18, U * 3
+    plate = vector(f"{ident}-plate", {**absolute(left=0, top=0, width=w, height=h), "opacity": number(0.4)}, [
+        path("fill", [(0, 0), (w, 0), (w, h), (cut, h), (0, h - cut)], fill=solid(rgb(OLIVE, 0.49))),
+        path("rail", [(0.75, 0), (0.75, h - cut), (cut, h - 0.75), (w, h - 0.75)], closed=False, stroke=stroke(solid(rgb(OLIVE)), 1.5))])
+    focus = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=w, height=h), "opacity": number(0)}, [
+        path("inset", [(3.5, 3), (3.5, h - cut + 1.5), (cut + 1.5, h - 3.5), (w - 3, h - 3.5)], closed=False, stroke=stroke(solid(rgb(ORANGE)), 1.2))])
+    sign = label(f"{ident}-label", key, {**absolute(left=0, top=0, width=w, height=h), **typeface("marine", 22, h, [1, 1, 1, 0.8]),
+                                         "text-align": keyword("center"), "white-space": keyword("nowrap")})
+    def state(alpha, inset, tint):
+        return [(f"{ident}-plate", "opacity", number(alpha)), (f"{ident}-focus", "opacity", number(inset)), (f"{ident}-label", "color", colour(tint))]
+    ids = doc.states(ident, {"default": state(0.4, 0, [1, 1, 1, 0.8]), "hover": state(0.8, 0, rgb(ORANGE)), "focus": state(0.8, 1, rgb(ORANGE)),
+                             "pressed": state(1, 1, rgb(ORANGE)), "disabled": state(0.2, 0, [1, 1, 1, 0.25])})
+    doc.bind(f"{ident}.enabled", ident, "enabled", {"op": "&&", "args": [live, OPEN]})
+    return group(ident, absolute(left=U * left, top=U * top, width=w, height=h), [plate, focus, sign],
+                 control={"role": "button", "label": key, "action": action, "states": ids})
+
+
+def text_line(ident: str, key: str, left: float, top: float, width: float, height: float, face: str, size: float,
+              tint: list, *, state: str | None = None, doc: Document | None = None, lines: int = 1, align: str = "left",
+              line: float | None = None) -> dict:
+    """A label in source units; with `state`, bound to the published text."""
+    props = {**absolute(left=U * left, top=U * top, width=U * width, height=U * height),
+             **typeface(face, size, line or U * height / lines, tint), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
+    props["white-space"] = keyword("nowrap" if lines == 1 else "normal")
+    if align != "left":
+        props["text-align"] = keyword(align)
+    node = label(ident, PLACEHOLDER if state else key, props)
+    if state:
+        doc.bind(f"{ident}.text", ident, "text", {"state": state})
+    return node
+
+
+def published_states(doc: Document) -> None:
+    """The campaign's published state the page reads (idArenaCampaign::
+    PublishGui): its words come already in the player's language."""
+    strings = ["arena_selectedTierName", "arena_selectedTierDescription", "arena_selectedTitle", "arena_selectedDescription",
+               "arena_selectedMap", "arena_selectedGameType", "arena_selectedRoster", "arena_selectedLimits", "arena_selectedSkill",
+               "arena_levelshot", "arena_difficultyName", "arena_progress", "arena_resultTitle", "arena_resultMatchName",
+               "arena_resultMessage", "arena_resultScore", "arena_resultUnlock", "arena_resultAwardLine"]
+    flags = ["arena_loaded", "arena_transitioning", "arena_canStart", "arena_campaignComplete", "arena_resultHasScore",
+             "arena_resultHasUnlock", "arena_resultHasAwards", "arena_resultCanRetry"]
+    numbers = ["arena_difficulty", "arenaCampaignProgress", "arena_result"]
+    for kind, count in (("tier", TIERS), ("match", MATCHES)):
+        for index in range(count):
+            strings.append(f"arena_{kind}{index}_status")
+            flags += [f"arena_{kind}{index}_{name}" for name in ("locked", "selected", "completed")]
+    for name in strings:
+        doc.state[name] = {"type": "string", "initial": ""}
+    for name in flags:
+        doc.state[name] = {"type": "boolean", "initial": False}
+    for name in numbers:
+        doc.state[name] = {"type": "number", "initial": 0}
+
+
+def focus_chosen(kind: str, count: int) -> list:
+    """Steps that focus the plate holding the published choice; the last
+    request wins."""
+    steps = [{"op": "focus", "control": f"{kind}-0"}]
+    for index in range(1, count):
+        steps.append({"op": "if", "condition": {"state": f"arena_{kind}{index}_selected"},
+                      "then": [{"op": "focus", "control": f"{kind}-{index}"}]})
+    return steps
+
+
+def focus_page() -> list:
+    """The page's focus: the chosen match, or BACK while no campaign loaded."""
+    return [{"op": "focus", "control": "arena_back"},
+            {"op": "if", "condition": {"state": "arena_loaded"}, "then": focus_chosen("match", MATCHES)}]
+
+
+def ladder(doc: Document) -> list:
+    """The tiers and the chosen tier's matches."""
+    left, top, width, height, pitch = LADDER
+    nodes = [text_line("arena-tiers-head", "#str_42007", left + 4, HEAD_TOP, width - 4, 12, "lowpixel", 13, HEAD)]
+    for index, key in enumerate(TIER_KEYS):
+        event = f"tierPick{index}"
+        doc.session(f"tier{index}", f"arenaTier{index}")
+        # A tier's first Accept chooses it; Accept on the chosen tier moves to
+        # its chosen match.
+        doc.events[event] = [{"op": "if", "condition": {"state": f"arena_tier{index}_selected"},
+                              "then": focus_chosen("match", MATCHES), "else": [{"op": "action", "action": f"tier{index}"}]}]
+        nodes.append(arena_plate(doc, f"tier-{index}", key, left, top + pitch * index, width, height, f"arena_tier{index}", event,
+                                 size=TIER_TEXT))
+    left, top, width, height, pitch = COLUMN
+    nodes.append(text_line("arena-matches-head", "#str_42008", left + 4, HEAD_TOP, width - 4, 12, "lowpixel", 13, HEAD))
+    doc.session("start", "arenaStart")
+    for index, key in enumerate(MATCH_KEYS):
+        event = f"matchPick{index}"
+        doc.session(f"match{index}", f"arenaMatch{index}")
+        # A match's first Accept chooses it; Accept on the chosen match starts it.
+        doc.events[event] = [{"op": "if", "condition": {"state": f"arena_match{index}_selected"},
+                              "then": [{"op": "if", "condition": {"state": "arena_canStart"}, "then": [{"op": "action", "action": "start"}]}],
+                              "else": [{"op": "action", "action": f"match{index}"}]}]
+        boss = index == BOSS
+        nodes.append(arena_plate(doc, f"match-{index}", key, left, BOSS_TOP if boss else top + pitch * index, width,
+                                 BOSS_H if boss else height, f"arena_match{index}", event, size=BOSS_TEXT if boss else MATCH_TEXT, boss=boss))
+    return nodes
+
+
+def briefing(doc: Document) -> list:
+    """The chosen tier's briefing under its matches: the stock heading, the
+    tier's name and description, the path to the next tier and the rule."""
+    left, width = COLUMN[0] + 4, COLUMN[2] - 4
+    return [
+        text_line("arena-briefing-head", "#str_42070", left, BRIEFING_TOP, width, 12, "lowpixel", 13, HEAD),
+        text_line("arena-tier-name", "", left, BRIEFING_TOP + 12, width, 15, "marine", TITLE_TEXT, [1, 1, 1, 0.9],
+                  state="arena_selectedTierName", doc=doc),
+        text_line("arena-tier-description", "", left, BRIEFING_TOP + 29, width, 36, "lowpixel", BRIEFING_TEXT, [1, 1, 1, 0.7],
+                  state="arena_selectedTierDescription", doc=doc, lines=3, line=BODY_LINE),
+        text_line("arena-tier-path", "#str_42071", left, BRIEFING_TOP + 68, width, 22, "lowpixel", 13, rgb(ORANGE), lines=2, line=U * 11),
+        text_line("arena-tier-rule", "#str_42049", left, BRIEFING_TOP + 92, width, 36, "lowpixel", 13, [1, 1, 1, 0.5],
+                  lines=3, line=U * 12),
+    ]
+
+
+def progress(doc: Document) -> list:
+    """CAMPAIGN PROGRESS under the ladder: the published line, the bar filling
+    by a twentieth a match, CAMPAIGN COMPLETE once the last boss falls, and
+    RESET PROGRESS, which asks first."""
+    left, width = LADDER[0] + 4, LADDER[2] - 4
+    bar_w = U * width
+    track_node = vector("arena-progress-track", absolute(left=U * left, top=U * (PROGRESS_TOP + 15), width=bar_w, height=U * 3), [
+        path("track", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})], fill=solid([1, 1, 1, 0.12]))])
+    fill = group("arena-progress-fill", {**absolute(left=U * left, top=U * (PROGRESS_TOP + 15), width=0, height=U * 3),
+                                         "background-color": colour(rgb(VALUE, 0.9))})
+    doc.bind("arena-progress-fill.width", "arena-progress-fill", "width",
+             {"op": "*", "args": [{"op": "clamp", "args": [{"state": "arenaCampaignProgress"}, 0, 20]}, round(bar_w / 20, 4)]})
+    complete = text_line("arena-complete", "#str_42026", left, PROGRESS_TOP + 22, width, 12, "lowpixel", 13, rgb(DONE))
+    complete["properties"]["display"] = keyword("none")
+    doc.bind("arena-complete.display", "arena-complete", "display", shown({"state": "arena_campaignComplete"}))
+    doc.session("reset", "arenaReset")
+    reset = link(doc, "arena_reset", "#str_42011", action="reset")
+    next(child for child in reset["children"] if child["id"] == "arena_reset-label")["properties"]["font-size"] = length(RESET_TEXT)
+    doc.bind("arena_reset.enabled", "arena_reset", "enabled",
+             {"op": "&&", "args": [{"op": ">", "args": [{"state": "arenaCampaignProgress"}, 0]}, OPEN]})
+    reset_row = group("arena-reset-row", {**absolute(left=U * left, top=U * (PROGRESS_TOP + 40), width=U * width, height=U * 17)}, [reset])
+    return [text_line("arena-progress", "", left, PROGRESS_TOP, width, 13, "lowpixel", 15, rgb(VALUE), state="arena_progress", doc=doc),
+            track_node, fill, complete, reset_row]
+
+
+def detail(doc: Document) -> list:
+    """The chosen match: its levelshot, name, description and rules, the
+    difficulty and START MATCH."""
+    x, width = DETAIL_X, DETAIL_W
+    shot = picture_frame("arena-shot", x, SHOT_TOP, width, SHOT_H)
+    # The levelshot fills its frame, as the stock browser's stretched one did.
+    shot[1]["properties"]["image-fit"] = keyword("cover")
+    doc.bind("arena-shot.image", "arena-shot", "image", {"state": "arena_levelshot"})
+    rule = vector("arena-title-rule", absolute(left=U * x, top=U * (TITLE_TOP + 16), width=U * width, height=1.5), [
+        path("rule", [(0, 0.75), ({"fraction": 1}, 0.75)], closed=False, stroke=stroke(linear((0, 0), ({"fraction": 1}, 0), [
+            (0, rgb(ORANGE, 0.9)), (0.7, rgb(ORANGE, 0.6)), (1, rgb(ORANGE, 0))]), 1.5))])
+    nodes = [*shot,
+             text_line("arena-match-title", "", x, TITLE_TOP, width, 14, "marine", TITLE_TEXT, [0.98, 0.94, 0.8, 1], state="arena_selectedTitle", doc=doc),
+             rule,
+             text_line("arena-match-description", "", x, TITLE_TOP + 20, width, 36, "lowpixel", BODY_TEXT, [1, 1, 1, 0.7],
+                       state="arena_selectedDescription", doc=doc, lines=3, line=BODY_LINE)]
+    for ident, key, state, top, lines in INFO:
+        nodes.append(text_line(f"arena-{ident}-label", key, x, top + 1, INFO_VALUE_X - 4, 11, "lowpixel", 13, HEAD))
+        nodes.append(text_line(f"arena-{ident}", "", x + INFO_VALUE_X, top, width - INFO_VALUE_X, 12 * lines, "lowpixel", BODY_TEXT,
+                               [1, 1, 1, 0.85], state=state, doc=doc, lines=lines, line=U * 12))
+    # DIFFICULTY between its steps, as the stock spinner.
+    doc.session("easier", "arenaEasier")
+    doc.session("harder", "arenaHarder")
+    steps_top = DIFFICULTY_TOP + 13
+    nodes += [
+        text_line("arena-difficulty-label", "#str_42009", x, DIFFICULTY_TOP, width, 11, "lowpixel", 13, HEAD),
+        stepper(doc, "arena_easier", "#str_42020", x, steps_top, "easier", {"op": ">", "args": [{"state": "arena_difficulty"}, 1]}),
+        text_line("arena-difficulty", "", x + 22, steps_top + 2, width - 44, 14, "lowpixel", 16, rgb(VALUE), state="arena_difficultyName",
+                  doc=doc, align="center"),
+        stepper(doc, "arena_harder", "#str_42021", x + width - 20, steps_top, "harder", {"op": "<", "args": [{"state": "arena_difficulty"}, 5]}),
+    ]
+    start = primary_plate(doc, "arena_start", "#str_42010", x, START_TOP, width, 43.0, action="start", label_box=(28.0, 6.0, 194.0, 25.0))
+    doc.bind("arena_start.enabled", "arena_start", "enabled", {"op": "&&", "args": [{"state": "arena_canStart"}, OPEN]})
+    nodes.append(start)
+    return nodes
+
+
+def launch_layer(doc: Document) -> dict:
+    """The entrance (the stock arena_launch_timeline): the screen darkens to
+    0.72 over 320 ms as the card scales in from 94 % over 480 ms; from 760 ms
+    the card fades over 380 ms and the screen goes to black by 1260 ms, past
+    the campaign's hand-over at 1250 ms. The card is the stock 496x220 u
+    panel as a section 6 card (12 and 3 dp cuts) in the stock panel's orange
+    rail: the match's levelshot dimmed under a 0.68 shade, ENTERING THE
+    ARENA, the match in Marine, an orange rule, its game type and map, and
+    PREPARE FOR COMBAT."""
+    doc.state["arena.launch"] = {"type": "boolean", "initial": False}
+    width, height = U * 496, U * 220
+    major, minor = 12.0, 3.0
+    card = [(minor, 0), (width - major, 0), (width, major), (width, height - minor), (width - minor, height), (major, height),
+            (0, height - major), (0, minor)]
+    inner = absolute(left=major, top=major, width=width - 2 * major, height=height - 2 * major)
+    shot = {"id": "launch-shot", "type": "image", "properties": {
+        "image": {"type": "image", "value": ""}, "image-fit": keyword("cover"), **inner,
+        "image-color": colour([0.3, 0.34, 0.24, 0.52])}}
+    doc.bind("launch-shot.image", "launch-shot", "image", {"state": "arena_levelshot"})
+    def centred(ident, key, top, h, face, size, tint, state=None):
+        props = {**absolute(left=U * 24, top=U * top, width=U * 448, height=U * h), **typeface(face, size, U * h, tint),
+                 "text-align": keyword("center"), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+        node = label(ident, PLACEHOLDER if state else key, props)
+        if state:
+            doc.bind(f"{ident}.text", ident, "text", {"state": state})
+        return node
+    card = group("launch-card", {**absolute(left=U * 72, top=U * 120, width=width, height=height), "opacity": number(0), "transform": transform()}, [
+        vector("launch-card-back", absolute(left=0, top=0, width=width, height=height), [path("back", card, fill=solid([0.018, 0.024, 0.017, 0.98]))]),
+        shot,
+        vector("launch-card-shade", absolute(left=0, top=0, width=width, height=height), [
+            path("shade", [(major, major), (width - major, major), (width - major, height - major), (major, height - major)],
+                 fill=solid([0.01, 0.015, 0.01, 0.68])),
+            path("rail", card, stroke=stroke(solid(rgb(ORANGE, 0.9)), 1.5))]),
+        centred("launch-kicker", "#str_42079", 24, 14, "lowpixel", 18, [0.95, 0.72, 0.25, 1]),
+        centred("launch-title", "", 54, 30, "marine", 32, [1, 0.96, 0.82, 1], state="arena_selectedTitle"),
+        vector("launch-rule", absolute(left=U * 72, top=U * 111, width=U * 350, height=2), [
+            path("rule", [(0, 1), ({"fraction": 1}, 1)], closed=False, stroke=stroke(solid(rgb(ORANGE, 0.9)), 2))]),
+        centred("launch-gametype", "", 127, 15, "lowpixel", 18, [0.86, 0.9, 0.76, 1], state="arena_selectedGameType"),
+        centred("launch-map", "", 153, 13, "lowpixel", 15, [0.63, 0.69, 0.52, 1], state="arena_selectedMap"),
+        centred("launch-ready", "#str_42086", 188, 13, "lowpixel", 15, rgb(ORANGE)),
+    ])
+    stage = group("launch-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}, [card])
+    layer = group("launch", {**FULL, "display": keyword("none"), "pointer-events": keyword("none")}, [
+        group("launch-shade", {**FULL, "background-color": colour([0, 0, 0, 1]), "opacity": number(0)}), stage])
+    doc.bind("launch.display", "launch", "display", shown({"state": "arena.launch"}))
+    doc.timelines.add("launch", 1260, [
+        track("launch-shade", "opacity", [(0, number(0)), (1, number(0)), (320, number(0.72)), (760, number(0.72)), (1260, number(1))]),
+        track("launch-card", "opacity", [(0, number(0)), (1, number(0)), (360, number(1)), (760, number(1)), (1140, number(0)), (1260, number(0))]),
+        track("launch-card", "transform", [(0, transform(sx=0.94, sy=0.94)), (1, transform(sx=0.94, sy=0.94), EASE_OUT), (480, transform())]),
+    ])
+    doc.events["arenaMatchLaunch"] = [{"op": "setState", "values": {"arena.launch": True}}, {"op": "playTimeline", "timeline": "launch"}]
+    return layer
+
+
+def result_modal(doc: Document) -> dict:
+    """The result ledger: the stock modal grown to 250 u, titled MATCH REVIEW,
+    revealed in the stock phases (arena_result_reveal_timeline) from the black
+    the match ended on, which lifts over 720 ms."""
+    doc.state["result.ready"] = {"type": "boolean", "initial": False}
+    result = {"state": "arena_result"}
+    won, lost, drew, aborted = ({"op": "==", "args": [result, value]} for value in (1, 2, 4, 3))
+    complete = {"state": "arena_campaignComplete"}
+    width = RESULT_WIDTH
+    centred = {"text-align": keyword("center"), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+
+    def text_at(ident, left, top, w, h, face, size, tint, state, extra=None, key=PLACEHOLDER, line=None):
+        node = label(ident, key if state is None else PLACEHOLDER, {**absolute(left=left, top=top, width=w, height=h),
+                     **typeface(face, size, line or h, tint), **(extra or {}), "pointer-events": keyword("none")})
+        if state:
+            doc.bind(f"{ident}.text", ident, "text", {"state": state})
+        return node
+    accents = []
+    for ident, tint, condition in (("win", WIN, won), ("loss", LOSS, {"op": "||", "args": [lost, aborted]}), ("draw", DRAW, drew)):
+        node = vector(f"result-accent-{ident}", {**absolute(left=33, top=40, width=width - 66, height=4), "display": keyword("none")}, [
+            path("accent", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})],
+                 fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(tint, 0)), (0.2, rgb(tint, 1)), (0.8, rgb(tint, 1)), (1, rgb(tint, 0))]))])
+        doc.bind(f"result-accent-{ident}.display", f"result-accent-{ident}", "display", shown(condition))
+        accents.append(node)
+    rule = vector("result-rule", absolute(left=60, top=124, width=width - 120, height=1.5), [
+        path("rule", [(0, 0.75), ({"fraction": 1}, 0.75)], closed=False, stroke=stroke(solid(rgb(ORANGE, 0.9)), 1.5))])
+    phase1 = group("result-phase1", {**FULL, "opacity": number(0)}, [
+        *accents,
+        text_at("result-title", 33, 54, width - 66, 36, "marine", 28, [0.98, 0.95, 0.82, 1], "arena_resultTitle", centred),
+        text_at("result-match", 33, 96, width - 66, 22, "lowpixel", 18, [1, 1, 1, 0.75], "arena_resultMatchName", centred),
+        rule])
+    row_label = {"white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+    value_right = {"text-align": keyword("right"), "white-space": keyword("nowrap"), "overflow": keyword("hidden")}
+
+    def row(ident, key, top, state, flag, tint, size=17):
+        label_node = text_at(f"result-{ident}-label", 60, top + 2, 150, 20, "lowpixel", 15, [1, 1, 1, 0.5], None, row_label, key=key)
+        value = text_at(f"result-{ident}", 210, top, width - 270, 22, "lowpixel", size, tint, state, value_right)
+        holder = group(f"result-{ident}-row", {**FULL, "display": keyword("none")}, [label_node, value])
+        doc.bind(f"result-{ident}-row.display", f"result-{ident}-row", "display", shown(flag))
+        return holder
+    awards_shown = {"op": "&&", "args": [{"state": "arena_resultHasAwards"},
+                                         {"op": "||", "args": [{"op": "!", "args": [complete]}, {"op": "!", "args": [won]}]}]}
+    champion = text_at("result-complete", 60, 254, width - 120, 22, "lowpixel", 17, rgb(DONE), None, centred, key="#str_42026")
+    champion["properties"]["display"] = keyword("none")
+    doc.bind("result-complete.display", "result-complete", "display", shown({"op": "&&", "args": [complete, won]}))
+    phase2 = group("result-phase2", {**FULL, "opacity": number(0)}, [
+        text_at("result-message", 40, 134, width - 80, 66, "lowpixel", 17, [1, 1, 1, 0.75], "arena_resultMessage",
+                {"text-align": keyword("center"), "white-space": keyword("normal"), "overflow": keyword("hidden")}, line=22),
+        row("score", "#str_42018", 206, "arena_resultScore", {"state": "arena_resultHasScore"}, rgb(VALUE))])
+    phase3 = group("result-phase3", {**FULL, "opacity": number(0)}, [
+        row("unlock", "#str_42019", 230, "arena_resultUnlock", {"state": "arena_resultHasUnlock"}, rgb(DONE)),
+        row("awards", "#str_42154", 254, "arena_resultAwardLine", awards_shown, [0.95, 0.87, 0.6, 1], size=15),
+        champion])
+    actions_u = RESULT_HEIGHT - 40
+    modal = confirmation(doc, "resultModal", "#str_42080", PLACEHOLDER, None, yes_event="resultRetry", no_event="resultDismiss",
+                         height_u=RESULT_HEIGHT, top_u=RESULT_TOP, actions_u=actions_u, contents=[phase1, phase2, phase3],
+                         yes_key="#str_42033", no_key="#str_42034", initial="resultModal_no", width_dp=RESULT_WIDTH,
+                         action_w=RESULT_ACTION_W, action_text=RESULT_ACTION_TEXT)
+    # The actions wait for the reveal: RETRY after a defeat, REPLAY after a
+    # win or a draw, where the match can be played again; then NEXT after a
+    # win short of the last, RETURN, or CONTINUE after an aborted match.
+    contents = find(modal, "resultModal-contents")
+    plates = [child for child in contents["children"] if child["id"] in ("resultModal_yes", "resultModal_no")]
+    for plate in plates:
+        contents["children"].remove(plate)
+        plate["properties"]["display"] = keyword("block")
+    contents["children"].append(group("result-actions", {**FULL, "display": keyword("none")}, plates))
+    doc.bind("result-actions.display", "result-actions", "display", shown({"state": "result.ready"}))
+    doc.bind("resultModal_yes.display", "resultModal_yes", "display",
+             shown({"op": "&&", "args": [{"state": "arena_resultCanRetry"}, any_of(won, lost, drew)]}))
+    doc.bind("resultModal_yes-label.text", "resultModal_yes-label", "text", {"op": "select", "args": [lost, "#str_42033", "#str_42076"]})
+    doc.bind("resultModal_no-label.text", "resultModal_no-label", "text", {"op": "select", "args": [
+        aborted, "#str_42025", {"op": "select", "args": [{"op": "&&", "args": [won, {"op": "!", "args": [complete]}]}, "#str_42032", "#str_42034"]}]})
+    doc.session("retry", "arenaRetry")
+    doc.session("dismiss", "arenaDismiss")
+    hide = [{"op": "setState", "values": {"result.ready": False}}, {"op": "call", "event": "resultModalHide"}]
+    doc.events["resultRetry"] = [*hide, {"op": "action", "action": "retry"}]
+    doc.events["resultDismiss"] = [*hide, {"op": "action", "action": "dismiss"}]
+    doc.timelines.add("resultReveal", 1260, [
+        track("arena-curtain", "opacity", [(0, number(1)), (1, number(1)), (720, number(0)), (1260, number(0))]),
+        *[track(f"result-phase{index}", "opacity", [(0, number(0)), (1, number(0)), (at, number(0)), (at + 150, number(1)), (1260, number(1))])
+          for index, at in ((1, 260), (2, 610), (3, 930))],
+    ], complete="resultReady")
+    doc.events["resultReady"] = [{"op": "setState", "values": {"result.ready": True}}]
+    doc.events["arenaResultReveal"] = [{"op": "setState", "values": {"result.ready": False}}, {"op": "call", "event": "resultModalShow"},
+                                       {"op": "playTimeline", "timeline": "resultReveal"}]
+    return modal
+
+
+def reset_modal(doc: Document) -> dict:
+    """RESET PROGRESS asks with the stock modal, titled with the action and
+    saying what it clears, grown to 150 u for four lines of it: the campaign
+    raises arenaResetReveal once it holds the request, RESET clears the
+    progress and CANCEL (or Back) keeps it."""
+    doc.session("resetConfirm", "arenaResetConfirm")
+    doc.session("resetCancel", "arenaResetCancel")
+    body = label("resetModal-body", "#str_42073", {**absolute(left=33, top=71, width=RESET_W - 66, height=88),
+                                                   **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})
+    modal = confirmation(doc, "resetModal", "#str_42011", PLACEHOLDER, None, yes_event="resetConfirmed", no_event="resetCancelled",
+                         yes_key="#str_42075", no_key="#str_42074", action_w=RESET_ACTION_W, action_text=RESET_ACTION_TEXT,
+                         height_u=RESET_HEIGHT, top_u=RESET_TOP, actions_u=RESET_HEIGHT - 40, contents=[body])
+    doc.events["resetConfirmed"] = [{"op": "call", "event": "resetModalHide"}, {"op": "action", "action": "resetConfirm"}]
+    doc.events["resetCancelled"] = [{"op": "call", "event": "resetModalHide"}, {"op": "action", "action": "resetCancel"}]
+    doc.events["arenaResetReveal"] = [{"op": "call", "event": "resetModalShow"}]
+    return modal
+
+
+def find(node: dict, ident: str) -> dict:
+    if node.get("id") == ident:
+        return node
+    for child in node.get("children", []):
+        found = find(child, ident)
+        if found:
+            return found
+    return {}
+
+
+def check_arena_fits() -> None:
+    """Every shipped language's static text fits its place, and so does every
+    text the campaign publishes from its own tables; generation fails
+    otherwise."""
+    plate_label = lambda width: U * width - U * 40
+    head = lambda width: U * (width - 4)
+    reset_w = RESET_W
+    one_line = tuple((key, "marine", TIER_TEXT, plate_label(LADDER[2])) for key in TIER_KEYS)
+    one_line += tuple((key, "marine", MATCH_TEXT, plate_label(COLUMN[2])) for key in MATCH_KEYS[:BOSS])
+    one_line += (("#str_42024", "marine", BOSS_TEXT, U * COLUMN[2] - U * 22),)
+    one_line += tuple((key, "lowpixel", STATUS_TEXT, plate_label(LADDER[2])) for key in ("#str_42022", "#str_42023", "#str_42045", "#str_42065"))
+    one_line += (("#str_42007", "lowpixel", 13, head(LADDER[2])), ("#str_42008", "lowpixel", 13, head(COLUMN[2])),
+                 ("#str_42070", "lowpixel", 13, head(COLUMN[2])), ("#str_42026", "lowpixel", 13, head(LADDER[2])),
+                 ("#str_42011", "marine", RESET_TEXT, head(LADDER[2]) - U * 7), ("#str_42009", "lowpixel", 13, U * DETAIL_W),
+                 ("#str_42010", "marine", 23.7, U * 194), ("#str_200018", "marine", 20, U * 109 - 30),
+                 ("#str_42079", "lowpixel", 18, U * 448), ("#str_42086", "lowpixel", 15, U * 448),
+                 ("#str_42080", "marine", 20, RESULT_WIDTH * 374 / 512 - 34), ("#str_42018", "lowpixel", 15, 150),
+                 ("#str_42019", "lowpixel", 15, 150), ("#str_42154", "lowpixel", 15, 150), ("#str_42026", "lowpixel", 17, RESULT_WIDTH - 120),
+                 ("#str_42011", "marine", 20, reset_w * 374 / 512 - 34))
+    one_line += tuple((key, "marine", RESET_ACTION_TEXT, RESET_ACTION_W - 30) for key in ("#str_42075", "#str_42074"))
+    one_line += tuple((key, "lowpixel", 13, U * (INFO_VALUE_X - 4)) for _, key, _, _, _ in INFO)
+    one_line += tuple((key, "marine", RESULT_ACTION_TEXT, RESULT_ACTION_W - 30)
+                      for key in ("#str_42033", "#str_42076", "#str_42032", "#str_42034", "#str_42025"))
+    # What the campaign publishes from its own tables: tier and match names,
+    # the game types, the difficulties, the results and the unlocks.
+    one_line += tuple((f"#str_{number_}", "marine", TITLE_TEXT, head(COLUMN[2])) for number_ in range(42050, 42055))
+    one_line += tuple((f"#str_{number_}", "marine", TITLE_TEXT, U * DETAIL_W) for number_ in range(42100, 42140, 2))
+    one_line += tuple((f"#str_{number_}", "marine", 32, U * 448) for number_ in range(42100, 42140, 2))
+    one_line += tuple((f"#str_{number_}", "lowpixel", BODY_TEXT, U * (DETAIL_W - INFO_VALUE_X)) for number_ in range(42200, 42205))
+    one_line += tuple((f"#str_{number_}", "lowpixel", 16, U * (DETAIL_W - 44)) for number_ in range(42060, 42065))
+    one_line += tuple((key, "marine", 28, RESULT_WIDTH - 66) for key in ("#str_42030", "#str_42031", "#str_42068", "#str_42077"))
+    one_line += tuple((key, "lowpixel", 17, RESULT_WIDTH - 270) for key in ("#str_42045", "#str_42046", "#str_42047"))
+    wrapped = (("#str_42049", "lowpixel", 13, head(COLUMN[2]), 3), ("#str_42071", "lowpixel", 13, head(COLUMN[2]), 2),
+               ("#str_42073", "lowpixel", 17, reset_w - 66, 4))
+    wrapped += tuple((f"#str_{number_}", "lowpixel", BRIEFING_TEXT, head(COLUMN[2]), 3) for number_ in range(42055, 42060))
+    wrapped += tuple((f"#str_{number_}", "lowpixel", BODY_TEXT, U * DETAIL_W, 3) for number_ in range(42101, 42140, 2))
+    wrapped += tuple((key, "lowpixel", 17, RESULT_WIDTH - 80, 3)
+                     for key in ("#str_42066", "#str_42067", "#str_42069", "#str_42078", "#str_42150", "#str_42151"))
+    check_fits(one_line, wrapped)
+
+
+def arena_document() -> dict:
+    """Single Player's Arena sub-page (section 9 "Menu levels" and "Arena
+    Campaign", FLOW-011): the Arena campaign's browser in the sub-page state
+    Campaign holds, the top band one notch on, the bottom band docked, SINGLE
+    PLAYER as the crumb and ARENA as the title at the step's foot, over the
+    stock page's backing. The session plays the change between Single Player
+    and this document (section 8, FLOW-050):
+    onActivate    every arrival: the content at once, its backing fading in
+                  over 150 ms (content.in), the focus on the chosen match;
+    subpageLeave  Back, 300 ms: its title drops at once, it sweeps 640 u
+                  toward the leading edge over 300 ms (screen.return,
+                  linear), its backing fades over 250 ms (content.out), the
+                  top band steps back and the crumb returns to the title slot
+                  over the last 150 ms.
+    Leaving the screen (onDeactivate) places it at rest, its entrance, ledger
+    and modal closed, so it is never seen moved or covered when it next
+    presents."""
+    check_arena_fits()
+    doc = Document("openq4.arena")
+    published_states(doc)
+    doc.session("back", "arenaBack")
+    doc.session("tierPrevious", "arenaTierPrevious")
+    doc.session("tierNext", "arenaTierNext")
+    doc.events["onBack"] = [{"op": "action", "action": "back"}]
+    # The bumpers (and Q and E) switch tier, unless a modal or the entrance
+    # holds the screen.
+    free = all_of(OPEN, *({"op": "!", "args": [{"state": name}]} for name in ("arena.launch", "resultModal.visible", "resetModal.visible")))
+    for event, action in (("onTabPrevious", "tierPrevious"), ("onTabNext", "tierNext")):
+        doc.events[event] = [{"op": "if", "condition": free, "then": [{"op": "action", "action": action}]}]
+    canvas = {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)}
+    back = action_plate(doc, "arena_back", "#str_200018", U * 532, U * 441, action="back", width=U * 109)
+    doc.bind("arena_back.enabled", "arena_back", "enabled", OPEN)
+    launch = launch_layer(doc)
+    result = result_modal(doc)
+    reset = reset_modal(doc)
+    content = group("content", {**canvas, "transform": transform(), "opacity": number(1)},
+                    [*ladder(doc), *briefing(doc), *progress(doc), *detail(doc), back])
+    bands = framing_bands("band")
+    bands[0]["properties"]["transform"] = transform(*TOP_TO_SUBPAGE)
+    bands[1]["properties"]["transform"] = transform(*BOTTOM_TO_PAGE)
+    crumb_key = "#str_42000"
+    fits = crumb_fits(crumb_key)
+    titles = group("titles", {**canvas, "pointer-events": keyword("none")}, [
+        group("crumb-clip", {**absolute(left=U * CRUMB_SLOT[0], top=0, width=U * CRUMB_SPAN, height=U * 40), "overflow": keyword("hidden")}, [
+            label("crumb", crumb_key, {**absolute(left=0, top=U * TITLE_SLOT[1], width=U * PAGE_TITLE_W, height=U * PAGE_TITLE_H),
+                                       **typeface("marine", 18, U * PAGE_TITLE_H, [1, 1, 1, 0.4]), "white-space": keyword("nowrap"),
+                                       "transform": crumb_transform()})]),
+        page_title("title", "#str_42002", *SUBPAGE_SLOT),
+    ])
+    backing_node = backing("arena-backing")
+    backing_node["properties"]["opacity"] = number(0)
+    curtain = group("arena-curtain", {**FULL, "background-color": colour([0, 0, 0, 1]), "opacity": number(0), "pointer-events": keyword("none")})
+
+    page_top, sub_top = transform(*TOP_TO_PAGE), transform(*TOP_TO_SUBPAGE)
+    identity, swept_left = transform(), transform(-640 * U, 0)
+    white = lambda alpha: colour([1, 1, 1, alpha])
+    doc.timelines.add("arrive", 150, [
+        track("content", "opacity", [(0, number(1)), (1, number(1)), (150, number(1))]),
+        track("arena-backing", "opacity", [(0, number(0)), (1, number(0)), (150, number(1))]),
+        track("title", "color", [(0, white(0.5)), (1, white(0.5)), (150, white(0.5))]),
+    ])
+    # Hidden, the page waits in the sub-page state with its backing out.
+    doc.timelines.add("rest", 1, [
+        track("band-top", "transform", [(0, sub_top), (1, sub_top)]),
+        track("content", "transform", [(0, identity), (1, identity)]),
+        track("content", "opacity", [(0, number(1)), (1, number(1))]),
+        track("arena-backing", "opacity", [(0, number(0)), (1, number(0))]),
+        track("title", "color", [(0, white(0.5)), (1, white(0.5))]),
+        track("crumb", "color", [(0, white(0.4)), (1, white(0.4))]),
+        track("crumb-clip", "width", [(0, length(U * CRUMB_SPAN)), (1, length(U * CRUMB_SPAN))]),
+        track("arena-curtain", "opacity", [(0, number(0)), (1, number(0))]),
+    ])
+    doc.timelines.add("subpageLeave", 300, [
+        track("title", "color", [(0, white(0)), (1, white(0)), (300, white(0))]),
+        track("content", "transform", [(0, identity), (300, swept_left)]),
+        track("arena-backing", "opacity", [(0, number(1)), (250, number(0)), (300, number(0))]),
+        track("band-top", "transform", [(0, sub_top, ACCEL), (300, page_top)]),
+        track("crumb-clip", "width", [(0, length(U * CRUMB_SPAN)), (150, length(U * CRUMB_SPAN)), (151, length(U * PAGE_TITLE_W)),
+                                      (300, length(U * PAGE_TITLE_W))]),
+        track("crumb", "color", [(0, white(0.4)), (150, white(0.4)), (300, white(0.5))]),
+    ])
+    for suffix, scale in [("", CRUMB_SCALE)] + [(f"-{language}", fit) for language, fit in fits.items()]:
+        fitted = crumb_transform(scale)
+        doc.timelines.add(f"crumbRest{suffix}", 1, [track("crumb", "transform", [(0, fitted), (1, fitted)])])
+        doc.timelines.add(f"crumbReturn{suffix}", 300, [track("crumb", "transform", [(0, fitted), (150, fitted), (300, identity)])])
+    closed = {"arena.launch": False, "result.ready": False, "resultModal.visible": False, "resultModal.contents": False,
+              "resetModal.visible": False, "resetModal.contents": False}
+    doc.events["onDeactivate"] = [{"op": "setState", "values": closed}, {"op": "playTimeline", "timeline": "rest"},
+                                  *by_language(doc, "crumbRest", fits)]
+    doc.events["onActivate"] = [{"op": "setState", "values": closed}, *by_language(doc, "crumbRest", fits),
+                                {"op": "playTimeline", "timeline": "arrive"}, *focus_page()]
+    doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
+    # Back from the ledger, the browser takes the focus on the chosen match:
+    # the next one after a win.
+    doc.events["arenaProgressReveal"] = focus_page()
+    doc.events["arenaBrowserReveal"] = focus_page()
+    root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"), "font-size": length(16),
+                            "color": colour([1, 1, 1, 0.8])},
+                 [*lit_field("field", 0.7), *bands, backing_node, content, titles, launch, result, reset, curtain])
+    return doc.build(root)

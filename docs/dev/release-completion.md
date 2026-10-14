@@ -2,6 +2,40 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Merge the retained page line into main. The title's LOAD GAME, DEMOS,
+  CREDITS, MODS and MULTIPLAYER (with its server browser and Create Server),
+  Single Player's ARENA, the pause menu's SAVE GAME and RESTART LEVEL, and the
+  screen after a death now open modern pages instead of handing off to the
+  classic ones; controller prompts follow the device in use; Nintendo layouts
+  confirm on A; and the menus' dead ends and stuck input from the 8 October
+  audit are fixed. Main's initializing screen, weapon wheels and campaign
+  difficulty page replace the line's own versions, and the title keeps its
+  `q4text` wordmark. Large retained documents load in linear time on main's
+  runtime too. The Windows x64 debugoptimized build, all 177 native
+  tests (the screens test now runs as nine groups) and all 342 Python checks
+  pass after fixture repairs, and the register increment validates (114
+  partial, 232 pending, 1 verified). Windowed OpenGL captures of 35 menu,
+  page and gameplay scenarios and Vulkan captures of 18 complete,
+  including the airdefense1 and recomp pauses, saving, loading, restarting
+  and the death screen. Evidence: `.tmp/ui-merge-20261014/validation.json`.
+  See [retained screens](ui/retained-screens.md) and the
+  [register increment](ui/product-requirements.md).
+
+Candidate UI release wording: More of the menus use the modern interface:
+Load Game and Save Game, Restart Level, Demos, Credits, the MODS list, the
+Arena ladder, the screen after you die, and Multiplayer with a rebuilt server
+browser and Create Server. Menu prompts show your controller's buttons, and
+Nintendo controllers confirm with A (`in_swapConfirmBack` changes that). Menus
+open on their main choice, the mouse only lights what it points at, and Back
+no longer strands a blank menu. Unchanged menus and screens are kept across
+map changes, so loading between maps is shorter. `ui_retained 0` still selects
+the classic screens.
+
+- [x] Keep unchanged stock GUI trees across map changes (from the merged page
+  line): re-reference their parse-time media inside the load and reset
+  authored window state; four interleaved SP/MP pairs cut stock GUI time
+  81–92%. See [map changes](ui/runtime-performance.md#map-changes).
+
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and
   zero-duration motion samples; handle bit-message boundary cases and large
@@ -1794,6 +1828,200 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   holes past them (recorded in the support plan).
 
 ## Unreleased — `idtech5-ui` development
+
+- LOAD GAME on the title screen and the pause menu opens a rebuilt Load Game
+  page over the menu you came from: your saves, newest first, with their
+  level, and each save's screenshot with when it was made. Press a save
+  again, or LOAD GAME, to load it; DELETE GAME asks first and then selects
+  the next save. A save that cannot be loaded now says why instead of doing
+  nothing, and with no saves the page offers NEW GAME. The title's CONTINUE
+  line shows the save's name, level and time cleanly. Set `ui_retained 0` for
+  the classic page.
+
+- SAVE GAME on the pause menu opens a rebuilt Save Game page in the same
+  style: your saves, newest first, and a name field ready for typing. Type a
+  name and press Enter, or SAVE GAME, to save; pick a save to put its name in
+  the field and save over it after a confirmation that names it. Saving over
+  an autosave, or saving when the game cannot be saved, now says why on the
+  page. Set `ui_retained 0` for the classic page.
+
+- Number fields on the modern SYSTEM page, such as the window and custom
+  size fields, now take typed digits as well as pasted values.
+
+- RESTART LEVEL on the pause menu opens a rebuilt page with the five
+  difficulties and their descriptions, the level's own lit. Pick one and
+  press RESTART LEVEL; Back keeps the difficulty you were playing. Set
+  `ui_retained 0` for the classic page.
+
+- DEMOS on the title opens a rebuilt demo library: your recordings newest
+  first with their map, date and length, filter tags for each kind, and
+  PLAY, DELETE and REFRESH. Set `ui_retained 0` for the classic browser.
+
+- MODS on the title opens a rebuilt dialog listing your installed mods with
+  their version, author, release date and folder; LOAD MOD switches to the
+  selected one.
+
+- Dying in single player now brings up a rebuilt restart screen: RESTART,
+  LOAD GAME, MAIN MENU and EXIT GAME, each explaining itself as you point
+  at it.
+
+- CREDITS on the title plays the original credits, rebuilt: the Raven logo,
+  then every screen translating from Strogg runes under its scan bars.
+
+- ARENA on the single-player page opens a rebuilt Arena page: the five tiers
+  as a ladder beside the chosen tier's matches, the boss on its own larger
+  plate, the match's levelshot and rules, the difficulty and START MATCH,
+  with the original entrance as a match starts and the match report when
+  you come back. The bumpers switch tier.
+
+- MULTIPLAYER on the title opens a rebuilt Multiplayer page: JOIN GAME,
+  CREATE SERVER and PLAYER SETUP, each opening its page and coming back to
+  the Multiplayer page, and BACK to the title.
+
+- Create Server now starts Duel, Clan Arena, Freeze Tag, Red Rover, One Flag
+  CTF and Arena One Flag CTF when you pick them from the main menu. Before,
+  those modes quietly fell back and the server started as Deathmatch.
+
+- Create Server is rebuilt in the modern interface: CREATE SERVER on the
+  Multiplayer page slides one level down to it, with the maps the game type
+  plays beside the chosen map's picture, every server option, and the
+  advanced options, including the server and remote console passwords
+  (shown as asterisks, never copied) and your server's ban list, where you
+  can lift a ban.
+
+- The classic Create Server page's ban list shows your server's bans again
+  and REMOVE BAN lifts them, and its Min Players and Max Players stay in
+  order, as in the original game.
+
+- A favorite server running on your own machine, such as a local dedicated
+  server, now appears in the server browser's Internet list. Before, the
+  browser saved it as "localhost" and never contacted it. Favorites saved
+  that way are picked up again automatically.
+
+- The server browser is rebuilt in the modern interface: JOIN GAME on the
+  Multiplayer page slides one level down to it. It lists Internet or LAN
+  servers in sortable columns, marks favorites, passworded and dedicated
+  servers and Q4TV repeaters, filters by mod, shows the chosen server's
+  levelshot, adds or removes favorites, joins by IP address (showing your
+  own) and finds a player's servers.
+
+- FIND PLAYER/CLAN in the classic server browser works again: it now shows
+  only the listed servers with a player whose name contains what you typed.
+  The original searched through id's master server, which no longer answers.
+
+- JOIN IP ADDRESS shows your IP address again, as the original did.
+
+- Both server browsers show the scan's progress again: the bar under the list
+  fills as servers answer, with the current step (getting the list, scanning
+  server n of N, then how many were scanned). The classic browser's bar had
+  always stayed empty in openQ4.
+
+- The classic server browser's server card works again: pointing at a server
+  shows its address, its players and its settings (map, time limit, the
+  match's frag, capture or round limit, team damage, team autobalance, pure
+  and spectators). openQ4 had kept the card hidden.
+
+- The rebuilt server browser shows the same server card: point at a server,
+  or move to it with the keyboard or a controller, to see its address,
+  players and settings beside it.
+
+- The rebuilt menus draw their vector art from less geometry, so each frame
+  costs less.
+
+- The rebuilt server browser shows each server's connection quality as bars
+  beside its ping, from four green bars on a fast server down to one red
+  bar.
+
+- With a controller, the rebuilt server browser refreshes the list with the
+  left face button and sorts it by the next column with the top one.
+
+- On a Nintendo-layout controller, menus confirm with A and go back with B,
+  as Switch games do, and the prompts show it. `in_swapConfirmBack` chooses
+  either way for any controller (see the input guide).
+
+- Menu prompts show your controller's buttons. After you use a controller,
+  the title, pause and loading screens and the multiplayer menu show its
+  buttons instead of keyboard keys: A and B on Xbox pads, the cross and
+  circle on PlayStation, Switch labels, or the Steam Deck's own. The
+  multiplayer menu's tab keys show the shoulder buttons. The keyboard or
+  mouse switches them back.
+  If Steam Input or another remapper hides your pad, `ui_promptStyle`
+  chooses the style (see the input guide).
+
+- The server browser's MOD filter label reads correctly in French and
+  Italian; it showed a raw text key before.
+
+- The rebuilt menus no longer leave you stranded: Back on Single Player
+  returns to the title instead of an empty menu; Back on the death screen no
+  longer drops you out of the level; the death screen's LOAD GAME opens the
+  new Load Game page; a multiplayer join that fails or is cancelled brings
+  you back to the server list instead of the title; and CONTINUE with a save
+  that cannot be loaded opens the Load Game page and says why instead of
+  doing nothing.
+
+- Dropdowns change with left and right (arrow keys, D-pad or stick), as the
+  original menus' options did. On the multiplayer Welcome card the stick no
+  longer keeps moving the focus after you let go.
+
+- Create Server's ADVANCED OPTIONS button sits under the server options
+  again instead of over the page title, UPDATES checks for a new version
+  without leaving the title, and menus keep their sound after you switch
+  windows or the video restarts.
+
+- Menu text fits in every language: the title's links, the MODS dialog and
+  the quit dialog's title no longer run off their frames, the SELECT prompt
+  is translated correctly in Spanish, Italian and French, and the pause and
+  loading screens name the Warlord difficulty and openQ4's own multiplayer
+  modes in your language.
+
+- The rebuilt multiplayer menu cards and server browser use far less CPU
+  while you are on them.
+
+- Controllers and keyboards start on the right item: the title, the pause
+  screen, Single Player, Campaign and Multiplayer open with their main
+  choice selected, so the first press of A or Enter does something, and
+  Back returns you to the item you came from. With the mouse, only the item
+  under the pointer lights up.
+
+- Every rebuilt menu page now shows your device's buttons. Load Game, Save
+  Game, Restart Level, Demos, Credits, Create Server, Join Game
+  and the pause menu's Objectives page carry the same prompt bar as the title
+  and pause screens: Select and Back as keyboard keys, or as your
+  controller's buttons once you use one. Back sits where the old BACK button
+  was, and you can still click it. On wide screens the Single Player,
+  Campaign and Multiplayer prompts no longer run past the bottom frame.
+
+- The mouse now works on every button of the rebuilt Load Game, Save Game,
+  Restart Level and Demos pages. LOAD GAME, DELETE GAME, SAVE GAME, the
+  difficulties, PLAY, DELETE and REFRESH
+  ignored the pointer before (the keyboard and controllers always reached
+  them), and pointing at the lower edge of a difficulty no longer lights the
+  one below it.
+
+- When a selected button is switched off or a server row disappears, the
+  next move picks up from where the selection was instead of jumping to the
+  top of the page, and Back on a number field you have not changed leaves
+  the page on the first press.
+
+- Long server and map names in the server browser end in an ellipsis
+  instead of being cut mid-letter. Spanish shows the same word for Back
+  everywhere, and Polish and Russian translate the save names (Quicksave,
+  Checkpoint, Map Start), save warnings and dialog buttons that still
+  appeared in English.
+
+- The title screen appears sooner after launch. Each rebuilt menu is now
+  read once instead of twice, partly on spare processor cores; the pause
+  menus and the pages only a level reaches load with your first level; and
+  the multiplayer and Arena map pictures load while the title is up.
+
+- Changing levels and multiplayer maps is quicker with the modern menus on:
+  their pages now keep what they have loaded through a level change instead
+  of being rebuilt every time.
+
+- Multiplayer maps load faster and the in-match menu is smooth again: the
+  modern Escape menu, which loads with every multiplayer map, now loads about
+  fifteen times faster and draws its frames in a fraction of the time, and
+  the Welcome card, title and pause menus are lighter too.
 
 - The modern interface is now on by default for the title screen, the
   single-player pause menu and the loading screens; the other menus keep the

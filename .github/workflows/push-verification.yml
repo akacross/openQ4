@@ -407,6 +407,7 @@ jobs:
             tools/tests/ui_system_session_route.py \
             tools/tests/ui_controller_menu_pump.py \
             tools/tests/ui_retained_gate.py \
+            tools/tests/ui_stock_level_load.py \
             tools/ui/build_retained_screens.py \
             tools/ui/capture_retained_screens.py \
             tools/tests/ui_retained_resource_lifecycle.py \
@@ -765,6 +766,7 @@ jobs:
           python tools/tests/ui_system_session_route.py
           python tools/tests/ui_controller_menu_pump.py
           python tools/tests/ui_retained_gate.py
+          python tools/tests/ui_stock_level_load.py
           python tools/tests/ui_retained_resource_lifecycle.py
           python tools/tests/ui_retained_adapter.py
           python tools/tests/ui_scrollbar_interaction.py --mutations

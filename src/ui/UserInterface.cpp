@@ -50,6 +50,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "RetainedUI.h"
 #include "RetainedHud.h"
 #include <limits>
+#include <cstring>
+#include <unordered_set>
+#include "../idlib/ParserSourceObserver.h"
+#include "../framework/DeclReferenceObserver.h"
 
 extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
 extern idCVar gui_debugScript;
@@ -60,6 +64,62 @@ static idCVar ui_retainedHudStateCache( "ui_retainedHudStateCache", "1", CVAR_GU
 
 idUserInterfaceManagerLocal	uiManagerLocal;
 idUserInterfaceManager *	uiManager = &uiManagerLocal;
+
+// Only loaded source bytes and declaration identities are cached, never a
+// timestamp-only promise. Explicit reload and language changes still parse.
+struct LegacyLevelLoadCache {
+    struct Source { std::string path, bytes; bool missing; };
+    struct Resource { const idDecl* parsed; declType_t type; std::string name; bool guiSort; };
+    std::vector<Source> sources;
+    std::vector<Resource> resources;
+    std::unordered_set<const idDecl*> seen;
+    std::string windowDefaults;
+    bool valid = false;
+    static void SourceRead(void* context, const char* path, const char* data, int size) {
+        auto& cache = *static_cast<LegacyLevelLoadCache*>(context);
+        for (const auto& source : cache.sources) if (source.path == path) return;
+        cache.sources.push_back({path, data && size >= 0 ? std::string(data, size) : std::string(), size < 0});
+    }
+    static void Referenced(void* context, const idDecl* decl) {
+        auto& cache = *static_cast<LegacyLevelLoadCache*>(context);
+        if (decl && cache.seen.insert(decl).second) cache.resources.push_back({decl, decl->GetType(), decl->GetName(), false});
+    }
+    void Finish(bool loaded) {
+        valid = loaded && !sources.empty();
+        if (!valid) return;
+        for (auto& resource : resources) {
+            if (resource.type == DECL_MATERIAL)
+                resource.guiSort = static_cast<const idMaterial*>(resource.parsed)->GetSort() == SS_GUI;
+            resource.parsed = nullptr;
+        }
+        std::unordered_set<const idDecl*>().swap(seen);
+    }
+    size_t Size() const {
+        size_t size = sizeof(*this) + sources.capacity() * sizeof(Source) + resources.capacity() * sizeof(Resource);
+        for (const auto& source : sources) size += source.path.capacity() + source.bytes.capacity();
+        for (const auto& resource : resources) size += resource.name.capacity();
+        return size + windowDefaults.capacity();
+    }
+    bool Unchanged() const {
+        if (!valid) return false;
+        for (const auto& source : sources) {
+            void* data = nullptr;
+            const int size = fileSystem->ReadFile(source.path.c_str(), &data);
+            const bool same = source.missing ? size < 0 : size >= 0 && data &&
+                static_cast<size_t>(size) == source.bytes.size() &&
+                std::memcmp(data, source.bytes.data(), source.bytes.size()) == 0;
+            if (data) fileSystem->FreeFile(data);
+            if (!same) return false;
+        }
+        return true;
+    }
+    void Reference() const {
+        for (const auto& resource : resources) {
+            const idDecl* decl = declManager->FindType(resource.type, resource.name.c_str());
+            if (resource.guiSort) static_cast<const idMaterial*>(decl)->SetSort(SS_GUI);
+        }
+    }
+};
 
 idUserInterfaceManaged::idUserInterfaceManaged( bool managed ) : refs( 1 ), allocationId( 0 ), managed( managed ) {
 	if ( managed ) {
@@ -127,6 +187,10 @@ bool UI_TakeSessionRequest( idUserInterface *gui, const char *command, idStr &re
 
 void UI_RunTimeEvents( idUserInterface *gui, int time ) {
 	uiManagerLocal.RunTimeEvents( gui, time );
+}
+
+void UI_ReloadForLevelLoad() {
+	uiManagerLocal.ReloadForLevelLoad();
 }
 
 void idUserInterfaceManagerLocal::RunTimeEvents( idUserInterface *gui, int time ) {
@@ -537,6 +601,13 @@ bool idUserInterfaceManagerLocal::DispatchApplicationActions( idUserInterface *g
 			if (!MakeTextInputCommit(selection,checked,error)) continue;
 			if (request.operation != uiClipboardOperation_t::Copy && request.operation != uiClipboardOperation_t::Cut &&
 				request.operation != uiClipboardOperation_t::Paste) continue;
+			// A masked field's text never reaches the clipboard: copying or
+			// cutting a selection there is refused and said. Paste still works.
+			if (before.editor.masked && request.operation != uiClipboardOperation_t::Paste) {
+				if (!selection.empty() && !clipboardBoundaryFailed) if (auto* live = resolve())
+					live->SetClipboardNotice(request.target,NumberEditNotice::ClipboardMasked,error);
+				continue;
+			}
 			std::string paste; bool succeeded = true;
 			NumberEditNotice notice = NumberEditNotice::None;
 			try {
@@ -726,6 +797,15 @@ bool UI_LegacyWindowExists( idUserInterface *gui, const char *windowName ) {
 	return legacy != NULL && legacy->HasWindow( windowName );
 }
 
+bool idUserInterfaceLocal::HasNamedEvent( const char *eventName ) const {
+	return desktop != NULL && eventName != NULL && eventName[ 0 ] != '\0' && desktop->HasNamedEvent( eventName );
+}
+
+bool UI_LegacyNamedEventExists( idUserInterface *gui, const char *eventName ) {
+	const idUserInterfaceLocal *legacy = dynamic_cast<idUserInterfaceLocal *>( gui );
+	return legacy != NULL && legacy->HasNamedEvent( eventName );
+}
+
 bool idUserInterfaceLocal::GetTextInputState( idRectangle &area, float &cursorOffset ) const {
 	if ( desktop == NULL ) {
 		return false;
@@ -856,6 +936,17 @@ void idUserInterfaceManagerLocal::RegisterIcon( const char *code, const char *sh
 // RAVEN END
 
 void idUserInterfaceManagerLocal::Reload( bool all ) {
+	ReloadGuis( all, false );
+}
+
+// A map change's reload, after BeginLevelLoad: every GUI re-initializes so
+// that the media it references resolve again inside the load, whose purge
+// defaulted them. A GUI that can keep what it has loaded does so instead.
+void idUserInterfaceManagerLocal::ReloadForLevelLoad() {
+	ReloadGuis( true, true );
+}
+
+void idUserInterfaceManagerLocal::ReloadGuis( bool all, bool levelLoad ) {
 	ID_TIME_T ts;
 
 	const idList<idUserInterfaceManaged*> reloadGuis = guis;
@@ -866,6 +957,9 @@ void idUserInterfaceManagerLocal::Reload( bool all ) {
 	for ( int i = 0; i < reloadGuis.Num(); i++ ) {
 		idUserInterfaceManaged *gui = reloadGuis[ i ];
 		if ( guis.Find( gui ) == NULL || gui->allocationId != identities[ i ] ) {
+			continue;
+		}
+		if ( levelLoad && gui->KeepForLevelLoad() ) {
 			continue;
 		}
 		// InitFromFile may replace the owned source string while parsing.
@@ -1120,6 +1214,8 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	}
 
 	loading = true;
+	levelLoadCache.reset( new LegacyLevelLoadCache );
+	idDeclReferenceObserver mediaObserver( levelLoadCache.get(), LegacyLevelLoadCache::Referenced );
 
 	if ( rebuild ) {
 		delete desktop;
@@ -1132,7 +1228,10 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	source = qpath;
 	state.Set( "text", "Test Text!" );
 
+	bool parseOk = true;
 	idParser src( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_ALLOWMULTICHARLITERALS | LEXFL_ALLOWBACKSLASHSTRINGCONCAT );
+
+	idParserSourceObserver sourceObserver( &src, levelLoadCache.get(), LegacyLevelLoadCache::SourceRead );
 
 	//Load the timestamp so reload guis will work correctly
 	fileSystem->ReadFile(qpath, NULL, &timeStamp);
@@ -1147,6 +1246,8 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 				if ( desktop->Parse( &src, rebuild ) ) {
 					desktop->SetFlag( WIN_DESKTOP );
 					desktop->FixupParms();
+				} else {
+					parseOk = false;
 				}
 				continue;
 			}
@@ -1192,6 +1293,15 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 		}
 	}
 	UI_LegacyObservationLoaded(this,src.IsLoaded());
+	levelLoadCache->Finish( src.IsLoaded() && parseOk && rebuild );
+	if (levelLoadCache->valid && desktop->CanKeepForLevelLoad()) {
+		// Restore authored window/script values, not a previous menu subpage.
+		// The dictionary remains live, exactly as it does across InitFromFile.
+		desktop->CaptureForLevelLoad();
+		idFile_Memory defaults;
+		desktop->WriteToSaveGame(&defaults);
+		levelLoadCache->windowDefaults.assign(defaults.GetDataPtr(), defaults.Length());
+	}
 	interactive = desktop->Interactive();
 
 	RegisterLoaded();
@@ -1201,6 +1311,30 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	initialized = false;
 
 	return true; 
+}
+
+bool idUserInterfaceLocal::KeepForLevelLoad() {
+    if (!desktop || !levelLoadCache || !desktop->CanKeepForLevelLoad() || !levelLoadCache->Unchanged()) return false;
+    // Re-find parse-time references before touching live pointers: a purged
+    // declaration retains its identity but its contents have been defaulted.
+    levelLoadCache->Reference();
+    state.Set("text", "Test Text!");
+    state.Set("name", source.c_str());
+    idFile_Memory defaults("GUI level-load defaults", levelLoadCache->windowDefaults.c_str(),
+        static_cast<int>(levelLoadCache->windowDefaults.size()));
+    desktop->ReadFromSaveGame(&defaults);
+    desktop->RefreshForLevelLoad();
+    // Preserve the parsed tree, but repeat the backend initialization and
+    // activation work that a map-change reload performed.
+    initialized = false;
+    lightColorVar = NULL;
+    interactive = desktop->Interactive();
+    if (active) Activate(true, common->GetPresentationTime());
+    bindHandler = NULL;
+    pendingCmd.Clear();
+    returnCmd.Clear();
+    common->Printf("STOCK_GUI_KEPT %s\n", source.c_str());
+    return true;
 }
 
 const char *idUserInterfaceLocal::HandleEvent( const sysEvent_t *event, int _time, bool *updateVisuals ) {
@@ -1508,6 +1642,8 @@ void idUserInterfaceLocal::Trigger(int _time) {
 void idUserInterfaceLocal::ReadFromDemoFile( class idDemoFile *f ) {
 	evaluatedHudValid = false;
 	evaluatedHudState.Clear();
+	// Restore may add legacy compatibility events beyond the parsed tree.
+	levelLoadCache.reset();
 	idStr work;
 	f->ReadDict( state );
 	source = state.GetString("name");
@@ -1729,6 +1865,8 @@ static bool UI_ReadSaveGameString( idFile *savefile, idStr &string, const char *
 bool idUserInterfaceLocal::ReadFromSaveGame( idFile *savefile ) {
 	evaluatedHudValid = false;
 	evaluatedHudState.Clear();
+	// Restore may add legacy compatibility events beyond the parsed tree.
+	levelLoadCache.reset();
 	if ( savefile == NULL || desktop == NULL ) {
 		common->Warning( "idUserInterfaceLocal::ReadFromSaveGame: gui '%s' has no valid input file/parsed desktop",
 			source.c_str() );
@@ -1818,6 +1956,7 @@ bool idUserInterfaceLocal::ReadFromSaveGame( idFile *savefile ) {
 
 size_t idUserInterfaceLocal::Size() {
 	size_t sz = sizeof(*this) + state.Size() + evaluatedHudState.Allocated() + source.Allocated();
+	if ( levelLoadCache ) sz += levelLoadCache->Size();
 	if ( desktop ) {
 		sz += desktop->Size();
 	}

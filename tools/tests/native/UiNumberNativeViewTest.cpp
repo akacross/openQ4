@@ -135,18 +135,28 @@ static std::string NativeSource(bool transform,bool framed) {
  auto marker=Box("after-composition",0,0,1,1);viewport["children"].append(marker);
  Json::StreamWriterBuilder writer;writer["indentation"]="";return Json::writeString(writer,json);
 }
+// The same field as a masked text field (a password) over string state.
+static const char* const MaskedPlain="1\xC3\xA9\xF0\x9F\x99\x82" "45";
+static std::string MaskedSource() {
+ auto json=Parse(NativeSource(false,false));auto& control=json["root"]["children"][0]["control"];
+ control["role"]="text";control["masked"]=true;control.removeMember("minimum");control.removeMember("maximum");
+ json["state"]["value"]["type"]="string";json["state"]["value"]["initial"]="";json["actions"]["edit"]["input"]="string";
+ Json::StreamWriterBuilder writer;writer["indentation"]="";return Json::writeString(writer,json);
+}
 struct NativeView {
  TestHost host;Runtime runtime{host};Document model;Interaction input;NumberControlView paint;
  Rml::Context* context=nullptr;Rml::ElementDocument* document=nullptr;
  std::string error,source;float ratio;double time=1;NativeTextIdentity nativeId{200,300};NativeTextDocument native;NativeTextEditorBarrier barrier;
  std::uint64_t dispatch=10,fence=20;
- NativeView(float density=1,bool transform=false,bool framed=false):ratio(density) {
-  source=NativeSource(transform,framed);std::vector<Diagnostic> diagnostics;
+ NativeView(float density=1,bool transform=false,bool framed=false,bool masked=false):ratio(density) {
+  source=masked?MaskedSource():NativeSource(transform,framed);std::vector<Diagnostic> diagnostics;
   const bool loaded=model.Load(source,diagnostics)&&runtime.LoadDocument(source,"native-number.q4ui",diagnostics);
   for(const auto& d:diagnostics)std::fprintf(stderr,"%s: %s\n",d.pointer.c_str(),d.message.c_str());Check(loaded,"real authored vector Number fixture loads");
   Viewport viewport;viewport.width=1280;viewport.height=720;viewport.displayScale=ratio;runtime.Frame(viewport,time);
   context=Rml::GetContext(0);Check(context!=nullptr,"actual Rml context exists");document=context->GetDocument(0);Check(document!=nullptr,"actual Rml document exists");
-  input.Reset(model.Model());Check(input.SetReadbacks({{"number",{1.05,false,{}}}},error),"authoritative typed readback");input.SetBounds({{"number",{0,0,1280,720,true}}});
+  input.Reset(model.Model());
+  Check(input.SetReadbacks({{"number",{masked?StateValue(std::string(MaskedPlain)):StateValue(1.05),false,{}}}},error),"authoritative typed readback");
+  input.SetBounds({{"number",{0,0,1280,720,true}}});
   Check(input.Focus("number")&&input.BeginNumberEdit("number",error),"eligible pure Number editor begins");Initialize();Frame();
  }
  ~NativeView(){paint.Reset();}
@@ -170,8 +180,11 @@ struct NativeView {
   Check(input.CompleteNumberNativeCollection(barrier,barrier.collection,opened,error),"checked collection finishes");barrier=opened;
  }
  void Retire(){NativeTextEditorReceipt receipt;Check(input.RetireNumberNative(barrier,receipt,error),"explicit native retirement");Check(native.Retire(nativeId,error),"retire native shadow");barrier=receipt.after;}
+ // The run as painted: a masked field's is its mask, one * a character.
  std::shared_ptr<const TextRun> Run()const {auto* text=E("text");auto* ink=text->GetNumChildren()?text->GetChild(0):text;const auto size=static_cast<int>(std::lround(Rml::GetFontEngineInterface()->GetFontMetrics(ink->GetFontFaceHandle()).ascent/.775f));std::string diagnostic;
-  return MeasureTextRun(Edit().nativePresentation?Edit().nativePresentation->text:Edit().state.text,ink->GetComputedValues().letter_spacing(),[&](uint32_t cp){Glyph g;g.advance=TestHost::Advance(size,cp);return g;},diagnostic);}
+  std::string shown=Edit().nativePresentation?Edit().nativePresentation->text:Edit().state.text;
+  if(Edit().masked){std::string mask;for(const unsigned char c:shown)if((c&0xc0)!=0x80)mask+='*';shown=mask;}
+  return MeasureTextRun(shown,ink->GetComputedValues().letter_spacing(),[&](uint32_t cp){Glyph g;g.advance=TestHost::Advance(size,cp);return g;},diagnostic);}
  Rml::Vector2f Baseline()const {auto* text=static_cast<Rml::ElementText*>(E("text")->GetChild(0));return text->GetAbsoluteOffset(Rml::BoxArea::Content).Round()+text->GetLines()[0].position;}
  std::vector<Rml::Element*> Parts()const {std::vector<Rml::Element*> result{E("composition")};for(auto* next=result.back()->GetNextSibling();next&&next!=E("after-composition");next=next->GetNextSibling())result.push_back(next);return result;}
  unsigned GreenDraws()const {unsigned result=0;for(const auto& draw:host.draws){bool green=false;for(const auto& vertex:draw.vertices)green|=vertex.g>.9f&&vertex.r<.01f&&vertex.b<.01f&&vertex.a>.9f;if(green)++result;}return result;}
@@ -241,6 +254,28 @@ static void NativeHitAndMetadata(){
  auto* viewport=view.E("viewport");const auto origin=viewport->GetAbsoluteOffset(Rml::BoxArea::Content);auto outside=ProjectForward(viewport,{origin.x-30,origin.y+10});Check(!view.paint.Hit(view.E("text"),outside.x,outside.y,view.input),"ordinary native hit outside viewport is rejected");
  auto* caret=view.E("caret");view.E("viewport")->SetProperty("width","0px");view.Frame();Check(!caret->IsVisible()&&view.GreenDraws()==0&&!view.paint.Geometry("number",view.input),"zero layout hides every composition and stale caret");for(auto* part:view.Parts())Check(!part->IsVisible(),"failed layout hides each derived composition root");view.E("viewport")->SetProperty("width","160dp");view.Frame();view.Settled();Check(view.paint.Geometry("number",view.input).has_value(),"viewport recovery repaints fresh native geometry");view.input.Cancel();view.Frame();Check(view.GreenDraws()==0,"focus loss removes all simultaneous composition draws");for(auto* part:view.Parts())Check(!part->IsVisible(),"focus loss hides each live derived root");
 }
+// A masked field's run measures its mask: the caret and selection stand on
+// the mask, a hit on it names the plain text's byte, and the command run
+// carries the mask's carets onto the plain text's scalar boundaries.
+static void MaskedHitAndCommandRun(){
+ for(float ratio:{1.f,1.25f}){
+  NativeView view(ratio,false,false,true);view.Frame();view.Settled();const std::string plain=MaskedPlain;
+  const auto edit=view.Edit();Check(edit.masked&&edit.state.text==plain&&edit.state.anchor==0&&edit.state.caret==plain.size(),"a masked editor starts from its plain readback, all selected");
+  auto* text=static_cast<Rml::ElementText*>(view.E("text")->GetChild(0));Check(text->GetText()=="*****","five characters paint five *");
+  const auto run=view.Run();float zero=0,end=0,third=0;Check(run&&run->CaretPosition(0,zero)&&run->CaretPosition(5,end)&&run->CaretPosition(3,third),"mask run carets");
+  const auto cp=view.E("caret")->GetAbsoluteOffset(Rml::BoxArea::Border);const auto ss=view.E("selection")->GetBox().GetSize(Rml::BoxArea::Border);
+  Check(Near(cp.x,view.Baseline().x+end,.011f)&&Near(ss.x,end-zero,.011f),"the end caret and the whole selection stand on the mask");
+  Check(view.paint.Geometry("number",view.input).has_value(),"settled masked caret geometry available");
+  const auto point=view.Baseline()+Rml::Vector2f(third,-5);const auto hit=view.paint.Hit(view.E("text"),point.x,point.y,view.input);
+  Check(hit&&hit->byteOffset==7&&hit->identity==edit.identity,"a hit after the third * names the byte after the emoji");
+  const auto command=view.paint.CommandRun("number",edit.identity,view.input,view.error);Check(command&&command->text==plain,"the command run is the plain text's");
+  std::vector<std::size_t> carets;for(const auto& caret:command->carets)carets.push_back(caret.byteOffset);
+  Check((carets==std::vector<std::size_t>{0,1,3,7,8,9}),"its carets are the plain text's scalar boundaries");
+  Check(view.input.SetNumberSelection("number",edit.identity,3,3,view.error),"a caret after the é");view.Frame();view.Settled();
+  float second=0;Check(view.Run()->CaretPosition(2,second)&&Near(view.E("caret")->GetAbsoluteOffset(Rml::BoxArea::Border).x,view.Baseline().x+second,.011f),
+   "a plain caret stands after its character's * on the mask");
+ }
+}
 static void CopiedGeometryAndDestroyedDocument(){
  RuntimeStatistics statistics;NativeView view;view.Attach();
  view.Change([&](auto lock){Check(view.native.BeginComposition(lock,1,0,2,view.error),"first cache range");Check(view.native.BeginComposition(lock,2,2,4,view.error),"second cache range");Check(view.native.SelectACP(lock,0,0,view.error),"remove selection ink");});view.Frame();Check(view.GreenDraws()==2,"both original and copied vector geometry have compiled");
@@ -248,4 +283,4 @@ static void CopiedGeometryAndDestroyedDocument(){
  original->Configure(changed,view.host,statistics);copy->CopyArtworkFrom(*original);view.host.draws.clear();++view.host.frame;view.context->Render();Check(view.GreenDraws()==0&&view.host.Colour(1,1,0).has_value(),"copying artwork invalidates previously compiled path and uploaded mesh");Check(statistics.vectorPathsCompiled==2,"original and copied path both rebuild after artwork replacement");
  view.NoDuplicateIds();Check(view.Parts().size()==2,"live derived observer exists before document destruction");view.document->Close();view.context->Update();view.document=nullptr;view.paint.Reset();Check(true,"derived observer reset tolerates document-first destruction");
 }
-int main(){ConcurrentRangesAndDirectionalSelection();PoolClippingAndLifetime();EmptyRangeAndSettledNative();NativeHitAndMetadata();CopiedGeometryAndDestroyedDocument();std::printf("UiNumberNativeViewTest: %u checks passed\n",checks);}
+int main(){ConcurrentRangesAndDirectionalSelection();PoolClippingAndLifetime();EmptyRangeAndSettledNative();NativeHitAndMetadata();MaskedHitAndCommandRun();CopiedGeometryAndDestroyedDocument();std::printf("UiNumberNativeViewTest: %u checks passed\n",checks);}

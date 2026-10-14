@@ -30,6 +30,8 @@ public:
 	bool					IsGui( const idUserInterface *gui ) const;
 	bool					IsActive() const;
 	bool					NeedsCleanup() const;
+	// The entrance holds the browser: its commands wait until the launch.
+	bool					IsEntering() const;
 
 	void					OpenSelector();
 	void					OpenBrowser();
@@ -55,6 +57,8 @@ private:
 	void					FinishPendingCompletion();
 	bool					LoadCampaign();
 	void					UpdateGui();
+	void					PublishGui( idUserInterface *gui );
+	idUserInterface *		PresentedGui() const;
 	void					StartSelectedMatch();
 	void					CommitPendingMatch();
 	void					QueueFailedCompletionCleanup();

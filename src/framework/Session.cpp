@@ -2633,7 +2633,8 @@ static void Session_DrawLevelshotBounds() {
 }
 
 // The current difficulty's localized name, as the retained pause and loading
-// screens show it.
+// screens show it: the names the difficulty pages give, Warlord the fifth
+// (the Arena's NIGHTMARE is another ladder's).
 static const char *Session_GetSkillName( void ) {
 	static const char *skills[] = { "#str_200014", "#str_200015", "#str_200016", "#str_200017", "#str_41117" };
 	return common->GetLanguageDict()->GetString( skills[ idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) ) ] );
@@ -2667,6 +2668,16 @@ static const char *Session_GetLongMPGameTypeName( const char *gametype ) {
 	}
 	if ( !idStr::Icmp( gametype, "DeadZone" ) ) {
 		return common->GetLocalizedString( "#str_122001" );
+	}
+	// openQ4's own modes, by the names mp/GameTypes.cpp gives them.
+	static const char *const openQ4Modes[][2] = {
+		{ "Duel", "#str_41300" }, { "Clan Arena", "#str_41301" }, { "Freeze Tag", "#str_41302" }, { "Red Rover", "#str_41303" },
+		{ "Overload", "#str_41304" }, { "Harvester", "#str_41305" }, { "Domination", "#str_41306" }, { "Attack Defend", "#str_41307" }
+	};
+	for ( int i = 0; i < static_cast<int>( sizeof( openQ4Modes ) / sizeof( openQ4Modes[0] ) ); ++i ) {
+		if ( !idStr::Icmp( gametype, openQ4Modes[i][0] ) ) {
+			return common->GetLocalizedString( openQ4Modes[i][1] );
+		}
 	}
 
 	return gametype;
@@ -3820,7 +3831,52 @@ void idSessionLocal::Clear() {
 	retainedSubpageDeeper = false;
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
+	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
 	retainedHomeReturning = false;
+	retainedHomeUnderMessage = false;
+	retainedJoinReturn = false;
+	guiRetainedLoad = NULL;
+	retainedPageHome = NULL;
+	retainedPagePending = NULL;
+	retainedPageAt = 0;
+	retainedPageReturn = false;
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	retainedLoadFirst = 0;
+	retainedLoadSelected = -1;
+	guiRetainedSave = NULL;
+	retainedSaveTarget.Clear();
+	guiRetainedRestart = NULL;
+	guiRetainedDemos = NULL;
+	retainedModSelected = -1;
+	guiRetainedRestartMenu = NULL;
+	guiRetainedCredits = NULL;
+	guiRetainedArena = NULL;
+	guiRetainedMpPage = NULL;
+	retainedMpPageDest = 0;
+	retainedMpPageLeft = 0;
+	retainedMpPageAt = 0;
+	guiRetainedCreate = NULL;
+	retainedLevelshots.Clear();
+	retainedLevelshotsFrom = 0;
+	retainedCreateMaps.Clear();
+	retainedCreateMapFirst = 0;
+	retainedCreateMapSelected = -1;
+	retainedCreateBanGuids.Clear();
+	retainedCreateBanSelected = -1;
+	guiRetainedJoin = NULL;
+	retainedJoinServers.Clear();
+	retainedJoinFirst = 0;
+	retainedJoinAddress.Clear();
+	retainedJoinRevision = -1;
+	retainedJoinShotMap.Clear();
+	retainedJoinShot.Clear();
+	retainedJoinDetailRow = -1;
+	retainedDemoRows.Clear();
+	retainedDemoFirst = 0;
+	retainedDemoSelected = -1;
+	retainedDemoFilter = 0;
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
 	guiRetainedSummary = retainedMultiplayerTarget = NULL;
 	retainedMultiplayerSummary = false;
@@ -3836,7 +3892,7 @@ void idSessionLocal::Clear() {
 	retainedPointerX = retainedPointerY = 0.0f;
 	retainedLoadingActive = false;
 	retainedLoadingPhase = 0;
-	retainedLoadingLoaded = retainedLoadingTotal = retainedLoadingDevice = -1;
+	retainedLoadingLoaded = retainedLoadingTotal = -1;
 	retainedLoadingTip = -1;
 	retainedLoadingTipSlot = 0;
 	retainedLoadingTipAt = 0;
@@ -4391,11 +4447,26 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		static const char *const details[] = {
 			"browser_selected", "server_IP", "server_name", "server_map",
 			"server_gameType", "server_passworded", "browser_levelshot",
-			"loadNotice", "sortNotice", "filterMod", "browser_count"
+			"loadNotice", "loadPct", "sortNotice", "filterMod", "browser_count"
 		};
 		for ( int i = 0; i < static_cast<int>( sizeof( details ) / sizeof( details[ 0 ] ) ); ++i ) {
 			const idStr value = Session_BrowserDiagnosticText( gui->State().GetString( details[ i ] ) );
 			common->Printf( "BROWSER_DETAIL key=%s value=%s\n", details[ i ], value.c_str() );
+		}
+		// The server tooltip: whether it shows, its address, and its lists'
+		// items, which the lists read until one is missing.
+		common->Printf( "BROWSER_TOOLTIP visible=%d ip=%s\n", gui->State().GetBool( "serverinfo_visible" ),
+			Session_BrowserDiagnosticText( gui->State().GetString( "server_tooltip_ip" ) ).c_str() );
+		static const char *const tooltipLists[] = { "server_tooltip_playerlist", "server_tooltip_settingslist" };
+		for ( int list = 0; list < 2; ++list ) {
+			for ( int i = 0; i < MAX_ASYNC_CLIENTS; ++i ) {
+				const idKeyValue *item = gui->State().FindKey( va( "%s_item_%d", tooltipLists[ list ], i ) );
+				if ( item == NULL ) {
+					break;
+				}
+				common->Printf( "BROWSER_TOOLTIP list=%s item=%d value=%s\n", tooltipLists[ list ], i,
+					Session_BrowserDiagnosticText( item->GetValue().c_str() ).c_str() );
+			}
 		}
 		static const char *const windows[] = {
 			"desktop::curr", "desktop::dest", "desktop::active", "desktop::blockBrowser",
@@ -4447,6 +4518,30 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		gui->StateChanged( common->GetPresentationTime() );
 		return;
 	}
+	if ( args.Argc() == 3 && !idStr::Icmp( verb, "hover" ) ) {
+		// The server tooltip without a pointer: a visible row treated as the
+		// hovered one, or -1 to follow the pointer again.
+		const char *number = args.Argv( 2 );
+		int row = -1;
+		bool valid = !idStr::Cmp( number, "-1" );
+		if ( !valid && number[ 0 ] != '\0' ) {
+			row = 0;
+			valid = true;
+			for ( int i = 0; number[ i ] != '\0'; ++i ) {
+				if ( number[ i ] < '0' || number[ i ] > '9' || row > 409 ) {
+					valid = false;
+					break;
+				}
+				row = row * 10 + number[ i ] - '0';
+			}
+		}
+		if ( !valid || row >= 4096 ) {
+			common->Printf( "openq4_browser hover requires a visible row or -1\n" );
+			return;
+		}
+		idAsyncNetwork::client.serverList.SetHoverOverride( row );
+		return;
+	}
 	if ( args.Argc() == 3 && !idStr::Icmp( verb, "action" ) ) {
 		static const char *const actions[] = {
 			"InitServerBrowser", "updateServers", "refreshServers", "FilterServers",
@@ -4464,7 +4559,7 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		common->Printf( "openq4_browser action is not a supported browser operation\n" );
 		return;
 	}
-	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | action <browser-operation>\n" );
+	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | hover <visible-row|-1> | action <browser-operation>\n" );
 }
 
 static void Session_OpenQ4GuiGet_f( const idCmdArgs &args ) {
@@ -6001,21 +6096,6 @@ void idSessionLocal::PublishRetainedLoadingCount() {
 	guiLoading->SetStateString( "loading_count", va( "%d/%d", loadingAssetQueueLoaded, loadingAssetQueueTotal ) );
 }
 
-void idSessionLocal::PublishRetainedLoadingDevice() {
-	// The continue prompt shows the active device: a controller's south button
-	// once a controller was used last, the desktop prompt otherwise.
-	if ( !retainedLoadingActive || guiLoading == NULL ) {
-		return;
-	}
-	const int device = idKeyInput::LastInputWasController() ? 1 : 0;
-	if ( device == retainedLoadingDevice ) {
-		return;
-	}
-	retainedLoadingDevice = device;
-	guiLoading->SetStateBool( "loading_controller", device != 0 );
-	guiLoading->StateChanged( common->GetPresentationTime() );
-}
-
 // The multiplayer arsenal holds this many kinds of item, as the stock row does.
 static const int RETAINED_ARSENAL_ICONS = 20;
 
@@ -6130,8 +6210,9 @@ void idSessionLocal::PublishRetainedLoadingTip( bool first ) {
 // line break past maxLines lines reads as a space, at most maxBytes bytes are
 // kept (never splitting a character), and text that would read as a #str_ key
 // stays literal. The console turns backslashes into slashes, so a cvar can
-// carry no typed line break; the card wraps the text itself.
-static idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
+// carry no typed line break; the card wraps the text itself. The Join Game
+// page's server rows read the same way.
+idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
 	idStr plain = text != NULL ? text : "";
 	plain.RemoveEscapes();
 	idStr out;
@@ -6456,9 +6537,7 @@ void idSessionLocal::LoadLoadingGui( const char *mapName ) {
 			guiLoading->StateChanged( common->GetPresentationTime() );
 			// The shared document keeps its last load's line until reset.
 			retainedLoadingActive = true;
-			retainedLoadingDevice = -1;
 			SetRetainedLoadingPhase( RETAINED_LOAD_IDLE );
-			PublishRetainedLoadingDevice();
 			PublishRetainedLoadingTip( true );
 		}
 	}
@@ -6767,8 +6846,11 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		}
 	}
 
+	if ( com_showLevelLoadTimes.GetBool() ) common->Printf( "GUI_LEVEL_PURGE_DONE\n" );
 	uiManager->BeginLevelLoad();
-	uiManager->Reload( true );
+	// Every GUI's media resolve again inside the load; an unchanged retained
+	// document keeps its view instead of re-initializing.
+	UI_ReloadForLevelLoad();
 #ifndef ID_DEDICATED
 	// Level-load purging clears media-use marks established at session startup.
 	// Re-reference every in-game menu resource while the normal precache window
@@ -6999,7 +7081,6 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 	if ( waitForSPContinue ) {
 		Session_BeginBlockingLoadPresentationFrame();
-		PublishRetainedLoadingDevice();
 		guiLoading->HandleNamedEvent( "FinishedLoading" );
 		guiLoading->StateChanged( common->GetPresentationTime() );
 		UpdateScreen();
@@ -7057,8 +7138,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 				if ( Session_FindPresentationCap() > 0 ) {
 					Session_BeginBlockingLoadPresentationFrame();
 				}
-				// Touching a controller, or the mouse, switches the prompt.
-				PublishRetainedLoadingDevice();
+				// Touching a controller, or the mouse, switches the prompt: the
+				// retained screen's adapter publishes prompt.glyphs as it redraws.
 				UpdateScreen();
 				if ( Session_FindPresentationCap() <= 0 ) {
 					Sys_Sleep( static_cast<int>( idMath::Ceil( common->GetUserCmdMsecFloat() ) ) );
@@ -7662,6 +7743,8 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 	idStr in, loadFile, saveMap, gamename, entityFilter, requestedSaveName, normalizedSaveMap, normalizedEntityFilter;
 	idDict loadedPersistentPlayerInfo[MAX_ASYNC_CLIENTS];
 
+	// Each refusal below records why, for the Load Game page to say.
+	loadGameFailure = LOADGAME_FAILURE_UNREADABLE;
 	if ( IsMultiplayer() ) {
 		common->Printf( "Can't load during net play.\n" );
 		return false;
@@ -7716,6 +7799,7 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		return false;
 	}
 	int loadGameFileLength = -1;
+	loadGameFailure = LOADGAME_FAILURE_DAMAGED;
 	if ( !Session_GetBoundedSaveGameLength( loadGameFile, in, "load preflight", loadGameFileLength ) ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
@@ -7775,12 +7859,14 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		} else if ( !Session_SaveGameMapExists( normalizedSaveMap, normalizedEntityFilter ) ) {
 			common->Warning( "Savegame '%s' references unavailable map '%s'", in.c_str(), normalizedSaveMap.c_str() );
 			headerValid = false;
+			loadGameFailure = LOADGAME_FAILURE_MAP;
 		}
 	}
 	if ( !headerValid ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
 	}
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 
 	for ( i = 0; i < MAX_ASYNC_CLIENTS; i++ ) {
 		mapSpawnData.persistentPlayerInfo[i] = loadedPersistentPlayerInfo[i];
@@ -8417,7 +8503,13 @@ void idSessionLocal::Draw() {
 		
 		// draw the frozen gui in the background
 		if ( guiActive == guiMsg && guiMsgRestore ) {
-			guiMsgRestore->Redraw( presentationTime );
+			if ( guiMsgRestore == guiMainMenu && guiRetainedHome != NULL ) {
+				// The retained home that covers the legacy menu stays behind the
+				// box (UpdateRetainedHome), as the legacy menu would.
+				DrawRetainedHome( presentationTime );
+			} else {
+				guiMsgRestore->Redraw( presentationTime );
+			}
 		}
 		
 		// draw the menus full screen
@@ -8444,6 +8536,10 @@ void idSessionLocal::Draw() {
 			}
 		}
 
+		if ( RetainedPageActive() ) {
+			// A retained page over the home that handed off to it.
+			DrawRetainedPageHome( presentationTime );
+		}
 		if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
 			// ui_retained: the retained title or pause screen covers the legacy
 			// menu while it rests at home or hands a page over.
@@ -9040,7 +9136,7 @@ void idSessionLocal::RunGameTic() {
 		} else if ( !idStr::Icmp( args.Argv(0), "died" ) ) {
 			// restart on the same map
 			UnloadMap();
-			SetGUI(guiRestartMenu, NULL);
+			OpenRestartMenu();
 		} else if ( !idStr::Icmp( args.Argv(0), "disconnect" ) ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_INSERT, "stoprecording ; disconnect" );
 		} else if ( !idStr::Icmp( args.Argv(0), "endOfDemo" ) ) {
@@ -9209,6 +9305,8 @@ void idSessionLocal::Init() {
 		common->Printf( "Dedicated server: skipping client GUI preload.\n" );
 	} else {
 		Session_DeclareMultiplayerMenuGameCVars();
+		// The retained screens' documents parse on workers while the stock menus load.
+		PrefetchRetainedScreens();
 #ifndef ID_DEMO_BUILD
 		guiMainMenu = uiManager->FindGui( "guis/mainmenu.gui", true, false, true );
 #else
@@ -9218,7 +9316,14 @@ void idSessionLocal::Init() {
 		// this synchronously from StartMenu made the first ESC press wait on image,
 		// material, and sound lookup before the GUI could be activated.
 		PrimeMainMenuGuiResources();
+		// An engine reload (a campaign's game directory, an Arena match's module)
+		// preloads the retained screens again: their pictures precache as the
+		// first start's do, never as late loads.
+		const bool retainedInsideLoad = declManager->GetInsideLoad();
+		declManager->SetInsideLoad( true );
 		PreloadRetainedScreens();
+		UI_RetainedPrefetchClear();
+		declManager->SetInsideLoad( retainedInsideLoad );
 		guiMainMenu_MapList = uiManager->AllocListGUI();
 		guiMainMenu_MapList->Config( guiMainMenu, "mapList" );
 		idAsyncNetwork::client.serverList.GUIConfig( guiMainMenu, "serverList" );
@@ -9229,6 +9334,12 @@ void idSessionLocal::Init() {
 		guiIntro = uiManager->FindGui( "guis/intro.gui", true, false, true );
 		InitDemoSystem();
 		arenaCampaign.Init();
+		// An engine reload (a campaign's game directory, an Arena match's module)
+		// is a load: its levelshots precache now, not on the front end's idle frames.
+		if ( common->IsInitialized() ) {
+			PrecacheRetainedLevelshots( true, true );
+			PrecacheRetainedLevelshots( true, false );
+		}
 	}
 #endif
 
@@ -9312,7 +9423,12 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
-	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading || ( guiActive == guiMsg && !mapSpawned ) ) ) {
+	// A retained page stands in for a main-menu page, and so does every
+	// retained front-end screen presented without a level: Single Player and
+	// its sub-pages, the Multiplayer page and its sub-pages.
+	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
+			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ||
+			( !mapSpawned && UI_IsRetainedPath( guiActive->Name() ) ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );
 	} else {
 		SetPlayingSoundWorld( sw );

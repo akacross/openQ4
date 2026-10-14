@@ -84,6 +84,8 @@ Windows and Linux. It is registered with the push-validation checks.
 - All 171 native tests have passing results. The parallel run returned 170
   passes and a 240-second timeout in `openq4-ui-retained-screens`; that suite
   passed alone in 222 seconds with its original timeout. Both logs are retained.
+  (The merged retained-page line later split that suite into nine
+  `openq4-ui-retained-screens-<group>` suites with their own timeouts.)
 - All five GCC/Linux ASan+UBSan suites pass. The final empty-baseline refinement
   also passes the Windows bit-message test and Linux sanitizers. Sanitizers ran
   in Ubuntu under WSL; this is not Linux graphical-gameplay qualification.

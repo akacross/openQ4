@@ -1,3 +1,4 @@
+#include "DeclReferenceObserver.h"
 /*
 ===========================================================================
 
@@ -2505,6 +2506,7 @@ const idDecl *idDeclManagerLocal::FindType( declType_t type, const char *name, b
 		material->AddLevelLoadReference();
 	}
 
+	idDeclReferenceObserver::Notify( decl->self );
 	return decl->self;
 }
 
@@ -2574,6 +2576,7 @@ const idDecl *idDeclManagerLocal::DeclByIndex( declType_t type, int index, bool 
 		decl->ParseLocal();
 	}
 
+	if ( forceParse ) idDeclReferenceObserver::Notify( decl->self );
 	return decl->self;
 }
 

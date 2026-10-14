@@ -83,6 +83,11 @@ idCVar ui_retainedHalfBlur("ui_retainedHalfBlur", "1", CVAR_GUI | CVAR_BOOL | CV
 	"evaluate broad full-view soft focus at half resolution along each blurred axis");
 idCVar ui_retainedOpaqueBacking("ui_retainedOpaqueBacking", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,
 	"draw the opaque scrim behind retained modals instead of softening the screen beneath");
+// Section 13.5's Prompt Style: forces the prompt glyphs when a remapping layer
+// hides the real device.
+idCVar ui_promptStyle("ui_promptStyle", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE,
+	"menu prompt glyphs: 0 the active device's, 1 keyboard keys, 2 Xbox, 3 PlayStation, 4 Nintendo, 5 Steam Deck, "
+	"6 generic controller", 0, 6);
 // Documents read this to choose between soft focus and its scrim fallback.
 idCVar ui_retainedSoftFocus("ui_retainedSoftFocus", "0", CVAR_GUI | CVAR_BOOL | CVAR_ROM,
 	"whether retained modals soften the screen beneath: no opaque backing and a renderer that can blur it");
@@ -1156,7 +1161,8 @@ void ReleaseQuarantinedInput(const retainedUIInput_t& event) {
 }
 bool MapMenuKey(int key, openq4::ui::MenuInput& action) {
 	using openq4::ui::MenuInput;
-	switch (key) {
+	// Confirm and Back may trade the south and east buttons (section 13.5).
+	switch (idKeyInput::MenuControllerKey(key)) {
 		case K_TAB: {
 			bool shift = idKeyInput::IsDown(K_SHIFT);
 			for (const auto& held : inputKeys) if (held.second == K_SHIFT) shift = true;
@@ -1467,6 +1473,17 @@ bool RetainedUI_LoadView(retainedUIView_t* view, const std::string& source, cons
 	}
 	return LoadViewDocument(*view,source,path,true,diagnostics);
 }
+bool RetainedUI_LoadParsedView(retainedUIView_t* view, const openq4::ui::Document& document, const std::string& path,
+	std::vector<openq4::ui::Diagnostic>& diagnostics) {
+	diagnostics.clear();
+	if (!RegisteredView(view) || !RefreshResources() || !RegisteredView(view) || view->edit->destroyPending) {
+		diagnostics.push_back({"","Retained view is unavailable during resource lifecycle changes"}); return false;
+	}
+	TouchEdit(*view);
+	if (!view->runtime->LoadDocument(document,path,diagnostics)) return false;
+	view->source = document.Source(); view->path = path; view->canonical = true; view->failed = false;
+	return true;
+}
 bool RetainedUI_PrepareView(retainedUIView_t* view) {
 	return RegisteredView(view) && RefreshResources() && RegisteredView(view) && !view->edit->destroyPending && !view->failed && view->runtime->IsLoaded();
 }
@@ -1708,6 +1725,21 @@ void RetainedUI_Draw() {
 	if (RetainedUI_DrawViewRoot(previewView,viewport)) RecordProfile(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-profileStart).count());
 }
 bool RetainedUI_IsOpen() { return applicationOpen.load(std::memory_order_acquire); }
+// Prompts follow the active device (section 13.5): 0 shows the keyboard's
+// keycaps, 1-5 a controller family's face buttons (Xbox, PlayStation,
+// Nintendo, Steam Deck, generic). ui_promptStyle forces one. Otherwise a
+// controller used last shows the family the platform reports for it
+// (in_gamepadFamily), or the generic one where it reports none.
+bool RetainedUI_PromptSwapped() { return idKeyInput::MenuConfirmSwapped(); }
+int RetainedUI_PromptGlyphs() {
+	const int style = ui_promptStyle.GetInteger();
+	if (style > 0) return style - 1;
+	if (!idKeyInput::LastInputWasController()) return 0;
+	static const char* const families[] = {"xbox","playstation","nintendo","steamdeck"};
+	const char* family = cvarSystem->GetCVarString("in_gamepadFamily");
+	for (int i = 0; i < 4; ++i) if (!idStr::Icmp(family,families[i])) return i + 1;
+	return 5;
+}
 int RetainedUI_ViewCount() { return static_cast<int>(views.size()); }
 void RetainedUI_PrecacheImage(const std::string& source, bool additive) {
 	if (source.empty() || !openq4::ui::ValidImageSource(source)) return;
@@ -1820,6 +1852,7 @@ retainedUIView_t* RetainedUI_CreateView(retainedUIViewCallback_t,void*) { return
 void RetainedUI_DestroyView(retainedUIView_t*) {}
 openq4::ui::Runtime* RetainedUI_ViewRuntime(retainedUIView_t*) { return nullptr; }
 bool RetainedUI_LoadView(retainedUIView_t*,const std::string&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
+bool RetainedUI_LoadParsedView(retainedUIView_t*,const openq4::ui::Document&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
 bool RetainedUI_PrepareView(retainedUIView_t*) { return false; }
 bool RetainedUI_DrawViewRoot(retainedUIView_t*,const openq4::ui::Viewport&) { return false; }
 bool RetainedUI_QueryEditIdentity(retainedUIView_t*,retainedUIEditIdentity_t&) noexcept{return false;}

@@ -125,6 +125,12 @@ struct ValueControlView::Impl {
 		std::optional<PlacementContext> ceilingContext;
 		// The options the list last painted; the rest are hidden and unmeasured.
 		std::size_t optionCount = std::numeric_limits<std::size_t>::max();
+		// What a closed choice's last paint read, and in which presentation
+		// pass: nothing else writes its rows, so the same readback in the same
+		// pass needs no reassertion.
+		std::optional<ControlReadback> painted;
+		std::uint64_t paintedPass = 0;
+		bool paintedOpen = false;
 	};
 	struct Applied { std::string requested, actual; };
 	Rml::ElementDocument* document = nullptr;
@@ -557,12 +563,13 @@ ValueControlView::ValueControlView() : impl(std::make_unique<Impl>()) {}
 ValueControlView::~ValueControlView() = default;
 void ValueControlView::Reset() { impl = std::make_unique<Impl>(); }
 bool ValueControlView::Initialize(const DocumentModel& model, Rml::ElementDocument& document,
-	std::function<std::string(const std::string&)> translate, std::string& error) {
+	std::function<std::string(const std::string&)> translate, std::string& error,
+	const std::function<Rml::Element*(const std::string&)>& find) {
 	error.clear(); auto candidate = std::make_unique<Impl>(); candidate->document = &document; candidate->translate = std::move(translate);
 	std::vector<const Node*> pending{&model.root};
 	while (!pending.empty()) {
 		const auto* node = pending.back(); pending.pop_back();
-		auto* element = document.GetElementById(node->id);
+		auto* element = find ? find(node->id) : document.GetElementById(node->id);
 		if (!element) { error = "Missing canonical value-control view node '"+node->id+"'"; return false; }
 		candidate->elements[node->id] = element; candidate->authored[node->id] = node->properties;
 		if (node->control && node->control->role != ControlRole::Button) candidate->entries[node->id] = {*node->control,element,nullptr};
@@ -594,7 +601,7 @@ bool ValueControlView::Initialize(const DocumentModel& model, Rml::ElementDocume
 	impl = std::move(candidate); return true;
 }
 bool ValueControlView::Paint(Interaction& interaction, const std::map<std::string,ControlReadback>& readbacks,
-	int width, int height, float ratio, const std::function<double(const std::string&)>& opacity) {
+	int width, int height, float ratio, const std::function<double(const std::string&)>& opacity, std::uint64_t pass) {
 	if (!impl->document || !std::isfinite(ratio) || ratio <= 0) return false;
 	impl->Validate(interaction,width,height,ratio,false);
 	impl->width=width;impl->height=height;impl->ratio=ratio;
@@ -621,6 +628,10 @@ bool ValueControlView::Paint(Interaction& interaction, const std::map<std::strin
 			changed |= impl->Property(slider->thumb,slider->vertical ? "top" : "left",Pixels(start+static_cast<float>(travel*(slider->vertical ? 1-fraction : fraction))));
 			changed |= impl->Text(slider->valueText,Number(value,static_cast<int>(slider->decimals)));
 		} else if (const auto* choice = std::get_if<ChoiceSpec>(&entry.control.widget)) {
+			// A settled closed list: its value, labels, availability and rows
+			// stand as its last paint left them.
+			if (pass != 0 && !view->popupOpen && !entry.paintedOpen && entry.paintedPass == pass && entry.painted == accepted) continue;
+			entry.painted = accepted; entry.paintedPass = pass; entry.paintedOpen = view->popupOpen;
 			std::string value = impl->ValueText(accepted.value);
 			entry.optionCount = accepted.optionCount ? std::min(*accepted.optionCount,choice->options.size()) : choice->options.size();
 			bool rows = false;

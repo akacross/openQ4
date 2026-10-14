@@ -713,6 +713,45 @@ windowDef Desktop
 		resetTime "MenuMusic" "0" ;		
 	}
 
+	// openQ4: the stock Multiplayer page, when the session cannot present the
+	// retained one (multiplayerOpen).
+	onNamedEvent openMultiplayerStock {
+		resettime "anim_mpIn" "0" ;
+		namedevent "p_anims::backReset0" ;
+	}
+
+	// openQ4: the retained Multiplayer page opens one of the stock Multiplayer
+	// pages (the session sets desktop::dest to 14, 17 or 18) from the page state
+	// it holds: the main page out of sight and the bands docked, as the stock
+	// Multiplayer page leaves them for one.
+	onNamedEvent openMultiplayerPage {
+		set "p_main::visible" "0" ;
+		set "p_multiplayer::visible" "0" ;
+		transition "topbar::rect" "$d_topbar::rect" "$d_topbar::rect" "0" ;
+		transition "btmbar::rect" "$d_btmbar::rect" "$d_btmbar::rect" "0" ;
+		if ("desktop::dest" == 18) {
+			transition "p_mp_settings::rect" "$d_main_l::rect" "$d_main::rect" "0" ;
+			resettime "anim_mpSetIn" "0" ;
+		} else if ("desktop::dest" == 17) {
+			transition "p_mp_create::rect" "$d_main_l::rect" "$d_main::rect" "0" ;
+			resettime "anim_mpCreateIn" "0" ;
+		} else if ("desktop::dest" == 14) {
+			transition "p_mp_browse::rect" "$d_main_l::rect" "$d_main::rect" "0" ;
+			resettime "anim_mpBrowseIn" "0" ;
+		}
+		namedevent "p_anims::backReset0" ;
+	}
+
+	// openQ4: Back on the retained Multiplayer page after a stock Multiplayer
+	// page: this menu goes home as its Multiplayer page does (desktop::dest 0),
+	// and the retained home follows it from the page dock.
+	onNamedEvent leaveMultiplayerPage {
+		set "desktop::curr" "3" ;
+		set "desktop::active" "1" ;
+		set "desktop::dest" "0" ;
+		resettime "anim_mpOut" "0" ;
+	}
+
 	onNamedEvent main_to_browser {
 		if ("desktop::blockBrowser" == 0) {
 			
@@ -14102,7 +14141,9 @@ windowDef Desktop
 			onTime +500 {
 				set "p_mp_settings::visible" "0" ;
 				
-				resettime "anim_mpIn" "0" ;
+				// openQ4: the session presents the retained Multiplayer page
+				// where it can, else this menu's (openMultiplayerStock).
+				set "cmd" "multiplayerOpen" ;
 				namedevent "p_anims::backReset0" ;
 			}
 
@@ -14171,7 +14212,9 @@ windowDef Desktop
 			onTime +500 {
 				set "p_mp_browse::visible" "0" ;
 				
-				resettime "anim_mpIn" "0" ;
+				// openQ4: the session presents the retained Multiplayer page
+				// where it can, else this menu's (openMultiplayerStock).
+				set "cmd" "multiplayerOpen" ;
 				namedevent "p_anims::backReset0" ;
 				set "desktop::blockBrowser" "0" ;
 			}
@@ -14237,7 +14280,9 @@ windowDef Desktop
 			onTime +500 {
 				set "p_mp_Friends::visible" "0" ;
 				
-				resettime "anim_mpIn" "0" ;
+				// openQ4: the session presents the retained Multiplayer page
+				// where it can, else this menu's (openMultiplayerStock).
+				set "cmd" "multiplayerOpen" ;
 				namedevent "p_anims::backReset0" ;
 			}
 
@@ -14592,7 +14637,9 @@ windowDef Desktop
 			onTime +500 {
 				set "p_mp_create::visible" "0" ;
 				
-				resettime "anim_mpIn" "0" ;
+				// openQ4: the session presents the retained Multiplayer page
+				// where it can, else this menu's (openMultiplayerStock).
+				set "cmd" "multiplayerOpen" ;
 				namedevent "p_anims::backReset0" ;
 			}
 

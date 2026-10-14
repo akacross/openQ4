@@ -830,6 +830,10 @@ def validate_create_server_choices(mainmenu: str, session_menu: str) -> None:
     reject(session_menu, 'State().GetInt( "dedicated" )', "Create Server dedicated")
 
     handler = session_menu[session_menu.index('!idStr::Icmp( cmd, "startMultiplayer" )') :]
+    # The stock button and the retained Create Server page start the server
+    # through one body, StartMenuServer.
+    if "StartMenuServer()" in handler[: handler.index("continue;")]:
+        handler = session_menu[session_menu.index("bool idSessionLocal::StartMenuServer() {") :]
     handler = handler[: handler.index('"SpawnServer\\n"')]
     require(
         handler,

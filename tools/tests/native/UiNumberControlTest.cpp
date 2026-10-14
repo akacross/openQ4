@@ -296,7 +296,18 @@ static void IntegerProposals() {
 	f.Text("1600");auto action=f.Commit();
 	Check(action.proposal&&std::get<double>(*action.proposal)==1600&&f.input.CanDispatchControlAction(action),"whole pixel size emits one exact typed proposal");
 }
+// An editor left with nothing to cancel lets Back through once detached; a
+// detached draft that differs still takes the first Back.
+static void DetachedEditorBack() {
+	Fixture f; f.Begin(); Check(f.input.Focus("button") && f.View().number && !f.View().number->active,"leaving the field detaches its clean editor");
+	Check(f.input.Focus("number"),"focus returns to the field");
+	f.Press(MenuInput::Back); Check(f.input.TakeActions().size() == 1 && f.View().number,"Back passes a detached editor holding nothing to cancel");
+	f.Begin(); f.Text("1.25"); f.input.Focus("button"); f.input.Focus("number");
+	f.Press(MenuInput::Back); Check(f.input.TakeActions().empty() && !f.View().number,"Back first discards a detached draft that differs");
+	f.Press(MenuInput::Back); Check(f.input.TakeActions().size() == 1,"the next Back reaches the page");
+}
 int main() {
 	Schema(); CommitAndReadback(); EditingAndComposition(); LifetimesAndConflicts(); PolicyAndSliderCompatibility(); PendingAndFailureBoundaries();IntegerProposals();
+	DetachedEditorBack();
 	std::printf("UI number controls: %u checks passed\n",checks); return 0;
 }

@@ -173,6 +173,11 @@ static float s_sdlRelativeMouseRemainderX = 0.0f;
 static float s_sdlRelativeMouseRemainderY = 0.0f;
 
 static idCVar in_joystick("in_joystick", "1", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "enable joystick/gamepad input");
+// The active controller's prompt glyph family (section 13.5), from the label
+// SDL reports printed on its south button. CVAR_NOCHEAT: joining a server
+// without cheats must not reset it to none while the controller stays open.
+static idCVar in_gamepadFamily("in_gamepadFamily", "none", CVAR_SYSTEM | CVAR_ROM | CVAR_NOCHEAT,
+	"prompt glyph family of the active controller: none, xbox, playstation, nintendo, steamdeck or generic");
 static idCVar in_joystickDeadZone("in_joystickDeadZone", "0.18", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "joystick axis dead zone", 0.0f, 0.95f);
 static idCVar in_joystickTriggerThreshold("in_joystickTriggerThreshold", "0.35", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "trigger button press threshold", 0.0f, 1.0f);
 static idCVar in_joystickLookSensitivity("in_joystickLookSensitivity", "0.75", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "controller look sensitivity scale", 0.1f, 4.0f);
@@ -2143,6 +2148,7 @@ static void SDL3_CloseGamepad(int eventTime) {
 	SDL_CloseGamepad(s_sdlGamepad);
 	s_sdlGamepad = NULL;
 	s_sdlGamepadId = 0;
+	in_gamepadFamily.SetString("none");
 	s_gamepadGyroEnabled = false;
 	s_gamepadGyroLastTimestamp = 0;
 	s_gamepadTouchpadFingerActive = false;
@@ -2159,6 +2165,7 @@ static void SDL3_CloseJoystick(int eventTime) {
 	SDL_CloseJoystick(s_sdlJoystick);
 	s_sdlJoystick = NULL;
 	s_sdlJoystickId = 0;
+	in_gamepadFamily.SetString("none");
 	SDL3_ClearJoystickState();
 }
 
@@ -2641,6 +2648,22 @@ static void SDL3_ProcessPendingLifecycleEvents(int eventTime) {
 	}
 }
 
+// The prompt glyph family of a gamepad: the label printed on its south button
+// tells Xbox (A), PlayStation (cross) and Nintendo (B) layouts apart; the
+// steamdeck profile's built-in controls print A as Xbox pads do.
+static const char *SDL3_GamepadFamily(SDL_Gamepad *pad) {
+	switch (SDL_GetGamepadButtonLabel(pad, SDL_GAMEPAD_BUTTON_SOUTH)) {
+		case SDL_GAMEPAD_BUTTON_LABEL_CROSS:
+			return "playstation";
+		case SDL_GAMEPAD_BUTTON_LABEL_B:
+			return "nintendo";
+		case SDL_GAMEPAD_BUTTON_LABEL_A:
+			return idStr::Icmp(cvarSystem->GetCVarString("com_platformProfile"), "steamdeck") == 0 ? "steamdeck" : "xbox";
+		default:
+			return "generic";
+	}
+}
+
 static bool SDL3_OpenGamepad(SDL_JoystickID instanceId) {
 	SDL_Gamepad *pad = SDL_OpenGamepad(instanceId);
 	if (!pad) {
@@ -2651,6 +2674,7 @@ static bool SDL3_OpenGamepad(SDL_JoystickID instanceId) {
 
 	s_sdlGamepad = pad;
 	s_sdlGamepadId = instanceId;
+	in_gamepadFamily.SetString(SDL3_GamepadFamily(pad));
 	SDL3_ClearControllerTrackingState();
 
 	SDL3_UpdateGamepadAxes(Sys_Milliseconds());
@@ -2677,6 +2701,8 @@ static bool SDL3_OpenJoystick(SDL_JoystickID instanceId) {
 
 	s_sdlJoystick = joystick;
 	s_sdlJoystickId = instanceId;
+	// A joystick SDL cannot map as a gamepad reports no labels.
+	in_gamepadFamily.SetString("generic");
 	SDL3_ClearControllerTrackingState();
 
 	SDL3_UpdateJoystickAxes();
@@ -2820,6 +2846,7 @@ static void SDL3_PrintActiveGamepadDetails(void) {
 		SDL3_NonEmptyString(typeName),
 		SDL3_NonEmptyString(realTypeName),
 		SDL_GetGamepadSteamHandle(s_sdlGamepad) != 0 ? "yes" : "no");
+	common->Printf("    prompt glyphs: %s\n", in_gamepadFamily.GetString());
 
 	int powerPercent = -1;
 	const SDL_PowerState powerState = SDL_GetGamepadPowerInfo(s_sdlGamepad, &powerPercent);

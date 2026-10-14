@@ -258,8 +258,12 @@ public:
 	// The HUD bridge supplies presentation data to an explicit artwork catalog.
 	// This does not edit authored nodes or grant any input/command authority.
 	bool SetHudPresentation(const std::vector<HudPrimitive>& items, const Viewport&, std::string& error);
+	// A document its caller already loaded, shared rather than parsed again.
+	bool LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
 	bool SetState(const StateValues& changes, std::string& error, double monotonicSeconds);
 	StateValues GetState(bool includeHostSources = true) const;
+	// One state's value without copying the rest; false when it is undeclared.
+	bool GetStateValue(const std::string& id, StateValue& value) const;
 	std::optional<Value> PresentedValue(const std::string& node, const std::string& property) const;
 	// Public legacy names are explicitly mapped by the canonical document.
 	// Values are data, never CSS/markup. Failures leave outputs/state untouched.
@@ -403,6 +407,7 @@ private:
     std::shared_ptr<Canvas> canvas;
     bool Mutate(bool cleanup=false) noexcept;
     bool Layout(const Viewport&,double);
+    bool LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
     struct Impl;
 	std::unique_ptr<Impl> impl;
 };
