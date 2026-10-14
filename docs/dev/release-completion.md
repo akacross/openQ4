@@ -2,6 +2,17 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Complete the shared-runtime refinement pass: repair priority-queue order,
+  aliased list insertion/growth and repeated bulk-copy work; correct cached and
+  zero-duration motion samples; handle bit-message boundary cases and large
+  binary deltas; and bound/reuse SP and MP tactical-search storage. Windows x64
+  builds, 171 native tests and five Linux sanitizer suites pass. All 340 source
+  checks have passing results after fixture/CI repairs and targeted reruns.
+  OpenGL/Vulkan SP gameplay, an SP save/load round trip and two-client MP match
+  controls pass. Initial timeouts and validation failures remain in the evidence.
+  See [implementation and coverage](core-runtime-refinements.md)
+  and [candidate player-facing notes](releases/core-refinements.md).
+
 - [x] Qualify the `hub2` map compiler crash fix from
   [#181](https://github.com/themuffinator/openQ4/issues/181). Allocate shared
   vertices by their actual count, retain matching/order behavior, reject failed

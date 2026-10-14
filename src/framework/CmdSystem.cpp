@@ -541,8 +541,8 @@ void idCmdSystemLocal::ExecuteTokenizedString( const idCmdArgs &args ) {
 	const char *cmdName;
 	
 	// execute the command line
-	if ( !args.Argc() ) {
-		return;		// no tokens
+	if ( !args.Argc() || !args.Argv( 0 )[0] ) {
+		return;		// no command, including a quoted empty token
 	}
 
 	cmdName = args.Argv( 0 );

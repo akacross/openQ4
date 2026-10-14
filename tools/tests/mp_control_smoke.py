@@ -103,6 +103,9 @@ def main() -> int:
             command += ["+set", key, value]
         command += ["+spawnServer", "mp/q4dm1"] if role == "host" else ["+connect", f"127.0.0.1:{args.port}"]
         (output / f"{role}-launch.json").write_text(json.dumps(command, indent=2), encoding="utf-8")
+        # Reusing a profile must not satisfy startup gates from the previous
+        # run while the new process is still initializing its log.
+        logs[role].unlink(missing_ok=True)
         stream = (output / f"{role}-console.log").open("w", encoding="utf-8")
         streams.append(stream)
         processes[role] = subprocess.Popen(command, cwd=runtime, stdout=stream, stderr=subprocess.STDOUT)

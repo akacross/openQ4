@@ -1337,7 +1337,7 @@ ID_INLINE int rvSortFeature( const TFeaturePtr *a, const TFeaturePtr *b )
 	{
 		return -1;
 	}
-	return 1;
+	return (*a)->weight < (*b)->weight ? 1 : 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1345,6 +1345,7 @@ ID_INLINE int rvSortFeature( const TFeaturePtr *a, const TFeaturePtr *b )
 ///////////////////////////////////////////////////////////////////////////////
 void rvAASTacticalSensorLocal::Search()
 {
+	mFeatures.SetNum( 0, false );
 	idAAS* aas = (mOwnerAI)?(mOwnerAI->aas):(gameLocal.GetAAS(0));
 	if (!mOwner || !aas || !aas->GetFile() || !aas->GetFile()->GetNumFeatures())
 	{
@@ -1353,13 +1354,11 @@ void rvAASTacticalSensorLocal::Search()
 
 
 	static idAASFile*			file;
-	static int					areaNum;
 	static int					areaNumOwner;
-	static rvBits<32000>		areaVisit;
+	static idList<unsigned int>	areaVisit;
+	static unsigned int			visitGeneration = 0;
 	static int					areaVisitCount;
-	static int					travelTime;
 	static int					areaFeatureNum;
-	static int					featureNum;
 	static aasFeature_t*		featurePtr;
 	static idVec3				featureOrigin;
 	static idReachability*		reach;
@@ -1369,7 +1368,6 @@ void rvAASTacticalSensorLocal::Search()
 	static float				weight;
 	static float				weightRangeNegative;
 	static float				weightRangeTotal;
-	static idVec3				from;
 	static idVec3				endPos;
 	static int					endAreaNum;
 
@@ -1383,9 +1381,20 @@ void rvAASTacticalSensorLocal::Search()
 	weightRangeNegative			= 0.0f;
 	weightRangeTotal			= SearchComputeWeightRange(weightRangeNegative);
 
-	mFeatures.Clear();
-	searchHeap.Clear();
-	areaVisit.clear();
+	searchHeap.SetNum( 0, false );
+	// Size the workspace to this AAS and reuse it across searches. Generation
+	// marks avoid clearing the entire map for each bounded tactical query.
+	const int numAreas = file->GetNumAreas();
+	if ( areaVisit.Num() != numAreas ) {
+		areaVisit.SetNum( numAreas, false );
+		visitGeneration = 0;
+	}
+	if ( visitGeneration == 0 || ++visitGeneration == 0 ) {
+		for ( int i = 0; i < areaVisit.Num(); ++i ) {
+			areaVisit[i] = 0;
+		}
+		visitGeneration = 1;
+	}
 	if (!mAssignmentValid)
 	{
 		mAssignment.Reset();	// Never Worry About Squad Assignments If No Leader Is Active
@@ -1406,8 +1415,10 @@ void rvAASTacticalSensorLocal::Search()
 		areaNumOwner = aas->PointReachableAreaNum(mFromOwner.mOrigin, mOwner->GetPhysics()->GetBounds(), AREA_REACHABLE_WALK);
 	}
 
-	from			= mFromOwner.mOrigin;
-	areaNum			= areaNumOwner;
+	if ( areaNumOwner <= 0 || areaNumOwner >= numAreas ) {
+		mFromOwner.mDistance.mMin = 0.0f;
+		return;
+	}
 	sortReach.mAreaNum	= areaNumOwner;
 	sortReach.mDistance = 0.0f;
 	sortReach.mReach	= 0;
@@ -1424,11 +1435,11 @@ void rvAASTacticalSensorLocal::Search()
 	{
 		rvSortReach	sr = searchHeap[0];
 		searchHeap.HeapPop();
-		if (areaVisit[sr.mAreaNum])
+		if ( areaVisit[sr.mAreaNum] == visitGeneration )
 		{
 			continue;
 		}
-		areaVisit.set(sr.mAreaNum);
+		areaVisit[sr.mAreaNum] = visitGeneration;
 		areaVisitCount ++;
 
 
@@ -1491,7 +1502,8 @@ void rvAASTacticalSensorLocal::Search()
 		//---------------------------------
 		for (reach=area.reach; reach; reach=reach->next)
 		{
-			if ((reach->travelType&TFL_WALK))
+			if ( ( reach->travelType & TFL_WALK ) && reach->toAreaNum > 0 &&
+				reach->toAreaNum < numAreas && areaVisit[reach->toAreaNum] != visitGeneration )
 			{
 				walkDistanceToFeature = sr.mDistance + ((sr.mReach)?(sr.mReach->end.Dist(reach->end)):(mFromOwner.mOrigin.Dist(reach->end)));
 
@@ -1518,7 +1530,7 @@ void rvAASTacticalSensorLocal::Search()
 	//-------------------------------------------
 	if (mFeatures.Num()>MAX_FEATURE_LIST)
 	{
-		mFeatures.Resize(MAX_FEATURE_LIST);
+		mFeatures.SetNum( MAX_FEATURE_LIST, false );
 	}
 
 	// Now Reset Any Parameters Which Were Only "Temporary" During The Search, and Do Not Invalidate The Point Later

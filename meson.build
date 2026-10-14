@@ -280,6 +280,51 @@ if get_option('build_native_tests')
   )
   test('openq4-file-memory', openq4_file_memory_test, timeout: 30)
 
+  openq4_idlist_test = executable(
+    'openq4-idlist-test', files('tools/tests/native/IdListTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-idlist', openq4_idlist_test, timeout: 30)
+
+  openq4_interpolation_test = executable(
+    'openq4-interpolation-test', files('tools/tests/native/InterpolationTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-interpolation', openq4_interpolation_test, timeout: 30)
+
+  openq4_bitmsg_under_test = custom_target(
+    'openq4-bitmsg-under-test',
+    input: files('src/idlib/BitMsg.h', 'src/idlib/BitMsg.cpp'),
+    output: 'BitMsgUnderTest.inc',
+    command: [py, files('tools/tests/generate_bitmsg_test.py'), '@INPUT0@', '@INPUT1@', '@OUTPUT@'],
+    depend_files: files('tools/tests/async_drop_client_contract.py'),
+  )
+  openq4_bitmsg_test = executable(
+    'openq4-bitmsg-test',
+    [files('tools/tests/native/BitMsgTest.cpp'), openq4_bitmsg_under_test],
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-bitmsg', openq4_bitmsg_test, timeout: 30)
+
+  foreach game_source : ['game', 'mpgame']
+    tactical_include = 'AasTactical-' + game_source + 'UnderTest.inc'
+    tactical_under_test = custom_target(
+      'openq4-aas-tactical-' + game_source + '-under-test',
+      input: files('src' / game_source / 'ai/AAS_tactical.cpp'),
+      output: tactical_include,
+      command: [py, files('tools/tests/generate_aas_tactical_test.py'), '@INPUT@', '@OUTPUT@'],
+      depend_files: files('tools/tests/async_drop_client_contract.py'),
+    )
+    tactical_test = executable(
+      'openq4-aas-tactical-' + game_source + '-test',
+      [files('tools/tests/native/AasTacticalTest.cpp'), tactical_under_test],
+      include_directories: root_include_dir,
+      cpp_args: ['-DAAS_TACTICAL_TEST_INCLUDE="' + tactical_include + '"'],
+      install: false,
+    )
+    test('openq4-aas-tactical-' + game_source, tactical_test, timeout: 30)
+  endforeach
+
   openq4_core_safety_test = executable(
     'openq4-core-safety-test',
     files(

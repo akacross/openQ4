@@ -726,6 +726,9 @@ def validate_validation_wiring() -> None:
         "renderer_shadow_mapping_scenes.py",
         "renderer_shadow_mapping_transitions.py",
         "generate_file_memory_test.py",
+        # Generated production excerpts are compiled by the Meson native tests.
+        "generate_aas_tactical_test.py",
+        "generate_bitmsg_test.py",
         "mp_view_decoder.py",
         "linux_dedicated_server_smoke.py",
         "linux_dedicated_stock_map_smoke.py",

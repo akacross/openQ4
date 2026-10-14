@@ -264,7 +264,7 @@ ID_INLINE void idBitMsg::SaveReadState( int &c, int &b ) const {
 
 ID_INLINE void idBitMsg::RestoreReadState( int c, int b ) const {
 	readCount = c;
-	readBit = b & 7;
+	readBit = b == 8 ? 8 : b & 7;
 }
 
 ID_INLINE void idBitMsg::BeginWriting( void ) {

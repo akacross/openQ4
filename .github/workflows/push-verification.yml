@@ -92,6 +92,8 @@ jobs:
             tools/tests/filesystem_find_file_contract.py \
             tools/tests/filesystem_length_probe_contract.py \
             tools/tests/generate_file_memory_test.py \
+            tools/tests/generate_aas_tactical_test.py \
+            tools/tests/generate_bitmsg_test.py \
             tools/tests/gui_clipping_contract.py \
             tools/tests/gui_transition_operand_contract.py \
             tools/tests/gui_state_debug_log_contract.py \
@@ -261,6 +263,7 @@ jobs:
             tools/tests/mp_client_combat_effects.py \
             tools/tests/bse_retail_parity.py \
             tools/tests/mp_lag_compensation_contract.py \
+            tools/tests/mp_runtime_freshness.py \
             tools/tests/mp_weapon_switch_contract.py \
             tools/tests/multiview_demo.py \
             tools/tests/mvd_server_api_contract.py \
@@ -639,6 +642,7 @@ jobs:
           python tools/tests/mp_client_combat_effects.py
           python tools/tests/bse_retail_parity.py
           python tools/tests/mp_lag_compensation_contract.py
+          python tools/tests/mp_runtime_freshness.py
           python tools/tests/mp_weapon_switch_contract.py
           python tools/tests/multiview_demo.py
           python tools/tests/mvd_server_api_contract.py
