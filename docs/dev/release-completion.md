@@ -2,6 +2,14 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Give the campaign difficulty page its parents' prompt bar, so the bar
+  stays where Single Player's and Campaign's is instead of jumping to the
+  title's position on the last step. The native legend-bar check covers the
+  page; all nine screens groups pass.
+
+Candidate UI release wording: The campaign difficulty page keeps its button
+prompts in the same place as the pages before it.
+
 - [x] Use one prompt style for the HUD and the menus. The merged menus had
   their own `ui_promptStyle`, numbered differently from the HUD's
   `in_promptStyle` (3 was PlayStation in the menus and Nintendo on the HUD).

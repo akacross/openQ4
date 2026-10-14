@@ -3487,9 +3487,11 @@ int main(int argc, char** argv) {
 	if (runs("menus")) CheckPagePrompts(host,argv[2],"guis/menu/pause.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow","objectives-prompts");
 	if (runs("menus")) CheckPagePrompts(host,argv[4],"guis/menu/pause_strogg.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow",
 		"objectives-prompts");
-	for (const int page : {5,6,26})
-		if (runs(page == 26 ? "mp-pages" : "pages"))
-			CheckPagePrompts(host,argv[page],page == 26 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
+	// The legends: Single Player, Campaign, the campaign difficulty page and
+	// Multiplayer, whose own BACK is in the content.
+	for (const auto& [page,name] : {std::pair{5,"guis/menu/singleplayer.q4ui"},std::pair{6,"guis/menu/campaigns.q4ui"},
+		std::pair{13,"guis/menu/campaign_skill.q4ui"},std::pair{26,"guis/menu/multiplayer.q4ui"}})
+		if (runs(page == 26 ? "mp-pages" : "pages")) CheckPagePrompts(host,argv[page],name,"",nullptr,nullptr,true);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	if (runs("menus")) {
 		const auto source = Read(argv[1]);

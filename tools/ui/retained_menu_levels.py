@@ -129,6 +129,7 @@ def skill_document(ui):
     doc.events['onDeactivate']=[{'op':'playTimeline','timeline':'rest'}]
     result=doc.build(fit_page(ui,ui.group('screen',{**ui.FULL,'background-color':ui.colour([0,0,0,1])},[
         *ui.lit_field('field',.7),*bands,content,title_group,
-        ui.prompt_bar(doc,[('#str_107019','#str_200747'),('#str_107020','#str_230045')])])))
+        # Its parents' legends (section 13.4), since its own BACK is in the content.
+        ui.page_prompts(doc,in_canvas=False)])))
     result['canvas']['minWidth']=960
     return result

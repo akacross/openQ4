@@ -1512,10 +1512,11 @@ and a Marine 14 dp verb at 0.80.
   presentation hides. Credits and the Objectives page show Back alone, since
   Accept has nothing else to do there. The Strogg Objectives page tints its
   glyph #FFCC00 and sets BACK in R_Strogg #FCFFC8, turning #FFCC00.
-- **Single Player, Campaign and Multiplayer** show the same bar in the same
-  place, as legends, since their own BACK is in the content. The bar keeps
-  its place between Multiplayer and Create Server or Join Game. At 21:9 it stays on the raised section, where
-  the view-anchored bar hung past it.
+- **Single Player, Campaign, the campaign difficulty page and Multiplayer**
+  show the same bar in the same place, as legends, since their own BACK is
+  in the content. The bar keeps its place between Multiplayer and Create
+  Server or Join Game. At 21:9 it stays on the raised section, where the
+  view-anchored bar hung past it.
 - **Fit.** `check_page_prompts` fails generation unless every shipped
   language's prompts fit, with the wider of each keycap and a controller
   button: Back's verb ends at least 8 dp inside the 4:3 view, and SELECT
