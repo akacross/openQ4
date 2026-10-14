@@ -407,7 +407,7 @@
 	"#str_42070"	"BRIEFING DEL LIVELLO"
 	"#str_42071"	"3 QUALIF.  >  BOSS  >  PROSSIMO LIVELLO"
 	"#str_42072"	"AZZERARE I PROGRESSI?"
-	"#str_42073"	"Cancella definitivamente vittorie e sblocchi dell'Arena. Salvataggi e impostazioni restano invariati."
+	"#str_42073"	"Cancella definitivamente vittorie, migliori risultati e sblocchi dell'Arena. Salvataggi e impostazioni restano invariati."
 	"#str_42074"	"ANNULLA"
 	"#str_42075"	"AZZERA"
 	"#str_42076"	"RIGIOCA"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Hai lasciato l'incontro. Non è stato registrato nulla e i progressi della campagna sono invariati."
 	"#str_42163"	"INCONTRO ABBANDONATO"
 	"#str_42164"	"Vittoria confermata. Questo incontro era già nel tuo palmarès."
+	"#str_42165"	"NUOVO RECORD"
+	"#str_42166"	"Nessun risultato"
 
 	// Regole e profili delle partite competitive
 	"#str_41600"	"Tipo di partita"

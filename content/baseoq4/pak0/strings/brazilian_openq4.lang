@@ -407,7 +407,7 @@
 	"#str_42070"	"BRIEFING DA ETAPA"
 	"#str_42071"	"3 CLASSIFICATÓRIAS  >  CHEFE  >  PRÓXIMA ETAPA"
 	"#str_42072"	"REDEFINIR PROGRESSO DA ARENA?"
-	"#str_42073"	"Apaga permanentemente as vitórias e os desbloqueios da Arena. Jogos salvos das missões e configurações do multijogador não são afetados."
+	"#str_42073"	"Apaga de vez vitórias, recordes e desbloqueios da Arena. Jogos salvos das missões e configurações do multijogador não são afetados."
 	"#str_42074"	"CANCELAR"
 	"#str_42075"	"REDEFINIR"
 	"#str_42076"	"JOGAR DE NOVO"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Você saiu da partida. Nada foi registrado e o progresso da sua campanha não foi alterado."
 	"#str_42163"	"PARTIDA ABANDONADA"
 	"#str_42164"	"Vitória confirmada. Esta partida já estava no seu histórico."
+	"#str_42165"	"NOVO RECORDE"
+	"#str_42166"	"Nenhum resultado ainda"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Modo de jogo"

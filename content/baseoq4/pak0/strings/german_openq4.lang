@@ -407,7 +407,7 @@
 	"#str_42070"	"STUFENBESPRECHUNG"
 	"#str_42071"	"3 QUALIFIKATIONEN  >  BOSS  >  NÄCHSTE STUFE"
 	"#str_42072"	"ARENA-FORTSCHRITT LÖSCHEN?"
-	"#str_42073"	"Löscht Arena-Siege und Freischaltungen dauerhaft. Missionsspielstände und Mehrspielereinstellungen bleiben erhalten."
+	"#str_42073"	"Löscht Arena-Siege, Bestergebnisse und Freischaltungen dauerhaft. Missionsspielstände und Mehrspielereinstellungen bleiben erhalten."
 	"#str_42074"	"ABBRECHEN"
 	"#str_42075"	"ZURÜCKSETZEN"
 	"#str_42076"	"WIEDERHOLEN"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Du hast die Partie verlassen. Nichts wurde gespeichert, dein Kampagnenfortschritt bleibt unverändert."
 	"#str_42163"	"PARTIE VERLASSEN"
 	"#str_42164"	"Sieg bestätigt. Diese Partie war bereits in deiner Bilanz."
+	"#str_42165"	"NEUER REKORD"
+	"#str_42166"	"Noch kein Ergebnis"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Spieltyp"

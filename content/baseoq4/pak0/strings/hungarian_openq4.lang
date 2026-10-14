@@ -407,7 +407,7 @@
 	"#str_42070"	"FOKOZATI ELIGAZÍTÁS"
 	"#str_42071"	"3 SELEJTEZŐ  >  FŐELLENSÉG  >  KÖVETKEZŐ FOKOZAT"
 	"#str_42072"	"TÖRLÖD AZ ARÉNA-ELŐREHALADÁST?"
-	"#str_42073"	"Véglegesen törli az Arénában szerzett győzelmeket és feloldásokat. A küldetésmentések és a többjátékos beállítások nem változnak."
+	"#str_42073"	"Véglegesen törli az Aréna győzelmeit, legjobb eredményeit és feloldásait. A küldetésmentések és a többjátékos beállítások nem változnak."
 	"#str_42074"	"MÉGSE"
 	"#str_42075"	"TÖRLÉS"
 	"#str_42076"	"ÚJRAJÁTSZÁS"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Kiléptél a meccsből. Semmi sem rögzült, a kampány előrehaladása nem változott."
 	"#str_42163"	"MECCS FELADVA"
 	"#str_42164"	"Győzelem megerősítve. Ez a meccs már szerepelt az eredményeid között."
+	"#str_42165"	"ÚJ CSÚCS"
+	"#str_42166"	"Még nincs eredmény"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Játékmód"

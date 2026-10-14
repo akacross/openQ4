@@ -407,7 +407,7 @@
 	"#str_42070"	"TIER BRIEFING"
 	"#str_42071"	"3 QUALIFIERS  >  BOSS  >  NEXT TIER"
 	"#str_42072"	"RESET ARENA PROGRESS?"
-	"#str_42073"	"Permanently clears Arena wins and unlocks. Mission saves and multiplayer settings are not affected."
+	"#str_42073"	"Permanently clears Arena wins, best results and unlocks. Mission saves and multiplayer settings are not affected."
 	"#str_42074"	"CANCEL"
 	"#str_42075"	"RESET"
 	"#str_42076"	"REPLAY"
@@ -488,6 +488,8 @@
 	"#str_42162"	"You left the match. Nothing was recorded and your campaign progress is unchanged."
 	"#str_42163"	"MATCH ABANDONED"
 	"#str_42164"	"Victory confirmed. This match was already on your record."
+	"#str_42165"	"NEW BEST"
+	"#str_42166"	"No result yet"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Game Type"

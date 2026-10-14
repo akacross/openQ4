@@ -407,7 +407,7 @@
 	"#str_42070"	"KADEME BRİFİNGİ"
 	"#str_42071"	"3 ELEME  >  BOSS  >  SONRAKİ KADEME"
 	"#str_42072"	"ARENA İLERLEMESİ SIFIRLANSIN MI?"
-	"#str_42073"	"Arena galibiyetlerini ve açılan içerikleri kalıcı olarak siler. Görev kayıtları ve çok oyunculu ayarlar etkilenmez."
+	"#str_42073"	"Arena galibiyetlerini, en iyi sonuçları ve açılan içerikleri kalıcı olarak siler. Görev kayıtları ve çok oyunculu ayarlar etkilenmez."
 	"#str_42074"	"İPTAL"
 	"#str_42075"	"SIFIRLA"
 	"#str_42076"	"TEKRAR OYNA"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Maçtan ayrıldın. Hiçbir şey kaydedilmedi ve kampanya ilerlemen değişmedi."
 	"#str_42163"	"MAÇ TERK EDİLDİ"
 	"#str_42164"	"Zafer onaylandı. Bu maç zaten kayıtlarındaydı."
+	"#str_42165"	"YENİ REKOR"
+	"#str_42166"	"Henüz sonuç yok"
 
 	// Competitive match rules and profiles
 	"#str_41600"	"Oyun türü"

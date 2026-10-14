@@ -35,6 +35,21 @@ next unlock visible while choosing a match; a tier with some qualifiers won
 reads **IN PROGRESS**. A locked boss keeps its identity hidden — from the match
 list and the tier briefing alike — until all three qualifiers are won.
 
+## Best results
+
+Every match keeps its **best result**, shown across the foot of the match's
+picture in the browser: the outcome, the final score and the difficulty it was
+played on, for example **VICTORY 10 - 3 VETERAN**. A match you have not yet
+played to a result reads **No result yet**. A victory always beats a draw, and
+a draw beats a defeat; between two results with the same outcome, the wider
+winning (or narrower losing) margin is better, then the harder difficulty. When
+a replay beats the record, the match report marks the score **NEW BEST**.
+
+Only a match played out counts. A match whose opponents left, or that you
+abandoned, leaves the record unchanged. Matches won before best results were
+kept show **VICTORY** until you replay them. Best results are saved with your
+campaign progress, survive restarts, and are cleared by **Reset Progress**.
+
 Arena screens use the standard menu confirm and back controls on keyboard and
 controller. The recommended action receives focus when a screen opens: next
 match after a victory, retry after a defeat, replay after a draw, and cancel in
@@ -144,9 +159,9 @@ next round.
 Any end-of-match awards you earn are listed on the match report beside the score
 and any unlock.
 
-**Reset Progress** is unavailable until at least one match has been won. It
-clears every Arena win and tier unlock, but asks for confirmation before
-changing anything. It does not affect Mission saves, ordinary multiplayer
+**Reset Progress** is unavailable until at least one match has been played to a
+result. It clears every Arena win, best result and tier unlock, but asks for
+confirmation before changing anything. It does not affect Mission saves, ordinary multiplayer
 settings, or achievements.
 
 Each tier raises the base bot skill from 1 to 5. Individual opponents may be

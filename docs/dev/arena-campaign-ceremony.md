@@ -159,11 +159,52 @@ a launch refused its UDP port reporting "Match aborted" under the match's name.
 Not verified at runtime: the tableau orbit under real mouse input, and
 keyboard/controller navigation of the browser (both need device input).
 
+## Best results
+
+Each match keeps its best result in the archived `ui_arenaBest`, beside
+`ui_arenaProgress`: space-separated `<match>:<outcome>:<player>:<opponent>:<difficulty>`
+entries, the match a zero-based index (tier × 4 + match), the outcome 0 loss,
+1 win or 2 draw, the scores as `arenaComplete` handed them over (both
+`ARENA_SCORE_UNAVAILABLE`, -9999, when the player never took a side) and the
+difficulty `PopulateBots` used.
+
+- **Ordering** (`ArenaBestResultBeats`): win > draw > loss, then the wider
+  margin, then the harder difficulty, then the higher score; a tie keeps the
+  older record. A match completed before the record existed carries an implicit
+  scoreless win (`ArenaEffectiveBest`), so only a win replaces it.
+- **Updates.** `FinishPendingCompletion` reads the record against the progress
+  from before the match and writes the new entry when it beats it. Outcome 3
+  (aborted) never competes, and an abandoned match never reaches it. The ledger's
+  **NEW BEST** tag (`arena_resultNewBest`, `#str_42165`) appears only when a
+  stored entry was beaten, not for a first result.
+- **Repair.** `ArenaRepairPersistedProgress` always runs `ArenaRepairPersistedBest`
+  after repairing the mask. It drops entries that are malformed or out of range,
+  duplicated, for a locked match, whose outcome disagrees with its scores, or
+  whose win/no-win disagrees with the match's completion bit. It then rewrites
+  the cvar in canonical form with a warning. A new campaign version clears it.
+- **Reset.** `arenaResetConfirm` clears it with the progress, and Reset Progress
+  is offered while either is non-empty (`arena_canReset`), because a lost first
+  match leaves a record but no win.
+- **Browser.** The stock browser draws the record across the foot of the
+  levelshot (`arena_selectedBestVisible`, `arena_selectedHasBest`,
+  `arena_selectedBest`; "No result yet" for an open match without one, no band
+  for a locked match).
+
+Runtime check on the staged build (hidden GL window, Qualifier 1, matches ended
+with `openq4_arenaCeremony`, the browser driven with `openq4_guiAction`, one
+savepath across launches): a first win recorded `0:1:1:0:3` and the band read
+"VICTORY 1 - 0 VETERAN" with no NEW BEST tag. After a restart the record was
+still there, and a loss left it alone ("did not beat its best result"). An
+equal win on the same difficulty also kept it. Reset Progress cleared it to
+"No result yet" and disabled the button. A config seeded with seven entries
+repaired on load to `0:1:1:0:3 1:0:0:2:3 2:0:-9999:-9999:3` (five dropped:
+malformed, duplicate, locked tier, locked boss, and a win with a losing score).
+The same 1-0 win on NIGHTMARE then replaced it, and the ledger showed
+**NEW BEST** beside the score.
+
 ## Known gaps
 
 - The in-game menu during an Arena match is still the stock multiplayer menu;
   Join Team, Server Info, Admin and Match Control remain visible although
   their actions are refused or inert. An Arena-specific pause menu (Resume,
   Restart match, Leave) is the natural next step.
-- Matches store only a win bit; there is no per-match best result
-  (`#str_42040` "BEST RESULT" is defined but unused).

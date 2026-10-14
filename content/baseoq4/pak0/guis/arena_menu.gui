@@ -1578,6 +1578,60 @@ windowDef Desktop
 			noevents	1
 		}
 
+		// The selected match's best result, across the foot of its levelshot.
+		// An open match that has not been played to a result says so; a
+		// locked match has no band.
+		windowDef arena_best_band
+		{
+			rect		324,184,288,19
+			visible		( "gui::arena_selectedBestVisible" == 1 )
+			backcolor	0.015,0.018,0.015,0.84
+			noevents	1
+		}
+
+		windowDef arena_best_rule
+		{
+			rect		324,184,288,1
+			visible		( "gui::arena_selectedBestVisible" == 1 )
+			backcolor	0.55,0.61,0.34,0.7
+			noevents	1
+		}
+
+		windowDef arena_best_label
+		{
+			rect		330,187,110,14
+			visible		( "gui::arena_selectedBestVisible" == 1 )
+			forecolor	0.57,0.63,0.45,1
+			text		"#str_42040"
+			textscale	0.14
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
+		windowDef arena_best_value
+		{
+			rect		400,186,206,16
+			visible		( "gui::arena_selectedBestVisible" == 1 && "gui::arena_selectedHasBest" == 1 )
+			forecolor	0.95,0.72,0.25,1
+			text		"gui::arena_selectedBest"
+			textscale	0.15
+			textalign	2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
+		windowDef arena_best_none
+		{
+			rect		400,186,206,16
+			visible		( "gui::arena_selectedBestVisible" == 1 && "gui::arena_selectedHasBest" == 0 )
+			forecolor	0.61,0.67,0.5,1
+			text		"gui::arena_selectedBest"
+			textscale	0.15
+			textalign	2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
 		windowDef arena_selected_title
 		{
 			rect		322,211,292,25
@@ -1817,7 +1871,7 @@ windowDef Desktop
 		windowDef arena_browser_reset
 		{
 			rect		130,429,174,27
-			visible		( "gui::arenaCampaignProgress" != 0 )
+			visible		( "gui::arena_canReset" == 1 )
 			backcolor	0.05,0.06,0.045,0.98
 			bordercolor	0.3,0.34,0.2,1
 			bordersize	1
@@ -1846,7 +1900,7 @@ windowDef Desktop
 		windowDef arena_browser_reset_disabled
 		{
 			rect		130,429,174,27
-			visible		( "gui::arenaCampaignProgress" == 0 )
+			visible		( "gui::arena_canReset" == 0 )
 			backcolor	0.035,0.04,0.032,0.96
 			bordercolor	0.2,0.22,0.16,1
 			bordersize	1
@@ -2386,6 +2440,24 @@ windowDef Desktop
 			text		"gui::arena_resultScore"
 			textscale	0.21
 			textalign	2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
+		// A replay that beat the match's recorded best result. It rides the
+		// score row, left of the right-aligned score, so it never contends
+		// with the unlock and awards bands below.
+		windowDef arena_result_new_best
+		{
+			rect		145,170,104,16
+			visible		( "gui::arena_resultNewBest" == 1 && "Desktop::arena_resultPhase" >= 2 )
+			backcolor	0.12,0.24,0.08,0.95
+			bordercolor	0.5,0.74,0.28,1
+			bordersize	1
+			forecolor	0.88,1,0.7,1
+			text		"#str_42165"
+			textscale	0.14
+			textalign	1
 			font		"fonts/lowpixel"
 			noevents	1
 		}

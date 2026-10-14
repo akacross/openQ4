@@ -407,7 +407,7 @@
 	"#str_42070"	"PRÉSENTATION DU NIVEAU"
 	"#str_42071"	"3 QUALIFS.  >  BOSS  >  NIVEAU SUIVANT"
 	"#str_42072"	"RÉINITIALISER L'ARÈNE ?"
-	"#str_42073"	"Efface définitivement victoires et déblocages de l'Arène. Sauvegardes et réglages restent intacts."
+	"#str_42073"	"Efface définitivement victoires, meilleurs résultats et déblocages de l'Arène. Sauvegardes et réglages restent intacts."
 	"#str_42074"	"ANNULER"
 	"#str_42075"	"RÉINITIALISER"
 	"#str_42076"	"REJOUER"
@@ -488,6 +488,8 @@
 	"#str_42162"	"Vous avez quitté le match. Rien n'a été enregistré et votre progression de campagne est inchangée."
 	"#str_42163"	"MATCH ABANDONNÉ"
 	"#str_42164"	"Victoire confirmée. Ce match figurait déjà à votre palmarès."
+	"#str_42165"	"NOUVEAU RECORD"
+	"#str_42166"	"Aucun résultat"
 
 	// Règles et profils de partie compétitive
 	"#str_41600"	"Type de partie"
