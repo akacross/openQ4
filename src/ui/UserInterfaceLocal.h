@@ -122,6 +122,11 @@ private:
 	bool						controllerNavigation; // transient menu ownership; never serialized
 
 	idDict						state;
+	// Retain pooled strings so equality cannot mistake a recycled value for
+	// the previous one. This cache is transient and only used by HUD peers.
+	idDict                      evaluatedHudState;
+	int                         evaluatedHudTime = 0;
+	bool                        evaluatedHudValid = false;
 	idWindow *					desktop;
 	idChatWindow *				chatWindow; // owned by desktop; transient MP presentation
 	idRetainedHud*				retainedHud; // transient presentation, never part of saved GUI framing

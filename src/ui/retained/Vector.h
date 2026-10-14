@@ -82,6 +82,16 @@ struct VectorOptions {
 	std::optional<VectorPixelBounds> pixelBounds;
 };
 
+// A small convex, fill-only mask can be evaluated directly in output pixels.
+// Clockwise points include a repeated final corner for triangles. Paint is a
+// three-stop linear alpha ramp; RGB has no effect on a mask.
+struct LinearMask {
+	std::array<VectorPoint,4> points;
+	std::array<double,3> gradient, alpha;
+	double middle = .5;
+};
+bool ResolveLinearMask(const VectorPath& path, const VectorOptions& options, LinearMask& result);
+
 // Backend-independent path compiler. No GPU/window, engine, RmlUi or JSON API.
 // Failure leaves the previous mesh intact and reports the offending path.
 bool TessellatePath(const VectorPath& path, const VectorOptions& options,

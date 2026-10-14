@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from filesystem_case_segments import function_body
+
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME_ROOT = Path(os.environ.get("OPENQ4_GAMELIBS_REPO", ROOT)).resolve()
@@ -45,9 +47,9 @@ def validate_mode(directory: str) -> None:
     if "UpdateZoomGuiViewState();" in player_cpp:
         raise AssertionError(f"{label} still updates scope yaw from the 2D overlay pass")
     game_local = read(GAME_ROOT / "src" / directory / "Game_local.cpp")
-    prepare = game_local.index("void idGameLocal::PreparePlayerSceneForRender( idPlayer *player )")
-    calc_view = game_local.index("player->CalculateRenderView();", prepare)
-    update_call = game_local.index("player->UpdateZoomGuiViewState();", prepare)
+    prepare = function_body(game_local, "void idGameLocal::PreparePlayerSceneForRender(")
+    calc_view = prepare.index("player->CalculateRenderView();")
+    update_call = prepare.index("player->UpdateZoomGuiViewState();")
     if update_call < calc_view:
         raise AssertionError(f"{label} updates scope yaw before the render view exists")
 

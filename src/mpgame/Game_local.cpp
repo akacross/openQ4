@@ -4836,7 +4836,7 @@ idGameLocal::Draw
 makes rendering and sound system calls
 ================
 */
-bool idGameLocal::Draw( int clientNum ) {
+bool idGameLocal::Draw( int clientNum, bool menuPaused ) {
 
 	// openQ4: the classic dynamic lights are a client presentation layer, so
 	// fade and retire them on the render frame, before the view is built.

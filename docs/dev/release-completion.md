@@ -44,6 +44,25 @@ profiles; existing saved choices are preserved. It does less work on hidden HUD
 animations, improving gameplay performance while preserving its appearance and
 animation. ECG and radio/voice graphs retain their legacy bitmap animation.
 
+- [ ] Finish title and pause-menu performance parity alongside gameplay on both
+  renderers. The current optimization pass reuses stationary artwork, isolated
+  plates and the paused single-player scene, trims the bounded coverage atlas,
+  replays settled menu commands and interaction geometry, evaluates moving
+  convex masks in a shader, and reduces soft-focus and repeated HUD state work.
+  Eleven UI/material suites, five production adapters and OpenGL/Vulkan
+  ordinary-pause/restart/resume captures pass. Refreshed matched menu windows
+  give comparable 144/240 Hz pacing. Moving-mask and fitted-image fade replay
+  further reduce title work; current uncapped title overhead is 1.1% on Vulkan
+  and 10–17% on OpenGL across condition orders. Stable pause comparisons remain
+  about 40% on Vulkan and 49% on OpenGL; the parity gate stays open. All slow
+  windows are retained, including an outlying legacy Vulkan pause window.
+  See [measurements and scope](ui/runtime-performance.md#moving-mask-and-crossfade-replay-14-october-2026).
+
+Candidate release wording: The modern title and pause menus reuse more of their
+unchanged artwork and paused scene, reducing rendering work while keeping HUD,
+title crossfades and menu animation running. Install the complete updated package so the engine,
+game modules and UI resources stay together.
+
 - [x] Restore the legacy machinegun scope's scene sampling on OpenGL, feather
   its stepped blur edge on both renderers, and extend the stock message-box
   dimming over wide and tall displays. Preserve retained UI batching and

@@ -703,7 +703,7 @@ public:
 	virtual gameReturn_t	RunFrame( const usercmd_t *clientCmds, int activeEditors, bool lastCatchupFrame, int serverGameFrame );
 	virtual	void			MenuFrame( void );
 	virtual void			RepeaterFrame( const userOrigin_t *clientOrigins, bool lastCatchupFrame, int serverGameFrame );
-	virtual bool			Draw( int clientNum );
+	virtual bool			Draw( int clientNum, bool menuPaused = false );
 	void					PreparePlayerSceneForRender( idPlayer *player );
 	void					CheckAutoExecAfterMapLoad( void );
 	virtual escReply_t		HandleESC( idUserInterface **gui );

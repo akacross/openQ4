@@ -36,6 +36,7 @@ ENGINE = r'''
 #include <cstdarg>
 #include <charconv>
 #include "src/ui/retained/Input.h"
+#include "src/ui/GuiStateNumber.h"
 #include "src/ui/UserInterfaceText.h"
 #include "src/ui/UserInterfaceClipboard.h"
 #include "src/ui/UserInterfaceNativeText.h"
@@ -2571,6 +2572,7 @@ def main():
         'src/ui/UserInterfaceRetained.cpp', 'src/ui/UserInterface.h', 'src/ui/UserInterfaceManaged.h', 'src/ui/UserInterfaceText.h', 'src/ui/UserInterfaceNativeText.h',
         'src/ui/UserInterfaceRetained.h', 'src/ui/UserInterface.cpp', 'src/ui/RetainedUI.h',
         'src/ui/SettingsService.h', 'src/ui/application/SettingsTransaction.h',
+        'src/ui/GuiStateNumber.h',
         'src/ui/retained/Document.h', 'src/ui/retained/Interaction.h',
         'src/ui/retained/Input.h', 'src/ui/retained/Input.cpp',
         'src/ui/retained/TextInput.h', 'src/ui/retained/TextInput.cpp',

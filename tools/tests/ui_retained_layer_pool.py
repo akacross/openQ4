@@ -103,6 +103,15 @@ int main(){
     for (const auto& vertex : host.drawn) assert(near(vertex.r,.5f) && near(vertex.a,.5f)); // Premultiplied opacity.
     host.MaskLayer(1,2,{0,0,1280,720});
     assert(renderer.bound==host.layers[1].target && near(host.drawn[0].v,1) && near(host.drawn[2].v,0) && near(host.drawn[0].a,1));
+    const std::vector<openq4::ui::Vertex> mask={{100,200,0,0,1,0,0,.25f},{400,200,0,0,0,1,0,.5f},
+        {400,250,0,0,0,0,1,.75f},{100,250,0,0,1,1,1,1}};
+    host.CompositeMaskedLayer(2,mask,{0,1,2,0,2,3},.5f);
+    assert(renderer.bound==nullptr && host.drawnMaterial==reinterpret_cast<std::uintptr_t>(host.layers[1].material));
+    for(size_t i=0;i<mask.size();++i){
+        const auto& v=host.drawn[i];
+        assert(near(v.x,mask[i].x) && near(v.y,mask[i].y) && near(v.u,mask[i].x/1280) && near(v.v,1-mask[i].y/720));
+        assert(near(v.r,mask[i].a*.5f) && near(v.g,v.r) && near(v.b,v.r) && near(v.a,v.r));
+    }
     std::puts("retained layer pool: mixed viewport preservation, exact shared byte budget, failure isolation and GL-order composites passed");
 }
 '''
@@ -144,12 +153,14 @@ struct Renderer {
 Renderer* renderSystem=&renderer;
 struct Declarations {idMaterial solid{"_retainedSolid"}; const idMaterial* FindMaterial(const char*){return &solid;}} declarations;
 Declarations* declManager=&declarations;
+// These allocation/conversion fixtures submit immediately. The batching
+// fixture compiles and exercises the production queue and its ordering rules.
 // This fixture qualifies indexed mesh submission with atlas caching disabled.
 // Rasterization itself is covered by the retained runtime and capture suites.
 struct {bool GetBool()const{return false;}} ui_retainedAtlas;
 struct Host {
     int viewportWidth=1280,viewportHeight=720;
-    struct AtlasPage {bool dirty=false;const idMaterial* material=nullptr;std::uint64_t lastFrame=0;int references=0;};
+    struct AtlasPage {bool dirty=false;const idMaterial* material=nullptr;const idMaterial* multiplyMaterial=nullptr;std::uint64_t lastFrame=0;int references=0;};
     std::vector<AtlasPage> atlasPages;
     unsigned rasterDraws=0,rasterSavedVertices=0;
     std::uint64_t RenderFrame()const{return 1;}
@@ -261,13 +272,16 @@ struct Renderer {
 Renderer* renderSystem=&renderer;
 struct Declarations {
     idMaterial backdrop{"_retainedBlur/backdrop"},scratch{"_retainedBlur/scratch"},streak{"_retainedBlur/streak"};
+    idMaterial reducedScratch{"_retainedBlur/reducedScratch"},reducedResult{"_retainedBlur/reducedResult"};
     const idMaterial* FindMaterial(const char* name){
-        for(idMaterial* material:{&backdrop,&scratch,&streak}) if(std::string(name)==material->name) return material;
+        for(idMaterial* material:{&backdrop,&scratch,&streak,&reducedScratch,&reducedResult}) if(std::string(name)==material->name) return material;
         return nullptr;
     }
 } declarations;
 Declarations* declManager=&declarations;
 const char* va(const char* format,unsigned value){static char text[128];std::snprintf(text,sizeof text,format,value);return text;}
+struct {bool enabled=true;bool GetBool()const{return enabled;}} ui_retainedDirectBackdrop;
+struct {bool enabled=false;bool GetBool()const{return enabled;}} ui_retainedHalfBlur;
 struct Host {
     struct Layer {idRenderTexture* target=nullptr;int width=0,height=0;};
     std::vector<Layer> layers;
@@ -281,8 +295,12 @@ struct Host {
     const idMaterial* blurBackdropMaterial=nullptr;
     const idMaterial* blurScratchMaterial=nullptr;
     const idMaterial* blurStreakMaterial=nullptr;
+    const idMaterial* linearMaskMaterial=nullptr;
     bool backdropCreated=false;
     int blurWidth=0,blurHeight=0;
+    idRenderTexture *reducedBlurScratch=nullptr,*reducedBlurResult=nullptr;
+    const idMaterial *reducedBlurMaterial=nullptr,*reducedBlurResolve=nullptr;
+    int reducedBlurWidth=0,reducedBlurHeight=0;
     std::vector<int> meshes;
     std::vector<std::string> scalableFaces,fonts;
     bool fontFallbackReported=false;
@@ -367,10 +385,22 @@ int main(){
     // A region past the view is clamped to it, reach included.
     renderer.calls.clear();
     assert(host.SoftenBackdrop(3,4,.9f,{-50,-50,1700,1000}) && renderer.images.size()==2 && renderer.targets.size()==1);
+    assert(Count("clear")==0); // Both passes cover the view; scratch is wholly overwritten.
     for(const auto& call:renderer.calls) if(call.op=="draw") for(const auto& vertex:call.vertices)
         assert(vertex.xyz.x>=-1e-4f && vertex.xyz.x<=640.0001f && vertex.xyz.y>=-1e-4f && vertex.xyz.y<=480.0001f);
+    const openq4::ui::Bounds fullView{0,0,1600,900};
+    renderer.calls.clear();
+    assert(host.CanSoftenBackdropDirect(4,.9f,fullView) && renderer.calls.empty());
+    assert(!host.CanSoftenBackdropDirect(4,.9f,region) && !host.CanSoftenBackdropDirect(NAN,.9f,fullView));
+    ui_retainedDirectBackdrop.enabled=false;
+    assert(!host.SoftenBackdropDirect(4,.9f,fullView) && renderer.calls.empty());ui_retainedDirectBackdrop.enabled=true;
+    assert(host.SoftenBackdropDirect(4,.9f,fullView) && Count("capture")==1 && Count("draw")==2 && Count("clear")==0);
+    assert(renderer.calls.back().op=="color" && renderer.bound==nullptr);
+    const Call* finalDraw=nullptr;for(const auto& call:renderer.calls)if(call.op=="draw")finalDraw=&call;
+    assert(finalDraw && finalDraw->target==nullptr && finalDraw->material==host.blurScratchMaterial);
     // A new view size replaces only the scratch target.
     host.viewportWidth=1280;host.viewportHeight=720;
+    renderer.calls.clear();assert(!host.SoftenBackdropDirect(4,.9f,fullView) && renderer.calls.empty());
     assert(host.SoftenBackdrop(3,4,.9f,region) && renderer.images.size()==3 && renderer.images[2]->width==1280 &&
         renderer.targets.size()==2 && renderer.targets[0]->destroyed && host.blurScratch==renderer.targets[1].get());
     // Clearing the layers releases the blur targets; the next use rebuilds both.
@@ -395,6 +425,38 @@ int main(){
     host.layers.resize(1);host.layers[0].target=&destination;
     host.Reset();
     assert(renderer.fontResets==resetsBefore+1 && destination.destroyed && host.layers.empty());
+    // Filtering precedes decimation on each axis; captures remain live, and
+    // the final linear resolve covers the full base surface.
+    declarations.scratch.state=1; ui_retainedHalfBlur.enabled=true;
+    Host reduced; reduced.viewportWidth=reduced.captureWidth=1280;
+    reduced.viewportHeight=reduced.captureHeight=720; reduced.viewportX=reduced.viewportY=0;
+    const openq4::ui::Bounds reducedView{0,0,1280,720};
+    renderer.calls.clear();
+    assert(reduced.DrawSoftenedBackdrop(nullptr,7.5f,.8f,reducedView));
+    assert(Count("capture")==1 && Count("draw")==3 && Count("clear")==0);
+    assert(reduced.reducedBlurScratch->image->width==640 && reduced.reducedBlurScratch->image->height==720);
+    assert(reduced.reducedBlurResult->image->width==640 && reduced.reducedBlurResult->image->height==360);
+    assert(renderer.bound==nullptr);
+    const size_t imagesBefore=renderer.images.size();
+    renderer.calls.clear();
+    assert(reduced.DrawSoftenedBackdrop(nullptr,7.5f,.8f,reducedView));
+    assert(Count("capture")==1 && Count("draw")==3 && renderer.images.size()==imagesBefore);
+    for(float sigma:{0.f,5.99f,8.01f,256.f}) {
+        renderer.calls.clear();
+        assert(reduced.DrawSoftenedBackdrop(nullptr,sigma,.8f,reducedView));
+        assert(Count("draw")==2 && Count("capture")==1);
+    }
+    reduced.viewportX=1; renderer.calls.clear();
+    assert(reduced.DrawSoftenedBackdrop(nullptr,7.5f,.8f,reducedView) && Count("draw")==2);
+    reduced.viewportX=0;
+    // Odd dimensions do not land exactly between source texels, so keep the
+    // ordinary kernel instead of applying half-centred pairs at a wrong phase.
+    reduced.viewportWidth=reduced.captureWidth=1279; reduced.viewportHeight=reduced.captureHeight=719;
+    renderer.calls.clear();
+    assert(reduced.DrawSoftenedBackdrop(nullptr,7.5f,.8f,reducedView));
+    assert(Count("draw")==2);
+    reduced.ClearLayers();
+    assert(!reduced.reducedBlurScratch && !reduced.reducedBlurResult && !reduced.reducedBlurMaterial && !reduced.reducedBlurResolve);
     std::puts("retained soft focus and speed streak: capture, separable passes, the view copy, regions, GL row order, target lifetime and a reset with no renderer passed");
 }
 '''
@@ -404,7 +466,7 @@ def main():
     source=(ROOT/'src/ui/RetainedUI.cpp').read_text()
     source_text=source
     bodies=[function_body(source,signature).replace(' override','') for signature in (
-        'void BindTarget(','bool BeginLayer(','void CompositeLayer(','void MaskLayer(','void DrawLayer(')]
+        'void BindTarget(','bool BeginLayer(','void CompositeLayer(','void CompositeMaskedLayer(','void MaskLayer(','void DrawLayer(')]
     # The Vulkan executor's side of the row-order contract the composites rely on.
     executor=(ROOT/'src/renderer/Vulkan/vk_GuiExecutor.cpp').read_text(encoding='utf-8')
     assert 'vkExec.activePipelineTarget.lowerOrigin = true;' in function_body(executor,'bool VK_Exec_SetRenderTarget('),\
@@ -426,14 +488,16 @@ def main():
         draw=Path(temp)/'draw.cpp';drawBinary=Path(temp)/'draw.exe'
         draw_bodies=[function_body(source_text,'struct HostMesh {')+';','HostMesh scratchMesh;','std::unordered_map<std::uint64_t,HostMesh> meshes;']+[
             function_body(source_text,signature).replace(' override','') for signature in (
-                'void Draw(','void DrawMesh(','void ReleaseMesh(','void DropRaster(','const idMaterial* Material(','void Convert(','void Submit(const HostMesh&')]
+                'void Draw(','void DrawMesh(','void DrawRaster(','void ReleaseMesh(','void DropRaster(','const idMaterial* Material(','void Convert(','void Submit(const HostMesh&')]
         draw.write_text(DRAW_SUPPORT+'\n'.join(draw_bodies)+DRAW_MAIN,encoding='utf-8')
         subprocess.run([compiler,'-std=c++17',str(draw),'-o',str(drawBinary)],check=True)
         subprocess.run([str(drawBinary)],check=True)
         soft=Path(temp)/'soft.cpp';softBinary=Path(temp)/'soft.exe'
         soft_bodies=[function_body(source_text,signature).replace(' override','') for signature in (
-            'void BindTarget(','bool SoftenBackdrop(','bool StreakBackdrop(','bool EnsureBlurTargets(','void DrawBlurPass(','void ClearLayers(','void Reset(')]
-        soft.write_text(SOFT_SUPPORT+'\n'.join(soft_bodies)+SOFT_MAIN,encoding='utf-8')
+            'void BindTarget(','bool SoftenBackdrop(','bool CanSoftenBackdropDirect(','bool SoftenBackdropDirect(','bool DrawSoftenedBackdrop(',
+            'bool StreakBackdrop(','bool EnsureBlurTargets(','bool EnsureReducedBlurTargets(','void DrawBlurPass(','void ClearLayers(','void Reset(')]
+        atlas_constants='\n'.join(line for line in source_text.splitlines() if 'static constexpr int Atlas' in line)
+        soft.write_text(SOFT_SUPPORT+atlas_constants+'\n'+'\n'.join(soft_bodies)+SOFT_MAIN,encoding='utf-8')
         subprocess.run([compiler,'-std=c++17',str(soft),'-o',str(softBinary)],check=True)
         subprocess.run([str(softBinary)],check=True)
 

@@ -191,7 +191,8 @@ public:
 	virtual void				RepeaterFrame( const userOrigin_t *clientOrigins, bool lastCatchupFrame, int serverGameFrame ) = 0;
 
 	// Makes rendering and sound system calls to display for a given clientNum.
-	virtual bool				Draw( int clientNum ) = 0;
+	// menuPaused is an SP session pause, never a stopped multiplayer server.
+	virtual bool				Draw( int clientNum, bool menuPaused = false ) = 0;
 
 	// Let the game do it's own UI when ESCAPE is used
 	virtual escReply_t			HandleESC( idUserInterface **gui ) = 0;
@@ -710,7 +711,9 @@ extern rvGameLog *				gameLog;
 //     off-axis frustum, and idRenderSystem appends the VR presentation slots.
 // 51: idRenderSystem appends PresentScaledScene, the r_resolutionScaleMode
 //     upscale of the game's below-native scene.
-const int GAME_API_VERSION		= 51;
+// 52: idGame::Draw receives the single-player menu pause state so an unchanged
+//     scene can be reused while HUD and menu presentation continue.
+const int GAME_API_VERSION		= 52;
 
 struct gameImport_t {
 

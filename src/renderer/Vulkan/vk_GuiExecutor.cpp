@@ -7858,6 +7858,11 @@ static bool VK_Exec_UploadTriGeometry( int slot, const srfTriangles_t *tri,
 			: ( tri->indexCache != NULL
 				? static_cast<const void *>( tri->indexCache )
 				: static_cast<const void *>( tri ) );
+	// GUI cache headers can be recycled during screen updates while this
+	// presentation is still open. A pointer-only memo can then supply an old
+	// quad (and freeze it into a retained target). Each 2D surface uploads once
+	// before its stages, so it needs no world depth/light-pass reuse.
+	const bool freshGui = backEnd.viewDef != NULL && backEnd.viewDef->viewEntitys == NULL;
 
 	// independent vert/index memos: light-tris chains carry their own index
 	// subset over the SHARED ambient vertex array, so a combined memo would
@@ -7866,13 +7871,13 @@ static bool VK_Exec_UploadTriGeometry( int slot, const srfTriangles_t *tri,
 		bool gpuMemoExisting = false;
 		const int gpuMemoIndex = VK_GpuSkinning_FindMemo(
 				vertKey, false, gpuMemoExisting );
-		if ( gpuMemoExisting && gpuMemoIndex >= 0
+		if ( !freshGui && gpuMemoExisting && gpuMemoIndex >= 0
 				&& vkExec.gpuSkinningMemo[ gpuMemoIndex ].vertexOffset >= 0 ) {
 			vertexOffset = vkExec.gpuSkinningMemo[ gpuMemoIndex ].vertexOffset;
 		} else {
 			const unsigned int memoIndex = (unsigned int)( ( ( (uintptr_t)vertKey ) >> 4 ) & ( VK_TRI_MEMO_SIZE - 1 ) );
 			vkVertUpload_t &memo = vkExec.vertMemo[ memoIndex ];
-			if ( memo.vertKey == vertKey && vertKey != NULL ) {
+			if ( !freshGui && memo.vertKey == vertKey && vertKey != NULL ) {
 				vertexOffset = memo.vertexOffset;
 			} else {
 				const idDrawVert *verts = (const idDrawVert *)vertexCache.Position( tri->ambientCache );
@@ -7891,7 +7896,7 @@ static bool VK_Exec_UploadTriGeometry( int slot, const srfTriangles_t *tri,
 	{
 		const unsigned int memoIndex = (unsigned int)( ( ( (uintptr_t)idxKey ) >> 4 ) & ( VK_TRI_MEMO_SIZE - 1 ) );
 		vkIdxUpload_t &memo = vkExec.idxMemo[ memoIndex ];
-		if ( memo.idxKey == idxKey && idxKey != NULL ) {
+		if ( !freshGui && memo.idxKey == idxKey && idxKey != NULL ) {
 			indexOffset = memo.indexOffset;
 		} else {
 			const size_t indexBytes = exactIndexBytes;

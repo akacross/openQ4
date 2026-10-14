@@ -2897,7 +2897,8 @@ if build_renderer_vk and build_engine
     material_compiler_test = executable('openq4-material-compiler-test',
       'tools/tests/native/MaterialCompilerTest.cpp',
       dependencies: material_compiler_dep, install: false)
-    test('openq4-material-compiler', material_compiler_test, timeout: 60)
+    test('openq4-material-compiler', material_compiler_test,
+      args: ['--retained', meson.project_source_root() / 'content/baseoq4/pak0/glprogs/glsl'], timeout: 60)
     arb_translator_test = executable('openq4-arb-translator-test',
       'tools/tests/native/ARBTranslatorTest.cpp',
       dependencies: material_compiler_dep, install: false)

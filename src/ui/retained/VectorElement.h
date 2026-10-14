@@ -10,6 +10,7 @@
 namespace openq4::ui {
 class Host;
 struct Node;
+struct Value;
 struct RuntimeStatistics;
 // Multiply-blended paths submit through this reserved texture source. The
 // renderer resolves it to the host's multiply material, never to an image.
@@ -27,13 +28,22 @@ public:
 	virtual ~ImageSamplingInterface() = default;
 	virtual void SetImageSampling(std::shared_ptr<const ImageCoordinates> coordinates) = 0;
 };
+class LinearMaskInterface {
+public:
+	virtual ~LinearMaskInterface() = default;
+	virtual bool SubmitLinearMask(const LinearMask& mask, std::shared_ptr<const LinearMask> live) = 0;
+};
 class VectorGeometry {
 public:
+	void SetLinearMaskInterface(LinearMaskInterface* value) { linearMasks=value; }
 	void Configure(const std::vector<VectorPath>& paths, Host& host, RuntimeStatistics& statistics);
 	// Copy authored paths and shared host ownership only; compiled geometry is
 	// always invalidated, including when replacing an already rendered copy.
 	void CopyArtworkFrom(const VectorGeometry& source);
 	void Render(Rml::Element& element, bool inheritOpacity);
+	// Validate a recorded paint against a freshly resolved projection. Only
+	// an analytic mask may change; ordinary vector coverage must still match.
+	bool UpdateReplayProjection(Rml::Element& element, const Rml::Matrix4f& transform);
 	bool HitTest(Rml::Element& element, Rml::Vector2f outputPoint);
 	bool HasHitArea(Rml::Element& element);
 private:
@@ -57,6 +67,7 @@ private:
 	std::vector<Compilation> cache;
 	Rml::Texture multiply, coverage;
 	Host* host = nullptr;
+	LinearMaskInterface* linearMasks = nullptr;
 	RuntimeStatistics* statistics = nullptr;
 	std::array<double,12> previous{}; // The exact signature of the last render.
 	double previousX = 0, previousY = 0; // Its whole output translation.
@@ -67,6 +78,7 @@ private:
 	Rml::Vector2i renderViewport;
 	Rml::Vector2f cachedTranslation;
 	bool renderReady=false, renderInheritOpacity=false, cachedLocalMesh=false, cachedPartition=false;
+	std::shared_ptr<LinearMask> replayMask;
 };
 class VectorElement final : public Rml::Element {
 public:
@@ -79,12 +91,15 @@ public:
 	// Isolated opacity changes paint only. Canonical presentation callers can
 	// resolve this element's non-inherited filter without updating the tree.
 	bool SetPresentationOpacity(const std::string& filter, float density, Rml::Vector2f dimensions);
+	bool SetPresentationTransform(const Value& transform, float density, Rml::Vector2f dimensions);
+	bool UpdateReplayProjection();
 	// Only isolated leaf images/text can update a recorded opacity. Crossing
 	// zero or one changes the rendered layer topology and requires repaint.
 	bool UpdateReplayOpacity(float opacity);
 	std::shared_ptr<const float> ReplayOpacity() const { return replayOpacity; }
 	bool ReplayOpacityIsText() const { return replayText; }
 	void SetImageSamplingInterface(ImageSamplingInterface* value) { imageSampling=value; }
+	void SetLinearMaskInterface(LinearMaskInterface* value) { mask.SetLinearMaskInterface(value); }
 	void RenderMask() { mask.Render(*this,false); }
 	bool AllowsMaskedPoint(Rml::Vector2f point) { return !hasMask || mask.HitTest(*this,point); }
 	bool HasMaskArea() { return !hasMask || mask.HasHitArea(*this); }
@@ -116,6 +131,7 @@ private:
 	Rml::Texture imageTexture;
 	Rml::Geometry imageGeometry;
 	bool hasMask = false;
+	bool replayProjection = false;
 };
 class VectorMaskInstancer final : public Rml::DecoratorInstancer {
 public:

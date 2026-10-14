@@ -11,7 +11,7 @@ This compiles the real SetStateString, SetStateBool, SetStateInt and
 SetStateFloat from src/ui/UserInterface.cpp against a dictionary double whose
 Set overwrites the replaced value the way freed pool memory reads back, then
 checks the logged lines, the stored values, and that below gui_debugScript 4
-SetStateString is a plain store. --mutations reintroduces reads after the
+SetStateString makes no extra lookup for logging. --mutations reintroduces reads after the
 store and requires the harness to fail each time.
 """
 
@@ -54,6 +54,16 @@ SUPPORT = r'''
 #include <memory>
 #include <string>
 #include <vector>
+#include "src/ui/GuiStateNumber.h"
+
+static const char *va(const char *format, ...) {
+    static char text[1024];
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+    return text;
+}
 
 static unsigned checks = 0;
 static void Check(bool ok, const char *why) {
@@ -83,8 +93,20 @@ public:
 // value is the same pool string, so storing it again releases nothing. Here a
 // released value stays allocated but is overwritten, so a late read is
 // deterministic and shows up in the log instead of being undefined.
+struct idKeyValue {
+    std::string key;
+    std::unique_ptr<char[]> value;
+    struct ValueView {
+        const char *text;
+        const char *c_str() const { return text; }
+        bool operator==(const char *other) const { return std::strcmp(text, other) == 0; }
+    };
+    ValueView GetValue() const { return {value.get()}; }
+};
+
 class idDict {
 public:
+    const idKeyValue *FindKey(const char *key) const { return Find(key); }
     const char *GetString(const char *key, const char *defaultString = "") const {
         ++lookups;
         const Entry *entry = Find(key);
@@ -116,10 +138,7 @@ public:
     mutable int lookups = 0;
 
 private:
-    struct Entry {
-        std::string key;
-        std::unique_ptr<char[]> value;
-    };
+    using Entry = idKeyValue;
     Entry *Find(const char *key) const {
         for (const Entry &entry : entries) {
             if (idStr::Icmp(entry.key.c_str(), key) == 0) return const_cast<Entry *>(&entry);
@@ -225,8 +244,8 @@ int main() {
         "the typed setters store their values");
     Check(gui.peer.key == "notice_alpha" && gui.peer.value == "0.500000", "the HUD peer receives the typed setters' stored text");
 
-    // Below level 4 the string setter only stores. A HUD peer reads the stored
-    // value back to forward it; without one nothing reads the dictionary.
+    // The shared store helper finds the existing entry. Below level 4 there
+    // must be no additional GetString lookup to prepare a debug log line.
     gui.remastered = nullptr;
     gui_debugScript.value = 3;
     const int lookups = gui.state.lookups;
@@ -234,7 +253,7 @@ int main() {
     Check(TakeLog().empty() && gui.state.lookups == lookups, "below level 4 the string setter neither reads nor logs the old value");
     Check(Stored(gui, "main_notice_text", "YOUR TEAM HAS THE FLAG"), "below level 4 the string setter still stores");
 
-    std::printf("gui_state_debug_log_contract: PASS (%u checks: logged old values, stored values, plain store below level 4)\n", checks);
+    std::printf("gui_state_debug_log_contract: PASS (%u checks: logged old values, stored values, no debug lookup below level 4)\n", checks);
     return 0;
 }
 '''
@@ -271,7 +290,7 @@ def build_source(root: Path) -> str:
         "SetStateInt",
         "SetStateFloat",
     ))
-    return SUPPORT + functions + MAIN
+    return SUPPORT + braced(source, "static const char *SetGuiDictionaryValue(") + functions + MAIN
 
 
 def compile_and_run(compiler: str, flags: list[str], text: str, directory: Path, name: str) -> subprocess.CompletedProcess:
@@ -292,7 +311,7 @@ def main() -> None:
     compiler = args.compiler or next((path for name in ("clang++", "g++", "c++") if (path := shutil.which(name))), None)
     if compiler is None:
         raise RuntimeError("a C++ compiler is required")
-    flags = ["-std=c++17", "-Wall", "-Wextra", "-Wno-unused-parameter"]
+    flags = ["-std=c++17", "-Wall", "-Wextra", "-Wno-unused-parameter", "-I", str(args.root)]
     if args.sanitize:
         flags += ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
     text = build_source(args.root)

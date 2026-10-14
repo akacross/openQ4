@@ -60,7 +60,8 @@ public:
 	//---------------------------
 private:
 	void	AdvanceSurf();
-	void	EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack );
+	void	EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack,
+				const struct viewEntity_s *sharedSpace = NULL );
 
 	guiModelSurface_t		*surf;
 

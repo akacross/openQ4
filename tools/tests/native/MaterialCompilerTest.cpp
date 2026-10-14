@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <future>
 #include <string>
 
@@ -71,6 +72,26 @@ static void Reject(const char *label, const material::CompileRequest &request, c
 
 int main(int argc, char **argv) {
     if (argc == 2) { output = std::filesystem::absolute(argv[1]); std::filesystem::create_directories(output); }
+    if (argc == 3 && std::string(argv[1]) == "--retained") {
+        // Compile the shipped source pairs and their material interfaces
+        // through the actual Vulkan
+        // compatibility compiler rather than a duplicate test shader.
+        for (const char *name : {"retained_blur", "retained_linear_mask"}) {
+            material::CompileRequest retained;
+            const auto base = std::filesystem::path(argv[2]) / name;
+            const auto read = [&](const char *extension, std::string &path) {
+                path = base.string() + extension;
+                std::ifstream file(path, std::ios::binary);
+                Require(bool(file), "read production retained shader: " + path);
+                return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+            };
+            retained.vertexSource = read(".glslvp", retained.vertexName);
+            retained.fragmentSource = read(".glslfp", retained.fragmentName);
+            retained.parameters = {{std::string(name) == "retained_blur" ? "blur" : "maskConfig", 0, 4}};
+            retained.textures = {{"Source", 0}};
+            Require(Accept(name, retained).textureMask == 1, "retained source texture binding");
+        }
+    }
     auto request = Basic();
     const auto first = Accept("textured", request);
     Require(first.textureMask == (1u << 7) && first.cubeTextureMask == 0, "2D texture binding metadata");

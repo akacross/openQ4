@@ -665,6 +665,7 @@ void idGameLocal::Clear( void ) {
 	presentationClockLastTime = -1;
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
+	presentationMenuPaused = false;
 	autoExecAfterMapLoadStartTime = 0;
 	autoExecAfterMapLoadPending = false;
 	autoExecAfterMapLoadWaitingLogged = false;
@@ -5160,9 +5161,10 @@ it rebuilds the render view and resubmits the viewmodel for the current render
 sample between authoritative game tics.
 ================
 */
-void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
+void idGameLocal::PreparePlayerSceneForRender( idPlayer *player, bool menuPaused ) {
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
+	presentationMenuPaused = menuPaused && !isMultiplayer;
 	if ( player == NULL || GetDemoState() == DEMO_PLAYING || IsTimeDemo() ) {
 		return;
 	}
@@ -5182,6 +5184,13 @@ void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
 		presentationAnimationTime = time;
 	}
 	player->CalculateRenderView();
+	// Refresh the camera before deciding whether the paused scene is reusable.
+	// Its unchanged snapshot needs no entity or weapon pose resubmission; HUD
+	// and view-effect presentation still run on every draw.
+	if ( menuPaused && player->playerView.CanReusePausedScene( player->GetRenderView() ) ) {
+		RecordPresentationClockSample();
+		return;
+	}
 	// The weapon's scope GUI is an in-world surface drawn with the 3D scene, so
 	// its yaw has to be current before that scene is rendered.  Updating it from
 	// DrawHUD set it during the 2D overlay, after R_RenderGuiSurf had already
@@ -5214,6 +5223,7 @@ void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
 void idGameLocal::EndPresentationSceneForRender( void ) {
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
+	presentationMenuPaused = false;
 }
 
 /*
@@ -5223,15 +5233,13 @@ idGameLocal::Draw
 makes rendering and sound system calls
 ================
 */
-bool idGameLocal::Draw( int clientNum ) {
+bool idGameLocal::Draw( int clientNum, bool menuPaused ) {
 
-	// openQ4: the classic dynamic lights are a client presentation layer, so
-	// fade and retire them on the render frame, before the view is built.
-	G_UpdateClassicLights();
 //	DisplayClipProfile( );
 //	ClearClipProfile( );
 
 	if ( isMultiplayer ) {
+		G_UpdateClassicLights();
 		const bool drawn = mpGame.Draw( clientNum );
 		if ( drawn ) {
 			CheckAutoExecAfterMapLoad();
@@ -5245,7 +5253,10 @@ bool idGameLocal::Draw( int clientNum ) {
 		return false;
 	}
 
-	PreparePlayerSceneForRender( player );
+	PreparePlayerSceneForRender( player, menuPaused );
+	// Use the same scene clock for lights and poses. An ordinary single-player
+	// menu pause must not fade/retire lights behind the cached stopped view.
+	G_UpdateClassicLights();
 
 // RAVEN BEGIN
 // mwhitlock: Xenon texture streaming.
@@ -5259,7 +5270,7 @@ bool idGameLocal::Draw( int clientNum ) {
 #endif
 // RAVEN END
 	// render the scene
-	player->playerView.RenderPlayerView( player->hud );
+	player->playerView.RenderPlayerView( player->hud, menuPaused );
 	EndPresentationSceneForRender();
 
 // RAVEN BEGIN
@@ -9260,11 +9271,12 @@ observed lag, which is the boundary itself.
 ================
 */
 float idGameLocal::GetPresentationTicFraction( void ) const {
-	// Stop-time keeps the last simulation sample, but real time still advances.
+	// Stop-time and a single-player menu keep the last simulation sample, but
+	// real time still advances. Menu motion uses the independent UI clock.
 	// Re-anchoring that unchanged sample every maxDrift interval would cycle
 	// movers between their previous and current poses, repeatedly invalidating
 	// shadow depth and visibly shifting doors while their physics is frozen.
-	if ( !isMultiplayer && g_stopTime.GetBool() ) {
+	if ( !isMultiplayer && ( g_stopTime.GetBool() || presentationMenuPaused ) ) {
 		return 1.0f;
 	}
 	// Real seconds per authoritative tic.  Distinct from GetMSec(), which is how
@@ -9312,7 +9324,7 @@ Maps the engine's presentation clock onto the current simulation snapshot.
 ================
 */
 int idGameLocal::GetPresentationTimeMsec( void ) const {
-	if ( ( !isMultiplayer && g_stopTime.GetBool() ) || GetDemoState() == DEMO_PLAYING || IsTimeDemo() ) {
+	if ( ( !isMultiplayer && ( g_stopTime.GetBool() || presentationMenuPaused ) ) || GetDemoState() == DEMO_PLAYING || IsTimeDemo() ) {
 		return time;
 	}
 

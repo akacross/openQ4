@@ -2,6 +2,7 @@
 #include "../idlib/precompiled.h"
 #include "../framework/NativeInputPublications.h"
 #include "UserInterfaceRetained.h"
+#include "GuiStateNumber.h"
 #ifndef ID_DEDICATED
 #include "RetainedUI.h"
 #include "SettingsService.h"
@@ -969,8 +970,13 @@ const idDict& idUserInterfaceRetained::State() const { return impl->state; }
 void idUserInterfaceRetained::DeleteStateVar(const char* name) { if (impl->CallerState(name)) { impl->state.Delete(name); impl->DirtyApplication(name); } }
 void idUserInterfaceRetained::SetStateString(const char* name, const char* value) { if (impl->CallerState(name)) impl->SetDictionary(name,value); }
 void idUserInterfaceRetained::SetStateBool(const char* name, bool value) { SetStateString(name,value ? "1" : "0"); }
-void idUserInterfaceRetained::SetStateInt(const char* name, int value) { SetStateString(name,va("%i",value)); }
-void idUserInterfaceRetained::SetStateFloat(const char* name, float value) { SetStateString(name,va("%f",value)); }
+void idUserInterfaceRetained::SetStateInt(const char* name, int value) {
+	char text[64]; SetStateString(name,GuiStateInteger(value,text));
+}
+void idUserInterfaceRetained::SetStateFloat(const char* name, float value) {
+	char text[64]; const char* integral=GuiStateIntegralFloat(value,text);
+	SetStateString(name,integral ? integral : va("%f",value));
+}
 void idUserInterfaceRetained::SetStateVec4(const char* name, const idVec4& value) { SetStateString(name,value.ToString()); }
 const char* idUserInterfaceRetained::GetStateString(const char* name, const char* fallback) const { return impl->state.GetString(name,fallback); }
 bool idUserInterfaceRetained::GetStateBool(const char* name, const char* fallback) const { return impl->state.GetBool(name,fallback); }

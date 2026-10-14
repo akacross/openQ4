@@ -719,6 +719,428 @@ identical runtime hashes, unchanged during sampling and matching the staged buil
 Logs, full settings, per-window results and captures are recorded in
 `.tmp/ui-cross-api-20261013/REPORT.md`.
 
+## Menu and gameplay optimization (13 October 2026)
+
+Interactive screens now retain separate trees containing controls, modals and
+their ancestors. Eligibility and modal visibility no longer scan decorative
+artwork or rebuild the full element index every frame. Ancestor visibility,
+pointer eligibility, mask bounds and modal ordering keep their existing rules;
+document replacement and shutdown retire the cached handles.
+
+The coverage atlas now splits wide or tall stationary vector meshes into tiles.
+It keeps the existing 32 pages of 512x512 RGBA8 storage (32 MiB each of CPU and
+GPU pixel storage), nearest sampling and identity padding. Empty tiles and
+unused tile borders are omitted, including a check that preserves additive RGB
+with zero alpha. Multiply artwork uses white RGBA for empty pixels and padding,
+with its original destination-colour blend. Both blend modes share the same
+bounded pages. A mesh
+uses the original geometry until every required page upload succeeds; partial
+allocation failure releases all of its tile references. Fractional motion,
+gradients, overlap and oversized bounds retain the geometry path. Temporary
+rasterization is independently capped at four million pixels, so widely
+separated small shapes cannot allocate an unbounded bitmap.
+
+Single cached coverage meshes can apply live isolated opacity directly. Stable
+compound plates retain their completed target so an overlapping fill and rail
+still receive group opacity once. New cache entries must have survived an
+earlier presentation frame; animated masks cannot evict the current working set.
+
+Changing analytic masks can also sample unchanged source artwork from that
+bounded layer pool. The source is immutable while the mask and group opacity
+remain live; `ui_retainedSourceCache 0` selects the original composition path.
+Same-frame animated-mask comparisons on OpenGL and Vulkan at MSAA 8 differ
+by at most one RGBA8 code value. Exact identity transforms share the null
+transform's geometry key. Affine basis vectors are transformed as directions,
+avoiding precision loss from subtracting translated float positions. Compilation
+reuse across small transform noise is limited to less than 1/1024 pixel over
+the complete compiled region, including artwork outside its authored box.
+
+Quiet canonical menus skip layout when no visible value editor or scrollbar
+needs a native update. Interaction, focus reveal and owned-widget settling still
+run. Hidden widgets resume ordinary updates when shown. Dense analytic coverage
+uses row bins and small per-row sorts; sparse, widely separated contours retain
+the bounded comparison sort. The same coverage integration and paint rules
+remain in use.
+
+Single-player pause screens retain the unchanged 3D scene after two consecutive
+stable presentation frames. The HUD, view effects and menu timelines continue
+to render. Resuming, a changed view or simulation time, a presentation gap,
+resize, video restart and special vision paths invalidate the scene. The
+unarchived `ui_retainedPauseCache 0` diagnostic restores ordinary scene drawing.
+Engine and game modules must be rebuilt and staged together (game API 52).
+Reused pause scenes also skip redundant entity and weapon pose preparation.
+The separable soft-focus shader pairs adjacent Gaussian taps where possible
+and computes successive weights by recurrence. Wider kernels retain their
+original sample spacing.
+
+The root profiler includes CPU and frame-interval p99/maximum values and vector
+compile/upload times. `ui_retainedGeometry` lists active meshes, revisions and
+atlas residency. Native coverage and production-adapter checks cover tile
+boundaries, padding for both blends, sparse/additive tiles, upload failure/retry,
+revision retirement and exhaustion of the page limit. Native tests also cover
+compound alpha, quiet-button feedback and pause-scene invalidation.
+
+On this Windows host, the 1,200-frame native title benchmark's median falls
+from 0.508 to 0.384 ms after row binning and button-layout changes; median path
+compilation falls from 0.275 to 0.188 ms. Trimming atlas tiles lets the paused
+HUD and menu retain about 83,000 of 86,000 submitted vertices, up from about
+54,000, within the same page limit. In 300-frame OpenGL and Vulkan profiles,
+retained pause-root CPU p50 falls from about 0.5 to 0.26 ms. Whole-frame timing
+varies substantially between runs, so these are diagnostic checkpoints rather
+than final parity acceptance.
+
+Engine captures on both APIs at 1280x720 qualify title/pause, focus and modal
+composition with caches disabled, enabled and disabled again. Vulkan title
+captures match exactly; other differences are isolated one-code-value rounding.
+Pause-cache checks also cover cold startup, video restart, resume and reopening.
+Shader-source A/B/A captures qualify the blur against its original kernel.
+Evidence is under `.tmp/ui-runtime-optimization/`. Gameplay was within about
+8% of legacy before these menu changes; final gameplay repeats and title/pause
+whole-window parity remain open. The user explicitly included both menus in
+the acceptance scope.
+
+The subsequent balanced four-window menu comparison keeps all frame intervals
+and stalls, with six seconds of settling and five seconds per window. Staged
+runtime hashes match the optimized build and remain unchanged during each run:
+
+| Scene / renderer | Legacy ms | Retained ms |
+| --- | ---: | ---: |
+| Title / OpenGL | 0.676 | 1.453 |
+| Pause / OpenGL | 0.670 | 1.355 |
+| Title / Vulkan | 0.405 | 1.179 |
+| Pause / Vulkan | 0.400 | 0.798 |
+
+The remaining menu gap is substantial. A separate source-cache toggle comparison
+reduces title time by about 8% on OpenGL; Vulkan differs by about +2%, within
+the variation of this run, so no Vulkan whole-frame gain is established.
+Settled interactive screens now replay their paint commands, including fresh
+backdrop capture. Transient targets are reserved and cached leases validated
+before replay draws to the destination. Atlas opacity draws have a read-only
+residency check, so a disabled, resized or dirty atlas returns to traversal
+before any partial frame is painted. Visible native value widgets continue
+their ordinary update path. Unchanged button geometry also avoids repeated
+focus/hit-bound walks; input, bound state, layout and visibility changes refresh
+it. Native tests cover stationary hover, moving/disabled controls, a changing
+background under replayed blur, resize and unsupported-host fallback. Eight
+UI suites pass, including focus, popup, scrollbar, number, HUD and view effects.
+
+This combined change reduces pause-root CPU p50 to 0.080 ms on OpenGL and
+0.069 ms on Vulkan. Balanced pause whole-window means are 1.095 versus 0.697 ms
+legacy on OpenGL, and 0.684 versus 0.409 ms legacy on Vulkan. The animated title
+still adds substantial work (1.519 versus 0.666 ms OpenGL; 1.266 versus 0.479 ms
+Vulkan). The latter run includes pronounced host variation; all intervals
+remain included. Menu parity is still unqualified. Engine capture A/B/A checks
+pass on both APIs at 1280x720, and the preceding replay change also passes at
+720x1280, with exact or isolated one-code-value differences.
+
+The matching pre-replay gameplay repeat places Air Defense 1 within 3.04%
+(OpenGL) and 1.35% (Vulkan) of legacy, and solo Q4DM1 within 3.09% and 1.51%.
+Each uses four five-second windows per condition and six seconds of settling,
+with staged build hashes unchanged throughout. The shorter replay/interaction
+recheck measures +3.58%/+3.79% for Air Defense 1 and +7.82%/+1.41% for Q4DM1
+(OpenGL/Vulkan). A slower OpenGL MP window remains included. The experiment
+with eight 1024-square atlas pages is rejected: within the same 32 MiB budget,
+page fragmentation leaves substantially more pause geometry uncached. The
+qualified atlas remains 32 pages of 512 square pixels.
+
+Moving convex three/four-sided linear-alpha masks now have a material shader
+path. It intersects the shape with each physical pixel and samples cached
+artwork through that coverage, eliminating the title glint's per-frame vector
+compilation and upload. Stationary masks retain their caches; unsupported
+geometry, strokes, stop values and hosts use ordinary coverage. Mask snapshots
+remain immutable, clipping stays in physical pixels, and source targets are
+never modified. `ui_retainedLinearMasks 0` disables this path for comparison.
+Native checks exercise reflected/sheared transforms, source-cache on/off,
+overlapping artwork, live opacity, resize and feature fallback. Nine UI suites
+pass. Engine captures compare CPU and shader masks at the same animation time
+on both APIs, including four-sided masks and video restart; all differ by at
+most one colour code value.
+
+A balanced feature-only title comparison measures 1.539 to 1.000 ms on OpenGL
+and 1.255 to 0.574 ms on Vulkan. Root CPU p50 falls to 0.174/0.183 ms, and vector
+compilation/upload counts are zero during the profile. These compare the
+retained path with its optimization off/on; they do not establish parity with
+legacy. The next comparison must again include legacy title and pause screens.
+
+Decorative transforms outside control/modal ancestry now resolve their paint
+properties without a full layout update. Moving controls still update layout
+and hit bounds. The focused native fixture and all nine UI suites pass.
+Sharp four-pixel mask ramps revealed two additional correctness requirements:
+subdivided CPU masks must keep their single-sample target under window MSAA,
+and Vulkan GUI uploads must ignore pointer-only memos whose cache headers may
+have been recycled during an in-progress presentation. World depth/light-pass
+and GPU-skinning reuse remain intact. Production-function adapter tests cover
+that distinction. Clean SMP 1 / MSAA 8 captures of CPU/shader mask transitions
+and video restart pass on both APIs with at most one colour-value difference.
+
+The subsequent `linear-transform-menu-ab` comparison includes legacy again:
+
+| Scene / renderer | Legacy ms | Retained ms |
+| --- | ---: | ---: |
+| Title / OpenGL | 0.724 | 0.938 |
+| Pause / OpenGL | 0.680 | 1.083 |
+| Title / Vulkan | 0.409 | 0.525 |
+| Pause / Vulkan | 0.405 | 0.640 |
+
+All runtime hashes stay unchanged. Title vector compilation/upload remains
+zero; root CPU p50 is 0.143/0.161 ms for title and 0.077/0.066 ms for pause
+(OpenGL/Vulkan). These are improvements, but menu parity remains open.
+
+A subsequent atlas change groups sixteen independent 512-square pages into
+each 2048-square image. Allocation and four-frame retirement still use 32
+separate page slots, and the GPU cap stays 32 MiB; a dirty upload temporarily
+assembles 16 MiB. Failure/retry and recycling preserve live neighbouring pages.
+API draw counts drop from 73 to 40 for title and 96 to 59 for pause with the
+same atlas residency. Both APIs pass cached/uncached title, pause, focus and
+modal captures at SMP 1 / MSAA 8, and exercise video restart. The timings vary
+too much to establish a stable cross-renderer gain from this change alone.
+
+Decorative transforms now use RmlUi's typed primitives directly. Native tests
+compare them with independently parsed CSS at densities 1, 1.5 and 2, with
+DP/PX translation, reflected/nonuniform scaling, rotation and snapshot restore.
+Sharp mask captures also pass on both APIs. With the shipped metric settings
+(renderer metrics 0, whole-frame GPU timing 1) during balanced windows, the
+combined candidate measures:
+
+| Scene / renderer | Legacy ms | Retained ms |
+| --- | ---: | ---: |
+| Title / OpenGL | 0.601 | 0.732 |
+| Pause / OpenGL | 0.652 | 0.997 |
+| Title / Vulkan | 0.359 | 0.431 |
+| Pause / Vulkan | 0.363 | 0.620 |
+
+Detailed profiling runs separately after those windows. Title root CPU p50 is
+0.106/0.091 ms. Earlier runs enabled per-pass metrics throughout; their timing
+overhead accounts for only part of the gap. Both menus remain above legacy.
+
+A settled opaque blur covering the complete viewport now finishes its second
+pass on the base surface, avoiding a temporary destination and final composite.
+The live backdrop is still captured every frame. Partial, translucent, streak
+and unsupported cases retain their layered path; `ui_retainedDirectBackdrop 0`
+selects that reference. Native tests and production-adapter checks cover those
+guards. Engine captures pass on both APIs at 1280x720 and 720x1280, including
+focus, modal and video restart with SMP 1 / MSAA 8. Portrait comparisons are
+exact; wide differences are isolated one-value pixels. Default-metric pause
+means are 0.544/0.684 ms for legacy/retained on OpenGL and 0.344/0.552 ms on
+Vulkan, so menu parity remains open.
+
+Decorative-only projection now also avoids refreshing unrelated control hit
+bounds; native coverage keeps moving controls and modal ancestry live. The
+convex-mask shader skips pixel clipping for wholly contained/outside pixels,
+with CPU/shader sharp-mask comparisons still within one colour value on both
+APIs. Moving blur weights to vertices and grouping disjoint host draws were
+tested and rejected because neither established a useful frame-time gain.
+
+`ui_retainedHalfBlur` filters each axis before reducing that axis for opaque,
+direct full-view 6–8 pixel kernels. Its horizontal target keeps every source
+row; the vertical pass then halves height, followed by a linear resolve. A
+half-centred kernel averages two original Gaussian kernels before pairing
+samples, avoiding the high-frequency aliasing of integer-centred pairs at this
+sampling phase. Other kernel widths, odd sizes, offsets and partial/layered
+effects retain the full-resolution path. Every frame still captures live
+content. Resource, resize and fallback guards are covered by the host adapter.
+
+The upsample is a spatial approximation. Wide production title, pause, focus
+and modal comparisons differ by at most one colour value; portrait fallback
+comparisons are exact. Both APIs exercise SMP 1, MSAA 8 and video restart.
+Full-view stripe, step and colour-grid fixtures at widths 6, 7.5 and 8 produce
+identical reference-return captures; candidate differences reach 4–5 values at
+edges with mean absolute error below 0.3/255. Separate GPU diagnostic medians
+fall from 277 to 173 microseconds on Vulkan and 434 to 365 on OpenGL. Default
+whole-frame feature comparisons improve only about 3%, with retained variation;
+this is not menu parity. Evidence is under
+`.tmp/ui-runtime-optimization/reduced-blur-{filtered,patterns,portrait}` and
+`reduced-blur-feature-default`.
+
+Ordinary single-player pause now holds the presentation scene clock at the
+authoritative game time. Previously its drift correction periodically restarted
+interpolation despite a stopped simulation, moving the camera back toward the
+previous pose and invalidating the scene cache. HUD/menu animation keeps its
+independent clock. Native tests cover a long pause, resume, multiplayer and demo
+behavior. Cache/reference engine captures without `g_stopTime` pass on both
+APIs with SMP 1 / MSAA 8, video restart and resume/reopen; differences are
+isolated one-value HUD pixels. The eleven UI/material suites pass.
+
+The `menu-live-clock` comparison uses ordinary pause, rather than a diagnostic
+simulation stop. Vulkan title means are 0.346/0.367 ms (legacy/retained), but
+pause remains 0.348/0.563 ms. OpenGL title is 0.690/0.849 ms with large window
+variation, and pause is 0.621/0.952 ms. These runs do not establish menu parity.
+
+`ui_retainedHudStateCache` skips an identical stock HUD expression walk at the
+same simulation time while a working Remastered peer owns drawing. It compares
+the complete dictionary's pooled immutable entries, including direct dictionary
+writes, and invalidates for timed scripts, input/named events, activation,
+presentation writes, reload/restore and Classic fallback. Explicit redraw and
+GUI editing/script diagnostics bypass it. The cached dictionary is never saved.
+HUD drawing and animation continue on their original clocks. Production-method
+tests cover repeated publications, mutations, clock changes and bypasses.
+Both APIs pass ordinary pause, restart and resume/reopen captures within one
+value in isolated HUD pixels. Feature-only pause means improve from
+0.553 to 0.486 ms on Vulkan and 0.940 to 0.873 ms on OpenGL. Whole-menu parity
+still needs to be established against legacy with the final candidate.
+
+## Final candidate checks (14 October 2026)
+
+The final candidate also reduces repeated GUI number publication. Integral
+floats keep their original six-decimal dictionary representation, including
+negative zero; fractional, large and exceptional values retain the original
+formatter. Integer publication uses a locale-independent integer conversion.
+Fixed cinematic rectangle keys no longer need formatting each frame. Unchanged
+stock dictionary values keep their pooled storage, but every application write
+still reaches the replacement so it can override an intervening UI event.
+Debug logging retains its old-value checks only while that logging is enabled.
+The native fixture compares 65,536 float bit patterns with the original
+formatter; the production-method adapter covers publication, direct dictionary
+mutation and event overrides. All eleven UI/material suites and the five
+renderer/HUD adapters pass after the final source changes.
+
+Classic presentation lights now receive the same held scene clock as the
+camera and entity poses during an ordinary single-player pause. This avoids
+retiring or fading lights behind the reused view. Multiplayer retains its
+original presentation path.
+
+A separate flattened-menu surface experiment was removed. Its final isolated
+pause comparison improved Vulkan by about 5% and OpenGL by about 1.5%, while
+adding a render target, invalidation machinery and up to five colour values of
+composition rounding. The existing bounded artwork caches and command replay
+remain. Prototype measurements with `ui_retainedFrameCache 1` do not describe
+the final candidate, and that experimental CVar is no longer registered.
+
+The refreshed `menu-qualified-final` comparison uses normal animation, ordinary
+pause, default GPU timers, detailed renderer metrics off, MSAA 8 and SMP 0 at
+1280x720. Each uncapped condition has four five-second windows in ABBAABBA
+order; 144/240 Hz each have two per condition. No slow windows were discarded.
+The staged binary hashes match the optimized build and remain unchanged.
+
+| Scene | Legacy uncapped mean ms | Retained uncapped mean ms | Difference |
+| --- | ---: | ---: | ---: |
+| Vulkan title | 0.367735 | 0.378361 | +2.89% |
+| Vulkan pause | 0.346451 | 0.483137 | +39.45% |
+| OpenGL title | 0.602364 | 0.708452 | +17.61% |
+| OpenGL pause | 0.600295 | 0.867025 | +44.43% |
+
+At 144 Hz, all four mean comparisons differ by at most 0.021%; at the default
+240 Hz, at most 0.293%. Both conditions' p99 is 8–9 ms at 144 Hz and 6 ms at
+240 Hz. One retained OpenGL title window includes a 22 ms maximum; it is kept
+in the result. These caps give comparable observed pacing on this hardware,
+but do not erase the uncapped overhead. **The requested title/pause parity gate
+remains open.** Final engine title/pause captures were inspected on both APIs.
+
+Separate diagnostics, with detailed renderer metrics enabled, put title GPU
+medians below legacy on both APIs (OpenGL 219/252 us; Vulkan 101/119 us,
+retained/legacy). Pause remains higher (353/243 us; 173/113 us). Title therefore
+still warrants CPU/submission investigation, particularly on OpenGL; pause has
+both additional HUD/front-end work and soft-focus GPU work. These diagnostic
+samples must not be substituted for the whole-window frame-time measurements.
+
+The refreshed uncapped gameplay windows (`gameplay-final-numbers`) give:
+
+| Scene | Legacy mean ms | Retained mean ms | Difference |
+| --- | ---: | ---: | ---: |
+| OpenGL Air Defense 1 | 4.098225 | 3.936005 | -3.96% |
+| Vulkan Air Defense 1 | 2.421579 | 2.532122 | +4.56% |
+| OpenGL Q4DM1 | 3.345477 | 3.449113 | +3.10% |
+| Vulkan Q4DM1 | 2.265403 | 2.674543 | +18.06% |
+| Vulkan Q4DM1, reverse order | 2.280696 | 2.265670 | -0.66% |
+
+The apparent OpenGL SP gain is within substantial window variation. Vulkan MP
+had one retained window at 3.323 ms while all legacy windows stayed around
+2.27 ms; the reverse-order repeat stayed close throughout. Both runs remain
+in the evidence. Three cases support the earlier near-legacy gameplay finding;
+Vulkan MP's variation prevents a precise new overhead claim from this sample.
+These are warmed static cameras and a solo MP fixture, not a loaded server or
+other-hardware qualification.
+
+Final ordinary-pause, video restart and resume/reopen captures with SMP 1 and
+MSAA 8 pass on both APIs (`pause-final-numbers`): at most one colour value in
+246 HUD pixels, also present in reference-return comparisons. After the timing
+runs, review removed an extra dictionary lookup that could read a freed key
+when that key was supplied by the overwritten value. The production adapter
+now models separate key/value pools and covers that alias. The rebuilt HUD and
+screen suites pass; this narrow correctness fix is subsequent to the timed
+binary identities recorded above. The final staged SP/Classic-switch smoke
+also passes on both renderers with matching build/stage hashes and no retained
+warnings or errors (`publication-review-smoke`).
+
+## Moving mask and crossfade replay (14 October 2026)
+
+The title's counter-rotating glint can now replay its stationary source while
+refreshing the analytic mask. Replay first validates the complete projected
+artwork, clip and source-cache lease; geometry changes, unsupported paint or
+lost resources use the ordinary traversal. This stays under the existing
+`ui_retainedReplay` switch. Eight live mask poses, reference returns and video
+restart produce identical RGB pixels on both APIs with SMP 1 / MSAA 8
+(`mask-replay-visual`). Native coverage also exercises changing opacity,
+resizing and disabling the analytic-mask host path.
+
+Four-window feature comparisons (`mask-replay-feature`) give 0.737702 versus
+0.663832 ms on OpenGL and 0.380998 versus 0.367069 ms on Vulkan with replay
+off/on. Both include their slower windows; these are feature comparisons,
+not a fresh legacy-parity result. A separate recorded-draw ordering experiment
+was removed: OpenGL gains were inconsistent and a Vulkan candidate window
+slowed substantially. Its results remain in `record-order-feature`.
+
+Fitted leaf images now support the same isolated-opacity replay as scrolling
+images. The title montage uses opacity for its white-tinted fades, preserving
+the authored timings. Decorative leaves beside buttons avoid a menu layout
+walk; interactive ancestry, owned widgets and compound groups retain normal
+style preparation. Native tests compare replayed and normal draws through
+zero/full-opacity crossings and verify that hover and control updates remain
+correct. Twelve same-frame reference/candidate captures per API are RGB-exact,
+including video restart (`menu-fade-qualified`). Two expected late-preload
+notices belong to the private preview's stock materials and are retained in
+the reports; there are no other retained warnings or runtime errors.
+
+All eleven UI/material suites pass in `test-menu-fades-relink.log`. Earlier
+widget crashes in this increment were traced to stale Host-interface objects:
+restoring a rejected experiment also restored old header timestamps. Rebuilding
+all interface dependents resolves those failures; they are not waived. The
+updated combined candidate is staged and compared in `menu-fades-comparison`.
+Each uncapped condition has four five-second windows with four-second settling,
+normal motion, MSAA 8 and SMP 0. The affected uncertain cases also have four
+windows per condition in the opposite order (`menu-fades-reverse`).
+
+| Scene/order | Legacy mean ms | Retained mean ms | Difference |
+| --- | ---: | ---: | ---: |
+| Vulkan title, ABBAABBA | 0.348621 | 0.352338 | +1.07% |
+| OpenGL title, ABBAABBA | 0.587101 | 0.686237 | +16.89% |
+| OpenGL title, BAABBAAB | 0.602469 | 0.662329 | +9.94% |
+| OpenGL pause, ABBAABBA | 0.614057 | 0.917462 | +49.41% |
+| Vulkan pause, ABBAABBA | 0.518419 | 0.511126 | -1.41% |
+| Vulkan pause, BAABBAAB | 0.344365 | 0.481389 | +39.79% |
+
+Vulkan pause's first order includes a 0.926770 ms legacy window, versus its
+other legacy windows at 0.363564–0.413072 ms. It is retained in the mean, but
+that run cannot establish parity. The opposite order is stable and confirms
+the remaining pause overhead. No cause for the isolated slow window has been
+established. OpenGL title's retained root p50 is now 0.0506 ms, with zero layout
+updates and one replay per frame in the sampled 300 frames; whole-frame
+OpenGL title remains 10–17% above legacy across these two orders. **The menu
+parity gate remains open.**
+
+A shader-only constant Gaussian-weight experiment was also rejected. Its
+OpenGL original/candidate means were 0.908385/0.901855 ms, and Vulkan
+0.476746/0.505918 ms. Separate GPU medians did not improve consistently. The
+experiment changed only private test-profile shader overrides and was never
+incorporated in the staged package (`constant-blur-feature`).
+
+The combined candidate also passes ordinary pause, video restart, resume and
+reopen on both renderers with SMP 1 / MSAA 8 (`pause-menu-fades`). Compared
+captures differ by at most one colour value in 244 OpenGL / 210 Vulkan HUD
+pixels, including reference-return variation. Current paused and resumed
+engine captures were visually inspected.
+
+A subsequent dirty-backdrop cache was rejected. Exact queued-2D comparisons
+localized the live ECG and allowed partial blur updates. Cropping its source
+draws reduced Vulkan diagnostic GPU duration to about 85 microseconds from
+173, but whole-window means worsened from 0.486059 to 0.521626 ms (+7.32%).
+OpenGL's apparent 3.44% gain depended on a slow baseline window, and its
+candidate GPU medians were higher. Its native admission/cropping adapter and
+OpenGL pause/resize/restart/resume captures passed; Vulkan pixel qualification
+was not run after the timing rejection. All prototype changes are removed;
+`backdrop-cache-rejection.json` and `rejected-backdrop-cache/` preserve the
+results and implementation. This does not change the accepted parity findings.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

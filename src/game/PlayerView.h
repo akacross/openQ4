@@ -61,7 +61,8 @@ public:
 
 	// this may involve rendering to a texture and displaying
 	// that with a warp model or in double vision mode
-	void				RenderPlayerView( idUserInterface *hud );
+	void				RenderPlayerView( idUserInterface *hud, bool menuPaused = false );
+	bool				CanReusePausedScene( const renderView_t *view ) const;
 
 	void				Fade( idVec4 color, int time );
 
@@ -80,6 +81,10 @@ public:
 // RAVEN END
 
 private:
+	void DrawPausedScene( idUserInterface *hud, const renderView_t *view, bool menuPaused );
+	bool pauseSceneValid = false;
+	int pauseSceneWidth = 0, pauseSceneHeight = 0, pauseSceneGeneration = -1, pauseSceneTime = -1, pauseSceneFrame = -1;
+	renderView_t pauseSceneView{};
 	void ResetRetainedViewEffects();
 	void RetainedRecoveryFade( const idVec4 &color, int duration );
 	void DrawRetainedViewEffects( bool wheelOnly = false );

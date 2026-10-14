@@ -75,6 +75,7 @@ struct idDict {
 const char* va(const char* format,int value){static char result[64];std::snprintf(result,sizeof result,format,value);return result;}
 struct idUserInterfaceLocal {
     idWindow* desktop=nullptr;idDict state;
+    bool evaluatedHudValid=true;
     // The HUD bridge's and the Remastered peer's state (RetainedHud.cpp).
     struct RetainedHud { bool drawn=false; bool DrawSucceeded() const {return drawn;} } bridge,*retainedHud=nullptr;
     bool remastered=false; bool RemasteredActive() const {return remastered;}
@@ -120,6 +121,7 @@ int main(){
     assert(!gui.SetPresentationValue("curr",nullptr));
     assert(root.values.size()==2 && child.values.size()==1 && simple.values.size()==1);
     assert(gui.SetPresentationValue("curr","4",false));
+    assert(!gui.evaluatedHudValid);
     assert(gui.GetPresentationValue("curr",out) && out.text=="4");
     root.values["curr"].Frame();
     assert(gui.GetPresentationValue("curr",out) && out.text=="2");

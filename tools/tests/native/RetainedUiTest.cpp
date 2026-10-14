@@ -1,6 +1,7 @@
 // Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
 #include "src/ui/retained/Runtime.h"
 #include "src/ui/retained/CoverageRaster.h"
+#include "src/ui/GuiStateNumber.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +18,29 @@ static void Check(bool condition, const char* message) {
 	if (!condition) { std::fprintf(stderr,"FAIL: %s\n",message); std::exit(1); }
 }
 static bool Near(float a, float b) { return std::abs(a-b) < .1f; }
+static void CheckGuiStateNumbers() {
+	for (int number:{0,1,-1,720,1280,std::numeric_limits<int>::min(),std::numeric_limits<int>::max()}) {
+		char expected[64],actual[64];
+		std::snprintf(expected,sizeof(expected),"%i",number);
+		Check(std::strcmp(expected,GuiStateInteger(number,actual))==0,"integer GUI publication preserves the printf dictionary string");
+	}
+	const auto check=[](float number) {
+		char expected[64],actual[64];
+		std::snprintf(expected,sizeof(expected),"%f",static_cast<double>(number));
+		const char* integral=GuiStateIntegralFloat(number,actual);
+		const bool fits=number>=-2147483648.f && number<2147483648.f && number==std::trunc(number);
+		Check(bool(integral)==fits,"fractional, large and exceptional GUI values retain printf");
+		if (integral) Check(std::strcmp(expected,integral)==0,"integral GUI publication preserves the complete printf dictionary string");
+	};
+	for (float number:{0.f,-0.f,1.f,-1.f,720.f,1280.f,.1f,.25f,.9999998f,16777218.f,
+		-2147483648.f,2147483648.f,std::numeric_limits<float>::max(),-std::numeric_limits<float>::max(),
+		std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()}) check(number);
+	std::uint32_t bits=0x146135;
+	for (int i=0;i<65536;++i) {
+		bits=bits*1664525u+1013904223u;
+		float number; std::memcpy(&number,&bits,sizeof(number)); check(number);
+	}
+}
 static void CheckCoverageRaster() {
 	std::vector<Vertex> vertices;
 	std::vector<int> indices;
@@ -50,6 +74,15 @@ static void CheckCoverageRaster() {
 	vertices.clear(); indices.clear();
 	for (int i=0;i<20;++i) rectangle(0,0,500,500,.5f,0,.5f);
 	Check(!RasterizeCoverage(vertices,indices,bitmap),"overlapping coverage obeys its work budget");
+	vertices.clear(); indices.clear();
+	rectangle(0,0,1280,2,.5f,0,.5f);
+	Check(!RasterizeCoverage(vertices,indices,bitmap) && RasterizeCoverage(vertices,indices,bitmap,8192),
+		"wide coverage can be admitted for tiled storage without changing the default extent");
+	Check(bitmap.width==1280 && bitmap.height==2 && bitmap.pixels[510*4]==128 && bitmap.pixels[1020*4+3]==128,
+		"wide coverage retains the exact samples on both sides of tile boundaries");
+	vertices.clear(); indices.clear();
+	rectangle(0,0,1,1,1,0,1); rectangle(8000,8000,1,1,1,0,1);
+	Check(!RasterizeCoverage(vertices,indices,bitmap,8192),"sparse oversized bounds obey the independent bitmap storage budget");
 }
 static void CheckInitializationPacing() {
 	openq4::InitializationPresentation pacing;
@@ -171,6 +204,9 @@ struct TestHost final : Host {
 	std::vector<Bounds> samplePoints;
 	bool failLayer = false;
 	bool cacheLayers = false;
+	bool maskedSourceLayers = false;
+	bool linearMasks = false;
+	int linearMaskDraws=0;
 	bool replayFrames = true;
 	bool collectTimings = true;
 	bool CollectTimings() const override { return collectTimings; }
@@ -268,6 +304,53 @@ struct TestHost final : Host {
 			}
 		}
 	}
+	bool CanCompositeMaskedLayer() const override { return maskedSourceLayers; }
+	bool CanDrawLinearMask() const override { return linearMasks; }
+	void DrawLinearMask(std::uint32_t source,const LinearMask& mask,const Bounds& clip,float opacity) override {
+		++linearMaskDraws;
+		if (source) { layers[source].frame=renderFrame; activeLayer=0; }
+		for (size_t i=0;i<samplePoints.size();++i) {
+			const auto point=samplePoints[i];
+			if (point.x<clip.x || point.x>=clip.x+clip.width || point.y<clip.y || point.y>=clip.y+clip.height) continue;
+			const double x=std::floor(point.x),y=std::floor(point.y);
+			std::vector<VectorPoint> polygon{{x,y},{x+1,y},{x+1,y+1},{x,y+1}};
+			for (size_t e=0;e<4 && !polygon.empty();++e) {
+				const auto a=mask.points[e],b=mask.points[(e+1)%4];
+				const auto distance=[&](VectorPoint p){return (b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x);};
+				std::vector<VectorPoint> clipped; auto before=polygon.back(); double bd=distance(before);
+				for (const auto p:polygon) {
+					const double d=distance(p);
+					if ((d>0 && bd<0) || (d<0 && bd>0)) {
+						const double t=bd/(bd-d); clipped.push_back({before.x+(p.x-before.x)*t,before.y+(p.y-before.y)*t});
+					}
+					if (d>=0) clipped.push_back(p);
+					before=p; bd=d;
+				}
+				polygon=std::move(clipped);
+			}
+			double area=0;
+			for (size_t j=0;j<polygon.size();++j) {
+				const auto a=polygon[j],b=polygon[(j+1)%polygon.size()];
+				area+=(a.x-x)*(b.y-y)-(a.y-y)*(b.x-x);
+			}
+			const double t=std::clamp(mask.gradient[0]*(x+.5)+mask.gradient[1]*(y+.5)+mask.gradient[2],0.,1.);
+			const double alpha=t<=mask.middle ? mask.alpha[0]+(mask.alpha[1]-mask.alpha[0])*t/mask.middle :
+				mask.alpha[1]+(mask.alpha[2]-mask.alpha[1])*(t-mask.middle)/(1-mask.middle);
+			const float coverage=float(std::round(alpha*std::clamp(area*.5,0.,1.)*255)/255);
+			const Vertex colour=source ? layers[source].pixels[i] : Vertex{0,0,0,0,1,1,1,1};
+			Over(layers[activeLayer].pixels[i],colour,coverage*opacity);
+		}
+	}
+	void CompositeMaskedLayer(std::uint32_t source,const std::vector<Vertex>& vertices,
+		const std::vector<int>& indices,float opacity) override {
+		Check(source && source<layers.size(),"masked composition samples an owned layer");
+		layers[source].frame=renderFrame; activeLayer=0;
+		auto background=layers[0].pixels;
+		layers[0].pixels.assign(samplePoints.size(),Vertex{0,0,0,0,0,0,0,0});
+		Draw(vertices,indices,0);
+		const auto mask=std::move(layers[0].pixels); layers[0].pixels=std::move(background);
+		for(size_t i=0;i<samplePoints.size();++i) Over(layers[0].pixels[i],layers[source].pixels[i],mask[i].a*opacity);
+	}
 	void EndLayer(std::uint32_t restore) override { activeLayer = restore; }
 	// Retained submission: each drawn mesh's identity and revision, and the
 	// identities retired with their geometry.
@@ -282,9 +365,26 @@ struct TestHost final : Host {
 	struct Softened { std::uint32_t destination; float sigma, saturation; Bounds region; };
 	std::vector<Softened> softened;
 	bool softFocus = true;
+	bool directBackdrop = false;
+	bool sampleUniformBackdrop = false;
+	bool CanSoftenBackdropDirect(float, float, const Bounds& region) const override {
+		return directBackdrop && softFocus && region.x<=0 && region.y<=0 && region.x+region.width>=1280 && region.y+region.height>=720;
+	}
+	bool SoftenBackdropDirect(float sigma, float saturation, const Bounds& region) override {
+		return SoftenBackdrop(0,sigma,saturation,region);
+	}
 	bool SoftenBackdrop(std::uint32_t destination, float sigma, float saturation, const Bounds& region) override {
 		softened.push_back({destination,sigma,saturation,region});
-		if (softFocus) activeLayer = destination;
+		if (softFocus) {
+			activeLayer = destination;
+			if (sampleUniformBackdrop) for (size_t i=0;i<samplePoints.size();++i) {
+				auto colour=layers[0].pixels[i];
+				const float luma=.2126f*colour.r+.7152f*colour.g+.0722f*colour.b;
+				colour.r=luma+(colour.r-luma)*saturation; colour.g=luma+(colour.g-luma)*saturation;
+				colour.b=luma+(colour.b-luma)*saturation; colour.a=1;
+				layers[destination].pixels[i]=colour;
+			}
+		}
 		return softFocus;
 	}
 	struct Streaked { std::uint32_t destination; float strength; Bounds region; };
@@ -335,11 +435,68 @@ static void CheckSoftFocus(TestHost& host) {
 		region.x <= 200 && region.y <= 100 && region.x+region.width >= 600 && region.y+region.height >= 300 &&
 		runtime.Statistics().backdropComposites == 1 && runtime.Statistics().backdropFallbacks == 0,
 		"settled: 7.5 dp at 2x is a 15 px sigma over the box and its blur reach");
+	const auto captureRegion=region;
+	for (int frame=0;frame<3;++frame) { host.ClearSamples(); runtime.Frame(viewport,1.31+frame*.01); }
+	host.softened.clear(); host.ClearSamples(); runtime.Frame(viewport,1.35);
+	Check(runtime.Statistics().frameReplays==1 && host.softened.size()==1 && host.activeLayer==0 &&
+		host.softened[0].region.x==captureRegion.x && host.softened[0].region.y==captureRegion.y &&
+		host.softened[0].region.width==captureRegion.width && host.softened[0].region.height==captureRegion.height,
+		"settled backdrop replays commands and captures the current underlying frame over the original region");
+	host.sampleUniformBackdrop=true; host.samplePoints={{210,110}};
+	for (int frame=0;frame<2;++frame) {
+		host.ClearSamples(); host.layers[0].pixels[0]=Vertex{0,0,0,0,float(frame==0),0,float(frame==1),1};
+		Check(runtime.Frame(viewport,1.36+frame*.01) && runtime.Statistics().frameReplays==1,"replay a live uniform backdrop");
+		const auto& pixel=host.layers[0].pixels[0];
+		Check(frame==0 ? pixel.r>.8f && pixel.b<.1f : pixel.b>.8f && pixel.r<.1f,
+			"replayed blur samples this frame's background instead of retained pixels");
+	}
+	host.sampleUniformBackdrop=false; host.samplePoints.clear();
 	host.softFocus = false; host.softened.clear();
 	runtime.Frame(viewport,1.4);
 	Check(host.softened.size() == 1 && runtime.Statistics().backdropComposites == 0 && runtime.Statistics().backdropFallbacks == 1 &&
 		host.errors == 0,"a host without soft focus is counted and logs nothing");
 	host.softFocus = true;
+	viewport.width=960; host.ClearSamples();
+	Check(runtime.Frame(viewport,1.5) && runtime.Statistics().frameReplays==0,"resize rebuilds backdrop commands before drawing");
+}
+
+static void CheckDirectBackdrop(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"full-backdrop",
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","unit":"%","value":100},"height":{"type":"length","unit":"%","value":100}},
+	 "children":[{"id":"soften","type":"group","properties":{"width":{"type":"length","unit":"%","value":100},"height":{"type":"length","unit":"%","value":100},
+	 "opacity":{"type":"number","value":1},"backdrop-blur":{"type":"length","unit":"dp","value":4},"backdrop-saturate":{"type":"number","value":0.8}}}]}})json";
+	Runtime runtime(host);std::vector<Diagnostic> diagnostics;
+	Check(runtime.LoadDocument(source,"full-backdrop.q4ui",diagnostics),"load full-view backdrop fixture");
+	host.sampleUniformBackdrop=true;host.samplePoints={{100,100}};
+	for(int frame=0;frame<3;++frame){host.ClearSamples();Check(runtime.Frame({},frame),"settle full-view backdrop recording");}
+	int frame=3;
+	for(bool direct:{false,true,true,false}) {
+		host.directBackdrop=direct;host.ClearSamples();host.softened.clear();
+		const bool red=frame%2==0;
+		host.layers[0].pixels[0]=Vertex{0,0,0,0,float(red),0,float(!red),1};
+		Check(runtime.Frame({},frame++),"replay full-view backdrop");
+		Check(runtime.Statistics().frameReplays==1 && host.softened.size()==1 &&
+			(host.softened[0].destination==0)==direct && host.activeLayer==0,"direct backdrop is selected only for a supported host");
+		Check(runtime.Statistics().layerPushes==unsigned(!direct),"direct backdrop avoids a transient target and composite");
+		const auto& pixel=host.layers[0].pixels[0];
+		Check(red ? pixel.r>.8f && pixel.b<.1f : pixel.b>.8f && pixel.r<.1f,"direct and layered backdrop keep this frame's live colour");
+	}
+	host.directBackdrop=true;host.softFocus=false;host.ClearSamples();host.softened.clear();
+	Check(runtime.Frame({},frame++) && runtime.Statistics().backdropFallbacks==1 && host.softened[0].destination!=0,
+		"unavailable direct backdrop retains the ordinary transparent fallback");
+	host.softFocus=true;
+	for(bool partial:{false,true}) {
+		Document layered;Check(layered.Load(source,diagnostics),"load layered backdrop reference");
+		Check(layered.ReplaceValue(partial ? "/root/children/0/properties/height/value" : "/root/children/0/properties/opacity/value",
+			partial ? "50" : "0.5",diagnostics),"set partial or translucent backdrop");
+		Check(runtime.LoadDocument(layered.Source(),"layered-backdrop.q4ui",diagnostics),"load constrained backdrop runtime");
+		for(int i=0;i<3;++i){host.ClearSamples();Check(runtime.Frame({},frame++),"settle constrained backdrop");}
+		host.ClearSamples();host.softened.clear();host.layers[0].pixels[0]=Vertex{0,0,0,0,1,0,0,1};
+		Check(runtime.Frame({},frame++) && host.softened.size()==1 && host.softened[0].destination!=0,
+			"partial and translucent backdrops retain their intermediate target");
+		if(!partial)Check(std::abs(host.layers[0].pixels[0].r-.92126f)<.001f,"translucent soft focus retains its group opacity");
+	}
+	host.directBackdrop=false;host.sampleUniformBackdrop=false;host.samplePoints.clear();
 }
 
 // The speed streak: a node's backdrop-streak becomes RmlUi's backdrop-filter
@@ -631,6 +788,8 @@ static void CheckFrameReplay(TestHost& host) {
 	}
 	host.cacheLayers=false; host.samplePoints.clear();
 }
+
+
 static void CheckHiddenPresentation(TestHost& host) {
 	const char* source=R"json({"format":"openq4-ui","version":1,"id":"hidden-layout",
 	 "state":{"shown":{"type":"boolean","initial":false}},
@@ -669,6 +828,239 @@ static void CheckHiddenPresentation(TestHost& host) {
 		"layout readbacks belong to the replacement document, not retired elements");
 	Check(host.errors==0,"hidden presentation updates produce no diagnostics");
 }
+static void CheckIdentityTransformReuse(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"identity-reuse",
+	 "root":{"id":"parent","type":"group","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":100},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},
+	 "children":[{"id":"child","type":"vector","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":100},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},
+	 "paths":[{"id":"rectangle","commands":[{"id":"a","op":"move","points":[[10,10]]},{"id":"b","op":"line","points":[[90,10]]},{"id":"c","op":"line","points":[[90,90]]},{"id":"d","op":"line","points":[[10,90]]},{"id":"z","op":"close"}],"fill":{"type":"solid","color":{"type":"color","value":[1,0,0,1]}}}]}]},
+	 "timelines":[{"id":"turn","durationMs":9000,"tracks":[
+	 {"node":"parent","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":9000,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,360]}}]},
+	 {"node":"child","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":9000,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,-360]}}]}]}]})json";
+	Runtime runtime(host);std::vector<Diagnostic> diagnostics;
+	Check(runtime.LoadDocument(source,"identity-reuse.q4ui",diagnostics) && runtime.PlayTimeline("turn",0),"load counter-rotating transform fixture");
+	std::vector<std::pair<std::uint64_t,std::uint64_t>> stationary;
+	for(int frame=0;frame<=240;++frame){
+		host.meshes.clear();host.ClearSamples();Check(runtime.Frame({},frame/60.0),"render counter-rotating transform");
+		Check(!host.meshes.empty(),"stationary counter-rotating artwork remains visible");
+		for(const auto& [mesh,revision]:host.meshes)Check(revision==1,"identity and null transforms preserve the same submission revision");
+		if(!frame) stationary=host.meshes;
+		else Check(host.meshes==stationary,"counter-rotation and integer-phase noise preserve mesh identities");
+	}
+}
+static void CheckMovingMaskSourceCache(TestHost& host,bool solid=false) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"moving-mask-cache",
+	 "state":{"alpha":{"type":"number","initial":0.75}},
+	 "bindings":[{"id":"alpha","node":"parent","property":"opacity","value":{"state":"alpha"}}],
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":100},"background-color":{"type":"color","value":[0,1,0,1]},"transform":{"type":"transform","unit":"dp","value":[100,100,1,1,0]}},
+	 "children":[{"id":"parent","type":"group","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":100},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]},"opacity":{"type":"number","value":0.75}},
+	 "mask":{"paths":[{"id":"wedge","commands":[{"id":"a","op":"move","points":[[50,50]]},{"id":"b","op":"line","points":[[0,0]]},{"id":"c","op":"line","points":[[100,0]]},{"id":"z","op":"close"}],"fill":{"type":"linear","from":[0,0],"to":[100,0],"stops":[{"at":0,"color":{"type":"color","value":[1,1,1,0]}},{"at":0.5,"color":{"type":"color","value":[1,1,1,1]}},{"at":1,"color":{"type":"color","value":[1,1,1,0]}}]}}]},
+	 "children":[{"id":"child","type":"vector","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":100},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},
+	 "paths":[{"id":"red","commands":[{"id":"a","op":"move","points":[[10,10]]},{"id":"b","op":"line","points":[[90,10]]},{"id":"c","op":"line","points":[[90,90]]},{"id":"d","op":"line","points":[[10,90]]},{"id":"z","op":"close"}],"fill":{"type":"solid","color":{"type":"color","value":[1,0,0,0.6]}}},
+	 {"id":"blue","commands":[{"id":"a","op":"move","points":[[40,10]]},{"id":"b","op":"line","points":[[90,10]]},{"id":"c","op":"line","points":[[90,90]]},{"id":"d","op":"line","points":[[40,90]]},{"id":"z","op":"close"}],"fill":{"type":"solid","color":{"type":"color","value":[0,0,1,0.7]}}}]}]}]},
+	 "timelines":[{"id":"turn","durationMs":9000,"tracks":[
+	 {"node":"parent","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":9000,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,360]}}]},
+	 {"node":"child","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":9000,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,-360]}}]}]}]})json";
+	Document artwork; std::vector<Diagnostic> artworkDiagnostics;
+	Check(artwork.Load(source,artworkDiagnostics),"parse moving mask fixture");
+	if (solid) Check(artwork.ReplaceValue("/root/children/0/mask/paths/0/fill",
+		R"json({"type":"solid","color":{"type":"color","value":[1,1,1,1]}})json",artworkDiagnostics),"prepare constant-coverage mask");
+	std::vector<std::vector<Vertex>> reference;
+	host.samplePoints.clear();
+	for(int y=0;y<100;y+=10)for(int x=0;x<100;x+=10)host.samplePoints.push_back({x+100.5f,y+100.5001f});
+	for(int mode:{0,1,2,3,4}) {
+		if (solid && mode>=2) break;
+		const bool cached=mode==1 || mode==2 || mode==4;
+		host.cacheLayers=cached;host.maskedSourceLayers=cached;host.replayFrames=mode==4;
+		host.linearMaskDraws=0;
+		Runtime runtime(host);std::vector<Diagnostic> diagnostics;std::string error;
+		Check(runtime.LoadDocument(artwork.Source(),"moving-mask-cache.q4ui",diagnostics) && runtime.PlayTimeline("turn",0),"load moving mask over stable overlapping artwork");
+		int direct=0,hits=0,replays=0;const int initialErrors=host.errors;
+		for(int frame=0;frame<30;++frame) {
+			host.linearMasks=mode>=2 && frame!=15;
+			if(frame==12)Check(runtime.SetState({{"alpha",.25}},error,frame*.09),"change live masked group opacity");
+			Viewport viewport; if(frame>=20){viewport.width=1024;viewport.height=768;}
+			host.ClearSamples();host.meshes.clear();Check(runtime.Frame(viewport,frame*.09),"render changing mask source cache");
+			if (frame==5) Check(runtime.Statistics().layoutUpdates==0,"decorative counterrotation updates projection without relaying out the document");
+			direct+=int(runtime.Statistics().directMaskDraws);
+			hits+=int(runtime.Statistics().layerCacheHits);
+			replays+=int(runtime.Statistics().frameReplays);
+			if(mode==0)reference.push_back(host.layers[0].pixels);
+			else for(size_t i=0;i<host.samplePoints.size();++i) {
+				const auto& actual=host.layers[0].pixels[i];const auto& expected=reference[frame][i];
+				const float tolerance=mode>=2 ? 1.01f/255 : .002f;
+				Check(std::abs(actual.r-expected.r)<tolerance && std::abs(actual.g-expected.g)<tolerance &&
+					std::abs(actual.b-expected.b)<tolerance && std::abs(actual.a-expected.a)<tolerance,
+					"cached source preserves moving gradient mask, overlap, live alpha and resize");
+			}
+		}
+		Check(host.errors==initialErrors,"moving mask cache and resize produce no allocation errors");
+		Check(!(cached && (solid || mode==2)) || (direct>=24 && hits>=22),"eligible moving masks reuse stable source pixels across frames");
+		Check(solid || mode!=1 || direct==0,"CPU gradient subdivisions retain their mask target for MSAA parity");
+		Check(mode<2 || host.linearMaskDraws>=24,"moving masks use analytic host coverage with and without a source cache");
+		Check(mode!=4 || replays>=18,"moving masks replay after checking their stationary source projection");
+	}
+	Check(std::any_of(reference[0].begin(),reference[0].end(),[](const auto& pixel){return pixel.r>.01f || pixel.b>.01f;}),
+		"moving-mask reference contains painted overlap");
+	host.cacheLayers=false;host.maskedSourceLayers=false;host.linearMasks=false;host.replayFrames=true;host.samplePoints.clear();
+}
+static void CheckQuietButtonLayout(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"quiet-buttons",
+	 "state":{"left":{"type":"number","initial":10}},
+	 "bindings":[{"id":"move","node":"button","property":"left","value":{"state":"left"}}],
+	 "root":{"id":"root","type":"group","children":[{"id":"button","type":"group",
+	 "properties":{"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","unit":"dp","value":10},
+	 "top":{"type":"length","unit":"dp","value":10},"width":{"type":"length","unit":"dp","value":50},
+	 "height":{"type":"length","unit":"dp","value":50},"background-color":{"type":"color","value":[1,0,0,1]}},
+	 "control":{"role":"button","action":"fixture.activate","label":"#str_200013","states":{"default":"rest","hover":"hover","focus":"rest","pressed":"rest","disabled":"rest"}}}]},
+	 "timelines":[{"id":"hover","durationMs":100,"tracks":[{"node":"button","property":"background-color","keys":[
+	 {"atMs":0,"value":{"type":"color","value":[1,0,0,1]}},{"atMs":100,"value":{"type":"color","value":[0,1,0,1]}}]}]},
+	 {"id":"rest","durationMs":1,"tracks":[{"node":"button","property":"background-color","keys":[
+	 {"atMs":0,"value":{"type":"color","value":[1,0,0,1]}},{"atMs":1,"value":{"type":"color","value":[1,0,0,1]}}]}]}]})json";
+	Runtime runtime(host); std::vector<Diagnostic> diagnostics; std::string error;
+	const bool loaded=runtime.LoadDocument(source,"quiet-buttons.q4ui",diagnostics);
+	if (!loaded) for (const auto& diagnostic:diagnostics) std::fprintf(stderr,"%s\n",diagnostic.message.c_str());
+	Check(loaded,"load quiet button layout fixture");
+	for (int frame=0;frame<3;++frame) Check(runtime.Frame({},frame),"settle button layout");
+	Check(runtime.Statistics().interactionUpdates==0,"settled buttons reuse their unchanged interaction geometry");
+	Check(runtime.Statistics().layoutUpdates==0 && runtime.CanActivateControl("button",2),"idle buttons skip layout without losing eligibility");
+	Check(runtime.Statistics().frameReplays==1,"settled interactive buttons replay their paint commands");
+	runtime.PointerMove(20,20,3); runtime.Frame({},3.1);
+	Check(runtime.Statistics().layoutUpdates==1,"hover feedback invalidates quiet button layout");
+	host.ClearSamples(); runtime.Frame({},4);
+	Check(runtime.Statistics().layoutUpdates==0 && !host.drawn.empty() && host.drawn.front().g==1,
+		"completed hover retains its colour with a stationary pointer");
+	host.ClearSamples(); runtime.Frame({},4.1);
+	Check(runtime.Statistics().frameReplays==1 && !host.drawn.empty() && host.drawn.front().g==1,
+		"stationary pointer preserves current hover while replaying");
+	Check(runtime.Statistics().interactionUpdates==0,"stationary pointer does not rebuild unchanged hit geometry");
+	Check(runtime.SetState({{"left",100.0}},error,5) && runtime.Frame({},5),"move quiet button through bound state");
+	Bounds bounds;
+	Check(runtime.Statistics().layoutUpdates==1 && runtime.GetBounds("button",bounds) && Near(bounds.x,100),
+		"bound geometry refreshes both layout and interaction");
+	Check(runtime.SetControlEnabled("button",false,6) && runtime.Frame({},6) && !runtime.CanActivateControl("button",6),
+		"quiet geometry never preserves eligibility after a control is disabled");
+}
+static void CheckMenuFadeReplay(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"menu-fade",
+	 "state":{"alpha":{"type":"number","initial":0.5},"buttonAlpha":{"type":"number","initial":1}},
+	 "bindings":[{"id":"fade","node":"picture","property":"opacity","value":{"state":"alpha"}},
+	 {"id":"buttonFade","node":"button","property":"opacity","value":{"state":"buttonAlpha"}}],
+	 "root":{"id":"root","type":"group","children":[
+	 {"id":"button","type":"group","properties":{"background-color":{"type":"color","value":[1,0,0,1]},"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","unit":"dp","value":10},"top":{"type":"length","unit":"dp","value":10},"width":{"type":"length","unit":"dp","value":50},"height":{"type":"length","unit":"dp","value":50},"opacity":{"type":"number","value":1}},"control":{"role":"button","action":"fixture.activate","label":"#str_200013","states":{"default":"rest","hover":"rest","focus":"rest","pressed":"rest","disabled":"rest"}}},
+	 {"id":"picture","type":"image","properties":{"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","unit":"dp","value":100},"top":{"type":"length","unit":"dp","value":10},"width":{"type":"length","unit":"dp","value":50},"height":{"type":"length","unit":"dp","value":50},"image":{"type":"image","value":"gfx/test/fade.tga"},"opacity":{"type":"number","value":0.5}}}]},
+	 "timelines":[{"id":"rest","durationMs":1,"tracks":[{"node":"button","property":"background-color","keys":[{"atMs":0,"value":{"type":"color","value":[1,0,0,1]}},{"atMs":1,"value":{"type":"color","value":[1,0,0,1]}}]}]}]})json";
+	Runtime runtime(host); std::vector<Diagnostic> diagnostics; std::string error;
+	Check(runtime.LoadDocument(source,"menu-fade.q4ui",diagnostics),"load a decorative image beside an interactive button");
+	runtime.PointerMove(20,20,0);
+	for (int frame=0;frame<4;++frame) { host.ClearSamples(); Check(runtime.Frame({},frame*.1),"settle the hovered menu and image"); }
+	double time=.4,previousAlpha=.5;
+	for (double alpha:{.25,.75,.125,.5,0.0,.25,1.0,.5}) {
+		Check(runtime.SetState({{"alpha",alpha}},error,time),"change decorative opacity with a stationary pointer");
+		host.ClearSamples(); Check(runtime.Frame({},time),"draw a live menu image fade");
+		const bool reusable=previousAlpha>0 && previousAlpha<1 && alpha>0 && alpha<1;
+		Check(runtime.Statistics().layoutUpdates==0 && runtime.Statistics().frameReplays==(reusable ? 1 : 0),"decorative menu alpha replays without relaying out controls");
+		Check(host.imageVertices.empty()==(alpha==0),"menu image fade preserves zero-opacity suppression");
+		for (const auto& v:host.imageVertices) Check(std::abs(v.r-alpha)<.00001 && std::abs(v.a-alpha)<.00001,"replayed image uses the current opacity");
+		Check(runtime.GetControlState("button")==ControlState::Hover,"decorative fades preserve hover state");
+		const auto replayed=host.imageVertices;
+		host.replayFrames=false; host.ClearSamples(); Check(runtime.Frame({},time),"render the menu fade without replay");
+		Check(replayed.size()==host.imageVertices.size(),"replay and normal image fade have identical topology");
+		for (size_t i=0;i<replayed.size();++i) {
+			const auto& a=replayed[i]; const auto& b=host.imageVertices[i];
+			Check(a.x==b.x && a.y==b.y && a.u==b.u && a.v==b.v && a.r==b.r && a.g==b.g && a.b==b.b && a.a==b.a,
+				"replay and normal fitted image fade preserve geometry and colour");
+		}
+		host.replayFrames=true; host.ClearSamples(); Check(runtime.Frame({},time),"record the current menu fade again");
+		previousAlpha=alpha;
+		time+=.1;
+	}
+	Check(runtime.SetState({{"buttonAlpha",0.0}},error,time),"change the interactive button's opacity");
+	Check(runtime.Frame({},time) && runtime.Statistics().layoutUpdates>0,"interactive opacity keeps full layout and interaction validation");
+}
+static void CheckDecorativeTransforms(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"decorative-transforms",
+	 "root":{"id":"root","type":"group","children":[
+	 {"id":"button","type":"group","properties":{"background-color":{"type":"color","value":[1,0,0,1]},"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","unit":"dp","value":10},"top":{"type":"length","unit":"dp","value":10},"width":{"type":"length","unit":"dp","value":50},"height":{"type":"length","unit":"dp","value":50},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},"control":{"role":"button","action":"fixture.activate","label":"#str_200013","states":{"default":"rest","hover":"rest","focus":"rest","pressed":"rest","disabled":"rest"}}},
+	 {"id":"decoration","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},"left":{"type":"length","unit":"dp","value":200},"top":{"type":"length","unit":"dp","value":10},"width":{"type":"length","unit":"dp","value":50},"height":{"type":"length","unit":"dp","value":50},"background-color":{"type":"color","value":[0,0,1,1]},"transform":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}}}]},
+	 "timelines":[{"id":"rest","durationMs":1,"tracks":[{"node":"button","property":"background-color","keys":[{"atMs":0,"value":{"type":"color","value":[1,0,0,1]}},{"atMs":1,"value":{"type":"color","value":[1,0,0,1]}}]}]},{"id":"decor","durationMs":1000,"tracks":[{"node":"decoration","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":1000,"value":{"type":"transform","unit":"dp","value":[120,0,1,1,0]}}]}]},
+	 {"id":"control","durationMs":1000,"tracks":[{"node":"button","property":"transform","keys":[{"atMs":0,"value":{"type":"transform","unit":"dp","value":[0,0,1,1,0]}},{"atMs":1000,"value":{"type":"transform","unit":"dp","value":[40,0,1,1,0]}}]}]}]})json";
+	Runtime runtime(host); std::vector<Diagnostic> diagnostics;
+	const auto left=[&](bool blue) { float x=1e6f; for(const auto& v:host.drawn) if(blue ? v.b>.99f && v.r<.01f : v.r>.99f && v.b<.01f) x=std::min(x,v.x); return x; };
+	const bool loaded=runtime.LoadDocument(source,"decorative-transforms.q4ui",diagnostics);
+	if (!loaded) for (const auto& diagnostic:diagnostics) std::fprintf(stderr,"%s\n",diagnostic.message.c_str());
+	Check(loaded,"load decorative transform beside interactive button");
+	Check(runtime.Frame({},0) && runtime.Frame({},1),"settle decorative transform fixture");
+	Check(runtime.PlayTimeline("decor",2) && runtime.Frame({},2.1),"start decorative projection");
+	host.ClearSamples(); Check(runtime.Frame({},2.5),"advance decorative projection");
+	Check(runtime.Statistics().layoutUpdates==0 && Near(left(true),260),
+		"decorative motion updates projected geometry without relaying out the document");
+	Check(runtime.Statistics().frameReplays==0,"a projected decoration redraws instead of replaying stale geometry");
+	Check(runtime.Statistics().interactionUpdates==0,"decorative projection preserves unrelated control hit bounds");
+	runtime.PointerMove(20,20,2.5);
+	Check(runtime.GetControlState("button")==ControlState::Hover,"unchanged control remains hittable beside decorative motion");
+	Check(runtime.PlayTimeline("control",3) && runtime.Frame({},3.1),"start interactive projection");
+	host.ClearSamples(); Check(runtime.Frame({},3.5),"advance interactive projection");
+	Check(runtime.Statistics().layoutUpdates==1 && runtime.Statistics().interactionUpdates>0 &&
+		Near(left(false),30),"interactive motion still refreshes layout and hit geometry");
+	runtime.PointerMove(75,20,3.5);
+	Check(runtime.GetControlState("button")==ControlState::Hover,"pointer hits the translated control outside its old bounds");
+	// Compare the typed animation property against an independently parsed
+	// CSS pose, including density, reflection, nonuniform scale and rotation.
+	for (const auto* unit:{"dp","px"}) for (float density:{1.f,1.5f,2.f}) {
+		std::string typedSource=source;
+		const std::string from="\"type\":\"transform\",\"unit\":\"dp\"",to=std::string("\"type\":\"transform\",\"unit\":\"")+unit+"\"";
+		for(size_t at=0;(at=typedSource.find(from,at))!=std::string::npos;at+=to.size()) typedSource.replace(at,from.size(),to);
+		Document fixture; Check(fixture.Load(typedSource,diagnostics),"load typed transform fixture with consistent timeline units");
+		Check(fixture.ReplaceValue("/timelines/1/tracks/0/keys/1/value/value","[36.5,-15,-2.5,1.5,74]",diagnostics),"set reflected transform motion");
+		Runtime animated(host),reference(host); Viewport viewport; viewport.displayScale=density;
+		Check(animated.LoadDocument(fixture.Source(),"typed-transform.q4ui",diagnostics),"load typed transform runtime");
+		Check(animated.Frame(viewport,0) && animated.Frame(viewport,1) && animated.PlayTimeline("decor",2) &&
+			animated.Frame(viewport,2.1),"settle typed transform runtime");
+		host.ClearSamples(); Check(animated.Frame(viewport,2.5),"advance typed reflected transform");
+		Check(animated.Statistics().layoutUpdates==0,"typed transform preserves the projection-only update");
+		const auto blue=[&] { std::vector<Vertex> result; for(const auto& v:host.drawn) if(v.b>.99f && v.r<.01f) result.push_back(v); return result; };
+		const auto painted=blue(); Check(!painted.empty(),"typed transformed artwork stays visible");
+		Check(fixture.ReplaceValue("/root/children/1/properties/transform/value","[18.25,-7.5,-0.75,1.25,37]",diagnostics),"pose CSS transform reference");
+		Check(reference.LoadDocument(fixture.Source(),"css-transform.q4ui",diagnostics),"load independent CSS transform reference");
+		host.ClearSamples(); Check(reference.Frame(viewport,2.5),"render independent CSS transform reference");
+		const auto compare=[&] {
+			const auto expected=blue(); Check(expected.size()==painted.size(),"typed and CSS transform topology matches");
+			for(size_t i=0;i<expected.size();++i) Check(std::abs(expected[i].x-painted[i].x)<.001f &&
+				std::abs(expected[i].y-painted[i].y)<.001f,"typed and CSS transform units/order/float projection match");
+		};
+		compare();
+		std::string snapshot,error;
+		Check(animated.SaveSnapshot(snapshot,error,2.5) && animated.Frame(viewport,2.8) &&
+			animated.RestoreSnapshot(snapshot,error,3),"restore typed motion through ordinary CSS adoption");
+		host.ClearSamples(); Check(animated.Frame(viewport,3),"render restored typed transform"); compare();
+	}
+}
+static void CheckCompoundPlateCache(TestHost& host) {
+	const char* source=R"json({"format":"openq4-ui","version":1,"id":"plate-cache",
+	 "state":{"alpha":{"type":"number","initial":0.5}},
+	 "bindings":[{"id":"alpha","node":"plate","property":"opacity","value":{"state":"alpha"}}],
+	 "root":{"id":"root","type":"group","properties":{"width":{"type":"length","unit":"dp","value":200},"height":{"type":"length","unit":"dp","value":100},"background-color":{"type":"color","value":[0,1,0,1]}},
+	 "children":[{"id":"plate","type":"vector","properties":{"width":{"type":"length","unit":"dp","value":100},"height":{"type":"length","unit":"dp","value":50},"opacity":{"type":"number","value":0.5}},
+	 "paths":[
+	 {"id":"fill","commands":[{"id":"a","op":"move","points":[[10,10]]},{"id":"b","op":"line","points":[[90,10]]},{"id":"c","op":"line","points":[[90,40]]},{"id":"d","op":"line","points":[[10,40]]},{"id":"z","op":"close"}],"fill":{"type":"solid","color":{"type":"color","value":[1,0,0,1]}}},
+	 {"id":"rail","commands":[{"id":"a","op":"move","points":[[40,10]]},{"id":"b","op":"line","points":[[90,10]]},{"id":"c","op":"line","points":[[90,40]]},{"id":"d","op":"line","points":[[40,40]]},{"id":"z","op":"close"}],"fill":{"type":"solid","color":{"type":"color","value":[0,0,1,1]}}}
+	 ]}]}})json";
+	Runtime runtime(host); std::vector<Diagnostic> diagnostics; std::string error;
+	const auto near=[](float actual,float expected){return std::abs(actual-expected)<.002f;};
+	Check(runtime.LoadDocument(source,"plate-cache.q4ui",diagnostics),"load overlapping plate cache fixture");
+	host.cacheLayers=true; host.replayFrames=false; host.samplePoints={{20.25f,20.25f},{60.25f,20.25f}};
+	for (int frame=0;frame<3;++frame) { host.ClearSamples(); Check(runtime.Frame({},frame),"render compound plate"); }
+	Check(runtime.Statistics().layerCacheHits==1 && runtime.Statistics().layerPushes==0,"stable compound plate reuses its completed target");
+	Check(near(host.layers[0].pixels[0].r,.5f) && near(host.layers[0].pixels[0].g,.5f) &&
+		near(host.layers[0].pixels[1].r,0) && near(host.layers[0].pixels[1].g,.5f) && near(host.layers[0].pixels[1].b,.5f),
+		"overlapping plate applies isolated alpha once");
+	Check(runtime.SetState({{"alpha",.25}},error,3),"change cached plate alpha");
+	host.ClearSamples(); runtime.Frame({},3);
+	Check(runtime.Statistics().layerCacheHits==1 && near(host.layers[0].pixels[1].g,.75f) && near(host.layers[0].pixels[1].b,.25f),
+		"cached plate uses live alpha without accumulating tint");
+	host.cacheLayers=false; host.replayFrames=true; host.samplePoints.clear();
+}
+
 int main(int argc, char** argv) {
 	CheckInitializationPacing();
 	CheckTypedActionDescriptors();
@@ -991,7 +1383,9 @@ int main(int argc, char** argv) {
 	viewport={}; host.cacheLayers=true;
 	host.samplePoints={{20.37f,20.63f},{70.37f,50.63f},{12.37f,12.63f},{19.37f,20.63f}};
 	sampleFrame(19); pixel(0,.5f*maskAlpha,1-.5f*maskAlpha,0); pixel(1,0,1,0); pixel(2,0,1,0);
-	Check(runtime.Statistics().layerCacheHits==0,"first masked frame populates cache");
+	Check(runtime.Statistics().layerCacheHits==0,"first masked frame waits for stable geometry");
+	sampleFrame(19.05); pixel(0,.5f*maskAlpha,1-.5f*maskAlpha,0);
+	Check(runtime.Statistics().layerCacheHits==0,"stable masked frame populates cache");
 	sampleFrame(19.1); pixel(0,.5f*maskAlpha,1-.5f*maskAlpha,0); pixel(3,32.f/255,1-32.f/255,0);
 	Check(runtime.Statistics().layerCacheHits==1 && runtime.Statistics().layerPushes==0,"unchanged leaf mask avoids target clears and mask rendering");
 	Check(runtime.PlayTimeline("fade",19.1),"cached subtree can still fade");
@@ -1012,7 +1406,7 @@ int main(int argc, char** argv) {
 		Check(other.LoadDocument(cachedMask.Source(),"cache-pressure-b.q4ui",diagnostics),"load second cache pressure view");
 		host.maxLayerId=4;
 		const int errorsBefore=host.errors;
-		for (int frame=0;frame<3;++frame) { host.ClearSamples(); runtime.Frame(viewport,19.7); }
+		for (int frame=0;frame<4;++frame) { host.ClearSamples(); runtime.Frame(viewport,19.7); }
 		Check(runtime.Statistics().frameReplays==1,"masked presentation records a valid target lease before cross-view eviction");
 		for (int frame=0; frame<3; ++frame) {
 			host.ClearSamples(); runtime.Frame(viewport,19.7);
@@ -1030,7 +1424,7 @@ int main(int argc, char** argv) {
 			third.LoadDocument(cachedMask.Source(),"cache-budget-c.q4ui",diagnostics),"load shared 4K cache budget views");
 		Viewport large; large.width=3840; large.height=2160;
 		const int errorsBefore=host.errors;
-		for (int frame=0; frame<2; ++frame) {
+		for (int frame=0; frame<3; ++frame) {
 			host.ClearSamples(); runtime.Frame(large,19.7);
 			host.ClearSamples(false); second.Frame(large,19.7);
 			host.ClearSamples(false); third.Frame(large,19.7);
@@ -1612,10 +2006,19 @@ int main(int argc, char** argv) {
 	Check(host.errors==0,"no library warnings or errors");
 	CheckCompletionPrograms(host);
 	CheckSoftFocus(host);
+	CheckDirectBackdrop(host);
 	CheckSpeedStreak(host);
 	CheckRetainedMeshes(host);
 	CheckFrameReplay(host);
+	CheckGuiStateNumbers();
+	CheckIdentityTransformReuse(host);
+	CheckMovingMaskSourceCache(host);
+	CheckMovingMaskSourceCache(host,true);
+	CheckQuietButtonLayout(host);
+	CheckDecorativeTransforms(host);
+	CheckMenuFadeReplay(host);
 	CheckCoverageRaster();
 	CheckHiddenPresentation(host);
+	CheckCompoundPlateCache(host);
 	std::puts("Retained UI: density, layout, input, clipping, motion, bindings, independent contexts, bounded backend reuse, transactional instance snapshots, restart, completion programs, soft focus and retained meshes passed");
 }

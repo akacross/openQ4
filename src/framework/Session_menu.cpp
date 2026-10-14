@@ -5406,7 +5406,7 @@ void idSessionLocal::DrawRetainedHome( int presentationTime ) {
 	if ( ( guiRetainedHome == guiRetainedPause || guiRetainedHome == guiRetainedPauseStrogg ) && mapSpawned &&
 		!com_skipGameDraw.GetBool() && GetLocalClientNum() >= 0 ) {
 		// The paused view stays behind the pause screen, under its scrim.
-		if ( !game->Draw( GetLocalClientNum() ) ) {
+		if ( !game->Draw( GetLocalClientNum(), true ) ) {
 			renderSystem->SetColor( colorBlack );
 			renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 0, 1, 1, declManager->FindMaterial( "_white" ) );
 		}

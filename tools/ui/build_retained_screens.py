@@ -937,21 +937,22 @@ def montage(doc: Document) -> dict:
     tracks = []
     for index, source in enumerate(MENU_BACKGROUNDS):
         ident = f"shot-{index}"
-        base = [1, 1, 1, 1] if index == 0 else [1, 1, 1, 0]
-        shots.append(picture(ident, source, {**FULL, "image-color": colour(base)}))
+        # The pictures keep a white tint. Animate isolated opacity so the
+        # runtime can replay the fade without relaying out the menu tree.
+        shots.append(picture(ident, source, {**FULL, "opacity": number(1 if index == 0 else 0)}))
         if index == 0:
             continue
         start = 5000 * index
         last = index == len(MENU_BACKGROUNDS) - 1
         if not last:
-            keys = [(0, colour([1, 1, 1, 0])), (start, colour([1, 1, 1, 0])), (start + 2000, colour([1, 1, 1, 1])),
-                    (period - 3000, colour([1, 1, 1, 1])), (period - 2990, colour([1, 1, 1, 0])), (period, colour([1, 1, 1, 0]))]
+            keys = [(0, number(0)), (start, number(0)), (start + 2000, number(1)),
+                    (period - 3000, number(1)), (period - 2990, number(0)), (period, number(0))]
         else:
             # The newest picture fades out as the loop wraps, revealing the first.
-            keys = [(0, colour([1, 1, 1, 1])), (2000, colour([1, 1, 1, 0])), (start, colour([1, 1, 1, 0])),
-                    (start + 2000, colour([1, 1, 1, 1])), (period, colour([1, 1, 1, 1]))]
-            shots[-1]["properties"]["image-color"] = colour([1, 1, 1, 1])
-        tracks.append(track(ident, "image-color", keys))
+            keys = [(0, number(1)), (2000, number(0)), (start, number(0)),
+                    (start + 2000, number(1)), (period, number(1))]
+            shots[-1]["properties"]["opacity"] = number(1)
+        tracks.append(track(ident, "opacity", keys))
     doc.timelines.add("montage", period, tracks, iterations=0)
     doc.events.setdefault("onInit", []).append({"op": "playTimeline", "timeline": "montage"})
     return group("shots", dict(FULL), shots)

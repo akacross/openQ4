@@ -833,3 +833,50 @@ user's request after this validation checkpoint; the test reservation is release
 Current gameplay evidence and acceptance limits are recorded in
 [coverage atlases and presentation replay](../ui/runtime-performance.md#coverage-atlases-and-presentation-replay-11-october-2026)
 and `.tmp/ui-negligible-overhead/REPORT.md`.
+
+The 13 October menu pass expands the existing coverage atlas to exact tiles and
+multiply artwork, reuses stable compound plates, and caches the unchanged paused
+single-player scene while continuing HUD/menu animation. It also reduces dense
+coverage sorting and Gaussian shader work and skips quiet button layout.
+Native fixtures and OpenGL/Vulkan engine captures qualify the individual paths.
+The user's acceptance scope explicitly includes title and pause-menu frame
+times alongside SP/MP gameplay; this gate is still open. Current measurements
+and limits are in [menu and gameplay optimization](../ui/runtime-performance.md#menu-and-gameplay-optimization-13-october-2026).
+
+The 14 October follow-up replays settled interactive paint, recaptures live
+backdrops, and reuses unchanged button hit geometry. Eight native UI suites pass;
+OpenGL/Vulkan captures cover focus, modal transitions and restart at 1280x720,
+with the replay path also qualified at 720x1280. Pause CPU p50 is about
+0.07–0.08 ms, but whole-frame title and pause comparisons remain above legacy.
+The parity gate remains open.
+
+The moving title glint now uses shader-evaluated convex mask coverage. A
+retained-only off/on comparison reduces title frame time from 1.539 to 1.000 ms
+on OpenGL and 1.255 to 0.574 ms on Vulkan. Nine native UI suites and same-frame
+CPU/shader captures pass, including live opacity, source-cache fallback, resize,
+four-sided masks and video restart. This is a measured improvement, not closure
+of the legacy title/pause parity gate. Larger atlas pages were rejected for
+worse residency; the 512-square/32-page bound remains.
+
+The subsequent candidate holds the ordinary pause scene clock, reuses an
+identical stock HUD evaluation and reduces repeated dictionary/number work.
+Full-view soft focus uses a filtered half-resolution path only within its
+qualified kernel and viewport guards; other cases retain full resolution.
+The eleven UI/material suites and five production renderer/HUD adapters pass.
+A flattened-menu surface experiment was removed after small, inconsistent
+cross-renderer gains and additional composition rounding. Final comparisons
+were refreshed at uncapped, 144 Hz and the default 240 Hz cap, with normal
+menu animation. Refresh-limited means differ by at most 0.3%, but uncapped
+title overhead is 2.9% on Vulkan / 17.6% on OpenGL and pause remains 39–44%.
+The parity gate remains open; capped throughput is not an uncapped-cost result.
+
+Moving-mask replay and fitted-image opacity replay now preserve the title's
+glint and montage without repeated full-tree layout/traversal. Both APIs have
+RGB-exact engine captures through motion and video restart, and all eleven
+UI/material suites pass after rebuilding restored interface dependents.
+Updated title comparisons are +1.1% on Vulkan and +10–17% on OpenGL in opposing
+orders. Stable pause comparisons remain +40% on Vulkan and +49% on OpenGL.
+A slow legacy Vulkan pause window remains recorded, without a parity claim.
+Recorded draw reordering and constant blur weights did not show consistent
+benefit and remain rejected. The [current evidence](../ui/runtime-performance.md#moving-mask-and-crossfade-replay-14-october-2026)
+keeps the menu gate open.

@@ -506,6 +506,7 @@ public:
 	mutable double		presentationClockRealTime;	// transient real-time anchor for render interpolation
 	mutable int			presentationClockLastTime;	// transient monotonic presentation result
 	float					presentationSceneFraction;	// frozen camera/root fraction for the active Draw
+	bool					presentationMenuPaused;		// authoritative scene clock during a single-player menu Draw
 	int					presentationAnimationTime;	// previous-to-current skeletal sample held only during Draw
 	int						autoExecAfterMapLoadStartTime;
 	bool					autoExecAfterMapLoadPending;
@@ -606,8 +607,8 @@ public:
 	virtual	void			MenuFrame( void );
 // RAVEN END
 	virtual void			RepeaterFrame( const userOrigin_t *clientOrigins, bool lastCatchupFrame, int spoolTime = 0 ) {};
-	virtual bool			Draw( int clientNum );
-	void					PreparePlayerSceneForRender( idPlayer *player );
+	virtual bool			Draw( int clientNum, bool menuPaused = false );
+	void					PreparePlayerSceneForRender( idPlayer *player, bool menuPaused = false );
 	void					CheckAutoExecAfterMapLoad( void );
 	void					CheckAutoMachinegunImpact( void );
 	void					CheckAutoScreenshot( void );

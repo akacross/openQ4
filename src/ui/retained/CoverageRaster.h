@@ -14,7 +14,7 @@ struct CoverageBitmap {
 // Gradients, overlapping cells, subpixel motion and oversized artwork keep
 // their original geometry. No resampling or additional edge approximation.
 inline bool RasterizeCoverage(const std::vector<Vertex>& vertices, const std::vector<int>& indices,
-	CoverageBitmap& result, int maximumExtent=510) {
+	CoverageBitmap& result, int maximumExtent=510, bool multiply=false) {
 	if (vertices.empty() || vertices.size()%4 || indices.size()!=vertices.size()/4*6) return false;
 	int left=1000000, top=1000000, right=-1000000, bottom=-1000000;
 	std::uint64_t work=0;
@@ -37,9 +37,10 @@ inline bool RasterizeCoverage(const std::vector<Vertex>& vertices, const std::ve
 		left=(std::min)(left,int(a.x)); top=(std::min)(top,int(a.y));
 		right=(std::max)(right,int(c.x)); bottom=(std::max)(bottom,int(c.y));
 	}
-	if (right-left>maximumExtent || bottom-top>maximumExtent) return false;
+	if (right-left>maximumExtent || bottom-top>maximumExtent ||
+		std::uint64_t(right-left)*std::uint64_t(bottom-top)>4*1024*1024) return false;
 	CoverageBitmap bitmap{left,top,right-left,bottom-top,{}};
-	bitmap.pixels.resize(size_t(bitmap.width)*bitmap.height*4);
+	bitmap.pixels.resize(size_t(bitmap.width)*bitmap.height*4,multiply ? 255 : 0);
 	std::vector<unsigned char> occupied(size_t(bitmap.width)*bitmap.height);
 	for (size_t base=0; base<vertices.size(); base+=4) {
 		const auto& a=vertices[base]; const auto& c=vertices[base+2];

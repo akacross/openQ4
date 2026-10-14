@@ -101,7 +101,7 @@ def check_abi() -> None:
         require(render_world, field, "renderView_t keeps existing views symmetric")
 
     game = read("src/game/Game.h")
-    require(game, "const int GAME_API_VERSION\t\t= 51;", "game module ABI v51")
+    require(game, "const int GAME_API_VERSION\t\t= 52;", "game module ABI v52")
     import_block = game[game.index("struct gameImport_t {"):game.index("struct gameExport_t {")]
     if not import_block.rstrip().rstrip("};").rstrip().endswith("idVRSystem *				vrSystem;				// tracked head/controller poses (never NULL)"):
         raise AssertionError("gameImport_t must end with vrSystem")
