@@ -3822,7 +3822,7 @@ void idSessionLocal::Clear() {
 	retainedSubpageUntil = 0;
 	retainedHomeReturning = false;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
-	guiRetainedSummary = retainedMultiplayerTarget = NULL;
+	guiRetainedSummary = guiRetainedArenaPause = retainedMultiplayerTarget = NULL;
 	retainedMultiplayerSummary = false;
 	retainedSummaryTyping = false;
 	retainedSummaryCaret = 0;

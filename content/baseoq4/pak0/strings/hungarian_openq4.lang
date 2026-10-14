@@ -709,6 +709,15 @@
 	"#str_41908"	"Kizárás"
 	"#str_41909"	"Oldal hozzárendelése"
 
+	// Arena pause menu
+	"#str_42180"	"MECCS ÚJRAINDÍTÁSA"
+	"#str_42181"	"KILÉPÉS A MECCSBŐL"
+	"#str_42182"	"ÚJRAINDÍTOD A MECCSET?"
+	"#str_42183"	"A meccs a bemutatástól indul újra. Semmi sem rögzül."
+	"#str_42184"	"KILÉPSZ A MECCSBŐL?"
+	"#str_42185"	"Visszatérsz az Aréna böngészőjébe. Semmi sem rögzül, és az Újra gombbal ismét lejátszhatod a meccset."
+	"#str_42186"	"MECCS SZÜNETEL"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Párbaj"
 	"#str_42202"	"Team Deathmatch"

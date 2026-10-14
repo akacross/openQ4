@@ -514,6 +514,8 @@ public:
 	idUserInterface *	guiRetainedEscape;
 	idUserInterface *	guiRetainedWelcome;
 	idUserInterface *	guiRetainedSummary;
+	// The single-player Arena's pause card.
+	idUserInterface *	guiRetainedArenaPause;
 	idUserInterface *	guiRetainedMultiplayer;
 	idUserInterface *	retainedMultiplayerTarget;		// the game GUI the cover was last decided for
 	bool				retainedMultiplayerSummary;		// the card covers the summary

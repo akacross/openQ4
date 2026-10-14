@@ -709,6 +709,15 @@
 	"#str_41908"	"Vyloučit"
 	"#str_41909"	"Přiřadit stranu"
 
+	// Arena pause menu
+	"#str_42180"	"RESTARTOVAT ZÁPAS"
+	"#str_42181"	"OPUSTIT ZÁPAS"
+	"#str_42182"	"RESTARTOVAT ZÁPAS?"
+	"#str_42183"	"Zápas začne znovu od představení. Nic se nezaznamená."
+	"#str_42184"	"OPUSTIT ZÁPAS?"
+	"#str_42185"	"Vrátíš se do přehledu Arény. Nic se nezaznamená a tlačítko Znovu ti zápas nabídne znovu."
+	"#str_42186"	"ZÁPAS POZASTAVEN"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duel"
 	"#str_42202"	"Team Deathmatch"

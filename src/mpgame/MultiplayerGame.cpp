@@ -1255,6 +1255,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	mainGui = NULL;
 	mapList = NULL;
 	msgmodeGui = NULL;
+	arenaPauseGui = NULL;
 	defaultWinner = -1;
 	deadZonePowerupCount = -1;
 	marineScoreBarPulseAmount = 0.0f;
@@ -9660,6 +9661,11 @@ void idMultiplayerGame::Reset() {
 	msgmodeGui->SetStateBool( "gameDraw", true );
 	msgmodeGui->HandleNamedEvent( "chatReset" );
 
+	// openQ4: the single-player Arena's pause menu, which StartMenu opens in
+	// mainGui's place during an Arena match.
+	arenaPauseGui = uiManager->FindGui( "guis/arena_pause.gui", true, false, true );
+	arenaPauseGui->SetStateBool( "gameDraw", true );
+
 	memset ( lights, 0, sizeof( lights ) );
 	memset ( lightHandles, -1, sizeof( lightHandles ) );
 
@@ -9929,6 +9935,7 @@ void idMultiplayerGame::Clear() {
 	statSummary = NULL;
 	mainGui = NULL;
 	msgmodeGui = NULL;
+	arenaPauseGui = NULL;
 	if ( mapList ) {
  		uiManager->FreeListGUI( mapList );
 		mapList = NULL;
@@ -16537,8 +16544,16 @@ void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *car
 	// The menu, or the summary at the end of a match (section 14.14).
 	const bool allowed = ( ( currentMenu == 1 && mainGui != NULL ) || ( currentMenu == 3 && statSummary != NULL ) ) &&
 		!IsArenaCampaignMatch();
+	// An Arena match keeps neither: its own pause menu takes its own card.
+	const bool arenaPause = IsArenaPauseMenuOpen() && arenaPauseGui != NULL && IsArenaCampaignMatch();
 	card->SetStateInt( "mp.protocol", RETAINED_MENU_PROTOCOL );
-	card->SetStateBool( "mp.cover_allowed", allowed );
+	card->SetStateBool( "mp.cover_allowed", allowed || arenaPause );
+	if ( arenaPause ) {
+		retainedMenuCovered = true;
+		retainedMenuPublished.Clear();
+		PublishArenaPauseMenu( card, true );
+		return;
+	}
 	if ( !allowed ) {
 		return;
 	}
@@ -18143,6 +18158,116 @@ bool idMultiplayerGame::PublishRetainedValue( idUserInterface *card, const char 
 
 /*
 ================
+idMultiplayerGame::RetainedScoreLine
+
+The score as the card's header shows it: "MARINES 12 - 9 STROGG" with the
+player's team first in team modes, the player's place and score in the
+others, and nothing for a spectator outside a team mode.
+================
+*/
+idStr idMultiplayerGame::RetainedScoreLine( void ) {
+	static const char *const teamTitles[ TEAM_MAX ] = { "#str_200197", "#str_200199" };
+	idPlayer *player = gameLocal.GetLocalPlayer();
+	const bool playing = player != NULL && !player->spectating;
+	idStr score;
+	if ( gameLocal.IsTeamGame() ) {
+		int first = TEAM_MARINE;
+		if ( playing && player->team == TEAM_STROGG ) {
+			first = TEAM_STROGG;
+		}
+		const int second = first == TEAM_MARINE ? TEAM_STROGG : TEAM_MARINE;
+		score = va( "%s %d - %d %s", common->GetLocalizedString( teamTitles[ first ] ), GetScoreForTeam( first ),
+			GetScoreForTeam( second ), common->GetLocalizedString( teamTitles[ second ] ) );
+	} else if ( playing ) {
+		// The rank text carries the HUD's colour codes.
+		score = MPRetainedPlainText( GetPlayerRankText( player ), 96, 1 );
+	}
+	return score;
+}
+
+/*
+================
+idMultiplayerGame::PublishArenaPauseMenu
+
+The Arena pause menu's match block, for the stock guis/arena_pause.gui and
+for its retained card (`retained`, which takes only the values that changed
+under a new mp.revision): the match and its place in the campaign, the game
+type the campaign presents, the map, the paused clock and the score. The
+stock menu also takes the map's levelshot; the session gives the card its own.
+================
+*/
+void idMultiplayerGame::PublishArenaPauseMenu( idUserInterface *gui, bool retained ) {
+	if ( gui == NULL ) {
+		return;
+	}
+	idStr detail = common->GetLocalizedString( "#str_42006" );
+	const idStr tier = ArenaCampaignPublishedText( "ui_arenaMatchTier" );
+	const idStr role = ArenaCampaignPublishedText( "ui_arenaMatchRole" );
+	if ( tier.Length() && role.Length() ) {
+		detail = va( common->GetLocalizedString( "#str_42156" ), tier.c_str(), role.c_str() );
+	}
+	idStr mapName;
+	const char *mapPath = gameLocal.serverInfo.GetString( "si_map" );
+	const char *map = ResolveScoreboardMapName( mapPath, mapName );
+	const idStr score = RetainedScoreLine();
+	const char *const values[][ 2 ] = {
+		{ "arena_pause_title", ArenaCampaignMatchTitle() },
+		{ "arena_pause_detail", detail.c_str() },
+		{ "arena_pause_mode", ArenaCampaignPresentedGameType() },
+		{ "arena_pause_map", map != NULL ? map : "" },
+		{ "arena_pause_clock", GameTime() },
+		{ "arena_pause_score", score.c_str() },
+	};
+	const int count = static_cast<int>( sizeof( values ) / sizeof( values[ 0 ] ) );
+	if ( retained ) {
+		bool changed = false;
+		for ( int i = 0; i < count; i++ ) {
+			changed |= PublishRetainedValue( gui, values[ i ][ 0 ], values[ i ][ 1 ] );
+		}
+		if ( changed ) {
+			gui->SetStateInt( "mp.revision", ++retainedMenuRevision );
+		}
+		return;
+	}
+	for ( int i = 0; i < count; i++ ) {
+		gui->SetStateString( values[ i ][ 0 ], values[ i ][ 1 ] );
+	}
+	char screenshot[ MAX_STRING_CHARS ];
+	fileSystem->FindMapScreenshot( mapPath, screenshot, MAX_STRING_CHARS );
+	gui->SetStateString( "arena_pause_levelshot", screenshot );
+}
+
+/*
+================
+idMultiplayerGame::HandleArenaPauseCommand
+
+The Arena pause menu's actions. Resume closes it. Settings closes it for the
+main menu's settings page, which the campaign hands back to this menu when
+the player backs out of it. Restart match and Leave match go to the
+framework, which owns the campaign: arenaCampaignRestart starts the same
+match again from its entrance, and disconnect reports it abandoned. The menu
+stays up until the framework tears the match down, so the world stays paused.
+================
+*/
+const char *idMultiplayerGame::HandleArenaPauseCommand( const char *action ) {
+	if ( !idStr::Icmp( action, "settings" ) ) {
+		DisableMenu();
+		return "main fromMp_toControls";
+	}
+	if ( !idStr::Icmp( action, "restart" ) ) {
+		cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "arenaCampaignRestart\n" );
+		return "continue";
+	}
+	if ( !idStr::Icmp( action, "leave" ) ) {
+		cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "disconnect\n" );
+		return "continue";
+	}
+	DisableMenu();
+	return NULL;
+}
+
+/*
+================
 idMultiplayerGame::PublishRetainedMenu
 
 The card's state (section 14.18), written only where it changed, with a new
@@ -18158,6 +18283,10 @@ running vote and the call being drafted.
 */
 void idMultiplayerGame::PublishRetainedMenu( idUserInterface *card ) {
 	if ( card == NULL || !retainedMenuCovered ) {
+		return;
+	}
+	if ( IsArenaPauseMenuOpen() ) {
+		PublishArenaPauseMenu( card, true );
 		return;
 	}
 	bool changed = false;
@@ -18180,20 +18309,7 @@ void idMultiplayerGame::PublishRetainedMenu( idUserInterface *card ) {
 	static const char *const teamTitles[ TEAM_MAX ] = { "#str_200197", "#str_200199" };
 	idPlayer *player = gameLocal.GetLocalPlayer();
 	const bool playing = player != NULL && !player->spectating;
-	idStr score;
-	if ( gameLocal.IsTeamGame() ) {
-		int first = TEAM_MARINE;
-		if ( playing && player->team == TEAM_STROGG ) {
-			first = TEAM_STROGG;
-		}
-		const int second = first == TEAM_MARINE ? TEAM_STROGG : TEAM_MARINE;
-		score = va( "%s %d - %d %s", common->GetLocalizedString( teamTitles[ first ] ), GetScoreForTeam( first ),
-			GetScoreForTeam( second ), common->GetLocalizedString( teamTitles[ second ] ) );
-	} else if ( playing ) {
-		// The rank text carries the HUD's colour codes.
-		score = MPRetainedPlainText( GetPlayerRankText( player ), 96, 1 );
-	}
-	publish( "mp.score", score.c_str() );
+	publish( "mp.score", RetainedScoreLine().c_str() );
 	if ( summary ) {
 		// The summary card holds the lists and the summary, nothing else.
 		PublishRetainedPlayers( card, changed );
@@ -18523,12 +18639,25 @@ idUserInterface* idMultiplayerGame::StartMenu( void ) {
 		}
  		cvarSystem->SetCVarBool( "ui_chat", true );
 	}
+	// openQ4: a single-player Arena match offers its own pause menu in the
+	// multiplayer menu's place. Join Team, Server Info, Admin and Match
+	// Control mean nothing in a one-human local match.
+	if ( currentMenu == 1 && IsArenaCampaignMatch() && arenaPauseGui != NULL ) {
+		currentMenu = MP_MENU_ARENA_PAUSE;
+	}
 	
 	if( gameLocal.GetLocalPlayer() ) {
 		gameLocal.GetLocalPlayer()->disableHud = true;
 	}
 
 	nextMenu = 0;
+	if ( currentMenu == MP_MENU_ARENA_PAUSE ) {
+		// Published before activation so onActivate reads this match.
+		PublishArenaPauseMenu( arenaPauseGui, false );
+		arenaPauseGui->StateChanged( gameLocal.time );
+		arenaPauseGui->Activate( true, gameLocal.time );
+		return arenaPauseGui;
+	}
 	if ( currentMenu == 1 ) {
 		// Opening the menu may follow a GUI reload even when the authoritative
 		// view is unchanged.  Force one projection, then UpdateMainGui can reuse
@@ -18699,6 +18828,8 @@ void idMultiplayerGame::DisableMenu( void ) {
 	} else if( currentMenu == 4 ) {
 		buyMenu->Activate( false, gameLocal.time );
 // RITUAL END
+	} else if ( currentMenu == MP_MENU_ARENA_PAUSE && arenaPauseGui != NULL ) {
+		arenaPauseGui->Activate( false, gameLocal.time );
 	}
 
 	// copy over name/clan from temp cvars
@@ -18886,6 +19017,8 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 // jmartel: make sure var is initialized (compiler complained)
 	} else if( currentMenu == 3 ) {
 		currentGui = statSummary;
+	} else if ( currentMenu == MP_MENU_ARENA_PAUSE && arenaPauseGui != NULL ) {
+		currentGui = arenaPauseGui;
 	} else {
 		gameLocal.Warning( "idMultiplayerGame::HandleGuiCommands() - Unknown current menu '%d'\n", currentMenu );
 		currentGui = mainGui;
@@ -19018,6 +19151,13 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 		} else if (	!idStr::Icmp( cmd, "close" ) ) {
 			DisableMenu( );
 			return NULL;
+		} else if ( !idStr::Icmp( cmd, "arenaPause" ) ) {
+			// openQ4: the Arena pause menu's actions (section 13.7).
+			const char *action = args.Argc() - icmd >= 1 ? args.Argv( icmd++ ) : "";
+			if ( !IsArenaPauseMenuOpen() ) {
+				continue;
+			}
+			return HandleArenaPauseCommand( action );
 		} else if (	!idStr::Icmp( cmd, "spectate" )	) {
 			ToggleSpectate();
 			DisableMenu( );

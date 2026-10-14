@@ -718,6 +718,15 @@
 	"#str_41908"	"Wyrzuć"
 	"#str_41909"	"Przypisz stronę"
 
+	// Arena pause menu
+	"#str_42180"	"RESTARTUJ MECZ"
+	"#str_42181"	"OPUŚĆ MECZ"
+	"#str_42182"	"ZRESTARTOWAĆ MECZ?"
+	"#str_42183"	"Mecz zacznie się od nowa od prezentacji. Nic nie zostanie zapisane."
+	"#str_42184"	"OPUŚCIĆ MECZ?"
+	"#str_42185"	"Wrócisz do przeglądu Areny. Nic nie zostanie zapisane, a Ponów zaproponuje ten mecz ponownie."
+	"#str_42186"	"MECZ WSTRZYMANY"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duel"
 	"#str_42202"	"Team Deathmatch"

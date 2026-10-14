@@ -709,6 +709,15 @@
 	"#str_41908"	"Expulsar"
 	"#str_41909"	"Vincular"
 
+	// Arena pause menu
+	"#str_42180"	"REINICIAR PARTIDA"
+	"#str_42181"	"ABANDONAR PARTIDA"
+	"#str_42182"	"¿REINICIAR PARTIDA?"
+	"#str_42183"	"La partida vuelve a empezar desde la presentación. No se registra nada."
+	"#str_42184"	"¿ABANDONAR PARTIDA?"
+	"#str_42185"	"Vuelves al explorador de la Arena. No se registra nada y Reintentar te ofrece la partida de nuevo."
+	"#str_42186"	"PARTIDA EN PAUSA"
+
 	"#str_42200"	"Combate a muerte"
 	"#str_42201"	"Duelo"
 	"#str_42202"	"Combate a muerte por equipos"

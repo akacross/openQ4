@@ -3347,6 +3347,151 @@ def validate_ceremony_presentation() -> None:
     require(header, "bool\t\t\tArenaCampaignPresentationActive( void ) const;", "presentation predicate")
 
 
+def validate_pause_menu() -> None:
+    """Pin the Arena pause menu that replaces the multiplayer menu in a match.
+
+    Escape during a live Arena match opens Resume, Restart match, Settings and
+    Leave match - in the stock GUI and under its retained card - instead of the
+    multiplayer menu's Join Team, Server Info, Admin and Match Control. The
+    world keeps pausing behind it, Restart takes the campaign's own launch path,
+    and Leave takes the existing disconnect to the abandoned report.
+    """
+
+    import json
+
+    game = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.cpp")
+    header = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.h")
+    arena = read(ROOT / "src" / "framework" / "ArenaCampaign.cpp")
+    arena_header = read(ROOT / "src" / "framework" / "ArenaCampaign.h")
+    session_menu = read(ROOT / "src" / "framework" / "Session_menu.cpp")
+    adapter = read(ROOT / "src" / "ui" / "UserInterfaceRetained.cpp")
+    pause_gui_path = ROOT / "content" / "baseoq4" / "pak0" / "guis" / "arena_pause.gui"
+    pause_gui = read(pause_gui_path)
+
+    # The game opens its own pause menu in mainGui's place, only in an Arena match.
+    require(header, "static const int MP_MENU_ARENA_PAUSE = 5;", "the Arena pause menu's currentMenu value")
+    start = function_body(game, "idUserInterface* idMultiplayerGame::StartMenu( void )")
+    require(start, "if ( currentMenu == 1 && IsArenaCampaignMatch() && arenaPauseGui != NULL ) {",
+            "only an Arena match swaps the multiplayer menu for its pause menu")
+    require(start, "return arenaPauseGui;", "StartMenu returns the Arena pause menu")
+    if start.find("PublishArenaPauseMenu( arenaPauseGui, false );") > start.find("arenaPauseGui->Activate( true, gameLocal.time );"):
+        raise AssertionError("the pause menu's match block must be published before its activation")
+    require(game, 'arenaPauseGui = uiManager->FindGui( "guis/arena_pause.gui", true, false, true );', "the pause menu loads with the MP GUIs")
+    disable = function_body(game, "void idMultiplayerGame::DisableMenu( void )")
+    require(disable, "arenaPauseGui->Activate( false, gameLocal.time );", "closing deactivates the pause menu")
+    commands = function_body(game, "const char *idMultiplayerGame::HandleArenaPauseCommand( const char *action )")
+    for token, reason in (
+        ('return "main fromMp_toControls";', "Settings opens the main menu's settings page"),
+        ('BufferCommandText( CMD_EXEC_APPEND, "arenaCampaignRestart\\n" );', "Restart asks the campaign"),
+        ('BufferCommandText( CMD_EXEC_APPEND, "disconnect\\n" );', "Leave takes the abandoned-report disconnect"),
+    ):
+        require(commands, token, reason)
+    # HandleGuiCommands holds braces in strings, so read the verb's own lines.
+    gui_commands = game[game.index('!idStr::Icmp( cmd, "arenaPause" )'):][:600]
+    require(gui_commands, "if ( !IsArenaPauseMenuOpen() ) {", "arenaPause commands act only on the open pause menu")
+    # Escape still belongs to the ceremony once a result is pending, and the
+    # world pause still reads the menu-over-match state the pause menu sets.
+    game_local = read(GAME_LIBS_ROOT / "src" / "mpgame" / "Game_local.cpp")
+    require(game_local, "if ( mpGame.ArenaCampaignOwnsEscape() ) return ESC_IGNORE;", "the ceremony keeps Escape")
+    pauses = function_body(game, "bool idMultiplayerGame::ArenaCampaignPausesWorld( void ) const")
+    require(pauses, 'cvarSystem->GetCVarBool( "ui_arenaMenuOpen" )', "the pause menu pauses the match")
+    covers = function_body(arena, "static bool ArenaMenuCoversMatch()")
+    require(covers, 'idStr::Icmp( gui->Name(), "guis/mpmsgmode.gui" ) != 0', "any menu but chat pauses")
+
+    # The retained card covers the pause menu; the game allows it only there.
+    cover = function_body(game, "void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *card )")
+    require(cover, "const bool arenaPause = IsArenaPauseMenuOpen() && arenaPauseGui != NULL && IsArenaCampaignMatch();",
+            "the Arena pause card covers only the Arena pause menu")
+    require(cover, 'card->SetStateBool( "mp.cover_allowed", allowed || arenaPause );', "the cover protocol answers for the pause card")
+    publish = function_body(game, "void idMultiplayerGame::PublishRetainedMenu( idUserInterface *card )")
+    require(publish, "PublishArenaPauseMenu( card, true );", "the card publishes the match block")
+    require(session_menu, 'static const char *const RETAINED_ARENA_PAUSE_GUI = "guis/menu/arena_pause.q4ui";', "the Arena pause card")
+    require(session_menu, '!idStr::Icmp( gui->Name(), "guis/arena_pause.gui" )', "the session recognises the pause menu")
+    request = function_body(session_menu, "void idSessionLocal::HandleRetainedMultiplayerRequest( idUserInterface *gui, const char *request )")
+    for verb, command in (("arenaRestart", "restart"), ("arenaLeave", "leave"), ("settings", "settings"), ("resume", "resume")):
+        require(request, f'!idStr::Icmp( request, "{verb}" )', f"the card's {verb}")
+        require(request, f'"play main_menu_selection ; arenaPause {command}"', f"the card's {verb} is the stock menu's own command")
+    for verb in ("arenaRestart", "arenaLeave"):
+        require(adapter, f'"{verb}"', "the retained adapter allows the Arena pause verbs")
+
+    # Restart is the abandoned report's Retry: same token, nothing recorded.
+    require(arena_header, "void\t\t\t\t\tRestartMatch();", "the campaign restarts its own matches")
+    require(arena, '"arenaCampaignRestart", ArenaCampaign_Restart_f, CMD_FL_SYSTEM,', "the restart command is registered")
+    require(arena, 'cmdSystem->RemoveCommand( "arenaCampaignRestart" );', "the restart command is removed with the campaign")
+    restart = function_body(arena, "void idArenaCampaign::RestartMatch()")
+    order = [restart.find(token) for token in (
+        "const int token = ActiveMatchToken();", "sessLocal.Stop();", "AbortMatch();", "OpenBrowser();",
+        "ArenaSetResultMatch( state, token );", "state->resultFailure = ARENA_FAILURE_ABANDONED;",
+        "if ( !ArenaResultCanRetry( state ) ) {", "RetryResult();")]
+    if min(order) < 0 or order != sorted(order):
+        raise AssertionError("Restart must leave the match, then retry its token through RetryResult")
+    require(restart, "ReportAbandoned( token );", "a match that cannot restart reports itself abandoned")
+    # Settings returns to the pause menu, not the main menu's multiplayer home.
+    frame = function_body(arena, "void idArenaCampaign::Frame()")
+    require(frame, "if ( menuOpen && ArenaMainMenuAtHome() && game != NULL ) {", "the settings page returns to the pause menu")
+    require(frame, "idUserInterface *pause = game->StartMenu();", "the pause menu reopens through the game")
+
+    # The stock GUI's actions and questions.
+    for window, command in (
+        ("arena_pause_resume", "play main_menu_selection arenaPause resume"),
+        ("arena_pause_settings", "play main_menu_selection arenaPause settings"),
+    ):
+        require(gui_window_body(pause_gui, window), command, f"{window} action")
+    for window, state in (("arena_pause_restart", '"Desktop::arena_confirm" "1"'), ("arena_pause_leave", '"Desktop::arena_confirm" "2"')):
+        require(gui_window_body(pause_gui, window), state, f"{window} asks first")
+    yes = gui_window_body(pause_gui, "arena_confirm_yes")
+    for command in ("play main_menu_selection arenaPause restart", "play main_menu_selection arenaPause leave"):
+        require(yes, command, "the confirmation's YES")
+    require(pause_gui, 'set "cmd" "play main_menu_selection arenaPause resume" ;', "Escape resumes")
+    require(gui_window_body(pause_gui, "arena_pause_nav"), 'noevents\t( "Desktop::arena_confirm" != 0 )',
+            "focus cannot leave an open question for the menu behind it")
+
+    # The retained card's verbs and questions.
+    text = (ROOT / "content" / "baseoq4" / "pak0" / "guis" / "menu" / "arena_pause.q4ui").read_text(encoding="utf-8")
+    document = json.loads(re.sub(r"^\s*//.*$", "", text, flags=re.M))
+    actions = {name: action["arguments"]["command"] for name, action in document["actions"].items()}
+    if actions != {"resume": "resume", "settings": "settings", "arenaRestart": "arenaRestart", "arenaLeave": "arenaLeave"}:
+        raise AssertionError(f"the Arena pause card's verbs are {sorted(actions)}")
+    if document["events"]["onBack"] != [{"op": "action", "action": "resume"}]:
+        raise AssertionError("Back on the Arena pause card resumes")
+    # The runtime refuses a document whose bound property has no base value.
+    nodes = {}
+
+    def walk(node):
+        nodes[node["id"]] = node
+        for child in node.get("children", []):
+            walk(child)
+
+    walk(document["root"])
+    unbased = [binding["id"] for binding in document["bindings"]
+               if binding["property"] not in nodes[binding["node"]].get("properties", {})]
+    if unbased:
+        raise AssertionError(f"the Arena pause card binds properties without base values: {unbased}")
+    for modal in ("restartModal", "leaveModal"):
+        if f"{modal}Show" not in document["events"]:
+            raise AssertionError(f"the Arena pause card asks before {modal}")
+
+    # Every string the menu shows is localized in every shipped table.
+    keys = set(re.findall(r"#str_\d+", pause_gui)) | set(re.findall(r"#str_\d+", text))
+    own = {f"#str_{value}" for value in range(42180, 42187)}
+    if not own <= keys:
+        raise AssertionError(f"the pause menu leaves {sorted(own - keys)} unused")
+    for path in sorted(STRINGS_DIR.glob("*_openq4.lang")):
+        entries = parse_language(path) if path.stem.startswith(("english", "french", "italian", "spanish")) else dict(
+            LANG_ENTRY_RE.findall(path.read_text(encoding="utf-8")))
+        missing = sorted(key for key in own if not entries.get(key, "").strip())
+        if missing:
+            raise AssertionError(f"{relative(path)} lacks Arena pause strings {missing}")
+    english = parse_language(STRINGS_DIR / "english_openq4.lang")
+    for key, expected in (("#str_42180", "RESTART MATCH"), ("#str_42181", "LEAVE MATCH"), ("#str_42186", "MATCH PAUSED")):
+        if english[key] != expected:
+            raise AssertionError(f"English {key} is {english[key]!r}, expected {expected!r}")
+
+    user_doc = read(ROOT / "docs" / "user" / "arena-campaign.md")
+    for token in ("**Resume**", "**Restart match**", "**Settings**", "**Leave match**"):
+        require(user_doc, token, "the player guide names the pause menu's actions")
+
+
 def validate_doc_circuit_table(campaign: Campaign) -> None:
     """The player guide's circuit table is the only human-readable manifest.
 
@@ -3415,6 +3560,7 @@ def main() -> int:
     validate_ceremony_flow()
     validate_ceremony_presentation()
     validate_docs()
+    validate_pause_menu()
     validate_doc_circuit_table(campaign)
     print("arena_campaign: ok")
     return 0

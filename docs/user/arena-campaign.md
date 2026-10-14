@@ -122,21 +122,29 @@ taken that way does not count. Press Escape to skip to the report instead.
 
 ## Pausing and leaving a match
 
-An Arena match pauses like a story level. Opening the menu — or the main menu
-and its settings from there — stops the bots, the match clock, projectiles,
-respawns and round timers until you return. Chat does not pause the match,
-because the bots answer it.
+An Arena match pauses like a story level. Press Escape (or the controller's
+menu button) during a match for the **MATCH PAUSED** menu, which shows the
+match, its tier, game type and map, the paused clock and the score:
 
-Leaving a match part way through (**Disconnect**, or quitting to the menu)
-returns you to the Arena browser with a **Match abandoned** report that names
-the match and offers **Retry**. Nothing is recorded and your progress is
-unchanged.
+- **Resume** returns to the match. Escape or the back button does the same.
+- **Restart match** asks first, then starts the same match again from its
+  introductions. Nothing is recorded.
+- **Settings** opens the normal settings screens. The match stays paused, and
+  backing out returns you to the pause menu.
+- **Leave match** asks first, then returns you to the Arena browser with a
+  **Match abandoned** report that names the match and offers **Retry**.
+  Nothing is recorded and your progress is unchanged.
 
-A match has to be played out to count. The multiplayer menu's Admin actions —
-kicking players, switching teams and changing server rules — are refused
-during an Arena match, and a match whose opponents all leave (for example
-when its bots are removed from the console) ends as **Match aborted**, with
-nothing recorded and **Retry** offered.
+While the pause menu or the settings are open, the bots, the match clock,
+projectiles, respawns and round timers all stop. Chat does not pause the match,
+because the bots answer it. Once a match has ended, Escape skips the rest of the
+end-of-match ceremony to the match report instead.
+
+A match has to be played out to count. Quitting to the menu any other way, for
+example with the `disconnect` console command, also leaves the match with a
+**Match abandoned** report. A match whose opponents all leave (for example when
+its bots are removed from the console) ends as **Match aborted**, with nothing
+recorded and **Retry** offered.
 
 If a match cannot be started or its result cannot be recorded, the browser
 raises a **Match Aborted** report naming the match and the reason instead of

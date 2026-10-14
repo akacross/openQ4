@@ -709,6 +709,15 @@
 	"#str_41908"	"Expel"
 	"#str_41909"	"Bind side"
 
+	// Arena pause menu
+	"#str_42180"	"RESTART MATCH"
+	"#str_42181"	"LEAVE MATCH"
+	"#str_42182"	"RESTART MATCH?"
+	"#str_42183"	"The match starts again from its introduction. Nothing is recorded."
+	"#str_42184"	"LEAVE MATCH?"
+	"#str_42185"	"You return to the Arena browser. Nothing is recorded, and Retry offers the match again."
+	"#str_42186"	"MATCH PAUSED"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duel"
 	"#str_42202"	"Team Deathmatch"

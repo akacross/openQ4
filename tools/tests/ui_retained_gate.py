@@ -303,7 +303,7 @@ public:
     void PreloadRetainedScreens(); void PrepareRetainedLevel(const char*, bool); void PrecacheRetainedLevelImages();
     void ReportRetainedScreens();
     idUserInterface *guiRetainedEscape = nullptr, *guiRetainedWelcome = nullptr, *guiRetainedMultiplayer = nullptr;
-    idUserInterface *guiRetainedSummary = nullptr, *retainedMultiplayerTarget = nullptr;
+    idUserInterface *guiRetainedSummary = nullptr, *retainedMultiplayerTarget = nullptr, *guiRetainedArenaPause = nullptr;
     bool retainedMultiplayerWelcome = false, retainedMultiplayerSummary = false, retainedSummaryTyping = false;
     int retainedSummaryCaret = 0, summaryChats = 0, summaryChatEnds = 0;
     bool RetainedSummaryCovers() const;
@@ -323,7 +323,7 @@ public:
 MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
-    "guis/menu/mp_welcome.q4ui", "guis/menu/campaign_skill.q4ui", "guis/menu/mp_summary.q4ui"};
+    "guis/menu/mp_welcome.q4ui", "guis/menu/campaign_skill.q4ui", "guis/menu/mp_summary.q4ui", "guis/menu/arena_pause.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -1086,6 +1086,27 @@ int main() {
         CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; close" && s.guiActive == nullptr && s.guiRetainedMultiplayer == nullptr &&
               sheet->named.back() == "release");
         s.HandleRetainedSessionRequest(card, "mpSummaryChat"); CHECK(s.summaryChats == 1);  // only over the summary
+        s.guiRetainedReleasing = nullptr;
+        // An Arena match's pause menu takes the Arena pause card, without the
+        // Welcome question. Restart match and Leave match (after the card's own
+        // questions) keep the menu up for the campaign; Resume closes it with
+        // the release.
+        static idUserInterface arenaMenu("guis/arena_pause.gui"); arenaMenu = idUserInterface("guis/arena_pause.gui"); arenaMenu.state["gameDraw"] = "1";
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", true); };
+        const size_t arenaAsked = gameObject.commands.size();
+        s.guiActive = &arenaMenu; s.UpdateRetainedMultiplayer();
+        auto* arenaPause = s.guiRetainedMultiplayer;
+        CHECK(arenaPause && arenaPause == s.guiRetainedArenaPause && std::string(arenaPause->Name()) == "guis/menu/arena_pause.q4ui" &&
+              arenaPause->named.back() == "open" && gameObject.commands.size() == arenaAsked + 1 && gameObject.commands.back() == "retainedMultiplayerCover");
+        gameObject.answer = [](const char*) -> const char* { return "continue"; };
+        for (const auto& [verb, action] : std::vector<std::pair<const char*, const char*>>{{"arenaRestart", "restart"}, {"arenaLeave", "leave"}}) {
+            s.HandleRetainedSessionRequest(arenaPause, verb);
+            CHECK(gameObject.guiCommands.back() == std::string("play main_menu_selection ; arenaPause ") + action && s.guiRetainedMultiplayer == arenaPause);
+        }
+        gameObject.answer = [](const char*) -> const char* { return nullptr; };
+        s.HandleRetainedSessionRequest(arenaPause, "resume");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; arenaPause resume" && s.guiActive == nullptr &&
+              s.guiRetainedMultiplayer == nullptr && arenaPause->named.back() == "release");
         s.guiRetainedReleasing = nullptr;
         // The chat and buy GUIs are never covered; neither is a test GUI or a preview.
         s.guiActive = &chat; s.UpdateRetainedMultiplayer(); CHECK(s.guiRetainedMultiplayer == nullptr);
@@ -2368,7 +2389,7 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert 'guiRetainedWelcome = FindRetainedGui( RETAINED_MP_WELCOME_GUI, false, false );' in prepare
     update = function_body(menu, 'void idSessionLocal::UpdateRetainedMultiplayer(')
     assert update.index('game->HandleMainMenuCommands( "retainedMultiplayerVariant", guiActive );') < \
-        update.index('const bool enabled = summary ? Session_RetainedSummaryEnabled() : Session_RetainedMultiplayerEnabled( welcome );') < \
+        update.index('const bool enabled = arena ? Session_RetainedArenaPauseEnabled() :') < \
         update.index('if ( !enabled || retainedStock.FindIndex( path ) >= 0 ) {') < update.index('document = FindRetainedGui( path, false, false );') < \
         update.index('game->HandleMainMenuCommands( "retainedMultiplayerCover", card );')
     # The summary card: loaded in the level load, the summary's own draw
@@ -2501,7 +2522,8 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     publish = function_body(mp_game, 'void idMultiplayerGame::PublishRetainedMenu(')
     assert publish.index('PublishRetainedPlayers( card, changed );') < publish.index('if ( changed ) {')
     # The deathmatch header's rank text drops the HUD's colour codes.
-    assert 'score = MPRetainedPlainText( GetPlayerRankText( player ), 96, 1 );' in publish
+    assert 'publish( "mp.score", RetainedScoreLine().c_str() );' in publish
+    assert 'score = MPRetainedPlainText( GetPlayerRankText( player ), 96, 1 );' in function_body(mp_game, 'idStr idMultiplayerGame::RetainedScoreLine(')
     # The stock Friend button keeps the same mark the page shows.
     assert mp_game.count('ToggleFriend( client );') == 2
 
@@ -2552,7 +2574,8 @@ def main() -> int:
             path = match.group(1)
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui', 'guis/menu/campaign_skill.q4ui',
-                       'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/mp_summary.q4ui'}
+                       'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/mp_summary.q4ui',
+                       'guis/menu/arena_pause.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -2751,7 +2774,8 @@ def main() -> int:
         'bool idSessionLocal::RetainedSubpageEvent(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
-        'static bool Session_IsGameMenu(', 'static bool Session_IsGameSummary(', 'static bool Session_IsCoveredGameGui(',
+        'static bool Session_IsGameMenu(', 'static bool Session_IsGameSummary(', 'static bool Session_IsArenaPause(',
+        'static bool Session_IsCoveredGameGui(',
         'bool idSessionLocal::RetainedMultiplayerCovers(', 'bool idSessionLocal::RetainedSummaryCovers(', 'void idSessionLocal::UpdateRetainedMultiplayer(',
         'void idSessionLocal::RetireRetainedMultiplayer(', 'void idSessionLocal::RetainedMultiplayerFrameEvent(',
         'void idSessionLocal::HandleGameMenuReturn(', 'void idSessionLocal::HandleRetainedMultiplayerRequest(',

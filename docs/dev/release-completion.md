@@ -40,6 +40,28 @@
   [the ceremony notes](arena-campaign-ceremony.md). See
   [candidate player-facing notes](releases/arena-refinements.md).
 
+- [x] Give the single-player Arena match its own pause menu. During a live
+  Arena match Escape opens MATCH PAUSED (`guis/arena_pause.gui`,
+  `currentMenu` 5) in place of the multiplayer menu, with Resume, Restart
+  match, Settings and Leave match beside the match block (tier and role,
+  levelshot, game type, map, paused clock, score). With `ui_retained` the
+  session covers it with `guis/menu/arena_pause.q4ui` through the multiplayer
+  cards' cover protocol. Restart (after a question) runs the new
+  `arenaCampaignRestart`, which leaves the match and takes the abandoned
+  report's own Retry for the same token: entrance, `PrepareServer`, a fresh
+  server, nothing recorded. Leave (after a question) is `disconnect`, so the
+  browser shows "Match abandoned" with Retry. Settings opens the main menu's
+  settings page over the paused match, and backing out returns to the pause
+  menu. The world pause (`ui_arenaMenuOpen`) holds throughout, and Escape
+  still skips the ceremony once a result is pending. Strings `#str_42180`-`42186`
+  in all 12 tables; spec 13.7 "Arena" (version 1.23). Runtime, staged build,
+  hidden window, no device input (`.tmp/arena-audit` scenarios `pausemenu`
+  and `restart`, classic and retained): the Escape path opens the menu in
+  11-12 ms and the clock holds at 5:53 through the menu and the settings
+  page; Settings returns to the pause menu; Leave lands on the "Match
+  abandoned" report; Restart replays match 1 from its introduction to
+  control. See [the ceremony notes](arena-campaign-ceremony.md#pause-menu).
+
 - [x] Review and refine the multiplayer bots across combat safety, personality,
   tactics, navigation and presentation. Combat: a world or mover hit no longer
   switches off the splash cover tests, the speculative projectile sweep ignores

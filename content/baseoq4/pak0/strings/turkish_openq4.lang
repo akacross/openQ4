@@ -709,6 +709,15 @@
 	"#str_41908"	"İhraç et"
 	"#str_41909"	"Tarafı ata"
 
+	// Arena pause menu
+	"#str_42180"	"MAÇI YENİDEN BAŞLAT"
+	"#str_42181"	"MAÇTAN AYRIL"
+	"#str_42182"	"MAÇ YENİDEN BAŞLATILSIN MI?"
+	"#str_42183"	"Maç tanıtımdan itibaren yeniden başlar. Hiçbir şey kaydedilmez."
+	"#str_42184"	"MAÇTAN AYRILINSIN MI?"
+	"#str_42185"	"Arena tarayıcısına dönersin. Hiçbir şey kaydedilmez ve Tekrar Dene maçı yeniden sunar."
+	"#str_42186"	"MAÇ DURAKLATILDI"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Düello"
 	"#str_42202"	"Takım Deathmatch"

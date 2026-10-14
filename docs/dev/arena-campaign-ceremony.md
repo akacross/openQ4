@@ -108,6 +108,53 @@ A fresh fire press does the same, and also skips the rest of the
 introductions, but only after `ARENA_SKIP_GRACE_MSEC` on the beat so a trigger
 held as the match ends cannot skip it.
 
+## Pause menu
+
+Escape during a live Arena match opens the Arena pause menu instead of the
+multiplayer menu, whose Join Team, Server Info, Admin and Match Control mean
+nothing in a one-human local match. `idMultiplayerGame::StartMenu` swaps
+`currentMenu` 1 for `MP_MENU_ARENA_PAUSE` (5) when `IsArenaCampaignMatch()`
+holds, so every path that opens the menu (Escape, `game_startmenu`) gets it.
+The stock menu is `guis/arena_pause.gui`, loaded beside `mpmain.gui`;
+`PublishArenaPauseMenu` fills its match block (`arena_pause_title`, `_detail`,
+`_mode`, `_map`, `_clock`, `_score`, `_levelshot`) before each activation.
+
+| Action | GUI command | What happens |
+| --- | --- | --- |
+| Resume | `arenaPause resume` | `DisableMenu`; the match resumes |
+| Restart match | `arenaPause restart` (after a question) | buffers `arenaCampaignRestart`; the menu stays up until the framework tears the match down |
+| Settings | `arenaPause settings` | `DisableMenu`, then `main fromMp_toControls`: the main menu's settings page |
+| Leave match | `arenaPause leave` (after a question) | buffers `disconnect`: `Session_Disconnect_f` → `ReportAbandoned` |
+
+- **Pause.** The menu is a session GUI other than the chat box, so
+  `ArenaMenuCoversMatch` and `ui_arenaMenuOpen` keep the world paused, as they
+  do under the main menu and its settings pages.
+- **Restart.** `idArenaCampaign::RestartMatch` reads `ActiveMatchToken()`,
+  stops the server, restores the transaction (`AbortMatch`) and opens the
+  browser, then builds the abandoned ledger for that token and takes its own
+  `RetryResult()`: the entrance curtain, `PrepareServer` and a fresh listen
+  server, the one path every match launch takes. Nothing is recorded. A match
+  that can no longer start (content changed) shows the **Match abandoned**
+  report instead.
+- **Settings.** Backing out of the settings page lands the main menu on its
+  multiplayer home. `idArenaCampaign::Frame` sees the main menu come to rest
+  there over a live match (`ArenaMainMenuAtHome`) and gives the screen back to
+  the pause menu through `game->StartMenu()`, after `ExitMenu` restores the
+  game sound world.
+- **Retained.** With `ui_retained` (or `ui_retainedMultiplayer`) the session
+  covers the menu with `guis/menu/arena_pause.q4ui`
+  (`tools/ui/retained_arena_pause.py`): the single-player pause frame with
+  MATCH PAUSED, the four actions on the stock rows, the match block in the
+  level block's place and the stock modal for both questions. The cover uses
+  the multiplayer cards' protocol (`SetRetainedMenuCover` allows only this
+  card in an Arena match); its verbs `resume`, `settings`, `arenaRestart` and
+  `arenaLeave` reach the game as the stock menu's own `arenaPause` commands
+  (`HandleRetainedMultiplayerRequest`), and the session gives it the map's
+  levelshot as `pause_shot`.
+- **Ceremony.** Once a result is pending, Escape still belongs to the ceremony
+  (`ArenaCampaignOwnsEscape`), so the pause menu never opens over a decided
+  match.
+
 ## Driving it without input
 
 `openq4_arenaCeremony <win|loss|draw|skip|status>` (cheat) ends the live local
@@ -117,7 +164,12 @@ current beat, or prints the ceremony state and match clock. With
 (`+set ui_arenaCampaignActive 1 +set ui_arenaActiveMatch <n> +spawnServer <map>`)
 and driven end to end through `g_autoExecAfterMapLoad` and a command pump; this
 is how the audit below was validated. `campaignMenu` opens a menu over a running
-match, which exercises the pause.
+match, which exercises the pause. `openq4_assertMenuActivation <msec> game`
+opens the in-game menu through `game->HandleESC`, the Escape path, so it shows
+the Arena pause menu; `openq4_guiAction <window>` presses a stock button
+(`arena_pause_restart`, `arena_confirm_yes`, `arena_pause_leave`,
+`arena_pause_settings`), and `openq4_retainedGui menu <action> 1` (or `event
+restartModalShow` and `menu arenaRestart 1`) drives the retained card.
 
 ## 2026-10 audit
 
@@ -204,7 +256,9 @@ The same 1-0 win on NIGHTMARE then replaced it, and the ledger showed
 
 ## Known gaps
 
-- The in-game menu during an Arena match is still the stock multiplayer menu;
-  Join Team, Server Info, Admin and Match Control remain visible although
-  their actions are refused or inert. An Arena-specific pause menu (Resume,
-  Restart match, Leave) is the natural next step.
+- The pause menu stops the world but not the game sound world, as the
+  multiplayer menu never did: ambient loops keep playing behind it.
+- Restart match relaunches the listen server through the browser's entrance,
+  so it takes as long as starting the match from the browser (the map and its
+  navigation load again). Keyboard, mouse and controller navigation of the
+  pause menu are code-verified only; the runtime checks drive it by command.

@@ -709,6 +709,15 @@
 	"#str_41908"	"Espelli"
 	"#str_41909"	"Associa"
 
+	// Arena pause menu
+	"#str_42180"	"RICOMINCIA INCONTRO"
+	"#str_42181"	"ABBANDONA INCONTRO"
+	"#str_42182"	"RICOMINCIARE L'INCONTRO?"
+	"#str_42183"	"L'incontro riparte dalla presentazione. Non viene registrato nulla."
+	"#str_42184"	"ABBANDONARE L'INCONTRO?"
+	"#str_42185"	"Torni al browser dell'Arena. Non viene registrato nulla e Riprova ti propone di nuovo l'incontro."
+	"#str_42186"	"INCONTRO IN PAUSA"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duello"
 	"#str_42202"	"Deathmatch a squadre"
