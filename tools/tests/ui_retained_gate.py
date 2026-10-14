@@ -500,7 +500,6 @@ public:
     ID_TIME_T retainedNewestSave = 0;
     idUserInterface* guiRetainedReleasing = nullptr; int retainedReleaseUntil = 0;
     idUserInterface* retainedSubpageFrom = nullptr; bool retainedSubpageDeeper = false; int retainedSubpageBegan = 0, retainedSubpageUntil = 0;
-    bool retainedSubpageSibling = false;
     idUserInterface* guiLoading = nullptr; bool retainedLoadingActive = false;
     int retainedLoadingTip = -1, retainedLoadingTipSlot = 0, retainedLoadingTipAt = 0; void PublishRetainedLoadingTip(bool);
     void BeginRetainedSubpage(idUserInterface*, bool, retainedSubpage_t = RETAINED_SUBPAGE_CAMPAIGN); void UpdateRetainedSubpage();
@@ -509,9 +508,7 @@ public:
     // Single Player's Arena sub-page.
     idUserInterface* guiRetainedArena = nullptr; idUserInterface* RetainedArenaPage();
     idUserInterface* RetainedArenaGui() const { return guiRetainedArena; } void HandleRetainedArenaRequest(idUserInterface*, const char*);
-    // Campaign's New Campaign sub-page; the maps a new game started on.
-    bool OpenRetainedNewCampaign(const char*); void BeginRetainedSibling(idUserInterface*, bool); void PresentRetainedSibling(bool);
-    void StartRetainedNewCampaign(idUserInterface*);
+    // The maps a new game started on.
     std::vector<std::string> started; void StartNewGame(const char* map) { started.push_back(map); }
     bool retainedHomeReturning = false;
     // A stock message box (guiMsg) over the GUI it covers (guiMsgRestore).
@@ -627,7 +624,7 @@ public:
     idStr RetainedPauseShot(const char*) const;
     void UpdateRetainedHome(); bool RetainedHomeInputBlocked() const; void RetainedHomeFrameEvent();
     void HandleRetainedSessionRequest(idUserInterface*, const char*);
-    void OpenCampaignSelector(bool, bool = false, bool = false);
+    void OpenCampaignSelector(bool, bool = false);
     std::vector<std::string> selected; int menus = 0;
     void SelectCampaign(const char* campaign) { selected.push_back(campaign); }
     void StartMenu() { ++menus; guiActive = guiMainMenu; }
@@ -656,7 +653,7 @@ MAIN = r'''
 static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause.q4ui", "guis/menu/pause_strogg.q4ui", "guis/loading/loading.q4ui",
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
-    "guis/menu/newcampaign.q4ui", "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
+    "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
     "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
@@ -1936,76 +1933,6 @@ int main() {
         fileSystemObject.files.erase("guis/menu/campaigns.q4ui");
         stock.HandleRetainedSessionRequest(alone, "campaigns");
         CHECK(std::string(stock.guiActive->Name()) == "guis/campaign_menu.gui" && stock.retainedSubpageFrom == nullptr && alone->named.empty());
-    }
-    {   // Campaign's New Campaign, its sibling sub-page (FLOW-050): the leaving one
-        // plays page.leave, the other presents at 140 ms, input waits for it and
-        // the change is too short to reverse. Each arrival starts at CORPORAL
-        // with turbo off, titled with the campaign.
-        auto s = Session(true); s.OpenCampaignSelector(true); auto* campaigns = s.guiActive;
-        CHECK(campaigns->state["sibling_back"] == "0" && campaigns->state["awakening_chosen"] == "0");
-        CHECK(s.OpenRetainedNewCampaign("awakening") && s.guiActive == campaigns && campaigns->named.back() == "siblingLeave");
-        CHECK(s.retainedSubpageFrom == campaigns && s.retainedSubpageDeeper && s.retainedSubpageSibling &&
-              s.retainedSubpageUntil == commonObject.time + 140 && s.played.back() == "play main_menu_selection");
-        s.HandleRetainedSessionRequest(campaigns, "campaignQuake4"); CHECK(s.selected.empty());  // no second request mid-change
-        sysEvent_t back; back.evType = SE_KEY; back.evValue = K_ESCAPE; back.evValue2 = 1;
-        CHECK(s.RetainedSubpageEvent(&back) && s.retainedSubpageFrom == campaigns && campaigns->named.back() == "siblingLeave");
-        commonObject.time += 139; s.UpdateRetainedSubpage(); CHECK(s.guiActive == campaigns);
-        commonObject.time += 1; s.UpdateRetainedSubpage(); auto* page = s.guiActive;
-        CHECK(page && std::string(page->Name()) == "guis/menu/newcampaign.q4ui" && s.retainedSubpageFrom == nullptr && !s.retainedSubpageSibling);
-        CHECK(page->state["newgame.skill"] == "1" && page->state["newgame.turbo"] == "0" && page->state["newgame.awakening"] == "1");
-        CHECK(!s.RetainedSubpageEvent(&back));  // the page takes input again
-        // Back: page.leave back, and Campaign returns at 140 ms (sibling_back) on
-        // the campaign that led there.
-        fileSystemObject.activeGameDir = "q4xbase";
-        s.HandleRetainedSessionRequest(page, "newgameBack");
-        CHECK(s.guiActive == page && page->named.back() == "siblingLeaveBack" && s.retainedSubpageFrom == page &&
-              !s.retainedSubpageDeeper && s.retainedSubpageSibling && s.retainedSubpageUntil == commonObject.time + 140);
-        commonObject.time += 140; s.UpdateRetainedSubpage();
-        CHECK(s.guiActive == campaigns && campaigns->state["sibling_back"] == "1" && campaigns->state["awakening_chosen"] == "1");
-        // START GAME: the active campaign's first map at the choice, then the game.
-        CHECK(s.OpenRetainedNewCampaign("awakening")); commonObject.time += 140; s.UpdateRetainedSubpage();
-        CHECK(s.guiActive == page && page->state["newgame.skill"] == "1" && page->state["newgame.turbo"] == "0");
-        page->state["newgame.skill"] = "3"; page->state["newgame.turbo"] = "1";
-        s.HandleRetainedSessionRequest(page, "newgameStart");
-        CHECK((s.started == std::vector<std::string>{"game/m01_stranarus_trench1"}) && cvarSystemObject.strings["g_skill"] == "3" &&
-              cvarSystemObject.strings["g_turboMode"] == "1" && s.exits == 1 && s.guiActive == nullptr);
-        fileSystemObject.activeGameDir = "baseoq4";
-        s.OpenCampaignSelector(true); CHECK(campaigns->state["sibling_back"] == "0" && campaigns->state["awakening_chosen"] == "0");
-        CHECK(s.OpenRetainedNewCampaign("quake4")); commonObject.time += 140; s.UpdateRetainedSubpage();
-        CHECK(s.guiActive == page && page->state["newgame.awakening"] == "0" && page->state["newgame.skill"] == "1");
-        page->state["newgame.skill"] = "9"; page->state["newgame.turbo"] = "0";
-        s.HandleRetainedSessionRequest(page, "newgameStart");
-        CHECK(s.started.back() == "game/airdefense1" && cvarSystemObject.strings["g_skill"] == "4" &&
-              cvarSystemObject.strings["g_turboMode"] == "0" && s.exits == 2);
-        // Reduced motion hands over at once: the arrival's 80 ms fade is the change.
-        auto r = Session(true); r.OpenCampaignSelector(true); auto* sub = r.guiActive;
-        cvarSystemObject.strings["ui_retainedReducedMotion"] = "1";
-        CHECK(r.OpenRetainedNewCampaign("quake4") && std::string(r.guiActive->Name()) == "guis/menu/newcampaign.q4ui" &&
-              r.retainedSubpageFrom == nullptr && sub->named.back() == "siblingLeave");
-        r.HandleRetainedSessionRequest(r.guiActive, "newgameBack");
-        CHECK(r.guiActive == sub && sub->state["sibling_back"] == "1" && r.retainedSubpageFrom == nullptr);
-        cvarSystemObject.strings["ui_retainedReducedMotion"] = "0";
-        // After the engine reloads into the campaign's game directory the page
-        // presents at once.
-        auto direct = Session(true);
-        CHECK(direct.OpenRetainedNewCampaign("awakening") && direct.guiActive &&
-              std::string(direct.guiActive->Name()) == "guis/menu/newcampaign.q4ui" && direct.retainedSubpageFrom == nullptr);
-        // Anything else taking the screen abandons the change.
-        auto abandon = Session(true); abandon.OpenCampaignSelector(true);
-        CHECK(abandon.OpenRetainedNewCampaign("quake4"));
-        idUserInterface other("guis/msg.gui"); abandon.guiActive = &other; abandon.UpdateRetainedSubpage();
-        CHECK(abandon.retainedSubpageFrom == nullptr && !abandon.retainedSubpageSibling && abandon.guiActive == &other);
-        // A page that stops loading by the hand-over: the stock difficulty page.
-        auto vanish = Session(true); vanish.OpenCampaignSelector(true);
-        CHECK(vanish.OpenRetainedNewCampaign("quake4")); managerObject.fail = true;
-        commonObject.time += 140; vanish.UpdateRetainedSubpage();
-        CHECK(vanish.menus == 1 && (arenaCampaign.commands == std::vector<std::string>{"arenaMissionOpen"}));
-        managerObject.fail = false;
-        // Not installed, or with the gate off: the stock difficulty page, untouched.
-        auto stock = Session(true); fileSystemObject.files.erase("guis/menu/newcampaign.q4ui");
-        stock.OpenCampaignSelector(true); auto* alone = stock.guiActive;
-        CHECK(!stock.OpenRetainedNewCampaign("quake4") && stock.guiActive == alone && alone->named.empty());
-        auto off = Session(false); CHECK(!off.OpenRetainedNewCampaign("quake4") && managerObject.loads.empty());
     }
     {   // Single Player's Arena sub-page (FLOW-011, FLOW-050): ARENA plays the change
         // with its own carry and the campaign's browser presents at 350 ms; the
@@ -4299,158 +4226,6 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert mp_game.count('ToggleFriend( client );') == 2
 
 
-def check_initializing() -> None:
-    """The initializing screen (docs/dev/ui-visual-design.md 14.17): every
-    startup message advances the step, even before the renderer can draw; a
-    frame draws the Remastered document when ui_retained is on and it draws,
-    else the stock picture; a long step repaints it from the pacifier, on the
-    engine thread, at most 30 times a second; the view goes once the menus
-    are ready or the game shuts down."""
-    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
-    import retained_initializing
-    common = (ROOT / 'src/framework/Common.cpp').read_text(encoding='utf-8')
-    session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
-    retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
-    text = (ROOT / 'content/baseoq4/pak0/guis/loading/initializing.q4ui').read_text(encoding='utf-8')
-    document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
-    assert document['id'] == 'openq4.initializing' and document.get('canvas') == {'height': 720}
-    assert not document.get('actions'), 'the initializing screen asks nothing of the engine'
-    assert document['state']['init_status']['type'] == 'string' and document['state']['init_step']['type'] == 'number'
-    assert set(document['events']) == {'onInit', 'step'}, sorted(document['events'])
-    def nodes(node):
-        yield node
-        for child in node.get('children', []):
-            yield from nodes(child)
-    segments = [node['id'] for node in nodes(document['root']) if re.fullmatch(r'rule-\d+', node['id'])]
-    assert len(segments) == retained_initializing.STEPS == 8, 'one rule segment per startup step'
-    # LOADING... twice, then one key per step; a later LOADING... keeps the step.
-    step = function_body(common, 'static int Common_InitializingStep(')
-    keys = re.findall(r'"(#str_\d+)"', step)
-    assert keys == ['#str_104346', '#str_104347', '#str_104348', '#str_104349', '#str_104350', '#str_104351'], keys
-    assert 'return 2 + i;' in step and 'return current < 1 ? current + 1 : current;' in step
-    assert 2 + len(keys) - 1 == retained_initializing.STEPS - 1, 'the last step is the rule\'s last segment'
-    printing = function_body(common, 'void idCommonLocal::PrintLoadingMessage(')
-    assert printing.index('Common_InitializingStep( msg, commonInitializingStep )') < printing.index('IsOpenGLRunning()'), \
-        'the step advances before the renderer can draw'
-    paint = function_body(common, 'static void Common_PaintInitializing(')
-    assert ('commonInitializingRetained = cvarSystem->GetCVarBool( "ui_retained" ) &&\n'
-            '\t\tRetainedUI_DrawInitializing( commonInitializingStatus.c_str(), commonInitializingStep );') in paint
-    assert 'if ( !commonInitializingRetained ) {\n\t\tCommon_DrawStockInitializing( commonInitializingStatus.c_str() );' in paint, \
-        'a frame the document cannot draw draws the stock picture'
-    pacifier = function_body(common, 'void idCommonLocal::InitializingPacifier(')
-    for token in ('!commonInitializingRetained', 'commonInitializingPainting', 'com_errorEntered', 'com_shuttingDown',
-                  'std::this_thread::get_id() != commonInitializingThread', 'Sys_Milliseconds() - commonInitializingPainted < INITIALIZING_REPAINT_MSEC'):
-        assert token in pacifier, f'the pacifier repaint needs {token}'
-    assert 'static const int\t\tINITIALIZING_REPAINT_MSEC = 33;' in common, 'at most 30 repaints a second'
-    pacifier_update = function_body(session, 'void idSessionLocal::PacifierUpdate(')
-    assert pacifier_update.index('Common_InitializingPacifier();') < pacifier_update.index('insidePacifierUpdate'), \
-        'outside a map load the pacifier repaints the initializing screen'
-    assert 'if ( !insideUpdateScreen ) {\n\t\t\tCommon_InitializingPacifier();' in pacifier_update, \
-        'never inside another screen update'
-    init_game = function_body(common, 'void idCommonLocal::InitGame(')
-    assert init_game.index('session->Init();') < init_game.index('Common_ReleaseInitializing();'), 'the view goes once the menus are ready'
-    shutdown = function_body(common, 'void idCommonLocal::ShutdownGame(')
-    assert shutdown.split('{', 1)[1].lstrip().startswith('Common_ReleaseInitializing();'), 'shutting the game down releases the view first'
-    assert 'const char* const INITIALIZING_PATH = "guis/loading/initializing.q4ui";' in retained
-    draw = function_body(retained, 'bool RetainedUI_DrawInitializing(')
-    assert 'viewport.canvasHeight = 720; viewport.fitScale = 1;' in draw, 'the document\'s view-height canvas'
-    assert 'runtime->RunEvent("onInit",now,effects,error)' in draw and 'runtime->RunEvent("step",now,effects,error)' in draw
-
-
-def check_weapon_wheel() -> None:
-    """The retained Marine weapon wheel (docs/dev/ui-visual-design.md 14.6):
-    with ui_retained, single player opens guis/hud/weaponwheel.q4ui after a
-    180 ms hold, swaps to the previous weapon on a shorter tap, selects with
-    either stick past 35% (4 degrees of hysteresis) or the mouse past 32 dp,
-    equips on release and never slows the game; VR and ui_retained 0 keep the
-    classic wheel."""
-    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
-    import retained_weapon_wheel
-    player = (ROOT / 'src/game/Player.cpp').read_text(encoding='utf-8')
-    usercmd = (ROOT / 'src/framework/UsercmdGen.cpp').read_text(encoding='utf-8')
-    text = (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel.q4ui').read_text(encoding='utf-8')
-    document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
-    assert document['id'] == 'openq4.weaponwheel' and document.get('canvas') == {'height': 720}
-    assert not document.get('actions'), 'the wheel asks nothing of the engine: the game equips'
-    assert {'open', 'select', 'close'} <= set(document['events']), sorted(document['events'])
-    slots = len(retained_weapon_wheel.SLOTS)
-    assert f'const int\tWEAPON_WHEEL_RETAINED_SLOTS\t\t= {slots};' in player, 'the game and the document agree on the slots'
-    for name in ('wheel_selected', 'wheel_previous', 'wheel_name', 'wheel_ammo'):
-        assert name in document['state'], name
-    for slot in range(slots):
-        for name in ('owned', 'empty', 'fill', 'count', 'key'):
-            assert f'wheel_{name}_{slot}' in document['state'], (name, slot)
-    for token in ('const int\tWEAPON_WHEEL_TAP_MSEC\t\t\t= 180;', 'const float\tWEAPON_WHEEL_STICK_SELECT\t\t= 0.35f;',
-                  'const float\tWEAPON_WHEEL_SELECT_HYSTERESIS\t= 4.0f;', 'const float\tWEAPON_WHEEL_POINTER_SELECT\t\t= 32.0f;'):
-        assert token in player, token
-    use = function_body(player, 'bool idPlayer::UseRetainedWeaponWheel(')
-    for token in ('gameLocal.isMultiplayer', 'common->RetainedHudGui( RetainedWeaponWheelComponent() ) == NULL',
-                  'vrSystem->IsActive()'):
-        assert token in use, f'the retained wheel needs {token}'
-    component = function_body(player, 'const char *idPlayer::RetainedWeaponWheelComponent(')
-    assert 'return isStrogg ? "weaponwheel_strogg" : "weaponwheel";' in component, 'the Strogg HUD takes the Strogg wheel'
-    import retained_weapon_wheel_strogg
-    strogg = json.loads(re.sub(r'^\s*//.*$', '',
-                               (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel_strogg.q4ui').read_text(encoding='utf-8'),
-                               flags=re.M))
-    assert strogg['id'] == 'openq4.weaponwheel.strogg' and not strogg.get('actions')
-    assert set(strogg['state']) == set(document['state']), 'both families take the same state'
-    assert {'open', 'select', 'close'} <= set(strogg['events']), sorted(strogg['events'])
-    assert len(retained_weapon_wheel_strogg.ORDER) == slots and sorted(retained_weapon_wheel_strogg.ORDER) == list(range(slots)), \
-        'the plates boot in an order that covers every slot once'
-    assert '\tWEAPON_WHEEL_CLOSE_MSEC\t\t\t= 300;' in player, 'the wheel draws through the Strogg close'
-    # Multiplayer (WID-034): the client's own wheel, equipping by impulse,
-    # with the engine holding the look, sticks, fire and zoom while it is open.
-    mp_player = (ROOT / 'src/mpgame/Player.cpp').read_text(encoding='utf-8')
-    mp_text = (ROOT / 'content/baseoq4/pak0/guis/hud/weaponwheel_mp.q4ui').read_text(encoding='utf-8')
-    mp_doc = json.loads(re.sub(r'^\s*//.*$', '', mp_text, flags=re.M))
-    assert mp_doc['id'] == 'openq4.weaponwheel.mp' and not mp_doc.get('actions') and 'wheel_team' in mp_doc['state']
-    assert '{"weaponwheel_mp", "guis/hud/weaponwheel_mp.q4ui"},' in function_body(
-        (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8'), 'const char* RetainedUI_HudDocument(')
-    mp_update = function_body(mp_player, 'void idPlayer::UpdateWeaponWheel(')
-    for token in ('common->SetWeaponWheelCapture( true );', 'PerformImpulse( IMPULSE_51 );', 'PerformImpulse( IMPULSE_0 + weaponWheelHoveredSlot );'):
-        assert token in mp_update, token
-    assert 'SetGameTimeScale' not in mp_update, 'multiplayer is never slowed'
-    controls = function_body(mp_player, 'void idPlayer::EvaluateControls(')
-    assert 'if ( gameLocal.isNewFrame ) {\n\t\tUpdateWeaponWheel();' in controls, 'never in a prediction rerun'
-    remote = function_body(mp_player, 'void idPlayer::LocalClientPredictionThink(')
-    assert '\t\t// openQ4: a remote client\'s weapon wheel, once per new frame.\n\t\tUpdateWeaponWheel();\n\t}' in remote, \
-        'a remote client updates its wheel once per new frame too'
-    assert 'common->SetWeaponWheelCapture( false );' in function_body(mp_player, 'void idPlayer::CloseRetainedWeaponWheel(')
-    make = function_body(usercmd, 'void idUsercmdGenLocal::MakeCurrent(')
-    assert 'if ( !wheelCapture ) {\n\t\t\tJoystickMove();' in make and 'viewangles = oldAngles;' in make and \
-        'cmd.buttons &= ~( BUTTON_ATTACK | BUTTON_ZOOM );' in make, 'an open wheel holds the look, sticks, fire and zoom'
-    assert 'wheelCapture = false;' in function_body(usercmd, 'void idUsercmdGenLocal::InitForNewMap('), 'a new map frees the look'
-    # The engine owns the document's path, behind the gate.
-    retained = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
-    hud = function_body(retained, 'const char* RetainedUI_HudDocument(')
-    assert '{"weaponwheel", "guis/hud/weaponwheel.q4ui"},' in hud and '!cvarSystem->GetCVarBool("ui_retained")' in hud
-    assert '{"weaponwheel_strogg", "guis/hud/weaponwheel_strogg.q4ui"},' in hud
-    assert 'RetainedHudGui( const char *name ) { return RetainedUI_HudDocument( name ); }' in \
-        (ROOT / 'src/framework/Common.cpp').read_text(encoding='utf-8')
-    update = function_body(player, 'void idPlayer::UpdateRetainedWeaponWheel(')
-    assert 'now - weaponWheelPressTime >= WEAPON_WHEEL_TAP_MSEC' in update, 'the wheel opens after a tap'
-    tap = update.index('if ( !weaponWheelActive ) {')
-    assert tap < update.index('LastWeapon();') < update.index('SelectWeapon( weaponIndex, false );'), \
-        'a tap swaps to the previous weapon; a release equips'
-    assert 'SetGameTimeScale' not in update and 'SPECIAL_EFFECT_BLUR' not in update, 'the retained wheel never slows the game'
-    for event in ('"open"', '"select"'):
-        assert f'weaponWheelGui->HandleNamedEvent( {event} );' in update, event
-    close = function_body(player, 'void idPlayer::CloseRetainedWeaponWheel(')
-    assert 'weaponWheelGui->HandleNamedEvent( "close" );' in close
-    slot = function_body(player, 'int idPlayer::RetainedWeaponWheelSlot(')
-    assert 'common->GetControllerSelection( stickX, stickY );' in slot and 'WEAPON_WHEEL_SELECT_HYSTERESIS' in slot
-    assert 'return HasWeaponWheelSlotWeapon( slot ) ? slot : current;' in slot, 'an unowned weapon cannot be selected'
-    wheel = function_body(player, 'void idPlayer::UpdateWeaponWheel(')
-    assert wheel.index('UpdateRetainedWeaponWheel( canUseWheel, held );') < wheel.index('UpdateWeaponWheelEffects()'), \
-        'the retained wheel takes its holds before the classic wheel'
-    draw = function_body(player, 'void idPlayer::DrawWeaponWheel(')
-    assert draw.index('weaponWheelGui->Redraw( gameLocal.realClientTime );') < draw.index('weaponWheelBlend')
-    selection = function_body(usercmd, 'void idUsercmdGenLocal::Joystick(')
-    assert 'in_joystickInvertLook' in selection and 'stickSelectionX = look ? lookX : moveX;' in selection, \
-        'either stick selects, never inverted like look'
-
-
 def main() -> int:
     menu = (ROOT / 'src/framework/Session_menu.cpp').read_text(encoding='utf-8')
     session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
@@ -4482,8 +4257,6 @@ def main() -> int:
     actual = {name.lower() for name in stock_system_settings()} - {name.lower() for name in retained_system_controls()}
     assert listed == actual, f'RETAINED_SYSTEM_MISSING_SETTINGS lists {sorted(listed)}; the retained SYSTEM page lacks {sorted(actual)}'
     check_retained_system_control_writes()
-    check_initializing()
-    check_weapon_wheel()
     incomplete = re.search(r'RETAINED_SYSTEM_INCOMPLETE_SETTINGS\[\] = \{([^}]*)\};', menu).group(1)
     assert incomplete.strip().endswith('NULL'), 'the incomplete-settings list must stay NULL-terminated'
     listed_incomplete = {name.lower() for name in re.findall(r'"([A-Za-z_0-9]+)"', incomplete)}
@@ -4500,7 +4273,7 @@ def main() -> int:
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/loadgame.q4ui',
-                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/newcampaign.q4ui',
+                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
                        'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
@@ -4742,9 +4515,7 @@ def main() -> int:
         'static const char *Session_LoadFailureText(', 'void idSessionLocal::HandleRetainedSessionRequest(', 'static bool Session_ModSuppliesFile(',
         'void idSessionLocal::BeginRetainedSubpage(', 'void idSessionLocal::UpdateRetainedSubpage(',
         'void idSessionLocal::PresentRetainedSubpage(',
-        'bool idSessionLocal::RetainedSubpageEvent(', 'bool idSessionLocal::OpenRetainedNewCampaign(',
-        'void idSessionLocal::BeginRetainedSibling(', 'void idSessionLocal::PresentRetainedSibling(',
-        'void idSessionLocal::StartRetainedNewCampaign(',
+        'bool idSessionLocal::RetainedSubpageEvent(',
         'bool idSessionLocal::BeginRetainedPage(', 'void idSessionLocal::UpdateRetainedPage(', 'void idSessionLocal::ReturnRetainedPage(',
         'void idSessionLocal::ReturnRetainedSinglePlayerHome(',
         'void idSessionLocal::PublishRetainedLoadPage(',

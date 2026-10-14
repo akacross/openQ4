@@ -239,7 +239,7 @@ public:
 	virtual void		ExitMenu();
 	virtual void		GuiFrameEvents();
 	virtual void		SetGUI( idUserInterface *gui, HandleGuiCommand_t handle );
-	void OpenCampaignSelector( bool campaigns, bool siblingBack = false, bool fromArena = false );
+	void OpenCampaignSelector( bool campaigns, bool fromArena = false );
 	void SelectCampaign( const char *campaign, bool start = false );
 	// Single Player's retained Arena sub-page (guis/menu/arena.q4ui): the
 	// Arena campaign's browser where it can present (NULL: the stock one
@@ -332,12 +332,6 @@ public:
 	void				PresentRetainedSubpage( bool deeper, retainedSubpage_t subpage );
 	void				UpdateRetainedSubpage();
 	bool				RetainedSubpageEvent( const sysEvent_t *event );
-	// Campaign's New Campaign sub-page (guis/menu/newcampaign.q4ui), the
-	// Campaign sub-page's sibling, and the change between the two.
-	bool				OpenRetainedNewCampaign( const char *campaign );
-	void				BeginRetainedSibling( idUserInterface *gui, bool forward );
-	void				PresentRetainedSibling( bool forward );
-	void				StartRetainedNewCampaign( idUserInterface *gui );
 	// The retained Load Game page (guis/menu/loadgame.q4ui): LOAD GAME on the
 	// title and the Marine pause hands off to it as to a stock page.
 	bool				BeginRetainedPage( const char *request );
@@ -612,7 +606,6 @@ public:
 	bool				retainedSubpageDeeper;	// going to the sub-page, or back to the page
 	int					retainedSubpageBegan;	// presentation time the change began
 	int					retainedSubpageUntil;	// presentation time of the hand-over
-	bool				retainedSubpageSibling;	// between Campaign and New Campaign, its sibling
 	retainedSubpage_t	retainedSubpageKind;	// the sub-page the change goes to or comes back from
 	bool				retainedHomeReturning;
 	bool				retainedHomeUnderMessage;	// a stock message box covers the presented home

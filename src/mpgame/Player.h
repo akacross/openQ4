@@ -576,10 +576,6 @@ public:
 	void					UpdateZoomGuiViewState( void );
 	void					DrawHUD( idUserInterface *hud );
 	void					DrawInput();
-	// openQ4 headless tests (openq4_weaponWheel): hold the weapon wheel
-	// without its button, and aim it with a stick vector, x right and y up.
-	void					TestWeaponWheelHold( bool held );
-	void					TestWeaponWheelAim( const idVec2 &stick );
 
 	void					StartRadioChatter ( void );
 	void					StopRadioChatter ( void );
@@ -1037,22 +1033,6 @@ private:
 	// full screen guis track mouse movements directly
 	int						oldMouseX;
 	int						oldMouseY;
-	// openQ4: the retained weapon wheel (ui_retained), the engine's
-	// "weaponwheel_mp" HUD component. The local client's own presentation;
-	// only the equip reaches the server, as a weapon impulse.
-	idUserInterface*		weaponWheelGui;
-	bool					weaponWheelGuiTried;
-	bool					weaponWheelActive;		// open
-	bool					weaponWheelPressed;		// its button was held last frame
-	bool					weaponWheelPresenting;	// it draws: open or closing
-	int						weaponWheelPressTime;	// Sys_Milliseconds at the press
-	int						weaponWheelCloseTime;	// Sys_Milliseconds when it began to close
-	int						weaponWheelHoveredSlot;
-	int						weaponWheelLastMouseX;
-	int						weaponWheelLastMouseY;
-	idVec2					weaponWheelCursor;
-	bool					weaponWheelTestHeld;	// openq4_weaponWheel hold
-	idVec2					weaponWheelTestStick;	// openq4_weaponWheel aim
 
 	bool					tipUp;
 	bool					objectiveUp;
@@ -1163,15 +1143,6 @@ private:
 	void					PredictionErrorDecay( void );
 
 	bool					CanZoom(void);
-	bool					CanUseWeaponWheel( void );
-	bool					UseRetainedWeaponWheel( void );
-	void					AcquireRetainedWeaponWheel( void );
-	void					UpdateWeaponWheel( void );
-	void					CloseRetainedWeaponWheel( void );
-	int						RetainedWeaponWheelSlot( void );
-	bool					HasWeaponWheelSlotWeapon( int slot ) const;
-	void					PublishRetainedWeaponWheel( void );
-	void					DrawWeaponWheel( void );
 
 	void					LookAtKiller( idEntity *inflictor, idEntity *attacker );
 

@@ -64,14 +64,11 @@ int Sys_PollJoystickInputEvents() { return MAX_JOYSTICK_AXIS; }
 bool Sys_ReturnJoystickInputEvent(int i, int& axis, int& value) { axis=i; value=physicalAxes[i]; return true; }
 void Sys_EndJoystickInputEvents() {}
 bool IsWeaponSelectionImpulse(int) { return false; }
-struct CVarSystem { bool GetCVarBool(const char*) const { return false; } } cvarSystemObject;
-CVarSystem* cvarSystem=&cvarSystemObject;
 struct idUsercmdGenLocal {
     int buttonState[UB_MAX_BUTTONS]={};
     bool keyState[K_LAST_KEY]={}, directButtonState[UB_MAX_BUTTONS]={};
     bool retainedKeyBlocked[K_LAST_KEY]={}, retainedDirectBlocked[UB_MAX_BUTTONS]={}, retainedAxisBlocked[MAX_JOYSTICK_AXIS]={};
     int joystickAxis[MAX_JOYSTICK_AXIS]={};
-    float stickSelectionX=0, stickSelectionY=0;
     int inhibitCommands=0, mouseDx=0, mouseDy=0, mouseButton=0, filtersReset=0;
     bool mouseDown=false;
     struct Toggle { void Clear() {} } toggled_zoom;
@@ -206,8 +203,6 @@ int main() {
     idKeyInput::held['w']=false; idKeyInput::held[K_ENTER]=false; idKeyInput::held[K_F5]=false;
     physicalAxes[AXIS_YAW]=8; usercmd.Joystick(); assert(usercmd.joystickAxis[AXIS_YAW]==0);
     physicalAxes[AXIS_YAW]=90; usercmd.Joystick(); assert(usercmd.joystickAxis[AXIS_YAW]==90);
-    // The weapon wheel's selection is the more deflected stick, up positive.
-    assert(std::abs(usercmd.stickSelectionX-90/127.0f)<1e-6f && usercmd.stickSelectionY==0);
     usercmd.Key(K_ENTER,true); usercmd.Key(K_F5,true); usercmd.SetUsercmdButton(5,true);
     assert(usercmd.buttonState[2]==1 && usercmd.buttonState[5]==1 && usercmd.cmd.impulse==4 && usercmd.cmd.flags==1);
     usercmd.inhibitCommands=2; usercmd.RetainedInputChanged(); assert(usercmd.Inhibited());

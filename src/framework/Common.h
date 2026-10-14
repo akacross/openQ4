@@ -383,17 +383,6 @@ public:
 	int GetUserCmdTimeAfterMsec(int msec, int ticCount) const {
 		return GetUserCmdTime( GetUserCmdTicsForMsecCeil( msec ) + ticCount );
 	}
-
-	// The weapon wheel's controller selection (idUsercmdGen::GetStickSelection):
-	// the more deflected stick, x right and y up, each -1..1.
-	virtual void				GetControllerSelection(float& x, float& y) { x = y = 0.0f; }
-	// The retained interface's document for a named HUD component
-	// ("weaponwheel"), or NULL when ui_retained is off or it has none. Game
-	// modules ask by name and never name a retained document.
-	virtual const char*			RetainedHudGui(const char* name) { return NULL; }
-	// A multiplayer game holds the view, the sticks, fire and zoom while its
-	// weapon wheel is open (idUsercmdGen::SetWheelCapture).
-	virtual void				SetWeaponWheelCapture(bool capture) {}
 };
 
 extern idCommon* common;

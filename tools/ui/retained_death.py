@@ -18,9 +18,9 @@ screen's own command (HandleRestartMenuCommands).
 from __future__ import annotations
 
 from build_retained_screens import (CANVAS_W, FULL, GLOW_MODAL, U, Document, colour, confirmation, font, group, keyword, label,
-                                    length, linear, modal_silhouette, number, path, rgb, typeface, vector, absolute, track)
+                                    length, linear, modal_silhouette, number, path, picture, rgb, typeface, vector, absolute,
+                                    track)
 from retained_difficulty import check_fits, primary_plate
-from retained_initializing import TITLE_HALO, TITLE_HALO_TONE, wordmark
 
 LOGO = (145.0, 91.0, 258.0, 63.0)          # q4text
 DIALOG = (140.0, 129.0, 360.0, 212.0)      # popup_top 129, popup_btm to 341
@@ -35,14 +35,12 @@ PLATES = (("death_restart", "#str_200320", "#str_200321", "restart"), ("death_lo
 
 
 def restart_wordmark() -> dict:
-    """QUAKE 4 as the title draws it (ART-031), in q4text's box here; its halo
-    shrinks with the box."""
+    """QUAKE 4 as the title draws it: the q4text wordmark as additive light,
+    in the stock screen's smaller box."""
     left, top, width, height = LOGO
-    shrink = width / 376
-    halo = tuple(value * shrink for value in TITLE_HALO[:2]) + (TITLE_HALO[2],)
-    paths = wordmark(None, "wordmark", (left, top), halo, TITLE_HALO_TONE, halo_steps=24,
-                     letter_origin=(left, top), letter_scale=(width / 1024, height / 256), letter_blend="additive")
-    return vector("wordmark", {**absolute(left=U * left, top=U * top, width=U * width, height=U * height), "opacity": number(1)}, paths)
+    return picture("wordmark", "gfx/guis/mainmenu/q4text", {**absolute(left=U * left, top=U * top, width=U * width, height=U * height),
+                                                           "image-blend": keyword("additive"), "image-color": colour([1, 1, 1, 1])},
+                   fit="fill")
 
 
 def restart_menu_document() -> dict:

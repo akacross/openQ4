@@ -124,15 +124,6 @@ static void CoverageChecks() {
 	Polygon(path,{P(0,0),P(8,0),P(0,8)}); build(path);
 	Check(Near(SampleAlpha(mesh,3.381,4.619),.5),"45-degree boundary has half-pixel coverage");
 	Check(Near(AlphaMass(mesh),32),"diagonal coverage conserves triangle area");
-	{
-		// A path may opt out: its triangles compile as if antialiasing were off.
-		auto plain = path; plain.antialias = false;
-		auto rawOptions = options; rawOptions.antialias = false;
-		VectorMesh opted, raw;
-		Check(TessellatePath(plain,options,opted,error) && TessellatePath(path,rawOptions,raw,error),"compile a path that opts out of antialiasing");
-		Check(opted.vertices.size() == raw.vertices.size() && opted.indices == raw.indices && Near(Area(opted),32) && !Near(SampleAlpha(opted,3.381,4.619),.5),
-			"an opted-out path compiles plain triangles, without boundary coverage");
-	}
 	auto compare = [&](VectorPath shape, VectorTransform transform, double alpha) {
 		options.transform = transform; build(shape);
 		auto rawOptions = options; rawOptions.antialias = false;

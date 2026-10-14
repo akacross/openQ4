@@ -3868,32 +3868,6 @@ static void Cmd_OpenQ4ReportMPWorld_f( const idCmdArgs &args ) {
 	}
 }
 
-/*
-==================
-Cmd_OpenQ4WeaponWheel_f
-
-openq4_weaponWheel hold | aim <x> <y> | release
-
-Holds the local client's weapon wheel without its button and aims it with a
-stick vector (x right, y up, -1..1; aim 0 0 lets the controller aim again),
-for headless tests; release lets it go as letting go of the button does.
-==================
-*/
-static void Cmd_OpenQ4WeaponWheel_f( const idCmdArgs &args ) {
-	idPlayer *player = gameLocal.GetLocalPlayer();
-	const char *verb = args.Argc() >= 2 ? args.Argv( 1 ) : "";
-	if ( !player || !( ( !idStr::Icmp( verb, "hold" ) && args.Argc() == 2 ) || ( !idStr::Icmp( verb, "release" ) && args.Argc() == 2 ) ||
-		( !idStr::Icmp( verb, "aim" ) && args.Argc() == 4 ) ) ) {
-		gameLocal.Printf( "usage: openq4_weaponWheel hold | aim <x> <y> | release\n" );
-		return;
-	}
-	if ( !idStr::Icmp( verb, "aim" ) ) {
-		player->TestWeaponWheelAim( idVec2( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ) ) );
-	} else {
-		player->TestWeaponWheelHold( !idStr::Icmp( verb, "hold" ) );
-	}
-}
-
 static void Cmd_OpenQ4AssertMPClientActive_f( const idCmdArgs &args ) {
 	idPlayer *player = gameLocal.GetLocalPlayer();
 	const bool inGame = player != NULL && gameLocal.mpGame.IsInGame( player->entityNumber );
@@ -4133,7 +4107,6 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "matchSeriesBind",		idMultiplayerGame::SeriesBind_f,	CMD_FL_GAME,	"bind a current Duel connection after series recovery: matchSeriesBind <a|b> <client slot>" );
 	cmdSystem->AddCommand( "matchBroadcaster",		idMultiplayerGame::Broadcaster_f,	CMD_FL_GAME,	"grant or revoke broadcaster observation for a current spectator: matchBroadcaster <client slot> <on|off>" );
 	cmdSystem->AddCommand( "openq4_assertMPClientActive", Cmd_OpenQ4AssertMPClientActive_f, CMD_FL_GAME | CMD_FL_CHEAT, "fail validation unless the local multiplayer player is active and not spectating" );
-	cmdSystem->AddCommand( "openq4_weaponWheel", Cmd_OpenQ4WeaponWheel_f, CMD_FL_GAME | CMD_FL_CHEAT, "hold, aim and release the weapon wheel without its button, for headless tests" );
 	cmdSystem->AddCommand( "openq4_reportMPState", Cmd_OpenQ4ReportMPState_f, CMD_FL_GAME | CMD_FL_CHEAT, "report local multiplayer phases, scores and player state to the console" );
 	cmdSystem->AddCommand( "openq4_reportMPWorld", Cmd_OpenQ4ReportMPWorld_f, CMD_FL_GAME | CMD_FL_CHEAT, "report one multiplayer entity's simulation, animation and powerup state" );
 	cmdSystem->AddCommand( "openq4_launchMPTestProjectile", Cmd_OpenQ4LaunchMPTestProjectile_f, CMD_FL_GAME | CMD_FL_CHEAT, "launch a named stock projectile for multiplayer world-clock diagnostics" );

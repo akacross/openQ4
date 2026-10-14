@@ -5166,7 +5166,6 @@ static const char *const RETAINED_PAUSE_STROGG_GUI = "guis/menu/pause_strogg.q4u
 static const char *const RETAINED_LOADING_GUI = "guis/loading/loading.q4ui";
 static const char *const RETAINED_SINGLEPLAYER_GUI = "guis/menu/singleplayer.q4ui";
 static const char *const RETAINED_CAMPAIGNS_GUI = "guis/menu/campaigns.q4ui";
-static const char *const RETAINED_NEWCAMPAIGN_GUI = "guis/menu/newcampaign.q4ui";
 // The Load Game page, which LOAD GAME on the title and the Marine pause hands
 // off to as to a stock page. Its list holds this many saves at a time and
 // pages through more (ROWS in tools/ui/retained_saves.py); a save without a
@@ -5342,11 +5341,6 @@ static const int RETAINED_SUBPAGE_DEEPER_MSEC = 350;
 static const int RETAINED_SUBPAGE_BACK_MSEC = 300;
 static const int RETAINED_SUBPAGE_STEP_START_MSEC = 50;
 static const int RETAINED_SUBPAGE_STEP_MSEC = 300;
-// Campaign and its New Campaign are sibling sub-pages: the leaving one
-// departs over 140 ms (page.leave), and the other presents then and arrives
-// over 220 ms (page.enter, section 8). With reduced motion the hand-over is
-// at once, and the arrival's 80 ms fade is the change.
-static const int RETAINED_SIBLING_LEAVE_MSEC = 140;
 
 typedef enum {
 	RETAINED_HANDOFF_PAGE,		// a page: the bands dock and the label carries into its title slot
@@ -5514,7 +5508,7 @@ idUserInterface *idSessionLocal::FindRetainedGui( const char *path, bool shared,
 #endif
 
 
-void idSessionLocal::OpenCampaignSelector( bool campaigns, bool siblingBack, bool fromArena ) {
+void idSessionLocal::OpenCampaignSelector( bool campaigns, bool fromArena ) {
 #ifndef ID_DEDICATED
     // The stock selectors stand in when the retained one is off, missing or
     // cannot load.
@@ -5530,9 +5524,7 @@ void idSessionLocal::OpenCampaignSelector( bool campaigns, bool siblingBack, boo
         const idCampaignContentInfo info = fileSystem->GetAwakeningContentInfo();
         gui->SetStateBool( "awakening_ready", info.ready );
         gui->SetStateBool( "awakening_present", info.present );
-        // Back from New Campaign arrives as its sibling, on the campaign
-        // that led there; the activation reads both.
-        gui->SetStateBool( "sibling_back", siblingBack );
+        // The activation focuses the campaign being played.
         gui->SetStateBool( "awakening_chosen", !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) );
         gui->StateChanged( common->GetPresentationTime() );
     } else if ( gui != NULL ) {
@@ -5587,11 +5579,6 @@ void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
         cvarSystem->GetCVarString( "com_activeGameModule" ) );
     if ( start && !arena ) {
         StartNewGame( awakening ? "game/m01_stranarus_trench1" : "game/airdefense1" );
-        return;
-    }
-    // A campaign continues to its retained New Campaign sub-page where that
-    // can present, else to the stock difficulty page below.
-    if ( !arena && OpenRetainedNewCampaign( campaign ) ) {
         return;
     }
     StartMenu();
@@ -5818,7 +5805,6 @@ void idSessionLocal::BeginRetainedSubpage( idUserInterface *gui, bool deeper, re
 	PumpApplicationActions( gui );
 	retainedSubpageFrom = gui;
 	retainedSubpageDeeper = deeper;
-	retainedSubpageSibling = false;
 	retainedSubpageKind = subpage;
 	retainedSubpageBegan = common->GetPresentationTime();
 	retainedSubpageUntil = retainedSubpageBegan + ( deeper ? RETAINED_SUBPAGE_DEEPER_MSEC : RETAINED_SUBPAGE_BACK_MSEC );
@@ -5836,7 +5822,6 @@ void idSessionLocal::UpdateRetainedSubpage() {
 	// Anything else taking the screen abandons the change.
 	if ( guiActive != retainedSubpageFrom ) {
 		retainedSubpageFrom = NULL;
-		retainedSubpageSibling = false;
 		return;
 	}
 	if ( common->GetPresentationTime() < retainedSubpageUntil ) {
@@ -5844,11 +5829,6 @@ void idSessionLocal::UpdateRetainedSubpage() {
 	}
 	const bool deeper = retainedSubpageDeeper;
 	retainedSubpageFrom = NULL;
-	if ( retainedSubpageSibling ) {
-		retainedSubpageSibling = false;
-		PresentRetainedSibling( deeper );
-		return;
-	}
 	// The arriving document's activation fades its backing in; the page
 	// coming back also fades its plates in.
 	PresentRetainedSubpage( deeper, retainedSubpageKind );
@@ -5890,7 +5870,7 @@ void idSessionLocal::PresentRetainedSubpage( bool deeper, retainedSubpage_t subp
 		arenaCampaign.OpenBrowser();
 		return;
 	}
-	OpenCampaignSelector( deeper, false, !deeper && arena );
+	OpenCampaignSelector( deeper, !deeper && arena );
 	if ( !deeper && guiActive != NULL && !idStr::Icmp( guiActive->Name(), RETAINED_SINGLEPLAYER_GUI ) ) {
 		guiActive->HandleNamedEvent( "subpageReturn" );
 		PumpApplicationActions( guiActive );
@@ -5914,7 +5894,7 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 	}
 	const bool back = event->evType == SE_KEY && ( event->evValue == K_ESCAPE || idKeyInput::MenuControllerKey( event->evValue ) == K_JOY4 ||
 		event->evValue == K_JOY7 || event->evValue == K_JOY8 );
-	if ( back && retainedSubpageDeeper && !retainedSubpageSibling ) {
+	if ( back && retainedSubpageDeeper ) {
 		const int stepped = idMath::ClampInt( 0, RETAINED_SUBPAGE_STEP_MSEC,
 			common->GetPresentationTime() - retainedSubpageBegan - RETAINED_SUBPAGE_STEP_START_MSEC );
 		const int duration = idMath::ClampInt( 150, 300, ( stepped + 49 ) / 50 * 50 );
@@ -5929,108 +5909,6 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 	return true;
 #else
 	return false;
-#endif
-}
-
-/*
-===============
-idSessionLocal::OpenRetainedNewCampaign
-
-Campaign's New Campaign sub-page (section 9 "New game", FLOW-050): the
-difficulty choice for the campaign Campaign chose, START GAME and TURBO
-MODE, titled with the campaign's name. From the Campaign sub-page it
-arrives as its sibling; after the engine reloads into the campaign's game
-directory it presents at once. Each arrival starts at CORPORAL with turbo
-mode off, as the stock page did. False when it cannot present: the stock
-difficulty page opens instead.
-===============
-*/
-bool idSessionLocal::OpenRetainedNewCampaign( const char *campaign ) {
-#ifndef ID_DEDICATED
-	idUserInterface *gui = Session_RetainedScreensEnabled() ? FindRetainedGui( RETAINED_NEWCAMPAIGN_GUI, true, false ) : NULL;
-	if ( gui == NULL ) {
-		return false;
-	}
-	gui->SetStateInt( "newgame.skill", 1 );
-	gui->SetStateBool( "newgame.turbo", false );
-	gui->SetStateBool( "newgame.awakening", !idStr::Icmp( campaign, "awakening" ) );
-	gui->StateChanged( common->GetPresentationTime() );
-	if ( guiActive != NULL && retainedSubpageFrom == NULL && !idStr::Icmp( guiActive->Name(), RETAINED_CAMPAIGNS_GUI ) ) {
-		BeginRetainedSibling( guiActive, true );
-	} else {
-		SetGUI( gui, NULL );
-		gui->StateChanged( common->GetPresentationTime() );
-	}
-	return true;
-#else
-	return false;
-#endif
-}
-
-// The change between Campaign and New Campaign: the leaving one plays its
-// departure (siblingLeave going on, siblingLeaveBack going back) and the
-// other presents when it ends (PresentRetainedSibling). Input waits for the
-// hand-over (RetainedSubpageEvent); the change is too short to reverse.
-void idSessionLocal::BeginRetainedSibling( idUserInterface *gui, bool forward ) {
-#ifndef ID_DEDICATED
-	HandleMainMenuCommands( "play main_menu_selection" );
-	gui->HandleNamedEvent( forward ? "siblingLeave" : "siblingLeaveBack" );
-	PumpApplicationActions( gui );
-	if ( cvarSystem->GetCVarBool( "ui_retainedReducedMotion" ) ) {
-		PresentRetainedSibling( forward );
-		return;
-	}
-	retainedSubpageFrom = gui;
-	retainedSubpageDeeper = forward;
-	retainedSubpageSibling = true;
-	retainedSubpageBegan = common->GetPresentationTime();
-	retainedSubpageUntil = retainedSubpageBegan + RETAINED_SIBLING_LEAVE_MSEC;
-	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
-		common->Printf( "RETAINED_SIBLING begin forward=%d handover=%d\n", forward ? 1 : 0, RETAINED_SIBLING_LEAVE_MSEC );
-	}
-#endif
-}
-
-// The hand-over: New Campaign arrives from the trailing edge (its activation
-// plays siblingEnter), or Campaign from the leading edge back on the
-// campaign that led there (sibling_back). When New Campaign cannot present
-// any more, the stock difficulty page opens instead.
-void idSessionLocal::PresentRetainedSibling( bool forward ) {
-#ifndef ID_DEDICATED
-	if ( forward ) {
-		idUserInterface *gui = Session_RetainedScreensEnabled() ? FindRetainedGui( RETAINED_NEWCAMPAIGN_GUI, true, false ) : NULL;
-		if ( gui == NULL ) {
-			StartMenu();
-			arenaCampaign.HandleGuiCommand( "arenaMissionOpen" );
-			return;
-		}
-		SetGUI( gui, NULL );
-		gui->StateChanged( common->GetPresentationTime() );
-	} else {
-		OpenCampaignSelector( true, true );
-	}
-	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
-		common->Printf( "RETAINED_SIBLING handover forward=%d gui=%s\n", forward ? 1 : 0, guiActive != NULL ? guiActive->Name() : "-" );
-	}
-#endif
-}
-
-// START GAME: the active campaign's first map at the chosen difficulty and
-// turbo mode, as the stock page's startMap. SelectCampaign entered the
-// campaign's game directory before the page presented.
-void idSessionLocal::StartRetainedNewCampaign( idUserInterface *gui ) {
-#ifndef ID_DEDICATED
-	cvarSystem->SetCVarInteger( "g_skill", idMath::ClampInt( 0, 4, gui->State().GetInt( "newgame.skill", "1" ) ) );
-	cvarSystem->SetCVarInteger( "g_turboMode", gui->State().GetBool( "newgame.turbo", "0" ) ? 1 : 0 );
-	HandleMainMenuCommands( "play main_menu_selection" );
-#ifndef ID_DEMO_BUILD
-	StartNewGame( !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) ? "game/m01_stranarus_trench1" : "game/airdefense1" );
-#else
-	StartNewGame( "game/demo_mars_city1" );
-#endif
-	if ( guiActive == gui ) {
-		ExitMenu();
-	}
 #endif
 }
 
@@ -6132,14 +6010,6 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
         }
         else if ( !idStr::Icmp( request, "deathMenu" ) ) HandleRestartMenuCommands( "disconnect mainmenu" );
         else if ( !idStr::Icmp( request, "quit" ) ) common->Quit();
-        return;
-    }
-    if ( gui && request && gui == guiActive && !idStr::Icmp( gui->Name(), RETAINED_NEWCAMPAIGN_GUI ) ) {
-        // New Campaign: START GAME, or Back to Campaign. A change in
-        // progress takes no further request.
-        if ( retainedSubpageFrom != NULL ) return;
-        if ( !idStr::Icmp( request, "newgameStart" ) ) StartRetainedNewCampaign( gui );
-        else if ( !idStr::Icmp( request, "newgameBack" ) ) BeginRetainedSibling( gui, false );
         return;
     }
     if ( gui && request && gui == guiActive &&

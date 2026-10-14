@@ -9,8 +9,6 @@
  "state": {
   "awakening_ready": {"type": "boolean", "initial": false},
   "awakening_present": {"type": "boolean", "initial": false},
-  "sibling_away": {"type": "boolean", "initial": false},
-  "sibling_back": {"type": "boolean", "initial": false},
   "awakening_chosen": {"type": "boolean", "initial": false},
   "language": {"type": "string", "initial": "", "cvar": "sys_lang"},
   "prompt.glyphs": {"type": "number", "initial": 0},
@@ -23,7 +21,6 @@
  },
  "events": {
   "onBack": [{"op": "action", "action": "back"}],
-  "siblingLeave": [{"op": "setState", "values": {"sibling_away": true}}, {"op": "playTimeline", "timeline": "siblingLeave"}],
   "onDeactivate": [
    {"op": "playTimeline", "timeline": "rest"},
    {
@@ -108,10 +105,10 @@
       ]
      }
     ]
-   },
-   {"op": "if", "condition": {"state": "sibling_away"}, "then": [{"op": "playTimeline", "timeline": "restAway"}]}
+   }
   ],
   "onActivate": [
+   {"op": "playTimeline", "timeline": "arrive"},
    {
     "op": "if",
     "condition": {"op": "==", "args": [{"state": "language"}, "brazilian"]},
@@ -194,17 +191,6 @@
       ]
      }
     ]
-   },
-   {"op": "setState", "values": {"sibling_away": false}},
-   {
-    "op": "if",
-    "condition": {"state": "sibling_back"},
-    "then": [
-     {"op": "setState", "values": {"sibling_back": false}},
-     {"op": "playTimeline", "timeline": "siblingEnterBack"},
-     {"op": "playTimeline", "timeline": "detailsIn"}
-    ],
-    "else": [{"op": "playTimeline", "timeline": "arrive"}]
    },
    {"op": "focus", "control": "quake4"},
    {"op": "if", "condition": {"state": "awakening_chosen"}, "then": [{"op": "focus", "control": "awakening"}]}
@@ -1495,24 +1481,6 @@
       {"atMs": 1, "value": {"type": "number", "value": 0}},
       {"atMs": 150, "value": {"type": "number", "value": 1}}
      ]
-    },
-    {
-     "node": "title",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.5]}},
-      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 0.5]}},
-      {"atMs": 150, "value": {"type": "color", "value": [1, 1, 1, 0.5]}}
-     ]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
-     "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 1}},
-      {"atMs": 1, "value": {"type": "number", "value": 1}},
-      {"atMs": 150, "value": {"type": "number", "value": 1}}
-     ]
     }
    ]
   },
@@ -1555,19 +1523,6 @@
      ]
     },
     {
-     "node": "title",
-     "property": "transform",
-     "keys": [
-      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}},
-      {"atMs": 1, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 1}}, {"atMs": 1, "value": {"type": "number", "value": 1}}]
-    },
-    {
      "node": "crumb",
      "property": "color",
      "keys": [
@@ -1582,146 +1537,6 @@
       {"atMs": 0, "value": {"type": "length", "value": 124.5, "unit": "dp"}},
       {"atMs": 1, "value": {"type": "length", "value": 124.5, "unit": "dp"}}
      ]
-    }
-   ]
-  },
-  {
-   "id": "siblingLeave",
-   "durationMs": 140,
-   "tracks": [
-    {
-     "node": "content",
-     "property": "opacity",
-     "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.4, 0, 1, 1]},
-      {"atMs": 140, "value": {"type": "number", "value": 0}}
-     ]
-    },
-    {
-     "node": "content",
-     "property": "transform",
-     "keys": [
-      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}, "easing": [0.4, 0, 1, 1]},
-      {"atMs": 140, "value": {"type": "transform", "unit": "dp", "value": [-8.0, 0, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "title",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.5]}, "easing": [0.4, 0, 1, 1]},
-      {"atMs": 140, "value": {"type": "color", "value": [1, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "title",
-     "property": "transform",
-     "keys": [
-      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}, "easing": [0.4, 0, 1, 1]},
-      {"atMs": 140, "value": {"type": "transform", "unit": "dp", "value": [-8.0, 0, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
-     "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.4, 0, 1, 1]},
-      {"atMs": 140, "value": {"type": "number", "value": 0}}
-     ]
-    }
-   ]
-  },
-  {
-   "id": "siblingEnterBack",
-   "durationMs": 220,
-   "tracks": [
-    {
-     "node": "content",
-     "property": "opacity",
-     "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 0}},
-      {"atMs": 1, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 220, "value": {"type": "number", "value": 1}}
-     ]
-    },
-    {
-     "node": "content",
-     "property": "transform",
-     "keys": [
-      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-12.0, 0, 1, 1, 0]}},
-      {
-       "atMs": 1,
-       "value": {"type": "transform", "unit": "dp", "value": [-12.0, 0, 1, 1, 0]},
-       "easing": [0.16, 1, 0.3, 1]
-      },
-      {"atMs": 220, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "title",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0]}},
-      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 0]}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 220, "value": {"type": "color", "value": [1, 1, 1, 0.5]}}
-     ]
-    },
-    {
-     "node": "title",
-     "property": "transform",
-     "keys": [
-      {"atMs": 0, "value": {"type": "transform", "unit": "dp", "value": [-12.0, 0, 1, 1, 0]}},
-      {
-       "atMs": 1,
-       "value": {"type": "transform", "unit": "dp", "value": [-12.0, 0, 1, 1, 0]},
-       "easing": [0.16, 1, 0.3, 1]
-      },
-      {"atMs": 220, "value": {"type": "transform", "unit": "dp", "value": [0, 0, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
-     "keys": [
-      {"atMs": 0, "value": {"type": "number", "value": 0}},
-      {"atMs": 1, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 220, "value": {"type": "number", "value": 1}}
-     ]
-    }
-   ]
-  },
-  {
-   "id": "restAway",
-   "durationMs": 1,
-   "tracks": [
-    {
-     "node": "content",
-     "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 1, "value": {"type": "number", "value": 0}}]
-    },
-    {
-     "node": "title",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0]}},
-      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 0]}}
-     ]
-    },
-    {
-     "node": "prompts",
-     "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 1, "value": {"type": "number", "value": 0}}]
-    }
-   ]
-  },
-  {
-   "id": "detailsIn",
-   "durationMs": 1,
-   "tracks": [
-    {
-     "node": "details",
-     "property": "opacity",
-     "keys": [{"atMs": 0, "value": {"type": "number", "value": 1}}, {"atMs": 1, "value": {"type": "number", "value": 1}}]
     }
    ]
   },

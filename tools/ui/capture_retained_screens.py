@@ -194,88 +194,6 @@ SCENARIOS = {
         'waitMsec 300', 'screenshot "screenshots/loading-mp-players.tga"',
         'testGUI', 'waitMsec 300',
     ]),
-    # The initializing screen's document, opened as the loading screen's is
-    # and given steps as PrintLoadingMessage gives them. The engine paints it
-    # before any menu exists; here its layers, line and rule are captured at
-    # the view's own size, with the light sweep and glint caught mid-turn.
-    'initializing': (None, [
-        'waitMsec 3000', 'testGUI "guis/loading/initializing.q4ui"', 'waitMsec 300',
-        'openq4_retainedGui pending init_step 4', 'openq4_retainedGui state init_status "#str_104348"',
-        'openq4_retainedGui event step', 'waitMsec 2000', 'ui_retainedStatus', 'screenshot "screenshots/initializing.tga"',
-        'openq4_retainedGui pending init_step 7', 'openq4_retainedGui state init_status "#str_104351"',
-        'openq4_retainedGui event step', 'waitMsec 40', 'screenshot "screenshots/initializing-flicker.tga"',
-        'waitMsec 6700', 'screenshot "screenshots/initializing-glint-a.tga"', 'waitMsec 150',
-        'screenshot "screenshots/initializing-glint-b.tga"', 'waitMsec 150', 'screenshot "screenshots/initializing-glint-c.tga"',
-        'testGUI', 'waitMsec 300',
-    ]),
-    # The weapon wheel (section 14.6), held and aimed by openq4_weaponWheel
-    # (cheats; no synthetic input): it opens past the 180 ms tap on the
-    # current weapon, a stick vector up and right selects the shotgun and one
-    # to the left the lightning gun, release equips it, and a tap swaps back.
-    'weaponwheel': ('game/airdefense1', [
-        'give all', 'waitMsec 1500',
-        'openq4_weaponWheel hold', 'waitMsec 260', 'screenshot "screenshots/weaponwheel-opening.tga"',
-        'waitMsec 800', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 60', 'screenshot "screenshots/weaponwheel-select.tga"',
-        'waitMsec 600', 'screenshot "screenshots/weaponwheel-selected.tga"',
-        'openq4_weaponWheel aim -0.95 -0.14', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-selected-lightning.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 60', 'screenshot "screenshots/weaponwheel-closing.tga"',
-        'waitMsec 1500', 'screenshot "screenshots/weaponwheel-equipped.tga"',
-        'openq4_weaponWheel hold', 'waitMsec 60', 'openq4_weaponWheel release', 'waitMsec 1500',
-        'screenshot "screenshots/weaponwheel-tap.tga"',
-    ]),
-    # The Strogg wheel: from game/medlabs on Kane is Strogg and the HUD, and
-    # its wheel, take the Strogg family; the plates boot in a scrambled order
-    # and every label translates from runes.
-    'weaponwheel-strogg': ('game/recomp', [
-        'give all', 'waitMsec 1500',
-        'openq4_weaponWheel hold', 'waitMsec 230', 'screenshot "screenshots/weaponwheel-strogg-opening.tga"',
-        'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-strogg-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 80', 'screenshot "screenshots/weaponwheel-strogg-select.tga"',
-        'waitMsec 700', 'screenshot "screenshots/weaponwheel-strogg-selected.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 100',
-        'screenshot "screenshots/weaponwheel-strogg-closing.tga"', 'waitMsec 1500',
-        'screenshot "screenshots/weaponwheel-strogg-equipped.tga"',
-    ]),
-    # Reduced motion: the rings and grain stop and names change at once.
-    'weaponwheel-strogg-reduced': ('game/recomp', [
-        'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',
-        'openq4_weaponWheel hold', 'waitMsec 400', 'screenshot "screenshots/weaponwheel-strogg-reduced-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 200', 'screenshot "screenshots/weaponwheel-strogg-reduced-selected.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000', 'set ui_retainedReducedMotion 0',
-    ]),
-    # The multiplayer wheel on a listen server: the gauntlet's place, colour-
-    # coded icons and the reserve alone, in a Deathmatch's stock olive.
-    'weaponwheel-mp': ('mp:mp/q4dm1', [
-        'waitMsec 2500', 'give all', 'waitMsec 1000',
-        'openq4_weaponWheel hold', 'waitMsec 1000', 'ui_retainedStatus', 'screenshot "screenshots/weaponwheel-mp-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-mp-selected.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1500',
-        'screenshot "screenshots/weaponwheel-mp-equipped.tga"',
-    ]),
-    # The same in Team Deathmatch: the player's team color takes the selection
-    # ring, the selected number, the bezel and the hub.
-    'weaponwheel-mp-team': ('mp:mp/q4dm1', [
-        'waitMsec 2500', 'give all', 'waitMsec 1000',
-        'openq4_weaponWheel hold', 'waitMsec 1000', 'screenshot "screenshots/weaponwheel-mp-team-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 700', 'screenshot "screenshots/weaponwheel-mp-team-selected.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000',
-    ]),
-    # Reduced motion: opening, selecting and closing are short opacity changes.
-    'weaponwheel-reduced': ('game/airdefense1', [
-        'give all', 'waitMsec 1500', 'set ui_retainedReducedMotion 1',
-        'openq4_weaponWheel hold', 'waitMsec 400', 'screenshot "screenshots/weaponwheel-reduced-open.tga"',
-        'openq4_weaponWheel aim 0.9 0.42', 'waitMsec 200', 'screenshot "screenshots/weaponwheel-reduced-selected.tga"',
-        'openq4_weaponWheel release', 'openq4_weaponWheel aim 0 0', 'waitMsec 1000', 'set ui_retainedReducedMotion 0',
-    ]),
-    # Reduced motion: the rings rest, the light holds at the upper left, and
-    # there are no embers, glint or pulse.
-    'initializing-reduced': (None, [
-        'waitMsec 3000', 'set ui_retainedReducedMotion 1', 'testGUI "guis/loading/initializing.q4ui"', 'waitMsec 300',
-        'openq4_retainedGui pending init_step 6', 'openq4_retainedGui state init_status "#str_104350"',
-        'openq4_retainedGui event step', 'waitMsec 2000', 'screenshot "screenshots/initializing-reduced.tga"',
-        'testGUI', 'set ui_retainedReducedMotion 0', 'waitMsec 300',
-    ]),
     # A title document that cannot load: the stock title presents.
     'fallback-document': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/fallback-document.tga"',
@@ -441,31 +359,6 @@ SCENARIOS = {
         'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'ui_retainedStatus',
         'openq4_retainedGui report', 'screenshot "screenshots/savegame-empty.tga"',
         'openq4_retainedGui number begin "save-name"', 'waitMsec 300', 'screenshot "screenshots/savegame-empty-editing.tga"',
-    ]),
-    # Campaign's New Campaign (FLOW-050): QUAKE 4 on the Campaign sub-page
-    # plays page.leave, and New Campaign presents at 140 ms and arrives from
-    # the trailing edge at CORPORAL with turbo mode off. A plate chooses and
-    # TURBO MODE toggles on the page; Back returns to Campaign from the
-    # leading edge, and the page reopens reset; START GAME starts the campaign
-    # at the choice.
-    'newcampaign': (None, [
-        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus campaign', 'openq4_retainedGui menu accept 1',
-        'openq4_retainedGui menu accept 0', 'waitMsec 1000', 'screenshot "screenshots/newcampaign-campaigns.tga"',
-        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 100', 'screenshot "screenshots/newcampaign-change.tga"', 'waitMsec 900', 'ui_retainedStatus', 'openq4_retainedGui report',
-        'screenshot "screenshots/newcampaign.tga"',
-        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'openq4_retainedGui focus newgame_turbo', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 300', 'screenshot "screenshots/newcampaign-chosen.tga"',
-        'openq4_retainedGui focus newgame_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 250', 'screenshot "screenshots/newcampaign-back.tga"', 'waitMsec 800', 'openq4_retainedGui report',
-        'screenshot "screenshots/newcampaign-returned.tga"',
-        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 1000', 'screenshot "screenshots/newcampaign-reopened.tga"',
-        'openq4_retainedGui focus "skill-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'openq4_retainedGui focus newgame_start', 'waitMsec 300', 'screenshot "screenshots/newcampaign-start.tga"',
-        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 15000', 'ui_retainedStatus',
-        'g_skill', 'g_turboMode', 'screenshot "screenshots/newcampaign-started.tga"',
     ]),
     # Single Player's Arena sub-page (FLOW-011, FLOW-050): ARENA plays the
     # change with its own carry and the campaign's browser presents at 350 ms,
@@ -921,7 +814,7 @@ SCENARIO_FILES = {'arenafail': {
         'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
-SCENARIO_CVARS = {'weaponwheel-mp-team': {'si_gameType': 'Team DM'}, 'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
+SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},

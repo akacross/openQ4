@@ -1400,22 +1400,6 @@
 
 ## Unreleased — `idtech5-ui` development
 
-- The startup screen is rebuilt for any display: the Quake 4 rings, emblem and
-  lettering are sharp at every resolution and fill wide screens, the gear
-  rings turn slowly while the game starts, and the status line marks each
-  step on a progress rule. The title screen's QUAKE 4 is drawn the same sharp
-  way. Set `ui_retained 0` for the original screens.
-
-- The weapon wheel is rebuilt in the Marine HUD style: hold the wheel button
-  to open a ring of every weapon with its icon, ammunition gauge and reserve,
-  pick with either stick or the mouse, and let go to switch; a quick tap
-  swaps back to your previous weapon. The game no longer slows down while the
-  wheel is open. After Kane's stroggification the wheel turns Strogg too, with
-  angular plates, a turning core and labels that translate from runes. In
-  multiplayer the wheel shows every weapon in its color code with your team's
-  color, and holding it never fires or turns your view. Set `ui_retained 0`
-  for the classic wheel.
-
 - LOAD GAME on the title screen and the pause menu opens a rebuilt Load Game
   page over the menu you came from: your saves, newest first, with their
   level, and each save's screenshot with when it was made. Press a save
@@ -1438,11 +1422,6 @@
 - RESTART LEVEL on the pause menu opens a rebuilt page with the five
   difficulties and their descriptions, the level's own lit. Pick one and
   press RESTART LEVEL; Back keeps the difficulty you were playing. Set
-  `ui_retained 0` for the classic page.
-
-- Choosing a campaign under SINGLE PLAYER now slides on to a rebuilt New
-  Campaign page: the five difficulties with their descriptions, START GAME
-  and TURBO MODE. Back slides you back to the campaign list. Set
   `ui_retained 0` for the classic page.
 
 - DEMOS on the title opens a rebuilt demo library: your recordings newest
@@ -1517,13 +1496,8 @@
   or move to it with the keyboard or a controller, to see its address,
   players and settings beside it.
 
-- On Vulkan, the rebuilt title screen draws its frame again, and the rebuilt
-  menus no longer drop the details they draw last. Their geometry had
-  outgrown a per-frame buffer, which is now twice as large.
-
-- The rebuilt title screen now draws the same picture from about a fifth of
-  the geometry, mostly the glow around its QUAKE 4 lettering, so each frame
-  costs less, and the start-up screen and other rebuilt menus are lighter too.
+- The rebuilt menus draw their vector art from less geometry, so each frame
+  costs less.
 
 - The rebuilt server browser shows each server's connection quality as bars
   beside its ping, from four green bars on a fast server down to one red
@@ -1581,7 +1555,7 @@
   under the pointer lights up.
 
 - Every rebuilt menu page now shows your device's buttons. Load Game, Save
-  Game, Restart Level, New Campaign, Demos, Credits, Create Server, Join Game
+  Game, Restart Level, Demos, Credits, Create Server, Join Game
   and the pause menu's Objectives page carry the same prompt bar as the title
   and pause screens: Select and Back as keyboard keys, or as your
   controller's buttons once you use one. Back sits where the old BACK button
@@ -1589,8 +1563,8 @@
   Campaign and Multiplayer prompts no longer run past the bottom frame.
 
 - The mouse now works on every button of the rebuilt Load Game, Save Game,
-  Restart Level, New Campaign and Demos pages. LOAD GAME, DELETE GAME, SAVE
-  GAME, the difficulties, START GAME, TURBO MODE, PLAY, DELETE and REFRESH
+  Restart Level and Demos pages. LOAD GAME, DELETE GAME, SAVE GAME, the
+  difficulties, PLAY, DELETE and REFRESH
   ignored the pointer before (the keyboard and controllers always reached
   them), and pointing at the lower edge of a difficulty no longer lights the
   one below it.

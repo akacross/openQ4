@@ -193,17 +193,6 @@ public:
 	// not consumed; the next 60 Hz usercmd still receives the full movement.
 	// Returns false when disabled or inhibited.
 	virtual bool		GetPresentationViewDelta( float &yawDelta, float &pitchDelta ) = 0;
-
-	// The weapon wheel's controller selection: the more deflected of the two
-	// sticks after its dead zone, x right and y up, each -1..1. Look
-	// inversion does not apply: the wheel is drawn on the screen.
-	virtual void		GetStickSelection( float &x, float &y ) = 0;
-
-	// While a multiplayer weapon wheel is open the usercmd holds the view, the
-	// sticks only aim the wheel (keys still move) and neither fire nor zoom
-	// reaches the server: the wheel is the client's own and the server runs
-	// the same usercmds.
-	virtual void		SetWheelCapture( bool capture ) = 0;
 };
 
 extern idUsercmdGen	*usercmdGen;

@@ -1169,89 +1169,6 @@ bool RetainedUI_DrawViewRoot(retainedUIView_t* view, const openq4::ui::Viewport&
 	return true;
 }
 
-// The initializing screen exists before the user interface manager does, so
-// it owns its view here: loaded at the first startup frame the renderer can
-// draw, given each step's status line, and released once the menus are ready.
-namespace {
-const char* const INITIALIZING_PATH = "guis/loading/initializing.q4ui";
-retainedUIView_t* initializingView = nullptr;
-bool initializingFailed = false, initializingStarted = false;
-int initializingStep = -1;
-std::string initializingStatus;
-void InitializingEvent(void*, retainedUIViewEvent_t event) {
-	if (event == retainedUIViewEvent_t::Failed) initializingFailed = true;
-}
-bool LoadInitializing() {
-	if (initializingView) return true;
-	if (initializingFailed) return false;
-	void* data = nullptr;
-	const int size = fileSystem->ReadFile(INITIALIZING_PATH,&data);
-	if (size <= 0 || !data) { if (data) fileSystem->FreeFile(data); initializingFailed = true; return false; }
-	const std::string source(static_cast<const char*>(data),static_cast<size_t>(size));
-	fileSystem->FreeFile(data);
-	std::vector<openq4::ui::Diagnostic> diagnostics;
-	initializingView = RetainedUI_CreateView(InitializingEvent,nullptr);
-	if (!initializingView || !RetainedUI_LoadView(initializingView,source,INITIALIZING_PATH,diagnostics)) {
-		ReportViewDiagnostics(INITIALIZING_PATH,diagnostics);
-		RetainedUI_DestroyView(initializingView); initializingView = nullptr;
-		initializingFailed = true; return false;
-	}
-	initializingStarted = false; initializingStep = -1; initializingStatus.clear();
-	return true;
-}
-}
-bool RetainedUI_DrawInitializing(const char* status, int step) {
-	if (!status || !LoadInitializing() || initializingFailed || !RetainedUI_PrepareView(initializingView)) return false;
-	auto* runtime = RetainedUI_ViewRuntime(initializingView);
-	if (!runtime) return false;
-	const double now = PresentationTime();
-	std::string error;
-	openq4::ui::Runtime::EventEffects effects;
-	const bool changed = step != initializingStep || initializingStatus != status;
-	if (changed) {
-		if (!runtime->SetState({{"init_step",static_cast<double>(step)},{"init_status",std::string(status)}},error,now)) {
-			common->Warning("retained UI: %s: %s",INITIALIZING_PATH,error.c_str());
-			initializingFailed = true; return false;
-		}
-		initializingStep = step; initializingStatus = status;
-	}
-	// The loops start once; each new step replays the line's flicker.
-	if (!initializingStarted) {
-		initializingStarted = true;
-		if (runtime->HasEvent("onInit") && !runtime->RunEvent("onInit",now,effects,error))
-			common->Warning("retained UI: %s: %s",INITIALIZING_PATH,error.c_str());
-	} else if (changed && runtime->HasEvent("step") && !runtime->RunEvent("step",now,effects,error)) {
-		common->Warning("retained UI: %s: %s",INITIALIZING_PATH,error.c_str());
-	}
-	openq4::ui::Viewport viewport;
-	if (!RetainedUI_DefaultViewport(viewport)) return false;
-	viewport.canvasHeight = 720; viewport.fitScale = 1;   // the document's view-height canvas
-	if (!RetainedUI_DrawViewRoot(initializingView,viewport)) return false;
-	// The repaint cadence and the rings' angles across a start, for qualification.
-	if (cvarSystem->GetCVarBool("ui_retainedTrace")) {
-		const auto teeth = runtime->PresentedValue("rings-teeth","transform");
-		const auto plates = runtime->PresentedValue("rings-plates","transform");
-		common->Printf("retained initializing: step %d%s at %.3f s, teeth %.2f, plates %.2f degrees\n",step,changed ? " (new)" : "",now,
-			teeth ? teeth->data[4] : 0.0,plates ? plates->data[4] : 0.0);
-	}
-	return true;
-}
-void RetainedUI_ReleaseInitializing() {
-	if (initializingView) RetainedUI_DestroyView(initializingView);
-	initializingView = nullptr; initializingFailed = false; initializingStarted = false;
-	initializingStep = -1; initializingStatus.clear();
-}
-const char* RetainedUI_HudDocument(const char* name) {
-	static const struct { const char* name; const char* path; } documents[] = {
-		{"weaponwheel", "guis/hud/weaponwheel.q4ui"},
-		{"weaponwheel_strogg", "guis/hud/weaponwheel_strogg.q4ui"},
-		{"weaponwheel_mp", "guis/hud/weaponwheel_mp.q4ui"},
-	};
-	if (!name || !cvarSystem->GetCVarBool("ui_retained")) return nullptr;
-	for (const auto& document : documents) if (idStr::Icmp(name, document.name) == 0) return document.path;
-	return nullptr;
-}
-
 void RetainedUI_Init() {
 	cmdSystem->AddCommand("ui_retainedCheckpoint",Checkpoint_f,CMD_FL_SYSTEM,"save or restore one bounded canonical instance checkpoint in memory");
 	cmdSystem->AddCommand("ui_retainedData",Data_f,CMD_FL_SYSTEM,"apply a validated retained state batch from VFS JSON");
@@ -1456,9 +1373,6 @@ void RetainedUI_DestroyPreparedEdit(retainedUIPreparedEdit_t*){}
 bool RetainedUI_DefaultViewport(openq4::ui::Viewport&) { return false; }
 double RetainedUI_PresentationTime() { return 0; }
 void RetainedUI_FrameSubmitted() {}
-bool RetainedUI_DrawInitializing(const char*, int) { return false; }
-void RetainedUI_ReleaseInitializing() {}
-const char* RetainedUI_HudDocument(const char*) { return nullptr; }
 void RetainedUI_Init() {}
 void RetainedUI_Shutdown() {}
 void RetainedUI_Draw() {}

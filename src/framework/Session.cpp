@@ -57,9 +57,6 @@ If you have questions concerning this license or the applicable additional terms
 #include "../ui/UserInterfaceManaged.h"
 #include "../ui/UserInterfaceRetained.h"
 
-// Common.cpp: repaints the initializing screen during a long startup step.
-void Common_InitializingPacifier( void );
-
 idCVar	idSessionLocal::com_showAngles( "com_showAngles", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_minTics( "com_minTics", "1", CVAR_SYSTEM, "" );
 idCVar	idSessionLocal::com_showTics( "com_showTics", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
@@ -3821,7 +3818,6 @@ void idSessionLocal::Clear() {
 	retainedSubpageDeeper = false;
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
-	retainedSubpageSibling = false;
 	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
 	retainedHomeReturning = false;
 	retainedHomeUnderMessage = false;
@@ -8224,16 +8220,7 @@ idSessionLocal::PacifierUpdate
 ===============
 */
 void idSessionLocal::PacifierUpdate() {
-	if ( !insideExecuteMapChange ) {
-		// Startup has no map load; its initializing screen repaints here
-		// during a long step (docs/dev/ui-visual-design.md 14.17), never
-		// inside another screen update.
-		if ( !insideUpdateScreen ) {
-			Common_InitializingPacifier();
-		}
-		return;
-	}
-	if ( insidePacifierUpdate ) {
+	if ( !insideExecuteMapChange || insidePacifierUpdate ) {
 		return;
 	}
 	// Printing from a loading redraw or network send offers another pacifier

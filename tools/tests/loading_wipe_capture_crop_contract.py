@@ -121,13 +121,6 @@ void idSessionLocal::Draw(){
     if(drawThrows)throw std::runtime_error("drop thrown by the drawing code");
     Print();
 }
-// Startup's initializing screen repaints from PacifierUpdate outside a map
-// load and never inside a screen update; outside startup it draws nothing.
-int initializingRepaints=0;
-void Common_InitializingPacifier(){
-    ++initializingRepaints;
-    Check(renderSystem->crops==0,"no initializing-screen repaint inside the capture's crop");
-}
 @GUARD@
 @BODIES@
 static void Reset(){

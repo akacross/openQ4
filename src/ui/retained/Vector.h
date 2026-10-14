@@ -60,9 +60,6 @@ struct VectorPath {
 	VectorPaint fill;
 	VectorStroke stroke;
 	PathBlend blend = PathBlend::Normal;
-	// False compiles plain triangles: for broad tonal fields whose edges step
-	// by a level or so, where coverage antialiasing only costs rasterizing time.
-	bool antialias = true;
 };
 struct VectorVertex {
 	double x = 0, y = 0;

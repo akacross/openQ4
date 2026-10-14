@@ -2032,34 +2032,6 @@ void Cmd_OpenQ4ViewReport_f( const idCmdArgs &args );
 
 /*
 ==================
-Cmd_OpenQ4WeaponWheel_f
-
-openq4_weaponWheel hold | aim <x> <y> | release
-
-Holds the weapon wheel without its button and aims it with a stick vector
-(x right, y up, -1..1; aim 0 0 lets the controller aim again), for headless
-tests of the wheel. Release lets it go as letting go of the button does: a
-hold shorter than a tap swaps to the previous weapon, a longer one equips.
-==================
-*/
-void Cmd_OpenQ4WeaponWheel_f( const idCmdArgs &args ) {
-	idPlayer *player = gameLocal.GetLocalPlayer();
-	const char *verb = args.Argc() >= 2 ? args.Argv( 1 ) : "";
-	if ( !player || !gameLocal.CheatsOk( false ) ||
-		!( ( !idStr::Icmp( verb, "hold" ) && args.Argc() == 2 ) || ( !idStr::Icmp( verb, "release" ) && args.Argc() == 2 ) ||
-		( !idStr::Icmp( verb, "aim" ) && args.Argc() == 4 ) ) ) {
-		gameLocal.Printf( "usage: openq4_weaponWheel hold | aim <x> <y> | release\n" );
-		return;
-	}
-	if ( !idStr::Icmp( verb, "aim" ) ) {
-		player->TestWeaponWheelAim( idVec2( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ) ) );
-	} else {
-		player->TestWeaponWheelHold( !idStr::Icmp( verb, "hold" ) );
-	}
-}
-
-/*
-==================
 Cmd_OpenQ4LaunchTestProjectile_f
 
 openq4_launchTestProjectile <def> <name> <target entity> [key value ...]
@@ -4336,7 +4308,6 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "spawn",					Cmd_Spawn_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"spawns a game entity", idCmdSystem::ArgCompletion_Decl<DECL_ENTITYDEF> );
 	cmdSystem->AddCommand( "damage",				Cmd_Damage_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"apply damage to an entity", idGameLocal::ArgCompletion_EntityName );
 	cmdSystem->AddCommand( "openq4_launchTestProjectile", Cmd_OpenQ4LaunchTestProjectile_f, CMD_FL_GAME|CMD_FL_CHEAT, "launch a projectile from the player's eye at an entity, for headless tests" );
-	cmdSystem->AddCommand( "openq4_weaponWheel", Cmd_OpenQ4WeaponWheel_f, CMD_FL_GAME|CMD_FL_CHEAT, "hold, aim and release the weapon wheel without its button, for headless tests" );
 	cmdSystem->AddCommand( "openq4_testInput",	Cmd_OpenQ4TestInput_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"holds buttons and movement on the local player for headless tests" );
 	cmdSystem->AddCommand( "openq4_viewReport",	Cmd_OpenQ4ViewReport_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"prints the local player's view, field of view and god mode for headless tests" );
 	cmdSystem->AddCommand( "remove",				Cmd_Remove_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"removes an entity", idGameLocal::ArgCompletion_EntityName );

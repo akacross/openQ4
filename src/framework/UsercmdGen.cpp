@@ -385,8 +385,6 @@ public:
 	void			TriggerImpulse( int impulseNum );
 	void			SetUsercmdButton( int action, bool down );	// not part of idUsercmdGen, see Sys_SetUsercmdButton
 	bool			GetPresentationViewDelta( float &yawDelta, float &pitchDelta );
-	void			GetStickSelection( float &x, float &y );
-	void			SetWheelCapture( bool capture ) { wheelCapture = capture; }
 
 private:
 	void			MakeCurrent( void );
@@ -465,11 +463,6 @@ private:
 	float			mouseFilterBasePitch;
 
 	int				joystickAxis[MAX_JOYSTICK_AXIS];	// set by joystick events
-	// The weapon wheel's stick selection from the latest joystick sample
-	// (GetStickSelection); written by the input thread, read by the game.
-	float			stickSelectionX;
-	float			stickSelectionY;
-	bool			wheelCapture;		// SetWheelCapture
 
 	static idCVar	in_yawSpeed;
 	static idCVar	in_pitchSpeed;
@@ -550,8 +543,6 @@ idUsercmdGenLocal::idUsercmdGenLocal( void ) {
 	mouseFilterIndex = 0;
 	mouseFilterBaseYaw = 0.0f;
 	mouseFilterBasePitch = 0.0f;
-	stickSelectionX = stickSelectionY = 0.0f;
-	wheelCapture = false;
 
 	ClearAngles();
 	Clear();
@@ -1257,17 +1248,8 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 		// get basic movement from mouse
 		MouseMove();
 
-		// get basic movement from joystick; an open weapon wheel takes the sticks
-		if ( !wheelCapture ) {
-			JoystickMove();
-		}
-
-		// openQ4: an open multiplayer weapon wheel holds the view and keeps
-		// fire and zoom from the server (SetWheelCapture).
-		if ( wheelCapture ) {
-			viewangles = oldAngles;
-			cmd.buttons &= ~( BUTTON_ATTACK | BUTTON_ZOOM );
-		}
+		// get basic movement from joystick
+		JoystickMove();
 
 		// check to make sure the angles haven't wrapped
 		if ( viewangles[PITCH] - oldAngles[PITCH] > 90 ) {
@@ -1364,7 +1346,6 @@ void idUsercmdGenLocal::InitForNewMap( void ) {
 	toggled_run.Clear();
 	toggled_zoom.Clear();
 	toggled_run.on = in_alwaysRun.GetBool();
-	wheelCapture = false;
 
 	Clear();
 	ClearAngles();
@@ -1663,32 +1644,6 @@ void idUsercmdGenLocal::Joystick( void ) {
 	}
 
 	Sys_EndJoystickInputEvents();
-
-	// The weapon wheel selects with either stick: keep the more deflected one,
-	// up positive. Without dedicated look axes the one stick is YAW/PITCH.
-	const float moveX = joystickAxis[AXIS_YAW] / 127.0f;
-	const float moveY = joystickAxis[AXIS_PITCH] / 127.0f;
-	float lookX = 0.0f, lookY = 0.0f;
-	if ( joystickAxis[AXIS_ROLL] != 0 ) {
-		lookX = joystickAxis[AXIS_SIDE] / 127.0f;
-		lookY = -joystickAxis[AXIS_FORWARD] / 127.0f;
-		if ( cvarSystem->GetCVarBool( "in_joystickInvertLook" ) ) {
-			lookY = -lookY;
-		}
-	}
-	const bool look = lookX * lookX + lookY * lookY > moveX * moveX + moveY * moveY;
-	stickSelectionX = look ? lookX : moveX;
-	stickSelectionY = look ? lookY : moveY;
-}
-
-/*
-================
-idUsercmdGenLocal::GetStickSelection
-================
-*/
-void idUsercmdGenLocal::GetStickSelection( float &x, float &y ) {
-	x = stickSelectionX;
-	y = stickSelectionY;
 }
 
 void idUsercmdGenLocal::RetainedInputChanged() {

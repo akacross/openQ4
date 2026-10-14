@@ -152,7 +152,7 @@ static void CheckSchema() {
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
-	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo","newgameStart","newgameBack",
+	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
 	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
 	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
 	"arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart","arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
@@ -1308,290 +1308,6 @@ static void CheckWelcome(ScreenHost& host, const char* path) {
 	host.softFocus = false;
 }
 
-// The initializing screen (section 14.17): the rebuilt picture's rings turn on
-// the presentation clock, the engine's status line flickers in at each step,
-// and the rule marks the steps done, current and pending.
-static void CheckInitializing(ScreenHost& host, const char* path) {
-	const auto source = Read(path);
-	Document document; std::vector<Diagnostic> diagnostics;
-	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.initializing" && document.Model().canvasHeight == 720 &&
-		document.Model().actions.empty(),"initializing document validates and asks nothing of the engine");
-	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/loading/initializing.q4ui",diagnostics),"initializing loads into a runtime");
-	Viewport viewport; viewport.canvasHeight = 720;
-	std::string error; Runtime::EventEffects effects;
-	Check(runtime.RunEvent("onInit",0,effects,error) && effects.actions.empty(),"onInit starts the loops");
-	Check(runtime.SetState({{"init_step",3.0},{"init_status",std::string("INITIALIZING NETWORK...")}},error,0),"publish a step");
-	host.draws.clear();
-	runtime.Frame(viewport,0);
-	Check(!host.draws.empty(),"the rebuilt picture draws");
-	const auto status = runtime.PresentedValue("status","text");
-	Check(status && status->text == "INITIALIZING NETWORK...","the status line shows the engine's text");
-	// The picture keeps the 4:3 canvas centered: 160 px into a 16:9 view, the
-	// emblem's 260 u box from 190 u, the rings' square about 319,214.5 u.
-	Bounds emblem, rings, line;
-	Check(runtime.GetBounds("emblem",emblem) && Near(emblem.x,160+285) && Near(emblem.y,165) && Near(emblem.width,390),
-		"the emblem's box stands centered on the canvas");
-	Check(runtime.GetBounds("rings-field",rings) && Near(rings.x,160+13.5f) && Near(rings.y,1.5f*(214.5f-310)) && Near(rings.width,930),
-		"the rings center on 319,214.5 u");
-	Check(runtime.GetBounds("status",line) && Near(line.y+line.height/2,418*1.5f),"the line's middle stands at 418 u");
-	// One segment per step: done 0.55, the current one carried by the pulse, pending 0.15.
-	const auto done = runtime.PresentedValue("rule-2","opacity");
-	const auto current = runtime.PresentedValue("rule-3","opacity");
-	const auto pending = runtime.PresentedValue("rule-4","opacity");
-	Check(done && Near(static_cast<float>(done->data[0]),.55f,.001f) && current && Near(static_cast<float>(current->data[0]),0,.001f) &&
-		pending && Near(static_cast<float>(pending->data[0]),.15f,.001f),"done, current and pending segments");
-	Bounds pulse, third, first, last;
-	Check(runtime.GetBounds("rule-pulse",pulse) && runtime.GetBounds("rule-3",third) && Near(pulse.x,third.x) && Near(pulse.width,third.width),
-		"the pulse stands on the current segment");
-	Check(runtime.GetBounds("rule-0",first) && runtime.GetBounds("rule-7",last) && Near(last.x+last.width-first.x,168*1.5f) &&
-		Near((first.x+last.x+last.width)/2,160+480),"the 168 u rule centers under the line");
-	runtime.Frame(viewport,.4);
-	const auto dimmed = runtime.PresentedValue("rule-pulse","opacity");
-	Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.62f,.01f),"the current segment pulses down to 0.62 over half of 800 ms");
-	// The glint crosses QUAKE 4 in 900 ms from the start of each 9 s.
-	const auto crossing = runtime.PresentedValue("glint-light","transform");
-	Check(crossing && crossing->data[0] > 0 && crossing->data[0] < 1.5f*386,"the glint is crossing the letters");
-	// A new step replaces the line, flickering in from 0.35 over 120 ms.
-	Check(runtime.SetState({{"init_step",4.0},{"init_status",std::string("INITIALIZING RENDER SYSTEM...")}},error,1) &&
-		runtime.RunEvent("step",1,effects,error),"the next step");
-	runtime.Frame(viewport,1.002);
-	const auto flicker = runtime.PresentedValue("status-line","opacity");
-	runtime.Frame(viewport,1.2);
-	const auto lit = runtime.PresentedValue("status-line","opacity");
-	Check(flicker && Near(static_cast<float>(flicker->data[0]),.36f,.02f) && lit && Near(static_cast<float>(lit->data[0]),1,.001f),
-		"a new step flickers in from 0.35 and is lit after 120 ms");
-	// The teeth turn clockwise once every 120 s, the plate band counterclockwise
-	// once every 180 s and the light once every 10 s from its key-light pose.
-	runtime.Frame(viewport,32.5);
-	const auto teeth = runtime.PresentedValue("rings-teeth","transform");
-	const auto plates = runtime.PresentedValue("rings-plates","transform");
-	const auto sweep = runtime.PresentedValue("sweep","transform");
-	Check(teeth && Near(static_cast<float>(teeth->data[4]),97.5f,.01f) && plates && Near(static_cast<float>(plates->data[4]),-65,.01f) &&
-		sweep && Near(static_cast<float>(sweep->data[4]),-38+90,.01f),"after 32.5 s the rings and the light have turned on the clock");
-	const auto breathing = runtime.PresentedValue("halo","opacity");
-	Check(breathing && breathing->data[0] >= .4-1e-3 && breathing->data[0] <= 1+1e-3,"the halo breathes between 0.40 and 1.00");
-	// Reduced motion: the rings rest, the light holds as the upper-left key
-	// light, the halo at 0.80; no embers, glint or pulse.
-	// The engine sets the preference every frame (RetainedUI_DrawViewRoot);
-	// spatial loops jump to their ends, opacity settles within 80 ms.
-	runtime.SetReducedMotion(true,33);
-	runtime.Frame(viewport,33.1);
-	const auto restTeeth = runtime.PresentedValue("rings-teeth","transform");
-	const auto restPlates = runtime.PresentedValue("rings-plates","transform");
-	const auto keyLight = runtime.PresentedValue("sweep","transform");
-	const auto halo = runtime.PresentedValue("halo","opacity");
-	const auto ember = runtime.PresentedValue("ember-0","opacity");
-	const auto glint = runtime.PresentedValue("glint-light","transform");
-	const auto heldPulse = runtime.PresentedValue("rule-pulse","opacity");
-	runtime.Frame(viewport,40);
-	const auto stillTeeth = runtime.PresentedValue("rings-teeth","transform");
-	Check(restTeeth && Near(std::fmod(static_cast<float>(restTeeth->data[4]),360.f),0,.01f) && restPlates &&
-		Near(std::fmod(static_cast<float>(restPlates->data[4]),360.f),0,.01f) && stillTeeth &&
-		Near(static_cast<float>(stillTeeth->data[4]),static_cast<float>(restTeeth->data[4]),.001f),"reduced motion holds the rings still");
-	Check(keyLight && Near(std::fmod(static_cast<float>(keyLight->data[4])+360.f,360.f),322,.01f) && halo &&
-		Near(static_cast<float>(halo->data[0]),.8f,.001f),"the light rests as a key light 38 degrees left of the top, the halo at 0.80");
-	Check(ember && Near(static_cast<float>(ember->data[0]),0,.001f) && glint && glint->data[0] > 0 && heldPulse &&
-		Near(static_cast<float>(heldPulse->data[0]),.95f,.001f),"no embers, the glint gone past the letters and the pulse held");
-	runtime.SetReducedMotion(false,40);
-}
-
-// The weapon wheel (section 14.6): the game publishes the slots and the
-// selection; the document marks the selection, the empty and unowned slots,
-// the ammunition cells and the hub, and plays the Marine transmission.
-static void CheckWeaponWheel(ScreenHost& host, const char* path) {
-	const auto source = Read(path);
-	Document document; std::vector<Diagnostic> diagnostics;
-	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel" && document.Model().canvasHeight == 720 &&
-		document.Model().actions.empty(),"weapon wheel document validates and asks nothing of the engine");
-	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel.q4ui",diagnostics),"the wheel loads into a runtime");
-	Viewport viewport; viewport.canvasHeight = 720;
-	std::string error; Runtime::EventEffects effects;
-	Check(runtime.RunEvent("onInit",0,effects,error),"onInit");
-	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_name",std::string("Machinegun")},
-		{"wheel_ammo",std::string("40 / 200")}};
-	for (int slot : {0,1,2,6}) values["wheel_owned_"+std::to_string(slot)] = true;
-	values["wheel_empty_2"] = true;
-	values["wheel_fill_1"] = .4; values["wheel_count_1"] = 200.0; values["wheel_count_0"] = -1.0;
-	values["wheel_key_1"] = std::string("2");
-	Check(runtime.SetState(values,error,0),"publish the slots and the selection");
-	runtime.Frame(viewport,1);
-	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
-	// The ring centers on the view: a 600 dp square about 640,360 at 16:9.
-	Bounds wheel;
-	Check(runtime.GetBounds("wheel",wheel) && Near(wheel.x,340) && Near(wheel.y,60) && Near(wheel.width,600),"the wheel centers on the view");
-	// The selection moves 8 dp outward along its direction (32.7 degrees).
-	const auto moved = runtime.PresentedValue("slot-1","transform");
-	const auto still = runtime.PresentedValue("slot-0","transform");
-	Check(moved && Near(static_cast<float>(moved->data[0]),8*std::sin(32.7273f*3.14159265f/180),.05f) &&
-		Near(static_cast<float>(moved->data[1]),-8*std::cos(32.7273f*3.14159265f/180),.05f) && still &&
-		Near(static_cast<float>(still->data[0]),0,.001f),"the selected segment extends 8 dp outward");
-	Check(Near(opacity("slot-1-plate"),.7f,.001f) && Near(opacity("slot-0-plate"),.5f,.001f) && Near(opacity("slot-3-plate"),0,.001f) &&
-		Near(opacity("slot-3-outline"),1,.001f) && Near(opacity("slot-0-outline"),0,.001f),
-		"the selection's backing rises to 0.70; an unowned weapon keeps only its outline");
-	Check(Near(opacity("slot-1-glyph-selected"),1,.001f) && Near(opacity("slot-1-glyph"),0,.001f) && Near(opacity("slot-0-glyph"),1,.001f) &&
-		Near(opacity("slot-1-light"),1,.001f) && Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-0-ring"),0,.001f),
-		"the selection's icon turns orange inside the strip's ring, under the light");
-	Check(Near(opacity("slot-2-noammo"),1,.001f) && Near(opacity("slot-1-noammo"),0,.001f),"a weapon without ammunition shows the prohibition sign");
-	// 0.4 of the reserve fills three cells and a fifth of the fourth.
-	Check(Near(opacity("slot-1-cell-2"),1,.001f) && Near(opacity("slot-1-cell-3"),.2f,.01f) && Near(opacity("slot-1-cell-4"),0,.001f) &&
-		Near(opacity("slot-6-cell-0"),0,.001f),"the gauge fills in proportion to the reserve");
-	const auto reserve = runtime.PresentedValue("slot-1-reserve","text");
-	const auto key = runtime.PresentedValue("slot-1-key","text");
-	Check(reserve && reserve->text == "200" && key && key->text == "2" && Near(opacity("slot-0-reserve"),0,.001f),
-		"each slot shows its key and reserve; the blaster has none");
-	const auto compass = runtime.PresentedValue("compass","transform");
-	const auto pointer = runtime.PresentedValue("pointer","transform");
-	const auto notch = runtime.PresentedValue("previous","transform");
-	Check(compass && Near(static_cast<float>(compass->data[4]),32.7273f,.01f) && pointer && Near(static_cast<float>(pointer->data[4]),32.7273f,.01f) &&
-		notch && Near(static_cast<float>(notch->data[4]),0,.001f) && Near(opacity("previous"),1,.001f),
-		"the compass and pointer face the selection and the notch marks the previous weapon");
-	const auto name = runtime.PresentedValue("name","text");
-	const auto ammo = runtime.PresentedValue("ammo","text");
-	Check(name && name->text == "Machinegun" && ammo && ammo->text == "40 / 200","the hub names the selection and its ammunition");
-	// Opening: the hub powers on from a slit and the segments deploy clockwise.
-	Check(runtime.RunEvent("open",2,effects,error),"open");
-	runtime.Frame(viewport,2.001);
-	const auto slit = runtime.PresentedValue("hub","transform");
-	Check(slit && Near(static_cast<float>(slit->data[2]),.55f,.02f) && Near(static_cast<float>(slit->data[3]),.06f,.02f),"the hub opens from a slit");
-	runtime.Frame(viewport,2.05);
-	Check(opacity("slot-0") > opacity("slot-10"),"the segments deploy clockwise from the top");
-	runtime.Frame(viewport,2.16);
-	Check(opacity("slot-10") > .99f && opacity("static") > .3f,"plates read by 150 ms, under the static burst");
-	runtime.Frame(viewport,2.7);
-	const auto open = runtime.PresentedValue("hub","transform");
-	Check(open && Near(static_cast<float>(open->data[2]),1,.001f) && Near(opacity("static"),0,.001f),"the hub settles and the static decays");
-	Check(runtime.RunEvent("close",3,effects,error),"close");
-	runtime.Frame(viewport,3.2);
-	Check(Near(opacity("slot-0"),0,.001f),"closing drops the segments out");
-}
-
-// The Strogg weapon wheel (section 14.6, Strogg HUD): the same state as the
-// Marine wheel on angular plates twisted 4 degrees backward, slanted reserve
-// cells under a masked grain, an octagonal core whose dashed rings turn at
-// 0.2 and 0.5 turns a second, circuits to the owned plates, and every label
-// translating from runes.
-static void CheckStroggWheel(ScreenHost& host, const char* path) {
-	const auto source = Read(path);
-	Document document; std::vector<Diagnostic> diagnostics;
-	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel.strogg" && document.Model().canvasHeight == 720 &&
-		document.Model().actions.empty(),"Strogg wheel document validates and asks nothing of the engine");
-	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel_strogg.q4ui",diagnostics),"the Strogg wheel loads into a runtime");
-	Viewport viewport; viewport.canvasHeight = 720;
-	std::string error; Runtime::EventEffects effects;
-	Check(runtime.RunEvent("onInit",0,effects,error),"onInit starts the rings and the grain");
-	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_name",std::string("Machinegun")},
-		{"wheel_ammo",std::string("40 / 200")}};
-	for (int slot : {0,1,2,6}) values["wheel_owned_"+std::to_string(slot)] = true;
-	values["wheel_empty_2"] = true;
-	values["wheel_fill_1"] = .4; values["wheel_count_1"] = 200.0; values["wheel_count_0"] = -1.0;
-	values["wheel_key_1"] = std::string("2");
-	Check(runtime.SetState(values,error,0),"the Strogg wheel takes the Marine wheel's state");
-	runtime.Frame(viewport,1);
-	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
-	auto angle = [&](const char* node) { const auto value = runtime.PresentedValue(node,"transform"); return value ? static_cast<float>(value->data[4]) : -1e9f; };
-	Bounds wheel;
-	Check(runtime.GetBounds("wheel",wheel) && Near(wheel.x,340) && Near(wheel.y,60) && Near(wheel.width,600),"the Strogg wheel centers on the view");
-	const auto moved = runtime.PresentedValue("slot-1","transform");
-	Check(moved && Near(static_cast<float>(moved->data[0]),8*std::sin(32.7273f*3.14159265f/180),.05f),"the selection extends 8 dp outward");
-	Check(Near(opacity("slot-1-plate"),.75f,.001f) && Near(opacity("slot-0-plate"),.55f,.001f) && Near(opacity("slot-3-plate"),0,.001f) &&
-		Near(opacity("slot-3-rim"),.45f,.001f) && Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-0-ring"),0,.001f),
-		"the selection's plate rises in its #F2AD0B ring; an unowned plate keeps only its rim");
-	Check(Near(opacity("slot-1-glyph-selected"),1,.001f) && Near(opacity("slot-0-glyph"),1,.001f) && Near(opacity("slot-2-noammo"),1,.001f),
-		"the selected icon turns #FFCC00; a weapon without ammunition shows the sign");
-	Check(Near(opacity("slot-1-cell-2"),1,.001f) && Near(opacity("slot-1-cell-3"),.2f,.01f) && Near(opacity("slot-1-cell-4"),0,.001f),
-		"the slanted cells fill in proportion to the reserve");
-	Check(Near(opacity("circuit-1"),.9f,.001f) && Near(opacity("circuit-0"),.32f,.001f) && Near(opacity("circuit-3"),.06f,.001f),
-		"the circuits join the core to the owned plates and brighten for the selection");
-	const auto reserve = runtime.PresentedValue("slot-1-reserve-text","text");
-	const auto rune = runtime.PresentedValue("slot-1-reserve-text-rune","text");
-	const auto name = runtime.PresentedValue("name-text","text");
-	const auto nameRune = runtime.PresentedValue("name-text-rune","text");
-	Check(reserve && reserve->text == "200" && rune && rune->text == "200" && name && name->text == "Machinegun" &&
-		nameRune && nameRune->text == "Machinegun","every readout has its rune copy");
-	Check(Near(opacity("grain"),.2f,.001f),"the grain rests at 0.20 over the plates");
-	// The rings turn at 0.2 and 0.5 turns a second, in opposite directions.
-	runtime.Frame(viewport,2);
-	const float a0 = angle("core-ring-a"), b0 = angle("core-ring-b");
-	runtime.Frame(viewport,3);
-	Check(Near(angle("core-ring-a")-a0,72,.5f) && Near(angle("core-ring-b")-b0,-180,.5f),"the dashed rings turn at 0.2 and 0.5 turns a second");
-	// Opening: the plates boot in a scrambled order under their flash.
-	Check(runtime.RunEvent("open",4,effects,error),"open");
-	runtime.Frame(viewport,4.002);
-	Check(opacity("slot-6-flash") > .9f && Near(opacity("slot-5-boot"),0,.001f),"the plates boot in a scrambled order, each under its flash");
-	runtime.Frame(viewport,4.05);
-	Check(opacity("slot-6-boot") > opacity("slot-5-boot") && opacity("slot-6-boot") > .99f,"the first plate reads while the last waits");
-	Check(angle("core-rings") < -1 && angle("core-rings") > -120,"the rings spin up");
-	const auto runes = runtime.PresentedValue("name-text-rune","color");
-	runtime.Frame(viewport,4.7);
-	const auto settled = runtime.PresentedValue("name-text-rune","color");
-	Check(runes && Near(static_cast<float>(runes->data[3]),.8f,.01f) && settled && Near(static_cast<float>(settled->data[3]),0,.01f),
-		"the name arrives in runes and translates");
-	Check(Near(opacity("slot-5-boot"),1,.001f) && Near(opacity("grain"),.2f,.001f),"every plate booted and the grain settled");
-	// Selecting: the name translates again and the scan bar slides in behind it.
-	Check(runtime.RunEvent("select",5,effects,error),"select");
-	runtime.Frame(viewport,5.042);
-	Check(opacity("name-bar") > .9f,"the scan bar lights as it starts to slide");
-	runtime.Frame(viewport,5.5);
-	Check(Near(opacity("name-bar"),0,.01f),"the scan bar dims");
-	// Closing: the plates drop out, then the core and the grain fade.
-	Check(runtime.RunEvent("close",6,effects,error),"close");
-	runtime.Frame(viewport,6.3);
-	Check(Near(opacity("slot-5-boot"),0,.001f) && Near(opacity("core"),0,.001f) && Near(opacity("grain"),0,.001f),
-		"closing drops the plates, then fades the core and the grain");
-	// Reduced motion stops the rings.
-	runtime.SetReducedMotion(true,7);
-	runtime.Frame(viewport,7.1);
-	const float still = angle("core-ring-a");
-	runtime.Frame(viewport,8.1);
-	Check(Near(angle("core-ring-a"),still,.001f),"reduced motion stops the rings");
-}
-
-// The multiplayer weapon wheel (section 14.6, Multiplayer): the Marine wheel
-// with the gauntlet in the blaster's place, colour-coded icons, and the
-// player's team color on the selection ring, the selected number, the bezel,
-// the hub's rings, the compass's bright dot and the pointer.
-static void CheckMultiplayerWheel(ScreenHost& host, const char* path) {
-	const auto source = Read(path);
-	Document document; std::vector<Diagnostic> diagnostics;
-	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.weaponwheel.mp" && document.Model().actions.empty(),
-		"multiplayer wheel document validates and asks nothing of the engine");
-	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/weaponwheel_mp.q4ui",diagnostics),"the multiplayer wheel loads");
-	Viewport viewport; viewport.canvasHeight = 720;
-	std::string error; Runtime::EventEffects effects;
-	Check(runtime.RunEvent("onInit",0,effects,error),"onInit");
-	StateValues values{{"wheel_selected",1.0},{"wheel_previous",0.0},{"wheel_team",0.0},{"wheel_name",std::string("Machinegun")},
-		{"wheel_ammo",std::string("150")}};
-	for (int slot : {0,1,2}) values["wheel_owned_"+std::to_string(slot)] = true;
-	Check(runtime.SetState(values,error,0),"publish a Deathmatch wheel");
-	runtime.Frame(viewport,1);
-	auto opacity = [&](const char* node) { const auto value = runtime.PresentedValue(node,"opacity"); return value ? static_cast<float>(value->data[0]) : -1.f; };
-	Check(Near(opacity("slot-1-ring"),1,.001f) && Near(opacity("slot-1-ring-marine"),0,.001f) && Near(opacity("bezel"),1,.001f) &&
-		Near(opacity("bezel-marine"),0,.001f) && Near(opacity("hub-rings"),1,.001f) && Near(opacity("compass-dot"),1,.001f) &&
-		Near(opacity("pointer"),1,.001f) && Near(opacity("slot-1-light"),1,.001f),"Deathmatch keeps the stock olive");
-	Check(runtime.SetState({{"wheel_team",1.0}},error,1),"a Marine player");
-	runtime.Frame(viewport,2);
-	Check(Near(opacity("slot-1-ring-marine"),1,.001f) && Near(opacity("slot-1-ring"),0,.001f) && Near(opacity("bezel-marine"),1,.001f) &&
-		Near(opacity("hub-rings-marine"),1,.001f) && Near(opacity("compass-dot-marine"),1,.001f) && Near(opacity("pointer-marine"),1,.001f) &&
-		Near(opacity("slot-1-light"),1,.001f),"a Marine's team color takes the selection and the hub");
-	const auto marine = runtime.PresentedValue("slot-1-key","color");
-	Check(marine && Near(static_cast<float>(marine->data[0]),0xAA/255.f,.01f) && Near(static_cast<float>(marine->data[1]),0xE3/255.f,.01f),
-		"the selected number takes the team color");
-	Check(runtime.SetState({{"wheel_team",2.0}},error,2),"a Strogg player");
-	runtime.Frame(viewport,3);
-	Check(Near(opacity("slot-1-ring-strogg"),1,.001f) && Near(opacity("slot-1-light-strogg"),1,.001f) && Near(opacity("slot-1-light"),0,.001f) &&
-		Near(opacity("bezel-strogg"),1,.001f),"a Strogg's team color, and the #6B3A08 light");
-	const auto ammo = runtime.PresentedValue("ammo","text");
-	Check(ammo && ammo->text == "150","the hub reads the reserve alone");
-}
-
 // The Load Game page (sections 9 and 13.7, FLOW-004): the stock page's content
 // in the stock composition, the session's rows and selection, a row's two
 // Accepts, the delete confirmation, the failed and empty states and paging.
@@ -1880,146 +1596,6 @@ static void CheckRestartPage(ScreenHost& host, const char* path) {
 	Check(first.y+36*u > second.y && runtime.GetControlState("skill-0") == ControlState::Hover,"the foot of PRIVATE's band is PRIVATE's");
 }
 
-// Campaign's New Campaign, its sibling sub-page (section 9 "New game",
-// FLOW-050): the stock composition with TURBO MODE, the sub-page state it
-// shares with Campaign, and page.leave and page.enter between the two, whose
-// arrivals never show a page at rest on their first frame.
-static void CheckNewCampaign(ScreenHost& host, const char* campaignsPath, const char* path) {
-	const auto source = Read(path), campaignsSource = Read(campaignsPath);
-	Document document; std::vector<Diagnostic> diagnostics;
-	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.newcampaign" && document.Model().canvasHeight == 720,"the New Campaign page validates");
-	CheckSessionActions(document);
-	const auto start = document.Model().actions.find("start"), back = document.Model().actions.find("back");
-	Check(start != document.Model().actions.end() && std::get<std::string>(start->second.arguments.at("command").literal) == "newgameStart" &&
-		back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "newgameBack",
-		"START GAME and BACK ask the session");
-	Runtime page(host), campaigns(host);
-	Check(page.Initialize() && page.LoadDocument(source,"guis/menu/newcampaign.q4ui",diagnostics) &&
-		campaigns.Initialize() && campaigns.LoadDocument(campaignsSource,"guis/menu/campaigns.q4ui",diagnostics),"both sub-pages load into runtimes");
-	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
-	std::string error; Runtime::EventEffects effects;
-	const auto value = [](Runtime& runtime, const char* node, const char* property, size_t index) {
-		const auto found = runtime.PresentedValue(node,property); return found ? static_cast<float>(found->data[index]) : -999.f;
-	};
-	const auto text = [&](const std::string& node, const char* property) {
-		const auto found = page.PresentedValue(node,property); return found ? found->text : std::string("?");
-	};
-	const float tight = .002f;
-	// It waits hidden, so that an arrival never shows it at rest first.
-	Check(page.SetState({{"newgame.skill",1.0},{"newgame.turbo",false},{"newgame.awakening",false}},error,0),"the session resets the page");
-	page.Frame(viewport,1);
-	Check(Near(value(page,"content","opacity",0),0,tight) && Near(value(page,"title","color",3),0,tight) &&
-		Near(value(page,"prompts","opacity",0),0,tight) && Near(value(page,"newgame-backing","opacity",0),0,tight),"the page waits hidden");
-	// page.enter from the trailing edge: from 12 dp and nothing to rest over 220 ms.
-	Check(page.RunEvent("onActivate",2,effects,error),"the page arrives");
-	page.Frame(viewport,2);
-	Check(Near(value(page,"content","opacity",0),0,tight) && Near(value(page,"title","color",3),0,tight),"its first frame shows nothing at rest");
-	page.Frame(viewport,2.05);
-	const float entering = value(page,"content","transform",0), enteringAlpha = value(page,"content","opacity",0);
-	Check(entering > .1f && entering < 11.9f && enteringAlpha > .01f && enteringAlpha < .99f,"it slides in from the trailing edge as it fades in");
-	page.Frame(viewport,2.23);
-	Check(Near(value(page,"content","opacity",0),1,tight) && Near(value(page,"content","transform",0),0,.01f) &&
-		Near(value(page,"title","color",3),.5f,tight) && Near(value(page,"title","transform",0),0,.01f) &&
-		Near(value(page,"prompts","opacity",0),1,tight) && Near(value(page,"newgame-backing","opacity",0),1,tight),
-		"by 220 ms it is at rest with its title, backing and BACK");
-	Check(page.FocusedControl() == "skill-1","CORPORAL, the reset choice, has focus");
-	// The stock layout on the 4:3 canvas (x = 160 dp at 1280x720; 1 u = 1.5 dp).
-	const float x0 = 160, u = 1.5f;
-	const auto bounds = [&](const std::string& id) { Bounds b; Check(page.GetBounds(id,b),"a page node is laid out"); return b; };
-	const auto first = bounds("skill-0-plate"), primary = bounds("newgame_start"), turbo = bounds("newgame_turbo"), title = bounds("title"),
-		turboValue = bounds("newgame_turbo-off"), description = bounds("newgame-description");
-	Check(Near(first.x,x0+21*u) && Near(first.y,172*u),"the difficulty plates keep the stock place");
-	Check(Near(description.x,x0+239*u) && Near(description.y,181*u),"the description stands at 239,181 u");
-	Check(Near(primary.x,x0+237*u) && Near(primary.y,222*u) && Near(primary.width,356*u) && Near(primary.height,43*u),
-		"START GAME is the stock 356x43 u primary plate at 237,222 u");
-	Check(Near(turbo.x,x0+237*u) && Near(turbo.y,272*u) && Near(turbo.width,356*u) && Near(turbo.height,43*u),"TURBO MODE stands under it at 237,272 u");
-	Check(Near(turboValue.x,x0+489*u) && Near(turboValue.y,280*u),"its value stands at 489,280 u");
-	Check(Near(title.x,x0+136*u,1) && Near(title.y,19*u,1),"the campaign's name titles the page at the step's foot");
-	// The sub-page state it shares with Campaign: the bands, the crumb and the
-	// title slot never move between the two.
-	Check(campaigns.RunEvent("onActivate",1,effects,error),"Campaign arrives");
-	campaigns.Frame(viewport,1.2);
-	Bounds campaignTitle;
-	Check(campaigns.GetBounds("title",campaignTitle) && Near(campaignTitle.x,title.x,.01f) && Near(campaignTitle.y,title.y,.01f),"both titles share the slot");
-	for (const char* node : {"band-top","band-bottom","crumb"})
-		for (size_t index = 0; index < 4; ++index)
-			Check(Near(value(page,node,"transform",index),value(campaigns,node,"transform",index),.01f),"the bands and the crumb hold between the siblings");
-	Check(text("crumb","text") == "#str_42000" && text("title","text") == "#str_230039","SINGLE PLAYER is the crumb, QUAKE 4 the title");
-	Check(page.SetState({{"newgame.awakening",true}},error,2.3),"the Awakening");
-	page.Frame(viewport,2.31);
-	Check(text("title","text") == "#str_230040","THE AWAKENING titles its page");
-	// TURBO MODE: OFF, then ON in orange; nothing reaches the session.
-	Check(text("newgame_turbo-off","display") == "block" && text("newgame_turbo-on","display") == "none","turbo mode starts off");
-	Check(page.RunEvent("toggleTurbo",2.4,effects,error) && effects.actions.empty() && effects.stateChanges.count("newgame.turbo") &&
-		std::get<bool>(effects.stateChanges.at("newgame.turbo")),"TURBO MODE toggles it on the page");
-	page.Frame(viewport,2.41);
-	const auto orange = page.PresentedValue("newgame_turbo-on","color");
-	Check(text("newgame_turbo-on","display") == "block" && text("newgame_turbo-off","display") == "none" && orange &&
-		Near(static_cast<float>(orange->data[0]),.89f,.01f) && Near(static_cast<float>(orange->data[1]),.537f,.01f),"ON shows in orange");
-	Check(page.RunEvent("toggleTurbo",2.42,effects,error) && !std::get<bool>(effects.stateChanges.at("newgame.turbo")),"and toggles back off");
-	Check(page.RunEvent("chooseSkill3",2.5,effects,error) && effects.actions.empty(),"choosing a difficulty keeps it on the page");
-	page.Frame(viewport,2.51);
-	Check(text("skill-3-plate-lit","display") == "block" && text("skill-1-plate-lit","display") == "none" &&
-		text("newgame-description","text") == "#str_200185","the choice is lit and described");
-	Check(page.CanActivateControl("newgame_start",2.6) && page.CanActivateControl("newgame_turbo",2.6) && page.CanActivateControl("newgame_back",2.6),
-		"START GAME, TURBO MODE and BACK are live");
-	// Back: page.leave toward the trailing edge, 8 dp and out over 140 ms.
-	Check(page.RunEvent("siblingLeaveBack",3,effects,error),"Back leaves");
-	page.Frame(viewport,3.07);
-	const float leaving = value(page,"content","transform",0);
-	Check(leaving > .1f && leaving < 7.9f && value(page,"content","opacity",0) < .99f,"it departs toward the trailing edge");
-	page.Frame(viewport,3.14);
-	Check(Near(value(page,"content","transform",0),8,.01f) && Near(value(page,"content","opacity",0),0,tight) &&
-		Near(value(page,"title","color",3),0,tight) && Near(value(page,"prompts","opacity",0),0,tight),"by 140 ms it is gone");
-	Check(page.RunEvent("onDeactivate",3.2,effects,error),"the page leaves the screen");
-	page.Frame(viewport,3.21);
-	Check(Near(value(page,"content","transform",0),0,.01f) && Near(value(page,"content","opacity",0),0,tight),"hidden, it waits at rest and out");
-	// Campaign: page.leave toward the leading edge on Accept, then out while away.
-	Check(campaigns.RunEvent("siblingLeave",4,effects,error),"a campaign accepted");
-	campaigns.Frame(viewport,4.07);
-	const float departing = value(campaigns,"content","transform",0);
-	Check(departing < -.1f && departing > -7.9f,"Campaign departs toward the leading edge");
-	campaigns.Frame(viewport,4.14);
-	Check(Near(value(campaigns,"content","transform",0),-8,.01f) && Near(value(campaigns,"content","opacity",0),0,tight) &&
-		Near(value(campaigns,"title","color",3),0,tight) && Near(value(campaigns,"prompts","opacity",0),0,tight),"by 140 ms Campaign is gone");
-	Check(campaigns.RunEvent("onDeactivate",4.2,effects,error),"Campaign leaves the screen");
-	campaigns.Frame(viewport,4.21);
-	Check(Near(value(campaigns,"content","transform",0),0,.01f) && Near(value(campaigns,"content","opacity",0),0,tight) &&
-		Near(value(campaigns,"title","color",3),0,tight) && Near(value(campaigns,"prompts","opacity",0),0,tight),"away, it waits at rest and out");
-	// Back from New Campaign: page.enter from the leading edge, onto the
-	// campaign that led there.
-	Check(campaigns.SetState({{"sibling_back",true},{"awakening_chosen",true},{"awakening_ready",true}},error,5),"the session asks for the return");
-	Check(campaigns.RunEvent("onActivate",5,effects,error),"Campaign returns");
-	campaigns.Frame(viewport,5);
-	Check(Near(value(campaigns,"content","opacity",0),0,tight) && Near(value(campaigns,"title","color",3),0,tight) &&
-		Near(value(campaigns,"prompts","opacity",0),0,tight),"its first frame shows nothing at rest");
-	campaigns.Frame(viewport,5.05);
-	const float returning = value(campaigns,"content","transform",0);
-	Check(returning < -.1f && returning > -11.9f,"it slides in from the leading edge");
-	campaigns.Frame(viewport,5.23);
-	Check(Near(value(campaigns,"content","opacity",0),1,tight) && Near(value(campaigns,"content","transform",0),0,.01f) &&
-		Near(value(campaigns,"title","color",3),.5f,tight) && Near(value(campaigns,"prompts","opacity",0),1,tight) &&
-		Near(value(campaigns,"details","opacity",0),1,tight),"by 220 ms Campaign is at rest");
-	Check(campaigns.FocusedControl() == "awakening","the campaign that led there has focus");
-	// Away again, then presented from Single Player: at once, as ever.
-	Check(campaigns.RunEvent("siblingLeave",6,effects,error) && campaigns.RunEvent("onDeactivate",6.2,effects,error),"away again");
-	Check(campaigns.RunEvent("onActivate",7,effects,error),"Campaign arrives from Single Player");
-	campaigns.Frame(viewport,7.01);
-	Check(Near(value(campaigns,"content","opacity",0),1,tight) && Near(value(campaigns,"title","color",3),.5f,tight) &&
-		Near(value(campaigns,"prompts","opacity",0),1,tight) && Near(value(campaigns,"content","transform",0),0,.01f),
-		"its plates, title and prompts show at once");
-	// Reduced motion: the arrival fades in within 80 ms and never moves.
-	page.SetReducedMotion(true,8);
-	Check(page.RunEvent("onActivate",8,effects,error),"the page arrives with reduced motion");
-	page.Frame(viewport,8.04);
-	const float half = value(page,"content","opacity",0);
-	Check(half > .01f && half < .99f && Near(value(page,"content","transform",0),0,.01f),"it fades in place");
-	page.Frame(viewport,8.09);
-	Check(Near(value(page,"content","opacity",0),1,tight),"within 80 ms");
-	page.SetReducedMotion(false,8.2);
-}
-
 // The Demos page (FLOW-013): the library under its filter tags, the selected
 // demo's picture and lines, PLAY, DELETE and REFRESH, the confirmation that
 // names the demo, and the empty states. The session's verbs run through the
@@ -2209,13 +1785,13 @@ static void CheckModsDialog(ScreenHost& host, const char* path) {
 	Check(text("mods-row-1-name","text") == "The Awakening" && text("mods-row-0-version","text") == "0.13","each row names its mod and version");
 	Check(text("mods-author","text") == "Ritual" && text("mods-date","text") == "2005" && text("mods-engine","text") == "0.11" &&
 		text("mods-directory","text") == "q4xbase","the selected mod's details stand under the list");
-	Check(Near(number("wordmark","opacity"),.4f,.01f),"the wordmark dims to 40% gray");
+	Check(Near(number("wordmark","image-color"),.4f,.01f),"the wordmark dims to 40% gray");
 	Check(runtime.CanActivateControl("modsModal_yes",2.3) && runtime.CanActivateControl("modsModal_no",2.3),"LOAD MOD and CANCEL are live");
 	Check(runtime.RunEvent("modsRow0",3,effects,error) && requested("modsSelect") && effects.stateChanges.count("mods.pick") &&
 		std::get<double>(effects.stateChanges.at("mods.pick")) == 0,"Accept on another mod selects it");
 	Check(runtime.RunEvent("modsRow1",3.1,effects,error) && requested("modsLoad"),"Accept on the selected mod loads it");
 	runtime.Frame(viewport,3.6);
-	Check(text("modsModal","display") == "none" && Near(number("wordmark","opacity"),1,.01f),"loading closes the dialog and the wordmark lights");
+	Check(text("modsModal","display") == "none" && Near(number("wordmark","image-color"),1,.01f),"loading closes the dialog and the wordmark lights");
 	// No mods: LOAD MOD rests disabled and CANCEL keeps the focus.
 	Check(runtime.SetState({{"mods.count",0.0},{"mods.selected",-1.0}},error,4),"no mods");
 	Check(runtime.RunEvent("modsModalShow",4.1,effects,error),"the dialog opens again");
@@ -3419,7 +2995,7 @@ static std::set<std::string> CheckPointerReach(ScreenHost& host, const char* pat
 // Every retained menu screen under the pointer probe. The pages are published
 // so that their rows show and their plates are enabled, and the probe must
 // reach the plates a later full-size group once covered: Load Game's, Restart
-// Level's, New Campaign's, Demos' and Save Game's.
+// Level's, Demos' and Save Game's.
 static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 	host.recordDraws = false;
 	const auto probed = [](const std::set<std::string>& reached, std::initializer_list<const char*> ids) {
@@ -3427,26 +3003,24 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 		for (const char* id : ids) if (!reached.contains(id)) { std::fprintf(stderr,"pointer probe: %s was not probed\n",id); all = false; }
 		return all;
 	};
-	Check(probed(CheckPointerReach(host,argv[13],"guis/menu/loadgame.q4ui",{{"load.count",1.0},{"load.first",0.0},{"load.selected",0.0}},
+	Check(probed(CheckPointerReach(host,argv[9],"guis/menu/loadgame.q4ui",{{"load.count",1.0},{"load.first",0.0},{"load.selected",0.0}},
 		"onActivate"),{"row-0","load_go","load_delete","load_back","deleteModal_yes","deleteModal_no"}),
 		"Load Game's plates, save, BACK and confirmation take the pointer");
-	Check(probed(CheckPointerReach(host,argv[13],"guis/menu/loadgame.q4ui",{},"onActivate"),{"load_newgame","load_back"}),
+	Check(probed(CheckPointerReach(host,argv[9],"guis/menu/loadgame.q4ui",{},"onActivate"),{"load_newgame","load_back"}),
 		"the empty Load Game page's NEW GAME takes the pointer");
-	Check(probed(CheckPointerReach(host,argv[14],"guis/menu/savegame.q4ui",{{"save.count",1.0},{"save.first",0.0},{"save.selected",0.0},
+	Check(probed(CheckPointerReach(host,argv[10],"guis/menu/savegame.q4ui",{{"save.count",1.0},{"save.first",0.0},{"save.selected",0.0},
 		{"save.name",std::string("Medic")}},"onActivate"),{"row-0","save-name","save_go","save_back","overwriteModal_yes","overwriteModal_no",
 		"noticeModal_close"}),"Save Game's plate, name, save, BACK and dialogs take the pointer");
-	Check(probed(CheckPointerReach(host,argv[15],"guis/menu/restartlevel.q4ui",{},"onActivate"),
+	Check(probed(CheckPointerReach(host,argv[11],"guis/menu/restartlevel.q4ui",{},"onActivate"),
 		{"skill-0","skill-1","skill-2","skill-3","skill-4","restart_go","restart_back"}),"Restart Level's plates take the pointer");
-	Check(probed(CheckPointerReach(host,argv[16],"guis/menu/newcampaign.q4ui",{},"onActivate"),
-		{"skill-0","skill-1","skill-2","skill-3","skill-4","newgame_start","newgame_turbo","newgame_back"}),"New Campaign's plates take the pointer");
-	Check(probed(CheckPointerReach(host,argv[17],"guis/menu/demos.q4ui",{{"demos.count",1.0},{"demos.first",0.0},{"demos.selected",0.0},
+	Check(probed(CheckPointerReach(host,argv[12],"guis/menu/demos.q4ui",{{"demos.count",1.0},{"demos.first",0.0},{"demos.selected",0.0},
 		{"demos.canPlay",true},{"demos.canDelete",true}},"onActivate"),{"row-0","tag-mvd","tag-render","tag-legacy","tag-incomplete","demo_play",
 		"demo_delete","demo_refresh","demo_back","deleteModal_yes","deleteModal_no"}),"Demos' plates, tags, demo, BACK and confirmation take the pointer");
-	Check(probed(CheckPointerReach(host,argv[19],"guis/menu/credits.q4ui",{},"onActivate"),{"credits_back"}),"Credits' BACK takes the pointer");
-	Check(probed(CheckPointerReach(host,argv[22],"guis/menu/createserver.q4ui",{{"create.map_count",3.0},{"create.map_first",0.0},
+	Check(probed(CheckPointerReach(host,argv[14],"guis/menu/credits.q4ui",{},"onActivate"),{"credits_back"}),"Credits' BACK takes the pointer");
+	Check(probed(CheckPointerReach(host,argv[17],"guis/menu/createserver.q4ui",{{"create.map_count",3.0},{"create.map_first",0.0},
 		{"create.map_selected",1.0}},"onActivate"),{"create_start","create_back","create-name","map-0","map-2"}),
 		"Create Server's options, maps and dialogs take the pointer");
-	Check(probed(CheckPointerReach(host,argv[23],"guis/menu/joingame.q4ui",{{"join.count",3.0},{"join.first",0.0},{"join.selected",0.0},
+	Check(probed(CheckPointerReach(host,argv[18],"guis/menu/joingame.q4ui",{{"join.count",3.0},{"join.first",0.0},{"join.selected",0.0},
 		{"join.listed",3.0}},"onActivate"),{"server-0","server-2","join_server","join_newlist","join_refresh","join_back"}),
 		"Join Game's servers, actions and dialogs take the pointer");
 	// The homes, sub-pages and cards: every control they show. The Escape
@@ -3460,10 +3034,10 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 	CheckPointerReach(host,argv[7],"guis/menu/mp_escape.q4ui",{{"mp.action0.shown",true},{"mp.action0.available",true},
 		{"mp.action1.shown",true},{"mp.action1.available",true}},"open",1);
 	CheckPointerReach(host,argv[8],"guis/menu/mp_welcome.q4ui",{},"open");
-	CheckPointerReach(host,argv[18],"guis/menu/restartmenu.q4ui",{},"onActivate");
-	CheckPointerReach(host,argv[20],"guis/menu/arena.q4ui",{{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},
+	CheckPointerReach(host,argv[13],"guis/menu/restartmenu.q4ui",{},"onActivate");
+	CheckPointerReach(host,argv[15],"guis/menu/arena.q4ui",{{"arena_loaded",true},{"arena_canStart",true},{"arena_difficulty",3.0},
 		{"arenaCampaignProgress",5.0}},"onActivate");
-	CheckPointerReach(host,argv[21],"guis/menu/multiplayer.q4ui",{},"onActivate");
+	CheckPointerReach(host,argv[16],"guis/menu/multiplayer.q4ui",{},"onActivate");
 	host.recordDraws = true;
 }
 
@@ -3473,8 +3047,8 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 // as one test they timed out on loaded machines. A group keeps its checks'
 // order; with no group every check runs.
 int main(int argc, char** argv) {
-	Check(argc == 24 || argc == 25,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui initializing.q4ui weaponwheel.q4ui weaponwheel_strogg.q4ui weaponwheel_mp.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui newcampaign.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui [group]");
-	const std::string group = argc == 25 ? argv[24] : "";
+	Check(argc == 19 || argc == 20,"usage: title.q4ui pause.q4ui loading.q4ui pause_strogg.q4ui singleplayer.q4ui campaigns.q4ui mp_escape.q4ui mp_welcome.q4ui loadgame.q4ui savegame.q4ui restartlevel.q4ui demos.q4ui restartmenu.q4ui credits.q4ui arena.q4ui multiplayer.q4ui createserver.q4ui joingame.q4ui [group]");
+	const std::string group = argc == 20 ? argv[19] : "";
 	bool known = group.empty();
 	const auto runs = [&](const char* name) { const bool selected = group.empty() || group == name; known = known || selected; return selected; };
 	if (runs("menus")) CheckSchema();
@@ -3482,20 +3056,19 @@ int main(int argc, char** argv) {
 	if (runs("menus")) CheckTransformedClip(host);
 	if (runs("menus")) CheckPromptGlyphs(host,argv[1]);
 	if (runs("mp-card")) CheckCardPromptGlyphs(host,argv[7]);
-	if (runs("pages")) CheckPagePrompts(host,argv[13],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
-	if (runs("pages")) CheckPagePrompts(host,argv[14],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
-	if (runs("pages")) CheckPagePrompts(host,argv[15],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
-	if (runs("pages")) CheckPagePrompts(host,argv[16],"guis/menu/newcampaign.q4ui","newgame_back","back",nullptr,true);
-	if (runs("pages")) CheckPagePrompts(host,argv[17],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
-	if (runs("pages")) CheckPagePrompts(host,argv[19],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
-	if (runs("mp-pages")) CheckPagePrompts(host,argv[22],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
-	if (runs("mp-pages")) CheckPagePrompts(host,argv[23],"guis/menu/joingame.q4ui","join_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[9],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[10],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[11],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[12],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
+	if (runs("pages")) CheckPagePrompts(host,argv[14],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
+	if (runs("mp-pages")) CheckPagePrompts(host,argv[17],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
+	if (runs("mp-pages")) CheckPagePrompts(host,argv[18],"guis/menu/joingame.q4ui","join_back","back",nullptr,true);
 	if (runs("menus")) CheckPagePrompts(host,argv[2],"guis/menu/pause.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow","objectives-prompts");
 	if (runs("menus")) CheckPagePrompts(host,argv[4],"guis/menu/pause_strogg.q4ui","objectives_back",nullptr,"objectivesHide",false,"objectivesShow",
 		"objectives-prompts");
-	for (const int page : {5,6,21})
-		if (runs(page == 21 ? "mp-pages" : "pages"))
-			CheckPagePrompts(host,argv[page],page == 21 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
+	for (const int page : {5,6,16})
+		if (runs(page == 16 ? "mp-pages" : "pages"))
+			CheckPagePrompts(host,argv[page],page == 16 ? "guis/menu/multiplayer.q4ui" : "guis/menu/singleplayer.q4ui","",nullptr,nullptr,true);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	if (runs("menus")) {
 		const auto source = Read(argv[1]);
@@ -3516,8 +3089,7 @@ int main(int argc, char** argv) {
 		Check(std::any_of(host.draws.begin(),host.draws.end(),[&](const auto& draw) { return draw.material == host.multiply; }),
 			"the emblem multiplies the lit field through the host material");
 		Check(std::find(host.materials.begin(),host.materials.end(),"gfx/guis/mainmenu/level_mcc.dds") != host.materials.end(),"the backdrop montage loads its levelshots");
-		Check(std::find(host.materials.begin(),host.materials.end(),"q4-add/gfx/guis/mainmenu/q4text") == host.materials.end(),
-			"the wordmark is traced vector light, not the q4text bitmap");
+		Check(std::find(host.materials.begin(),host.materials.end(),"q4-add/gfx/guis/mainmenu/q4text") != host.materials.end(),"the wordmark is additive light");
 		Bounds wordmarkBox;
 		Check(runtime.GetBounds("wordmark",wordmarkBox) && Near(wordmarkBox.x,160+9) && Near(wordmarkBox.y,178.5f) &&
 			Near(wordmarkBox.width,564) && Near(wordmarkBox.height,138),"the wordmark keeps q4text's 376x92 u box at 6,119 u");
@@ -3627,8 +3199,9 @@ int main(int argc, char** argv) {
 			const auto appeared = runtime.PresentedValue("exitModal-contents","display");
 			Check(appeared && appeared->text == "block" && runtime.FocusedControl() == "exitModal_no",
 				"the contents appear together at 200 ms and NO takes focus");
-			const auto dimmed = runtime.PresentedValue("wordmark","opacity");
-			Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.4f,.01f),"the Exit modal dims the wordmark's light to 40%");
+			const auto dimmed = runtime.PresentedValue("wordmark","image-color");
+			Check(dimmed && Near(static_cast<float>(dimmed->data[0]),.4f,.01f) && Near(static_cast<float>(dimmed->data[3]),1,.001f),
+				"the Exit modal dims the wordmark to 40% gray");
 			Bounds dialog, title, outline, left, below, body;
 			Check(runtime.GetBounds("exitModal-dialog",dialog) && runtime.GetBounds("exitModal-title",title) &&
 				runtime.GetBounds("exitModal-title-outline",outline) && runtime.GetBounds("exitModal-title-outline-1",left) &&
@@ -3665,7 +3238,7 @@ int main(int argc, char** argv) {
 			const auto stillOpen = runtime.PresentedValue("exitModal","display");
 			Check(frameOut && Near(static_cast<float>(frameOut->data[0]),0,.001f) && stillOpen && stillOpen->text == "block",
 				"Exit releases its frame over 200 ms while the scrim is still going");
-			const auto restoredMark = runtime.PresentedValue("wordmark","opacity");
+			const auto restoredMark = runtime.PresentedValue("wordmark","image-color");
 			Check(restoredMark && Near(static_cast<float>(restoredMark->data[0]),1,.001f),"the wordmark is restored from 50 ms over 150 ms");
 			runtime.Frame(viewport,14.61);
 			const auto closed = runtime.PresentedValue("exitModal","display");
@@ -4589,23 +4162,18 @@ int main(int argc, char** argv) {
 	if (runs("mp-vote-match")) CheckMatch(host,argv[7]);
 	if (runs("mp-settings-welcome")) CheckSettings(host,argv[7],argv[8]);
 	if (runs("mp-settings-welcome")) CheckWelcome(host,argv[8]);
-	if (runs("loading-hud")) CheckInitializing(host,argv[9]);
-	if (runs("loading-hud")) CheckWeaponWheel(host,argv[10]);
-	if (runs("loading-hud")) CheckStroggWheel(host,argv[11]);
-	if (runs("loading-hud")) CheckMultiplayerWheel(host,argv[12]);
-	if (runs("pages")) CheckLoadPage(host,argv[13]);
-	if (runs("pages")) CheckSavePage(host,argv[14]);
-	if (runs("pages")) CheckRestartPage(host,argv[15]);
-	if (runs("pages")) CheckNewCampaign(host,argv[6],argv[16]);
-	if (runs("pages")) CheckDemosPage(host,argv[17]);
+	if (runs("pages")) CheckLoadPage(host,argv[9]);
+	if (runs("pages")) CheckSavePage(host,argv[10]);
+	if (runs("pages")) CheckRestartPage(host,argv[11]);
+	if (runs("pages")) CheckDemosPage(host,argv[12]);
 	if (runs("menus")) CheckModsDialog(host,argv[1]);
-	if (runs("pages")) CheckRestartMenu(host,argv[18]);
-	if (runs("pages")) CheckCreditsPage(host,argv[19]);
-	if (runs("pages")) CheckArenaPage(host,argv[5],argv[20]);
-	if (runs("mp-pages")) CheckMultiplayerPage(host,argv[21]);
-	if (runs("mp-pages")) CheckCreateServerPage(host,argv[22]);
-	if (runs("mp-pages")) CheckCreateServerBanList(host,argv[22]);
-	if (runs("mp-pages")) CheckJoinGamePage(host,argv[23]);
+	if (runs("pages")) CheckRestartMenu(host,argv[13]);
+	if (runs("pages")) CheckCreditsPage(host,argv[14]);
+	if (runs("pages")) CheckArenaPage(host,argv[5],argv[15]);
+	if (runs("mp-pages")) CheckMultiplayerPage(host,argv[16]);
+	if (runs("mp-pages")) CheckCreateServerPage(host,argv[17]);
+	if (runs("mp-pages")) CheckCreateServerBanList(host,argv[17]);
+	if (runs("mp-pages")) CheckJoinGamePage(host,argv[18]);
 	if (runs("pointer-reach")) CheckMenusPointerReach(host,argv);
 	Check(known,"a group the test knows");
 	Check(host.errors == 0,"no retained diagnostics");
