@@ -192,7 +192,8 @@ Event programs can move focus; Q, E and the shoulders page a document's
 tabs, the triggers its sections, and a controller's west and north run its
 secondary and tertiary actions. Prompts show the active device's glyphs:
 keycaps, or the controller family's face buttons (Xbox, PlayStation,
-Nintendo, Steam Deck or generic), which `ui_promptStyle` can force, and
+Nintendo, Steam Deck or generic), which the HUD's `in_promptStyle` forces
+for the menus too, and
 Nintendo layouts confirm on the east button unless `in_swapConfirmBack` says
 otherwise. The initializing screen and the weapon wheels are the ones
 described above; the retained page line built its own of both, and of the

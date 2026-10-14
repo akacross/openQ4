@@ -54,7 +54,7 @@ archived `in_swapConfirmBack` decides:
 
 | Value | Menus confirm on |
 | --- | --- |
-| 0 (default) | East for a Nintendo layout (`in_gamepadFamily` nintendo), south otherwise |
+| 0 (default) | East for a Nintendo layout (`in_promptStyle` 3, or `in_gamepadFamily` nintendo unless `in_promptStyle` forces another family), south otherwise |
 | 1 | South |
 | 2 | East |
 
@@ -72,9 +72,16 @@ SHA-256 `3f3d402b39d24c8fe5926b1bfd16fe7ab791975460ef3493bbc8a35c60342b67`.
 The engine already tracks the last device's family for key-binding hints
 (`idKeyInput::LastInputWasController`). A controller key or a deflected
 axis makes it a controller. A keyboard key, a mouse button or mouse
-movement makes it the desktop. The SDL3 backend reports the open controller's
-family in the read-only `in_gamepadFamily`, from the label SDL reports
-printed on its south button:
+movement makes it the desktop. A controller's glyphs are the family the
+HUD's prompts use, `Sys_SDL_GamepadGlyphFamily`: the one the archived
+`in_promptStyle` forces (1 Xbox, 2 PlayStation, 3 Nintendo, 4 Steam Deck,
+5 generic) when a remapping layer hides the real device, otherwise Steam
+Deck under the `steamdeck` platform profile or the family of the gamepad
+type SDL reports, generic for any other type or a joystick SDL cannot map.
+
+The SDL3 backend also reports the open controller's face layout, for the
+automatic swap above, in the read-only `in_gamepadFamily`, from the label
+SDL reports printed on its south button:
 
 - A is Xbox, or Steam Deck under the `steamdeck` platform profile.
 - The cross is PlayStation.
@@ -82,24 +89,12 @@ printed on its south button:
 - Any other label is generic, as is a joystick SDL cannot map.
 - `none` means no controller is open.
 
-`listControllers` prints the family as `prompt glyphs:`. It is
-`CVAR_NOCHEAT`, so joining a server without cheats cannot reset it while the
-controller stays open.
+`in_gamepadFamily` is `CVAR_NOCHEAT`, so joining a server without cheats
+cannot reset it while the controller stays open. `listControllers` prints
+the glyph family as `prompt glyphs:`, marked when `in_promptStyle` forces
+it, followed by the face layout.
 
-The archived `ui_promptStyle` forces the glyphs when a remapping layer hides
-the real device:
-
-| Value | Glyphs |
-| --- | --- |
-| 0 (default) | Follow the active device |
-| 1 | Keyboard keycaps |
-| 2 | Xbox |
-| 3 | PlayStation |
-| 4 | Nintendo |
-| 5 | Steam Deck |
-| 6 | Generic |
-
-`RetainedUI_PromptGlyphs` combines the three. The adapter publishes the
+`RetainedUI_PromptGlyphs` combines the device and the family. The adapter publishes the
 result as `prompt.glyphs` to every document that declares it, before the
 frame that shows the change draws. The value is 0 for the keyboard's keycaps
 and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face and

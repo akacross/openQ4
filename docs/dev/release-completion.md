@@ -2,6 +2,20 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Use one prompt style for the HUD and the menus. The merged menus had
+  their own `ui_promptStyle`, numbered differently from the HUD's
+  `in_promptStyle` (3 was PlayStation in the menus and Nintendo on the HUD).
+  The menus now take the family the HUD's prompts use, so `in_promptStyle`
+  forces both, and forced Nintendo prompts also confirm on A, as a detected
+  Nintendo pad does. `listControllers` shows the style in use, marked when
+  forced, and the face layout behind the automatic swap. The UI gate's prompt
+  checks and the input, SDL3 and Steam Deck contracts pass. See
+  [input routing](ui/input-routing.md).
+
+Candidate UI release wording: If Steam Input or another remapper hides your
+controller, `in_promptStyle` now picks the button prompts for the menus and
+the HUD alike, and choosing Nintendo prompts also makes A confirm in menus.
+
 - [x] Merge the retained page line into main. The title's LOAD GAME, DEMOS,
   CREDITS, MODS and MULTIPLAYER (with its server browser and Create Server),
   Single Player's ARENA, the pause menu's SAVE GAME and RESTART LEVEL, and the
@@ -1945,8 +1959,8 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   circle on PlayStation, Switch labels, or the Steam Deck's own. The
   multiplayer menu's tab keys show the shoulder buttons. The keyboard or
   mouse switches them back.
-  If Steam Input or another remapper hides your pad, `ui_promptStyle`
-  chooses the style (see the input guide).
+  If Steam Input or another remapper hides your pad, `in_promptStyle`
+  chooses the style for the menus and the HUD (see the input guide).
 
 - The server browser's MOD filter label reads correctly in French and
   Italian; it showed a raw text key before.

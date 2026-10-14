@@ -1606,8 +1606,11 @@ Checks:
 - The native screens test lays out the title's bar at every value, the
   pages' bars ([page prompt bars](#page-prompt-bars)), and the Escape card's strip
   keys and prompt bar at every value.
-- The `prompts` capture forces each style through `ui_promptStyle`, then
-  Xbox and Nintendo with `in_swapConfirmBack 2`, and touches no device. The `loading` capture shows the Xbox continue prompt.
+- The `prompts` capture shows each presentation, `testPromptDevice`
+  standing in for the device and `in_promptStyle` forcing the family, with
+  Confirm kept south; then a forced Nintendo style's automatic swap and Xbox
+  with `in_swapConfirmBack 2`. It touches no device. The `loading` capture
+  shows the Xbox continue prompt.
   `mpcard-prompts` does the same on the Escape card over a listen server.
 
 ## Hand-off to the Welcome card

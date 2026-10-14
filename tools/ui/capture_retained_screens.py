@@ -43,8 +43,16 @@ AFTER_MAP = '@aftermap'
 # Where a scenario logs the game module its page reloads.
 MODULE_LOG = 'openq4-match.log'
 
-# ui_promptStyle's forced glyphs, in order.
-PROMPT_STYLES = ((1, 'keyboard'), (2, 'xbox'), (3, 'playstation'), (4, 'nintendo'), (5, 'steamdeck'), (6, 'generic'))
+# The prompt presentations, in order: the keyboard's keycaps, then each
+# controller family in_promptStyle forces.
+PROMPT_STYLES = ((0, 'keyboard'), (1, 'xbox'), (2, 'playstation'), (3, 'nintendo'), (4, 'steamdeck'), (5, 'generic'))
+
+
+def prompt_style(style: int) -> list[str]:
+    """Steps that show one presentation: testPromptDevice stands in for the
+    device used last, so no device is touched."""
+    return [f'set in_promptStyle {style}', f'testPromptDevice {"controller" if style else "desktop"}']
+
 
 SCENARIOS = {
     'title': (None, [
@@ -59,37 +67,37 @@ SCENARIOS = {
         'waitMsec 250', 'screenshot "screenshots/title-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
         'screenshot "screenshots/title-settings.tga"',
     ]),
-    # Prompts follow the active device (section 13.5): the Prompt Style forces
-    # the keyboard's keycaps and then each controller family on the title's
-    # prompt bar; no device is touched.
+    # Prompts follow the active device (section 13.5): the title's prompt bar
+    # shows the keyboard's keycaps and then each controller family, Confirm
+    # kept south.
     'prompts': (None, [
-        'waitMsec 4000',
+        'waitMsec 4000', 'set in_swapConfirmBack 1',
         *[step for style, name in PROMPT_STYLES for step in (
-            f'set ui_promptStyle {style}', 'waitMsec 400',
+            *prompt_style(style), 'waitMsec 400',
             f'openq4_retainedGui inspect "prompt-231042-{"cap" if name == "keyboard" else name}"',
             f'openq4_retainedGui inspect "prompt-200013-{"cap" if name == "keyboard" else name}"',
             f'screenshot "screenshots/prompts-{name}.tga"')],
-        # Swap Confirm and Back forced on: SELECT shows the east button and
-        # EXIT the south one.
-        'set in_swapConfirmBack 2',
-        *[step for style, name in ((2, 'xbox'), (4, 'nintendo')) for step in (
-            f'set ui_promptStyle {style}', 'waitMsec 400',
+        # Swapped, SELECT shows the east button and EXIT the south one: the
+        # automatic swap of a forced Nintendo style, then Xbox with the swap
+        # forced on.
+        *[step for setting, style, name in ((0, 3, 'nintendo'), (2, 1, 'xbox')) for step in (
+            f'set in_swapConfirmBack {setting}', *prompt_style(style), 'waitMsec 400',
             f'openq4_retainedGui inspect "prompt-231042-{name}-swapped"',
             f'openq4_retainedGui inspect "prompt-200013-{name}-swapped"',
             f'screenshot "screenshots/prompts-{name}-swapped.tga"')],
-        'set in_swapConfirmBack 0', 'set ui_promptStyle 0',
+        'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
-    # The multiplayer Escape card on a listen server (opted in): the Prompt
-    # Style forces each presentation on the strip's tab keys and the card's
-    # prompt bar, the shoulders for Q and E.
+    # The multiplayer Escape card on a listen server (opted in): each
+    # presentation on the strip's tab keys and the card's prompt bar, the
+    # shoulders for Q and E, Confirm kept south.
     'mpcard-prompts': ('mp:mp/q4dm1', [
-        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus', 'set in_swapConfirmBack 1',
         *[step for style, name in PROMPT_STYLES for step in (
-            f'set ui_promptStyle {style}', 'waitMsec 500',
+            *prompt_style(style), 'waitMsec 500',
             *[f'openq4_retainedGui inspect "{key}-{"cap" if name == "keyboard" else name}"'
               for key in ('tab-next', 'prompt-back-0', 'prompt-tabs-0', 'prompt-select-0')],
             f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
-        'set ui_promptStyle 0',
+        'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
     'pause': ('game/airdefense1', [
         'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/pause.tga"',
@@ -148,9 +156,9 @@ SCENARIOS = {
         'openq4_retainedGui pending loading_phase "LOAD TIME"', 'openq4_retainedGui pending loading_count "12.4 s"',
         'openq4_retainedGui event FinishedLoading', 'openq4_retainedGui state map_loading 1', 'waitMsec 600',
         'screenshot "screenshots/loading-ready.tga"',
-        # A controller's prompt: the Prompt Style stands in for one used last.
-        'set ui_promptStyle 2', 'waitMsec 300', 'openq4_retainedGui inspect "progress-prompt-glyph-xbox"',
-        'screenshot "screenshots/loading-controller.tga"', 'set ui_promptStyle 0',
+        # A controller's prompt: an Xbox pad stands in for one used last.
+        *prompt_style(1), 'waitMsec 300', 'openq4_retainedGui inspect "progress-prompt-glyph-xbox"',
+        'screenshot "screenshots/loading-controller.tga"', *prompt_style(0),
         # Single player tips while the level loads, as the session publishes
         # them: a tip in slot A, then the next cross-fading in slot B (two of
         # the longest). A key must be quoted: the tokenizer splits an unquoted '#'.

@@ -127,9 +127,10 @@ SDL gamepads use SDL's standard controller database, so Xbox, PlayStation, Steam
 ### Confirm and Back
 
 On a Nintendo-layout controller, menus confirm with A (the right button) and
-go back with B (the bottom button), as Switch games do. Other controllers
-confirm with the bottom button. To choose for any controller, use the
-console:
+go back with B (the bottom button), as Switch games do. Nintendo prompts
+chosen with `in_promptStyle 3` (see [Button Prompts](#button-prompts)) count
+as a Nintendo layout. Other controllers confirm with the bottom button. To
+choose for any controller, use the console:
 
 ```cfg
 seta in_swapConfirmBack 2
@@ -159,24 +160,25 @@ shoulder buttons: LB and RB, L1 and R1, or L and R. The keyboard or mouse
 switches the prompts back to keys.
 
 If Steam Input or another remapper hides your real controller, choose the
-prompts yourself from the console:
+controller prompts yourself from the console. The setting covers the menus
+and the HUD:
 
 ```cfg
-seta ui_promptStyle 3
+seta in_promptStyle 2
 ```
 
-| Value | Prompts |
+| Value | Controller prompts |
 | --- | --- |
-| `0` (default) | Follow the device you used last |
-| `1` | Keyboard keys |
-| `2` | Xbox |
-| `3` | PlayStation |
-| `4` | Nintendo |
-| `5` | Steam Deck |
-| `6` | Generic |
+| `0` (default) | The controller's own |
+| `1` | Xbox |
+| `2` | PlayStation |
+| `3` | Nintendo; menus also confirm with A |
+| `4` | Steam Deck |
+| `5` | Generic |
 
-`listControllers` shows the prompt style detected for the connected
-controller on its `prompt glyphs:` line.
+The prompts still switch to keys while you use the keyboard or mouse.
+`listControllers` shows the style in use for the connected controller on
+its `prompt glyphs:` line.
 
 Linux and macOS SDL3 builds opt into SDL's HIDAPI controller backends by default so PlayStation, Switch, Steam, Steam Deck, and Xbox-class controllers can expose the same button, stick, trigger, rumble, battery, gyro, and touchpad capabilities available through the shared SDL3 path. macOS support is a preview, and controllers have not yet been tested on a Mac. Run `listControllers` to confirm which SDL driver, hint state, and capabilities are active for a connected device.
 
@@ -273,8 +275,9 @@ once you use a controller, drawn the way the controller labels it (A, B, X, Y
 or the PlayStation symbols, LB/L1, LT/L2/ZL, the d-pad's arm). openQ4 picks the
 style from the controller SDL reports, or Steam Deck's on the Steam Deck
 profile. If a remapping tool hides your controller, force a style with
-`in_promptStyle`: `0` automatic, `1` Xbox, `2` PlayStation, `3` Nintendo, `4`
-Steam Deck, `5` generic (positions instead of letters).
+`in_promptStyle`, which sets the menus' prompts too (see
+[Button Prompts](#button-prompts)); generic prompts show positions instead
+of letters.
 
 Menu behavior:
 

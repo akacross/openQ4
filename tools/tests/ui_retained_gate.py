@@ -3439,7 +3439,8 @@ struct idStr {
             if(x!=y||!x)return x-y;}
     }
 };
-struct {int value=0;int GetInteger()const{return value;}} ui_promptStyle;
+static int glyphFamily=0; // what the HUD's family function returns
+int Sys_SDL_GamepadGlyphFamily(int faceLabels[4]){for(int i=0;i<4;++i)faceLabels[i]=0;return glyphFamily;}
 struct idKeyInput {
     static inline bool controller=false;static bool LastInputWasController(){return controller;}
     static bool MenuConfirmSwapped(void);static int MenuControllerKey(int keynum);
@@ -3447,7 +3448,8 @@ struct idKeyInput {
 enum {K_JOY3=3,K_JOY4=4};
 struct {int value=0;int GetInteger()const{return value;}} in_swapConfirmBack;
 std::map<std::string,std::string> cvars;
-struct CVars {const char *GetCVarString(const char *name){const auto found=cvars.find(name);return found==cvars.end()?"":found->second.c_str();}} cvarValue,*cvarSystem=&cvarValue;
+struct CVars {const char *GetCVarString(const char *name){const auto found=cvars.find(name);return found==cvars.end()?"":found->second.c_str();}
+    int GetCVarInteger(const char *name){return std::atoi(GetCVarString(name));}} cvarValue,*cvarSystem=&cvarValue;
 enum SDL_GamepadButton {SDL_GAMEPAD_BUTTON_SOUTH};
 enum SDL_GamepadButtonLabel {SDL_GAMEPAD_BUTTON_LABEL_UNKNOWN,SDL_GAMEPAD_BUTTON_LABEL_A,SDL_GAMEPAD_BUTTON_LABEL_B,SDL_GAMEPAD_BUTTON_LABEL_X,
     SDL_GAMEPAD_BUTTON_LABEL_Y,SDL_GAMEPAD_BUTTON_LABEL_CROSS,SDL_GAMEPAD_BUTTON_LABEL_CIRCLE,SDL_GAMEPAD_BUTTON_LABEL_SQUARE,
@@ -3469,31 +3471,41 @@ int main(){
     Check(!std::strcmp(SDL3_GamepadFamily(&xbox),"steamdeck") && !std::strcmp(SDL3_GamepadFamily(&ps),"playstation"),
         "the steamdeck profile's A pad is the Steam Deck");
     cvars["com_platformProfile"]="default";
-    // The glyphs: keycaps unless a controller was used last, then its family.
-    const char *const families[]={"xbox","playstation","nintendo","steamdeck","generic","none","","XBOX"};
-    const int expected[]={1,2,3,4,5,5,5,1};
-    for(int i=0;i<8;++i){
-        cvars["in_gamepadFamily"]=families[i];
-        idKeyInput::controller=false;Check(RetainedUI_PromptGlyphs()==0,"the keyboard or mouse last: keycaps");
-        idKeyInput::controller=true;Check(RetainedUI_PromptGlyphs()==expected[i],"a controller last: its family");
-    }
-    // Prompt Style forces one whatever the device.
-    for(int style=1;style<=6;++style){
-        ui_promptStyle.value=style;
-        for(const bool controller:{false,true}){
-            idKeyInput::controller=controller;cvars["in_gamepadFamily"]="playstation";
-            Check(RetainedUI_PromptGlyphs()==style-1,"the Prompt Style forces its glyphs");
+    // The glyphs: keycaps unless a controller was used last, then the family
+    // the HUD's prompts use (Sys_SDL_GamepadGlyphFamily, which in_promptStyle
+    // forces): a family's buttons at 1-4, the generic diamonds at 5. The face
+    // layout never picks the glyphs.
+    for(int family=0;family<=4;++family){
+        glyphFamily=family;
+        for(const char *layout:{"xbox","nintendo","none"}){
+            cvars["in_gamepadFamily"]=layout;
+            idKeyInput::controller=false;Check(RetainedUI_PromptGlyphs()==0,"the keyboard or mouse last: keycaps");
+            idKeyInput::controller=true;Check(RetainedUI_PromptGlyphs()==(family?family:5),"a controller last: the HUD's family");
         }
     }
+    glyphFamily=0;idKeyInput::controller=false;
     // Swap Confirm and Back: automatic swaps a Nintendo layout only, 1 keeps
     // confirm south and 2 moves it east; only the south and east keys trade.
+    // A prompt style forced to a family decides the layout, the generic one
+    // leaves it to the controller.
     for(const char *family:{"nintendo","Nintendo","xbox","playstation","steamdeck","generic","none",""}){
         cvars["in_gamepadFamily"]=family;
         const bool nintendo=!idStr::Icmp(family,"nintendo");
         in_swapConfirmBack.value=0;
-        Check(idKeyInput::MenuConfirmSwapped()==nintendo,"automatic swaps a Nintendo layout only");
-        Check(idKeyInput::MenuControllerKey(K_JOY3)==(nintendo?K_JOY4:K_JOY3) && idKeyInput::MenuControllerKey(K_JOY4)==(nintendo?K_JOY3:K_JOY4),
-            "south and east trade places while swapped");
+        for(const char *style:{"0","5",""}){
+            cvars["in_promptStyle"]=style;
+            Check(idKeyInput::MenuConfirmSwapped()==nintendo,"automatic swaps a Nintendo layout only");
+            Check(idKeyInput::MenuControllerKey(K_JOY3)==(nintendo?K_JOY4:K_JOY3) && idKeyInput::MenuControllerKey(K_JOY4)==(nintendo?K_JOY3:K_JOY4),
+                "south and east trade places while swapped");
+        }
+        for(int style=1;style<=4;++style){
+            cvars["in_promptStyle"]=std::to_string(style);
+            Check(idKeyInput::MenuConfirmSwapped()==(style==3),"a style forced to a family decides the layout");
+            in_swapConfirmBack.value=1;Check(!idKeyInput::MenuConfirmSwapped(),"1 keeps confirm south whatever the style");
+            in_swapConfirmBack.value=2;Check(idKeyInput::MenuConfirmSwapped(),"2 moves confirm east whatever the style");
+            in_swapConfirmBack.value=0;
+        }
+        cvars["in_promptStyle"]="0";
         in_swapConfirmBack.value=1;Check(!idKeyInput::MenuConfirmSwapped() && idKeyInput::MenuControllerKey(K_JOY3)==K_JOY3,"1 keeps confirm south");
         in_swapConfirmBack.value=2;Check(idKeyInput::MenuConfirmSwapped() && idKeyInput::MenuControllerKey(K_JOY4)==K_JOY3,"2 moves confirm east");
         Check(idKeyInput::MenuControllerKey(7)==7 && idKeyInput::MenuControllerKey(13)==13,"every other key is itself");
@@ -3520,16 +3532,21 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
     source = directory / 'glyphs.cpp'
     binary = directory / 'glyphs.exe'
     source.write_text(PROMPT_GLYPHS_SUPPORT + '\n'.join(bodies) + PROMPT_GLYPHS_MAIN, encoding='utf-8')
-    subprocess.run([compiler, '-std=c++20', '-Wall', '-Wextra', '-Wno-unused-function', str(source), '-o', str(binary)], check=True)
+    subprocess.run([compiler, '-std=c++20', '-DUSE_SDL3', '-Wall', '-Wextra', '-Wno-unused-function', str(source), '-o', str(binary)],
+                   check=True)
     result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=60)
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
     assert result.returncode == 0, 'the prompt glyph checks failed'
-    # The platform: a ROM family the backend sets as a controller opens and
-    # clears as it closes, kept through a join without cheats; the archived
-    # Prompt Style with its seven values.
+    # The platform: a ROM face layout the backend sets as a controller opens
+    # and clears as it closes, kept through a join without cheats; one
+    # archived style with six values, the HUD's, which the menus share.
     assert re.search(r'static idCVar in_gamepadFamily\("in_gamepadFamily", "none", CVAR_SYSTEM \| CVAR_ROM \| CVAR_NOCHEAT,', backend)
-    assert re.search(r'idCVar ui_promptStyle\("ui_promptStyle", "0", CVAR_GUI \| CVAR_INTEGER \| CVAR_ARCHIVE,[^;]*, 0, 6\);', retained, re.S)
+    assert re.search(r'static idCVar in_promptStyle\("in_promptStyle", "0", CVAR_SYSTEM \| CVAR_ARCHIVE \| CVAR_INTEGER,[^;]*, 0, 5\);',
+                     backend, re.S)
+    assert 'ui_promptStyle' not in retained, 'the menus take the HUD\'s in_promptStyle'
+    assert re.search(r'#if defined\(USE_SDL3\)\n[^#]*int Sys_SDL_GamepadGlyphFamily\(int faceLabels\[4\]\);\n#endif', retained)
+    assert 'cvarSystem->GetCVarInteger( "in_promptStyle" )' in function_body(keys, 'bool idKeyInput::MenuConfirmSwapped(')
     assert 'in_gamepadFamily.SetString(SDL3_GamepadFamily(pad));' in function_body(backend, 'static bool SDL3_OpenGamepad(')
     assert 'in_gamepadFamily.SetString("generic");' in function_body(backend, 'static bool SDL3_OpenJoystick(')
     for signature in ('static void SDL3_CloseGamepad(', 'static void SDL3_CloseJoystick('):

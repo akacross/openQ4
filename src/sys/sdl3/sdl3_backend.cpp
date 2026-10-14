@@ -173,11 +173,15 @@ static float s_sdlRelativeMouseRemainderX = 0.0f;
 static float s_sdlRelativeMouseRemainderY = 0.0f;
 
 static idCVar in_joystick("in_joystick", "1", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "enable joystick/gamepad input");
-// The active controller's prompt glyph family (section 13.5), from the label
-// SDL reports printed on its south button. CVAR_NOCHEAT: joining a server
-// without cheats must not reset it to none while the controller stays open.
+// The active controller's face layout (section 13.5), from the label SDL
+// reports printed on its south button; menus confirm on the east button of
+// a Nintendo layout. The prompts' glyphs come from Sys_SDL_GamepadGlyphFamily.
+// CVAR_NOCHEAT: joining a server without cheats must not reset it to none
+// while the controller stays open.
 static idCVar in_gamepadFamily("in_gamepadFamily", "none", CVAR_SYSTEM | CVAR_ROM | CVAR_NOCHEAT,
-	"prompt glyph family of the active controller: none, xbox, playstation, nintendo, steamdeck or generic");
+	"face layout of the active controller, which the automatic menu confirm follows: none, xbox, playstation, "
+	"nintendo, steamdeck or generic");
+int Sys_SDL_GamepadGlyphFamily(int faceLabels[4]);
 static idCVar in_joystickDeadZone("in_joystickDeadZone", "0.18", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "joystick axis dead zone", 0.0f, 0.95f);
 static idCVar in_joystickTriggerThreshold("in_joystickTriggerThreshold", "0.35", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "trigger button press threshold", 0.0f, 1.0f);
 static idCVar in_joystickLookSensitivity("in_joystickLookSensitivity", "0.75", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "controller look sensitivity scale", 0.1f, 4.0f);
@@ -2846,7 +2850,13 @@ static void SDL3_PrintActiveGamepadDetails(void) {
 		SDL3_NonEmptyString(typeName),
 		SDL3_NonEmptyString(realTypeName),
 		SDL_GetGamepadSteamHandle(s_sdlGamepad) != 0 ? "yes" : "no");
-	common->Printf("    prompt glyphs: %s\n", in_gamepadFamily.GetString());
+	// What the HUD's and the menus' prompts draw, a forced in_promptStyle
+	// marked, and the face layout the automatic Confirm and Back swap follows.
+	static const char *const glyphFamilies[5] = { "generic", "xbox", "playstation", "nintendo", "steamdeck" };
+	int faceLabels[4];
+	const int glyphFamily = idMath::ClampInt(0, 4, Sys_SDL_GamepadGlyphFamily(faceLabels));
+	common->Printf("    prompt glyphs: %s%s, face layout: %s\n", glyphFamilies[glyphFamily],
+		cvarSystem->GetCVarInteger("in_promptStyle") > 0 ? " (in_promptStyle)" : "", in_gamepadFamily.GetString());
 
 	int powerPercent = -1;
 	const SDL_PowerState powerState = SDL_GetGamepadPowerInfo(s_sdlGamepad, &powerPercent);
@@ -3536,10 +3546,11 @@ static bool SDL3_IsSteamDeckPlatformProfile(void) {
 	return profile != NULL && idStr::Icmp(profile, "steamdeck") == 0;
 }
 
-// openQ4: prompts draw a controller's buttons in the glyph family of the
-// controller SDL reports (ui-visual-design.md 13.5). in_promptStyle forces a
-// family when a remapping layer hides the real device, and the steamdeck
-// platform profile selects Steam Deck glyphs for the built-in controls.
+// openQ4: the HUD's and the menus' prompts draw a controller's buttons in the
+// glyph family of the controller SDL reports (ui-visual-design.md 13.5).
+// in_promptStyle forces a family when a remapping layer hides the real device
+// (a forced Nintendo family also confirms menus on the east button), and the
+// steamdeck platform profile selects Steam Deck glyphs for the built-in controls.
 static idCVar in_promptStyle("in_promptStyle", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_INTEGER,
 	"controller prompt glyphs: 0 the controller's own, 1 Xbox, 2 PlayStation, 3 Nintendo, 4 Steam Deck, 5 generic", 0, 5);
 

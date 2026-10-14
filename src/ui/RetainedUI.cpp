@@ -23,6 +23,7 @@ extern idUserInterfaceManagerLocal uiManagerLocal;
 #include <thread>
 #if defined(USE_SDL3)
 bool Sys_SDL_IsGameWindowFocused(void);
+int Sys_SDL_GamepadGlyphFamily(int faceLabels[4]);
 #endif
 
 struct retainedUIPreparedEditData;
@@ -83,11 +84,6 @@ idCVar ui_retainedHalfBlur("ui_retainedHalfBlur", "1", CVAR_GUI | CVAR_BOOL | CV
 	"evaluate broad full-view soft focus at half resolution along each blurred axis");
 idCVar ui_retainedOpaqueBacking("ui_retainedOpaqueBacking", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,
 	"draw the opaque scrim behind retained modals instead of softening the screen beneath");
-// Section 13.5's Prompt Style: forces the prompt glyphs when a remapping layer
-// hides the real device.
-idCVar ui_promptStyle("ui_promptStyle", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE,
-	"menu prompt glyphs: 0 the active device's, 1 keyboard keys, 2 Xbox, 3 PlayStation, 4 Nintendo, 5 Steam Deck, "
-	"6 generic controller", 0, 6);
 // Documents read this to choose between soft focus and its scrim fallback.
 idCVar ui_retainedSoftFocus("ui_retainedSoftFocus", "0", CVAR_GUI | CVAR_BOOL | CVAR_ROM,
 	"whether retained modals soften the screen beneath: no opaque backing and a renderer that can blur it");
@@ -1727,18 +1723,18 @@ void RetainedUI_Draw() {
 bool RetainedUI_IsOpen() { return applicationOpen.load(std::memory_order_acquire); }
 // Prompts follow the active device (section 13.5): 0 shows the keyboard's
 // keycaps, 1-5 a controller family's face buttons (Xbox, PlayStation,
-// Nintendo, Steam Deck, generic). ui_promptStyle forces one. Otherwise a
-// controller used last shows the family the platform reports for it
-// (in_gamepadFamily), or the generic one where it reports none.
+// Nintendo, Steam Deck, generic). A controller used last shows the family
+// the HUD's prompts use, which in_promptStyle forces when a remapping layer
+// hides the real device (Sys_SDL_GamepadGlyphFamily: 0 generic, 1-4 a family).
 bool RetainedUI_PromptSwapped() { return idKeyInput::MenuConfirmSwapped(); }
 int RetainedUI_PromptGlyphs() {
-	const int style = ui_promptStyle.GetInteger();
-	if (style > 0) return style - 1;
 	if (!idKeyInput::LastInputWasController()) return 0;
-	static const char* const families[] = {"xbox","playstation","nintendo","steamdeck"};
-	const char* family = cvarSystem->GetCVarString("in_gamepadFamily");
-	for (int i = 0; i < 4; ++i) if (!idStr::Icmp(family,families[i])) return i + 1;
-	return 5;
+	int family = 0;
+#if defined(USE_SDL3)
+	int faces[4] = {0,0,0,0};
+	family = Sys_SDL_GamepadGlyphFamily(faces);
+#endif
+	return family >= 1 && family <= 4 ? family : 5;
 }
 int RetainedUI_ViewCount() { return static_cast<int>(views.size()); }
 void RetainedUI_PrecacheImage(const std::string& source, bool additive) {
