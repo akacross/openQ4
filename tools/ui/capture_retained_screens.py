@@ -107,7 +107,7 @@ SCENARIOS = {
         'openq4_retainedGui focus campaign', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 1200', 'openq4_retainedGui inspect "prompts"', 'screenshot "screenshots/campaignskill-campaign.tga"',
         'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 1200', 'ui_retainedStatus', 'openq4_retainedGui inspect "prompts"',
+        'waitMsec 1200', 'ui_retainedStatus', 'openq4_retainedGui report', 'openq4_retainedGui inspect "prompts"',
         'screenshot "screenshots/campaignskill.tga"',
         'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/campaignskill-back.tga"',

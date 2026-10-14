@@ -111,6 +111,9 @@ def skill_document(ui):
     title_group=ui.group('titles',bounds,titles)
     doc.timelines.add('arrive',150,[ui.track('content','opacity',[(0,ui.number(0)),(150,ui.number(1))])])
     doc.events['onActivate'].append({'op':'playTimeline','timeline':'arrive'})
+    # Each arrival focuses the chosen difficulty, as Restart Level's page does.
+    doc.events['onActivate'] += [{'op':'focus','control':'skill0'},*[{'op':'if','condition':{'op':'==','args':[{'state':'skill'},i]},
+        'then':[{'op':'focus','control':'skill'+str(i)}]} for i in range(1,len(skill_keys))]]
     doc.timelines.add('detailLeave',300,[
         ui.track('title','opacity',[(0,ui.number(0)),(300,ui.number(0))]),
         ui.track('content','opacity',[(0,ui.number(1)),(250,ui.number(0)),(300,ui.number(0))]),

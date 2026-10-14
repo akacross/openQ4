@@ -2,6 +2,14 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Open the campaign difficulty page on the chosen difficulty. It arrived
+  with nothing focused, so a controller's first press went to PRIVATE and
+  Accept did nothing; like Restart Level's page it now focuses the chosen
+  difficulty on each arrival. The native continuity check covers it.
+
+Candidate UI release wording: The campaign difficulty page opens on the
+difficulty already chosen, ready for a controller.
+
 - [x] Mirror the Arena audit's match report in the modern Arena page. After
   a match the opponents left or the player abandoned, it offers RETRY and
   RETURN where the match can be played again and CONTINUE otherwise;

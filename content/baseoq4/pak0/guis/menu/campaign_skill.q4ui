@@ -194,7 +194,28 @@
      }
     ]
    },
-   {"op": "playTimeline", "timeline": "arrive"}
+   {"op": "playTimeline", "timeline": "arrive"},
+   {"op": "focus", "control": "skill0"},
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "skill"}, 1]},
+    "then": [{"op": "focus", "control": "skill1"}]
+   },
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "skill"}, 2]},
+    "then": [{"op": "focus", "control": "skill2"}]
+   },
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "skill"}, 3]},
+    "then": [{"op": "focus", "control": "skill3"}]
+   },
+   {
+    "op": "if",
+    "condition": {"op": "==", "args": [{"state": "skill"}, 4]},
+    "then": [{"op": "focus", "control": "skill4"}]
+   }
   ],
   "detailLeave": [
    {"op": "playTimeline", "timeline": "detailLeave"},

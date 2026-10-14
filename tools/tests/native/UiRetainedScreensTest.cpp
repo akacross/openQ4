@@ -1435,6 +1435,7 @@ static void CheckContinuity(ScreenHost& host, char** paths, const char* campaign
 				Check(runtime.GetBounds("canvas",bounds) && Near(bounds.width,960*viewport.DpRatio()) && Near(bounds.x+bounds.width/2,size.first/2.f),"initialization keeps its isotropic center");
 			} else if (kind == 1) {
 				Check(runtime.GetBounds("back",bounds) && bounds.y >= 0 && bounds.y+bounds.height <= size.second,"the skill screen's last action remains in view");
+				Check(runtime.FocusedControl() == "skill1","the fourth level opens on the chosen difficulty");
 				Check(Near(float(runtime.PresentedValue("band-top","transform")->data[0]),775.5f,.01f),"fourth level uses the next 97 u band step");
 			} else Check(!host.softened.empty() && Near(host.softened.back().saturation,.06f,.001f),"death grades the scene below the HUD");
 		}

@@ -85,7 +85,8 @@ rejecting larger overlap errors.
 breadcrumbs, label carry and reversible descent. Both campaign branches use
 `campaign_skill.q4ui`, including the existing campaign reload continuation.
 The five localized difficulties and Turbo remain drafts until Start Game;
-Back discards them. The top and bottom frame stay at the physical view edges,
+Back discards them. Each arrival focuses the chosen difficulty, as Restart
+Level's page does. The top and bottom frame stay at the physical view edges,
 and the isotropic content centers vertically in portrait windows. The route
 audit found no other currently implemented fourth-level main-menu page:
 Settings tabs and Arena's tier/match selection edit in place, multiplayer
