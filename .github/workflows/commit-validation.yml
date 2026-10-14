@@ -835,7 +835,7 @@ jobs:
     name: Windows x64 Commit Validation
     runs-on: windows-2025
     needs: script-smoke
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       OPENQ4_GAMELIBS_REPO: ${{ github.workspace }}
 
