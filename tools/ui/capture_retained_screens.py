@@ -99,6 +99,19 @@ SCENARIOS = {
             f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
         'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
+    # The campaign difficulty page, the fourth level: Campaign descends to it
+    # carrying QUAKE 4, its prompt bar where Campaign's is, and BACK climbs
+    # back.
+    'campaignskill': (None, [
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200',
+        'openq4_retainedGui focus campaign', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui inspect "prompts"', 'screenshot "screenshots/campaignskill-campaign.tga"',
+        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'openq4_retainedGui inspect "prompts"',
+        'screenshot "screenshots/campaignskill.tga"',
+        'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/campaignskill-back.tga"',
+    ]),
     'pause': ('game/airdefense1', [
         'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/pause.tga"',
         'openq4_retainedGui focus nav_restart', 'waitMsec 400', 'screenshot "screenshots/pause-focus.tga"',
