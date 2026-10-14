@@ -26,6 +26,11 @@
   beside a diagonal jump pad can be picked up, a bot pressed against a lip
   during a long-range duel frees itself, and route searches, item snaps and
   recovery hops cost the server less.
+- **Bots no longer wall-hug under a platform or bounce on a vertical pad.** A
+  shortcut can no longer aim a bot at a corner on top of a riser or a ramp's
+  side it cannot climb (q4ctf1's platform and ramp), and a vertical jump pad
+  whose ledge needs a little air control is flown onto the ledge instead of up
+  and down its shaft (q4dz1's pads).
 
 ## Upgrade Notes
 
@@ -58,6 +63,12 @@
 - Team orders that resolve to nothing leave the bot in role allocation; Dead
   Zone ownership reads one holder, and the game clears both slots when the zone
   changes hands.
+- String-pulled shortcuts refuse ground that climbs more than a step between
+  floor samples unless the ground between them climbs at most a step on either
+  side, and a shortcut that climbs or descends is proven from either side of
+  its corner. A pad's natural landing is the nearest node with floor under the
+  middle of the hull, proven from the pad's centre ridden or steered as the
+  bot flies it.
 - String-pulled shortcuts refuse pits deeper than a step and survivable pain
   floor; route goals beside a transport are judged against its brush; stale
   edge validation sweeps only recorded movers; the cell hash mixes both grid
