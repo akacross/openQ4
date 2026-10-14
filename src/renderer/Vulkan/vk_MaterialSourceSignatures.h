@@ -17,6 +17,7 @@ static const vkNativeMaterialSourceSignature_t vkNativeMaterialSources[] = {
     {"glsl/displacementcube.glsl", VK_GLSL_PROGRAM_FAMILY_DISPLACEMENT_CUBE, "583f851ea90020613717a219319798c6a62e5be1f0c4c86e4e4aa9dfeda6683f", "f6b0624985a7fc6169c21f83cecd0252c390c38e948e92fa130d87e9329b8160"},
     {"glsl/sniperstretch2.glsl", VK_GLSL_PROGRAM_FAMILY_SNIPER_STRETCH2, "fe6410abb7f9ef224b6cc7c2dc51e5ab3be679b50c0c8f38c5de0bf27fef9f9c", "bb04f74d50eed8f64d18f4382ec122bf360a31a323e95b194417db4c237e2fd1"},
     {"glsl/sniperstretch2.glsl", VK_GLSL_PROGRAM_FAMILY_SNIPER_STRETCH2, "1f23bd1fadaf1aa2c6f5f6dea1896480e8a74d96415622c4ae109070e072b27b", "354db7c6eb41aad13a4d26ba49ebc178704c6c76519061e943d6a0f5aaf5312d"},
+    {"glsl/sniperstretch2.glsl", VK_GLSL_PROGRAM_FAMILY_SNIPER_STRETCH2, "1f23bd1fadaf1aa2c6f5f6dea1896480e8a74d96415622c4ae109070e072b27b", "2ac8172e0586313ba1c8c759f17fd544a57ffc951b8453a4743030062a298e5e"},
     {"glsl/depthtexture.glsl", VK_GLSL_PROGRAM_FAMILY_DEPTH_TEXTURE, "", ""},
     {"glsl/blur.glsl", VK_GLSL_PROGRAM_FAMILY_BLUR, "", ""},
     {"glsl/medlabs.glsl", VK_GLSL_PROGRAM_FAMILY_MEDLABS, "", ""},

@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "tr_local.h"
 #include "RendererResourceSettings.h"
+#include "../imagetools/LegacyScopeMask.h"
 #include "OpenGL/FramebufferSamples.h"
 
 /*
@@ -570,6 +571,10 @@ name contains GetName() upon entry
 	_name.StripFileExtension();
 
 	_name += va( "#__%02d%02d", (int)_usage, (int)_cube );
+	if ( R_IsLegacyScopeDistortionMask( _policyName ) ) {
+		// Do not reuse a decoded DXT cache, including in production mode.
+		_name += "scope1";
+	}
 	if ( _usage == TD_PBR_COLOR ) {
 		// Reject caches made with gamma-2.2 RGB/alpha filtering, including in
 		// production mode where source/derived-option checks are omitted.

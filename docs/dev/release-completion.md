@@ -37,6 +37,19 @@ Candidate UI release wording: The optional new UI does less work on hidden HUD
 animations, improving gameplay performance while preserving its appearance and
 animation. ECG and radio/voice graphs retain their legacy bitmap animation.
 
+- [x] Restore the legacy machinegun scope's scene sampling on OpenGL, feather
+  its stepped blur edge on both renderers, and extend the stock message-box
+  dimming over wide and tall displays. Preserve retained UI batching and
+  soft focus; qualify gameplay captures and live legacy/retained switching.
+  OpenGL and Vulkan scope/backdrop captures pass at 1280x720 and 720x1280;
+  retained dialogs retain their text and soft focus. The extra capture boundary
+  is OpenGL-only: a controlled Vulkan build exposed a font-upload sensitivity
+  when its existing ordering changed. Evidence: `.tmp/legacy-scope/validation.json`.
+
+Candidate release wording: Legacy machinegun scopes show the scene correctly
+on OpenGL and have a smoother blur boundary. Legacy pop-ups dim the full view
+on wide and tall displays. The optional new UI keeps its scope and dialog effects.
+
 ## 0.14.000 release
 
 - [x] Restore the shipping `ui_retained 0` default because retained gameplay

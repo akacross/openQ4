@@ -89,11 +89,24 @@ idGuiModel::idGuiModel() {
 
 /*
 ================
-idGuiModel::Clear
+idGuiModel::HasSceneFeedback
 
-Begins collecting draw commands into surfaces
+Keep capture-dependent batches separate when switching between scene and UI.
 ================
 */
+bool idGuiModel::HasSceneFeedback() const {
+	for ( int i = 0; i < surfaces.Num(); ++i ) {
+		const guiModelSurface_t &surface = surfaces[i];
+		if ( surface.numIndexes > 0 && surface.material != NULL &&
+				( surface.material->GetSort() >= SS_POST_PROCESS ||
+				  surface.material->TestMaterialFlag( MF_NEED_CURRENT_RENDER ) ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Begins collecting draw commands into surfaces.
 void idGuiModel::Clear() {
 	surfaces.SetNum( 0, false );
 	indexes.SetNum( 0, false );

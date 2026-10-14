@@ -271,3 +271,39 @@ it enabled.
 
 Related: [`stock-asset-baseline.md`](stock-asset-baseline.md),
 [`renderer-validation-matrix.md`](renderer-validation-matrix.md).
+
+## 10. Scene feedback and full-screen backings
+
+Scene and UI rectangles can match while their rendering order still matters.
+The final scene composite must finish before a legacy scope captures
+`_currentRender`. Combining both into one post-process batch made the OpenGL
+machinegun scope sample an empty backbuffer after the October 2026 batching
+optimization. OpenGL viewport transitions retain a flush when the pending GUI
+batch contains post-processing or `needCurrentRender`; ordinary geometry still
+batches. Vulkan captures immediately before its consuming pass, so it keeps
+its existing batch boundaries. An additional Vulkan boundary exposed incomplete
+dynamic font-page uploads with retained frame replay during validation; the
+OpenGL correction must not be applied indiscriminately to that backend.
+
+The machinegun distortion mask is scalar data. Its retail sibling DDS quantizes
+the aperture into visible 4x4 blocks. Prefer the original TGA when present, keep
+it uncompressed, and give its generated cache a separate identity. Explicit DDS
+references, custom `dds/` replacements and DDS-only packs remain supported. Both
+renderers feather the tint across the first eight mask levels so the first
+nonzero texel cannot abruptly switch on a half-strength tint. The retained
+scope's analytic mask and blur are independent.
+The portrait extension masks already follow image top-to-bottom order; unlike
+the symmetric center mask, flipping them vertically swaps their inner and
+outer edges and leaves a horizontal seam at the 4:3 canvas boundary.
+
+Retail `guis/msg.gui` supplies a 640x480 `msg_black` rectangle. Expand that exact
+backing using the virtual screen margins in both regular and simple windows;
+keep the dialog furniture and custom-sized rectangles unchanged. Retained
+dialogs keep their own scene-focus path.
+
+`tools/tests/ui_legacy_feedback.py` checks these batch, source and layout rules.
+`tools/ui/capture_legacy_ui.py` captures the legacy scope, full-view message
+backing, retained scope and return to legacy over real SP gameplay. Run it with
+both renderers and wide/tall resolutions. It uses an isolated `.tmp` profile,
+a hidden window, no host input and the engine `screenshot` command; an image
+assertion also rejects an opaque aperture.

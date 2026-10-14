@@ -34,6 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "LegacyGuiImport.h"
 #include "UserInterfaceLocal.h"
 #include "RetainedHud.h"
+#include "LegacyGuiLayout.h"
 #include "AudioGraph.h"
 #include "../framework/Session.h"
 #include "EditWindow.h"
@@ -2087,6 +2088,8 @@ void idWindow::CalcClientRect(float xofs, float yofs) {
 		}
 
 		AdjustTournamentWarmupLayout( gui, GetName(), parent != NULL ? parent->GetName() : NULL, xofs, xExpand, drawRect );
+		OpenQ4_ExpandLegacyMessageBackdrop( gui != NULL ? gui->GetSourceFile() : NULL,
+			GetName(), xExpand, yExpand, drawRect );
 	}
 
 	clientRect = drawRect;

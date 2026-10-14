@@ -47,6 +47,7 @@ public:
 	
 	void	EmitToCurrentView( float modelMatrix[16], bool depthHack );
 	void	EmitFullScreen();
+	bool	HasSceneFeedback() const;
 
 	// these calls are forwarded from the renderer
 	void	SetColor( float r, float g, float b, float a );

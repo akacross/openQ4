@@ -32,6 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "tr_local.h"
 #include "RendererResourceSettings.h"
+#include "../imagetools/LegacyScopeMask.h"
 
 #include <condition_variable>
 #include <deque>
@@ -422,6 +423,9 @@ static textureUsage_t R_ImageUsageForName( const char *name, textureUsage_t requ
 	// and must survive regardless of the source path chosen by an author.
 	if ( requestedUsage != TD_DEFAULT ) {
 		return requestedUsage;
+	}
+	if ( R_IsLegacyScopeDistortionMask( name ) ) {
+		return TD_HIGH_QUALITY;
 	}
 	if ( idStr::Icmpn( name, "fonts", 5 ) == 0 || idStr::Icmpn( name, "newfonts", 8 ) == 0 ) {
 		return TD_FONT;

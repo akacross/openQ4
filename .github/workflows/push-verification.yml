@@ -451,6 +451,7 @@ jobs:
             tools/ui/capture_display_device.py \
             tools/tests/ui_legacy_inventory.py \
             tools/tests/ui_legacy_import.py \
+            tools/tests/ui_legacy_feedback.py \
             tools/tests/ui_legacy_expression.py \
             tools/tests/ui_legacy_observation.py \
             tools/ui/legacy_inventory.py \
@@ -800,6 +801,7 @@ jobs:
           python tools/tests/ui_capture_display_device.py
           python tools/tests/ui_legacy_inventory.py
           python tools/tests/ui_legacy_import.py
+          python tools/tests/ui_legacy_feedback.py
           python tools/tests/ui_legacy_expression.py --mutations
           python tools/tests/ui_legacy_observation.py --mutations
           python tools/tests/ui_background_cursor.py
