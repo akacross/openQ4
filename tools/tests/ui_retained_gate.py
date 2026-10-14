@@ -6,7 +6,7 @@ screens, hand-offs, session verbs, loading selection, the campaign selectors
 and the status report) against counted engine/UI doubles, and checks the
 source contracts that keep the gate complete:
 
-* ui_retained defaults to 0 and is archived; while it is 0 no retained
+* ui_retained defaults to 1 and is archived; while it is 0 no retained
   screen is reachable. ui_retainedSystem opts into the SYSTEM page, which
   ui_retained includes only once it offers every setting of the stock SYSTEM
   page and each one works there: the list of settings it lacks matches the
@@ -2513,7 +2513,7 @@ def main() -> int:
 
     # The gate itself: off by default while performance work remains open;
     # archive an explicit player preference for either interface.
-    assert 'idCVar ui_retained( "ui_retained", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, ' in menu, 'ui_retained must default to 0 and be archived'
+    assert 'idCVar ui_retained( "ui_retained", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, ' in menu, 'ui_retained must default to 1 and be archived'
     assert 'ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL' in menu
     # The opt-ins and the runtime's test settings last until the player quits,
     # and survive a multiplayer join: any other unarchived CVar is a cheat,

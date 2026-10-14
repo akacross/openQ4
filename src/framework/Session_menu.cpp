@@ -57,14 +57,13 @@ idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER,
 // and a player cannot set it during a match, where both pages open.
 idCVar ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT, "use the in-development retained SYSTEM page, which ui_retained includes only once every stock setting works there" );
 idCVar ui_retainedMultiplayer( "ui_retainedMultiplayer", "0", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT, "use the in-development retained multiplayer menu card, which ui_retained includes only once all its pages are built" );
-// The single gate for the retained (RmlUi) interface, off by default until its
-// gameplay overhead is negligible compared with the stock interface. Each
+// The single gate for the retained (RmlUi) interface, enabled by default. Each
 // screen presents its stock GUI instead when its retained document is missing
 // or cannot load, or when the legacy menu it covers lacks a page it hands off
 // to (see idSessionLocal::FindRetainedGui). While it is 0 no session route
 // creates a retained view and the stock GUIs present every screen. Archived,
 // so an explicit player preference persists across launches.
-idCVar ui_retained( "ui_retained", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, "opt into the experimental retained interface; 0 uses the default stock interface with lower gameplay overhead" );
+idCVar ui_retained( "ui_retained", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, "use the retained interface by default; 0 selects the stock interface" );
 idCVar ui_hudScale( "ui_hudScale", "1", CVAR_GUI | CVAR_FLOAT | CVAR_ARCHIVE, "retained status bar scale, independent of menus", .5f, 2.0f );
 idCVar ui_hudSafeInset( "ui_hudSafeInset", "0", CVAR_GUI | CVAR_FLOAT | CVAR_ARCHIVE, "retained status bar safe inset in percent of viewport", 0.0f, 10.0f );
 idCVar ui_retainedCaptureLoadFade( "ui_retainedCaptureLoadFade", "0", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT, "diagnostic: use the engine screenshot command to capture the middle and end of the retained loading fade" );

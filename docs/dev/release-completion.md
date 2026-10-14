@@ -19,6 +19,12 @@ and T-junction list assembly also do less repeated work. Rebuild affected maps
 with the updated engine. The supplied `hub2` map still exceeds a separate runtime
 surface limit and is not yet qualified for gameplay.
 
+- [x] Re-enable the optimized modern UI by default (`ui_retained 1`). Preserve
+  saved player preferences and the `ui_retained 0` classic-interface option.
+  The UI gate suite passes. An optimized staged OpenGL gameplay smoke on
+  `game/airdefense1` confirms default 1 with a fresh profile and saved 0 after
+  restart, without a launch override. Evidence: `.tmp/ui-default-20261013/validation.json`.
+
 - [x] Reduce repeated hidden HUD animation checks without changing animation
   phase, appearance or reveal behavior. Eight optimized native UI suites pass.
   Matched 720p gameplay comparisons in both condition orders add 2.60-4.32%
@@ -26,14 +32,15 @@ surface limit and is not yet qualified for gameplay.
   qualify animation and Reduced Motion for all three bitmap graph families on
   both renderers. This establishes near-legacy performance in the tested scenes,
   not zero overhead or other-platform qualification. Evidence:
-  `.tmp/ui-near-legacy-20261013/REPORT.md`. Legacy UI remains the shipping default.
+  `.tmp/ui-near-legacy-20261013/REPORT.md`.
   Complementary SP/OpenGL and MP/Vulkan checks also show near parity: first-order
   differences are +2.31% and +1.66%; reversing order gives -4.63% and +0.13% with
   substantial run-to-run variation. All four profiles avoid layout rebuilds.
   No additional runtime change was warranted by these profiles. Evidence:
   `.tmp/ui-cross-api-20261013/REPORT.md`.
 
-Candidate UI release wording: The optional new UI does less work on hidden HUD
+Candidate UI release wording: The modern UI is enabled by default for new
+profiles; existing saved choices are preserved. It does less work on hidden HUD
 animations, improving gameplay performance while preserving its appearance and
 animation. ECG and radio/voice graphs retain their legacy bitmap animation.
 
