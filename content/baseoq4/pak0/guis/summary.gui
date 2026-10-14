@@ -3,6 +3,9 @@ windowDef Desktop
 	rect	0 ,0 ,640 ,480
 	visible	1
 	menugui	1
+	// openQ4: the Arena ceremony draws this board for a fixed beat it drives
+	// itself, so there is nothing to point at.
+	hidecursor	"gui::arena_ceremony"
 	backcolor	0.5,0.5,0.5,0
 	definevec4	"white_8"	1,1,1,0.8
 	definevec4	"orange"	0.890,0.537,0,1
@@ -920,7 +923,7 @@ windowDef Desktop
 		windowDef t_chat_say
 		{
 			rect	96,411,20,28
-			visible	1
+			visible	( "gui::arena_ceremony" == 0 )
 			forecolor	1,1,1,0.4
 			text	">"
 			textscale	.42
@@ -930,7 +933,7 @@ windowDef Desktop
 		windowDef chatenter_btm
 		{
 			rect	93,427,446,14
-			visible	1
+			visible	( "gui::arena_ceremony" == 0 )
 			matcolor	1,1,1,0.4
 			background	"gfx/guis/mainmenu/chatbox_edge"
 			matscaley	-1
@@ -938,14 +941,14 @@ windowDef Desktop
 		windowDef chatenter_top
 		{
 			rect	93,413,446,14
-			visible	1
+			visible	( "gui::arena_ceremony" == 0 )
 			matcolor	1,1,1,0.4
 			background	"gfx/guis/mainmenu/chatbox_edge"
 		}
 		editDef chat_enter
 		{
 			rect	111,418,422,19
-			visible	1
+			visible	( "gui::arena_ceremony" == 0 )
 			text	"gui::chattext"
 			textscale	.25
 			font	"fonts/lowpixel"
@@ -2625,10 +2628,12 @@ windowDef Desktop
 			}
 		}
 	}
+	// openQ4: the Arena ceremony's stats beat has no way back to the game -
+	// Escape skips to its match report - and no chat to type into.
 	windowDef exit_msg
 	{
 		rect	0,458,640,20
-		visible	1
+		visible	( "gui::arena_ceremony" == 0 )
 		forecolor	1,1,1,1
 		text	"gui::oq4_summary_exit"
 		textscale	0.25

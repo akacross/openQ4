@@ -1,0 +1,68 @@
+# Multiplayer bot refinements — pending release notes
+
+## Highlights
+
+- **Bots fire more sensibly around cover.** A rocket into the wall beside you is
+  no longer "useful" when you are behind cover, and a bot behind a pillar no
+  longer refuses a safe shot because it believed its own blast would reach it
+  through the pillar. Shots across water fly as the real projectile does, and
+  a quad-carrying bot prices its own splash at the damage quad actually does.
+- **Bots get out of napalm and away from grenades.** A napalm glob burning on
+  the floor is treated as the hazard it is, and the step away from an explosive
+  lying still goes straight away from it rather than sideways into it.
+- **Bots keep their eyes up and carry the right gun.** Between fights a bot
+  watches the route ahead at eye height instead of staring at the floor in
+  front of its feet, a bot standing watch sweeps the room, and the weapon it
+  carries across the map is the one its personality fights with.
+- **Low-skill bots stay low-skill.** A character's eagerness can no longer
+  shorten its reaction to skill-4 speed or remove its aim settle entirely, so
+  skill 1 and 2 opponents read as the beatable players they are meant to be.
+- **Team orders and roles play fairer.** "Everyone attack" in Freeze Tag no
+  longer stops every rescue for the rest of the map, a bot told to follow a
+  dead leader rejoins the team's plan instead of standing idle, and Dead Zone
+  bots (and the HUD) always see one zone holder.
+- **Navigation is tidier and cheaper.** Shortcuts no longer walk a bot through a
+  sunken floor or across pain floor the route planner priced to avoid, items
+  beside a diagonal jump pad can be picked up, a bot pressed against a lip
+  during a long-range duel frees itself, and route searches, item snaps and
+  recovery hops cost the server less.
+
+## Upgrade Notes
+
+- Replace the complete package so the engine, renderer modules and both game
+  modules remain matched. Original Quake 4 assets are still required.
+- No save format or network protocol change. Server operators need not change
+  any `bot_*` setting; `bot_skillVariance` now spreads skill either side of
+  `bot_skill` evenly instead of pinning part of the roster to the end of the
+  range.
+
+## Change Log
+
+- Splash safety, usefulness and threat cover tests no longer pass through the
+  world or a mover; the speculative projectile sweep ignores water; splash and
+  direct damage carry the shooter's damage powerups; a direct hit is priced at
+  its direct damage alone; with team damage off an impact beside a team-mate is
+  still refused for the knockback.
+- Napalm globs and other lingering rounds count their emitted-damage radius and
+  are dodged once at rest; dodges from a resting threat move away from it.
+- The view rests 320 units along the route at eye height, and a bot standing
+  watch sweeps 55 degrees either side of its facing; the carried weapon is
+  chosen for the personality's combat range when no enemy is known.
+- Combat footwork silences the stuck detector only when it bends the route by
+  more than about 30 degrees.
+- `initiative` scales reaction by a quarter at most and never removes more than
+  three quarters of the aim settle; `itemFocus` weighs a pickup against an
+  enemy; `aimLead` and `aimLeadError` clamp at 1; `pursuit` no longer
+  over-extrapolates a lost target's velocity; a queued chat line is not
+  replaced by a newer event; `bot_skillVariance` reflects off the range ends.
+- Team orders that resolve to nothing leave the bot in role allocation; Dead
+  Zone ownership reads one holder, and the game clears both slots when the zone
+  changes hands.
+- String-pulled shortcuts refuse pits deeper than a step and survivable pain
+  floor; route goals beside a transport are judged against its brush; stale
+  edge validation sweeps only recorded movers; the cell hash mixes both grid
+  coordinates; failed entity snaps are retried after five seconds; partial
+  step lifts under low ceilings are accepted; recovery hops are rate limited
+  and skip transport sweeps when none is in reach.
+- Chat banks drop the bare `medic` trigger so a medic character's own greeting
+  no longer draws help replies from the roster.

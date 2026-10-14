@@ -239,6 +239,11 @@ windowDef Desktop
 				setfocus "arena_result_return_full" ;
 				set "Desktop::arena_focusContext" "8" ;
 			}
+		} else if ( "gui::arena_result" == 3 && "gui::arena_resultCanRetry" == 1 ) {
+			if ( "Desktop::arena_focusContext" != 13 ) {
+				setfocus "arena_result_retry" ;
+				set "Desktop::arena_focusContext" "13" ;
+			}
 		} else if ( "gui::arena_result" == 3 ) {
 			if ( "Desktop::arena_focusContext" != 9 ) {
 				setfocus "arena_result_continue_only" ;
@@ -2414,7 +2419,7 @@ windowDef Desktop
 		windowDef arena_result_awards_label
 		{
 			rect		48,221,92,17
-			visible		( "gui::arena_resultHasAwards" == 1 && ( "gui::arena_campaignComplete" == 0 || "gui::arena_result" != 1 ) && "Desktop::arena_resultPhase" >= 3 )
+			visible		( "gui::arena_resultHasAwards" == 1 && "gui::arena_resultUnlockedCampaign" == 0 && "Desktop::arena_resultPhase" >= 3 )
 			forecolor	0.58,0.64,0.47,1
 			text		"#str_42154"
 			textscale	0.16
@@ -2425,22 +2430,23 @@ windowDef Desktop
 		windowDef arena_result_awards
 		{
 			rect		145,219,203,22
-			visible		( "gui::arena_resultHasAwards" == 1 && ( "gui::arena_campaignComplete" == 0 || "gui::arena_result" != 1 ) && "Desktop::arena_resultPhase" >= 3 )
+			visible		( "gui::arena_resultHasAwards" == 1 && "gui::arena_resultUnlockedCampaign" == 0 && "Desktop::arena_resultPhase" >= 3 )
 			forecolor	0.95,0.87,0.6,1
 			text		"gui::arena_resultAwardLine"
 			textscale	0.15
 			textalign	2
+			wrap		1
 			font		"fonts/lowpixel"
 			noevents	1
 		}
 
-		// arena_campaignComplete tracks live progress, not this result, so it stays
-		// set on every later replay.  Gate it on a victory as well or a defeat, a
-		// draw or an aborted match reads as if it had completed the campaign.
+		// Only the win that completed the campaign earns the banner.
+		// arena_campaignComplete tracks live progress, not this result, so it
+		// stays set on every later replay and would bury their awards.
 		windowDef arena_result_campaign_complete
 		{
 			rect		48,221,300,21
-			visible		( "gui::arena_campaignComplete" == 1 && "gui::arena_result" == 1 && "Desktop::arena_resultPhase" >= 3 )
+			visible		( "gui::arena_resultUnlockedCampaign" == 1 && "gui::arena_result" == 1 && "Desktop::arena_resultPhase" >= 3 )
 			backcolor	0.12,0.24,0.08,0.95
 			bordercolor	0.5,0.74,0.28,1
 			bordersize	1
@@ -2455,7 +2461,7 @@ windowDef Desktop
 		windowDef arena_result_retry
 		{
 			rect		48,255,144,29
-			visible		( "gui::arena_result" == 2 && "gui::arena_resultCanRetry" == 1 && "Desktop::arena_resultPhase" >= 4 )
+			visible		( ( "gui::arena_result" == 2 || "gui::arena_result" == 3 ) && "gui::arena_resultCanRetry" == 1 && "Desktop::arena_resultPhase" >= 4 )
 			backcolor	0.34,0.19,0.035,0.98
 			bordercolor	0.95,0.49,0.06,1
 			bordersize	1
@@ -2551,7 +2557,7 @@ windowDef Desktop
 		windowDef arena_result_return
 		{
 			rect		204,255,144,29
-			visible		( ( "gui::arena_result" == 2 || "gui::arena_result" == 4 || ( "gui::arena_result" == 1 && "gui::arena_campaignComplete" == 1 ) ) && "gui::arena_resultCanRetry" == 1 && "Desktop::arena_resultPhase" >= 4 )
+			visible		( ( "gui::arena_result" == 2 || "gui::arena_result" == 3 || "gui::arena_result" == 4 || ( "gui::arena_result" == 1 && "gui::arena_campaignComplete" == 1 ) ) && "gui::arena_resultCanRetry" == 1 && "Desktop::arena_resultPhase" >= 4 )
 			backcolor	0.34,0.19,0.035,0.98
 			bordercolor	0.95,0.49,0.06,1
 			bordersize	1
@@ -2647,7 +2653,7 @@ windowDef Desktop
 		windowDef arena_result_continue_only
 		{
 			rect		48,255,300,29
-			visible		( "gui::arena_result" == 3 && "Desktop::arena_resultPhase" >= 4 )
+			visible		( "gui::arena_result" == 3 && "gui::arena_resultCanRetry" == 0 && "Desktop::arena_resultPhase" >= 4 )
 			backcolor	0.34,0.19,0.035,0.98
 			bordercolor	0.95,0.49,0.06,1
 			bordersize	1

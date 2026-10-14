@@ -4914,11 +4914,17 @@ Session_Disconnect_f
 ================
 */
 static void Session_Disconnect_f( const idCmdArgs &args ) {
+	// An Arena match left part way through returns to its own browser with a
+	// report, not to the title screen. Read the token before AbortMatch clears it.
+	const int arenaToken = arenaCampaign.ActiveMatchToken();
 	arenaCampaign.AbortMatch();
 	sessLocal.Stop();
 	sessLocal.StartMenu();
 	if ( soundSystem ) {
 		soundSystem->SetMute( false );
+	}
+	if ( arenaToken != 0 ) {
+		arenaCampaign.ReportAbandoned( arenaToken );
 	}
 }
 

@@ -993,6 +993,22 @@ def validate_baseline(curve: dict[str, list[float]], levels: int) -> None:
                 "character axis and must stay flat, or every high-skill bot plays the same"
             )
 
+    # The composites Bot.cpp actually fires with: initiative bends the raw
+    # reaction and cone rows, and the bend is bounded so the effective curve
+    # still improves with skill.  Before the bound the raw rows passed while a
+    # skill-1 rusher reacted faster than a plain skill-4 bot.
+    initiative = curve["initiative"]
+    reaction = [value * (1.25 - 0.5 * min(1.0, max(0.0, eager)))
+                for value, eager in zip(curve["reactionMsec"], initiative)]
+    cone = [value * (0.5 + eager) for value, eager in zip(curve["fireConeDeg"], initiative)]
+    for name, values in (("effective reaction", reaction), ("effective fire cone", cone)):
+        for level in range(1, levels):
+            if values[level] >= values[level - 1]:
+                raise AssertionError(
+                    f"The {name} is {[round(v, 1) for v in values]}, which does not shrink "
+                    f"from skill 1 to skill {levels}"
+                )
+
 
 def validate_content() -> None:
     header_path = GAME_LIBS_ROOT / "src" / "mpgame" / "bots" / "BotCharacter.h"

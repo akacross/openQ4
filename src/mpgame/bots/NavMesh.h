@@ -289,6 +289,10 @@ public:
 	// The jump pad or teleporter, by entity number, whose volume these world
 	// bounds touch, or -1.  Touching one carries the player away.
 	int						TransportAt( const idBounds &absBounds ) const;
+	// The same for a standing box on this floor point, tested against the
+	// volume's own brush where it has one: a diagonal pad's bounding box
+	// covers floor beside it that the pad never touches.
+	int						TransportAtFloor( const idVec3 &floor ) const;
 
 	// Is this landing of the pad one only air control reaches - not where the
 	// pad's own arc comes down?  A bot rides a natural landing and steers for
@@ -335,6 +339,7 @@ private:
 		int						spawnId;		// gameLocal.spawnIds value the snap belongs to, -1 empty
 		idVec3					origin;			// entity origin when snapped
 		int						node;
+		int						time;			// when it was snapped; a failed snap is retried after a while
 	} navEntitySnap_t;
 
 	// A jump pad or teleporter whose link was built: the volume that carries
@@ -386,6 +391,14 @@ private:
 
 	int						AddNode( int gx, int gy, const idVec3 &origin );
 	int						FindNode( int gx, int gy, float z ) const;
+	// The cell's hash bucket.  idHashIndex::GenerateKey adds its two inputs,
+	// so plain coordinates put every anti-diagonal of the grid in one chain -
+	// about eighty nodes deep on q4dm5, walked for every cell a search or a
+	// snap looks at.  Mixing each coordinate first spreads the cells out.
+	int						CellKey( int gx, int gy ) const {
+								return nodeHash.GenerateKey( (int)( (unsigned int)gx * 73856093u ),
+															 (int)( (unsigned int)gy * 19349663u ) );
+							}
 	void					LinkNodes( int from, int to, float cost, int travelType,
 									   int actionEntityNum = -1 );
 
@@ -482,6 +495,11 @@ private:
 	mutable idList<int>		closedTag;
 	mutable idList<navHeapEntry_t>	heap;	// binary min-heap, ordered by its own stored key
 	mutable int				searchSerial;
+	// Links a route search has excluded after they proved stale, one tag per
+	// link stamped with the search's own serial, so the exclusion test is a
+	// load rather than a scan of everything rejected so far.
+	mutable idList<int>		linkRejectTag;
+	mutable int				rejectSerial;
 	mutable int				fieldSerial;	// searchSerial of the live cost field, 0 when none
 	mutable idList<int>		fieldTargetTag;	// searchSerial marks a node the live field must price
 	mutable bool			fieldPriced;	// the live field is the ranked form's priced table

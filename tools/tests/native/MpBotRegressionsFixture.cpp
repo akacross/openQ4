@@ -470,6 +470,12 @@ bool BotCombatValidClientPlayer(idPlayer* p) { return p!=nullptr; }
 bool BotCombatProjectileCanDamage(idProjectile*) { return true; }
 bool BotCombatHostileProjectileOwner(idPlayer* self,idPlayer* owner) { return self!=owner; }
 float BotCombatProjectileSplashRadius(idProjectile* p) { return p->splash; }
+// The fixture has no actor class; a hit here is always a player, so it passes through as production does.
+idEntity* BotCombatSplashIgnore(idEntity* hit,idEntity* fallback) { return hit ? hit : fallback; }
+bool BotCombatProjectileLingers(const idProjectile* p) {
+    return p->spawnArgs.GetBool("detonate_on_fuse","0") || p->spawnArgs.GetString("def_emit_damage","")[0] ||
+           p->spawnArgs.GetString("def_residual_damage","")[0];
+}
 botCombatProjectileImpact_t BotCombatFindProjectileImpact(idProjectile*,idPlayer*,float,int) { ++impactSweeps; return fixtureImpact; }
 float BotCombatProjectileDistanceAtTime(const idBounds& bounds,idVec3 sv,idVec3 p,idVec3 v,idVec3 g,float t,idVec3* point) {
     *point=p+v*t+g*(0.5f*t*t); return (bounds+sv*t).ShortestDistance(*point);

@@ -275,8 +275,11 @@ void rvGameState::GameStateChanged( void ) {
 	if( currentState != previousGameState->currentState ) {
 		const bool arenaCampaign = gameLocal.mpGame.IsArenaCampaignMatch();
 		if( currentState == WARMUP ) {
+			// openQ4: the Arena presentation is reset on the authoritative WARMUP
+			// edge in NewState, before Run arms the introduction. This hook runs
+			// after Run in the same frame (SendState -> ReceiveState), so clearing
+			// here wiped the introduction it had just armed.
 			if ( arenaCampaign ) {
-				gameLocal.mpGame.ClearArenaCampaignPresentation();
 				player->GUIMainNotice( "" );
 			} else if( gameLocal.gameType != GAME_TOURNEY ) {
 				player->GUIMainNotice( common->GetLocalizedString( "#str_107706" ), true );		
@@ -300,18 +303,27 @@ void rvGameState::GameStateChanged( void ) {
 				gameLocal.mpGame.RemoveAnnouncerSound( AS_GENERAL_TWO );
 				gameLocal.mpGame.RemoveAnnouncerSound( AS_GENERAL_ONE );
 
-				gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_PREPARE_TO_FIGHT, gameLocal.time );
-				gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_THREE, nextStateTime - 3000 );
-				gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_TWO, nextStateTime - 2000 );
-				gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_ONE, nextStateTime - 1000 );
+				// openQ4: an Arena match counts down over its spawn-in shot, so its
+				// "Fight" lands as control returns (OnMatchStarted). Its entrance
+				// only calls "prepare to fight", and a round mode, which counts its
+				// first round down from GAMEON itself, gets neither here.
+				if ( !arenaCampaign ) {
+					gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_PREPARE_TO_FIGHT, gameLocal.time );
+					gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_THREE, nextStateTime - 3000 );
+					gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_TWO, nextStateTime - 2000 );
+					gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_ONE, nextStateTime - 1000 );
+				} else if ( !gameLocal.IsRoundGameType() ) {
+					gameLocal.mpGame.ScheduleAnnouncerSound( AS_GENERAL_PREPARE_TO_FIGHT, gameLocal.time );
+				}
 			}
 			if ( arenaCampaign ) {
 				gameLocal.mpGame.BeginArenaCampaignEntrancePresentation();
 			}
 		} else if( currentState == GAMEON ) {
-			if ( arenaCampaign ) {
-				gameLocal.mpGame.ClearArenaCampaignPresentation();
-			}
+			// openQ4: OnMatchStarted, inside NewState( GAMEON ), has already
+			// retired the entrance and armed the Arena spawn-in shot. Clearing the
+			// presentation again on this later edge cancelled the shot outright:
+			// no camera move, no held control and no "Fight".
 			if ( !player->vsMsgState ) {
 				player->GUIMainNotice( "" );
 				player->GUIFragNotice( "" );
@@ -649,6 +661,13 @@ bool rvGameState::NewState( mpGameState_t newState ) {
 
 			// openQ4: warmup is never in overtime
 			StopOvertime();
+
+			// openQ4: a fresh Arena warmup (or a countdown that fell back to it)
+			// starts from an empty presentation. This is the authoritative edge:
+			// Run arms the opponent introduction right after it, in this frame.
+			if ( gameLocal.mpGame.IsArenaCampaignMatch() ) {
+				gameLocal.mpGame.ClearArenaCampaignPresentation();
+			}
 
 			if( gameLocal.gameType != GAME_TOURNEY ) {
 				for( i = 0; i < gameLocal.numClients; i++ ) {

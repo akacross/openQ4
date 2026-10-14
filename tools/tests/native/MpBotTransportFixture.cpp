@@ -79,6 +79,7 @@ public:
     idList<Node> nodes;
     idList<navTransport_t> transports;
     struct Hash { int GenerateKey(int,int) const { return 0; } int First(int) const { return 0; } int Next(int n) const { return n==0 ? 1 : -1; } } nodeHash;
+    int CellKey(int,int) const { return 0; }
     int transportNodes=0,fixtureFrom=0,linksAdded=0,landingQueries=0;
     static const idBounds& GetAgentBounds() { static const idBounds b{{{-16,-16,0},{16,16,72}}}; return b; }
     void CellCoords(const idVec3& v,int& x,int& y) const { x=int(std::floor(v.x/24)); y=int(std::floor(v.y/24)); }

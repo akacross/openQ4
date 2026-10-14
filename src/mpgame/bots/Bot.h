@@ -150,6 +150,9 @@ private:
 	bool					HoldDodgeJump( idPlayer *self, usercmd_t &cmd );
 	void					ResetDodgeJump( void );
 	void					UpdateAim( idPlayer *self, usercmd_t &cmd );
+	// The view with nothing to shoot at: well along the route rather than at
+	// the next corner, and sweeping the room while standing watch.
+	idVec3					IdleAimPoint( idPlayer *self, const idVec3 &eye );
 	void					UpdateWeapon( idPlayer *self );
 	void					UpdateFire( idPlayer *self, usercmd_t &cmd );
 	void					UpdateChat( idPlayer *self );
@@ -380,6 +383,13 @@ private:
 	float					aimAngVel;			// degrees/second, low passed
 	float					aimLeadRoll;		// this burst's lead error multiplier
 	float					tremorPhase[4];		// seeded from clientNum so no two bots shake in step
+
+	// Where the view rests with nothing to shoot at.  UpdateMovement says when
+	// the bot is standing watch - a finished wander, a timed item - and the
+	// sweep starts from the facing it stopped with.
+	bool					idleScan;
+	int						scanStartTime;		// 0 while not sweeping
+	float					scanBaseYaw;
 
 	// -- trigger --
 	int						enemyFireTime;		// reaction deadline, set once per acquisition

@@ -58,6 +58,57 @@ the classic screens.
   authored window state; four interleaved SP/MP pairs cut stock GUI time
   81–92%. See [map changes](ui/runtime-performance.md#map-changes).
 
+- [x] Audit and refine the single-player Arena Campaign. Match start: the
+  GAMEON edge no longer cancels the spawn-in, so the camera move, the "three,
+  two, one" count and "Fight" with control are restored; the warmup
+  introduction arms once, films each combatant face-on (the shared camera
+  placed every authored angle on the wrong side), has its own HUD mode with a
+  held letterbox, introduces teammates before opponents, and its card shows on
+  the Remastered HUD. Presentation: no crosshair or status bar over cinematic
+  shots; the campaign publishes its match card so Duels read as Duels on the
+  entrance, scoreboard and loading card; the board is headed by the match; the
+  Remastered champion card shows the victor, who is framed below the result
+  lines; a draw is announced as a tie; the tableau orbit follows look input
+  for a dead player; the stats beat has no chat entry, Escape line or cursor.
+  Play: Arena matches pause behind their menus with every deadline rebased;
+  leaving returns to the browser with a "Match abandoned" report and Retry; a
+  failed launch's report names its match; Escape or fire skips the ceremony;
+  emptied sides, forfeits and aborts end as "Match aborted" instead of a win,
+  and the Admin actions are refused. Browser: coalesced timeline commands
+  survive `arenaBlockInput`, overlays refuse the controls beneath them, tier
+  briefings no longer name locked bosses (12 languages), IN PROGRESS tiers,
+  NEXT to the next unwon match, awards after completion, wrapped award lists.
+  New cheat `openq4_arenaCeremony` drives a match end to end without input;
+  runtime evidence and remaining gaps are in
+  [the ceremony notes](arena-campaign-ceremony.md). See
+  [candidate player-facing notes](releases/arena-refinements.md).
+
+- [x] Review and refine the multiplayer bots across combat safety, personality,
+  tactics, navigation and presentation. Combat: a world or mover hit no longer
+  switches off the splash cover tests, the speculative projectile sweep ignores
+  water, splash maths carry the shooter's damage powerups and price a direct
+  hit at its direct damage, an impact beside a team-mate is refused for the
+  knockback even with team damage off, and napalm globs are hazards once at
+  rest. Personality: `initiative` bends reaction by a quarter at most and keeps
+  a quarter of the aim settle, `itemFocus` weighs pickups against enemies,
+  `aimLead`/`aimLeadError` clamp at 1, `pursuit` no longer over-extrapolates a
+  lost target, queued chat lines are not overwritten, skill variance reflects
+  off the range ends. Tactics: orders that resolve to nothing leave the bot in
+  role allocation; Dead Zone reads one holder and the rules clear both slots on
+  a hand-over. Navigation: shortcuts refuse pits and pain floor, transport
+  goals use the pad's brush, stale-edge validation sweeps recorded movers only,
+  the cell hash mixes both coordinates, failed snaps retry after five seconds,
+  partial step lifts are accepted, recovery hops are rate limited. Presentation:
+  look-ahead view, idle sweep, personality-chosen carried weapon, combat
+  footwork no longer silences stuck detection past a light strafe. The twelve
+  in-tree bot suites pass. Live evidence: a same-day A/B of HEAD's module against
+  the refined one, eight skill-4 bots for two minutes per map from an optimised
+  candidate runtime, plus a five-map rerun (DM, DeadZone, Freeze Tag, CTF) of the
+  final module; identical navmeshes, no regression in stuck, give-up or no-route
+  counts, q4dm5 pickup refusals six to one, and the known q4ctf5 void and vertical
+  pad limits unchanged. Numbers are tabled in the bots design record. See [implementation](mp-bots.md) and
+  [candidate player-facing notes](releases/mp-bot-refinements.md).
+
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and
   zero-duration motion samples; handle bit-message boundary cases and large

@@ -48,8 +48,17 @@ public:
 	// outside this class, before any listen server existed.
 	void					ReportStartFailure();
 
+	// The live match's one-based token, or 0. Read it before AbortMatch, which
+	// clears it.
+	int						ActiveMatchToken() const;
+	// After the player leaves a match in progress, reopens the Arena browser on
+	// a "match abandoned" report that names the match and offers it again,
+	// instead of dropping them on the title screen with nothing said.
+	void					ReportAbandoned( int token );
+
 	// Queues the narrow, strictly parsed game_mp -> framework result handoff.
-	// Outcome values are 0 = loss, 1 = win, and 2 = draw.
+	// Outcome values are 0 = loss, 1 = win, 2 = draw, and 3 = aborted (the
+	// opponents left or the match was forfeited; nothing is recorded).
 	bool					QueueCompletion( const idCmdArgs &args );
 	void					AbortMatch();
 

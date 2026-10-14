@@ -31,6 +31,13 @@ static const float BOTCOMBAT_SELF_SPLASH_TOLERANCE	= 12.0f;
 static const float BOTCOMBAT_SELF_SPLASH_RESERVE	= 25.0f;
 // Team mates matter only when team damage is on, and then any real hurt counts.
 static const float BOTCOMBAT_TEAM_SPLASH_TOLERANCE	= 5.0f;
+// With team damage off a blast still pushes: an impact this close to a
+// team-mate's hull is refused for the knockback alone.
+static const float BOTCOMBAT_TEAM_PUSH_RADIUS		= 48.0f;
+// No stock round's blast, burn or residual radius exceeds the Dark Matter
+// Gun's 768; a round further off than that plus its travel is rejected before
+// its definitions are read.
+static const float BOTCOMBAT_MAX_SPLASH_REACH		= 768.0f;
 
 struct botCombatShotModel_t {
 	const idDict *projectileDef;
@@ -118,9 +125,13 @@ static int BotCombatProjectileClipMask( const idDict *projectileDef ) {
 		return MASK_SHOT_BOUNDINGBOX;
 	}
 
+	// No CONTENTS_WATER: idProjectile::Launch never adds it and a rocket flies
+	// through a pool.  With it the sweep stopped on the surface, so a foe
+	// across water was "behind" an impact that never happens and a pool edge
+	// near the shooter vetoed shots as self splash.
 	int mask = projectileDef->GetBool( "clipmask_rendermodel", "1" ) ?
 		MASK_SHOT_RENDERMODEL : MASK_SHOT_BOUNDINGBOX;
-	mask |= CONTENTS_PROJECTILECLIP | CONTENTS_PROJECTILE | CONTENTS_WATER;
+	mask |= CONTENTS_PROJECTILECLIP | CONTENTS_PROJECTILE;
 	if ( projectileDef->GetBool( "clipmask_largeshot", "1" ) ) {
 		mask |= CONTENTS_LARGESHOTCLIP;
 	}
@@ -167,18 +178,25 @@ static bool BotCombatCurrentShotModel( idPlayer *shooter, botCombatShotModel_t &
 	model.boundsRadius	= model.bounds.GetRadius();
 	model.clipMask		= BotCombatProjectileClipMask( model.projectileDef );
 
+	// rvWeapon::Attack scales the launch power by the shooter's damage
+	// powerups - quad, doubler, the team damage buy - and RadiusDamage applies
+	// that power to the shooter's own splash too.  A quad bot that priced its
+	// self splash at the unscaled figure fired a rocket at a foe thirty units
+	// away for 37 of health on paper and 112 in the game.
+	const float power = Max( 1.0f, shooter->PowerUpModifier( PMOD_PROJECTILE_DAMAGE ) );
+
 	const char *splashName = model.projectileDef->GetString( "def_splash_damage", "" );
 	const idDict *splash = splashName[0] ? gameLocal.FindEntityDefDict( splashName, false ) : NULL;
 	if ( splash ) {
 		model.splashRadius	= Max( 0.0f, splash->GetFloat( "radius", "50" ) );
-		model.splashDamage	= Max( 0.0f, splash->GetFloat( "damage", "20" ) );
+		model.splashDamage	= Max( 0.0f, splash->GetFloat( "damage", "20" ) ) * power;
 		model.attackerScale	= Max( 0.0f, splash->GetFloat( "attackerDamageScale", "0.5" ) );
 	}
 
 	const char *directName = model.projectileDef->GetString( "def_damage", "" );
 	const idDict *direct = directName[0] ? gameLocal.FindEntityDefDict( directName, false ) : NULL;
 	if ( direct ) {
-		model.directDamage	= Max( 0.0f, direct->GetFloat( "damage", "0" ) );
+		model.directDamage	= Max( 0.0f, direct->GetFloat( "damage", "0" ) ) * power;
 	}
 	return true;
 }
@@ -203,9 +221,35 @@ static float BotCombatProjectileSplashRadius( const idProjectile *projectile ) {
 		return 0.0f;
 	}
 
-	const char *damageName = projectile->spawnArgs.GetString( "def_splash_damage", "" );
-	const idDict *damageDef = damageName[0] ? gameLocal.FindEntityDefDict( damageName, false ) : NULL;
-	return damageDef ? Max( 0.0f, damageDef->GetFloat( "radius", "0" ) ) : 0.0f;
+	// The blast on detonation, and the area a round hurts while it lies there:
+	// a napalm glob has no splash at all and burns 140 units around itself
+	// every three quarters of a second for six seconds.  Both are reasons to
+	// move, and both are radii the threat scan can price.
+	static const char *radiusKeys[] = { "def_splash_damage", "def_emit_damage", "def_residual_damage" };
+	float radius = 0.0f;
+	for ( int i = 0; i < (int)( sizeof( radiusKeys ) / sizeof( radiusKeys[0] ) ); i++ ) {
+		const char *damageName = projectile->spawnArgs.GetString( radiusKeys[i], "" );
+		const idDict *damageDef = damageName[0] ? gameLocal.FindEntityDefDict( damageName, false ) : NULL;
+		if ( damageDef ) {
+			radius = Max( radius, damageDef->GetFloat( "radius", "0" ) );
+		}
+	}
+	return radius;
+}
+
+/*
+================
+BotCombatProjectileLingers
+
+A round that keeps hurting after it has stopped moving: a fused grenade, or a
+glob that burns where it lies.  Neither has a useful closest-approach solution
+once it is at rest beside the bot, and both are exactly why the bot should go.
+================
+*/
+static bool BotCombatProjectileLingers( const idProjectile *projectile ) {
+	return projectile->spawnArgs.GetBool( "detonate_on_fuse", "0" ) ||
+		   projectile->spawnArgs.GetString( "def_emit_damage", "" )[0] ||
+		   projectile->spawnArgs.GetString( "def_residual_damage", "" )[0];
 }
 
 /*
@@ -222,6 +266,28 @@ static idEntity *BotCombatTraceEntity( const trace_t &trace ) {
 	}
 
 	return gameLocal.GetTraceEntity( trace );
+}
+
+/*
+================
+BotCombatSplashIgnore
+
+The entity a splash exposure trace may pass through.  Only an actor the shot
+stopped on qualifies: RadiusDamage skips the directly hit actor and nothing
+else, and its cover test is a world trace.  The worldspawn entity in particular
+must never become the pass entity - idClip::Translation skips the whole world
+model for ENTITYNUM_WORLD - so a wall hit used to switch every cover test off:
+a bot behind a pillar read as exposed to its own blast on the far side of it,
+the "is this impact useful" test said a rocket into the wall splashed a foe
+behind cover, and a grenade landing behind a thin wall was dodged.  A mover or
+a crate is cover as well, and is not passed through either.
+================
+*/
+static idEntity *BotCombatSplashIgnore( idEntity *hit, idEntity *fallback ) {
+	if ( hit && hit->IsType( idActor::GetClassType() ) ) {
+		return hit;
+	}
+	return fallback;
 }
 
 /*
@@ -690,15 +756,19 @@ bool BotCombatLineOfFireIsSafe( idPlayer *shooter, idPlayer *intendedFoe,
 	// blast hurts the target at least twice as much and the bot can afford it.
 	// A sweep that ran out of flight budget has no impact yet and proves
 	// nothing either way.  Exposure tracing still permits cover-assisted shots.
-	idEntity *splashIgnore = hit ? hit : intendedFoe;
+	idEntity *splashIgnore = BotCombatSplashIgnore( hit, intendedFoe );
 	const bool impactKnown = hit != NULL || !sweepCapped;
 	if ( projectileShot && impactKnown && shotModel.splashRadius > 0.0f ) {
 		const float selfDamage = BotCombatSplashDamageTo( shooter, shooter, splashIgnore,
 			actualImpact, shotModel, impactTime );
 		if ( selfDamage > 0.0f ) {
+			// A direct hit does the direct damage and nothing more: the game
+			// hands RadiusDamage the struck actor as the one to skip.  Counting
+			// the splash as well let a napalm shot at point blank pass as a
+			// trade it was not.
 			const float foeDamage = ( hitPlayer == intendedFoe ) ?
-				shotModel.directDamage + shotModel.splashDamage :
-				BotCombatSplashDamageTo( shooter, intendedFoe, hit, actualImpact, shotModel, impactTime );
+				shotModel.directDamage :
+				BotCombatSplashDamageTo( shooter, intendedFoe, splashIgnore, actualImpact, shotModel, impactTime );
 			const float pool = (float)Max( 0, shooter->health ) +
 				(float)Max( 0, shooter->inventory.armor ) * 0.66f;
 			if ( selfDamage >= pool - BOTCOMBAT_SELF_SPLASH_RESERVE ||
@@ -720,6 +790,15 @@ bool BotCombatLineOfFireIsSafe( idPlayer *shooter, idPlayer *intendedFoe,
 											   shotModel, impactTime ) > BOTCOMBAT_TEAM_SPLASH_TOLERANCE ) {
 					return false;
 				}
+			}
+		} else if ( gameLocal.IsTeamGame() ) {
+			// Team damage off still leaves the push: RadiusDamage shoves every
+			// hull in the blast before it asks whether it may hurt it.  A
+			// rocket landing at a team-mate's feet on a ledge is a team-mate in
+			// the void, so an impact right beside one is refused regardless.
+			if ( BotCombatSplashThreatensTeamMate( shooter, splashIgnore, actualImpact,
+					Min( shotModel.splashRadius, BOTCOMBAT_TEAM_PUSH_RADIUS ), impactTime ) ) {
+				return false;
 			}
 		}
 	} else if ( !projectileShot && splashSafetyRadius > 0.0f ) {
@@ -766,7 +845,7 @@ bool BotCombatLineOfFireIsSafe( idPlayer *shooter, idPlayer *intendedFoe,
 		// reintroducing a straight eye-to-foe ray.
 		const float usefulRadius = ( projectileShot && shotModel.splashRadius > 0.0f ) ?
 			shotModel.splashRadius : splashSafetyRadius;
-		return BotCombatSplashThreatensPlayer( intendedFoe, hit,
+		return BotCombatSplashThreatensPlayer( intendedFoe, BotCombatSplashIgnore( hit, NULL ),
 			actualImpact, usefulRadius, impactTime );
 	}
 
@@ -936,6 +1015,14 @@ bool BotCombatFindIncomingProjectileThreat( idPlayer *self,
 		const float unsafeClearance = extraClearance + projectileRadius;
 		const float estimatedTravel = ( projectileVelocity.Length() +
 			projectileGravity.Length() * lookAheadSeconds * 0.5f ) * lookAheadSeconds;
+
+		// The exact blast radius costs up to three entity-def lookups per
+		// round per bot per scan, and most rounds in flight are nowhere near
+		// this bot.  Reject by the largest blast any stock round carries first.
+		if ( selfBounds.ShortestDistance( projectileOrigin ) >
+			 estimatedTravel + playerTravel + Max( unsafeClearance, BOTCOMBAT_MAX_SPLASH_REACH ) ) {
+			continue;
+		}
 		const float splashRadius = BotCombatProjectileSplashRadius( projectile );
 
 		// Analytic rejection first.  Over the horizon the projectile can cover at
@@ -1026,7 +1113,7 @@ bool BotCombatFindIncomingProjectileThreat( idPlayer *self,
 			projectile->spawnArgs.GetBool( "detonate_on_fuse", "0" );
 		if ( impact.terminating || bounceNearby ) {
 			const bool impactThreat = impact.hitsSelf ||
-				BotCombatSplashThreatensPlayer( self, impact.hit, impact.point,
+				BotCombatSplashThreatensPlayer( self, BotCombatSplashIgnore( impact.hit, NULL ), impact.point,
 					splashRadius, impact.time );
 			if ( impactThreat && impact.time < candidateTime ) {
 				projectileThreat = true;
@@ -1038,11 +1125,11 @@ bool BotCombatFindIncomingProjectileThreat( idPlayer *self,
 		}
 
 		// A grenade that has settled beside the bot has no useful closest-motion
-		// solution, but its queued fuse is exactly why the bot should leave.  The
-		// event system does not expose remaining fuse time, so use a short warning
-		// deadline only for nearly-resting, fuse-detonated splash ordnance.
-		const bool armedFuse = splashRadius > 0.0f &&
-			projectile->spawnArgs.GetBool( "detonate_on_fuse", "0" );
+		// solution, but its queued fuse is exactly why the bot should leave; so
+		// is a napalm glob burning where it lies.  The event system does not
+		// expose remaining fuse time, so use a short warning deadline for
+		// nearly-resting ordnance that still hurts.
+		const bool armedFuse = splashRadius > 0.0f && BotCombatProjectileLingers( projectile );
 		if ( armedFuse && projectileVelocity.LengthSqr() <= Square( 8.0f ) ) {
 			const float fuseWarningTime = Min( lookAheadSeconds, 0.25f );
 			if ( BotCombatSplashThreatensPlayer( self, projectile, projectileOrigin,

@@ -3610,6 +3610,17 @@ void Cmd_ListMaps_f( const idCmdArgs& args ) {
 	gameLocal.mpGame.ListMaps();
 }
 
+// Drives the local single-player Arena match without device input: ends the
+// live match with a chosen result through the normal scoring path, or skips
+// the current ceremony beat. A cheat, because it changes a live match's score.
+static void Cmd_OpenQ4ArenaCeremony_f( const idCmdArgs &args ) {
+	if ( !gameLocal.isMultiplayer || !gameLocal.isServer ) {
+		gameLocal.Printf( "openq4_arenaCeremony requires the local Arena server\n" );
+		return;
+	}
+	gameLocal.mpGame.DebugArenaCampaignCeremony( args );
+}
+
 // Server-local diagnostics for scripted gameplay validation. This reads the
 // actual game/session state and never changes players or synthesizes input.
 // These diagnostics exercise the same accepted-view GUI adapter as a local
@@ -4165,6 +4176,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "openq4_reportMPWorld", Cmd_OpenQ4ReportMPWorld_f, CMD_FL_GAME | CMD_FL_CHEAT, "report one multiplayer entity's simulation, animation and powerup state" );
 	cmdSystem->AddCommand( "openq4_launchMPTestProjectile", Cmd_OpenQ4LaunchMPTestProjectile_f, CMD_FL_GAME | CMD_FL_CHEAT, "launch a named stock projectile for multiplayer world-clock diagnostics" );
 	cmdSystem->AddCommand( "openq4_matchControl", Cmd_OpenQ4MatchControl_f, CMD_FL_GAME | CMD_FL_CHEAT, "exercise and inspect the local accepted-view Match Control adapter without device input" );
+	cmdSystem->AddCommand( "openq4_arenaCeremony", Cmd_OpenQ4ArenaCeremony_f, CMD_FL_GAME | CMD_FL_CHEAT, "drive the local Arena Campaign match without device input: openq4_arenaCeremony <win|loss|draw|skip|status>" );
 
 	// localization help commands
 	cmdSystem->AddCommand( "nextGUI",				Cmd_NextGUI_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"teleport the player to the next func_static with a gui" );
