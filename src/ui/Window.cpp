@@ -37,6 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "LegacyGuiLayout.h"
 #include "AudioGraph.h"
 #include "../framework/Session.h"
+#include "../framework/SaveGameReleases.h"
 #include "EditWindow.h"
 #include "ChoiceWindow.h"
 #include "SliderWindow.h"
@@ -4857,6 +4858,23 @@ bool idWindow::WriteSaveGameTransition( idTransitionData &trans, idFile *savefil
 	return true;
 }
 
+openQ4GuiSaveGameRestore_t openQ4_guiSaveGameRestore = { NULL, 0 };
+
+// A transition's interpolator is saved as raw bytes; one from a payload written
+// before build 1582 has the shorter layout described in SaveGameReleases.h.
+static bool Window_ReadSaveGameTransitionInterpolate( idFile *savefile, idInterpolateAccelDecelLinear<idVec4> &interp ) {
+	if ( savefile != openQ4_guiSaveGameRestore.file ||
+		 OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4_guiSaveGameRestore.layoutBuild ) ) {
+		return OpenQ4_ReadSaveGameField( savefile, interp, "idWindow::ReadSaveGameTransition", "interpolate state" );
+	}
+	openQ4SaveGameLegacyInterpolate_t<idVec4> saved;
+	if ( !OpenQ4_ReadSaveGameField( savefile, saved, "idWindow::ReadSaveGameTransition", "interpolate state" ) ) {
+		return false;
+	}
+	saved.ToInterpolate( interp );
+	return true;
+}
+
 /*
 ===============
 idWindow::ReadSaveGameTransition
@@ -4877,7 +4895,7 @@ bool idWindow::ReadSaveGameTransition( idTransitionData &trans, idFile *savefile
 		}
 		idStr winName;
 		if ( !ReadSaveGameString( winName, savefile ) ||
-			 !OpenQ4_ReadSaveGameField( savefile, trans.interp, "idWindow::ReadSaveGameTransition", "interpolate state" ) ) {
+			 !Window_ReadSaveGameTransitionInterpolate( savefile, trans.interp ) ) {
 			return false;
 		}
 		trans.offset = offset;

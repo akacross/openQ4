@@ -7,6 +7,7 @@
 
 
 #include "../Game_local.h"
+#include "framework/SaveGameReleases.h"
 #include "../../game/Projectile.h"
 #include "../ai/AI.h"
 
@@ -3569,6 +3570,43 @@ void idAnimator::Save( idSaveGame *savefile ) const {
 
 /*
 =====================
+Anim_ReadSavedJointMod
+
+Joint modifiers are saved as raw jointMod_t records. One written before build
+1582 holds the shorter interpolator described in SaveGameReleases.h.
+=====================
+*/
+typedef struct {
+	jointHandle_t		jointnum;
+	idMat3				mat;
+	idVec3				pos;
+	jointModTransform_t	transform_pos;
+	jointModTransform_t	transform_axis;
+	openQ4SaveGameLegacyInterpolate_t<idAngles> angularVelocity;
+	int					lastTime;
+	jointHandle_t		collapseJoint;
+} legacyJointMod_t;
+
+static void Anim_ReadSavedJointMod( idRestoreGame *savefile, jointMod_t &jointMod ) {
+	if ( savefile->HasOpenQ4InterpolatorCacheSaveLayout() ) {
+		savefile->Read( &jointMod, sizeof( jointMod ) );
+		return;
+	}
+
+	legacyJointMod_t saved;
+	savefile->Read( &saved, sizeof( saved ) );
+	jointMod.jointnum = saved.jointnum;
+	jointMod.mat = saved.mat;
+	jointMod.pos = saved.pos;
+	jointMod.transform_pos = saved.transform_pos;
+	jointMod.transform_axis = saved.transform_axis;
+	saved.angularVelocity.ToInterpolate( jointMod.angularVelocity );
+	jointMod.lastTime = saved.lastTime;
+	jointMod.collapseJoint = saved.collapseJoint;
+}
+
+/*
+=====================
 idAnimator::Restore
 
 unarchives object from save game file
@@ -3590,7 +3628,7 @@ void idAnimator::Restore( idRestoreGame *savefile ) {
 	jointMods.SetNum( num );
 	for( i = 0; i < num; i++ ) {
 		jointMods[ i ] = new jointMod_t;
-		savefile->Read( jointMods[ i ], sizeof( *jointMods[ i ] ) );
+		Anim_ReadSavedJointMod( savefile, *jointMods[ i ] );
 	}
 	
 	savefile->ReadInt( numJoints );

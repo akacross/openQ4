@@ -5,6 +5,7 @@
 #include "../Game_local.h"
 
 #include "framework/BuildVersion.h"
+#include "framework/SaveGameReleases.h"
 #include "NoGameTypeInfo.h"
 
 // The generated stamp hashes every save-relevant game source, so it changes
@@ -103,7 +104,9 @@ struct openQ4SaveGameSnapshot_t {
 // The two player liquid fields were added by different builds, so a save can
 // legitimately carry the first and not the second. These are the engine build
 // numbers of the commits that introduced each write, and a payload is only read
-// as carrying a field when it was produced at or after that build:
+// as carrying a field when its layout build (the build it carries, or for a
+// release that stamped build 1, that release's; see SaveGameReleases.h) is at
+// or after that build:
 //   swimSpeed                  openQ4-game 2cc5a61, 2026-08-13, build 661
 //   nextLiquidSurfaceSoundTime openQ4-game d06a09d, 2026-08-19, build 721
 // One boolean used to gate both against a single hard-coded v0.10 tuple, so every
@@ -1272,6 +1275,7 @@ idRestoreGame::RestoreGame
 idRestoreGame::idRestoreGame( idFile *savefile ) {
 	file = savefile;
 	buildNumber = 0;
+	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
 	openQ4SaveGameCompatibilitySourceFileCount = 0;
 	openQ4SaveGameNextSyncId = 0;
@@ -1989,6 +1993,12 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 		bool unique;
 		ReadBool( unique );
 		ui = uiManager->FindGui( name, true, unique );
+		const openQ4SaveGameGuiRevision_t *revision = OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild );
+		if ( ui && revision != NULL && !GuiRecordNamesWindow( revision->currentWindow ) ) {
+			ReadUserInterfaceRevision( ui, *revision );
+			UpdateGuiParms( ui, args );
+			return;
+		}
 		if ( ui ) {
 			if ( ui->ReadFromSaveGame( file ) == false ) {
 				Error( "idSaveGame::ReadUserInterface: ui failed to read properly\n" );
@@ -1999,6 +2009,93 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 			}
 		}
 	}
+}
+
+/*
+================
+idRestoreGame::GuiRecordNamesWindow
+
+Whether the GUI record starting here saves a window of this name. GUI records
+hold no sync markers, so the next one bounds the search; the file position is
+left where it was.
+================
+*/
+bool idRestoreGame::GuiRecordNamesWindow( const char *windowName ) {
+	static const int SCAN_CHUNK_BYTES = 64 * 1024;
+	static const int SCAN_MAX_BYTES = 16 * 1024 * 1024;
+	if ( !openQ4SaveGameSyncMarkersEnabled || windowName == NULL || windowName[0] == '\0' ) {
+		return false;
+	}
+	// The window name as idWindow saves it: its length, then its characters.
+	char pattern[ 4 + MAX_STRING_CHARS ];
+	const int nameLength = idStr::Length( windowName );
+	if ( nameLength >= MAX_STRING_CHARS ) {
+		return false;
+	}
+	const int lengthWord = LittleLong( nameLength );
+	memcpy( pattern, &lengthWord, 4 );
+	memcpy( pattern + 4, windowName, nameLength );
+	const int patternLength = 4 + nameLength;
+	const int syncWord = LittleLong( OPENQ4_SAVEGAME_SYNC_MAGIC );
+	const char *sync = reinterpret_cast<const char *>( &syncWord );
+
+	const int start = file->Tell();
+	const int end = Min( file->Length(), start + SCAN_MAX_BYTES );
+	const int overlap = patternLength - 1;
+	char *chunk = new char[ SCAN_CHUNK_BYTES ];
+	bool found = false;
+	for ( int offset = start; offset < end && !found; offset += SCAN_CHUNK_BYTES - overlap ) {
+		const int chunkBytes = Min( SCAN_CHUNK_BYTES, end - offset );
+		if ( file->Read( chunk, chunkBytes ) != chunkBytes ) {
+			break;
+		}
+		bool bounded = false;
+		for ( int i = 0; i < chunkBytes; i++ ) {
+			if ( i + 4 <= chunkBytes && memcmp( chunk + i, sync, 4 ) == 0 ) {
+				bounded = true;
+				break;
+			}
+			if ( i + patternLength <= chunkBytes && memcmp( chunk + i, pattern, patternLength ) == 0 ) {
+				found = true;
+				break;
+			}
+		}
+		if ( bounded || chunkBytes < SCAN_CHUNK_BYTES ) {
+			break;
+		}
+		file->Seek( offset + SCAN_CHUNK_BYTES - overlap, FS_SEEK_SET );
+	}
+	delete[] chunk;
+	file->Seek( start, FS_SEEK_SET );
+	return found;
+}
+
+/*
+================
+idRestoreGame::ReadUserInterfaceRevision
+
+A GUI record written for an earlier revision of its file (SaveGameReleases.h)
+follows that revision's structure, so it is read into a copy built from that
+revision. Its state carries over to the current GUI, whose windows start from
+their definition.
+================
+*/
+void idRestoreGame::ReadUserInterfaceRevision( idUserInterface *ui, const openQ4SaveGameGuiRevision_t &revision ) {
+	idUserInterface *saved = uiManager->FindGui( revision.savedDefinition, true, true, true );
+	if ( saved == NULL ) {
+		Error( "idRestoreGame::ReadUserInterface: '%s' needs its earlier definition '%s'", revision.name, revision.savedDefinition );
+	}
+	if ( saved->ReadFromSaveGame( file ) == false ) {
+		uiManager->DeAlloc( saved );
+		Error( "idSaveGame::ReadUserInterface: ui failed to read properly\n" );
+	}
+	const idDict &state = saved->State();
+	for ( int i = 0; i < state.GetNumKeyVals(); i++ ) {
+		const idKeyValue *kv = state.GetKeyVal( i );
+		ui->SetStateString( kv->GetKey(), kv->GetValue() );
+	}
+	uiManager->DeAlloc( saved );
+	common->DPrintf( "Restored '%s' from a save written for its earlier definition\n", revision.name );
 }
 
 // RAVEN BEGIN
@@ -2572,6 +2669,7 @@ void idRestoreGame::ReadBuildNumber( void ) {
 	int marker;
 	ReadInt( marker );
 
+	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
 	openQ4SaveGameCompatibilitySourceFileCount = 0;
 	openQ4SaveGameNextSyncId = 0;
@@ -2583,6 +2681,7 @@ void idRestoreGame::ReadBuildNumber( void ) {
 
 	if ( marker != OPENQ4_SAVEGAME_COMPATIBILITY_MAGIC ) {
 		buildNumber = marker;
+		openQ4SaveGameLayoutBuild = buildNumber;
 		if ( buildNumber == BUILD_NUMBER &&
 			 idStr::Icmp( OpenQ4SaveGameWireABI(), "windows-msvcabi-x64-le-raw1" ) == 0 ) {
 			openQ4SaveGameCompatible = true;
@@ -2602,6 +2701,9 @@ void idRestoreGame::ReadBuildNumber( void ) {
 	ReadInt( buildNumber );
 	ReadString( openQ4SaveGameCompatibilityStamp );
 	ReadInt( openQ4SaveGameCompatibilitySourceFileCount );
+	// A release that stamped build 1 is read as its release's build.
+	openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( buildNumber,
+		openQ4SaveGameCompatibilityStamp.c_str(), openQ4SaveGameCompatibilitySourceFileCount );
 
 	if ( openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_COMPATIBILITY_VERSION &&
 		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
@@ -2790,6 +2892,18 @@ bool idRestoreGame::HasOpenQ4PlayerLiquidSoundSaveField( void ) const {
 
 /*
 =====================
+idRestoreGame::HasOpenQ4InterpolatorCacheSaveLayout
+
+Whether raw records that contain an idExtrapolate carry its cache flag. An
+unstamped payload is only ever read by the build that wrote it.
+=====================
+*/
+bool idRestoreGame::HasOpenQ4InterpolatorCacheSaveLayout( void ) const {
+	return OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4SaveGameLayoutBuild );
+}
+
+/*
+=====================
 idRestoreGame::HasOpenQ4PlayerLiquidSaveFieldForBuild
 =====================
 */
@@ -2799,7 +2913,7 @@ bool idRestoreGame::HasOpenQ4PlayerLiquidSaveFieldForBuild( int firstBuildWithFi
 		return false;
 	}
 
-	return buildNumber >= firstBuildWithField;
+	return openQ4SaveGameLayoutBuild >= firstBuildWithField;
 }
 
 

@@ -203,10 +203,12 @@ public:
 	const char *			GetOpenQ4SaveGameCompatibilityStamp( void ) const;
 	bool					HasOpenQ4PlayerSwimSpeedSaveField( void ) const;
 	bool					HasOpenQ4PlayerLiquidSoundSaveField( void ) const;
+	bool					HasOpenQ4InterpolatorCacheSaveLayout( void ) const;
 
 private:
 	bool					HasOpenQ4PlayerLiquidSaveFieldForBuild( int firstBuildWithField ) const;
 	int						buildNumber;
+	int						openQ4SaveGameLayoutBuild;	// buildNumber, or a build-1 release's own build
 	int						openQ4SaveGameCompatibilityVersion;
 	int						openQ4SaveGameCompatibilitySourceFileCount;
 	int						openQ4SaveGameNextSyncId;
@@ -223,6 +225,8 @@ private:
 	void					ReadChecked( void *buffer, int len, const char *detail );
 	void					CallRestore_r( const idTypeInfo *cls, idClass *obj );
 	bool					HasNextSerializedEmptyClassFrame( void );
+	void					ReadUserInterfaceRevision( idUserInterface *ui, const struct openQ4SaveGameGuiRevision_t &revision );
+	bool					GuiRecordNamesWindow( const char *windowName );
 };
 
 #endif /* !__SAVEGAME_H__*/

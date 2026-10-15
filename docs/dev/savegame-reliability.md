@@ -57,11 +57,15 @@ it provides no confidentiality. The description and preview sidecars are not
 covered by the `.save` CRC; they are validated and committed separately as part
 of the same slot transaction.
 
-The v4 reader and retained v3 decoder require a matching wire ABI and a build number of at least
-661. Build/source differences above that floor are diagnostic, but two player
-fields still depend on historical build thresholds: `swimSpeed` at 661 and
-`nextLiquidSurfaceSoundTime` at 721. Payload-version discipline remains necessary;
-the build count is not a substitute for an explicit future schema revision.
+The v4 reader and retained v3 decoder require a matching wire ABI and a layout
+build of at least 640, where v3 began. The layout build is the build a payload
+carries, or for a release that stamped build 1, that release's build
+(`src/framework/SaveGameReleases.h`). Build/source differences above the floor are
+diagnostic, but fields added within a version still depend on historical build
+thresholds: `swimSpeed` at 661, `nextLiquidSurfaceSoundTime` at 721, and the
+interpolator records that grew at 1582. Payload-version discipline remains
+necessary; the build count is not a substitute for an explicit future schema
+revision.
 
 Version 4 appends typed animator playback multipliers in both libraries and
 Awakening freeze/buff state to SP AI records. It changes no raw-write structure,
@@ -76,9 +80,12 @@ Release compilation must use complete engine Git history. A shallow checkout
 incorrectly produces build 1, causing the engine to reject its own staged saves
 and causing field-presence checks to describe the wrong layout. Starting with
 0.13.1, stable version generation rejects incomplete history. Lowering the restore
-floor alone would not repair these incorrectly stamped payloads. Older released
-build-1 saves are not supported by the current reader; previous snapshot-specific
-compatibility claims were withdrawn when actual restores failed.
+floor alone would not repair these incorrectly stamped payloads: the released
+build-1 saves of 0.10.0 through 0.13.0 are instead recognised by their source
+snapshot and read as their release builds, which restores them (see
+[Releases That Stamped Build 1](savegame-compatibility-policy.md#releases-that-stamped-build-1)).
+The earlier snapshot-specific claims failed because they described the wrong
+layouts, not because the payloads were unreadable.
 
 Older releases could also serialize a different class-frame sequence depending on
 link optimization. The old dispatcher compared member-function addresses, and
@@ -313,7 +320,10 @@ AI path.
 
 ## Issue #123
 
-The attached v0.10 save in issue #123 exposed both historical v3 differences
+The save attached to issue #123 was written by 0.12.0 (the report says so,
+although it was long recorded here as a v0.10 save). Its `ReadTrace` desync is the
+`swimSpeed` it carries being skipped by a reader that took build 1 at face value;
+release identification reads it as build 719. It exposed both historical v3 differences
 above. Reconstructing its source snapshot reproduced the embedded SHA-256
 exactly. With the targeted decoder, the original file passes the omitted physics
 frame and both four-byte player-field boundaries, including the reported
@@ -356,7 +366,27 @@ captured.
 
 The old v2 compatibility claim above has since been withdrawn. The 0.13.1 Windows
 candidate passes fresh manual save, quicksave, restore, and save-after-restore in
-stock `game/airdefense1`; incorrectly stamped build-1 saves remain rejected.
+stock `game/airdefense1`.
+
+Old-save corpus, 2026-10-15, Windows x64 debugoptimized candidate built from
+`d08bf5488` plus the release, interpolator, GUI-revision and non-finite GUI value
+readers. Each save was copied into an isolated save path and loaded with
+`+loadGame`; "loaded" means the restore finished and two seconds of play ran
+without an error:
+
+| Saves | Result |
+| --- | --- |
+| 0.14.000, written by the rebuilt release (`1621aa215`) on Air Defense 1, Hangar 1, Storage 1, Tram 1B, Process 1 | 5 of 5 loaded (the unpatched build failed them) |
+| 0.12.0 release saves (`%LOCALAPPDATA%`, 2026-08-26) | 3 of 3 loaded |
+| 0.10.0, 0.11.0 and 0.13.0 equivalents (re-stamped real saves of identical layout) | 5 of 5 loaded |
+| Development builds 691–1669, base game, including walker, tank and vehicle maps | 21 of 21 loaded |
+| Development builds 1119–1561, The Awakening | 12 of 12 loaded |
+| Version 2 (builds 544, 614) and unstamped (builds 1, 480) | Refused before map teardown, as before |
+
+The harness and fixtures live under `.tmp/savecompat/` (`load_saves.py`,
+`restamp_save.py`, `make_save.py`). No save written by the 0.10.0, 0.11.0 or
+0.13.0 binaries themselves was available, and Linux and macOS old-save restores
+are untested.
 
 Historical Linux x64/Wayland save/load evidence predates v3 and does not prove
 the current candidate on physical Linux hardware. ARM64 contract/build results

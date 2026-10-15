@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import struct
+import subprocess
 import zlib
 from pathlib import Path
 
@@ -266,6 +267,87 @@ def validate_menu_preview_aspect_model() -> None:
                     )
 
 
+def git_tag_commit_count(tag: str) -> int | None:
+    """The commit count of a release tag, or None where the checkout lacks it."""
+    try:
+        result = subprocess.run(["git", "-C", str(ROOT), "rev-list", "--count", tag],
+                                capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def validate_release_layout_contract(session: str, sp: str, mp: str, minimum_build: int) -> None:
+    """Shallow release checkouts stamped build 1; their snapshot selects their tag's build."""
+    releases_h = read(ROOT / "src/framework/SaveGameReleases.h")
+    rows = re.findall(r'\{\s*"([0-9.]+)",\s*"([0-9a-f]{64})",\s*(\d+),\s*(\d+)\s*\}', releases_h)
+    if len(rows) < 4:
+        raise AssertionError("SaveGameReleases.h must list the build-1 v3 releases 0.10.0 through 0.13.0")
+    builds = [int(row[3]) for row in rows]
+    if builds != sorted(builds) or len(set(row[1] for row in rows)) != len(rows):
+        raise AssertionError("Release snapshots must be unique and ordered by build")
+    if min(builds) < minimum_build:
+        raise AssertionError("A listed release falls below the verified build floor it is read against")
+    for version, _source_hash, _files, build in rows:
+        # A full checkout stamps the commit count, as 0.13.1 (858) and later do.
+        tag_build = git_tag_commit_count(f"v{version}")
+        if tag_build is not None and tag_build != int(build):
+            raise AssertionError(f"Release {version} is listed as build {build}, but its tag carries {tag_build}")
+    require(releases_h, "OPENQ4_SAVEGAME_SHALLOW_RELEASE_BUILD = 1", "shallow release build stamp")
+    require(session, '#include "SaveGameReleases.h"', "engine release snapshot table")
+    require(session, "layoutBuild < SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD", "engine layout build floor")
+    require(session, "guiRestoreScope( savegameFile, payloadLayoutBuild )", "engine GUI restore layout scope")
+    for source, context in ((sp, "SP GameLib"), (mp, "MP GameLib")):
+        for token in (
+            '#include "framework/SaveGameReleases.h"',
+            "openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( buildNumber,",
+            "return openQ4SaveGameLayoutBuild >= firstBuildWithField;",
+            "return OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4SaveGameLayoutBuild );",
+            "OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild )",
+            "!GuiRecordNamesWindow( revision->currentWindow )",
+        ):
+            require(source, token, f"{context} release layout decoding")
+
+    # Retail 1.0 (build 1262) omitted idShaking's target history; an openQ4 dev
+    # build can carry the same number, so only an unstamped payload is retail.
+    retail_check = "savefile->GetBuildNumber() == INITIAL_RELEASE_BUILD_NUMBER"
+    guarded_check = "!savefile->HasOpenQ4SaveGameCompatibilityStamp() && " + retail_check
+    for tree in ("game", "mpgame"):
+        misc = read(GAME_LIBS_ROOT / f"src/{tree}/Misc.cpp")
+        if misc.count(retail_check) != misc.count(guarded_check):
+            raise AssertionError(f"src/{tree} reads a stamped build-1262 payload as retail 1.0")
+
+    # Raw interpolator records grew a word with idExtrapolate's cache flag (build 1582).
+    if constant(releases_h, "OPENQ4_SAVEGAME_BUILD_WITH_INTERPOLATOR_CACHE_FLAG") != 1582:
+        raise AssertionError("The interpolator cache flag entered the save at build 1582 (f15a41f03)")
+    extrapolate_h = read(ROOT / "src/idlib/math/Extrapolate.h")
+    if re.search(r"mutable\s+bool\s+cacheValid\s*;", extrapolate_h) is None:
+        raise AssertionError("idExtrapolate lost the cache flag the legacy interpolator layout omits")
+    for anim, context in ((GAME_LIBS_ROOT / "src/game/anim/Anim_Blend.cpp", "SP"), (GAME_LIBS_ROOT / "src/mpgame/anim/Anim_Blend.cpp", "MP")):
+        source = read(anim)
+        require(source, "openQ4SaveGameLegacyInterpolate_t<idAngles> angularVelocity;", f"{context} legacy joint modifier record")
+        require(source, "Anim_ReadSavedJointMod( savefile, *jointMods[ i ] );", f"{context} joint modifier decoder")
+    require(read(ROOT / "src/ui/Window.cpp"), "openQ4SaveGameLegacyInterpolate_t<idVec4> saved;", "GUI transition legacy layout")
+
+    # Each GUI whose edit changed its saved structure keeps the revision older payloads saved.
+    revisions = re.findall(r'\{\s*"(guis/[^"]+)",\s*(\d+),\s*"(guis/savecompat/[^"]+)",\s*"([A-Za-z0-9_]+)"\s*\}', releases_h)
+    if not revisions:
+        raise AssertionError("SaveGameReleases.h lists no GUI content revisions")
+    pak0 = ROOT / "content/baseoq4/pak0"
+    for name, _build, saved_definition, current_window in revisions:
+        current = read(pak0 / name)
+        saved = read(pak0 / saved_definition)
+        if f"windowDef {current_window}" not in current:
+            raise AssertionError(f"{name} no longer defines {current_window}, its current-revision signature")
+        if f"windowDef {current_window}" in saved:
+            raise AssertionError(f"{saved_definition} defines {current_window}, so it cannot tell the revisions apart")
+
+
 def validate_source_contracts() -> None:
     session = read(ROOT / "src/framework/Session.cpp")
     session_menu = read(ROOT / "src/framework/Session_menu.cpp")
@@ -336,6 +418,8 @@ def validate_source_contracts() -> None:
         raise AssertionError(
             "The verified build floor must not exclude saves the liquid thresholds still describe"
         )
+
+    validate_release_layout_contract(session, sp, mp, minimum_build)
 
     for source, header, class_header, player, physics_player, context in (
         (sp, sp_h, sp_class_h, sp_player, sp_physics_player, "SP GameLib"),

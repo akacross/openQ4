@@ -44,6 +44,33 @@ Candidate UI release wording: After Kane's stroggification, saving, loading
 and restarting from the pause menu stay in the modern Strogg menu instead of
 dropping back to the classic pages.
 
+- [x] Load saves from earlier releases again. Every older save was listed on the
+  Load Game page, but most could not be loaded. Four causes, each fixed:
+  releases up to 0.13.0 stamped their saves build 1, so 0.10.0–0.13.0 saves were
+  refused by the build floor or misread (they are now recognised by their source
+  snapshot and read as their release builds, and the floor drops to 640, where v3
+  began); an idlib fix on 2026-10-14 (`f15a41f03`, build 1582) grew the raw joint
+  modifier and GUI transition records, so 0.14.000 and every earlier save failed
+  mid-restore after the map was gone (both readers now decode the earlier
+  records); the 0.14.000 HUD edit changed `hud.gui`/`hud_strogg.gui`'s saved
+  structure (their earlier revisions are kept under `guis/savecompat/` and old HUD
+  records are read through them, carrying their state over); and saves before
+  2026-09-01 could hold a non-finite GUI value that the reader rejected (it is now
+  zeroed, as the writer does). Also: a stamped save from build 1262 no longer takes
+  the retail 1.0 `idShaking` path. Verified on Windows x64 with genuine 0.14.000
+  saves from the rebuilt release, the 0.12.0 release saves on hand, 0.10.0/0.11.0/0.13.0
+  equivalents and 33 development saves, base game and The Awakening, all into
+  gameplay; v2 (0.6.95–0.9.0) and unstamped (0.6.92 and earlier) saves are still
+  refused before teardown. Record:
+  [compatibility policy](savegame-compatibility-policy.md#releases-that-stamped-build-1),
+  [reliability evidence](savegame-reliability.md#validation-evidence-and-limits).
+
+Candidate release wording: Saves from earlier openQ4 releases load again.
+Saves made with 0.10.0 through 0.14.000 are listed on the Load Game page as
+before and now load straight back into the level, instead of failing part way
+through. A HUD restored from an older save starts fresh; everything else picks
+up where you left off. Saves from 0.9.0 and earlier still cannot be loaded.
+
 - [x] Finish The Awakening's mannable Strogg chaingun turret (m01 part 1, m04).
   The alpha shipped its model untextured (grey ambient-occlusion bakes, a black
   specular map, a placeholder drum), so it rendered as clay, and it fired the

@@ -9,8 +9,9 @@ load. Reliability mechanisms and implementation detail are documented in
 | Save payload | Current decision |
 | --- | --- |
 | Version 4, exact wire-ABI stamp, build at or above the verified floor, valid integrity/footer | Current writer and reader; persistent Awakening status |
-| Version 3, exact wire-ABI stamp, build at or above the verified floor, valid integrity/footer | Supported format path; build/source drift is diagnostic only |
-| Version 3, build below the verified floor | Rejected before map teardown |
+| Version 3, exact wire-ABI stamp, layout build at or above the verified floor, valid integrity/footer | Supported format path; build/source drift is diagnostic only |
+| Version 3 stamped build 1 by a listed release (0.10.0–0.13.0) | Read as that release's build (see below) |
+| Version 3, layout build below the verified floor (including an unlisted build-1 snapshot) | Rejected before map teardown |
 | Version 3, different wire-ABI stamp | Rejected before map teardown |
 | Version 2, any tuple | Rejected before map teardown |
 | Unstamped legacy payload | Accepted only when its marker equals the current build and the runtime stamp is Windows/MSVC x64 little-endian `raw1` |
@@ -61,20 +62,12 @@ Eligibility is not runtime certification. For example, a Linux arm64 v3 save may
 be format-eligible on another Linux arm64 `raw1` build, but it is supported for a
 release only when that platform has matching candidate runtime evidence.
 
-One released v0.10 snapshot used version 3 before two player liquid-state fields
-were added:
-
-```text
-build 1
-source 19351be39d2d4077a74294c0442707ef9565fc7a2fa9af9b81e05fc9aca8b220
-404 files
-windows-msvcabi-x64-le-raw1
-```
-
-The SP and MP readers recognize only that complete tuple when deciding that
-`idPhysics_Player::swimSpeed` and `idPlayer::nextLiquidSurfaceSoundTime` are
-absent. Both fields receive safe defaults, and every unrelated v3 source snapshot
-continues to use the current layout. A second v0.10 release-build defect came
+Released 0.10.0 used version 3 before the two player liquid-state fields were
+added, and like every release through 0.13.0 it stamped build 1. Its snapshot
+(`19351be3…`, 404 files) is listed with the other build-1 releases (see
+[Releases That Stamped Build 1](#releases-that-stamped-build-1)), so it is read as
+build 657, and the per-field thresholds give `idPhysics_Player::swimSpeed` and
+`idPlayer::nextLiquidSurfaceSoundTime` safe defaults. A second v0.10 release-build defect came
 from MSVC identical-code folding: the former pointer-address comparison could
 omit the empty `idPhysics` class frame. Current readers use the surrounding sync
 sequence to accept that known omission, while current writers derive class-frame
@@ -99,20 +92,56 @@ Restoring a v2 claim requires the same evidence any other claim does: a reviewed
 byte-layout comparison, a successful real SP save/load of a save in that exact
 format, corruption-contract coverage, and a release-note entry.
 
+## Releases That Stamped Build 1
+
+The build number selects how fields added within a version are read, and the
+build floor is judged against it. Releases up to and including 0.13.0 were built
+from a shallow checkout, which stamped every save with build 1. Those saves are
+recognised by the source snapshot they carry and read as the build their release
+tag carries: the engine commit count, which a full checkout stamps and which
+0.13.1 (858) and later releases carry themselves. `src/framework/SaveGameReleases.h`
+holds the one table that the engine preflight and both game libraries read:
+
+| Release | Source snapshot | Files | Read as build |
+| --- | --- | ---: | ---: |
+| 0.10.0 | `19351be3…` | 404 | 657 |
+| 0.11.0 | `484e95b8…` | 404 | 693 |
+| 0.12.0 | `f4e6e8c8…` | 404 | 719 |
+| 0.13.0 | `6703f7b6…` | 404 | 853 |
+
+Each snapshot is the stamp generator applied to the release tag and the
+`openQ4-game` commit its release workflow packaged; `savegame_v3_contract.py`
+checks every listed build against its tag's commit count where the tags are
+present. The table is closed: every later release stamps its own build. The
+layout build is a reading of the payload, not a new claim: a build-1 payload
+whose snapshot is not listed stays at build 1 and is refused by the floor.
+
+A serializer comparison of the release trees shows what this recovers. The
+first v3 build (640) and 0.10.0 share one layout; 0.11.0 adds
+`idPhysics_Player::swimSpeed`; 0.11.0 and 0.12.0 are identical; 0.13.0 adds
+`idPlayer::nextLiquidSurfaceSoundTime`. Read as their builds, the per-field
+thresholds below decode every one of them.
+
 ## The Verified Build Floor
 
 Within version 3, support is expressed as the oldest build whose layout a
 verified decoder covers (`SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD`,
-currently 661). Payloads below it are refused during preflight.
+currently 640, where version 3 began). Payloads whose layout build is below it are
+refused during preflight.
 
-661 is where the first of the two player liquid fields entered the save. Builds
-from 661 upward restore cleanly, including the range that previously failed;
-below it the only sample available, the released v0.10 payload (build 1),
-desynced part way through the restore even with its bounded field decoder, so
-that lineage is no longer claimed either.
+The floor was 661 until release identification existed. The sample behind it,
+recorded as "the released v0.10 payload (build 1)", was a 0.12.0 save (snapshot
+`f4e6e8c8…`): read as build 1 it skipped a `swimSpeed` its file contains and
+desynced. Read as build 719 it restores. Measured 2026-10-15 on Windows x64, all
+into gameplay: the three real 0.12.0 saves on hand, and 0.10.0, 0.11.0 and 0.13.0
+equivalents made by re-stamping real saves of identical layout (a 0.12.0 save
+re-stamped as 0.11.0; the same with `swimSpeed` removed as 0.10.0; a dev build
+845 save, whose snapshot equals 0.13.0's, re-stamped as build 1). No save written
+by the 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available.
 
-Lowering the floor requires a real save in the older format that restores
-cleanly, not a layout argument alone.
+Lowering the floor below 640 means accepting version 2 or a v2-era layout, which
+requires a real save in that format that restores cleanly, not a layout argument
+alone.
 
 ## Fields Added Within A Version
 
@@ -125,14 +154,74 @@ than a snapshot identity:
 | --- | --- | ---: |
 | `idPhysics_Player::swimSpeed` | openQ4-game `2cc5a61`, 2026-08-13 | 661 |
 | `idPlayer::nextLiquidSurfaceSoundTime` | openQ4-game `d06a09d`, 2026-08-19 | 721 |
+| `idExtrapolate::cacheValid`, inside raw `jointMod_t` records and GUI transition interpolators | `f15a41f03`, 2026-10-14 (v4) | 1582 |
 
-These two landed six days apart, so a save can legitimately carry the first and
+The first two landed six days apart, so a save can legitimately carry the first and
 not the second. A single boolean gated both against one hard-coded v0.10 tuple,
 which answered "present" for every other v3 payload: every save written between
 those builds read a field its file does not contain and desynced the rest of the
 restore. Adding a field this way is still discouraged -- a version bump is
 clearer -- but when it happens the threshold must be recorded here and in both
 game trees.
+
+The third is the same trap one level down: an idlib member added for an
+unrelated fix. The animator's joint modifiers and every GUI transition save their
+`idInterpolateAccelDecelLinear` as raw bytes, so the extrapolator's new flag grew
+each record by a word. Every earlier payload, 0.14.000's included (build 1574),
+holds the shorter record; the current reader failed them with a joint-count or
+GUI string error after the map had been torn down. Both readers now read a
+payload whose layout build predates 1582 through `openQ4SaveGameLegacyInterpolate_t`
+(`SaveGameReleases.h`), a mirror of the earlier layout. The engine's GUI reader
+learns the payload's layout build from the session, which holds it for exactly
+the duration of the game restore, and applies it only to that file. A change to
+any type reachable from a raw save record is a format change.
+
+## GUI Content Revisions
+
+A GUI's saved state follows the structure of the `.gui` file that built it:
+windows, registers and script parameters are written in parse order with no
+counts or lengths, so editing a GUI that saves leaves earlier records in the
+previous structure, and reading one against the edited file desyncs. The
+restore cannot bound or skip such a record on its own.
+
+Each repo-authored in-game GUI whose edit changed its saved structure keeps the
+revision earlier builds saved under `guis/savecompat/`, listed in
+`SaveGameReleases.h` with the first build of the current revision and a window
+only the current revision has:
+
+| GUI | Current from | Saved definition | Current-revision window |
+| --- | ---: | --- | --- |
+| `guis/hud.gui` | 1562 | `guis/savecompat/hud_r1.gui` | `hit_indicator_reduced` |
+| `guis/hud_strogg.gui` | 1562 | `guis/savecompat/hud_strogg_r1.gui` | `hit_indicator_reduced` |
+
+A record from a payload whose layout build predates the revision, and whose blob
+does not name that window, is read into a copy built from the saved definition.
+Its state dictionary carries over to the current GUI, whose windows start from
+their definition; the copy is then freed. The window check matters because a
+build of uncommitted work can carry the edit under an earlier build number (the
+build-1561 saves on hand do). GUI records hold no sync markers, so the next one
+bounds the search. The saved definitions are copies of `38bdc6872^` and must not
+be edited. A future edit to a GUI that saves adds a row and a saved definition,
+or avoids changing the saved structure.
+
+## Non-Finite GUI Values
+
+A GUI variable can hold a non-finite expression result. Since `40922f767`
+(2026-09-01) writers save zero for it; earlier ones saved the value itself. The
+reader errored on it, which failed every 0.10.0–0.12.0 save with such a value in
+the objectives GUI. A non-finite GUI variable component is still a whole float in
+step with the stream, so the reader now zeroes it as the writer does. Window
+layout fields keep rejecting non-finite values.
+
+## Build Numbers Are Not Unique Across Branches
+
+A build number is the engine commit count, and merged side branches reuse
+counts: build 1582 is `f15a41f03` on `main` and also a side-branch commit from
+2026-10-08. Every threshold above is a property of `main`, where releases come
+from. A development build of a side branch, or of uncommitted work, can stamp a
+build whose layout does not match `main`'s at that number; its saves are not
+covered except where a record identifies its own layout, as the GUI revision
+window does.
 
 ## Unstamped Legacy Payloads
 
@@ -153,8 +242,11 @@ Backward compatibility means a newer runtime reading an older save. It is
 supported only through an explicit decoder or allowlist:
 
 - current v4 and decoded v3 on the exact ABI path at or above the verified build floor;
-- fields added within v3, through their recorded per-field build thresholds
+- build-1 releases 0.10.0 through 0.13.0, read as their release builds;
+- fields added within v3 and v4, through their recorded per-field build thresholds
   and legacy empty-physics-frame recognition;
+- GUI records written for an earlier revision of their file, through its saved
+  definition;
 - the narrow same-build unstamped Windows x64 legacy path.
 
 Unsupported saves fail closed before map teardown when total size, header,
