@@ -47,7 +47,14 @@ the configured player hull clears the sampled move:
    link type. A smaller central support probe keeps ordinary nodes away from
    floors touched only by the outside edge of the hull. Jump and drop landings
    also need support around that centre, so a decorative rim beside a pit is
-   not treated as stable ground. The probes lift for legitimate slopes and
+   not treated as stable ground. A node whose hull still hangs more than eight
+   units past an edge - the last few units of q4ctf1's 64-unit platforms and
+   the rim of q4dz1's catwalk, where a column of cell centres falls four units
+   past the edge with twelve of the hull's thirty-two units on the floor - is
+   kept, since a player can stand there and a narrow catwalk may have nothing
+   else, but is a *rim node*: every link onto it costs a cell more, so a route
+   runs along an edge only where the edge is all there is. A wall or a stair's
+   next tread beside a node is not an edge. The probes lift for legitimate slopes and
    require the returned floor to remain within a step of the expected height.
    A node is keyed by grid cell *and* floor height, so a catwalk over
    a corridor is two nodes in the same column. Drops reach 512 units and pay
@@ -206,7 +213,13 @@ climbs or descends more than a step is proven from either side of its corner
 as well: q4ctf1's lip nodes along the north edge of its ramp stand on a
 sliver of the ramp a step above the floor beside them, and the line from one
 ran diagonally up the lip while the bot, a hull's width north of it on the
-floor, walked into the ramp's side.
+floor, walked into the ramp's side. A hull half over an edge still finds the
+floor under its other half, so a line along a rim - q4ctf1's platform edge
+nodes, q4dz1's catwalk - walked bots the whole way with their feet hanging
+over the drop until a strafe, a shove or an unstick push took them off it;
+the ground a support box's width to either side of every interior sample has
+to be there as well, within a step, which a stair's next tread or a wall
+beside the line still is.
 
 The node chain is then string-pulled: a corner is dropped when the shortcut is
 proven, and smoothing never skips a link that has to be entered deliberately.
@@ -507,7 +520,14 @@ Four things keep a bot from ever parking:
   knockback leaves it, and a drop or a jump that came down more than a step
   below its takeoff without reaching its landing - momentum past the landing's
   wall, a pad beside the landing, a gap jump into its gap - since that landing
-  may now be behind a wall.
+  may now be behind a wall. Nearer than those limits, a bot more than a
+  corner's reach beside a walk leg, or more than a step off its height, asks
+  the navmesh four times a second whether the walk from where it stands to
+  its corner still holds, and re-routes when it does not: combat footwork and
+  knockback left bots a hull or two off the side of q4ctf1's ramp, on the
+  floor below it or the platform above, pressing at a corner a wall's height
+  away - which only the stuck detector ended, a second and a half later, and
+  not at all while the fight kept the detector quiet.
 - **Stuck detection.** Progress means advancing a path corner or materially
   shortening the horizontal distance to the current one, not merely moving in
   any direction. Two consecutive failed samples trigger a sidestep, a jump and
@@ -1227,6 +1247,7 @@ restricts delivery by the team field.
 | `botreload` | Re-read style, character and chat files without a map change. Bots keep the character they are wearing where the name survives. |
 | `navmesh build` | Rebuild the navmesh, picking up a changed `bot_navCellSize`. |
 | `navmesh info` | Report node, link and build-time counts. |
+| `navmesh probe <x> <y> <z> [radius]` | Print every node within twice the radius (default 24) of a point, with its links and the support verdicts behind the graph, then height maps of the floor around the point as the agent hull, the support box and a point each find it, four units apart. How the rim and lip cases in this record were read. |
 
 ## Cvars
 
@@ -1377,11 +1398,11 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   update, bots thinking before entities, and the navmesh deriving its agent
   from the movement cvars. It guards the body-free agent sweep, walk-door
   classification, transport sealing, the walk slope bound and its per-sample
-  rise bound, the natural pad landing's supported node and centre proof,
-  weighted route
+  rise bound, the natural pad landing's supported node and centre proof, the
+  rim-node flag and its link penalty, the line's ground-beside test, weighted route
   costs, the landmark heuristic and goal pricing, dynamic-only edge validation
-  and repair, roaming retries, off-route recovery, the drop push-through, and
-  the action entry/airborne/grounded-exit contract.
+  and repair, roaming retries, off-route recovery and its displaced-leg proof,
+  the drop push-through, and the action entry/airborne/grounded-exit contract.
 - `tools/tests/mp_bot_navmesh_search.py` splices the search core - components
   and their closure, landmark selection, the heuristic, both cost fields and
   pair pricing - into a native fixture and proves it on random two-floor graphs
@@ -1408,7 +1429,11 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   `WalkableLine` runs on the same world: q4ctf1's chord onto the lip of a
   64-unit platform and a corner on a 48-unit lip are refused for their rise
   between samples and onto the end, while the same climb as a stair of
-  player-height steps, level ground, a single step up and a step down walk.
+  player-height steps, level ground, a single step up and a step down walk;
+  a line four units past a platform's edge is refused for hanging over it
+  while one four units inside walks, and the rim-node test flags a hull
+  hanging more than eight units over an edge but not one beside a wall or at
+  the bottom of a stair.
 - `tools/tests/mp_bot_regressions.py` compiles the production decision
   functions against a deterministic world: goal replacement and stall
   recovery, inventory changes, hearing and item timing, fight-or-flight,
@@ -1551,6 +1576,40 @@ q4dm1's pad 18 land on the supported node beside their old one, and q4ctf1's
 pad 17 is unchanged. An earlier candidate that held the natural landing to
 every side of the pad sealed twenty of q4dm5's pads and split q4ctf1 into
 nine areas; that is why the natural landing is proven from the centre only.
+
+The two patterns those runs left - the rim walks and the combat-displaced
+stops - were fixed next (rim nodes priced, the line's ground-beside test and
+the displaced-leg proof above) and measured the same way, twice, the second
+time back to back with the previous module under the same box load (the
+"cores busy" column is the whole box during the audit window; the second
+pair ran while two other builds were compiling):
+
+| map (mode) | module | kills | stuck | given up | timeouts | think ms | nav ms | cores busy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4ctf1 (CTF) | previous, back-to-back | 29 | 3 | 0 | 0 | 1.44 | 0.54 | 0.68 |
+| q4ctf1 (CTF) | this, run 1 | 19 | 0 | 0 | 0 | 1.81 | 0.81 | 0.77 |
+| q4ctf1 (CTF) | this, run 2 (back-to-back) | 16 | 0 | 1 | 0 | 2.21 | 0.93 | 0.94 |
+| q4dz1 (DeadZone) | previous, back-to-back | 26 | 9 | 2 | 0 | 1.16 | 0.26 | 0.69 |
+| q4dz1 (DeadZone) | this, run 1 | 27 | 0 | 0 | 0 | 2.06 | 0.67 | 0.60 |
+| q4dz1 (DeadZone) | this, run 2 (back-to-back) | 30 | 0 | 0 | 0 | 1.20 | 0.33 | 0.86 |
+
+No bot reported stuck in the measured window of either run on either map;
+the previous module's runs the same morning had 7 and 3 on q4ctf1 and 6 and
+9 on q4dz1. The one report left anywhere is in q4dz1's warmup, at the toe of
+the catwalk's ramp (toward 172 -2156 334), which the pre-review baseline hit
+at the mirrored end and which is neither a rim leg nor a displacement. The
+nodes, areas, components and dead ends are identical to the previous module
+on both maps; q4ctf1 has one gap jump and three links fewer, a landing
+continuation the ground-beside test now refuses. Off-route reports rose to
+40-50 per run, which is the displaced-leg proof at work (the previous module
+reported 5-10), while path searches per profile row did not (268 to 279 on
+q4ctf1, 187 to 196 on q4dz1): a displaced bot's reroute replaces a search it
+would have made after the stuck detector anyway. The navigation cost per
+frame is higher by about the share the busier box explains - the cost-field
+share, which the change does not touch, rose by the same proportion - plus
+the two support-box sweeps the ground-beside test adds to every interior
+sample of a shortcut proof. Kill counts vary from 14 to 29 per run on q4ctf1
+across the morning's runs and say nothing either way.
 
 That single-map result does not qualify every stock map. The subsequent
 32-map sweep found world deaths on q4dm8, q4ctf3, q4ctf5 and q4dz3. Follow-up

@@ -32,6 +32,7 @@ struct idVec3 {
     void Set(float a,float b,float c) { x=a; y=b; z=c; }
     idVec3 operator+(const idVec3& b) const { return {x+b.x,y+b.y,z+b.z}; }
     idVec3 operator-(const idVec3& b) const { return {x-b.x,y-b.y,z-b.z}; }
+    idVec3 operator-() const { return {-x,-y,-z}; }
     idVec3 operator*(float f) const { return {x*f,y*f,z*f}; }
     idVec3 operator/(float f) const { return *this*(1/f); }
     idVec3& operator+=(const idVec3& b) { *this=*this+b; return *this; }
@@ -475,6 +476,29 @@ int main() {
     CHECK(nav.WalkableLine({-100,0,0},{24,0,16}));
     solids.clear(); Platform(-256,0,16); Platform(0,256,0);
     CHECK(nav.WalkableLine({-40,0,16},{40,0,0}));
+    // A line along a platform's rim, four units past its edge as q4ctf1's
+    // platform and q4dz1's catwalk nodes stand, keeps the hull's far half
+    // over the drop: the ground a support box's width to either side of the
+    // line has to be there too.  Four units inside the edge it is.
+    solids.clear(); Platform(-256,0,0);
+    CHECK(nav.SampleFloor({4,0,1},20,rimFloor));
+    CHECK(!nav.WalkableLine({4,-100,0},{4,100,0},&why));
+    CHECK(std::string(why)=="hangs over an edge");
+    CHECK(nav.WalkableLine({-4,-100,0},{-4,100,0},&why));
+    CHECK(NavDropBeside({4,0,0},{8,0,0}));
+    CHECK(!NavDropBeside({-4,0,0},{8,0,0}));
+    // A rim node's hull hangs more than eight units past an edge.  A wall
+    // beside a node is not an edge, and neither is the next tread of a stair.
+    CHECK(NavRimNode({4,0,0}));
+    CHECK(NavRimNode({-4,0,0}));
+    CHECK(!NavRimNode({-12,0,0}));
+    solids.clear(); Platform(-256,256,0); solids.push_back({{16,-256,0},{40,256,100}});
+    CHECK(!NavRimNode({0,0,0}));
+    solids.clear(); Platform(-256,-24,0); Platform(-24,0,16); Platform(0,256,32);
+    CHECK(!NavRimNode({-12,0,16}));
+    CHECK(!NavRimNode({-36,0,0}));
+    CHECK(!NavDropBeside({-36,0,0},{16,0,0}));
+    CHECK(nav.WalkableLine({-44,-100,0},{-44,100,0},&why));
     std::puts("Player hulls and jump/drop trajectories: unsupported corners/rims rejected, broad landings/gaps retained: PASS");
     return 0;
 }

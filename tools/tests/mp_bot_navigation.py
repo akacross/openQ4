@@ -321,6 +321,17 @@ def validate_game_wiring() -> None:
     require(off_route, "traversalStartOrigin.z - pm_stepsize.GetFloat()", "rvBot::OffRoute action landed elsewhere")
     require(off_route, "corner.travelType == NAVTRAVEL_WALK && offHeight > BOT_OFF_ROUTE_ABOVE",
             "rvBot::OffRoute above only on walks")
+    # Nearer than those limits, a bot displaced from a walk leg by more than a
+    # corner's reach or a step of height asks the navmesh whether the walk to
+    # its corner still exists, a few times a second: combat footwork off the
+    # side of q4ctf1's ramp used to press at the corner until the stuck
+    # detector fired, and not at all while the fight kept the detector quiet.
+    require(off_route, "navMesh.WalkLegAccepted( origin, corner.origin, NULL )",
+            "rvBot::OffRoute displaced leg proof")
+    require(off_route, "aside.LengthSqr() > Square( BOT_CORNER_REACH ) || idMath::Fabs( offHeight ) > pm_stepsize.GetFloat()",
+            "rvBot::OffRoute displacement that needs the proof")
+    require(off_route, "gameLocal.time - offRouteProofTime >= BOT_OFF_ROUTE_PROOF_MSEC",
+            "rvBot::OffRoute throttled leg proof")
     require(advance, "( past - direction * ahead ).LengthSqr() <= Square( BOT_CORNER_REACH * 2.0f )",
             "rvBot::AdvancePath long-drop and level-jump overshoot")
     # Only real launch speed takes a pad, and a pad flight ends on landing.
@@ -540,6 +551,31 @@ def validate_navmesh() -> None:
     require(walkable, "betweenFloor.z - previousFloor > stepSize + NAV_WALK_RISE_SLACK", "rvNavMesh::WalkableLine bisected rise")
     require(walkable, "rises more than a step between samples", "rvNavMesh::WalkableLine interior rise refused")
     require(walkable, "rises more than a step onto its end", "rvNavMesh::WalkableLine end rise refused")
+    # A hull half over an edge still finds the floor under its other half, so
+    # the ground a support box's width to either side of every interior sample
+    # has to be there too: q4ctf1's platform edge nodes and q4dz1's catwalk
+    # rim stand four units past the edge, and legs along them walked bots off.
+    require(walkable, "NavDropBeside( floor, beside ) || NavDropBeside( floor, -beside )",
+            "rvNavMesh::WalkableLine ground beside the line")
+    require(walkable, "hangs over an edge", "rvNavMesh::WalkableLine rim line refused")
+    # Such nodes stay (a player can stand there, and a catwalk may have nothing
+    # else) but routing pays to pass through them, so the chain a cell inland
+    # is preferred wherever one exists.
+    add_node = nav[nav.index("int rvNavMesh::AddNode") :]
+    add_node = add_node[: add_node.index("\n}\n") + 3]
+    require(add_node, "NavRimNode( origin )", "rvNavMesh::AddNode flags rim nodes")
+    require(add_node, "NAVNODE_RIM", "rvNavMesh::AddNode rim flag")
+    flood = nav[nav.index("void rvNavMesh::FloodFill") :]
+    flood = flood[: flood.index("\n}\n") + 3]
+    require(flood, "nodes[neighbour].flags & NAVNODE_RIM", "rvNavMesh::FloodFill prices the step onto a rim node")
+    require(flood, "( nodes[current].flags & NAVNODE_RIM ) ? NAV_RIM_PENALTY : 0.0f", "rvNavMesh::FloodFill prices the reverse step onto a rim node")
+    rim = nav[nav.index("static bool NavRimNode") :]
+    rim = rim[: rim.index("\n}\n") + 3]
+    require(rim, "navSupportBounds[1].x + NAV_RIM_OVERHANG", "NavRimNode probes past the support box")
+    drop_beside = nav[nav.index("static bool NavDropBeside") :]
+    drop_beside = drop_beside[: drop_beside.index("\n}\n") + 3]
+    # A probe that begins inside a wall is a wall, not a drop.
+    require(drop_beside, "if ( trace.fraction <= 0.0f ) {", "NavDropBeside wall beside is not a drop")
     # A bot reaches a corner up to a corner's reach beside it, so a string-pulled
     # leg that climbs or descends is proven from either side of its corner too:
     # q4ctf1's lip nodes along its ramp proved a diagonal line the bot, on the

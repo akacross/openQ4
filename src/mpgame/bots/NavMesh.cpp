@@ -51,6 +51,8 @@ static const int	NAV_SMOOTH_LOOKAHEAD	= 8;		// nodes a single string-pull step m
 static const float	NAV_SMOOTH_MAX_DIP		= 48.0f;	// how far a shortcut may float above the ground it crosses
 static const float	NAV_WALK_RISE_SLACK		= 1.0f;		// over a step, between half-samples: hull and slope rounding
 static const float	NAV_LEG_SIDE_SLACK		= 14.0f;	// how far beside a corner a bot counts it reached: half BOT_CORNER_REACH
+static const float	NAV_RIM_OVERHANG		= 8.0f;		// a node whose hull hangs further than this past an edge is a rim node
+static const float	NAV_RIM_PENALTY			= 32.0f;	// per link into a rim node: more than a cell, so the chain inland wins
 static const int	NAV_MAX_ROUTE_REPAIRS	= 16;		// blocked graph edges excluded before giving up
 static const int	NAV_SNAP_RETRY_MSEC		= 5000;		// a failed entity snap is probed again after this
 
@@ -372,6 +374,66 @@ static bool NavLandingSupported( const idVec3 &floor ) {
 
 /*
 ================
+NavDropBeside
+
+Is the ground this far beside a floor point missing: nothing within a step of
+the floor's height under a support box there, or only something too steep to
+stand on.  A probe that begins inside solid - the box reaches past the hull's
+rounded footprint, so beside a wall it can - is a wall, not a drop.
+================
+*/
+static bool NavDropBeside( const idVec3 &floor, const idVec3 &offset ) {
+	trace_t trace;
+	const float step = pm_stepsize.GetFloat();
+	const float lift = Max( step, navSupportBounds[1].x * 2.0f ) + NAV_GROUND_OFFSET;
+	const idVec3 start = floor + offset + idVec3( 0.0f, 0.0f, lift );
+	// Reach the ground offset below the tolerance, so a tread exactly a step
+	// down is met inside the sweep rather than at its very end.
+	const idVec3 end = floor + offset - idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
+	if ( NavTraceTranslation( trace, start, end, navSupportTrace, navSupportBounds ) ) {
+		return true;
+	}
+	if ( trace.fraction <= 0.0f ) {
+		return false;
+	}
+	return trace.c.normal.z < NAV_WALKABLE_NORMAL_Z ||
+		idMath::Fabs( trace.endpos.z - floor.z ) > step + NAV_GROUND_OFFSET;
+}
+
+/*
+================
+NavRimNode
+
+A standing hull rests on any overlap, and the support box accepts a floor
+under any part of it, so flood fill lays nodes whose hull hangs most of the
+way over an edge: q4ctf1's 64-unit platforms and q4dz1's catwalk each end
+four units short of a column of cell centres, and the nodes there stand with
+twelve of the hull's thirty-two units on the floor.  A player can stand on
+such a node, but a route leg along a row of them runs the whole way with the
+feet half over the drop, and any lateral error walks the bot off.  A node
+whose hull hangs more than NAV_RIM_OVERHANG past an edge on any side is a rim
+node: routing pays to pass through it, so the chain a cell inland is taken
+wherever one exists, and it remains for the places that have nothing else.
+================
+*/
+static bool NavRimNode( const idVec3 &floor ) {
+	const float reach = navSupportBounds[1].x + NAV_RIM_OVERHANG;
+	const idVec3 offsets[4] = {
+		idVec3( reach, 0.0f, 0.0f ),
+		idVec3( -reach, 0.0f, 0.0f ),
+		idVec3( 0.0f, reach, 0.0f ),
+		idVec3( 0.0f, -reach, 0.0f )
+	};
+	for ( int i = 0; i < 4; i++ ) {
+		if ( NavDropBeside( floor, offsets[i] ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+================
 NavIsDynamicSolid
 
 Solids that can be somewhere else at run time than at build time.  Stock maps
@@ -641,6 +703,9 @@ int rvNavMesh::AddNode( int gx, int gy, const idVec3 &origin ) {
 	node.area		= -1;
 	node.component	= -1;
 	node.flags		= ( HazardAtFloor( origin ) >= 0 ) ? NAVNODE_HAZARD : 0;
+	if ( NavRimNode( origin ) ) {
+		node.flags |= NAVNODE_RIM;
+	}
 
 	const int index = nodes.Append( node );
 	nodeHash.Add( CellKey( gx, gy ), index );
@@ -1362,6 +1427,12 @@ void rvNavMesh::FloodFill( const idList<idVec3> &seeds ) {
 			if ( nodes[neighbour].flags & NAVNODE_HAZARD ) {
 				cost += NAV_HAZARD_PENALTY;
 			}
+			// Stepping onto a rim node is dearer than stepping onto the one
+			// beside it inland, so a route runs along a platform's edge only
+			// where the edge is all there is.
+			if ( nodes[neighbour].flags & NAVNODE_RIM ) {
+				cost += NAV_RIM_PENALTY;
+			}
 
 			LinkNodes( current, neighbour, cost, travelType );
 
@@ -1372,7 +1443,8 @@ void rvNavMesh::FloodFill( const idList<idVec3> &seeds ) {
 			if ( travelType == NAVTRAVEL_WALK && !expanded[neighbour] &&
 				 idMath::Fabs( toFloor.z - fromFloor.z ) <= stepSize ) {
 				const float reverseCost = distance +
-					( ( nodes[current].flags & NAVNODE_HAZARD ) ? NAV_HAZARD_PENALTY : 0.0f );
+					( ( nodes[current].flags & NAVNODE_HAZARD ) ? NAV_HAZARD_PENALTY : 0.0f ) +
+					( ( nodes[current].flags & NAVNODE_RIM ) ? NAV_RIM_PENALTY : 0.0f );
 				LinkNodes( neighbour, current, reverseCost, NAVTRAVEL_WALK );
 			}
 		}
@@ -4036,6 +4108,11 @@ bool rvNavMesh::WalkableLine( const idVec3 &from, const idVec3 &to, const char *
 	// twelve between the halves.
 	float previousFloor = from.z;
 	idVec3 previousPoint = from;
+	// A support box's width out to either side of the line: where the ground
+	// beside each interior sample has to be as well.
+	idVec3 beside( -delta.y, delta.x, 0.0f );
+	beside.Normalize();
+	beside *= navSupportBounds[1].x;
 
 	for ( int i = 1; i <= samples; i++ ) {
 		const float	frac  = (float)i / (float)samples;
@@ -4060,6 +4137,16 @@ bool rvNavMesh::WalkableLine( const idVec3 &from, const idVec3 &to, const char *
 
 			if ( floor.z < pitFloor ) {
 				return NavWalkFailure( failure, "crosses a pit" );
+			}
+
+			// A hull half over an edge still finds the floor under its other
+			// half, so a line along a rim - q4ctf1's platform edges and q4dz1's
+			// catwalk, each a column of nodes four units past the edge - walks
+			// the whole way with the feet hanging over the drop, and any
+			// lateral error walks the bot off it.  The ground a support box's
+			// width to either side of the line has to be there as well.
+			if ( NavDropBeside( floor, beside ) || NavDropBeside( floor, -beside ) ) {
+				return NavWalkFailure( failure, "hangs over an edge" );
 			}
 		}
 
@@ -4983,6 +5070,100 @@ bool rvNavMesh::FindPathInternal( const idVec3 &start, const idVec3 &goal, rvNav
 	stats.searchFailures++;
 	path.Clear();
 	return false;
+}
+
+/*
+================
+rvNavMesh::Probe
+
+Diagnostics for "navmesh probe x y z [radius]": every node within twice the
+radius of the point and 128 units of its height, with its links and the
+support verdicts behind the graph, then height maps of the ground around the
+point as the agent hull, the support box and a point each find it, four units
+apart and relative to the point's height.  ".." is no floor within 256 units
+below, "##" a start inside solid and a trailing "s" a surface too steep to
+stand on.
+================
+*/
+void rvNavMesh::Probe( const idVec3 &point, float radius ) const {
+	static const char *travelNames[NAVTRAVEL_NUM] = { "walk", "drop", "jump", "pad", "tele" };
+	const float step = pm_stepsize.GetFloat();
+	const float support = navSupportBounds[1].x;
+
+	gameLocal.Printf( "navmesh probe %s: cell %g, support box %g, step %g\n",
+					  point.ToString( 0 ), cellSize, support, step );
+
+	for ( int i = 0; i < nodes.Num(); i++ ) {
+		idVec3 delta = nodes[i].origin - point;
+		if ( idMath::Fabs( delta.z ) > 128.0f ) {
+			continue;
+		}
+		delta.z = 0.0f;
+		if ( delta.LengthSqr() > Square( radius * 2.0f ) ) {
+			continue;
+		}
+
+		const idVec3 &origin = nodes[i].origin;
+		const idVec3 sides[4] = {
+			idVec3( support, 0.0f, 0.0f ), idVec3( -support, 0.0f, 0.0f ),
+			idVec3( 0.0f, support, 0.0f ), idVec3( 0.0f, -support, 0.0f )
+		};
+		idStr linksText;
+		for ( int l = nodes[i].firstLink; l != -1; l = links[l].next ) {
+			const idVec3 to = nodes[links[l].node].origin - origin;
+			linksText += va( " %s(%.0f,%.0f,%.0f)", travelNames[idMath::ClampInt( 0, NAVTRAVEL_NUM - 1, links[l].travelType )],
+							 to.x, to.y, to.z );
+		}
+		gameLocal.Printf( "  node %d at %s flags %d area %d: floor %s, landing %s (+x %s, -x %s, +y %s, -y %s), links:%s\n",
+						  i, origin.ToString( 0 ), nodes[i].flags, nodes[i].area,
+						  NavFloorSupported( origin ) ? "yes" : "NO",
+						  NavLandingSupported( origin ) ? "yes" : "NO",
+						  NavFloorSupported( origin + sides[0] ) ? "yes" : "NO",
+						  NavFloorSupported( origin + sides[1] ) ? "yes" : "NO",
+						  NavFloorSupported( origin + sides[2] ) ? "yes" : "NO",
+						  NavFloorSupported( origin + sides[3] ) ? "yes" : "NO",
+						  linksText.c_str() );
+	}
+
+	const int cells = (int)idMath::Ceil( radius / 4.0f );
+	const idClip *clipWorld = gameLocal.GetEntityClipWorld( NULL );
+	for ( int kind = 0; kind < 3; kind++ ) {
+		gameLocal.Printf( "  %s floor heights, x %.0f..%.0f left to right, y %.0f..%.0f top to bottom:\n",
+						  ( kind == 0 ) ? "agent hull" : ( kind == 1 ) ? "support box" : "point",
+						  point.x - cells * 4.0f, point.x + cells * 4.0f, point.y + cells * 4.0f, point.y - cells * 4.0f );
+		for ( int row = cells; row >= -cells; row-- ) {
+			idStr line = va( "  y%+5.0f:", row * 4.0f );
+			for ( int col = -cells; col <= cells; col++ ) {
+				const idVec3 at = point + idVec3( col * 4.0f, row * 4.0f, 0.0f );
+				const idVec3 start = at + idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
+				const idVec3 end = at - idVec3( 0.0f, 0.0f, 256.0f );
+				trace_t trace;
+				bool clear;
+				if ( kind == 0 ) {
+					clear = NavAgentTranslation( trace, start, end );
+				} else if ( kind == 1 ) {
+					clear = NavTraceTranslation( trace, start, end, navSupportTrace, navSupportBounds );
+				} else {
+					memset( &trace, 0, sizeof( trace ) );
+					trace.fraction = 1.0f;
+					trace.endpos = end;
+					if ( clipWorld ) {
+						const_cast<idClip *>( clipWorld )->TracePoint( trace, start, end, NAV_CLIP_MASK, NULL );
+					}
+					clear = trace.fraction >= 1.0f;
+				}
+				if ( clear ) {
+					line += "    ..";
+				} else if ( trace.fraction <= 0.0f ) {
+					line += "    ##";
+				} else {
+					line += va( "%5.0f%s", trace.endpos.z - point.z,
+								( trace.c.normal.z < NAV_WALKABLE_NORMAL_Z ) ? "s" : " " );
+				}
+			}
+			gameLocal.Printf( "%s\n", line.c_str() );
+		}
+	}
 }
 
 /*

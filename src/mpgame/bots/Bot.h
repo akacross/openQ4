@@ -210,9 +210,10 @@ private:
 	bool					Repath( idPlayer *self, const idVec3 &goal, bool preserveProgress = false );
 	bool					AdvancePath( idPlayer *self );
 	// Standing on a floor the current leg does not cross - knocked off it,
-	// carried away by a pad, or fallen past a landing.  The route is then
-	// wrong, not slow, and is replaced at once.
-	bool					OffRoute( idPlayer *self, float &offHeight ) const;
+	// carried away by a pad, or fallen past a landing - or beside it where the
+	// walk to the corner no longer exists.  The route is then wrong, not slow,
+	// and is replaced at once.
+	bool					OffRoute( idPlayer *self, float &offHeight );
 	idEntity *				PickItemGoal( idPlayer *self, rvNavPath &goalPath, float &goalUtility );
 	float					ItemUtility( idPlayer *self, idItem *item ) const;
 	// Milliseconds until a taken item returns as far as this bot knows, 0 when
@@ -332,6 +333,7 @@ private:
 	int						stuckChecks;
 	int						stuckPathCorner;
 	float					stuckCornerDistance;
+	int						offRouteProofTime;	// when OffRoute last asked the navmesh about the leg from where the bot stands
 	int						combatSteeringTime;	// last frame combat footwork altered the route direction
 	int						jumpRetries;		// run-ups taken at the current route's failed jump
 	int						jumpRetryPathTime;	// pathTime of the route jumpRetries counts for
