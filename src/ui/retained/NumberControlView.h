@@ -26,8 +26,9 @@ public:
 	~NumberControlView();
 	void Reset();
 	// find resolves a canonical part's element; without it, the document is
-	// searched for each part.
-	bool Initialize(const DocumentModel&, Rml::ElementDocument&, NumberTextRunQuery,
+	// searched for each part. The view reads the model's authored values
+	// while it lives; the shared model keeps them.
+	bool Initialize(std::shared_ptr<const DocumentModel>, Rml::ElementDocument&, NumberTextRunQuery,
 		std::function<std::string(const std::string&)> translate,
 		NumberValidationText validation, std::string& error,
 		std::function<Rml::Element*(const std::string&)> find = {});

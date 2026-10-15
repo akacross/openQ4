@@ -1704,12 +1704,25 @@ struct Runtime::Impl {
 	// control appears with the same state change. The next frame's layout
 	// takes it, or it lapses.
 	std::string pendingFocus;
-	std::map<PropertyKey,std::string> applied;
+	// The document's inherited default font size as last applied; empty
+	// until the first pass.
+	std::string documentFontCss;
 	// ApplyMotion's last applied input for each motion value, by position,
 	// whether a binding owns it, and the state revision and text ratio it was
-	// formatted under.
-	struct AppliedInput { PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false; };
+	// formatted under, with the CSS it installed on its element (cssApplied).
+	struct AppliedInput {
+		PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false;
+		std::string css; bool cssApplied = false;
+		void Set(const PropertyKey& k, const Value& v, bool owned, Rml::Element* e) { key = k; value = v; bound = owned; element = e; deferred = false; }
+	};
 	std::vector<AppliedInput> appliedInputs;
+	// A load's derived markup carries every authored value as an inline style
+	// the document parsed once. It is current until the first complete pass,
+	// which records a value still at its authored one as applied instead of
+	// parsing it again; the nodes the value-control view styled at load (the
+	// choice popups and viewports) take the ordinary path.
+	bool inlineAuthored = false;
+	std::set<std::string_view> inlineOverridden;
 	std::vector<PropertyKey> deferredInputs;
 	std::uint64_t appliedInputRevision = 0;
 	// The motion stamp of the last pass that applied every value (0: none
@@ -2217,19 +2230,20 @@ struct Runtime::Impl {
 	bool ApplyMotion(const RuntimeCanvasIdentity* expected=nullptr) {
         const auto current=[&]{return !expected || (ownerCanvas->alive && !ownerCanvas->retiring && ownerCanvas->identity==*expected);};
         if (!document || !canonical || !current()) return false;
+		const bool freshMarkup = inlineAuthored; inlineAuthored = false;
 		const float textRatio=viewport.TextRatio();
 		const bool flushDeferred = presentationDirty && !deferredInputs.empty();
-		if (!flushDeferred && !applied.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
+		if (!flushDeferred && !documentFontCss.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
 			appliedMotionRevision && appliedMotionRevision==motion.Revision() && appliedInputs.size()>=motion.Values().size()) return current();
 		// The inherited document default participates once. Explicit absolute
 		// typography below replaces it; em values use the resulting parent/font
 		// metrics and must never receive this multiplier a second time.
-		if (appliedInputTextRatio!=textRatio || !applied.contains({"","font-size"})) {
+		if (appliedInputTextRatio!=textRatio || documentFontCss.empty()) {
 			Value defaultFont; defaultFont.type=ValueType::Length; defaultFont.unit="dp";
 			defaultFont.data[0]=16*textRatio;
 			const auto defaultCss=defaultFont.Css();
-			if (applied[{"","font-size"}]!=defaultCss) {
-				document->SetProperty("font-size",defaultCss); applied[{"","font-size"}]=defaultCss;
+			if (documentFontCss!=defaultCss) {
+				document->SetProperty("font-size",defaultCss); documentFontCss=defaultCss;
 				presentationDirty=true;
 			}
 		}
@@ -2271,8 +2285,12 @@ struct Runtime::Impl {
 		}
 		appliedMotionRevision = 0; ++presentationPass;
 		bool complete = true;
+		const auto sameValue = [](const Value& a, const Value& b) {
+			return a.type == b.type && std::memcmp(a.data.data(),b.data.data(),sizeof(a.data)) == 0 && a.unit == b.unit && a.text == b.text;
+		};
 		// One input: formats it only when it changed, then applies it.
-		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated) -> bool {
+		// `authored`: the value's authored one while the load's markup is fresh.
+		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated, const Value* authored) -> bool {
 			const bool backdrop = key.second == "backdrop-blur" || key.second == "backdrop-saturate" || key.second == "backdrop-streak";
 			if (!backdrop && animated.type != ValueType::Text && input.key == key && !(stateChanged && input.bound) && input.value.type == animated.type &&
 				std::memcmp(input.value.data.data(),animated.data.data(),sizeof(animated.data)) == 0 &&
@@ -2299,7 +2317,7 @@ struct Runtime::Impl {
 				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				if (!element) { complete=false; return true; }
 				static_cast<VectorElement*>(element)->SetImageCoordinate(key.second,value.data[0]);
-				input={key,animated,owned,element}; return current();
+				input.Set(key,animated,owned,element); return current();
 			}
 			const bool opacity = key.second == "opacity";
 			// A decorative leaf beside canonical buttons can replay its isolated
@@ -2318,7 +2336,7 @@ struct Runtime::Impl {
 					// 'applied' as the last CSS actually installed: formatting and
 					// looking up a new CSS string cannot change this cached draw.
 					// Zero/full-opacity crossings still install the new topology.
-					input={key,animated,owned,element}; return current();
+					input.Set(key,animated,owned,element); return current();
 				}
 			}
 			// Decorative transforms affect projection, not box layout. Resolve
@@ -2334,7 +2352,7 @@ struct Runtime::Impl {
 					}
 					// An ordinary pass must not mistake the old CSS for the
 					// current property after a typed update or a timeline rewind.
-					applied.erase(key); input={key,animated,owned,element};
+					input.cssApplied=false; input.Set(key,animated,owned,element);
 					auto* projected=static_cast<VectorElement*>(element);
 					if (std::find(changedProjections.begin(),changedProjections.end(),projected)==changedProjections.end())
 						changedProjections.push_back(projected);
@@ -2342,6 +2360,8 @@ struct Runtime::Impl {
 				}
 			}
 			std::string string;
+			// Whether the fresh markup's inline style already holds this string.
+			bool carried = false;
 			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") &&
 				(key.second=="font-size" || key.second=="line-height" || key.second=="letter-spacing")) {
 				auto scaled=value; scaled.data[0]*=viewport.TextRatio(); string=scaled.Css();
@@ -2355,20 +2375,31 @@ struct Runtime::Impl {
 				};
 				const auto blur = present("backdrop-blur"), saturate = present("backdrop-saturate"), streak = present("backdrop-streak");
 				string = BackdropFilterCss(blur ? &*blur : nullptr,saturate ? &*saturate : nullptr,streak ? &*streak : nullptr);
-			} else string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
-				value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
+			} else {
+				string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
+					value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
+				// The markup writes an authored value's CSS as the pass does here,
+				// an opacity below one as its filter; text and images it leaves to
+				// the pass.
+				carried = freshMarkup && authored && value.type != ValueType::Text && value.type != ValueType::Image &&
+					(!opacity || value.data[0] < 1) && sameValue(value,*authored);
+			}
 			if(!current())return false;
 			// Fit and alignment are authored once and folded into the decorator.
 			if (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend") {
-				applied[key] = string; input = {key,animated,owned,input.element}; return true;
+				input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,input.element); return true;
 			}
 			// Canonical elements survive property/text edits and owned-widget
 			// reparenting. These handles reset with the document or its snapshot.
 			auto* element = input.element ? input.element : CanonicalElement(key.first);
 			if (!element) { complete = false; return true; }
-			if (opacity && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) string.insert(0,"q4-");
-			auto previous = applied.find(key);
-			if (previous != applied.end() && previous->second == string) { input = {key,animated,owned,element}; return true; }
+			if (opacity && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) { string.insert(0,"q4-"); carried = false; }
+			if (input.cssApplied && input.css == string) { input.Set(key,animated,owned,element); return true; }
+			// openQ4: the load's markup installed this very value; record it as
+			// applied instead of parsing it a second time.
+			if (carried && !input.cssApplied && !inlineOverridden.contains(key.first)) {
+				input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,element); return true;
+			}
 			{
 				// A hidden HUD branch can keep advancing its authored timelines
 				// without relaying out the visible document. Keep its inline values
@@ -2390,7 +2421,7 @@ struct Runtime::Impl {
 			}
 			else if (!element->SetProperty(opacity ? "filter" : backdrop ? "backdrop-filter" : key.second,string)) host.Log(true,"Canonical property rejected: "+key.first+"."+key.second);
 			if(!current())return false;
-			applied[key] = string; input = {key,animated,owned,element};
+			input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,element);
 			return true;
 		};
 		if (incremental) {
@@ -2414,7 +2445,7 @@ struct Runtime::Impl {
 				++Stats().motionInputsScanned;
 				const auto animated = motion.Values().find(key);
 				if (animated == motion.Values().end()) continue;
-				if (!apply(input,key,animated->second)) return false;
+				if (!apply(input,key,animated->second,nullptr)) return false;
 			}
 			if (complete) appliedMotionRevision = passRevision;
 			return current();
@@ -2424,12 +2455,19 @@ struct Runtime::Impl {
 		{ std::vector<PropertyKey> consumed; state.TakeChangedProperties(consumed); }
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
 		const bool indexing = inputIndexes.size() != motion.Values().size();
-		if (indexing) inputIndexes.clear();
+		if (indexing) { inputIndexes.clear(); inputIndexes.reserve(motion.Values().size()); }
 		size_t inputIndex = 0;
+		// The authored values keep the live values' key order, so the fresh
+		// markup's pass reads each value's authored one in step.
+		const auto& authoredValues = motion.Base();
+		auto authored = freshMarkup ? authoredValues.begin() : authoredValues.end();
 		for (const auto& [key,animated] : motion.Values()) {
 			if (indexing) inputIndexes.emplace(key,inputIndex);
-			if (!apply(appliedInputs[inputIndex++],key,animated)) return false;
+			const Value* carried = nullptr;
+			if (authored != authoredValues.end() && authored->first == key) carried = &(authored++)->second;
+			if (!apply(appliedInputs[inputIndex++],key,animated,carried)) return false;
 		}
+		inlineOverridden.clear();
 		if (complete) appliedMotionRevision = passRevision;
         return current();
 	}
@@ -2592,7 +2630,8 @@ void Runtime::Shutdown() {
 	impl->hud = nullptr;
 	impl->paintDirty=true;
 	impl->changedProjections.clear();
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset({});
+	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2617,7 +2656,8 @@ void Runtime::CloseDocument() {
 	if (impl->backend) impl->backend->renderer.InvalidateFrame();
 	impl->paintDirty=true;
 	impl->changedProjections.clear();
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset({});
+	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2657,10 +2697,12 @@ bool Runtime::LoadDocument(const Document& document, const std::string& sourcePa
 bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
 	if (!LoadMarkup(candidate->BuildMarkup(),sourcePath)) return false;
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
-	impl->motion.Reset(candidate->Model());
+	// The loaded document outlives the motion, state and views that read its
+	// model: they share it instead of copying its values and declarations.
+	impl->motion.Reset(candidate->SharedModel());
 	impl->interaction.Reset(candidate->Model());
 	std::string stateError;
-	impl->state.Reset(candidate->Model(),stateError); // Initial state was validated by Document::Load.
+	impl->state = candidate->InitialState(); // Evaluated and validated by Document::Load, from the shared model.
 	for (const auto& [id,declaration]:impl->state.Declarations()) if (!declaration.cvar.empty())
 		impl->stateSources.push_back({id,declaration.cvar,declaration.initial.index()});
 	impl->canonical = std::move(candidate);
@@ -2691,7 +2733,7 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 		if (element) {
 			// Canonical subtrees preserve paint order when opacity crosses 1 and
 			// their temporary filter layer appears or disappears.
-			element->SetProperty("z-index","0");
+			element->SetProperty(Rml::PropertyId::ZIndex,Rml::Property(0.f,Rml::Unit::NUMBER));
 			impl->canonicalElements.emplace(node->id,element);
 			static_cast<VectorElement*>(element)->Configure(*node,impl->host,impl->Stats());
 			static_cast<VectorElement*>(element)->SetImageSamplingInterface(&impl->backend->renderer);
@@ -2699,7 +2741,7 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 		}
 		for (const auto& child : node->children) nodes.push_back(&child);
 	}
-	if (!impl->valueView.Initialize(impl->canonical->Model(),*impl->document,
+	if (!impl->valueView.Initialize(impl->canonical->SharedModel(),*impl->document,
 		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError,
 		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
@@ -2707,7 +2749,7 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 	if (!impl->scrollView.Initialize(impl->canonical->Model(),*impl->document,stateError)) {
         diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
     }
-    if (!impl->numberView.Initialize(impl->canonical->Model(),*impl->document,
+    if (!impl->numberView.Initialize(impl->canonical->SharedModel(),*impl->document,
 		[owner=impl.get()](std::uintptr_t face,std::string_view text,float spacing) { return owner->services->fonts.QueryRun(face,text,spacing); },
 		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError,
 		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
@@ -2716,7 +2758,17 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 	impl->inputBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,false);
 	impl->modalBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,true);
 	impl->ReadStateSources(); impl->Feedback(impl->time);
+	// The markup's inline styles are current for the first pass, except on
+	// the choice popups and viewports the value-control view styled above.
+	impl->inlineOverridden.clear();
+	for (const auto& id : impl->controls)
+		if (const auto* node = impl->canonical->Model().FindNode(id))
+			if (const auto* choice = node->control ? std::get_if<ChoiceSpec>(&node->control->widget) : nullptr) {
+				impl->inlineOverridden.insert(choice->popup); impl->inlineOverridden.insert(choice->viewport);
+			}
+	impl->inlineAuthored = true;
 	impl->ApplyMotion();
+	impl->presentationDirty = true; // A new document is a new presentation, as its first pass always found.
 	return true;
 }
 bool Runtime::SetHudPresentation(const std::vector<HudPrimitive>& items,const Viewport& viewport,std::string& error) {
@@ -3058,7 +3110,8 @@ bool Runtime::RestoreSnapshot(const std::string& snapshot, std::string& error, d
 		// Publish its checked adoption before any state or presentation changes.
 		if (!impl->interaction.Adopt(std::move(interaction),error)) return false;
 		impl->state = std::move(state); impl->motion = std::move(motion);
-		impl->time = now; impl->pointerPresent = impl->pointerNavigation = false; impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear();
+		impl->time = now; impl->pointerPresent = impl->pointerNavigation = false; impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+		impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear();
 		impl->pendingFocus.clear();
         impl->preserveRestoredScroll=widgets.version==3;
 		// The restored modals are open already: their saved scroll offsets stand.

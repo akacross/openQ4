@@ -29,7 +29,11 @@ struct StatePresentationSnapshot {
 // Evaluating expressions never executes commands or changes authored source.
 class State {
 public:
+	// Keeps a copy of the model's declarations, bindings and controls.
 	bool Reset(const DocumentModel& model, std::string& error);
+	// References the shared model's declarations, bindings and controls
+	// instead: the model outlives this state and its copies.
+	bool Reset(std::shared_ptr<const DocumentModel> model, std::string& error);
 	bool Set(const StateValues& changes, std::string& error, bool hostSources = false);
 	// Whether Set(changes) would do more than accept the batch: a value
 	// differs, a presentation write awaits evaluation, or the batch is invalid.
@@ -68,6 +72,8 @@ private:
 	void MarkAllChanged() { changedProperties.clear(); allPropertiesChanged = true; }
 	// The document's declarations and bindings are fixed after Reset and
 	// shared by copies: a transactional copy duplicates only live values.
+	// They are the shared model's, which `model` keeps.
+	std::shared_ptr<const DocumentModel> model;
 	std::shared_ptr<const std::map<std::string,StateDeclaration>> declarations = std::make_shared<const std::map<std::string,StateDeclaration>>();
 	std::shared_ptr<const std::vector<Binding>> bindings = std::make_shared<const std::vector<Binding>>();
 	// For each state variable, the bindings whose expressions read it.
@@ -78,7 +84,8 @@ private:
 	StateValues variables;
 	PropertyValues properties;
 	std::map<std::string,bool> enabled;
-	std::shared_ptr<const std::map<std::string,Control>> controlDeclarations = std::make_shared<const std::map<std::string,Control>>();
+	// The value controls (not buttons or scrollbars) by ID, in the model.
+	std::shared_ptr<const std::map<std::string,const Control*>> controlDeclarations = std::make_shared<const std::map<std::string,const Control*>>();
 	std::map<std::string,ControlReadback> controlValues;
 	std::uint64_t revision = 0;
 	bool presentationDirty = false;

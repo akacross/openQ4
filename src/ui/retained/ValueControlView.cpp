@@ -138,10 +138,14 @@ struct ValueControlView::Impl {
 	float ratio = 1;
 	std::function<std::string(const std::string&)> translate;
 	std::map<std::string,Entry> entries;
-	std::map<std::string,Rml::Element*> elements;
-	std::map<std::string,std::map<std::string,Value>> authored;
+	// Every node's element and authored values, by the model's node IDs; the
+	// values are read in place and `model` keeps them.
+	std::shared_ptr<const DocumentModel> model;
+	std::unordered_map<std::string_view,Rml::Element*> elements;
+	std::unordered_map<std::string_view,const std::map<std::string,Value>*> authored;
 	std::map<std::pair<std::string,std::string>,Applied> applied;
 	Rml::Element* Element(const std::string& id) const { const auto found = elements.find(id); return found == elements.end() ? nullptr : found->second; }
+	const std::map<std::string,Value>& Authored(const std::string& id) const { return *authored.at(id); }
 	bool Property(const std::string& id, const std::string& property, const std::string& value) {
         // Rml stores shorthand overflow as two longhands; its shorthand has no
         // local-property readback and must not report perpetual layout changes.
@@ -162,7 +166,7 @@ struct ValueControlView::Impl {
 	}
 	bool Display(const std::string& id, bool visible) {
 		if (id.empty()) return false;
-		const auto& properties = authored.at(id); const auto found = properties.find("display");
+		const auto& properties = Authored(id); const auto found = properties.find("display");
 		const auto shown = found != properties.end() && found->second.text != "none" ? found->second.text : "block";
 		return Property(id,"display",visible ? shown : "none");
 	}
@@ -171,7 +175,7 @@ struct ValueControlView::Impl {
 	// disabled-text strength, 40%, from its authored colour.
 	bool Availability(const ChoiceOption& option, bool available) {
 		if (!option.Conditional()) return false;
-		const auto& properties = authored.at(option.labelPart); const auto found = properties.find("color");
+		const auto& properties = Authored(option.labelPart); const auto found = properties.find("color");
 		if (found == properties.end() || found->second.type != ValueType::Colour) return false;
 		auto colour = found->second;
 		if (!available) colour.data[3] = std::min(colour.data[3],0.40);
@@ -196,8 +200,8 @@ struct ValueControlView::Impl {
 		return std::get<bool>(value) ? "1" : "0";
 	}
 	float AuthoredLength(const std::string& id, const std::string& property, float ratio, float fallback) const {
-		const auto found = authored.at(id).find(property);
-		if (found == authored.at(id).end() || found->second.type != ValueType::Length) return fallback;
+		const auto& properties = Authored(id); const auto found = properties.find(property);
+		if (found == properties.end() || found->second.type != ValueType::Length) return fallback;
 		if (found->second.unit == "dp") return static_cast<float>(found->second.data[0])*ratio;
 		if (found->second.unit == "px") return static_cast<float>(found->second.data[0]);
 		if (found->second.unit == "em") {
@@ -208,7 +212,7 @@ struct ValueControlView::Impl {
 	}
 	bool Inheritance(const Entry& entry, const ChoiceSpec& choice) {
 		if (!entry.inheritedFrom) return false;
-		bool changed = false; const auto& own = authored.at(choice.popup); const auto& computed = entry.inheritedFrom->GetComputedValues();
+		bool changed = false; const auto& own = Authored(choice.popup); const auto& computed = entry.inheritedFrom->GetComputedValues();
 		const auto set = [&](const std::string& key, const std::string& value) { if (!own.contains(key)) changed |= Property(choice.popup,key,value); };
 		set("font-family",computed.font_family()); set("font-size",Pixels(computed.font_size()));
 		set("line-height",Pixels(computed.line_height().value)); set("letter-spacing",Pixels(computed.letter_spacing()));
@@ -562,16 +566,17 @@ struct ValueControlView::Impl {
 ValueControlView::ValueControlView() : impl(std::make_unique<Impl>()) {}
 ValueControlView::~ValueControlView() = default;
 void ValueControlView::Reset() { impl = std::make_unique<Impl>(); }
-bool ValueControlView::Initialize(const DocumentModel& model, Rml::ElementDocument& document,
+bool ValueControlView::Initialize(std::shared_ptr<const DocumentModel> model, Rml::ElementDocument& document,
 	std::function<std::string(const std::string&)> translate, std::string& error,
 	const std::function<Rml::Element*(const std::string&)>& find) {
 	error.clear(); auto candidate = std::make_unique<Impl>(); candidate->document = &document; candidate->translate = std::move(translate);
-	std::vector<const Node*> pending{&model.root};
+	candidate->model = std::move(model);
+	std::vector<const Node*> pending{&candidate->model->root};
 	while (!pending.empty()) {
 		const auto* node = pending.back(); pending.pop_back();
 		auto* element = find ? find(node->id) : document.GetElementById(node->id);
 		if (!element) { error = "Missing canonical value-control view node '"+node->id+"'"; return false; }
-		candidate->elements[node->id] = element; candidate->authored[node->id] = node->properties;
+		candidate->elements[node->id] = element; candidate->authored[node->id] = &node->properties;
 		if (node->control && node->control->role != ControlRole::Button) candidate->entries[node->id] = {*node->control,element,nullptr};
 		for (const auto& child : node->children) pending.push_back(&child);
 	}

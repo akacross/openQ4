@@ -1742,6 +1742,110 @@ and 6.9-8.1 s after on a shared machine, Q4DM1 1.4-1.9 s before and
 pause pages' loads inside the level fell from about 60 to 10 ms each with
 their parses prefetched.
 
+### The view build and the remaining validation
+
+15 October 2026, continued. With the parse and the validator faster, the
+runtime's view of a control-heavy page (`Runtime::LoadDocument(const
+Document&)`: the derived markup, RmlUi's parse of it, the configuration of
+every element, the motion, state and view initializers and the first
+presentation pass) was the larger half of its load: about 170 ms of the
+Escape card's 450, 75 of the MP HUD's 310. Stack samples of the benchmark's
+view phase (the same sampler) put a quarter of it in the first presentation
+pass, a quarter in `Motion::Reset`, a quarter in RmlUi's parse of the
+markup and the rest in the value-control view and the state; the validator's
+samples were in reading nodes and timelines (a map lookup for each field of
+each small object), the walk of the tree for non-finite numbers, and
+copying and destroying its check of the initial state. Most of it was
+copying or parsing again what the load already had.
+
+- **The first presentation pass parsed every property twice.** The derived
+  markup carries each authored value as an inline style, which RmlUi parses
+  as it instances the element; the first `ApplyMotion` then formatted the
+  same value again, set it again through RmlUi's property parser, and
+  recorded the CSS in a map of 34 000 string-pair keys. The pass now reads
+  the authored values in step with the live ones (the two maps share one
+  key order) and, while the markup is fresh (until the first complete
+  pass), records a value still at its authored one as applied without a
+  second parse. Text, images and their coordinates, backdrops, scaled
+  typography, a replayed opacity, the choice popups and viewports the
+  value-control view styles at load, and every bound or animated value take
+  the ordinary path. The applied CSS lives with each input's record instead
+  of the map, so no pass searches it, and the load sets each canonical
+  element's `z-index` as a typed property.
+- **`Motion::Reset` built the authored values twice.** Every (node,
+  property) value went into a map keyed by two strings in document order,
+  each insert a search through tens of thousands of keys sharing long
+  prefixes, and the whole map was then copied for the live values. The
+  nodes are taken in ID order now, so every insert appends, and the live
+  values share the authored map until the first write copies it (the
+  copy-on-write the transactional copies already used): a page that never
+  animates never copies it, and one that does copies once, on its first
+  sample. The timelines are referenced in the shared model, not copied.
+- **The state, the validator's state and the views copied the model.**
+  `State::Reset` copied the declarations, bindings, presentation variables
+  and every value control with its choice options, twice per load (the
+  validator's check of the initial state, then the runtime's), and the
+  value and number views copied every node's property map. A `Document` now
+  shares its model (`SharedModel`, with the document's lifetime) and the
+  state, motion and views reference it; the validator reads into that same
+  model, so its initial-state check shares it too, and its state copies are
+  neither made nor destroyed. The document also keeps that validated initial
+  state (`InitialState`, shared by its copies), and the runtime starts from a
+  copy of it instead of evaluating every binding a second time.
+- **The validator looked each field up.** A typed value or a path command
+  found each of its two to four fields through a map lookup and walked its
+  members again for unknown fields; one walk finds them now
+  (`FindMembers`), the timeline reader keeps each key's lookups, and the
+  node reader keeps no intermediate property map. A control's five state
+  timelines were each found by a search of every timeline (3.5 million
+  string comparisons for the Escape card's 366 controls and 1 925
+  timelines); the timelines are indexed once they are read. The derived
+  markup is appended piece by piece instead of through a temporary per
+  property. The tree is walked for
+  non-finite numbers and invalid strings only when the lexical scan before
+  the parse saw a token that could produce one (a number whose integer
+  digits and exponent reach 309, or a NUL escape); every other value of a
+  source that scan and the UTF-8 check accept is finite and valid, so the
+  walk is skipped. The same checks run in the same order and report the
+  same pointers: the native document suites compare them.
+
+Interleaved A/B of the committed loader (3c0f4507a) and this one, the same
+machine and build type, minimum of six runs of five loads each. The machine
+was busy with other repositories' builds all afternoon (40 to 100 percent
+load), so each run was given high process priority
+(`.tmp/uiperf/ab_view_high.ps1`): the parse, which is unchanged, then agreed
+within 2 percent between the binaries for every document but the Escape
+card (8 percent), where runs at normal priority had swung by half and were
+discarded.
+
+| Document | Load before | Load after | View before | View after | View MB before | View MB after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `title.q4ui` | 50.0 ms | 43.4 ms | 16.5 ms | 9.6 ms | 10.9 | 6.3 |
+| `createserver.q4ui` | 106.9 ms | 89.1 ms | 45.3 ms | 26.4 ms | 27.1 | 18.4 |
+| `joingame.q4ui` | 161.5 ms | 149.6 ms | 60.2 ms | 32.9 ms | 37.4 | 21.1 |
+| `mp_escape.q4ui` | 302.9 ms | 242.3 ms | 200.9 ms | 111.5 ms | 103.0 | 66.6 |
+| `mp_summary.q4ui` | 149.9 ms | 126.8 ms | 89.9 ms | 49.6 ms | 53.5 | 32.9 |
+| `remastered_marine.q4ui` | 214.6 ms | 183.9 ms | 40.1 ms | 22.5 ms | 26.5 | 18.5 |
+| `remastered_mp.q4ui` | 170.6 ms | 150.9 ms | 76.1 ms | 39.5 ms | 44.9 | 26.2 |
+| `remastered_scoreboard.q4ui` | 123.2 ms | 111.0 ms | 74.4 ms | 40.6 ms | 45.0 | 27.8 |
+| `weapon_wheel_marine.q4ui` | 78.4 ms | 68.6 ms | 12.7 ms | 7.9 ms | 9.2 | 6.0 |
+
+The view builds 38 to 48 percent faster and retains 30 to 44 percent less
+memory (the shared model instead of its copies). `Document::Load` is 7 to 20
+percent faster with the parse unchanged, so the validation and index it
+keeps are 12 to 28 percent faster. A page whose timelines play still copies
+the authored values once, on its first animated frame, where the load used
+to copy them.
+
+What remains of the view is mostly RmlUi's: its parse of the markup, the
+instancing of every element and the inline style parse of every property,
+then the first pass's own records and index, the authored map `Motion::Reset`
+still builds and the markup string itself. Typed inline properties, or
+elements built without markup, would remove the parse but must reproduce
+RmlUi's float and keyword decoding exactly. The validator's remaining cost
+is the parse (JsonCpp's tree, unchanged here) and the node and timeline
+readers' lookups.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

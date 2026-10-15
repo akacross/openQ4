@@ -160,7 +160,7 @@ struct NativeView {
   Check(input.Focus("number")&&input.BeginNumberEdit("number",error),"eligible pure Number editor begins");Initialize();Frame();
  }
  ~NativeView(){paint.Reset();}
- void Initialize(){Check(paint.Initialize(model.Model(),*document,[&](uintptr_t font,std::string_view text,float spacing){
+ void Initialize(){Check(paint.Initialize(model.SharedModel(),*document,[&](uintptr_t font,std::string_view text,float spacing){
    const auto size=static_cast<int>(std::lround(Rml::GetFontEngineInterface()->GetFontMetrics(font).ascent/.775f));
    return MeasureTextRun(text,spacing,[&](uint32_t cp){return host.GetGlyph("number-font",size,cp);},error);
   },[&](const std::string& key){return host.Translate(key);},[](const NumberSpec&,const NumberEditView&,bool){return "Invalid <value> & retry";},error),"initialize actual Number view");}

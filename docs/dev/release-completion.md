@@ -70,6 +70,27 @@ Candidate UI release wording: The modern interface loads its screens faster
 and uses far less memory, and the HUD, weapon wheel and quick chat no longer
 stall the first frame after a level load or their first opening.
 
+- [x] Build the modern interface's views faster and lighter, and finish the
+  validator's allocation work. The first presentation pass no longer parses
+  every property a second time through RmlUi (the derived markup already
+  carried it) nor keeps a map of 34 000 applied-CSS keys; the motion builds
+  its authored values in key order and shares them with its live values
+  until the first write; the state, the validator's own state and the
+  control views reference the loaded document's model instead of copying its
+  declarations, bindings, controls and property maps; and the validator reads
+  each typed value and path command in one walk of its fields and skips the
+  tree walk for non-finite numbers when the lexical scan shows none can
+  exist, and indexes the timelines a control's five states name. A page's
+  view builds 38 to 48 percent faster (the Escape card's from 201 to 112 ms,
+  the MP HUD's from 76 to 40 ms) and retains about a third less memory;
+  validation is 12 to 28 percent faster. Diagnostics and presentation are
+  unchanged: the native document, screen, HUD and runtime suites and the UI
+  gate pass. Record: `docs/dev/ui/runtime-performance.md`, "The view build
+  and the remaining validation".
+
+Candidate UI release wording: The modern interface's menus and HUD open
+faster still and hold less memory.
+
 - [x] Show the Arena best results on the modern Arena page: an unlocked
   match's record across the foot of its levelshot (BEST RESULT over the
   record; generation checks both, and the widest record, in every

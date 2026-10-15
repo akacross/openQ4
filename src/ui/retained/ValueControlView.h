@@ -20,8 +20,9 @@ public:
 	~ValueControlView();
 	void Reset();
 	// find resolves a canonical node's element; without it, the document is
-	// searched for each node.
-	bool Initialize(const DocumentModel& model, Rml::ElementDocument& document,
+	// searched for each node. The view reads the model's authored values
+	// while it lives; the shared model keeps them.
+	bool Initialize(std::shared_ptr<const DocumentModel> model, Rml::ElementDocument& document,
 		std::function<std::string(const std::string&)> translate, std::string& error,
 		const std::function<Rml::Element*(const std::string&)>& find = {});
 	// Returns true when derived properties changed and another layout is needed.

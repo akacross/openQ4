@@ -82,8 +82,11 @@ struct NumberControlView::Impl {
 	std::function<std::string(const std::string&)> translate;
 	NumberValidationText validation;
 	std::map<std::string,Entry> entries;
-	std::map<std::string,std::map<std::string,Value>> authored;
+	// The model's authored values by node, read in place; `model` keeps them.
+	std::shared_ptr<const DocumentModel> model;
+	std::unordered_map<std::string_view,const std::map<std::string,Value>*> authored;
 	std::map<Rml::Element*,std::map<std::string,Applied>> applied;
+	const std::map<std::string,Value>& Authored(const std::string& id) const { return *authored.at(id); }
 	~Impl() {
 		// Runtime normally resets us before closing the document. Observers also
 		// make destruction safe if its DOM has already been released.
@@ -109,8 +112,8 @@ struct NumberControlView::Impl {
 	}
 	bool Display(const std::string& id,bool visible) { return Display(Element(id),id,visible); }
 	bool Display(Rml::Element* element,const std::string& id,bool visible) {
-		const auto found=authored.at(id).find("display");
-		const auto shown=found!=authored.at(id).end() && found->second.text!="none" ? found->second.text : "block";
+		const auto& properties=Authored(id); const auto found=properties.find("display");
+		const auto shown=found!=properties.end() && found->second.text!="none" ? found->second.text : "block";
 		return Property(element,"display",visible ? shown : "none");
 	}
 	bool HideEditing(Entry& entry) {
@@ -221,7 +224,8 @@ struct NumberControlView::Impl {
 			Same(cp.x,entry.localCaret.x) && Same(cp.y,entry.localCaret.y) && Same(cs.x,entry.localCaret.width) && Same(cs.y,entry.localCaret.height);
 	}
 	float Length(const std::string& id,const std::string& key,float ratio,float reference,float fallback) const {
-		const auto found=authored.at(id).find(key); if (found==authored.at(id).end() || found->second.type!=ValueType::Length) return fallback;
+		const auto& properties=Authored(id); const auto found=properties.find(key);
+		if (found==properties.end() || found->second.type!=ValueType::Length) return fallback;
 		const auto& value=found->second;
 		if (value.unit=="em") {
 			const auto* element=Element(id);
@@ -252,13 +256,14 @@ struct NumberControlView::Impl {
 NumberControlView::NumberControlView():impl(std::make_unique<Impl>()) {}
 NumberControlView::~NumberControlView()=default;
 void NumberControlView::Reset() { impl=std::make_unique<Impl>(); }
-bool NumberControlView::Initialize(const DocumentModel& model,Rml::ElementDocument& document,NumberTextRunQuery query,
+bool NumberControlView::Initialize(std::shared_ptr<const DocumentModel> model,Rml::ElementDocument& document,NumberTextRunQuery query,
 	std::function<std::string(const std::string&)> translate,NumberValidationText validation,std::string& error,
 	std::function<Rml::Element*(const std::string&)> find) {
 	Reset(); impl->document=&document; impl->find=std::move(find); impl->query=std::move(query); impl->translate=std::move(translate); impl->validation=std::move(validation);
-	std::vector<const Node*> nodes{&model.root};
+	impl->model=std::move(model);
+	std::vector<const Node*> nodes{&impl->model->root};
 	while (!nodes.empty()) {
-		const auto* node=nodes.back(); nodes.pop_back(); impl->authored[node->id]=node->properties;
+		const auto* node=nodes.back(); nodes.pop_back(); impl->authored[node->id]=&node->properties;
 		if (node->control) if (const auto* spec=std::get_if<NumberSpec>(&node->control->widget)) {
 			if (!impl->query) { error="Number controls require the shared text-run service"; Reset(); return false; }
 			for (const auto& id : {spec->viewport,spec->text,spec->selection,spec->caret,spec->composition,spec->validation})
@@ -328,7 +333,7 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 					edit->notice==NumberEditNotice::ClipboardMasked ? "#str_231129" : "#str_230003";
 				message=impl->translate ? impl->translate(key) : key;
 			} else if (impl->validation) message=impl->validation(spec,*edit,view->rejected.has_value());
-			else { message=impl->authored.at(spec.validation).at("text").text; if (impl->translate) message=impl->translate(message); }
+			else { message=impl->Authored(spec.validation).at("text").text; if (impl->translate) message=impl->translate(message); }
 		}
 		changed|=impl->Text(spec.validation,message); changed|=impl->Display(spec.validation,invalid);
 		const bool textChanged=impl->Text(spec.text,text); changed|=textChanged;

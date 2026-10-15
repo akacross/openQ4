@@ -298,6 +298,7 @@ struct Diagnostic {
 };
 bool ParseStateValues(const std::string& source, StateValues& values, std::vector<Diagnostic>& diagnostics);
 
+class State;
 // Canonical JSONC source is retained verbatim. DOM source offsets make edits
 // transactional and preserve comments/extension fields outside the edited span.
 // JsonCpp and its DOM do not cross this library boundary.
@@ -316,12 +317,20 @@ public:
 		std::vector<Diagnostic>& diagnostics);
 	const std::string& Source() const;
 	const DocumentModel& Model() const;
+	// The model with its document's lifetime: a runtime part that keeps it
+	// references the loaded document instead of copying its declarations.
+	std::shared_ptr<const DocumentModel> SharedModel() const;
+	// The document's initial state as the load evaluated and validated it,
+	// shared by copies: a runtime starts from a copy of it instead of
+	// evaluating every binding again. Empty for a document never loaded.
+	const State& InitialState() const;
 	// Derived layout only. Text is inserted via Runtime's escaped/localized
 	// text API; neither translation strings nor extensions become markup.
 	std::string BuildMarkup() const;
 private:
 	struct Impl;
 	std::shared_ptr<Impl> impl;
+	std::shared_ptr<const State> initialState;
 };
 
 } // namespace openq4::ui
