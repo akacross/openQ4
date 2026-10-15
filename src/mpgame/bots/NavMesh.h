@@ -59,6 +59,11 @@ static const int NAVNODE_HAZARD			= BIT( 0 );
 // Whoever stands there is carried away, so the transport is its only exit and
 // it is never a place to stop.
 static const int NAVNODE_TRANSPORT		= BIT( 1 );
+// A standing point whose hull hangs more than NAV_RIM_OVERHANG past an edge:
+// the last few units of a platform, the rim of a catwalk.  A player can stand
+// there, so it stays a node, but routing pays to walk through it so a chain a
+// cell inland is preferred wherever one exists.
+static const int NAVNODE_RIM			= BIT( 2 );
 
 // Places one jump pad can put a player down: its natural landing and the
 // floors beside its arc that air control reaches.
@@ -214,6 +219,10 @@ public:
 	int						NumNodes( void ) const { return nodes.Num(); }
 	int						NumLinks( void ) const { return links.Num(); }
 	int						GetBuildMilliseconds( void ) const { return buildMsec; }
+
+	// Diagnostics for "navmesh probe": the nodes around a point with their
+	// links and support verdicts, and a height map of the ground around it.
+	void					Probe( const idVec3 &point, float radius ) const;
 
 	const navNode_t &		GetNode( int index ) const { return nodes[index]; }
 

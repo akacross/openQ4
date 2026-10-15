@@ -185,6 +185,16 @@ the classic screens.
   leg and the navmesh's verdict on it. Twelve suites pass; the fixture runs the
   production shortcut proof. Live: 120 s, eight bots per map - both stops gone,
   q4ctf1 stuck reports 6 to 3, q4dz1 pad timeouts 2 to 0.
+- [x] Fix the two patterns those audits left: rim walks (nodes whose hull
+  hangs more than eight units past a platform's or catwalk's edge are rim
+  nodes that routes pay a cell more to enter, and a shortcut needs the ground
+  a support box's width to either side of its samples) and combat-displaced
+  stops (a bot more than a corner's reach beside a walk leg, or a step off its
+  height, re-routes as soon as the navmesh refuses the walk from where it
+  stands to its corner, instead of waiting for the stuck detector). The
+  `navmesh probe` command prints the nodes, links and floor heights around a
+  point. Twelve suites pass; the fixture pins the rim line, the rim-node test
+  and the stair and wall cases. Live numbers in the bots design record.
 
 - [x] Complete the shared-runtime refinement pass: repair priority-queue order,
   aliased list insertion/growth and repeated bulk-copy work; correct cached and

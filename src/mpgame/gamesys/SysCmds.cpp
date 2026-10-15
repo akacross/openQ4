@@ -3504,7 +3504,18 @@ void Cmd_NavMesh_f( const idCmdArgs &args ) {
 		return;
 	}
 
-	gameLocal.Printf( "usage: navmesh <build|info>\n" );
+	if ( !idStr::Icmp( sub, "probe" ) && args.Argc() >= 5 ) {
+		if ( !navMesh.IsValid() ) {
+			gameLocal.Printf( "navmesh: not built\n" );
+			return;
+		}
+		const idVec3 point( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ), atof( args.Argv( 4 ) ) );
+		const float radius = ( args.Argc() > 5 ) ? atof( args.Argv( 5 ) ) : 24.0f;
+		navMesh.Probe( point, idMath::ClampFloat( 4.0f, 64.0f, radius ) );
+		return;
+	}
+
+	gameLocal.Printf( "usage: navmesh <build|info|probe x y z [radius]>\n" );
 }
 
 void Cmd_PlayerEmote_f( const idCmdArgs& args ) {
@@ -4242,7 +4253,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "botlist",				Cmd_BotList_f,				CMD_FL_GAME,				"list the bots in the match and the state of the navmesh" );
 	cmdSystem->AddCommand( "botcharacters",			Cmd_BotCharacters_f,		CMD_FL_GAME,				"list the loaded bot characters, their play style and their skill band" );
 	cmdSystem->AddCommand( "botreload",				Cmd_BotReload_f,			CMD_FL_GAME,				"re-read the bot style and character files without a map change" );
-	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info> - generate or report the bot navigation mesh" );
+	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info|probe x y z [radius]> - generate, report or probe the bot navigation mesh" );
 }
 
 /*

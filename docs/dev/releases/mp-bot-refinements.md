@@ -31,6 +31,11 @@
   side it cannot climb (q4ctf1's platform and ramp), and a vertical jump pad
   whose ledge needs a little air control is flown onto the ledge instead of up
   and down its shaft (q4dz1's pads).
+- **Bots keep off the edge, and recover when knocked off a route.** A route
+  no longer runs along the last few units of a platform or catwalk with the
+  bot's feet hanging over the drop (q4ctf1's platforms, q4dz1's catwalk), and
+  a bot strafed or knocked off the side of a ramp mid-fight re-routes from
+  where it lands instead of pressing at a corner it can no longer reach.
 
 ## Upgrade Notes
 
@@ -69,6 +74,13 @@
   its corner. A pad's natural landing is the nearest node with floor under the
   middle of the hull, proven from the pad's centre ridden or steered as the
   bot flies it.
+- Navigation nodes whose hull hangs more than eight units past an edge are
+  rim nodes: routes pay a cell more to step onto them, so they run a cell
+  inland wherever there is an inland, and a shortcut needs the ground beside
+  it as well as under it. A bot more than a corner's reach off a walk leg, or
+  a step off its height, re-routes as soon as the walk from where it stands
+  to its corner no longer holds. `navmesh probe x y z` reports the nodes,
+  links and floor around a point.
 - String-pulled shortcuts refuse pits deeper than a step and survivable pain
   floor; route goals beside a transport are judged against its brush; stale
   edge validation sweeps only recorded movers; the cell hash mixes both grid

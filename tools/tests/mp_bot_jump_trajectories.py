@@ -21,6 +21,8 @@ def main() -> None:
         "static float NavLandingImpactDelta(",
         "static bool NavFloorSupported(",
         "static bool NavLandingSupported(",
+        "static bool NavDropBeside(",
+        "static bool NavRimNode(",
         "bool rvNavMesh::SampleFloor(",
         "static bool NavSweepNearlyClear(",
         "static bool NavWalkFailure(",

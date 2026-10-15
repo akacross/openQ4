@@ -49,6 +49,7 @@ static const float	BOT_OFF_ROUTE_BELOW		= 80.0f;	// under a leg by more than its
 static const float	BOT_OFF_ROUTE_ABOVE		= 96.0f;	// over a walk leg by more than a jump and a step: carried off it
 static const float	BOT_ESCORT_KEEP_RADIUS	= 320.0f;	// an escort this close to its player is doing its job
 static const float	BOT_OFF_ROUTE_LATERAL	= 384.0f;	// this far from the leg the bot was carried or teleported
+static const int	BOT_OFF_ROUTE_PROOF_MSEC = 250;		// how often a bot off its leg asks whether the walk to its corner still holds
 static const int	BOT_ESCORT_RETRY_MSEC	= 3000;		// an escort that lost its way tries again this soon
 static const float	BOT_PAD_LAUNCH_SPEED	= 320.0f;	// faster than a jump climbs or a player runs: a pad has it
 static const int	BOT_PAD_MIN_FLIGHT_MSEC	= 250;		// a pad flight is at least this long
@@ -570,6 +571,7 @@ rvBot::rvBot( void ) {
 	stuckChecks			= 0;
 	stuckPathCorner		= -1;
 	stuckCornerDistance	= idMath::INFINITY;
+	offRouteProofTime	= 0;
 
 	enemyAcquiredTime	= 0;
 	enemyLastSeenTime	= 0;
@@ -915,6 +917,7 @@ void rvBot::OnSpawn( void ) {
 	stuckChecks			= 0;
 	stuckPathCorner		= -1;
 	stuckCornerDistance	= idMath::INFINITY;
+	offRouteProofTime	= 0;
 	nextWeaponTime		= 0;
 	lastWeaponSwitchTime = 0;
 	nextBuyTime			= 0;
@@ -3805,6 +3808,15 @@ Below is wrong on any leg, past the dip a string-pulled walk may float over
 its ground.  Above is only wrong on a walk: a drop, and a gap jump with a
 lower landing, both begin above their own leg by design.
 
+Nearer than those limits a bot can still be somewhere its leg never went.
+Combat footwork and knockback put bots a hull or two beside the lip of
+q4ctf1's ramp, on the floor below it or the platform above, where the corner
+was a wall's height away and the walk to it no longer existed; pressing at it
+only ended at the stuck detector, a second and a half later, and not at all
+while the fight kept the detector quiet.  Off a walk leg by more than a
+corner's reach, or a step of height, the navmesh is asked a few times a
+second whether the walk from where the bot stands to its corner still holds.
+
 A drop or a jump that left the ground and came down more than a step below
 its takeoff floor without AdvancePath completing it set down somewhere else:
 momentum carried it past the landing's wall, a pad beside the landing caught
@@ -3813,7 +3825,7 @@ straight up, and steering at it only ended at the stuck detector - or bounced
 the bot on that pad.
 ================
 */
-bool rvBot::OffRoute( idPlayer *self, float &offHeight ) const {
+bool rvBot::OffRoute( idPlayer *self, float &offHeight ) {
 	offHeight = 0.0f;
 	if ( !self->pfl.onGround || pathCorner < 0 || pathCorner >= path.Num() ) {
 		return false;
@@ -3873,7 +3885,24 @@ bool rvBot::OffRoute( idPlayer *self, float &offHeight ) const {
 	if ( aside.LengthSqr() > Square( BOT_OFF_ROUTE_LATERAL ) ) {
 		return true;
 	}
-	return corner.travelType == NAVTRAVEL_WALK && offHeight > BOT_OFF_ROUTE_ABOVE;
+	if ( corner.travelType != NAVTRAVEL_WALK ) {
+		return false;
+	}
+	if ( corner.travelType == NAVTRAVEL_WALK && offHeight > BOT_OFF_ROUTE_ABOVE ) {
+		return true;
+	}
+
+	// Displaced from the leg by more than a corner's reach, or off its height
+	// by more than a step: does the walk from here to the corner still exist?
+	// The proof is a few box sweeps, so it is asked a few times a second.
+	if ( ( aside.LengthSqr() > Square( BOT_CORNER_REACH ) || idMath::Fabs( offHeight ) > pm_stepsize.GetFloat() ) &&
+		 gameLocal.time - offRouteProofTime >= BOT_OFF_ROUTE_PROOF_MSEC && navMesh.IsValid() ) {
+		offRouteProofTime = gameLocal.time;
+		if ( !navMesh.WalkLegAccepted( origin, corner.origin, NULL ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /*
@@ -6502,6 +6531,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	// -- stuck detection --
 	SHIFT_BOT_TIME( stuckTime );
 	SHIFT_BOT_TIME( unstickUntil );
+	SHIFT_BOT_TIME( offRouteProofTime );
 	SHIFT_BOT_TIME( combatSteeringTime );
 	SHIFT_BOT_TIME( jumpRetryPathTime );
 	SHIFT_BOT_TIME( climbCheckTime );
