@@ -412,6 +412,20 @@ SCENARIOS = {
     # campaign launches the first match in game_mp with its bot. Disconnecting
     # abandons it: the campaign aborts the match, restores its settings and
     # keeps its progress. The reloaded module logs to its own file.
+    # The Arena match's own pause (section 13.7): the game's Arena pause menu
+    # under its retained card, then RESUME back to the match.
+    'arenapause': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200',
+        'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', AFTER_MAP,
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenapause.tga"',
+        'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1000', 'ui_retainedStatus', 'screenshot "screenshots/arenapause-resumed.tga"',
+    ]),
     'arenamatch': (None, [
         'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
         'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
