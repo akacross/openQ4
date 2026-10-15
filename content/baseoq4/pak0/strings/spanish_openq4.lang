@@ -1366,4 +1366,8 @@
 	"#str_231293"	"Solo modos por equipos."
 	"#str_231294"	"El control de partida dirige esta partida."
 	"#str_231295"	"Cambia un ajuste para aplicarlo."
+	"#str_231296"	"NO LLENOS"
+	"#str_231297"	"NO VACÍOS"
+	"#str_231298"	"SIN CONTRASEÑA"
+	"#str_231299"	"TODOS LOS TIPOS"
 }

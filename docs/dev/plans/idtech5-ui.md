@@ -244,7 +244,8 @@ nested dialog; it is the default, as it offers all the stock page does.
 JOIN GAME goes deeper to the retained
 [Join Game sub-page](../ui/retained-screens.md#join-game-sub-page), the
 server browser's list with its sources, column sorts, symbols, mod filter,
-favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
+a filter row under the list (the game type's spinner and the NOT FULL, NOT
+EMPTY and NO PASSWORD tags), favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
 PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, a
 network quality bars beside each ping, a server's players and settings in
 the stock tooltip's card beside the
@@ -254,8 +255,7 @@ publishing the scan as it finds servers; it is the default, as it offers every c
 After Kane's stroggification the pause's SAVE GAME, LOAD GAME and RESTART
 LEVEL open the same pages in the Strogg family
 ([Strogg pause pages](../ui/retained-screens.md#strogg-pause-pages)).
-Filters beyond the browser's source and in-field composition remain. No gate
-closes.
+In-field composition remains. No gate closes.
 
 ## Objective and immutable completion scope
 

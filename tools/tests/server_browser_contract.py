@@ -126,6 +126,7 @@ struct idCVar {
     int GetInteger() const {return std::atoi(value.c_str());}
     const char *GetString() const {return value.c_str();}
     void SetString(const char *v){value=v;}
+    void SetInteger(int v){value=std::to_string(v);}
 };
 enum {NA_IP,NA_IP6,NA_LOOPBACK,NA_BROADCAST};
 constexpr int MAX_NICKLEN=32,MAX_ASYNC_CLIENTS=32,MAX_STRING_CHARS=1024,PORT_SERVER=28004,DECL_MAPDEF=1;
@@ -303,6 +304,31 @@ int main(){
     {idList<int> order;scan.VisibleServers(order);assert(order.Num()==0);}
     assert(std::string(gui.State().GetString("server_IP")).empty());
     gui_filter_players.SetString("0");scan.ApplyFilter();assert(!scan.GetSelectedAddress(address));
+    // The filter row's tags and spinner (a menu drawing its own list): the
+    // players filter's bits hide full and empty servers in the stock choices'
+    // order, NO PASSWORD shows only servers without one, and the game type
+    // steps round every type, naming each from the registry.
+    {const auto count=[&]{return gui.State().GetInt("browser_count");};
+     assert(!scan.IsFilterSet(idServerScan::BROWSER_FILTER_FULL)&&!scan.IsFilterSet(idServerScan::BROWSER_FILTER_EMPTY)&&count()==2);
+     scan[0].clients=4;
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_FULL);assert(gui_filter_players.GetInteger()==1&&count()==1);
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_EMPTY);assert(gui_filter_players.GetInteger()==3&&count()==0);
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_FULL);assert(gui_filter_players.GetInteger()==2&&count()==1);
+     assert(scan.IsFilterSet(idServerScan::BROWSER_FILTER_EMPTY)&&!scan.IsFilterSet(idServerScan::BROWSER_FILTER_FULL));
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_EMPTY);assert(gui_filter_players.GetInteger()==0&&count()==2);
+     scan[0].clients=0;scan[1].serverInfo.Set("si_usePass","1");
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_PASSWORD);
+     assert(gui_filter_password.GetInteger()==2&&scan.IsFilterSet(idServerScan::BROWSER_FILTER_PASSWORD)&&count()==1);
+     scan.ToggleFilter(idServerScan::BROWSER_FILTER_PASSWORD);assert(gui_filter_password.GetInteger()==0&&count()==2);
+     scan[1].serverInfo.Set("si_usePass","0");
+     const int before=scan.GetRevision();
+     scan.StepGameTypeFilter(-1);assert(scan.GetGameTypeFilter()==12&&count()==0&&scan.GetRevision()>before);
+     assert(!std::strcmp(idServerScan::GameTypeFilterName(12),"#str_107682"));
+     scan.StepGameTypeFilter(1);assert(scan.GetGameTypeFilter()==0&&!*idServerScan::GameTypeFilterName(0)&&count()==2);
+     scan.StepGameTypeFilter(1);assert(scan.GetGameTypeFilter()==1&&!std::strcmp(idServerScan::GameTypeFilterName(1),"#str_107679")&&count()==2);
+     gui_filter_gameType.SetString("99");assert(!*idServerScan::GameTypeFilterName(99));
+     scan.StepGameTypeFilter(1);assert(scan.GetGameTypeFilter()==1);
+     gui_filter_gameType.SetString("0");scan.ApplyFilter();assert(count()==2);}
     gui.SetStateInt("serverList_sel_0",0);scan.GUIUpdateSelected();assert(scan.GetSelectedAddress(address));
     scan.ToggleFavorite();assert(fileValue.files["server_favorites.list"].find(address.c_str())!=std::string::npos);
     {idList<int> order;scan.VisibleServers(order);int favorites=0;for(int i=0;i<order.Num();++i)favorites+=scan.IsFavoriteServer(order[i]);assert(favorites==1);}

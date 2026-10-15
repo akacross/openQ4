@@ -1345,8 +1345,8 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
 - **Content.** MOD (the mod filter) with its spinner at 27,46 u and SOURCE
   with its INTERNET and LAN tags (section 7's cut tags, the list's source lit
   at 0.60 and the other at 0.28, each as wide as its longest translation) at
-  324,46 u; the server list at 23,83 u under its column headings, on the
-  stock 18 u rows (64 a page, with pager rows past them): the favorite, the
+  324,46 u; the server list at 23,83 u under its column headings, ten of the
+  stock 18 u rows high (64 a page, with pager rows past them): the favorite, the
   password and the dedicated server's symbols at the stock symbol stops, then
   SERVER NAME from the stop the stock PunkBuster column held, PING, the
   repeater's symbol, PLAYERS, GAMETYPE and MAP. The symbols sit on their
@@ -1354,7 +1354,8 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   draws them: a gold star, a padlock, a server case with its green power
   light, a television with its antennas and color bars. Each ping follows
   its network quality (section 13.13), drawn as four bars rising like slider
-  ticks from PING's stop:
+  ticks from PING's stop (the filter row under the list is described under
+  **Filters** below):
   - four bars to 60 ms, three to 120 ms, two to 200 ms and one above
     (`Session_NetworkQualityBars`, which takes a bar off per 2% of packet loss
     where loss is known; the browser hears none);
@@ -1498,6 +1499,31 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   instead, and a clan tag is part of a player's name, so the stock PLAYER and
   CLAN choice is gone. GET NEW LIST ends a search, as retail's search was a
   list of its own.
+- **Filters.** Under the list, at 265 u, the filter row (section 7's filter
+  tags, section 13.7's lists): the game type's spinner from the list's
+  leading edge, built as MOD's, its value ALL GAME TYPES while it shows every
+  type and otherwise the type's name (`join.gameType`, `join.gameTypeName`),
+  stepping round the browser's twelve public types (`joinGameTypePrevious`,
+  `joinGameTypeNext`); then NOT FULL, NOT EMPTY and NO PASSWORD, ending where
+  the source tags do, each as wide as its longest translation with room for
+  its close cross. A tag's Accept toggles its filter (`joinFilterFull`,
+  `joinFilterEmpty`, `joinFilterPassword`); a set tag lights at 0.60 with its
+  cross, an unset one rests at 0.28 (`join.filterFull`, `join.filterEmpty`,
+  `join.filterPassword`). The list gave up a row and a little for the row,
+  so ten rows show. The scan already filtered by the inherited
+  `gui_filter_*` CVars, which no stock control set; it now offers them as
+  `idServerScan::ToggleFilter`, `StepGameTypeFilter` and
+  `GameTypeFilterName`. The players filter's two bits hide full and empty
+  servers in the order of the stock choices left in the language tables
+  (`#str_200306`: Show All; Hide Full; Hide Empty; Hide Full and Empty), so 2
+  now hides only empty servers where the inherited code hid full ones too.
+  The list filters every server itself, so the master server is now asked for
+  every server: a filter changed after a scan never needs a new list, and
+  the request's legacy two-bit fields, which cannot name openQ4's added game
+  types, never withhold one. A filter that hides the chosen server keeps it
+  chosen while the scan holds it, as a search does. The classic browser has
+  no filter controls, so filters set here also narrow its list, which its
+  status line counts ("Showing 1 out of 2 servers").
 - **Favorites.** A favorite on this machine (a loopback endpoint) now lists
   from the Internet source: the scan kept it as `localhost:port`, which only a
   DNS lookup parses, so it was never asked. Favorites are kept in numeric form,
@@ -1507,14 +1533,15 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
 - **Checks.** `ui_retained_gate.py` compiles the session's Join Game code
   against a scan double: the opt-in, the change and its reverse, the rows
   and their text, the choice following its server, the sorts and north's
-  next column, each source's scans, the paging, the symbols, MOD's spinner, the favorite toggle, the
+  next column, each source's scans, the paging, the symbols, MOD's spinner, the filter row's tags and game
+  type, the favorite toggle, the
   levelshot (and the generic art for an unsafe map path), JOIN SERVER's
   address and the fallback; it also maps each stock browser button to the
   page or to `RETAINED_JOIN_GAME_MISSING`. The native screens check lays the
   page out at 1280x720 and drives its states, west and north (neither under
-  a dialog), the two dialogs and the search's tag and the progress bar, and `server_browser_contract.py` runs the
+  a dialog), the two dialogs, the search's tag, the filter row and the progress bar, and `server_browser_contract.py` runs the
   scan's read view, the per-server favorite toggle, the map-path check, the
-  player search, the scan's progress (a LAN sweep, a new Internet list, a
+  player search, the filter row's players bits, password filter and game type steps, the scan's progress (a LAN sweep, a new Internet list, a
   refresh, a clear, and what the stock browser receives) and the loopback
   favorites against the production `ServerScan.cpp`.
 - **Captures.** `joingame` (opted in) goes deeper, gets a new Internet list in
@@ -1529,6 +1556,11 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   under the search's tag until its Accept), and joins it, the game module
   reloading into game_mp; the progress bar is full once the scan completes,
   and the focused first row's details card shows under it.
+  `joinfilters` lists the same server (Deathmatch, nobody playing, no
+  password): NOT EMPTY hides it and the empty line says no server matches,
+  and again brings it back; the game type's spinner shows Deathmatch, which
+  keeps it, then Tourney, which hides it, and back to every type; NOT FULL
+  and NO PASSWORD keep it and light their tags, and again clear them.
   `joingameaddress` opens JOIN IP ADDRESS, enters an address it cannot join
   (the reason shows), then the server's, which joins it. `stockbrowser` runs
   the classic menu (`ui_retained 0`): its browser's GET NEW LIST fills the

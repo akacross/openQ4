@@ -32,7 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../../ui/ListGUILocal.h"
 
 idCVar gui_filter_password( "gui_filter_password", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Password filter" );
-idCVar gui_filter_players( "gui_filter_players", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Players filter" );
+idCVar gui_filter_players( "gui_filter_players", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Players filter: 0 shows every server, 1 hides full ones, 2 empty ones, 3 both" );
 idCVar gui_filter_gameType( "gui_filter_gameType", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Gametype filter" );
 idCVar gui_filter_idle( "gui_filter_idle", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Idle servers filter" );
 idCVar gui_filter_game( "gui_filter_game", "0", CVAR_GUI | CVAR_INTEGER | CVAR_ARCHIVE, "Game filter" );
@@ -1070,16 +1070,19 @@ bool idServerScan::IsFiltered( const networkServer_t server ) {
 			return true;
 		}
 	}
-	// players filter
+	// players filter: its bits hide full and empty servers, in the order of
+	// the stock choices (#str_200306: Show All; Hide Full; Hide Empty; Hide
+	// Full and Empty)
+	const int players = gui_filter_players.GetInteger();
 	keyval = server.serverInfo.FindKey( "si_maxPlayers" );
-	if ( keyval ) {
+	if ( keyval && ( players & 1 ) ) {
 		const int capacity = atoi( keyval->GetValue() );
-		const bool full = capacity > 0 && server.clients >= capacity;
-		if ( gui_filter_players.GetInteger() == 1 && full ) {
-			return true;
-		} else if ( gui_filter_players.GetInteger() == 2 && ( !server.clients || full ) ) {
+		if ( capacity > 0 && server.clients >= capacity ) {
 			return true;
 		}
+	}
+	if ( ( players & 2 ) && server.clients == 0 ) {
+		return true;
 	}
 	// gametype filter
 	keyval = server.serverInfo.FindKey( "si_gameType" );
@@ -1130,6 +1133,78 @@ bool idServerScan::IsFiltered( const networkServer_t server ) {
 	}
 
 	return false;
+}
+
+/*
+================
+idServerScan::IsFilterSet
+================
+*/
+bool idServerScan::IsFilterSet( browserFilter_t filter ) const {
+	switch ( filter ) {
+		case BROWSER_FILTER_FULL:
+			return ( gui_filter_players.GetInteger() & 1 ) != 0;
+		case BROWSER_FILTER_EMPTY:
+			return ( gui_filter_players.GetInteger() & 2 ) != 0;
+		case BROWSER_FILTER_PASSWORD:
+			return gui_filter_password.GetInteger() == 2;
+	}
+	return false;
+}
+
+/*
+================
+idServerScan::ToggleFilter
+================
+*/
+void idServerScan::ToggleFilter( browserFilter_t filter ) {
+	if ( filter == BROWSER_FILTER_PASSWORD ) {
+		gui_filter_password.SetInteger( IsFilterSet( filter ) ? 0 : 2 );
+	} else {
+		gui_filter_players.SetInteger( ( gui_filter_players.GetInteger() & 3 ) ^ ( filter == BROWSER_FILTER_FULL ? 1 : 2 ) );
+	}
+	ApplyFilter();
+}
+
+/*
+================
+idServerScan::GetGameTypeFilter
+================
+*/
+int idServerScan::GetGameTypeFilter() const {
+	return gui_filter_gameType.GetInteger();
+}
+
+/*
+================
+idServerScan::StepGameTypeFilter
+================
+*/
+void idServerScan::StepGameTypeFilter( int direction ) {
+	int types = 0;
+	while ( l_gameTypes[ types ] ) {
+		types++;
+	}
+	int filter = gui_filter_gameType.GetInteger();
+	if ( filter < 0 || filter > types ) {
+		filter = 0;
+	}
+	gui_filter_gameType.SetInteger( ( filter + ( direction < 0 ? types : direction > 0 ? 1 : 0 ) ) % ( types + 1 ) );
+	ApplyFilter();
+}
+
+/*
+================
+idServerScan::GameTypeFilterName
+================
+*/
+const char *idServerScan::GameTypeFilterName( int filter ) {
+	for ( int i = 0; l_gameTypes[ i ] && filter > 0; ++i ) {
+		if ( i == filter - 1 ) {
+			return ServerBrowserGameType( l_gameTypes[ i ] );
+		}
+	}
+	return "";
 }
 
 /*

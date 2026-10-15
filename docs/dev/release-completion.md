@@ -2,6 +2,18 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Add filters to the modern server browser. A row under the server list
+  narrows it by game type and hides full servers, empty ones or those with
+  a password, each a tag that lights while set and clears with a second
+  press. The list filters every server itself, so the browser now asks the
+  master server for every server and a changed filter never needs a new
+  list. The gate test, the native page checks, the browser contract and a
+  loopback capture pass.
+
+Candidate UI release wording: The server browser can now show only one game
+type and hide full, empty or password-protected servers, from a row of
+filters under the list that apply at once.
+
 - [x] Build the multiplayer Escape card's Admin page and make the card the
   default in-match menu. Admin asks for the server's remote console
   password in a masked field (a listen server's host skips it), then offers

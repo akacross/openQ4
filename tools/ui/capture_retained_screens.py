@@ -714,6 +714,47 @@ SCENARIOS = {
         'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',
     ]),
+    # The Join Game sub-page's filter row (section 7's filter tags): the
+    # seeded favorite, the loopback dedicated server (SCENARIO_SERVERS: Deathmatch,
+    # nobody playing, no password), is listed; NOT EMPTY hides it and says no
+    # server matches, and again brings it back; the game type's spinner shows
+    # Deathmatch, which keeps it, then Tourney, which hides it, and back to
+    # every type; NOT FULL and NO PASSWORD keep it and light their tags, and
+    # again clear them.
+    'joinfilters': (None, [
+        # A loaded machine's first start can take longer than joingame's wait.
+        'waitMsec 12000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 4800', 'gui_filter_players', 'gui_filter_password', 'gui_filter_gameType', 'openq4_retainedGui report',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-gametype-value"',
+        'openq4_retainedGui inspect "join_filter_empty-lit"', 'screenshot "screenshots/joinfilters-list.tga"',
+        'openq4_retainedGui focus join_filter_empty', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-empty"',
+        'openq4_retainedGui inspect "join_filter_empty-lit"', 'openq4_retainedGui inspect "join_filter_empty-cross"',
+        'screenshot "screenshots/joinfilters-notempty.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_players',
+        'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui focus join_gametype_next', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_gameType', 'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"',
+        'screenshot "screenshots/joinfilters-deathmatch.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_gameType',
+        'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-empty"',
+        'screenshot "screenshots/joinfilters-tourney.tga"',
+        'openq4_retainedGui focus join_gametype_previous', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_gameType',
+        'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui focus join_filter_full', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus join_filter_password', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join_filter_full-lit"', 'openq4_retainedGui inspect "join_filter_password-lit"',
+        'screenshot "screenshots/joinfilters-set.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus join_filter_full', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "join_filter_full-lit"',
+        'openq4_retainedGui report',
+    ]),
     # JOIN IP ADDRESS on the Join Game sub-page: an address it cannot join
     # keeps the dialog with the reason (spaces fail before any lookup); the
     # loopback dedicated server's address (SCENARIO_SERVERS), entered, joins
@@ -924,6 +965,7 @@ SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 
                                                'net_allowCheats': '1'}},
                     'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'joinfilters': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
@@ -947,6 +989,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
                   'multiplayer': {'net_allowCheats': '1'},
                   'createserverstart': {'net_ip': '127.0.0.1'},
                   'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
+                  'joinfilters': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
@@ -997,6 +1040,7 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'createserver': {'banlist.txt': ban_list},
          # The browser's favorites (one address a line): the scenario's server.
          'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
+         'joinfilters': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joinfilters']['port']}\n".encode('ascii')},
          'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}

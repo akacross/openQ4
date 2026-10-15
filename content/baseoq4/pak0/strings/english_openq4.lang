@@ -1366,4 +1366,8 @@
 	"#str_231293"	"Team modes only."
 	"#str_231294"	"Match Control runs this match."
 	"#str_231295"	"Change a setting to apply it."
+	"#str_231296"	"NOT FULL"
+	"#str_231297"	"NOT EMPTY"
+	"#str_231298"	"NO PASSWORD"
+	"#str_231299"	"ALL GAME TYPES"
 }

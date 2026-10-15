@@ -194,7 +194,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -2807,7 +2807,9 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"joinNewList","joinNewList"},{"joinSourceInternet","joinSourceInternet"},{"joinSourceLan","joinSourceLan"},
 		{"joinSortFavorite","joinSortFavorite"},{"joinSortLocked","joinSortLocked"},{"joinSortName","joinSortName"},
 		{"joinSortPing","joinSortPing"},{"joinSortPlayers","joinSortPlayers"},{"joinSortGameType","joinSortGameType"},
-		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"}};
+		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"},{"joinFilterFull","joinFilterFull"},
+		{"joinFilterEmpty","joinFilterEmpty"},{"joinFilterPassword","joinFilterPassword"},
+		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
@@ -2832,7 +2834,8 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	// The 4:3 canvas at 1280x720: x = 160 dp, 1 u = 1.5 dp.
 	const float x0 = 160, u = 1.5f;
 	const auto list = bounds("servers-list"), name = bounds("heading-name"), join = bounds("join_server"), status = bounds("join-status");
-	Check(Near(list.x,x0+23*u,1) && Near(list.y,83*u,1) && Near(list.height,202*u,1),"the server list stands where the stock list does");
+	Check(Near(list.x,x0+23*u,1) && Near(list.y,83*u,1) && Near(list.height,180*u,1),
+		"the server list stands where the stock list does, ten rows high over the filter row");
 	Check(Near(name.x,x0+(23+68)*u,1) && Near(name.y,70*u,1) && text("heading-name-label","text") == "#str_200036",
 		"SERVER NAME heads its column over the list, where the stock PunkBuster column stood");
 	// MOD and its spinner at the stock places; the favorite toggle under JOIN
@@ -2865,6 +2868,45 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		"the source tags end where the stock LAN tag did, INTERNET before LAN");
 	Check(text("crumb","text") == "#str_200002" && text("title","text") == "#str_200187" && Near(bounds("title").x,x0+136*u,1),
 		"MULTIPLAYER is the crumb and JOIN GAME titles the sub-page at the step's foot");
+	// The filter row under the list (section 7's filter tags): the game type's
+	// spinner from the list's leading edge, ALL GAME TYPES while it shows every
+	// type, and NOT FULL, NOT EMPTY and NO PASSWORD ending where the source
+	// tags do, above CLEAR SORTING, unset without their lit plates and crosses.
+	{
+		const auto typePrevious = bounds("join_gametype_previous"), typeValue = bounds("join-gametype-value"),
+			typeNext = bounds("join_gametype_next"), full = bounds("join_filter_full"), empty = bounds("join_filter_empty"),
+			password = bounds("join_filter_password"), clearSort = bounds("join_clearsort");
+		Check(Near(typePrevious.x,x0+23*u,1) && Near(typePrevious.y,265*u,1) && typeValue.x > typePrevious.x+typePrevious.width &&
+			typeNext.x >= typeValue.x+typeValue.width && typeNext.x+typeNext.width < full.x && full.x+full.width < empty.x &&
+			empty.x+empty.width < password.x && Near(password.x+password.width,x0+613*u,1) && Near(full.y,265*u,1) &&
+			full.y > list.y+list.height && full.y+full.height <= clearSort.y+.5f && full.y+full.height < status.y,
+			"the filter row stands between the list and the status line");
+		Check(text("join-gametype-value","text") == "#str_231299" && text("join_filter_full-label","text") == "#str_231296" &&
+			text("join_filter_empty-label","text") == "#str_231297" && text("join_filter_password-label","text") == "#str_231298" &&
+			text("join_filter_full-lit","display") == "none" && text("join_filter_full-cross","display") == "none",
+			"every game type shows, and no tag is set");
+		Check(runtime.SetState({{"join.filterFull",true},{"join.filterPassword",true},{"join.gameType",4.0},
+			{"join.gameTypeName",std::string("Capture the Flag")}},error,0.701),"the session sets two filters and a game type");
+		runtime.Frame(viewport,0.702);
+		Check(text("join_filter_full-lit","display") == "block" && text("join_filter_full-cross","display") == "block" &&
+			text("join_filter_password-lit","display") == "block" && text("join_filter_empty-lit","display") == "none" &&
+			text("join_filter_empty-cross","display") == "none" && text("join-gametype-value","text") == "Capture the Flag",
+			"set tags light with their crosses, and the spinner names the game type");
+		const auto press = [&](MenuInput input, double at) { runtime.MenuAction(input,true,at); runtime.MenuAction(input,false,at+.01); };
+		runtime.TakeActions();
+		Check(runtime.FocusControl("join_filter_empty",0.703),"focus NOT EMPTY");
+		press(MenuInput::Accept,0.7031);
+		auto actions = runtime.TakeActions();
+		Check(actions.size() == 1 && actions[0].action == "joinFilterEmpty","Accept asks the session to toggle its filter");
+		Check(runtime.FocusControl("join_gametype_next",0.705),"focus the game type's next square");
+		press(MenuInput::Accept,0.7051);
+		actions = runtime.TakeActions();
+		Check(actions.size() == 1 && actions[0].action == "joinGameTypeNext","and the spinner asks for the next game type");
+		Check(runtime.SetState({{"join.filterFull",false},{"join.filterPassword",false},{"join.gameType",0.0},{"join.gameTypeName",std::string()}},
+			error,0.707) && runtime.FocusControl("join_newlist",0.707),"the filters clear");
+		runtime.Frame(viewport,0.708);
+		Check(text("join_filter_full-lit","display") == "none" && text("join-gametype-value","text") == "#str_231299","and the row shows them clear");
+	}
 	// Nothing listed: the empty line, unless a scan runs; nothing to join.
 	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231133" && text("server-0","display") == "none" &&
 		runtime.GetControlState("join_server") == ControlState::Disabled && runtime.GetControlState("join_favorite") == ControlState::Disabled,

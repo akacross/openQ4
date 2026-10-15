@@ -7682,6 +7682,11 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
 		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
 	gui->SetStateString( "join.search", Session_RetainedPlayerText( servers.GetPlayerSearch(), 64, 1 ).c_str() );
+	gui->SetStateBool( "join.filterFull", servers.IsFilterSet( idServerScan::BROWSER_FILTER_FULL ) );
+	gui->SetStateBool( "join.filterEmpty", servers.IsFilterSet( idServerScan::BROWSER_FILTER_EMPTY ) );
+	gui->SetStateBool( "join.filterPassword", servers.IsFilterSet( idServerScan::BROWSER_FILTER_PASSWORD ) );
+	gui->SetStateInt( "join.gameType", servers.GetGameTypeFilter() );
+	gui->SetStateString( "join.gameTypeName", idServerScan::GameTypeFilterName( servers.GetGameTypeFilter() ) );
 	// The notice can name a server, whose text is read as a player's.
 	gui->SetStateFloat( "join.progress", servers.GetLoadProgress() );
 	gui->SetStateString( "join.notice", Session_RetainedPlayerText( servers.GetLoadNotice(), 160, 1 ).c_str() );
@@ -7777,7 +7782,9 @@ the chosen server by the address the session kept, never the page's; BACK
 climbs to the Multiplayer page. JOIN IP ADDRESS connects to the address
 the player entered (join.address), as the stock popup's does, or says why it
 cannot (join.addressError); FIND PLAYER/CLAN searches the list for the name
-the player entered (join.find), and the search's tag ends it. A change of
+the player entered (join.find), and the search's tag ends it. The filter
+row's tags hide full servers, empty ones or those with a password, and its
+spinner shows the previous or next game type, or every type. A change of
 level under way takes none.
 ===============
 */
@@ -7852,6 +7859,20 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 	if ( !idStr::Icmp( request, "joinModPrevious" ) || !idStr::Icmp( request, "joinModNext" ) ) {
 		HandleMainMenuCommands( "play main_menu_selection" );
 		servers.UpdateFilterByMod( !idStr::Icmp( request, "joinModNext" ) ? 1 : -1 );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinFilterFull" ) || !idStr::Icmp( request, "joinFilterEmpty" ) ||
+		!idStr::Icmp( request, "joinFilterPassword" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.ToggleFilter( !idStr::Icmp( request, "joinFilterFull" ) ? idServerScan::BROWSER_FILTER_FULL :
+			!idStr::Icmp( request, "joinFilterEmpty" ) ? idServerScan::BROWSER_FILTER_EMPTY : idServerScan::BROWSER_FILTER_PASSWORD );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinGameTypePrevious" ) || !idStr::Icmp( request, "joinGameTypeNext" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.StepGameTypeFilter( !idStr::Icmp( request, "joinGameTypeNext" ) ? 1 : -1 );
 		PublishRetainedJoinGame( gui );
 		return;
 	}

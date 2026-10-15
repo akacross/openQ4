@@ -469,6 +469,18 @@ struct idServerScan {
         ++revision;
     }
     static bool ValidMapPath(const char* path) { return path && *path && !std::strstr(path, "..") && path[0] != '/'; }
+    // The filter row's filters: the full, empty and password tags, and the
+    // game type (0 for every type, else 1 past its index in the registry's
+    // twelve).
+    enum browserFilter_t { BROWSER_FILTER_FULL, BROWSER_FILTER_EMPTY, BROWSER_FILTER_PASSWORD };
+    bool filters[3] = {}; int gameType = 0;
+    bool IsFilterSet(browserFilter_t filter) const { return filters[filter]; }
+    void ToggleFilter(browserFilter_t filter) { calls.push_back("ToggleFilter " + std::to_string(filter)); filters[filter] = !filters[filter]; ++revision; }
+    int GetGameTypeFilter() const { return gameType; }
+    void StepGameTypeFilter(int direction) {
+        calls.push_back("StepGameTypeFilter " + std::to_string(direction)); gameType = (gameType + 13 + direction) % 13; ++revision;
+    }
+    static const char* GameTypeFilterName(int filter) { return filter == 1 ? "Deathmatch" : filter == 12 ? "Arena One Flag CTF" : filter > 0 ? "Duel" : ""; }
     // FIND PLAYER/CLAN's search, which the scan filters by.
     std::string search;
     void SetPlayerSearch(const char* text) { calls.push_back(std::string("SetPlayerSearch ") + text); search = text; ++revision; }
@@ -1547,6 +1559,25 @@ int main() {
         // MOD's spinner shows the next and the previous mod.
         s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
         s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
+        // The filter row: each tag toggles its filter, which the session
+        // publishes as the tag's state; the spinner steps the game type round
+        // every type, publishing its name, none for every type.
+        CHECK(join->state["join.filterFull"] == "0" && join->state["join.filterEmpty"] == "0" && join->state["join.filterPassword"] == "0" &&
+              join->state["join.gameType"] == "0" && join->state["join.gameTypeName"] == "");
+        s.HandleRetainedSessionRequest(join, "joinFilterFull");
+        CHECK(scan.calls.back() == "ToggleFilter 0" && join->state["join.filterFull"] == "1" && join->state["join.filterEmpty"] == "0" &&
+              s.played.back() == "play main_menu_selection");
+        s.HandleRetainedSessionRequest(join, "joinFilterEmpty"); CHECK(scan.calls.back() == "ToggleFilter 1" && join->state["join.filterEmpty"] == "1");
+        s.HandleRetainedSessionRequest(join, "joinFilterPassword");
+        CHECK(scan.calls.back() == "ToggleFilter 2" && join->state["join.filterPassword"] == "1");
+        for (const char* verb : {"joinFilterFull", "joinFilterEmpty", "joinFilterPassword"}) s.HandleRetainedSessionRequest(join, verb);
+        CHECK(join->state["join.filterFull"] == "0" && join->state["join.filterEmpty"] == "0" && join->state["join.filterPassword"] == "0");
+        s.HandleRetainedSessionRequest(join, "joinGameTypeNext");
+        CHECK(scan.calls.back() == "StepGameTypeFilter 1" && join->state["join.gameType"] == "1" && join->state["join.gameTypeName"] == "Deathmatch");
+        s.HandleRetainedSessionRequest(join, "joinGameTypePrevious"); s.HandleRetainedSessionRequest(join, "joinGameTypePrevious");
+        CHECK(scan.calls.back() == "StepGameTypeFilter -1" && join->state["join.gameType"] == "12" &&
+              join->state["join.gameTypeName"] == "Arena One Flag CTF");
+        s.HandleRetainedSessionRequest(join, "joinGameTypeNext"); CHECK(join->state["join.gameType"] == "0" && join->state["join.gameTypeName"] == "");
         // The scan's progress and its notice, which can name a server: read as
         // players' text, its colors dropped and its length capped.
         scan.notice = "Scanning 2/5: ^1Red Arena"; scan.progress = 0.4f; ++scan.revision; s.UpdateRetainedJoinGame();
