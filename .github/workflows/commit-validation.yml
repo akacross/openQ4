@@ -391,6 +391,7 @@ jobs:
             tools/ui/update_system_text_layout.py \
             tools/ui/update_system_soft_focus.py \
             tools/ui/update_system_render_options.py \
+            tools/ui/update_system_initial_focus.py \
             tools/tests/windows_text_store.py \
             tools/tests/windows_text_collection_bridge.py \
             tools/tests/windows_text_session.py \
@@ -759,6 +760,7 @@ jobs:
           python tools/ui/update_system_text_layout.py --check
           python tools/ui/update_system_soft_focus.py --check
           python tools/ui/update_system_render_options.py --check
+          python tools/ui/update_system_initial_focus.py --check
           python tools/tests/ui_text_input.py
           python tools/tests/ui_retained_input.py
           python tools/tests/ui_retained_state_sources.py

@@ -315,10 +315,12 @@ SCENARIOS = {
         'waitMsec 1500', 'openq4_guiGet p_settings_sys::visible', 'openq4_system report', 'ui_retainedStatus',
         'screenshot "screenshots/system-default.tga"',
     ]),
-    # Opted into, the retained SYSTEM page opens from the SYSTEM button.
+    # Opted into, the retained SYSTEM page opens from the SYSTEM button, its
+    # focus on the performance preset (the report's focus=).
     'system-optin': (None, [
         'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_system',
-        'waitMsec 1500', 'openq4_system report', 'ui_retainedStatus', 'screenshot "screenshots/system-optin.tga"',
+        'waitMsec 1500', 'openq4_system report', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/system-optin.tga"',
         'openq4_system back', 'waitMsec 1000', 'openq4_system report',
     ]),
     # Opted into, the multiplayer menu's SYSTEM route (the event the game sends
