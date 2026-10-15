@@ -3847,6 +3847,9 @@ void idSessionLocal::Clear() {
 	guiRetainedSave = NULL;
 	retainedSaveTarget.Clear();
 	guiRetainedRestart = NULL;
+	guiRetainedLoadStrogg = NULL;
+	guiRetainedSaveStrogg = NULL;
+	guiRetainedRestartStrogg = NULL;
 	guiRetainedDemos = NULL;
 	retainedModSelected = -1;
 	guiRetainedRestartMenu = NULL;

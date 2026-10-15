@@ -5300,6 +5300,11 @@ static const char *const RETAINED_SKILL_GUI = "guis/menu/campaign_skill.q4ui";
 static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
 static const char *const RETAINED_SAVEGAME_GUI = "guis/menu/savegame.q4ui";
 static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
+// The same three pages in the Strogg family, which the Strogg pause hands off
+// to; they load once a level's player is Strogg.
+static const char *const RETAINED_LOADGAME_STROGG_GUI = "guis/menu/loadgame_strogg.q4ui";
+static const char *const RETAINED_SAVEGAME_STROGG_GUI = "guis/menu/savegame_strogg.q4ui";
+static const char *const RETAINED_RESTART_STROGG_GUI = "guis/menu/restartlevel_strogg.q4ui";
 // The Demos page, which the title's DEMOS hands off to as LOAD GAME does to
 // its page. Its list holds this many demos at a time (ROWS in
 // tools/ui/retained_demos.py); demos.filter picks one of the legacy
@@ -5904,12 +5909,23 @@ idUserInterface *idSessionLocal::RetainedHomeDocument( idUserInterface *&home, c
 
 // The game answers once a level, through the main-menu command channel, on
 // the legacy menu's state; a game module that does not answer keeps the
-// Marine pause.
+// Marine pause. The first Strogg answer starts parsing the Strogg pause's
+// pages on the job workers, so a page that pause hands off to rarely waits.
 bool idSessionLocal::RetainedPauseIsStrogg() {
 	if ( retainedPauseStrogg < 0 && game != NULL && mapSpawned && guiMainMenu != NULL ) {
 		guiMainMenu->SetStateBool( "pause_strogg", false );
 		game->HandleMainMenuCommands( "retainedPauseFamily", guiMainMenu );
 		retainedPauseStrogg = guiMainMenu->State().GetBool( "pause_strogg" ) ? 1 : 0;
+#ifndef ID_DEDICATED
+		if ( retainedPauseStrogg > 0 ) {
+			const char *const pages[] = {
+				guiRetainedLoadStrogg == NULL ? RETAINED_LOADGAME_STROGG_GUI : NULL,
+				guiRetainedSaveStrogg == NULL ? RETAINED_SAVEGAME_STROGG_GUI : NULL,
+				guiRetainedRestartStrogg == NULL ? RETAINED_RESTART_STROGG_GUI : NULL
+			};
+			UI_RetainedPrefetchDocuments( pages, static_cast<int>( sizeof( pages ) / sizeof( pages[0] ) ) );
+		}
+#endif
 	}
 	return retainedPauseStrogg > 0;
 }
@@ -6131,21 +6147,21 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		HandleRetainedMultiplayerRequest( gui, request );
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedLoad ) {
+	if ( request != NULL && IsRetainedLoadPage( gui ) ) {
 		// The Load Game page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedLoadRequest( gui, request );
 		}
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedSave ) {
+	if ( request != NULL && IsRetainedSavePage( gui ) ) {
 		// The Save Game page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedSaveRequest( gui, request );
 		}
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedRestart ) {
+	if ( request != NULL && IsRetainedRestartPage( gui ) ) {
 		// The Restart Level page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedRestartRequest( gui, request );
@@ -6335,12 +6351,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 ===============
 idSessionLocal::BeginRetainedPage
 
-LOAD GAME on the title or the Marine pause, and SAVE GAME and RESTART LEVEL
-on the Marine pause: the home plays a page hand-off (the bands dock and the
-label carries into the title slot) and the page presents at 550 ms, when the
-stock page would (UpdateRetainedPage). The Strogg pause keeps the stock
-pages, whose family the Marine pages would break. False when the page cannot
-present: the stock page then opens as before.
+LOAD GAME on the title or the pause, and SAVE GAME and RESTART LEVEL on the
+pause: the home plays a page hand-off (the bands dock and the label carries
+into the title slot) and the page presents at 550 ms, when the stock page
+would (UpdateRetainedPage). The Strogg pause hands off to the Strogg family's
+pages; where one cannot present, the stock page opens rather than the Marine
+one, whose family would break. False when the page cannot present: the stock
+page then opens as before.
 ===============
 */
 bool idSessionLocal::BeginRetainedPage( const char *request ) {
@@ -6348,9 +6365,10 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
 	const bool demos = !idStr::Icmp( request, "demos" ), credits = !idStr::Icmp( request, "credits" );
 	const bool multiplayer = !idStr::Icmp( request, "multiplayer" );
+	const bool strogg = guiRetainedHome != NULL && guiRetainedHome == guiRetainedPauseStrogg;
 	if ( ( !saving && !restarting && !demos && !credits && !multiplayer && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
 			guiActive != guiMainMenu || ( ( credits || multiplayer ) && mapSpawned ) ||
-			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
+			( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
 			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
 		return false;
 	}
@@ -6360,9 +6378,11 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// Loaded with the other screens (PreloadRetainedScreens), or now when the
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
-	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
+	idUserInterface *&loaded = strogg ? ( saving ? guiRetainedSaveStrogg : restarting ? guiRetainedRestartStrogg : guiRetainedLoadStrogg ) :
+		saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
 		credits ? guiRetainedCredits : multiplayer ? guiRetainedMpPage : guiRetainedLoad;
-	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
+	const char *path = strogg ? ( saving ? RETAINED_SAVEGAME_STROGG_GUI : restarting ? RETAINED_RESTART_STROGG_GUI : RETAINED_LOADGAME_STROGG_GUI ) :
+		saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
 		credits ? RETAINED_CREDITS_GUI : multiplayer ? RETAINED_MPPAGE_GUI : RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
@@ -6417,7 +6437,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 }
 
 bool idSessionLocal::RetainedPageActive() const {
-	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
+	return guiActive != NULL && ( IsRetainedLoadPage( guiActive ) || IsRetainedSavePage( guiActive ) || IsRetainedRestartPage( guiActive ) ||
 		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits || guiActive == guiRetainedMpPage );
 }
 
@@ -6438,7 +6458,7 @@ void idSessionLocal::UpdateRetainedPage() {
 	}
 	idUserInterface *page = retainedPagePending;
 	retainedPagePending = NULL;
-	if ( page == guiRetainedLoad ) {
+	if ( IsRetainedLoadPage( page ) ) {
 		page->SetStateBool( "load.ingame", mapSpawned );
 	}
 	// The home keeps drawing behind the page (DrawRetainedPageHome).
@@ -6566,7 +6586,7 @@ void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, 
 // Each row's save: its name and level, on the Load or the Save Game page.
 void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
 #ifndef ID_DEDICATED
-	const char *list = gui == guiRetainedSave ? "save" : "load";
+	const char *list = IsRetainedSavePage( gui ) ? "save" : "load";
 	for ( int row = 0; row < RETAINED_LOAD_ROWS; ++row ) {
 		const int index = retainedLoadFirst + row;
 		idStr name, location;

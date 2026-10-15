@@ -1673,19 +1673,29 @@ static void CheckQuickChat(ScreenHost& host, const char* path) {
 	Check(host.errors == 0,"no runtime diagnostics across the quick-chat exercise");
 }
 
+// The Strogg pause's copy of a page (loadgame_strogg.q4ui beside loadgame.q4ui):
+// the same construction and verbs in the Strogg family.
+static std::string StroggPage(const char* path) {
+	std::string strogg = path; const auto dot = strogg.rfind(".q4ui");
+	return dot == std::string::npos ? strogg : strogg.insert(dot,"_strogg");
+}
+
 // The Load Game page (sections 9 and 13.7, FLOW-004): the stock page's content
 // in the stock composition, the session's rows and selection, a row's two
 // Accepts, the delete confirmation, the failed and empty states and paging.
-static void CheckLoadPage(ScreenHost& host, const char* path) {
+// `strogg` checks the Strogg pause's copy, which behaves the same.
+static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = false) {
 	const auto source = Read(path);
 	Document document; std::vector<Diagnostic> diagnostics;
 	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.loadgame" && document.Model().canvasHeight == 720,"the Load Game page validates");
+	Check(diagnostics.empty() && document.Model().id == (strogg ? "openq4.loadgame_strogg" : "openq4.loadgame") &&
+		document.Model().canvasHeight == 720,"the Load Game page validates");
 	CheckSessionActions(document);
 	Check(!document.Model().FindNode("band-top") && !document.Model().FindNode("scene-softfocus") && !document.Model().FindNode("title"),
 		"the page is its content alone: the home that handed off draws its frame and title behind it");
 	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/loadgame.q4ui",diagnostics),"the page loads into a runtime");
+	Check(runtime.Initialize() && runtime.LoadDocument(source,strogg ? "guis/menu/loadgame_strogg.q4ui" : "guis/menu/loadgame.q4ui",diagnostics),
+		"the page loads into a runtime");
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
 	std::string error; Runtime::EventEffects effects;
 	const auto text = [&](const std::string& node, const char* property) {
@@ -1809,11 +1819,12 @@ static void CheckLoadPage(ScreenHost& host, const char* path) {
 // The Save Game page: the saves under SAVE NAME and LOCATION, the name in a
 // text field on its plate, SAVE GAME beside it, and the overwrite and notice
 // dialogs. Typing, entering and the session's verbs run through the runtime.
-static void CheckSavePage(ScreenHost& host, const char* path) {
+static void CheckSavePage(ScreenHost& host, const char* path, bool strogg = false) {
 	const auto source = Read(path);
 	Document document; std::vector<Diagnostic> diagnostics;
 	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.savegame" && document.Model().canvasHeight == 720,"the Save Game page validates");
+	Check(diagnostics.empty() && document.Model().id == (strogg ? "openq4.savegame_strogg" : "openq4.savegame") &&
+		document.Model().canvasHeight == 720,"the Save Game page validates");
 	CheckSessionActions(document);
 	const auto* field = document.Model().FindNode("save-name");
 	Check(field && field->control && field->control->role == ControlRole::Number && std::holds_alternative<NumberSpec>(field->control->widget) &&
@@ -1821,7 +1832,8 @@ static void CheckSavePage(ScreenHost& host, const char* path) {
 		"the name is a text field of up to 32 bytes");
 	Check(!document.Model().FindNode("band-top") && !document.Model().FindNode("title"),"the page is its content alone, as the Load Game page");
 	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/savegame.q4ui",diagnostics),"the page loads into a runtime");
+	Check(runtime.Initialize() && runtime.LoadDocument(source,strogg ? "guis/menu/savegame_strogg.q4ui" : "guis/menu/savegame.q4ui",diagnostics),
+		"the page loads into a runtime");
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
 	std::string error; Runtime::EventEffects effects;
 	const auto text = [&](const std::string& node, const char* property) {
@@ -1908,18 +1920,20 @@ static void CheckSavePage(ScreenHost& host, const char* path) {
 // The Restart Level page: five difficulty plates with the chosen one lit, its
 // description beside them, RESTART LEVEL as the enlarged primary plate, and
 // BACK. The choice stays on the page until RESTART LEVEL.
-static void CheckRestartPage(ScreenHost& host, const char* path) {
+static void CheckRestartPage(ScreenHost& host, const char* path, bool strogg = false) {
 	const auto source = Read(path);
 	Document document; std::vector<Diagnostic> diagnostics;
 	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
-	Check(diagnostics.empty() && document.Model().id == "openq4.restartlevel" && document.Model().canvasHeight == 720,"the Restart Level page validates");
+	Check(diagnostics.empty() && document.Model().id == (strogg ? "openq4.restartlevel_strogg" : "openq4.restartlevel") &&
+		document.Model().canvasHeight == 720,"the Restart Level page validates");
 	CheckSessionActions(document);
 	const auto go = document.Model().actions.find("go"), back = document.Model().actions.find("back");
 	Check(go != document.Model().actions.end() && std::get<std::string>(go->second.arguments.at("command").literal) == "restartGo" &&
 		back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "restartBack",
 		"RESTART LEVEL and BACK ask the session");
 	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/restartlevel.q4ui",diagnostics),"the page loads into a runtime");
+	Check(runtime.Initialize() && runtime.LoadDocument(source,strogg ? "guis/menu/restartlevel_strogg.q4ui" : "guis/menu/restartlevel.q4ui",
+		diagnostics),"the page loads into a runtime");
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
 	std::string error; Runtime::EventEffects effects;
 	const auto text = [&](const std::string& node, const char* property) {
@@ -3406,6 +3420,15 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 		"noticeModal_close"}),"Save Game's plate, name, save, BACK and dialogs take the pointer");
 	Check(probed(CheckPointerReach(host,argv[21],"guis/menu/restartlevel.q4ui",{},"onActivate"),
 		{"skill-0","skill-1","skill-2","skill-3","skill-4","restart_go","restart_back"}),"Restart Level's plates take the pointer");
+	// The Strogg pause's pages: the same targets in the Strogg family.
+	Check(probed(CheckPointerReach(host,StroggPage(argv[19]).c_str(),"guis/menu/loadgame_strogg.q4ui",{{"load.count",1.0},{"load.first",0.0},
+		{"load.selected",0.0},{"load.ingame",true}},"onActivate"),{"row-0","load_go","load_delete","load_back","deleteModal_yes","deleteModal_no"}),
+		"the Strogg Load Game's plates, save, BACK and confirmation take the pointer");
+	Check(probed(CheckPointerReach(host,StroggPage(argv[20]).c_str(),"guis/menu/savegame_strogg.q4ui",{{"save.count",1.0},{"save.first",0.0},
+		{"save.selected",0.0},{"save.name",std::string("Medic")}},"onActivate"),{"row-0","save-name","save_go","save_back","overwriteModal_yes",
+		"overwriteModal_no","noticeModal_close"}),"the Strogg Save Game's plate, name, save, BACK and dialogs take the pointer");
+	Check(probed(CheckPointerReach(host,StroggPage(argv[21]).c_str(),"guis/menu/restartlevel_strogg.q4ui",{},"onActivate"),
+		{"skill-0","skill-1","skill-2","skill-3","skill-4","restart_go","restart_back"}),"the Strogg Restart Level's plates take the pointer");
 	Check(probed(CheckPointerReach(host,argv[22],"guis/menu/demos.q4ui",{{"demos.count",1.0},{"demos.first",0.0},{"demos.selected",0.0},
 		{"demos.canPlay",true},{"demos.canDelete",true}},"onActivate"),{"row-0","tag-mvd","tag-render","tag-legacy","tag-incomplete","demo_play",
 		"demo_delete","demo_refresh","demo_back","deleteModal_yes","deleteModal_no"}),"Demos' plates, tags, demo, BACK and confirmation take the pointer");
@@ -3509,6 +3532,9 @@ int main(int argc, char** argv) {
 	if (runs("pages")) CheckPagePrompts(host,argv[19],"guis/menu/loadgame.q4ui","load_back","back",nullptr,true);
 	if (runs("pages")) CheckPagePrompts(host,argv[20],"guis/menu/savegame.q4ui","save_back","back",nullptr,true);
 	if (runs("pages")) CheckPagePrompts(host,argv[21],"guis/menu/restartlevel.q4ui","restart_back","back",nullptr,true);
+	if (runs("strogg-pages")) CheckPagePrompts(host,StroggPage(argv[19]).c_str(),"guis/menu/loadgame_strogg.q4ui","load_back","back",nullptr,true);
+	if (runs("strogg-pages")) CheckPagePrompts(host,StroggPage(argv[20]).c_str(),"guis/menu/savegame_strogg.q4ui","save_back","back",nullptr,true);
+	if (runs("strogg-pages")) CheckPagePrompts(host,StroggPage(argv[21]).c_str(),"guis/menu/restartlevel_strogg.q4ui","restart_back","back",nullptr,true);
 	if (runs("pages")) CheckPagePrompts(host,argv[22],"guis/menu/demos.q4ui","demo_back","back",nullptr,true);
 	if (runs("pages")) CheckPagePrompts(host,argv[24],"guis/menu/credits.q4ui","credits_back","back",nullptr,false);
 	if (runs("mp-pages")) CheckPagePrompts(host,argv[27],"guis/menu/createserver.q4ui","create_back","back",nullptr,true);
@@ -4634,6 +4660,9 @@ int main(int argc, char** argv) {
 	if (runs("pages")) CheckLoadPage(host,argv[19]);
 	if (runs("pages")) CheckSavePage(host,argv[20]);
 	if (runs("pages")) CheckRestartPage(host,argv[21]);
+	if (runs("strogg-pages")) CheckLoadPage(host,StroggPage(argv[19]).c_str(),true);
+	if (runs("strogg-pages")) CheckSavePage(host,StroggPage(argv[20]).c_str(),true);
+	if (runs("strogg-pages")) CheckRestartPage(host,StroggPage(argv[21]).c_str(),true);
 	if (runs("pages")) CheckDemosPage(host,argv[22]);
 	if (runs("menus")) CheckModsDialog(host,argv[1]);
 	if (runs("pages")) CheckRestartMenu(host,argv[23]);

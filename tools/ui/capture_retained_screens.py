@@ -144,6 +144,38 @@ SCENARIOS = {
         'waitMsec 100', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-releasing.tga"',
         'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-resumed.tga"',
     ]),
+    # The Strogg pause's pages: SAVE GAME, LOAD GAME and RESTART LEVEL hand
+    # off to the Strogg family's pages as the Marine pause's do to theirs. A
+    # typed name saves at once; a row's first Accept selects its save; a
+    # plate chooses a difficulty; Back returns the Strogg pause each time.
+    'pages-strogg': ('game/recomp', [
+        'waitMsec 1000', 'saveGame "Recomp entry"', 'waitMsec 1500', 'saveGame "Strogg door"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1800', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/savegame-strogg-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame-strogg.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "Nexus core"', 'waitMsec 300', 'screenshot "screenshots/savegame-strogg-typing.tga"',
+        'openq4_retainedGui number commit "save-name"', 'waitMsec 1500', 'openq4_retainedGui report',
+        'screenshot "screenshots/savegame-strogg-saved.tga"',
+        'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/pages-strogg-home.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-strogg.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/loadgame-strogg-selected.tga"',
+        'openq4_retainedGui focus load_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/loadgame-strogg-delete.tga"',
+        'openq4_retainedGui focus deleteModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1300',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/restartlevel-strogg.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/restartlevel-strogg-chosen.tga"',
+        'openq4_retainedGui focus restart_go', 'waitMsec 300', 'screenshot "screenshots/restartlevel-strogg-go.tga"',
+        'openq4_retainedGui focus restart_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/pages-strogg-returned.tga"',
+    ]),
     # The OBJECTIVES page: airdefense1's first objective completed and two
     # more held, so the page lists two plates and one completed row.
     'pause-objectives-page': ('game/airdefense1', [

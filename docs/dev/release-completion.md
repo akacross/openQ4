@@ -2,6 +2,19 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Give the Strogg pause its own Save Game, Load Game and Restart Level
+  pages. After Kane's stroggification those three still opened the classic
+  pages; they now open the modern pages in the Strogg family (shouldered
+  plates, slanted markers, R_Strogg labels and the pause's orange), parsed
+  on the job workers once the level's player is Strogg. A Strogg page that
+  cannot load opens the classic page, never the Marine one. The gate test,
+  the native page and pointer checks, and OpenGL and Vulkan captures from
+  game/recomp pass.
+
+Candidate UI release wording: After Kane's stroggification, saving, loading
+and restarting from the pause menu stay in the modern Strogg menu instead of
+dropping back to the classic pages.
+
 - [x] Finish The Awakening's mannable Strogg chaingun turret (m01 part 1, m04).
   The alpha shipped its model untextured (grey ambient-occlusion bakes, a black
   specular map, a placeholder drum), so it rendered as clay, and it fired the

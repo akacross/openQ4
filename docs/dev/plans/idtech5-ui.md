@@ -250,8 +250,11 @@ the stock tooltip's card beside the
 pointer's or the focused row (the runtime's detail card), a controller's
 west refreshing the list and north sorting it by the next column, the session
 publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.
-Filters beyond the browser's source, the Strogg pause's pages and in-field
-composition remain. No gate closes.
+After Kane's stroggification the pause's SAVE GAME, LOAD GAME and RESTART
+LEVEL open the same pages in the Strogg family
+([Strogg pause pages](../ui/retained-screens.md#strogg-pause-pages)).
+Filters beyond the browser's source and in-field composition remain. No gate
+closes.
 
 ## Objective and immutable completion scope
 

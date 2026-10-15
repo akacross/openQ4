@@ -379,6 +379,11 @@ static void UI_RetainedPrecacheImage(const char* source) {
     if (!declManagerObject.insideLoad) ++latePrecaches;
 }
 static void UI_RetainedReloadImage(const char* source) { reloaded.push_back(source); }
+// The documents handed to the job workers to parse ahead of their load.
+static std::vector<std::string> prefetched;
+static void UI_RetainedPrefetchDocuments(const char* const* paths, int count) {
+    for (int i = 0; i < count; ++i) if (paths[i]) prefetched.push_back(paths[i]);
+}
 // Windows a mod's own main menu lacks, and a retained view that stopped drawing.
 static std::set<std::string> legacyMissing, legacyEventsMissing;
 static bool UI_LegacyWindowExists(idUserInterface*, const char* window) { return !legacyMissing.count(window); }
@@ -565,6 +570,13 @@ public:
     }
     // The Restart Level page; the difficulties a level restarted at.
     idUserInterface* guiRetainedRestart = nullptr; void HandleRetainedRestartRequest(idUserInterface*, const char*);
+    // The Strogg pause's pages.
+    idUserInterface *guiRetainedLoadStrogg = nullptr, *guiRetainedSaveStrogg = nullptr, *guiRetainedRestartStrogg = nullptr;
+    bool IsRetainedLoadPage(const idUserInterface* gui) const { return gui && (gui == guiRetainedLoad || gui == guiRetainedLoadStrogg); }
+    bool IsRetainedSavePage(const idUserInterface* gui) const { return gui && (gui == guiRetainedSave || gui == guiRetainedSaveStrogg); }
+    bool IsRetainedRestartPage(const idUserInterface* gui) const {
+        return gui && (gui == guiRetainedRestart || gui == guiRetainedRestartStrogg);
+    }
     // The Demos page; the library its scan finds (demoFiles), what was played
     // and deleted, and refusals.
     idUserInterface* guiRetainedDemos = nullptr; idList<int> retainedDemoRows;
@@ -670,6 +682,7 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/singleplayer.q4ui", "guis/menu/campaigns.q4ui", "guis/menu/settings/system.q4ui", "guis/menu/mp_escape.q4ui",
     "guis/menu/mp_welcome.q4ui", "guis/menu/campaign_skill.q4ui", "guis/menu/mp_summary.q4ui",
     "guis/menu/loadgame.q4ui", "guis/menu/savegame.q4ui", "guis/menu/restartlevel.q4ui",
+    "guis/menu/loadgame_strogg.q4ui", "guis/menu/savegame_strogg.q4ui", "guis/menu/restartlevel_strogg.q4ui",
     "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
     "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui",
     "guis/menu/arena_pause.q4ui"};
@@ -679,6 +692,7 @@ static std::vector<std::string> Stock(const idSessionLocal& session) {
 }
 static idSessionLocal Session(bool gate, bool inGame = false) {
     managerObject = Manager{}; commonObject = Common{}; commands = CommandSystem{}; legacy.clear(); legacyActions.clear(); precached.clear(); stickX = stickY = 0;
+    prefetched.clear();
     declManagerObject = DeclManager{}; precacheCost = 0; latePrecaches = 0;
     timeRuns.clear(); expressionWrites = 0; fileSystemObject.maps.clear();
     legacyActionAvailable = true; preview = false; ui_retained.value = gate; ui_retainedSystem.value = false; ui_retainedMultiplayer.value = false;
@@ -880,8 +894,9 @@ int main() {
         s.HandleRetainedSessionRequest(page, "loadNewer"); CHECK(page->state["load.first"] == "0");  // the first page
     }
     {   // In game the Marine pause hands off the same way, and NEW GAME is not
-        // offered; the Strogg pause keeps the stock page. A page that is not
-        // installed, cannot load or stopped drawing falls back to the stock page.
+        // offered; the Strogg pause hands off to the Strogg family's page. A
+        // page that is not installed, cannot load or stopped drawing falls back
+        // to the stock page, never to the other family's.
         auto s = Session(true, true); s.saves = {"quick"}; s.PreloadRetainedScreens(); s.UpdateRetainedHome();
         auto* pause = s.guiRetainedHome; CHECK(pause && std::string(pause->Name()) == "guis/menu/pause.q4ui");
         s.HandleRetainedSessionRequest(pause, "loadGame"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
@@ -893,8 +908,28 @@ int main() {
         auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
         strogg.UpdateRetainedHome(); CHECK(std::string(strogg.guiRetainedHome->Name()) == "guis/menu/pause_strogg.q4ui");
-        strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "loadGame");
-        CHECK(legacyActions.back() == "main_b_loadgame" && strogg.retainedPagePending == nullptr);
+        // The first Strogg answer of a level starts parsing the Strogg pages.
+        CHECK((prefetched == std::vector<std::string>{"guis/menu/loadgame_strogg.q4ui", "guis/menu/savegame_strogg.q4ui",
+                                                     "guis/menu/restartlevel_strogg.q4ui"}));
+        auto* stroggPause = strogg.guiRetainedHome; const size_t stroggActions = legacyActions.size();
+        strogg.HandleRetainedSessionRequest(stroggPause, "loadGame");
+        CHECK(legacyActions.size() == stroggActions && strogg.guiRetainedLoadStrogg != nullptr &&
+              strogg.retainedPagePending == strogg.guiRetainedLoadStrogg &&
+              std::string(strogg.guiRetainedLoadStrogg->Name()) == "guis/menu/loadgame_strogg.q4ui");
+        CHECK(stroggPause->named[stroggPause->named.size() - 2] == "carry_loadGame" && stroggPause->named.back() == "depart");
+        commonObject.time += 550; strogg.UpdateRetainedHome(); strogg.UpdateRetainedPage();
+        auto* stroggPage = strogg.guiActive;
+        CHECK(stroggPage == strogg.guiRetainedLoadStrogg && stroggPage->state["load.ingame"] == "1" && strogg.RetainedPageActive() &&
+              strogg.retainedPageHome == stroggPause && stroggPage->state["load.count"] == "0");
+        strogg.HandleRetainedSessionRequest(stroggPage, "loadBack");
+        CHECK(strogg.guiRetainedHome == stroggPause && stroggPause->named.back() == "returnHome" && !strogg.RetainedPageActive());
+        auto stroggMissing = Session(true, true); fileSystemObject.files.erase("guis/menu/loadgame_strogg.q4ui");
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
+        stroggMissing.PreloadRetainedScreens(); stroggMissing.UpdateRetainedHome();
+        stroggMissing.HandleRetainedSessionRequest(stroggMissing.guiRetainedHome, "loadGame");
+        CHECK(legacyActions.back() == "main_b_loadgame" && stroggMissing.retainedPagePending == nullptr &&
+              (Stock(stroggMissing) == std::vector<std::string>{"guis/menu/loadgame_strogg.q4ui"}));
+        gameObject.publish = nullptr;
         auto missing = Session(true); fileSystemObject.files.erase("guis/menu/loadgame.q4ui");
         missing.PreloadRetainedScreens(); missing.UpdateRetainedHome();
         CHECK(missing.guiRetainedLoad == nullptr && commonObject.warnings.empty() && precached.empty());
@@ -966,15 +1001,25 @@ int main() {
         s.HandleRetainedSessionRequest(page, "unknown");
         CHECK(commonObject.warnings.size() == 1 && commonObject.warnings[0].find("Save Game") != std::string::npos);
     }
-    {   // SAVE GAME needs a game to save, and the Strogg pause keeps the stock
-        // page; a missing page falls back to it.
+    {   // SAVE GAME needs a game to save, and the Strogg pause hands off to the
+        // Strogg family's page; a missing page falls back to the stock one.
         auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
         title.HandleRetainedSessionRequest(title.guiRetainedHome, "saveGame");
         CHECK(legacyActions.back() == "main_b_savegame" && title.retainedPagePending == nullptr);
         auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
-        strogg.UpdateRetainedHome(); strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "saveGame");
-        CHECK(legacyActions.back() == "main_b_savegame" && strogg.retainedPagePending == nullptr);
+        strogg.UpdateRetainedHome(); const size_t stroggActions = legacyActions.size();
+        strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "saveGame");
+        CHECK(legacyActions.size() == stroggActions && strogg.guiRetainedSaveStrogg != nullptr &&
+              strogg.retainedPagePending == strogg.guiRetainedSaveStrogg && strogg.guiRetainedSave == nullptr &&
+              std::string(strogg.guiRetainedSaveStrogg->Name()) == "guis/menu/savegame_strogg.q4ui");
+        commonObject.time += 550; strogg.UpdateRetainedHome(); strogg.UpdateRetainedPage();
+        auto* stroggPage = strogg.guiActive;
+        CHECK(stroggPage == strogg.guiRetainedSaveStrogg && strogg.RetainedPageActive());
+        stroggPage->state["save.name"] = "Strogg door"; strogg.HandleRetainedSessionRequest(stroggPage, "saveSave");
+        CHECK(strogg.savedGames.back() == "Strogg door" && stroggPage->state["save.row0.name"] == "Strogg door" &&
+              !stroggPage->state.count("load.row0.name"));
+        gameObject.publish = nullptr;
         auto missing = Session(true, true); fileSystemObject.files.erase("guis/menu/savegame.q4ui");
         missing.PreloadRetainedScreens(); missing.UpdateRetainedHome();
         missing.HandleRetainedSessionRequest(missing.guiRetainedHome, "saveGame");
@@ -1663,14 +1708,25 @@ int main() {
               (Stock(s) == std::vector<std::string>{"guis/menu/joingame.q4ui"}));
         ui_retainedMultiplayer.value = false;
     }
-    {   // The title has no level to restart, and the Strogg pause keeps the stock page.
+    {   // The title has no level to restart, and the Strogg pause hands off to
+        // the Strogg family's page.
         auto title = Session(true); title.PreloadRetainedScreens(); title.UpdateRetainedHome();
         title.HandleRetainedSessionRequest(title.guiRetainedHome, "restartLevel");
         CHECK(legacyActions.back() == "main_b_difficulty" && title.retainedPagePending == nullptr);
         auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
-        strogg.UpdateRetainedHome(); strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "restartLevel");
-        CHECK(legacyActions.back() == "main_b_difficulty" && strogg.retainedPagePending == nullptr && strogg.restarts.empty());
+        cvarSystemObject.strings["g_skill"] = "2";
+        strogg.UpdateRetainedHome(); const size_t stroggActions = legacyActions.size();
+        strogg.HandleRetainedSessionRequest(strogg.guiRetainedHome, "restartLevel");
+        CHECK(legacyActions.size() == stroggActions && strogg.guiRetainedRestartStrogg != nullptr &&
+              strogg.retainedPagePending == strogg.guiRetainedRestartStrogg && strogg.restarts.empty() &&
+              strogg.guiRetainedRestartStrogg->state["restart.skill"] == "2" &&
+              std::string(strogg.guiRetainedRestartStrogg->Name()) == "guis/menu/restartlevel_strogg.q4ui");
+        commonObject.time += 550; strogg.UpdateRetainedHome(); strogg.UpdateRetainedPage();
+        CHECK(strogg.guiActive == strogg.guiRetainedRestartStrogg && strogg.RetainedPageActive());
+        strogg.HandleRetainedSessionRequest(strogg.guiActive, "restartBack");
+        CHECK(strogg.guiActive == strogg.guiMainMenu && strogg.restarts.empty());
+        gameObject.publish = nullptr;
     }
     {   // No save: CONTINUE stays hidden and has nothing to load.
         auto s = Session(true); s.UpdateRetainedHome();
@@ -3665,15 +3721,15 @@ def check_prompt_glyphs(compiler: str, directory: Path) -> None:
             assert pad.endswith('-pad') and pad[:-len('-pad')] in groups, (path.name, pad)
         shoulders += sum(1 for group_id in groups if group_id in ('tab-previous', 'tab-next', 'prompt-tabs-0', 'prompt-tabs-1'))
     # The title, both pauses, Single Player, Campaign, the campaign difficulty
-    # page and Multiplayer, the seven pages with their own prompt bars, the
-    # loading screen, the Escape, Welcome and summary cards and the Arena
-    # pause card.
-    assert documents == 19, documents
+    # page and Multiplayer, the seven pages with their own prompt bars and the
+    # Strogg pause's three, the loading screen, the Escape, Welcome and
+    # summary cards and the Arena pause card.
+    assert documents == 22, documents
     # The cards' tab keys take the shoulders, as do the Escape and Welcome
     # cards' Tabs prompts; every Accept and Back prompt follows Swap Confirm
     # and Back.
     assert shoulders == 10, shoulders
-    assert swapping == 37, swapping
+    assert swapping == 43, swapping
     print(f'ui_retained gate: prompt glyphs follow the active device in {documents} documents')
 
 
@@ -4413,7 +4469,8 @@ def main() -> int:
             allowed = {'guis/menu/settings/system.q4ui', 'guis/menu/title.q4ui', 'guis/menu/pause.q4ui', 'guis/menu/pause_strogg.q4ui',
                        'guis/loading/loading.q4ui', 'guis/menu/singleplayer.q4ui', 'guis/menu/campaigns.q4ui', 'guis/menu/campaign_skill.q4ui',
                        'guis/menu/mp_escape.q4ui', 'guis/menu/mp_welcome.q4ui', 'guis/menu/mp_summary.q4ui', 'guis/menu/loadgame.q4ui',
-                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui',
+                       'guis/menu/savegame.q4ui', 'guis/menu/restartlevel.q4ui', 'guis/menu/loadgame_strogg.q4ui',
+                       'guis/menu/savegame_strogg.q4ui', 'guis/menu/restartlevel_strogg.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
                        'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui',
                        'guis/menu/arena_pause.q4ui'}
