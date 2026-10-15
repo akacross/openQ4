@@ -4956,7 +4956,10 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 		}
 		
 		if ( overlayHud && overlayHudTime > gameLocal.time && overlayHudTime != 0 ) {
-			overlayHud->Redraw( gameLocal.time );
+			// openQ4: nothing over an Arena presentation shot but its own cards.
+			if ( !arenaPresentation ) {
+				overlayHud->Redraw( gameLocal.time );
+			}
 		} else {
 			overlayHud = NULL;
 			overlayHudTime = 0;

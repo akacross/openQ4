@@ -871,7 +871,7 @@ def center_column(doc: HudDocument) -> dict:
     declare(doc, {"frag_notice_text": "", "frag_notice_persist": False, "main_notice_text": "", "main_notice_persist": False,
                   "oq4_rank_notice_text": "", "oq4_rank_notice_pre": "", "oq4_rank_notice_lead": "", "oq4_rank_notice_post": "",
                   "spectatetext1": "", "oq4_spectating": False, "oq4.frag": False, "oq4.main": False, "oq4.award": False,
-                  "ig_awards": 0, "ig_award": "", "ig_award_num": ""})
+                  "ig_awards": 0, "ig_award": "", "ig_award_num": "", "arena_hudHidden": False})
 
     def notice(ident, size, children):
         h = size * 1.35
@@ -879,7 +879,8 @@ def center_column(doc: HudDocument) -> dict:
                         **{"height": ui.length(u(h)), "padding-left": ui.length(u(8)), "padding-right": ui.length(u(8)),
                            "margin-bottom": ui.length(u(3)), "display": ui.keyword("none"), "opacity": num(1)})
     frag = notice("frag", 17.3, [bound_label(doc, "frag-text", S("frag_notice_text"), 17.3, rgb(NOTE), line=17.3 * 1.35)])
-    doc.bind("frag.display", "frag", "display", sel(AND(S("oq4.frag"), op("!=", S("frag_notice_text"), "")), "flex", "none"))
+    shot = S("arena_hudHidden")
+    doc.bind("frag.display", "frag", "display", sel(AND(S("oq4.frag"), op("!=", S("frag_notice_text"), ""), NOT(shot)), "flex", "none"))
     rank_notice = op("==", S("main_notice_text"), S("oq4_rank_notice_text"))
     main = notice("main", 15.4, [
         bound_label(doc, "main-text", S("main_notice_text"), 15.4, rgb(NOTE), line=15.4 * 1.35, **{"display": ui.keyword("none")}),
@@ -896,7 +897,8 @@ def center_column(doc: HudDocument) -> dict:
     warm = notice("warm", 12.5, [bound_label(doc, "warm-text", S("spectatetext1"), 12.5, rgb(SPEC_TEXT), line=12.5 * 1.35,
                                              **{"opacity": num(1)})])
     doc.bind("warm.display", "warm", "display", sel(AND(op("==", S("oq4_state"), 1), NOT(S("oq4_spectating")),
-                                                       op("!=", S("spectatetext1"), ""), op("!=", S("gametype"), 2)), "flex", "none"))
+                                                       op("!=", S("spectatetext1"), ""), op("!=", S("gametype"), 2), NOT(shot)),
+                                                   "flex", "none"))
     doc.timeline("warm-breathe", 900, [tr("warm-text", "opacity", [(0, num(1)), (495, num(0.69)), (504, num(0.5)), (603, num(1)),
                                                                    (900, num(1))])], iterations=0)
     # Awards: the earned medal once per time earned (up to nine), else one and a count.
@@ -909,7 +911,7 @@ def center_column(doc: HudDocument) -> dict:
         medals.append(medal)
     count = bound_label(doc, "award-count", S("ig_award_num"), 18, WHITE, line=20, **{"margin-left": ui.length(u(4))})
     awards = flex_row("awards", medals + [count], **{"display": ui.keyword("none"), "opacity": num(1)})
-    doc.bind("awards.display", "awards", "display", sel(AND(S("oq4.award"), op(">", S("ig_awards"), 0)), "flex", "none"))
+    doc.bind("awards.display", "awards", "display", sel(AND(S("oq4.award"), op(">", S("ig_awards"), 0), NOT(shot)), "flex", "none"))
     # The lines under each notice ride a wrapper, so they can slide as it comes
     # and goes instead of jumping.
     def stack(ident, children):
@@ -2045,16 +2047,24 @@ def mp_document() -> dict:
     doc.show("tc-strip", NOT(competitive()))
     # Minimal (ui_hudLayout 2) keeps the held statistics, the vote, chat and
     # voice, the follow card, the respawn prompt and the Arena presentation.
+    # An Arena presentation shot (arena_hudHidden) keeps only its own layer
+    # and the main notice in the center column.
+    def chrome(ident: str, children: list) -> dict:
+        node = ui.group(ident, {**ui.FULL, "display": ui.keyword("block")}, children)
+        doc.show(ident, NOT(S("arena_hudHidden")))
+        return node
     root = gameplay_root(doc, "mp-root", [
-        beyond_minimal(doc, "tags-full", [tags]),
-        anchor(doc, "tl", [beyond_minimal(doc, "tl-full", [remastered_top])]),
-        anchor(doc, "tc", [beyond_minimal(doc, "tc-full", [strip_slot, column, banners]), matchbar]),
-        anchor(doc, "tr", [beyond_minimal(doc, "tr-full", [feed, ctx, lag])]),
-        anchor(doc, "cr", [trailing, stats]),
-        anchor(doc, "cc", [beyond_minimal(doc, "cc-full", [aim])]),
-        anchor(doc, "cl", [leading, ballot]),
-        anchor(doc, "bl", [chat_box(doc, talkers + lines + [chat_input(doc)])]),
-        anchor(doc, "bc", [follow, respawn], scale="hud.centerScale"),
+        chrome("tags-shot", [beyond_minimal(doc, "tags-full", [tags])]),
+        anchor(doc, "tl", [chrome("tl-shot", [beyond_minimal(doc, "tl-full", [remastered_top])])]),
+        anchor(doc, "tc", [beyond_minimal(doc, "tc-full", [chrome("strip-shot", [strip_slot]), column,
+                                                            chrome("banners-shot", [banners])]),
+                             chrome("matchbar-shot", [matchbar])]),
+        anchor(doc, "tr", [chrome("tr-shot", [beyond_minimal(doc, "tr-full", [feed, ctx, lag])])]),
+        anchor(doc, "cr", [chrome("cr-shot", [trailing, stats])]),
+        anchor(doc, "cc", [chrome("cc-shot", [beyond_minimal(doc, "cc-full", [aim])])]),
+        anchor(doc, "cl", [chrome("cl-shot", [leading, ballot])]),
+        anchor(doc, "bl", [chrome("bl-shot", [chat_box(doc, talkers + lines + [chat_input(doc)])])]),
+        anchor(doc, "bc", [chrome("bc-shot", [follow, respawn])], scale="hud.centerScale"),
         arena,
     ])
     # The peer measures whether the chat entry outgrows its view (the probe,

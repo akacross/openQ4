@@ -1510,1520 +1510,3013 @@ windowDef Desktop
 			}
 		}
 	}
-	windowDef p_tourntop
+	// openQ4: an Arena presentation shot keeps only its letterbox and cards
+	// (the oq4_arena windows) and the centre notice; the game sets
+	// arena_hudHidden for its introductions, entrance, spawn-in and result.
+	windowDef oq4_match_hud
 	{
-		rect	0,0,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),480
-		screenalignx	left
-		screenaligny	top
-		visible	1
-		windowDef tourn_topbar
+		rect	0,0,640,480
+		visible	( "gui::arena_hudHidden" == 0 )
+		// The panels anchor into the wide-screen margins, outside this rect.
+		noclip	1
+		noevents	1
+
+		windowDef p_tourntop
 		{
-			rect	-99,-29,840,62
-			visible	0
-			background	"gfx/guis/common/128_sqsolid"
-			matcolor	0,0,0,0.6
-		}
-		windowDef tourn_topmsg
-		{
-			rect	0,34,640,32
+			rect	0,0,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),480
+			screenalignx	left
+			screenaligny	top
 			visible	1
-			background	"gfx/guis/hud/tourntop_msg"
-			matcolor	0,0,0,0.6
-		}
-		windowDef tourn_stopwatch
-		{
-			rect	4,57,20,20
-			visible	1
-			background	"gfx/guis/hud/icons/icon_stopwatch"
-			matcolor	1,1,0.552,1
-		}
-		windowDef tourn_time
-		{
-			rect	23,59,200,20
-			visible	("gui::infinity" == 0)
-			forecolor	1,1,1,1
-			text	"gui::timeleft"
-			textscale	.25
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef tourn_infinity
-		{
-			rect	25,59,20,19
-			visible	("gui::infinity" == 1)
-			background	"gfx/guis/hud/icons/icon_infinity"
-			matcolor	1,1,1,1
-		}		
-		windowDef tourn_arenaInfo_1
-		{
-			rect	4,36,632,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::spectatetext0"
-			textscale	.22
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef tourn_arenaInfo_2
-		{
-			rect	4,77,632,16
-			visible	1
-			forecolor	1,1,0.552,1
-			text	"gui::spectatetext1"
-			textscale	0.2
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef tourn_arenaInfo_3
-		{
-			rect	4,91,632,16
-			visible	1
-			forecolor	1,1,0.552,1
-			text	"gui::spectatetext2"
-			textscale	0.2
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef p_round1
-		{
-			rect	0,0,640,32
-			visible	0
-			windowDef round1_sep1
+			windowDef tourn_topbar
 			{
-				rect	77,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				rect	-99,-29,840,62
+				visible	0
+				background	"gfx/guis/common/128_sqsolid"
+				matcolor	0,0,0,0.6
 			}
-			windowDef round1_sep2
+			windowDef tourn_topmsg
 			{
-				rect	157,0,8,32
+				rect	0,34,640,32
 				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				background	"gfx/guis/hud/tourntop_msg"
+				matcolor	0,0,0,0.6
 			}
-			windowDef round1_sep3
+			windowDef tourn_stopwatch
 			{
-				rect	237,0,8,32
+				rect	4,57,20,20
 				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				background	"gfx/guis/hud/icons/icon_stopwatch"
+				matcolor	1,1,0.552,1
 			}
-			windowDef round1_sep4
+			windowDef tourn_time
 			{
-				rect	317,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				rect	23,59,200,20
+				visible	("gui::infinity" == 0)
+				forecolor	1,1,1,1
+				text	"gui::timeleft"
+				textscale	.25
+				textstyle	1
+				font	"fonts/lowpixel"
 			}
-			windowDef round1_sep5
+			windowDef tourn_infinity
 			{
-				rect	397,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
-			}
-			windowDef round1_sep6
+				rect	25,59,20,19
+				visible	("gui::infinity" == 1)
+				background	"gfx/guis/hud/icons/icon_infinity"
+				matcolor	1,1,1,1
+			}		
+			windowDef tourn_arenaInfo_1
 			{
-				rect	477,0,8,32
+				rect	4,36,632,16
 				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				forecolor	1,1,1,1
+				text	"gui::spectatetext0"
+				textscale	.22
+				textstyle	1
+				font	"fonts/lowpixel"
 			}
-			windowDef round1_sep7
+			windowDef tourn_arenaInfo_2
 			{
-				rect	557,0,8,32
+				rect	4,77,632,16
 				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
+				forecolor	1,1,0.552,1
+				text	"gui::spectatetext1"
+				textscale	0.2
+				textstyle	1
+				font	"fonts/lowpixel"
 			}
-			windowDef p_round1_bracket1
+			windowDef tourn_arenaInfo_3
 			{
-				rect	0,0,80,32
+				rect	4,91,632,16
 				visible	1
-				windowDef hover_round1_bracket1
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket1
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket1
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket1
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket1
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket1
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket1
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket1
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
+				forecolor	1,1,0.552,1
+				text	"gui::spectatetext2"
+				textscale	0.2
+				textstyle	1
+				font	"fonts/lowpixel"
 			}
-			windowDef p_round1_bracket2
-			{
-				rect	80,0,80,32
-				visible	1
-				windowDef hover_round1_bracket2
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket2
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket2
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket2
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket2
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket2
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket2
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket2
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket3
-			{
-				rect	160,0,80,32
-				visible	1
-				windowDef hover_round1_bracket3
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket3
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket3
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket3
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket3
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket3
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket3
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket3
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket4
-			{
-				rect	240,0,80,32
-				visible	1
-				windowDef hover_round1_bracket4
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket4
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket4
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket4
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket4
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket4
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket4
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket4
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket5
-			{
-				rect	320,0,80,32
-				visible	1
-				windowDef hover_round1_bracket5
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket5
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket5
-				{
-					rect	1,15,128,15
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket5
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket5"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket5
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket5"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket5
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket5"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket5
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket5"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket5
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket6
-			{
-				rect	400,0,80,32
-				visible	1
-				windowDef hover_round1_bracket6
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket6
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket6
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket6
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket6"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket6
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket6"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket6
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket6"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket6
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket6"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket6
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket7
-			{
-				rect	480,0,80,32
-				visible	1
-				windowDef hover_round1_bracket7
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket7
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket7
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket7
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket7"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket7
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket7"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket7
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket7"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket7
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket7"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket7
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round1_bracket8
-			{
-				rect	560,0,80,32
-				visible	1
-				windowDef hover_round1_bracket8
-				{
-					rect	1,0,128,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round1_bracket8
-				{
-					rect	1,1,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round1_bracket8
-				{
-					rect	1,15,128,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round1_bracket8
-				{
-					rect	2,0,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round1_bracket8"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round1_bracket8
-				{
-					rect	66,0,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round1_bracket8"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round1_bracket8
-				{
-					rect	2,13,66,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round1_bracket8"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round1_bracket8
-				{
-					rect	66,13,11,15
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round1_bracket8"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round1_bracket8
-				{
-					rect	0,6,80,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-		}
-		windowDef p_round2
-		{
-			rect	0,0,640,32
-			visible	0
-			windowDef round2_sep
-			{
-				rect	157,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
-			}
-			windowDef round2_sep2
-			{
-				rect	317,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
-			}
-			windowDef round2_sep3
-			{
-				rect	477,0,8,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep"
-				matcolor	1,1,1,0.5
-			}
-			windowDef p_round2_bracket1
-			{
-				rect	0,0,160,32
-				visible	1
-				windowDef hover_round2_bracket1
-				{
-					rect	1,0,256,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round2_bracket1
-				{
-					rect	1,1,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round2_bracket1
-				{
-					rect	1,15,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round2_bracket1
-				{
-					rect	2,0,140,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round2_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round2_bracket1
-				{
-					rect	146,0,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round2_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round2_bracket1
-				{
-					rect	2,13,140,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round2_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round2_bracket1
-				{
-					rect	146,13,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round2_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round2_bracket1
-				{
-					rect	0,6,160,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round2_bracket2
-			{
-				rect	160,0,160,32
-				visible	1
-				windowDef hover_round2_bracket2
-				{
-					rect	1,0,256,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round2_bracket2
-				{
-					rect	1,1,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round2_bracket2
-				{
-					rect	1,15,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round2_bracket2
-				{
-					rect	3,0,140,16
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round2_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round2_bracket2
-				{
-					rect	146,0,11,16
-					visible	1
-					forecolor	1,0.5,0,1
-					text	"gui::score1_round2_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round2_bracket2
-				{
-					rect	2,13,140,16
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round2_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round2_bracket2
-				{
-					rect	146,13,11,16
-					visible	1
-					forecolor	1,0.5,0,1
-					text	"gui::score2_round2_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round2_bracket2
-				{
-					rect	0,6,160,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round2_bracket3
-			{
-				rect	320,0,160,32
-				visible	1
-				windowDef hover_round2_bracket3
-				{
-					rect	1,0,256,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round2_bracket3
-				{
-					rect	1,1,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round2_bracket3
-				{
-					rect	1,15,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round2_bracket3
-				{
-					rect	2,0,140,16
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round2_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round2_bracket3
-				{
-					rect	146,0,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round2_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round2_bracket3
-				{
-					rect	2,13,140,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round2_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round2_bracket3
-				{
-					rect	146,13,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round2_bracket3"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round2_bracket3
-				{
-					rect	0,6,160,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-			windowDef p_round2_bracket4
-			{
-				rect	480,0,160,32
-				visible	1
-				windowDef hover_round2_bracket4
-				{
-					rect	0,0,256,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round2_bracket4
-				{
-					rect	1,1,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round2_bracket4
-				{
-					rect	1,15,256,16
-					visible	1
-					background	"gfx/guis/hud/tourntop_sel2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round2_bracket4
-				{
-					rect	2,0,140,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round2_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round2_bracket4
-				{
-					rect	146,0,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round2_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round2_bracket4
-				{
-					rect	2,13,140,15
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round2_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round2_bracket4
-				{
-					rect	146,13,11,16
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round2_bracket4"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round2_bracket4
-				{
-					rect	0,6,160,15
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-			}
-		}
-		windowDef p_round3
-		{
-			rect	0,0,640,32
-			visible	0
-			windowDef round3_sep
-			{
-				rect	312,0,16,32
-				visible	1
-				background	"gfx/guis/hud/tourn_sep2"
-				matcolor	1,1,1,0.5
-			}
-			windowDef p_round3_bracket1
-			{
-				rect	0,0,320,32
-				visible	1
-				windowDef hover_round3_bracket1
-				{
-					rect	1,0,315,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over3"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round3_bracket1
-				{
-					rect	1,0,220,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round3_bracket1
-				{
-					rect	179,0,220,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round3_bracket1
-				{
-					rect	3,6,102,14
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round3_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round3_bracket1
-				{
-					rect	108,3,17,22
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round3_bracket1"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round3_bracket1
-				{
-					rect	182,6,102,14
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round3_bracket1"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round3_bracket1
-				{
-					rect	285,3,17,22
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round3_bracket1"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round3_bracket1
-				{
-					rect	0,4,320,20
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-				windowDef vs_round3_bracket1
-				{
-					rect	144,6,29,17
-					visible	1
-					forecolor	1,1,1,0.6
-					text	"#str_200290"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-			}
-			windowDef p_round3_bracket2
-			{
-				rect	320,0,320,32
-				visible	1
-				windowDef hover_round3_bracket2
-				{
-					rect	4,0,315,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over3"
-					matcolor	0.243,0.341,0.717,0
-				}
-				windowDef sel1_round3_bracket2
-				{
-					rect	4,0,220,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round3_bracket2
-				{
-					rect	182,0,220,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over2"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round3_bracket2
-				{
-					rect	7,6,112,13
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name1_round3_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round3_bracket2
-				{
-					rect	111,3,17,21
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round3_bracket2"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef name2_round3_bracket2
-				{
-					rect	186,6,112,13
-					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round3_bracket2"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round3_bracket2
-				{
-					rect	288,3,17,22
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round3_bracket2"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	2
-				}
-				windowDef empty_round3_bracket2
-				{
-					rect	0,4,320,20
-					visible	0
-					forecolor	1,1,1,0.4
-					text	"#str_200952"
-					textscale	0.33
-					font	"fonts/lowpixel"
-					textstyle	1
-					textalign	1
-				}
-				windowDef vs_round3_bracket2
-				{
-					rect	147,6,29,16
-					visible	1
-					forecolor	1,1,1,0.6
-					text	"#str_200290"
-					textscale	0.22
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-			}
-		}
-		windowDef p_round4
-		{
-			rect	0,0,640,32
-			visible	0
-			windowDef p_round4_bracket1
+			windowDef p_round1
 			{
 				rect	0,0,640,32
-				visible	1
-				windowDef hover_round4_bracket1
+				visible	0
+				windowDef round1_sep1
+				{
+					rect	77,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep2
+				{
+					rect	157,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep3
+				{
+					rect	237,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep4
+				{
+					rect	317,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep5
+				{
+					rect	397,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep6
+				{
+					rect	477,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round1_sep7
+				{
+					rect	557,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef p_round1_bracket1
+				{
+					rect	0,0,80,32
+					visible	1
+					windowDef hover_round1_bracket1
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket1
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket1
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket1
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket1
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket1
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket1
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket1
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket2
+				{
+					rect	80,0,80,32
+					visible	1
+					windowDef hover_round1_bracket2
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket2
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket2
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket2
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket2
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket2
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket2
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket2
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket3
+				{
+					rect	160,0,80,32
+					visible	1
+					windowDef hover_round1_bracket3
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket3
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket3
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket3
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket3
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket3
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket3
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket3
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket4
+				{
+					rect	240,0,80,32
+					visible	1
+					windowDef hover_round1_bracket4
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket4
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket4
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket4
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket4
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket4
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket4
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket4
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket5
+				{
+					rect	320,0,80,32
+					visible	1
+					windowDef hover_round1_bracket5
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket5
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket5
+					{
+						rect	1,15,128,15
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket5
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket5"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket5
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket5"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket5
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket5"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket5
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket5"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket5
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket6
+				{
+					rect	400,0,80,32
+					visible	1
+					windowDef hover_round1_bracket6
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket6
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket6
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket6
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket6"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket6
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket6"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket6
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket6"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket6
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket6"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket6
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket7
+				{
+					rect	480,0,80,32
+					visible	1
+					windowDef hover_round1_bracket7
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket7
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket7
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket7
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket7"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket7
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket7"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket7
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket7"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket7
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket7"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket7
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round1_bracket8
+				{
+					rect	560,0,80,32
+					visible	1
+					windowDef hover_round1_bracket8
+					{
+						rect	1,0,128,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round1_bracket8
+					{
+						rect	1,1,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round1_bracket8
+					{
+						rect	1,15,128,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round1_bracket8
+					{
+						rect	2,0,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round1_bracket8"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round1_bracket8
+					{
+						rect	66,0,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round1_bracket8"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round1_bracket8
+					{
+						rect	2,13,66,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round1_bracket8"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round1_bracket8
+					{
+						rect	66,13,11,15
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round1_bracket8"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round1_bracket8
+					{
+						rect	0,6,80,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+			}
+			windowDef p_round2
+			{
+				rect	0,0,640,32
+				visible	0
+				windowDef round2_sep
+				{
+					rect	157,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round2_sep2
+				{
+					rect	317,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef round2_sep3
+				{
+					rect	477,0,8,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep"
+					matcolor	1,1,1,0.5
+				}
+				windowDef p_round2_bracket1
+				{
+					rect	0,0,160,32
+					visible	1
+					windowDef hover_round2_bracket1
+					{
+						rect	1,0,256,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round2_bracket1
+					{
+						rect	1,1,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round2_bracket1
+					{
+						rect	1,15,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round2_bracket1
+					{
+						rect	2,0,140,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round2_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round2_bracket1
+					{
+						rect	146,0,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round2_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round2_bracket1
+					{
+						rect	2,13,140,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round2_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round2_bracket1
+					{
+						rect	146,13,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round2_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round2_bracket1
+					{
+						rect	0,6,160,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round2_bracket2
+				{
+					rect	160,0,160,32
+					visible	1
+					windowDef hover_round2_bracket2
+					{
+						rect	1,0,256,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round2_bracket2
+					{
+						rect	1,1,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round2_bracket2
+					{
+						rect	1,15,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round2_bracket2
+					{
+						rect	3,0,140,16
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round2_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round2_bracket2
+					{
+						rect	146,0,11,16
+						visible	1
+						forecolor	1,0.5,0,1
+						text	"gui::score1_round2_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round2_bracket2
+					{
+						rect	2,13,140,16
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round2_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round2_bracket2
+					{
+						rect	146,13,11,16
+						visible	1
+						forecolor	1,0.5,0,1
+						text	"gui::score2_round2_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round2_bracket2
+					{
+						rect	0,6,160,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round2_bracket3
+				{
+					rect	320,0,160,32
+					visible	1
+					windowDef hover_round2_bracket3
+					{
+						rect	1,0,256,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round2_bracket3
+					{
+						rect	1,1,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round2_bracket3
+					{
+						rect	1,15,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round2_bracket3
+					{
+						rect	2,0,140,16
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round2_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round2_bracket3
+					{
+						rect	146,0,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round2_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round2_bracket3
+					{
+						rect	2,13,140,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round2_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round2_bracket3
+					{
+						rect	146,13,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round2_bracket3"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round2_bracket3
+					{
+						rect	0,6,160,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+				windowDef p_round2_bracket4
+				{
+					rect	480,0,160,32
+					visible	1
+					windowDef hover_round2_bracket4
+					{
+						rect	0,0,256,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round2_bracket4
+					{
+						rect	1,1,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round2_bracket4
+					{
+						rect	1,15,256,16
+						visible	1
+						background	"gfx/guis/hud/tourntop_sel2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round2_bracket4
+					{
+						rect	2,0,140,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round2_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round2_bracket4
+					{
+						rect	146,0,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round2_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round2_bracket4
+					{
+						rect	2,13,140,15
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round2_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round2_bracket4
+					{
+						rect	146,13,11,16
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round2_bracket4"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round2_bracket4
+					{
+						rect	0,6,160,15
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+				}
+			}
+			windowDef p_round3
+			{
+				rect	0,0,640,32
+				visible	0
+				windowDef round3_sep
+				{
+					rect	312,0,16,32
+					visible	1
+					background	"gfx/guis/hud/tourn_sep2"
+					matcolor	1,1,1,0.5
+				}
+				windowDef p_round3_bracket1
+				{
+					rect	0,0,320,32
+					visible	1
+					windowDef hover_round3_bracket1
+					{
+						rect	1,0,315,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over3"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round3_bracket1
+					{
+						rect	1,0,220,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round3_bracket1
+					{
+						rect	179,0,220,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round3_bracket1
+					{
+						rect	3,6,102,14
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round3_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round3_bracket1
+					{
+						rect	108,3,17,22
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round3_bracket1"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round3_bracket1
+					{
+						rect	182,6,102,14
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round3_bracket1"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round3_bracket1
+					{
+						rect	285,3,17,22
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round3_bracket1"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round3_bracket1
+					{
+						rect	0,4,320,20
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+					windowDef vs_round3_bracket1
+					{
+						rect	144,6,29,17
+						visible	1
+						forecolor	1,1,1,0.6
+						text	"#str_200290"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+				}
+				windowDef p_round3_bracket2
+				{
+					rect	320,0,320,32
+					visible	1
+					windowDef hover_round3_bracket2
+					{
+						rect	4,0,315,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over3"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round3_bracket2
+					{
+						rect	4,0,220,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round3_bracket2
+					{
+						rect	182,0,220,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over2"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round3_bracket2
+					{
+						rect	7,6,112,13
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round3_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round3_bracket2
+					{
+						rect	111,3,17,21
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round3_bracket2"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round3_bracket2
+					{
+						rect	186,6,112,13
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round3_bracket2"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round3_bracket2
+					{
+						rect	288,3,17,22
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round3_bracket2"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef empty_round3_bracket2
+					{
+						rect	0,4,320,20
+						visible	0
+						forecolor	1,1,1,0.4
+						text	"#str_200952"
+						textscale	0.33
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	1
+					}
+					windowDef vs_round3_bracket2
+					{
+						rect	147,6,29,16
+						visible	1
+						forecolor	1,1,1,0.6
+						text	"#str_200290"
+						textscale	0.22
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+				}
+			}
+			windowDef p_round4
+			{
+				rect	0,0,640,32
+				visible	0
+				windowDef p_round4_bracket1
 				{
 					rect	0,0,640,32
 					visible	1
-					background	"gfx/guis/hud/tourntop_over3"
-					matcolor	0.243,0.341,0.717,0
+					windowDef hover_round4_bracket1
+					{
+						rect	0,0,640,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over3"
+						matcolor	0.243,0.341,0.717,0
+					}
+					windowDef sel1_round4_bracket1
+					{
+						rect	1,0,284,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over3"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef sel2_round4_bracket1
+					{
+						rect	354,0,284,32
+						visible	1
+						background	"gfx/guis/hud/tourntop_over3"
+						matcolor	0.368,0.725,0.529,0
+					}
+					windowDef name1_round4_bracket1
+					{
+						rect	6,4,224,22
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name1_round4_bracket1"
+						textscale	0.31
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score1_round4_bracket1
+					{
+						rect	248,2,17,25
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score1_round4_bracket1"
+						textscale	0.4
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef name2_round4_bracket1
+					{
+						rect	378,4,224,22
+						visible	1
+						forecolor	1,1,1,1
+						text	"gui::name2_round4_bracket1"
+						textscale	0.31
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
+					windowDef score2_round4_bracket1
+					{
+						rect	610,2,17,25
+						visible	1
+						forecolor	1,0.501,0,1
+						text	"gui::score2_round4_bracket1"
+						textscale	0.4
+						font	"fonts/lowpixel"
+						textstyle	1
+						textalign	2
+					}
+					windowDef vs_round4_bracket1
+					{
+						rect	298,2,44,25
+						visible	1
+						forecolor	1,1,1,0.6
+						text	"#str_200290"
+						textscale	0.4
+						font	"fonts/lowpixel"
+						textstyle	1
+					}
 				}
-				windowDef sel1_round4_bracket1
+			}
+			windowDef tourn_overbar
+			{
+				rect	-100,-62,840,62
+				visible	1
+				background	"gfx/guis/common/128_sqsolid"
+				matcolor	0,0,0,1
+				notime	1
+				windowDef tourn_title1
 				{
-					rect	1,0,284,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over3"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef sel2_round4_bracket1
-				{
-					rect	354,0,284,32
-					visible	1
-					background	"gfx/guis/hud/tourntop_over3"
-					matcolor	0.368,0.725,0.529,0
-				}
-				windowDef name1_round4_bracket1
-				{
-					rect	6,4,224,22
+					rect	100,32,318,25
 					visible	1
 					forecolor	1,1,1,1
-					text	"gui::name1_round4_bracket1"
-					textscale	0.31
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score1_round4_bracket1
-				{
-					rect	248,2,17,25
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score1_round4_bracket1"
+					text	"#str_200943"
 					textscale	0.4
 					font	"fonts/lowpixel"
 					textstyle	1
 					textalign	2
 				}
-				windowDef name2_round4_bracket1
+				windowDef tourn_title2
 				{
-					rect	378,4,224,22
+					rect	422,32,318,25
 					visible	1
-					forecolor	1,1,1,1
-					text	"gui::name2_round4_bracket1"
-					textscale	0.31
-					font	"fonts/lowpixel"
-					textstyle	1
-				}
-				windowDef score2_round4_bracket1
-				{
-					rect	610,2,17,25
-					visible	1
-					forecolor	1,0.501,0,1
-					text	"gui::score2_round4_bracket1"
+					forecolor	1,0.5,0,1
+					text	"#str_200286"
 					textscale	0.4
 					font	"fonts/lowpixel"
 					textstyle	1
-					textalign	2
 				}
-				windowDef vs_round4_bracket1
+			}
+			windowDef d_tourn_overbar
+			{
+				rect	-100,-28,840,62
+				visible	0
+				background	"gfx/guis/common/128_sqsolid"
+				matcolor	0,0,0,1
+			}
+			windowDef tourn_warmupbar
+			{
+				rect	0,-62,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),62
+				visible	1
+				background	"gfx/guis/common/128_sqsolid"
+				matcolor	0,0,0,1
+				notime	1
+				windowDef tourn_warmup_title
 				{
-					rect	298,2,44,25
+					rect	"gui::virtual_screen_x_expand",32,640,25
+					visible	1
+					forecolor	1,1,1,1
+					text	"#str_200953"
+					textscale	0.4
+					font	"fonts/lowpixel"
+					textstyle	1
+					textalign	1
+				}
+			}
+			windowDef d_tourn_warmupbar
+			{
+				rect	0,-28,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),62
+				visible	0
+				background	"gfx/guis/common/128_sqsolid"
+				matcolor	0,0,0,1
+				notime	1
+			}
+		}
+	
+		windowDef d_aimText
+		{
+			rect	0,0,640,480
+			notime	1
+			visible	1
+
+			onTime 0 {
+				transition "aimText::forecolor" "1,0,0,1" "$desktop::aim_text_color" "400";
+				transition "aimTextHealth::forecolor" "1,0,0,1" "$desktop::aim_text_color" "400";
+			}
+
+			onTime 500 {
+				set "notime" "1";
+			}
+
+		}
+		windowDef d_aimText2
+		{
+			rect	0,0,640,480
+			notime	1
+			visible	1
+
+			onTime 100 {
+				transition "aimText::forecolor_w" "0" "0.8" "200";
+				transition "aimTextHealth::forecolor_w" "0" "0.8" "200";
+			}
+
+		}
+		windowDef aimText
+		{
+			rect	207,260,215,38
+			screenalignx	middle
+			screenaligny	bottom
+			visible	1
+			text	"gui::aim_text"
+			textscale	0.22
+			textalign	1
+			forecolor	1,1,1,0
+			notime	1
+			textstyle	1
+			font	"fonts/lowpixel"
+
+			onTime 0 {
+				transition "aimText::forecolor" "$aimText::forecolor" "$desktop::aim_fade_color" "500";
+			}
+
+			onTime +500 {
+				set "notime" "1";
+			}
+
+		}
+		windowDef aimTextHealth
+		{
+			rect	207,298,215,38
+			screenalignx	middle
+			screenaligny	bottom
+			visible	1
+			text	"gui::aim_teammate_health"
+			textscale	0.22
+			textalign	1
+			forecolor	1,1,1,0
+			notime	1
+			textstyle	1
+			font	"fonts/lowpixel"
+
+			onTime 0 {
+				transition "aimTextHealth::forecolor" "$aimTextHealth::forecolor" "$desktop::aim_fade_color" "500";
+			}
+
+			onTime +500 {
+				set "notime" "1";
+			}
+
+		}
+		windowDef fragNotice
+		{
+			rect	100,81,440,30
+			screenalignx	middle
+			screenaligny	top
+			visible	0
+			text	"gui::frag_notice_text"
+			font	"fonts/lowpixel"
+			textscale	0.36
+			textstyle	1
+			textalign	1
+			forecolor	1,1,.552,1
+			notime	1
+
+			onTime 0 {
+				set "visible" "1";
+				set "forecolor_w" "1";
+			}
+
+			onTime +2000 {
+				transition "fragNotice::forecolor_w" "1" "0" "500";
+			}
+
+			onTime +2500 {
+				set "visible" "0";
+				set "notime" "1";
+			}
+
+		}
+		windowDef p_ctf
+		{
+			rect	0,0,640,480
+			screenalignx	left
+			screenaligny	top
+			backcolor 0,0,0,0
+			visible	0
+			windowDef ctf_clan1_bg
+			{
+				rect	1,-3,102,58
+				background	"gfx/guis/hud/ctf_bgbar"
+				visible	1
+				matcolor	0,0,0,1
+			}
+			windowDef ctf_clan1_bgcolor
+			{
+				rect	1,-3,101,58
+				background	"gfx/guis/hud/ctf_bgbar2"
+				visible	1
+				matcolor	0.415,0.643,0.168,0.8
+			}
+			windowDef ctf_clan1_logo
+			{
+				rect	6,14,24,24
+				visible	1
+				background	"gfx/guis/mainmenu/marinelogo"
+				matcolor	1,1,1,1
+			}
+			windowDef ctf_clan1_score_marine
+			{
+				rect	36,13,43,24
+				visible	0
+				forecolor	(1-"gui::marine_pulse_amount"),1,(1-"gui::marine_pulse_amount"),1
+				text	"gui::marine_score"
+				textscale	0.36
+				font	"fonts/lowpixel"
+			}
+			windowDef ctf_clan1_score_strogg
+			{
+				rect	36,13,43,24
+				visible	0
+				forecolor	1,(1-(0.5*"gui::strogg_pulse_amount")),(1-"gui::strogg_pulse_amount"),1
+				text	"gui::strogg_score"
+				textscale	0.36
+				font	"fonts/lowpixel"
+			}
+			windowDef ctf_clan2_bg
+			{
+				rect	1,41,102,58
+				background	"gfx/guis/hud/ctf_bgbar"
+				visible	1
+				matcolor	0,0,0,1
+			}
+			windowDef ctf_clan2_bgcolor
+			{
+				rect	1,41,101,58
+				background	"gfx/guis/hud/ctf_bgbar2"
+				visible	1
+				matcolor	1,0.482,0.0156,0.8
+			}
+			windowDef ctf_clan2_logo
+			{
+				rect	6,57,24,24
+				visible	1
+				background	"gfx/guis/mainmenu/strogglogo"
+				matcolor	1,1,1,1
+			}
+			windowDef ctf_clan2_score_marine
+			{
+				rect	36,57,43,24
+				visible	0
+				forecolor	(1-"gui::marine_pulse_amount"),1,(1-"gui::marine_pulse_amount"),1
+				text	"gui::marine_score"
+				textscale	0.36
+				font	"fonts/lowpixel"
+			}
+			windowDef ctf_clan2_score_strogg
+			{
+				rect	36,57,43,24
+				visible	0
+				forecolor	1,(1-(0.5*"gui::strogg_pulse_amount")),(1-"gui::strogg_pulse_amount"),1
+				text	"gui::strogg_score"
+				textscale	0.36
+				font	"fonts/lowpixel"
+			}
+			windowDef p_ctf_2
+			{
+				rect	0,0,640,480
+				screenalignx	left
+				screenaligny	top
+				visible	0
+				backcolor 0,0,0,0
+				windowDef ctf_clan1_flag
+				{
+					rect	86,11,28,28
+					visible	1
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	0.415,0.643,0.168,0.8
+					shear	0,-.22
+				}
+				windowDef d_ctf_clan1_flag
+				{
+					rect	83,8,34,34
+					visible	0
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	0.415,0.643,0.168,0.8
+					shear	0,-.22
+
+					onTime 0 {
+						transition "ctf_clan1_flag::rect" "$ctf_clan1_flag::rect" "$d_ctf_clan1_flag::rect" "250" ;
+					}
+
+					onTime 250 {
+						transition "ctf_clan1_flag::rect" "$d_ctf_clan1_flag::rect" "$ctf_clan1_flag::rect" "750" ;
+					}
+
+					onTime 1000 {
+						resettime "0" ;
+					}
+
+				}
+				windowDef ctf_clan1_flag_status
+				{
+					rect	87,10,20,30
+					visible	1
+					forecolor	1,1,1,1
+					text	""
+					textscale	0.5
+					font	"fonts/lowpixel"
+					textalign	1
+					textstyle	1
+				}
+				windowDef ctf_clan2_flag
+				{
+					rect	86,55,28,28
+					visible	1
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	1,0.482,0.0156,0.8
+					shear	0,-.22
+				}
+				windowDef d_ctf_clan2_flag
+				{
+					rect	83,52,34,34
+					visible	0
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	1,0.482,0.0156,0.8
+					shear	0,-.22
+
+					onTime 0 {
+						transition "ctf_clan2_flag::rect" "$ctf_clan2_flag::rect" "$d_ctf_clan2_flag::rect" "250" ;
+					}
+
+					onTime 250 {
+						transition "ctf_clan2_flag::rect" "$d_ctf_clan2_flag::rect" "$ctf_clan2_flag::rect" "750" ;
+					}
+
+					onTime 1000 {
+						resettime "0" ;
+					}
+
+				}
+				windowDef ctf_clan2_flag_status
+				{
+					rect	87,54,20,30
+					visible	1
+					forecolor	1,1,1,1
+					text	""
+					textscale	0.5
+					font	"fonts/lowpixel"
+					textalign	1
+					textstyle	1
+				}
+			}
+			windowDef p_onectf
+			{
+				rect	0,0,640,480
+				screenalignx	left
+				screenaligny	top
+				visible	0
+				windowDef ctfone_arc
+				{
+					rect	83,13,37,70
+					visible	1
+					background	"gfx/guis/hud/onectf_arc"
+					matcolor	0.584,0.584,0.584,0.8
+					shear	0,-.06
+				}
+				windowDef ctfone_flag
+				{
+					rect	97,33,28,28
+					visible	1
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	1,1,.552,0.8
+					shear	0,-.22
+				}
+				windowDef d_ctfone_flag
+				{
+					rect	94,30,34,34
+					visible	0
+					background	"gfx/guis/hud/ctf_flag"
+					matcolor	1,1,.552,0.8
+					shear	0,-.22
+
+					onTime 0 {
+						transition "ctfone_flag::rect" "$ctfone_flag::rect" "$d_ctfone_flag::rect" "250" ;
+						transition "ctfone_flag::matcolor" "$desktop::neutral" "$desktop::ctfoneflag_color" "250" ;
+					}
+
+					onTime 250 {
+						transition "ctfone_flag::rect" "$d_ctfone_flag::rect" "$ctfone_flag::rect" "750" ;
+						transition "ctfone_flag::matcolor" "$desktop::ctfoneflag_color" "$desktop::neutral" "750" ;
+					}
+
+					onTime 1000 {
+						resettime "0" ;
+					}
+
+				}
+				windowDef ctfone_flag_status
+				{
+					rect	98,31,20,30
+					visible	1
+					forecolor	1,1,1,1
+					text	""
+					textscale	0.5
+					font	"fonts/lowpixel"
+					textalign	1
+					textstyle	1
+				}
+			}
+			windowDef ctf_stopwatch
+			{
+				rect	4,94,20,20
+				visible	1
+				background	"gfx/guis/hud/icons/icon_stopwatch"
+				matcolor	1,1,0.552,1
+			}
+			windowDef ctf_time
+			{
+				rect	23,96,200,20
+				visible	("gui::infinity" == 0)
+				forecolor	1,1,1,1
+				text	"gui::timeleft"
+				textscale	.25
+				textstyle	1
+				font	"fonts/lowpixel"
+			}
+			windowDef ctf_infinity
+			{
+				rect	25,96,20,20
+				visible	("gui::infinity" == 1)
+				background	"gfx/guis/hud/icons/icon_infinity"
+				matcolor	1,1,1,1
+			}
+		}
+		windowDef p_ffa
+		{
+			rect	0,0,640,480
+			screenalignx	left
+			screenaligny	top
+			visible	0
+			windowDef p_tourney
+			{
+				rect	0,0,640,480
+				screenalignx	left
+				screenaligny	top
+				visible	1
+				windowDef tourn_roundarr1
+				{
+					rect	2,2,17,16
+					visible	1
+					forecolor	0.588,0.588,0.588,1
+					text	">"
+					textscale	0.3
+					textstyle	1
+					font	"fonts/lowpixel"
+				}
+				windowDef tourn_roundnum
+				{
+					rect	19,4,103,16
+					visible	1
+					forecolor	1,1,0.552,1
+					text	"gui::tourney_round"
+					textscale	.25
+					textstyle	1
+					font	"fonts/lowpixel"
+				}
+				windowDef tourn_roundarr2
+				{
+					rect	121,2,17,16
+					visible	1
+					forecolor	0.588,0.588,0.588,1
+					text	">"
+					textscale	0.3
+					textstyle	1
+					font	"fonts/lowpixel"
+				}
+				windowDef tourn_arenanum
+				{
+					rect	138,4,160,16
+					visible	1
+					forecolor	1,1,1,1
+					text	"gui::tourney_arena"
+					textscale	.25
+					textstyle	1
+					font	"fonts/lowpixel"
+				}
+				windowDef tourn_hint
+				{
+					rect	3,18,261,16
 					visible	1
 					forecolor	1,1,1,0.6
-					text	"#str_200290"
-					textscale	0.4
-					font	"fonts/lowpixel"
+					text	"#str_200269"
+					textscale	0.22
 					textstyle	1
+					font	"fonts/lowpixel"
 				}
 			}
-		}
-		windowDef tourn_overbar
-		{
-			rect	-100,-62,840,62
-			visible	1
-			background	"gfx/guis/common/128_sqsolid"
-			matcolor	0,0,0,1
-			notime	1
-			windowDef tourn_title1
+			windowDef ffa_player1_bg
 			{
-				rect	100,32,318,25
+				rect	0,35,242,28
+				background	"gfx/guis/hud/ffa_bgbar"
+				visible	1
+				matcolor	0,0,0,1
+			}
+			windowDef ffa_player1_bgcolor
+			{
+	//			rect	0,35,242,28
+				rect	0, (35-(4*"gui::player1_pulse_amount")),242+(4*"gui::player1_pulse_amount"),28+(8*"gui::player1_pulse_amount")
+				background	"gfx/guis/hud/ffa_bgbar2"
+				visible	1
+				matcolor	1,1,0.552,0.4
+	//			matcolor	"gui::player1_color_r", "gui::player1_color_g", "gui::player1_color_b", "gui::player1_color_a"
+			}
+			windowDef ffa_player2_bg
+			{
+				rect	0,64,242,28
+				background	"gfx/guis/hud/ffa_bgbar"
+				visible	1
+				matcolor	0,0,0,1
+			}
+			windowDef ffa_player2_bgcolor1
+			{
+	//			rect	0,64,242,28
+				rect	0, (64-(4*"gui::player2_pulse_amount")),242+(4*"gui::player2_pulse_amount"),28+(8*"gui::player2_pulse_amount")
+				background	"gfx/guis/hud/ffa_bgbar2"
+				visible	1
+				matcolor	1,1,0.552,0.4
+	//			matcolor	"gui::player2_color_r", "gui::player2_color_g", "gui::player2_color_b", "gui::player2_color_a"
+			}
+			windowDef ffa_player1_rank
+			{
+				rect	3,39,20,16
 				visible	1
 				forecolor	1,1,1,1
-				text	"#str_200943"
-				textscale	0.4
-				font	"fonts/lowpixel"
+				text	"gui::player1_rank"
+				textscale	0.22
 				textstyle	1
+				font	"fonts/lowpixel"
 				textalign	2
 			}
-			windowDef tourn_title2
+			windowDef ffa_player1_name
 			{
-				rect	422,32,318,25
-				visible	1
-				forecolor	1,0.5,0,1
-				text	"#str_200286"
-				textscale	0.4
-				font	"fonts/lowpixel"
-				textstyle	1
-			}
-		}
-		windowDef d_tourn_overbar
-		{
-			rect	-100,-28,840,62
-			visible	0
-			background	"gfx/guis/common/128_sqsolid"
-			matcolor	0,0,0,1
-		}
-		windowDef tourn_warmupbar
-		{
-			rect	0,-62,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),62
-			visible	1
-			background	"gfx/guis/common/128_sqsolid"
-			matcolor	0,0,0,1
-			notime	1
-			windowDef tourn_warmup_title
-			{
-				rect	"gui::virtual_screen_x_expand",32,640,25
+				rect	23,39,112,16
 				visible	1
 				forecolor	1,1,1,1
-				text	"#str_200953"
-				textscale	0.4
-				font	"fonts/lowpixel"
+				text	"gui::player1_name"
+				textscale	.22
 				textstyle	1
-				textalign	1
+				font	"fonts/lowpixel"
+			}
+			windowDef ffa_player1_score
+			{
+				rect	136,39,27,16
+				visible	1
+				forecolor	1,1,0.552,1
+	//			forecolor	"gui::player1_color_r", "gui::player1_color_g", "gui::player1_color_b", 1
+	//			forecolor	1,1,0.552 + ((1-0.552)*"gui::player1_pulse_amount"),1
+				text	"gui::player1_score"
+				textscale	0.22
+				textstyle	1
+				font	"fonts/lowpixel"
+				textalign	2
+			}
+			windowDef ffa_stopwatch
+			{
+				rect	4,92,20,20
+				visible	1
+				background	"gfx/guis/hud/icons/icon_stopwatch"
+				matcolor	1,1,0.552,1
+			}
+			windowDef ffa_time
+			{
+				rect	23,94,200,20
+				visible	("gui::infinity" == 0)
+				forecolor	1,1,1,1
+				text	"gui::timeleft"
+				textscale	.25
+				textstyle	1
+				font	"fonts/lowpixel"
+			}
+			windowDef ffa_infinity
+			{
+				rect	25,94,20,19
+				visible ("gui::infinity" == 1)
+				background	"gfx/guis/hud/icons/icon_infinity"
+				matcolor	1,1,1,1
+			}
+			windowDef ffa_player2_rank
+			{
+				rect	3,68,20,16
+				visible	1
+				forecolor	1,1,1,1
+				text	"gui::player2_rank"
+				textscale	0.22
+				textstyle	1
+				font	"fonts/lowpixel"
+				textalign	2
+			}
+			windowDef ffa_player2_name
+			{
+				rect	23,68,112,16
+				visible	1
+				forecolor	1,1,1,1
+				text	"gui::player2_name"
+				textscale	.22
+				textstyle	1
+				font	"fonts/lowpixel"
+			}
+			windowDef ffa_player2_score
+			{
+				rect	136,69,27,16
+				visible	1
+				forecolor	1,1,0.552,1
+	//			forecolor	"gui::player2_color_r", "gui::player2_color_g", "gui::player2_color_b", 1
+	//			forecolor	1,1,0.552 + ((1-0.552)*"gui::player2_pulse_amount"),1
+				text	"gui::player2_score"
+				textscale	0.22
+				textstyle	1
+				font	"fonts/lowpixel"
+				textalign	2
 			}
 		}
-		windowDef d_tourn_warmupbar
+		windowDef p_mframes
 		{
-			rect	0,-28,( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),62
+			rect	576, 0, 64, 64
+			screenalignx	right
+			screenaligny	top
+			background	"gfx/mp/frowny"
+			visible	"gui::mult_frames"
+		}
+		windowDef p_mframesn
+		{
+			rect	576, 64, 64, 32
+			screenalignx	right
+			screenaligny	top
+			visible	"gui::mult_frames"
+			text	"gui::num_frames"
+			textalign	1
+		}
+		windowDef p_stats
+		{
+			rect	474,0,166,480
+			screenalignx	right
+			screenaligny	top
+			visible	"gui::stat_visible"
+			windowDef statgrad
+			{
+				rect	-24,70,462,360
+				visible	1
+				background	"gfx/guis/mainmenu/scoregrad2"
+				matcolor	0,0,0,0.8
+			}
+			windowDef players_t_kills
+			{
+				rect	35,100,53,13
+				text	"#str_200201"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,1,0.8
+				textstyle	1
+			}
+			windowDef players_t_deaths
+			{
+				rect	108,100,53,13
+				text	"#str_200202"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,1,0.8
+				textstyle	1
+			}
+			windowDef players_kills
+			{
+				rect	35,112,41,23
+				text	"gui::stat_frags"
+				textscale	0.35
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+			}
+			windowDef players_deaths
+			{
+				rect	108,112,41,22
+				text	"gui::stat_deaths"
+				textscale	0.35
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.549,1
+				textstyle	1
+			}
+			windowDef players_t_acc
+			{
+				rect	35,141,79,13
+				text	"#str_200203"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,1,0.8
+				textstyle	1
+			}
+			windowDef players_t_awards
+			{
+				rect	108,141,81,13
+				text	"#str_200204"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,1,0.8
+				textstyle	1
+			}
+			windowDef players_stats_horizline1
+			{
+				rect	35,112,126,3
+				visible	1
+				background	"gfx/guis/mainmenu/horiz_line2"
+				matcolor	1,1,1,.3
+			}
+			windowDef players_stats_horizline2
+			{
+				rect	35,154,126,3
+				visible	1
+				background	"gfx/guis/mainmenu/horiz_line2"
+				matcolor	1,1,1,.3
+			}
+			windowDef acc_shotgun
+			{
+				rect	39,186,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_shotgun_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_mgun
+			{
+				rect	39,162,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_machinegun_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_hblaster
+			{
+				rect	39,210,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_hyperblaster_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_grenade
+			{
+				rect	38,235,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_grenade_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_nailgun
+			{
+				rect	39,260,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_nailgun_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_rocket
+			{
+				rect	39,283,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_rocket_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_railgun
+			{
+				rect	39,308,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_railgun_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_lgun
+			{
+				rect	39,332,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_lightning_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_dmg
+			{
+				rect	39,357,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_darkmatter_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef acc_napalmlauncher
+			{
+				rect	39,381,16,16
+				visible	1
+				background	"gfx/guis/hud/icons/item_fire_colored"
+				matcolor	1,1,1,1
+			}
+			windowDef mgun_pct
+			{
+				rect	57,162,60,13
+				text	"gui::stat_1_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef shotgun_pct
+			{
+				rect	57,187,60,13
+				text	"gui::stat_2_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef hblaster_pct
+			{
+				rect	57,210,60,13
+				text	"gui::stat_3_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef grenade_pct
+			{
+				rect	57,235,60,13
+				text	"gui::stat_4_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef nailgun_pct
+			{
+				rect	57,261,60,13
+				text	"gui::stat_5_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef rocket_pct
+			{
+				rect	57,284,60,13
+				text	"gui::stat_6_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef railgun_pct
+			{
+				rect	57,309,60,13
+				text	"gui::stat_7_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef lgun_pct
+			{
+				rect	57,333,60,13
+				text	"gui::stat_8_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef dmg_pct
+			{
+				rect	58,358,60,13
+				text	"gui::stat_9_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef napalmlauncher_pct
+			{
+				rect	58,382,60,13
+				text	"gui::stat_10_pct"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.552,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef aw_excellent
+			{
+				rect	110,162,24,24
+				visible	1
+				background	"gfx/mp/awards/excellent"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_impressive
+			{
+				rect	110,191,24,24
+				visible	1
+				background	"gfx/mp/awards/impressive"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_humiliation
+			{
+				rect	110,221,24,24
+				visible	1
+				background	"gfx/mp/awards/humiliation"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_comboKill
+			{
+				rect	110,252,24,24
+				visible	1
+				background	"gfx/mp/awards/combo_kill"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_rampage
+			{
+				rect	110,283,24,24
+				visible	1
+				background	"gfx/mp/awards/rampage"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_capture
+			{
+				rect	110,313,24,24
+				visible	"gui::ctf_awards"
+				background	"gfx/mp/awards/capture"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_assist
+			{
+				rect	110,344,24,24
+				visible	"gui::ctf_awards"
+				background	"gfx/mp/awards/assist"
+				matcolor	1,1,1,1
+			}
+			windowDef aw_defense
+			{
+				rect	110,374,24,24
+				visible	"gui::ctf_awards"
+				background	"gfx/mp/awards/defense"
+				matcolor	1,1,1,1
+			}
+			windowDef excellent_num
+			{
+				rect	139,164,21,16
+				text	"gui::excellent"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef impressive_num
+			{
+				rect	139,194,21,16
+				text	"gui::impressive"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef humiliation_num
+			{
+				rect	139,224,21,16
+				text	"gui::humiliation"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef comboKill_num
+			{
+				rect	139,255,21,16
+				text	"gui::combo_kill"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef rampage_num
+			{
+				rect	139,285,21,16
+				text	"gui::rampage"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	1
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef capture_num
+			{
+				rect	139,316,21,16
+				text	"gui::capture"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	"gui::ctf_awards"
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef assist_num
+			{
+				rect	139,347,21,16
+				text	"gui::assist"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	"gui::ctf_awards"
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+			windowDef defense_num
+			{
+				rect	139,377,21,16
+				text	"gui::defense"
+				textscale	0.24
+				font	"fonts/lowpixel"
+				visible	"gui::ctf_awards"
+				forecolor	1,1,0.545,1
+				textstyle	1
+				textspacing	-1
+			}
+		}
+		windowDef p_history
+		{
+			rect	8,302,549,65
+			screenalignx	left
+			screenaligny	bottom
+			visible	1
+			nocursor	1
+			windowDef history1
+			{
+				rect	0,0,549,18
+				forecolor	1,1,.552,1
+				textscale	0.25
+				textalign	0
+				font	"fonts/lowpixel"
+				visible	0
+				textstyle	1
+			}
+			windowDef history1_fade
+			{
+				rect	0,0,549,18
+				forecolor	1,1,.552,1
+				textscale	0.25
+				textalign	0
+				font	"fonts/lowpixel"
+				visible	0
+				textstyle	1
+			}
+			windowDef history2
+			{
+				rect	0,15,549,18
+				forecolor	1,1,.552,1
+				textscale	0.25
+				textalign	0
+				font	"fonts/lowpixel"
+				visible	0
+				textstyle	1
+			}
+			windowDef history3
+			{
+				rect	0,30,549,18
+				forecolor	1,1,.552,1
+				textscale	0.25
+				textalign	0
+				font	"fonts/lowpixel"
+				visible	0
+				textstyle	1
+			}
+			windowDef history4
+			{
+				rect	0,45,549,18
+				forecolor	1,1,.552,1
+				textscale	0.25
+				textalign	0
+				font	"fonts/lowpixel"
+				visible	0
+				textstyle	1
+			}
+		}
+		windowDef anim_remove
+		{
 			visible	0
-			background	"gfx/guis/common/128_sqsolid"
-			matcolor	0,0,0,1
+			rect	0,0,1,1
+
+			onTime 0 {
+				set "history1::visible" "1";
+				set "history1_fade::visible" "0";
+			}
+
+			onTime +2000 {
+				set "history1::visible" "0";
+				set "history1_fade::visible" "1";
+				set "history1_fade::forecolor" "1,1,.552,1";
+				transition "history1_fade::forecolor_w" "1" "0" 1000;
+			}
+
+			onTime +1100 {
+				//			set "history1::visible" "1";
+				set "history1_fade::visible" "0";
+				namedEvent "removeChatLine";
+			}
+
+		}
+		windowDef ig_awards
+		{
+			rect	38,132,561,74
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::ig_awards"
 			notime	1
+
+			onTime 2500 {
+				transition "ig_award_1::matcolor_w" "1" "0" "500";	
+				transition "ig_award_2::matcolor_w" "1" "0" "500";		
+				transition "ig_award_3::matcolor_w" "1" "0" "500";		
+				transition "ig_award_4::matcolor_w" "1" "0" "500";		
+				transition "ig_award_5::matcolor_w" "1" "0" "500";		
+				transition "ig_award_6::matcolor_w" "1" "0" "500";		
+				transition "ig_award_7::matcolor_w" "1" "0" "500";		
+				transition "ig_award_8::matcolor_w" "1" "0" "500";		
+				transition "ig_award_9::matcolor_w" "1" "0" "500";		
+				transition "ig_award_10::matcolor_w" "1" "0" "500";
+				transition "ig_award_num::forecolor_w" "1" "0" "500";		
+			}
+
+			onTime 3000 {
+				set "gui::ig_awards" "0";
+			}
+
+			windowDef ig_award_1
+			{
+				rect	"desktop::igOffset",11,32,32
+				visible	"gui::ig_awards_1"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_2
+			{
+				rect	"desktop::igOffset"+32,11,32,32
+				visible	"gui::ig_awards_2"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_3
+			{
+				rect	"desktop::igOffset"+32*2,11,32,32
+				visible	"gui::ig_awards_3"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_4
+			{
+				rect	"desktop::igOffset"+32*3,11,32,32
+				visible	"gui::ig_awards_4"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_5
+			{
+				rect	"desktop::igOffset"+32*4,11,32,32
+				visible	"gui::ig_awards_5"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_6
+			{
+				rect	"desktop::igOffset"+32*5,11,32,32
+				visible	"gui::ig_awards_6"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_7
+			{
+				rect	"desktop::igOffset"+32*6,11,32,32
+				visible	"gui::ig_awards_7"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_8
+			{
+				rect	"desktop::igOffset"+32*7,11,32,32
+				visible	"gui::ig_awards_8"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_9
+			{
+				rect	"desktop::igOffset"+32*8,11,32,32
+				visible	"gui::ig_awards_9"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_10
+			{
+				rect	"desktop::igOffset"+32*9,11,32,32
+				visible	"gui::ig_awards_10"
+				background	"gui::ig_award"
+				matcolor	1,1,1,1
+			}
+			windowDef ig_award_num
+			{
+				rect	0,44,561,30
+				visible	1
+				text	"gui::ig_award_num"
+				font	"fonts/lowpixel"
+				textscale	0.38
+				textstyle	1
+				textalign	1
+				forecolor	1,1,1,1
+			}
 		}
-	}
+		windowDef p_aud1
+		{
+			rect	4,263,158,16
+			screenalignx	left
+			screenaligny	bottom
+			visible	0
+			windowDef aud1_backbar
+			{
+				rect	0,0,176,18
+				visible	1
+				background	"gfx/guis/hud/aud_wavbg"
+				matcolor	0,0,0,0.498
+			}
+			windowDef aud1_name
+			{
+				rect	15,1,127,16
+				visible	1
+				forecolor	1,1,1,1
+				text	"#str_200270"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				textspacing	0
+				textstyle	1
+			}
+			windowDef aud1_wave
+			{
+				rect	4,3,10,12
+				visible	1
+				background	"gfx/guis/hud/mp_waveform"
+				matcolor	1,1,.552,1
+			}
+		}
+		windowDef p_aud2
+		{
+			rect	4,286,158,16
+			screenalignx	left
+			screenaligny	bottom
+			visible	0
+			windowDef aud2_backbar
+			{
+				rect	0,0,176,18
+				visible	1
+				background	"gfx/guis/hud/aud_wavbg"
+				matcolor	0,0,0,0.498
+			}
+			windowDef aud2_name
+			{
+				rect	15,1,127,16
+				visible	1
+				forecolor	1,1,1,1
+				text	"gui::audio_name"
+				textscale	0.2
+				font	"fonts/lowpixel"
+				textspacing	0
+				textstyle	1
+			}
+			windowDef aud2_wave
+			{
+				rect	4,3,10,12
+				visible	1
+				background	"gfx/guis/hud/mp_waveform"
+				matcolor	1,1,.552,1
+			}
+		}
+		windowDef Spectate0
+		{
+			text	"gui::spectatetext0"
+			font	"fonts/lowpixel"
+			rect	0,123,640,40
+			screenalignx	middle
+			screenaligny	top
+			forecolor	1,1,0.549,1
+			textscale	0.38
+			visible	("gui::gametype" != 2)
+			textalign	1
+			textstyle	1
+			textspacing	-1
+
+			onTime 0 {
+				transition "forecolor_w" "1" "0.5" "800" ;
+			}
+
+			onTime 500 {
+				transition "forecolor_w" "0.5" "1" "100" ;
+			}
+
+			onTime 900 {
+				resetTime "0" ;
+			}
+
+		}
+		windowDef Spectate1
+		{
+			text	"gui::spectatetext1"
+			font	"fonts/lowpixel"
+			rect	0,141,640,40
+			screenalignx	middle
+			screenaligny	top
+			forecolor	1,1,0.549,1
+			textscale	0.31
+			visible	("gui::gametype" != 2)
+			textalign	1
+			textstyle	1
+			textspacing	-1
+
+			onTime 0 {
+				transition "forecolor_w" "1" "0.5" "800" ;
+			}
+
+			onTime 500 {
+				transition "forecolor_w" "0.5" "1" "100" ;
+			}
+
+			onTime 900 {
+				resetTime "0" ;
+			}
+
+		}	
+		windowDef voteNotice
+		{
+			rect	4,145,632,31
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,.552,1
+			text	"gui::voteNoticeText"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_1
+		{
+			rect	4,173,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_1"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_2
+		{
+			rect	4,187,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_2"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_3
+		{
+			rect	4,201,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_3"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_4
+		{
+			rect	4,215,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_4"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_5
+		{
+			rect	4,229,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_5"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_6
+		{
+			rect	4,243,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_6"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
+		windowDef voteInfo_7
+		{
+			rect	4,257,632,16
+			screenalignx	middle
+			screenaligny	top
+			visible	"gui::voteNotice"
+			forecolor	1,1,1,1
+			text	"gui::voteInfo_7"
+			textscale	0.2
+			font	"fonts/lowpixel"
+			textstyle	1
+		}
 	
-	windowDef d_aimText
-	{
-		rect	0,0,640,480
-		notime	1
-		visible	1
+		windowDef sq_credits
+	   	{
+	  		rect	3,110,167,17
+	 		screenalignx	left
+	 		screenaligny	top
+	  		visible	1
+	   		forecolor	1,1,1,1
+	  		text	"gui::credits"
+	  		font "fonts/lowpixel"
+	   		textscale	0.2
+	   	}
 
-		onTime 0 {
-			transition "aimText::forecolor" "1,0,0,1" "$desktop::aim_text_color" "400";
-			transition "aimTextHealth::forecolor" "1,0,0,1" "$desktop::aim_text_color" "400";
+		windowDef sq_gameStatus
+	   	{
+	  		rect	3,127,167,17
+	 		screenalignx	left
+	 		screenaligny	top
+	  		visible	1
+	   		forecolor	1,1,1,1
+	  		text	"gui::gameStatus"
+	  		font "fonts/lowpixel"
+	   		textscale	0.2
 		}
 
-		onTime 500 {
-			set "notime" "1";
+		// openQ4: match progression readouts carried over from Quake Live.  These
+		// are gametype agnostic and sit above the centre of the screen, clear of
+		// the crosshair and of the per-gametype panels below.
+		windowDef oq4_roundText
+		{
+			rect	170,40,300,20
+			screenalignx	left
+			screenaligny	top
+			visible	"gui::showround"
+			forecolor	1,1,1,1
+			text	"gui::roundtext"
+			font	"fonts/lowpixel"
+			textscale	0.3
+			textalign	1
 		}
 
+		windowDef oq4_roundTime
+		{
+			rect	170,58,300,20
+			screenalignx	left
+			screenaligny	top
+			visible	"gui::showroundtime"
+			forecolor	1,0.25,0.25,1
+			text	"gui::roundtime"
+			font	"fonts/lowpixel"
+			textscale	0.35
+			textalign	1
+		}
+
+		// Offset from oq4_roundTime, which shares this column. Both are visible at
+		// once whenever a round mode reaches overtime and a round clock drops under
+		// 30 seconds, and at an identical rect they drew straight through each other.
+		windowDef oq4_overtime
+		{
+			rect	170,80,300,20
+			screenalignx	left
+			screenaligny	top
+			visible	"gui::overtime"
+			forecolor	1,0.85,0.3,1
+			text	"gui::overtimetext"
+			font	"fonts/lowpixel"
+			textscale	0.3
+			textalign	1
+		}
+
+		// Managed-match context is presentation-only.  The multiplayer adapter
+		// supplies complete, localized lines from the recipient-scoped match view.
+		// A single gate keeps the stock/casual presentation unchanged when no
+		// managed session is active.
+		windowDef oq4_match_context_hud
+		{
+			rect	400,8,232,106
+			screenalignx	right
+			screenaligny	top
+			visible	( "gui::match_context_visible" == 1 )
+			backcolor	0.015,0.022,0.014,0.72
+			bordercolor	0.95,0.49,0.06,0.55
+			bordersize	1
+			noevents	1
+
+			windowDef oq4_match_context_hud_phase
+			{
+				rect	8,5,216,15
+				visible	1
+				forecolor	1,0.94,0.76,1
+				text	"gui::match_context_phase"
+				font	"fonts/lowpixel"
+				textscale	0.23
+				textstyle	1
+			}
+
+			windowDef oq4_match_context_hud_rule
+			{
+				rect	8,20,216,1
+				visible	1
+				backcolor	0.95,0.49,0.06,0.55
+				noevents	1
+			}
+
+			windowDef oq4_match_context_hud_pause
+			{
+				rect	8,35,216,12
+				visible	1
+				forecolor	1,1,1,0.92
+				text	"gui::match_context_pause"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+
+			windowDef oq4_match_context_hud_role
+			{
+				rect	8,24,216,12
+				visible	1
+				forecolor	0.95,0.72,0.25,0.96
+				text	"gui::match_context_role"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+
+			windowDef oq4_match_context_hud_readiness
+			{
+				rect	8,46,216,12
+				visible	1
+				forecolor	0.78,0.84,0.69,0.92
+				text	"gui::match_context_readiness"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+
+			windowDef oq4_match_context_hud_timeouts
+			{
+				rect	8,57,216,12
+				visible	1
+				forecolor	0.78,0.84,0.69,0.92
+				text	"gui::match_context_timeouts"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+
+			windowDef oq4_match_context_hud_proposal
+			{
+				rect	8,68,216,12
+				visible	1
+				forecolor	0.78,0.84,0.69,0.92
+				text	"gui::match_context_proposal"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+
+			windowDef oq4_match_context_hud_series
+			{
+				rect	8,79,216,12
+				visible	1
+				forecolor	0.95,0.72,0.25,0.96
+				text	"gui::match_context_series"
+				font	"fonts/lowpixel"
+				textscale	0.18
+				textstyle	1
+			}
+
+			windowDef oq4_match_context_hud_items
+			{
+				rect	8,90,216,12
+				visible	1
+				forecolor	0.78,0.84,0.69,0.92
+				text	"gui::match_context_items"
+				font	"fonts/lowpixel"
+				textscale	0.18
+			}
+		}
 	}
-	windowDef d_aimText2
-	{
-		rect	0,0,640,480
-		notime	1
-		visible	1
 
-		onTime 100 {
-			transition "aimText::forecolor_w" "0" "0.8" "200";
-			transition "aimTextHealth::forecolor_w" "0" "0.8" "200";
-		}
-
-	}
-	windowDef aimText
-	{
-		rect	207,260,215,38
-		screenalignx	middle
-		screenaligny	bottom
-		visible	1
-		text	"gui::aim_text"
-		textscale	0.22
-		textalign	1
-		forecolor	1,1,1,0
-		notime	1
-		textstyle	1
-		font	"fonts/lowpixel"
-
-		onTime 0 {
-			transition "aimText::forecolor" "$aimText::forecolor" "$desktop::aim_fade_color" "500";
-		}
-
-		onTime +500 {
-			set "notime" "1";
-		}
-
-	}
-	windowDef aimTextHealth
-	{
-		rect	207,298,215,38
-		screenalignx	middle
-		screenaligny	bottom
-		visible	1
-		text	"gui::aim_teammate_health"
-		textscale	0.22
-		textalign	1
-		forecolor	1,1,1,0
-		notime	1
-		textstyle	1
-		font	"fonts/lowpixel"
-
-		onTime 0 {
-			transition "aimTextHealth::forecolor" "$aimTextHealth::forecolor" "$desktop::aim_fade_color" "500";
-		}
-
-		onTime +500 {
-			set "notime" "1";
-		}
-
-	}
 	windowDef mainNotice
 	{
 		rect	120,102,400,30
@@ -3052,1486 +4545,6 @@ windowDef Desktop
 			set "notime" "1";
 		}
 
-	}
-	windowDef fragNotice
-	{
-		rect	100,81,440,30
-		screenalignx	middle
-		screenaligny	top
-		visible	0
-		text	"gui::frag_notice_text"
-		font	"fonts/lowpixel"
-		textscale	0.36
-		textstyle	1
-		textalign	1
-		forecolor	1,1,.552,1
-		notime	1
-
-		onTime 0 {
-			set "visible" "1";
-			set "forecolor_w" "1";
-		}
-
-		onTime +2000 {
-			transition "fragNotice::forecolor_w" "1" "0" "500";
-		}
-
-		onTime +2500 {
-			set "visible" "0";
-			set "notime" "1";
-		}
-
-	}
-	windowDef p_ctf
-	{
-		rect	0,0,640,480
-		screenalignx	left
-		screenaligny	top
-		backcolor 0,0,0,0
-		visible	0
-		windowDef ctf_clan1_bg
-		{
-			rect	1,-3,102,58
-			background	"gfx/guis/hud/ctf_bgbar"
-			visible	1
-			matcolor	0,0,0,1
-		}
-		windowDef ctf_clan1_bgcolor
-		{
-			rect	1,-3,101,58
-			background	"gfx/guis/hud/ctf_bgbar2"
-			visible	1
-			matcolor	0.415,0.643,0.168,0.8
-		}
-		windowDef ctf_clan1_logo
-		{
-			rect	6,14,24,24
-			visible	1
-			background	"gfx/guis/mainmenu/marinelogo"
-			matcolor	1,1,1,1
-		}
-		windowDef ctf_clan1_score_marine
-		{
-			rect	36,13,43,24
-			visible	0
-			forecolor	(1-"gui::marine_pulse_amount"),1,(1-"gui::marine_pulse_amount"),1
-			text	"gui::marine_score"
-			textscale	0.36
-			font	"fonts/lowpixel"
-		}
-		windowDef ctf_clan1_score_strogg
-		{
-			rect	36,13,43,24
-			visible	0
-			forecolor	1,(1-(0.5*"gui::strogg_pulse_amount")),(1-"gui::strogg_pulse_amount"),1
-			text	"gui::strogg_score"
-			textscale	0.36
-			font	"fonts/lowpixel"
-		}
-		windowDef ctf_clan2_bg
-		{
-			rect	1,41,102,58
-			background	"gfx/guis/hud/ctf_bgbar"
-			visible	1
-			matcolor	0,0,0,1
-		}
-		windowDef ctf_clan2_bgcolor
-		{
-			rect	1,41,101,58
-			background	"gfx/guis/hud/ctf_bgbar2"
-			visible	1
-			matcolor	1,0.482,0.0156,0.8
-		}
-		windowDef ctf_clan2_logo
-		{
-			rect	6,57,24,24
-			visible	1
-			background	"gfx/guis/mainmenu/strogglogo"
-			matcolor	1,1,1,1
-		}
-		windowDef ctf_clan2_score_marine
-		{
-			rect	36,57,43,24
-			visible	0
-			forecolor	(1-"gui::marine_pulse_amount"),1,(1-"gui::marine_pulse_amount"),1
-			text	"gui::marine_score"
-			textscale	0.36
-			font	"fonts/lowpixel"
-		}
-		windowDef ctf_clan2_score_strogg
-		{
-			rect	36,57,43,24
-			visible	0
-			forecolor	1,(1-(0.5*"gui::strogg_pulse_amount")),(1-"gui::strogg_pulse_amount"),1
-			text	"gui::strogg_score"
-			textscale	0.36
-			font	"fonts/lowpixel"
-		}
-		windowDef p_ctf_2
-		{
-			rect	0,0,640,480
-			screenalignx	left
-			screenaligny	top
-			visible	0
-			backcolor 0,0,0,0
-			windowDef ctf_clan1_flag
-			{
-				rect	86,11,28,28
-				visible	1
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	0.415,0.643,0.168,0.8
-				shear	0,-.22
-			}
-			windowDef d_ctf_clan1_flag
-			{
-				rect	83,8,34,34
-				visible	0
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	0.415,0.643,0.168,0.8
-				shear	0,-.22
-
-				onTime 0 {
-					transition "ctf_clan1_flag::rect" "$ctf_clan1_flag::rect" "$d_ctf_clan1_flag::rect" "250" ;
-				}
-
-				onTime 250 {
-					transition "ctf_clan1_flag::rect" "$d_ctf_clan1_flag::rect" "$ctf_clan1_flag::rect" "750" ;
-				}
-
-				onTime 1000 {
-					resettime "0" ;
-				}
-
-			}
-			windowDef ctf_clan1_flag_status
-			{
-				rect	87,10,20,30
-				visible	1
-				forecolor	1,1,1,1
-				text	""
-				textscale	0.5
-				font	"fonts/lowpixel"
-				textalign	1
-				textstyle	1
-			}
-			windowDef ctf_clan2_flag
-			{
-				rect	86,55,28,28
-				visible	1
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	1,0.482,0.0156,0.8
-				shear	0,-.22
-			}
-			windowDef d_ctf_clan2_flag
-			{
-				rect	83,52,34,34
-				visible	0
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	1,0.482,0.0156,0.8
-				shear	0,-.22
-
-				onTime 0 {
-					transition "ctf_clan2_flag::rect" "$ctf_clan2_flag::rect" "$d_ctf_clan2_flag::rect" "250" ;
-				}
-
-				onTime 250 {
-					transition "ctf_clan2_flag::rect" "$d_ctf_clan2_flag::rect" "$ctf_clan2_flag::rect" "750" ;
-				}
-
-				onTime 1000 {
-					resettime "0" ;
-				}
-
-			}
-			windowDef ctf_clan2_flag_status
-			{
-				rect	87,54,20,30
-				visible	1
-				forecolor	1,1,1,1
-				text	""
-				textscale	0.5
-				font	"fonts/lowpixel"
-				textalign	1
-				textstyle	1
-			}
-		}
-		windowDef p_onectf
-		{
-			rect	0,0,640,480
-			screenalignx	left
-			screenaligny	top
-			visible	0
-			windowDef ctfone_arc
-			{
-				rect	83,13,37,70
-				visible	1
-				background	"gfx/guis/hud/onectf_arc"
-				matcolor	0.584,0.584,0.584,0.8
-				shear	0,-.06
-			}
-			windowDef ctfone_flag
-			{
-				rect	97,33,28,28
-				visible	1
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	1,1,.552,0.8
-				shear	0,-.22
-			}
-			windowDef d_ctfone_flag
-			{
-				rect	94,30,34,34
-				visible	0
-				background	"gfx/guis/hud/ctf_flag"
-				matcolor	1,1,.552,0.8
-				shear	0,-.22
-
-				onTime 0 {
-					transition "ctfone_flag::rect" "$ctfone_flag::rect" "$d_ctfone_flag::rect" "250" ;
-					transition "ctfone_flag::matcolor" "$desktop::neutral" "$desktop::ctfoneflag_color" "250" ;
-				}
-
-				onTime 250 {
-					transition "ctfone_flag::rect" "$d_ctfone_flag::rect" "$ctfone_flag::rect" "750" ;
-					transition "ctfone_flag::matcolor" "$desktop::ctfoneflag_color" "$desktop::neutral" "750" ;
-				}
-
-				onTime 1000 {
-					resettime "0" ;
-				}
-
-			}
-			windowDef ctfone_flag_status
-			{
-				rect	98,31,20,30
-				visible	1
-				forecolor	1,1,1,1
-				text	""
-				textscale	0.5
-				font	"fonts/lowpixel"
-				textalign	1
-				textstyle	1
-			}
-		}
-		windowDef ctf_stopwatch
-		{
-			rect	4,94,20,20
-			visible	1
-			background	"gfx/guis/hud/icons/icon_stopwatch"
-			matcolor	1,1,0.552,1
-		}
-		windowDef ctf_time
-		{
-			rect	23,96,200,20
-			visible	("gui::infinity" == 0)
-			forecolor	1,1,1,1
-			text	"gui::timeleft"
-			textscale	.25
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef ctf_infinity
-		{
-			rect	25,96,20,20
-			visible	("gui::infinity" == 1)
-			background	"gfx/guis/hud/icons/icon_infinity"
-			matcolor	1,1,1,1
-		}
-	}
-	windowDef p_ffa
-	{
-		rect	0,0,640,480
-		screenalignx	left
-		screenaligny	top
-		visible	0
-		windowDef p_tourney
-		{
-			rect	0,0,640,480
-			screenalignx	left
-			screenaligny	top
-			visible	1
-			windowDef tourn_roundarr1
-			{
-				rect	2,2,17,16
-				visible	1
-				forecolor	0.588,0.588,0.588,1
-				text	">"
-				textscale	0.3
-				textstyle	1
-				font	"fonts/lowpixel"
-			}
-			windowDef tourn_roundnum
-			{
-				rect	19,4,103,16
-				visible	1
-				forecolor	1,1,0.552,1
-				text	"gui::tourney_round"
-				textscale	.25
-				textstyle	1
-				font	"fonts/lowpixel"
-			}
-			windowDef tourn_roundarr2
-			{
-				rect	121,2,17,16
-				visible	1
-				forecolor	0.588,0.588,0.588,1
-				text	">"
-				textscale	0.3
-				textstyle	1
-				font	"fonts/lowpixel"
-			}
-			windowDef tourn_arenanum
-			{
-				rect	138,4,160,16
-				visible	1
-				forecolor	1,1,1,1
-				text	"gui::tourney_arena"
-				textscale	.25
-				textstyle	1
-				font	"fonts/lowpixel"
-			}
-			windowDef tourn_hint
-			{
-				rect	3,18,261,16
-				visible	1
-				forecolor	1,1,1,0.6
-				text	"#str_200269"
-				textscale	0.22
-				textstyle	1
-				font	"fonts/lowpixel"
-			}
-		}
-		windowDef ffa_player1_bg
-		{
-			rect	0,35,242,28
-			background	"gfx/guis/hud/ffa_bgbar"
-			visible	1
-			matcolor	0,0,0,1
-		}
-		windowDef ffa_player1_bgcolor
-		{
-//			rect	0,35,242,28
-			rect	0, (35-(4*"gui::player1_pulse_amount")),242+(4*"gui::player1_pulse_amount"),28+(8*"gui::player1_pulse_amount")
-			background	"gfx/guis/hud/ffa_bgbar2"
-			visible	1
-			matcolor	1,1,0.552,0.4
-//			matcolor	"gui::player1_color_r", "gui::player1_color_g", "gui::player1_color_b", "gui::player1_color_a"
-		}
-		windowDef ffa_player2_bg
-		{
-			rect	0,64,242,28
-			background	"gfx/guis/hud/ffa_bgbar"
-			visible	1
-			matcolor	0,0,0,1
-		}
-		windowDef ffa_player2_bgcolor1
-		{
-//			rect	0,64,242,28
-			rect	0, (64-(4*"gui::player2_pulse_amount")),242+(4*"gui::player2_pulse_amount"),28+(8*"gui::player2_pulse_amount")
-			background	"gfx/guis/hud/ffa_bgbar2"
-			visible	1
-			matcolor	1,1,0.552,0.4
-//			matcolor	"gui::player2_color_r", "gui::player2_color_g", "gui::player2_color_b", "gui::player2_color_a"
-		}
-		windowDef ffa_player1_rank
-		{
-			rect	3,39,20,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::player1_rank"
-			textscale	0.22
-			textstyle	1
-			font	"fonts/lowpixel"
-			textalign	2
-		}
-		windowDef ffa_player1_name
-		{
-			rect	23,39,112,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::player1_name"
-			textscale	.22
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef ffa_player1_score
-		{
-			rect	136,39,27,16
-			visible	1
-			forecolor	1,1,0.552,1
-//			forecolor	"gui::player1_color_r", "gui::player1_color_g", "gui::player1_color_b", 1
-//			forecolor	1,1,0.552 + ((1-0.552)*"gui::player1_pulse_amount"),1
-			text	"gui::player1_score"
-			textscale	0.22
-			textstyle	1
-			font	"fonts/lowpixel"
-			textalign	2
-		}
-		windowDef ffa_stopwatch
-		{
-			rect	4,92,20,20
-			visible	1
-			background	"gfx/guis/hud/icons/icon_stopwatch"
-			matcolor	1,1,0.552,1
-		}
-		windowDef ffa_time
-		{
-			rect	23,94,200,20
-			visible	("gui::infinity" == 0)
-			forecolor	1,1,1,1
-			text	"gui::timeleft"
-			textscale	.25
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef ffa_infinity
-		{
-			rect	25,94,20,19
-			visible ("gui::infinity" == 1)
-			background	"gfx/guis/hud/icons/icon_infinity"
-			matcolor	1,1,1,1
-		}
-		windowDef ffa_player2_rank
-		{
-			rect	3,68,20,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::player2_rank"
-			textscale	0.22
-			textstyle	1
-			font	"fonts/lowpixel"
-			textalign	2
-		}
-		windowDef ffa_player2_name
-		{
-			rect	23,68,112,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::player2_name"
-			textscale	.22
-			textstyle	1
-			font	"fonts/lowpixel"
-		}
-		windowDef ffa_player2_score
-		{
-			rect	136,69,27,16
-			visible	1
-			forecolor	1,1,0.552,1
-//			forecolor	"gui::player2_color_r", "gui::player2_color_g", "gui::player2_color_b", 1
-//			forecolor	1,1,0.552 + ((1-0.552)*"gui::player2_pulse_amount"),1
-			text	"gui::player2_score"
-			textscale	0.22
-			textstyle	1
-			font	"fonts/lowpixel"
-			textalign	2
-		}
-	}
-	windowDef p_mframes
-	{
-		rect	576, 0, 64, 64
-		screenalignx	right
-		screenaligny	top
-		background	"gfx/mp/frowny"
-		visible	"gui::mult_frames"
-	}
-	windowDef p_mframesn
-	{
-		rect	576, 64, 64, 32
-		screenalignx	right
-		screenaligny	top
-		visible	"gui::mult_frames"
-		text	"gui::num_frames"
-		textalign	1
-	}
-	windowDef p_stats
-	{
-		rect	474,0,166,480
-		screenalignx	right
-		screenaligny	top
-		visible	"gui::stat_visible"
-		windowDef statgrad
-		{
-			rect	-24,70,462,360
-			visible	1
-			background	"gfx/guis/mainmenu/scoregrad2"
-			matcolor	0,0,0,0.8
-		}
-		windowDef players_t_kills
-		{
-			rect	35,100,53,13
-			text	"#str_200201"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,1,0.8
-			textstyle	1
-		}
-		windowDef players_t_deaths
-		{
-			rect	108,100,53,13
-			text	"#str_200202"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,1,0.8
-			textstyle	1
-		}
-		windowDef players_kills
-		{
-			rect	35,112,41,23
-			text	"gui::stat_frags"
-			textscale	0.35
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-		}
-		windowDef players_deaths
-		{
-			rect	108,112,41,22
-			text	"gui::stat_deaths"
-			textscale	0.35
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.549,1
-			textstyle	1
-		}
-		windowDef players_t_acc
-		{
-			rect	35,141,79,13
-			text	"#str_200203"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,1,0.8
-			textstyle	1
-		}
-		windowDef players_t_awards
-		{
-			rect	108,141,81,13
-			text	"#str_200204"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,1,0.8
-			textstyle	1
-		}
-		windowDef players_stats_horizline1
-		{
-			rect	35,112,126,3
-			visible	1
-			background	"gfx/guis/mainmenu/horiz_line2"
-			matcolor	1,1,1,.3
-		}
-		windowDef players_stats_horizline2
-		{
-			rect	35,154,126,3
-			visible	1
-			background	"gfx/guis/mainmenu/horiz_line2"
-			matcolor	1,1,1,.3
-		}
-		windowDef acc_shotgun
-		{
-			rect	39,186,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_shotgun_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_mgun
-		{
-			rect	39,162,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_machinegun_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_hblaster
-		{
-			rect	39,210,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_hyperblaster_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_grenade
-		{
-			rect	38,235,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_grenade_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_nailgun
-		{
-			rect	39,260,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_nailgun_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_rocket
-		{
-			rect	39,283,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_rocket_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_railgun
-		{
-			rect	39,308,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_railgun_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_lgun
-		{
-			rect	39,332,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_lightning_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_dmg
-		{
-			rect	39,357,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_darkmatter_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef acc_napalmlauncher
-		{
-			rect	39,381,16,16
-			visible	1
-			background	"gfx/guis/hud/icons/item_fire_colored"
-			matcolor	1,1,1,1
-		}
-		windowDef mgun_pct
-		{
-			rect	57,162,60,13
-			text	"gui::stat_1_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef shotgun_pct
-		{
-			rect	57,187,60,13
-			text	"gui::stat_2_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef hblaster_pct
-		{
-			rect	57,210,60,13
-			text	"gui::stat_3_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef grenade_pct
-		{
-			rect	57,235,60,13
-			text	"gui::stat_4_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef nailgun_pct
-		{
-			rect	57,261,60,13
-			text	"gui::stat_5_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef rocket_pct
-		{
-			rect	57,284,60,13
-			text	"gui::stat_6_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef railgun_pct
-		{
-			rect	57,309,60,13
-			text	"gui::stat_7_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef lgun_pct
-		{
-			rect	57,333,60,13
-			text	"gui::stat_8_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef dmg_pct
-		{
-			rect	58,358,60,13
-			text	"gui::stat_9_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef napalmlauncher_pct
-		{
-			rect	58,382,60,13
-			text	"gui::stat_10_pct"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.552,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef aw_excellent
-		{
-			rect	110,162,24,24
-			visible	1
-			background	"gfx/mp/awards/excellent"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_impressive
-		{
-			rect	110,191,24,24
-			visible	1
-			background	"gfx/mp/awards/impressive"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_humiliation
-		{
-			rect	110,221,24,24
-			visible	1
-			background	"gfx/mp/awards/humiliation"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_comboKill
-		{
-			rect	110,252,24,24
-			visible	1
-			background	"gfx/mp/awards/combo_kill"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_rampage
-		{
-			rect	110,283,24,24
-			visible	1
-			background	"gfx/mp/awards/rampage"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_capture
-		{
-			rect	110,313,24,24
-			visible	"gui::ctf_awards"
-			background	"gfx/mp/awards/capture"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_assist
-		{
-			rect	110,344,24,24
-			visible	"gui::ctf_awards"
-			background	"gfx/mp/awards/assist"
-			matcolor	1,1,1,1
-		}
-		windowDef aw_defense
-		{
-			rect	110,374,24,24
-			visible	"gui::ctf_awards"
-			background	"gfx/mp/awards/defense"
-			matcolor	1,1,1,1
-		}
-		windowDef excellent_num
-		{
-			rect	139,164,21,16
-			text	"gui::excellent"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef impressive_num
-		{
-			rect	139,194,21,16
-			text	"gui::impressive"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef humiliation_num
-		{
-			rect	139,224,21,16
-			text	"gui::humiliation"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef comboKill_num
-		{
-			rect	139,255,21,16
-			text	"gui::combo_kill"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef rampage_num
-		{
-			rect	139,285,21,16
-			text	"gui::rampage"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	1
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef capture_num
-		{
-			rect	139,316,21,16
-			text	"gui::capture"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	"gui::ctf_awards"
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef assist_num
-		{
-			rect	139,347,21,16
-			text	"gui::assist"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	"gui::ctf_awards"
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-		windowDef defense_num
-		{
-			rect	139,377,21,16
-			text	"gui::defense"
-			textscale	0.24
-			font	"fonts/lowpixel"
-			visible	"gui::ctf_awards"
-			forecolor	1,1,0.545,1
-			textstyle	1
-			textspacing	-1
-		}
-	}
-	windowDef p_history
-	{
-		rect	8,302,549,65
-		screenalignx	left
-		screenaligny	bottom
-		visible	1
-		nocursor	1
-		windowDef history1
-		{
-			rect	0,0,549,18
-			forecolor	1,1,.552,1
-			textscale	0.25
-			textalign	0
-			font	"fonts/lowpixel"
-			visible	0
-			textstyle	1
-		}
-		windowDef history1_fade
-		{
-			rect	0,0,549,18
-			forecolor	1,1,.552,1
-			textscale	0.25
-			textalign	0
-			font	"fonts/lowpixel"
-			visible	0
-			textstyle	1
-		}
-		windowDef history2
-		{
-			rect	0,15,549,18
-			forecolor	1,1,.552,1
-			textscale	0.25
-			textalign	0
-			font	"fonts/lowpixel"
-			visible	0
-			textstyle	1
-		}
-		windowDef history3
-		{
-			rect	0,30,549,18
-			forecolor	1,1,.552,1
-			textscale	0.25
-			textalign	0
-			font	"fonts/lowpixel"
-			visible	0
-			textstyle	1
-		}
-		windowDef history4
-		{
-			rect	0,45,549,18
-			forecolor	1,1,.552,1
-			textscale	0.25
-			textalign	0
-			font	"fonts/lowpixel"
-			visible	0
-			textstyle	1
-		}
-	}
-	windowDef anim_remove
-	{
-		visible	0
-		rect	0,0,1,1
-
-		onTime 0 {
-			set "history1::visible" "1";
-			set "history1_fade::visible" "0";
-		}
-
-		onTime +2000 {
-			set "history1::visible" "0";
-			set "history1_fade::visible" "1";
-			set "history1_fade::forecolor" "1,1,.552,1";
-			transition "history1_fade::forecolor_w" "1" "0" 1000;
-		}
-
-		onTime +1100 {
-			//			set "history1::visible" "1";
-			set "history1_fade::visible" "0";
-			namedEvent "removeChatLine";
-		}
-
-	}
-	windowDef ig_awards
-	{
-		rect	38,132,561,74
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::ig_awards"
-		notime	1
-
-		onTime 2500 {
-			transition "ig_award_1::matcolor_w" "1" "0" "500";	
-			transition "ig_award_2::matcolor_w" "1" "0" "500";		
-			transition "ig_award_3::matcolor_w" "1" "0" "500";		
-			transition "ig_award_4::matcolor_w" "1" "0" "500";		
-			transition "ig_award_5::matcolor_w" "1" "0" "500";		
-			transition "ig_award_6::matcolor_w" "1" "0" "500";		
-			transition "ig_award_7::matcolor_w" "1" "0" "500";		
-			transition "ig_award_8::matcolor_w" "1" "0" "500";		
-			transition "ig_award_9::matcolor_w" "1" "0" "500";		
-			transition "ig_award_10::matcolor_w" "1" "0" "500";
-			transition "ig_award_num::forecolor_w" "1" "0" "500";		
-		}
-
-		onTime 3000 {
-			set "gui::ig_awards" "0";
-		}
-
-		windowDef ig_award_1
-		{
-			rect	"desktop::igOffset",11,32,32
-			visible	"gui::ig_awards_1"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_2
-		{
-			rect	"desktop::igOffset"+32,11,32,32
-			visible	"gui::ig_awards_2"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_3
-		{
-			rect	"desktop::igOffset"+32*2,11,32,32
-			visible	"gui::ig_awards_3"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_4
-		{
-			rect	"desktop::igOffset"+32*3,11,32,32
-			visible	"gui::ig_awards_4"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_5
-		{
-			rect	"desktop::igOffset"+32*4,11,32,32
-			visible	"gui::ig_awards_5"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_6
-		{
-			rect	"desktop::igOffset"+32*5,11,32,32
-			visible	"gui::ig_awards_6"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_7
-		{
-			rect	"desktop::igOffset"+32*6,11,32,32
-			visible	"gui::ig_awards_7"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_8
-		{
-			rect	"desktop::igOffset"+32*7,11,32,32
-			visible	"gui::ig_awards_8"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_9
-		{
-			rect	"desktop::igOffset"+32*8,11,32,32
-			visible	"gui::ig_awards_9"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_10
-		{
-			rect	"desktop::igOffset"+32*9,11,32,32
-			visible	"gui::ig_awards_10"
-			background	"gui::ig_award"
-			matcolor	1,1,1,1
-		}
-		windowDef ig_award_num
-		{
-			rect	0,44,561,30
-			visible	1
-			text	"gui::ig_award_num"
-			font	"fonts/lowpixel"
-			textscale	0.38
-			textstyle	1
-			textalign	1
-			forecolor	1,1,1,1
-		}
-	}
-	windowDef p_aud1
-	{
-		rect	4,263,158,16
-		screenalignx	left
-		screenaligny	bottom
-		visible	0
-		windowDef aud1_backbar
-		{
-			rect	0,0,176,18
-			visible	1
-			background	"gfx/guis/hud/aud_wavbg"
-			matcolor	0,0,0,0.498
-		}
-		windowDef aud1_name
-		{
-			rect	15,1,127,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"#str_200270"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			textspacing	0
-			textstyle	1
-		}
-		windowDef aud1_wave
-		{
-			rect	4,3,10,12
-			visible	1
-			background	"gfx/guis/hud/mp_waveform"
-			matcolor	1,1,.552,1
-		}
-	}
-	windowDef p_aud2
-	{
-		rect	4,286,158,16
-		screenalignx	left
-		screenaligny	bottom
-		visible	0
-		windowDef aud2_backbar
-		{
-			rect	0,0,176,18
-			visible	1
-			background	"gfx/guis/hud/aud_wavbg"
-			matcolor	0,0,0,0.498
-		}
-		windowDef aud2_name
-		{
-			rect	15,1,127,16
-			visible	1
-			forecolor	1,1,1,1
-			text	"gui::audio_name"
-			textscale	0.2
-			font	"fonts/lowpixel"
-			textspacing	0
-			textstyle	1
-		}
-		windowDef aud2_wave
-		{
-			rect	4,3,10,12
-			visible	1
-			background	"gfx/guis/hud/mp_waveform"
-			matcolor	1,1,.552,1
-		}
-	}
-	windowDef Spectate0
-	{
-		text	"gui::spectatetext0"
-		font	"fonts/lowpixel"
-		rect	0,123,640,40
-		screenalignx	middle
-		screenaligny	top
-		forecolor	1,1,0.549,1
-		textscale	0.38
-		visible	("gui::gametype" != 2)
-		textalign	1
-		textstyle	1
-		textspacing	-1
-
-		onTime 0 {
-			transition "forecolor_w" "1" "0.5" "800" ;
-		}
-
-		onTime 500 {
-			transition "forecolor_w" "0.5" "1" "100" ;
-		}
-
-		onTime 900 {
-			resetTime "0" ;
-		}
-
-	}
-	windowDef Spectate1
-	{
-		text	"gui::spectatetext1"
-		font	"fonts/lowpixel"
-		rect	0,141,640,40
-		screenalignx	middle
-		screenaligny	top
-		forecolor	1,1,0.549,1
-		textscale	0.31
-		visible	("gui::gametype" != 2)
-		textalign	1
-		textstyle	1
-		textspacing	-1
-
-		onTime 0 {
-			transition "forecolor_w" "1" "0.5" "800" ;
-		}
-
-		onTime 500 {
-			transition "forecolor_w" "0.5" "1" "100" ;
-		}
-
-		onTime 900 {
-			resetTime "0" ;
-		}
-
-	}	
-	windowDef voteNotice
-	{
-		rect	4,145,632,31
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,.552,1
-		text	"gui::voteNoticeText"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_1
-	{
-		rect	4,173,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_1"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_2
-	{
-		rect	4,187,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_2"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_3
-	{
-		rect	4,201,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_3"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_4
-	{
-		rect	4,215,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_4"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_5
-	{
-		rect	4,229,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_5"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_6
-	{
-		rect	4,243,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_6"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	windowDef voteInfo_7
-	{
-		rect	4,257,632,16
-		screenalignx	middle
-		screenaligny	top
-		visible	"gui::voteNotice"
-		forecolor	1,1,1,1
-		text	"gui::voteInfo_7"
-		textscale	0.2
-		font	"fonts/lowpixel"
-		textstyle	1
-	}
-	
-	windowDef sq_credits
-   	{
-  		rect	3,110,167,17
- 		screenalignx	left
- 		screenaligny	top
-  		visible	1
-   		forecolor	1,1,1,1
-  		text	"gui::credits"
-  		font "fonts/lowpixel"
-   		textscale	0.2
-   	}
-
-	windowDef sq_gameStatus
-   	{
-  		rect	3,127,167,17
- 		screenalignx	left
- 		screenaligny	top
-  		visible	1
-   		forecolor	1,1,1,1
-  		text	"gui::gameStatus"
-  		font "fonts/lowpixel"
-   		textscale	0.2
-	}
-
-	// openQ4: match progression readouts carried over from Quake Live.  These
-	// are gametype agnostic and sit above the centre of the screen, clear of
-	// the crosshair and of the per-gametype panels below.
-	windowDef oq4_roundText
-	{
-		rect	170,40,300,20
-		screenalignx	left
-		screenaligny	top
-		visible	"gui::showround"
-		forecolor	1,1,1,1
-		text	"gui::roundtext"
-		font	"fonts/lowpixel"
-		textscale	0.3
-		textalign	1
-	}
-
-	windowDef oq4_roundTime
-	{
-		rect	170,58,300,20
-		screenalignx	left
-		screenaligny	top
-		visible	"gui::showroundtime"
-		forecolor	1,0.25,0.25,1
-		text	"gui::roundtime"
-		font	"fonts/lowpixel"
-		textscale	0.35
-		textalign	1
-	}
-
-	// Offset from oq4_roundTime, which shares this column. Both are visible at
-	// once whenever a round mode reaches overtime and a round clock drops under
-	// 30 seconds, and at an identical rect they drew straight through each other.
-	windowDef oq4_overtime
-	{
-		rect	170,80,300,20
-		screenalignx	left
-		screenaligny	top
-		visible	"gui::overtime"
-		forecolor	1,0.85,0.3,1
-		text	"gui::overtimetext"
-		font	"fonts/lowpixel"
-		textscale	0.3
-		textalign	1
-	}
-
-	// Managed-match context is presentation-only.  The multiplayer adapter
-	// supplies complete, localized lines from the recipient-scoped match view.
-	// A single gate keeps the stock/casual presentation unchanged when no
-	// managed session is active.
-	windowDef oq4_match_context_hud
-	{
-		rect	400,8,232,106
-		screenalignx	right
-		screenaligny	top
-		visible	( "gui::match_context_visible" == 1 )
-		backcolor	0.015,0.022,0.014,0.72
-		bordercolor	0.95,0.49,0.06,0.55
-		bordersize	1
-		noevents	1
-
-		windowDef oq4_match_context_hud_phase
-		{
-			rect	8,5,216,15
-			visible	1
-			forecolor	1,0.94,0.76,1
-			text	"gui::match_context_phase"
-			font	"fonts/lowpixel"
-			textscale	0.23
-			textstyle	1
-		}
-
-		windowDef oq4_match_context_hud_rule
-		{
-			rect	8,20,216,1
-			visible	1
-			backcolor	0.95,0.49,0.06,0.55
-			noevents	1
-		}
-
-		windowDef oq4_match_context_hud_pause
-		{
-			rect	8,35,216,12
-			visible	1
-			forecolor	1,1,1,0.92
-			text	"gui::match_context_pause"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
-
-		windowDef oq4_match_context_hud_role
-		{
-			rect	8,24,216,12
-			visible	1
-			forecolor	0.95,0.72,0.25,0.96
-			text	"gui::match_context_role"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
-
-		windowDef oq4_match_context_hud_readiness
-		{
-			rect	8,46,216,12
-			visible	1
-			forecolor	0.78,0.84,0.69,0.92
-			text	"gui::match_context_readiness"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
-
-		windowDef oq4_match_context_hud_timeouts
-		{
-			rect	8,57,216,12
-			visible	1
-			forecolor	0.78,0.84,0.69,0.92
-			text	"gui::match_context_timeouts"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
-
-		windowDef oq4_match_context_hud_proposal
-		{
-			rect	8,68,216,12
-			visible	1
-			forecolor	0.78,0.84,0.69,0.92
-			text	"gui::match_context_proposal"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
-
-		windowDef oq4_match_context_hud_series
-		{
-			rect	8,79,216,12
-			visible	1
-			forecolor	0.95,0.72,0.25,0.96
-			text	"gui::match_context_series"
-			font	"fonts/lowpixel"
-			textscale	0.18
-			textstyle	1
-		}
-
-		windowDef oq4_match_context_hud_items
-		{
-			rect	8,90,216,12
-			visible	1
-			forecolor	0.78,0.84,0.69,0.92
-			text	"gui::match_context_items"
-			font	"fonts/lowpixel"
-			textscale	0.18
-		}
 	}
 		
 	// ---------------------------------------------------------------------

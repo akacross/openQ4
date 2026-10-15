@@ -3311,6 +3311,24 @@ def validate_ceremony_presentation() -> None:
     # The crosshair and status bar stay down during presentation shots.
     require(player, "!spectating && !arenaPresentation && !gameDebug.IsHudActive( DBGHUD_ANY )",
             "Arena presentation shots draw no crosshair or status bar")
+    # Over a presentation shot both match HUDs keep only the letterbox, its
+    # cards and the centre notice; the overlay HUD stays down too.
+    update = function_body(game, "void idMultiplayerGame::UpdateHud( idUserInterface* _mphud )")
+    require(update, '_mphud->SetStateBool( "arena_hudHidden", ArenaCampaignPresentationActive() );',
+            "the match HUD learns of presentation shots")
+    chrome = mp_hud[mp_hud.find("windowDef oq4_match_hud"): mp_hud.find("windowDef mainNotice")]
+    require(chrome, 'visible\t( "gui::arena_hudHidden" == 0 )', "the legacy match HUD hides over a presentation shot")
+    for window in ("windowDef p_ffa", "windowDef p_ctf", "windowDef fragNotice", "windowDef p_stats",
+                   "windowDef oq4_match_context_hud"):
+        require(chrome, window, "the legacy match HUD's panels hide with it")
+    if "windowDef oq4_arena" in chrome:
+        raise AssertionError("the Arena letterbox and cards must stay outside the hidden match HUD")
+    require(remastered, 'doc.show(ident, NOT(S("arena_hudHidden")))', "the Remastered match HUD hides over a presentation shot")
+    require(remastered, '"main", "display", sel(AND(S("oq4.main")', "the Remastered centre notice stays")
+    require(player, "if ( !arenaPresentation ) {", "the overlay HUD stays down over a presentation shot")
+    chat = read(ROOT / "src" / "ui" / "ChatWindow.cpp")
+    require(chat, 'if (!input && gui->GetStateBool("arena_hudHidden")) { return; }',
+            "the passive chat over the classic match HUD hides over a presentation shot")
     # A player killed by the final frag still steers the tableau orbit.
     require(player, "if ( health <= 0 && !arenaFreeLook ) {", "the tableau orbit works for a dead player")
     view = function_body(game, "bool idMultiplayerGame::BuildArenaCampaignPresentationView( idPlayer *viewer, renderView_t *view )")

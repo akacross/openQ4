@@ -2,6 +2,22 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Clear the HUD from the single-player Arena's third-person shots. The
+  introductions, the entrance, the spawn-in and the result ceremony now keep
+  only their letterbox, their cards and the centre notice on both HUD
+  layouts: the game publishes `arena_hudHidden`, the classic `mphud.gui`
+  hides every other window under one `oq4_match_hud` container (its panels
+  still reach into the wide-screen margins), the Remastered document gates
+  every group but its Arena layer and the main notice, and the overlay HUD
+  and the classic passive chat panel wait for the shot to end. OpenGL Arena
+  runs on both layouts show the intro, spawn-in and victory shots bare and
+  the live HUD back once control returns; the Arena campaign contract pins
+  each part.
+
+Candidate UI release wording: Arena introductions and victory shots are now
+clean: the HUD, scores and chat stay hidden until the match is yours to
+play, on both HUD layouts.
+
 - [x] Show the Arena best results on the modern Arena page: an unlocked
   match's record across the foot of its levelshot (BEST RESULT over the
   record; generation checks both, and the widest record, in every

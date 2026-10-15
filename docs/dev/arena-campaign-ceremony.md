@@ -44,7 +44,13 @@ still steer the orbit.
 
 `ArenaCampaignPresentationActive()` hides the crosshair, weapon zoom and status
 bar (`idPlayer::DrawHUD`) for every presentation shot; the match HUD still draws
-because it carries the letterbox and cards.
+because it carries the letterbox and cards. The game also publishes it to the
+match HUD as `arena_hudHidden` every frame, and both HUDs then keep only the
+letterbox, its cards and the centre notice: `mphud.gui` wraps every other
+window in `oq4_match_hud`, and the Remastered document gates every group but
+its Arena layer and the main notice. The overlay HUD is skipped as well, and
+the passive chat panel the engine installs over the classic match HUD
+(`idChatWindow`) waits for the shot to end.
 
 ## HUD presentation contract
 

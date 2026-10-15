@@ -20438,6 +20438,10 @@ void idMultiplayerGame::UpdateHud( idUserInterface* _mphud ) {
 	} else {
 		ProjectClientManagedMatchContext( _mphud );
 	}
+	// openQ4: an Arena presentation shot (the introductions, the entrance, the
+	// spawn-in and the result ceremony) is a camera, not the player's eyes.
+	// Both match HUDs keep only its letterbox and cards and the centre notice.
+	_mphud->SetStateBool( "arena_hudHidden", ArenaCampaignPresentationActive() );
 	PublishRemasteredHud( _mphud, localPlayer );
 	_mphud->StateChanged( gameLocal.time );
 

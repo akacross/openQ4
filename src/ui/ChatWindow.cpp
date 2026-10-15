@@ -284,6 +284,8 @@ void idChatWindow::Draw(int time, float x, float y) {
     const bool editing = input && activeChat == this;
     if (input && !editing) { return; }
     if (!input && activeChat != NULL) { return; }
+    // The match HUD's Arena presentation shots keep only their own cards.
+    if (!input && gui->GetStateBool("arena_hudHidden")) { return; }
     // The Remastered layout draws chat in the multiplayer HUD document; this
     // control keeps the input, its history recall and channel switching.
     if (idRemasteredHud::Enabled()) { return; }
