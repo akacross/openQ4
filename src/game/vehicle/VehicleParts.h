@@ -315,6 +315,8 @@ protected:
 	void					GetLockInfo			( const idVec3& eyeOrigin, const idMat3& eyeAxis );
 
 	void					EjectBrass			( void );
+							// openQ4: "fx_burstSmoke" from the muzzle once a burst of at least "burstSmokeShots" ends
+	void					EndBurst			( void );
 
 	void					MuzzleFlashLight	( const idVec3& origin, const idMat3& axis );
 	void					WeaponFeedback		( const idDict* dict );
@@ -362,6 +364,10 @@ protected:
 	idVec3					brassEjectOffset;
 	int						brassEjectNext;
 	int						brassEjectDelay;
+
+							// presentation only, so neither is saved: a loaded burst starts afresh
+	int						burstShots;
+	int						burstSmokeShots;
 
 	int						zoomFov;
 	idStr					zoomGuiRequested;

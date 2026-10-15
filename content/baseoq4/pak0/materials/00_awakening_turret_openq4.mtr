@@ -1,0 +1,67 @@
+/*
+	openQ4: a finished skin for The Awakening's mannable Strogg chaingun
+	turret (model common_turret_strogg, vehicle_q4x_turret_chaingun; m01 and
+	m04).
+
+	The alpha shipped this model with grey ambient-occlusion bakes as its
+	diffuse maps, a black specular map and a placeholder drum texture, so in
+	game it rendered as untextured clay. These declarations load ahead of the
+	expansion's materials/q4x_mapobjects.mtr ("00_" sorts first), so they are
+	the ones used. The colour, specular and glow maps are openQ4's own; the
+	surface detail still comes from the expansion's normal maps, read from the
+	player's copy of The Awakening. Outside The Awakening nothing uses them.
+*/
+
+// gun body, barrel and the two-panel gun shield
+models/mapobjects/q4x/common_turret_strogg/common_turret_strogg01
+{
+	noselfshadow
+	diffusemap		models/openq4/awakening/turret_strogg/turret_strogg01_d.jpg
+	bumpmap			models/mapobjects/q4x/common_turret_strogg/common_turret_strogg01_local.tga
+	specularmap		models/openq4/awakening/turret_strogg/turret_strogg01_s.jpg
+	{
+		// sensor lens on the receiver
+		blend		add
+		map			models/openq4/awakening/turret_strogg/turret_strogg01_glow.jpg
+		rgb			0.85 + 0.15 * sintable[ time * 0.7 ]
+	}
+}
+
+// ammunition drum and pivot hub; the drum's side plates are windowed
+models/mapobjects/q4x/common_turret_strogg/common_turret_strogg02
+{
+	noselfshadow
+	{
+		blend		diffusemap
+		map			models/openq4/awakening/turret_strogg/turret_strogg02_d.tga
+		alphatest	0.5
+	}
+	bumpmap			models/mapobjects/q4x/common_turret_strogg/common_turret_strogg02_local.tga
+	specularmap		models/openq4/awakening/turret_strogg/turret_strogg02_s.jpg
+}
+
+// pedestal, deck, column and yoke
+models/mapobjects/q4x/common_turret_strogg/common_turret_strogg03
+{
+	noselfshadow
+	diffusemap		models/openq4/awakening/turret_strogg/turret_strogg03_d.jpg
+	bumpmap			models/mapobjects/q4x/common_turret_strogg/common_turret_strogg03_local.tga
+	specularmap		models/openq4/awakening/turret_strogg/turret_strogg03_s.jpg
+	{
+		// vent slots in the pedestal housing, breathing like retail's Strogg machines
+		blend		add
+		map			models/openq4/awakening/turret_strogg/turret_strogg03_glow.jpg
+		rgb			0.7 + 0.3 * ember1[ time * 0.13 ]
+	}
+}
+
+// cartridge heads seen through the drum's windows; two-sided so the front
+// windows show the rounds too instead of looking straight through the drum
+models/mapobjects/q4x/common_turret_strogg/common_turret_strogg04
+{
+	noselfshadow
+	twoSided
+	diffusemap		models/openq4/awakening/turret_strogg/turret_strogg04_d.jpg
+	bumpmap			models/mapobjects/q4x/common_turret_strogg/common_turret_strogg04_local.tga
+	specularmap		models/openq4/awakening/turret_strogg/turret_strogg04_s.jpg
+}

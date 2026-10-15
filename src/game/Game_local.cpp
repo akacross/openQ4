@@ -6677,6 +6677,11 @@ idEntity* idGameLocal::SpawnEntityDef( const char* entityDefName, const idDict* 
 /*
 ================
 idGameLocal::FindEntityDef
+
+openQ4: while The Awakening (q4xbase) is the active game, a definition named
+"<name>_q4x_openq4" stands in for <name>. openQ4 ships these to finish what
+the expansion's alpha content left out without replacing its files; each one
+inherits the expansion's definition, which "inherit" still reaches directly.
 ================
 */
 const idDeclEntityDef *idGameLocal::FindEntityDef( const char *name, bool makeDefault ) const {
@@ -6684,6 +6689,8 @@ const idDeclEntityDef *idGameLocal::FindEntityDef( const char *name, bool makeDe
 	const idDecl *decl = NULL;
 	if ( isMultiplayer ) {
 		decl = declManager->FindType( DECL_ENTITYDEF, va( "%s_mp", name ), false );
+	} else if ( name != NULL && name[0] != '\0' && !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) ) {
+		decl = declManager->FindType( DECL_ENTITYDEF, va( "%s_q4x_openq4", name ), false );
 	}
 	if ( !decl ) {
 		decl = declManager->FindType( DECL_ENTITYDEF, name, makeDefault );

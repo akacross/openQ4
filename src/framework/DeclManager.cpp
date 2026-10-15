@@ -231,9 +231,14 @@ static bool DeclManager_IsopenQ4OverrideDeclFile( const idDeclFile *sourceFile )
 		return false;
 	}
 
+	// openQ4 re-declares a game's decls from *_openq4 files named to load
+	// first ("00_" prefixes); the game's later copy is expected, not a clash
 	idStr fileName = sourceFile->fileName;
 	fileName.BackSlashesToSlashes();
-	return fileName.Icmpn( "def/", 4 ) == 0 && fileName.Find( "_openq4.def", false ) >= 0;
+	if ( fileName.Icmpn( "def/", 4 ) == 0 && fileName.Find( "_openq4.def", false ) >= 0 ) {
+		return true;
+	}
+	return fileName.Icmpn( "materials/", 10 ) == 0 && fileName.Find( "_openq4.mtr", false ) >= 0;
 }
 
 static bool DeclManager_DeclNameHasPrefix( const idStr &name, const char *prefix ) {

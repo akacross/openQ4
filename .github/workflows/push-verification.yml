@@ -167,6 +167,7 @@ jobs:
             tools/tests/awakening_ci_contract.py \
             tools/tests/awakening_speeder_physics_contract.py \
             tools/tests/awakening_gameplay_contract.py \
+            tools/tests/awakening_turret_skin_contract.py \
             tools/tests/awakening_status_behavior.py \
             tools/tests/awakening_m01_cinematic.py \
             tools/tests/awakening_status_runtime.py \
@@ -554,6 +555,7 @@ jobs:
           python tools/tests/awakening_ci_contract.py
           python tools/tests/awakening_speeder_physics_contract.py
           python tools/tests/awakening_gameplay_contract.py
+          python tools/tests/awakening_turret_skin_contract.py
           python tools/tests/awakening_status_behavior.py
           python tools/tests/generated_animation_cache.py
           python tools/tests/level_load_cache.py
