@@ -86,7 +86,15 @@ breadcrumbs, label carry and reversible descent. Both campaign branches use
 `campaign_skill.q4ui`, including the existing campaign reload continuation.
 The five localized difficulties and Turbo remain drafts until Start Game;
 Back discards them. Each arrival focuses the chosen difficulty, as Restart
-Level's page does. The top and bottom frame stay at the physical view edges,
+Level's page does. CHAPTERS (`chapter_view`) shows the campaign's levels in
+the difficulty's place, under the Load Game page's LEVEL and STATUS columns
+and rows: the session publishes every chapter (`chapter.row<n>.*`,
+`PublishCampaignChapters`), a row not reached yet is disabled, a row's first
+Accept chooses it (its levelshot, name and how it starts follow) and the
+second, or START CHAPTER, starts it. Back and BACK return to the difficulty.
+The stock `campaign_menu.gui` holds the same two levels when the retained
+pages are off: CAMPAIGN (`campaign_view` 0) and the campaign page (1) with
+its difficulty, Turbo, START GAME and CHAPTERS list. The top and bottom frame stay at the physical view edges,
 and the isotropic content centers vertically in portrait windows. The route
 audit found no other currently implemented fourth-level main-menu page:
 Settings tabs and Arena's tier/match selection edit in place, multiplayer

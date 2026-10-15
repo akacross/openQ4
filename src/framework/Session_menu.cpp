@@ -4108,6 +4108,97 @@ void idSessionLocal::HandleInGameCommands( const char *menuCommand ) {
 	}
 }
 
+#ifndef ID_DEDICATED
+// The stock campaign pages: the campaigns (campaign_view 0) and a campaign's
+// own page (1), with its difficulty, turbo option, START and chapters.
+static const char *const STOCK_CAMPAIGN_GUI = "guis/campaign_menu.gui";
+
+static bool Session_AwakeningPageActive() {
+    return !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" );
+}
+
+// A campaign page's difficulty and its description, the stock New Game
+// page's. The stock page shows text as published, the retained one resolves
+// the keys itself.
+static void Session_SetCampaignPageSkill( idUserInterface *gui, int skill, bool resolve ) {
+    static const char *descriptions[] = { "#str_200183", "#str_200019", "#str_200184", "#str_200185", "#str_41118" };
+    skill = idMath::ClampInt( 0, 4, skill );
+    gui->SetStateInt( "skill", skill );
+    gui->SetStateString( "skill_description", resolve ? common->GetLanguageDict()->GetString( descriptions[skill] ) : descriptions[skill] );
+}
+
+// A campaign page's verbs, the retained page's requests and the stock page's
+// commands alike: a difficulty, turbo, START, a chapter and its start, and
+// BACK to the campaigns.
+static void Session_HandleCampaignPageRequest( idSessionLocal &session, idUserInterface *gui, const char *request, bool retained ) {
+    const char *campaign = Session_AwakeningPageActive() ? "awakening" : "quake4";
+    if ( !idStr::Icmp( request, "campaignSkillBack" ) ) {
+        if ( retained ) session.BeginRetainedCampaignSkill( gui, "", true ); else session.OpenCampaignSelector( true );
+        return;
+    }
+    if ( !idStr::Icmp( request, "campaignSkillStart" ) || !idStr::Icmp( request, "campaignChapterStart" ) ) {
+        // A chapter's autosave brings back the difficulty it was written
+        // with; a fresh start takes the page's.
+        cvarSystem->SetCVarInteger( "g_skill", idMath::ClampInt( 0, 4, gui->State().GetInt( "skill", "1" ) ) );
+        cvarSystem->SetCVarBool( "g_turboMode", gui->State().GetBool( "turbo" ) );
+        if ( !idStr::Icmp( request, "campaignSkillStart" ) ) {
+            session.SelectCampaign( campaign, true );
+        } else if ( !session.StartCampaignChapter( gui->State().GetInt( retained ? "chapter.selected" : "chapters_sel_0", "-1" ) ) ) {
+            session.PublishCampaignChapters( gui );
+        }
+        return;
+    }
+    if ( !idStr::Icmp( request, "campaignChapterSelect" ) ) {
+        session.PublishCampaignChapters( gui, gui->State().GetInt( retained ? "chapter.pick" : "chapters_sel_0", "-1" ) );
+        return;
+    }
+    if ( !idStr::Icmp( request, "campaignSkillTurbo" ) ) {
+        gui->SetStateBool( "turbo", !gui->State().GetBool( "turbo" ) );
+    } else {
+        for ( int i = 0; i < 5; ++i ) {
+            if ( !idStr::Icmp( request, va( "campaignSkill%d", i ) ) ) {
+                Session_SetCampaignPageSkill( gui, i, !retained );
+                break;
+            }
+        }
+    }
+    gui->StateChanged( common->GetPresentationTime() );
+}
+#endif
+
+/*
+==============
+idSessionLocal::HandleStockCampaignCommand
+
+The stock campaign pages' commands (STOCK_CAMPAIGN_GUI), each after its
+sound; false for any other GUI.
+==============
+*/
+bool idSessionLocal::HandleStockCampaignCommand( idUserInterface *gui, const char *menuCommand ) {
+#ifdef ID_DEDICATED
+    return false;
+#else
+    if ( gui == NULL || idStr::Icmp( gui->Name(), STOCK_CAMPAIGN_GUI ) ) return false;
+    idCmdArgs args;
+    args.TokenizeString( menuCommand, false );
+    for ( int i = 0; i < args.Argc(); ) {
+        const char *command = args.Argv( i++ );
+        if ( !idStr::Icmp( command, "play" ) ) {
+            if ( i < args.Argc() ) menuSoundWorld->PlayShaderDirectly( args.Argv( i++ ), 1 );
+            continue;
+        }
+        if ( !idStr::Cmp( command, ";" ) ) continue;
+        if ( !idStr::Icmp( command, "campaignQuake4" ) ) SelectCampaign( "quake4" );
+        else if ( !idStr::Icmp( command, "campaignAwakening" ) ) SelectCampaign( "awakening" );
+        else if ( !idStr::Icmp( command, "campaignBack" ) ) OpenCampaignSelector( false );
+        else Session_HandleCampaignPageRequest( *this, gui, command, false );
+        // Each verb hands the screen on or republishes the page.
+        break;
+    }
+    return true;
+#endif
+}
+
 /*
 ==============
 idSessionLocal::DispatchCommand
@@ -4131,10 +4222,7 @@ void idSessionLocal::DispatchCommand( idUserInterface *gui, const char *menuComm
 		// nothing takes the command, and below it would match the NULL menus.
 		return;
 	}
-    if ( gui && gui == guiActive && !idStr::Icmp( gui->Name(), "guis/campaign_menu.gui" ) ) {
-        if ( !idStr::Icmp( menuCommand, "campaignQuake4" ) ) SelectCampaign( "quake4" );
-        else if ( !idStr::Icmp( menuCommand, "campaignAwakening" ) ) SelectCampaign( "awakening" );
-        else if ( !idStr::Icmp( menuCommand, "campaignBack" ) ) OpenCampaignSelector( false );
+    if ( gui && gui == guiActive && HandleStockCampaignCommand( gui, menuCommand ) ) {
         return;
     }
 	bool closeRequested = false;
@@ -5558,9 +5646,11 @@ void idSessionLocal::OpenCampaignSelector( bool campaigns, bool fromArena ) {
         arenaCampaign.OpenSelector();
         return;
     }
-    if ( gui == NULL ) gui = uiManager->FindGui( "guis/campaign_menu.gui", true, false, true );
+    const bool stock = gui == NULL;
+    if ( gui == NULL ) gui = uiManager->FindGui( STOCK_CAMPAIGN_GUI, true, false, true );
     if ( gui == NULL ) return;
     if ( campaigns ) {
+        if ( stock ) gui->SetStateInt( "campaign_view", 0 );
         const idCampaignContentInfo info = fileSystem->GetAwakeningContentInfo();
         gui->SetStateBool( "awakening_ready", info.ready );
         gui->SetStateBool( "awakening_present", info.present );
@@ -5622,6 +5712,21 @@ void idSessionLocal::SelectCampaign( const char *campaign, bool start ) {
         return;
     }
     if ( !arena && OpenRetainedCampaignSkill() ) return;
+    idUserInterface *page = !arena ? uiManager->FindGui( STOCK_CAMPAIGN_GUI, true, false, true ) : NULL;
+    if ( page != NULL ) {
+        // The stock campaign page, as the retained one: the campaign's
+        // difficulty, turbo, START and its chapters.
+        page->SetStateInt( "campaign_view", 1 );
+        Session_SetCampaignPageSkill( page, cvarSystem->GetCVarInteger( "g_skill" ), true );
+        page->SetStateBool( "turbo", false );
+        page->SetStateString( "campaign_title", common->GetLanguageDict()->GetString( awakening ? "#str_230040" : "#str_230039" ) );
+        page->SetStateString( "campaign_crumb", va( "%s  /  %s", common->GetLanguageDict()->GetString( "#str_42000" ),
+            common->GetLanguageDict()->GetString( "#str_230038" ) ) );
+        PublishCampaignChapters( page );
+        SetGUI( page, NULL );
+        page->StateChanged( common->GetPresentationTime() );
+        return;
+    }
     StartMenu();
     if ( arena ) {
         arenaCampaign.OpenBrowser();
@@ -5640,12 +5745,10 @@ bool idSessionLocal::OpenRetainedCampaignSkill() {
     if ( !Session_RetainedScreensEnabled() ) return false;
     idUserInterface *gui = FindRetainedGui( RETAINED_SKILL_GUI, true, false );
     if ( !gui ) return false;
-    const int skill = idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) );
-    static const char *descriptions[] = { "#str_200183", "#str_200019", "#str_200184", "#str_200185", "#str_41118" };
-    gui->SetStateInt( "skill", skill );
+    Session_SetCampaignPageSkill( gui, cvarSystem->GetCVarInteger( "g_skill" ), false );
     gui->SetStateBool( "turbo", false );
-    gui->SetStateString( "skill_description", descriptions[skill] );
-    gui->SetStateString( "campaign_title", !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) ? "#str_230040" : "#str_230039" );
+    gui->SetStateString( "campaign_title", Session_AwakeningPageActive() ? "#str_230040" : "#str_230039" );
+    PublishCampaignChapters( gui );
     SetGUI( gui, NULL );
     gui->StateChanged( common->GetPresentationTime() );
     return true;
@@ -6020,20 +6123,7 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 #ifndef ID_DEDICATED
 	if ( gui && request && gui == guiActive && !idStr::Icmp( gui->Name(), RETAINED_SKILL_GUI ) ) {
 		if ( retainedSubpageFrom ) return;
-		if ( !idStr::Icmp( request, "campaignSkillBack" ) ) BeginRetainedCampaignSkill( gui, "", true );
-		else if ( !idStr::Icmp( request, "campaignSkillTurbo" ) ) gui->SetStateBool( "turbo", !gui->State().GetBool( "turbo" ) );
-		else if ( !idStr::Icmp( request, "campaignSkillStart" ) ) {
-			cvarSystem->SetCVarInteger( "g_skill", idMath::ClampInt( 0, 4, gui->State().GetInt( "skill", "1" ) ) );
-			cvarSystem->SetCVarBool( "g_turboMode", gui->State().GetBool( "turbo" ) );
-			SelectCampaign( !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" ) ? "awakening" : "quake4", true );
-			return;
-		} else {
-			static const char *descriptions[] = { "#str_200183", "#str_200019", "#str_200184", "#str_200185", "#str_41118" };
-			for ( int i = 0; i < 5; ++i ) if ( !idStr::Icmp( request, va( "campaignSkill%d", i ) ) ) {
-				gui->SetStateInt( "skill", i ); gui->SetStateString( "skill_description", descriptions[i] ); break;
-			}
-		}
-		gui->StateChanged( common->GetPresentationTime() );
+		Session_HandleCampaignPageRequest( *this, gui, request, true );
 		return;
 	}
 	if ( gui != NULL && gui == guiRetainedMultiplayer ) {

@@ -213,7 +213,7 @@ bool SessionMenuCommand(const std::string& command) {
 		"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
         "campaigns","campaignQuake4","campaignAwakening","campaignArena","campaignBack","campaignHome",
         "campaignSkill0","campaignSkill1","campaignSkill2","campaignSkill3","campaignSkill4",
-        "campaignSkillTurbo","campaignSkillStart","campaignSkillBack",
+        "campaignSkillTurbo","campaignSkillStart","campaignSkillBack","campaignChapterSelect","campaignChapterStart",
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
         "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
         "demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",

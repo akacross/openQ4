@@ -247,6 +247,12 @@ public:
 	void OpenCampaignSelector( bool campaigns, bool fromArena = false );
 	void SelectCampaign( const char *campaign, bool start = false );
 	bool OpenRetainedCampaignSkill();
+	// The active campaign's chapters: every level in campaign order, each
+	// unlocked once the player reaches it (Session.cpp).
+	void RecordCampaignChapter();
+	void PublishCampaignChapters( idUserInterface *gui, int select = -1 );
+	bool StartCampaignChapter( int chapter );
+	bool HandleStockCampaignCommand( idUserInterface *gui, const char *menuCommand );
 	void BeginRetainedCampaignSkill( idUserInterface *from, const char *campaign, bool back = false );
 	// Single Player's retained Arena sub-page (guis/menu/arena.q4ui): the
 	// Arena campaign's browser where it can present (NULL: the stock one
@@ -272,7 +278,7 @@ public:
 	void				DrawRetainedHome( int presentationTime );
 	void				HandleRetainedSessionRequest( idUserInterface *gui, const char *request );
 	void				PublishRetainedPauseState( idUserInterface *gui );
-	idStr				RetainedPauseShot( const char *mapPath ) const;
+	idStr				RetainedPauseShot( const char *mapPath, const char *entityFilter = NULL ) const;
 	void				ReportRetainedScreens();
 	idUserInterface *	SelectRetainedLoadingGui( idUserInterface *legacy, bool multiplayer );
 	// A screen's retained document, or NULL while its stock GUI presents

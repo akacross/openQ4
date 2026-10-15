@@ -195,20 +195,21 @@ NAME_TINT, LOCATION_TINT = [1, 1, 1, 0.9], [1, 1, 1, 0.65]
 
 
 def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW_W,
-             chosen: list | None = None) -> dict:
+             chosen: list | None = None, location_x: float = LOCATION_X) -> dict:
     """One of the list's rows: the save's name in the SAVE NAME column and its
     level in the LOCATION column (tabstops 0 and 180 u), Lowpixel at the stock
     list's textscale 0.22 (15.8 dp) on its 20 u pitch. Its first Accept selects
     the save; Accept on the selected save runs `chosen` (by default it loads
-    it). `prefix` names the page's list state and `row_w` its row width."""
+    it). `prefix` names the page's list state, `row_w` its row width and
+    `location_x` where its second column starts."""
     ident, key = f"row-{index}", f"{prefix}.row{index}"
     doc.state[f"{key}.name"] = {"type": "string", "initial": ""}
     doc.state[f"{key}.location"] = {"type": "string", "initial": ""}
     width, height = U * row_w, U * ROW_H
     cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
-    name = label(f"{ident}-name", PLACEHOLDER, {**absolute(left=U * 4, top=0, width=U * (LOCATION_X - 8), height=height),
+    name = label(f"{ident}-name", PLACEHOLDER, {**absolute(left=U * 4, top=0, width=U * (location_x - 8), height=height),
                  **typeface("lowpixel", 15.8, height, NAME_TINT), **cell})
-    location = label(f"{ident}-location", PLACEHOLDER, {**absolute(left=U * LOCATION_X, top=0, width=U * (row_w - LOCATION_X - 4), height=height),
+    location = label(f"{ident}-location", PLACEHOLDER, {**absolute(left=U * location_x, top=0, width=U * (row_w - location_x - 4), height=height),
                      **typeface("lowpixel", 15.8, height, LOCATION_TINT), **cell})
     doc.bind(f"{ident}-name.text", f"{ident}-name", "text", {"state": f"{key}.name"})
     doc.bind(f"{ident}-location.text", f"{ident}-location", "text", {"state": f"{key}.location"})

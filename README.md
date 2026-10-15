@@ -56,7 +56,7 @@ It is for players who want the original Quake 4 experience on today's hardware.
 - **Controller support and quality-of-life fixes**, including a better console and modern settings behaviour.
 - **Play in VR** (experimental). With a PC VR headset, play the campaign or multiplayer in stereo: look around with your head, aim with a motion controller, and get menus and cinematics on a floating screen. See the [VR guide](docs/user/vr.md).
 - **Play in your language.** Menus and game text in English, French, German, Italian, Spanish, Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian, plus Polish and Russian menus. Choose one in Settings > Game Options > Language; see the [languages guide](docs/user/languages.md).
-- **More single-player.** Alongside the original campaign there is an experimental [Arena Campaign](docs/user/arena-campaign.md): bot matches across five tiers of the stock maps, with boss matches and saved progress. **The Awakening** campaign is available too if you supply its content.
+- **More single-player.** Alongside the original campaign there is an experimental [Arena Campaign](docs/user/arena-campaign.md): bot matches across five tiers of the stock maps, with boss matches and saved progress. **The Awakening** campaign is available too if you supply its content, and either campaign can resume at any level you have reached from its **Chapters** list.
 - **Better multiplayer** (experimental): a server browser with sorting, filters and favourites, bots with team objectives and personalities, readable chat with history, Duel queues and spectator match controls.
 - **A demo library and player** with pause, speed, stepping, rewind and fast-forward, plus free-fly playback of full-match recordings.
 - **Single-player and multiplayer in one install** on Windows, Linux, Steam Deck and macOS.
@@ -125,7 +125,7 @@ When upgrading, replace the whole openQ4 package rather than individual files.
 ### Start here
 
 - [Getting Started](docs/user/getting-started.md) - system requirements, installation, first launch, and common setup questions
-- [Campaigns](docs/user/campaigns.md) - choosing Quake 4 or The Awakening, installing expansion content, and separate saves
+- [Campaigns](docs/user/campaigns.md) - choosing Quake 4 or The Awakening, chapters, installing expansion content, and separate saves
 - [The Awakening](docs/user/awakening.md) - what openQ4 fixes and changes in the expansion's campaign
 - [Client Settings Guide](docs/user/client-settings.md) - where to find the most useful in-game settings
 - [Server Setup Guide](docs/user/server-setup.md) - dedicated server setup and common server variables

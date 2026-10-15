@@ -18,6 +18,38 @@ Candidate UI release wording: Arena introductions and victory shots are now
 clean: the HUD, scores and chat stay hidden until the match is yours to
 play, on both HUD layouts.
 
+- [x] Give the classic menus the new menus' four Single Player levels:
+  Single Player, CAMPAIGN (Quake 4 and The Awakening as cards, with why The
+  Awakening is unavailable when it is) and a campaign page with its
+  difficulty, Turbo Mode, START GAME and CHAPTERS. Back climbs one level at
+  a time; the old route left CAMPAIGN's difficulty on the main menu's New
+  Game page, whose Back skipped CAMPAIGN. Both campaign pages share one set
+  of verbs (`Session_HandleCampaignPageRequest`). A no-input OpenGL walk of
+  every level passes, as do the UI gate, the event delivery check and the
+  campaign contracts.
+
+- [x] Add chapter selection to both campaigns, in both menus. CHAPTERS lists
+  every level in campaign order (31 for Quake 4, the storage and processing
+  facilities once per visit; 13 for The Awakening) with its loading-screen
+  name and levelshot. A level unlocks once reached: every level start
+  records it in the campaign's archived `ui_chaptersQuake4` or
+  `ui_chaptersAwakening`, and an existing start autosave counts, so earlier
+  progress shows and deleting saves keeps it. A chapter starts from its
+  level's start autosave; without one it starts fresh at the page's
+  difficulty with the map's test arsenal and writes that autosave. Locked
+  rows are disabled (retained) or gray and refused (classic).
+  `campaignChapters` and `campaignChapter <n>` list and start them, and
+  `openq4_guiSet gui::<key>` now sets GUI state for stock-list probes. The
+  no-input walk covered a fresh start (hangar1 with its arsenal, its
+  autosave written), the same chapter from that autosave, a locked pick, and
+  the retained view's focus, pick and Back; the text fits every language.
+
+Candidate UI release wording: Pick up either campaign at any level you have
+reached: the new Chapters list on each campaign's page starts a level from
+its own autosave, and unlocks stay even if you delete your saves. The
+classic menus now have the same Single Player pages as the new ones, and
+Back steps back one page at a time.
+
 - [x] Show the Arena best results on the modern Arena page: an unlocked
   match's record across the foot of its levelshot (BEST RESULT over the
   record; generation checks both, and the widest record, in every

@@ -626,7 +626,11 @@ public:
     idStr currentMapName = idStr("game/airdefense1");
     void PublishRetainedPauseState(idUserInterface*);
     MapSpawnData mapSpawnData;
-    idStr RetainedPauseShot(const char*) const;
+    idStr RetainedPauseShot(const char*, const char* = nullptr) const;
+    // The campaign page's chapters: the picks published and the starts.
+    std::vector<int> chapterPublishes, chapterStarts;
+    void PublishCampaignChapters(idUserInterface*, int select = -1) { chapterPublishes.push_back(select); }
+    bool StartCampaignChapter(int chapter) { chapterStarts.push_back(chapter); return chapter >= 0; }
     void UpdateRetainedHome(); bool RetainedHomeInputBlocked() const; void RetainedHomeFrameEvent();
     void HandleRetainedSessionRequest(idUserInterface*, const char*);
     void OpenCampaignSelector(bool, bool = false);
@@ -1912,6 +1916,14 @@ int main() {
         s.HandleRetainedSessionRequest(skill,"campaignSkill3"); s.HandleRetainedSessionRequest(skill,"campaignSkillTurbo");
         s.HandleRetainedSessionRequest(skill,"campaignSkillStart");
         CHECK(s.starts == 1 && cvarSystemObject.GetCVarInteger("g_skill") == 3 && cvarSystemObject.GetCVarBool("g_turboMode"));
+        // Opening the page publishes its chapters; a row's pick publishes it
+        // again, and START CHAPTER starts the chosen one at the page's choice.
+        CHECK(!s.chapterPublishes.empty() && s.chapterPublishes.back() == -1);
+        skill->state["chapter.pick"] = "6"; s.HandleRetainedSessionRequest(skill,"campaignChapterSelect");
+        CHECK(s.chapterPublishes.back() == 6);
+        skill->state["chapter.selected"] = "6"; s.HandleRetainedSessionRequest(skill,"campaignSkill2");
+        s.HandleRetainedSessionRequest(skill,"campaignChapterStart");
+        CHECK(s.chapterStarts.size() == 1 && s.chapterStarts.back() == 6 && cvarSystemObject.GetCVarInteger("g_skill") == 2);
         auto disabled = Session(false); CHECK(!disabled.OpenRetainedCampaignSkill());
         auto missing = Session(true); fileSystemObject.files.erase("guis/menu/campaign_skill.q4ui");
         CHECK(!missing.OpenRetainedCampaignSkill());
@@ -4441,7 +4453,16 @@ def main() -> int:
         assert legacy_menu.count(f'onNamedEvent {event} {{') == 1, event
     campaign_selector = function_body(menu, 'void idSessionLocal::OpenCampaignSelector(')
     assert 'Session_RetainedScreensEnabled() ?' in campaign_selector and 'arenaCampaign.OpenSelector();' in campaign_selector
-    assert 'FindGui( "guis/campaign_menu.gui"' in campaign_selector
+    assert 'FindGui( STOCK_CAMPAIGN_GUI' in campaign_selector and 'gui->SetStateInt( "campaign_view", 0 )' in campaign_selector
+    assert 'static const char *const STOCK_CAMPAIGN_GUI = "guis/campaign_menu.gui";' in menu
+    # The stock campaign page stands in for the retained one: the same verbs,
+    # one handler (Session_HandleCampaignPageRequest).
+    select_campaign = function_body(menu, 'void idSessionLocal::SelectCampaign(')
+    assert select_campaign.index('OpenRetainedCampaignSkill()') < select_campaign.index('page->SetStateInt( "campaign_view", 1 );')
+    assert 'PublishCampaignChapters( page );' in select_campaign
+    assert 'PublishCampaignChapters( gui );' in function_body(menu, 'bool idSessionLocal::OpenRetainedCampaignSkill(')
+    assert 'Session_HandleCampaignPageRequest( *this, gui, request, true );' in menu
+    assert 'Session_HandleCampaignPageRequest( *this, gui, command, false );' in menu
     assert menu.count('RETAINED_TITLE_GUI') == 4 and menu.count('RETAINED_PAUSE_GUI') == 3 and menu.count('RETAINED_LOADING_GUI') == 2
     assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 3
     check_retained_multiplayer(menu, session)
@@ -4588,7 +4609,7 @@ def main() -> int:
     value_allowlist = cpp_allowlist(adapter, 'bool SessionMenuValueCommand(')
     player_settings = player_setting_rules(adapter)
     handled = set(re.findall(r'\{ "([A-Za-z][A-Za-z0-9]*)",\s+"main_b_', menu)) | set(re.findall(r'!idStr::Icmp\( request, "([A-Za-z][A-Za-z0-9]*)" \)', menu))
-    assert 'for ( int i = 0; i < 5; ++i ) if ( !idStr::Icmp( request, va( "campaignSkill%d", i ) ) )' in menu
+    assert 'for ( int i = 0; i < 5; ++i ) {\n            if ( !idStr::Icmp( request, va( "campaignSkill%d", i ) ) ) {' in menu.replace('\r\n', '\n')
     handled.update(f'campaignSkill{i}' for i in range(5))
     # The Arena page's verbs, each mapped to the campaign's own command.
     arena_verbs = menu[menu.index('RETAINED_ARENA_VERBS[][2] = {'):menu.index('RETAINED_ARENA_VERB_COUNT')]
@@ -4638,7 +4659,9 @@ def main() -> int:
     gate_start = menu.index('static bool Session_RetainedScreensEnabled( void ) {')
     gate_functions = menu[gate_start:menu.index('static const int MENU_CONTROLLER_AXIS_THRESHOLD', gate_start)]
     assert 'RETAINED_SYSTEM_GUI' in gate_functions
-    bodies = [gate_functions, tables] + [function_body(menu, signature) for signature in (
+    page_start = menu.index('// The stock campaign pages: the campaigns (campaign_view 0)')
+    campaign_page = menu[page_start:menu.index('#endif', menu.index('static void Session_HandleCampaignPageRequest(', page_start))]
+    bodies = [gate_functions, tables, campaign_page] + [function_body(menu, signature) for signature in (
         'static bool Session_RetainedHomePopup(', 'static const char *Session_RetainedHomeMissingPage(',
         'static bool Session_RetainedMultiplayerRoutes(',
         'static void Session_RetainedSaveLabel(', 'static idStr Session_RetainedSaveShot(', 'static void Session_RetainedSaveStamp(',

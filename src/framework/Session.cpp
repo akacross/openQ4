@@ -4678,7 +4678,14 @@ static void Session_RetainedStatus_f( const idCmdArgs & ) {
 static void Session_OpenQ4GuiSet_f( const idCmdArgs &args ) {
 	idUserInterface *gui = session->GetActiveGUI();
 	if ( args.Argc() != 3 || gui == NULL ) {
-		common->Printf( "usage: openq4_guiSet <window::variable> <value> with an active GUI\n" );
+		common->Printf( "usage: openq4_guiSet <window::variable|gui::key> <value> with an active GUI\n" );
+		return;
+	}
+	// gui::<key> is the GUI's own state, a stock list's selection
+	// (<list>_sel_0) among it.
+	if ( !idStr::Icmpn( args.Argv( 1 ), "gui::", 5 ) && args.Argv( 1 )[5] != '\0' ) {
+		gui->SetStateString( args.Argv( 1 ) + 5, args.Argv( 2 ) );
+		gui->StateChanged( common->GetPresentationTime() );
 		return;
 	}
 	if ( !gui->SetPresentationValue( args.Argv( 1 ), args.Argv( 2 ) ) ) {
@@ -5607,6 +5614,8 @@ void idSessionLocal::MoveToNewMap( const char *mapName ) {
 		// Autosave at the beginning of the level
 		SaveGame( NULL, ST_AUTO );
 	}
+	// openQ4: the level is a reached chapter of its campaign.
+	RecordCampaignChapter();
 
 	SetGUI( NULL, NULL );
 }
@@ -6665,11 +6674,15 @@ void idSessionLocal::PublishRetainedPauseState( idUserInterface *gui ) {
 // The level block's levelshot, chosen as the loading screen chooses its
 // picture: the map's loadimage, the intro art for a map that loads through
 // the intro screen, then its menu levelshot. A candidate that is not an
-// installed, plain image name falls through, ending at the generic art.
-idStr idSessionLocal::RetainedPauseShot( const char *mapPath ) const {
+// installed, plain image name falls through, ending at the generic art. The
+// map's segment is the running one's unless an entity filter names another.
+idStr idSessionLocal::RetainedPauseShot( const char *mapPath, const char *entityFilter ) const {
 	idStrList candidates;
 	idDict mapDeclDict;
-	if ( Session_GetMapDeclDict( mapPath, mapSpawnData.serverInfo.GetString( "si_entityFilter", "" ), mapDeclDict ) ) {
+	if ( entityFilter == NULL ) {
+		entityFilter = mapSpawnData.serverInfo.GetString( "si_entityFilter", "" );
+	}
+	if ( Session_GetMapDeclDict( mapPath, entityFilter, mapDeclDict ) ) {
 		candidates.Append( mapDeclDict.GetString( "loadimage", "" ) );
 		if ( !idStr::Icmp( mapDeclDict.GetString( "loadgui", "" ), "guis/loading/intro.gui" ) ) {
 			candidates.Append( "gfx/guis/loadscreens/e3_load" );
@@ -6685,6 +6698,317 @@ idStr idSessionLocal::RetainedPauseShot( const char *mapPath ) const {
 	}
 	return "gfx/guis/loadscreens/generic";
 }
+
+/*
+===============================================================================
+
+Campaign chapters
+
+Every level of a campaign is a chapter, listed in the order the campaign
+plays it (the levels' nextMap keys; Quake 4 plays storage1 and process1 twice,
+once for each entity filter). A chapter unlocks when the player reaches its
+level: every level start outside devmap records it in the campaign's archived
+mask, and a level start autosave on disk counts too, so progress made before
+the list existed shows, and deleting saves keeps what was reached. Configs
+are per game directory, so each campaign keeps its own mask.
+
+Starting a chapter loads its level's start autosave, with the arsenal and the
+difficulty the player reached it with. Without one the level starts fresh at
+the chosen difficulty, with the map's devmap arsenal where it has one, and
+writes the start autosave a normal level start would.
+
+===============================================================================
+*/
+
+#ifndef ID_DEDICATED
+struct sessionChapter_t {
+	const char *	map;
+	const char *	entityFilter;
+};
+
+static const sessionChapter_t SESSION_QUAKE4_CHAPTERS[] = {
+	{ "game/airdefense1", "" }, { "game/airdefense2", "" }, { "game/hangar1", "" }, { "game/hangar2", "" },
+	{ "game/mcc_landing", "" }, { "game/mcc_1", "" }, { "game/convoy1", "" }, { "game/building_b", "" },
+	{ "game/convoy2", "" }, { "game/convoy2b", "" }, { "game/hub1", "" }, { "game/hub2", "" },
+	{ "game/medlabs", "" }, { "game/walker", "" }, { "game/dispersal", "" }, { "game/recomp", "" },
+	{ "game/putra", "" }, { "game/waste", "" }, { "game/mcc_2", "" }, { "game/storage1", "first" },
+	{ "game/storage2", "" }, { "game/storage1", "second" }, { "game/tram1", "" }, { "game/tram1b", "" },
+	{ "game/process1", "first" }, { "game/process2", "" }, { "game/process1", "second" }, { "game/network1", "" },
+	{ "game/network2", "" }, { "game/core1", "" }, { "game/core2", "" }
+};
+
+static const sessionChapter_t SESSION_AWAKENING_CHAPTERS[] = {
+	{ "game/m01_stranarus_trench1", "" }, { "game/m01_stranarus_trench2", "" }, { "game/m02_trianfac", "" },
+	{ "game/m03_airassault", "" }, { "game/m04_prison", "" }, { "game/m05_bio", "" }, { "game/m06_mcc", "" },
+	{ "game/m06_mcc_invasion", "" }, { "game/m07_race", "" }, { "game/m07_race1", "" }, { "game/m07_race2", "" },
+	{ "game/m08_cryofac", "" }, { "game/m09_valkaryne", "" }
+};
+
+static idCVar ui_chaptersQuake4( "ui_chaptersQuake4", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NOCHEAT,
+	"the Quake 4 campaign's chapters reached: bit n is its (n+1)th level in campaign order" );
+static idCVar ui_chaptersAwakening( "ui_chaptersAwakening", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NOCHEAT,
+	"the Awakening campaign's chapters reached: bit n is its (n+1)th level in campaign order" );
+
+// The chapter labels and their explanations (the *_openq4.lang tables).
+static const char *const SESSION_CHAPTER_STATUS_SAVED = "#str_231283";
+static const char *const SESSION_CHAPTER_STATUS_FRESH = "#str_231284";
+static const char *const SESSION_CHAPTER_STATUS_LOCKED = "#str_231285";
+static const char *const SESSION_CHAPTER_DETAIL_SAVED = "#str_231286";
+static const char *const SESSION_CHAPTER_DETAIL_FRESH = "#str_231287";
+static const char *const SESSION_CHAPTER_DETAIL_LOCKED = "#str_231288";
+
+static bool Session_AwakeningCampaignActive() {
+	return !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" );
+}
+
+static const sessionChapter_t *Session_CampaignChapters( int &count ) {
+	if ( Session_AwakeningCampaignActive() ) {
+		count = static_cast<int>( sizeof( SESSION_AWAKENING_CHAPTERS ) / sizeof( SESSION_AWAKENING_CHAPTERS[0] ) );
+		return SESSION_AWAKENING_CHAPTERS;
+	}
+	count = static_cast<int>( sizeof( SESSION_QUAKE4_CHAPTERS ) / sizeof( SESSION_QUAKE4_CHAPTERS[0] ) );
+	return SESSION_QUAKE4_CHAPTERS;
+}
+
+static idCVar &Session_CampaignChapterMask() {
+	return Session_AwakeningCampaignActive() ? ui_chaptersAwakening : ui_chaptersQuake4;
+}
+
+// The active campaign's chapter for a level start, or -1. A segmented level
+// is its filter's chapter; the others ignore the filter a level transition
+// leaves behind.
+static int Session_CampaignChapterIndex( const char *map, const char *entityFilter ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStr normalizedMap;
+	idStr normalizedFilter;
+	Session_NormalizeMapPathAndEntityFilter( map, entityFilter, normalizedMap, normalizedFilter );
+	for ( int i = 0; i < count; i++ ) {
+		if ( !normalizedMap.Icmp( chapters[i].map ) &&
+			 ( chapters[i].entityFilter[0] == '\0' || !normalizedFilter.Icmp( chapters[i].entityFilter ) ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+// The chapters reached, with each one's start autosave as the save list names
+// it ("" when there is none). A start autosave on disk counts as reached and
+// is recorded, so the unlock outlives the save.
+static int Session_CampaignChaptersReached( idSessionLocal &session, idStrList &saves ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList slots;
+	idList<fileTIME_T> times;
+	session.GetSaveGameList( slots, times );
+	idCVar &mask = Session_CampaignChapterMask();
+	int reached = mask.GetInteger() | 1;
+	saves.SetNum( count );
+	for ( int i = 0; i < count; i++ ) {
+		// The name GetAutoSaveName gives the level's start autosave. Saves are
+		// matched without case: a level transition may spell the map's name
+		// in its own case (game/M02_TrianFac), and so does the file.
+		idStr slot = chapters[i].entityFilter[0] != '\0' ? va( "Autosave %s %s", chapters[i].map, chapters[i].entityFilter ) :
+			va( "Autosave %s", chapters[i].map );
+		session.ScrubSaveGameFileName( slot );
+		saves[i].Clear();
+		for ( int j = 0; j < slots.Num(); j++ ) {
+			if ( !slots[j].Icmp( slot ) ) {
+				saves[i] = slots[j];
+				reached |= 1 << i;
+				break;
+			}
+		}
+	}
+	if ( reached != mask.GetInteger() ) {
+		mask.SetInteger( reached );
+	}
+	return reached;
+}
+#endif
+
+/*
+===============
+idSessionLocal::RecordCampaignChapter
+
+The level that just started is reached (MoveToNewMap): not under devmap, as
+its start autosave is not written then.
+===============
+*/
+void idSessionLocal::RecordCampaignChapter() {
+#ifndef ID_DEDICATED
+	if ( IsMultiplayer() || mapSpawnData.serverInfo.GetBool( "devmap" ) ) {
+		return;
+	}
+	const char *map = mapSpawnData.serverInfo.GetString( "si_map" );
+	const int chapter = Session_CampaignChapterIndex( map, mapSpawnData.serverInfo.GetString( "si_entityFilter", "" ) );
+	if ( chapter < 0 ) {
+		return;
+	}
+	idCVar &mask = Session_CampaignChapterMask();
+	const int reached = mask.GetInteger() | 1 | ( 1 << chapter );
+	if ( reached != mask.GetInteger() ) {
+		mask.SetInteger( reached );
+		common->Printf( "CAMPAIGN_CHAPTER reached %d %s\n", chapter + 1, map );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishCampaignChapters
+
+The active campaign's chapters into the campaign page: the retained page's
+chapter.* rows, or the stock page's list items. `select` chooses a chapter;
+otherwise the page's choice stays while it is reached, else the furthest one
+reached is chosen. The chosen chapter's levelshot, name, explanation and
+whether it can start follow.
+===============
+*/
+void idSessionLocal::PublishCampaignChapters( idUserInterface *gui, int select ) {
+#ifndef ID_DEDICATED
+	if ( gui == NULL ) {
+		return;
+	}
+	const bool retained = idStr::CheckExtension( gui->Name(), ".q4ui" );
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( *this, saves );
+	const idLangDict *language = common->GetLanguageDict();
+
+	idStrList names;
+	names.SetNum( count );
+	int furthest = 0;
+	for ( int i = 0; i < count; i++ ) {
+		idDict mapDecl;
+		const char *name = Session_GetMapDeclDict( chapters[i].map, chapters[i].entityFilter, mapDecl ) ?
+			language->GetString( mapDecl.GetString( "name", chapters[i].map ) ) : chapters[i].map;
+		names[i] = va( "%02d  %s", i + 1, name );
+		const bool open = ( reached & ( 1 << i ) ) != 0;
+		if ( open ) {
+			furthest = i;
+		}
+		const char *status = !open ? SESSION_CHAPTER_STATUS_LOCKED : saves[i].Length() ? SESSION_CHAPTER_STATUS_SAVED : SESSION_CHAPTER_STATUS_FRESH;
+		if ( retained ) {
+			gui->SetStateString( va( "chapter.row%d.name", i ), names[i].c_str() );
+			gui->SetStateString( va( "chapter.row%d.location", i ), language->GetString( status ) );
+			gui->SetStateBool( va( "chapter.row%d.open", i ), open );
+		} else {
+			// A locked row reads gray: the stock list cannot disable one.
+			gui->SetStateString( va( "chapters_item_%d", i ), va( open ? "%s\t%s" : S_COLOR_GRAY "%s\t" S_COLOR_GRAY "%s",
+				names[i].c_str(), language->GetString( status ) ) );
+			gui->SetStateBool( va( "chapters_item_%d_greyed", i ), !open );
+		}
+	}
+
+	// A chapter the page picks stays chosen, locked or not (the stock list
+	// cannot refuse a row); one kept from before must still be reached.
+	int chosen = select;
+	if ( chosen < 0 || chosen >= count ) {
+		chosen = retained ? gui->State().GetInt( "chapter.selected", "-1" ) : gui->State().GetInt( "chapters_sel_0", "-1" );
+		if ( chosen < 0 || chosen >= count || !( reached & ( 1 << chosen ) ) ) {
+			chosen = furthest;
+		}
+	}
+	const bool open = ( reached & ( 1 << chosen ) ) != 0;
+	const bool saved = open && saves[chosen].Length() > 0;
+	const idStr shot = open ? RetainedPauseShot( chapters[chosen].map, chapters[chosen].entityFilter ) : idStr( "gfx/guis/loadscreens/generic" );
+	const char *detail = language->GetString( !open ? SESSION_CHAPTER_DETAIL_LOCKED : saved ? SESSION_CHAPTER_DETAIL_SAVED : SESSION_CHAPTER_DETAIL_FRESH );
+	if ( retained ) {
+		gui->SetStateInt( "chapter.count", count );
+		gui->SetStateInt( "chapter.first", 0 );
+		gui->SetStateInt( "chapter.selected", chosen );
+		gui->SetStateBool( "chapter.open", open );
+		gui->SetStateString( "chapter.shot", shot.c_str() );
+		gui->SetStateString( "chapter.name", names[chosen].c_str() );
+		gui->SetStateString( "chapter.detail", detail );
+		UI_RetainedPrecacheImage( shot.c_str() );
+	} else {
+		gui->DeleteStateVar( va( "chapters_item_%d", count ) );
+		gui->SetStateInt( "chapter_count", count );
+		gui->SetStateString( "chapters_sel_0", va( "%d", chosen ) );
+		gui->SetStateBool( "chapter_open", open );
+		gui->SetStateString( "chapter_shot", shot.c_str() );
+		gui->SetStateString( "chapter_name", names[chosen].c_str() );
+		gui->SetStateString( "chapter_detail", detail );
+	}
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::StartCampaignChapter
+
+Starts a reached chapter of the active campaign: from its level's start
+autosave, else fresh (see Campaign chapters above). False leaves the menu as
+it was: the chapter is locked or unknown.
+===============
+*/
+bool idSessionLocal::StartCampaignChapter( int chapter ) {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( *this, saves );
+	if ( chapter < 0 || chapter >= count || !( reached & ( 1 << chapter ) ) ) {
+		common->Printf( "CAMPAIGN_CHAPTER refused %d: locked\n", chapter + 1 );
+		return false;
+	}
+	if ( saves[chapter].Length() ) {
+		common->Printf( "CAMPAIGN_CHAPTER start %d from %s\n", chapter + 1, saves[chapter].c_str() );
+		// LoadGame refuses a save it cannot use before it leaves the menu.
+		if ( LoadGame( saves[chapter].c_str() ) ) {
+			return true;
+		}
+		common->Printf( "CAMPAIGN_CHAPTER %s refused; starting the level fresh\n", saves[chapter].c_str() );
+	} else {
+		common->Printf( "CAMPAIGN_CHAPTER start %d fresh\n", chapter + 1 );
+	}
+	// The first level is the campaign's own start. A later one takes the
+	// map's devmap arsenal, then drops the key so this start writes its
+	// autosave and is reached, and the next level transition plays on as
+	// normal.
+	StartNewGame( chapters[chapter].map, chapter > 0, chapters[chapter].entityFilter );
+	if ( mapSpawned && mapSpawnData.serverInfo.GetBool( "devmap" ) ) {
+		mapSpawnData.serverInfo.Delete( "devmap" );
+		SaveGame( NULL, ST_AUTO );
+		RecordCampaignChapter();
+	}
+	return true;
+#endif
+}
+/*
+===============
+Session_CampaignChapters_f / Session_CampaignChapter_f
+
+The active campaign's chapters, one CAMPAIGN_CHAPTER line each, and starting
+one by its number, as the campaign page does.
+===============
+*/
+#ifndef ID_DEDICATED
+static void Session_CampaignChapters_f( const idCmdArgs &args ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( sessLocal, saves );
+	for ( int i = 0; i < count; i++ ) {
+		common->Printf( "CAMPAIGN_CHAPTER %d map=%s filter=%s reached=%d save=%s\n", i + 1, chapters[i].map,
+			chapters[i].entityFilter[0] ? chapters[i].entityFilter : "-", ( reached >> i ) & 1, saves[i].Length() ? saves[i].c_str() : "-" );
+	}
+}
+
+static void Session_CampaignChapter_f( const idCmdArgs &args ) {
+	if ( args.Argc() != 2 ) {
+		common->Printf( "usage: campaignChapter <number>\n" );
+		return;
+	}
+	sessLocal.StartCampaignChapter( atoi( args.Argv( 1 ) ) - 1 );
+}
+#endif
 
 /*
 ===============
@@ -9222,6 +9546,8 @@ void idSessionLocal::Init() {
     cmdSystem->AddCommand( "campaignSelect", Session_CampaignSelect_f, CMD_FL_SYSTEM, "selects a built-in single-player campaign" );
     cmdSystem->AddCommand( "campaignList", Session_CampaignList_f, CMD_FL_SYSTEM, "reports built-in campaign content readiness without mounting it" );
     cmdSystem->AddCommand( "campaignMenu", Session_CampaignMenu_f, CMD_FL_SYSTEM, "opens the single-player or campaign selector" );
+    cmdSystem->AddCommand( "campaignChapters", Session_CampaignChapters_f, CMD_FL_SYSTEM, "lists the active campaign's chapters and which are reached" );
+    cmdSystem->AddCommand( "campaignChapter", Session_CampaignChapter_f, CMD_FL_SYSTEM, "starts a reached chapter of the active campaign by its number" );
 	cmdSystem->AddCommand( "map", Session_Map_f, CMD_FL_SYSTEM, "loads a map", idCmdSystem::ArgCompletion_MapName );
 	cmdSystem->AddCommand( "devmap", Session_DevMap_f, CMD_FL_SYSTEM, "loads a map in developer mode", idCmdSystem::ArgCompletion_MapName );
 	cmdSystem->AddCommand( "testmap", Session_TestMap_f, CMD_FL_SYSTEM, "tests a map", idCmdSystem::ArgCompletion_MapName );
