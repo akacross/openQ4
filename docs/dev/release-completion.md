@@ -91,6 +91,31 @@ stall the first frame after a level load or their first opening.
 Candidate UI release wording: The modern interface's menus and HUD open
 faster still and hold less memory.
 
+- [x] Build the modern interface's views from the loaded document instead
+  of markup. A canonical load no longer derives 800 KB of markup for RmlUi to
+  parse, instance and style: the runtime creates each node's element from
+  the model with typed inline properties that are exactly what RmlUi's
+  parser produced from the value's CSS (one representative parse per
+  property kind and keyword keeps the parser's own definition; numbers are
+  the parser's `strtof` of the same digits, colours the same `rgba()`
+  integers, transforms the same primitives), shows the document once instead
+  of updating it hidden first, and the first presentation pass keys its
+  records by the authored map's keys, skips formatting the values the load
+  built and reads the bound properties in step. Every retained document in
+  the tree (63) was compared element by element against the markup it
+  replaces (attributes, each inline property's unit, bits, definition and
+  parser, their order, layout boxes, computed values and the serialization)
+  and matched exactly. A page's view builds 23 to 38 percent faster (the
+  Escape card's from 108 to 68 ms, the MP HUD's from 42 to 29 ms, the Join
+  Game page's from 32 to 21 ms) and retains 10 to 20 percent less memory;
+  the document load is unchanged. Diagnostics and presentation are
+  unchanged: the native document, screen, HUD and runtime suites and the UI
+  gate pass. Record: `docs/dev/ui/runtime-performance.md`, "Elements built
+  from the model".
+
+Candidate UI release wording: The modern interface's menus and HUD open
+faster again.
+
 - [x] Show the Arena best results on the modern Arena page: an unlocked
   match's record across the foot of its levelshot (BEST RESULT over the
   record; generation checks both, and the widest record, in every

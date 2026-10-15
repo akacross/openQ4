@@ -1837,14 +1837,107 @@ keeps are 12 to 28 percent faster. A page whose timelines play still copies
 the authored values once, on its first animated frame, where the load used
 to copy them.
 
-What remains of the view is mostly RmlUi's: its parse of the markup, the
+What remained of the view was mostly RmlUi's: its parse of the markup, the
 instancing of every element and the inline style parse of every property,
 then the first pass's own records and index, the authored map `Motion::Reset`
-still builds and the markup string itself. Typed inline properties, or
-elements built without markup, would remove the parse but must reproduce
-RmlUi's float and keyword decoding exactly. The validator's remaining cost
+still builds and the markup string itself. The validator's remaining cost
 is the parse (JsonCpp's tree, unchanged here) and the node and timeline
 readers' lookups.
+
+#### Elements built from the model
+
+15 October 2026, later. Stack samples of the view after the change above put
+its largest piece in `Runtime::LoadMarkup`: RmlUi parsed the 800 KB of
+derived markup (`Document::BuildMarkup`), instanced every `q4-node` and
+`q4-vector` through the element instancer, parsed each element's inline
+`style` attribute property by property, and updated the document twice
+(once in `Context::LoadDocument`, once in `ElementDocument::Show`). The view
+now builds its elements from the loaded model and no markup is derived or
+parsed for a canonical document (`Document::BuildMarkup` and
+`Runtime::LoadMarkup` remain for the raw-RML tests):
+
+- **Typed inline properties.** Each element is created with
+  `Rml::Factory::InstanceElement` and appended to its parent before its
+  children, in the model's node order, as the parser appended them. It gets
+  the same id and the structural styles the markup wrote (`opacity:1`,
+  `position:relative` for controls, `mask-image:q4-mask(alpha)`, the backdrop
+  filter, the image decorator), and each authored property as a typed
+  `Rml::Property` that is what RmlUi's parser produces from the value's CSS:
+  the parser reads one representative declaration per property name and
+  kind (a number, a length per unit, a colour, a font, a transform) and each
+  keyword once, and the load keeps that parse's definition and parser index
+  (`InlineProperties`, with RmlUi's specification). A number is the float
+  RmlUi's `strtof` reads from the digits `Value::Css` writes (an integer below
+  2^24 converts exactly either way; any other value is formatted and read
+  once per distinct value, since a direct double-to-float cast can differ by
+  an ulp), a colour's channels are the `round(x*255)` integers RmlUi's
+  `rgba()` reads, a font is a string property, and a transform is the same
+  translate, scale and rotate primitives built with the constructors the
+  parser uses (the rotation converts degrees as the parser does). The
+  shorthands (`overflow`, `padding`, `border-width`) and the effect
+  properties (filters, decorators, the mask) still read their CSS through
+  the parser, so their longhands and declaration lists are the parser's own,
+  parsed once per distinct declaration. Each element's properties go through
+  a dictionary filled in the order the style string declared them, so the
+  element's inline-property map (and its serialization) takes the same
+  order; the `style` attribute string itself is no longer retained.
+- **One update.** The built document is shown once; the markup load's update
+  of the hidden document before `Show` is gone. Nothing in the retained
+  runtime observes the show or load events.
+- **The first pass's records.** The pass recorded each value's key as two
+  string copies, indexed every key in a hash map of string pairs, formatted
+  every value's CSS to record it, looked each value's bound property up in
+  the state's map and resolved each value's element from the id map. It now
+  keys its records by pointers into the motion's authored map (the live
+  values keep the authored key set for the document's life), finds a changed
+  key's record by binary search over those keys, records a value the load
+  built as applied without formatting it (its record formats on demand, when
+  a later value compares against it or the replayed-opacity path keeps it),
+  and reads the bound properties in step with the values. Property names are
+  told apart by their first letter before any comparison, in the pass, the
+  build and `VectorElement::Configure`.
+
+The build was checked against the markup it replaces: a development hook
+loaded the derived markup beside the built document for every retained
+document in the tree (63) and compared the two trees, element by element:
+tags, ids, attributes, every inline property (unit, variant type and bits,
+definition, parser index, specificity, source; transform primitives,
+decorator and filter declarations), the properties' order, then boxes,
+offsets, visibility and computed values after an update, and the documents'
+serialization. All 63 matched exactly, with and without the pre-show update.
+
+Interleaved A/B of the committed loader (8fb8cd3e4) and this one, the same
+machine and build type, minimum of six runs of five loads each, every run at
+high process priority (the machine was at 60 to 70 percent with other
+repositories' builds); the parse, which is unchanged, agrees within 5
+percent between the binaries for every document.
+
+| Document | Load before | Load after | View before | View after | View MB before | View MB after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `title.q4ui` | 51.6 ms | 51.1 ms | 9.3 ms | 7.2 ms | 7.1 | 6.0 |
+| `createserver.q4ui` | 105.5 ms | 106.1 ms | 25.6 ms | 18.6 ms | 18.6 | 16.3 |
+| `joingame.q4ui` | 160.4 ms | 166.4 ms | 31.7 ms | 21.0 ms | 21.5 | 17.2 |
+| `mp_escape.q4ui` | 258.7 ms | 246.7 ms | 108.5 ms | 68.1 ms | 65.4 | 53.8 |
+| `mp_summary.q4ui` | 132.0 ms | 132.4 ms | 46.8 ms | 31.8 ms | 32.0 | 27.0 |
+| `remastered_marine.q4ui` | 224.8 ms | 233.6 ms | 22.4 ms | 14.0 ms | 17.6 | 14.9 |
+| `remastered_mp.q4ui` | 186.1 ms | 186.1 ms | 41.8 ms | 29.3 ms | 27.1 | 23.9 |
+| `remastered_scoreboard.q4ui` | 123.6 ms | 130.4 ms | 43.8 ms | 28.8 ms | 27.9 | 24.1 |
+| `weapon_wheel_marine.q4ui` | 87.1 ms | 91.3 ms | 8.2 ms | 6.1 ms | 6.8 | 6.2 |
+
+The view builds 23 to 38 percent faster (the Escape card's from 108 to 68
+ms, the Match Summary's from 47 to 32, the Join Game page's from 32 to 21,
+the MP HUD's from 42 to 29, the Marine HUD's from 22 to 14) and retains 10
+to 20 percent less memory (the markup and the style attributes are gone).
+The document load is unchanged. The benchmark's markup column still times
+`Document::BuildMarkup`, which the view no longer calls.
+
+What remains of the view: RmlUi's element construction and the inline
+property inserts (about a fifth), the one update that lays the document out
+(a tenth), `Motion::Reset`'s authored map (the key strings and nodes of a
+`std::map` of string pairs, a twentieth), `VectorElement::Configure`'s copies
+of each node's paths, the control feedback timelines' first play (which
+copies the live values once), and the value-control view's and the
+interaction's initialization.
 
 ## Remaining requirements
 

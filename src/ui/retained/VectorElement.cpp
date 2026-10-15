@@ -553,9 +553,21 @@ void VectorElement::Configure(const Node& node, Host& owner, RuntimeStatistics& 
 	// images, overflow clips, borders, backdrops and controls keep traversal.
 	replayProjection=(node.type=="group" || node.type=="vector") && !node.control && !node.modal && !node.legacyText &&
 		std::all_of(node.properties.begin(),node.properties.end(),[](const auto& property) {
+			// Told apart by the first letter before a comparison: a page's tens
+			// of thousands of properties pass here on every load.
 			const auto& name=property.first;
-			return name=="position" || name=="left" || name=="top" || name=="right" || name=="bottom" ||
-				name=="width" || name=="height" || name=="transform" || name=="display" || name=="opacity";
+			switch (name.empty() ? 0 : name[0]) {
+			case 'p': return name=="position";
+			case 'l': return name=="left";
+			case 't': return name=="top" || name=="transform";
+			case 'r': return name=="right";
+			case 'b': return name=="bottom";
+			case 'w': return name=="width";
+			case 'h': return name=="height";
+			case 'd': return name=="display";
+			case 'o': return name=="opacity";
+			default: return false;
+			}
 		});
 	legacyText=node.legacyText; legacyTextClip=node.legacyTextClip; textHost=&owner;
 	textItems.clear(); textGeometry.clear(); textTextures.clear();

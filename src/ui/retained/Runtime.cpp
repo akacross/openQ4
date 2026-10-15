@@ -7,6 +7,7 @@
 #include "ScrollbarView.h"
 #include "TextRun.h"
 #include "NumberControlView.h"
+#include "FloatChars.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/FontEngineInterface.h>
@@ -16,15 +17,23 @@
 #include <RmlUi/Core/Filter.h>
 #include <RmlUi/Core/PropertyDefinition.h>
 #include <RmlUi/Core/PropertyDictionary.h>
+#include <RmlUi/Core/StreamMemory.h>
+#include <RmlUi/Core/StyleSheetContainer.h>
+#include <RmlUi/Core/StyleSheetSpecification.h>
+#include <RmlUi/Core/Transform.h>
+#include <RmlUi/Core/TransformPrimitive.h>
 #include <json/json.h>
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
@@ -1534,6 +1543,137 @@ private:
 	std::map<std::string, std::unique_ptr<Face>> faces;
 };
 
+// openQ4: a canonical load builds its elements from the model with typed
+// inline properties, without deriving markup and having RmlUi parse it. Each
+// property is what RmlUi's parser produces from the value's CSS: the parser
+// reads one representative declaration per property name and kind (a
+// number, a length per unit, a colour, a font, a transform) and each keyword
+// once, and that parse keeps the property's definition and parser; a value
+// then takes the parsed template with the number, colour, string or
+// transform the parser would read from its CSS. Shorthands (padding,
+// border-width, overflow) and the effect properties (filters, decorators,
+// the mask) still read their CSS, so their longhands and declaration lists
+// are the parser's own. The cache lives with RmlUi's specification.
+class InlineProperties {
+public:
+	// Declares `name: value` in `properties` as the parse of the value's CSS would.
+	bool Declare(Rml::PropertyDictionary& properties, const std::string& name, const Value& value) {
+		Name& entry = Lookup(name);
+		if (entry.shorthand) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+		if (value.type == ValueType::Keyword) {
+			auto found = entry.keywords.find(value.text);
+			if (found == entry.keywords.end()) {
+				auto parsed = Parse(name,value.text);
+				if (!parsed) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+				found = entry.keywords.emplace(value.text,std::move(*parsed)).first;
+			}
+			properties.SetProperty(entry.id,found->second); return true;
+		}
+		const Rml::Property* base = nullptr;
+		switch (value.type) {
+		case ValueType::Number: base = Template(entry.number,name,"1"); break;
+		case ValueType::Length: { const int unit = LengthUnit(value.unit); if (unit >= 0) base = Template(entry.lengths[unit],name,"1"+value.unit); break; }
+		case ValueType::Colour: base = Template(entry.colour,name,"rgba(0,0,0,255)"); break;
+		case ValueType::Font: base = Template(entry.font,name,"marine"); break;
+		case ValueType::Transform: base = Template(entry.transform,name,"translate(0dp,0dp) scale(1,1) rotate(0deg)"); break;
+		default: break;
+		}
+		if (!base) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+		Rml::Property property = *base;
+		switch (value.type) {
+		case ValueType::Number: case ValueType::Length: property.value = Rml::Variant(Number(value.data[0])); break;
+		case ValueType::Colour: property.value = Rml::Variant(Colour(value)); break;
+		case ValueType::Font: property.value = Rml::Variant(Rml::String(value.text)); break;
+		case ValueType::Transform: property.value = Rml::Variant(Transform(value)); break;
+		default: break;
+		}
+		properties.SetProperty(entry.id,property); return true;
+	}
+	// Declares an effect property (filter, backdrop-filter, decorator,
+	// mask-image) from its CSS, parsed once per distinct declaration.
+	bool DeclareEffect(Rml::PropertyDictionary& properties, const std::string& name, const std::string& css) {
+		Name& entry = Lookup(name);
+		if (entry.shorthand) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,css);
+		auto found = entry.keywords.find(css);
+		if (found == entry.keywords.end()) {
+			auto parsed = Parse(name,css);
+			if (!parsed) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,css);
+			found = entry.keywords.emplace(css,std::move(*parsed)).first;
+		}
+		properties.SetProperty(entry.id,found->second); return true;
+	}
+	// The float RmlUi's number parser reads from a value's formatted number
+	// (strtof of the digits Value::Css writes). An integer below 2^24 converts
+	// exactly either way; any other number is formatted and read, once per
+	// distinct value.
+	float Number(double value) {
+		if (value == std::trunc(value) && std::fabs(value) < 16777216.0) return static_cast<float>(value);
+		std::uint64_t bits; std::memcpy(&bits,&value,sizeof bits);
+		auto& slot = fractions[static_cast<size_t>((bits*0x9E3779B97F4A7C15ull)>>54)];
+		if (slot.valid && slot.bits == bits) return slot.result;
+		char buffer[64];
+		const auto end = FloatToChars(buffer,buffer+sizeof(buffer)-1,value,std::chars_format::general,10).ptr;
+		*end = 0;
+		slot = {bits,std::strtof(buffer,nullptr),true};
+		return slot.result;
+	}
+	// The colour RmlUi's parser reads from rgba(): each channel's CSS is the
+	// decimal integer round(x*255), read back as that integer and clamped.
+	static Rml::Colourb Colour(const Value& value) {
+		Rml::byte channels[4];
+		for (int i = 0; i < 4; ++i)
+			channels[i] = static_cast<Rml::byte>(std::clamp(std::round(value.data[i]*255),0.0,255.0));
+		return Rml::Colourb(channels[0],channels[1],channels[2],channels[3]);
+	}
+	// The parsed properties reference RmlUi's specification: cleared before it shuts down.
+	void Clear() { names.clear(); fractions.fill({}); }
+	// The transform RmlUi's parser builds from "translate(x,y) scale(x,y)
+	// rotate(deg)": the same three primitives from the same parsed numbers.
+	Rml::TransformPtr Transform(const Value& value) {
+		const Rml::Unit unit = value.unit == "px" ? Rml::Unit::PX : Rml::Unit::DP;
+		auto transform = Rml::MakeShared<Rml::Transform>();
+		const Rml::NumericValue translate[2] = {{Number(value.data[0]),unit},{Number(value.data[1]),unit}};
+		transform->AddPrimitive({Rml::Transforms::Translate2D(translate)});
+		const Rml::NumericValue scale[2] = {{Number(value.data[2]),Rml::Unit::NUMBER},{Number(value.data[3]),Rml::Unit::NUMBER}};
+		transform->AddPrimitive({Rml::Transforms::Scale2D(scale)});
+		const Rml::NumericValue rotate[1] = {{Number(value.data[4]),Rml::Unit::DEG}};
+		transform->AddPrimitive({Rml::Transforms::Rotate2D(rotate)});
+		return transform;
+	}
+private:
+	struct Name {
+		Rml::PropertyId id = Rml::PropertyId::Invalid;
+		bool shorthand = false; // Or unknown: its CSS is parsed.
+		std::optional<Rml::Property> number, colour, font, transform;
+		std::array<std::optional<Rml::Property>,4> lengths; // dp, px, %, em
+		std::unordered_map<std::string,Rml::Property> keywords; // Also an effect property's declarations.
+	};
+	std::unordered_map<std::string,Name> names;
+	struct Fraction { std::uint64_t bits = 0; float result = 0; bool valid = false; };
+	std::array<Fraction,1024> fractions{};
+	Name& Lookup(const std::string& name) {
+		const auto found = names.find(name);
+		if (found != names.end()) return found->second;
+		Name entry;
+		entry.id = Rml::StyleSheetSpecification::GetPropertyId(name);
+		entry.shorthand = entry.id == Rml::PropertyId::Invalid;
+		return names.emplace(name,std::move(entry)).first->second;
+	}
+	static int LengthUnit(const std::string& unit) {
+		return unit == "dp" ? 0 : unit == "px" ? 1 : unit == "%" ? 2 : unit == "em" ? 3 : -1;
+	}
+	// Parses `name: css` and returns the one property it declares.
+	static std::optional<Rml::Property> Parse(const std::string& name, const std::string& css) {
+		Rml::PropertyDictionary parsed;
+		if (!Rml::StyleSheetSpecification::ParsePropertyDeclaration(parsed,name,css) || parsed.GetNumProperties() != 1) return std::nullopt;
+		return parsed.GetProperties().begin()->second;
+	}
+	static const Rml::Property* Template(std::optional<Rml::Property>& slot, const std::string& name, const std::string& css) {
+		if (!slot) { auto parsed = Parse(name,css); if (!parsed) return nullptr; slot = std::move(*parsed); }
+		return &*slot;
+	}
+};
+
 struct Backend {
 	explicit Backend(Host& host) : renderer(host,statistics) {}
 	RuntimeStatistics statistics;
@@ -1556,6 +1696,7 @@ struct Services {
 	std::unique_ptr<VectorMaskInstancer> maskInstancer;
 	std::unique_ptr<StreakFilterInstancer> streakInstancer;
 	std::unique_ptr<LeafOpacityFilterInstancer> leafOpacityInstancer;
+	InlineProperties inlineProperties; // The canonical load's parsed property templates.
 	bool initialized = false;
 	Backend* AcquireBackend() {
 		for (auto& backend : backends) if (!backend->leased) {
@@ -1596,6 +1737,7 @@ struct Services {
 		return true;
 	}
 	~Services() {
+		inlineProperties.Clear();
 		if (initialized) Rml::Shutdown();
 		maskInstancer.reset();
 		streakInstancer.reset();
@@ -1711,14 +1853,22 @@ struct Runtime::Impl {
 	// whether a binding owns it, and the state revision and text ratio it was
 	// formatted under, with the CSS it installed on its element (cssApplied).
 	struct AppliedInput {
-		PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false;
-		std::string css; bool cssApplied = false;
-		void Set(const PropertyKey& k, const Value& v, bool owned, Rml::Element* e) { key = k; value = v; bound = owned; element = e; deferred = false; }
+		// The authored key this slot last applied (the motion's authored map
+		// keeps every key for the document's life), or none.
+		const PropertyKey* key = nullptr;
+		Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false;
+		// The CSS installed: `css`, or (cssAuthored) the authored formatting
+		// of `value`, which the load built and no pass has formatted.
+		std::string css; bool cssApplied = false, cssAuthored = false;
+		void Set(const PropertyKey* k, const Value& v, bool owned, Rml::Element* e) { key = k; value = v; bound = owned; element = e; deferred = false; }
+		// The formatting the load built the value with: its CSS, an opacity's filter.
+		std::string AuthoredCss() const { return key && key->second == "opacity" ? "opacity("+value.Css()+")" : value.Css(); }
+		bool InstalledCss(const std::string& string) const { return cssAuthored ? AuthoredCss() == string : css == string; }
 	};
 	std::vector<AppliedInput> appliedInputs;
-	// A load's derived markup carries every authored value as an inline style
-	// the document parsed once. It is current until the first complete pass,
-	// which records a value still at its authored one as applied instead of
+	// A load builds every authored value into its element's inline
+	// properties. They are current until the first complete pass, which
+	// records a value still at its authored one as applied instead of
 	// parsing it again; the nodes the value-control view styled at load (the
 	// choice popups and viewports) take the ordinary path.
 	bool inlineAuthored = false;
@@ -1731,14 +1881,17 @@ struct Runtime::Impl {
 	// Counts ApplyMotion's passes that can write presentation; value controls
 	// reassert a settled closed list only after one (ValueControlView::Paint).
 	std::uint64_t presentationPass = 1;
-	// Each motion value's position in appliedInputs (keys are fixed per document).
-	struct PropertyHash {
-		size_t operator()(const PropertyKey& key) const noexcept {
-			const auto first=std::hash<std::string>{}(key.first), second=std::hash<std::string>{}(key.second);
-			return first^(second+size_t(0x9e3779b9)+(first<<6)+(first>>2));
-		}
-	};
-	std::unordered_map<PropertyKey,size_t,PropertyHash> inputIndexes;
+	// Each motion value's position in appliedInputs: the authored keys in
+	// Values()' order (the live values keep the authored key set), found by
+	// binary search, and the authored map they index.
+	std::vector<const PropertyKey*> inputKeys;
+	const PropertyValues* indexedKeys = nullptr;
+	bool InputsIndexed() const { return indexedKeys && indexedKeys == &motion.Base() && inputKeys.size() == motion.Values().size(); }
+	// The key's position, or inputKeys.size() for a key the inputs lack.
+	size_t InputIndex(const PropertyKey& key) const {
+		const auto found = std::lower_bound(inputKeys.begin(),inputKeys.end(),key,[](const PropertyKey* a, const PropertyKey& b) { return *a < b; });
+		return found != inputKeys.end() && **found == key ? static_cast<size_t>(found-inputKeys.begin()) : inputKeys.size();
+	}
 	float appliedInputTextRatio = 0;
 	bool presentationDirty = true;
 	bool paintDirty = true;
@@ -1788,6 +1941,78 @@ struct Runtime::Impl {
 	Rml::Element* CanonicalElement(const std::string& id) const {
 		const auto found = canonicalElements.find(id);
 		return found != canonicalElements.end() ? found->second : document ? document->GetElementById(id) : nullptr;
+	}
+	// Builds the document a canonical load presents: the derived markup's
+	// style sheet, then every node's element with its id and the typed
+	// properties its inline style would carry, each appended to its parent
+	// before its children, as the markup parser appends them. `elements`
+	// maps each node ID to its element. The caller shows the document, which
+	// lays it out once (a markup load laid it out hidden first, then again on
+	// show; nothing here observes the load or show events). A document that
+	// cannot be built is closed and none is returned.
+	Rml::ElementDocument* BuildCanonicalDocument(const DocumentModel& model, const std::string& sourcePath,
+		std::unordered_map<std::string,Rml::Element*>& elements) {
+		auto* document = context->CreateDocument();
+		if (!document) return nullptr;
+		{
+			// Native unstyled scrollbars default to the containing width and can
+			// consume the entire client area. Scrolling stays semantic until
+			// authored scrollbar parts provide the editable vector control and
+			// its pointer interactions.
+			static constexpr std::string_view sheet = "body{margin:0;width:100%;height:100%;font-family:marine;font-size:16dp;color:#fff;}"
+				"div,q4-node,q4-vector{display:block;}scrollbarvertical{width:0;}scrollbarhorizontal{height:0;}";
+			auto container = Rml::MakeShared<Rml::StyleSheetContainer>();
+			Rml::StreamMemory stream(reinterpret_cast<const Rml::byte*>(sheet.data()),sheet.size());
+			stream.SetSourceURL(Rml::URL(Rml::URL(sourcePath).GetURL()));
+			if (container->LoadStyleSheetContainer(&stream,1)) document->SetStyleSheetContainer(std::move(container));
+		}
+		if (!AppendCanonical(*document,model.root,elements)) { document->Close(); return nullptr; }
+		return document;
+	}
+	bool AppendCanonical(Rml::Element& parent, const Node& node, std::unordered_map<std::string,Rml::Element*>& elements) {
+		auto& templates = services->inlineProperties;
+		static const Rml::String nodeTag = "q4-node", vectorTag = "q4-vector";
+		static const Value one = [] { Value value; value.type = ValueType::Number; value.data[0] = 1; return value; }();
+		static const Value relative = [] { Value value; value.type = ValueType::Keyword; value.text = "relative"; return value; }();
+		const Rml::String& tag = node.type == "vector" ? vectorTag : nodeTag;
+		// The properties in the order the node's inline style would declare
+		// them, so the element's inline properties keep that order.
+		Rml::PropertyDictionary properties;
+		// Canonical opacity isolates the complete node subtree. RmlUi's ordinary
+		// opacity is an inherited primitive tint; its filter supplies the needed
+		// stacking/render boundary without changing the editable source format.
+		templates.Declare(properties,"opacity",one);
+		// Button parts (focus rail, marker, label) use the button's local box even
+		// when the button itself participates in normal document flow.
+		if (node.control) templates.Declare(properties,"position",relative);
+		if (node.mask) templates.DeclareEffect(properties,"mask-image","q4-mask(alpha)");
+		const auto blur = node.properties.find("backdrop-blur"), saturate = node.properties.find("backdrop-saturate");
+		const auto streak = node.properties.find("backdrop-streak");
+		if (blur != node.properties.end() || saturate != node.properties.end() || streak != node.properties.end()) {
+			const auto css = BackdropFilterCss(blur != node.properties.end() ? &blur->second : nullptr,
+				saturate != node.properties.end() ? &saturate->second : nullptr, streak != node.properties.end() ? &streak->second : nullptr);
+			if (css != "none") templates.DeclareEffect(properties,"backdrop-filter",css);
+		}
+		for (const auto& [name,value] : node.properties) {
+			// The same cases as the derived markup's, told apart by their
+			// first letter before any comparison.
+			const char first = name.empty() ? 0 : name[0];
+			if (first == 't' && name == "text") continue;
+			if (first == 'o' && name == "opacity") { if (value.data[0] < 1) templates.DeclareEffect(properties,"filter","opacity("+value.Css()+")"); }
+			else if (first == 'b' && name.starts_with("backdrop-") && (name == "backdrop-blur" || name == "backdrop-saturate" || name == "backdrop-streak")) continue; // Folded into backdrop-filter.
+			else if (first == 'i' && name == "image") { if (!HasImageCoordinates(node)) templates.DeclareEffect(properties,"decorator",ImageDecorator(node,value.text)); }
+			else if (first == 'i' && name.starts_with("image-") && (name == "image-offset-x" || name == "image-offset-y" || name == "image-scale-x" || name == "image-scale-y")) continue;
+			else if (first == 'i' && name.starts_with("image-") && (name == "image-fit" || name == "image-align-x" || name == "image-align-y" || name == "image-blend")) continue; // Folded into the decorator.
+			else templates.Declare(properties,name,value);
+		}
+		auto element = Rml::Factory::InstanceElement(&parent,tag,tag,Rml::XMLAttributes());
+		if (!element) return false;
+		element->SetId(node.id);
+		for (const auto& [id,property] : properties.GetProperties()) element->SetProperty(id,property);
+		auto* appended = parent.AppendChild(std::move(element));
+		elements.emplace(node.id,appended);
+		for (const auto& child : node.children) if (!AppendCanonical(*appended,child,elements)) return false;
+		return true;
 	}
 	bool initialized = false;
 	std::map<std::string,bool> inputAllowed;
@@ -2270,7 +2495,7 @@ struct Runtime::Impl {
 		// constrained popup is open) stays a complete pass, translating its
 		// text again through the host it validates the popup against.
 		const bool incremental = !expected && partial && appliedMotionRevision != 0 &&
-			appliedInputs.size() >= motion.Values().size() && inputIndexes.size() == motion.Values().size();
+			appliedInputs.size() >= motion.Values().size() && InputsIndexed();
 		if (incremental && stateChanged && !state.TakeChangedProperties(changedKeys))
 			for (const auto& [key,value] : state.Properties()) changedKeys.push_back(key);
 		// A display transition flushes pending inline styles before RmlUi resolves
@@ -2289,13 +2514,18 @@ struct Runtime::Impl {
 			return a.type == b.type && std::memcmp(a.data.data(),b.data.data(),sizeof(a.data)) == 0 && a.unit == b.unit && a.text == b.text;
 		};
 		// One input: formats it only when it changed, then applies it.
-		// `authored`: the value's authored one while the load's markup is fresh.
-		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated, const Value* authored) -> bool {
-			const bool backdrop = key.second == "backdrop-blur" || key.second == "backdrop-saturate" || key.second == "backdrop-streak";
-			if (!backdrop && animated.type != ValueType::Text && input.key == key && !(stateChanged && input.bound) && input.value.type == animated.type &&
+		// `authored`: the value's authored one while the load's inline values
+		// are fresh. `keyPointer`: the key in the authored map. `boundAt`: the
+		// key's bound property, or end, when the caller read the state in step.
+		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated, const Value* authored,
+			const PropertyKey* keyPointer, std::optional<PropertyValues::const_iterator> boundAt) -> bool {
+			const bool sameKey = input.key && *input.key == key;
+			const bool backdrop = key.second.starts_with("backdrop-") &&
+				(key.second == "backdrop-blur" || key.second == "backdrop-saturate" || key.second == "backdrop-streak");
+			if (!backdrop && animated.type != ValueType::Text && sameKey && !(stateChanged && input.bound) && input.value.type == animated.type &&
 				std::memcmp(input.value.data.data(),animated.data.data(),sizeof(animated.data)) == 0 &&
 				input.value.unit == animated.unit && input.value.text == animated.text) return true;
-			const auto bound = !stateChanged && input.key==key && !input.bound ? state.Properties().end() : state.Properties().find(key);
+			const auto bound = boundAt ? *boundAt : !stateChanged && sameKey && !input.bound ? state.Properties().end() : state.Properties().find(key);
 			const bool owned = bound != state.Properties().end();
 			const auto& value = owned ? bound->second : animated;
 			if (deferHidden) {
@@ -2308,16 +2538,17 @@ struct Runtime::Impl {
 					if (ancestor->GetComputedValues().display()==Rml::Style::Display::None) {
 						if (!input.deferred) deferredInputs.push_back(key);
 						input.deferred=true;
-						input.key={}; // A deferred bound value has not reached its element yet.
+						input.key=nullptr; // A deferred bound value has not reached its element yet.
 						return current();
 					}
 			}
-			const bool coordinates=key.second == "image-offset-x" || key.second == "image-offset-y" || key.second == "image-scale-x" || key.second == "image-scale-y";
+			const bool image=key.second.starts_with("image-");
+			const bool coordinates=image && (key.second == "image-offset-x" || key.second == "image-offset-y" || key.second == "image-scale-x" || key.second == "image-scale-y");
 			if (coordinates) {
 				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				if (!element) { complete=false; return true; }
 				static_cast<VectorElement*>(element)->SetImageCoordinate(key.second,value.data[0]);
-				input.Set(key,animated,owned,element); return current();
+				input.Set(keyPointer,animated,owned,element); return current();
 			}
 			const bool opacity = key.second == "opacity";
 			// A decorative leaf beside canonical buttons can replay its isolated
@@ -2336,7 +2567,8 @@ struct Runtime::Impl {
 					// 'applied' as the last CSS actually installed: formatting and
 					// looking up a new CSS string cannot change this cached draw.
 					// Zero/full-opacity crossings still install the new topology.
-					input.Set(key,animated,owned,element); return current();
+					if (input.cssAuthored) { input.css = input.AuthoredCss(); input.cssAuthored = false; }
+					input.Set(keyPointer,animated,owned,element); return current();
 				}
 			}
 			// Decorative transforms affect projection, not box layout. Resolve
@@ -2352,7 +2584,7 @@ struct Runtime::Impl {
 					}
 					// An ordinary pass must not mistake the old CSS for the
 					// current property after a typed update or a timeline rewind.
-					input.cssApplied=false; input.Set(key,animated,owned,element);
+					input.cssApplied=false; input.cssAuthored=false; input.Set(keyPointer,animated,owned,element);
 					auto* projected=static_cast<VectorElement*>(element);
 					if (std::find(changedProjections.begin(),changedProjections.end(),projected)==changedProjections.end())
 						changedProjections.push_back(projected);
@@ -2360,9 +2592,10 @@ struct Runtime::Impl {
 				}
 			}
 			std::string string;
-			// Whether the fresh markup's inline style already holds this string.
-			bool carried = false;
-			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") &&
+			// Whether the load's fresh inline value already is this string, and
+			// whether its record then needs no formatting at all (cssAuthored).
+			bool carried = false, lazy = false;
+			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") && (key.second[0]=='f' || key.second[0]=='l') &&
 				(key.second=="font-size" || key.second=="line-height" || key.second=="letter-spacing")) {
 				auto scaled=value; scaled.data[0]*=viewport.TextRatio(); string=scaled.Css();
 			} else if (backdrop) {
@@ -2376,30 +2609,33 @@ struct Runtime::Impl {
 				const auto blur = present("backdrop-blur"), saturate = present("backdrop-saturate"), streak = present("backdrop-streak");
 				string = BackdropFilterCss(blur ? &*blur : nullptr,saturate ? &*saturate : nullptr,streak ? &*streak : nullptr);
 			} else {
-				string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
-					value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
-				// The markup writes an authored value's CSS as the pass does here,
+				// The load builds an authored value as the pass formats it here,
 				// an opacity below one as its filter; text and images it leaves to
-				// the pass.
+				// the pass. A value the load built is recorded as applied without
+				// a second parse, and without formatting: its record formats on
+				// demand.
 				carried = freshMarkup && authored && value.type != ValueType::Text && value.type != ValueType::Image &&
 					(!opacity || value.data[0] < 1) && sameValue(value,*authored);
+				lazy = carried && !input.cssApplied && !inlineOverridden.contains(key.first);
+				if (!lazy) string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
+					value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
 			}
 			if(!current())return false;
 			// Fit and alignment are authored once and folded into the decorator.
-			if (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend") {
-				input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,input.element); return true;
+			if (image && (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend")) {
+				if (lazy) { input.Set(keyPointer,animated,owned,input.element); input.css.clear(); input.cssApplied = true; input.cssAuthored = true; return true; }
+				input.css = std::move(string); input.cssApplied = true; input.cssAuthored = false; input.Set(keyPointer,animated,owned,input.element); return true;
 			}
 			// Canonical elements survive property/text edits and owned-widget
 			// reparenting. These handles reset with the document or its snapshot.
 			auto* element = input.element ? input.element : CanonicalElement(key.first);
 			if (!element) { complete = false; return true; }
-			if (opacity && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) { string.insert(0,"q4-"); carried = false; }
-			if (input.cssApplied && input.css == string) { input.Set(key,animated,owned,element); return true; }
-			// openQ4: the load's markup installed this very value; record it as
-			// applied instead of parsing it a second time.
-			if (carried && !input.cssApplied && !inlineOverridden.contains(key.first)) {
-				input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,element); return true;
-			}
+			if (opacity && lazy && static_cast<VectorElement*>(element)->ReplayOpacity()) { lazy = false; string = "opacity("+value.Css()+")"; }
+			if (opacity && !lazy && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) string.insert(0,"q4-");
+			if (input.cssApplied && input.InstalledCss(string)) { input.Set(keyPointer,animated,owned,element); return true; }
+			// openQ4: the load built this very value; record it as applied
+			// instead of parsing it a second time.
+			if (lazy) { input.Set(keyPointer,animated,owned,element); input.css.clear(); input.cssApplied = true; input.cssAuthored = true; return true; }
 			{
 				// A hidden HUD branch can keep advancing its authored timelines
 				// without relaying out the visible document. Keep its inline values
@@ -2421,7 +2657,7 @@ struct Runtime::Impl {
 			}
 			else if (!element->SetProperty(opacity ? "filter" : backdrop ? "backdrop-filter" : key.second,string)) host.Log(true,"Canonical property rejected: "+key.first+"."+key.second);
 			if(!current())return false;
-			input.css = std::move(string); input.cssApplied = true; input.Set(key,animated,owned,element);
+			input.css = std::move(string); input.cssApplied = true; input.cssAuthored = false; input.Set(keyPointer,animated,owned,element);
 			return true;
 		};
 		if (incremental) {
@@ -2434,9 +2670,9 @@ struct Runtime::Impl {
 			std::sort(changedKeys.begin(),changedKeys.end());
 			changedKeys.erase(std::unique(changedKeys.begin(),changedKeys.end()),changedKeys.end());
 			for (const auto& key : changedKeys) {
-				const auto index = inputIndexes.find(key);
-				if (index == inputIndexes.end()) continue;
-				auto& input = appliedInputs[index->second];
+				const size_t index = InputIndex(key);
+				if (index == inputKeys.size()) continue;
+				auto& input = appliedInputs[index];
 				// A deferred property's branch cannot become visible while the
 				// presentation and its display bindings remain unchanged. Its
 				// timeline still samples in Motion; read the latest value when a
@@ -2445,7 +2681,7 @@ struct Runtime::Impl {
 				++Stats().motionInputsScanned;
 				const auto animated = motion.Values().find(key);
 				if (animated == motion.Values().end()) continue;
-				if (!apply(input,key,animated->second,nullptr)) return false;
+				if (!apply(input,key,animated->second,nullptr,inputKeys[index],std::nullopt)) return false;
 			}
 			if (complete) appliedMotionRevision = passRevision;
 			return current();
@@ -2454,19 +2690,31 @@ struct Runtime::Impl {
 		// A complete pass applies every bound value: the change log restarts.
 		{ std::vector<PropertyKey> consumed; state.TakeChangedProperties(consumed); }
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
-		const bool indexing = inputIndexes.size() != motion.Values().size();
-		if (indexing) { inputIndexes.clear(); inputIndexes.reserve(motion.Values().size()); }
+		const bool indexing = !InputsIndexed();
+		if (indexing) { inputKeys.clear(); inputKeys.reserve(motion.Values().size()); indexedKeys = &motion.Base(); }
 		size_t inputIndex = 0;
-		// The authored values keep the live values' key order, so the fresh
-		// markup's pass reads each value's authored one in step.
+		// The authored values keep the live values' key order, so the pass
+		// reads each value's authored key (and, on the load's first pass, its
+		// authored value) in step, and the bound properties in step too.
 		const auto& authoredValues = motion.Base();
-		auto authored = freshMarkup ? authoredValues.begin() : authoredValues.end();
+		auto authored = authoredValues.begin();
+		const auto& boundProperties = state.Properties();
+		auto bound = boundProperties.begin();
 		for (const auto& [key,animated] : motion.Values()) {
-			if (indexing) inputIndexes.emplace(key,inputIndex);
-			const Value* carried = nullptr;
-			if (authored != authoredValues.end() && authored->first == key) carried = &(authored++)->second;
-			if (!apply(appliedInputs[inputIndex++],key,animated,carried)) return false;
+			const PropertyKey* keyPointer = nullptr; const Value* carried = nullptr;
+			if (authored != authoredValues.end() && authored->first == key) {
+				keyPointer = &authored->first;
+				if (freshMarkup) carried = &authored->second;
+				++authored;
+			}
+			// A live key the authored map lacks leaves the inputs unindexed:
+			// every pass then stays complete.
+			if (indexing) { if (keyPointer) inputKeys.push_back(keyPointer); else indexedKeys = nullptr; }
+			while (bound != boundProperties.end() && bound->first < key) ++bound;
+			const auto boundAt = bound != boundProperties.end() && bound->first == key ? bound : boundProperties.end();
+			if (!apply(appliedInputs[inputIndex++],key,animated,carried,keyPointer,boundAt)) return false;
 		}
+		if (!indexedKeys) inputKeys.clear();
 		inlineOverridden.clear();
 		if (complete) appliedMotionRevision = passRevision;
         return current();
@@ -2631,7 +2879,7 @@ void Runtime::Shutdown() {
 	impl->paintDirty=true;
 	impl->changedProjections.clear();
 	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
-	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset(DocumentModel{});
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr; impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2657,7 +2905,7 @@ void Runtime::CloseDocument() {
 	impl->paintDirty=true;
 	impl->changedProjections.clear();
 	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
-	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset(DocumentModel{});
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr; impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2695,7 +2943,20 @@ bool Runtime::LoadDocument(const Document& document, const std::string& sourcePa
 	return LoadCanonical(std::make_unique<Document>(document),sourcePath,diagnostics);
 }
 bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
-	if (!LoadMarkup(candidate->BuildMarkup(),sourcePath)) return false;
+	if (!Mutate() || !Initialize()) return false;
+	{
+		ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
+		// The document is built from the model, each node's element with its
+		// typed properties (no markup is derived or parsed). Keep the currently
+		// loaded document if building a replacement fails.
+		std::unordered_map<std::string,Rml::Element*> elements;
+		auto* document = impl->BuildCanonicalDocument(candidate->Model(),sourcePath,elements);
+		if (!document) return false;
+		CloseDocument();
+		impl->document = document;
+		impl->canonicalElements = std::move(elements);
+		document->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
+	}
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	// The loaded document outlives the motion, state and views that read its
 	// model: they share it instead of copying its values and declarations.
@@ -2707,25 +2968,13 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 		impl->stateSources.push_back({id,declaration.cvar,declaration.initial.index()});
 	impl->canonical = std::move(candidate);
 	impl->sourcePath = sourcePath;
-	// Every element by ID from one breadth-first walk, in GetElementById's own
-	// order and first match, so the load resolves each node without a search.
-	std::unordered_map<std::string_view,Rml::Element*> loaded;
-	{
-		std::vector<Rml::Element*> queue{impl->document};
-		for (size_t next = 0; next < queue.size(); ++next) {
-			auto* element = queue[next];
-			if (!element->GetId().empty()) loaded.emplace(element->GetId(),element);
-			for (int child = 0; child < element->GetNumChildren(); ++child) queue.push_back(element->GetChild(child));
-		}
-	}
-	const auto find = [&](const std::string& id) -> Rml::Element* {
-		const auto found = loaded.find(id);
-		return found == loaded.end() ? nullptr : found->second;
-	};
+	// The build mapped every node to its element, so the load resolves each
+	// node without a search.
 	std::vector<const Node*> nodes{&impl->canonical->Model().root};
 	while (!nodes.empty()) {
 		const auto* node = nodes.back(); nodes.pop_back();
-		auto* element = find(node->id);
+		const auto built = impl->canonicalElements.find(node->id);
+		auto* element = built == impl->canonicalElements.end() ? nullptr : built->second;
 		if (node->control) {
 			impl->controls.push_back(node->id);
 			if (node->control->role!=ControlRole::Button && element) impl->layoutWidgets.push_back(element);
@@ -2734,7 +2983,6 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 			// Canonical subtrees preserve paint order when opacity crosses 1 and
 			// their temporary filter layer appears or disappears.
 			element->SetProperty(Rml::PropertyId::ZIndex,Rml::Property(0.f,Rml::Unit::NUMBER));
-			impl->canonicalElements.emplace(node->id,element);
 			static_cast<VectorElement*>(element)->Configure(*node,impl->host,impl->Stats());
 			static_cast<VectorElement*>(element)->SetImageSamplingInterface(&impl->backend->renderer);
 			static_cast<VectorElement*>(element)->SetLinearMaskInterface(&impl->backend->renderer);
@@ -2758,8 +3006,8 @@ bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::stri
 	impl->inputBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,false);
 	impl->modalBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,true);
 	impl->ReadStateSources(); impl->Feedback(impl->time);
-	// The markup's inline styles are current for the first pass, except on
-	// the choice popups and viewports the value-control view styled above.
+	// The built inline values are current for the first pass, except on the
+	// choice popups and viewports the value-control view styled above.
 	impl->inlineOverridden.clear();
 	for (const auto& id : impl->controls)
 		if (const auto* node = impl->canonical->Model().FindNode(id))
@@ -3111,7 +3359,7 @@ bool Runtime::RestoreSnapshot(const std::string& snapshot, std::string& error, d
 		if (!impl->interaction.Adopt(std::move(interaction),error)) return false;
 		impl->state = std::move(state); impl->motion = std::move(motion);
 		impl->time = now; impl->pointerPresent = impl->pointerNavigation = false; impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
-		impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear();
+		impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr;
 		impl->pendingFocus.clear();
         impl->preserveRestoredScroll=widgets.version==3;
 		// The restored modals are open already: their saved scroll offsets stand.
