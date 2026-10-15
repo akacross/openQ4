@@ -110,7 +110,8 @@ def main() -> int:
         "si_minPlayers": "2", "si_timeLimit": "10", "si_fragLimit": "999", "si_autoBalance": "1",
         "bot_pause": "1", "bot_minPlayers": "0", "g_matchProfile": "casual",
         "ui_autoJoin": "1", "ui_spectate": "Play", "ui_ready": "Not Ready", "ui_team": "Marine",
-        "ui_retainedMultiplayer": "0", "net_allowCheats": "1", "com_skipLoadingContinue": "1",
+        # The stock in-match menu, which the retained Escape card would cover.
+        "ui_retained": "0", "ui_retainedMultiplayer": "0", "net_allowCheats": "1", "com_skipLoadingContinue": "1",
         "g_autoExecAfterMapLoad": "mp_team_join_smoke.cfg", "g_autoExecAfterMapLoadDelayMs": "1000",
     }
     command = [str(exe)]

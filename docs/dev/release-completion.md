@@ -2,6 +2,23 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Build the multiplayer Escape card's Admin page and make the card the
+  default in-match menu. Admin asks for the server's remote console
+  password in a masked field (a listen server's host skips it), then offers
+  Players (kick, ban, force team switch and the ban list, each saying why
+  it cannot act), Server (the rules drafted as the Vote page drafts a call,
+  and Apply changes) and Console. The Settings pages' name and clan and the
+  Match page's referee password are now the card's own text fields, so no
+  page hands off to the classic menu and `ui_retained` alone brings the
+  card. The multiplayer smokes that drive the stock in-match menu pin
+  `ui_retained 0`. The gate test, the native card checks and listen-server
+  and remote-client captures pass.
+
+Candidate UI release wording: The modern multiplayer menu now covers every
+in-match page, including server administration, so it replaces the classic
+in-match menu whenever the modern interface is on. Set your name and clan,
+sign in as referee and run the server's remote console without leaving it.
+
 - [x] Give the Strogg pause its own Save Game, Load Game and Restart Level
   pages. After Kane's stroggification those three still opened the classic
   pages; they now open the modern pages in the Strogg family (shouldered

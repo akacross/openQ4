@@ -1360,4 +1360,10 @@
 	"#str_231287"	"This level has no start autosave, so it starts fresh at the difficulty chosen here, with a standard arsenal."
 	"#str_231288"	"Reach this level in the campaign to unlock it."
 	"#str_231289"	"START CHAPTER"
+	"#str_231290"	"Checking the password..."
+	"#str_231291"	"Choose a player first."
+	"#str_231292"	"Not on yourself."
+	"#str_231293"	"Team modes only."
+	"#str_231294"	"Match Control runs this match."
+	"#str_231295"	"Change a setting to apply it."
 }

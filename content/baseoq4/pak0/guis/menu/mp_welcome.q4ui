@@ -440,6 +440,8 @@
   "mp.crosshair_image": {"type": "string", "initial": ""},
   "mp.settings.name": {"type": "string", "initial": ""},
   "mp.settings.clan": {"type": "string", "initial": ""},
+  "mp.settings.name_edit": {"type": "string", "initial": ""},
+  "mp.settings.clan_edit": {"type": "string", "initial": ""},
   "mp.model0.0": {"type": "string", "initial": ""},
   "mp.model0.1": {"type": "string", "initial": ""},
   "mp.model0.2": {"type": "string", "initial": ""},
@@ -485,6 +487,18 @@
    "operation": "session.menuValue",
    "input": "number",
    "arguments": {"command": "mpCrosshair", "value": {"input": "value"}}
+  },
+  "mpSettingsName": {"operation": "session.menu", "arguments": {"command": "mpSettingsName"}},
+  "enter.settings-name": {
+   "input": "string",
+   "operation": "ui.state.set",
+   "arguments": {"key": "mp.settings.name_edit", "value": {"input": "value"}, "event": "settings_name_entered"}
+  },
+  "mpSettingsClan": {"operation": "session.menu", "arguments": {"command": "mpSettingsClan"}},
+  "enter.settings-clan": {
+   "input": "string",
+   "operation": "ui.state.set",
+   "arguments": {"key": "mp.settings.clan_edit", "value": {"input": "value"}, "event": "settings_clan_entered"}
   },
   "mpModelSelf": {
    "operation": "session.menuValue",
@@ -545,7 +559,8 @@
     "else": [{"op": "playTimeline", "timeline": "shake-join-solo-1"}]
    }
   ],
-  "classic_settings": [{"op": "setState", "values": {"card.stock_page": 3}}, {"op": "action", "action": "mpStockPage"}],
+  "settings_name_entered": [{"op": "action", "action": "mpSettingsName"}],
+  "settings_clan_entered": [{"op": "action", "action": "mpSettingsClan"}],
   "rail_0": [{"op": "setState", "values": {"card.rail": 0}}, {"op": "action", "action": "mpRail"}],
   "rail_1": [{"op": "setState", "values": {"card.rail": 1}}, {"op": "action", "action": "mpRail"}],
   "rail_2": [{"op": "setState", "values": {"card.rail": 2}}, {"op": "action", "action": "mpRail"}],
@@ -4302,18 +4317,6 @@
      "none"
     ]
    }
-  },
-  {
-   "id": "settings-name-value.text",
-   "node": "settings-name-value",
-   "property": "text",
-   "value": {"state": "mp.settings.name"}
-  },
-  {
-   "id": "settings-clan-value.text",
-   "node": "settings-clan-value",
-   "property": "text",
-   "value": {"state": "mp.settings.clan"}
   },
   {
    "id": "settings-rail-0-chip.transform",
@@ -28030,6 +28033,7 @@
              "display": {"type": "keyword", "value": "block"},
              "width": {"type": "length", "value": 400.0, "unit": "dp"},
              "height": {"type": "length", "value": 26.0, "unit": "dp"},
+             "opacity": {"type": "number", "value": 1},
              "flex-shrink": {"type": "number", "value": 0}
             },
             "children": [
@@ -28145,68 +28149,198 @@
                  "text": {"type": "text", "value": "#str_200219"},
                  "position": {"type": "keyword", "value": "relative"},
                  "display": {"type": "keyword", "value": "block"},
+                 "flex-shrink": {"type": "number", "value": 1},
                  "min-width": {"type": "length", "value": 0, "unit": "dp"},
                  "font-family": {"type": "font", "value": "lowpixel"},
-                 "font-size": {"type": "length", "value": 14, "unit": "dp"},
-                 "line-height": {"type": "length", "value": 13.0, "unit": "dp"},
+                 "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 26.0, "unit": "dp"},
                  "color": {"type": "color", "value": [1, 1, 1, 0.85]},
-                 "white-space": {"type": "keyword", "value": "normal"},
+                 "white-space": {"type": "keyword", "value": "nowrap"},
                  "overflow": {"type": "keyword", "value": "hidden"}
                 }
                }
               ]
              },
              {
-              "id": "settings-name-value",
+              "id": "settings-name-viewport",
+              "type": "group",
+              "properties": {
+               "position": {"type": "keyword", "value": "absolute"},
+               "left": {"type": "length", "value": 131.147, "unit": "dp"},
+               "top": {"type": "length", "value": 2.0, "unit": "dp"},
+               "width": {"type": "length", "value": 248.853, "unit": "dp"},
+               "height": {"type": "length", "value": 22.0, "unit": "dp"},
+               "display": {"type": "keyword", "value": "block"},
+               "overflow": {"type": "keyword", "value": "hidden"}
+              },
+              "children": [
+               {
+                "id": "settings-name-field",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "field",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.6]}},
+                  "stroke": {
+                   "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                   "widthDp": 1,
+                   "minimumPixels": 1,
+                   "join": "miter",
+                   "cap": "butt"
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "settings-name-selection",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 0, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.4]}}
+                 }
+                ]
+               },
+               {
+                "id": "settings-name-text",
+                "type": "text",
+                "properties": {
+                 "text": {"type": "text", "value": "#str_230030"},
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 6, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 4096, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "font-family": {"type": "font", "value": "lowpixel"},
+                 "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+                 "white-space": {"type": "keyword", "value": "pre"},
+                 "text-align": {"type": "keyword", "value": "left"}
+                }
+               },
+               {
+                "id": "settings-name-caret",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 1, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 1]}}
+                 }
+                ]
+               },
+               {
+                "id": "settings-name-composition",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 0, "unit": "dp"},
+                 "height": {"type": "length", "value": 1, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                 }
+                ]
+               }
+              ]
+             },
+             {
+              "id": "settings-name-validation",
               "type": "text",
               "properties": {
                "text": {"type": "text", "value": "#str_230030"},
                "position": {"type": "keyword", "value": "absolute"},
-               "left": {"type": "length", "value": 139.147, "unit": "dp"},
-               "top": {"type": "length", "value": 0, "unit": "dp"},
-               "width": {"type": "length", "value": 230.853, "unit": "dp"},
-               "height": {"type": "length", "value": 26.0, "unit": "dp"},
+               "left": {"type": "length", "value": 21, "unit": "dp"},
+               "top": {"type": "length", "value": 27.0, "unit": "dp"},
+               "width": {"type": "length", "value": 367.0, "unit": "dp"},
+               "height": {"type": "length", "value": 16, "unit": "dp"},
                "font-family": {"type": "font", "value": "lowpixel"},
-               "font-size": {"type": "length", "value": 15, "unit": "dp"},
-               "line-height": {"type": "length", "value": 26.0, "unit": "dp"},
-               "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+               "font-size": {"type": "length", "value": 13, "unit": "dp"},
+               "line-height": {"type": "length", "value": 16, "unit": "dp"},
+               "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]},
                "white-space": {"type": "keyword", "value": "nowrap"},
-               "overflow": {"type": "keyword", "value": "hidden"}
+               "overflow": {"type": "keyword", "value": "hidden"},
+               "display": {"type": "keyword", "value": "none"}
               }
-             },
-             {
-              "id": "settings-name-arrow",
-              "type": "vector",
-              "properties": {
-               "position": {"type": "keyword", "value": "absolute"},
-               "left": {"type": "length", "value": 379.0, "unit": "dp"},
-               "top": {"type": "length", "value": 9, "unit": "dp"},
-               "width": {"type": "length", "value": 6, "unit": "dp"},
-               "height": {"type": "length", "value": 9, "unit": "dp"}
-              },
-              "paths": [
-               {
-                "id": "arrow",
-                "commands": [
-                 {"id": "p0", "op": "move", "points": [[0, 0]]},
-                 {"id": "p1", "op": "line", "points": [[5, 4.5]]},
-                 {"id": "p2", "op": "line", "points": [[0, 9]]}
-                ],
-                "stroke": {
-                 "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
-                 "widthDp": 1.5,
-                 "minimumPixels": 1,
-                 "join": "miter",
-                 "cap": "butt"
-                }
-               }
-              ]
              }
             ],
             "control": {
-             "role": "button",
+             "role": "text",
              "label": "#str_200219",
-             "event": "classic_settings",
+             "action": "enter.settings-name",
+             "value": {"state": "mp.settings.name_edit"},
+             "maxBytes": 23,
+             "parts": {
+              "viewport": "settings-name-viewport",
+              "text": "settings-name-text",
+              "selection": "settings-name-selection",
+              "caret": "settings-name-caret",
+              "composition": "settings-name-composition",
+              "validation": "settings-name-validation"
+             },
              "states": {
               "default": "settings-name.default",
               "hover": "settings-name.hover",
@@ -28224,6 +28358,7 @@
              "display": {"type": "keyword", "value": "block"},
              "width": {"type": "length", "value": 400.0, "unit": "dp"},
              "height": {"type": "length", "value": 26.0, "unit": "dp"},
+             "opacity": {"type": "number", "value": 1},
              "flex-shrink": {"type": "number", "value": 0}
             },
             "children": [
@@ -28339,68 +28474,199 @@
                  "text": {"type": "text", "value": "#str_200220"},
                  "position": {"type": "keyword", "value": "relative"},
                  "display": {"type": "keyword", "value": "block"},
+                 "flex-shrink": {"type": "number", "value": 1},
                  "min-width": {"type": "length", "value": 0, "unit": "dp"},
                  "font-family": {"type": "font", "value": "lowpixel"},
-                 "font-size": {"type": "length", "value": 14, "unit": "dp"},
-                 "line-height": {"type": "length", "value": 13.0, "unit": "dp"},
+                 "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 26.0, "unit": "dp"},
                  "color": {"type": "color", "value": [1, 1, 1, 0.85]},
-                 "white-space": {"type": "keyword", "value": "normal"},
+                 "white-space": {"type": "keyword", "value": "nowrap"},
                  "overflow": {"type": "keyword", "value": "hidden"}
                 }
                }
               ]
              },
              {
-              "id": "settings-clan-value",
+              "id": "settings-clan-viewport",
+              "type": "group",
+              "properties": {
+               "position": {"type": "keyword", "value": "absolute"},
+               "left": {"type": "length", "value": 131.147, "unit": "dp"},
+               "top": {"type": "length", "value": 2.0, "unit": "dp"},
+               "width": {"type": "length", "value": 248.853, "unit": "dp"},
+               "height": {"type": "length", "value": 22.0, "unit": "dp"},
+               "display": {"type": "keyword", "value": "block"},
+               "overflow": {"type": "keyword", "value": "hidden"}
+              },
+              "children": [
+               {
+                "id": "settings-clan-field",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 100, "unit": "%"},
+                 "height": {"type": "length", "value": 100, "unit": "%"},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "field",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.6]}},
+                  "stroke": {
+                   "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.45]}},
+                   "widthDp": 1,
+                   "minimumPixels": 1,
+                   "join": "miter",
+                   "cap": "butt"
+                  }
+                 }
+                ]
+               },
+               {
+                "id": "settings-clan-selection",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 0, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.4]}}
+                 }
+                ]
+               },
+               {
+                "id": "settings-clan-text",
+                "type": "text",
+                "properties": {
+                 "text": {"type": "text", "value": "#str_230030"},
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 6, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 4096, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "font-family": {"type": "font", "value": "lowpixel"},
+                 "font-size": {"type": "length", "value": 15, "unit": "dp"},
+                 "line-height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+                 "white-space": {"type": "keyword", "value": "pre"},
+                 "text-align": {"type": "keyword", "value": "left"}
+                }
+               },
+               {
+                "id": "settings-clan-caret",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 1, "unit": "dp"},
+                 "height": {"type": "length", "value": 22.0, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 1]}}
+                 }
+                ]
+               },
+               {
+                "id": "settings-clan-composition",
+                "type": "vector",
+                "properties": {
+                 "position": {"type": "keyword", "value": "absolute"},
+                 "left": {"type": "length", "value": 0, "unit": "dp"},
+                 "top": {"type": "length", "value": 0, "unit": "dp"},
+                 "width": {"type": "length", "value": 0, "unit": "dp"},
+                 "height": {"type": "length", "value": 1, "unit": "dp"},
+                 "display": {"type": "keyword", "value": "block"},
+                 "opacity": {"type": "number", "value": 1},
+                 "pointer-events": {"type": "keyword", "value": "none"}
+                },
+                "paths": [
+                 {
+                  "id": "ink",
+                  "commands": [
+                   {"id": "p0", "op": "move", "points": [[0, 0]]},
+                   {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 0]]},
+                   {"id": "p2", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
+                   {"id": "p3", "op": "line", "points": [[0, {"fraction": 1}]]},
+                   {"id": "close", "op": "close"}
+                  ],
+                  "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
+                 }
+                ]
+               }
+              ]
+             },
+             {
+              "id": "settings-clan-validation",
               "type": "text",
               "properties": {
                "text": {"type": "text", "value": "#str_230030"},
                "position": {"type": "keyword", "value": "absolute"},
-               "left": {"type": "length", "value": 139.147, "unit": "dp"},
-               "top": {"type": "length", "value": 0, "unit": "dp"},
-               "width": {"type": "length", "value": 230.853, "unit": "dp"},
-               "height": {"type": "length", "value": 26.0, "unit": "dp"},
+               "left": {"type": "length", "value": 21, "unit": "dp"},
+               "top": {"type": "length", "value": 27.0, "unit": "dp"},
+               "width": {"type": "length", "value": 367.0, "unit": "dp"},
+               "height": {"type": "length", "value": 16, "unit": "dp"},
                "font-family": {"type": "font", "value": "lowpixel"},
-               "font-size": {"type": "length", "value": 15, "unit": "dp"},
-               "line-height": {"type": "length", "value": 26.0, "unit": "dp"},
-               "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]},
+               "font-size": {"type": "length", "value": 13, "unit": "dp"},
+               "line-height": {"type": "length", "value": 16, "unit": "dp"},
+               "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]},
                "white-space": {"type": "keyword", "value": "nowrap"},
-               "overflow": {"type": "keyword", "value": "hidden"}
+               "overflow": {"type": "keyword", "value": "hidden"},
+               "display": {"type": "keyword", "value": "none"}
               }
-             },
-             {
-              "id": "settings-clan-arrow",
-              "type": "vector",
-              "properties": {
-               "position": {"type": "keyword", "value": "absolute"},
-               "left": {"type": "length", "value": 379.0, "unit": "dp"},
-               "top": {"type": "length", "value": 9, "unit": "dp"},
-               "width": {"type": "length", "value": 6, "unit": "dp"},
-               "height": {"type": "length", "value": 9, "unit": "dp"}
-              },
-              "paths": [
-               {
-                "id": "arrow",
-                "commands": [
-                 {"id": "p0", "op": "move", "points": [[0, 0]]},
-                 {"id": "p1", "op": "line", "points": [[5, 4.5]]},
-                 {"id": "p2", "op": "line", "points": [[0, 9]]}
-                ],
-                "stroke": {
-                 "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
-                 "widthDp": 1.5,
-                 "minimumPixels": 1,
-                 "join": "miter",
-                 "cap": "butt"
-                }
-               }
-              ]
              }
             ],
             "control": {
-             "role": "button",
+             "role": "text",
              "label": "#str_200220",
-             "event": "classic_settings",
+             "action": "enter.settings-clan",
+             "value": {"state": "mp.settings.clan_edit"},
+             "maxBytes": 12,
+             "allowEmpty": true,
+             "parts": {
+              "viewport": "settings-clan-viewport",
+              "text": "settings-clan-text",
+              "selection": "settings-clan-selection",
+              "caret": "settings-clan-caret",
+              "composition": "settings-clan-composition",
+              "validation": "settings-clan-validation"
+             },
              "states": {
               "default": "settings-clan.default",
               "hover": "settings-clan.hover",

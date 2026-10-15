@@ -2154,10 +2154,9 @@ what remains across every retained menu.
   has no Settings row yet (`ui_retainedOpaqueBacking` is a CVar). A node
   inside a composition layer gets no soft focus, because only the base
   surface is read. Only the confirmation width exists.
-- The multiplayer Escape card is opt-in (`ui_retainedMultiplayer`) while its
-  Admin page hands off to the stock menu; the Welcome card presents
-  by default ([multiplayer menus](multiplayer-menus.md#known-limitations)).
-  The retained home screen is never presented in a multiplayer game.
+- The multiplayer Escape and Welcome cards present by default
+  ([multiplayer menus](multiplayer-menus.md#known-limitations)). The retained
+  home screen is never presented in a multiplayer game.
 - The Welcome card's own opening runs on the clock the load left standing
   and ends at once, so the hand-off reveals the card already softened. A
   first card frame slower than the fade still cuts it short.

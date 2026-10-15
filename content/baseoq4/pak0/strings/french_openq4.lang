@@ -1365,4 +1365,10 @@
 	"#str_231287"	"Ce niveau n'a pas de sauvegarde automatique de départ : il commence à zéro à la difficulté choisie ici, avec un arsenal standard."
 	"#str_231288"	"Atteignez ce niveau dans la campagne pour le débloquer."
 	"#str_231289"	"LANCER LE CHAPITRE"
+	"#str_231290"	"Vérification du mot de passe..."
+	"#str_231291"	"Choisissez d'abord un joueur."
+	"#str_231292"	"Pas sur vous-même."
+	"#str_231293"	"Modes en équipe uniquement."
+	"#str_231294"	"La gestion du match dirige ce match."
+	"#str_231295"	"Modifiez un réglage pour l'appliquer."
 }

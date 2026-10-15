@@ -1360,4 +1360,10 @@
 	"#str_231287"	"Este nivel no tiene autoguardado inicial, así que empieza de cero con la dificultad elegida aquí y un arsenal estándar."
 	"#str_231288"	"Alcanza este nivel en la campaña para desbloquearlo."
 	"#str_231289"	"EMPEZAR CAPÍTULO"
+	"#str_231290"	"Comprobando la contraseña..."
+	"#str_231291"	"Elige primero un jugador."
+	"#str_231292"	"No contigo mismo."
+	"#str_231293"	"Solo modos por equipos."
+	"#str_231294"	"El control de partida dirige esta partida."
+	"#str_231295"	"Cambia un ajuste para aplicarlo."
 }

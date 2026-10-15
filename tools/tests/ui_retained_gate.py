@@ -2557,6 +2557,62 @@ int main() {
             card->state["card.stock_page"] = page; s.HandleRetainedSessionRequest(card, "mpStockPage");
             CHECK(s.guiRetainedMultiplayer == card && !s.retainedMultiplayerUncovered);
         }
+        // The Admin page: the password the masked field entered moves to the
+        // remote console's CVar and leaves the card at once, then the game checks
+        // it; nothing entered, or too long, sends nothing. A row names its client
+        // by the game's own list; the player actions, the ban list and Apply
+        // reach the game; a drafted setting reaches it quietly as "retained
+        // adminSet <field> <value>"; the console's command goes through the stock
+        // console's input. The referee credential moves to the game's menu, the
+        // name and clan to their settings.
+        gameObject.answer = [](const char*) -> const char* { return "continue"; };
+        card->state["card.admin.password"] = "correct horse battery"; s.HandleRetainedSessionRequest(card, "mpAdminPass");
+        CHECK(cvarSystemObject.strings["net_clientRemoteConsolePassword"] == "correct horse battery" && card->state["card.admin.password"].empty() &&
+              gameObject.guiCommands.back() == "play main_menu_selection ; retained adminPass" && s.guiRetainedMultiplayer == card);
+        const size_t checked = gameObject.guiCommands.size();
+        s.HandleRetainedSessionRequest(card, "mpAdminPass");
+        card->state["card.admin.password"] = std::string(65, 'x'); s.HandleRetainedSessionRequest(card, "mpAdminPass");
+        CHECK(gameObject.guiCommands.size() == checked && card->state["card.admin.password"].empty() &&
+              cvarSystemObject.strings["net_clientRemoteConsolePassword"] == "correct horse battery");
+        card->state["card.admin_row"] = "2"; card->state["mp.admin.player2.client"] = "7"; s.HandleRetainedSessionRequest(card, "mpAdminSelect");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained adminSelect 7" && s.guiRetainedMultiplayer == card);
+        for (const auto& [verb, command] : std::vector<std::pair<const char*, const char*>>{
+                 {"mpAdminKick", "retained adminKick"}, {"mpAdminBan", "retained adminBan"}, {"mpAdminSwitch", "retained adminSwitch"},
+                 {"mpAdminBans", "retained adminBans"}, {"mpAdminUnban", "retained adminUnban"}, {"mpAdminApply", "retained adminApply"}}) {
+            s.HandleRetainedSessionRequest(card, verb);
+            CHECK(gameObject.guiCommands.back() == std::string("play main_menu_selection ; ") + command && s.guiRetainedMultiplayer == card);
+        }
+        card->state["card.admin_ban_pick"] = "3"; s.HandleRetainedSessionRequest(card, "mpAdminBanPick");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained adminBanSelect 3");
+        s.HandleRetainedSessionRequest(card, "mpAdminMap 3"); CHECK(gameObject.guiCommands.back() == "retained adminSet 0 3");
+        s.HandleRetainedSessionRequest(card, "mpAdminControlTime 600"); CHECK(gameObject.guiCommands.back() == "retained adminSet 6 600");
+        s.HandleRetainedSessionRequest(card, "mpAdminBuying 1"); CHECK(gameObject.guiCommands.back() == "retained adminSet 10 1");
+        const size_t administered = gameObject.guiCommands.size();
+        for (const char* row : {"-1", "32"}) {
+            card->state["card.admin_row"] = row; s.HandleRetainedSessionRequest(card, "mpAdminSelect");
+            card->state["card.admin_ban_pick"] = row; s.HandleRetainedSessionRequest(card, "mpAdminBanPick");
+        }
+        for (const char* bad : {"mpAdminKick 1", "mpAdminMap", "mpAdminMap x", "mpAdminKickPlayer", "mpAdminNope 1"}) {
+            s.HandleRetainedSessionRequest(card, bad);
+        }
+        CHECK(gameObject.guiCommands.size() == administered && s.guiRetainedMultiplayer == card);
+        card->state["card.admin.command"] = "status"; s.HandleRetainedSessionRequest(card, "mpAdminConsole");
+        CHECK(mpMenu.state["admin_console_input"] == "status" && card->state["card.admin.command"].empty() &&
+              gameObject.guiCommands.back() == "retained adminConsole");
+        s.HandleRetainedSessionRequest(card, "mpAdminConsole"); CHECK(gameObject.guiCommands.back() == "retained adminConsole" &&
+                                                                     gameObject.guiCommands.size() == administered + 1);
+        card->state["card.referee_credential"] = "whistle"; s.HandleRetainedSessionRequest(card, "mpRefereeLogin");
+        CHECK(mpMenu.state["match_referee_credential"] == "whistle" && card->state["card.referee_credential"].empty() &&
+              gameObject.guiCommands.back() == "play main_menu_selection ; matchControl referee_login");
+        card->state["mp.settings.name_edit"] = "^1Kane"; s.HandleRetainedSessionRequest(card, "mpSettingsName");
+        CHECK(cvarSystemObject.strings["ui_name"] == "^1Kane" && cvarSystemObject.strings["gui_ui_name"] == "^1Kane");
+        card->state["mp.settings.name_edit"] = ""; s.HandleRetainedSessionRequest(card, "mpSettingsName");
+        card->state["mp.settings.clan_edit"] = std::string(13, 'c'); s.HandleRetainedSessionRequest(card, "mpSettingsClan");
+        CHECK(cvarSystemObject.strings["ui_name"] == "^1Kane" && cvarSystemObject.strings.count("ui_clan") == 0);
+        card->state["mp.settings.clan_edit"] = ""; s.HandleRetainedSessionRequest(card, "mpSettingsClan");
+        CHECK(cvarSystemObject.strings.count("ui_clan") == 1 && cvarSystemObject.strings["ui_clan"].empty() &&
+              gameObject.guiCommands.back() == "play main_menu_selection ; matchControl referee_login");
+        gameObject.answer = nullptr;
         // A map change retires the card at once and opens the next map's card on
         // its first page.
         card->state["card.tab"] = "5"; s.PrepareRetainedLevel("mp/q4dm2", true);
@@ -4222,18 +4278,39 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     for index, (ident, _key, window) in enumerate(retained_mp_menus.WELCOME_TABS):
         if window is not None:
             assert f'windowDef {window}\n' in stock_menu.replace('\r\n', '\n'), f'the stock menu has no {window}'
-            # A built page hands off only what it cannot edit yet (name and clan).
+            # A page that still hands off presses the page's button.
             handoff = welcome_document['events'].get(f'stock_{ident}', welcome_document['events'].get(f'classic_{ident}'))
-            assert handoff == [{'op': 'setState', 'values': {'card.stock_page': index}}, {'op': 'action', 'action': 'mpStockPage'}], ident
-    escape_settings = [index for index, (ident, _key, _window) in enumerate(retained_mp_menus.ESCAPE_TABS) if ident == 'settings'][0]
-    assert document['events']['classic_settings'] == [{'op': 'setState', 'values': {'card.stock_page': escape_settings}},
-                                                      {'op': 'action', 'action': 'mpStockPage'}]
-    # The Match page is built; its referee credential and the rows past the
-    # card's open the stock page.
+            assert handoff in (None, [{'op': 'setState', 'values': {'card.stock_page': index}}, {'op': 'action', 'action': 'mpStockPage'}]), ident
+    # Name and clan are the card's own text fields on both Settings pages, the
+    # Match page's referee credential a masked one; none hands off.
+    def card_controls(node):
+        found = {node['id']: node['control']} if 'control' in node else {}
+        for child in node.get('children', ()):
+            found.update(card_controls(child))
+        return found
+    for card_document in (document, welcome_document):
+        assert 'classic_settings' not in card_document['events']
+        fields = card_controls(card_document['root'])
+        for ident, state, verb, size, empty in (('settings-name', 'mp.settings.name_edit', 'mpSettingsName', 23, False),
+                                                ('settings-clan', 'mp.settings.clan_edit', 'mpSettingsClan', 12, True)):
+            field = fields[ident]
+            assert field['role'] == 'text' and field['value'] == {'state': state} and field['maxBytes'] == size and \
+                field.get('allowEmpty', False) == empty, ident
+            assert card_document['actions'][field['action']]['arguments']['key'] == state
+            assert card_document['events'][card_document['actions'][field['action']]['arguments']['event']] == [{'op': 'action', 'action': verb}]
+    escape_fields = card_controls(document['root'])
+    referee = escape_fields['match-referee-login']
+    assert referee['role'] == 'text' and referee.get('masked') and referee['value'] == {'state': 'card.referee_credential'}
+    assert document['events']['match_referee_entered'] == [{'op': 'if', 'condition': {'state': 'mp.match.op.referee_login.available'},
+                                                            'then': [{'op': 'action', 'action': 'mpRefereeLogin'}]}]
+    password = escape_fields['admin-password']
+    assert password['role'] == 'text' and password.get('masked') and password['value'] == {'state': 'card.admin.password'}
+    assert escape_fields['admin-command']['role'] == 'text' and escape_fields['admin-command']['value'] == {'state': 'card.admin.command'}
+    # The Match page is built; the rows past the card's open the stock page.
     escape_match = [index for index, (ident, _key, _window) in enumerate(retained_mp_menus.ESCAPE_TABS) if ident == 'match'][0]
     assert document['events']['classic_match'] == [{'op': 'setState', 'values': {'card.stock_page': escape_match}},
                                                    {'op': 'action', 'action': 'mpStockPage'}]
-    assert 'match' not in handoffs
+    assert 'match' not in handoffs and 'admin' not in handoffs
     assert welcome_document['events']['onBack'] == [{'op': 'action', 'action': 'mpClose'}]
     prompt_bar_fits(document, 'mp_escape')
     prompt_bar_fits(welcome_document, 'mp_welcome')
@@ -4339,14 +4416,43 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     fields = re.findall(r'"(mpVote[A-Za-z]+)"', re.search(r'RETAINED_MP_VOTE_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
     appearance = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_APPEARANCE_VALUES\[\] = \{([^}]*)\};', menu).group(1))
     choices = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_MATCH_CHOICES\[\] = \{([^}]*)\};', menu).group(1))
-    assert set(fields) | set(appearance) | set(choices) | {'mpMatchRuleValue'} == value_verbs and \
-        len(fields) + len(appearance) + len(choices) + 1 == len(value_verbs), (fields, appearance, choices, value_verbs)
+    admin_fields = re.findall(r'"(mpAdmin[A-Za-z]+)"', re.search(r'RETAINED_MP_ADMIN_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
+    assert set(fields) | set(appearance) | set(choices) | set(admin_fields) | {'mpMatchRuleValue'} == value_verbs and \
+        len(fields) + len(appearance) + len(choices) + len(admin_fields) + 1 == len(value_verbs), (fields, appearance, choices, value_verbs)
     assert appearance == [*retained_mp_menus.MODEL_VERBS, 'mpCrosshair'] and choices == ['mpMatchRole', 'mpMatchScope', 'mpMatchSeriesProfile']
     enum = [name.strip() for name in re.search(r'enum retainedVoteField_t \{([^}]*)\};', header).group(1).split(',') if name.strip()]
     assert enum[-1] == 'RVF_COUNT'
     keys = [name[len('RVF_'):].lower() for name in enum[:-1]]
     assert keys == [verb[len('mpVote'):].lower() for verb in fields]
     assert [(key, verb) for key, verb, _label, _control in retained_mp_menus.VOTE_ROWS] == list(zip(keys, fields))
+    # The Admin page's Server section drafts the same fields without the
+    # kick: the session's table, the document's rows and the game's publisher
+    # follow the game's order.
+    import retained_mp_admin
+    assert keys[-1] == 'kick' and [(key, verb) for key, verb, _label, _control in retained_mp_admin.ROWS] == list(zip(keys[:-1], admin_fields))
+    for key, verb, _label, control in retained_mp_admin.ROWS:
+        assert document['actions'][verb] == {'operation': 'session.menuValue', 'input': 'boolean' if control[0] == 'toggle' else 'number',
+                                             'arguments': {'command': verb, 'value': {'input': 'value'}}}, verb
+    admin_publisher = function_body(mp_game, 'void idMultiplayerGame::PublishRetainedAdmin(')
+    assert re.findall(r'"([a-z]+)"', re.search(r'static const char \*const fields\[ RVF_COUNT \] = \{([^}]*)\};', admin_publisher).group(1)) == keys
+    for constant, value in (('PLAYERS', retained_mp_admin.PLAYERS), ('BANS', 32), ('CONSOLE_LINES', retained_mp_admin.CONSOLE_LINES)):
+        assert f'static const int RETAINED_ADMIN_{constant} = {value};' in header, constant
+    assert f'static const int RETAINED_MP_ADMIN_PLAYERS = {retained_mp_admin.PLAYERS};' in menu
+    assert f'static const int RETAINED_MP_PASSWORD_BYTES = {retained_mp_admin.PASSWORD_BYTES};' in menu
+    assert f'static const int RETAINED_MP_COMMAND_BYTES = {retained_mp_admin.COMMAND_BYTES};' in menu
+    # The game: a client becomes an admin only by the server's answer, every
+    # admin command but the password check needs it, and Apply closes the menu
+    # only once the server takes the changes.
+    admin_command = function_body(mp_game, 'bool idMultiplayerGame::HandleRetainedAdminCommand(')
+    assert admin_command.index('if ( !sub.Icmp( "adminPass" ) ) {') < admin_command.index('if ( !RetainedAdmin() ) {') < \
+        admin_command.index('if ( !sub.Icmp( "adminSelect" ) ) {')
+    apply_branch = admin_command[admin_command.index('if ( !sub.Icmp( "adminApply" ) ) {'):admin_command.index('if ( !sub.Icmp( "adminConsole" ) ) {')]
+    assert apply_branch.index('RetainedAdminRefusal( RAA_APPLY ) != NULL') < apply_branch.index('if ( HandleServerAdminCommands( data ) ) {') < \
+        apply_branch.index('DisableMenu();')
+    assert 'retainedAdminValid = success;' in function_body(mp_game, 'void idMultiplayerGame::ProcessRconReturn(')
+    assert 'return gameLocal.isServer || retainedAdminValid;' in function_body(mp_game, 'bool idMultiplayerGame::RetainedAdmin(')
+    assert 'retainedAdminValid = false;' in function_body(mp_game, 'void idMultiplayerGame::Clear(')
+    assert cover.index('ResetRetainedVoteDraft();') < cover.index('ResetRetainedAdminDraft();') < cover.index('PublishRetainedMenu( card );')
     publisher = function_body(mp_game, 'void idMultiplayerGame::PublishRetainedVote(')
     assert re.findall(r'"([a-z]+)"', re.search(r'static const char \*const fields\[ RVF_COUNT \] = \{([^}]*)\};', publisher).group(1)) == keys
     for key, verb, _label, control in retained_mp_menus.VOTE_ROWS:
@@ -4701,6 +4807,12 @@ def main() -> int:
                 assert action['arguments']['cvar'] in player_settings and action['arguments']['value'] == {'input': 'value'}, relative
             elif action['operation'] == 'session.menuValue':
                 assert action['arguments']['command'] in value_allowlist and action['arguments']['value'] == {'input': 'value'}, relative
+            elif action['operation'] == 'ui.state.set':
+                # A text field's Enter writes its text into the document's own
+                # state and runs an event, which asks the session.
+                assert action['input'] == 'string' and action['arguments']['value'] == {'input': 'value'} and                     action['arguments']['event'] in document['events'], relative
+            elif action['operation'] == 'ui.numberDrafts.focus':
+                assert action['arguments'] == {}, relative
             else:
                 assert action['operation'] == 'session.menu' and action['arguments']['command'] in allowlist, relative
     # Only the scoped, preference-gated optical overlay adapter in game code

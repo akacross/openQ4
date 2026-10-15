@@ -1269,6 +1269,12 @@ idMultiplayerGame::idMultiplayerGame() {
 	memset( retainedVoteDraft, 0, sizeof( retainedVoteDraft ) );
 	retainedVoteDraft[ RVF_KICK ] = -1;
 	retainedVoteMapsRequested = false;
+	retainedAdminValid = false;
+	retainedAdminState = RAS_NONE;
+	retainedAdminClient = -1;
+	retainedAdminBan = -1;
+	memset( retainedAdminDraft, 0, sizeof( retainedAdminDraft ) );
+	retainedAdminDraft[ RVF_KICK ] = -1;
 	voteCaller = -1;
 	voteStartTime = 0;
 	voteLength = 0;
@@ -9854,6 +9860,11 @@ void idMultiplayerGame::Clear() {
 	for ( int list = 0; list < RETAINED_PLAYER_LISTS; list++ ) {
 		retainedPlayerOrder[ list ].Clear();
 	}
+	// The Admin page asks a client for the password again on each map.
+	retainedAdminValid = false;
+	retainedAdminState = RAS_NONE;
+	retainedAdminClient = -1;
+	retainedAdminBan = -1;
 		
 	pingUpdateTime = 0;
 	remasteredKills.Clear();
@@ -16561,6 +16572,7 @@ void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *car
 	retainedMenuPublished.Clear();
 	SetJoinScreenSoftFocus( false );
 	ResetRetainedVoteDraft();
+	ResetRetainedAdminDraft();
 	// The Players page opens on the player's own statistics, its lists sorted
 	// by score again.
 	idPlayer *local = gameLocal.GetLocalPlayer();
@@ -17474,15 +17486,16 @@ static const int retainedVoteFlags[] = {
 
 /*
 ================
-idMultiplayerGame::RetainedVoteFieldShown
+idMultiplayerGame::RetainedDraftFieldShown
 
-The rows the drafted game type uses: its own limit (frags, captures, the
-tournament's rounds or the Dead Zone's control time), team balance and
-shuffle in team modes, and buying where the mode has a buy menu.
+The rows a drafted game type uses, on the Vote and Admin pages: its own limit
+(frags, captures, the tournament's rounds or the Dead Zone's control time),
+team balance and shuffle in team modes, and buying where the mode has a buy
+menu.
 ================
 */
-bool idMultiplayerGame::RetainedVoteFieldShown( int field ) const {
-	const int type = MPVoteGameTypeToGameType( retainedVoteDraft[ RVF_GAMETYPE ] );
+bool idMultiplayerGame::RetainedDraftFieldShown( int voteGameType, int field ) {
+	const int type = MPVoteGameTypeToGameType( voteGameType );
 	switch ( field ) {
 		case RVF_FRAGLIMIT: return MPGameTypeHasAny( type, GTF_FRAGLIMIT );
 		case RVF_CAPTURELIMIT: return MPGameTypeHasAny( type, GTF_CAPTURELIMIT );
@@ -17493,6 +17506,10 @@ bool idMultiplayerGame::RetainedVoteFieldShown( int field ) const {
 		case RVF_BUYING: return MPGameTypeHasAny( type, GTF_BUYING );
 		default: return field >= 0 && field < RVF_COUNT;
 	}
+}
+
+bool idMultiplayerGame::RetainedVoteFieldShown( int field ) const {
+	return RetainedDraftFieldShown( retainedVoteDraft[ RVF_GAMETYPE ], field );
 }
 
 // A field the server's si_voteFlags forbids stays on the page, locked.
@@ -17520,9 +17537,10 @@ int idMultiplayerGame::RetainedVoteChanges( voteStruct_t &data ) {
 	idStr current;
 	NormalizeMapDeclPath( si.GetString( "si_map" ), current );
 	if ( changes( RVF_MAP ) && retainedVoteMap.Length() > 0 && retainedVoteMap.Icmp( current ) != 0 ) {
-		const idDict *dict = MultiplayerResolveMapDecl( retainedVoteMap.c_str() );
-		if ( dict != NULL ) {
-			data.m_map = dict->GetString( "path" );
+		// The map by its path, as si_map holds one: a map's mapDef, which the
+		// resolver prefers, has no "path" key of its own.
+		if ( MultiplayerResolveMapDecl( retainedVoteMap.c_str() ) != NULL ) {
+			data.m_map = retainedVoteMap;
 			data.m_fieldFlags |= VOTEFLAG_MAP;
 		}
 	}
@@ -17819,6 +17837,506 @@ void idMultiplayerGame::PublishRetainedVote( idUserInterface *card, bool &change
 	publish( "mp.vote.kick", va( "%d", retainedVoteKick.FindIndex( retainedVoteDraft[ RVF_KICK ] ) ) );
 }
 
+/*
+================
+idMultiplayerGame::RetainedAdmin
+
+Whether the player may administer the server from the Admin page: a listen
+server's host always, a client once the server has accepted its remote
+console password on this map (ProcessRconReturn).
+================
+*/
+bool idMultiplayerGame::RetainedAdmin( void ) const {
+	return gameLocal.isServer || retainedAdminValid;
+}
+
+/*
+================
+idMultiplayerGame::ResetRetainedAdminDraft
+
+The Server section's draft, reset to the server's values each time the card
+covers the menu, as the stock page read them back (initServerAdmin): no
+restart and no shuffle, and no player or ban chosen.
+================
+*/
+void idMultiplayerGame::ResetRetainedAdminDraft( void ) {
+	const idDict &si = gameLocal.serverInfo;
+	NormalizeMapDeclPath( si.GetString( "si_map" ), retainedAdminMap );
+	retainedAdminDraft[ RVF_MAP ] = 0;
+	retainedAdminDraft[ RVF_GAMETYPE ] = GameTypeToVote( si.GetString( "si_gameType" ) );
+	retainedAdminDraft[ RVF_TIMELIMIT ] = si.GetInt( "si_timeLimit" );
+	retainedAdminDraft[ RVF_FRAGLIMIT ] = si.GetInt( "si_fragLimit" );
+	retainedAdminDraft[ RVF_CAPTURELIMIT ] = si.GetInt( "si_captureLimit" );
+	retainedAdminDraft[ RVF_TOURNEYLIMIT ] = si.GetInt( "si_tourneyLimit" );
+	retainedAdminDraft[ RVF_CONTROLTIME ] = si.GetInt( "si_controlTime" );
+	retainedAdminDraft[ RVF_BALANCE ] = si.GetBool( "si_autobalance" ) ? 1 : 0;
+	retainedAdminDraft[ RVF_SHUFFLE ] = 0;
+	retainedAdminDraft[ RVF_RESTART ] = 0;
+	retainedAdminDraft[ RVF_BUYING ] = si.GetBool( "si_isBuyingEnabled" ) ? 1 : 0;
+	retainedAdminDraft[ RVF_KICK ] = -1;
+	retainedAdminClient = -1;
+	retainedAdminBan = -1;
+	if ( retainedAdminState == RAS_REFUSED ) {
+		retainedAdminState = RAS_NONE;
+	}
+}
+
+/*
+================
+idMultiplayerGame::RetainedAdminChoices
+
+The maps the drafted game type plays, from the server's map list as the Vote
+page has it; a drafted map the game type cannot play gives way to the first
+one that can.
+================
+*/
+void idMultiplayerGame::RetainedAdminChoices( void ) {
+	retainedAdminMaps.Clear();
+	if ( voteMapDecls.Num() == 0 && !retainedVoteMapsRequested ) {
+		retainedVoteMapsRequested = true;
+		RequestVoteMaps( VOTEMAPS_WAITING_RETAINED );
+	}
+	const char *gameType = VoteGameTypeToString( retainedAdminDraft[ RVF_GAMETYPE ] );
+	bool drafted = false;
+	for ( int i = 0; i < voteMapDecls.Num() && retainedAdminMaps.Num() < RETAINED_VOTE_MAPS; i++ ) {
+		const idDict *dict = fileSystem->GetMapDecl( voteMapDecls[ i ] );
+		if ( dict == NULL || !MPMapSupportsGameTypeName( dict, gameType ) ) {
+			continue;
+		}
+		idStr path;
+		NormalizeMapDeclPath( dict->GetString( "path" ), path );
+		drafted |= path.Icmp( retainedAdminMap ) == 0;
+		retainedAdminMaps.Append( voteMapDecls[ i ] );
+	}
+	if ( !drafted && retainedAdminMaps.Num() > 0 ) {
+		NormalizeMapDeclPath( fileSystem->GetMapDecl( retainedAdminMaps[ 0 ] )->GetString( "path" ), retainedAdminMap );
+	}
+}
+
+bool idMultiplayerGame::RetainedAdminFieldShown( int field ) const {
+	return field != RVF_KICK && RetainedDraftFieldShown( retainedAdminDraft[ RVF_GAMETYPE ], field );
+}
+
+/*
+================
+idMultiplayerGame::SetRetainedAdminField
+
+One field of the Server section's draft, checked as the Vote page checks a
+call's: a map by its row in the map choice, a game type the server can run, a
+limit inside its setting's range, or a yes or no. Anything else, and a field
+the drafted game type does not use, changes nothing.
+================
+*/
+bool idMultiplayerGame::SetRetainedAdminField( int field, int value ) {
+	if ( !RetainedAdmin() || !RetainedAdminFieldShown( field ) ) {
+		return false;
+	}
+	RetainedAdminChoices();
+	const idCVar *ranges[ RVF_COUNT ] = { NULL, NULL, &si_timeLimit, &si_fragLimit, &si_captureLimit, &si_tourneyLimit, &si_controlTime };
+	switch ( field ) {
+		case RVF_MAP:
+			if ( value < 0 || value >= retainedAdminMaps.Num() ) {
+				return false;
+			}
+			NormalizeMapDeclPath( fileSystem->GetMapDecl( retainedAdminMaps[ value ] )->GetString( "path" ), retainedAdminMap );
+			return true;
+		case RVF_GAMETYPE:
+			if ( value < 0 || value >= MPVoteGameTypeCount() || !MPGameTypeIsSelectable( MPVoteGameTypeToGameType( value ) ) ) {
+				return false;
+			}
+			retainedAdminDraft[ field ] = value;
+			RetainedAdminChoices();
+			return true;
+		case RVF_TIMELIMIT:
+		case RVF_FRAGLIMIT:
+		case RVF_CAPTURELIMIT:
+		case RVF_TOURNEYLIMIT:
+		case RVF_CONTROLTIME:
+			if ( value < ranges[ field ]->GetMinValue() || value > ranges[ field ]->GetMaxValue() ) {
+				return false;
+			}
+			retainedAdminDraft[ field ] = value;
+			return true;
+		case RVF_BALANCE:
+		case RVF_SHUFFLE:
+		case RVF_RESTART:
+		case RVF_BUYING:
+			if ( value != 0 && value != 1 ) {
+				return false;
+			}
+			retainedAdminDraft[ field ] = value;
+			return true;
+		default:
+			return false;
+	}
+}
+
+/*
+================
+idMultiplayerGame::RetainedAdminChanges
+
+The stock page's server admin data from the Server section's draft (each
+field the drafted game type does not use keeps the server's value), and
+whether it changes anything: a field that differs from the server's, a new
+map or game type, or a restart or shuffle chosen.
+================
+*/
+bool idMultiplayerGame::RetainedAdminChanges( serverAdminData_t &data ) {
+	RetainedAdminChoices();
+	const idDict &si = gameLocal.serverInfo;
+	data.restartMap = retainedAdminDraft[ RVF_RESTART ] != 0;
+	// The drafted map by its path, as si_map holds one; the server resolves and
+	// checks it against the game type itself (HandleServerAdminCommands).
+	data.mapName = retainedAdminMap.Length() > 0 ? retainedAdminMap.c_str() : si.GetString( "si_map" );
+	data.gameType = MPVoteGameTypeToGameType( retainedAdminDraft[ RVF_GAMETYPE ] );
+	const auto drafted = [&]( int field, const char *key ) { return RetainedAdminFieldShown( field ) ? retainedAdminDraft[ field ] : si.GetInt( key ); };
+	data.timeLimit = drafted( RVF_TIMELIMIT, "si_timeLimit" );
+	data.fragLimit = drafted( RVF_FRAGLIMIT, "si_fragLimit" );
+	data.captureLimit = drafted( RVF_CAPTURELIMIT, "si_captureLimit" );
+	data.tourneyLimit = drafted( RVF_TOURNEYLIMIT, "si_tourneyLimit" );
+	data.controlTime = drafted( RVF_CONTROLTIME, "si_controlTime" );
+	data.autoBalance = drafted( RVF_BALANCE, "si_autobalance" ) != 0;
+	data.buying = drafted( RVF_BUYING, "si_isBuyingEnabled" ) != 0;
+	data.shuffleTeams = RetainedAdminFieldShown( RVF_SHUFFLE ) && retainedAdminDraft[ RVF_SHUFFLE ] != 0;
+	idStr current;
+	NormalizeMapDeclPath( si.GetString( "si_map" ), current );
+	return data.restartMap || data.shuffleTeams || retainedAdminMap.Icmp( current ) != 0 ||
+		retainedAdminDraft[ RVF_GAMETYPE ] != GameTypeToVote( si.GetString( "si_gameType" ) ) ||
+		data.timeLimit != si.GetInt( "si_timeLimit" ) || data.fragLimit != si.GetInt( "si_fragLimit" ) ||
+		data.captureLimit != si.GetInt( "si_captureLimit" ) || data.tourneyLimit != si.GetInt( "si_tourneyLimit" ) ||
+		data.controlTime != si.GetInt( "si_controlTime" ) || data.autoBalance != si.GetBool( "si_autobalance" ) ||
+		data.buying != si.GetBool( "si_isBuyingEnabled" );
+}
+
+/*
+================
+idMultiplayerGame::RetainedAdminRefusal
+
+Why an Admin action cannot run now, or NULL: the Arena Campaign and a managed
+match take no administration, a player action needs a player chosen (and
+never acts on the player's own row), Force team switch needs a team mode, and
+Apply changes needs a change.
+================
+*/
+const char *idMultiplayerGame::RetainedAdminRefusal( int action ) {
+	if ( IsArenaCampaignMatch() ) {
+		return "#str_42160";
+	}
+	if ( IsManagedMatch() ) {
+		return "#str_231294";
+	}
+	if ( action == RAA_APPLY ) {
+		serverAdminData_t data;
+		return RetainedAdminChanges( data ) ? NULL : "#str_231295";
+	}
+	if ( !IsValidVotePlayerSlot( retainedAdminClient ) ) {
+		return "#str_231291";
+	}
+	if ( retainedAdminClient == gameLocal.localClientNum && action != RAA_SWITCH ) {
+		return "#str_231292";
+	}
+	if ( action == RAA_SWITCH && !gameLocal.IsTeamGame() ) {
+		return "#str_231293";
+	}
+	return NULL;
+}
+
+/*
+================
+idMultiplayerGame::PublishRetainedAdmin
+
+The Admin page (section 14.18). Until the player is an admin, whether the
+password is being checked or was refused. Then the players by client number
+with their teams and the one chosen; Kick, Ban and Force team switch, each
+with why it cannot run now; the ban list as the game holds it (a client's
+from the server, once asked); the Server section's draft, each row shown
+where the drafted game type uses it, with its map and game type lists and
+Apply changes; and the console's newest lines.
+================
+*/
+void idMultiplayerGame::PublishRetainedAdmin( idUserInterface *card, bool &changed ) {
+	const auto publish = [&]( const char *key, const char *value ) { changed |= PublishRetainedValue( card, key, value ); };
+	const bool admin = RetainedAdmin();
+	publish( "mp.admin.valid", admin ? "1" : "0" );
+	publish( "mp.admin.checking", !admin && retainedAdminState == RAS_CHECKING ? "1" : "0" );
+	idStr notice;
+	if ( !admin && retainedAdminState == RAS_CHECKING ) {
+		notice = common->GetLocalizedString( "#str_231290" );
+	} else if ( !admin && retainedAdminState == RAS_REFUSED ) {
+		notice = MPRetainedPlainText( common->GetLocalizedString( "#str_104847" ), 96, 1 );
+		notice.StripTrailingWhitespace();
+	}
+	publish( "mp.admin.notice", notice.c_str() );
+	if ( !admin ) {
+		return;
+	}
+	// The players, by client number; a chosen player who left is no longer chosen.
+	static const char *const teamNames[ TEAM_MAX ] = { "#str_200197", "#str_200199" };
+	int rows = 0, chosen = -1;
+	if ( !IsValidVotePlayerSlot( retainedAdminClient ) ) {
+		retainedAdminClient = -1;
+	}
+	for ( int i = 0; i < gameLocal.numClients && i < MAX_CLIENTS && rows < RETAINED_ADMIN_PLAYERS; i++ ) {
+		if ( !IsValidVotePlayerSlot( i ) ) {
+			continue;
+		}
+		const idPlayer *player = static_cast<const idPlayer *>( gameLocal.entities[ i ] );
+		const char *team = player->spectating ? common->GetLocalizedString( "#str_200281" ) :
+			gameLocal.IsTeamGame() && player->team >= 0 && player->team < TEAM_MAX ? common->GetLocalizedString( teamNames[ player->team ] ) : "";
+		publish( va( "mp.admin.player%d.c0", rows ), MPRetainedPlainText( gameLocal.userInfo[ i ].GetString( "ui_name" ), 64, 1 ).c_str() );
+		publish( va( "mp.admin.player%d.c1", rows ), team );
+		publish( va( "mp.admin.player%d.client", rows ), va( "%d", i ) );
+		if ( i == retainedAdminClient ) {
+			chosen = rows;
+		}
+		rows++;
+	}
+	for ( int row = rows; row < RETAINED_ADMIN_PLAYERS; row++ ) {
+		publish( va( "mp.admin.player%d.c0", row ), "" );
+		publish( va( "mp.admin.player%d.c1", row ), "" );
+		publish( va( "mp.admin.player%d.client", row ), "-1" );
+	}
+	publish( "mp.admin.player.count", va( "%d", rows ) );
+	publish( "mp.admin.player.selected", va( "%d", chosen ) );
+	static const char *const actions[ RAA_COUNT ][ 2 ] = {
+		{ "kick", "#str_200230" }, { "ban", "#str_200231" }, { "switch", "#str_200232" }, { "apply", "#str_200241" } };
+	const idStr chosenName = retainedAdminClient >= 0 ?
+		MPRetainedPlainText( gameLocal.userInfo[ retainedAdminClient ].GetString( "ui_name" ), 64, 1 ) : idStr();
+	for ( int action = 0; action < RAA_COUNT; action++ ) {
+		const char *refusal = RetainedAdminRefusal( action );
+		const char *name = actions[ action ][ 0 ];
+		publish( va( "mp.admin.%s.shown", name ), "1" );
+		publish( va( "mp.admin.%s.available", name ), refusal == NULL ? "1" : "0" );
+		publish( va( "mp.admin.%s.label", name ), common->GetLocalizedString( actions[ action ][ 1 ] ) );
+		publish( va( "mp.admin.%s.reason", name ), refusal != NULL ? common->GetLocalizedString( refusal ) : "" );
+		publish( va( "mp.admin.%s.detail", name ), action != RAA_APPLY ? chosenName.c_str() : "" );
+	}
+	// The ban list, as the game holds it.
+	const int bans = Min( gameLocal.GetBanListCount(), RETAINED_ADMIN_BANS );
+	if ( retainedAdminBan >= bans ) {
+		retainedAdminBan = -1;
+	}
+	for ( int row = 0; row < RETAINED_ADMIN_BANS; row++ ) {
+		const mpBanInfo_t *ban = row < bans ? gameLocal.GetBanListEntry( row ) : NULL;
+		publish( va( "mp.admin.ban%d.name", row ), ban != NULL ? MPRetainedPlainText( ban->name.c_str(), 64, 1 ).c_str() : "" );
+		publish( va( "mp.admin.ban%d.guid", row ), ban != NULL ? MPRetainedPlainText( ban->guid, 64, 1 ).c_str() : "" );
+	}
+	publish( "mp.admin.ban_count", va( "%d", bans ) );
+	publish( "mp.admin.ban_selected", va( "%d", retainedAdminBan ) );
+	// The Server section's draft.
+	RetainedAdminChoices();
+	static const char *const fields[ RVF_COUNT ] = { "map", "gametype", "timelimit", "fraglimit", "capturelimit", "tourneylimit",
+		"controltime", "balance", "shuffle", "restart", "buying", "kick" };
+	for ( int field = 0; field < RVF_KICK; field++ ) {
+		publish( va( "mp.admin.%s.row_shown", fields[ field ] ), RetainedAdminFieldShown( field ) ? "1" : "0" );
+		if ( field >= RVF_TIMELIMIT ) {
+			publish( va( "mp.admin.%s", fields[ field ] ), va( "%d", retainedAdminDraft[ field ] ) );
+		}
+	}
+	int mapRow = -1;
+	for ( int i = 0; i < RETAINED_VOTE_MAPS; i++ ) {
+		idStr name, path, resolved;
+		if ( i < retainedAdminMaps.Num() ) {
+			const idDict *dict = fileSystem->GetMapDecl( retainedAdminMaps[ i ] );
+			NormalizeMapDeclPath( dict->GetString( "path" ), path );
+			name = MPRetainedPlainText( ResolveScoreboardMapName( dict->GetString( "path" ), resolved ), 64, 1 );
+			if ( path.Icmp( retainedAdminMap ) == 0 ) {
+				mapRow = i;
+			}
+		}
+		publish( va( "mp.admin.map%d", i ), name.c_str() );
+	}
+	publish( "mp.admin.map_count", va( "%d", retainedAdminMaps.Num() ) );
+	publish( "mp.admin.map", va( "%d", mapRow ) );
+	for ( int i = 0; i < 16; i++ ) {
+		publish( va( "mp.admin.gametype%d", i ), i < MPVoteGameTypeCount() ? MPGameTypeLocalizedName( MPVoteGameTypeToGameType( i ) ) : "" );
+	}
+	publish( "mp.admin.gametype_count", va( "%d", Min( MPVoteGameTypeCount(), 16 ) ) );
+	publish( "mp.admin.gametype", va( "%d", retainedAdminDraft[ RVF_GAMETYPE ] ) );
+	// The console's newest lines, oldest first.
+	idStrList lines;
+	for ( int start = 0; start < rconHistory.Length(); ) {
+		int end = rconHistory.Find( '\n', start );
+		if ( end < 0 ) {
+			end = rconHistory.Length();
+		}
+		if ( end > start ) {
+			lines.Append( rconHistory.Mid( start, end - start ) );
+		}
+		start = end + 1;
+	}
+	for ( int i = 0; i < RETAINED_ADMIN_CONSOLE_LINES; i++ ) {
+		const int line = lines.Num() - RETAINED_ADMIN_CONSOLE_LINES + i;
+		publish( va( "mp.admin.console%d", i ), line >= 0 ? MPRetainedPlainText( lines[ line ].c_str(), 160, 1 ).c_str() : "" );
+	}
+}
+
+/*
+================
+idMultiplayerGame::RunAdminConsole
+
+The stock Admin console: "command" runs the menu's admin_console_input on a
+listen server, or sends it to the server's remote console, and "tab"
+completes it there. A listen server's output reaches the console history
+through the redirect, a client's through ReceiveRemoteConsoleOutput.
+================
+*/
+void LocalServerRedirect( const char* string );
+
+void idMultiplayerGame::RunAdminConsole( idUserInterface *gui, const char *mode ) {
+	if ( gui == NULL || mode == NULL ) {
+		return;
+	}
+	const idStr igArg( mode );
+	idStr input( gui->State().GetString( "admin_console_input" ) );
+	input.StripTrailing( "\n" );
+	//jshepard: check to see if this is a server before using rcon!
+	if( gameLocal.isServer ) {
+		char redirectBuffer[ RCON_HISTORY_SIZE ];
+		common->BeginRedirect( (char *)redirectBuffer, sizeof( redirectBuffer ), LocalServerRedirect );
+
+		if( !igArg.Icmp( "tab" ) ) {
+			cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "tabComplete \"%s\"\n", input.c_str() ) );
+		} else if( !igArg.Icmp( "command" ) ) {
+			gui->SetStateString( "admin_console_input", "" );
+			ReceiveRemoteConsoleOutput( input.c_str() );
+			cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "%s\n", input.c_str() ) );
+		}
+
+		common->EndRedirect();
+	} else {
+		if( !igArg.Icmp( "tab" ) ) {
+			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "rcon tabComplete \"%s\"\n", input.c_str() ) );
+		} else if( !igArg.Icmp( "command" ) ) {
+			gui->SetStateString( "admin_console_input", "" );
+			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "rcon \"%s\"\n", input.c_str() ) );
+			ReceiveRemoteConsoleOutput( input.c_str() );
+		}
+	}
+}
+
+/*
+================
+idMultiplayerGame::HandleRetainedAdminCommand
+
+The Admin page's commands ("retained admin..."). "adminPass" asks the server
+to check the remote console password the session has just set, as the stock
+page's Accept did. Every other command needs the player to be an admin:
+"adminSelect <client>" chooses a player; "adminKick", "adminBan" and
+"adminSwitch" act on the chosen one where RetainedAdminRefusal allows it;
+"adminBans" asks a client's server for its ban list; "adminBanSelect <row>"
+chooses a ban and "adminUnban" lifts the chosen one; "adminSet <field>
+<value>" changes the Server section's draft; "adminApply" sends it as the
+stock page's Apply did; "adminConsole" runs the console's input. Apply closes
+the menu, as the server restarts the map for most changes; the others keep it
+open. Returns true when the menu closed.
+================
+*/
+bool idMultiplayerGame::HandleRetainedAdminCommand( const idStr &sub, const idCmdArgs &args, int &icmd ) {
+	if ( !retainedMenuCovered ) {
+		return false;
+	}
+	const auto smallNumber = [&]( int &value ) {
+		if ( args.Argc() - icmd < 1 ) {
+			return false;
+		}
+		const idStr text = args.Argv( icmd++ );
+		bool digits = text.Length() >= 1 && text.Length() <= 3;
+		for ( int i = 0; digits && i < text.Length(); i++ ) {
+			digits = ( text[ i ] >= '0' && text[ i ] <= '9' ) || ( i == 0 && text[ i ] == '-' && text.Length() > 1 );
+		}
+		value = digits ? atoi( text.c_str() ) : -1;
+		return digits;
+	};
+	if ( !sub.Icmp( "adminPass" ) ) {
+		if ( gameLocal.isServer || retainedAdminValid ) {
+			return false;
+		}
+		retainedAdminState = RAS_CHECKING;
+		cmdSystem->BufferCommandText( CMD_EXEC_NOW, "rcon verifyRconPass" );
+		return false;
+	}
+	if ( !RetainedAdmin() ) {
+		return false;
+	}
+	if ( !sub.Icmp( "adminSelect" ) ) {
+		int client = -1;
+		if ( smallNumber( client ) && IsValidVotePlayerSlot( client ) ) {
+			retainedAdminClient = client;
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminKick" ) || !sub.Icmp( "adminBan" ) || !sub.Icmp( "adminSwitch" ) ) {
+		const int action = !sub.Icmp( "adminKick" ) ? RAA_KICK : !sub.Icmp( "adminBan" ) ? RAA_BAN : RAA_SWITCH;
+		if ( RetainedAdminRefusal( action ) != NULL ) {
+			return false;
+		}
+		const int client = retainedAdminClient;
+		if ( action == RAA_KICK ) {
+			HandleServerAdminKickPlayer( client );
+		} else if ( action == RAA_BAN ) {
+			HandleServerAdminBanPlayer( client );
+		} else {
+			HandleServerAdminForceTeamSwitch( client );
+		}
+		if ( action != RAA_SWITCH ) {
+			retainedAdminClient = -1;
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminBans" ) ) {
+		retainedAdminBan = -1;
+		if ( !gameLocal.isServer ) {
+			idBitMsg	outMsg;
+			byte		msgBuf[ MAX_GAME_MESSAGE_SIZE ];
+			outMsg.Init( msgBuf, sizeof( msgBuf ) );
+			outMsg.WriteByte( GAME_RELIABLE_MESSAGE_GETADMINBANLIST );
+			networkSystem->ClientSendReliableMessage( outMsg );
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminBanSelect" ) ) {
+		int row = -1;
+		if ( smallNumber( row ) && row >= 0 && row < Min( gameLocal.GetBanListCount(), RETAINED_ADMIN_BANS ) ) {
+			retainedAdminBan = row;
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminUnban" ) ) {
+		const mpBanInfo_t *ban = retainedAdminBan >= 0 ? gameLocal.GetBanListEntry( retainedAdminBan ) : NULL;
+		if ( ban != NULL && !IsArenaCampaignMatch() ) {
+			const idStr guid( ban->guid );
+			HandleServerAdminRemoveBan( guid.c_str() );
+			retainedAdminBan = -1;
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminSet" ) ) {
+		int field = -1, value = 0;
+		if ( smallNumber( field ) && smallNumber( value ) ) {
+			SetRetainedAdminField( field, value );
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminApply" ) ) {
+		serverAdminData_t data;
+		if ( RetainedAdminRefusal( RAA_APPLY ) != NULL || !RetainedAdminChanges( data ) ) {
+			return false;
+		}
+		if ( HandleServerAdminCommands( data ) ) {
+			ResetRetainedAdminDraft();
+			DisableMenu();
+			return true;
+		}
+		return false;
+	}
+	if ( !sub.Icmp( "adminConsole" ) ) {
+		RunAdminConsole( mainGui, "command" );
+		return false;
+	}
+	return false;
+}
+
 // A stock menu list ("a;b;c") as its items, or lines by another separator.
 static void MPRetainedSplitList( const idStr &text, idStrList &items, char separator = ';' ) {
 	items.Clear();
@@ -17914,6 +18432,18 @@ void idMultiplayerGame::PublishRetainedSettings( idUserInterface *card, bool &ch
 	const auto publish = [&]( const char *key, const char *value ) { changed |= PublishRetainedValue( card, key, value ); };
 	publish( "mp.settings.name", MPRetainedPlainText( cvarSystem->GetCVarString( "ui_name" ), 64, 1 ).c_str() );
 	publish( "mp.settings.clan", MPRetainedPlainText( cvarSystem->GetCVarString( "ui_clan" ), 64, 1 ).c_str() );
+	// The fields edit the settings as the stock fields did, colour codes and
+	// all; only control characters are left out.
+	for ( int field = 0; field < 2; field++ ) {
+		idStr text( cvarSystem->GetCVarString( field == 0 ? "ui_name" : "ui_clan" ) );
+		idStr kept;
+		for ( int i = 0; i < text.Length() && kept.Length() < 64; i++ ) {
+			if ( static_cast<unsigned char>( text[ i ] ) >= ' ' && text[ i ] != 127 ) {
+				kept.Append( text[ i ] );
+			}
+		}
+		publish( field == 0 ? "mp.settings.name_edit" : "mp.settings.clan_edit", kept.c_str() );
+	}
 	for ( int slot = 0; slot < RETAINED_MODEL_SLOTS; slot++ ) {
 		idStr cvar;
 		idStrList values, names;
@@ -18419,9 +18949,10 @@ void idMultiplayerGame::PublishRetainedMenu( idUserInterface *card ) {
 	PublishRetainedWelcome( card, changed );
 	PublishRetainedVote( card, changed );
 	PublishRetainedSettings( card, changed );
-	// Only the Escape card has a Match page.
+	// Only the Escape card has the Match and Admin pages.
 	if ( !RetainedMenuWelcome() ) {
 		PublishRetainedMatch( card, changed );
+		PublishRetainedAdmin( card, changed );
 	}
 	if ( changed ) {
 		card->SetStateInt( "mp.revision", ++retainedMenuRevision );
@@ -18456,6 +18987,9 @@ bool idMultiplayerGame::HandleRetainedMenuCommand( const idCmdArgs &args, int &i
 		return false;
 	}
 	const idStr sub = args.Argv( icmd++ );
+	if ( !sub.Icmpn( "admin", 5 ) ) {
+		return HandleRetainedAdminCommand( sub, args, icmd );
+	}
 	if ( !sub.Icmp( "team" ) && args.Argc() - icmd >= 1 ) {
 		const idStr slotText = args.Argv( icmd++ );
 		if ( slotText.Length() != 1 || slotText[ 0 ] < '0' || slotText[ 0 ] >= '0' + RETAINED_TEAM_SLOTS ) {
@@ -19164,32 +19698,7 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 			return NULL;
 		} else if ( !idStr::Icmp( cmd, "admin" ) ) {
 			if ( args.Argc() - icmd	>= 1 ) {
-				idStr igArg = args.Argv( icmd++ );
-				idStr input( currentGui->State().GetString( "admin_console_input" ) );
-				input.StripTrailing( "\n" );
-				//jshepard: check to see if this is a server before using rcon!
-				if( gameLocal.isServer ) {
-					char redirectBuffer[ RCON_HISTORY_SIZE ];
-					common->BeginRedirect( (char *)redirectBuffer, sizeof( redirectBuffer ), LocalServerRedirect );
-
-					if( !igArg.Icmp( "tab" ) ) {
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "tabComplete \"%s\"\n", input.c_str() ) );
-					} else if( !igArg.Icmp( "command" ) ) {
-						currentGui->SetStateString( "admin_console_input", "" );
-						ReceiveRemoteConsoleOutput( input.c_str() );
-						cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "%s\n", input.c_str() ) );
-					}
-
-					common->EndRedirect();
-				} else {
-					if( !igArg.Icmp( "tab" ) ) {
-						cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "rcon tabComplete \"%s\"\n", input.c_str() ) );
-					} else if( !igArg.Icmp( "command" ) ) {
-						currentGui->SetStateString( "admin_console_input", "" );
-						cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "rcon \"%s\"\n", input.c_str() ) );
-						ReceiveRemoteConsoleOutput( input.c_str() );
-					}
-				}
+				RunAdminConsole( currentGui, args.Argv( icmd++ ) );
 			}
 			continue;
 		} else if (	!idStr::Icmp( cmd, "chatmessage" ) ) {
@@ -22645,6 +23154,9 @@ void idMultiplayerGame::ProcessRconReturn( bool success )	{
 	} else {
 		mainGui->HandleNamedEvent("adminPasswordFail");
 	}
+	// The Admin page's password check (section 14.18).
+	retainedAdminValid = success;
+	retainedAdminState = success ? RAS_NONE : RAS_REFUSED;
 
 
 }

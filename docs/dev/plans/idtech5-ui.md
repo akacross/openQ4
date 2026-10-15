@@ -180,14 +180,15 @@ Single player loads run localized tips. The multiplayer server card lists the
 players by team and the server's message, on the host, on a map change and on
 a fresh connection (an optional roster block after the connect response's
 server info). The [multiplayer Escape card](../ui/multiplayer-menus.md) now
-covers the game's in-match menu behind `ui_retainedMultiplayer`: the card,
-its header, the eight-tab strip, the prompt bar, the Disconnect confirmation
-and the softening, with the Team, Players, Vote, Settings, Voice, Server and
-Match pages built (Match with all six of Match Control's sections, its
-referee sign-in opening the stock page for the credential) and Admin still
-handing off to its stock page; the
-Welcome card covers the connect-time join offer, by default now that all its
-pages are built, and a join's loading screen hands over to it.
+covers the game's in-match menu by default: the card, its header, the
+eight-tab strip, the prompt bar, the Disconnect confirmation and the
+softening, with every page built: Team, Players, Vote, Settings (name and
+clan in its own text fields), Voice, Server, Match (all six of Match
+Control's sections, the referee signing in with a masked field) and Admin
+(the remote console password, Players with kick, ban, force team switch and
+the ban list, Server with the drafted rules and Apply changes, and Console);
+the Welcome card covers the connect-time join offer, by default now that all
+its pages are built, and a join's loading screen hands over to it.
 Event programs can move focus; Q, E and the shoulders page a document's
 tabs, the triggers its sections, and a controller's west and north run its
 secondary and tertiary actions. Prompts show the active device's glyphs:

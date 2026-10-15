@@ -70,6 +70,9 @@ class SeriesRun:
             "r_hiddenWindow": "1", "in_mouse": "0", "in_joystick": "0", "s_noSound": "1",
             "r_renderApi": "gl", "com_maxfps": "60", "r_swapInterval": "0", "logFile": "2",
             "logFileName": "logs/openq4.log", "developer": "1", "ui_autoJoin": "1",
+            # The smoke drives and captures the stock in-match menu, which the
+            # retained Escape card would cover.
+            "ui_retained": "0",
             "ui_spectate": "Play", "ui_name": role, "ui_team": "Marine" if role == "host" else "Strogg",
             "net_allowCheats": "1", "com_skipLoadingContinue": "1",
             "net_verbose": "2" if a.network_trace else "0",

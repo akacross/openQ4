@@ -197,12 +197,14 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
-	"mpSummaryChat"};
+	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
+	"mpAdminApply","mpAdminConsole","mpRefereeLogin","mpSettingsName","mpSettingsClan"};
 // The value controls' verbs, which carry the control's new value.
 static const std::set<std::string> SessionValueCommands = {"mpVoteMap","mpVoteGameType","mpVoteTimeLimit","mpVoteFragLimit",
 	"mpVoteCaptureLimit","mpVoteTourneyLimit","mpVoteControlTime","mpVoteBalance","mpVoteShuffle","mpVoteRestart","mpVoteBuying","mpVoteKick",
 	"mpModelSelf","mpModelEnemy","mpModelTeam","mpCrosshair","mpMatchRole","mpMatchScope","mpMatchRuleValue",
-	"mpMatchSeriesProfile",
+	"mpMatchSeriesProfile","mpAdminMap","mpAdminGameType","mpAdminTimeLimit","mpAdminFragLimit","mpAdminCaptureLimit","mpAdminTourneyLimit",
+	"mpAdminControlTime","mpAdminBalance","mpAdminShuffle","mpAdminRestart","mpAdminBuying",
 	"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
 	"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
 	"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
@@ -509,10 +511,8 @@ static void CheckEscape(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,4.3);
 	Check(runtime.RunEvent("tab_admin",4.4,effects,error) && std::get<double>(runtime.GetState().at("card.leaving")) == -1 &&
 		effects.actions.empty(),"the current tab does nothing");
-	// A page in development hands off to its stock page through the session.
-	Check(runtime.RunEvent("stock_admin",5,effects,error) && effects.actions.size() == 1 &&
-		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpStockPage" &&
-		std::get<double>(runtime.GetState().at("card.stock_page")) == 7,"Admin hands off to the stock Admin page");
+	// Every page is built: none hands off to its stock page.
+	Check(!document.Model().events.contains(PresentationAliasKey("stock_admin")),"Admin no longer hands off to the stock Admin page");
 	Check(runtime.RunEvent("onBack",5.1,effects,error) && effects.actions.size() == 1 &&
 		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpClose","Back resumes the match");
 	// The prompt bar sits inside the card's bottom inset, Disconnect last.
@@ -712,6 +712,133 @@ static void CheckVote(ScreenHost& host, const char* path) {
 // as an inner strip the triggers page; Status with the game's states and its
 // actions, each asking the game by its token's index and saying why it is
 // unavailable; the confirmations; and the sections still handing off.
+// The Escape card's Admin page (section 14.18): the remote console password
+// first, then Players, Server and Console under their own strip, each asking
+// the session through its mpAdmin verbs.
+static void CheckAdmin(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Runtime runtime(host);
+	std::vector<Diagnostic> diagnostics;
+	const bool loaded = runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/mp_escape.q4ui",diagnostics);
+	for (const auto& diagnostic : diagnostics) std::fprintf(stderr,"mp_escape %s: %s\n",diagnostic.pointer.c_str(),diagnostic.message.c_str());
+	Check(loaded,"the Escape card loads for its Admin page");
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error;
+	Runtime::EventEffects effects;
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto value = runtime.PresentedValue(node,property);
+		Check(value.has_value(),("a presented keyword: "+node+"."+property).c_str()); return value->text;
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"an Admin node is laid out"); return b; };
+	const auto asked = [&](const char* verb) {
+		return effects.actions.size() == 1 && std::get<std::string>(effects.actions[0].arguments.at("command")) == verb;
+	};
+	Check(runtime.RunEvent("open",1,effects,error) && runtime.RunEvent("tab_admin",1.01,effects,error),"open on the Admin tab");
+	runtime.Frame(viewport,1.4);
+	// Until the player is an admin: the server, the masked password and ACCEPT.
+	Check(text("admin-pass","display") == "block" && text("admin-live","display") == "none","the password first");
+	Check(runtime.FocusedControl() == "admin-password","the page opens on the password");
+	Check(runtime.RunEvent("admin_pass_entered",1.5,effects,error) && asked("mpAdminPass"),"Enter checks the password");
+	Check(runtime.RunEvent("admin_pass_accept",1.55,effects,error) && asked("mpAdminPass"),"ACCEPT checks the entered password");
+	Check(runtime.SetState({{"mp.admin.checking",true},{"mp.admin.notice",std::string("Checking the password...")}},error,1.6),"checking");
+	runtime.Frame(viewport,1.65);
+	Check(text("admin-checking","display") == "block" && text("admin-refused","display") == "none","it says it is checking");
+	Check(runtime.SetState({{"mp.admin.checking",false},{"mp.admin.notice",std::string("Bad rcon password.")}},error,1.7),"refused");
+	runtime.Frame(viewport,1.75);
+	Check(text("admin-checking","display") == "none" && text("admin-refused","display") == "block" &&
+		text("admin-refused","text") == "Bad rcon password.","it says the server refused it");
+	// An admin: the players by client number, Kick and Ban unavailable until one is chosen.
+	StateValues admin = {{"mp.admin.valid",true},{"mp.admin.notice",std::string()},{"mp.admin.player.count",3.0},
+		{"mp.admin.player0.c0",std::string("Kane")},{"mp.admin.player0.c1",std::string("MARINES")},{"mp.admin.player0.client",0.0},
+		{"mp.admin.player1.c0",std::string("Anderson")},{"mp.admin.player1.c1",std::string("STROGG")},{"mp.admin.player1.client",4.0},
+		{"mp.admin.player2.c0",std::string("Rhino")},{"mp.admin.player2.c1",std::string("MARINES")},{"mp.admin.player2.client",9.0},
+		{"mp.admin.player.selected",-1.0}};
+	for (const char* action : {"kick","ban","switch","apply"}) {
+		const std::string key = std::string("mp.admin.")+action;
+		admin[key+".shown"] = true; admin[key+".available"] = false; admin[key+".label"] = std::string(action);
+		admin[key+".reason"] = std::string("Choose a player first.");
+	}
+	Check(runtime.SetState(admin,error,2),"an admin");
+	runtime.Frame(viewport,2.3);
+	Check(text("admin-pass","display") == "none" && text("admin-live","display") == "block" &&
+		text("admin-section-players","display") == "block" && text("admin-section-server","display") == "none","the Players section");
+	Check(text("admin-player-2","display") == "block" && text("admin-player-3","display") == "none" &&
+		text("admin-player-1-c0","text") == "Anderson" && text("admin-player-1-c1","text") == "STROGG","the players and their teams");
+	const auto list = bounds("admin-players"), kick = bounds("admin-kick");
+	Check(kick.x >= list.x+list.width,"the actions stand beside the list");
+	Check(runtime.RunEvent("admin_player_1",2.4,effects,error) && asked("mpAdminSelect") &&
+		std::get<double>(runtime.GetState().at("card.admin_row")) == 1,"a row names itself to the session");
+	Check(runtime.RunEvent("admin_kick",2.5,effects,error) && effects.actions.empty(),"an unavailable Kick asks nothing");
+	runtime.Frame(viewport,2.55);
+	Check(text("admin-kick-reason","display") == "block","and says why");
+	Check(runtime.SetState({{"mp.admin.player.selected",1.0},{"mp.admin.kick.available",true},{"mp.admin.ban.available",true},
+		{"mp.admin.switch.available",true}},error,2.6),"a player chosen");
+	runtime.Frame(viewport,2.7);
+	Check(text("admin-player-1-chosen","display") == "block" && text("admin-player-0-chosen","display") == "none","the chosen row lights");
+	for (const auto& [event,verb] : std::vector<std::pair<const char*,const char*>>{{"admin_kick","mpAdminKick"},{"admin_ban","mpAdminBan"},
+		{"admin_switch","mpAdminSwitch"}}) {
+		Check(runtime.RunEvent(event,2.8,effects,error) && asked(verb),"an available player action asks the session");
+	}
+	// View ban list asks for the server's list and opens PLAYER BAN LIST.
+	Check(runtime.RunEvent("admin_bans",3,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpAdminBans","View ban list asks for the list");
+	runtime.Frame(viewport,3.4);
+	Check(text("banModal","display") == "block" && runtime.GetControlState("banModal_yes") == ControlState::Disabled,
+		"PLAYER BAN LIST opens with nothing to remove");
+	Check(runtime.SetState({{"mp.admin.ban_count",2.0},{"mp.admin.ban0.name",std::string("Griefer")},{"mp.admin.ban0.guid",std::string("A1B2")},
+		{"mp.admin.ban1.name",std::string("Spammer")},{"mp.admin.ban1.guid",std::string("C3D4")}},error,3.5),"two bans");
+	runtime.Frame(viewport,3.55);
+	Check(text("ban-row-1","display") == "block" && text("ban-row-1-name","text") == "Spammer","the server's bans list");
+	Check(runtime.RunEvent("banRow1",3.6,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "mpAdminBanPick" &&
+		std::get<double>(runtime.GetState().at("card.admin_ban_pick")) == 1,"a ban's row names itself");
+	Check(runtime.SetState({{"mp.admin.ban_selected",1.0}},error,3.7) && runtime.RunEvent("banRemoveConfirmed",3.75,effects,error) &&
+		asked("mpAdminUnban"),"REMOVE BAN lifts the chosen ban");
+	Check(runtime.RunEvent("banModalHide",3.8,effects,error),"CLOSE");
+	runtime.Frame(viewport,4.3);
+	// Server: the drafted settings the game type uses, and Apply changes.
+	Check(runtime.RunEvent("admin_section_server",4.4,effects,error),"to the Server section");
+	StateValues server = {{"mp.admin.map.row_shown",true},{"mp.admin.gametype.row_shown",true},{"mp.admin.timelimit.row_shown",true},
+		{"mp.admin.fraglimit.row_shown",true},{"mp.admin.capturelimit.row_shown",false},{"mp.admin.balance.row_shown",false},
+		{"mp.admin.restart.row_shown",true},{"mp.admin.buying.row_shown",false},{"mp.admin.map_count",2.0},
+		{"mp.admin.map0",std::string("Campgrounds Redux")},{"mp.admin.map1",std::string("The Edge")},{"mp.admin.map",0.0},
+		{"mp.admin.gametype_count",2.0},{"mp.admin.gametype0",std::string("Deathmatch")},{"mp.admin.gametype1",std::string("Tourney")},
+		{"mp.admin.gametype",0.0},{"mp.admin.timelimit",10.0},{"mp.admin.fraglimit",25.0}};
+	Check(runtime.SetState(server,error,4.5),"a deathmatch server");
+	runtime.Frame(viewport,4.8);
+	Check(text("admin-section-server","display") == "block" && text("admin-section-players","display") == "none","the Server section");
+	Check(text("admin-row-fraglimit","display") == "block" && text("admin-row-capturelimit","display") == "none" &&
+		text("admin-row-restart","display") == "block" && text("admin-row-balance","display") == "none","the rows the game type uses");
+	// A row's control requests its verb with its new value: Right steps the
+	// drafted frag limit.
+	const auto press = [&](MenuInput input, double at) { runtime.MenuAction(input,true,at); runtime.MenuAction(input,false,at+.01); };
+	Check(runtime.FocusControl("admin-row-fraglimit",4.82),"focus the frag limit");
+	press(MenuInput::Right,4.83);
+	const auto actions = runtime.TakeActions();
+	Check(actions.size() == 1 && actions[0].action == "mpAdminFragLimit" && actions[0].proposal.has_value(),"the row requests its verb");
+	ActionInvocation invocation;
+	Check(runtime.ResolveAction(actions[0].action,invocation,error,&*actions[0].proposal) && invocation.operation == "session.menuValue" &&
+		std::get<double>(invocation.arguments.at("value")) == 26,"Right asks for one more frag");
+	runtime.AcknowledgeControlProposal(actions[0].node,actions[0].proposalToken,true);
+	Check(runtime.RunEvent("admin_apply",4.9,effects,error) && effects.actions.empty(),"Apply changes asks nothing while nothing changes");
+	Check(runtime.SetState({{"mp.admin.apply.available",true}},error,5) && runtime.RunEvent("admin_apply",5.05,effects,error) &&
+		asked("mpAdminApply"),"Apply changes sends the draft");
+	const auto apply = bounds("admin-apply"), page = bounds("page-admin");
+	Check(apply.y+apply.height <= page.y+page.height+.5f,"Apply changes stands inside the page");
+	// Console: the newest lines and the command field.
+	Check(runtime.RunEvent("admin_section_console",5.2,effects,error) &&
+		runtime.SetState({{"mp.admin.console0",std::string("]status")},{"mp.admin.console1",std::string("map: mp/q4dm1")}},error,5.25),
+		"the console's lines");
+	runtime.Frame(viewport,5.5);
+	Check(text("admin-section-console","display") == "block" && text("admin-console-1","text") == "map: mp/q4dm1","the console shows them");
+	Check(runtime.RunEvent("admin_command_entered",5.6,effects,error) && asked("mpAdminConsole"),"Enter runs the command");
+	// The triggers step the sections, wrapping.
+	Check(runtime.RunEvent("onSectionNext",5.7,effects,error) && std::get<double>(runtime.GetState().at("card.admin_section")) == 0,
+		"the next trigger wraps to Players");
+	Check(runtime.RunEvent("onSectionPrevious",5.8,effects,error) && std::get<double>(runtime.GetState().at("card.admin_section")) == 2,
+		"the previous trigger wraps to Console");
+	Check(host.errors == 0,"no runtime diagnostics across the Admin page");
+}
+
 static void CheckMatch(ScreenHost& host, const char* path) {
 	const auto source = Read(path);
 	Runtime runtime(host);
@@ -821,16 +948,16 @@ static void CheckMatch(ScreenHost& host, const char* path) {
 	Check(runtime.RunEvent("match_side_1",4.8,effects,error) && asked(SIDE_B),"choosing Strogg asks the game");
 	Check(runtime.SetState({{"mp.match.side0.available",false}},error,4.9) && runtime.RunEvent("match_side_0",4.95,effects,error) &&
 		effects.actions.empty(),"a side the player may not choose asks nothing");
-	// Signing in needs the credential, so it opens the stock page; signing out asks the game.
+	// Signing in takes the referee password in a masked field, whose Enter
+	// signs in with it; signing out asks the game.
 	runtime.Frame(viewport,5);
 	Check(text("match-referee-login","display") == "block" && text("match-referee-logout","display") == "none","Sign in, not Sign out");
-	Check(runtime.RunEvent("match_referee_login",5.05,effects,error) && effects.actions.size() == 1 &&
-		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpStockPage" &&
-		std::get<double>(runtime.GetState().at("card.stock_page")) == 3,"Sign in opens the stock Match Control page");
+	Check(runtime.RunEvent("match_referee_entered",5.05,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpRefereeLogin","Enter signs in with the password");
 	Check(runtime.SetState({{"mp.match.op.referee_login.available",false},{"mp.match.op.referee_login.reason",std::string("No referee password.")}},
 		error,5.1),"no referee password on the server");
 	runtime.Frame(viewport,5.15);
-	Check(text("match-referee-reason","text") == "No referee password." && runtime.RunEvent("match_referee_login",5.2,effects,error) &&
+	Check(text("match-referee-reason","text") == "No referee password." && runtime.RunEvent("match_referee_entered",5.2,effects,error) &&
 		effects.actions.empty(),"Sign in then says why and asks nothing");
 	Check(runtime.SetState({{"mp.match.op.referee_login.shown",false},{"mp.match.op.referee_logout.shown",true},
 		{"mp.match.op.referee_logout.available",true}},error,5.3),"signed in");
@@ -1169,10 +1296,11 @@ static void CheckSettings(ScreenHost& host, const char* escapePath, const char* 
 		const auto system = bounds("settings-mpSettingsSystem"), pageBox = bounds("page-settings");
 		Check(bounds("settings-mpSettingsControls").y >= previous+26 && system.y+system.height <= pageBox.y+pageBox.height+.5f,
 			"Controls, Game Options and System follow inside the page");
-		// Name and clan hand off to the classic Settings page, which edits them.
-		Check(runtime.RunEvent("classic_settings",1.5,effects,error) && effects.actions.size() == 1 &&
-			std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpStockPage" &&
-			std::get<double>(runtime.GetState().at("card.stock_page")) == 4,"name and clan hand off to the classic Settings page");
+		// Name and clan are the card's own fields: Enter sets each.
+		Check(runtime.RunEvent("settings_name_entered",1.5,effects,error) && effects.actions.size() == 1 &&
+			std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpSettingsName","Enter sets the name");
+		Check(runtime.RunEvent("settings_clan_entered",1.52,effects,error) && effects.actions.size() == 1 &&
+			std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpSettingsClan","Enter sets the clan");
 		// The swatch the player's tint matches stands taller; each asks the game for its color.
 		const auto chosen = runtime.PresentedValue("settings-rail-3-chip","transform"), other = runtime.PresentedValue("settings-rail-0-chip","transform");
 		Check(chosen && other && chosen->data[1] < -1 && Near(static_cast<float>(other->data[1]),0,.01f),"the player's rail color stands taller");
@@ -1344,9 +1472,9 @@ static void CheckWelcome(ScreenHost& host, const char* path) {
 	Check(runtime.FocusedControl() == "tab-players" && !runtime.CanActivateControl("players-a-0",4.2),"rows are not choices on Welcome");
 	Check(text("players-a-1","display") == "block" && text("players-a-2","display") == "none" &&
 		text("players-a-1-marker","display") == "block","the lists show their players and the player's own row");
-	// Settings' name and clan hand off to the classic Settings page, which edits them.
-	Check(runtime.RunEvent("classic_settings",4.3,effects,error) && asked("mpStockPage") &&
-		std::get<double>(runtime.GetState().at("card.stock_page")) == 3,"name and clan hand off to the classic Settings page");
+	// Settings' name and clan are the card's own fields.
+	Check(runtime.RunEvent("settings_name_entered",4.3,effects,error) && asked("mpSettingsName") &&
+		runtime.RunEvent("settings_clan_entered",4.32,effects,error) && asked("mpSettingsClan"),"name and clan set from their fields");
 	// Back spectates for now; Leave Server asks first.
 	Check(runtime.RunEvent("onBack",4.4,effects,error) && asked("mpClose"),"Back closes the card and the player spectates");
 	Check(runtime.RunEvent("leaveModalShow",4.5,effects,error),"Leave Server asks first");
@@ -3229,7 +3357,9 @@ static void CheckPagePrompts(ScreenHost& host, const char* path, const char* nam
 	const auto source = Read(path);
 	std::vector<Diagnostic> diagnostics; std::string error;
 	Runtime runtime(host);
-	Check(runtime.Initialize() && runtime.LoadDocument(source,name,diagnostics),"a page loads for its prompt bar");
+	const bool loaded = runtime.Initialize() && runtime.LoadDocument(source,name,diagnostics);
+	for (const auto& diagnostic : diagnostics) std::fprintf(stderr,"%s %s: %s\n",name,diagnostic.pointer.c_str(),diagnostic.message.c_str());
+	Check(loaded,"a page loads for its prompt bar");
 	Runtime::EventEffects effects;
 	if (open) Check(runtime.RunEvent(open,1,effects,error),"the page opens");
 	const char* const families[] = {"xbox","playstation","nintendo","steamdeck","generic"};
@@ -4652,6 +4782,7 @@ int main(int argc, char** argv) {
 	if (runs("mp-card")) CheckEscape(host,argv[7]);
 	if (runs("mp-vote-match")) CheckVote(host,argv[7]);
 	if (runs("mp-vote-match")) CheckMatch(host,argv[7]);
+	if (runs("mp-admin")) CheckAdmin(host,argv[7]);
 	if (runs("mp-settings-welcome")) CheckSettings(host,argv[7],argv[8]);
 	if (runs("mp-settings-welcome")) CheckWelcome(host,argv[8]);
 	if (runs("optics")) CheckScopes(host,argv+9);

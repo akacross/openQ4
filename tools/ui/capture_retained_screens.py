@@ -99,6 +99,58 @@ SCENARIOS = {
             f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
         'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
+    # The Escape card's Admin page on a listen server, whose host is the
+    # admin: the players (two bots), a bot chosen and kicked, View ban list,
+    # the Server section with a frag limit drafted and applied, and the
+    # console running status.
+    'mpadmin': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_admin', 'waitMsec 600', 'openq4_retainedGui report', 'openq4_retainedGui inspect "admin-live"',
+        'openq4_retainedGui inspect "admin-player-0"', 'openq4_retainedGui inspect "admin-player-1"', 'openq4_retainedGui inspect "admin-player-2"',
+        'screenshot "screenshots/mpadmin-players.tga"',
+        'openq4_retainedGui focus "admin-player-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui inspect "admin-player-1-chosen"', 'openq4_retainedGui inspect "admin-kick"',
+        'screenshot "screenshots/mpadmin-chosen.tga"',
+        'openq4_retainedGui focus "admin-kick"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1500',
+        'openq4_retainedGui inspect "admin-player-2"', 'screenshot "screenshots/mpadmin-kicked.tga"',
+        'openq4_retainedGui focus "admin-bans"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui inspect "banModal"', 'screenshot "screenshots/mpadmin-bans.tga"',
+        'openq4_retainedGui event banModalHide', 'waitMsec 600',
+        'openq4_retainedGui event admin_section_server', 'waitMsec 400', 'openq4_retainedGui focus "admin-row-fraglimit"',
+        *[step for _ in range(5) for step in ('openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 150')],
+        'waitMsec 400', 'openq4_retainedGui inspect "admin-row-fraglimit-value"', 'openq4_retainedGui inspect "admin-apply"',
+        'screenshot "screenshots/mpadmin-server.tga"',
+        'openq4_retainedGui focus "admin-apply"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2000',
+        'si_fragLimit', 'ui_retainedStatus',
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'openq4_retainedGui event tab_admin', 'waitMsec 400',
+        'openq4_retainedGui event admin_section_console', 'waitMsec 400', 'openq4_retainedGui focus "admin-command"',
+        'openq4_retainedGui number begin "admin-command"', 'openq4_retainedGui number input "admin-command" "serverInfo"',
+        'openq4_retainedGui number commit "admin-command"', 'waitMsec 1000', 'openq4_retainedGui inspect "admin-console-0"',
+        'openq4_retainedGui inspect "admin-console-11"', 'screenshot "screenshots/mpadmin-console.tga"',
+    ]),
+    # The Admin page from a client of a dedicated server (SCENARIO_SERVERS):
+    # the password first; a wrong one is refused, the server's own makes the
+    # player an admin, and the console sends a command. (A client's console
+    # appends its rcon to the command buffer, as the stock page did, so the
+    # command and its reply follow the rest of this script.)
+    'mpadminremote': (None, [
+        'waitMsec 6000', 'set logFileName "logs/openq4-match.log"',
+        f'connect 127.0.0.1:{27964}', AFTER_MAP,
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_admin', 'waitMsec 600', 'openq4_retainedGui report', 'openq4_retainedGui inspect "admin-pass"',
+        'screenshot "screenshots/mpadminremote-password.tga"',
+        'openq4_retainedGui number begin "admin-password"', 'openq4_retainedGui number input "admin-password" "not the password"',
+        'openq4_retainedGui number commit "admin-password"', 'waitMsec 3000', 'openq4_retainedGui inspect "admin-refused"',
+        'screenshot "screenshots/mpadminremote-refused.tga"',
+        'openq4_retainedGui number begin "admin-password"', 'openq4_retainedGui number input "admin-password" "openq4-admin-probe"',
+        'openq4_retainedGui number commit "admin-password"', 'waitMsec 3000', 'openq4_retainedGui inspect "admin-live"',
+        'openq4_retainedGui inspect "admin-player-0"', 'screenshot "screenshots/mpadminremote-admin.tga"',
+        'openq4_retainedGui event admin_section_console', 'waitMsec 400', 'openq4_retainedGui focus "admin-command"',
+        'openq4_retainedGui number begin "admin-command"', 'openq4_retainedGui number input "admin-command" "serverInfo"',
+        'openq4_retainedGui number commit "admin-command"', 'waitMsec 1000', 'openq4_retainedGui inspect "admin-console-0"',
+        'openq4_retainedGui inspect "admin-console-11"', 'screenshot "screenshots/mpadminremote-console.tga"',
+        'disconnect', 'waitMsec 2000',
+    ]),
     # The campaign difficulty page, the fourth level: Campaign descends to it
     # carrying QUAKE 4, its prompt bar where Campaign's is, and BACK climbs
     # back.
@@ -867,7 +919,10 @@ SCENARIO_PORTS = {'arenafail': 27961}
 # A dedicated server a scenario starts first (its loopback port, map and
 # name), from the runtime with its own savepath; it quits once the client is
 # done.
-SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 'Retained Admin Arena',
+                                      'cvars': {'net_serverRemoteConsolePassword': 'openq4-admin-probe', 'bot_minPlayers': '2',
+                                               'net_allowCheats': '1'}},
+                    'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
@@ -882,6 +937,7 @@ SCENARIO_FILES = {'arenafail': {
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
 SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
+                  'mpadmin': {'bot_minPlayers': '3'}, 'mpadminremote': {'net_ip': '127.0.0.1', 'ui_autoJoin': '1', 'ui_spectate': 'Play'},
                   # An Arena match is a local multiplayer game, where the menu probe is a cheat.
                   'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
@@ -981,6 +1037,7 @@ def start_server(args, output: Path, spec: dict, options: dict) -> tuple:
         'fs_game': 'baseoq4', 'com_gameMode': 'MP', 'logFile': '2', 'logFileName': 'logs/openq4.log',
         'net_ip': '127.0.0.1', 'net_port': str(spec['port']), 'net_serverDedicated': '1', 'net_LANServer': '1',
         'si_name': spec['name'], 'si_pure': '0', 'si_maxPlayers': '4', 'si_gameType': 'DM', 'si_warmup': '0', 'bot_minPlayers': '0',
+        **spec.get('cvars', {}),
     }
     command = [str(args.runtime.resolve() / ('openQ4-ded_x64.exe' if os.name == 'nt' else 'openQ4-ded_x64'))]
     for key, value in cvars.items():

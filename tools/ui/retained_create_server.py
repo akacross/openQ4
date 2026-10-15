@@ -176,10 +176,10 @@ def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: f
         path("wash", shape, fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(OLIVE, 0.45)), (1, rgb(OLIVE, 0.1))]))])
     rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=row_h), "opacity": number(0)}, [
         path("rail", [(0, 7), (6, 1), (6, row_h - 1), (0, row_h - 1)], fill=solid(rgb(ORANGE)))])
-    caption = label(f"{ident}-label", label_key, {"position": keyword("relative"), "display": keyword("block"), "flex-shrink": number(1),
-                    "min-width": length(0), **row_face(False, row_h), "overflow": keyword("hidden")})
+    caption_node = label(f"{ident}-label", label_key, {"position": keyword("relative"), "display": keyword("block"), "flex-shrink": number(1),
+                         "min-width": length(0), **row_face(False, row_h), "overflow": keyword("hidden")})
     head = group(f"{ident}-head", {**absolute(left=21, top=0, width=value_x - 29, height=row_h), "display": keyword("flex"),
-                                   "flex-direction": keyword("row"), "align-items": keyword("center")}, [caption])
+                                   "flex-direction": keyword("row"), "align-items": keyword("center")}, [caption_node])
     field_w, field_h = width - value_x - 12, 22.0
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
     ink = lambda name, tint, w, h: vector(name, {**absolute(left=0, top=0, width=w, height=h), "display": keyword("block"),
@@ -202,7 +202,7 @@ def text_row(doc: Document, ident: str, label_key: str, width: float, value_x: f
                                                                                          "event": event}}
     control = {"role": "text", "label": label_key, "action": action, "value": {"state": state}, "maxBytes": max_bytes,
                **({"allowEmpty": True} if allow_empty else {}), **({"masked": True} if masked else {}), "parts": parts,
-               "states": setting_states(doc, ident)}
+               "states": setting_states(doc, ident, caption)}
     return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width), "height": length(row_h),
                          "opacity": number(1), "flex-shrink": number(0)}, [plate, wash, rail, *([head] if caption else []), viewport, validation],
                  control=control)
@@ -324,7 +324,8 @@ def ban_dialog_size() -> tuple[float, float]:
     return round(max(U * ADVANCED_WIDTH, 2 * action_w + 30 + 33 + 12), 1), action_w
 
 
-def ban_list_modal(doc: Document) -> dict:
+def ban_list_modal(doc: Document, prefix: str = "create", pick_key: str | None = None, pick_verb: str = "createBanPick",
+                   remove_verb: str = "createBanRemove") -> dict:
     """PLAYER BAN LIST (section 6, the list dialog as MODS builds it): the
     game's ban list under NAME and GUID headings and an olive rule, on 20 u
     rows with the list's light and a scrollbar, or a line saying there is
@@ -332,11 +333,14 @@ def ban_list_modal(doc: Document) -> dict:
     publishes the list before the dialog shows (create.ban*) with no row
     chosen. A row's first Accept chooses it, Accept on the chosen row moves on
     to REMOVE BAN, which removes its ban; CLOSE and Back return to VIEW LOCAL
-    SERVER BAN LIST."""
-    doc.state.update({"create.ban_count": {"type": "number", "initial": 0}, "create.ban_selected": {"type": "number", "initial": -1},
-                      "create.ban_pick": {"type": "number", "initial": -1}})
-    doc.session("createBanPick", "createBanPick")
-    doc.session("createBanRemove", "createBanRemove")
+    SERVER BAN LIST. The multiplayer card's Admin page shows the same dialog
+    over its own list: `prefix` names the list's state, `pick_key` the row a
+    row's Accept names and the two verbs choose a ban and remove it."""
+    pick_key = pick_key or f"{prefix}.ban_pick"
+    doc.state.update({f"{prefix}.ban_count": {"type": "number", "initial": 0}, f"{prefix}.ban_selected": {"type": "number", "initial": -1},
+                      pick_key: {"type": "number", "initial": -1}})
+    doc.session(pick_verb, pick_verb)
+    doc.session(remove_verb, remove_verb)
     width_dp, action_w = ban_dialog_size()
     left, top, list_h = BAN_LIST_LEFT, BAN_LIST_TOP, BAN_LIST_H
     list_w = width_dp / U - 2 * left
@@ -353,13 +357,13 @@ def ban_list_modal(doc: Document) -> dict:
               "display": keyword("block")}),
     ]
     doc.bind("ban-empty.display", "ban-empty", "display",
-             {"op": "select", "args": [{"op": "==", "args": [{"state": "create.ban_count"}, 0]}, "block", "none"]})
+             {"op": "select", "args": [{"op": "==", "args": [{"state": f"{prefix}.ban_count"}, 0]}, "block", "none"]})
     rows = []
     width, height = U * (list_w - 16), U * BAN_ROW_H
     cell = {"white-space": keyword("nowrap"), "overflow": keyword("hidden"), "pointer-events": keyword("none")}
     tints = ([1, 1, 1, 0.9], [1, 1, 1, 0.65])
     for index in range(BAN_ROWS):
-        ident, key = f"ban-row-{index}", f"create.ban{index}"
+        ident, key = f"ban-row-{index}", f"{prefix}.ban{index}"
         cells = []
         for column, left_u, column_w, tint in (("name", 4, guid_x - 8, tints[0]),
                                                ("guid", guid_x, list_w - 16 - guid_x - 4, tints[1])):
@@ -369,13 +373,13 @@ def ban_list_modal(doc: Document) -> dict:
                                                   **typeface("lowpixel", 15.8, height, tint), **cell}))
             doc.bind(f"{node}.text", node, "text", {"state": f"{key}.{column}"})
         doc.bind(f"{ident}.display", ident, "display",
-                 {"op": "select", "args": [{"op": "<", "args": [index, {"state": "create.ban_count"}]}, "block", "none"]})
+                 {"op": "select", "args": [{"op": "<", "args": [index, {"state": f"{prefix}.ban_count"}]}, "block", "none"]})
         doc.bind(f"{ident}-selected.display", f"{ident}-selected", "display",
-                 {"op": "select", "args": [{"op": "==", "args": [{"state": "create.ban_selected"}, index]}, "block", "none"]})
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": f"{prefix}.ban_selected"}, index]}, "block", "none"]})
         event = f"banRow{index}"
-        doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": "create.ban_selected"}, index]},
+        doc.events[event] = [{"op": "if", "condition": {"op": "==", "args": [{"state": f"{prefix}.ban_selected"}, index]},
                               "then": [{"op": "focus", "control": "banModal_yes"}],
-                              "else": [{"op": "setState", "values": {"create.ban_pick": index}}, {"op": "action", "action": "createBanPick"}]}]
+                              "else": [{"op": "setState", "values": {pick_key: index}}, {"op": "action", "action": pick_verb}]}]
         ids = row_states(doc, ident, (f"{ident}-name", f"{ident}-guid"), tints)
         rows.append(group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
                                   "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
@@ -388,9 +392,9 @@ def ban_list_modal(doc: Document) -> dict:
     modal = confirmation(doc, "banModal", "#str_200921", PLACEHOLDER, None, yes_event="banRemoveConfirmed", wide_title=True,
                          height_u=BAN_HEIGHT, top_u=BAN_TOP, actions_u=BAN_HEIGHT - 40, contents=parts,
                          yes_key="#str_200922", no_key="#str_200923", width_dp=width_dp, action_w=action_w)
-    doc.events["banRemoveConfirmed"] = [{"op": "if", "condition": {"op": ">=", "args": [{"state": "create.ban_selected"}, 0]},
-                                         "then": [{"op": "action", "action": "createBanRemove"}]}]
-    doc.bind("banModal_yes.enabled", "banModal_yes", "enabled", {"op": ">=", "args": [{"state": "create.ban_selected"}, 0]})
+    doc.events["banRemoveConfirmed"] = [{"op": "if", "condition": {"op": ">=", "args": [{"state": f"{prefix}.ban_selected"}, 0]},
+                                         "then": [{"op": "action", "action": remove_verb}]}]
+    doc.bind("banModal_yes.enabled", "banModal_yes", "enabled", {"op": ">=", "args": [{"state": f"{prefix}.ban_selected"}, 0]})
     return modal
 
 
