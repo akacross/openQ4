@@ -360,11 +360,12 @@ curve (a float image left in linear colour space), so its 3D noise was distorted
 and the muzzle heat tint and soot never landed; all bakes are now Non-Color data,
 and the data bakes take one sample per texel so a rebuild matches byte for byte.
 
-Generated image cache: a file inside a pk4 always reports timestamp 0, which is what
-the generated `.bimage` cache checks, so a changed openQ4 pak texture under an
-unchanged name keeps the old cached image until `generated/images` is cleared. This
-affects any pak0/pak1 texture update, not only the turret, and is left for a separate
-change.
+Generated image cache: a file inside a pk4 always reported timestamp 0, which was
+what the generated `.bimage` cache checked, so a changed openQ4 pak texture under an
+unchanged name kept the old cached image until `generated/images` was cleared. Fixed
+separately on 15 October 2026: the cache now compares a pk4 member's zip CRC-32 and
+length (see [generated image source identity](../loading-cache-modernization.md#generated-image-source-identity)),
+so this repaint and later pak0/pak1 texture updates reach players with a cache.
 
 **Effects.** While q4xbase is the active game, `idGameLocal::FindEntityDef` looks up
 `<name>_q4x_openq4` before `<name>` (multiplayer keeps its `_mp` redirect; `inherit`

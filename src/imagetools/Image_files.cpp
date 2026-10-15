@@ -177,7 +177,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 	byte		*targa_rgba;
 
 	if ( !pic ) {
-		fileSystem->ReadFile( name, NULL, timestamp );
+		fileSystem->ReadFileContentStamp( name, NULL, timestamp );
 		return;	// just getting timestamp
 	}
 
@@ -186,7 +186,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 	//
 	// load the file
 	//
-	fileSize = fileSystem->ReadFile( name, (void **)&buffer, timestamp );
+	fileSize = fileSystem->ReadFileContentStamp( name, (void **)&buffer, timestamp );
 	if ( !buffer ) {
 		return;
 	}
@@ -497,7 +497,7 @@ static void LoadJPG( const char *filename, unsigned char **pic, int *width, int 
 		}
 		len = f->Length();
 		if ( timestamp ) {
-			*timestamp = f->Timestamp();
+			*timestamp = f->ContentStamp();
 		}
 		if ( !pic ) {
 			fileSystem->CloseFile( f );
@@ -872,7 +872,7 @@ static bool R_ReadDDSFileInfoUncached( const char *name, ddsFileInfo_t &info, ID
 		return false;
 	}
 	if ( timestamp != NULL ) {
-		*timestamp = file->Timestamp();
+		*timestamp = file->ContentStamp();
 	}
 	return true;
 }
@@ -1348,7 +1348,7 @@ bool R_LoadPrecompressedDDS( const char *cname, idBinaryImage &image, ID_TIME_T 
 			return false;
 		}
 		if ( timestamp != NULL ) {
-			*timestamp = ddsFile->Timestamp();
+			*timestamp = ddsFile->ContentStamp();
 		}
 		fileSize = ddsFile->Length();
 	    if (expected && (fileSize < 0 || std::uint64_t(fileSize) != requested.bytes)) return false;
@@ -1618,13 +1618,13 @@ static void LoadDDS( const char *name, byte **pic, int *width, int *height, ID_T
 	byte *buffer;
 
 	if ( !pic ) {
-		fileSystem->ReadFile( name, NULL, timestamp );
+		fileSystem->ReadFileContentStamp( name, NULL, timestamp );
 		return;	// just getting timestamp
 	}
 
 	*pic = NULL;
 
-	fileSize = fileSystem->ReadFile( name, (void **)&buffer, timestamp );
+	fileSize = fileSystem->ReadFileContentStamp( name, (void **)&buffer, timestamp );
 	if ( !buffer ) {
 		return;
 	}
@@ -1965,9 +1965,7 @@ bool R_LoadCubeImages( const char *imgName, cubeFiles_t extensions, byte *pics[6
 			break;
 		}
 		if ( timestamp ) {
-			if ( thisTime > *timestamp ) {
-				*timestamp = thisTime;
-			}
+			*timestamp = FS_CombineContentStamps( *timestamp, thisTime );
 		}
 		if ( pics && extensions == CF_CAMERA ) {
 			// convert from "camera" images to native cube map images

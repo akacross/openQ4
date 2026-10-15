@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #define __FILESYSTEM_H__
 
 #include <atomic>
+#include <stdint.h>
 
 /*
 ===============================================================================
@@ -55,6 +56,60 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 static const ID_TIME_T		FILE_NOT_FOUND_TIMESTAMP	= static_cast<ID_TIME_T>( -1 );
+
+/*
+	Content stamps: the source identity generated caches compare.
+
+	A loose file's content stamp is its modification time. A pk4 member has no
+	usable time -- Timestamp() is 0 for every member -- so a cache built from it
+	could never notice the member changing under the same name. Its content
+	stamp instead folds the member's zip CRC-32 and uncompressed length, both
+	from the pak's central directory, into a value below
+	FILE_NOT_FOUND_TIMESTAMP. A content stamp identifies a source: compare it
+	for equality only. FS_ContentStampOrderTime hands ordered staleness checks
+	the 0 they have always seen for a pak file.
+*/
+inline ID_TIME_T FS_FoldContentIdentity( uint64_t identity ) {
+	// Keep the result below -1 in whichever width ID_TIME_T has.
+	identity = sizeof( ID_TIME_T ) >= sizeof( uint64_t )
+		? ( identity & 0x3fffffffffffffffull )
+		: ( ( identity ^ ( identity >> 32 ) ) & 0x3fffffffull );
+	return -static_cast<ID_TIME_T>( identity ) - 2;
+}
+
+inline ID_TIME_T FS_PakMemberContentStamp( uint32_t crc, int length ) {
+	return FS_FoldContentIdentity( ( static_cast<uint64_t>( static_cast<uint32_t>( length ) ) << 32 ) | crc );
+}
+
+inline bool FS_IsPakMemberContentStamp( ID_TIME_T stamp ) {
+	return stamp < FILE_NOT_FOUND_TIMESTAMP;
+}
+
+inline ID_TIME_T FS_ContentStampOrderTime( ID_TIME_T stamp ) {
+	return FS_IsPakMemberContentStamp( stamp ) ? 0 : stamp;
+}
+
+// Accumulates the stamp of something built from several files (an image
+// program, a cube map's faces), starting from 0. Loose-only inputs keep the
+// newest time as before; once a pk4 member is involved the result hashes every
+// part, so a change to any one of them changes it.
+inline ID_TIME_T FS_CombineContentStamps( ID_TIME_T accumulated, ID_TIME_T stamp ) {
+	if ( accumulated == 0 ) {
+		return stamp;
+	}
+	if ( stamp == 0 ) {
+		return accumulated;
+	}
+	if ( !FS_IsPakMemberContentStamp( accumulated ) && !FS_IsPakMemberContentStamp( stamp ) ) {
+		return stamp > accumulated ? stamp : accumulated;
+	}
+	uint64_t mixed = static_cast<uint64_t>( accumulated ) * 0x9e3779b97f4a7c15ull ^ static_cast<uint64_t>( stamp );
+	mixed ^= mixed >> 31;
+	mixed *= 0xbf58476d1ce4e5b9ull;
+	mixed ^= mixed >> 29;
+	return FS_FoldContentIdentity( mixed );
+}
+
 static const int		MAX_PURE_PAKS				= 128;
 static const int		MAX_OSPATH					= 256;
 static const int		MAX_GAME_OS					= 6;
@@ -270,6 +325,9 @@ public:
 							// A 0 byte will always be appended at the end, so string ops are safe.
 							// The buffer should be considered read-only, because it may be cached for other uses.
 	virtual int				ReadFile( const char *relativePath, void **buffer, ID_TIME_T *timestamp = NULL ) = 0;
+							// ReadFile, reporting the file's content stamp (see FS_PakMemberContentStamp)
+							// instead of its timestamp. For generated-cache source identities.
+	virtual int				ReadFileContentStamp( const char *relativePath, void **buffer, ID_TIME_T *contentStamp ) = 0;
 							// Frees the memory allocated by ReadFile.
 	virtual void			FreeFile( void *buffer ) = 0;
 							// Relative mutation paths must be non-empty portable qpaths using '/' separators.

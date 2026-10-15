@@ -62,6 +62,8 @@ struct idStr{std::string s;idStr()=default;idStr(const char*v):s(v){};const char
 };
 struct idLib{template<class...T>static void Warning(const char*,T...){};};
 const ID_TIME_T FILE_NOT_FOUND_TIMESTAMP=-1;
+// loose-only stamps keep the newest time (FileSystem.h FS_CombineContentStamps)
+inline ID_TIME_T FS_CombineContentStamps(ID_TIME_T a,ID_TIME_T b){return a==0?b:b==0?a:b>a?b:a;}
 using cubeFiles_t=int;const int CF_CAMERA=1,MAX_IMAGE_NAME=1024;
 struct idSuppressRetailProgramDDS{};
 struct Common{template<class...T>void Warning(const char*,T...){};} commonStorage;Common*common=&commonStorage;
@@ -69,7 +71,7 @@ static int faceRead=0,missingFace=-1,rotations=0;static bool mismatchedFace=fals
 void R_LoadImageProgram(const char*,byte**p,int*w,int*h,ID_TIME_T*t){int face=faceRead++;*w=7;*h=mismatchedFace&&face==missingFace?3:7;*t=73;if(p){*p=face==missingFace&&!mismatchedFace?nullptr:(byte*)Mem_Alloc(7*7*4);if(*p)memset(*p,face+1,7*7*4);}}
 void R_RotatePic(byte*p,int){TEST(p);++rotations;}void R_HorizontalFlip(byte*p,int,int){TEST(p);++rotations;}void R_VerticalFlip(byte*p,int,int){TEST(p);++rotations;}
 
-struct idFile{std::vector<byte>bytes;bool shortRead=false;int Length()const{return int(bytes.size());}int64_t Timestamp()const{return 73;}int Read(void*p,int n){if(shortRead)--n;memcpy(p,bytes.data(),n);return n;}};
+struct idFile{std::vector<byte>bytes;bool shortRead=false;int Length()const{return int(bytes.size());}int64_t Timestamp()const{return 73;}int64_t ContentStamp()const{return Timestamp();}int Read(void*p,int n){if(shortRead)--n;memcpy(p,bytes.data(),n);return n;}};
 struct FileSystem{idFile file;bool missing=false;int open=0;idFile*OpenFileRead(const char*){if(missing)return nullptr;++open;return &file;}void CloseFile(idFile*p){TEST(p==&file&&open==1);--open;}}fs;
 FileSystem*fileSystem=&fs;
 struct Caps{bool textureCompressionAvailable=true,bptcTextureCompressionAvailable=true;}caps;

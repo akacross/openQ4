@@ -601,7 +601,7 @@ public:
 			}
 			entry.file = file;
 			entry.bytes = bytes;
-			entry.timestamp = file->Timestamp();
+			entry.timestamp = file->ContentStamp();
 			entry.buffer = static_cast<byte *>( Mem_Alloc( bytes ) );
 			entry.opened = true;
 			outstandingBytes += bytes;

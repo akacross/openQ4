@@ -44,7 +44,7 @@ template<class T>struct idSwapClass{template<class U>void Big(U&v){++swapCalls;a
  a=s.index('struct idFile{');b=s.index('struct Caps{',a)
  s=s[:a]+r"""
 static std::function<void()> onRead,onClose;static bool failFileList=false;
-struct idFile{std::vector<byte>bytes;bool shortRead=false;int cursor=0;int Length()const{return int(bytes.size());}int Tell()const{return cursor;}int64_t Timestamp()const{return 73;}int Read(void*p,int n){if(shortRead)--n;if(n<0||cursor+n>Length())return 0;memcpy(p,bytes.data()+cursor,n);cursor+=n;if(onRead)onRead();return n;}};
+struct idFile{std::vector<byte>bytes;bool shortRead=false;int cursor=0;int Length()const{return int(bytes.size());}int Tell()const{return cursor;}int64_t Timestamp()const{return 73;}int64_t ContentStamp()const{return Timestamp();}int Read(void*p,int n){if(shortRead)--n;if(n<0||cursor+n>Length())return 0;memcpy(p,bytes.data()+cursor,n);cursor+=n;if(onRead)onRead();return n;}};
 struct FileSystem{idFile file;bool missing=false;int open=0,opens=0;std::string lastPath;idFile*OpenFileRead(const char*path){++opens;lastPath=path;if(missing)return nullptr;++open;file.cursor=0;return &file;}void CloseFile(idFile*p){TEST(p==&file&&open==1);--open;if(onClose)onClose();}bool InProductionMode()const{return true;}}fs;
 FileSystem*fileSystem=&fs;
 struct idFileLocal{idFile*file;idFileLocal(idFile*f):file(f){}~idFileLocal(){if(file)fileSystem->CloseFile(file);}operator idFile*()const{return file;}idFile*operator->()const{return file;}};

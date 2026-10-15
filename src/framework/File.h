@@ -66,6 +66,9 @@ public:
 	virtual ID_TIME_T			Timestamp( void );
 							// Return the checksum of the containing package, or zero for loose files.
 	virtual int				GetContainerChecksum( void ) const { return 0; }
+							// Return the identity generated caches compare: the timestamp for loose
+							// files, FS_PakMemberContentStamp for pk4 members.
+	virtual ID_TIME_T		ContentStamp( void ) { return Timestamp(); }
 							// Returns offset in file.
 	virtual int				Tell( void );
 							// Forces flush on files being writting to.
@@ -274,6 +277,7 @@ public:
 	virtual int				Length( void );
 	virtual ID_TIME_T			Timestamp( void );
 	virtual int				GetContainerChecksum( void ) const { return containerChecksum; }
+	virtual ID_TIME_T		ContentStamp( void );
 	virtual int				Tell( void );
 	virtual void			ForceFlush( void );
 	virtual void			Flush( void );
@@ -285,6 +289,7 @@ private:
 	uint32_t				zipFilePos;		// classic-ZIP central-directory position
 	int						fileSize;		// size of the file
 	int						containerChecksum;
+	uint32_t				contentCrc;		// zip CRC-32 of the member's uncompressed bytes
 	void *					z;				// unzip info
 };
 

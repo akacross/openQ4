@@ -21,6 +21,25 @@ was never textured in the alpha, and now wears a battle-worn Strogg skin with
 glowing vents, a sensor lens, worn steel edging and braided hoses, and fires with
 a proper muzzle flash, tracers, ejected casings and barrel smoke.
 
+- [x] Re-derive a texture that changed inside a pk4. The generated image cache
+  checked a source's timestamp, and every pk4 member reports 0, so a texture
+  openQ4 (or a mod) changed under the same name in a pak kept loading the old
+  cached image until `generated/images` was deleted. The cache now compares a
+  member's zip CRC-32 and length, read from the pak index without opening the
+  member; loose files still use their modification time. Caches written by
+  earlier builds miss once and are rewritten. Verified on a fresh save path on
+  Air Defense 1 with a test pak: red, then green under the same name (a cache
+  miss, re-derived, GPU readback green), then a hit. A cache stamped by an older build
+  rewrote 91 entries, about 1.5 s once. Warm loads hit every pak image.
+  `generated_image_pak_content_stamp.py` pins it. Record:
+  [generated image source identity](loading-cache-modernization.md#generated-image-source-identity).
+
+Candidate release wording: Updated textures now show up straight away. A
+texture that changes inside an openQ4 or mod pak is rebuilt on the next load
+instead of the old cached copy being reused, so you no longer need to clear
+`generated/images` by hand. The first map load after updating rebuilds those
+cached images once.
+
 - [x] Clear the HUD from the single-player Arena's third-person shots. The
   introductions, the entrance, the spawn-in and the result ceremony now keep
   only their letterbox, their cards and the centre notice on both HUD
