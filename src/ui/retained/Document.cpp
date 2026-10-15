@@ -220,14 +220,28 @@ bool Parse(const std::string& source, Json::Value& root, std::vector<Diagnostic>
 	return false;
 }
 struct ValidationError {};
-std::vector<std::string> ExpandedProperties(const std::string& name) {
+const std::map<std::string,std::vector<std::string>>& PropertyShorthands() {
 	static const std::map<std::string,std::vector<std::string>> shorthands = {
 		{"margin",{"margin-top","margin-right","margin-bottom","margin-left"}},
 		{"padding",{"padding-top","padding-right","padding-bottom","padding-left"}},
 		{"border-width",{"border-top-width","border-right-width","border-bottom-width","border-left-width"}},
 		{"border-color",{"border-top-color","border-right-color","border-bottom-color","border-left-color"}}};
+	return shorthands;
+}
+// The leaves of a shorthand property, or null for a property that is its own leaf.
+const std::vector<std::string>* ShorthandLeaves(const std::string& name) {
+	const auto& shorthands = PropertyShorthands();
 	const auto found = shorthands.find(name);
-	return found == shorthands.end() ? std::vector<std::string>{name} : found->second;
+	return found == shorthands.end() ? nullptr : &found->second;
+}
+std::vector<std::string> ExpandedProperties(const std::string& name) {
+	const auto* leaves = ShorthandLeaves(name);
+	return leaves ? *leaves : std::vector<std::string>{name};
+}
+// A string value without copying it.
+std::string_view StringView(const Json::Value& value) {
+	const char* begin = nullptr; const char* end = nullptr;
+	return value.isString() && value.getString(&begin,&end) ? std::string_view(begin,static_cast<size_t>(end-begin)) : std::string_view();
 }
 // A passing check builds neither its pointer nor its message. A document runs
 // hundreds of thousands of checks, and building each one's diagnostic before
@@ -242,6 +256,10 @@ public:
 		Require(root["format"] == "openq4-ui",root,"/format","Expected format 'openq4-ui'");
 		Require(root["version"].isUInt() && root["version"].asUInt() == 1,root["version"],"/version","Unsupported document version; expected 1");
 		model.id = Id(root["id"],"/id");
+		if (root.isMember("extensions")) {
+			Json::StreamWriterBuilder writer; writer["indentation"] = ""; writer["precision"] = 17; writer["commentStyle"] = "None";
+			model.extensions = Json::writeString(writer,root["extensions"]);
+		}
 		if (root.isMember("editor")) Require(root["editor"].isObject(),root["editor"],"/editor","Editor metadata must be an object");
 		if (root.isMember("canvas")) {
 			// A view-height canvas: the document's dp scale follows the view's height.
@@ -263,6 +281,7 @@ public:
 		if (root.isMember("timelines")) {
 			Require(root["timelines"].isArray(),root["timelines"],"/timelines","Expected a timeline array");
 			std::set<std::string> ids;
+			model.timelines.reserve(root["timelines"].size());
 			for (Json::ArrayIndex i = 0; i < root["timelines"].size(); ++i) {
 				auto timeline = ReadTimeline(root["timelines"][i],"/timelines/"+std::to_string(i));
 				Require(ids.insert(timeline.id).second,root["timelines"][i],"/timelines/"+std::to_string(i),"Duplicate timeline ID");
@@ -400,6 +419,7 @@ private:
 			const auto arity = arities.find(result.op);
 			Require(arity != arities.end(),value["op"],path+"/op","Unknown expression operation");
 			Require(value["args"].isArray() && value["args"].size() == arity->second,value["args"],path+"/args","Incorrect expression arity");
+			result.args.reserve(value["args"].size());
 			for (Json::ArrayIndex i = 0; i < value["args"].size(); ++i) result.args.push_back(ReadExpression(value["args"][i],path+"/args/"+std::to_string(i),depth+1,allowPresentation,inputType));
 			auto types = [&](size_t expected) { return std::all_of(result.args.begin(),result.args.end(),[&](const Expression& arg) { return arg.type == expected; }); };
 			if (result.op == "select") {
@@ -559,6 +579,7 @@ private:
 		Require(values.isArray(),values,path,"Expected an ordered event step array");
 		Require(depth <= 32,values,path,"Event structural depth exceeds 32");
 		std::vector<EventStep> result;
+		result.reserve(values.size());
 		for (Json::ArrayIndex i = 0; i < values.size(); ++i) {
 			const auto& value = values[i]; const auto at = path+"/"+std::to_string(i);
 			Require(++eventStepCount <= 8192,value,at,"Event step count exceeds 8192");
@@ -726,6 +747,7 @@ private:
 		const auto& bindings = root["bindings"];
 		Require(bindings.isArray() && bindings.size() <= 8192,bindings,"/bindings","Expected at most 8192 bindings");
 		std::set<std::string> ids; std::set<std::pair<std::string,std::string>> targets;
+		model.bindings.reserve(bindings.size());
 		for (Json::ArrayIndex i = 0; i < bindings.size(); ++i) {
 			const auto& value = bindings[i]; const auto path = "/bindings/"+std::to_string(i);
 			Fields(value,path,{"id","node","property","value","extensions"});
@@ -818,6 +840,13 @@ private:
 		Require(value.isString() && Identifier(value.asString()),value,path,"Expected a stable ID (1..128 ASCII letters, digits, '.', '_' or '-')");
 		return value.asString();
 	}
+	// The hot readers name a value by its parent's pointer and a leaf, so a
+	// passing check builds no pointer; a failing one reports the same pointer
+	// and message as the string overload.
+	std::string Id(const Json::Value& value, const std::string& parent, const char* leaf) {
+		if (value.isString()) { std::string id = value.asString(); if (Identifier(id)) return id; }
+		return Id(value,parent+leaf);
+	}
 	std::string ControlLabel(const Json::Value& value, const std::string& path) {
 		Require(value.isString(),value,path,"Control labels require a #str_ localization key");
 		const auto label = value.asString();
@@ -830,41 +859,57 @@ private:
 		Require(std::isfinite(result) && result >= low && result <= high,value,path,"Number outside supported range ["+Number(low)+", "+Number(high)+"]");
 		return result;
 	}
+	double Numeric(const Json::Value& value, const std::string& parent, const char* leaf, double low, double high) {
+		if (value.isNumeric()) { const double result = value.asDouble(); if (std::isfinite(result) && result >= low && result <= high) return result; }
+		return Numeric(value,parent+leaf,low,high);
+	}
+	// A pointer's indexed leaf ("/points/3"), built only by a failing check.
+	static std::string Indexed(const std::string& parent, const char* leaf, Json::ArrayIndex index) {
+		return parent+leaf+std::to_string(index);
+	}
 	Value Typed(const Json::Value& value, const std::string& path, bool allowToken = true) {
 		Require(value.isObject() && value["type"].isString(),value,path,"Expected a typed value object");
-		const auto type = value["type"].asString();
+		const auto type = StringView(value["type"]);
 		Value result;
 		if (type == "token") {
 			Fields(value,path,{"type","value","extensions"});
-			const auto id = Id(value["value"],path+"/value");
+			const auto id = Id(value["value"],path,"/value");
 			Require(allowToken,value,path,"Tokens must contain a concrete value, not another token reference");
 			auto token = model.tokens.find(id);
 			Require(token != model.tokens.end(),value,path,"Unknown design token '"+id+"'");
 			return token->second;
 		}
-		if (type == "length" || type == "transform") {
+		const bool length = type == "length", transform = type == "transform";
+		if (length || transform) {
 			Fields(value,path,{"type","value","unit","extensions"});
-			Require(value["unit"].isString(),value,path+"/unit","Length/transform requires an explicit unit");
-			result.unit = value["unit"].asString();
-			Require(result.unit == "dp" || result.unit == "px" || (type == "length" && (result.unit == "%" || result.unit == "em")),value["unit"],path+"/unit","Expected dp, px, em or a layout percentage; transforms require dp or px");
+			const auto& unit = value["unit"];
+			Require(unit.isString(),value,path+"/unit","Length/transform requires an explicit unit");
+			result.unit = unit.asString();
+			Require(result.unit == "dp" || result.unit == "px" || (length && (result.unit == "%" || result.unit == "em")),unit,path+"/unit","Expected dp, px, em or a layout percentage; transforms require dp or px");
 		} else Fields(value,path,{"type","value","extensions"});
-		if (type == "number" || type == "length") {
-			result.type = type == "number" ? ValueType::Number : ValueType::Length;
-			result.data[0] = Numeric(value["value"],path+"/value",-1000000,1000000);
-		} else if (type == "color" || type == "transform") {
-			result.type = type == "color" ? ValueType::Colour : ValueType::Transform;
-			const unsigned count = type == "color" ? 4 : 5;
-			Require(value["value"].isArray() && value["value"].size() == count,value["value"],path+"/value","Incorrect component count");
-			for (unsigned i = 0; i < count; ++i) result.data[i] = Numeric(value["value"][i],path+"/value/"+std::to_string(i),type == "color" ? 0 : -1000000,type == "color" ? 1 : 1000000);
+		const auto& inner = value["value"];
+		if (type == "number" || length) {
+			result.type = length ? ValueType::Length : ValueType::Number;
+			result.data[0] = Numeric(inner,path,"/value",-1000000,1000000);
+		} else if (type == "color" || transform) {
+			result.type = transform ? ValueType::Transform : ValueType::Colour;
+			const unsigned count = transform ? 5 : 4;
+			Require(inner.isArray() && inner.size() == count,inner,path+"/value","Incorrect component count");
+			for (unsigned i = 0; i < count; ++i) {
+				const auto& component = inner[i];
+				const double low = transform ? -1000000 : 0, high = transform ? 1000000 : 1;
+				if (component.isNumeric()) { const double number = component.asDouble(); if (std::isfinite(number) && number >= low && number <= high) { result.data[i] = number; continue; } }
+				result.data[i] = Numeric(component,Indexed(path,"/value/",i),low,high);
+			}
 		} else {
-			Require(type == "keyword" || type == "font" || type == "text" || type == "image",value,path+"/type","Unsupported value type '"+type+"'");
-			Require(value["value"].isString(),value["value"],path+"/value","Expected a string");
-			result.text = value["value"].asString();
+			Require(type == "keyword" || type == "font" || type == "text" || type == "image",value,path+"/type","Unsupported value type '"+std::string(type)+"'");
+			Require(inner.isString(),inner,path+"/value","Expected a string");
+			result.text = inner.asString();
 			result.type = type == "keyword" ? ValueType::Keyword : type == "font" ? ValueType::Font :
 				type == "image" ? ValueType::Image : ValueType::Text;
-			if (type == "text") Require(result.text.starts_with("#str_") && Identifier(result.text.substr(1)),value["value"],path+"/value","Display text must reference a #str_ localization key");
-			else if (type == "image") Require(ValidImageSource(result.text),value["value"],path+"/value","Image sources are empty or a relative VFS image path of letters, digits, '_', '-', '.' and '/'");
-			else Require(Identifier(result.text),value["value"],path+"/value","Expected a single keyword or font identifier");
+			if (type == "text") Require(result.text.starts_with("#str_") && Identifier(result.text.substr(1)),inner,path+"/value","Display text must reference a #str_ localization key");
+			else if (type == "image") Require(ValidImageSource(result.text),inner,path+"/value","Image sources are empty or a relative VFS image path of letters, digits, '_', '-', '.' and '/'");
+			else Require(Identifier(result.text),inner,path+"/value","Expected a single keyword or font identifier");
 		}
 		return result;
 	}
@@ -878,6 +923,18 @@ private:
 	PathPoint Point(const Json::Value& value, const std::string& path) {
 		Require(value.isArray() && value.size() == 2,value,path,"Point requires x and y coordinates");
 		return {Coordinate(value[0],path+"/0"),Coordinate(value[1],path+"/1")};
+	}
+	// A point of two plain numbers in range, the common case, builds no
+	// pointer; any other point takes the general reader with the same pointer.
+	PathPoint Point(const Json::Value& value, const std::string& parent, const char* leaf, Json::ArrayIndex index) {
+		if (value.isArray() && value.size() == 2) {
+			const auto& x = value[0]; const auto& y = value[1];
+			if (x.isNumeric() && y.isNumeric()) {
+				const double px = x.asDouble(), py = y.asDouble();
+				if (std::isfinite(px) && px >= -1000000 && px <= 1000000 && std::isfinite(py) && py >= -1000000 && py <= 1000000) return {{0,px},{0,py}};
+			}
+		}
+		return Point(value,Indexed(parent,leaf,index));
 	}
 	VectorColour Colour(const Json::Value& value, const std::string& path) {
 		const auto colour = Typed(value,path);
@@ -898,6 +955,7 @@ private:
 			result.from = Point(value["from"],path+"/from"); result.to = Point(value["to"],path+"/to");
 			Require(value["stops"].isArray() && value["stops"].size() >= 2 && value["stops"].size() <= 256,value["stops"],path+"/stops","Gradient requires 2..256 stops");
 			double previous = -1;
+			result.stops.reserve(value["stops"].size());
 			for (Json::ArrayIndex i = 0; i < value["stops"].size(); ++i) {
 				const auto& stop = value["stops"][i]; const auto p = path+"/stops/"+std::to_string(i);
 				Fields(stop,p,{"at","color","extensions"});
@@ -944,24 +1002,29 @@ private:
 				result.stroke.join = stroke["join"] == "round" ? StrokeJoin::Round : stroke["join"] == "bevel" ? StrokeJoin::Bevel : StrokeJoin::Miter;
 			}
 		}
-		Require(value["commands"].isArray() && !value["commands"].empty() && value["commands"].size() <= 65536,value["commands"],path+"/commands","Path requires 1..65536 commands");
+		const auto& commands = value["commands"];
+		Require(commands.isArray() && !commands.empty() && commands.size() <= 65536,commands,path+"/commands","Path requires 1..65536 commands");
 		std::set<std::string> ids;
-		for (Json::ArrayIndex i = 0; i < value["commands"].size(); ++i) {
-			const auto& command = value["commands"][i]; const auto p = path+"/commands/"+std::to_string(i);
+		result.commands.reserve(commands.size());
+		for (Json::ArrayIndex i = 0; i < commands.size(); ++i) {
+			const auto& command = commands[i]; const auto p = path+"/commands/"+std::to_string(i);
 			Fields(command,p,{"id","op","points","extensions"});
-			PathCommand parsed; parsed.id = Id(command["id"],p+"/id");
+			PathCommand parsed; parsed.id = Id(command["id"],p,"/id");
 			Require(ids.insert(parsed.id).second,command["id"],p+"/id","Duplicate path command ID");
-			static const std::map<std::string,std::pair<PathOperation,unsigned>> operations = {
-				{"move",{PathOperation::Move,1}},{"line",{PathOperation::Line,1}},{"quadratic",{PathOperation::Quadratic,2}},
-				{"cubic",{PathOperation::Cubic,3}},{"close",{PathOperation::Close,0}}};
-			Require(command["op"].isString(),command["op"],p+"/op","Expected path operation");
-			auto operation = operations.find(command["op"].asString());
-			Require(operation != operations.end(),command["op"],p+"/op","Unsupported path operation");
-			parsed.op = operation->second.first;
+			const auto& op = command["op"];
+			Require(op.isString(),op,p+"/op","Expected path operation");
+			const auto name = StringView(op);
+			unsigned points = 0;
+			if (name == "move") { parsed.op = PathOperation::Move; points = 1; }
+			else if (name == "line") { parsed.op = PathOperation::Line; points = 1; }
+			else if (name == "quadratic") { parsed.op = PathOperation::Quadratic; points = 2; }
+			else if (name == "cubic") { parsed.op = PathOperation::Cubic; points = 3; }
+			else if (name == "close") { parsed.op = PathOperation::Close; points = 0; }
+			else Require(false,op,p+"/op","Unsupported path operation");
 			Require(i != 0 || parsed.op == PathOperation::Move,command,p,"Path must begin with move");
-			const unsigned points = operation->second.second;
-			Require((points == 0 && !command.isMember("points")) || (command["points"].isArray() && command["points"].size() == points),command["points"],p+"/points","Incorrect point count for path operation");
-			for (unsigned j = 0; j < points; ++j) parsed.points[j] = Point(command["points"][j],p+"/points/"+std::to_string(j));
+			const auto& pointValues = command["points"];
+			Require((points == 0 && !command.isMember("points")) || (pointValues.isArray() && pointValues.size() == points),pointValues,p+"/points","Incorrect point count for path operation");
+			for (unsigned j = 0; j < points; ++j) parsed.points[j] = Point(pointValues[j],p,"/points/",j);
 			result.commands.push_back(std::move(parsed));
 		}
 		return result;
@@ -974,10 +1037,11 @@ private:
 		Require(depth <= 48 && ++nodeCount <= 65536,value,path,"Document hierarchy exceeds the node/depth limit");
 		Fields(value,path,{"id","type","properties","children","paths","mask","control","modal","legacyText","extensions"});
 		Node result;
-		result.id = Id(value["id"],path+"/id");
+		result.id = Id(value["id"],path,"/id");
 		Require(nodeIds.insert(result.id).second,value["id"],path+"/id","Duplicate node ID '"+result.id+"'");
-		Require(value["type"] == "group" || value["type"] == "text" || value["type"] == "vector" || value["type"] == "image",value["type"],path+"/type","Supported node types are group, text, vector and image; unsupported nodes cannot be silently rendered");
-		result.type = value["type"].asString();
+		const auto& typeValue = value["type"];
+		Require(typeValue == "group" || typeValue == "text" || typeValue == "vector" || typeValue == "image",typeValue,path+"/type","Supported node types are group, text, vector and image; unsupported nodes cannot be silently rendered");
+		result.type = typeValue.asString();
 		if (value.isMember("legacyText")) {
 			Require(value["legacyText"].isString() && result.type == "text" &&
 				(value["legacyText"].asString()=="window" || value["legacyText"].asString()=="simple"),
@@ -1130,6 +1194,7 @@ private:
 						Require(spec.optionCount->type == 0,control["optionCount"],p+"/optionCount","A choice's option count must be numeric");
 					}
 					std::set<std::string> ids; std::set<StateValue> values;
+					spec.options.reserve(control["options"].size());
 					for (Json::ArrayIndex i = 0; i < control["options"].size(); ++i) {
 						const auto& value = control["options"][i]; const auto opt = p+"/options/"+std::to_string(i);
 						Fields(value,opt,{"id","node","label","labelIndex","value","enabled","parts","extensions"});
@@ -1179,12 +1244,14 @@ private:
 			}
 		}
 		if (result.type == "vector") {
-			Require(value["paths"].isArray(),value["paths"],path+"/paths","Vector node requires a path array");
+			const auto& paths = value["paths"];
+			Require(paths.isArray(),paths,path+"/paths","Vector node requires a path array");
 			std::set<std::string> pathIds;
-			for (Json::ArrayIndex i = 0; i < value["paths"].size(); ++i) {
+			result.paths.reserve(paths.size());
+			for (Json::ArrayIndex i = 0; i < paths.size(); ++i) {
 				const auto p = path+"/paths/"+std::to_string(i);
-				auto shape = ReadPath(value["paths"][i],p);
-				Require(pathIds.insert(shape.id).second,value["paths"][i]["id"],p+"/id","Duplicate path ID within vector node");
+				auto shape = ReadPath(paths[i],p);
+				Require(pathIds.insert(shape.id).second,paths[i]["id"],p+"/id","Duplicate path ID within vector node");
 				result.paths.push_back(std::move(shape));
 			}
 		} else Require(!value.isMember("paths"),value["paths"],path+"/paths","Paths require a vector node");
@@ -1194,6 +1261,7 @@ private:
 			Require(mask["paths"].isArray(),mask["paths"],p+"/paths","Mask requires a path array");
 			result.mask.emplace();
 			std::set<std::string> ids;
+			result.mask->reserve(mask["paths"].size());
 			for (Json::ArrayIndex i = 0; i < mask["paths"].size(); ++i) {
 				const auto at = p+"/paths/"+std::to_string(i);
 				auto shape = ReadPath(mask["paths"][i],at,true);
@@ -1202,27 +1270,26 @@ private:
 			}
 		}
 		if (value.isMember("properties")) {
-			Require(value["properties"].isObject(),value["properties"],path+"/properties","Expected a property object");
-			for (const auto& name : value["properties"].getMemberNames()) {
+			const auto& properties = value["properties"];
+			Require(properties.isObject(),properties,path+"/properties","Expected a property object");
+			std::map<std::string,Value> authored;
+			for (auto member = properties.begin(); member != properties.end(); ++member) {
+				const std::string name(MemberName(member));
 				const auto propertyPath = path+"/properties/"+PointerPart(name);
-				auto property = Typed(value["properties"][name],propertyPath);
-				Property(name,property,value["properties"][name],propertyPath);
-				Require(name != "text" || result.type == "text",value["properties"][name],propertyPath,"Text content requires a text node");
+				auto property = Typed(*member,propertyPath);
+				Property(name,property,*member,propertyPath);
+				Require(name != "text" || result.type == "text",*member,propertyPath,"Text content requires a text node");
 				// Pictorial content is the specification's bitmap exception: levelshots,
 				// backdrops and previews. Furniture stays vector art on other nodes.
-				Require(!name.starts_with("image") || result.type == "image",value["properties"][name],propertyPath,"Image properties require an image node");
-				result.properties[name] = std::move(property);
+				Require(!name.starts_with("image") || result.type == "image",*member,propertyPath,"Image properties require an image node");
+				authored.emplace(name,std::move(property));
 			}
 			// JSON member order is not cascade order. Resolve shorthands first,
 			// then explicit sides, and give motion one owner per effective leaf.
-			std::map<std::string,Value> resolved;
-			for (const auto& [name,property] : result.properties) {
-				const auto expanded = ExpandedProperties(name);
-				if (expanded.size() > 1) for (const auto& leaf : expanded) resolved[leaf] = property;
-			}
-			for (const auto& [name,property] : result.properties)
-				if (ExpandedProperties(name).size() == 1) resolved[name] = property;
-			result.properties = std::move(resolved);
+			for (const auto& [name,property] : authored)
+				if (const auto* leaves = ShorthandLeaves(name)) for (const auto& leaf : *leaves) result.properties[leaf] = property;
+			for (auto& [name,property] : authored)
+				if (!ShorthandLeaves(name)) result.properties[name] = std::move(property);
 		}
 		Require(result.type != "image" || result.properties.contains("image"),value,path,
 			"An image node requires an explicit image source property; an empty source shows no picture");
@@ -1234,7 +1301,9 @@ private:
 		if (value.isMember("children")) {
 			Require(value["children"].isArray(),value["children"],path+"/children","Expected a child array");
 			Require(result.type != "text" || value["children"].empty(),value["children"],path+"/children","Text nodes cannot own child nodes");
-			for (Json::ArrayIndex i = 0; i < value["children"].size(); ++i) result.children.push_back(ReadNode(value["children"][i],path+"/children/"+std::to_string(i),depth+1));
+			const auto& children = value["children"];
+			result.children.reserve(children.size());
+			for (Json::ArrayIndex i = 0; i < children.size(); ++i) result.children.push_back(ReadNode(children[i],path+"/children/"+std::to_string(i),depth+1));
 		}
 		return result;
 	}
@@ -1544,6 +1613,7 @@ private:
 		}
 		Require(value["tracks"].isArray() && !value["tracks"].empty(),value["tracks"],path+"/tracks","Timeline requires tracks");
 		std::set<std::pair<std::string,std::string>> targets;
+		timeline.tracks.reserve(value["tracks"].size());
 		for (Json::ArrayIndex i = 0; i < value["tracks"].size(); ++i) {
 			const auto& entry = value["tracks"][i];
 			const auto p = path+"/tracks/"+std::to_string(i);
@@ -1560,6 +1630,7 @@ private:
 			}
 			Require(entry["keys"].isArray() && entry["keys"].size() >= 2,entry["keys"],p+"/keys","Track requires at least two keys");
 			double previous = -1;
+			track.keys.reserve(entry["keys"].size());
 			for (Json::ArrayIndex k = 0; k < entry["keys"].size(); ++k) {
 				const auto& key = entry["keys"][k];
 				const auto kp = p+"/keys/"+std::to_string(k);
@@ -1801,7 +1872,10 @@ bool detail::ParseDocumentSource(const std::string& source, Json::Value& root, s
 const Json::Value* detail::ResolveDocumentSource(const Json::Value& root, const std::string& pointer) {
     return Resolve(root,pointer);
 }
-struct Document::Impl { std::string source; Json::Value root; DocumentModel model; };
+// The parsed tree is a load-time intermediate: the model copies what it keeps,
+// and a tree of a large document costs several times its source. An edit
+// parses the retained source again to find the span it replaces.
+struct Document::Impl { std::string source; DocumentModel model; };
 Document::Document() : impl(std::make_unique<Impl>()) {}
 Document::~Document() = default;
 Document::Document(Document&&) noexcept = default;
@@ -1810,16 +1884,23 @@ bool Document::Load(const std::string& source, std::vector<Diagnostic>& diagnost
 	diagnostics.clear();
 	auto candidate = std::make_unique<Impl>();
 	candidate->source = source;
-	if (!Parse(source,candidate->root,diagnostics)) return false;
-	try { candidate->model = Validator(source,diagnostics).Read(candidate->root); }
-	catch (const ValidationError&) { return false; }
+	{
+		Json::Value root;
+		if (!Parse(source,root,diagnostics)) return false;
+		try { candidate->model = Validator(source,diagnostics).Read(root); }
+		catch (const ValidationError&) { return false; }
+	}
 	candidate->model.IndexNodes();
 	impl = std::move(candidate);
 	return true;
 }
 bool Document::ReplaceValue(const std::string& pointer, const std::string& replacement, std::vector<Diagnostic>& diagnostics) {
 	diagnostics.clear();
-	const auto* value = Resolve(impl->root,pointer);
+	// The retained source parsed when it was loaded, so this parse finds the
+	// value's span; an empty source (never loaded) has no value to replace.
+	Json::Value root;
+	if (!impl->source.empty() && !Parse(impl->source,root,diagnostics)) return false;
+	const auto* value = impl->source.empty() ? nullptr : Resolve(root,pointer);
 	if (!value || impl->source.empty()) {
 		Diagnose(diagnostics,impl->source,pointer,"JSON pointer does not resolve to an existing value",0); return false;
 	}

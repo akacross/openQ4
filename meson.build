@@ -1203,7 +1203,7 @@ if build_engine or get_option('build_native_tests')
       'openq4-retained-ui-benchmark',
       files('tools/tests/native/RetainedUiBenchmark.cpp'),
       include_directories: root_include_dir,
-      dependencies: openq4_retained_dep,
+      dependencies: [openq4_retained_dep, jsoncpp_project.get_variable('jsoncpp_dep')],
       install: false,
     )
   endif

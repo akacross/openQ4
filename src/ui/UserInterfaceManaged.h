@@ -122,6 +122,16 @@ void UI_RetainedReloadImage( const char *source );
 // Clear drops the parses no load took, after their workers finish.
 void UI_RetainedPrefetchDocuments( const char *const *paths, int count );
 void UI_RetainedPrefetchClear();
+// The gameplay documents a level's game loads as it spawns (the Remastered
+// HUDs, weapon wheels, quick chat and view effects), parsed on workers as the
+// map change begins so those loads build only their views. Settle drops the
+// parses a single-player spawn did not take: the other family's HUD and wheel.
+void UI_RetainedPrefetchGameplayDocuments( bool multiplayer );
+void UI_RetainedSettleGameplayDocuments( bool multiplayer );
+// Whether a prefetch parsed this document for the level under way and no load
+// has taken it yet: the documents a stock HUD's load may load with itself. A
+// HUD the level only precaches, and never draws, keeps its load for its first draw.
+bool UI_RetainedPrefetched( const char *path );
 // Advance a live GUI's timelines and time events without drawing it.
 void UI_RunTimeEvents( idUserInterface *gui, int time );
 // A map change's reload, inside the level load (ExecuteMapChange): every GUI

@@ -14,6 +14,11 @@ bool UI_RetainedSettingsCanReturn(idUserInterface* gui);
 // A retained GUI that can no longer draw (its view failed to come back
 // after a renderer or language change); callers present the stock screen.
 bool UI_RetainedViewFailed(idUserInterface* gui);
+// The validated model of a retained GUI's document, which lives as long as
+// the GUI holds that document: how a HUD peer reads the declared state and
+// the generator's extension data without parsing the source again.
+namespace openq4::ui { struct DocumentModel; }
+const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface* gui);
 // The names of a retained GUI's declared state that start with `prefix`, in
 // order: how a session finds the application lines a document shows.
 int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names);
@@ -25,6 +30,7 @@ class idUserInterfaceRetained final : public idUserInterfaceManaged {
 	friend bool UI_RetainedSettingsDocument(idUserInterface*);
 	friend bool UI_RetainedSettingsCanReturn(idUserInterface*);
 	friend bool UI_RetainedViewFailed(idUserInterface*);
+	friend const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface*);
 	friend int UI_RetainedStateNames(idUserInterface*, const char*, std::vector<std::string>&);
 public:
 	explicit idUserInterfaceRetained(bool managed = true);

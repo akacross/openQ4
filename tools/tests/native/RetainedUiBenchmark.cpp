@@ -1,5 +1,12 @@
 // Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
 #include "src/ui/retained/Runtime.h"
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <psapi.h>
+#endif
+#include <json/json.h>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -99,9 +106,98 @@ void Screen(const std::string& path, int frames, int width, int height, const st
 		Percentile(compile,.5),Percentile(paths,.5),Percentile(uploads,.5),Percentile(draws,.5),Percentile(vertices,.5),Percentile(layers,.5),Percentile(elisions,.5));
 	runtime.CloseDocument(); runtime.Shutdown();
 }
+
+// Private committed bytes of this process, for the memory a load retains.
+// Zero where the platform query is not implemented.
+std::uint64_t PrivateBytes() {
+#ifdef _WIN32
+	PROCESS_MEMORY_COUNTERS_EX counters{}; counters.cb = sizeof(counters);
+	if (GetProcessMemoryInfo(GetCurrentProcess(),reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),sizeof(counters))) return counters.PrivateUsage;
+#endif
+	return 0;
+}
+void CountNodes(const Node& node, std::uint64_t& nodes, std::uint64_t& properties, std::uint64_t& paths) {
+	++nodes; properties += node.properties.size(); paths += node.paths.size();
+	for (const auto& child : node.children) CountNodes(child,nodes,properties,paths);
+}
+// A production document's load, split into the phases a GUI and its view pay:
+// the JSON parse alone (jsoncpp, with the document reader's settings), the
+// Document's parse+validation+index, its derived markup, and the runtime's
+// view (markup, elements, bindings). Times are the minimum over `repeats`;
+// memory deltas are from the first repeat, while each phase's result lives.
+void Load(const std::string& path, int repeats) {
+	std::ifstream file(path,std::ios::binary);
+	if (!file) throw std::runtime_error("Cannot read document");
+	const std::string source{std::istreambuf_iterator<char>(file),{}};
+	double parseMs = 1e30, documentMs = 1e30, markupMs = 1e30, viewMs = 1e30;
+	std::uint64_t parseBytes = 0, documentBytes = 0, viewBytes = 0, markupBytes = 0;
+	std::uint64_t nodes = 0, properties = 0, paths = 0, bindings = 0, timelines = 0, tracks = 0, events = 0, controls = 0;
+	for (int repeat = 0; repeat < repeats; ++repeat) {
+		{
+			Json::CharReaderBuilder builder;
+			builder["collectComments"] = true; builder["allowComments"] = true; builder["allowTrailingCommas"] = false;
+			builder["strictRoot"] = false; builder["failIfExtra"] = true; builder["rejectDupKeys"] = true;
+			builder["allowSpecialFloats"] = false; builder["stackLimit"] = 128; builder["skipBom"] = false;
+			std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+			Json::Value root;
+			const auto before = PrivateBytes();
+			const auto start = std::chrono::steady_clock::now();
+			if (!reader->parse(source.data(),source.data()+source.size(),&root,nullptr)) throw std::runtime_error("JSON parse failed");
+			parseMs = std::min(parseMs,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+			if (repeat == 0) parseBytes = PrivateBytes()-before;
+		}
+		Document document; std::vector<Diagnostic> diagnostics;
+		{
+			const auto before = PrivateBytes();
+			const auto start = std::chrono::steady_clock::now();
+			if (!document.Load(source,diagnostics)) throw std::runtime_error("Invalid document: "+(diagnostics.empty() ? std::string("?") : diagnostics.front().message));
+			documentMs = std::min(documentMs,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+			if (repeat == 0) documentBytes = PrivateBytes()-before;
+		}
+		{
+			const auto start = std::chrono::steady_clock::now();
+			const auto markup = document.BuildMarkup();
+			markupMs = std::min(markupMs,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+			markupBytes = markup.size();
+		}
+		{
+			ScreenHost host; Runtime runtime(host);
+			const auto before = PrivateBytes();
+			const auto start = std::chrono::steady_clock::now();
+			if (!runtime.LoadDocument(document,path,diagnostics)) throw std::runtime_error("Cannot load the view: "+(diagnostics.empty() ? host.error : diagnostics.front().message));
+			viewMs = std::min(viewMs,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+			if (repeat == 0) viewBytes = PrivateBytes()-before;
+			if (!host.error.empty()) throw std::runtime_error("View logged an error: "+host.error);
+			runtime.CloseDocument(); runtime.Shutdown();
+		}
+		if (repeat == 0) {
+			const auto& model = document.Model();
+			CountNodes(model.root,nodes,properties,paths);
+			bindings = model.bindings.size(); timelines = model.timelines.size(); events = model.events.size();
+			for (const auto& timeline : model.timelines) tracks += timeline.tracks.size();
+			std::vector<const Node*> pending{&model.root};
+			while (!pending.empty()) { const auto* node = pending.back(); pending.pop_back(); if (node->control) ++controls; for (const auto& child : node->children) pending.push_back(&child); }
+		}
+	}
+	std::printf("{\"scenario\":\"load\",\"document\":\"%s\",\"bytes\":%llu,\"repeats\":%d,\"parse_ms\":%.3f,\"document_ms\":%.3f,\"markup_ms\":%.3f,\"view_ms\":%.3f,"
+		"\"parse_kb\":%llu,\"document_kb\":%llu,\"view_kb\":%llu,\"markup_bytes\":%llu,"
+		"\"nodes\":%llu,\"properties\":%llu,\"paths\":%llu,\"controls\":%llu,\"bindings\":%llu,\"timelines\":%llu,\"tracks\":%llu,\"events\":%llu}\n",
+		path.c_str(),static_cast<unsigned long long>(source.size()),repeats,parseMs,documentMs,markupMs,viewMs,
+		static_cast<unsigned long long>(parseBytes/1024),static_cast<unsigned long long>(documentBytes/1024),static_cast<unsigned long long>(viewBytes/1024),
+		static_cast<unsigned long long>(markupBytes),static_cast<unsigned long long>(nodes),static_cast<unsigned long long>(properties),
+		static_cast<unsigned long long>(paths),static_cast<unsigned long long>(controls),static_cast<unsigned long long>(bindings),
+		static_cast<unsigned long long>(timelines),static_cast<unsigned long long>(tracks),static_cast<unsigned long long>(events));
+}
 }
 int main(int argc, char** argv) {
 	try {
+		if (argc >= 3 && std::string(argv[1]) == "--load") {
+			if (argc > 4) throw std::runtime_error("usage: openq4-retained-ui-benchmark --load <document.q4ui> [repeats=3]");
+			const int repeats = argc > 3 ? std::stoi(argv[3]) : 3;
+			if (repeats < 1 || repeats > 100) throw std::runtime_error("Invalid repeat count");
+			Load(argv[2],repeats);
+			return 0;
+		}
 		if (argc >= 3 && std::string(argv[1]) == "--screen") {
 			if (argc > 7) throw std::runtime_error("usage: openq4-retained-ui-benchmark --screen <document.q4ui> [frames=120] [width=1280] [height=720] [event]");
 			const int frames = argc > 3 ? std::stoi(argv[3]) : 120, width = argc > 4 ? std::stoi(argv[4]) : 1280, height = argc > 5 ? std::stoi(argv[5]) : 720;
@@ -109,7 +205,7 @@ int main(int argc, char** argv) {
 			Screen(argv[2],frames,width,height,argc > 6 ? argv[6] : "");
 			return 0;
 		}
-		if (argc < 2 || argc > 4) throw std::runtime_error("usage: openq4-retained-ui-benchmark <vector-smoke.q4ui> [density=1.25] [frames=60] | --screen <document.q4ui> [frames] [width] [height] [event]");
+		if (argc < 2 || argc > 4) throw std::runtime_error("usage: openq4-retained-ui-benchmark <vector-smoke.q4ui> [density=1.25] [frames=60] | --screen <document.q4ui> [frames] [width] [height] [event] | --load <document.q4ui> [repeats]");
 		Viewport viewport;
 		viewport.displayScale = argc > 2 ? std::stof(argv[2]) : 1.25f;
 		const int frames = argc > 3 ? std::stoi(argv[3]) : 60;

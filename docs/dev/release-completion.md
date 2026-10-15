@@ -2,6 +2,26 @@
 
 ## Post-0.14.000 corrections
 
+- [x] Load the modern interface's documents faster and lighter, and load a
+  level's gameplay documents with the level. Each loaded document no longer
+  keeps its parsed JSON tree (10 to 20 times the source: about 135 MB for
+  the title's pages alone, 100 to 200 MB more per level); the validator
+  builds diagnostic pointers only on failure, reserves its vectors and reads
+  names in place; and a JsonCpp patch decodes numbers with `from_chars`.
+  Document loads are 1.2 to 1.5 times faster. The Remastered HUD, objectives
+  and vehicle HUDs, the weapon wheel and the quick chat now load inside the
+  level load, from parses the job system's workers make as the map change
+  begins, instead of on the first gameplay frame or their first opening.
+  The frame after a single-player load fell from about 640 to under 100 ms,
+  the weapon wheel's first opening from about 160 to 50 ms, and the quick
+  chat's from about 160 to 40 ms. The native document, HUD and screen
+  suites, the UI gate and engine probes on OpenGL pass. Record:
+  `docs/dev/ui/runtime-performance.md`, "Document loads and level prefetch".
+
+Candidate UI release wording: The modern interface loads its screens faster
+and uses far less memory, and the HUD, weapon wheel and quick chat no longer
+stall the first frame after a level load or their first opening.
+
 - [x] Show the Arena best results on the modern Arena page: an unlocked
   match's record across the foot of its levelshot (BEST RESULT over the
   record; generation checks both, and the widest record, in every

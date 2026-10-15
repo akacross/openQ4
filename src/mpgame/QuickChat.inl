@@ -23,6 +23,15 @@ void idPlayer::InitQuickChat( void ) {
 	quickChatGuiChannel = -1;
 }
 
+// The local player's quick chat loads as the player spawns: inside the level
+// load on a listen server, where the engine parsed it on a worker meanwhile.
+void idPlayer::PrecacheQuickChatGui( void ) {
+	if ( quickChatGui || quickChatGuiFailed || gameLocal.localClientNum < 0 || entityNumber != gameLocal.localClientNum ) return;
+	if ( !cvarSystem->GetCVarBool( "ui_retained" ) ) return;
+	quickChatGui = uiManager->FindGui( "guis/hud/quick_chat.q4ui", true, true );
+	if ( !quickChatGui ) quickChatGuiFailed = true;
+}
+
 void idPlayer::FreeQuickChatGui( void ) {
 	if ( quickChatGui ) uiManager->DeAlloc( quickChatGui );
 	quickChatGui = NULL;

@@ -8263,6 +8263,69 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 #endif
 }
 
+#ifndef ID_DEDICATED
+// Whether the map change under way loads a multiplayer level, as
+// LoadLoadingGui decides it from the same spawn data.
+static bool Session_MultiplayerMapLoad( const idDict &serverInfo ) {
+	const char *gameType = serverInfo.GetString( "si_gameType", cvarSystem->GetCVarString( "si_gameType" ) );
+	const char *mapPath = serverInfo.GetString( "si_map", "" );
+	return !idStr::Icmpn( mapPath, "mp/", 3 ) || ( gameType[ 0 ] != '\0' && idStr::Icmp( gameType, "singleplayer" ) != 0 );
+}
+#endif
+
+void idSessionLocal::PrefetchRetainedLevel() {
+#ifndef ID_DEDICATED
+	if ( IsDedicatedServer() || !cvarSystem->GetCVarBool( "ui_retained" ) ) {
+		return;
+	}
+	const bool multiplayer = Session_MultiplayerMapLoad( mapSpawnData.serverInfo );
+	idList<const char *> documents;
+	if ( multiplayer ) {
+		if ( Session_RetainedMultiplayerEnabled( false ) && guiRetainedEscape == NULL ) {
+			documents.Append( RETAINED_MP_ESCAPE_GUI );
+		}
+		if ( Session_RetainedMultiplayerEnabled( true ) && guiRetainedWelcome == NULL ) {
+			documents.Append( RETAINED_MP_WELCOME_GUI );
+		}
+		if ( Session_RetainedSummaryEnabled() && guiRetainedSummary == NULL ) {
+			documents.Append( RETAINED_MP_SUMMARY_GUI );
+		}
+		if ( Session_RetainedArenaPauseEnabled() && guiRetainedArenaPause == NULL &&
+				cvarSystem->GetCVarBool( "ui_arenaCampaignActive" ) ) {
+			documents.Append( RETAINED_ARENA_PAUSE_GUI );
+		}
+	} else if ( Session_RetainedScreensEnabled() ) {
+		if ( guiRetainedPause == NULL ) {
+			documents.Append( RETAINED_PAUSE_GUI );
+		}
+		if ( guiRetainedPauseStrogg == NULL ) {
+			documents.Append( RETAINED_PAUSE_STROGG_GUI );
+		}
+		if ( guiRetainedLoad == NULL ) {
+			documents.Append( RETAINED_LOADGAME_GUI );
+		}
+		if ( guiRetainedSave == NULL ) {
+			documents.Append( RETAINED_SAVEGAME_GUI );
+		}
+		if ( guiRetainedRestart == NULL ) {
+			documents.Append( RETAINED_RESTART_GUI );
+		}
+		if ( guiRetainedRestartMenu == NULL ) {
+			documents.Append( RETAINED_RESTARTMENU_GUI );
+		}
+	}
+	UI_RetainedPrefetchDocuments( documents.Ptr(), documents.Num() );
+	// The HUD, weapon wheel and quick chat documents the game loads as it spawns.
+	UI_RetainedPrefetchGameplayDocuments( multiplayer );
+#endif
+}
+
+void idSessionLocal::SettleRetainedLevelPrefetch() {
+#ifndef ID_DEDICATED
+	UI_RetainedSettleGameplayDocuments( Session_MultiplayerMapLoad( mapSpawnData.serverInfo ) );
+#endif
+}
+
 /*
 ===============
 idSessionLocal::PrecacheRetainedLevelshots

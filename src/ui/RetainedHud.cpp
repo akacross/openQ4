@@ -1,5 +1,7 @@
 // Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
 #include "RetainedHud.h"
+#include "UserInterfaceRetained.h"
+#include "retained/Document.h"
 #include <chrono>
 #include "DeviceContext.h"
 #include "Window.h"
@@ -262,6 +264,9 @@ struct idRemasteredHud::Impl {
 	std::unordered_map<std::string,ForwardValue,StateKeyHash,StateKeyEqual> types;
 	openq4::ui::HudAmmoReadout ammoReadout;
 	bool failed=false,reported=false;
+	// The stock dictionary joins the document on its first draw; until then
+	// forwarded writes are covered by that join, and events wait for it.
+	bool joined=false;
 	int failures=0;
 	// Named events sent before the document loads (a vehicle's boarding
 	// events precede its HUD's first frame), replayed in order after the join.
@@ -301,34 +306,54 @@ struct idRemasteredHud::Impl {
 		forwardMs=eventMs=stateMs=drawMs=unseenMs=prepareMs=readbackMs=0; forwards=events=frames=0; eventCost.clear();
 	}
 	~Impl() { if (gui) uiManager->DeAlloc(gui); }
-	bool ReadTypes(const std::string& source) {
-		Json::Value data; std::string error;
-		Json::CharReaderBuilder builder; builder["allowComments"]=true;
-		std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-		if (!reader->parse(source.data(),source.data()+source.size(),&data,&error) || !data.isObject()) return false;
-		const Json::Value& joins=data["extensions"]["openq4"]["joinEvents"];
-		if (joins.isArray()) for (const auto& pair:joins) {
-			if (pair.isArray() && pair.size()==2 && pair[0].isString() && pair[1].isString())
-				joinEvents.emplace_back(pair[0].asString(),pair[1].asString());
+	bool ReadTypes(const openq4::ui::DocumentModel& model) {
+		// The generator's join events and readbacks ride in the document's
+		// extension object, which the loaded model keeps as compact JSON.
+		if (!model.extensions.empty()) {
+			Json::Value data; std::string error;
+			Json::CharReaderBuilder builder;
+			std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+			if (!reader->parse(model.extensions.data(),model.extensions.data()+model.extensions.size(),&data,&error) || !data.isObject()) return false;
+			const Json::Value& joins=data["openq4"]["joinEvents"];
+			if (joins.isArray()) for (const auto& pair:joins) {
+				if (pair.isArray() && pair.size()==2 && pair[0].isString() && pair[1].isString())
+					joinEvents.emplace_back(pair[0].asString(),pair[1].asString());
+			}
+			const Json::Value& measured=data["openq4"]["readbacks"];
+			if (measured.isArray()) for (const auto& entry:measured) {
+				if (!entry.isArray() || (entry.size()!=3 && entry.size()!=5)) continue;
+				bool strings=true;
+				for (const auto& part:entry) strings=strings && part.isString();
+				if (!strings) continue;
+				Readback readback{entry[0].asString(),entry[1].asString(),entry[2].asString()};
+				if (entry.size()==5) { readback.prefix=entry[3].asString(); readback.count=atoi(entry[4].asString().c_str()); }
+				readbacks.push_back(std::move(readback));
+			}
 		}
-		const Json::Value& measured=data["extensions"]["openq4"]["readbacks"];
-		if (measured.isArray()) for (const auto& entry:measured) {
-			if (!entry.isArray() || (entry.size()!=3 && entry.size()!=5)) continue;
-			bool strings=true;
-			for (const auto& part:entry) strings=strings && part.isString();
-			if (!strings) continue;
-			Readback readback{entry[0].asString(),entry[1].asString(),entry[2].asString()};
-			if (entry.size()==5) { readback.prefix=entry[3].asString(); readback.count=atoi(entry[4].asString().c_str()); }
-			readbacks.push_back(std::move(readback));
-		}
-		const Json::Value& state=data["state"];
-		if (!state.isObject()) return true;
-		for (const auto& name:state.getMemberNames()) {
-			const Json::Value& entry=state[name];
-			if (!entry.isObject() || entry.isMember("cvar")) continue;
-			const std::string type=entry["type"].asString();
-			auto& field=types[name]; field.type=type=="number" ? 'n' : type=="boolean" ? 'b' : 's';
+		for (const auto& [name,declaration]:model.state) {
+			if (!declaration.cvar.empty()) continue;
+			auto& field=types[name]; field.type=declaration.initial.index()==0 ? 'n' : declaration.initial.index()==1 ? 'b' : 's';
 			const auto key=Key(name); field.icon=key.size()>=4 && key.ends_with("icon"); field.weapon=key=="weapicon";
+		}
+		return true;
+	}
+	// The document, loaded once. A mod's own stock-named HUD keeps its layout
+	// and scripts; the loaded model supplies the declared state types and the
+	// generator's join events and readbacks, so the source parses once.
+	bool Load(const char* source) {
+		for (const char* cvar:{"fs_game","fs_game_base"}) {
+			const char* mod=cvarSystem->GetCVarString(cvar);
+			if (!mod[0] || !idStr::Icmp(mod,"baseoq4") || !idStr::Icmp(mod,"q4base") || !idStr::Icmp(mod,"q4xbase")) continue;
+			idFile* file=fileSystem->OpenFileRead(source,false,mod);
+			if (file) { fileSystem->CloseFile(file); failed=true; return false; }
+		}
+		if (fileSystem->ReadFile(document.c_str(),nullptr)<0) { Fail("the document is not installed"); return false; }
+		gui=uiManager->FindGui(document.c_str(),true,true);
+		if (!gui) { Fail("the document did not load"); return false; }
+		const auto* model=UI_RetainedDocumentModel(gui);
+		if (!model || !ReadTypes(*model)) {
+			uiManager->DeAlloc(gui); gui=nullptr;
+			Fail("the document's state declarations do not parse"); return false;
 		}
 		return true;
 	}
@@ -412,20 +437,24 @@ const char* idRemasteredHud::DocumentFor(const char* source) {
 bool idRemasteredHud::Enabled() {
 	return cvarSystem->GetCVarBool("ui_retained") && ui_hudLayout.GetInteger()!=0;
 }
+void idRemasteredHud::Preload(const char* source) {
+	if (impl->gui || impl->failed || (session && session->IsLoadingSaveGame())) return;
+	impl->Load(source);
+}
 void idRemasteredHud::ForwardState(const char* name,const char* value) {
-	if (!impl->gui) return;
+	if (!impl->gui || !impl->joined) return;
 	if (!ui_hudProfile.GetInteger()) { impl->Forward(name,value); return; }
 	const double started=ProfileNow();
 	impl->Forward(name,value);
 	impl->forwardMs+=ProfileNow()-started; ++impl->forwards;
 }
 void idRemasteredHud::ForwardDelete(const char* name) {
-	if (!impl->gui) return;
+	if (!impl->gui || !impl->joined) return;
 	if (idStr::Icmp(name,"weapicon")==0) impl->gui->DeleteStateVar("oq4.weaponImage");
 	if (impl->types.count(name)) impl->gui->DeleteStateVar(name);
 }
 void idRemasteredHud::ForwardEvent(const char* name) {
-	if (!impl->gui) {
+	if (!impl->gui || !impl->joined) {
 		if (!impl->failed && impl->pending.size()<32) impl->pending.emplace_back(name);
 		return;
 	}
@@ -445,20 +474,12 @@ bool idRemasteredHud::Draw(const idUserInterfaceLocal& legacy,int time) {
 	if (!impl->gui) {
 		// A restore must never create GUIs outside its serialized stream.
 		if (session && session->IsLoadingSaveGame()) return false;
-		// A mod's own stock-named HUD owns its layout and scripts.
-		for (const char* cvar:{"fs_game","fs_game_base"}) {
-			const char* mod=cvarSystem->GetCVarString(cvar);
-			if (!mod[0] || !idStr::Icmp(mod,"baseoq4") || !idStr::Icmp(mod,"q4base") || !idStr::Icmp(mod,"q4xbase")) continue;
-			idFile* file=fileSystem->OpenFileRead(legacy.GetSourceFile(),false,mod);
-			if (file) { fileSystem->CloseFile(file); impl->failed=true; return false; }
-		}
-		std::string source;
-		if (!Read(impl->document.c_str(),source)) { impl->Fail("the document is not installed"); return false; }
-		if (!impl->ReadTypes(source)) { impl->Fail("the document's state declarations do not parse"); return false; }
-		impl->gui=uiManager->FindGui(impl->document.c_str(),true,true);
-		if (!impl->gui) { impl->Fail("the document did not load"); return false; }
+		if (!impl->Load(legacy.GetSourceFile())) return false;
+	}
+	if (!impl->joined) {
 		// Join the stock GUI's dictionary as the game left it; later writes and
 		// named events reach both, so nothing older than this frame is lost.
+		impl->joined=true;
 		const idDict& state=legacy.State();
 		for (int i=0;i<state.GetNumKeyVals();++i) {
 			const idKeyValue* entry=state.GetKeyVal(i);
@@ -597,6 +618,7 @@ idRemasteredHud::~idRemasteredHud() = default;
 const char* idRemasteredHud::DocumentFor(const char*) { return nullptr; }
 bool idRemasteredHud::Enabled() { return false; }
 bool idRemasteredHud::Draw(const idUserInterfaceLocal&,int) { return false; }
+void idRemasteredHud::Preload(const char*) {}
 void idRemasteredHud::ForwardState(const char*,const char*) {}
 void idRemasteredHud::ForwardDelete(const char*) {}
 void idRemasteredHud::ForwardEvent(const char*) {}

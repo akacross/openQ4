@@ -17,6 +17,9 @@
 	bool                    weaponWheelDebugHeld;
 	void                    InitWeaponWheel();
 	void                    FreeWeaponWheelGui();
+	// Loads the local player's wheel as the player spawns, inside the level load.
+	void                    PrecacheWeaponWheelGui();
+	idStr                   RetainedWeaponWheelPath() const;
 	bool                    CanUseWeaponWheel( void );
 	int                     GetWeaponWheelSlotCount() const;
 	bool                    DrawRetainedWeaponWheel();

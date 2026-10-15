@@ -39,6 +39,10 @@ public:
 	// The layout setting and the retained gate both select Remastered.
 	static bool Enabled();
 	bool Draw(const idUserInterfaceLocal& legacy, int time);
+	// Load the document now, as the stock HUD loads inside a level load, so
+	// the first gameplay frame draws it without loading it then. A save
+	// restore leaves the load to the first draw, outside its serialized stream.
+	void Preload(const char* source);
 	void ForwardState(const char* name, const char* value);
 	void ForwardDelete(const char* name);
 	void ForwardEvent(const char* name);
