@@ -69,6 +69,9 @@ def main():
     ap.add_argument("--preview", action="store_true")
     ap.add_argument("--export", action="store_true")
     args = ap.parse_args()
+    # Blender runs from its own directory, so every path it sees must be absolute
+    args.work = os.path.abspath(args.work)
+    args.awakening = os.path.abspath(args.awakening)
 
     drop = os.path.join(args.awakening, MODEL_DIR)
     mesh = os.path.join(drop, "common_turret_strogg.md5mesh")

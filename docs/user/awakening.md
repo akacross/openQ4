@@ -147,8 +147,11 @@ fixes them:
 - **The Strogg chaingun turret you man (Stranarus Trench, the prison)** was
   never textured: the alpha gave it grey placeholder shading, so it showed as
   bare clay, with a dotted stand-in in its drum's windows. openQ4 paints it as
-  a battle-worn Strogg emplacement: oxblood armour plate, oily gunmetal, a drum
-  with brass rounds behind its windows, glowing vents and a red sensor lens.
+  a battle-worn Strogg emplacement: oxblood and field-grey armour plate,
+  brushed-steel covers, oily gunmetal, chrome bands and brass bolts, edges
+  rubbed through to bare metal, braided hoses with brass fittings and colour
+  bands, a drum with brass rounds behind its windows, glowing vents and a red
+  sensor lens.
   Firing it now has the weight of the game's other mounted guns: a heavier
   muzzle flash that lights the gun, tracers, heavier impacts, ejected casings
   and smoke from the muzzle after a long burst. Its damage, rate of fire and

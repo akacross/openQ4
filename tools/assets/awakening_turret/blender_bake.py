@@ -130,7 +130,11 @@ def bake(ob, kind, image):
     bpy.context.view_layer.objects.active = ob
     scene.render.bake.margin = 0 if kind == "cover" else 6
     scene.render.bake.use_clear = True
-    scene.cycles.samples = args.samples if kind == "ao" else 4
+    # data bakes take one sample at each texel centre: summing several samples
+    # on the GPU differs in the last float bits from run to run, which the
+    # painter's noise lattice would turn into a few changed texels
+    scene.cycles.samples = args.samples if kind == "ao" else 1
+    scene.cycles.filter_width = 1.5 if kind == "ao" else 0.01
     bpy.ops.object.bake(type=scene.cycles.bake_type)
 
 
@@ -144,10 +148,9 @@ for ob in objs:
     for kind in ("cover", "ao", "onormal", "pos"):
         is_float = kind == "pos"
         img = bpy.data.images.new("%s_%s" % (name, kind), size, size, float_buffer=is_float, alpha=False)
-        if not is_float and kind != "onormal":
-            img.colorspace_settings.name = "Non-Color"
-        if kind == "onormal":
-            img.colorspace_settings.name = "Non-Color"
+        # every bake is data: a float image left in linear colour space is
+        # written through the sRGB curve, which mangled the positions
+        img.colorspace_settings.name = "Non-Color"
         bake(ob, kind, img)
         path = os.path.join(args.out, "%s_%s.%s" % (name, kind, "exr" if is_float else "png"))
         img.filepath_raw = path

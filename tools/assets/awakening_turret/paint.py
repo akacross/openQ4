@@ -29,6 +29,7 @@ from PIL import Image  # noqa: E402
 from scipy import ndimage  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import details  # noqa: E402
 import md5mesh  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -320,12 +321,31 @@ def paint(mid, bounds):
     painted = np.zeros((r, r), bool)
     for role in PAINTED:
         painted |= s.mask(role)
+    oxblood = painted.copy()
+
+    # --- panel tones: light brushed steel plates, field-grey and bone paint,
+    # oxblood plates on the gun, polished parts (boundaries follow real seams)
+    machined = np.zeros((r, r), bool)
+    for tone, (m, is_painted, sp) in details.tone_regions(s, mid).items():
+        base[m] = details.TONES[tone]
+        spec[m] = sp
+        if is_painted:
+            painted |= m
+        else:
+            painted &= ~m
+        if tone == "oxblood":
+            oxblood |= m
+        else:
+            oxblood &= ~m
+        if tone in ("steel_light", "chrome"):
+            machined |= m
+    base = np.where(machined[..., None], base * details.brushed(s, n_fine)[..., None], base)
 
     # --- macro / mid variation of the enamel or metal
     var = 1 + (n_macro - 0.5) * 0.35 + (n_mid - 0.5) * 0.18 + (n_fine - 0.5) * 0.06
     base *= var[..., None]
     # enamel fade: armour panels sun/heat-faded towards a browner tone in patches
-    fade = smooth(n_macro + (n_mid - 0.5) * 0.4, 0.55, 0.8) * painted
+    fade = smooth(n_macro + (n_mid - 0.5) * 0.4, 0.55, 0.8) * oxblood
     base = base * (1 - fade[..., None] * 0.35) + PAL["oxblood_dark"] * 0.2 * fade[..., None] + srgb((92, 64, 50)) * fade[..., None] * 0.15
 
     # --- stencils on the shield and base armour (painted parts only)
@@ -385,9 +405,28 @@ def paint(mid, bounds):
     base = base * (1 - chip[..., None] * chip_k) + bare * chip[..., None] * chip_k
     spec = spec * (1 - chip) + chip * 0.85
 
+    # --- worn edgings: some edges and plate rims rubbed through to bright metal,
+    # in patches, so the wear reads at a distance without outlining everything
+    n_wear = F(fbm3(p, 4.0, 3, seed=21))
+    patch = smooth(n_wear + (n_mid - 0.5) * 0.3, 0.55, 0.66)
+    k = r / 1024.0
+    border = np.zeros((r, r), np.float32)
+    if mid == "01":
+        rim = ndimage.distance_transform_edt(s.cover)
+        border = (1 - smooth(rim, 1.0 * k, 3.5 * k)) * s.mask("shield")
+    plates = (painted | machined).astype(np.float32)
+    ridges = smooth(convex, 0.45, 0.85) * plates
+    heavy = np.clip(ridges + border, 0, 1) * patch
+    worn = smooth(heavy + (n_chip2 - 0.5) * 0.6 + (n_fine - 0.5) * 0.3, 0.5, 0.68) * s.cover
+    scuff = smooth(heavy + (n_chip2 - 0.5) * 0.5, 0.35, 0.48) * (1 - worn) * painted
+    base = base * (1 - scuff[..., None] * 0.35) + PAL["grime"] * scuff[..., None] * 0.35
+    shine = PAL["steel_bare"] * (1.05 + 0.25 * n_fine[..., None])
+    base = base * (1 - worn[..., None]) + shine * worn[..., None]
+    spec = spec * (1 - worn) + worn * 0.9
+
     # --- battle damage: bullet dings on the armour
     if mid in ("01", "03"):
-        dn, dspec = dings(s, painted, 26 if mid == "01" else 14, seed=int(mid) * 13)
+        dn, dspec = dings(s, painted, 16 if mid == "01" else 10, seed=int(mid) * 13)
         base = base * (1 - dn[..., 3:4]) + dn[..., :3]
         spec = np.maximum(spec, dspec)
 
@@ -396,6 +435,9 @@ def paint(mid, bounds):
     sc *= (1 - cav) * s.cover * smooth(n_mid, 0.3, 0.7) * (1 - 0.55 * smooth(up, 0.5, 0.9))
     base = base * (1 - sc[..., None] * 0.55) + bare * sc[..., None] * 0.55
     spec = spec + sc * 0.35
+
+    # --- cables, hoses, polished fittings and bolt heads
+    base, spec = paint_accents(s, mid, base, spec, cav, convex, n_fine, n_chip2, n_macro)
 
     glow = np.zeros((r, r, 3), np.float32)
 
@@ -453,11 +495,46 @@ def paint(mid, bounds):
     spec = np.clip(spec, 0, 1)
     # specular colour: metals tint it, enamel stays neutral-warm
     spec_rgb = np.stack([spec, spec * 0.97, spec * 0.92], -1)
-    if mid in ("04", "02"):
-        brassy = np.clip((base[..., 0] - base[..., 2]) * 3, 0, 1)
-        spec_rgb = spec_rgb * (1 - brassy[..., None] * 0.5) + (spec[..., None] * PAL["brass"] * 1.6) * brassy[..., None] * 0.5
+    # brass tints its own highlights; enamel and rust are excluded by their low specular
+    brassy = np.clip((base[..., 0] - base[..., 2]) * 3, 0, 1) * smooth(spec, 0.5, 0.7)
+    spec_rgb = spec_rgb * (1 - brassy[..., None] * 0.5) + (spec[..., None] * PAL["brass"] * 1.6) * brassy[..., None] * 0.5
     spec_rgb = np.clip(spec_rgb, 0, 1)
     return s, base, spec_rgb, np.clip(glow, 0, 1)
+
+
+def paint_accents(s, mid, base, spec, cav, convex, n_fine, n_chip2, n_macro):
+    """Lay the detail layers over the weathered surface."""
+    occl = np.clip(1 - s.ao, 0, 1)
+    shade = (1 - occl[..., None] * 0.55) * (1 - cav[..., None] * 0.45)
+    weave = None
+    for m, tone, sp, kind in details.accent_layers(s, mid):
+        m = np.clip(m, 0, 1)[..., None]
+        if kind == "bolt":
+            # heads alternate brass and steel by region, rims catch grime
+            col = np.where((n_macro > 0.5)[..., None], details.TONES["brass"], details.TONES["chrome"] * 0.82)
+            col = col * (0.85 + 0.3 * n_fine[..., None])
+        elif kind == "hose":
+            if weave is None:
+                weave = details.braid(s)
+            col = details.TONES[tone] * (0.8 + 0.45 * weave[..., None]) * (1 + convex[..., None] * 1.2)
+            scuffs = smooth(n_chip2, 0.62, 0.8)[..., None]
+            col = col * (1 - scuffs * 0.5) + details.TONES["rubber_band"] * 1.4 * scuffs * 0.5
+        elif kind == "sleeve":
+            # armoured sleeve: rubber between steel ribs
+            ribs = smooth(convex, 0.15, 0.5)[..., None]
+            col = details.TONES[tone] * (0.9 + 0.2 * n_fine[..., None])
+            col = col * (1 - ribs) + PAL["gunmetal"] * 1.15 * ribs
+        elif kind == "wire":
+            col = details.TONES[tone] * (0.8 + 0.35 * n_fine[..., None]) * (1 + convex[..., None] * 0.8)
+        else:
+            col = details.TONES[tone] * (0.85 + 0.25 * n_fine[..., None]) * (1 + convex[..., None] * 0.5)
+        col = col * shade
+        base = base * (1 - m) + col * m
+        if kind == "sleeve":
+            spec = spec * (1 - m[..., 0]) + (sp + smooth(convex, 0.15, 0.5) * 0.45) * m[..., 0]
+        else:
+            spec = spec * (1 - m[..., 0]) + sp * (1 - occl * 0.4) * m[..., 0]
+    return base, spec
 
 
 def dings(s, mask, count, seed):
@@ -485,9 +562,9 @@ def dings(s, mask, count, seed):
     g = cv2.resize(ring, (r, r), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
     g = np.clip(g - c, 0, 1)
     out = np.zeros((r, r, 4), np.float32)
-    col = PAL["grime"] * g[..., None] * 0.7 + PAL["steel_bare"] * 1.1 * c[..., None]
+    col = PAL["grime"] * g[..., None] * 0.45 + PAL["steel_bare"] * 1.1 * c[..., None]
     out[..., :3] = col
-    out[..., 3] = np.clip(g * 0.7 + c, 0, 1)
+    out[..., 3] = np.clip(g * 0.45 + c, 0, 1)
     return out, c * 0.95
 
 

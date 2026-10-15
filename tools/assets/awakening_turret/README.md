@@ -38,8 +38,21 @@ python tools/assets/awakening_turret/build_skin.py --awakening "<path>/q4xbase" 
    sensor glow, and brass rounds placed on the drum's normal-map rings. The
    drum windows' outline is traced from the expansion's alpha channel so the
    cut-outs line up with the model.
+   `details.py` adds the finishes on top: panel tones split along the normal
+   map's creases by a watershed from seed points (light brushed steel cover
+   plates, field-grey lower shield, bone blocks on the pedestal, oxblood plates
+   on the gun), worn-through edgings in patches, braided hoses with brass
+   ferrules and colour ID bands, a rubber sleeve, coloured wires, chrome column
+   bands and bearing rings, and brass or steel bolt heads. Hoses, wires and
+   rings are found in the height field integrated from the normal map; their
+   UV boxes, seeds and the bolt positions were measured on the model.
 3. `--preview` renders a Cycles turnaround to `.tmp/awakening_turret/preview`.
 4. `--export` copies the masters into `content/baseoq4/pak0`.
 
-The bakes use a fixed Cycles seed, so a rebuild reproduces the shipped maps
-exactly. Work files go to `.tmp/awakening_turret`.
+A rebuild reproduces the shipped maps byte for byte: the bakes use a fixed
+Cycles seed, and the data bakes (coverage, normals, positions) take one sample
+per texel, because the GPU sums several samples in a varying order and the
+last-bit differences moved a few texels of the painter's noise. All bakes are
+written as Non-Color data; a float image left in linear colour space is saved
+through the sRGB curve, which corrupted the positions in the first version.
+Work files go to `.tmp/awakening_turret`.
