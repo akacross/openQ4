@@ -2552,6 +2552,11 @@ void idPlayer::Spawn( void ) {
 //RITUAL END
 
 	itemCosts = static_cast< const idDeclEntityDef * >( declManager->FindType( DECL_ENTITYDEF, "ItemCostConstants", false ) );
+
+	// The local player's retained gameplay documents load now, inside the
+	// level load, so their first use builds nothing.
+	PrecacheWeaponWheelGui();
+	PrecacheQuickChatGui();
 }
 
 /*

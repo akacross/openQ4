@@ -266,6 +266,10 @@ struct DocumentModel {
 	// Optional minimum width: narrow views fit the center screen to the width
 	// and expose more vertical space instead of clipping the authored canvas.
 	double canvasMinWidth = 0;
+	// The root `extensions` object as compact JSON, so a tool reads its own
+	// vendor data from the loaded model instead of parsing the source again;
+	// empty when the document has none.
+	std::string extensions;
 	const Node* FindNode(const std::string& id) const;
 	// Index the tree's node IDs so FindNode answers without a search. Only a
 	// tree that no longer changes may be indexed (Document indexes the model

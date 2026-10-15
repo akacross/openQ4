@@ -1613,6 +1613,135 @@ Evidence is under `.tmp/mapchange/`: `stock-defaults-{sp,mp}-report.txt`,
 and `runs/stock-defaults-*` (logs and engine captures).
 The fixed independent runtimes are `.tmp/runtime/mc-stock-{before,after}/`.
 
+## Document loads and level prefetch
+
+15 October 2026. The retained documents are large JSON files: the shipped
+set is about 100 MB of source, and a level load parses 15 to 25 MB of it
+(the Remastered HUD, the weapon wheel, the pause pages and, in multiplayer,
+the cards and the quick chat). A new `--load` mode of
+`openq4-retained-ui-benchmark` splits one document's load into the JSON
+parse alone, `Document::Load` (parse, validation and index), the derived
+markup and the runtime's view, with the private memory each phase retains:
+
+```powershell
+& builddir-perf/openq4-retained-ui-benchmark.exe --load content/baseoq4/pak0/guis/hud/remastered_marine.q4ui 3
+```
+
+It found three costs with one cause: the loader kept and walked more than it
+needed.
+
+- **The parsed tree was retained.** Every loaded `Document` kept its
+  JsonCpp tree beside the source and the model, for the editor's pointer
+  edits, and a GUI and its view shared one. A tree is 10 to 20 times its
+  source: 13.8 MB for the title, 47.5 MB for Join Game, 70.5 MB for the
+  Escape card, 72.4 MB for the Marine HUD. A session at the title held
+  about 135 MB of trees for its eight pages, and a level 100 to 200 MB
+  more. The tree is now a load-time intermediate; an edit parses the
+  retained source again to find the span it replaces. `document_kb` in the
+  benchmark reports source plus model: 4.8 MB for the title, 33 MB for the
+  Escape card.
+- **Validation cost more than parsing.** Stack samples of the loader (cdb,
+  `.tmp/uiperf/sample.ps1`) put a third of `Document::Load` in the parse and
+  most of the rest in the validator, in allocations: a pointer string built
+  for every checked field, member-name vectors for every object, vectors of
+  nodes, paths, commands and keys grown one push at a time (MSVC's `std::map`
+  move is not `noexcept`, so each growth copied every node below), and the
+  properties of every node resolved through a second map. The hot readers
+  now name a value by its parent's pointer and a leaf and build the pointer
+  only on failure, read member names in place, reserve every vector from
+  its array's size, resolve shorthands without copying, and read a path
+  command's operation and points without string copies. Diagnostics are
+  unchanged: the native document suites compare pointers and messages.
+- **JsonCpp decoded every fraction through a string stream.** Its
+  `decodeDouble` copies each token into a `std::string` and reads it back
+  through an `istringstream`, with the locale machinery that implies, for
+  every number that is not a plain integer; vector artwork is mostly such
+  numbers. `subprojects/packagefiles/jsoncpp/fast-double.patch` decodes a
+  token with `std::from_chars` where the standard library offers it (MSVC
+  and libstdc++ 11; libc++ gained it in LLVM 20), and leaves any token it
+  does not accept whole, or that is out of range, to the original path, so
+  overflow, underflow and subnormal handling are as before. The wrap lists
+  it after `subnormal-numbers.patch`; an existing checkout refreshes the
+  generated subproject with `meson_setup.ps1 subprojects update --reset jsoncpp`.
+
+Interleaved A/B of the committed loader (with the tree already dropped) and
+this one, the same machine and build type as above, minimum of two runs of
+five loads each:
+
+| Document | Parse before | Parse after | Load before | Load after |
+| --- | ---: | ---: | ---: | ---: |
+| `title.q4ui` | 31.7 ms | 22.9 ms | 73.9 ms | 59.1 ms |
+| `createserver.q4ui` | 62.6 ms | 42.1 ms | 155.5 ms | 107.9 ms |
+| `joingame.q4ui` | 87.5 ms | 67.2 ms | 216.9 ms | 169.6 ms |
+| `mp_escape.q4ui` | 122.6 ms | 107.7 ms | 449.8 ms | 295.2 ms |
+| `remastered_marine.q4ui` | 155.6 ms | 94.1 ms | 332.7 ms | 223.5 ms |
+| `remastered_mp.q4ui` | 96.7 ms | 71.9 ms | 235.6 ms | 192.7 ms |
+| `weapon_wheel_marine.q4ui` | 47.8 ms | 32.2 ms | 107.5 ms | 79.3 ms |
+| `artwork.q4ui` | 75.4 ms | 55.0 ms | 159.4 ms | 132.0 ms |
+
+Every load gains, on the workers that parse the title's pages at startup as
+on the main thread; the view's cost (markup, elements, bindings) is
+unchanged and remains the larger share for the control-heavy pages.
+
+### Gameplay documents
+
+The Remastered HUD's document loaded on the first gameplay frame after a
+level load, twice over: `idRemasteredHud` parsed the source once to read its
+state declarations and extension data, then `FindGui` parsed it again to
+load it. The weapon wheel loaded on its first opening, the quick chat on
+its first, each a document of 4 to 6 MB. On a debugoptimized build the
+Marine HUD cost about 0.8 s on the frame after the loading screen, the
+wheel's first opening about 150 ms, and in multiplayer the Marine and
+multiplayer HUDs together about 1.5 s on the first frame.
+
+- The stock HUD's `InitFromFile` now creates its Remastered peer and loads
+  the document with it, inside the level load; the peer reads its state
+  types from the loaded model (`UI_RetainedDocumentModel`) and the
+  generator's join events and readbacks from `DocumentModel::extensions`,
+  the root extension object kept as compact JSON, so the source parses
+  once. A save restore keeps the load for the first draw, outside its
+  serialized stream, and the join of the stock dictionary still happens on
+  that first draw.
+- The game loads the local player's weapon wheel, and in multiplayer the
+  quick chat, as the player spawns (`PrecacheWeaponWheelGui`,
+  `PrecacheQuickChatGui`): inside the load in single player and on a listen
+  server; a client joining a server spawns after its load and loads them
+  then, from parses already made.
+- As a map change begins, `idSessionLocal::PrefetchRetainedLevel` queues the
+  level's documents on the job system's workers through the same prefetch
+  the startup uses: the pause pages `PrepareRetainedLevel` loads, and the
+  gameplay documents the game will ask for
+  (`UI_RetainedPrefetchGameplayDocuments`): in single player the Remastered
+  HUDs and weapon wheels of both families, since the level's player decides
+  the family, with the objectives and vehicle HUDs; in multiplayer the
+  multiplayer and Marine HUDs, the scoreboard, the wheel and the quick
+  chat; under `q4xbase` The Awakening's own HUDs and wheels. A stock HUD's
+  load preloads only a document the prefetch expects
+  (`UI_RetainedPrefetched`), since single player precaches the scoreboard
+  and never draws it. Once the single-player spawn has taken its family's
+  documents the other family's parses are dropped; a map unload drops the
+  rest.
+
+Engine probes (`.tmp/uiperf/probe.py`: a hidden 1280x720 OpenGL window,
+console verbs only, `framePacingSnapshot` after a two-second settle, then
+the wheel's and the quick chat's first opening), the build before this work
+with pristine game modules against this one, two to four rounds each,
+debugoptimized, longest frame of each window:
+
+| Window | Before | After |
+| --- | ---: | ---: |
+| Air Defense 1, the two seconds after the load | 624-651 ms | 95-97 ms |
+| Air Defense 1, the weapon wheel's first opening | 148-178 ms | 46-51 ms |
+| Q4DM1 listen server, the weapon wheel's first opening | 231-278 ms | 44-66 ms |
+| Q4DM1 listen server, the quick chat's first opening | 132-193 ms | 29-44 ms |
+
+The documents now load inside the level load, so the loading screen lasts
+as long as those loads take there; Air Defense 1 measured 6.6-7.5 s before
+and 6.9-8.1 s after on a shared machine, Q4DM1 1.4-1.9 s before and
+1.65-1.8 s after. Neither run logged a late (non-precached) load, and the
+pause pages' loads inside the level fell from about 60 to 10 ms each with
+their parses prefetched.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

@@ -2,6 +2,8 @@
 #include "../idlib/precompiled.h"
 #include "../framework/NativeInputPublications.h"
 #include "UserInterfaceRetained.h"
+#include "RetainedHud.h"
+#include <span>
 #include "GuiStateNumber.h"
 #include "Rectangle.h"
 #ifndef ID_DEDICATED
@@ -1981,6 +1983,11 @@ bool UI_RetainedViewFailed(idUserInterface* gui) {
 	return found == diagnosticViews.end() || RetainedUI_ViewFailed((*found)->impl->view);
 }
 
+const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface* gui) {
+	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
+	return found == diagnosticViews.end() || (*found)->impl->document.Source().empty() ? nullptr : &(*found)->impl->document.Model();
+}
+
 int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names) {
 	names.clear();
 	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
@@ -2053,9 +2060,68 @@ void UI_RetainedPrefetchClear() {
 	prefetchedDocuments.clear();
 }
 
+namespace {
+// A parse no load took, dropped.
+void DropPrefetched(const char* path) {
+	const auto found = std::find_if(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return path != nullptr && entry->path == path; });
+	if (found != prefetchedDocuments.end()) prefetchedDocuments.erase(found);
+}
+bool AwakeningGame() {
+	for (const char* cvar : {"fs_game","fs_game_base"})
+		if (!idStr::Icmp(cvarSystem->GetCVarString(cvar),"q4xbase")) return true;
+	return false;
+}
+// The weapon wheels and quick chat the game names (WeaponWheel.inl,
+// QuickChat.inl), by family and campaign; the HUD documents come from the
+// Remastered routes of the stock HUD sources a spawn creates.
+constexpr const char* WheelDocuments[] = {"guis/hud/weapon_wheel_marine.q4ui","guis/hud/weapon_wheel_strogg.q4ui"};
+constexpr const char* AwakeningWheelDocuments[] = {"guis/hud/weapon_wheel_marine_awakening.q4ui","guis/hud/weapon_wheel_strogg_awakening.q4ui"};
+// Single player precaches the scoreboard but never draws it, so its document
+// is not expected there; multiplayer draws the Marine HUD under its own.
+constexpr const char* SinglePlayerHudSources[] = {"guis/hud.gui","guis/hud_strogg.gui","guis/wristcomm.gui","guis/wristcomm_strogg.gui","guis/vehicles/hud.gui"};
+constexpr const char* AwakeningHudSources[] = {"guis/q4xhud.gui","guis/q4xhud_strogg.gui","guis/wristcomm.gui","guis/wristcomm_strogg.gui","guis/vehicles/hud.gui"};
+constexpr const char* MultiplayerHudSources[] = {"guis/mphud.gui","guis/hud.gui","guis/scoreboard.gui"};
+constexpr const char* QuickChatDocument = "guis/hud/quick_chat.q4ui";
+constexpr const char* ViewEffectsDocument = "guis/hud/view_effects.q4ui";
+std::vector<const char*> GameplayDocuments(bool multiplayer) {
+	std::vector<const char*> documents;
+	const bool awakening = !multiplayer && AwakeningGame();
+	if (idRemasteredHud::Enabled()) {
+		for (const char* source : multiplayer ? std::span<const char* const>(MultiplayerHudSources) :
+				awakening ? std::span<const char* const>(AwakeningHudSources) : std::span<const char* const>(SinglePlayerHudSources))
+			if (const char* document = idRemasteredHud::DocumentFor(source)) documents.push_back(document);
+	}
+	if (multiplayer) { documents.push_back(WheelDocuments[0]); documents.push_back(QuickChatDocument); }
+	else for (const char* wheel : awakening ? std::span<const char* const>(AwakeningWheelDocuments) : std::span<const char* const>(WheelDocuments)) documents.push_back(wheel);
+	documents.push_back(ViewEffectsDocument);
+	return documents;
+}
+}
+
+bool UI_RetainedPrefetched( const char *path ) {
+	return path != nullptr && std::any_of(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return entry->path == path; });
+}
+
+void UI_RetainedPrefetchGameplayDocuments( bool multiplayer ) {
+	if (!cvarSystem->GetCVarBool("ui_retained")) return;
+	const auto documents = GameplayDocuments(multiplayer);
+	UI_RetainedPrefetchDocuments(documents.data(),static_cast<int>(documents.size()));
+}
+
+void UI_RetainedSettleGameplayDocuments( bool multiplayer ) {
+	// The single-player game spawned its player inside the load and took the
+	// family's documents; the other family's parses go. Multiplayer clients
+	// spawn after the load, so their documents wait for them.
+	if (multiplayer) return;
+	for (const char* document : GameplayDocuments(false)) DropPrefetched(document);
+}
+
 #else
 void UI_RetainedPrefetchDocuments( const char *const *, int ) {}
 void UI_RetainedPrefetchClear() {}
+void UI_RetainedPrefetchGameplayDocuments( bool ) {}
+void UI_RetainedSettleGameplayDocuments( bool ) {}
+bool UI_RetainedPrefetched( const char * ) { return false; }
 bool UI_RetainedImageSource( const char * ) { return false; }
 void UI_RetainedPrecacheImage( const char * ) {}
 void UI_RetainedReloadImage( const char * ) {}

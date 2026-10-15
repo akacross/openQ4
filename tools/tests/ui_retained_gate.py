@@ -4463,8 +4463,12 @@ def main() -> int:
     assert 'PublishCampaignChapters( gui );' in function_body(menu, 'bool idSessionLocal::OpenRetainedCampaignSkill(')
     assert 'Session_HandleCampaignPageRequest( *this, gui, request, true );' in menu
     assert 'Session_HandleCampaignPageRequest( *this, gui, command, false );' in menu
-    assert menu.count('RETAINED_TITLE_GUI') == 4 and menu.count('RETAINED_PAUSE_GUI') == 3 and menu.count('RETAINED_LOADING_GUI') == 2
-    assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 3
+    # The pause screens are named once more by PrefetchRetainedLevel, which
+    # parses them on workers as a map change begins; their loads stay in
+    # PrepareRetainedLevel.
+    assert menu.count('RETAINED_TITLE_GUI') == 4 and menu.count('RETAINED_PAUSE_GUI') == 4 and menu.count('RETAINED_LOADING_GUI') == 2
+    assert menu.count('RETAINED_PAUSE_STROGG_GUI') == 4
+    assert 'documents.Append( RETAINED_PAUSE_GUI );' in function_body(menu, 'void idSessionLocal::PrefetchRetainedLevel(')
     check_retained_multiplayer(menu, session)
     check_create_server(menu)
     check_join_game(menu)

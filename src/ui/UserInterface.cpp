@@ -1292,6 +1292,15 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 			desktop->SetFocus(chatWindow, false);
 		}
 	}
+	// The Remastered layout's document loads with its stock HUD, inside the
+	// level load, so the first gameplay frame draws it without loading it
+	// then: the documents the level's prefetch expects, since a HUD a level
+	// only precaches never draws. A save restore keeps the load for the first draw.
+	if ( const char *document = idRemasteredHud::DocumentFor( source.c_str() );
+			document != NULL && idRemasteredHud::Enabled() && src.IsLoaded() && parseOk && UI_RetainedPrefetched( document ) ) {
+		remastered = new idRemasteredHud( document );
+		remastered->Preload( source.c_str() );
+	}
 	UI_LegacyObservationLoaded(this,src.IsLoaded());
 	levelLoadCache->Finish( src.IsLoaded() && parseOk && rebuild );
 	if (levelLoadCache->valid && desktop->CanKeepForLevelLoad()) {

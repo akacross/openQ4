@@ -300,6 +300,13 @@ public:
 	// workers, while the stock menus load.
 	void				PrefetchRetainedScreens();
 	void				PrepareRetainedLevel( const char *mapPath, bool multiplayer );
+	// As a map change begins, starts parsing the level's retained documents on
+	// the job system's workers: the pages PrepareRetainedLevel loads, and the
+	// HUD, weapon wheel and quick chat documents the game loads as it spawns.
+	void				PrefetchRetainedLevel();
+	// Once the game has spawned: drops the parses the single-player level did
+	// not take, the other family's HUD and weapon wheel.
+	void				SettleRetainedLevelPrefetch();
 	// Every multiplayer map's levelshot for Create Server, and the Arena
 	// campaign's for its page: a few on each idle front-end frame, or when
 	// `all` is set every one still waiting of a page's kind, the maps' or not.

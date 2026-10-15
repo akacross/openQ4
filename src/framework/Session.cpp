@@ -5956,6 +5956,8 @@ Exits with mapSpawned = false
 */
 void idSessionLocal::UnloadMap() {
 	RetainedUI_Close();
+	// Parses a level's loads never took.
+	UI_RetainedPrefetchClear();
 	CloseSystemSettings();
 	UI_SettingsLevelUnloaded();
 	// A level-load generation owns worker-visible file handles and immutable
@@ -7133,6 +7135,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	// shut down the existing game if it is running
 	UnloadMap();
 	console->SetProcFileOutOfDate( false );
+	// The level's retained documents parse on workers while the level loads.
+	PrefetchRetainedLevel();
 
 	// don't do the deferred caching if we are reloading the same map
 	if ( fullMapName == currentMapName && filterString == currentFilterString ) {
@@ -7287,6 +7291,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 	playerSpawnMsec = Sys_Milliseconds() - phaseStart;
 	phaseStart = Sys_Milliseconds();
+	// The single-player spawn took its HUD and weapon wheel documents.
+	SettleRetainedLevelPrefetch();
 	PrecacheRetainedLevelImages();
 	fileSystem->FinishLevelLoadCache( true );
 	cacheJoinMsec = Sys_Milliseconds() - phaseStart;
