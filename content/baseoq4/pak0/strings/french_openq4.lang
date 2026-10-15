@@ -709,6 +709,15 @@
 	"#str_41908"	"Expulser"
 	"#str_41909"	"Affecter"
 
+	// Arena pause menu
+	"#str_42180"	"RECOMMENCER LE MATCH"
+	"#str_42181"	"QUITTER LE MATCH"
+	"#str_42182"	"RECOMMENCER LE MATCH ?"
+	"#str_42183"	"Le match reprend depuis sa présentation. Rien n'est enregistré."
+	"#str_42184"	"QUITTER LE MATCH ?"
+	"#str_42185"	"Vous revenez au navigateur de l'Arène. Rien n'est enregistré, et Réessayer vous propose à nouveau le match."
+	"#str_42186"	"MATCH EN PAUSE"
+
 	"#str_42200"	"Match à mort"
 	"#str_42201"	"Duel"
 	"#str_42202"	"Match à mort en équipe"

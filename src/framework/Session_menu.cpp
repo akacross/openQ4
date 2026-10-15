@@ -232,6 +232,9 @@ static bool Session_RetainedMultiplayerEnabled( bool welcome ) {
 // The match summary card (section 14.14) covers the game's summary at the end
 // of a match as the menu cards cover its menu; all its pages are built.
 static const char *const RETAINED_MP_SUMMARY_GUI = "guis/menu/mp_summary.q4ui";
+// The single-player Arena's pause card (section 13.7) covers the game's Arena
+// pause menu as the cards cover the multiplayer menu; all its actions are built.
+static const char *const RETAINED_ARENA_PAUSE_GUI = "guis/menu/arena_pause.q4ui";
 
 #ifndef ID_DEDICATED
 static bool Session_RetainedSummaryEnabled( void ) {
@@ -244,6 +247,10 @@ static bool Session_RetainedCreateServerEnabled( void ) {
 
 static bool Session_RetainedJoinGameEnabled( void ) {
 	return Session_RetainedScreensEnabled() && ( ui_retainedMultiplayer.GetBool() || RETAINED_JOIN_GAME_MISSING[0] == NULL );
+}
+
+static bool Session_RetainedArenaPauseEnabled( void ) {
+	return ui_retainedMultiplayer.GetBool() || Session_RetainedScreensEnabled();
 }
 
 // The stock button a card's hand-off to `page` presses, or NULL; `joinPanel`
@@ -8201,6 +8208,10 @@ void idSessionLocal::PrepareRetainedLevel( const char *mapPath, bool multiplayer
 		if ( Session_RetainedSummaryEnabled() && guiRetainedSummary == NULL ) {
 			guiRetainedSummary = FindRetainedGui( RETAINED_MP_SUMMARY_GUI, false, false );
 		}
+		if ( Session_RetainedArenaPauseEnabled() && guiRetainedArenaPause == NULL &&
+				cvarSystem->GetCVarBool( "ui_arenaCampaignActive" ) ) {
+			guiRetainedArenaPause = FindRetainedGui( RETAINED_ARENA_PAUSE_GUI, false, false );
+		}
 		if ( guiRetainedEscape != NULL ) {
 			guiRetainedEscape->SetStateInt( "card.tab", 0 );
 		}
@@ -8335,9 +8346,15 @@ static bool Session_IsGameSummary( idUserInterface *gui ) {
 	return gui != NULL && gui->State().GetBool( "gameDraw" ) && !idStr::Icmp( gui->Name(), "guis/summary.gui" );
 }
 
+// The single-player Arena's pause menu, which the game opens in its menu's
+// place during an Arena match, under its own card.
+static bool Session_IsArenaPause( idUserInterface *gui ) {
+	return gui != NULL && gui->State().GetBool( "gameDraw" ) && !idStr::Icmp( gui->Name(), "guis/arena_pause.gui" );
+}
+
 // A game GUI a multiplayer card covers.
 static bool Session_IsCoveredGameGui( idUserInterface *gui ) {
-	return Session_IsGameMenu( gui ) || Session_IsGameSummary( gui );
+	return Session_IsGameMenu( gui ) || Session_IsGameSummary( gui ) || Session_IsArenaPause( gui );
 }
 
 bool idSessionLocal::RetainedMultiplayerCovers() const {
@@ -8534,23 +8551,28 @@ void idSessionLocal::UpdateRetainedMultiplayer() {
 		// card; a game module that does not answer gets Escape, which its join
 		// offer refuses.
 		const bool summary = Session_IsGameSummary( guiActive );
+		// The Arena's pause menu takes its own card.
+		const bool arena = Session_IsArenaPause( guiActive );
 		bool welcome = false;
-		if ( !summary ) {
+		if ( !summary && !arena ) {
 			guiActive->SetStateBool( "mp.welcome", false );
 			game->HandleMainMenuCommands( "retainedMultiplayerVariant", guiActive );
 			welcome = guiActive->State().GetBool( "mp.welcome" );
 		}
-		const char *path = summary ? RETAINED_MP_SUMMARY_GUI : welcome ? RETAINED_MP_WELCOME_GUI : RETAINED_MP_ESCAPE_GUI;
-		idUserInterface *&document = summary ? guiRetainedSummary : welcome ? guiRetainedWelcome : guiRetainedEscape;
+		const char *path = arena ? RETAINED_ARENA_PAUSE_GUI : summary ? RETAINED_MP_SUMMARY_GUI :
+			welcome ? RETAINED_MP_WELCOME_GUI : RETAINED_MP_ESCAPE_GUI;
+		idUserInterface *&document = arena ? guiRetainedArenaPause : summary ? guiRetainedSummary :
+			welcome ? guiRetainedWelcome : guiRetainedEscape;
 		// Whatever keeps the stock menu below keeps it for this opening (a
 		// card still waiting for its pages, a fallback, an Arena Campaign
 		// match); the next opening asks again.
 		retainedMultiplayerUncovered = true;
-		const bool enabled = summary ? Session_RetainedSummaryEnabled() : Session_RetainedMultiplayerEnabled( welcome );
+		const bool enabled = arena ? Session_RetainedArenaPauseEnabled() :
+			summary ? Session_RetainedSummaryEnabled() : Session_RetainedMultiplayerEnabled( welcome );
 		if ( !enabled || retainedStock.FindIndex( path ) >= 0 ) {
 			return;
 		}
-		const char *stockGui = summary ? "guis/summary.gui" : "guis/mpmain.gui";
+		const char *stockGui = arena ? "guis/arena_pause.gui" : summary ? "guis/summary.gui" : "guis/mpmain.gui";
 		if ( Session_ModSuppliesFile( stockGui ) ) {
 			common->DPrintf( "retained UI: the mod supplies its own '%s', so it presents instead of '%s'\n", stockGui, path );
 			retainedStock.Append( path );
@@ -8588,6 +8610,11 @@ void idSessionLocal::UpdateRetainedMultiplayer() {
 			// Each summary opens on its SUMMARY page with the chat field at rest.
 			card->SetStateInt( "card.tab", 0 );
 			EndRetainedSummaryChat( true );
+		}
+		if ( arena ) {
+			// The match block's levelshot, found as the single-player pause
+			// finds its level's.
+			card->SetStateString( "pause_shot", RetainedPauseShot( mapSpawnData.serverInfo.GetString( "si_map" ) ).c_str() );
 		}
 		// The keys bound to the Vote page's ballots (F1 and F2 by default), by
 		// name, for the card to show beside Yes and No.
@@ -8709,6 +8736,30 @@ void idSessionLocal::HandleRetainedMultiplayerRequest( idUserInterface *gui, con
 		// The summary's chat field starts typing, which the session owns.
 		if ( RetainedSummaryCovers() ) {
 			BeginRetainedSummaryChat( false );
+		}
+		return;
+	}
+	if ( Session_IsArenaPause( guiActive ) ) {
+		// The Arena pause card's verbs, each the stock Arena pause menu's own
+		// action: Resume (and Back) closes it, Settings leaves for the main
+		// menu's settings page, and Restart match and Leave match, after the
+		// card's own confirmations, go to the campaign.
+		const char *arenaCommand = NULL;
+		if ( !idStr::Icmp( request, "resume" ) || !idStr::Icmp( request, "mpClose" ) ) {
+			arenaCommand = "play main_menu_selection ; arenaPause resume";
+		} else if ( !idStr::Icmp( request, "settings" ) ) {
+			arenaCommand = "play main_menu_selection ; arenaPause settings";
+		} else if ( !idStr::Icmp( request, "arenaRestart" ) ) {
+			arenaCommand = "play main_menu_selection ; arenaPause restart";
+		} else if ( !idStr::Icmp( request, "arenaLeave" ) ) {
+			arenaCommand = "play main_menu_selection ; arenaPause leave";
+		} else {
+			common->Warning( "retained UI: unhandled Arena pause request '%s'", request );
+			return;
+		}
+		HandleGameMenuReturn( game->HandleGuiCommands( arenaCommand ) );
+		if ( !Session_IsCoveredGameGui( guiActive ) ) {
+			RetireRetainedMultiplayer( guiActive == NULL && mapSpawned );
 		}
 		return;
 	}

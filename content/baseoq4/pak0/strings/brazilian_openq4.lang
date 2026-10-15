@@ -709,6 +709,15 @@
 	"#str_41908"	"Expulsar"
 	"#str_41909"	"Vincular lado"
 
+	// Arena pause menu
+	"#str_42180"	"REINICIAR PARTIDA"
+	"#str_42181"	"SAIR DA PARTIDA"
+	"#str_42182"	"REINICIAR PARTIDA?"
+	"#str_42183"	"A partida recomeça desde a apresentação. Nada é registrado."
+	"#str_42184"	"SAIR DA PARTIDA?"
+	"#str_42185"	"Você volta ao navegador da Arena. Nada é registrado, e Tentar de novo oferece a partida outra vez."
+	"#str_42186"	"PARTIDA PAUSADA"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duelo"
 	"#str_42202"	"Team Deathmatch"

@@ -53,6 +53,7 @@ OUTPUTS = {
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
     "mp_summary": PAK0 / "guis" / "menu" / "mp_summary.q4ui",
+    "arena_pause": PAK0 / "guis" / "menu" / "arena_pause.q4ui",
 }
 
 U = 1.5            # dp per stock source unit at the 720 dp canvas
@@ -3355,6 +3356,7 @@ def main() -> int:
     from retained_mp_page import multiplayer_document
     from retained_create_server import create_server_document
     from retained_join_game import join_game_document
+    from retained_arena_pause import arena_pause_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
@@ -3367,7 +3369,8 @@ def main() -> int:
                  "multiplayer": multiplayer_document(),
                  "createserver": create_server_document(),
                  "joingame": join_game_document(),
-                 "mp_escape": escape_document(), "mp_welcome": welcome_document(), "mp_summary": summary_document()}
+                 "mp_escape": escape_document(), "mp_welcome": welcome_document(), "mp_summary": summary_document(),
+                 "arena_pause": arena_pause_document()}
     stale = []
     for name, document in documents.items():
         output = OUTPUTS[name]

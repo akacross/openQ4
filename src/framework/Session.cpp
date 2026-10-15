@@ -3878,7 +3878,7 @@ void idSessionLocal::Clear() {
 	retainedDemoFilter = 0;
 	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
-	guiRetainedSummary = retainedMultiplayerTarget = NULL;
+	guiRetainedSummary = guiRetainedArenaPause = retainedMultiplayerTarget = NULL;
 	retainedMultiplayerSummary = false;
 	retainedSummaryTyping = false;
 	retainedSummaryCaret = 0;

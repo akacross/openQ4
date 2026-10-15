@@ -187,6 +187,19 @@ static void ArenaClearMatchPresentation() {
 }
 
 #ifndef ID_DEDICATED
+// The main menu at rest on its home state, with no page or transition under
+// way. Over a live Arena match it only gets there by backing out of the
+// settings page the pause menu opened.
+static bool ArenaMainMenuAtHome() {
+	idUserInterface *menu = sessLocal.guiMainMenu;
+	if ( menu == NULL || sessLocal.guiActive != menu ) {
+		return false;
+	}
+	idStr curr, active;
+	return menu->GetPresentationValue( "desktop::curr", curr ) && atoi( curr.c_str() ) == 0 &&
+		menu->GetPresentationValue( "desktop::active", active ) && atoi( active.c_str() ) == 0;
+}
+
 static bool ArenaMenuCoversMatch() {
 	if ( RetainedUI_IsOpen() ) {
 		return true;
@@ -1352,6 +1365,17 @@ void ArenaCampaign_Finish_f( const idCmdArgs &args ) {
 
 /*
 ================
+ArenaCampaign_Restart_f
+================
+*/
+#ifndef ID_DEDICATED
+static void ArenaCampaign_Restart_f( const idCmdArgs &args ) {
+	arenaCampaign.RestartMatch();
+}
+#endif
+
+/*
+================
 idArenaCampaign::Init
 ================
 */
@@ -1394,6 +1418,10 @@ void idArenaCampaign::Init() {
 		cmdSystem->AddCommand(
 			"arenaCampaignFinish", ArenaCampaign_Finish_f, CMD_FL_SYSTEM,
 			"internal - completes a reported arena campaign match" );
+		// The Arena pause menu's Restart match.
+		cmdSystem->AddCommand(
+			"arenaCampaignRestart", ArenaCampaign_Restart_f, CMD_FL_SYSTEM,
+			"restarts the live arena campaign match from its introduction; nothing is recorded" );
 		state->finishCommandRegistered = true;
 	}
 #endif
@@ -1421,6 +1449,17 @@ void idArenaCampaign::Frame() {
 		sessLocal.IsMapSpawned() && ArenaMenuCoversMatch();
 	if ( ui_arenaMenuOpen.GetBool() != menuOpen ) {
 		ui_arenaMenuOpen.SetBool( menuOpen );
+	}
+	// The pause menu's Settings opens the main menu's settings page over the
+	// paused match. Backing out of it lands on the main menu's multiplayer
+	// home, which offers nothing an Arena match can use, so the pause menu
+	// takes the screen back as soon as the main menu comes to rest there.
+	if ( menuOpen && ArenaMainMenuAtHome() && game != NULL ) {
+		sessLocal.ExitMenu();
+		idUserInterface *pause = game->StartMenu();
+		if ( pause != NULL ) {
+			sessLocal.SetGUI( pause, NULL );
+		}
 	}
 	if ( state->transitionPhase == ARENA_TRANSITION_RETURN && state->completionPending ) {
 		FinishPendingCompletion();
@@ -1460,6 +1499,7 @@ void idArenaCampaign::Shutdown() {
 	}
 	if ( state->finishCommandRegistered ) {
 		cmdSystem->RemoveCommand( "arenaCampaignFinish" );
+		cmdSystem->RemoveCommand( "arenaCampaignRestart" );
 		state->finishCommandRegistered = false;
 	}
 
@@ -2705,6 +2745,52 @@ void idArenaCampaign::ReportAbandoned( int token ) {
 	ui_arenaSelectedMatch.SetInteger( state->resultMatch );
 	common->Printf( "arena campaign: match %d abandoned; nothing recorded\n", token );
 	OpenBrowser();
+#endif
+}
+
+/*
+================
+idArenaCampaign::RestartMatch
+
+The pause menu's Restart match: the live match again from its entrance and
+introductions. It leaves the match as Leave match does, so nothing is
+recorded, and then takes the abandoned report's own Retry, so the restart
+follows the one launch path every match takes: the browser's entrance
+curtain, PrepareServer and a fresh listen server. A match that can no longer
+start shows the abandoned report instead.
+================
+*/
+void idArenaCampaign::RestartMatch() {
+#ifdef ID_DEDICATED
+	return;
+#else
+	const int token = ActiveMatchToken();
+	if ( state == NULL || token == 0 || state->transitionPhase != ARENA_TRANSITION_MATCH ) {
+		common->Printf( "arena campaign: no live match to restart\n" );
+		return;
+	}
+	common->Printf( "arena campaign: restarting match %d; nothing recorded\n", token );
+	// As ReturnToBrowserAfterStartFailure: the server goes before its
+	// archived serverInfo values come back.
+	sessLocal.Stop();
+	AbortMatch();
+	sessLocal.StartMenu( false );
+	if ( !state->loaded ) {
+		LoadCampaign();
+	}
+	// The browser opens under the entrance curtain: a live match holds no
+	// result, so it opens without a report.
+	OpenBrowser();
+	ArenaClearResultMetadata( state );
+	ArenaSetResultMatch( state, token );
+	state->result = 3;
+	state->resultFailure = ARENA_FAILURE_ABANDONED;
+	if ( !ArenaResultCanRetry( state ) ) {
+		ArenaClearResultMetadata( state );
+		ReportAbandoned( token );
+		return;
+	}
+	RetryResult();
 #endif
 }
 

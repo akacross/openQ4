@@ -1765,6 +1765,15 @@ and parallax off.
     them. The focused plate runs the scan bar under its label, and the level
     block takes a chamfered frame with the masked grain. Input works from the
     first frame, and reduced motion shows the translated labels at once.
+  - **Arena.** A single-player Arena Campaign match pauses like a story level,
+    so Escape opens the single-player pause frame in place of the multiplayer
+    Escape menu. MATCH PAUSED replaces GAME PAUSED; Resume, Restart Match,
+    Settings and Leave Match sit on the stock main menu's rows from 214 u, and
+    nothing stays on the plinth. The match block takes the level block's place:
+    the tier and role in its header, the map's levelshot, the match, its game
+    type and map, then the score with the paused clock in `marine.value`.
+    Restart Match and Leave Match ask first in the stock modal. Settings opens
+    the settings pages over the paused match and returns to this menu.
 - **Settings.** Categories are tabs switched with the bumpers or a swipe, and
   sections keep their picker. Search runs across every category when the player
   types, presses north, or taps the search symbol, and each result shows its
@@ -3926,3 +3935,10 @@ soft eyelid shading, plus one settling focus swell and delayed peripheral
 darkening on death. Both preserve original scene timing, readable HUD and
 subtitles, and the reduced-motion/flashing preferences. The presentation uses
 editable gradients and the existing scene filter, without new bitmap assets.
+
+### Version 1.23: the Arena pause menu
+
+Section 13.7 gives the single-player Arena Campaign its own pause menu in the
+single-player pause frame: Resume, Restart Match, Settings and Leave Match, with
+the match in the level block's place, replacing the multiplayer Escape menu
+during an Arena match. The register is unchanged.

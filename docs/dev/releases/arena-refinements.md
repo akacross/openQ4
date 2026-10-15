@@ -11,9 +11,14 @@
   teammates first, then the opposition, and label each side
   ("TEAMMATE 1 OF 2", "OPPONENT 2 OF 3"). Introductions used to film fighters
   from behind, and with the modern HUD their card did not appear at all.
-- **Pause, like a story level.** Opening the menu during an Arena match now
-  pauses it: bots, the match clock, projectiles and respawns all stop until
-  you return.
+- **A real pause menu, like a story level.** Escape during an Arena match now
+  opens **MATCH PAUSED** with **Resume**, **Restart match**, **Settings** and
+  **Leave match**, beside the match, its tier, game type, map, clock and score,
+  instead of the multiplayer menu's team, server and admin pages. The match
+  pauses while it is open: bots, the match clock, projectiles and respawns all
+  stop, including while you change settings. Restart match plays the same
+  match again from its introductions; both it and Leave match ask first, and
+  neither records anything. The classic and modern interfaces both have it.
 - **Leaving returns you to the Arena.** Quitting a match part way through
   brings you back to the Arena browser with a "Match abandoned" report and a
   Retry button, instead of the title screen. Nothing is recorded and your

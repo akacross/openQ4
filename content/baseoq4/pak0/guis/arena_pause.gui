@@ -1,0 +1,531 @@
+// openQ4: the single-player Arena Campaign's pause menu.
+//
+// game_mp opens this in the multiplayer menu's place during a live Arena match
+// (idMultiplayerGame::StartMenu, currentMenu MP_MENU_ARENA_PAUSE). The match
+// pauses behind it like a story level behind its pause menu. Its actions go
+// back to the game as "arenaPause <resume|restart|settings|leave>"; Restart
+// match and Leave match ask first. The game publishes the match block's
+// arena_pause_* state before each opening. With the retained interface on, the
+// session covers this menu with its retained card, which asks the same actions
+// of the game.
+//
+// The composition follows the stock pause (ui-visual-design.md 13.7): the
+// navigation column on the stock main menu's rows, the title above it, and the
+// match in the level block's place.
+
+windowDef Desktop
+{
+	rect		0,0,640,480
+	menugui		1
+	noclip		1
+	float		"arena_confirm"	0
+
+	onActivate {
+		set "Desktop::arena_confirm" "0" ;
+		namedevent "arenaPauseRest" ;
+		setfocus "arena_pause_resume" ;
+	}
+
+	// Back closes an open question first, then resumes the match.
+	onESC {
+		if ( "Desktop::arena_confirm" == 1 ) {
+			set "Desktop::arena_confirm" "0" ;
+			setfocus "arena_pause_restart" ;
+			set "cmd" "play main_menu_selection" ;
+		} else if ( "Desktop::arena_confirm" == 2 ) {
+			set "Desktop::arena_confirm" "0" ;
+			setfocus "arena_pause_leave" ;
+			set "cmd" "play main_menu_selection" ;
+		} else {
+			set "cmd" "play main_menu_selection arenaPause resume" ;
+		}
+	}
+
+	// Every plate at rest; the focused one lights again through its hover.
+	onNamedEvent arenaPauseRest {
+		set "arena_pause_b1::matcolor" "1,1,1,0.4" ;
+		set "arena_pause_b2::matcolor" "1,1,1,0.4" ;
+		set "arena_pause_b3::matcolor" "1,1,1,0.4" ;
+		set "arena_pause_b4::matcolor" "1,1,1,0.4" ;
+		set "arena_pause_t1::forecolor" "1,1,1,0.8" ;
+		set "arena_pause_t2::forecolor" "1,1,1,0.8" ;
+		set "arena_pause_t3::forecolor" "1,1,1,0.8" ;
+		set "arena_pause_t4::forecolor" "1,1,1,0.8" ;
+		set "arena_pause_c1::matcolor" "0.564,0.603,0.286,0.4" ;
+		set "arena_pause_c2::matcolor" "0.564,0.603,0.286,0.4" ;
+		set "arena_pause_c3::matcolor" "0.564,0.603,0.286,0.4" ;
+		set "arena_pause_c4::matcolor" "0.564,0.603,0.286,0.4" ;
+	}
+
+	// The paused match shows through: darkened, never hidden.
+	windowDef arena_pause_shade
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		backcolor	0,0,0,0.55
+		noevents	1
+	}
+
+	windowDef arena_pause_lead
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 413 + "gui::virtual_screen_x_expand" ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		background	"gfx/guis/mainmenu/popup_bg"
+		matcolor	0,0,0,0.35
+		noevents	1
+	}
+
+	windowDef arena_pause_title
+	{
+		rect		44,184,330,24
+		forecolor	1,1,1,0.5
+		text		"#str_42186"
+		textscale	0.27
+		font		"fonts/marine"
+		noevents	1
+	}
+
+	// The navigation: the stock main menu's rows, 30 u apart from 214 u.
+	windowDef arena_pause_nav
+	{
+		rect		0,0,640,480
+		noclip		1
+		noevents	( "Desktop::arena_confirm" != 0 )
+
+		windowDef arena_pause_b1
+		{
+			rect		0,202,413,52
+			background	"gfx/guis/mainmenu/b1_dark"
+			matcolor	1,1,1,0.4
+			noevents	1
+		}
+		windowDef arena_pause_c1
+		{
+			rect		32,221,12,12
+			background	"gfx/guis/mainmenu/corner"
+			matcolor	0.564,0.603,0.286,0.4
+			noevents	1
+		}
+		windowDef arena_pause_t1
+		{
+			rect		44,214,314,23
+			forecolor	1,1,1,0.8
+			text		"#str_200381"
+			textscale	0.33
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_resume
+		{
+			rect		24,214,333,26
+
+			onMouseEnter {
+				namedevent "Desktop::arenaPauseRest" ;
+				set "arena_pause_b1::matcolor" "1,1,1,0.8" ;
+				set "arena_pause_t1::forecolor" "0.89,0.537,0,1" ;
+				set "arena_pause_c1::matcolor" "0.89,0.537,0,1" ;
+				set "cmd" "play main_menu_mouseover" ;
+			}
+			onMouseExit {
+				transition "arena_pause_b1::matcolor" "1,1,1,0.8" "1,1,1,0.4" "300" ;
+				transition "arena_pause_t1::forecolor" "0.89,0.537,0,1" "1,1,1,0.8" "300" ;
+				transition "arena_pause_c1::matcolor" "0.89,0.537,0,1" "0.564,0.603,0.286,0.4" "300" ;
+			}
+			onAction {
+				set "cmd" "play main_menu_selection arenaPause resume" ;
+			}
+		}
+
+		windowDef arena_pause_b2
+		{
+			rect		-1,232,413,52
+			background	"gfx/guis/mainmenu/b1_dark"
+			matcolor	1,1,1,0.4
+			noevents	1
+		}
+		windowDef arena_pause_c2
+		{
+			rect		32,251,12,12
+			background	"gfx/guis/mainmenu/corner"
+			matcolor	0.564,0.603,0.286,0.4
+			noevents	1
+		}
+		windowDef arena_pause_t2
+		{
+			rect		44,244,314,23
+			forecolor	1,1,1,0.8
+			text		"#str_42180"
+			textscale	0.33
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_restart
+		{
+			rect		24,244,333,26
+
+			onMouseEnter {
+				namedevent "Desktop::arenaPauseRest" ;
+				set "arena_pause_b2::matcolor" "1,1,1,0.8" ;
+				set "arena_pause_t2::forecolor" "0.89,0.537,0,1" ;
+				set "arena_pause_c2::matcolor" "0.89,0.537,0,1" ;
+				set "cmd" "play main_menu_mouseover" ;
+			}
+			onMouseExit {
+				transition "arena_pause_b2::matcolor" "1,1,1,0.8" "1,1,1,0.4" "300" ;
+				transition "arena_pause_t2::forecolor" "0.89,0.537,0,1" "1,1,1,0.8" "300" ;
+				transition "arena_pause_c2::matcolor" "0.89,0.537,0,1" "0.564,0.603,0.286,0.4" "300" ;
+			}
+			onAction {
+				set "Desktop::arena_confirm" "1" ;
+				namedevent "Desktop::arenaPauseRest" ;
+				setfocus "arena_confirm_no" ;
+				set "cmd" "play main_menu_selection" ;
+			}
+		}
+
+		windowDef arena_pause_b3
+		{
+			rect		-1,262,413,52
+			background	"gfx/guis/mainmenu/b1_dark"
+			matcolor	1,1,1,0.4
+			noevents	1
+		}
+		windowDef arena_pause_c3
+		{
+			rect		32,281,12,12
+			background	"gfx/guis/mainmenu/corner"
+			matcolor	0.564,0.603,0.286,0.4
+			noevents	1
+		}
+		windowDef arena_pause_t3
+		{
+			rect		44,274,314,23
+			forecolor	1,1,1,0.8
+			text		"#str_200009"
+			textscale	0.33
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_settings
+		{
+			rect		24,274,333,26
+
+			onMouseEnter {
+				namedevent "Desktop::arenaPauseRest" ;
+				set "arena_pause_b3::matcolor" "1,1,1,0.8" ;
+				set "arena_pause_t3::forecolor" "0.89,0.537,0,1" ;
+				set "arena_pause_c3::matcolor" "0.89,0.537,0,1" ;
+				set "cmd" "play main_menu_mouseover" ;
+			}
+			onMouseExit {
+				transition "arena_pause_b3::matcolor" "1,1,1,0.8" "1,1,1,0.4" "300" ;
+				transition "arena_pause_t3::forecolor" "0.89,0.537,0,1" "1,1,1,0.8" "300" ;
+				transition "arena_pause_c3::matcolor" "0.89,0.537,0,1" "0.564,0.603,0.286,0.4" "300" ;
+			}
+			onAction {
+				set "cmd" "play main_menu_selection arenaPause settings" ;
+			}
+		}
+
+		windowDef arena_pause_b4
+		{
+			rect		-1,292,413,52
+			background	"gfx/guis/mainmenu/b1_dark"
+			matcolor	1,1,1,0.4
+			noevents	1
+		}
+		windowDef arena_pause_c4
+		{
+			rect		32,311,12,12
+			background	"gfx/guis/mainmenu/corner"
+			matcolor	0.564,0.603,0.286,0.4
+			noevents	1
+		}
+		windowDef arena_pause_t4
+		{
+			rect		44,304,314,23
+			forecolor	1,1,1,0.8
+			text		"#str_42181"
+			textscale	0.33
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_leave
+		{
+			rect		24,304,333,26
+
+			onMouseEnter {
+				namedevent "Desktop::arenaPauseRest" ;
+				set "arena_pause_b4::matcolor" "1,1,1,0.8" ;
+				set "arena_pause_t4::forecolor" "0.89,0.537,0,1" ;
+				set "arena_pause_c4::matcolor" "0.89,0.537,0,1" ;
+				set "cmd" "play main_menu_mouseover" ;
+			}
+			onMouseExit {
+				transition "arena_pause_b4::matcolor" "1,1,1,0.8" "1,1,1,0.4" "300" ;
+				transition "arena_pause_t4::forecolor" "0.89,0.537,0,1" "1,1,1,0.8" "300" ;
+				transition "arena_pause_c4::matcolor" "0.89,0.537,0,1" "0.564,0.603,0.286,0.4" "300" ;
+			}
+			onAction {
+				set "Desktop::arena_confirm" "2" ;
+				namedevent "Desktop::arenaPauseRest" ;
+				setfocus "arena_confirm_no" ;
+				set "cmd" "play main_menu_selection" ;
+			}
+		}
+	}
+
+	// The match block in the level block's place: the match's place in the
+	// campaign, the levelshot, the match, its game type and map, the paused
+	// clock and the score.
+	// A question takes the screen alone; the match block steps aside for it.
+	windowDef arena_pause_match_block
+	{
+		rect		0,0,640,480
+		noclip		1
+		visible		( "Desktop::arena_confirm" == 0 )
+		noevents	1
+
+		windowDef arena_pause_card
+		{
+			rect		384,140,232,240
+			backcolor	0,0,0,0.88
+			bordercolor	0.627,0.627,0.251,0.9
+			bordersize	1
+			noevents	1
+		}
+		windowDef arena_pause_card_wash
+		{
+			rect		385,141,230,26
+			backcolor	1,1,1,0.07
+			noevents	1
+		}
+		windowDef arena_pause_card_rule
+		{
+			rect		385,167,230,1
+			backcolor	0.627,0.627,0.251,0.5
+			noevents	1
+		}
+		windowDef arena_pause_card_mark
+		{
+			rect		390,148,12,12
+			background	"gfx/guis/mainmenu/corner"
+			matcolor	0.564,0.603,0.286,0.9
+			noevents	1
+		}
+		windowDef arena_pause_detail
+		{
+			rect		406,145,204,20
+			forecolor	1,1,1,0.9
+			text		"gui::arena_pause_detail"
+			textscale	0.2
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_levelshot_frame
+		{
+			rect		394,176,212,80
+			backcolor	0.015,0.018,0.015,1
+			bordercolor	0.255,0.275,0.141,1
+			bordersize	1
+			noevents	1
+		}
+		windowDef arena_pause_levelshot
+		{
+			rect		395,177,210,78
+			background	"gui::arena_pause_levelshot"
+			matcolor	1,1,1,1
+			noevents	1
+		}
+		windowDef arena_pause_match
+		{
+			rect		394,262,212,20
+			forecolor	1,1,1,0.9
+			text		"gui::arena_pause_title"
+			textscale	0.26
+			font		"fonts/marine"
+			noevents	1
+		}
+		windowDef arena_pause_mode
+		{
+			rect		394,284,212,16
+			forecolor	1,1,1,0.6
+			text		"gui::arena_pause_mode"
+			textscale	0.2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+		windowDef arena_pause_map
+		{
+			rect		394,300,212,16
+			forecolor	1,1,1,0.6
+			text		"gui::arena_pause_map"
+			textscale	0.2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+		windowDef arena_pause_stats_rule
+		{
+			rect		394,326,212,1
+			backcolor	1,1,1,0.1
+			noevents	1
+		}
+		windowDef arena_pause_score_label
+		{
+			rect		394,332,100,16
+			forecolor	0.549,0.58,0.478,1
+			text		"#str_42018"
+			textscale	0.18
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+		windowDef arena_pause_clock
+		{
+			rect		506,332,100,16
+			forecolor	1,0.745,0.137,1
+			text		"gui::arena_pause_clock"
+			textscale	0.18
+			textalign	2
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+		windowDef arena_pause_score
+		{
+			rect		394,348,212,26
+			forecolor	1,1,1,0.85
+			text		"gui::arena_pause_score"
+			textscale	0.2
+			font		"fonts/marine"
+			noevents	1
+		}
+	}
+
+	// Restart match and Leave match ask first, in the stock confirmation:
+	// YES leads, NO trails and has the focus.
+	windowDef arena_confirm_shade
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		visible		( "Desktop::arena_confirm" != 0 )
+		backcolor	0,0,0,0.6
+		noevents	1
+	}
+	windowDef arena_confirm_bg
+	{
+		rect		150,168,340,128
+		visible		( "Desktop::arena_confirm" != 0 )
+		backcolor	0,0,0,0.94
+		bordercolor	0.627,0.627,0.251,0.9
+		bordersize	1
+		noevents	1
+	}
+	windowDef arena_confirm_wash
+	{
+		rect		151,169,338,28
+		visible		( "Desktop::arena_confirm" != 0 )
+		backcolor	1,1,1,0.07
+		noevents	1
+	}
+	windowDef arena_confirm_rule
+	{
+		rect		151,197,338,1
+		visible		( "Desktop::arena_confirm" != 0 )
+		backcolor	0.627,0.627,0.251,0.5
+		noevents	1
+	}
+	windowDef arena_confirm_restart_title
+	{
+		rect		166,171,308,24
+		visible		( "Desktop::arena_confirm" == 1 )
+		forecolor	1,1,1,0.9
+		text		"#str_42182"
+		textscale	0.25
+		font		"fonts/marine"
+		noevents	1
+	}
+	windowDef arena_confirm_restart_body
+	{
+		rect		166,204,308,48
+		visible		( "Desktop::arena_confirm" == 1 )
+		forecolor	1,1,1,0.8
+		text		"#str_42183"
+		textscale	0.18
+		font		"fonts/lowpixel"
+		wrap		1
+		noevents	1
+	}
+	windowDef arena_confirm_leave_title
+	{
+		rect		166,171,308,24
+		visible		( "Desktop::arena_confirm" == 2 )
+		forecolor	1,1,1,0.9
+		text		"#str_42184"
+		textscale	0.25
+		font		"fonts/marine"
+		noevents	1
+	}
+	windowDef arena_confirm_leave_body
+	{
+		rect		166,204,308,48
+		visible		( "Desktop::arena_confirm" == 2 )
+		forecolor	1,1,1,0.8
+		text		"#str_42185"
+		textscale	0.18
+		font		"fonts/lowpixel"
+		wrap		1
+		noevents	1
+	}
+	windowDef arena_confirm_yes
+	{
+		rect		166,258,140,28
+		visible		( "Desktop::arena_confirm" != 0 )
+		background	"gfx/guis/mainmenu/b4_light"
+		matcolor	0.545,0.588,0.294,0.4
+		forecolor	1,1,1,0.9
+		text		"#str_200157"
+		textscale	0.23
+		textalign	1
+		font		"fonts/marine"
+
+		onMouseEnter {
+			set "matcolor" "0.89,0.537,0,0.92" ;
+			set "cmd" "play main_menu_mouseover" ;
+		}
+		onMouseExit {
+			set "matcolor" "0.545,0.588,0.294,0.4" ;
+		}
+		onAction {
+			if ( "Desktop::arena_confirm" == 1 ) {
+				set "cmd" "play main_menu_selection arenaPause restart" ;
+			} else {
+				set "cmd" "play main_menu_selection arenaPause leave" ;
+			}
+		}
+	}
+	windowDef arena_confirm_no
+	{
+		rect		334,258,140,28
+		visible		( "Desktop::arena_confirm" != 0 )
+		background	"gfx/guis/mainmenu/b4_light"
+		matcolor	0.545,0.588,0.294,0.4
+		forecolor	1,1,1,0.9
+		text		"#str_200158"
+		textscale	0.23
+		textalign	1
+		font		"fonts/marine"
+
+		onMouseEnter {
+			set "matcolor" "0.89,0.537,0,0.92" ;
+			set "cmd" "play main_menu_mouseover" ;
+		}
+		onMouseExit {
+			set "matcolor" "0.545,0.588,0.294,0.4" ;
+		}
+		onAction {
+			if ( "Desktop::arena_confirm" == 1 ) {
+				setfocus "arena_pause_restart" ;
+			} else {
+				setfocus "arena_pause_leave" ;
+			}
+			set "Desktop::arena_confirm" "0" ;
+			set "cmd" "play main_menu_selection" ;
+		}
+	}
+}

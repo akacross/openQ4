@@ -709,6 +709,15 @@
 	"#str_41908"	"Ausschließen"
 	"#str_41909"	"Seite zuordnen"
 
+	// Arena pause menu
+	"#str_42180"	"PARTIE NEU STARTEN"
+	"#str_42181"	"PARTIE VERLASSEN"
+	"#str_42182"	"PARTIE NEU STARTEN?"
+	"#str_42183"	"Die Partie beginnt erneut mit der Vorstellung. Nichts wird gespeichert."
+	"#str_42184"	"PARTIE VERLASSEN?"
+	"#str_42185"	"Du kehrst zur Arena-Übersicht zurück. Nichts wird gespeichert, und Erneut versuchen bietet die Partie wieder an."
+	"#str_42186"	"PARTIE PAUSIERT"
+
 	"#str_42200"	"Deathmatch"
 	"#str_42201"	"Duell"
 	"#str_42202"	"Team-Deathmatch"

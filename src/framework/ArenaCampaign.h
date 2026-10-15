@@ -55,6 +55,9 @@ public:
 	// a "match abandoned" report that names the match and offers it again,
 	// instead of dropping them on the title screen with nothing said.
 	void					ReportAbandoned( int token );
+	// The pause menu's Restart match: leaves the live match, recording
+	// nothing, and starts the same token again from its entrance.
+	void					RestartMatch();
 
 	// Queues the narrow, strictly parsed game_mp -> framework result handoff.
 	// Outcome values are 0 = loss, 1 = win, 2 = draw, and 3 = aborted (the
