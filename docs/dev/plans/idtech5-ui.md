@@ -94,8 +94,8 @@ share player logic with MP's reliable equip route. Visual 1.18 explicitly keeps
 the original 77% horizontal default through archived `ui_weaponWheelOffset 27`;
 zero centers, negative moves left, and narrow views fit without changing the
 preference. Visual 1.19 adds smooth Gaussian scene focus before the HUD,
-shared by SP and MP and faded with the wheel. See [weapon wheels](../ui/weapon-wheels.md) for runtime evidence and
-remaining wider section 14.6 work (including quick chat).
+shared by SP and MP and faded with the wheel. See [weapon wheels](../ui/weapon-wheels.md) for runtime evidence, the
+multiplayer quick-chat wheel and the remaining wider section 14.6 work.
 openQ4-game's hit marker is on by default in single player and multiplayer and
 replaces the stock pop, where section 14.7 keeps the pop and offers markers in
 multiplayer only. The hit-marker discrepancy remains to be reconciled before that section is accepted.

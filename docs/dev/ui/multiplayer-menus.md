@@ -731,8 +731,9 @@ stands in.
 
 ## Decisions taken provisionally
 
-The plan left these to the owner. The card is opt-in, so each can still change
-without affecting players:
+The plan left these to the owner. The card is now the default in-match menu,
+so changing one of these changes what players see; each stays open to the
+owner's review:
 
 - **Width (D8).** As above: the card grows past 648 dp to fit the strip.
 - **Match sections (D3).** The triggers page Match Control's sections, as

@@ -2170,7 +2170,8 @@ what remains across every retained menu.
   time line has no total time: nothing tracks play time across missions. A
   failed objective is not marked (failure ends the mission at once). The
   objectives display held on the scores button in play, its hold or toggle
-  setting and the notices keep the stock screens.
+  setting, the notices and the failure banner are the Remastered HUD's
+  ([Remastered HUD](remastered-hud.md)), not this page's.
 - The Strogg pause and its pages keep the stock confirmation dialogs, and its
   grain does not drift. The Strogg pages arrive translated: only the pause's
   own labels play the rune translation. Its translation is the menu's short form: the full credits
