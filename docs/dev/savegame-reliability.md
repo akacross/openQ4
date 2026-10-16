@@ -248,7 +248,15 @@ each of the SP and MP source trees (22 calls per tree):
 | `vehicle/VehiclePosition.cpp` | 5 |
 
 Engine-owned GUI/window and interpolation aggregates also retain fixed native
-layout in parts of the positional payload. The table above is the exact locked
+layout in parts of the positional payload. `jointMod_t` embeds
+`idInterpolateAccelDecelLinear<idAngles>`, and a running GUI transition writes its
+`idInterpolateAccelDecelLinear<idVec4>`, both as native images. Commit `f15a41f0`
+(after 0.14.000) added a `bool` to `idExtrapolate` and `idInterpolate`, growing
+each of those images by four bytes, so that build could not restore any v3 or v4
+save holding a joint modifier, which includes every player. The cache flag is now a
+NaN cached time, restoring the original layout, and `static_assert`s beside both
+raw writes require these types to contain only their declared members on every
+ABI. Adding a member to them is a payload change. The table above is the exact locked
 GameLib *direct-call* inventory, not a claim that these are the only native-layout
 bytes reachable through all helper functions.
 
@@ -399,9 +407,14 @@ build-878 player saves (not committed) and fresh map-start fixtures:
 | fixed | wrong ABI, payload v5, CRC damage, truncation, empty file, v3 build 1 | Each refused in preflight with its own reason; map not torn down |
 | v3-only 0.13.2-dev build 1109 | v4 saves | Refused in preflight as unsupported payload version 4 |
 
+| main at `f15a41f0` plus the v3 HUD decoder | v3 builds 878 and 1109, including a Strogg boss fight | Desync in the player's animator (`saved joint count 0 does not match model joint count 65 for model 'model_player_marine' on entity 'player1'`) |
+| fixed, after the interpolator layout restore (2026-10-16) | v3 build 878, v3 build 1109 `game/waste` boss fight, v4 build 1574 | All restored; the boss fight's HUD reports `Bossbar::visible` and its health width carried over |
+
 Restores were checked by running at least 60 post-restore frames without an
-error, not by inspecting gameplay state. Windows, macOS and ARM64 were not
-exercised.
+error. The `game/waste` boss-fight restore was also compared by screenshot: the
+restored HUD shows the boss bar exactly as a boss fight started fresh on the same
+build does. Other gameplay state was not inspected. Windows, macOS and ARM64 were
+not exercised.
 
 Historical Linux x64/Wayland save/load evidence predates v3 and does not prove
 the current candidate on physical Linux hardware. ARM64 contract/build results

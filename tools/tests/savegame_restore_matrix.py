@@ -46,6 +46,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 LOG_NAME = "savegame-restore-matrix.log"
 AFTER_LOAD_CFG = "savegame_restore_matrix/after_load.cfg"
+SCREENSHOT_REL = "screenshots/savegame_restore_matrix.tga"
 ACTIVE_MARKER = "OPENQ4_RESTORE_MATRIX_ACTIVE"
 DONE_MARKER = "OPENQ4_RESTORE_MATRIX_DONE"
 PAYLOAD_MAGIC = b"OQ4S"
@@ -162,21 +163,14 @@ def stage_slot(source: Path, home: Path, slot: str, payload: bytes | None) -> No
         target.write_bytes(payload)
 
 
-def write_after_load_cfg(home: Path, settle_frames: int) -> None:
+def write_after_load_cfg(home: Path, settle_frames: int, screenshot: bool) -> None:
     cfg = home / "baseoq4" / AFTER_LOAD_CFG
     cfg.parent.mkdir(parents=True, exist_ok=True)
-    cfg.write_text(
-        "\n".join(
-            (
-                f"echo {ACTIVE_MARKER}",
-                f"wait {max(1, settle_frames)}",
-                f"echo {DONE_MARKER}",
-                "quit",
-                "",
-            )
-        ),
-        encoding="utf-8",
-    )
+    lines = [f"echo {ACTIVE_MARKER}", f"wait {max(1, settle_frames)}"]
+    if screenshot:
+        lines += [f'screenshot "{SCREENSHOT_REL}"', "wait 5"]
+    lines += [f"echo {DONE_MARKER}", "quit", ""]
+    cfg.write_text("\n".join(lines), encoding="utf-8")
 
 
 def runtime_text(home: Path, stdout_path: Path) -> str:
@@ -194,7 +188,7 @@ def run_case(
     home = run_dir / "home"
     slot = "restore_matrix"
     stage_slot(source, home, slot, payload)
-    write_after_load_cfg(home, args.settle_frames)
+    write_after_load_cfg(home, args.settle_frames, args.screenshot)
     staged = home / "baseoq4" / "savegames" / f"{slot}.save"
     stamp = read_stamp(staged.read_bytes())
 
@@ -268,6 +262,7 @@ def run_case(
         "preflightRejections": rejections[:5],
         "seconds": round(time.monotonic() - started, 1),
         "runDir": str(run_dir),
+        "screenshot": str(home / "baseoq4" / SCREENSHOT_REL) if (home / "baseoq4" / SCREENSHOT_REL).is_file() else "",
     }
 
 
@@ -283,6 +278,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                         help="Also load a copy whose payload build number is rewritten to N.")
     parser.add_argument("--set", nargs=2, action="append", default=[], metavar=("CVAR", "VALUE"),
                         help="Extra client cvar, for example --set ui_retained 1.")
+    parser.add_argument("--screenshot", action="store_true",
+                        help="Capture the restored scene after the settle frames, for visual checks.")
     parser.add_argument("--expect-reject", action="store_true",
                         help="Pass only when preflight refuses every save before map teardown.")
     parser.add_argument("--self-test", action="store_true",

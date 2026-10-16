@@ -14,6 +14,14 @@
   source archive (build 0) or shallow clone (build 1) refused their own saves in
   preflight, and their payloads were read against the v3 liquid-field thresholds.
   The build floor and those thresholds now apply to format 3 only.
+- [x] Keep interpolator layouts out of the save format's way. `f15a41f0` added a
+  cache flag to `idExtrapolate`/`idInterpolate`; animator joint modifiers and
+  running GUI transitions save those types as native images, so no save holding
+  a joint modifier (every player) restored on that build. A NaN cached time now
+  marks the cache stale, keeping the original layout and the negative-time fix,
+  and `static_assert`s beside both raw writes reject any future member.
+- [x] Carry HUD window values through the format-3 HUD migration: a boss bar a
+  script had shown, and its health width, survive a format-3 load.
 - [x] Add `savegame_restore_matrix.py`, an opt-in runtime check that restores
   existing saves with a staged client, optionally under rewritten build numbers,
   and confirms the input files are unchanged. Linux x64 results, including real

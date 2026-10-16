@@ -67,12 +67,16 @@ release note's promise that supported format 3 saves still load was not true.
 Every v3 writer used the same two earlier definitions (unchanged from June 2026
 through v0.13.2), so the payload version identifies them exactly. They ship
 unchanged as `guis/savegame/v3/hud.gui` and `guis/savegame/v3/hud_strogg.gui`.
-For a v3 payload, both game libraries read those HUD window trees into a private
-instance of the v3 definition, with every normal restore check, then move its
-state dictionary, interaction flags and cursor to the live HUD. Window-local
-animation progress is not carried over; the live HUD starts from its current
-definition, as when a map spawns it. No other serialized openQ4 GUI changed
-between v3 and v4.
+For a v3 payload, both game libraries ask the engine to read those HUD window
+trees through `idUserInterface::ReadFromSaveGameWithLayout`. The engine parses the
+v3 definition twice in private: one copy consumes the saved window tree with every
+normal restore check, the other shows what that definition starts with. The state
+dictionary, interaction flags and cursor move to the live HUD, and so does every
+window value the game had changed from the v3 definition, wherever the current
+definition has a window and variable of the same name and type. A boss bar a
+script had made visible, and its health width, therefore survive. Running
+transitions and timeline progress are not carried over, so mid-flight HUD
+animations restart. No other serialized openQ4 GUI changed between v3 and v4.
 
 `tools/tests/savegame_gui_layout_contract.py` pins every serialized openQ4 GUI by
 payload version and requires every openQ4 GUI to be classified as serialized or
