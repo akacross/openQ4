@@ -57,6 +57,16 @@ static inline const openQ4SaveGameRelease_t *OpenQ4_FindSaveGameRelease( int sav
 }
 
 /*
+	Version 2 (0.6.95 to 0.9.0, builds 545-639) carried no wire-ABI stamp. It
+	shipped the Windows x64 raw layout and is read only there. Build 546, the
+	0.6.95 tag (22c7c52f), added four fields to each saved sound channel, and
+	every v2 payload stamped build 1 is a release from 0.6.95 on.
+*/
+static const int OPENQ4_SAVEGAME_V2_VERSION = 2;
+static const int OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD = 546;
+static const char *OPENQ4_SAVEGAME_V2_WIRE_ABI = "windows-msvcabi-x64-le-raw1";
+
+/*
 ====================
 OpenQ4_SaveGameLayoutBuild
 
@@ -64,9 +74,15 @@ The build a payload's layout is read as: its release's build when a shallow
 release checkout stamped it, otherwise the build it carries.
 ====================
 */
-static inline int OpenQ4_SaveGameLayoutBuild( int savedBuild, const char *sourceHash, int sourceFileCount ) {
+static inline int OpenQ4_SaveGameLayoutBuild( int version, int savedBuild, const char *sourceHash, int sourceFileCount ) {
 	const openQ4SaveGameRelease_t *release = OpenQ4_FindSaveGameRelease( savedBuild, sourceHash, sourceFileCount );
-	return release != NULL ? release->build : savedBuild;
+	if ( release != NULL ) {
+		return release->build;
+	}
+	if ( version == OPENQ4_SAVEGAME_V2_VERSION && savedBuild == OPENQ4_SAVEGAME_SHALLOW_RELEASE_BUILD ) {
+		return OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD;
+	}
+	return savedBuild;
 }
 
 /*
@@ -160,14 +176,22 @@ static inline const openQ4SaveGameGuiRevision_t *OpenQ4_FindSaveGameGuiRevision(
 /*
 The payload a game restore is reading, which the session sets for the duration
 of the restore. GUI records the game reads from that file (their transitions)
-use the layout of the build that wrote it; every other GUI read, such as an
-in-memory snapshot, uses the current layout. Defined in ui/Window.cpp.
+use the layout of the build that wrote it; every other read, such as an
+in-memory GUI snapshot, uses the current layout. Defined in ui/Window.cpp,
+which every engine target links.
 */
-struct openQ4GuiSaveGameRestore_t {
+struct openQ4SaveGameRestore_t {
 	const idFile *		file;
 	int					layoutBuild;
 };
-extern openQ4GuiSaveGameRestore_t openQ4_guiSaveGameRestore;
+extern openQ4SaveGameRestore_t openQ4_saveGameRestore;
+
+static const int OPENQ4_SAVEGAME_CURRENT_LAYOUT = 0x7fffffff;
+
+// The layout build of what `file` holds: the restored payload's, or current.
+static inline int OpenQ4_SaveGameRestoreLayoutBuild( const idFile *file ) {
+	return file != NULL && file == openQ4_saveGameRestore.file ? openQ4_saveGameRestore.layoutBuild : OPENQ4_SAVEGAME_CURRENT_LAYOUT;
+}
 #endif
 
 #endif /* !__SAVEGAMERELEASES_H__ */

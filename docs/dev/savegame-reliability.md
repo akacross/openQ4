@@ -364,9 +364,11 @@ and dedicated builds expose neither save nor load commands. These runs used
 windowed launches and engine-render-target screenshots where visual evidence was
 captured.
 
-The old v2 compatibility claim above has since been withdrawn. The 0.13.1 Windows
-candidate passes fresh manual save, quicksave, restore, and save-after-restore in
-stock `game/airdefense1`.
+The old allowlist-based v2 claim above was withdrawn on 2026-08-31 and replaced
+on 2026-10-16 by a v2 reader (see the
+[compatibility policy](savegame-compatibility-policy.md#version-2)). The 0.13.1
+Windows candidate passes fresh manual save, quicksave, restore, and
+save-after-restore in stock `game/airdefense1`.
 
 Old-save corpus, 2026-10-15, Windows x64 debugoptimized candidate built from
 `d08bf5488` plus the release, interpolator, GUI-revision and non-finite GUI value
@@ -381,12 +383,21 @@ without an error:
 | 0.10.0, 0.11.0 and 0.13.0 equivalents (re-stamped real saves of identical layout) | 5 of 5 loaded |
 | Development builds 691–1669, base game, including walker, tank and vehicle maps | 21 of 21 loaded |
 | Development builds 1119–1561, The Awakening | 12 of 12 loaded |
-| Version 2 (builds 544, 614) and unstamped (builds 1, 480) | Refused before map teardown, as before |
+| 0.9.0 (v2), written by the rebuilt release (`7a1d0c54e` with `openQ4-game` `550271b`) on the same five maps, as built (build 621) and stamped build 1 like the release | 10 of 10 loaded (2026-10-16) |
+| Version 2 development build 614 (0.9.0's snapshot) | Loaded (2026-10-16) |
+| Version 2 development build 544 (before the 546 sound fields) | Refused before map teardown |
+| Unstamped (release build 1, builds 246 and 480-491) | Refused before map teardown; tried, they fail after teardown (see the policy) |
+
+The Load Game page was driven the same way with engine commands
+(`openq4_retainedGui focus` and `menu accept`, no device input): it listed every
+save in a mixed corpus, refused an unstamped one with "This save is damaged or
+comes from an incompatible version.", and loaded the 0.12.0 checkpoint into
+Air Defense Bunker with the HUD restored through its earlier definition.
 
 The harness and fixtures live under `.tmp/savecompat/` (`load_saves.py`,
-`restamp_save.py`, `make_save.py`). No save written by the 0.10.0, 0.11.0 or
-0.13.0 binaries themselves was available, and Linux and macOS old-save restores
-are untested.
+`menu_check.py`, `restamp_save.py`, `make_save.py`). No save written by the
+0.6.95, 0.8.0, 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available, and
+Linux and macOS old-save restores are untested.
 
 Historical Linux x64/Wayland save/load evidence predates v3 and does not prove
 the current candidate on physical Linux hardware. ARM64 contract/build results

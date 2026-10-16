@@ -4858,13 +4858,12 @@ bool idWindow::WriteSaveGameTransition( idTransitionData &trans, idFile *savefil
 	return true;
 }
 
-openQ4GuiSaveGameRestore_t openQ4_guiSaveGameRestore = { NULL, 0 };
+openQ4SaveGameRestore_t openQ4_saveGameRestore = { NULL, 0 };
 
 // A transition's interpolator is saved as raw bytes; one from a payload written
 // before build 1582 has the shorter layout described in SaveGameReleases.h.
 static bool Window_ReadSaveGameTransitionInterpolate( idFile *savefile, idInterpolateAccelDecelLinear<idVec4> &interp ) {
-	if ( savefile != openQ4_guiSaveGameRestore.file ||
-		 OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4_guiSaveGameRestore.layoutBuild ) ) {
+	if ( OpenQ4_SaveGameHasInterpolatorCacheFlag( OpenQ4_SaveGameRestoreLayoutBuild( savefile ) ) ) {
 		return OpenQ4_ReadSaveGameField( savefile, interp, "idWindow::ReadSaveGameTransition", "interpolate state" );
 	}
 	openQ4SaveGameLegacyInterpolate_t<idVec4> saved;

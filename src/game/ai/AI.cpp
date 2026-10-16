@@ -440,12 +440,15 @@ idAI::Restore
 */
 void idAI::Restore( idRestoreGame *savefile ) {
 // openQ4 BEGIN
-	savefile->ReadInt( liquidLevel );
-	savefile->ReadInt( liquidType );
-	savefile->ReadInt( liquidAirTics );
-	savefile->ReadInt( nextLiquidDamageTime );
-	savefile->ReadBool( liquidCanBreathe );
-	savefile->ReadBool( liquidImmune );
+	// Liquid support arrived with v3; a v2 payload keeps the spawned defaults.
+	if ( savefile->GetOpenQ4SaveGameCompatibilityVersion() >= OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
+		savefile->ReadInt( liquidLevel );
+		savefile->ReadInt( liquidType );
+		savefile->ReadInt( liquidAirTics );
+		savefile->ReadInt( nextLiquidDamageTime );
+		savefile->ReadBool( liquidCanBreathe );
+		savefile->ReadBool( liquidImmune );
+	}
 // openQ4 END
 
 	bool		restorePhysics;

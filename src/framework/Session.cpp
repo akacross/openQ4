@@ -868,16 +868,20 @@ static bool Session_ValidateSaveGamePayload( idFile *file, const idStr &savePath
 		Session_ReadSaveGameInt( file, payloadSourceFileCount, "payload source file count", savePath.c_str() );
 
 	if ( valid && payloadVersion != SESSION_OPENQ4_SAVEGAME_COMPATIBILITY_VERSION &&
-		 payloadVersion != SESSION_OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
-		common->Warning( "Savegame '%s' has unsupported payload version %d (supported %d and %d)",
+		 payloadVersion != SESSION_OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION &&
+		 payloadVersion != OPENQ4_SAVEGAME_V2_VERSION ) {
+		common->Warning( "Savegame '%s' has unsupported payload version %d (supported %d to %d)",
 			savePath.c_str(), payloadVersion,
-			SESSION_OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION,
+			OPENQ4_SAVEGAME_V2_VERSION,
 			SESSION_OPENQ4_SAVEGAME_COMPATIBILITY_VERSION );
 		valid = false;
 	}
 	if ( valid && payloadVersion >= SESSION_OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
 		valid = Session_ReadSaveGameString( file, payloadWireABI, SESSION_OPENQ4_SAVEGAME_ABI_STAMP_MAX_BYTES,
 			"payload wire ABI", savePath.c_str() );
+	} else if ( valid ) {
+		// Version 2 predates the stamp; it is the layout v2 shipped.
+		payloadWireABI = OPENQ4_SAVEGAME_V2_WIRE_ABI;
 	}
 	if ( valid && ( payloadSourceStamp.IsEmpty() || payloadSourceFileCount < 0 ) ) {
 		common->Warning( "Savegame '%s' has invalid payload source file count %d",
@@ -887,7 +891,9 @@ static bool Session_ValidateSaveGamePayload( idFile *file, const idStr &savePath
 
 	if ( valid ) {
 		const openQ4SaveGameRelease_t *release = OpenQ4_FindSaveGameRelease( payloadBuild, payloadSourceStamp.c_str(), payloadSourceFileCount );
-		const int layoutBuild = release != NULL ? release->build : payloadBuild;
+		const int layoutBuild = OpenQ4_SaveGameLayoutBuild( payloadVersion, payloadBuild, payloadSourceStamp.c_str(), payloadSourceFileCount );
+		const int minimumBuild = payloadVersion == OPENQ4_SAVEGAME_V2_VERSION ?
+			OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD : SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD;
 		if ( layoutBuildOut != NULL ) {
 			*layoutBuildOut = layoutBuild;
 		}
@@ -895,9 +901,9 @@ static bool Session_ValidateSaveGamePayload( idFile *file, const idStr &savePath
 			common->Warning( "Savegame '%s' wire ABI '%s' is incompatible with this '%s' build",
 				savePath.c_str(), payloadWireABI.c_str(), Session_GetSaveGameWireABI() );
 			valid = false;
-		} else if ( layoutBuild < SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD ) {
+		} else if ( layoutBuild < minimumBuild ) {
 			common->Warning( "Savegame '%s' was written by an older openQ4 (build %d, below build %d, the oldest this build can restore)",
-				savePath.c_str(), layoutBuild, SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD );
+				savePath.c_str(), layoutBuild, minimumBuild );
 			valid = false;
 		} else if ( release != NULL ) {
 			common->DPrintf( "Savegame '%s' was written by openQ4 %s; reading it as build %d\n",
@@ -8236,16 +8242,16 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 
 	// The game reads the payload's GUI records through the engine, which reads
 	// them in the layout of the build that wrote it until the restore ends.
-	struct sessionGuiRestoreScope_t {
-		sessionGuiRestoreScope_t( const idFile *file, int layoutBuild ) {
-			openQ4_guiSaveGameRestore.file = file;
-			openQ4_guiSaveGameRestore.layoutBuild = layoutBuild;
+	struct sessionSaveGameRestoreScope_t {
+		sessionSaveGameRestoreScope_t( const idFile *file, int layoutBuild ) {
+			openQ4_saveGameRestore.file = file;
+			openQ4_saveGameRestore.layoutBuild = layoutBuild;
 		}
-		~sessionGuiRestoreScope_t() {
-			openQ4_guiSaveGameRestore.file = NULL;
-			openQ4_guiSaveGameRestore.layoutBuild = 0;
+		~sessionSaveGameRestoreScope_t() {
+			openQ4_saveGameRestore.file = NULL;
+			openQ4_saveGameRestore.layoutBuild = 0;
 		}
-	} guiRestoreScope( savegameFile, payloadLayoutBuild );
+	} saveGameRestoreScope( savegameFile, payloadLayoutBuild );
 
 	if ( saveMap.Length() > 0 ) {
 		// Start loading map

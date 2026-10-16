@@ -13,8 +13,9 @@ load. Reliability mechanisms and implementation detail are documented in
 | Version 3 stamped build 1 by a listed release (0.10.0–0.13.0) | Read as that release's build (see below) |
 | Version 3, layout build below the verified floor (including an unlisted build-1 snapshot) | Rejected before map teardown |
 | Version 3, different wire-ABI stamp | Rejected before map teardown |
-| Version 2, any tuple | Rejected before map teardown |
-| Unstamped legacy payload | Accepted only when its marker equals the current build and the runtime stamp is Windows/MSVC x64 little-endian `raw1` |
+| Version 2 (0.6.95–0.9.0), build 546 or later, Windows x64 runtime | Read as the layout it shipped (see [Version 2](#version-2)) |
+| Version 2 before build 546, or on another platform | Rejected before map teardown |
+| Unstamped legacy payload (0.6.92 and earlier) | Accepted only when its marker equals the current build and the runtime stamp is Windows/MSVC x64 little-endian `raw1`; in practice no current build writes one, so every unstamped save is refused |
 | Empty, negative-length, or over-512-MiB `.save` | Rejected before header or CRC preflight |
 | Payload version newer than 4 | Rejected; no forward-compatibility guessing |
 | Multiplayer/dedicated save | Not a supported player-facing feature |
@@ -74,23 +75,33 @@ sequence to accept that known omission, while current writers derive class-frame
 ownership from source declarations so optimization can no longer alter the wire
 format.
 
-## Version 2 Is No Longer Claimed
+## Version 2
 
-Version 2 did not carry its own wire-ABI field, and support for it was expressed
-as an allowlist of `(build, source SHA-256, source-file count)` tuples. On
-2026-08-31 every one of those tuples that a real save existed for was tested:
-builds 544 (three distinct hashes), 556, and 614. All five desynced part way
-through the restore, and did so only after the running map had been torn down --
-the outcome this policy exists to prevent.
+Version 2 was written by 0.6.95, 0.8.0 and 0.9.0 (builds 545-639). It carries a
+source snapshot, sync markers and a footer, but no wire-ABI stamp and no
+integrity trailer. It is read again, on the Windows x64 `raw1` path only (the
+layout it shipped; a v2 save from another platform cannot identify itself), from
+build 546: that build, the 0.6.95 tag (`22c7c52f`), added four fields to every
+saved sound channel, so the two pre-546 development builds are refused. Every v2
+payload stamped build 1 is a release from 0.6.95 on and is read as build 546.
 
-The allowlist was therefore removed rather than corrected. It asserted support
-that had never been demonstrated against a real save, and the tuples that were
-demonstrable were all wrong. Version 2 payloads are now refused during preflight
-with a message naming their provenance. Current writers never create v2 saves.
+A serializer comparison of `openQ4-game` from `fef4fcf` (the first v2 writer) to
+`550271b` (0.9.0) shows no writer change within v2, and from 0.9.0 to the first
+v3 commit only typed replacements behind `version >= 3` readers, plus the liquid
+state that v3 introduced: six `idAI` fields and four `idPlayer` fields, which a v2
+payload now leaves at their spawned defaults. The engine's GUI and sound writers
+are byte-identical across that boundary.
 
-Restoring a v2 claim requires the same evidence any other claim does: a reviewed
-byte-layout comparison, a successful real SP save/load of a save in that exact
-format, corruption-contract coverage, and a release-note entry.
+An earlier attempt claimed v2 through an allowlist of `(build, source SHA-256,
+source-file count)` tuples; on 2026-08-31 all five testable tuples desynced
+after map teardown, and the allowlist was removed. Those failures came from the
+liquid fields above and from the GUI problems the later sections describe
+(transition interpolators, the HUD revision, non-finite GUI values), not from the
+v2 layout itself. Measured 2026-10-16, all into gameplay: five saves written by
+0.9.0 rebuilt from its tag and `openQ4-game` `550271b` (snapshot `0c27fa5c…`,
+identical to the release's), the same five stamped build 1 as the release
+stamped them, and a development build 614 save of the same snapshot. No save from
+the 0.6.95 or 0.8.0 binaries was available; their game layout is the same.
 
 ## Releases That Stamped Build 1
 
@@ -139,9 +150,9 @@ re-stamped as 0.11.0; the same with `swimSpeed` removed as 0.10.0; a dev build
 845 save, whose snapshot equals 0.13.0's, re-stamped as build 1). No save written
 by the 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available.
 
-Lowering the floor below 640 means accepting version 2 or a v2-era layout, which
-requires a real save in that format that restores cleanly, not a layout argument
-alone.
+Version 2 has its own floor, build 546 (see [Version 2](#version-2)). Lowering
+either floor requires a real save in that format that restores cleanly, not a
+layout argument alone.
 
 ## Fields Added Within A Version
 
@@ -236,12 +247,29 @@ arbitrary old openQ4, another operating system, or another architecture. Legacy
 payloads receive bounded restore checks where available but cannot gain the v3
 whole-file CRC/footer retroactively.
 
+Saves from 0.1.010 to 0.6.92 are unstamped and stay refused. Their game writers
+match v2's apart from the stamp, markers and footer, but tried against eight
+saves on 2026-10-16 (the release build 1, development builds 246 and 480-491)
+they failed after map teardown, and three things keep them out of reach:
+
+- saves from before the 2026-06-20 content relocation were made with a different
+  script program, which only a level restart can follow (`idProgram::Restore`);
+- the sound world gained `attenuatedVolume` at build 502 (`f0b51cfae`) and the
+  channel fields at 546, so the sound record has three layouts in this range; and
+- every release in the range stamped build 1, so a release save cannot say which
+  of those layouts it holds, and with no sync markers a wrong guess is found only
+  after the map is gone.
+
+Starting the saved level afresh with the save's loadout, which the header
+already carries, is the realistic remedy for these and is not implemented.
+
 ## Backward Compatibility
 
 Backward compatibility means a newer runtime reading an older save. It is
 supported only through an explicit decoder or allowlist:
 
 - current v4 and decoded v3 on the exact ABI path at or above the verified build floor;
+- version 2 from build 546 on the Windows x64 path;
 - build-1 releases 0.10.0 through 0.13.0, read as their release builds;
 - fields added within v3 and v4, through their recorded per-field build thresholds
   and legacy empty-physics-frame recognition;
@@ -251,8 +279,7 @@ supported only through an explicit decoder or allowlist:
 
 Unsupported saves fail closed before map teardown when total size, header,
 version, ABI, allowlist, integrity, footer, or map preflight fails. The 512 MiB
-limit applies equally to v4, v3, and unstamped legacy input. Version 2 remains
-rejected; it has no verified decoder. No in-place
+limit applies equally to v4, v3, v2 and unstamped legacy input. No in-place
 conversion or repair tool is currently provided. Players should retain a copy of
 important slots before upgrading, especially when moving from an unlisted
 development build.

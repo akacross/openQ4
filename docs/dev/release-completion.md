@@ -60,16 +60,20 @@ dropping back to the classic pages.
   the retail 1.0 `idShaking` path. Verified on Windows x64 with genuine 0.14.000
   saves from the rebuilt release, the 0.12.0 release saves on hand, 0.10.0/0.11.0/0.13.0
   equivalents and 33 development saves, base game and The Awakening, all into
-  gameplay; v2 (0.6.95–0.9.0) and unstamped (0.6.92 and earlier) saves are still
-  refused before teardown. Record:
+  gameplay. Version 2 saves (0.6.95–0.9.0) load again too: v3's liquid state is
+  no longer read from them, and ten saves from a rebuilt 0.9.0 load. Unstamped
+  saves (0.6.92 and earlier) are still refused before teardown: their script
+  program and sound records changed in ways a release save cannot identify.
+  Record:
   [compatibility policy](savegame-compatibility-policy.md#releases-that-stamped-build-1),
   [reliability evidence](savegame-reliability.md#validation-evidence-and-limits).
 
 Candidate release wording: Saves from earlier openQ4 releases load again.
-Saves made with 0.10.0 through 0.14.000 are listed on the Load Game page as
+Saves made with 0.6.95 through 0.14.000 are listed on the Load Game page as
 before and now load straight back into the level, instead of failing part way
-through. A HUD restored from an older save starts fresh; everything else picks
-up where you left off. Saves from 0.9.0 and earlier still cannot be loaded.
+through. A HUD restored from an older save redraws from scratch; everything else
+picks up where you left off. Saves from 0.6.92 and earlier still cannot be
+loaded.
 
 - [x] Finish The Awakening's mannable Strogg chaingun turret (m01 part 1, m04).
   The alpha shipped its model untextured (grey ambient-occlusion bakes, a black

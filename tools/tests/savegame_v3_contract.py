@@ -300,12 +300,15 @@ def validate_release_layout_contract(session: str, sp: str, mp: str, minimum_bui
             raise AssertionError(f"Release {version} is listed as build {build}, but its tag carries {tag_build}")
     require(releases_h, "OPENQ4_SAVEGAME_SHALLOW_RELEASE_BUILD = 1", "shallow release build stamp")
     require(session, '#include "SaveGameReleases.h"', "engine release snapshot table")
-    require(session, "layoutBuild < SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD", "engine layout build floor")
-    require(session, "guiRestoreScope( savegameFile, payloadLayoutBuild )", "engine GUI restore layout scope")
+    require(session, "layoutBuild < minimumBuild", "engine layout build floor")
+    require(session, "OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD : SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD;", "engine per-version floor")
+    require(session, "saveGameRestoreScope( savegameFile, payloadLayoutBuild )", "engine restore layout scope")
     for source, context in ((sp, "SP GameLib"), (mp, "MP GameLib")):
         for token in (
             '#include "framework/SaveGameReleases.h"',
-            "openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( buildNumber,",
+            "openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( openQ4SaveGameCompatibilityVersion, buildNumber,",
+            "openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_V2_VERSION",
+            "idStr savedWireABI = OPENQ4_SAVEGAME_V2_WIRE_ABI;",
             "return openQ4SaveGameLayoutBuild >= firstBuildWithField;",
             "return OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4SaveGameLayoutBuild );",
             "OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild )",
@@ -321,6 +324,23 @@ def validate_release_layout_contract(session: str, sp: str, mp: str, minimum_bui
         misc = read(GAME_LIBS_ROOT / f"src/{tree}/Misc.cpp")
         if misc.count(retail_check) != misc.count(guarded_check):
             raise AssertionError(f"src/{tree} reads a stamped build-1262 payload as retail 1.0")
+
+    # Version 2 (0.6.95-0.9.0) is read from build 546, where its sound channels
+    # gained four fields; every v2 payload stamped build 1 is a release from 0.6.95
+    # on, and it carries no ABI stamp, so it is read only as the Windows x64 layout.
+    if constant(releases_h, "OPENQ4_SAVEGAME_V2_VERSION") != 2 or constant(releases_h, "OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD") != 546:
+        raise AssertionError("Version 2 is read from build 546, the 0.6.95 tag")
+    require(releases_h, 'OPENQ4_SAVEGAME_V2_WIRE_ABI = "windows-msvcabi-x64-le-raw1"', "v2 implied wire ABI")
+    # Liquid support arrived with v3 itself, so a v2 payload has none of its fields.
+    liquid_gate = "if ( savefile->GetOpenQ4SaveGameCompatibilityVersion() >= OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {"
+    for tree in ("game", "mpgame"):
+        for relative, first_read in (("ai/AI.cpp", "savefile->ReadInt( liquidLevel );"),
+                                     ("Player.cpp", "savefile->ReadInt( (int &)previousWaterLevel );")):
+            source = read(GAME_LIBS_ROOT / f"src/{tree}/{relative}")
+            read_at = source.find(first_read)
+            gate = source.rfind(liquid_gate, 0, read_at) if read_at >= 0 else -1
+            if gate < 0 or not 0 < read_at - gate < 200:
+                raise AssertionError(f"src/{tree}/{relative} reads v3 liquid state from a v2 payload")
 
     # Raw interpolator records grew a word with idExtrapolate's cache flag (build 1582).
     if constant(releases_h, "OPENQ4_SAVEGAME_BUILD_WITH_INTERPOLATOR_CACHE_FLAG") != 1582:

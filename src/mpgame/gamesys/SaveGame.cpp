@@ -2715,22 +2715,26 @@ void idRestoreGame::ReadBuildNumber( void ) {
 	ReadString( openQ4SaveGameCompatibilityStamp );
 	ReadInt( openQ4SaveGameCompatibilitySourceFileCount );
 	// A release that stamped build 1 is read as its release's build.
-	openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( buildNumber,
+	openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( openQ4SaveGameCompatibilityVersion, buildNumber,
 		openQ4SaveGameCompatibilityStamp.c_str(), openQ4SaveGameCompatibilitySourceFileCount );
 
 	if ( openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_COMPATIBILITY_VERSION &&
-		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
+		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION &&
+		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_V2_VERSION ) {
 		openQ4SaveGameCompatibilityError = va(
-			"payload format version %d is not supported (supported %d and %d)",
+			"payload format version %d is not supported (supported %d to %d)",
 			openQ4SaveGameCompatibilityVersion,
-			OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION,
+			OPENQ4_SAVEGAME_V2_VERSION,
 			OPENQ4_SAVEGAME_COMPATIBILITY_VERSION );
 		return;
 	}
 
 	{
-		idStr savedWireABI;
-		ReadString( savedWireABI );
+		// Version 2 predates the wire-ABI stamp; it is the layout v2 shipped.
+		idStr savedWireABI = OPENQ4_SAVEGAME_V2_WIRE_ABI;
+		if ( openQ4SaveGameCompatibilityVersion >= OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
+			ReadString( savedWireABI );
+		}
 		if ( savedWireABI.Icmp( OpenQ4SaveGameWireABI() ) != 0 ) {
 			openQ4SaveGameCompatibilityError = va(
 				"wire ABI %s does not match current ABI %s",
