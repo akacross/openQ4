@@ -94,10 +94,24 @@ SERIALIZED_GUI_LAYOUTS: dict[str, dict[int, str]] = {
     },
 }
 
+# Shipped revisions proven to keep a pinned window tree. Each maps the shipped
+# blob to the pinned blob whose layout it keeps, and the evidence. Add one only
+# when the edit cannot add, remove or reorder anything the window tree writes.
+LAYOUT_NEUTRAL_EDITS: dict[str, dict[str, tuple[str, str]]] = {
+    "guis/weapons/machinegun_scope.gui": {
+        "64d0d8cf9310139e82e2426d4f9ebddc16b6ed91": (
+            "d2690deda0fc05b110508071a34051631df8c1c9",
+            "2126a232 drops matscaley from two windows; it sets the fixed idWindow::matScaley "
+            "member, which every window writes whether or not the .gui names it",
+        ),
+    },
+}
+
 # openQ4 GUIs that single-player saves never contain: menus, loading screens and
 # multiplayer-only GUIs (idPlayer deliberately skips mphud).
 NEVER_SERIALIZED_GUIS = {
     "guis/arena_menu.gui",
+    "guis/arena_pause.gui",
     "guis/buymenu.gui",
     "guis/campaign_menu.gui",
     "guis/demo_menu.gui",
@@ -193,6 +207,9 @@ def validate_layout_pins(guis: dict[str, Path], current: int, previous: int, tab
                 "a payload bump must pin the new version and keep the decoded one"
             )
         blob = git_blob_id(guis[gui].read_bytes())
+        neutral = LAYOUT_NEUTRAL_EDITS.get(gui, {}).get(blob)
+        if neutral is not None and neutral[0] == pins[current]:
+            continue
         if blob != pins[current]:
             raise AssertionError(
                 f"{gui} changed (blob {blob}, pinned {pins[current]} for payload v{current}). Its window tree "
