@@ -4843,6 +4843,19 @@ idMaterial::SetDefaultText
 ===================
 */
 bool idMaterial::SetDefaultText( void ) {
+	if (idStr::Icmpn(GetName(),"_retainedLinearMask/",20)==0) {
+		const char* slot=GetName()+20;
+		if (!*slot) return false;
+		for (const char* p=slot;*p;++p) if (*p<'0' || *p>'9') return false;
+		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_one_minus_src_alpha vertexColor "
+			"glslProgram glsl/retained_linear_mask.glsl shaderParm maskConfig parm0, parm1, parm2, parm3 "
+			"shaderTexture Source nearest clamp nopicmip %s } }",GetName(),idStr::Cmp(slot,"0")==0 ? "_white" : va("_retainedLayerImage%s",slot)));
+		return true;
+	}
+	if ( idStr::Icmp( GetName(), "_retainedPauseScene" ) == 0 ) {
+		SetText( "material _retainedPauseScene { sort gui twoSided { blend gl_one, gl_zero vertexColor nopicmip nearest clamp map _retainedPauseSceneImage } }" );
+		return true;
+	}
 	if (idStr::Icmpn(GetName(),"_retainedMask/",14) == 0) {
 		const char* slot = GetName()+14;
 		if (!*slot) return false;
@@ -4859,13 +4872,19 @@ bool idMaterial::SetDefaultText( void ) {
 		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_one_minus_src_alpha vertexColor nopicmip nearest clamp map _retainedLayerImage%s } }",GetName(),slot));
 		return true;
 	}
-	if ( idStr::Icmp(GetName(),"_retainedBlur/backdrop") == 0 || idStr::Icmp(GetName(),"_retainedBlur/scratch") == 0 ) {
+	if ( idStr::Icmp(GetName(),"_retainedBlur/reducedResult") == 0 ) {
+		SetText("material _retainedBlur/reducedResult { sort gui twoSided { blend gl_one, gl_zero vertexColor nopicmip linear clamp map _retainedReducedBlurResult } }");
+		return true;
+	}
+	if ( idStr::Icmp(GetName(),"_retainedBlur/backdrop") == 0 || idStr::Icmp(GetName(),"_retainedBlur/scratch") == 0 ||
+		idStr::Icmp(GetName(),"_retainedBlur/reducedScratch") == 0 ) {
 		// Retained soft focus: one separable Gaussian pass, opaque, over the
 		// window capture or the horizontal pass's scratch target. parm0..3
 		// carry the step along the pass's axis, the sigma and the saturation.
 		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_zero glslProgram glsl/retained_blur.glsl "
 			"shaderParm blur parm0, parm1, parm2, parm3 shaderTexture Source linear clamp nopicmip %s } }",
-			GetName(),GetName()[14] == 'b' || GetName()[14] == 'B' ? "_retainedBackdrop" : "_retainedBlurScratch"));
+			GetName(),GetName()[14] == 'b' || GetName()[14] == 'B' ? "_retainedBackdrop" :
+			GetName()[14] == 'r' || GetName()[14] == 'R' ? "_retainedReducedBlurScratch" : "_retainedBlurScratch"));
 		return true;
 	}
 	if ( idStr::Icmp(GetName(),"_retainedBlur/streak") == 0 ) {
@@ -4887,11 +4906,13 @@ bool idMaterial::SetDefaultText( void ) {
 		SetText("material _retainedMultiply { sort gui twoSided { blend gl_dst_color, gl_zero vertexColor map _white } }");
 		return true;
 	}
-	if (idStr::Icmpn(GetName(),"_retainedAtlas/",15)==0) {
-		const char* index=GetName()+15;
+	const bool multiplyAtlas=idStr::Icmpn(GetName(),"_retainedMultiplyAtlas/",23)==0;
+	if (multiplyAtlas || idStr::Icmpn(GetName(),"_retainedAtlas/",15)==0) {
+		const char* index=GetName()+(multiplyAtlas ? 23 : 15);
 		if (!*index) return false;
 		for (const char* p=index;*p;++p) if (*p<'0' || *p>'9') return false;
-		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_one_minus_src_alpha vertexColor nopicmip nearest clamp map _retainedAtlasImage%s } }",GetName(),index));
+		SetText(va("material %s { sort gui twoSided { blend %s vertexColor nopicmip nearest clamp map _retainedAtlasImage%s } }",
+			GetName(),multiplyAtlas ? "gl_dst_color, gl_zero" : "gl_one, gl_one_minus_src_alpha",index));
 		return true;
 	}
 	// Process-local retained UI image material. Do not mutate the original

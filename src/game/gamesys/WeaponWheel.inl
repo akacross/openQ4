@@ -8,6 +8,21 @@ void idPlayer::InitWeaponWheel() {
 	weaponWheelGui = NULL;
 }
 
+idStr idPlayer::RetainedWeaponWheelPath() const {
+	const char *family = isStrogg && !gameLocal.isMultiplayer ? "strogg" : "marine";
+	return va( "guis/hud/weapon_wheel_%s%s.q4ui", family, GetWeaponWheelSlotCount() == 13 ? "_awakening" : "" );
+}
+
+// The local player's wheel loads as the player spawns: inside the level load
+// in single player and on a listen server, where the engine parsed it on a
+// worker meanwhile, so its first opening builds nothing.
+void idPlayer::PrecacheWeaponWheelGui() {
+	if ( weaponWheelGui || gameLocal.localClientNum < 0 || entityNumber != gameLocal.localClientNum ) return;
+	if ( !cvarSystem->GetCVarBool( "ui_retained" ) ) return;
+	weaponWheelGui = uiManager->FindGui( RetainedWeaponWheelPath(), true, true );
+	if ( !weaponWheelGui ) weaponWheelGuiSlot = -2;
+}
+
 void idPlayer::FreeWeaponWheelGui() {
 	if ( weaponWheelGui ) uiManager->DeAlloc( weaponWheelGui );
 	weaponWheelGui = NULL;
@@ -41,8 +56,7 @@ bool idPlayer::DrawRetainedWeaponWheel() {
 		FreeWeaponWheelGui();
 		return false;
 	}
-	const char *family = isStrogg && !gameLocal.isMultiplayer ? "strogg" : "marine";
-	idStr path = va( "guis/hud/weapon_wheel_%s%s.q4ui", family, GetWeaponWheelSlotCount() == 13 ? "_awakening" : "" );
+	const idStr path = RetainedWeaponWheelPath();
 	if ( weaponWheelGui && idStr::Icmp( weaponWheelGui->Name(), path ) ) FreeWeaponWheelGui();
 	if ( !weaponWheelGui ) {
 		if ( weaponWheelGuiSlot == -2 ) return false; // failed load: retry on next open or gate change

@@ -2637,7 +2637,8 @@ static void Session_DrawLevelshotBounds() {
 }
 
 // The current difficulty's localized name, as the retained pause and loading
-// screens show it.
+// screens show it: the names the difficulty pages give, Warlord the fifth
+// (the Arena's NIGHTMARE is another ladder's).
 static const char *Session_GetSkillName( void ) {
 	static const char *skills[] = { "#str_200014", "#str_200015", "#str_200016", "#str_200017", "#str_41117" };
 	return common->GetLanguageDict()->GetString( skills[ idMath::ClampInt( 0, 4, cvarSystem->GetCVarInteger( "g_skill" ) ) ] );
@@ -2671,6 +2672,16 @@ static const char *Session_GetLongMPGameTypeName( const char *gametype ) {
 	}
 	if ( !idStr::Icmp( gametype, "DeadZone" ) ) {
 		return common->GetLocalizedString( "#str_122001" );
+	}
+	// openQ4's own modes, by the names mp/GameTypes.cpp gives them.
+	static const char *const openQ4Modes[][2] = {
+		{ "Duel", "#str_41300" }, { "Clan Arena", "#str_41301" }, { "Freeze Tag", "#str_41302" }, { "Red Rover", "#str_41303" },
+		{ "Overload", "#str_41304" }, { "Harvester", "#str_41305" }, { "Domination", "#str_41306" }, { "Attack Defend", "#str_41307" }
+	};
+	for ( int i = 0; i < static_cast<int>( sizeof( openQ4Modes ) / sizeof( openQ4Modes[0] ) ); ++i ) {
+		if ( !idStr::Icmp( gametype, openQ4Modes[i][0] ) ) {
+			return common->GetLocalizedString( openQ4Modes[i][1] );
+		}
 	}
 
 	return gametype;
@@ -3824,9 +3835,54 @@ void idSessionLocal::Clear() {
 	retainedSubpageDeeper = false;
 	retainedSubpageBegan = 0;
 	retainedSubpageUntil = 0;
+	retainedSubpageKind = RETAINED_SUBPAGE_CAMPAIGN;
 	retainedHomeReturning = false;
+	retainedHomeUnderMessage = false;
+	retainedJoinReturn = false;
+	guiRetainedLoad = NULL;
+	retainedPageHome = NULL;
+	retainedPagePending = NULL;
+	retainedPageAt = 0;
+	retainedPageReturn = false;
+	retainedLoadSlots.Clear();
+	retainedLoadTimes.Clear();
+	retainedLoadFirst = 0;
+	retainedLoadSelected = -1;
+	guiRetainedSave = NULL;
+	retainedSaveTarget.Clear();
+	guiRetainedRestart = NULL;
+	guiRetainedDemos = NULL;
+	retainedModSelected = -1;
+	guiRetainedRestartMenu = NULL;
+	guiRetainedCredits = NULL;
+	guiRetainedArena = NULL;
+	guiRetainedMpPage = NULL;
+	retainedMpPageDest = 0;
+	retainedMpPageLeft = 0;
+	retainedMpPageAt = 0;
+	guiRetainedCreate = NULL;
+	retainedLevelshots.Clear();
+	retainedLevelshotsFrom = 0;
+	retainedCreateMaps.Clear();
+	retainedCreateMapFirst = 0;
+	retainedCreateMapSelected = -1;
+	retainedCreateBanGuids.Clear();
+	retainedCreateBanSelected = -1;
+	guiRetainedJoin = NULL;
+	retainedJoinServers.Clear();
+	retainedJoinFirst = 0;
+	retainedJoinAddress.Clear();
+	retainedJoinRevision = -1;
+	retainedJoinShotMap.Clear();
+	retainedJoinShot.Clear();
+	retainedJoinDetailRow = -1;
+	retainedDemoRows.Clear();
+	retainedDemoFirst = 0;
+	retainedDemoSelected = -1;
+	retainedDemoFilter = 0;
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 	guiRetainedEscape = guiRetainedWelcome = guiRetainedMultiplayer = NULL;
-	guiRetainedSummary = retainedMultiplayerTarget = NULL;
+	guiRetainedSummary = guiRetainedArenaPause = retainedMultiplayerTarget = NULL;
 	retainedMultiplayerSummary = false;
 	retainedSummaryTyping = false;
 	retainedSummaryCaret = 0;
@@ -3840,7 +3896,7 @@ void idSessionLocal::Clear() {
 	retainedPointerX = retainedPointerY = 0.0f;
 	retainedLoadingActive = false;
 	retainedLoadingPhase = 0;
-	retainedLoadingLoaded = retainedLoadingTotal = retainedLoadingDevice = -1;
+	retainedLoadingLoaded = retainedLoadingTotal = -1;
 	retainedLoadingTip = -1;
 	retainedLoadingTipSlot = 0;
 	retainedLoadingTipAt = 0;
@@ -4395,11 +4451,26 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		static const char *const details[] = {
 			"browser_selected", "server_IP", "server_name", "server_map",
 			"server_gameType", "server_passworded", "browser_levelshot",
-			"loadNotice", "sortNotice", "filterMod", "browser_count"
+			"loadNotice", "loadPct", "sortNotice", "filterMod", "browser_count"
 		};
 		for ( int i = 0; i < static_cast<int>( sizeof( details ) / sizeof( details[ 0 ] ) ); ++i ) {
 			const idStr value = Session_BrowserDiagnosticText( gui->State().GetString( details[ i ] ) );
 			common->Printf( "BROWSER_DETAIL key=%s value=%s\n", details[ i ], value.c_str() );
+		}
+		// The server tooltip: whether it shows, its address, and its lists'
+		// items, which the lists read until one is missing.
+		common->Printf( "BROWSER_TOOLTIP visible=%d ip=%s\n", gui->State().GetBool( "serverinfo_visible" ),
+			Session_BrowserDiagnosticText( gui->State().GetString( "server_tooltip_ip" ) ).c_str() );
+		static const char *const tooltipLists[] = { "server_tooltip_playerlist", "server_tooltip_settingslist" };
+		for ( int list = 0; list < 2; ++list ) {
+			for ( int i = 0; i < MAX_ASYNC_CLIENTS; ++i ) {
+				const idKeyValue *item = gui->State().FindKey( va( "%s_item_%d", tooltipLists[ list ], i ) );
+				if ( item == NULL ) {
+					break;
+				}
+				common->Printf( "BROWSER_TOOLTIP list=%s item=%d value=%s\n", tooltipLists[ list ], i,
+					Session_BrowserDiagnosticText( item->GetValue().c_str() ).c_str() );
+			}
 		}
 		static const char *const windows[] = {
 			"desktop::curr", "desktop::dest", "desktop::active", "desktop::blockBrowser",
@@ -4451,6 +4522,30 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		gui->StateChanged( common->GetPresentationTime() );
 		return;
 	}
+	if ( args.Argc() == 3 && !idStr::Icmp( verb, "hover" ) ) {
+		// The server tooltip without a pointer: a visible row treated as the
+		// hovered one, or -1 to follow the pointer again.
+		const char *number = args.Argv( 2 );
+		int row = -1;
+		bool valid = !idStr::Cmp( number, "-1" );
+		if ( !valid && number[ 0 ] != '\0' ) {
+			row = 0;
+			valid = true;
+			for ( int i = 0; number[ i ] != '\0'; ++i ) {
+				if ( number[ i ] < '0' || number[ i ] > '9' || row > 409 ) {
+					valid = false;
+					break;
+				}
+				row = row * 10 + number[ i ] - '0';
+			}
+		}
+		if ( !valid || row >= 4096 ) {
+			common->Printf( "openq4_browser hover requires a visible row or -1\n" );
+			return;
+		}
+		idAsyncNetwork::client.serverList.SetHoverOverride( row );
+		return;
+	}
 	if ( args.Argc() == 3 && !idStr::Icmp( verb, "action" ) ) {
 		static const char *const actions[] = {
 			"InitServerBrowser", "updateServers", "refreshServers", "FilterServers",
@@ -4468,7 +4563,7 @@ static void Session_OpenQ4Browser_f( const idCmdArgs &args ) {
 		common->Printf( "openq4_browser action is not a supported browser operation\n" );
 		return;
 	}
-	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | action <browser-operation>\n" );
+	common->Printf( "usage: openq4_browser open | report | source <lan|internet> | select <visible-row|-1> | hover <visible-row|-1> | action <browser-operation>\n" );
 }
 
 static void Session_OpenQ4GuiGet_f( const idCmdArgs &args ) {
@@ -4587,7 +4682,14 @@ static void Session_RetainedStatus_f( const idCmdArgs & ) {
 static void Session_OpenQ4GuiSet_f( const idCmdArgs &args ) {
 	idUserInterface *gui = session->GetActiveGUI();
 	if ( args.Argc() != 3 || gui == NULL ) {
-		common->Printf( "usage: openq4_guiSet <window::variable> <value> with an active GUI\n" );
+		common->Printf( "usage: openq4_guiSet <window::variable|gui::key> <value> with an active GUI\n" );
+		return;
+	}
+	// gui::<key> is the GUI's own state, a stock list's selection
+	// (<list>_sel_0) among it.
+	if ( !idStr::Icmpn( args.Argv( 1 ), "gui::", 5 ) && args.Argv( 1 )[5] != '\0' ) {
+		gui->SetStateString( args.Argv( 1 ) + 5, args.Argv( 2 ) );
+		gui->StateChanged( common->GetPresentationTime() );
 		return;
 	}
 	if ( !gui->SetPresentationValue( args.Argv( 1 ), args.Argv( 2 ) ) ) {
@@ -4823,11 +4925,17 @@ Session_Disconnect_f
 ================
 */
 static void Session_Disconnect_f( const idCmdArgs &args ) {
+	// An Arena match left part way through returns to its own browser with a
+	// report, not to the title screen. Read the token before AbortMatch clears it.
+	const int arenaToken = arenaCampaign.ActiveMatchToken();
 	arenaCampaign.AbortMatch();
 	sessLocal.Stop();
 	sessLocal.StartMenu();
 	if ( soundSystem ) {
 		soundSystem->SetMute( false );
+	}
+	if ( arenaToken != 0 ) {
+		arenaCampaign.ReportAbandoned( arenaToken );
 	}
 }
 
@@ -5510,6 +5618,8 @@ void idSessionLocal::MoveToNewMap( const char *mapName ) {
 		// Autosave at the beginning of the level
 		SaveGame( NULL, ST_AUTO );
 	}
+	// openQ4: the level is a reached chapter of its campaign.
+	RecordCampaignChapter();
 
 	SetGUI( NULL, NULL );
 }
@@ -5850,6 +5960,8 @@ Exits with mapSpawned = false
 */
 void idSessionLocal::UnloadMap() {
 	RetainedUI_Close();
+	// Parses a level's loads never took.
+	UI_RetainedPrefetchClear();
 	CloseSystemSettings();
 	UI_SettingsLevelUnloaded();
 	// A level-load generation owns worker-visible file handles and immutable
@@ -6005,21 +6117,6 @@ void idSessionLocal::PublishRetainedLoadingCount() {
 	guiLoading->SetStateString( "loading_count", va( "%d/%d", loadingAssetQueueLoaded, loadingAssetQueueTotal ) );
 }
 
-void idSessionLocal::PublishRetainedLoadingDevice() {
-	// The continue prompt shows the active device: a controller's south button
-	// once a controller was used last, the desktop prompt otherwise.
-	if ( !retainedLoadingActive || guiLoading == NULL ) {
-		return;
-	}
-	const int device = idKeyInput::LastInputWasController() ? 1 : 0;
-	if ( device == retainedLoadingDevice ) {
-		return;
-	}
-	retainedLoadingDevice = device;
-	guiLoading->SetStateBool( "loading_controller", device != 0 );
-	guiLoading->StateChanged( common->GetPresentationTime() );
-}
-
 // The multiplayer arsenal holds this many kinds of item, as the stock row does.
 static const int RETAINED_ARSENAL_ICONS = 20;
 
@@ -6134,8 +6231,9 @@ void idSessionLocal::PublishRetainedLoadingTip( bool first ) {
 // line break past maxLines lines reads as a space, at most maxBytes bytes are
 // kept (never splitting a character), and text that would read as a #str_ key
 // stays literal. The console turns backslashes into slashes, so a cvar can
-// carry no typed line break; the card wraps the text itself.
-static idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
+// carry no typed line break; the card wraps the text itself. The Join Game
+// page's server rows read the same way.
+idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines ) {
 	idStr plain = text != NULL ? text : "";
 	plain.RemoveEscapes();
 	idStr out;
@@ -6460,9 +6558,7 @@ void idSessionLocal::LoadLoadingGui( const char *mapName ) {
 			guiLoading->StateChanged( common->GetPresentationTime() );
 			// The shared document keeps its last load's line until reset.
 			retainedLoadingActive = true;
-			retainedLoadingDevice = -1;
 			SetRetainedLoadingPhase( RETAINED_LOAD_IDLE );
-			PublishRetainedLoadingDevice();
 			PublishRetainedLoadingTip( true );
 		}
 	}
@@ -6584,11 +6680,15 @@ void idSessionLocal::PublishRetainedPauseState( idUserInterface *gui ) {
 // The level block's levelshot, chosen as the loading screen chooses its
 // picture: the map's loadimage, the intro art for a map that loads through
 // the intro screen, then its menu levelshot. A candidate that is not an
-// installed, plain image name falls through, ending at the generic art.
-idStr idSessionLocal::RetainedPauseShot( const char *mapPath ) const {
+// installed, plain image name falls through, ending at the generic art. The
+// map's segment is the running one's unless an entity filter names another.
+idStr idSessionLocal::RetainedPauseShot( const char *mapPath, const char *entityFilter ) const {
 	idStrList candidates;
 	idDict mapDeclDict;
-	if ( Session_GetMapDeclDict( mapPath, mapSpawnData.serverInfo.GetString( "si_entityFilter", "" ), mapDeclDict ) ) {
+	if ( entityFilter == NULL ) {
+		entityFilter = mapSpawnData.serverInfo.GetString( "si_entityFilter", "" );
+	}
+	if ( Session_GetMapDeclDict( mapPath, entityFilter, mapDeclDict ) ) {
 		candidates.Append( mapDeclDict.GetString( "loadimage", "" ) );
 		if ( !idStr::Icmp( mapDeclDict.GetString( "loadgui", "" ), "guis/loading/intro.gui" ) ) {
 			candidates.Append( "gfx/guis/loadscreens/e3_load" );
@@ -6604,6 +6704,317 @@ idStr idSessionLocal::RetainedPauseShot( const char *mapPath ) const {
 	}
 	return "gfx/guis/loadscreens/generic";
 }
+
+/*
+===============================================================================
+
+Campaign chapters
+
+Every level of a campaign is a chapter, listed in the order the campaign
+plays it (the levels' nextMap keys; Quake 4 plays storage1 and process1 twice,
+once for each entity filter). A chapter unlocks when the player reaches its
+level: every level start outside devmap records it in the campaign's archived
+mask, and a level start autosave on disk counts too, so progress made before
+the list existed shows, and deleting saves keeps what was reached. Configs
+are per game directory, so each campaign keeps its own mask.
+
+Starting a chapter loads its level's start autosave, with the arsenal and the
+difficulty the player reached it with. Without one the level starts fresh at
+the chosen difficulty, with the map's devmap arsenal where it has one, and
+writes the start autosave a normal level start would.
+
+===============================================================================
+*/
+
+#ifndef ID_DEDICATED
+struct sessionChapter_t {
+	const char *	map;
+	const char *	entityFilter;
+};
+
+static const sessionChapter_t SESSION_QUAKE4_CHAPTERS[] = {
+	{ "game/airdefense1", "" }, { "game/airdefense2", "" }, { "game/hangar1", "" }, { "game/hangar2", "" },
+	{ "game/mcc_landing", "" }, { "game/mcc_1", "" }, { "game/convoy1", "" }, { "game/building_b", "" },
+	{ "game/convoy2", "" }, { "game/convoy2b", "" }, { "game/hub1", "" }, { "game/hub2", "" },
+	{ "game/medlabs", "" }, { "game/walker", "" }, { "game/dispersal", "" }, { "game/recomp", "" },
+	{ "game/putra", "" }, { "game/waste", "" }, { "game/mcc_2", "" }, { "game/storage1", "first" },
+	{ "game/storage2", "" }, { "game/storage1", "second" }, { "game/tram1", "" }, { "game/tram1b", "" },
+	{ "game/process1", "first" }, { "game/process2", "" }, { "game/process1", "second" }, { "game/network1", "" },
+	{ "game/network2", "" }, { "game/core1", "" }, { "game/core2", "" }
+};
+
+static const sessionChapter_t SESSION_AWAKENING_CHAPTERS[] = {
+	{ "game/m01_stranarus_trench1", "" }, { "game/m01_stranarus_trench2", "" }, { "game/m02_trianfac", "" },
+	{ "game/m03_airassault", "" }, { "game/m04_prison", "" }, { "game/m05_bio", "" }, { "game/m06_mcc", "" },
+	{ "game/m06_mcc_invasion", "" }, { "game/m07_race", "" }, { "game/m07_race1", "" }, { "game/m07_race2", "" },
+	{ "game/m08_cryofac", "" }, { "game/m09_valkaryne", "" }
+};
+
+static idCVar ui_chaptersQuake4( "ui_chaptersQuake4", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NOCHEAT,
+	"the Quake 4 campaign's chapters reached: bit n is its (n+1)th level in campaign order" );
+static idCVar ui_chaptersAwakening( "ui_chaptersAwakening", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NOCHEAT,
+	"the Awakening campaign's chapters reached: bit n is its (n+1)th level in campaign order" );
+
+// The chapter labels and their explanations (the *_openq4.lang tables).
+static const char *const SESSION_CHAPTER_STATUS_SAVED = "#str_231283";
+static const char *const SESSION_CHAPTER_STATUS_FRESH = "#str_231284";
+static const char *const SESSION_CHAPTER_STATUS_LOCKED = "#str_231285";
+static const char *const SESSION_CHAPTER_DETAIL_SAVED = "#str_231286";
+static const char *const SESSION_CHAPTER_DETAIL_FRESH = "#str_231287";
+static const char *const SESSION_CHAPTER_DETAIL_LOCKED = "#str_231288";
+
+static bool Session_AwakeningCampaignActive() {
+	return !idStr::Icmp( fileSystem->GetActiveGameDir(), "q4xbase" );
+}
+
+static const sessionChapter_t *Session_CampaignChapters( int &count ) {
+	if ( Session_AwakeningCampaignActive() ) {
+		count = static_cast<int>( sizeof( SESSION_AWAKENING_CHAPTERS ) / sizeof( SESSION_AWAKENING_CHAPTERS[0] ) );
+		return SESSION_AWAKENING_CHAPTERS;
+	}
+	count = static_cast<int>( sizeof( SESSION_QUAKE4_CHAPTERS ) / sizeof( SESSION_QUAKE4_CHAPTERS[0] ) );
+	return SESSION_QUAKE4_CHAPTERS;
+}
+
+static idCVar &Session_CampaignChapterMask() {
+	return Session_AwakeningCampaignActive() ? ui_chaptersAwakening : ui_chaptersQuake4;
+}
+
+// The active campaign's chapter for a level start, or -1. A segmented level
+// is its filter's chapter; the others ignore the filter a level transition
+// leaves behind.
+static int Session_CampaignChapterIndex( const char *map, const char *entityFilter ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStr normalizedMap;
+	idStr normalizedFilter;
+	Session_NormalizeMapPathAndEntityFilter( map, entityFilter, normalizedMap, normalizedFilter );
+	for ( int i = 0; i < count; i++ ) {
+		if ( !normalizedMap.Icmp( chapters[i].map ) &&
+			 ( chapters[i].entityFilter[0] == '\0' || !normalizedFilter.Icmp( chapters[i].entityFilter ) ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+// The chapters reached, with each one's start autosave as the save list names
+// it ("" when there is none). A start autosave on disk counts as reached and
+// is recorded, so the unlock outlives the save.
+static int Session_CampaignChaptersReached( idSessionLocal &session, idStrList &saves ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList slots;
+	idList<fileTIME_T> times;
+	session.GetSaveGameList( slots, times );
+	idCVar &mask = Session_CampaignChapterMask();
+	int reached = mask.GetInteger() | 1;
+	saves.SetNum( count );
+	for ( int i = 0; i < count; i++ ) {
+		// The name GetAutoSaveName gives the level's start autosave. Saves are
+		// matched without case: a level transition may spell the map's name
+		// in its own case (game/M02_TrianFac), and so does the file.
+		idStr slot = chapters[i].entityFilter[0] != '\0' ? va( "Autosave %s %s", chapters[i].map, chapters[i].entityFilter ) :
+			va( "Autosave %s", chapters[i].map );
+		session.ScrubSaveGameFileName( slot );
+		saves[i].Clear();
+		for ( int j = 0; j < slots.Num(); j++ ) {
+			if ( !slots[j].Icmp( slot ) ) {
+				saves[i] = slots[j];
+				reached |= 1 << i;
+				break;
+			}
+		}
+	}
+	if ( reached != mask.GetInteger() ) {
+		mask.SetInteger( reached );
+	}
+	return reached;
+}
+#endif
+
+/*
+===============
+idSessionLocal::RecordCampaignChapter
+
+The level that just started is reached (MoveToNewMap): not under devmap, as
+its start autosave is not written then.
+===============
+*/
+void idSessionLocal::RecordCampaignChapter() {
+#ifndef ID_DEDICATED
+	if ( IsMultiplayer() || mapSpawnData.serverInfo.GetBool( "devmap" ) ) {
+		return;
+	}
+	const char *map = mapSpawnData.serverInfo.GetString( "si_map" );
+	const int chapter = Session_CampaignChapterIndex( map, mapSpawnData.serverInfo.GetString( "si_entityFilter", "" ) );
+	if ( chapter < 0 ) {
+		return;
+	}
+	idCVar &mask = Session_CampaignChapterMask();
+	const int reached = mask.GetInteger() | 1 | ( 1 << chapter );
+	if ( reached != mask.GetInteger() ) {
+		mask.SetInteger( reached );
+		common->Printf( "CAMPAIGN_CHAPTER reached %d %s\n", chapter + 1, map );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PublishCampaignChapters
+
+The active campaign's chapters into the campaign page: the retained page's
+chapter.* rows, or the stock page's list items. `select` chooses a chapter;
+otherwise the page's choice stays while it is reached, else the furthest one
+reached is chosen. The chosen chapter's levelshot, name, explanation and
+whether it can start follow.
+===============
+*/
+void idSessionLocal::PublishCampaignChapters( idUserInterface *gui, int select ) {
+#ifndef ID_DEDICATED
+	if ( gui == NULL ) {
+		return;
+	}
+	const bool retained = idStr::CheckExtension( gui->Name(), ".q4ui" );
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( *this, saves );
+	const idLangDict *language = common->GetLanguageDict();
+
+	idStrList names;
+	names.SetNum( count );
+	int furthest = 0;
+	for ( int i = 0; i < count; i++ ) {
+		idDict mapDecl;
+		const char *name = Session_GetMapDeclDict( chapters[i].map, chapters[i].entityFilter, mapDecl ) ?
+			language->GetString( mapDecl.GetString( "name", chapters[i].map ) ) : chapters[i].map;
+		names[i] = va( "%02d  %s", i + 1, name );
+		const bool open = ( reached & ( 1 << i ) ) != 0;
+		if ( open ) {
+			furthest = i;
+		}
+		const char *status = !open ? SESSION_CHAPTER_STATUS_LOCKED : saves[i].Length() ? SESSION_CHAPTER_STATUS_SAVED : SESSION_CHAPTER_STATUS_FRESH;
+		if ( retained ) {
+			gui->SetStateString( va( "chapter.row%d.name", i ), names[i].c_str() );
+			gui->SetStateString( va( "chapter.row%d.location", i ), language->GetString( status ) );
+			gui->SetStateBool( va( "chapter.row%d.open", i ), open );
+		} else {
+			// A locked row reads gray: the stock list cannot disable one.
+			gui->SetStateString( va( "chapters_item_%d", i ), va( open ? "%s\t%s" : S_COLOR_GRAY "%s\t" S_COLOR_GRAY "%s",
+				names[i].c_str(), language->GetString( status ) ) );
+			gui->SetStateBool( va( "chapters_item_%d_greyed", i ), !open );
+		}
+	}
+
+	// A chapter the page picks stays chosen, locked or not (the stock list
+	// cannot refuse a row); one kept from before must still be reached.
+	int chosen = select;
+	if ( chosen < 0 || chosen >= count ) {
+		chosen = retained ? gui->State().GetInt( "chapter.selected", "-1" ) : gui->State().GetInt( "chapters_sel_0", "-1" );
+		if ( chosen < 0 || chosen >= count || !( reached & ( 1 << chosen ) ) ) {
+			chosen = furthest;
+		}
+	}
+	const bool open = ( reached & ( 1 << chosen ) ) != 0;
+	const bool saved = open && saves[chosen].Length() > 0;
+	const idStr shot = open ? RetainedPauseShot( chapters[chosen].map, chapters[chosen].entityFilter ) : idStr( "gfx/guis/loadscreens/generic" );
+	const char *detail = language->GetString( !open ? SESSION_CHAPTER_DETAIL_LOCKED : saved ? SESSION_CHAPTER_DETAIL_SAVED : SESSION_CHAPTER_DETAIL_FRESH );
+	if ( retained ) {
+		gui->SetStateInt( "chapter.count", count );
+		gui->SetStateInt( "chapter.first", 0 );
+		gui->SetStateInt( "chapter.selected", chosen );
+		gui->SetStateBool( "chapter.open", open );
+		gui->SetStateString( "chapter.shot", shot.c_str() );
+		gui->SetStateString( "chapter.name", names[chosen].c_str() );
+		gui->SetStateString( "chapter.detail", detail );
+		UI_RetainedPrecacheImage( shot.c_str() );
+	} else {
+		gui->DeleteStateVar( va( "chapters_item_%d", count ) );
+		gui->SetStateInt( "chapter_count", count );
+		gui->SetStateString( "chapters_sel_0", va( "%d", chosen ) );
+		gui->SetStateBool( "chapter_open", open );
+		gui->SetStateString( "chapter_shot", shot.c_str() );
+		gui->SetStateString( "chapter_name", names[chosen].c_str() );
+		gui->SetStateString( "chapter_detail", detail );
+	}
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::StartCampaignChapter
+
+Starts a reached chapter of the active campaign: from its level's start
+autosave, else fresh (see Campaign chapters above). False leaves the menu as
+it was: the chapter is locked or unknown.
+===============
+*/
+bool idSessionLocal::StartCampaignChapter( int chapter ) {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( *this, saves );
+	if ( chapter < 0 || chapter >= count || !( reached & ( 1 << chapter ) ) ) {
+		common->Printf( "CAMPAIGN_CHAPTER refused %d: locked\n", chapter + 1 );
+		return false;
+	}
+	if ( saves[chapter].Length() ) {
+		common->Printf( "CAMPAIGN_CHAPTER start %d from %s\n", chapter + 1, saves[chapter].c_str() );
+		// LoadGame refuses a save it cannot use before it leaves the menu.
+		if ( LoadGame( saves[chapter].c_str() ) ) {
+			return true;
+		}
+		common->Printf( "CAMPAIGN_CHAPTER %s refused; starting the level fresh\n", saves[chapter].c_str() );
+	} else {
+		common->Printf( "CAMPAIGN_CHAPTER start %d fresh\n", chapter + 1 );
+	}
+	// The first level is the campaign's own start. A later one takes the
+	// map's devmap arsenal, then drops the key so this start writes its
+	// autosave and is reached, and the next level transition plays on as
+	// normal.
+	StartNewGame( chapters[chapter].map, chapter > 0, chapters[chapter].entityFilter );
+	if ( mapSpawned && mapSpawnData.serverInfo.GetBool( "devmap" ) ) {
+		mapSpawnData.serverInfo.Delete( "devmap" );
+		SaveGame( NULL, ST_AUTO );
+		RecordCampaignChapter();
+	}
+	return true;
+#endif
+}
+/*
+===============
+Session_CampaignChapters_f / Session_CampaignChapter_f
+
+The active campaign's chapters, one CAMPAIGN_CHAPTER line each, and starting
+one by its number, as the campaign page does.
+===============
+*/
+#ifndef ID_DEDICATED
+static void Session_CampaignChapters_f( const idCmdArgs &args ) {
+	int count = 0;
+	const sessionChapter_t *chapters = Session_CampaignChapters( count );
+	idStrList saves;
+	const int reached = Session_CampaignChaptersReached( sessLocal, saves );
+	for ( int i = 0; i < count; i++ ) {
+		common->Printf( "CAMPAIGN_CHAPTER %d map=%s filter=%s reached=%d save=%s\n", i + 1, chapters[i].map,
+			chapters[i].entityFilter[0] ? chapters[i].entityFilter : "-", ( reached >> i ) & 1, saves[i].Length() ? saves[i].c_str() : "-" );
+	}
+}
+
+static void Session_CampaignChapter_f( const idCmdArgs &args ) {
+	if ( args.Argc() != 2 ) {
+		common->Printf( "usage: campaignChapter <number>\n" );
+		return;
+	}
+	sessLocal.StartCampaignChapter( atoi( args.Argv( 1 ) ) - 1 );
+}
+#endif
 
 /*
 ===============
@@ -6728,6 +7139,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	// shut down the existing game if it is running
 	UnloadMap();
 	console->SetProcFileOutOfDate( false );
+	// The level's retained documents parse on workers while the level loads.
+	PrefetchRetainedLevel();
 
 	// don't do the deferred caching if we are reloading the same map
 	if ( fullMapName == currentMapName && filterString == currentFilterString ) {
@@ -6771,8 +7184,11 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		}
 	}
 
+	if ( com_showLevelLoadTimes.GetBool() ) common->Printf( "GUI_LEVEL_PURGE_DONE\n" );
 	uiManager->BeginLevelLoad();
-	uiManager->Reload( true );
+	// Every GUI's media resolve again inside the load; an unchanged retained
+	// document keeps its view instead of re-initializing.
+	UI_ReloadForLevelLoad();
 #ifndef ID_DEDICATED
 	// Level-load purging clears media-use marks established at session startup.
 	// Re-reference every in-game menu resource while the normal precache window
@@ -6879,6 +7295,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 	playerSpawnMsec = Sys_Milliseconds() - phaseStart;
 	phaseStart = Sys_Milliseconds();
+	// The single-player spawn took its HUD and weapon wheel documents.
+	SettleRetainedLevelPrefetch();
 	PrecacheRetainedLevelImages();
 	fileSystem->FinishLevelLoadCache( true );
 	cacheJoinMsec = Sys_Milliseconds() - phaseStart;
@@ -7003,7 +7421,6 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 	if ( waitForSPContinue ) {
 		Session_BeginBlockingLoadPresentationFrame();
-		PublishRetainedLoadingDevice();
 		guiLoading->HandleNamedEvent( "FinishedLoading" );
 		guiLoading->StateChanged( common->GetPresentationTime() );
 		UpdateScreen();
@@ -7061,8 +7478,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 				if ( Session_FindPresentationCap() > 0 ) {
 					Session_BeginBlockingLoadPresentationFrame();
 				}
-				// Touching a controller, or the mouse, switches the prompt.
-				PublishRetainedLoadingDevice();
+				// Touching a controller, or the mouse, switches the prompt: the
+				// retained screen's adapter publishes prompt.glyphs as it redraws.
 				UpdateScreen();
 				if ( Session_FindPresentationCap() <= 0 ) {
 					Sys_Sleep( static_cast<int>( idMath::Ceil( common->GetUserCmdMsecFloat() ) ) );
@@ -7666,6 +8083,8 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 	idStr in, loadFile, saveMap, gamename, entityFilter, requestedSaveName, normalizedSaveMap, normalizedEntityFilter;
 	idDict loadedPersistentPlayerInfo[MAX_ASYNC_CLIENTS];
 
+	// Each refusal below records why, for the Load Game page to say.
+	loadGameFailure = LOADGAME_FAILURE_UNREADABLE;
 	if ( IsMultiplayer() ) {
 		common->Printf( "Can't load during net play.\n" );
 		return false;
@@ -7720,6 +8139,7 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		return false;
 	}
 	int loadGameFileLength = -1;
+	loadGameFailure = LOADGAME_FAILURE_DAMAGED;
 	if ( !Session_GetBoundedSaveGameLength( loadGameFile, in, "load preflight", loadGameFileLength ) ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
@@ -7779,12 +8199,14 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		} else if ( !Session_SaveGameMapExists( normalizedSaveMap, normalizedEntityFilter ) ) {
 			common->Warning( "Savegame '%s' references unavailable map '%s'", in.c_str(), normalizedSaveMap.c_str() );
 			headerValid = false;
+			loadGameFailure = LOADGAME_FAILURE_MAP;
 		}
 	}
 	if ( !headerValid ) {
 		fileSystem->CloseFile( loadGameFile );
 		return false;
 	}
+	loadGameFailure = LOADGAME_FAILURE_NONE;
 
 	for ( i = 0; i < MAX_ASYNC_CLIENTS; i++ ) {
 		mapSpawnData.persistentPlayerInfo[i] = loadedPersistentPlayerInfo[i];
@@ -8421,7 +8843,13 @@ void idSessionLocal::Draw() {
 		
 		// draw the frozen gui in the background
 		if ( guiActive == guiMsg && guiMsgRestore ) {
-			guiMsgRestore->Redraw( presentationTime );
+			if ( guiMsgRestore == guiMainMenu && guiRetainedHome != NULL ) {
+				// The retained home that covers the legacy menu stays behind the
+				// box (UpdateRetainedHome), as the legacy menu would.
+				DrawRetainedHome( presentationTime );
+			} else {
+				guiMsgRestore->Redraw( presentationTime );
+			}
 		}
 		
 		// draw the menus full screen
@@ -8448,6 +8876,10 @@ void idSessionLocal::Draw() {
 			}
 		}
 
+		if ( RetainedPageActive() ) {
+			// A retained page over the home that handed off to it.
+			DrawRetainedPageHome( presentationTime );
+		}
 		if ( guiRetainedHome != NULL && guiActive == guiMainMenu ) {
 			// ui_retained: the retained title or pause screen covers the legacy
 			// menu while it rests at home or hands a page over.
@@ -9044,7 +9476,7 @@ void idSessionLocal::RunGameTic() {
 		} else if ( !idStr::Icmp( args.Argv(0), "died" ) ) {
 			// restart on the same map
 			UnloadMap();
-			SetGUI(guiRestartMenu, NULL);
+			OpenRestartMenu();
 		} else if ( !idStr::Icmp( args.Argv(0), "disconnect" ) ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_INSERT, "stoprecording ; disconnect" );
 		} else if ( !idStr::Icmp( args.Argv(0), "endOfDemo" ) ) {
@@ -9124,6 +9556,8 @@ void idSessionLocal::Init() {
     cmdSystem->AddCommand( "campaignSelect", Session_CampaignSelect_f, CMD_FL_SYSTEM, "selects a built-in single-player campaign" );
     cmdSystem->AddCommand( "campaignList", Session_CampaignList_f, CMD_FL_SYSTEM, "reports built-in campaign content readiness without mounting it" );
     cmdSystem->AddCommand( "campaignMenu", Session_CampaignMenu_f, CMD_FL_SYSTEM, "opens the single-player or campaign selector" );
+    cmdSystem->AddCommand( "campaignChapters", Session_CampaignChapters_f, CMD_FL_SYSTEM, "lists the active campaign's chapters and which are reached" );
+    cmdSystem->AddCommand( "campaignChapter", Session_CampaignChapter_f, CMD_FL_SYSTEM, "starts a reached chapter of the active campaign by its number" );
 	cmdSystem->AddCommand( "map", Session_Map_f, CMD_FL_SYSTEM, "loads a map", idCmdSystem::ArgCompletion_MapName );
 	cmdSystem->AddCommand( "devmap", Session_DevMap_f, CMD_FL_SYSTEM, "loads a map in developer mode", idCmdSystem::ArgCompletion_MapName );
 	cmdSystem->AddCommand( "testmap", Session_TestMap_f, CMD_FL_SYSTEM, "tests a map", idCmdSystem::ArgCompletion_MapName );
@@ -9213,6 +9647,8 @@ void idSessionLocal::Init() {
 		common->Printf( "Dedicated server: skipping client GUI preload.\n" );
 	} else {
 		Session_DeclareMultiplayerMenuGameCVars();
+		// The retained screens' documents parse on workers while the stock menus load.
+		PrefetchRetainedScreens();
 #ifndef ID_DEMO_BUILD
 		guiMainMenu = uiManager->FindGui( "guis/mainmenu.gui", true, false, true );
 #else
@@ -9222,7 +9658,14 @@ void idSessionLocal::Init() {
 		// this synchronously from StartMenu made the first ESC press wait on image,
 		// material, and sound lookup before the GUI could be activated.
 		PrimeMainMenuGuiResources();
+		// An engine reload (a campaign's game directory, an Arena match's module)
+		// preloads the retained screens again: their pictures precache as the
+		// first start's do, never as late loads.
+		const bool retainedInsideLoad = declManager->GetInsideLoad();
+		declManager->SetInsideLoad( true );
 		PreloadRetainedScreens();
+		UI_RetainedPrefetchClear();
+		declManager->SetInsideLoad( retainedInsideLoad );
 		guiMainMenu_MapList = uiManager->AllocListGUI();
 		guiMainMenu_MapList->Config( guiMainMenu, "mapList" );
 		idAsyncNetwork::client.serverList.GUIConfig( guiMainMenu, "serverList" );
@@ -9233,6 +9676,12 @@ void idSessionLocal::Init() {
 		guiIntro = uiManager->FindGui( "guis/intro.gui", true, false, true );
 		InitDemoSystem();
 		arenaCampaign.Init();
+		// An engine reload (a campaign's game directory, an Arena match's module)
+		// is a load: its levelshots precache now, not on the front end's idle frames.
+		if ( common->IsInitialized() ) {
+			PrecacheRetainedLevelshots( true, true );
+			PrecacheRetainedLevelshots( true, false );
+		}
 	}
 #endif
 
@@ -9316,7 +9765,12 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
-	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading || ( guiActive == guiMsg && !mapSpawned ) ) ) {
+	// A retained page stands in for a main-menu page, and so does every
+	// retained front-end screen presented without a level: Single Player and
+	// its sub-pages, the Multiplayer page and its sub-pages.
+	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
+			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ||
+			( !mapSpawned && UI_IsRetainedPath( guiActive->Name() ) ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );
 	} else {
 		SetPlayingSoundWorld( sw );

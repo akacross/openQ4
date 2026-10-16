@@ -7,6 +7,7 @@
 #include "ScrollbarView.h"
 #include "TextRun.h"
 #include "NumberControlView.h"
+#include "FloatChars.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/FontEngineInterface.h>
@@ -16,15 +17,23 @@
 #include <RmlUi/Core/Filter.h>
 #include <RmlUi/Core/PropertyDefinition.h>
 #include <RmlUi/Core/PropertyDictionary.h>
+#include <RmlUi/Core/StreamMemory.h>
+#include <RmlUi/Core/StyleSheetContainer.h>
+#include <RmlUi/Core/StyleSheetSpecification.h>
+#include <RmlUi/Core/Transform.h>
+#include <RmlUi/Core/TransformPrimitive.h>
 #include <json/json.h>
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
@@ -273,6 +282,9 @@ struct RecordedDraw {
 	std::shared_ptr<const Geometry::Submission> retained;
 	ImageSampling sampling;
 	std::shared_ptr<const float> opacitySource;
+	std::optional<LinearMask> linearMask;
+	std::shared_ptr<const LinearMask> liveLinearMask;
+	Bounds linearClip;
 	const std::vector<Vertex>& Vertices() const { return retained ? retained->vertices : vertices; }
 	const std::vector<int>& Indices() const { return retained ? retained->indices : indices; }
 };
@@ -349,9 +361,16 @@ struct LayerPool {
 	std::array<Slot,49> slots{};
 };
 
-class Renderer final : public Rml::RenderInterface, public ImageSamplingInterface {
+class Renderer final : public Rml::RenderInterface, public ImageSamplingInterface, public LinearMaskInterface {
 public:
 	Renderer(Host& h, RuntimeStatistics& statistics) : host(h), statistics(statistics) {}
+	bool SubmitLinearMask(const LinearMask& mask, std::shared_ptr<const LinearMask> live) override {
+		if (failed || stack.empty() || !stack.back().pending || !stack.back().draws.empty() ||
+			(clipMaskEnabled && clipPolygon.count) || !host.CanDrawLinearMask()) return false;
+		if (!live) InvalidateFrame();
+		RecordedDraw draw; draw.linearMask=mask; draw.liveLinearMask=std::move(live); draw.linearClip=ClipBounds();
+		stack.back().draws.push_back(std::move(draw)); return true;
+	}
 	void Attach(LayerPool& value) { pool = &value; }
 	void Detach() {
 		EndFrame();
@@ -363,7 +382,7 @@ public:
 		pool = nullptr;
 	}
 	void BeginFrame(int width, int height) {
-		if (width != viewportWidth || height != viewportHeight) { ++viewportGeneration; ClearLayerCache(); }
+		if (width != viewportWidth || height != viewportHeight) { ++viewportGeneration; InvalidateFrame(); ClearLayerCache(); }
 		viewportWidth = width; viewportHeight = height; failed = false;
 	}
 	void EndFrame() {
@@ -379,13 +398,60 @@ public:
 	void InvalidateFrame() { frameValid=false; recordFrame=false; }
 	bool ReplayFrame() {
 		if (!frameValid || failed) return false;
+		for (const auto& command:frameCommands) if (command.draw.linearMask &&
+			(!command.draw.liveLinearMask || !host.CanDrawLinearMask() || !host.CanCompositeMaskedLayer())) {
+			InvalidateFrame(); return false;
+		}
+		for (const auto& command:frameCommands) if (command.directOpacity &&
+			!host.CanDrawMeshOpacity(command.draw.mesh,command.draw.revision)) { InvalidateFrame(); return false; }
+		// Reserve transient backdrop targets before drawing anything to the
+		// destination. Allocation may evict a cached plate; in that case the
+		// ordinary traversal rebuilds the recording before any stale slot is read.
+		std::vector<std::uint32_t> backdrops;
+		for (const auto& command:frameCommands) if (command.backdrop) {
+			const auto& clip=command.clip;
+			if (command.opacity==1 && command.streak==0 && clip.x<=0 && clip.y<=0 &&
+				clip.x+clip.width>=viewportWidth && clip.y+clip.height>=viewportHeight &&
+				host.CanSoftenBackdropDirect(command.blur,command.saturation,command.backdropRegion)) {
+				backdrops.push_back(0); continue;
+			}
+			const auto slot=AllocateSlot(true);
+			if (slot) backdrops.push_back(slot);
+			if (!slot || !frameValid) {
+				for (const auto target:backdrops) ReleaseSlot(target);
+				host.EndLayer(0); return false;
+			}
+		}
+		host.EndLayer(0);
 		for (const auto& command:frameCommands) if (command.slot &&
-			(!pool || pool->slots[command.slot].owner!=this || !pool->slots[command.slot].cached)) { InvalidateFrame(); return false; }
+			(!pool || pool->slots[command.slot].owner!=this || !pool->slots[command.slot].cached)) {
+			for (const auto target:backdrops) ReleaseSlot(target);
+			InvalidateFrame(); return false;
+		}
+		size_t backdropIndex=0;
 		for (auto& command:frameCommands) {
-			if (command.slot) {
+			if (command.backdrop) {
+				const auto slot=backdrops[backdropIndex++];
+				const bool drawn=!slot ? host.SoftenBackdropDirect(command.blur,command.saturation,command.backdropRegion) :
+					command.streak>0 ? host.StreakBackdrop(slot,command.streak,command.backdropRegion) :
+					host.SoftenBackdrop(slot,command.blur,command.saturation,command.backdropRegion);
+				if (drawn) ++statistics.backdropComposites; else ++statistics.backdropFallbacks;
+				if (slot) { host.CompositeLayer(slot,0,command.opacity,command.clip); ++statistics.layerPushes; }
+				else ++statistics.layerElisions;
+				++statistics.layerComposites;
+			} else if (command.directOpacity) {
+				const auto& draw=command.draw;
+				host.DrawMeshOpacity(draw.mesh,draw.revision,draw.opacitySource ? *draw.opacitySource : command.opacity);
+				++statistics.drawCalls; statistics.submittedVertices+=draw.Vertices().size(); statistics.submittedIndices+=draw.Indices().size();
+				++statistics.layerElisions; ++statistics.layerComposites;
+			} else if (command.slot) {
 				pool->slots[command.slot].frame=host.RenderFrame();
 				for (auto& cached:layerCache) if (cached.slot==command.slot) cached.used=++cacheClock;
-				host.CompositeLayer(command.slot,0,command.draw.opacitySource ? *command.draw.opacitySource : command.opacity,command.clip);
+				if (command.draw.linearMask) {
+					host.DrawLinearMask(command.slot,*command.draw.liveLinearMask,command.clip,command.opacity);
+					++statistics.drawCalls; statistics.submittedVertices+=4; statistics.submittedIndices+=6;
+					++statistics.maskApplications; ++statistics.directMaskDraws;
+				} else host.CompositeLayer(command.slot,0,command.draw.opacitySource ? *command.draw.opacitySource : command.opacity,command.clip);
 				++statistics.layerComposites; ++statistics.layerCacheHits;
 			} else {
 				auto& draw=command.draw;
@@ -405,10 +471,11 @@ public:
 				DrawNow(draw.Vertices(),draw.Indices(),draw.texture,draw.mesh,draw.revision);
 			}
 		}
+		for (const auto target:backdrops) ReleaseSlot(target);
 		statistics.visibleVectorCacheBytes=frameVectorBytes;
 		++statistics.frameReplays; return true;
 	}
-	void RecordFrame(bool enabled) { frameCommands.clear(); frameValid=false; recordFrame=enabled; frameRecordedVertices=0; }
+	void RecordFrame(bool enabled) { InvalidateFrame(); frameCommands.clear(); recordFrame=enabled; frameRecordedVertices=0; }
 	void FinishRecording() { frameValid=recordFrame && !failed && statistics.liveTextRuns==0; recordFrame=false;
 		frameVectorBytes=statistics.visibleVectorCacheBytes; if (!frameValid) frameCommands.clear(); }
 	Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override {
@@ -681,7 +748,10 @@ public:
 		// An axis-aligned Intersect keeps the earlier outline; the bounds cut it.
 	}
 	void SetTransform(const Rml::Matrix4f* value) override {
-		hasTransform = value != nullptr;
+		// RmlUi restores an explicit identity between output-space vector draws
+		// and can elide the next null transform. Both mean exactly the same
+		// geometry; alternating their cache keys needlessly retires atlas tiles.
+		hasTransform = value && *value != Rml::Matrix4f::Identity();
 		if (value) transform = *value;
 	}
 	// A pushed layer stays pending, recording its draws, until something needs
@@ -787,7 +857,15 @@ public:
 		if (backdrop) {
 			// A streak takes the backdrop; soft focus applies otherwise.
 			const Bounds region = ClipBounds();
-			if (auto* target = Find(destination)) Materialize(*target);
+			if (auto* target = Find(destination)) {
+				// An otherwise empty backdrop layer is one replayable operation.
+				// Its pixels are captured afresh each frame, never frozen. Any
+				// additional artwork or nested composition invalidates recording.
+				target->backdrop=recordFrame && !source && mode==Rml::BlendMode::Blend && target->pending && target->draws.empty();
+				target->blur=blur; target->saturation=saturation; target->streak=streak;
+				target->backdropRegion=region;
+				Materialize(*target,target->backdrop);
+			}
 			if (!failed && !source && destination && ActiveLayer(destination) && mode == Rml::BlendMode::Blend && region.width > 0 && region.height > 0 &&
 				(streak > 0 ? host.StreakBackdrop(Slot(destination),streak,region) : host.SoftenBackdrop(Slot(destination),blur,saturation,region)))
 				++statistics.backdropComposites;
@@ -797,6 +875,7 @@ public:
 		if (!source || source == destination || !ActiveLayer(source) || !ActiveLayer(destination) || mode != Rml::BlendMode::Blend) {
 			host.Log(true,"Unsupported retained layer composition"); failed = true; return;
 		}
+		if (recordFrame && destination) InvalidateFrame();
 		float opacity = 1;
 		std::shared_ptr<const float> opacitySource;
 		bool textOpacity=false;
@@ -821,6 +900,27 @@ public:
 		// identity, so a layer still pending need never be drawn at all. Its
 		// recording stays until the pop, should it be composited again.
 		if (layer.pending && (opacity == 0 || clip.width <= 0 || clip.height <= 0)) { ++statistics.layerElisions; return; }
+		// A ready coverage atlas already contains the exact pixels of one
+		// non-overlapping solid mesh. Its host can apply group alpha directly,
+		// avoiding a clear and two target transitions. Replay checks continued
+		// atlas residency before any destination drawing begins.
+		if (layer.pending && !destination && maskFilters.empty() && layer.draws.size()==1 &&
+			!layer.draws[0].texture && layer.draws[0].mesh) {
+			const auto& draw=layer.draws[0];
+			host.EndLayer(0);
+			const auto started=statistics.Now();
+			const bool painted=host.DrawMeshOpacity(draw.mesh,draw.revision,opacity);
+			statistics.hostDrawMilliseconds+=std::chrono::duration<double,std::milli>(statistics.Now()-started).count();
+			if (painted) {
+				if (recordFrame) {
+					FrameCommand command; command.directOpacity=true; command.draw=draw; command.opacity=opacity;
+					command.draw.opacitySource=opacitySource;
+					frameCommands.push_back(std::move(command));
+				}
+				++statistics.drawCalls; statistics.submittedVertices+=draw.Vertices().size(); statistics.submittedIndices+=draw.Indices().size();
+				++statistics.layerElisions; ++statistics.layerComposites; return;
+			}
+		}
 		// An isolated image or a run of non-overlapping glyph quads needs no
 		// intermediate target: opacity distributes over those disjoint pixels.
 		// Overlapping glyphs, arbitrary meshes and masked groups keep composition.
@@ -848,14 +948,17 @@ public:
 		// mask copies and composites for a small stationary HUD gauge.
 		std::vector<std::pair<std::uint64_t,std::uint64_t>> cacheKey;
 		const bool cacheText=opacitySource && textOpacity && maskFilters.empty();
-		bool cacheable=host.CanCacheLayers() && layer.pending && !destination && (!maskFilters.empty() || cacheText) && LayerCacheLimit()>0;
+		// A compound vector plate (fill plus rail) needs isolated alpha at the
+		// overlap. Retain its completed target; single meshes prefer the atlas.
+		const bool cachePlate=maskFilters.empty() && layer.draws.size()>1;
+		bool cacheable=host.CanCacheLayers() && layer.pending && !destination && (!maskFilters.empty() || cacheText || cachePlate) && LayerCacheLimit()>0;
 		const auto appendKey=[&](const std::vector<RecordedDraw>& draws) {
 			cacheKey.emplace_back(0,draws.size());
 			for (const auto& draw:draws) {
 				if (!draw.mesh || (draw.texture && !cacheText) || draw.sampling.coordinates) return false;
 				// Fonts can queue their first GPU upload during the first draw.
 				// Admit only a submission already painted in an earlier frame.
-				if (cacheText && (!draw.retained || host.RenderFrame()<=draw.retained->firstFrame)) return false;
+				if (!draw.retained || host.RenderFrame()<=draw.retained->firstFrame) return false;
 				cacheKey.emplace_back(draw.mesh,draw.revision);
 			}
 			return true;
@@ -863,7 +966,7 @@ public:
 		if (cacheable) cacheable=appendKey(layer.draws);
 		for (const auto* filter:maskFilters) if (cacheable)
 			cacheable=filter->recording && appendKey(*filter->recording);
-		if (cacheable) for (auto& cached:layerCache) if (cached.key==cacheKey &&
+		if (cacheable) for (auto& cached:layerCache) if (!cached.sourceOnly && cached.key==cacheKey &&
 			cached.clip.x==clip.x && cached.clip.y==clip.y && cached.clip.width==clip.width && cached.clip.height==clip.height) {
 			cached.used=++cacheClock;
 			pool->slots[cached.slot].frame=host.RenderFrame();
@@ -877,6 +980,23 @@ public:
 			statistics.maskApplications+=maskFilters.size();
 			return;
 		}
+		if (!destination && layer.pending && maskFilters.size()==1 &&
+			CompositeCachedSource(layer,*maskFilters[0],opacity,clip)) return;
+		// Do not churn a full cache with another plate or a changing mask.
+		// Entries used this frame or the last one remain in the working set.
+		if (cacheable && layerCache.size()>=LayerCacheLimit()) {
+			const auto frame=host.RenderFrame();
+			cacheable=std::any_of(layerCache.begin(),layerCache.end(),[&](const CachedLayer& cached) {
+				const auto used=pool->slots[cached.slot].frame;
+				return frame>used && frame-used>1;
+			});
+		}
+		if (recordFrame && layer.backdrop && !destination && maskFilters.empty()) {
+			FrameCommand command; command.backdrop=true; command.opacity=opacity; command.clip=clip;
+			command.blur=layer.blur; command.saturation=layer.saturation; command.streak=layer.streak;
+			command.backdropRegion=layer.backdropRegion;
+			frameCommands.push_back(std::move(command));
+		} else if (recordFrame && !layer.pending) InvalidateFrame();
 		Materialize(layer);
 		if (auto* target = Find(destination)) Materialize(*target);
 		if (failed) return;
@@ -891,12 +1011,12 @@ public:
 					if (!filter->mask) {
 						filter->mask=AllocateSlot();
 						if (!filter->mask) { ReleaseSlot(scratch); return; }
-						for (const auto& draw:*filter->recording) DrawNow(draw.Vertices(),draw.Indices(),draw.texture,draw.mesh,draw.revision);
+						for (const auto& draw:*filter->recording) DrawRecorded(draw);
 					}
 					host.MaskLayer(filter->mask,scratch,clip); ++statistics.maskApplications;
 				}
 			}
-			if (cacheable && cacheText) {
+			if (cacheable && maskFilters.empty()) {
 				// Keep the completed glyph overlap exactly once. Images cannot use
 				// this cache: their material stages may animate independently.
 				// Transfer this leaf's target lease to the cache when its layer
@@ -907,7 +1027,7 @@ public:
 			host.CompositeLayer(scratch ? scratch : layer.slot,Slot(destination),opacity,clip);
 			if (cacheable && scratch) {
 				while (layerCache.size()>=LayerCacheLimit()) EvictLayerCache();
-				layerCache.push_back({std::move(cacheKey),clip,scratch,++cacheClock});
+				layerCache.push_back({std::move(cacheKey),clip,scratch,++cacheClock,false});
 				pool->slots[scratch].cached=true;
 			} else ReleaseSlot(scratch);
 			++statistics.layerComposites;
@@ -915,7 +1035,8 @@ public:
 	}
 private:
 	struct FrameCommand { RecordedDraw draw; std::vector<Rml::Vector2f> imageFractions; std::vector<std::array<float,4>> baseColours;
-		std::uint32_t slot=0; float opacity=1; Bounds clip; };
+		std::uint32_t slot=0; float opacity=1; Bounds clip;
+		bool backdrop=false, directOpacity=false; float blur=0, saturation=1, streak=0; Bounds backdropRegion; };
 	std::shared_ptr<const ImageCoordinates> imageSampling;
 	std::vector<FrameCommand> frameCommands;
 	bool frameValid=false, recordFrame=false;
@@ -945,7 +1066,12 @@ private:
 	static Bounds ArtworkClip(const std::vector<RecordedDraw>& draws, const Bounds& clip) {
 		float left=clip.x+clip.width, top=clip.y+clip.height, right=clip.x, bottom=clip.y;
 		for (const auto& draw:draws) {
-			if (draw.retained) {
+			if (draw.linearMask) {
+				for (const auto& point:draw.linearMask->points) {
+					left=std::min(left,float(point.x)); top=std::min(top,float(point.y));
+					right=std::max(right,float(point.x)); bottom=std::max(bottom,float(point.y));
+				}
+			} else if (draw.retained) {
 				const auto& b=draw.retained->bounds;
 				left=std::min(left,b.x); top=std::min(top,b.y); right=std::max(right,b.x+b.width); bottom=std::max(bottom,b.y+b.height);
 			} else for (const auto& v:draw.Vertices()) {
@@ -998,6 +1124,7 @@ private:
 		Bounds clip;
 		std::uint32_t slot=0;
 		std::uint64_t used=0;
+		bool sourceOnly=false;
 	};
 	std::vector<CachedLayer> layerCache;
 	std::uint64_t cacheClock=0;
@@ -1026,6 +1153,9 @@ private:
 		bool pending = true;
 		bool cached = false;
 		std::vector<RecordedDraw> draws; // Recorded while pending, replayed into the target.
+		bool backdrop=false;
+		float blur=0, saturation=1, streak=0;
+		Bounds backdropRegion;
 	};
 	Layer* Find(Rml::LayerHandle handle) {
 		for (auto& layer : stack) if (layer.handle == handle) return &layer;
@@ -1036,23 +1166,102 @@ private:
 		return layer ? layer->slot : 0;
 	}
 	// A nested layer can remain pending until its first non-recordable operation.
-	void Materialize(Layer& layer) {
+	void Materialize(Layer& layer,bool preserveFrame=false) {
 		if (!layer.pending) return;
 		layer.pending = false;
-		layer.slot = AllocateSlot(); // Binds and clears the target; fails the frame when exhausted.
+		layer.slot = AllocateSlot(preserveFrame); // Binds and clears the target; fails the frame when exhausted.
 		if (!layer.slot) { layer.draws.clear(); return; }
 		++statistics.layerPushes;
 		auto draws = std::move(layer.draws); layer.draws.clear();
 		// Materializing a parent while a child is on the stack must draw into
 		// that parent's bound target, never re-record into the child.
-		for (const auto& draw : draws) DrawNow(draw.Vertices(),draw.Indices(),draw.texture,draw.mesh,draw.revision);
+		for (const auto& draw : draws) DrawRecorded(draw);
+	}
+	void DrawRecorded(const RecordedDraw& draw) {
+		if (draw.linearMask) {
+			host.DrawLinearMask(0,*draw.linearMask,draw.linearClip,1);
+			++statistics.drawCalls; statistics.submittedVertices+=4; statistics.submittedIndices+=6;
+		} else DrawNow(draw.Vertices(),draw.Indices(),draw.texture,draw.mesh,draw.revision);
+	}
+	static bool ConstantPixelMask(const RecordedDraw& draw) {
+		const auto& vertices=draw.Vertices(); const auto& indices=draw.Indices();
+		if (vertices.empty() || vertices.size()%4 || indices.size()!=vertices.size()/4*6) return false;
+		for (size_t base=0;base<vertices.size();base+=4) {
+			const auto& a=vertices[base]; const auto& b=vertices[base+1];
+			const auto& c=vertices[base+2]; const auto& d=vertices[base+3];
+			const int order[6]={0,1,2,0,2,3};
+			for (int i=0;i<6;++i) if (indices[base/4*6+i]!=int(base)+order[i]) return false;
+			if (a.x!=std::floor(a.x) || a.y!=std::floor(a.y) || c.x!=std::floor(c.x) || c.y!=std::floor(c.y) ||
+				a.x>=c.x || a.y>=c.y || b.x!=c.x || b.y!=a.y || d.x!=a.x || d.y!=c.y ||
+				a.a!=b.a || a.a!=c.a || a.a!=d.a) return false;
+		}
+		return true;
+	}
+	bool CompositeCachedSource(Layer& layer,const Filter& filter,float opacity,const Bounds& clip) {
+		if (!host.CanCacheLayers() || !host.CanCompositeMaskedLayer() || !filter.recording ||
+			filter.recording->size()!=1 || !LayerCacheLimit()) return false;
+		const auto& mask=filter.recording->front();
+		if (!mask.linearMask && (!mask.retained || mask.retained->texture!=CoverageTexture)) return false;
+		// A single-sample mask target resolves gradient subdivisions before it
+		// modulates the source. Drawing those triangles straight into an MSAA
+		// window instead resolves at different sample locations, visibly changing
+		// sharp stops. Only whole-pixel constant cells distribute exactly; the
+		// analytic shader evaluates the other supported masks per physical pixel.
+		if (!mask.linearMask && !ConstantPixelMask(mask)) return false;
+		// Stationary masks use the completed-layer cache above. This path keeps
+		// only the stable artwork beneath a mask that is changing this frame.
+		if (!mask.linearMask && host.RenderFrame()>mask.retained->firstFrame) return false;
+		std::vector<std::pair<std::uint64_t,std::uint64_t>> key;
+		for (const auto& draw:layer.draws) {
+			if (!draw.mesh || draw.texture || draw.sampling.coordinates || !draw.retained ||
+				host.RenderFrame()<=draw.retained->firstFrame) return false;
+			key.emplace_back(draw.mesh,draw.revision);
+		}
+		if (key.empty()) return false;
+		auto found=std::find_if(layerCache.begin(),layerCache.end(),[&](const auto& cached) {
+			return cached.sourceOnly && cached.key==key && cached.clip.x==clip.x && cached.clip.y==clip.y &&
+				cached.clip.width==clip.width && cached.clip.height==clip.height;
+		});
+		if (found==layerCache.end()) {
+			if (layerCache.size()>=LayerCacheLimit()) {
+				const auto frame=host.RenderFrame();
+				if (std::none_of(layerCache.begin(),layerCache.end(),[&](const auto& cached) {
+					const auto used=pool->slots[cached.slot].frame; return frame>used && frame-used>1;
+				})) return false;
+			}
+			Materialize(layer);
+			if (failed) return true;
+			while (layerCache.size()>=LayerCacheLimit()) EvictLayerCache();
+			layer.cached=true; pool->slots[layer.slot].cached=true;
+			layerCache.push_back({std::move(key),clip,layer.slot,++cacheClock,true});
+			found=std::prev(layerCache.end());
+		} else ++statistics.layerCacheHits;
+		found->used=++cacheClock; pool->slots[found->slot].frame=host.RenderFrame();
+		const auto started=statistics.Now();
+		if (mask.linearMask) {
+			const auto& b=mask.linearClip;
+			const float left=std::max(clip.x,b.x),top=std::max(clip.y,b.y);
+			const float right=std::min(clip.x+clip.width,b.x+b.width),bottom=std::min(clip.y+clip.height,b.y+b.height);
+			const Bounds maskClip{left,top,std::max(0.f,right-left),std::max(0.f,bottom-top)};
+			host.DrawLinearMask(found->slot,*mask.linearMask,maskClip,opacity);
+			if (recordFrame && mask.liveLinearMask) {
+				FrameCommand command; command.slot=found->slot; command.draw=mask;
+				command.opacity=opacity; command.clip=maskClip;
+				frameCommands.push_back(std::move(command));
+			} else InvalidateFrame();
+		} else { InvalidateFrame(); host.CompositeMaskedLayer(found->slot,mask.Vertices(),mask.Indices(),opacity); }
+		statistics.hostDrawMilliseconds+=std::chrono::duration<double,std::milli>(statistics.Now()-started).count();
+		++statistics.drawCalls; statistics.submittedVertices+=mask.linearMask ? 4 : mask.Vertices().size();
+		statistics.submittedIndices+=mask.linearMask ? 6 : mask.Indices().size();
+		++statistics.maskApplications; ++statistics.layerComposites; ++statistics.directMaskDraws;
+		return true;
 	}
 	std::uint32_t TopLayer() const { return stack.empty() ? 0 : stack.back().slot; }
 	bool ActiveLayer(Rml::LayerHandle handle) {
 		return !handle || Find(handle);
 	}
-	std::uint32_t AllocateSlot() {
-		InvalidateFrame(); // Transient targets and backdrops must execute their full composition.
+	std::uint32_t AllocateSlot(bool preserveFrame=false) {
+		if (!preserveFrame) InvalidateFrame(); // Arbitrary transient composition requires traversal.
 		if (failed) return 0;
 		if (!pool) return 0;
 		const auto frame = host.RenderFrame();
@@ -1075,12 +1284,12 @@ private:
 				}
 			}
 		}
-		if (!layerCache.empty()) { EvictLayerCache(); return AllocateSlot(); }
+		if (!layerCache.empty()) { EvictLayerCache(); return AllocateSlot(preserveFrame); }
 		// A hidden/idle view must not pin cache targets needed by an active
 		// compositor. Same-size reuse remains ordered by the host draw stream;
 		// the frame guard above still prevents resizing a referenced image.
 		for (const auto& slot:pool->slots) if (slot.cached && slot.owner && slot.owner!=this) {
-			slot.owner->EvictLayerCache(); return AllocateSlot();
+			slot.owner->EvictLayerCache(); return AllocateSlot(preserveFrame);
 		}
 		// After a resolution increase, several free old targets can consume the
 		// budget needed for one larger replacement. Releasing one lease is not
@@ -1093,7 +1302,7 @@ private:
 				slot={nullptr,1,1,frame}; trimmed=true;
 			}
 		}
-		if (trimmed) return AllocateSlot();
+		if (trimmed) return AllocateSlot(preserveFrame);
 		host.Log(true,"Cannot allocate retained composition layer"); failed = true; return 0;
 	}
 	void ReleaseSlot(std::uint32_t id) {
@@ -1138,6 +1347,7 @@ private:
 	}
 	void DrawNow(const std::vector<Vertex>& vertices, const std::vector<int>& indices, std::uintptr_t texture,
 		std::uint64_t mesh, std::uint64_t revision, std::shared_ptr<const Geometry::Submission> retained={}, ImageSampling sampling={}) {
+		if (recordFrame && TopLayer()) InvalidateFrame();
 		if (recordFrame) {
 			frameRecordedVertices+=vertices.size();
 			if (frameCommands.size()>=4096 || frameRecordedVertices>1048576) InvalidateFrame();
@@ -1333,6 +1543,137 @@ private:
 	std::map<std::string, std::unique_ptr<Face>> faces;
 };
 
+// openQ4: a canonical load builds its elements from the model with typed
+// inline properties, without deriving markup and having RmlUi parse it. Each
+// property is what RmlUi's parser produces from the value's CSS: the parser
+// reads one representative declaration per property name and kind (a
+// number, a length per unit, a colour, a font, a transform) and each keyword
+// once, and that parse keeps the property's definition and parser; a value
+// then takes the parsed template with the number, colour, string or
+// transform the parser would read from its CSS. Shorthands (padding,
+// border-width, overflow) and the effect properties (filters, decorators,
+// the mask) still read their CSS, so their longhands and declaration lists
+// are the parser's own. The cache lives with RmlUi's specification.
+class InlineProperties {
+public:
+	// Declares `name: value` in `properties` as the parse of the value's CSS would.
+	bool Declare(Rml::PropertyDictionary& properties, const std::string& name, const Value& value) {
+		Name& entry = Lookup(name);
+		if (entry.shorthand) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+		if (value.type == ValueType::Keyword) {
+			auto found = entry.keywords.find(value.text);
+			if (found == entry.keywords.end()) {
+				auto parsed = Parse(name,value.text);
+				if (!parsed) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+				found = entry.keywords.emplace(value.text,std::move(*parsed)).first;
+			}
+			properties.SetProperty(entry.id,found->second); return true;
+		}
+		const Rml::Property* base = nullptr;
+		switch (value.type) {
+		case ValueType::Number: base = Template(entry.number,name,"1"); break;
+		case ValueType::Length: { const int unit = LengthUnit(value.unit); if (unit >= 0) base = Template(entry.lengths[unit],name,"1"+value.unit); break; }
+		case ValueType::Colour: base = Template(entry.colour,name,"rgba(0,0,0,255)"); break;
+		case ValueType::Font: base = Template(entry.font,name,"marine"); break;
+		case ValueType::Transform: base = Template(entry.transform,name,"translate(0dp,0dp) scale(1,1) rotate(0deg)"); break;
+		default: break;
+		}
+		if (!base) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,value.Css());
+		Rml::Property property = *base;
+		switch (value.type) {
+		case ValueType::Number: case ValueType::Length: property.value = Rml::Variant(Number(value.data[0])); break;
+		case ValueType::Colour: property.value = Rml::Variant(Colour(value)); break;
+		case ValueType::Font: property.value = Rml::Variant(Rml::String(value.text)); break;
+		case ValueType::Transform: property.value = Rml::Variant(Transform(value)); break;
+		default: break;
+		}
+		properties.SetProperty(entry.id,property); return true;
+	}
+	// Declares an effect property (filter, backdrop-filter, decorator,
+	// mask-image) from its CSS, parsed once per distinct declaration.
+	bool DeclareEffect(Rml::PropertyDictionary& properties, const std::string& name, const std::string& css) {
+		Name& entry = Lookup(name);
+		if (entry.shorthand) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,css);
+		auto found = entry.keywords.find(css);
+		if (found == entry.keywords.end()) {
+			auto parsed = Parse(name,css);
+			if (!parsed) return Rml::StyleSheetSpecification::ParsePropertyDeclaration(properties,name,css);
+			found = entry.keywords.emplace(css,std::move(*parsed)).first;
+		}
+		properties.SetProperty(entry.id,found->second); return true;
+	}
+	// The float RmlUi's number parser reads from a value's formatted number
+	// (strtof of the digits Value::Css writes). An integer below 2^24 converts
+	// exactly either way; any other number is formatted and read, once per
+	// distinct value.
+	float Number(double value) {
+		if (value == std::trunc(value) && std::fabs(value) < 16777216.0) return static_cast<float>(value);
+		std::uint64_t bits; std::memcpy(&bits,&value,sizeof bits);
+		auto& slot = fractions[static_cast<size_t>((bits*0x9E3779B97F4A7C15ull)>>54)];
+		if (slot.valid && slot.bits == bits) return slot.result;
+		char buffer[64];
+		const auto end = FloatToChars(buffer,buffer+sizeof(buffer)-1,value,std::chars_format::general,10).ptr;
+		*end = 0;
+		slot = {bits,std::strtof(buffer,nullptr),true};
+		return slot.result;
+	}
+	// The colour RmlUi's parser reads from rgba(): each channel's CSS is the
+	// decimal integer round(x*255), read back as that integer and clamped.
+	static Rml::Colourb Colour(const Value& value) {
+		Rml::byte channels[4];
+		for (int i = 0; i < 4; ++i)
+			channels[i] = static_cast<Rml::byte>(std::clamp(std::round(value.data[i]*255),0.0,255.0));
+		return Rml::Colourb(channels[0],channels[1],channels[2],channels[3]);
+	}
+	// The parsed properties reference RmlUi's specification: cleared before it shuts down.
+	void Clear() { names.clear(); fractions.fill({}); }
+	// The transform RmlUi's parser builds from "translate(x,y) scale(x,y)
+	// rotate(deg)": the same three primitives from the same parsed numbers.
+	Rml::TransformPtr Transform(const Value& value) {
+		const Rml::Unit unit = value.unit == "px" ? Rml::Unit::PX : Rml::Unit::DP;
+		auto transform = Rml::MakeShared<Rml::Transform>();
+		const Rml::NumericValue translate[2] = {{Number(value.data[0]),unit},{Number(value.data[1]),unit}};
+		transform->AddPrimitive({Rml::Transforms::Translate2D(translate)});
+		const Rml::NumericValue scale[2] = {{Number(value.data[2]),Rml::Unit::NUMBER},{Number(value.data[3]),Rml::Unit::NUMBER}};
+		transform->AddPrimitive({Rml::Transforms::Scale2D(scale)});
+		const Rml::NumericValue rotate[1] = {{Number(value.data[4]),Rml::Unit::DEG}};
+		transform->AddPrimitive({Rml::Transforms::Rotate2D(rotate)});
+		return transform;
+	}
+private:
+	struct Name {
+		Rml::PropertyId id = Rml::PropertyId::Invalid;
+		bool shorthand = false; // Or unknown: its CSS is parsed.
+		std::optional<Rml::Property> number, colour, font, transform;
+		std::array<std::optional<Rml::Property>,4> lengths; // dp, px, %, em
+		std::unordered_map<std::string,Rml::Property> keywords; // Also an effect property's declarations.
+	};
+	std::unordered_map<std::string,Name> names;
+	struct Fraction { std::uint64_t bits = 0; float result = 0; bool valid = false; };
+	std::array<Fraction,1024> fractions{};
+	Name& Lookup(const std::string& name) {
+		const auto found = names.find(name);
+		if (found != names.end()) return found->second;
+		Name entry;
+		entry.id = Rml::StyleSheetSpecification::GetPropertyId(name);
+		entry.shorthand = entry.id == Rml::PropertyId::Invalid;
+		return names.emplace(name,std::move(entry)).first->second;
+	}
+	static int LengthUnit(const std::string& unit) {
+		return unit == "dp" ? 0 : unit == "px" ? 1 : unit == "%" ? 2 : unit == "em" ? 3 : -1;
+	}
+	// Parses `name: css` and returns the one property it declares.
+	static std::optional<Rml::Property> Parse(const std::string& name, const std::string& css) {
+		Rml::PropertyDictionary parsed;
+		if (!Rml::StyleSheetSpecification::ParsePropertyDeclaration(parsed,name,css) || parsed.GetNumProperties() != 1) return std::nullopt;
+		return parsed.GetProperties().begin()->second;
+	}
+	static const Rml::Property* Template(std::optional<Rml::Property>& slot, const std::string& name, const std::string& css) {
+		if (!slot) { auto parsed = Parse(name,css); if (!parsed) return nullptr; slot = std::move(*parsed); }
+		return &*slot;
+	}
+};
+
 struct Backend {
 	explicit Backend(Host& host) : renderer(host,statistics) {}
 	RuntimeStatistics statistics;
@@ -1355,6 +1696,7 @@ struct Services {
 	std::unique_ptr<VectorMaskInstancer> maskInstancer;
 	std::unique_ptr<StreakFilterInstancer> streakInstancer;
 	std::unique_ptr<LeafOpacityFilterInstancer> leafOpacityInstancer;
+	InlineProperties inlineProperties; // The canonical load's parsed property templates.
 	bool initialized = false;
 	Backend* AcquireBackend() {
 		for (auto& backend : backends) if (!backend->leased) {
@@ -1395,6 +1737,7 @@ struct Services {
 		return true;
 	}
 	~Services() {
+		inlineProperties.Clear();
 		if (initialized) Rml::Shutdown();
 		maskInstancer.reset();
 		streakInstancer.reset();
@@ -1484,56 +1827,192 @@ struct Runtime::Impl {
 	std::vector<Rml::Vector2f> focusLayout;
 	bool focusLayoutVisible = false;
 	std::vector<std::string> controls;
+	std::vector<Rml::Element*> layoutWidgets;
 	float pointerX = 0, pointerY = 0;
 	float windowPointerX = 0, windowPointerY = 0;
 	bool pointerPresent = false;
 	bool pointerNavigation = false;
+	// Which device leads (section 13.4): the pointer once it moves or
+	// presses, the keyboard or controller once a menu input or a program's
+	// focus arrives. The interaction shows focus only while they lead.
+	void SetPointerNavigation(bool pointer) { pointerNavigation = pointer; interaction.SetPointerPresentation(pointer); }
+	// The detail card (DocumentModel::detail): its subject, whether the pointer
+	// chose it, and the card's last placement relative to its containing block.
+	std::string detailSubject;
+	bool detailByPointer = false;
+	float detailLeft = 0, detailTop = 0;
+	bool detailPlaced = false;
 	// A program's focus request that the current layout could not take: its
 	// control appears with the same state change. The next frame's layout
 	// takes it, or it lapses.
 	std::string pendingFocus;
-	std::map<PropertyKey,std::string> applied;
+	// The document's inherited default font size as last applied; empty
+	// until the first pass.
+	std::string documentFontCss;
 	// ApplyMotion's last applied input for each motion value, by position,
 	// whether a binding owns it, and the state revision and text ratio it was
-	// formatted under.
-	struct AppliedInput { PropertyKey key; Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false; };
+	// formatted under, with the CSS it installed on its element (cssApplied).
+	struct AppliedInput {
+		// The authored key this slot last applied (the motion's authored map
+		// keeps every key for the document's life), or none.
+		const PropertyKey* key = nullptr;
+		Value value; bool bound = false; Rml::Element* element = nullptr; bool deferred = false;
+		// The CSS installed: `css`, or (cssAuthored) the authored formatting
+		// of `value`, which the load built and no pass has formatted.
+		std::string css; bool cssApplied = false, cssAuthored = false;
+		void Set(const PropertyKey* k, const Value& v, bool owned, Rml::Element* e) { key = k; value = v; bound = owned; element = e; deferred = false; }
+		// The formatting the load built the value with: its CSS, an opacity's filter.
+		std::string AuthoredCss() const { return key && key->second == "opacity" ? "opacity("+value.Css()+")" : value.Css(); }
+		bool InstalledCss(const std::string& string) const { return cssAuthored ? AuthoredCss() == string : css == string; }
+	};
 	std::vector<AppliedInput> appliedInputs;
+	// A load builds every authored value into its element's inline
+	// properties. They are current until the first complete pass, which
+	// records a value still at its authored one as applied instead of
+	// parsing it again; the nodes the value-control view styled at load (the
+	// choice popups and viewports) take the ordinary path.
+	bool inlineAuthored = false;
+	std::set<std::string_view> inlineOverridden;
 	std::vector<PropertyKey> deferredInputs;
 	std::uint64_t appliedInputRevision = 0;
 	// The motion stamp of the last pass that applied every value (0: none
 	// yet, or a pass left a value for a later one).
 	std::uint64_t appliedMotionRevision = 0;
-	// Each motion value's position in appliedInputs (keys are fixed per document).
-	struct PropertyHash {
-		size_t operator()(const PropertyKey& key) const noexcept {
-			const auto first=std::hash<std::string>{}(key.first), second=std::hash<std::string>{}(key.second);
-			return first^(second+size_t(0x9e3779b9)+(first<<6)+(first>>2));
-		}
-	};
-	std::unordered_map<PropertyKey,size_t,PropertyHash> inputIndexes;
+	// Counts ApplyMotion's passes that can write presentation; value controls
+	// reassert a settled closed list only after one (ValueControlView::Paint).
+	std::uint64_t presentationPass = 1;
+	// Each motion value's position in appliedInputs: the authored keys in
+	// Values()' order (the live values keep the authored key set), found by
+	// binary search, and the authored map they index.
+	std::vector<const PropertyKey*> inputKeys;
+	const PropertyValues* indexedKeys = nullptr;
+	bool InputsIndexed() const { return indexedKeys && indexedKeys == &motion.Base() && inputKeys.size() == motion.Values().size(); }
+	// The key's position, or inputKeys.size() for a key the inputs lack.
+	size_t InputIndex(const PropertyKey& key) const {
+		const auto found = std::lower_bound(inputKeys.begin(),inputKeys.end(),key,[](const PropertyKey* a, const PropertyKey& b) { return *a < b; });
+		return found != inputKeys.end() && **found == key ? static_cast<size_t>(found-inputKeys.begin()) : inputKeys.size();
+	}
 	float appliedInputTextRatio = 0;
 	bool presentationDirty = true;
 	bool paintDirty = true;
-	// Canonical ids by one breadth-first walk from the document, in
-	// GetElementById's own order and first match, so eligibility resolves
-	// every node with one walk instead of one search each.
+	std::vector<VectorElement*> changedProjections;
+	bool interactionLayoutDirty = true;
+	// Only controls/modals and their ancestors can affect interaction.
+	// Artwork-heavy screens keep most of their nodes outside these trees.
+	// Canonical nodes/elements survive derived widget reparenting and text
+	// changes; replacing/closing a document retires both trees and handles.
+	struct InteractionBranch {
+		const Node* node=nullptr;
+		Rml::Element* element=nullptr;
+		std::vector<InteractionBranch> children;
+	};
+	InteractionBranch inputBranches,modalBranches;
+	std::set<Rml::Element*> interactionAncestors;
 	std::unordered_map<std::string_view,Rml::Element*> elementIndex;
 	// Canonical nodes survive text/property edits and widget reparenting.
 	// Cache successful layout readbacks for the document's lifetime.
 	mutable std::unordered_map<std::string,Rml::Element*> boundsElements;
-	void IndexElements() {
-		elementIndex.clear();
-		if (!document) return;
-		std::vector<Rml::Element*> queue{document};
-		for (size_t next = 0; next < queue.size(); ++next) {
-			auto* element = queue[next];
-			if (!element->GetId().empty()) elementIndex.emplace(element->GetId(),element);
-			for (int child = 0; child < element->GetNumChildren(); ++child) queue.push_back(element->GetChild(child));
+	InteractionBranch BuildInteractionBranch(const Node& node,bool modals) {
+		InteractionBranch result;
+		for (const auto& child:node.children) {
+			auto branch=BuildInteractionBranch(child,modals);
+			if (branch.node) result.children.push_back(std::move(branch));
 		}
+		if ((modals ? bool(node.modal) : bool(node.control)) || !result.children.empty()) {
+			result.node=&node;
+			interactionAncestors.insert(CanonicalElement(node.id));
+			if (!modals && (node.control || node.mask)) {
+				result.element=CanonicalElement(node.id);
+				if (node.control) elementIndex.emplace(node.id,result.element);
+			}
+		}
+		return result;
 	}
 	Rml::Element* IndexedElement(const std::string& id) const {
 		const auto found = elementIndex.find(id);
 		return found == elementIndex.end() ? nullptr : found->second;
+	}
+	// Canonical node elements by ID, resolved once per load. A canonical
+	// document keeps every node's element until it closes (text nodes own no
+	// canonical children; a choice popup moves under the document but lives
+	// on), so frames resolve IDs here instead of searching the document,
+	// which RmlUi does breadth-first over every element.
+	std::unordered_map<std::string,Rml::Element*> canonicalElements;
+	Rml::Element* CanonicalElement(const std::string& id) const {
+		const auto found = canonicalElements.find(id);
+		return found != canonicalElements.end() ? found->second : document ? document->GetElementById(id) : nullptr;
+	}
+	// Builds the document a canonical load presents: the derived markup's
+	// style sheet, then every node's element with its id and the typed
+	// properties its inline style would carry, each appended to its parent
+	// before its children, as the markup parser appends them. `elements`
+	// maps each node ID to its element. The caller shows the document, which
+	// lays it out once (a markup load laid it out hidden first, then again on
+	// show; nothing here observes the load or show events). A document that
+	// cannot be built is closed and none is returned.
+	Rml::ElementDocument* BuildCanonicalDocument(const DocumentModel& model, const std::string& sourcePath,
+		std::unordered_map<std::string,Rml::Element*>& elements) {
+		auto* document = context->CreateDocument();
+		if (!document) return nullptr;
+		{
+			// Native unstyled scrollbars default to the containing width and can
+			// consume the entire client area. Scrolling stays semantic until
+			// authored scrollbar parts provide the editable vector control and
+			// its pointer interactions.
+			static constexpr std::string_view sheet = "body{margin:0;width:100%;height:100%;font-family:marine;font-size:16dp;color:#fff;}"
+				"div,q4-node,q4-vector{display:block;}scrollbarvertical{width:0;}scrollbarhorizontal{height:0;}";
+			auto container = Rml::MakeShared<Rml::StyleSheetContainer>();
+			Rml::StreamMemory stream(reinterpret_cast<const Rml::byte*>(sheet.data()),sheet.size());
+			stream.SetSourceURL(Rml::URL(Rml::URL(sourcePath).GetURL()));
+			if (container->LoadStyleSheetContainer(&stream,1)) document->SetStyleSheetContainer(std::move(container));
+		}
+		if (!AppendCanonical(*document,model.root,elements)) { document->Close(); return nullptr; }
+		return document;
+	}
+	bool AppendCanonical(Rml::Element& parent, const Node& node, std::unordered_map<std::string,Rml::Element*>& elements) {
+		auto& templates = services->inlineProperties;
+		static const Rml::String nodeTag = "q4-node", vectorTag = "q4-vector";
+		static const Value one = [] { Value value; value.type = ValueType::Number; value.data[0] = 1; return value; }();
+		static const Value relative = [] { Value value; value.type = ValueType::Keyword; value.text = "relative"; return value; }();
+		const Rml::String& tag = node.type == "vector" ? vectorTag : nodeTag;
+		// The properties in the order the node's inline style would declare
+		// them, so the element's inline properties keep that order.
+		Rml::PropertyDictionary properties;
+		// Canonical opacity isolates the complete node subtree. RmlUi's ordinary
+		// opacity is an inherited primitive tint; its filter supplies the needed
+		// stacking/render boundary without changing the editable source format.
+		templates.Declare(properties,"opacity",one);
+		// Button parts (focus rail, marker, label) use the button's local box even
+		// when the button itself participates in normal document flow.
+		if (node.control) templates.Declare(properties,"position",relative);
+		if (node.mask) templates.DeclareEffect(properties,"mask-image","q4-mask(alpha)");
+		const auto blur = node.properties.find("backdrop-blur"), saturate = node.properties.find("backdrop-saturate");
+		const auto streak = node.properties.find("backdrop-streak");
+		if (blur != node.properties.end() || saturate != node.properties.end() || streak != node.properties.end()) {
+			const auto css = BackdropFilterCss(blur != node.properties.end() ? &blur->second : nullptr,
+				saturate != node.properties.end() ? &saturate->second : nullptr, streak != node.properties.end() ? &streak->second : nullptr);
+			if (css != "none") templates.DeclareEffect(properties,"backdrop-filter",css);
+		}
+		for (const auto& [name,value] : node.properties) {
+			// The same cases as the derived markup's, told apart by their
+			// first letter before any comparison.
+			const char first = name.empty() ? 0 : name[0];
+			if (first == 't' && name == "text") continue;
+			if (first == 'o' && name == "opacity") { if (value.data[0] < 1) templates.DeclareEffect(properties,"filter","opacity("+value.Css()+")"); }
+			else if (first == 'b' && name.starts_with("backdrop-") && (name == "backdrop-blur" || name == "backdrop-saturate" || name == "backdrop-streak")) continue; // Folded into backdrop-filter.
+			else if (first == 'i' && name == "image") { if (!HasImageCoordinates(node)) templates.DeclareEffect(properties,"decorator",ImageDecorator(node,value.text)); }
+			else if (first == 'i' && name.starts_with("image-") && (name == "image-offset-x" || name == "image-offset-y" || name == "image-scale-x" || name == "image-scale-y")) continue;
+			else if (first == 'i' && name.starts_with("image-") && (name == "image-fit" || name == "image-align-x" || name == "image-align-y" || name == "image-blend")) continue; // Folded into the decorator.
+			else templates.Declare(properties,name,value);
+		}
+		auto element = Rml::Factory::InstanceElement(&parent,tag,tag,Rml::XMLAttributes());
+		if (!element) return false;
+		element->SetId(node.id);
+		for (const auto& [id,property] : properties.GetProperties()) element->SetProperty(id,property);
+		auto* appended = parent.AppendChild(std::move(element));
+		elements.emplace(node.id,appended);
+		for (const auto& child : node.children) if (!AppendCanonical(*appended,child,elements)) return false;
+		return true;
 	}
 	bool initialized = false;
 	std::map<std::string,bool> inputAllowed;
@@ -1572,7 +2051,7 @@ struct Runtime::Impl {
 	// Focus a program asked for: now, when the control can take it, else
 	// after the next frame's layout.
 	void RequestFocus(const std::string& id) {
-		pointerNavigation = false;
+		SetPointerNavigation(false);
 		if (interaction.Focus(id)) { pendingFocus.clear(); RevealFocus(); }
 		else pendingFocus = id;
 	}
@@ -1614,7 +2093,9 @@ struct Runtime::Impl {
 		roots.clear(); error.clear();
 		if (!canonical || !interaction.HasAuthoredModals()) return true;
 		bool valid = true;
-		std::function<void(const Node&,bool,const std::string&)> visit = [&](const Node& node, bool inherited, const std::string& parent) {
+		std::function<void(const InteractionBranch&,bool,const std::string&)> visit = [&](const InteractionBranch& branch, bool inherited, const std::string& parent) {
+			if (!branch.node) return;
+			const auto& node=*branch.node;
 			const auto display = Property(state,motion,{node.id,"display"});
 			const bool visible = inherited && (!display || display->text != "none");
 			std::string scope = parent;
@@ -1622,9 +2103,9 @@ struct Runtime::Impl {
 				if (!roots.empty() && roots.back() != parent) valid = false;
 				roots.push_back(node.id); scope = node.id;
 			}
-			for (const auto& child : node.children) visit(child,visible,scope);
+			for (const auto& child : branch.children) visit(child,visible,scope);
 		};
-		visit(canonical->Model().root,true,{});
+		visit(modalBranches,true,{});
 		if (!valid) error = "Visible authored modals must form one nested ancestry chain";
 		return valid;
 	}
@@ -1653,23 +2134,26 @@ struct Runtime::Impl {
 			const Node* current = pending.back(); pending.pop_back();
 			const auto overflow = current->properties.find("overflow");
 			if (overflow != current->properties.end() && (overflow->second.text == "auto" || overflow->second.text == "scroll"))
-				if (auto* element = document ? document->GetElementById(current->id) : nullptr) { element->SetScrollTop(0); element->SetScrollLeft(0); }
+				if (auto* element = CanonicalElement(current->id)) { element->SetScrollTop(0); element->SetScrollLeft(0); }
 			for (const auto& child : current->children) pending.push_back(&child);
 		}
 	}
 	std::vector<std::string> openModals;
-	void CollectInputEligibility(const Node& node, bool inherited = true) {
+	void CollectInputEligibility(const InteractionBranch& branch, bool inherited = true) {
+		if (!branch.node) return;
+		const auto& node=*branch.node;
 		const auto display = PresentedProperty({node.id,"display"});
 		const auto events = PresentedProperty({node.id,"pointer-events"});
-		auto* element = IndexedElement(node.id);
+		auto* element = branch.element;
 		const bool maskArea = !node.mask || (element && static_cast<VectorElement*>(element)->HasMaskArea());
 		const bool allowed = inherited && maskArea && (!display || display->text != "none") && (!events || events->text != "none");
-		inputAllowed[node.id] = allowed;
-		for (const auto& child : node.children) CollectInputEligibility(child,allowed);
+		if (node.control) inputAllowed[node.id] = allowed;
+		for (const auto& child : branch.children) CollectInputEligibility(child,allowed);
 	}
 	void ApplyControlBindings() {
 		SyncModals(); // Capture the opener before enabled/readback changes clear it.
 		if (appliedStateRevision == state.Revision()) return;
+		interactionLayoutDirty=true;
 		std::string error;
 		if (!interaction.SetReadbacks(state.ControlValues(),error)) { host.Log(true,error); return; }
 		for (const auto& [id,enabled] : state.Enabled()) interaction.SetEnabled(id,enabled);
@@ -1702,10 +2186,61 @@ struct Runtime::Impl {
 		if (std::isfinite(seconds)) time = std::max(time,seconds);
 		for (const auto& change : interaction.TakeFeedback()) motion.Play(change.timeline,time);
 	}
+	// Writes the detail subject's detail to the detail state: the control the
+	// pointer is over while the pointer moved last, otherwise the focused
+	// control, or the definition's `none` without one that names a detail.
+	// True when the state changed (its bindings are then applied).
+	bool UpdateDetailSubject() {
+		if (!canonical || !canonical->Model().detail) return false;
+		const auto& spec = *canonical->Model().detail;
+		std::string subject = pointerNavigation ? (pointerPresent ? interaction.Hovered() : std::string{}) : interaction.Focused();
+		const auto* node = subject.empty() ? nullptr : canonical->Model().FindNode(subject);
+		if (!node || !node->control || !node->control->detail) subject.clear();
+		if (subject != detailSubject || pointerNavigation != detailByPointer) detailPlaced = false;
+		detailSubject = subject; detailByPointer = pointerNavigation;
+		const StateValues change{{spec.state, subject.empty() ? spec.none : *node->control->detail}};
+		if (!state.WouldChange(change)) return false;
+		State candidate = state; std::string error;
+		if (!candidate.Set(change,error) || !ValidModals(candidate,motion,error)) { host.Log(true,error); return false; }
+		state = std::move(candidate); ApplyControlBindings(); ApplyMotion(); return true;
+	}
+	// Places the detail card beside its subject by the card's measured box
+	// (DetailSpec). A hidden card is not placed. True when it moved.
+	bool PlaceDetailCard() {
+		if (!canonical || !canonical->Model().detail || detailSubject.empty()) return false;
+		auto* card = CanonicalElement(canonical->Model().detail->card);
+		auto* subject = CanonicalElement(detailSubject);
+		if (!card || !subject) return false;
+		const auto size = card->GetBox().GetSize(Rml::BoxArea::Border);
+		if (size.x <= 0 || size.y <= 0) return false;
+		auto* parent = card->GetOffsetParent();
+		const auto origin = parent ? parent->GetAbsoluteOffset(Rml::BoxArea::Padding) : Rml::Vector2f{};
+		const float dp = viewport.DpRatio(), gap = 6*dp, edge = 16*dp;
+		const float viewWidth = static_cast<float>(viewport.width), viewHeight = static_cast<float>(viewport.height);
+		float x = 0, y = 0;
+		if (detailByPointer) {
+			x = pointerX-origin.x > 555*dp ? pointerX+28*dp-size.x : pointerX+gap;
+			y = pointerY+gap;
+			if (y+size.y > viewHeight-edge) y = pointerY-gap-size.y;
+		} else {
+			const auto at = subject->GetAbsoluteOffset(Rml::BoxArea::Border);
+			const auto box = subject->GetBox().GetSize(Rml::BoxArea::Border);
+			x = at.x; y = at.y+box.y+gap;
+			if (y+size.y > viewHeight-edge) y = at.y-gap-size.y;
+		}
+		x = std::clamp(x,edge,std::max(edge,viewWidth-edge-size.x));
+		y = std::clamp(y,edge,std::max(edge,viewHeight-edge-size.y));
+		const float left = x-origin.x, top = y-origin.y;
+		if (detailPlaced && std::abs(left-detailLeft) < .25f && std::abs(top-detailTop) < .25f) return false;
+		detailLeft = left; detailTop = top; detailPlaced = true;
+		card->SetProperty(Rml::PropertyId::Left,Rml::Property(left,Rml::Unit::PX));
+		card->SetProperty(Rml::PropertyId::Top,Rml::Property(top,Rml::Unit::PX));
+		return true;
+	}
 	Rml::Element* NumberViewport(Rml::Element* element) const {
 		const auto* node = element && canonical ? canonical->Model().FindNode(element->GetId()) : nullptr;
 		const auto* number = node && node->control ? std::get_if<NumberSpec>(&node->control->widget) : nullptr;
-		return number ? document->GetElementById(number->viewport) : nullptr;
+		return number ? CanonicalElement(number->viewport) : nullptr;
 	}
 	static bool ProjectedBounds(Rml::Element* element, Rml::Element* parent, Rml::Vector2f& minimum, Rml::Vector2f& maximum) {
 		Rml::Array<Rml::Vector2f,4> quad;
@@ -1739,7 +2274,7 @@ struct Runtime::Impl {
 	std::vector<Rml::Vector2f> FocusLayout() const {
 		std::vector<Rml::Vector2f> result;
 		if (!document || interaction.Focused().empty()) return result;
-		auto* target = document->GetElementById(interaction.Focused());
+		auto* target = CanonicalElement(interaction.Focused());
 		if (auto* viewport = NumberViewport(target)) target = viewport;
 		for (auto* element = target; element && element != document; element = element->GetParentNode()) {
 			// Relative layout and client extents exclude scroll offsets. A user
@@ -1752,7 +2287,7 @@ struct Runtime::Impl {
 	}
 	bool FocusVisible() const {
 		if (!document || interaction.Focused().empty()) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		Rml::Array<Rml::Vector2f,4> quad;
 		if (!element || !element->IsVisible(true) || !Rml::ElementUtilities::GetBorderBoxQuad(quad,element)) return false;
 		for (auto* parent = element->GetParentNode(); parent; parent = parent->GetParentNode()) {
@@ -1773,7 +2308,7 @@ struct Runtime::Impl {
 	}
 	bool RevealFocus(bool preserveAuthoredAxes = false) {
 		if (!document || !context || interaction.Focused().empty()) return false;
-		auto* element = document->GetElementById(interaction.Focused());
+		auto* element = CanonicalElement(interaction.Focused());
 		if (!element) return false;
 		const float margin = 4.f * viewport.DpRatio();
 		if (!std::isfinite(margin) || margin <= 0) return false;
@@ -1862,6 +2397,8 @@ struct Runtime::Impl {
     bool UpdateInteraction(double seconds = -1, bool freshLayout = false, bool refreshPopup = false) {
 		if (!document || viewport.width<=0 || viewport.height<=0) return false;
         if (!canonical) return true; // Valid legacy RML has no canonical interaction work.
+		++Stats().interactionUpdates;
+		if (!freshLayout) interactionLayoutDirty=true;
 		if (std::isfinite(seconds) && seconds >= 0) time = std::max(time,seconds);
         const auto owner=ownerCanvas;
         const auto stamp=owner->identity;
@@ -1882,9 +2419,11 @@ struct Runtime::Impl {
 		SyncModals();
 		// A presentation-only document (a HUD) has nothing to focus, scroll or hit.
 		if (controls.empty() && !scrollView.HasScrollbars() && !interaction.HasAuthoredModals()) {
-			inputAllowed.clear(); interaction.SetBounds({},freshLayout); Feedback(time); return true;
+			inputAllowed.clear(); interaction.SetBounds({},freshLayout); Feedback(time);
+			if (freshLayout) interactionLayoutDirty=false;
+			return true;
 		}
-		inputAllowed.clear(); IndexElements(); CollectInputEligibility(canonical->Model().root); elementIndex.clear();
+		inputAllowed.clear(); CollectInputEligibility(inputBranches);
         // Publish scrollbar metrics and projected bounds as one eligibility update.
         // Restored focus must never be tested against this instance's old bounds.
         std::string scrollError;scrollLayoutDirty|=scrollView.Sync(interaction,viewport.DpRatio(),freshLayout,scrollError,true);
@@ -1892,7 +2431,7 @@ struct Runtime::Impl {
         if(refreshing && (!owner->alive || owner->retiring || owner->identity!=stamp))return false;
 		std::map<std::string,ControlBounds> bounds;
 		for (const auto& id : controls) {
-			auto* element = document->GetElementById(id); Rml::Rectanglef rect;
+			auto* element = IndexedElement(id); Rml::Rectanglef rect;
 			if (element && inputAllowed.at(id) && element->IsVisible(true) && Rml::ElementUtilities::GetBoundingBox(rect,element,Rml::BoxArea::Border))
 				bounds[id] = {rect.Left(),rect.Top(),rect.Width(),rect.Height(),true};
 		}
@@ -1909,24 +2448,27 @@ struct Runtime::Impl {
         }
         ApplyScrollCommands();
 		Feedback(time);
-        return !refreshing || (owner->alive && !owner->retiring && owner->identity==stamp);
+        const bool current=!refreshing || (owner->alive && !owner->retiring && owner->identity==stamp);
+		if (current && freshLayout) interactionLayoutDirty=false;
+		return current;
 	}
 	bool ApplyMotion(const RuntimeCanvasIdentity* expected=nullptr) {
         const auto current=[&]{return !expected || (ownerCanvas->alive && !ownerCanvas->retiring && ownerCanvas->identity==*expected);};
         if (!document || !canonical || !current()) return false;
+		const bool freshMarkup = inlineAuthored; inlineAuthored = false;
 		const float textRatio=viewport.TextRatio();
 		const bool flushDeferred = presentationDirty && !deferredInputs.empty();
-		if (!flushDeferred && !applied.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
+		if (!flushDeferred && !documentFontCss.empty() && appliedInputTextRatio==textRatio && appliedInputRevision==state.Revision() &&
 			appliedMotionRevision && appliedMotionRevision==motion.Revision() && appliedInputs.size()>=motion.Values().size()) return current();
 		// The inherited document default participates once. Explicit absolute
 		// typography below replaces it; em values use the resulting parent/font
 		// metrics and must never receive this multiplier a second time.
-		if (appliedInputTextRatio!=textRatio || !applied.contains({"","font-size"})) {
+		if (appliedInputTextRatio!=textRatio || documentFontCss.empty()) {
 			Value defaultFont; defaultFont.type=ValueType::Length; defaultFont.unit="dp";
 			defaultFont.data[0]=16*textRatio;
 			const auto defaultCss=defaultFont.Css();
-			if (applied[{"","font-size"}]!=defaultCss) {
-				document->SetProperty("font-size",defaultCss); applied[{"","font-size"}]=defaultCss;
+			if (documentFontCss!=defaultCss) {
+				document->SetProperty("font-size",defaultCss); documentFontCss=defaultCss;
 				presentationDirty=true;
 			}
 		}
@@ -1953,7 +2495,7 @@ struct Runtime::Impl {
 		// constrained popup is open) stays a complete pass, translating its
 		// text again through the host it validates the popup against.
 		const bool incremental = !expected && partial && appliedMotionRevision != 0 &&
-			appliedInputs.size() >= motion.Values().size() && inputIndexes.size() == motion.Values().size();
+			appliedInputs.size() >= motion.Values().size() && InputsIndexed();
 		if (incremental && stateChanged && !state.TakeChangedProperties(changedKeys))
 			for (const auto& [key,value] : state.Properties()) changedKeys.push_back(key);
 		// A display transition flushes pending inline styles before RmlUi resolves
@@ -1966,19 +2508,28 @@ struct Runtime::Impl {
 			changedKeys.insert(changedKeys.end(),deferredInputs.begin(),deferredInputs.end());
 			deferredInputs.clear();
 		}
-		appliedMotionRevision = 0;
+		appliedMotionRevision = 0; ++presentationPass;
 		bool complete = true;
+		const auto sameValue = [](const Value& a, const Value& b) {
+			return a.type == b.type && std::memcmp(a.data.data(),b.data.data(),sizeof(a.data)) == 0 && a.unit == b.unit && a.text == b.text;
+		};
 		// One input: formats it only when it changed, then applies it.
-		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated) -> bool {
-			const bool backdrop = key.second == "backdrop-blur" || key.second == "backdrop-saturate" || key.second == "backdrop-streak";
-			if (!backdrop && animated.type != ValueType::Text && input.key == key && !(stateChanged && input.bound) && input.value.type == animated.type &&
+		// `authored`: the value's authored one while the load's inline values
+		// are fresh. `keyPointer`: the key in the authored map. `boundAt`: the
+		// key's bound property, or end, when the caller read the state in step.
+		const auto apply = [&](AppliedInput& input, const PropertyKey& key, const Value& animated, const Value* authored,
+			const PropertyKey* keyPointer, std::optional<PropertyValues::const_iterator> boundAt) -> bool {
+			const bool sameKey = input.key && *input.key == key;
+			const bool backdrop = key.second.starts_with("backdrop-") &&
+				(key.second == "backdrop-blur" || key.second == "backdrop-saturate" || key.second == "backdrop-streak");
+			if (!backdrop && animated.type != ValueType::Text && sameKey && !(stateChanged && input.bound) && input.value.type == animated.type &&
 				std::memcmp(input.value.data.data(),animated.data.data(),sizeof(animated.data)) == 0 &&
 				input.value.unit == animated.unit && input.value.text == animated.text) return true;
-			const auto bound = !stateChanged && input.key==key && !input.bound ? state.Properties().end() : state.Properties().find(key);
+			const auto bound = boundAt ? *boundAt : !stateChanged && sameKey && !input.bound ? state.Properties().end() : state.Properties().find(key);
 			const bool owned = bound != state.Properties().end();
 			const auto& value = owned ? bound->second : animated;
 			if (deferHidden) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				// A hidden animated property may never have needed an inline
 				// write. Keep its resolved element even while deferring the value,
 				// otherwise every sample searches the entire document again.
@@ -1987,22 +2538,28 @@ struct Runtime::Impl {
 					if (ancestor->GetComputedValues().display()==Rml::Style::Display::None) {
 						if (!input.deferred) deferredInputs.push_back(key);
 						input.deferred=true;
-						input.key={}; // A deferred bound value has not reached its element yet.
+						input.key=nullptr; // A deferred bound value has not reached its element yet.
 						return current();
 					}
 			}
-			const bool coordinates=key.second == "image-offset-x" || key.second == "image-offset-y" || key.second == "image-scale-x" || key.second == "image-scale-y";
+			const bool image=key.second.starts_with("image-");
+			const bool coordinates=image && (key.second == "image-offset-x" || key.second == "image-offset-y" || key.second == "image-scale-x" || key.second == "image-scale-y");
 			if (coordinates) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
 				if (!element) { complete=false; return true; }
 				static_cast<VectorElement*>(element)->SetImageCoordinate(key.second,value.data[0]);
-				input={key,animated,owned,element}; return current();
+				input.Set(keyPointer,animated,owned,element); return current();
 			}
 			const bool opacity = key.second == "opacity";
-			const bool paintOpacity=opacity && incremental && !presentationDirty && controls.empty() &&
-				!scrollView.HasScrollbars() && !interaction.HasAuthoredModals() && !pointerPresent;
+			// A decorative leaf beside canonical buttons can replay its isolated
+			// fade. Owned widgets, interactive ancestry and compound groups keep
+			// their ordinary style/layout update and filter preparation.
+			auto* opacityElement=opacity ? (input.element ? input.element : CanonicalElement(key.first)) : nullptr;
+			const bool paintOpacity=opacityElement && incremental && !presentationDirty &&
+				!scrollView.HasScrollbars() && ((controls.empty() && !interaction.HasAuthoredModals() && !pointerPresent) ||
+				(layoutWidgets.empty() && !interactionAncestors.count(opacityElement) && static_cast<VectorElement*>(opacityElement)->ReplayOpacity()));
 			if (opacity) {
-				auto* element=input.element ? input.element : document->GetElementById(key.first);
+				auto* element=opacityElement;
 				if (!element) { complete=false; return true; }
 				const bool reusable=static_cast<VectorElement*>(element)->UpdateReplayOpacity(float(value.data[0]));
 				if (paintOpacity && reusable) {
@@ -2010,11 +2567,35 @@ struct Runtime::Impl {
 					// 'applied' as the last CSS actually installed: formatting and
 					// looking up a new CSS string cannot change this cached draw.
 					// Zero/full-opacity crossings still install the new topology.
-					input={key,animated,owned,element}; return current();
+					if (input.cssAuthored) { input.css = input.AuthoredCss(); input.cssAuthored = false; }
+					input.Set(keyPointer,animated,owned,element); return current();
+				}
+			}
+			// Decorative transforms affect projection, not box layout. Resolve
+			// the typed value directly; Render updates inherited matrices in
+			// parent order. Controls, modals and scrolling retain full layout.
+			if (incremental && !presentationDirty && key.second=="transform" &&
+				value.type==ValueType::Transform && !scrollView.HasScrollbars()) {
+				auto* element=input.element ? input.element : CanonicalElement(key.first);
+				if (element && !interactionAncestors.count(element)) {
+					if (!static_cast<VectorElement*>(element)->SetPresentationTransform(value,viewport.DpRatio(),
+						{float(viewport.width),float(viewport.height)})) {
+						host.Log(true,"Canonical transform rejected: "+key.first); paintDirty=true;
+					}
+					// An ordinary pass must not mistake the old CSS for the
+					// current property after a typed update or a timeline rewind.
+					input.cssApplied=false; input.cssAuthored=false; input.Set(keyPointer,animated,owned,element);
+					auto* projected=static_cast<VectorElement*>(element);
+					if (std::find(changedProjections.begin(),changedProjections.end(),projected)==changedProjections.end())
+						changedProjections.push_back(projected);
+					return current();
 				}
 			}
 			std::string string;
-			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") &&
+			// Whether the load's fresh inline value already is this string, and
+			// whether its record then needs no formatting at all (cssAuthored).
+			bool carried = false, lazy = false;
+			if (value.type==ValueType::Length && (value.unit=="dp" || value.unit=="px") && (key.second[0]=='f' || key.second[0]=='l') &&
 				(key.second=="font-size" || key.second=="line-height" || key.second=="letter-spacing")) {
 				auto scaled=value; scaled.data[0]*=viewport.TextRatio(); string=scaled.Css();
 			} else if (backdrop) {
@@ -2027,20 +2608,34 @@ struct Runtime::Impl {
 				};
 				const auto blur = present("backdrop-blur"), saturate = present("backdrop-saturate"), streak = present("backdrop-streak");
 				string = BackdropFilterCss(blur ? &*blur : nullptr,saturate ? &*saturate : nullptr,streak ? &*streak : nullptr);
-			} else string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
-				value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
+			} else {
+				// The load builds an authored value as the pass formats it here,
+				// an opacity below one as its filter; text and images it leaves to
+				// the pass. A value the load built is recorded as applied without
+				// a second parse, and without formatting: its record formats on
+				// demand.
+				carried = freshMarkup && authored && value.type != ValueType::Text && value.type != ValueType::Image &&
+					(!opacity || value.data[0] < 1) && sameValue(value,*authored);
+				lazy = carried && !input.cssApplied && !inlineOverridden.contains(key.first);
+				if (!lazy) string = opacity ? (value.data[0] < 1 ? "opacity("+value.Css()+")" : "none") :
+					value.type == ValueType::Text ? host.Translate(value.text) : value.Css();
+			}
 			if(!current())return false;
 			// Fit and alignment are authored once and folded into the decorator.
-			if (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend") {
-				applied[key] = string; input = {key,animated,owned,input.element}; return true;
+			if (image && (key.second == "image-fit" || key.second == "image-align-x" || key.second == "image-align-y" || key.second == "image-blend")) {
+				if (lazy) { input.Set(keyPointer,animated,owned,input.element); input.css.clear(); input.cssApplied = true; input.cssAuthored = true; return true; }
+				input.css = std::move(string); input.cssApplied = true; input.cssAuthored = false; input.Set(keyPointer,animated,owned,input.element); return true;
 			}
 			// Canonical elements survive property/text edits and owned-widget
 			// reparenting. These handles reset with the document or its snapshot.
-			auto* element = input.element ? input.element : document->GetElementById(key.first);
+			auto* element = input.element ? input.element : CanonicalElement(key.first);
 			if (!element) { complete = false; return true; }
-			if (opacity && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) string.insert(0,"q4-");
-			auto previous = applied.find(key);
-			if (previous != applied.end() && previous->second == string) { input = {key,animated,owned,element}; return true; }
+			if (opacity && lazy && static_cast<VectorElement*>(element)->ReplayOpacity()) { lazy = false; string = "opacity("+value.Css()+")"; }
+			if (opacity && !lazy && string!="none" && static_cast<VectorElement*>(element)->ReplayOpacity()) string.insert(0,"q4-");
+			if (input.cssApplied && input.InstalledCss(string)) { input.Set(keyPointer,animated,owned,element); return true; }
+			// openQ4: the load built this very value; record it as applied
+			// instead of parsing it a second time.
+			if (lazy) { input.Set(keyPointer,animated,owned,element); input.css.clear(); input.cssApplied = true; input.cssAuthored = true; return true; }
 			{
 				// A hidden HUD branch can keep advancing its authored timelines
 				// without relaying out the visible document. Keep its inline values
@@ -2062,7 +2657,7 @@ struct Runtime::Impl {
 			}
 			else if (!element->SetProperty(opacity ? "filter" : backdrop ? "backdrop-filter" : key.second,string)) host.Log(true,"Canonical property rejected: "+key.first+"."+key.second);
 			if(!current())return false;
-			applied[key] = string; input = {key,animated,owned,element};
+			input.css = std::move(string); input.cssApplied = true; input.cssAuthored = false; input.Set(keyPointer,animated,owned,element);
 			return true;
 		};
 		if (incremental) {
@@ -2075,9 +2670,9 @@ struct Runtime::Impl {
 			std::sort(changedKeys.begin(),changedKeys.end());
 			changedKeys.erase(std::unique(changedKeys.begin(),changedKeys.end()),changedKeys.end());
 			for (const auto& key : changedKeys) {
-				const auto index = inputIndexes.find(key);
-				if (index == inputIndexes.end()) continue;
-				auto& input = appliedInputs[index->second];
+				const size_t index = InputIndex(key);
+				if (index == inputKeys.size()) continue;
+				auto& input = appliedInputs[index];
 				// A deferred property's branch cannot become visible while the
 				// presentation and its display bindings remain unchanged. Its
 				// timeline still samples in Motion; read the latest value when a
@@ -2086,7 +2681,7 @@ struct Runtime::Impl {
 				++Stats().motionInputsScanned;
 				const auto animated = motion.Values().find(key);
 				if (animated == motion.Values().end()) continue;
-				if (!apply(input,key,animated->second)) return false;
+				if (!apply(input,key,animated->second,nullptr,inputKeys[index],std::nullopt)) return false;
 			}
 			if (complete) appliedMotionRevision = passRevision;
 			return current();
@@ -2095,13 +2690,32 @@ struct Runtime::Impl {
 		// A complete pass applies every bound value: the change log restarts.
 		{ std::vector<PropertyKey> consumed; state.TakeChangedProperties(consumed); }
 		if (appliedInputs.size() < motion.Values().size()) appliedInputs.resize(motion.Values().size());
-		const bool indexing = inputIndexes.size() != motion.Values().size();
-		if (indexing) inputIndexes.clear();
+		const bool indexing = !InputsIndexed();
+		if (indexing) { inputKeys.clear(); inputKeys.reserve(motion.Values().size()); indexedKeys = &motion.Base(); }
 		size_t inputIndex = 0;
+		// The authored values keep the live values' key order, so the pass
+		// reads each value's authored key (and, on the load's first pass, its
+		// authored value) in step, and the bound properties in step too.
+		const auto& authoredValues = motion.Base();
+		auto authored = authoredValues.begin();
+		const auto& boundProperties = state.Properties();
+		auto bound = boundProperties.begin();
 		for (const auto& [key,animated] : motion.Values()) {
-			if (indexing) inputIndexes.emplace(key,inputIndex);
-			if (!apply(appliedInputs[inputIndex++],key,animated)) return false;
+			const PropertyKey* keyPointer = nullptr; const Value* carried = nullptr;
+			if (authored != authoredValues.end() && authored->first == key) {
+				keyPointer = &authored->first;
+				if (freshMarkup) carried = &authored->second;
+				++authored;
+			}
+			// A live key the authored map lacks leaves the inputs unindexed:
+			// every pass then stays complete.
+			if (indexing) { if (keyPointer) inputKeys.push_back(keyPointer); else indexedKeys = nullptr; }
+			while (bound != boundProperties.end() && bound->first < key) ++bound;
+			const auto boundAt = bound != boundProperties.end() && bound->first == key ? bound : boundProperties.end();
+			if (!apply(appliedInputs[inputIndex++],key,animated,carried,keyPointer,boundAt)) return false;
 		}
+		if (!indexedKeys) inputKeys.clear();
+		inlineOverridden.clear();
 		if (complete) appliedMotionRevision = passRevision;
         return current();
 	}
@@ -2258,10 +2872,14 @@ void Runtime::Shutdown() {
 	}
 	impl->context = nullptr;
 	impl->document = nullptr;
+	impl->canonicalElements.clear();
 	impl->boundsElements.clear();
+	impl->inputBranches={}; impl->modalBranches={}; impl->interactionAncestors.clear(); impl->elementIndex.clear(); impl->layoutWidgets.clear();
 	impl->hud = nullptr;
 	impl->paintDirty=true;
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset({});
+	impl->changedProjections.clear();
+	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr; impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2277,6 +2895,7 @@ void Runtime::CloseDocument() {
 
 	impl->sourcePath.clear();
 	impl->boundsElements.clear();
+	impl->inputBranches={}; impl->modalBranches={}; impl->interactionAncestors.clear(); impl->elementIndex.clear(); impl->layoutWidgets.clear();
 	impl->hud = nullptr;
 	impl->valueView.Reset();
 	impl->scrollView.Reset();impl->scrollLayoutDirty=impl->preserveRestoredScroll=false;
@@ -2284,7 +2903,9 @@ void Runtime::CloseDocument() {
 	impl->numberView.Reset();
 	if (impl->backend) impl->backend->renderer.InvalidateFrame();
 	impl->paintDirty=true;
-	impl->canonical.reset(); impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear(); impl->motion.Reset({});
+	impl->changedProjections.clear();
+	impl->canonical.reset(); impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+	impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr; impl->motion.Reset(DocumentModel{});
 	impl->state = {}; impl->stateSources.clear(); impl->appliedStateRevision = 0; impl->stateError.clear();
 	impl->interaction.Reset({}); impl->controls.clear(); impl->pointerPresent = impl->pointerNavigation = false;
 	impl->pendingFocus.clear();
@@ -2292,6 +2913,7 @@ void Runtime::CloseDocument() {
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	impl->document->Close();
 	impl->document = nullptr;
+	impl->canonicalElements.clear();
 	impl->context->Update();
 }
 bool Runtime::LoadMarkup(const std::string& markup, const std::string& sourcePath) {
@@ -2312,43 +2934,89 @@ bool Runtime::LoadDocument(const std::string& source, const std::string& sourceP
 
 	auto candidate = std::make_unique<Document>();
 	if (!candidate->Load(source,diagnostics)) return false;
-	if (!LoadMarkup(candidate->BuildMarkup(),sourcePath)) return false;
+	return LoadCanonical(std::move(candidate),sourcePath,diagnostics);
+}
+bool Runtime::LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
+    if(!Mutate())return false;
+	diagnostics.clear();
+	if (document.Source().empty()) return false; // Never loaded.
+	return LoadCanonical(std::make_unique<Document>(document),sourcePath,diagnostics);
+}
+bool Runtime::LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics) {
+	if (!Mutate() || !Initialize()) return false;
+	{
+		ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
+		// The document is built from the model, each node's element with its
+		// typed properties (no markup is derived or parsed). Keep the currently
+		// loaded document if building a replacement fails.
+		std::unordered_map<std::string,Rml::Element*> elements;
+		auto* document = impl->BuildCanonicalDocument(candidate->Model(),sourcePath,elements);
+		if (!document) return false;
+		CloseDocument();
+		impl->document = document;
+		impl->canonicalElements = std::move(elements);
+		document->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
+	}
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
-	impl->motion.Reset(candidate->Model());
+	// The loaded document outlives the motion, state and views that read its
+	// model: they share it instead of copying its values and declarations.
+	impl->motion.Reset(candidate->SharedModel());
 	impl->interaction.Reset(candidate->Model());
 	std::string stateError;
-	impl->state.Reset(candidate->Model(),stateError); // Initial state was validated by Document::Load.
+	impl->state = candidate->InitialState(); // Evaluated and validated by Document::Load, from the shared model.
 	for (const auto& [id,declaration]:impl->state.Declarations()) if (!declaration.cvar.empty())
 		impl->stateSources.push_back({id,declaration.cvar,declaration.initial.index()});
 	impl->canonical = std::move(candidate);
 	impl->sourcePath = sourcePath;
+	// The build mapped every node to its element, so the load resolves each
+	// node without a search.
 	std::vector<const Node*> nodes{&impl->canonical->Model().root};
 	while (!nodes.empty()) {
 		const auto* node = nodes.back(); nodes.pop_back();
-		if (node->control) impl->controls.push_back(node->id);
-		// Canonical subtrees preserve paint order when opacity crosses 1 and
-		// their temporary filter layer appears or disappears.
-		if (auto* element = impl->document->GetElementById(node->id)) element->SetProperty("z-index","0");
-		if (auto* element = impl->document->GetElementById(node->id)) {
+		const auto built = impl->canonicalElements.find(node->id);
+		auto* element = built == impl->canonicalElements.end() ? nullptr : built->second;
+		if (node->control) {
+			impl->controls.push_back(node->id);
+			if (node->control->role!=ControlRole::Button && element) impl->layoutWidgets.push_back(element);
+		}
+		if (element) {
+			// Canonical subtrees preserve paint order when opacity crosses 1 and
+			// their temporary filter layer appears or disappears.
+			element->SetProperty(Rml::PropertyId::ZIndex,Rml::Property(0.f,Rml::Unit::NUMBER));
 			static_cast<VectorElement*>(element)->Configure(*node,impl->host,impl->Stats());
 			static_cast<VectorElement*>(element)->SetImageSamplingInterface(&impl->backend->renderer);
+			static_cast<VectorElement*>(element)->SetLinearMaskInterface(&impl->backend->renderer);
 		}
 		for (const auto& child : node->children) nodes.push_back(&child);
 	}
-	if (!impl->valueView.Initialize(impl->canonical->Model(),*impl->document,
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError)) {
+	if (!impl->valueView.Initialize(impl->canonical->SharedModel(),*impl->document,
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
 	if (!impl->scrollView.Initialize(impl->canonical->Model(),*impl->document,stateError)) {
         diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
     }
-    if (!impl->numberView.Initialize(impl->canonical->Model(),*impl->document,
+    if (!impl->numberView.Initialize(impl->canonical->SharedModel(),*impl->document,
 		[owner=impl.get()](std::uintptr_t face,std::string_view text,float spacing) { return owner->services->fonts.QueryRun(face,text,spacing); },
-		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError)) {
+		[owner=impl.get()](const std::string& text) { return owner->host.Translate(text); },{},stateError,
+		[owner=impl.get()](const std::string& id) { return owner->CanonicalElement(id); })) {
 		diagnostics.push_back({"/root",stateError}); CloseDocument(); return false;
 	}
+	impl->inputBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,false);
+	impl->modalBranches=impl->BuildInteractionBranch(impl->canonical->Model().root,true);
 	impl->ReadStateSources(); impl->Feedback(impl->time);
+	// The built inline values are current for the first pass, except on the
+	// choice popups and viewports the value-control view styled above.
+	impl->inlineOverridden.clear();
+	for (const auto& id : impl->controls)
+		if (const auto* node = impl->canonical->Model().FindNode(id))
+			if (const auto* choice = node->control ? std::get_if<ChoiceSpec>(&node->control->widget) : nullptr) {
+				impl->inlineOverridden.insert(choice->popup); impl->inlineOverridden.insert(choice->viewport);
+			}
+	impl->inlineAuthored = true;
 	impl->ApplyMotion();
+	impl->presentationDirty = true; // A new document is a new presentation, as its first pass always found.
 	return true;
 }
 bool Runtime::SetHudPresentation(const std::vector<HudPrimitive>& items,const Viewport& viewport,std::string& error) {
@@ -2396,6 +3064,11 @@ StateValues Runtime::GetState(bool includeHostSources) const {
 	return values;
 }
 std::uint64_t Runtime::StateRevision() const { return impl->state.Revision(); }
+bool Runtime::GetStateValue(const std::string& id, StateValue& value) const {
+	const auto found = impl->state.Variables().find(id);
+	if (found == impl->state.Variables().end()) return false;
+	value = found->second; return true;
+}
 bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double seconds) const {
 	error.clear();
 	if (!impl->canonical || !impl->document) { error = "Snapshots require a loaded canonical document"; return false; }
@@ -2426,6 +3099,8 @@ bool Runtime::SaveSnapshot(std::string& snapshot, std::string& error, double sec
 		interaction.Cancel();
 		// A press/hover is transient. Preserve a continuous transition toward
 		// its persistent focus/default feedback instead of reviving pressed ink.
+		// The pointer's lead is too: a restore starts with focus shown.
+		interaction.SetPointerPresentation(false);
 		for (const auto& feedback : interaction.TakeFeedback()) motion.Play(feedback.timeline,now);
 		const auto playback = motion.Capture(now);
 		if (!motion.Restore(playback,now,error,true)) return false;
@@ -2683,7 +3358,8 @@ bool Runtime::RestoreSnapshot(const std::string& snapshot, std::string& error, d
 		// Publish its checked adoption before any state or presentation changes.
 		if (!impl->interaction.Adopt(std::move(interaction),error)) return false;
 		impl->state = std::move(state); impl->motion = std::move(motion);
-		impl->time = now; impl->pointerPresent = impl->pointerNavigation = false; impl->applied.clear(); impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputIndexes.clear();
+		impl->time = now; impl->pointerPresent = impl->pointerNavigation = false; impl->documentFontCss.clear(); impl->inlineAuthored=false; impl->inlineOverridden.clear();
+		impl->appliedInputs.clear(); impl->deferredInputs.clear(); impl->inputKeys.clear(); impl->indexedKeys = nullptr;
 		impl->pendingFocus.clear();
         impl->preserveRestoredScroll=widgets.version==3;
 		// The restored modals are open already: their saved scroll offsets stand.
@@ -2822,15 +3498,16 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 	impl->context->SetDensityIndependentPixelRatio(viewport.DpRatio());
 	const bool presentationOnly=impl->canonical && impl->controls.empty() && !impl->scrollView.HasScrollbars() &&
 		!impl->interaction.HasAuthoredModals() && !impl->pointerPresent;
-	// UV-only instruments do not invalidate RmlUi style or layout. A quiet
-	// presentation document need not walk thousands of hidden HUD elements.
-	const bool layoutUpdated=!presentationOnly || viewportChanged || impl->presentationDirty;
-	// Canonical presentation documents have no RmlUi CSS animations, controls
-	// or pointer interaction. Their timelines invalidate properties explicitly;
-	// the context's default zero update delay is not evidence of changed layout.
+	// Canonical buttons receive feedback through explicit presentation values,
+	// just like HUD artwork. A resting button menu has no native CSS animation
+	// or editor caret that requires a style/layout walk on every frame. Keep
+	// interaction and widget settling below independent of this decision.
+	const bool explicitLayout=impl->canonical && std::none_of(impl->layoutWidgets.begin(),impl->layoutWidgets.end(),
+		[](const auto* element){return element->IsVisible(true);});
+	const bool layoutUpdated=!explicitLayout || viewportChanged || impl->presentationDirty;
 	if (layoutUpdated) {
 		++impl->Stats().layoutUpdates;
-		impl->context->Update(presentationOnly); impl->presentationDirty=false;
+		impl->context->Update(explicitLayout); impl->presentationDirty=false;
 		impl->paintDirty=true;
 	}
 	// Owned widget wrappers remain derived layout. Bounded settling lets a
@@ -2838,7 +3515,10 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 	// including rows it wraps to fit a narrower safe area: showing, narrowing,
 	// re-measuring the wrapped rows and settling take one pass each. A frame
 	// stops at the first pass that changes nothing.
-	for (unsigned pass = 0; !presentationOnly && pass < 4; ++pass) {
+	const bool settleInteraction=!presentationOnly && (!explicitLayout || layoutUpdated || impl->interactionLayoutDirty ||
+		impl->preserveRestoredScroll || impl->scrollLayoutDirty || !impl->pendingFocus.empty() ||
+		impl->focusLayoutId!=impl->interaction.Focused());
+	for (unsigned pass = 0; settleInteraction && pass < 4; ++pass) {
 		impl->context->GetRootElement()->UpdateGeometryForProjection();
 		const auto before = impl->interaction.Focused();
 		if(!impl->UpdateInteraction(-1,true))return false;
@@ -2852,13 +3532,15 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 		if (focusChanged) impl->ApplyMotion();
 		const auto* focusedNode = impl->canonical ? impl->canonical->Model().FindNode(impl->interaction.Focused()) : nullptr;
 		auto* focusedNumber = focusedNode && focusedNode->control && focusedNode->control->role == ControlRole::Number ?
-			impl->document->GetElementById(focusedNode->id) : nullptr;
+			impl->CanonicalElement(focusedNode->id) : nullptr;
 		const auto numberSize = focusedNumber ? focusedNumber->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
 		bool painted = impl->valueView.Paint(impl->interaction,impl->state.ControlValues(),viewport.width,viewport.height,viewport.DpRatio(),
-			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; });
+			[&](const std::string& id) { const auto value = impl->PresentedProperty({id,"opacity"}); return value ? value->data[0] : 1.0; },
+			impl->presentationPass);
 		painted |= std::exchange(impl->scrollLayoutDirty,false);
 		painted |= impl->numberView.Paint(impl->interaction,viewport.DpRatio(),impl->time,impl->motion.ReducedMotion());
 		if (!painted && !focusChanged && !revealed) break;
+		impl->paintDirty=true;
 		impl->context->Update();
 		if (focusedNumber && focusedNumber->GetBox().GetSize(Rml::BoxArea::Border) != numberSize) {
 			// Validation can grow the focused field without changing focus.
@@ -2867,8 +3549,14 @@ bool Runtime::Layout(const Viewport& viewport,double seconds) {
 		}
 	}
 	impl->preserveRestoredScroll=false;
-	if (layoutUpdated) impl->context->GetRootElement()->UpdateGeometryForProjection();
-	impl->RememberFocusLayout();
+	// The detail card follows the subject this layout settled on: its detail
+	// shows the card and its content, then the card's measured box places it.
+	bool detailChanged = false;
+	if (impl->UpdateDetailSubject()) { impl->context->Update(); detailChanged = true; }
+	if (impl->PlaceDetailCard()) { impl->context->Update(); detailChanged = true; }
+	if (detailChanged) { impl->presentationDirty=false; impl->paintDirty=true; }
+	if (layoutUpdated || detailChanged) impl->context->GetRootElement()->UpdateGeometryForProjection();
+	if (layoutUpdated || settleInteraction || detailChanged) impl->RememberFocusLayout();
 	impl->Stats().layoutMilliseconds+=std::chrono::duration<double,std::milli>(impl->Stats().Now()-presentationEnd).count();
 	return true;
 }
@@ -2885,9 +3573,14 @@ bool Runtime::Frame(const Viewport& viewport, double seconds) {
 	ContextClock clock(*impl->services,impl->time,impl->strictPreparation?&impl->preparationFailed:nullptr);
 	const auto updated = statistics.Now();
 	impl->backend->renderer.BeginFrame(viewport.width,viewport.height);
-	const bool replayCandidate=impl->host.CanReplayFrames() && impl->canonical && !impl->paintDirty && impl->controls.empty() &&
-		!impl->scrollView.HasScrollbars() && !impl->interaction.HasAuthoredModals() && !impl->pointerPresent;
-	const bool replayed=replayCandidate && impl->backend->renderer.ReplayFrame();
+	const bool replayCandidate=impl->host.CanReplayFrames() && impl->canonical && !impl->paintDirty &&
+		std::none_of(impl->layoutWidgets.begin(),impl->layoutWidgets.end(),[](const auto* element){return element->IsVisible(true);});
+	bool projectionMatches=true;
+	if (replayCandidate && !impl->changedProjections.empty()) {
+		impl->context->GetRootElement()->UpdateGeometryForProjection();
+		for (auto* element:impl->changedProjections) if (!element->UpdateReplayProjection()) { projectionMatches=false; break; }
+	}
+	const bool replayed=replayCandidate && projectionMatches && impl->backend->renderer.ReplayFrame();
 	if (!replayed) {
 		impl->backend->renderer.RecordFrame(replayCandidate);
 		impl->context->Render();
@@ -2895,12 +3588,16 @@ bool Runtime::Frame(const Viewport& viewport, double seconds) {
 	impl->backend->renderer.EndFrame();
 	if (!replayed) impl->backend->renderer.FinishRecording();
 	impl->paintDirty=false;
+	impl->changedProjections.clear();
 	// RmlUi resolves transform state while rendering. Hit/navigation bounds
 	// therefore follow the just-presented frame, not stale transform matrices.
-	impl->UpdateInteraction(-1,true);
+	// Decorative projection outside the control/modal ancestry cannot change
+	// hit bounds. Painting it again is independent of refreshing interaction.
+	if ((!replayed && (!impl->canonical || statistics.layoutUpdates)) || impl->interactionLayoutDirty)
+		impl->UpdateInteraction(-1,true);
 	if (!impl->pendingFocus.empty()) {
 		const auto focus = std::move(impl->pendingFocus); impl->pendingFocus.clear();
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
 		if (impl->interaction.Focus(focus)) { impl->RevealFocus(); impl->Feedback(impl->time); }
 	}
 	const auto end = statistics.Now();
@@ -2917,7 +3614,7 @@ bool Runtime::GetBounds(const std::string& id, Bounds& bounds) const {
 		if (found != impl->boundsElements.end()) element = found->second;
 	}
 	if (!element && impl->document) {
-		element = impl->document->GetElementById(id);
+		element = impl->CanonicalElement(id);
 		if (element && impl->canonical && impl->canonical->Model().FindNode(id)) impl->boundsElements.emplace(id,element);
 	}
 	if (!element) return false;
@@ -2958,7 +3655,7 @@ RuntimeStatistics Runtime::Statistics() const {
 void Runtime::PointerMove(float x, float y, double seconds) {
     if(!Mutate())return;
 
-	impl->pointerNavigation = true;
+	impl->SetPointerNavigation(true);
 	impl->pointerPresent = std::isfinite(x) && std::isfinite(y);
 	impl->windowPointerX = x; impl->windowPointerY = y;
 	impl->viewport.WindowToDocument(x,y,impl->pointerX,impl->pointerY);
@@ -2966,7 +3663,7 @@ void Runtime::PointerMove(float x, float y, double seconds) {
 }
 void Runtime::PointerButton(bool down, double seconds) {
     if(!Mutate())return;
- impl->pointerNavigation = true; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
+ impl->SetPointerNavigation(true); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Pointer(down); impl->ApplyScrollCommands();
  if(down) impl->RememberFocusLayout();
  impl->Feedback(seconds); }
 void Runtime::PointerWheel(int rows, double seconds) {
@@ -2982,7 +3679,7 @@ void Runtime::PointerWheel(int rows, double seconds) {
 		// Keep this selection through layout and subsequent wheel events. The
 		// stationary pointer must not reselect its old row on the next frame;
 		// an actual pointer move or button event restores pointer navigation.
-		impl->pointerNavigation = false;
+		impl->SetPointerNavigation(false);
         const auto* node=impl->canonical->Model().FindNode(id);
         const auto* choice=node&&node->control?std::get_if<ChoiceSpec>(&node->control->widget):nullptr;
         if(choice&&choice->scrollbar) {
@@ -3002,6 +3699,7 @@ void Runtime::PointerWheel(int rows, double seconds) {
         if (auto* scroll = hit->GetClosestScrollableContainer(); scroll && impl->interaction.AllowsNode(scroll->GetId())) {
             impl->focusLayoutVisible=false;
             scroll->SetScrollTop(scroll->GetScrollTop()+(rows > 0 ? 36.f : -36.f)*impl->viewport.DpRatio());
+			impl->presentationDirty=true;
         }
     }
 }
@@ -3012,19 +3710,19 @@ void Runtime::MenuAction(MenuInput input, bool down, double seconds) {
 	if (down && input != MenuInput::Back && !impl->interaction.CapturedPointerControl().empty()) impl->interaction.Cancel();
 	if (down) impl->pendingFocus.clear();
 	const auto before = impl->interaction.Focused();
-	impl->pointerNavigation = false; if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
+	impl->SetPointerNavigation(false); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
 	if (impl->interaction.Focused() != before) impl->RevealFocus();
 }
 void Runtime::CancelInput(double seconds) {
     if(!Mutate())return;
- impl->pointerPresent = impl->pointerNavigation = false; impl->interaction.Cancel(); impl->Feedback(seconds); }
+ impl->pointerPresent = false; impl->SetPointerNavigation(false); impl->interaction.Cancel(); impl->Feedback(seconds); }
 void Runtime::ReleaseInputSources() {
     if(!Mutate())return;
  impl->interaction.ReleaseInputSources(); }
 bool Runtime::FocusControl(const std::string& id, double seconds) {
     if(!Mutate())return false;
 
-	impl->pointerNavigation = false; impl->pendingFocus.clear();
+	impl->SetPointerNavigation(false); impl->pendingFocus.clear();
 	if(!impl->UpdateInteraction(seconds,false,true))return false; const bool result = impl->interaction.Focus(id);
 	if (result) impl->RevealFocus();
 	impl->Feedback(seconds); return result;
@@ -3033,6 +3731,7 @@ bool Runtime::SetControlEnabled(const std::string& id, bool enabled, double seco
     if(!Mutate())return false;
 
 	if (impl->state.Enabled().contains(id)) return false; // The binding owns this control's availability.
+	impl->interactionLayoutDirty=true;
 	const bool result = impl->interaction.SetEnabled(id,enabled); impl->Feedback(seconds); return result;
 }
 bool Runtime::PushModal(const std::string& id, double seconds) {
@@ -3197,7 +3896,7 @@ bool Runtime::FocusNumberDraft(const NumberDraftBarrier& expected,const std::str
 	if (!impl->PrepareNumberEdit(seconds,error)) return false;
 	if (!impl->RefreshNumberFocusLayout(error)) return false;
 	const bool result=impl->interaction.FocusNumberDraft(expected,control,error);
-	if (result) { impl->pointerNavigation = false; impl->RevealFocus(); }
+	if (result) { impl->SetPointerNavigation(false); impl->RevealFocus(); }
 	impl->Feedback(seconds); return result;
 }
 std::optional<NumberTextGeometry> Runtime::GetNumberGeometry(const std::string& id) const {

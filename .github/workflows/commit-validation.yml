@@ -91,7 +91,10 @@ jobs:
             tools/tests/chat_history.py \
             tools/tests/filesystem_find_file_contract.py \
             tools/tests/filesystem_length_probe_contract.py \
+            tools/tests/generated_image_pak_content_stamp.py \
             tools/tests/generate_file_memory_test.py \
+            tools/tests/generate_aas_tactical_test.py \
+            tools/tests/generate_bitmsg_test.py \
             tools/tests/gui_clipping_contract.py \
             tools/tests/gui_transition_operand_contract.py \
             tools/tests/gui_state_debug_log_contract.py \
@@ -121,6 +124,7 @@ jobs:
             tools/tests/base64_input_safety.py \
             tools/tests/campaign_split_state_transition.py \
             tools/tests/campaign_scope.py \
+            tools/tests/campaign_chapters.py \
             tools/tests/campaign_runtime.py \
             tools/tests/campaign_selection_runtime.py \
             tools/tests/clang_tidy_input_safety.py \
@@ -143,6 +147,7 @@ jobs:
             tools/tests/demo_playback.py \
             tools/tests/docs_link_integrity.py \
             tools/tests/dmap_render_geometry_lifecycle.py \
+            tools/tests/dmap_vertex_sharing.py \
             tools/tests/fatal_error_startup_safety.py \
             tools/tests/android_build.py \
             tools/tests/android_touch_input.py \
@@ -163,6 +168,7 @@ jobs:
             tools/tests/awakening_ci_contract.py \
             tools/tests/awakening_speeder_physics_contract.py \
             tools/tests/awakening_gameplay_contract.py \
+            tools/tests/awakening_turret_skin_contract.py \
             tools/tests/awakening_status_behavior.py \
             tools/tests/awakening_m01_cinematic.py \
             tools/tests/awakening_status_runtime.py \
@@ -260,6 +266,7 @@ jobs:
             tools/tests/mp_client_combat_effects.py \
             tools/tests/bse_retail_parity.py \
             tools/tests/mp_lag_compensation_contract.py \
+            tools/tests/mp_runtime_freshness.py \
             tools/tests/mp_weapon_switch_contract.py \
             tools/tests/multiview_demo.py \
             tools/tests/mvd_server_api_contract.py \
@@ -312,6 +319,7 @@ jobs:
             tools/tests/renderer_supersampling_safety.py \
             tools/tests/renderer_vulkan_decal_compatibility.py \
             tools/tests/renderer_vulkan_gui_residency.py \
+            tools/tests/renderer_vulkan_gui_upload.py \
             tools/tests/renderer_vulkan_md5r_compatibility.py \
             tools/tests/renderer_vulkan_probe_safety.py \
             tools/tests/renderer_vulkan_qualification.py \
@@ -393,6 +401,9 @@ jobs:
             tools/tests/ui_retained_state_sources.py \
             tools/tests/ui_presentation_bridge.py \
             tools/tests/ui_retained_layer_pool.py \
+            tools/tests/ui_retained_atlas.py \
+            tools/tests/ui_retained_pause.py \
+            tools/tests/ui_retained_hud_state.py \
             tools/tests/ui_manager_lifecycle.py \
             tools/tests/ui_event_delivery.py \
             tools/tests/ui_list_selection_safety.py \
@@ -400,6 +411,7 @@ jobs:
             tools/tests/ui_system_session_route.py \
             tools/tests/ui_controller_menu_pump.py \
             tools/tests/ui_retained_gate.py \
+            tools/tests/ui_stock_level_load.py \
             tools/ui/build_retained_screens.py \
             tools/ui/capture_retained_screens.py \
             tools/tests/ui_retained_resource_lifecycle.py \
@@ -451,6 +463,7 @@ jobs:
             tools/ui/capture_display_device.py \
             tools/tests/ui_legacy_inventory.py \
             tools/tests/ui_legacy_import.py \
+            tools/tests/ui_legacy_feedback.py \
             tools/tests/ui_legacy_expression.py \
             tools/tests/ui_legacy_observation.py \
             tools/ui/legacy_inventory.py \
@@ -492,6 +505,7 @@ jobs:
           python tools/tests/chat_history.py
           python tools/tests/filesystem_find_file_contract.py
           python tools/tests/filesystem_length_probe_contract.py
+          python tools/tests/generated_image_pak_content_stamp.py
           python tools/tests/gui_clipping_contract.py
           python tools/tests/gui_transition_operand_contract.py --mutations
           python tools/tests/gui_state_debug_log_contract.py --mutations
@@ -508,6 +522,7 @@ jobs:
           python tools/tests/base64_input_safety.py
           python tools/tests/campaign_split_state_transition.py
           python tools/tests/campaign_scope.py
+          python tools/tests/campaign_chapters.py
           python tools/tests/clang_tidy_input_safety.py
           python tools/tests/cmdargs_append_contract.py
           python tools/tests/console_completion_contract.py
@@ -522,6 +537,7 @@ jobs:
           python tools/tests/demo_playback.py
           python tools/tests/docs_link_integrity.py
           python tools/tests/dmap_render_geometry_lifecycle.py
+          python tools/tests/dmap_vertex_sharing.py
           python tools/tests/fatal_error_startup_safety.py
           python tools/tests/android_build.py
           python tools/tests/android_touch_input.py
@@ -542,6 +558,7 @@ jobs:
           python tools/tests/awakening_ci_contract.py
           python tools/tests/awakening_speeder_physics_contract.py
           python tools/tests/awakening_gameplay_contract.py
+          python tools/tests/awakening_turret_skin_contract.py
           python tools/tests/awakening_status_behavior.py
           python tools/tests/generated_animation_cache.py
           python tools/tests/level_load_cache.py
@@ -633,6 +650,7 @@ jobs:
           python tools/tests/mp_client_combat_effects.py
           python tools/tests/bse_retail_parity.py
           python tools/tests/mp_lag_compensation_contract.py
+          python tools/tests/mp_runtime_freshness.py
           python tools/tests/mp_weapon_switch_contract.py
           python tools/tests/multiview_demo.py
           python tools/tests/mvd_server_api_contract.py
@@ -683,6 +701,7 @@ jobs:
           python tools/tests/renderer_supersampling_safety.py
           python tools/tests/renderer_vulkan_decal_compatibility.py
           python tools/tests/renderer_vulkan_gui_residency.py
+          python tools/tests/renderer_vulkan_gui_upload.py
           python tools/tests/renderer_vulkan_md5r_compatibility.py
           python tools/tests/renderer_vulkan_probe_safety.py
           python tools/tests/renderer_vulkan_shadow_compatibility.py
@@ -745,6 +764,9 @@ jobs:
           python tools/tests/ui_retained_state_sources.py
           python tools/tests/ui_presentation_bridge.py
           python tools/tests/ui_retained_layer_pool.py
+          python tools/tests/ui_retained_atlas.py
+          python tools/tests/ui_retained_pause.py
+          python tools/tests/ui_retained_hud_state.py
           python tools/tests/ui_manager_lifecycle.py
           python tools/tests/ui_event_delivery.py
           python tools/tests/ui_list_selection_safety.py
@@ -752,6 +774,7 @@ jobs:
           python tools/tests/ui_system_session_route.py
           python tools/tests/ui_controller_menu_pump.py
           python tools/tests/ui_retained_gate.py
+          python tools/tests/ui_stock_level_load.py
           python tools/tests/ui_retained_resource_lifecycle.py
           python tools/tests/ui_retained_adapter.py
           python tools/tests/ui_scrollbar_interaction.py --mutations
@@ -800,6 +823,7 @@ jobs:
           python tools/tests/ui_capture_display_device.py
           python tools/tests/ui_legacy_inventory.py
           python tools/tests/ui_legacy_import.py
+          python tools/tests/ui_legacy_feedback.py
           python tools/tests/ui_legacy_expression.py --mutations
           python tools/tests/ui_legacy_observation.py --mutations
           python tools/tests/ui_background_cursor.py
@@ -835,7 +859,7 @@ jobs:
     name: Windows x64 Commit Validation
     runs-on: windows-2025
     needs: script-smoke
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       OPENQ4_GAMELIBS_REPO: ${{ github.workspace }}
 

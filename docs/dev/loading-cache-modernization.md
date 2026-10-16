@@ -382,6 +382,56 @@ every load:
 M directory checks` at the end of each load. The measurements are in the
 [Air Defense 1 evidence](airdefense1-optimization-evidence.md#2026-10-06-search-path-lookup-cost).
 
+## Generated image source identity
+
+The binary image cache (`generated/images/**/*.bimage` under the save path,
+written by `idBinaryImage::WriteGeneratedFile`) keeps the identity of the
+source it was derived from in its header (`sourceFileTime`). A load reuses the
+entry only while the current source reports the same value. Every pk4 member's
+`idFile::Timestamp()` is 0, so before 15 October 2026 a texture changed inside a
+pak under the same name kept loading the old cached image until
+`generated/images` was deleted. That covered every openQ4 pak0/pak1 texture update and any
+mod pak.
+
+The image pipeline now reads **content stamps** instead
+(`FS_PakMemberContentStamp` and its helpers in `framework/FileSystem.h`):
+
+- A loose file's content stamp is its modification time, as before.
+- A pk4 member's content stamp folds its zip CRC-32 and uncompressed length,
+  both from the pak's central directory, into a value below
+  `FILE_NOT_FOUND_TIMESTAMP`. The pak index keeps each member's CRC, so the
+  length-only probe (`ReadFileContentStamp` with a null buffer, about 1,700 per
+  level load) still opens nothing, and `idFile_InZip::ContentStamp()` reports
+  the same value after a full open.
+- Image programs and cube maps combine their inputs with
+  `FS_CombineContentStamps`. Loose-only inputs keep the newest time. Once a
+  member is involved, the result hashes every part.
+- A content stamp identifies a source; compare it only for equality. The two
+  ordered checks map a member back to the 0 it always reported:
+  `R_IsPreferredDDSStale` uses `FS_ContentStampOrderTime`, and `idImage::Reload`
+  goes through `R_ImageSourceStampCurrent`, which reloads on any change to a
+  member's stamp.
+
+`idFile::Timestamp()` and `ReadFile`'s timestamp are unchanged (0 for pak
+members). Declaration and model reloads, addon extraction and the md5r/proc
+compiled-file checks order those values against loose times. The `.oqgc`
+caches identify a pk4 source by its pak checksum, which already changes with
+any member.
+
+There is no format bump. A cache entry written before this change carries 0
+for a pak source, misses once, and is rewritten. On Air Defense 1 that is 91
+entries, about 1.5 s on the first load after the upgrade. Loads after that hit.
+Warm Air Defense 1 loads on a quiet machine, against a build of the parent
+commit (three alternating runs each): both made 1,831 source probes in 100 to
+108 ms and 89 generated reads, with every pak image a hit and media finish at
+930 to 960 ms. The old build, given a pak whose texture had changed, kept
+showing the cached copy. The new build on the same save path missed on the
+legacy `0` header and showed the new texture.
+`generated_image_pak_content_stamp.py` pins the helpers (for 64-bit and 32-bit
+`ID_TIME_T`), the two ordered checks and every place a source stamp enters the
+image pipeline. `filesystem_length_probe_contract.py` checks that the probe
+and a full open agree.
+
 ## Evidence status
 
 The implementation contract above is source-backed. Focused native format and

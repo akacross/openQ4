@@ -27,6 +27,8 @@ import hashlib
 import json
 import os
 import re
+import socket
+import struct
 import subprocess
 import time
 import zipfile
@@ -36,6 +38,22 @@ ROOT = Path(__file__).resolve().parents[2]
 DONE = 'RETAINED_SCREENS_CAPTURE_COMPLETE'
 
 # Scenario -> (map to load or None for the title, console stages).
+# Splits a scenario: what follows runs after a map its page launches loads.
+AFTER_MAP = '@aftermap'
+# Where a scenario logs the game module its page reloads.
+MODULE_LOG = 'openq4-match.log'
+
+# The prompt presentations, in order: the keyboard's keycaps, then each
+# controller family in_promptStyle forces.
+PROMPT_STYLES = ((0, 'keyboard'), (1, 'xbox'), (2, 'playstation'), (3, 'nintendo'), (4, 'steamdeck'), (5, 'generic'))
+
+
+def prompt_style(style: int) -> list[str]:
+    """Steps that show one presentation: testPromptDevice stands in for the
+    device used last, so no device is touched."""
+    return [f'set in_promptStyle {style}', f'testPromptDevice {"controller" if style else "desktop"}']
+
+
 SCENARIOS = {
     'title': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/title.tga"',
@@ -48,6 +66,51 @@ SCENARIOS = {
         'openq4_retainedGui focus nav_settings', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 250', 'screenshot "screenshots/title-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
         'screenshot "screenshots/title-settings.tga"',
+    ]),
+    # Prompts follow the active device (section 13.5): the title's prompt bar
+    # shows the keyboard's keycaps and then each controller family, Confirm
+    # kept south.
+    'prompts': (None, [
+        'waitMsec 4000', 'set in_swapConfirmBack 1',
+        *[step for style, name in PROMPT_STYLES for step in (
+            *prompt_style(style), 'waitMsec 400',
+            f'openq4_retainedGui inspect "prompt-231042-{"cap" if name == "keyboard" else name}"',
+            f'openq4_retainedGui inspect "prompt-200013-{"cap" if name == "keyboard" else name}"',
+            f'screenshot "screenshots/prompts-{name}.tga"')],
+        # Swapped, SELECT shows the east button and EXIT the south one: the
+        # automatic swap of a forced Nintendo style, then Xbox with the swap
+        # forced on.
+        *[step for setting, style, name in ((0, 3, 'nintendo'), (2, 1, 'xbox')) for step in (
+            f'set in_swapConfirmBack {setting}', *prompt_style(style), 'waitMsec 400',
+            f'openq4_retainedGui inspect "prompt-231042-{name}-swapped"',
+            f'openq4_retainedGui inspect "prompt-200013-{name}-swapped"',
+            f'screenshot "screenshots/prompts-{name}-swapped.tga"')],
+        'set in_swapConfirmBack 0', *prompt_style(0),
+    ]),
+    # The multiplayer Escape card on a listen server (opted in): each
+    # presentation on the strip's tab keys and the card's prompt bar, the
+    # shoulders for Q and E, Confirm kept south.
+    'mpcard-prompts': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus', 'set in_swapConfirmBack 1',
+        *[step for style, name in PROMPT_STYLES for step in (
+            *prompt_style(style), 'waitMsec 500',
+            *[f'openq4_retainedGui inspect "{key}-{"cap" if name == "keyboard" else name}"'
+              for key in ('tab-next', 'prompt-back-0', 'prompt-tabs-0', 'prompt-select-0')],
+            f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
+        'set in_swapConfirmBack 0', *prompt_style(0),
+    ]),
+    # The campaign difficulty page, the fourth level: Campaign descends to it
+    # carrying QUAKE 4, its prompt bar where Campaign's is, and BACK climbs
+    # back.
+    'campaignskill': (None, [
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200',
+        'openq4_retainedGui focus campaign', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui inspect "prompts"', 'screenshot "screenshots/campaignskill-campaign.tga"',
+        'openq4_retainedGui focus quake4', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'openq4_retainedGui report', 'openq4_retainedGui inspect "prompts"',
+        'screenshot "screenshots/campaignskill.tga"',
+        'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/campaignskill-back.tga"',
     ]),
     'pause': ('game/airdefense1', [
         'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/pause.tga"',
@@ -106,8 +169,9 @@ SCENARIOS = {
         'openq4_retainedGui pending loading_phase "LOAD TIME"', 'openq4_retainedGui pending loading_count "12.4 s"',
         'openq4_retainedGui event FinishedLoading', 'openq4_retainedGui state map_loading 1', 'waitMsec 600',
         'screenshot "screenshots/loading-ready.tga"',
-        'openq4_retainedGui state loading_controller 1', 'waitMsec 300', 'screenshot "screenshots/loading-controller.tga"',
-        'openq4_retainedGui state loading_controller 0',
+        # A controller's prompt: an Xbox pad stands in for one used last.
+        *prompt_style(1), 'waitMsec 300', 'openq4_retainedGui inspect "progress-prompt-glyph-xbox"',
+        'screenshot "screenshots/loading-controller.tga"', *prompt_style(0),
         # Single player tips while the level loads, as the session publishes
         # them: a tip in slot A, then the next cross-fading in slot B (two of
         # the longest). A key must be quoted: the tokenizer splits an unquoted '#'.
@@ -221,6 +285,509 @@ SCENARIOS = {
         'screenshot "screenshots/subpage-reduced-sub.tga"', 'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1',
         'openq4_retainedGui menu accept 0', 'waitMsec 400', 'openq4_retainedGui report', 'screenshot "screenshots/subpage-reduced-returned.tga"',
     ]),
+    # The Load Game page (FLOW-004): three saves made in the level, then the
+    # title, whose CONTINUE describes the newest. LOAD GAME hands off (the
+    # bands dock, the label carries) and the page presents at 550 ms with the
+    # newest save selected. A row's first Accept selects its save, DELETE GAME
+    # asks and the next save takes the deleted one's place, Back returns home
+    # with the bands, and Accept on the selected row loads it. In game the
+    # page stands over the paused view.
+    'loadgame': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Trench entry"', 'waitMsec 1500', 'saveGame "Bunker door"', 'waitMsec 1500', 'saveGame Medic',
+        'waitMsec 1500', 'disconnect', 'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-title.tga"',
+        'openq4_retainedGui focus nav_continue', 'waitMsec 300', 'screenshot "screenshots/loadgame-title-continue.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/loadgame-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/loadgame.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/loadgame-selected.tga"',
+        'openq4_retainedGui focus load_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/loadgame-delete.tga"',
+        'openq4_retainedGui focus deleteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-deleted.tga"',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 250',
+        'screenshot "screenshots/loadgame-returning.tga"', 'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-home.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1000',
+        'openq4_retainedGui focus "row-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 9000',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-loaded.tga"',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 250', 'screenshot "screenshots/loadgame-ingame-handoff.tga"', 'waitMsec 800',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-ingame.tga"',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 900',
+        'ui_retainedStatus', 'screenshot "screenshots/loadgame-ingame-home.tga"',
+    ]),
+    # No saves: the empty state says why and, at the title, NEW GAME opens the
+    # Single Player page.
+    'loadgame-empty': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/loadgame-empty.tga"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-empty-newgame.tga"',
+    ]),
+    # A save the list accepts but LoadGame refuses (a damaged payload, seeded
+    # below): Accept on it says why over its picture and the page stays.
+    'loadgame-failure': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'openq4_retainedGui focus "row-0"', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/loadgame-failure.tga"',
+    ]),
+    # More saves than the list holds: the older ones are a page away.
+    'loadgame-pages': ('game/airdefense1', ['waitMsec 1000'] + [command for index in range(70) for command in (
+        f'saveGame page{index:02d}', 'waitMsec 150')] + [
+        'disconnect', 'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'openq4_retainedGui focus "row-63"', 'waitMsec 400',
+        'screenshot "screenshots/loadgame-pages-end.tga"', 'openq4_retainedGui focus "page-older"', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 500', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-pages-older.tga"',
+        'openq4_retainedGui focus "page-newer"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'openq4_retainedGui report', 'screenshot "screenshots/loadgame-pages-newer.tga"',
+    ]),
+    # The Save Game page (FLOW-004): two saves made in the level, then the
+    # pause. SAVE GAME hands off as LOAD GAME does and the page arrives with no
+    # name, the field focused. A row fills the name; a typed name, entered,
+    # saves at once and becomes the newest; SAVE GAME over a name a save holds
+    # asks first and YES saves over it; an autosave (seeded below) is refused;
+    # Back returns the pause. Typing runs through the field's own editor
+    # operations, never a device.
+    'savegame': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Trench entry"', 'waitMsec 1500', 'saveGame "Bunker door"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/savegame-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui widget "save-name"', 'screenshot "screenshots/savegame-selected.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "Medic station"', 'waitMsec 300', 'openq4_retainedGui widget "save-name"',
+        'screenshot "screenshots/savegame-typing.tga"',
+        'openq4_retainedGui number commit "save-name"', 'waitMsec 1500', 'openq4_retainedGui report',
+        'screenshot "screenshots/savegame-saved.tga"',
+        'openq4_retainedGui focus save_go', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/savegame-overwrite.tga"',
+        'openq4_retainedGui focus overwriteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui report', 'screenshot "screenshots/savegame-overwritten.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "auto"', 'openq4_retainedGui number commit "save-name"', 'waitMsec 600',
+        'screenshot "screenshots/savegame-autosave.tga"',
+        'openq4_retainedGui focus noticeModal_close', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 500', 'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/savegame-home.tga"',
+    ]),
+    # A level without saves: the page's empty list, the hint in the empty
+    # field and SAVE GAME resting until a name is typed.
+    'savegame-empty': ('game/airdefense1', [
+        'waitMsec 1500', 'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'openq4_retainedGui focus nav_savegame',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame-empty.tga"',
+        'openq4_retainedGui number begin "save-name"', 'waitMsec 300', 'screenshot "screenshots/savegame-empty-editing.tga"',
+    ]),
+    # Single Player's Arena sub-page (FLOW-011, FLOW-050): ARENA plays the
+    # change with its own carry and the campaign's browser presents at 350 ms,
+    # TIER 1 won and TIER 2's first qualifier with it (ui_arenaProgress 31).
+    # The bumpers' event moves to TIER 3 (locked: nothing moves) and back, a
+    # qualifier is chosen, the difficulty steps, RESET PROGRESS asks first and
+    # CANCEL keeps the progress; Back returns to Single Player onto ARENA.
+    'arena': (None, [
+        'set ui_arenaProgress 31', 'set ui_arenaSelectedTier 1', 'set ui_arenaSelectedMatch 1', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'screenshot "screenshots/arena-singleplayer.tga"',
+        'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/arena-change.tga"', 'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arena.tga"',
+        'openq4_retainedGui event onTabNext', 'waitMsec 400', 'ui_arenaSelectedTier', 'screenshot "screenshots/arena-tier-locked.tga"',
+        'openq4_retainedGui event onTabPrevious', 'waitMsec 400', 'ui_arenaSelectedTier', 'screenshot "screenshots/arena-tier-1.tga"',
+        'openq4_retainedGui event onTabNext', 'waitMsec 400', 'ui_arenaSelectedTier',
+        'openq4_retainedGui focus "match-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'ui_arenaSelectedMatch', 'screenshot "screenshots/arena-match.tga"',
+        'openq4_retainedGui focus arena_harder', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'ui_arenaDifficulty', 'screenshot "screenshots/arena-harder.tga"',
+        'openq4_retainedGui focus arena_reset', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 450',
+        'openq4_retainedGui report', 'screenshot "screenshots/arena-reset.tga"',
+        'openq4_retainedGui focus resetModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 450',
+        'ui_arenaProgress', 'screenshot "screenshots/arena-kept.tga"',
+        'openq4_retainedGui focus arena_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/arena-back.tga"', 'waitMsec 900', 'openq4_retainedGui report',
+        'screenshot "screenshots/arena-returned.tga"',
+    ]),
+    # An Arena match from the page: START MATCH plays the entrance and the
+    # campaign launches the first match in game_mp with its bot. Disconnecting
+    # abandons it: the campaign aborts the match, restores its settings and
+    # keeps its progress. The reloaded module logs to its own file.
+    # The Arena match's own pause (section 13.7): the game's Arena pause menu
+    # under its retained card, then RESUME back to the match.
+    'arenapause': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200',
+        'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', AFTER_MAP,
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenapause.tga"',
+        'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1000', 'ui_retainedStatus', 'screenshot "screenshots/arenapause-resumed.tga"',
+    ]),
+    'arenamatch': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'screenshot "screenshots/arenamatch-browser.tga"',
+        'set logFileName "logs/openq4-match.log"', 'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/arenamatch-entrance.tga"', AFTER_MAP,
+        'ui_retainedStatus', 'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'screenshot "screenshots/arenamatch-match.tga"',
+        'disconnect', 'waitMsec 3000', 'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'ui_arenaProgress', 'si_arenaCampaign',
+        'ui_retainedStatus', 'screenshot "screenshots/arenamatch-left.tga"',
+    ]),
+    # An Arena match that cannot start: the listen server's port is held
+    # (SCENARIO_PORTS), so after the entrance and the game module's reload the
+    # server cannot open and the campaign returns to the page with its result
+    # ledger, MATCH ABORTED and the reason; CONTINUE returns to the browser
+    # with the progress untouched. The campaign appends its launch behind the
+    # script, so the rest follows it through two appended steps
+    # (SCENARIO_FILES: vstr appends, where exec would insert; the console
+    # splits a bare name at a hyphen, so they have none). The log of the
+    # reloaded module goes to its own file, keeping the page's.
+    'arenafail': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 3',
+        'set arenaDefer "exec retained_arenafail_defer.cfg"', 'set arenaAfter "exec retained_arenafail_after.cfg"',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 400', 'screenshot "screenshots/arenafail-entrance.tga"', 'waitMsec 1500',
+        'vstr arenaDefer', AFTER_MAP,
+    ]),
+    # A whole Arena match to its result: the hardest difficulty's bot plays the
+    # first match out against the idle player, and the page reveals the
+    # campaign's result ledger from the black the match ended on.
+    'arenaresult': (None, [
+        'set ui_arenaProgress 0', 'set ui_arenaSelectedTier 0', 'set ui_arenaSelectedMatch 0', 'set ui_arenaDifficulty 5',
+        'waitMsec 4000', 'campaignMenu', 'waitMsec 1200', 'openq4_retainedGui focus arena', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1300', 'openq4_retainedGui focus arena_start', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 400', AFTER_MAP,
+        'screenshot "screenshots/arenaresult-match.tga"', 'waitMsec 120000', 'screenshot "screenshots/arenaresult-2min.tga"',
+        'waitMsec 120000', 'screenshot "screenshots/arenaresult-4min.tga"', 'waitMsec 120000', 'screenshot "screenshots/arenaresult-6min.tga"',
+        'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-7min.tga"',
+        'waitMsec 60000', 'openq4_retainedGui report', 'screenshot "screenshots/arenaresult-8min.tga"',
+    ]),
+    # The Multiplayer page (FLOW-050): MULTIPLAYER hands off and the page
+    # presents at 550 ms in the page state under its carried title. CREATE
+    # SERVER and JOIN GAME go deeper to their retained sub-pages (JOIN GAME's
+    # on the LAN source, openq4_browser source lan, so no list asks a master
+    # server), and each one's BACK climbs out onto its section; PLAYER SETUP
+    # leaves the page as the stock Multiplayer page leaves, the stock Settings
+    # page takes over at 500 ms and its BACK returns the retained page; BACK
+    # returns the title from the page dock.
+    'multiplayer': (None, [
+        'waitMsec 7000', 'openq4_browser source lan',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/multiplayer-handoff.tga"', 'waitMsec 1000', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/multiplayer.tga"',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/multiplayer-depart.tga"', 'waitMsec 1500', 'ui_retainedStatus',
+        'screenshot "screenshots/multiplayer-create.tga"',
+        'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/multiplayer-returned.tga"',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'screenshot "screenshots/multiplayer-browser.tga"',
+        'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui report',
+        'openq4_retainedGui focus setup', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'screenshot "screenshots/multiplayer-setup.tga"',
+        'openq4_guiAction mp_b_set_back', 'waitMsec 1500', 'openq4_retainedGui report',
+        'openq4_retainedGui focus back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/multiplayer-back.tga"', 'waitMsec 1000', 'ui_retainedStatus',
+        'screenshot "screenshots/multiplayer-title.tga"',
+    ]),
+    # The Create Server sub-page (FLOW-050), the default: CREATE SERVER on the
+    # Multiplayer page goes deeper and the sub-page presents at 350 ms under
+    # the MULTIPLAYER crumb, the game type's maps listed and the chosen one's
+    # levelshot shown. Choosing CTF lists its maps again, ADVANCED OPTIONS
+    # opens the popup's options (a password typed, the seeded ban list opened
+    # and one ban removed), and BACK climbs out onto CREATE SERVER.
+    'createserver': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200', 'openq4_retainedGui report',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 175', 'screenshot "screenshots/createserver-change.tga"', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/createserver.tga"',
+        'openq4_retainedGui focus "create-gametype"', 'waitMsec 100', 'openq4_retainedGui choice open "create-gametype"', 'waitMsec 400',
+        'screenshot "screenshots/createserver-gametypes.tga"',
+        'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0', 'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0',
+        'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'si_gameType', 'si_map',
+        'screenshot "screenshots/createserver-ctf.tga"',
+        'openq4_retainedGui event advancedModalShow', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/createserver-advanced.tga"',
+        # Use password unlocks Set password; a typed password shows as its
+        # mask while editing and once the session has taken it.
+        'openq4_retainedGui focus "create-usepass"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'openq4_retainedGui focus "create-password"', 'openq4_retainedGui number begin "create-password"',
+        'openq4_retainedGui number input "create-password" "hunter2"', 'waitMsec 300',
+        'screenshot "screenshots/createserver-password.tga"',
+        'openq4_retainedGui number commit "create-password"', 'waitMsec 300', 'si_usePass', 'g_password',
+        'openq4_retainedGui widget "create-password"', 'screenshot "screenshots/createserver-password-set.tga"',
+        # VIEW LOCAL SERVER BAN LIST opens the seeded bans over the dialog; the
+        # second is chosen and removed, and CLOSE returns to its row.
+        'openq4_retainedGui focus "create-banlist"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 500', 'openq4_retainedGui report', 'screenshot "screenshots/createserver-banlist.tga"',
+        'openq4_retainedGui focus "ban-row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus banModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/createserver-banlist-removed.tga"',
+        'openq4_retainedGui focus banModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui report',
+        'openq4_retainedGui event advancedModalHide', 'waitMsec 600',
+        'openq4_retainedGui focus create_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 150', 'screenshot "screenshots/createserver-back.tga"', 'waitMsec 1200', 'openq4_retainedGui report',
+        'screenshot "screenshots/createserver-returned.tga"',
+    ]),
+    # CREATE SERVER from the sub-page starts the server as the stock page's
+    # does: the menu closes, the game module reloads into game_mp and the
+    # listen server loads the chosen map in the chosen game type (Team DM on
+    # its first map here). It listens on the loopback only (SCENARIO_CVARS),
+    # and the reloaded module logs to its own file.
+    'createserverstart': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1200',
+        'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1400', 'openq4_retainedGui focus "create-gametype"', 'waitMsec 100', 'openq4_retainedGui choice open "create-gametype"',
+        'waitMsec 400', 'openq4_retainedGui menu down 1', 'openq4_retainedGui menu down 0', 'openq4_retainedGui menu down 1',
+        'openq4_retainedGui menu down 0', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'si_gameType', 'si_map', 'screenshot "screenshots/createserverstart-teamdm.tga"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus create_start', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
+        'si_gameType', 'si_map', 'ui_retainedStatus', 'screenshot "screenshots/createserverstart-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
+    # The Join Game scenarios wait 2.5 s around page and dialog changes: a
+    # hidden Vulkan window can wait up to a second for a swapchain image, so
+    # its frames alternate ~40 ms and ~1 s, and a dialog's focus lands only on
+    # the frame its timeline ends.
+    # The Join Game sub-page (FLOW-050), the default: JOIN GAME
+    # on the Multiplayer page goes deeper and the browser presents at 350 ms
+    # under the MULTIPLAYER crumb, empty before any scan. INTERNET gets a new
+    # list: the master server cannot be reached from the loopback the client
+    # binds, but the seeded favorite, a loopback dedicated server
+    # (SCENARIO_SERVERS), answers and is listed. SERVER NAME sorts the list
+    # and CLEAR SORTING clears the sort; a controller's north sorts by PING and
+    # its west asks for the list again; BACK climbs out onto JOIN GAME and
+    # JOIN GAME returns to the list; the row chooses the server and JOIN
+    # SERVER joins it, the game module reloading into game_mp (logged to its
+    # own file). Before the join the chosen server shows its levelshot and
+    # dedicated symbol, the favorite toggle takes it off the favorites and
+    # puts it back, and MOD's spinner steps to the next mod and back.
+    'joingame': (None, [
+        # A fresh build's first start can run past the usual wait; the title
+        # refuses focus until it has arrived.
+        'waitMsec 7000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui report',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 175', 'screenshot "screenshots/joingame-change.tga"', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'openq4_retainedGui inspect "join-empty"', 'screenshot "screenshots/joingame-empty.tga"',
+        'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/joingame-scanning.tga"', 'waitMsec 4500', 'openq4_retainedGui report',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "server-1"', 'openq4_retainedGui inspect "join-empty"',
+        'openq4_retainedGui inspect "join-load-track"', 'openq4_retainedGui inspect "join-load-fill"',
+        'openq4_retainedGui inspect "server-0-bar-1"', 'openq4_retainedGui inspect "server-0-bar-4"', 'openq4_retainedGui inspect "server-0-ping"',
+        'screenshot "screenshots/joingame-list.tga"',
+        # The focused row's server details: the card under the row.
+        'openq4_retainedGui focus "server-0"', 'waitMsec 2500', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join-detail"', 'screenshot "screenshots/joingame-detail.tga"',
+        'openq4_retainedGui focus "heading-name"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"', 'screenshot "screenshots/joingame-sorted.tga"',
+        'openq4_retainedGui focus join_clearsort', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "heading-name-up"',
+        # A controller's north sorts by the next column, PING from none, and
+        # its west asks for the list again.
+        'openq4_retainedGui event onTertiary', 'waitMsec 400', 'openq4_retainedGui inspect "heading-ping-up"',
+        'openq4_retainedGui event onSecondary', 'waitMsec 2500', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0"',
+        'screenshot "screenshots/joingame-controller.tga"',
+        'openq4_retainedGui focus join_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui report', 'screenshot "screenshots/joingame-back.tga"',
+        'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui report', 'openq4_retainedGui inspect "server-0-selected"',
+        'openq4_retainedGui inspect "server-0-ded"', 'openq4_retainedGui inspect "join-shot"',
+        'screenshot "screenshots/joingame-chosen.tga"',
+        # The favorite toggle takes the server off the favorites and puts it
+        # back; MOD's spinner shows the next mod and the previous again.
+        'openq4_retainedGui focus join_favorite', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "server-0-fav"', 'screenshot "screenshots/joingame-unfavorite.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400', 'openq4_retainedGui inspect "server-0-fav"',
+        'openq4_retainedGui focus join_mod_next', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "server-0"', 'screenshot "screenshots/joingame-mod.tga"',
+        'openq4_retainedGui focus join_mod_previous', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400',
+        # FIND PLAYER/CLAN for a name no player has: the list empties under the
+        # search's tag, and the tag's Accept brings the server back.
+        'openq4_retainedGui focus join_find', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2500',
+        'openq4_retainedGui report', 'openq4_retainedGui number begin "join-find"', 'openq4_retainedGui number input "join-find" "Grunt"',
+        'openq4_retainedGui number commit "join-find"', 'waitMsec 2500', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join_search"', 'screenshot "screenshots/joingame-search.tga"',
+        'openq4_retainedGui focus join_search', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1000',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join_search"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
+        'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
+    # JOIN IP ADDRESS on the Join Game sub-page: an address it cannot join
+    # keeps the dialog with the reason (spaces fail before any lookup); the
+    # loopback dedicated server's address (SCENARIO_SERVERS), entered, joins
+    # it and closes the dialog, the game module reloading into game_mp.
+    'joingameaddress': (None, [
+        'waitMsec 7000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_ip', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui report', 'openq4_retainedGui inspect "join-yourip-value"',
+        'screenshot "screenshots/joingameaddress-open.tga"',
+        'openq4_retainedGui number begin "join-address"', 'openq4_retainedGui number input "join-address" "not an address"',
+        'openq4_retainedGui number commit "join-address"', 'waitMsec 1000', 'openq4_retainedGui inspect "join-address-error"',
+        'openq4_retainedGui report', 'screenshot "screenshots/joingameaddress-error.tga"',
+        'openq4_retainedGui number begin "join-address"', 'openq4_retainedGui number select "join-address" 0 14',
+        'openq4_retainedGui number replace "join-address" "127.0.0.1:27962"',
+        'set logFileName "logs/openq4-match.log"',
+        'openq4_retainedGui number commit "join-address"', AFTER_MAP,
+        'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingameaddress-match.tga"', 'disconnect', 'waitMsec 2000',
+    ]),
+    # The classic server browser (ui_retained 0) shows the scan's progress
+    # again: retail's scan published its notice and fraction (gui::loadNotice,
+    # gui::loadPct) for the stock load bar, which openQ4's had dropped. GET
+    # NEW LIST asks the master server, which the loopback cannot reach, and
+    # the seeded favorite, a loopback dedicated server (SCENARIO_SERVERS),
+    # answers: the bar fills and names the count.
+    'stockbrowser': (None, [
+        'waitMsec 7000', 'openq4_browser open', 'waitMsec 2500', 'openq4_browser source internet', 'waitMsec 2500',
+        'openq4_browser action updateServers', 'waitMsec 300', 'openq4_browser report',
+        'screenshot "screenshots/stockbrowser-scanning.tga"', 'waitMsec 4500', 'openq4_browser report',
+        'screenshot "screenshots/stockbrowser-scanned.tga"',
+        # The server tooltip again (retail's, which openQ4's scan had kept
+        # hidden): the listed server's row treated as hovered, without a
+        # pointer (openq4_browser hover), then no row, which hides it.
+        'openq4_browser hover 0', 'waitMsec 1000', 'openq4_browser report', 'screenshot "screenshots/stockbrowser-tooltip.tga"',
+        'openq4_browser hover -1', 'waitMsec 1000', 'openq4_browser report',
+    ]),
+    # The Credits page: CREDITS hands off and the page presents at 550 ms on
+    # its opaque backing; the Raven logo lights and goes out, then the first
+    # screen's lines arrive in runes and translate to Latin under the scan
+    # bars, and the screen leaves for the next. Back returns the title.
+    'credits': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_credits', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/credits-logo.tga"',
+        'waitMsec 4000', 'screenshot "screenshots/credits-runes.tga"', 'waitMsec 2500', 'openq4_retainedGui report',
+        'screenshot "screenshots/credits-translated.tga"', 'waitMsec 3300', 'screenshot "screenshots/credits-next.tga"',
+        'waitMsec 3000', 'screenshot "screenshots/credits-second.tga"',
+        'openq4_retainedGui focus credits_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'screenshot "screenshots/credits-back.tga"',
+    ]),
+    # The restart screen (FLOW-005): the player dies in the level, and when the
+    # respawn wait runs out the level unloads and the screen presents with
+    # RESTART focused. Each plate explains itself in the line under the
+    # dialog; EXIT GAME asks and NO closes the question; RESTART reloads the
+    # level from its autosave.
+    'death': ('game/airdefense1', [
+        'waitMsec 1500', 'kill', 'waitMsec 15000', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/death.tga"',
+        'openq4_retainedGui focus death_load', 'waitMsec 300', 'screenshot "screenshots/death-load.tga"',
+        'openq4_retainedGui focus death_exit', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/death-exit.tga"',
+        'openq4_retainedGui focus exitModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        # Back keeps the screen and returns the focus to RESTART.
+        'waitMsec 500', 'openq4_retainedGui focus death_exit', 'openq4_retainedGui menu back 1', 'openq4_retainedGui menu back 0',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/death-back.tga"',
+        'openq4_retainedGui focus death_restart', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 12000', 'ui_retainedStatus', 'screenshot "screenshots/death-restarted.tga"',
+    ]),
+    # The death screen's LOAD GAME: the retained Load Game page over the title.
+    'death-load': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Before death"', 'waitMsec 1500', 'kill', 'waitMsec 15000', 'ui_retainedStatus',
+        'openq4_retainedGui focus death_load', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 3000', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/death-load-page.tga"',
+    ]),
+    # Back on the Single Player page the title's SINGLE PLAYER opened returns
+    # the title, its bands coming home and SINGLE PLAYER still focused.
+    'singleplayer-back': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_singleplayer', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1800', 'ui_retainedStatus', 'screenshot "screenshots/singleplayer-page.tga"',
+        'openq4_retainedGui menu back 1', 'openq4_retainedGui menu back 0', 'waitMsec 1500', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/singleplayer-back.tga"',
+    ]),
+    # UPDATES checks in place: the title keeps its content, and the answer, a
+    # stock message box, comes over the retained title.
+    'updates': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_updates', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'ui_retainedStatus', 'screenshot "screenshots/updates-checking.tga"',
+        'waitMsec 3500', 'ui_retainedStatus', 'screenshot "screenshots/updates-answer.tga"',
+    ]),
+    # Left and right step Create Server's Gametype with its list closed, and
+    # wrap at either end.
+    'createserver-stepping': (None, [
+        'waitMsec 4000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui focus create', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2000', 'openq4_retainedGui focus "create-gametype"', 'waitMsec 200', 'si_gameType',
+        'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 400', 'si_gameType',
+        'openq4_retainedGui widget "create-gametype"', 'screenshot "screenshots/stepping-right.tga"',
+        'openq4_retainedGui menu left 1', 'openq4_retainedGui menu left 0', 'waitMsec 200',
+        'openq4_retainedGui menu left 1', 'openq4_retainedGui menu left 0', 'waitMsec 400', 'si_gameType',
+        'openq4_retainedGui widget "create-gametype"', 'screenshot "screenshots/stepping-left.tga"',
+    ]),
+    # MODS on the title (section 6): the list dialog opens over the title with
+    # the installed mods, the current game's selected and focused, and the
+    # wordmark dimmed; LOAD MOD takes the focus, and CANCEL closes the dialog.
+    'mods': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus link_mods', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 100', 'screenshot "screenshots/mods-opening.tga"', 'waitMsec 500',
+        'openq4_retainedGui report', 'screenshot "screenshots/mods.tga"',
+        'openq4_retainedGui focus modsModal_yes', 'waitMsec 300', 'screenshot "screenshots/mods-load.tga"',
+        'openq4_retainedGui focus modsModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/mods-closed.tga"',
+    ]),
+    # The Demos page (FLOW-013): two render demos recorded in the level, then
+    # the title's DEMOS hands off and the page presents at 550 ms with the
+    # newest selected. A filter that hides both shows the filtered empty
+    # state and clears again; DELETE asks naming the demo, and YES deletes it
+    # and selects the older one; PLAY plays it (8 s long, shot 2.5 s in), and
+    # demoStop ends playback.
+    'demos': ('game/airdefense1', [
+        'waitMsec 1000', 'recordDemo retainedolder', 'waitMsec 8000', 'stopRecording', 'waitMsec 500',
+        'recordDemo retainednewer', 'waitMsec 2500', 'stopRecording', 'waitMsec 500', 'disconnect', 'waitMsec 4000',
+        'openq4_retainedGui focus link_demos', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/demos-handoff.tga"', 'waitMsec 900', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/demos.tga"',
+        'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/demos-filtered.tga"',
+        'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'screenshot "screenshots/demos-cleared.tga"',
+        'openq4_retainedGui focus demo_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'screenshot "screenshots/demos-delete.tga"',
+        'openq4_retainedGui focus deleteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/demos-deleted.tga"',
+        'openq4_retainedGui focus demo_play', 'waitMsec 300', 'screenshot "screenshots/demos-play.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'ui_retainedStatus',
+        'screenshot "screenshots/demos-playing.tga"', 'demoStop', 'waitMsec 3000', 'ui_retainedStatus',
+        'screenshot "screenshots/demos-stopped.tga"',
+    ]),
+    # The Restart Level page (FLOW-001): the pause's RESTART LEVEL hands off to
+    # it at the level's difficulty. A plate chooses another, which the page
+    # lights and describes; Back leaves the difficulty as it was, so the page
+    # reopens at the level's; RESTART LEVEL restarts the level at the choice.
+    'restartlevel': ('game/airdefense1', [
+        'waitMsec 1000', 'openq4_assertMenuActivation 10000', 'waitMsec 1200', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/restartlevel-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/restartlevel.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/restartlevel-chosen.tga"',
+        'openq4_retainedGui focus restart_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 900', 'screenshot "screenshots/restartlevel-home.tga"',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'screenshot "screenshots/restartlevel-reopened.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus restart_go', 'waitMsec 300', 'screenshot "screenshots/restartlevel-go.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 12000', 'ui_retainedStatus',
+        'screenshot "screenshots/restartlevel-restarted.tga"',
+    ]),
     # A mod with its own copies of the stock loading screens: the level loads
     # under the mod's screen, and the retained loading screen never loads.
     'fallback-loading': ('game/airdefense2', [
@@ -262,10 +829,37 @@ def stock_menu_without_demos(runtime: Path) -> str:
 
 
 # CVars a scenario sets beyond the common ones.
-SCENARIO_CVARS = {'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
+# Ports a scenario holds on the loopback interface while it runs, and the
+# cfg files it chains to (the last one ends the run).
+SCENARIO_PORTS = {'arenafail': 27961}
+# A dedicated server a scenario starts first (its loopback port, map and
+# name), from the runtime with its own savepath; it quits once the client is
+# done.
+SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
+SCENARIO_FILES = {'arenafail': {
+    'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
+    'retained_arenafail_after.cfg': [
+        # In the hidden capture window the reloaded module presents its first
+        # frame at a screenshot, which reads black; the ledger reveals from it.
+        'waitMsec 3000', 'screenshot "screenshots/arenafail-reloaded.tga"', 'waitMsec 3000',
+        'ui_arenaCampaignActive', 'ui_arenaActiveMatch', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenafail-ledger.tga"', 'openq4_retainedGui focus resultModal_no', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
+        'screenshot "screenshots/arenafail-browser.tga"'],
+}}
+SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
+                  # An Arena match is a local multiplayer game, where the menu probe is a cheat.
+                  'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
                   'system-mp-game': {'ui_retainedSystem': '1'},
-                  'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'}}
+                  'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
+                  'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
+                  'multiplayer': {'net_allowCheats': '1'},
+                  'createserverstart': {'net_ip': '127.0.0.1'},
+                  'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
+                  'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
 FALLBACK_MOD = 'retainedfallback'
@@ -278,6 +872,46 @@ OVERRIDES = {
     'fallback-loading': {'guis/loading/splevel.gui': lambda runtime: MOD_LOADING_GUI,
                          'guis/loading/generic.gui': lambda runtime: MOD_LOADING_GUI},
 }
+
+
+def damaged_save(runtime: Path) -> bytes:
+    """A save whose header the Load Game page lists (Quake4, version 1834,
+    game/airdefense1, no entity filter, 32 empty player dictionaries) but
+    whose payload LoadGame refuses: its marker is neither openQ4's nor the
+    build's."""
+    def string(text: str) -> bytes:
+        data = text.encode('ascii')
+        return struct.pack('<i', len(data)) + data
+    header = string('Quake4') + struct.pack('<i', 1834) + string('game/airdefense1') + string('') + struct.pack('<i', 0) * 32
+    return header + struct.pack('<i', 0x2BAD) + bytes(64)
+
+
+# The damaged save's menu label, as SaveGame writes one.
+DAMAGED_DESCRIPTION = '"damaged"\r\n"^:Damaged save\t^0Air Defense Trenches"\r\n""\r\n'
+
+# An autosave's menu label: it names its level's loadscreen, so the Save Game
+# page refuses to save over it.
+AUTOSAVE_DESCRIPTION = '"auto"\r\n"^:Autosave\t^0AIR DEFENSE BUNKER"\r\n"gfx/guis/loadscreens/airdefense1"\r\n'
+
+def ban_list(runtime: Path) -> bytes:
+    """A local server's ban list as idGameLocal::SaveBanList writes it: each
+    ban's name and GUID as little-endian length-prefixed strings."""
+    def string(text: str) -> bytes:
+        data = text.encode('utf-8')
+        return struct.pack('<i', len(data)) + data
+    bans = (('^1Griefer', 'ABCDEFGHIJK'), ('Camper', 'BCDEFGHIJKL'), ('Spammer', 'CDEFGHIJKLM'))
+    return b''.join(string(name) + string(guid) for name, guid in bans)
+
+
+# Files a scenario's game directory holds before it starts.
+SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
+                              'savegames/damaged.txt': lambda runtime: DAMAGED_DESCRIPTION.encode('utf-8')},
+         'createserver': {'banlist.txt': ban_list},
+         # The browser's favorites (one address a line): the scenario's server.
+         'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
+         'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
+         'savegame': {'savegames/auto.save': damaged_save,
+                      'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
 
 
 def digest(path: Path) -> str:
@@ -301,6 +935,55 @@ def mod_manifest(runtime: Path) -> str:
     return json.dumps(manifest, indent=2) + '\n'
 
 
+def start_server(args, output: Path, spec: dict, options: dict) -> tuple:
+    """A scenario's dedicated server (SCENARIO_SERVERS), once it listens: on
+    the loopback interface only, a LAN server (no master heartbeat), idling on
+    a script that quits once rewritten."""
+    game = output / 'server' / 'baseoq4'
+    game.mkdir(parents=True)
+    idle = game / 'server_idle.cfg'
+    idle.write_text('waitMsec 250\nexec server_idle.cfg\n', encoding='utf-8')
+    cvars = {
+        'win_allowMultipleInstances' if os.name == 'nt' else 'sys_allowMultipleInstances': '1',
+        'fs_basepath': str(args.assets.resolve()), 'fs_savepath': str(output / 'server'), 'fs_devpath': str(output / 'server'),
+        'fs_game': 'baseoq4', 'com_gameMode': 'MP', 'logFile': '2', 'logFileName': 'logs/openq4.log',
+        'net_ip': '127.0.0.1', 'net_port': str(spec['port']), 'net_serverDedicated': '1', 'net_LANServer': '1',
+        'si_name': spec['name'], 'si_pure': '0', 'si_maxPlayers': '4', 'si_gameType': 'DM', 'si_warmup': '0', 'bot_minPlayers': '0',
+    }
+    command = [str(args.runtime.resolve() / ('openQ4-ded_x64.exe' if os.name == 'nt' else 'openQ4-ded_x64'))]
+    for key, value in cvars.items():
+        command += ['+set', key, value]
+    command += ['+spawnServer', spec['map'], '+exec', idle.name]
+    stream = (output / 'server-process.log').open('w', encoding='utf-8')
+    process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=stream, stderr=subprocess.STDOUT, **options)
+    log = game / 'logs' / 'openq4.log'
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        if log.is_file() and f"Server spawned on port {spec['port']}." in log.read_text(encoding='utf-8', errors='replace'):
+            return process, stream, idle, log, command
+        if process.poll() is not None:
+            break
+        time.sleep(0.25)
+    process.kill()
+    process.wait()
+    stream.close()
+    raise RuntimeError(f'the dedicated server for {output.name} never listened on port {spec["port"]}')
+
+
+def stop_server(server: tuple) -> int:
+    """Quit a scenario's dedicated server through its idle script."""
+    process, stream, idle, _log, _command = server
+    idle.write_text('quit\n', encoding='utf-8')
+    try:
+        returncode = process.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        returncode = None
+    stream.close()
+    return returncode
+
+
 def run(args, scenario: str) -> dict:
     output = (args.output / scenario).resolve()
     overrides_files = OVERRIDES.get(scenario, {})
@@ -314,9 +997,31 @@ def run(args, scenario: str) -> dict:
         target = game / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content(args.runtime.resolve()).encode('utf-8', errors='surrogateescape'))
-    lines = [f'echo RETAINED_STAGE {scenario}'] + stages + ['ui_retainedStatus', f'echo {DONE}', 'quit']
+    for relative, content in SEEDS.get(scenario, {}).items():
+        target = game / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content(args.runtime.resolve()))
+    # A scenario whose page launches a map continues once that map has loaded
+    # (AFTER_MAP): the command buffer must be free for the launch meanwhile.
+    after = None
+    if AFTER_MAP in stages:
+        split = stages.index(AFTER_MAP)
+        stages, after = stages[:split], stages[split + 1:]
+    finish = ['ui_retainedStatus', f'echo {DONE}', 'quit']
+    lines = [f'echo RETAINED_STAGE {scenario}'] + stages + ([] if after is not None else finish)
     cfg = game / f'retained-{scenario}.cfg'
     cfg.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    chained = SCENARIO_FILES.get(scenario)
+    if after is not None and chained:
+        # The stage continues through chained files; the last one ends the run.
+        names = list(chained)
+        for name in names:
+            lines_after = chained[name] + (finish if name == names[-1] else [])
+            (game / name).write_text('\n'.join([f'echo RETAINED_STAGE {scenario} {name}'] + lines_after) + '\n', encoding='utf-8')
+        after = None
+    elif after is not None:
+        after_cfg = game / f'retained-{scenario}-after.cfg'
+        after_cfg.write_text('\n'.join([f'echo RETAINED_STAGE {scenario} after map'] + after + finish) + '\n', encoding='utf-8')
     width, height = args.size.split('x')
     overrides = {
         'fs_basepath': str(args.assets.resolve()), 'fs_savepath': str(output / 'save'), 'fs_devpath': str(output / 'save'),
@@ -331,6 +1036,9 @@ def run(args, scenario: str) -> dict:
     }
     if args.gate != 'default':
         overrides['ui_retained'] = args.gate
+    for item in args.set:
+        key, _, value = item.partition('=')
+        overrides[key] = value
     overrides.update(SCENARIO_CVARS.get(scenario, {}))
     command = [str(args.runtime.resolve() / ('openQ4-client_x64.exe' if os.name == 'nt' else 'openQ4-client_x64'))]
     for key, value in overrides.items():
@@ -347,6 +1055,8 @@ def run(args, scenario: str) -> dict:
     elif level:
         command += ['+set', 'g_autoExecAfterMapLoad', cfg.name, '+set', 'g_autoExecAfterMapLoadDelayMs', '3000', '+map', level]
     else:
+        if after is not None:
+            command += ['+set', 'g_autoExecAfterMapLoad', after_cfg.name, '+set', 'g_autoExecAfterMapLoadDelayMs', '3000']
         command += ['+exec', cfg.name]
     options = {'env': {**os.environ, 'TEMP': str(ROOT / '.tmp'), 'TMP': str(ROOT / '.tmp')}}
     if os.name == 'nt':
@@ -355,16 +1065,39 @@ def run(args, scenario: str) -> dict:
         startup.wShowWindow = 0
         options.update(startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
     started = time.monotonic()
-    with (output / 'process.log').open('w', encoding='utf-8') as process_log:
-        process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=process_log, stderr=subprocess.STDOUT, **options)
-        try:
-            returncode = process.wait(timeout=args.timeout)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-            returncode = None
+    # A held port stays on the loopback interface, which the engine's net_ip
+    # names for that scenario.
+    held = None
+    if scenario in SCENARIO_PORTS:
+        held = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        held.bind(('127.0.0.1', SCENARIO_PORTS[scenario]))
+    server, server_result = None, None
+    if scenario in SCENARIO_SERVERS:
+        server = start_server(args, output, SCENARIO_SERVERS[scenario], options)
+    try:
+        with (output / 'process.log').open('w', encoding='utf-8') as process_log:
+            process = subprocess.Popen(command, cwd=args.runtime.resolve(), stdout=process_log, stderr=subprocess.STDOUT, **options)
+            try:
+                returncode = process.wait(timeout=args.timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                returncode = None
+    finally:
+        if held is not None:
+            held.close()
+        if server is not None:
+            server_returncode = stop_server(server)
+            server_log = server[3]
+            server_result = {'returncode': server_returncode, 'command': server[4],
+                             'log': str(server_log.relative_to(ROOT)) if server_log.is_file() else None}
     log_path = game / 'logs' / 'openq4.log'
     log = re.sub(r'\^[0-9]', '', log_path.read_text(encoding='utf-8', errors='replace')) if log_path.is_file() else ''
+    # A scenario whose page reloads the game module logs the reloaded module
+    # to its own file (MODULE_LOG), which continues this one.
+    module_log = game / 'logs' / MODULE_LOG
+    if module_log.is_file():
+        log += re.sub(r'\^[0-9]', '', module_log.read_text(encoding='utf-8', errors='replace'))
     shots = []
     for tga in sorted((game / 'screenshots').glob('*.tga')):
         png = to_png(tga)
@@ -381,6 +1114,7 @@ def run(args, scenario: str) -> dict:
         'game_dir': game_dir, 'overrides': sorted(overrides_files),
         'errors': [line for line in log.splitlines() if 'ERROR:' in line or 'FATAL:' in line],
         'screenshots': shots, 'command': command, 'log': str(log_path.relative_to(ROOT)) if log_path.is_file() else None,
+        'server': server_result,
         'host_input_injection': False, 'windowed': True, 'hidden_window': True,
     }
 
@@ -397,6 +1131,9 @@ def main() -> int:
     parser.add_argument('--language', default='english')
     parser.add_argument('--scenario', action='append', choices=sorted(SCENARIOS))
     parser.add_argument('--timeout', type=int, default=180)
+    # On a shared machine, win_allowMultipleInstances=1 lets a run start beside
+    # another openQ4 client without taking the single-instance lock from it.
+    parser.add_argument('--set', action='append', default=[], metavar='CVAR=VALUE', help='set a CVar for every run')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('use a new output directory')

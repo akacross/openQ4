@@ -1339,6 +1339,7 @@ typedef struct fileInPack_s {
 	idStr				name;						// name of the file
 	uint32_t			pos;						// classic-ZIP central-directory position
 	uint32_t			size;						// uncompressed size from the central directory
+	uint32_t			crc;						// CRC-32 of the uncompressed bytes, from the central directory
 	struct fileInPack_s * next;						// next file in the hash
 } fileInPack_t;
 
@@ -1347,6 +1348,7 @@ typedef struct fileInPack_s {
 typedef struct packMemberProbe_s {
 	bool				found;
 	int					length;
+	uint32_t			crc;
 } packMemberProbe_t;
 
 typedef enum {
@@ -1497,6 +1499,8 @@ public:
 	virtual	void			ClearPureChecksums( void );
 	virtual int				GetOSMask( void );
 	virtual int				ReadFile( const char *relativePath, void **buffer, ID_TIME_T *timestamp );
+	virtual int				ReadFileContentStamp( const char *relativePath, void **buffer, ID_TIME_T *contentStamp );
+	int						ReadFileStamped( const char *relativePath, void **buffer, ID_TIME_T *timestamp, bool contentStamp );
 	virtual void			FreeFile( void *buffer );
 	virtual int				WriteFile( const char *relativePath, const void *buffer, int size, const char *basePath = "fs_savepath" );
 	virtual bool			PromoteFile( const char *stagedRelativePath, const char *finalRelativePath,
@@ -2874,6 +2878,28 @@ timestamp can be NULL if not required
 ============
 */
 int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIME_T *timestamp ) {
+	return ReadFileStamped( relativePath, buffer, timestamp, false );
+}
+
+/*
+============
+idFileSystemLocal::ReadFileContentStamp
+
+ReadFile for generated-cache identities: a pk4 member reports
+FS_PakMemberContentStamp rather than its timestamp of 0, from the probe and
+from the full read alike.
+============
+*/
+int idFileSystemLocal::ReadFileContentStamp( const char *relativePath, void **buffer, ID_TIME_T *contentStamp ) {
+	return ReadFileStamped( relativePath, buffer, contentStamp, true );
+}
+
+/*
+============
+idFileSystemLocal::ReadFileStamped
+============
+*/
+int idFileSystemLocal::ReadFileStamped( const char *relativePath, void **buffer, ID_TIME_T *timestamp, bool contentStamp ) {
 	idFile *	f;
 	byte *		buf;
 	int			len;
@@ -2939,14 +2965,15 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 	if ( !buffer ) {
 		// A null buffer asks only for the length and timestamp. Opening a pk4
 		// member for that reopens the pak, seeks its local header and sets up
-		// an inflate stream, all to learn a length the central directory
-		// already holds and a timestamp that is always 0 (idFile_InZip). Image
-		// staleness checks make ~1,700 of these per level load.
+		// an inflate stream, all to learn a length and CRC the central
+		// directory already holds and a timestamp that is always 0
+		// (idFile_InZip). Image staleness checks make ~1,700 of these per
+		// level load.
 		packMemberProbe_t probe;
 		f = OpenFileReadSearch( relativePath, FSFLAG_SEARCH_DIRS | FSFLAG_SEARCH_PAKS, NULL, false, NULL, &probe );
 		if ( probe.found ) {
 			if ( timestamp ) {
-				*timestamp = 0;
+				*timestamp = contentStamp ? FS_PakMemberContentStamp( probe.crc, probe.length ) : 0;
 			}
 			return probe.length;
 		}
@@ -2962,7 +2989,7 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 	len = f->Length();
 
 	if ( timestamp ) {
-		*timestamp = f->Timestamp();
+		*timestamp = contentStamp ? f->ContentStamp() : f->Timestamp();
 	}
 	
 	if ( !buffer ) {
@@ -3438,6 +3465,7 @@ pack_t *idFileSystemLocal::LoadZipFile( const char *zipfile ) {
 		buildBuffer[i].pos = static_cast<uint32_t>( fileInfoPosition );
 		// bounded above by INT_MAX, so it also fits the legacy int length
 		buildBuffer[i].size = static_cast<uint32_t>( file_info.uncompressed_size );
+		buildBuffer[i].crc = static_cast<uint32_t>( file_info.crc );
 		// add the file to the hash
 		buildBuffer[i].next = pack->hashTable[hash];
 		pack->hashTable[hash] = &buildBuffer[i];
@@ -7241,6 +7269,8 @@ idFile_InZip * idFileSystemLocal::ReadFileFromZip( pack_t *pak, fileInPack_t *pa
 	file->zipFilePos = pakFile->pos;
 	file->fileSize = static_cast<int>( zfi->cur_file_info.uncompressed_size );
 	file->containerChecksum = pak->checksum;
+	// the index entry, not cur_file_info, so a full open matches the probe
+	file->contentCrc = pakFile->crc;
 	return file;
 }
 
@@ -7294,6 +7324,7 @@ idFile *idFileSystemLocal::OpenFileReadSearch( const char *relativePath, int sea
 	if ( probe ) {
 		probe->found = false;
 		probe->length = -1;
+		probe->crc = 0;
 	}
 
 	// qpaths are not supposed to have a leading slash
@@ -7505,6 +7536,7 @@ idFile *idFileSystemLocal::OpenFileReadSearch( const char *relativePath, int sea
 					if ( probe != NULL ) {
 						probe->found = true;
 						probe->length = static_cast<int>( pakFile->size );
+						probe->crc = pakFile->crc;
 						return NULL;
 					}
 					RecordOpenedLevelLoadSource( relativePath, file );
@@ -7539,6 +7571,7 @@ idFile *idFileSystemLocal::OpenFileReadSearch( const char *relativePath, int sea
 					if ( probe != NULL ) {
 						probe->found = true;
 						probe->length = static_cast<int>( pakFile->size );
+						probe->crc = pakFile->crc;
 						return NULL;
 					}
 					RecordOpenedLevelLoadSource( relativePath, file );
@@ -8726,12 +8759,19 @@ void idFileSystemLocal::FindMapScreenshot( const char *path, char *buf, int len 
 		// try to extract from an addon
 		file = OpenFileReadFlags( buf, FSFLAG_SEARCH_ADDONS );
 		if ( file ) {
-			// save it out to an addon splash directory
+			// save it out to an addon splash directory, unless an earlier
+			// launch already did: the same size, written since the addon
 			int dlen = file->Length();
+			const ID_TIME_T addonTime = file->Timestamp();
+			idStr::snPrintf( buf, len, "guis/assets/splash/addon/%s.tga", mapname.c_str() );
+			ID_TIME_T extractedTime = FILE_NOT_FOUND_TIMESTAMP;
+			if ( ReadFile( buf, NULL, &extractedTime ) == dlen && extractedTime != FILE_NOT_FOUND_TIMESTAMP && extractedTime >= addonTime ) {
+				CloseFile( file );
+				return;
+			}
 			char *data = new char[ dlen ];
 			file->Read( data, dlen );
 			CloseFile( file );
-			idStr::snPrintf( buf, len, "guis/assets/splash/addon/%s.tga", mapname.c_str() );
 			WriteFile( buf, data, dlen );
 			delete[] data;
 		} else {

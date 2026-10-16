@@ -64,6 +64,11 @@
           "vertexSHA256": "1f23bd1fadaf1aa2c6f5f6dea1896480e8a74d96415622c4ae109070e072b27b",
           "fragmentSHA256": "354db7c6eb41aad13a4d26ba49ebc178704c6c76519061e943d6a0f5aaf5312d",
           "origin": "openQ4 reviewed source"
+        },
+        {
+          "vertexSHA256": "1f23bd1fadaf1aa2c6f5f6dea1896480e8a74d96415622c4ae109070e072b27b",
+          "fragmentSHA256": "2ac8172e0586313ba1c8c759f17fd544a57ffc951b8453a4743030062a298e5e",
+          "origin": "openQ4 feathered legacy aperture; reviewed with native material_sniper_stretch2.frag"
         }
       ]
     },

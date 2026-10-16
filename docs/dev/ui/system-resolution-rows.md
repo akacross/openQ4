@@ -119,11 +119,10 @@ The stock page stays the default until the retained page does what it did:
     The settings a preset writes include image, audio and renderer resource
     effects with no apply path, so `ApplyClassOf` reports Unsupported and
     Apply stays disabled ([performance presets](performance-presets.md)).
-  - `r_windowWidth`, `r_windowHeight`, `r_customWidth`, `r_customHeight`:
-    only number fields offer them, and the retained adapter delivers no typed
-    characters until [native text delivery](text-input-routing.md) lands. A
-    pasted value works; typed digits do not. Brightness and Ambient keep
-    their sliders, so they are complete.
+  - `r_windowWidth`, `r_windowHeight`, `r_customWidth`, `r_customHeight`
+    left the list when committed characters began to reach retained fields
+    ([typed characters](numeric-fields.md#typed-characters)): only number
+    fields offer them, and they now take typed digits as well as pasted ones.
 
   MSAA now applies on Vulkan, so `r_multiSamples` left the list.
 - `Session_RetainedSystemEnabled()` includes the page in `ui_retained` only

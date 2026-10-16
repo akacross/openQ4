@@ -514,24 +514,6 @@ static rvCTF_AssaultPoint *BotObjectiveNextAssaultPoint( idPlayer *self, int tea
 
 /*
 ================
-BotObjectiveBlockOrdered
-
-Bots under a team order are not the allocator's to place.  Every bot on the
-team marks the same ones - the orders table is shared - so the masks the
-allocator promises to agree on still agree.
-================
-*/
-static void BotObjectiveBlockOrdered( idPlayer *self, bool blocked[MAX_CLIENTS] ) {
-	for ( int i = 0; i < gameLocal.numClients; i++ ) {
-		idPlayer *candidate = gameLocal.GetClientByNum( i );
-		if ( candidate && candidate->team == self->team && botManager.GetOrder( i ) ) {
-			blocked[i] = true;
-		}
-	}
-}
-
-/*
-================
 BotObjectiveFromOrder
 
 What a standing order means in the current mode.  False leaves the bot to its
@@ -591,6 +573,39 @@ static bool BotObjectiveFromOrder( idPlayer *self, const botOrder_t &order, botO
 
 		default:
 			return false;
+	}
+}
+
+/*
+================
+BotObjectiveBlockOrdered
+
+Bots under a team order are not the allocator's to place.  Every bot on the
+team marks the same ones - the orders table is shared - so the masks the
+allocator promises to agree on still agree.
+
+Only an order that means something right now takes a bot out of the
+allocation.  An attack order outside CTF, or a follow order whose leader is
+dead, resolves to nothing and leaves the bot to its own judgement - and a bot
+left to its own judgement must still be handed a role, or "everyone attack"
+in Freeze Tag stopped every rescue for the rest of the map and a follow
+order left the bot with no objective at all while its leader was dead.
+================
+*/
+static void BotObjectiveBlockOrdered( idPlayer *self, bool blocked[MAX_CLIENTS] ) {
+	for ( int i = 0; i < gameLocal.numClients; i++ ) {
+		idPlayer *candidate = gameLocal.GetClientByNum( i );
+		if ( !candidate || candidate->team != self->team ) {
+			continue;
+		}
+		const botOrder_t *order = botManager.GetOrder( i );
+		if ( !order ) {
+			continue;
+		}
+		botObjective_t resolved;
+		if ( BotObjectiveFromOrder( candidate, *order, resolved ) ) {
+			blocked[i] = true;
+		}
 	}
 }
 
@@ -889,9 +904,20 @@ static bool BotFindDeadZoneObjective( idPlayer *self, botObjective_t &out ) {
 	const int enemyTeam = gameLocal.mpGame.OpposingTeam( self->team );
 	const dzState_t ownZoneState = state ? state->GetDZState( self->team ) : DZ_NONE;
 	const dzState_t enemyZoneState = state ? state->GetDZState( enemyTeam ) : DZ_NONE;
-	const bool ownControls = ( ownZoneState == DZ_TAKEN );
-	const bool enemyControls = ( enemyZoneState == DZ_TAKEN );
-	const bool deadlocked = ( ownZoneState == DZ_DEADLOCK || enemyZoneState == DZ_DEADLOCK );
+	bool ownControls = ( ownZoneState == DZ_TAKEN );
+	bool enemyControls = ( enemyZoneState == DZ_TAKEN );
+	bool deadlocked = ( ownZoneState == DZ_DEADLOCK || enemyZoneState == DZ_DEADLOCK );
+
+	// Both slots reading TAKEN is not a state the rules can mean.  The zone
+	// transition used to clear only the Marine slot before recording a new
+	// holder, so after a contested fight the loser's slot kept saying TAKEN
+	// for the rest of the hold; a team that trusted either slot picked a side
+	// at random.  Read it as the contest it describes until the slots agree.
+	if ( ownControls && enemyControls ) {
+		ownControls = false;
+		enemyControls = false;
+		deadlocked = true;
+	}
 
 	idVec3 zoneOrigin;
 	if ( self->PowerUpActive( POWERUP_DEADZONE ) ) {

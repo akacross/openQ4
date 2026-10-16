@@ -871,7 +871,7 @@ def center_column(doc: HudDocument) -> dict:
     declare(doc, {"frag_notice_text": "", "frag_notice_persist": False, "main_notice_text": "", "main_notice_persist": False,
                   "oq4_rank_notice_text": "", "oq4_rank_notice_pre": "", "oq4_rank_notice_lead": "", "oq4_rank_notice_post": "",
                   "spectatetext1": "", "oq4_spectating": False, "oq4.frag": False, "oq4.main": False, "oq4.award": False,
-                  "ig_awards": 0, "ig_award": "", "ig_award_num": ""})
+                  "ig_awards": 0, "ig_award": "", "ig_award_num": "", "arena_hudHidden": False})
 
     def notice(ident, size, children):
         h = size * 1.35
@@ -879,7 +879,8 @@ def center_column(doc: HudDocument) -> dict:
                         **{"height": ui.length(u(h)), "padding-left": ui.length(u(8)), "padding-right": ui.length(u(8)),
                            "margin-bottom": ui.length(u(3)), "display": ui.keyword("none"), "opacity": num(1)})
     frag = notice("frag", 17.3, [bound_label(doc, "frag-text", S("frag_notice_text"), 17.3, rgb(NOTE), line=17.3 * 1.35)])
-    doc.bind("frag.display", "frag", "display", sel(AND(S("oq4.frag"), op("!=", S("frag_notice_text"), "")), "flex", "none"))
+    shot = S("arena_hudHidden")
+    doc.bind("frag.display", "frag", "display", sel(AND(S("oq4.frag"), op("!=", S("frag_notice_text"), ""), NOT(shot)), "flex", "none"))
     rank_notice = op("==", S("main_notice_text"), S("oq4_rank_notice_text"))
     main = notice("main", 15.4, [
         bound_label(doc, "main-text", S("main_notice_text"), 15.4, rgb(NOTE), line=15.4 * 1.35, **{"display": ui.keyword("none")}),
@@ -896,7 +897,8 @@ def center_column(doc: HudDocument) -> dict:
     warm = notice("warm", 12.5, [bound_label(doc, "warm-text", S("spectatetext1"), 12.5, rgb(SPEC_TEXT), line=12.5 * 1.35,
                                              **{"opacity": num(1)})])
     doc.bind("warm.display", "warm", "display", sel(AND(op("==", S("oq4_state"), 1), NOT(S("oq4_spectating")),
-                                                       op("!=", S("spectatetext1"), ""), op("!=", S("gametype"), 2)), "flex", "none"))
+                                                       op("!=", S("spectatetext1"), ""), op("!=", S("gametype"), 2), NOT(shot)),
+                                                   "flex", "none"))
     doc.timeline("warm-breathe", 900, [tr("warm-text", "opacity", [(0, num(1)), (495, num(0.69)), (504, num(0.5)), (603, num(1)),
                                                                    (900, num(1))])], iterations=0)
     # Awards: the earned medal once per time earned (up to nine), else one and a count.
@@ -909,7 +911,7 @@ def center_column(doc: HudDocument) -> dict:
         medals.append(medal)
     count = bound_label(doc, "award-count", S("ig_award_num"), 18, WHITE, line=20, **{"margin-left": ui.length(u(4))})
     awards = flex_row("awards", medals + [count], **{"display": ui.keyword("none"), "opacity": num(1)})
-    doc.bind("awards.display", "awards", "display", sel(AND(S("oq4.award"), op(">", S("ig_awards"), 0)), "flex", "none"))
+    doc.bind("awards.display", "awards", "display", sel(AND(S("oq4.award"), op(">", S("ig_awards"), 0), NOT(shot)), "flex", "none"))
     # The lines under each notice ride a wrapper, so they can slide as it comes
     # and goes instead of jumping.
     def stack(ident, children):
@@ -1796,12 +1798,13 @@ def statistics(doc: HudDocument) -> dict:
 # ============================================================ Arena ceremony
 
 def arena_presentation(doc: HudDocument) -> dict:
-    """The single-player Arena campaign's entrance and victory presentation
-    (mphud.gui): letterbox bars sized from the view's aspect toward a 16:9
-    frame, orange rules, and the entrance and victory cards with the stock
-    timings; it covers the whole view, not one anchor."""
-    declare(doc, {"arena_presentTitle": "", "arena_presentSubtitle": "", "arena_presentScore": "", "arena_presentVictor": "",
-                  "arena_presentHasVictor": False, "oq4.arena": 0})
+    """The single-player Arena campaign's introduction, entrance and victory
+    presentation (mphud.gui): letterbox bars sized from the view's aspect
+    toward a 16:9 frame, orange rules, and the cards with the stock timings;
+    it covers the whole view, not one anchor. oq4.arena is 1 for the countdown
+    entrance, 2 for the victory tableau and 3 for an opponent introduction."""
+    declare(doc, {"arena_presentKicker": "", "arena_presentTitle": "", "arena_presentSubtitle": "", "arena_presentScore": "",
+                  "arena_presentVictor": "", "arena_presentHasVictor": False, "oq4.arena": 0})
     # Bar height: clamp((1 - aspect * 9/16) / 2, 34/480, 0.11) of the view height (canvas dp).
     frac = op("clamp", op("*", op("-", 1, op("*", op("/", S("hud.width"), S("hud.height")), 0.5625)), 0.5), 0.0708333, 0.11)
     bar_h = op("*", frac, S("hud.height"))
@@ -1837,11 +1840,12 @@ def arena_presentation(doc: HudDocument) -> dict:
             node["properties"]["text"] = ui.text(key)
         return node
     entrance = full("arena-entrance", [
-        card_text("arena-e-kicker", "#str_42079", None, 15.8, rgb("#F2B840"), FACE, 166),
+        card_text("arena-e-kicker", None, S("arena_presentKicker"), 15.8, rgb("#F2B840"), FACE, 166),
         card_text("arena-e-title", None, S("arena_presentTitle"), 37.4, rgb("#FFF7D6"), "marine", 220),
         card_text("arena-e-sub", None, S("arena_presentSubtitle"), 15.8, rgb("#C7D6B0"), FACE, 260),
         card_text("arena-e-ready", "#str_42086", None, 13, rgb("#F27D0F"), FACE, 302)], display=ui.keyword("none"))
-    doc.show("arena-entrance", op("==", S("oq4.arena"), 1))
+    doc.show("arena-entrance", OR(op("==", S("oq4.arena"), 1), op("==", S("oq4.arena"), 3)))
+    doc.show("arena-e-ready", op("==", S("oq4.arena"), 1))
     victory_top = ui.group("arena-v-top", {**ui.absolute(left=0, top=0, width=u(640), height=u(160)), "display": ui.keyword("block")}, [
         card_text("arena-v-kicker", "#str_42085", None, 15.8, rgb("#F2B840"), FACE, 48),
         card_text("arena-v-title", None, S("arena_presentTitle"), 37.4, rgb("#FFF7D6"), "marine", 100),
@@ -1856,8 +1860,10 @@ def arena_presentation(doc: HudDocument) -> dict:
                                                  {"id": "b", "op": "line", "points": [[{"fraction": 1}, 0]]},
                                                  {"id": "d", "op": "line", "points": [[{"fraction": 1}, {"fraction": 1}]]},
                                                  {"id": "e", "op": "line", "points": [[0, {"fraction": 1}]]}, {"id": "f", "op": "close"}]}]),
-        card_text("arena-victor-label", "#str_42084", None, 12.2, rgb("#ABBF8F"), FACE, 24, **{"left": ui.length(u(-112))}),
-        card_text("arena-victor-name", None, S("arena_presentVictor"), 22.3, rgb("#FFF0C2"), "marine", 52, **{"left": ui.length(u(-112))})])
+        card_text("arena-victor-label", "#str_42084", None, 12.2, rgb("#ABBF8F"), FACE, 24,
+                  **{"left": ui.length(u(-112)), "opacity": num(1)}),
+        card_text("arena-victor-name", None, S("arena_presentVictor"), 22.3, rgb("#FFF0C2"), "marine", 52,
+                  **{"left": ui.length(u(-112)), "opacity": num(1)})])
     doc.bind("arena-victor.top", "arena-victor", "top", op("-", op("-", S("hud.height"), bar_h), u(118)))
     doc.show("arena-victor", S("arena_presentHasVictor"))
     recording = card_text("arena-v-rec", "#str_42087", None, 10.8, rgb("#ABBF8F"), FACE, 0)
@@ -1878,14 +1884,39 @@ def arena_presentation(doc: HudDocument) -> dict:
     def bars(keys):
         return [tr("arena-top-bar", "transform", [(at, transform_value(0, 0 if v else -slide)) for at, v in keys]),
                 tr("arena-bottom-bar", "transform", [(at, transform_value(0, 0 if v else slide)) for at, v in keys])]
+    def entrance_copy():
+        return [fade("arena-e-kicker", [(0, 0), (220, 0), (540, 1), (3100, 1), (3450, 0)]),
+                fade("arena-e-title", [(0, 0), (520, 0), (940, 1), (3100, 1), (3450, 0)]),
+                fade("arena-e-sub", [(0, 0), (520, 0), (940, 1), (3100, 1), (3450, 0)]),
+                fade("arena-e-ready", [(0, 0), (1050, 0), (1300, 1), (3100, 1), (3450, 0)])]
     doc.timeline("arena-entrance-run", 4000, [
         fade("arena-shade", [(0, 0), (400, 0.42), (3500, 0.42), (3950, 0)]), *bars([(0, 0), (400, 1), (3500, 1), (3950, 0)]),
         fade("arena-rule-top", [(0, 0), (500, 0.9), (3500, 0.9), (3850, 0)]),
         fade("arena-rule-bottom", [(0, 0), (500, 0.9), (3500, 0.9), (3850, 0)]),
-        fade("arena-e-kicker", [(0, 0), (220, 0), (540, 1), (3100, 1), (3450, 0)]),
-        fade("arena-e-title", [(0, 0), (520, 0), (940, 1), (3100, 1), (3450, 0)]),
-        fade("arena-e-sub", [(0, 0), (520, 0), (940, 1), (3100, 1), (3450, 0)]),
-        fade("arena-e-ready", [(0, 0), (1050, 0), (1300, 1), (3100, 1), (3450, 0)])], complete="arenaEntranceDone", essential=True)
+        *entrance_copy()], complete="arenaEntranceDone", essential=True)
+    # The entrance over a frame the introductions left open: every track starts
+    # at its first key, so the open frame must be authored open or it would
+    # snap shut and reopen.
+    doc.timeline("arena-entrance-held-run", 4000, [
+        fade("arena-shade", [(0, 0.3), (400, 0.42), (3500, 0.42), (3950, 0)]), *bars([(0, 1), (3500, 1), (3950, 0)]),
+        fade("arena-rule-top", [(0, 0.9), (3500, 0.9), (3850, 0)]),
+        fade("arena-rule-bottom", [(0, 0.9), (3500, 0.9), (3850, 0)]),
+        *entrance_copy()], complete="arenaEntranceDone", essential=True)
+    # An introduction: the first combatant opens the frame at a lighter shade
+    # than the entrance so the fighter reads clearly; every combatant fades its
+    # own copy in. Nothing closes the frame - the entrance takes it over.
+    doc.timeline("arena-intro-open", 500, [
+        fade("arena-shade", [(0, 0), (400, 0.3)]), *bars([(0, 0), (400, 1)]),
+        fade("arena-rule-top", [(0, 0), (500, 0.9)]), fade("arena-rule-bottom", [(0, 0), (500, 0.9)])], essential=True)
+    doc.timeline("arena-intro-card", 460, [
+        fade("arena-e-kicker", [(0, 0), (60, 0), (320, 1)]),
+        fade("arena-e-title", [(0, 0), (140, 0), (460, 1)]),
+        fade("arena-e-sub", [(0, 0), (140, 0), (460, 1)])], essential=True)
+    doc.timeline("arena-intro-clear-run", 400, [
+        fade("arena-shade", [(0, 0.3), (350, 0), (400, 0)]), *bars([(0, 1), (350, 0), (400, 0)]),
+        fade("arena-rule-top", [(0, 0.9), (300, 0), (400, 0)]), fade("arena-rule-bottom", [(0, 0.9), (300, 0), (400, 0)]),
+        fade("arena-e-kicker", [(0, 1), (250, 0), (400, 0)]), fade("arena-e-title", [(0, 1), (250, 0), (400, 0)]),
+        fade("arena-e-sub", [(0, 1), (250, 0), (400, 0)])], complete="arenaClearDone", essential=True)
     doc.timeline("arena-victory-run", 2950, [
         fade("arena-shade", [(0, 0), (500, 0.18), (2950, 0.18)]), *bars([(0, 0), (450, 1), (2950, 1)]),
         fade("arena-rule-top", [(0, 0), (550, 0.9), (2950, 0.9)]), fade("arena-rule-bottom", [(0, 0), (550, 0.9), (2950, 0.9)]),
@@ -1898,9 +1929,21 @@ def arena_presentation(doc: HudDocument) -> dict:
         fade("arena-v-kicker", [(0, 1), (250, 0), (400, 0)]), fade("arena-v-title", [(0, 1), (250, 0), (400, 0)]),
         fade("arena-v-score", [(0, 1), (250, 0), (400, 0)]), fade("arena-victor", [(0, 1), (250, 0), (400, 0)]),
         fade("arena-v-rec", [(0, 0.9), (250, 0), (400, 0)])], complete="arenaClearDone", essential=True)
-    doc.on("arenaCampaignEntrance", {"op": "setState", "values": {"oq4.arena": 1}}, play("arena-entrance-run"))
-    doc.on("arenaCampaignVictory", {"op": "setState", "values": {"oq4.arena": 2}}, play("arena-victory-run"))
-    doc.on("arenaCampaignPresentationClear", play("arena-clear-run"))
+    # Each card plays its run first, so the properties it shares with an older
+    # run move to it, then cancels the older runs: a clear still fading out
+    # would otherwise complete underneath the new card and hide the layer.
+    introducing = op("==", S("oq4.arena"), 3)
+    doc.on("arenaCampaignIntroduce", when(op("!=", S("oq4.arena"), 3), [play("arena-intro-open")]),
+           {"op": "setState", "values": {"oq4.arena": 3}}, play("arena-intro-card"),
+           cancel("arena-entrance-run"), cancel("arena-entrance-held-run"), cancel("arena-clear-run"), cancel("arena-intro-clear-run"))
+    doc.on("arenaCampaignEntrance", when(introducing, [play("arena-entrance-held-run")], [play("arena-entrance-run")]),
+           {"op": "setState", "values": {"oq4.arena": 1}},
+           cancel("arena-intro-open"), cancel("arena-intro-card"), cancel("arena-clear-run"), cancel("arena-intro-clear-run"))
+    doc.on("arenaCampaignVictory", {"op": "setState", "values": {"oq4.arena": 2}}, play("arena-victory-run"),
+           cancel("arena-intro-open"), cancel("arena-intro-card"), cancel("arena-entrance-run"), cancel("arena-entrance-held-run"),
+           cancel("arena-clear-run"), cancel("arena-intro-clear-run"))
+    doc.on("arenaCampaignPresentationClear", when(introducing, [play("arena-intro-clear-run")], [play("arena-clear-run")]),
+           cancel("arena-intro-open"), cancel("arena-intro-card"))
     doc.on("arenaEntranceDone", {"op": "setState", "values": {"oq4.arena": 0}})
     doc.on("arenaClearDone", {"op": "setState", "values": {"oq4.arena": 0}})
     return layer
@@ -2004,16 +2047,24 @@ def mp_document() -> dict:
     doc.show("tc-strip", NOT(competitive()))
     # Minimal (ui_hudLayout 2) keeps the held statistics, the vote, chat and
     # voice, the follow card, the respawn prompt and the Arena presentation.
+    # An Arena presentation shot (arena_hudHidden) keeps only its own layer
+    # and the main notice in the center column.
+    def chrome(ident: str, children: list) -> dict:
+        node = ui.group(ident, {**ui.FULL, "display": ui.keyword("block")}, children)
+        doc.show(ident, NOT(S("arena_hudHidden")))
+        return node
     root = gameplay_root(doc, "mp-root", [
-        beyond_minimal(doc, "tags-full", [tags]),
-        anchor(doc, "tl", [beyond_minimal(doc, "tl-full", [remastered_top])]),
-        anchor(doc, "tc", [beyond_minimal(doc, "tc-full", [strip_slot, column, banners]), matchbar]),
-        anchor(doc, "tr", [beyond_minimal(doc, "tr-full", [feed, ctx, lag])]),
-        anchor(doc, "cr", [trailing, stats]),
-        anchor(doc, "cc", [beyond_minimal(doc, "cc-full", [aim])]),
-        anchor(doc, "cl", [leading, ballot]),
-        anchor(doc, "bl", [chat_box(doc, talkers + lines + [chat_input(doc)])]),
-        anchor(doc, "bc", [follow, respawn], scale="hud.centerScale"),
+        chrome("tags-shot", [beyond_minimal(doc, "tags-full", [tags])]),
+        anchor(doc, "tl", [chrome("tl-shot", [beyond_minimal(doc, "tl-full", [remastered_top])])]),
+        anchor(doc, "tc", [beyond_minimal(doc, "tc-full", [chrome("strip-shot", [strip_slot]), column,
+                                                            chrome("banners-shot", [banners])]),
+                             chrome("matchbar-shot", [matchbar])]),
+        anchor(doc, "tr", [chrome("tr-shot", [beyond_minimal(doc, "tr-full", [feed, ctx, lag])])]),
+        anchor(doc, "cr", [chrome("cr-shot", [trailing, stats])]),
+        anchor(doc, "cc", [chrome("cc-shot", [beyond_minimal(doc, "cc-full", [aim])])]),
+        anchor(doc, "cl", [chrome("cl-shot", [leading, ballot])]),
+        anchor(doc, "bl", [chrome("bl-shot", [chat_box(doc, talkers + lines + [chat_input(doc)])])]),
+        anchor(doc, "bc", [chrome("bc-shot", [follow, respawn])], scale="hud.centerScale"),
         arena,
     ])
     # The peer measures whether the chat entry outgrows its view (the probe,

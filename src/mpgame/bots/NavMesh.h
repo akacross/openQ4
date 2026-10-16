@@ -59,6 +59,11 @@ static const int NAVNODE_HAZARD			= BIT( 0 );
 // Whoever stands there is carried away, so the transport is its only exit and
 // it is never a place to stop.
 static const int NAVNODE_TRANSPORT		= BIT( 1 );
+// A standing point whose hull hangs more than NAV_RIM_OVERHANG past an edge:
+// the last few units of a platform, the rim of a catwalk.  A player can stand
+// there, so it stays a node, but routing pays to walk through it so a chain a
+// cell inland is preferred wherever one exists.
+static const int NAVNODE_RIM			= BIT( 2 );
 
 // Places one jump pad can put a player down: its natural landing and the
 // floors beside its arc that air control reaches.
@@ -215,6 +220,10 @@ public:
 	int						NumLinks( void ) const { return links.Num(); }
 	int						GetBuildMilliseconds( void ) const { return buildMsec; }
 
+	// Diagnostics for "navmesh probe": the nodes around a point with their
+	// links and support verdicts, and a height map of the ground around it.
+	void					Probe( const idVec3 &point, float radius ) const;
+
 	const navNode_t &		GetNode( int index ) const { return nodes[index]; }
 
 	// Nearest sampled standable node.  Returns -1 when the point is too far
@@ -289,6 +298,10 @@ public:
 	// The jump pad or teleporter, by entity number, whose volume these world
 	// bounds touch, or -1.  Touching one carries the player away.
 	int						TransportAt( const idBounds &absBounds ) const;
+	// The same for a standing box on this floor point, tested against the
+	// volume's own brush where it has one: a diagonal pad's bounding box
+	// covers floor beside it that the pad never touches.
+	int						TransportAtFloor( const idVec3 &floor ) const;
 
 	// Is this landing of the pad one only air control reaches - not where the
 	// pad's own arc comes down?  A bot rides a natural landing and steers for
@@ -299,6 +312,11 @@ public:
 	bool					NaturalPadLanding( int padEntityNum, idVec3 &landing ) const;
 	bool					LandingSurvivable( const idVec3 &from, const navCorner_t &corner, float maxImpactDelta ) const;
 	bool					LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const;
+	// Diagnostics: would a route leg between these points be accepted as a
+	// walk now, and if not, which test refuses it.
+	bool					WalkLegAccepted( const idVec3 &from, const idVec3 &to, const char **failure ) const {
+								return WalkableLine( from, to, failure );
+							}
 	// A grounded hull can overhang a rim even though its center is unsupported.
 	// Only recovery uses this short, continuously supported path back inland.
 	bool					RecoveryStepClear( const idVec3 &origin, const idVec3 &target ) const;
@@ -335,6 +353,7 @@ private:
 		int						spawnId;		// gameLocal.spawnIds value the snap belongs to, -1 empty
 		idVec3					origin;			// entity origin when snapped
 		int						node;
+		int						time;			// when it was snapped; a failed snap is retried after a while
 	} navEntitySnap_t;
 
 	// A jump pad or teleporter whose link was built: the volume that carries
@@ -365,6 +384,9 @@ private:
 										idVec3 &landing, float *flightSeconds = NULL, float *impactDelta = NULL ) const;
 	bool					PadLandings( idEntity *pad, int from, const idBounds &entryBounds, int targetNode,
 										 idList<int> &landings, idList<float> &costs ) const;
+	bool					PadFlightReaches( idEntity *pad, const idVec3 *launches, int numLaunches,
+											  const idVec3 &target, float &centreFlight, bool natural ) const;
+	int						NearestLandingNode( const idVec3 &touchdown, int from, const idBounds &entryBounds ) const;
 	void					SealTransportVolumes( void );
 	void					CompactLinks( void );
 	bool					LineEntersTransport( const idVec3 &from, const idVec3 &to ) const;
@@ -386,6 +408,14 @@ private:
 
 	int						AddNode( int gx, int gy, const idVec3 &origin );
 	int						FindNode( int gx, int gy, float z ) const;
+	// The cell's hash bucket.  idHashIndex::GenerateKey adds its two inputs,
+	// so plain coordinates put every anti-diagonal of the grid in one chain -
+	// about eighty nodes deep on q4dm5, walked for every cell a search or a
+	// snap looks at.  Mixing each coordinate first spreads the cells out.
+	int						CellKey( int gx, int gy ) const {
+								return nodeHash.GenerateKey( (int)( (unsigned int)gx * 73856093u ),
+															 (int)( (unsigned int)gy * 19349663u ) );
+							}
 	void					LinkNodes( int from, int to, float cost, int travelType,
 									   int actionEntityNum = -1 );
 
@@ -398,6 +428,9 @@ private:
 	// -- routing --
 	bool					FindPathInternal( const idVec3 &start, const idVec3 &goal, rvNavPath &path,
 											  bool nearGoal, float maxImpactDelta ) const;
+	// A corner-to-corner leg: a climbing or descending line is proven from
+	// either side of its corner as well, where the bot may count it reached.
+	bool					WalkableLeg( const idVec3 &from, const idVec3 &to ) const;
 	// failure, when given, names the first test a refused line failed.
 	bool					WalkableLine( const idVec3 &from, const idVec3 &to,
 										  const char **failure = NULL ) const;
@@ -482,6 +515,11 @@ private:
 	mutable idList<int>		closedTag;
 	mutable idList<navHeapEntry_t>	heap;	// binary min-heap, ordered by its own stored key
 	mutable int				searchSerial;
+	// Links a route search has excluded after they proved stale, one tag per
+	// link stamped with the search's own serial, so the exclusion test is a
+	// load rather than a scan of everything rejected so far.
+	mutable idList<int>		linkRejectTag;
+	mutable int				rejectSerial;
 	mutable int				fieldSerial;	// searchSerial of the live cost field, 0 when none
 	mutable idList<int>		fieldTargetTag;	// searchSerial marks a node the live field must price
 	mutable bool			fieldPriced;	// the live field is the ranked form's priced table

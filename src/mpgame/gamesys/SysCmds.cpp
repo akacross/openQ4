@@ -3504,7 +3504,18 @@ void Cmd_NavMesh_f( const idCmdArgs &args ) {
 		return;
 	}
 
-	gameLocal.Printf( "usage: navmesh <build|info>\n" );
+	if ( !idStr::Icmp( sub, "probe" ) && args.Argc() >= 5 ) {
+		if ( !navMesh.IsValid() ) {
+			gameLocal.Printf( "navmesh: not built\n" );
+			return;
+		}
+		const idVec3 point( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ), atof( args.Argv( 4 ) ) );
+		const float radius = ( args.Argc() > 5 ) ? atof( args.Argv( 5 ) ) : 24.0f;
+		navMesh.Probe( point, idMath::ClampFloat( 4.0f, 64.0f, radius ) );
+		return;
+	}
+
+	gameLocal.Printf( "usage: navmesh <build|info|probe x y z [radius]>\n" );
 }
 
 void Cmd_PlayerEmote_f( const idCmdArgs& args ) {
@@ -3608,6 +3619,17 @@ void Cmd_ClientOverflowReliable_f( const idCmdArgs& args ) {
 
 void Cmd_ListMaps_f( const idCmdArgs& args ) {
 	gameLocal.mpGame.ListMaps();
+}
+
+// Drives the local single-player Arena match without device input: ends the
+// live match with a chosen result through the normal scoring path, or skips
+// the current ceremony beat. A cheat, because it changes a live match's score.
+static void Cmd_OpenQ4ArenaCeremony_f( const idCmdArgs &args ) {
+	if ( !gameLocal.isMultiplayer || !gameLocal.isServer ) {
+		gameLocal.Printf( "openq4_arenaCeremony requires the local Arena server\n" );
+		return;
+	}
+	gameLocal.mpGame.DebugArenaCampaignCeremony( args );
 }
 
 // Server-local diagnostics for scripted gameplay validation. This reads the
@@ -4165,6 +4187,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "openq4_reportMPWorld", Cmd_OpenQ4ReportMPWorld_f, CMD_FL_GAME | CMD_FL_CHEAT, "report one multiplayer entity's simulation, animation and powerup state" );
 	cmdSystem->AddCommand( "openq4_launchMPTestProjectile", Cmd_OpenQ4LaunchMPTestProjectile_f, CMD_FL_GAME | CMD_FL_CHEAT, "launch a named stock projectile for multiplayer world-clock diagnostics" );
 	cmdSystem->AddCommand( "openq4_matchControl", Cmd_OpenQ4MatchControl_f, CMD_FL_GAME | CMD_FL_CHEAT, "exercise and inspect the local accepted-view Match Control adapter without device input" );
+	cmdSystem->AddCommand( "openq4_arenaCeremony", Cmd_OpenQ4ArenaCeremony_f, CMD_FL_GAME | CMD_FL_CHEAT, "drive the local Arena Campaign match without device input: openq4_arenaCeremony <win|loss|draw|skip|status>" );
 
 	// localization help commands
 	cmdSystem->AddCommand( "nextGUI",				Cmd_NextGUI_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"teleport the player to the next func_static with a gui" );
@@ -4230,7 +4253,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "botlist",				Cmd_BotList_f,				CMD_FL_GAME,				"list the bots in the match and the state of the navmesh" );
 	cmdSystem->AddCommand( "botcharacters",			Cmd_BotCharacters_f,		CMD_FL_GAME,				"list the loaded bot characters, their play style and their skill band" );
 	cmdSystem->AddCommand( "botreload",				Cmd_BotReload_f,			CMD_FL_GAME,				"re-read the bot style and character files without a map change" );
-	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info> - generate or report the bot navigation mesh" );
+	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info|probe x y z [radius]> - generate, report or probe the bot navigation mesh" );
 }
 
 /*

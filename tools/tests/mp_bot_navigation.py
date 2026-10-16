@@ -321,6 +321,17 @@ def validate_game_wiring() -> None:
     require(off_route, "traversalStartOrigin.z - pm_stepsize.GetFloat()", "rvBot::OffRoute action landed elsewhere")
     require(off_route, "corner.travelType == NAVTRAVEL_WALK && offHeight > BOT_OFF_ROUTE_ABOVE",
             "rvBot::OffRoute above only on walks")
+    # Nearer than those limits, a bot displaced from a walk leg by more than a
+    # corner's reach or a step of height asks the navmesh whether the walk to
+    # its corner still exists, a few times a second: combat footwork off the
+    # side of q4ctf1's ramp used to press at the corner until the stuck
+    # detector fired, and not at all while the fight kept the detector quiet.
+    require(off_route, "navMesh.WalkLegAccepted( origin, corner.origin, NULL )",
+            "rvBot::OffRoute displaced leg proof")
+    require(off_route, "aside.LengthSqr() > Square( BOT_CORNER_REACH ) || idMath::Fabs( offHeight ) > pm_stepsize.GetFloat()",
+            "rvBot::OffRoute displacement that needs the proof")
+    require(off_route, "gameLocal.time - offRouteProofTime >= BOT_OFF_ROUTE_PROOF_MSEC",
+            "rvBot::OffRoute throttled leg proof")
     require(advance, "( past - direction * ahead ).LengthSqr() <= Square( BOT_CORNER_REACH * 2.0f )",
             "rvBot::AdvancePath long-drop and level-jump overshoot")
     # Only real launch speed takes a pad, and a pad flight ends on landing.
@@ -449,9 +460,36 @@ def validate_navmesh() -> None:
     require(landings_fn, "standing.IntersectsBounds( entryBounds )", "rvNavMesh::PadLandings no trampoline landings")
     require(landings_fn, "NAV_PAD_LEVEL_BAND", "rvNavMesh::PadLandings one candidate per floor level")
     require(landings_fn, "NavLandingSupported( node.origin )", "rvNavMesh::PadLandings supported candidates")
-    require(landings_fn, "NAV_PAD_LANDING_REACH", "rvNavMesh::PadLandings keeps only landings the flight makes")
-    require(landings_fn, "for ( int l = 0; l < numLaunches && everyLaunch; l++ )",
+    # The natural landing is held to the same proof as an air-control one: its
+    # node has floor under the middle of the hull, and the flight, steered for
+    # it, reaches it from every side a bot enters by.  q4dz1's vertical pads
+    # linked a node hanging over their shaft that only the centre's arc hit.
+    require(landings_fn, "NearestLandingNode( landing, from, entryBounds )",
+            "rvNavMesh::PadLandings natural landing on a supported node")
+    require(landings_fn, "PadFlightReaches( pad, launches, 1, nodes[landed].origin, flight, true )",
+            "rvNavMesh::PadLandings natural landing proven from the centre as the bot flies it")
+    require(landings_fn, "PadFlightReaches( pad, launches, numLaunches, nodes[candidate].origin, centreFlight, false )",
             "rvNavMesh::PadLandings air-control landings hold from every side a bot enters by")
+    reaches_fn = nav[nav.index("bool rvNavMesh::PadFlightReaches") :]
+    reaches_fn = reaches_fn[: reaches_fn.index("\n}\n") + 3]
+    require(reaches_fn, "for ( int l = 0; l < numLaunches; l++ )", "rvNavMesh::PadFlightReaches every launch")
+    # A natural landing is flown as the bot flies it: ridden when the pad's
+    # own arc comes down on it (q4ctf1's pad 17 slides along a wall; steering
+    # for its node drops the flight 192 units), steered for otherwise.
+    require(reaches_fn, "natural && PadLanding( pad, launches[l], NULL, landing, &flight )",
+            "rvNavMesh::PadFlightReaches rides a natural landing the arc reaches")
+    require(reaches_fn, "NavPadArcRidden( launches[l], landing, target )", "rvNavMesh::PadFlightReaches ridden test")
+    require(reaches_fn, "PadLanding( pad, launches[l], &target, landing, &flight )", "rvNavMesh::PadFlightReaches steers for the landing")
+    require(reaches_fn, "NAV_PAD_LANDING_REACH", "rvNavMesh::PadFlightReaches keeps only landings the flight makes")
+    ridden_fn = nav[nav.index("static bool NavPadArcRidden") :]
+    ridden_fn = ridden_fn[: ridden_fn.index("\n}\n") + 3]
+    require(ridden_fn, "along <= NAV_PAD_RIDE_SHORT", "NavPadArcRidden lands on or past the node, as BotRidesPadArc")
+    require(ridden_fn, "Square( NAV_PAD_RIDE_SIDE )", "NavPadArcRidden within a hull to the side")
+    nearest_fn = nav[nav.index("int rvNavMesh::NearestLandingNode") :]
+    nearest_fn = nearest_fn[: nearest_fn.index("\n}\n") + 3]
+    require(nearest_fn, "NavLandingSupported( node.origin )", "rvNavMesh::NearestLandingNode supported node")
+    require(nearest_fn, "standing.IntersectsBounds( entryBounds )", "rvNavMesh::NearestLandingNode never on the pad")
+    require(nearest_fn, "NAVNODE_TRANSPORT", "rvNavMesh::NearestLandingNode never on a transport")
     pad = nav[nav.index("bool rvNavMesh::PadLanding") :]
     pad = pad[: pad.index("\n}\n") + 3]
     require(pad, "GetCurrentGravity( pad )", "rvNavMesh::PadLanding pad gravity")
@@ -505,6 +543,51 @@ def validate_navmesh() -> None:
     # A shortcut steeper than a walk is another floor, however clear the sweep.
     require(walkable, "stepSize + flat.Length()", "rvNavMesh::WalkableLine walk slope bound")
     require(walkable, "Max( 2,", "rvNavMesh::WalkableLine interior ground sample")
+    # The straight sweep climbs with the line and clears a riser's top; the
+    # floor samples, endpoints included, may not rise more than a step plus
+    # the ground between them.  q4ctf1 string-pulled walks onto the lip of a
+    # 64-unit platform and the side of a ramp that way.
+    require(walkable, "floor.z - previousFloor > stepSize", "rvNavMesh::WalkableLine per-sample rise bound")
+    require(walkable, "betweenFloor.z - previousFloor > stepSize + NAV_WALK_RISE_SLACK", "rvNavMesh::WalkableLine bisected rise")
+    require(walkable, "rises more than a step between samples", "rvNavMesh::WalkableLine interior rise refused")
+    require(walkable, "rises more than a step onto its end", "rvNavMesh::WalkableLine end rise refused")
+    # A hull half over an edge still finds the floor under its other half, so
+    # the ground a support box's width to either side of every interior sample
+    # has to be there too: q4ctf1's platform edge nodes and q4dz1's catwalk
+    # rim stand four units past the edge, and legs along them walked bots off.
+    require(walkable, "NavDropBeside( floor, beside ) || NavDropBeside( floor, -beside )",
+            "rvNavMesh::WalkableLine ground beside the line")
+    require(walkable, "hangs over an edge", "rvNavMesh::WalkableLine rim line refused")
+    # Such nodes stay (a player can stand there, and a catwalk may have nothing
+    # else) but routing pays to pass through them, so the chain a cell inland
+    # is preferred wherever one exists.
+    add_node = nav[nav.index("int rvNavMesh::AddNode") :]
+    add_node = add_node[: add_node.index("\n}\n") + 3]
+    require(add_node, "NavRimNode( origin )", "rvNavMesh::AddNode flags rim nodes")
+    require(add_node, "NAVNODE_RIM", "rvNavMesh::AddNode rim flag")
+    flood = nav[nav.index("void rvNavMesh::FloodFill") :]
+    flood = flood[: flood.index("\n}\n") + 3]
+    require(flood, "nodes[neighbour].flags & NAVNODE_RIM", "rvNavMesh::FloodFill prices the step onto a rim node")
+    require(flood, "( nodes[current].flags & NAVNODE_RIM ) ? NAV_RIM_PENALTY : 0.0f", "rvNavMesh::FloodFill prices the reverse step onto a rim node")
+    rim = nav[nav.index("static bool NavRimNode") :]
+    rim = rim[: rim.index("\n}\n") + 3]
+    require(rim, "navSupportBounds[1].x + NAV_RIM_OVERHANG", "NavRimNode probes past the support box")
+    drop_beside = nav[nav.index("static bool NavDropBeside") :]
+    drop_beside = drop_beside[: drop_beside.index("\n}\n") + 3]
+    # A probe that begins inside a wall is a wall, not a drop.
+    require(drop_beside, "if ( trace.fraction <= 0.0f ) {", "NavDropBeside wall beside is not a drop")
+    # A bot reaches a corner up to a corner's reach beside it, so a string-pulled
+    # leg that climbs or descends is proven from either side of its corner too:
+    # q4ctf1's lip nodes along its ramp proved a diagonal line the bot, on the
+    # floor beside it, could not take.
+    leg = nav[nav.index("bool rvNavMesh::WalkableLeg") :]
+    leg = leg[: leg.index("\n}\n") + 3]
+    require(leg, "WalkableLine( from + side, to ) && WalkableLine( from - side, to )", "rvNavMesh::WalkableLeg side proofs")
+    require(leg, "NAV_LEG_SIDE_SLACK", "rvNavMesh::WalkableLeg corner reach slack")
+    pull = nav[nav.index("void rvNavMesh::StringPull") :]
+    pull = pull[: pull.index("\n}\n") + 3]
+    require(pull, "WalkableLeg( nodes[nodePath[i]].origin, nodes[nodePath[j]].origin )", "rvNavMesh::StringPull proves legs from beside the corner")
+    require(pull, "WalkableLeg( lastOrigin, goal )", "rvNavMesh::StringPull proves the final leg from beside the corner")
     require_order(
         walkable,
         "NAV_GROUND_OFFSET",
@@ -603,20 +686,20 @@ def validate_navmesh() -> None:
     require(heuristic, "nodeLandmark - goalLandmark", "rvNavMesh::Heuristic backward landmark bound")
     require(heuristic, "node * NAV_LANDMARK_STRIDE", "rvNavMesh::Heuristic node-major landmark rows")
     require(heuristic, "return NAV_INFINITE_COST;", "rvNavMesh::Heuristic unreachable proof")
-    require(find_path, "rejectedLinks", "rvNavMesh::FindPath blocked-edge repair")
+    require(find_path, "linkRejectTag", "rvNavMesh::FindPath blocked-edge repair")
     require(find_path, "LinkTraversable(", "rvNavMesh::FindPath live route validation")
-    require(find_path, "idList<int> rejectedLinks", "rvNavMesh::FindPath local repair exclusions")
+    require(find_path, "linkRejectTag[link] = rejectSerial;", "rvNavMesh::FindPath local repair exclusions")
     require(find_path, "LandingSurvivable( nodes[nodePath[i]].origin, landing, maxImpactDelta )", "rvNavMesh::FindPath health-aware selected-edge validation")
     require(find_path, "SetTravelCost(", "rvNavMesh::FindPath weighted route cost")
     # A goal beside a pad cannot be stood on; its nearest node is the arrival.
-    require(find_path, "TransportAt( standing ) >= 0", "rvNavMesh::FindPath transport-side goals")
+    require(find_path, "TransportAtFloor( routeGoal ) >= 0", "rvNavMesh::FindPath transport-side goals")
     # A chased player in a spot no node fits is approached, not refused.
     require(find_path, "goalNode == -1 && nearGoal", "rvNavMesh::FindPath pursuit near-goal")
     # A refused final leg stands when the goal's snap proved the walk the other
     # way, or when the box stops within touch of a goal set against a wall.
     require(find_path, "WalkableLine( routeGoal, last )", "rvNavMesh::FindPath reverse-proven final leg")
     require(find_path, "LegTouchesGoal( last, routeGoal, touch )", "rvNavMesh::FindPath goal within touch")
-    require(find_path, "TransportAt( goalBox ) < 0", "rvNavMesh::FindPath no reverse proof into a pad")
+    require(find_path, "TransportAtFloor( routeGoal ) < 0", "rvNavMesh::FindPath no reverse proof into a pad")
     if find_path.count("path.routeStart = routeStart;") != find_path.count("return true;") + 1:
         raise AssertionError(
             "FindPathInternal must record the grounded route start on every success path; "
@@ -671,8 +754,16 @@ def validate_navmesh() -> None:
     require(grid_validation, "DynamicSolidNear( swept )", "rvNavMesh::LinkTraversable broad phase")
     dynamic = nav[nav.index("bool rvNavMesh::DynamicTranslation") :]
     dynamic = dynamic[: dynamic.index("\n}\n") + 3]
-    require(dynamic, "NavIsDynamicSolid( blocker ) && !NavDoorIsWalkActivated( blocker )",
-            "rvNavMesh::DynamicTranslation blocks only on movers")
+    # The sweep asks only the recorded dynamic solids, never players or static
+    # props: the pass-entity form spent one of its two passes on the bot's own
+    # body and declared a link clear once a third static blocker turned up.
+    require(dynamic, "dynamicSolids[i]", "rvNavMesh::DynamicTranslation sweeps recorded movers only")
+    require(dynamic, "NavDoorIsWalkActivated( ent )", "rvNavMesh::DynamicTranslation passes walk doors")
+    if "TranslationEntities(" in dynamic:
+        raise AssertionError(
+            "rvNavMesh::DynamicTranslation sweeps every solid entity again; players and static "
+            "props must not take part in live link validation"
+        )
     if "TryStep(" in grid_validation:
         raise AssertionError(
             "LinkTraversable re-samples generated grid topology; live repair must only "
@@ -685,7 +776,7 @@ def validate_navmesh() -> None:
         )
     require(
         nav,
-        "gameLocal.TranslationEntities(",
+        "collisionModelManager->Translation( &hit, start, end, &navAgentTrace",
         "rvNavMesh dynamic route-edge entity sweep",
     )
     require(traversable, "IsActive( TH_THINK )", "rvNavMesh::LinkTraversable live jump pad")

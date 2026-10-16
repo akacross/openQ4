@@ -341,6 +341,7 @@ public:
 		: bytes( sourceBytes )
 		, position( 0 )
 		, timestamp( authoritativeSource != nullptr ? authoritativeSource->Timestamp() : 0 )
+		, contentStamp( authoritativeSource != nullptr ? authoritativeSource->ContentStamp() : 0 )
 		, containerChecksum( authoritativeSource != nullptr
 			? authoritativeSource->GetContainerChecksum() : 0 ) {
 		if ( authoritativeSource != nullptr ) {
@@ -369,6 +370,7 @@ public:
 		return bytes != nullptr ? static_cast<int>( bytes->size() ) : 0;
 	}
 	ID_TIME_T Timestamp() override { return timestamp; }
+	ID_TIME_T ContentStamp() override { return contentStamp; }
 	int GetContainerChecksum() const override { return containerChecksum; }
 	int Tell() override { return static_cast<int>( position ); }
 	int Seek( long offset, fsOrigin_t origin ) override {
@@ -410,6 +412,7 @@ private:
 	idStr name;
 	idStr fullPath;
 	ID_TIME_T timestamp;
+	ID_TIME_T contentStamp;
 	int containerChecksum;
 };
 

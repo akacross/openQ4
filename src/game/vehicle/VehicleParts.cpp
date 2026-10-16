@@ -625,6 +625,10 @@ rvVehicleWeapon::rvVehicleWeapon ( void ) {
 	muzzleFlashHandle = -1;
 	muzzleFlashEnd	= 0;
 	muzzleFlashTime	= 0;
+	brassEjectNext	= 0;
+	brassEjectDelay	= 0;
+	burstShots		= 0;
+	burstSmokeShots	= 0;
 }
 
 /*
@@ -746,6 +750,9 @@ void rvVehicleWeapon::Spawn ( void ) {
 	}
 	brassEjectNext = 0;
 
+	burstShots = 0;
+	burstSmokeShots = spawnArgs.GetInt( "burstSmokeShots", "0" );
+
 	targetEnt = NULL;
 	targetJoint = INVALID_JOINT;
 	targetPos.Zero ();
@@ -766,8 +773,9 @@ rvVehicleWeapon::Activate
 */
 void rvVehicleWeapon::Activate ( bool activate ) {
 	rvVehiclePart::Activate ( activate );
-	
+
 	nextFireTime = gameLocal.time + WEAPON_DELAY_FIRE;
+	burstShots = 0;
 
 #ifdef _XENON
 	bestEnemy = 0;
@@ -938,6 +946,7 @@ void rvVehicleWeapon::RunPostPhysics ( void ) {
 	UpdateLock();
 
 	if ( !(position->mInputCmd.buttons & BUTTON_ATTACK ) ) {
+		EndBurst();
 		return;
 	}
 
@@ -958,6 +967,30 @@ void rvVehicleWeapon::RunPostPhysics ( void ) {
 	}
 
 	nextFireTime = gameLocal.time + fireDelay;
+}
+
+/*
+================
+rvVehicleWeapon::EndBurst
+
+openQ4: a gun that fired a long enough burst trails smoke from its muzzle
+when the trigger is let go. Only defs that set "burstSmokeShots" and
+"fx_burstSmoke" do this; no stock vehicle does.
+================
+*/
+void rvVehicleWeapon::EndBurst( void ) {
+	const int shots = burstShots;
+	burstShots = 0;
+	if ( burstSmokeShots <= 0 || shots < burstSmokeShots || joints.Num() == 0 ) {
+		return;
+	}
+	idVec3 origin;
+	idMat3 axis;
+	const jointHandle_t lastJoint = joints[ ( jointIndex + joints.Num() - 1 ) % joints.Num() ];
+	if ( !parent->GetJointWorldTransform( lastJoint, gameLocal.time, origin, axis ) ) {
+		return;
+	}
+	gameLocal.PlayEffect( gameLocal.GetEffect( spawnArgs, "fx_burstSmoke" ), origin, axis );
 }
 
 /*
@@ -1179,6 +1212,9 @@ void rvVehicleWeapon::Restore ( idRestoreGame* savefile ) {
 	}
 	brassEjectNext = 0;
 
+	burstShots = 0;
+	burstSmokeShots = spawnArgs.GetInt( "burstSmokeShots", "0" );
+
 	targetEnt.Restore( savefile );
 	savefile->ReadJoint( targetJoint );
 	savefile->ReadVec3( targetPos );
@@ -1207,6 +1243,7 @@ bool rvVehicleWeapon::Fire() {
 //	}
 
 	LaunchProjectiles();
+	burstShots++;
 
 	if ( currentAmmo == -1 ) {
 		currentCharge.Init ( gameLocal.time, fireDelay, 0.0, 1.0f );
@@ -1529,26 +1566,28 @@ rvVehicleWeapon::EjectBrass
 =====================
 */
 void rvVehicleWeapon::EjectBrass ( void ) {
-	if ( !brassDict || gameLocal.time > brassEjectNext || g_brassTime.GetFloat() <= 0.0f || gameLocal.isMultiplayer || brassEjectJoint == INVALID_JOINT || !brassDict->GetNumKeyVals() ) {
+	if ( !brassDict || g_brassTime.GetFloat() <= 0.0f || gameLocal.isMultiplayer || brassEjectJoint == INVALID_JOINT || !brassDict->GetNumKeyVals() ) {
+		return;
+	}
+
+	// openQ4: Raven's check returned whenever gameLocal.time had passed
+	// brassEjectNext, which starts at 0, so no vehicle ever ejected a casing.
+	// The brass def's "delay" now spaces casings out instead.
+	if ( gameLocal.time < brassEjectNext ) {
 		return;
 	}
 
 	idMat3 axis;
 	idVec3 origin;
-	idVec3 linear_velocity;
-	idVec3 angular_velocity;
 	int	   brassTime;
 
 	if ( !parent->GetJointWorldTransform( brassEjectJoint, gameLocal.time, origin, axis ) ) {
 		return;
 	}
 
-	brassEjectNext += brassEjectDelay;
+	brassEjectNext = gameLocal.time + brassEjectDelay;
 
 	// Spawn the client side moveable for the brass
-	idVec3 offset;
-	idMat3 playerViewAxis;
-	gameLocal.GetPlayerView( offset, playerViewAxis );
 	rvClientMoveable* cent = NULL;
 	gameLocal.SpawnClientEntityDef( *brassDict, (rvClientEntity**)(&cent), false );
 
@@ -1556,23 +1595,22 @@ void rvVehicleWeapon::EjectBrass ( void ) {
 		return;
 	}
 
+	// openQ4: a vehicle's gun is part of the world model, not a view weapon,
+	// so casings leave its ejection port in the joint's frame (Raven's code
+	// took the player's view axis and depth-hacked them over the view).
 	cent->SetOrigin ( origin + axis * brassEjectOffset );
-	cent->SetAxis ( playerViewAxis );	
+	cent->SetAxis ( axis );
 	cent->SetOwner ( position->GetDriver() );
-	
-	// Depth hack the brass to make sure it clips in front of view weapon properly
-	cent->GetRenderEntity()->weaponDepthHackInViewID = position->GetDriver()->entityNumber + 1;
-	
-	// Clear the depth hack soon after it clears the view
-	cent->PostEventMS ( &CL_ClearDepthHack, 200 );
-	
-	// Fade the brass out so they dont accumulate
-	brassTime =(int)SEC2MS(g_brassTime.GetFloat() / 6.0f);
+
+	// Fade the brass out so they dont accumulate; the same lifetime as a
+	// hand-held weapon's, long enough for a casing to land
+	brassTime =(int)SEC2MS(g_brassTime.GetFloat() / 2.0f);
 	cent->PostEventMS ( &CL_FadeOut, brassTime, brassTime );
 
 	// Generate a good velocity for the brass
+	const idVec3 carrierVelocity = parent->GetPhysics()->GetLinearVelocity();
 	idVec3 linearVelocity = brassDict->GetVector("linear_velocity").Random( brassDict->GetVector("linear_velocity_range"), gameLocal.random );
-	cent->GetPhysics()->SetLinearVelocity( position->GetDriver()->GetPhysics()->GetLinearVelocity() + linearVelocity * cent->GetPhysics()->GetAxis() );
+	cent->GetPhysics()->SetLinearVelocity( carrierVelocity + linearVelocity * cent->GetPhysics()->GetAxis() );
 	idAngles angularVelocity = brassDict->GetAngles("angular_velocity").Random( brassDict->GetVector("angular_velocity_range"), gameLocal.random );
 	cent->GetPhysics()->SetAngularVelocity( angularVelocity.ToAngularVelocity() * cent->GetPhysics()->GetAxis() );
 }

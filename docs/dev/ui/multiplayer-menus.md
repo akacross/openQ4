@@ -17,7 +17,10 @@ page's password check now works (B7).
 
 ## The gate
 
-`ui_retainedMultiplayer` (default 0) opts into both cards. `ui_retained` alone
+`ui_retainedMultiplayer` (default 0) opts into both cards. It is not archived,
+so it lasts until the player quits, and it is `CVAR_NOCHEAT`, so a join or a
+hosted spawn without cheats, which resets every unarchived cheat CVar, keeps
+it, and it can change during a match. `ui_retained` alone
 includes a card only once none of its pages hands off any more: the session
 lists the pages that still do in `RETAINED_MP_ESCAPE_MISSING_PAGES`, today
 Admin, and `RETAINED_MP_WELCOME_MISSING_PAGES`, now empty, and
@@ -99,6 +102,9 @@ center at every view, 477 dp tall.
   and breaks the baseline under it; a #5A652A wash fades below the strip over
   one tab height. Inactive labels sit at 0.55 and rise to 0.85 on hover; focus
   turns a label orange. Q and E keycaps at the strip's ends switch tabs.
+  After a controller they show its shoulder buttons in the same 20x22 dp
+  ([prompt glyphs](retained-screens.md#prompt-glyphs)), and the prompt bar
+  shows its east button, shoulders and south button.
 - **Pages.** Content is inset 24 dp. Actions are in-game plates (b6_light,
   0.62 for the primary action and 0.28 for others, 1.00 with the orange marker
   when focused). A page not built yet says it opens in the classic
@@ -578,11 +584,17 @@ either. `tools/ui/retained_mp_menus.py` measures every language's labels in
 the shipped faces and sizes each card to the wider of its widest tab strip
 (plus a 2 % margin) and its widest prompt bar (plus 4 dp) inside the card's
 insets: today Escape is 907 dp and Welcome 873 dp, both set by the Spanish,
-German and Ukrainian prompt bars. The build fails if a language would need
-more than a 4:3 view allows (928 dp, 16 dp from each side). Each tab is as
+German and Ukrainian prompt bars. A controller's glyphs are 22 dp each,
+narrower than the keycaps they replace in every language's bar (Escape's
+widest is 780 dp against 854 dp). The generator fails if a glyph bar would
+outgrow its keycap bar. The build also fails if a language would need more
+than a 4:3 view allows (928 dp, 16 dp from each side). Each tab is as
 wide as its label in the running language, and the tabs share the remainder.
 The Welcome card keeps Escape's 477 dp height instead of its specified 402 dp,
 since its Players and Server pages need the room.
+
+Evidence for the cards' controller glyphs: `.tmp/ui/retained-card-glyphs-evidence/validation-evidence.json`,
+SHA-256 `a8373b906eb04c74ddcd5de1d8d3e1dc6edcead176b5ccdcd2769b16f8a4cd75`.
 
 ## Input
 
@@ -743,7 +755,7 @@ without affecting players:
   covered and the refused verbs. It also pins the missing-pages list to the
   document, the stock buttons to the generator, the game's side of the
   protocol, and the frame, input and draw order.
-- `openq4-ui-retained-screens` loads the card into the real runtime: centered
+- `openq4-ui-retained-screens-mp-card` loads the card into the real runtime: centered
   and the same size at 1280x720, 1920x1080 and 1024x768, the opening and its
   reduced-motion form, the tab programs and their wrap, the cross-fade with
   the leaving page out of reach, the hand-off and Back actions, the prompt bar
@@ -1050,9 +1062,6 @@ The card's acceptance continues under `FLOW-046`.
   and the stock menu then keeps the menu until it closes; the card does not
   come back over it. So do the Settings pages' name and clan, and a Match
   Control list's rows past the card's.
-- Joining a team through Match Control commits but leaves a listen server's
-  player on their team, on the stock page as on the card (seen in B9b's
-  probes; a separate game fix).
 - Choosing an unavailable action does not announce its reason to the
   accessibility text backing yet, and a controller gives no rumble.
 - The Team page has no Tourney queue or arena controls; Tourney offers what
@@ -1085,12 +1094,13 @@ The card's acceptance continues under `FLOW-046`.
   then shows whom the call would kick before Call Vote sends it.
 - The map list holds 48 maps; a server with more for one game type lists the
   first 48.
-- Lists and check boxes take Left and Right as focus moves and change only on
-  accept; sliders step with them (decision D2 is open). A list's value shows
-  one frame after the game accepts it.
+- Check boxes take Left and Right as focus moves and change only on accept;
+  sliders and closed lists step with them, as section 13.5 asks of cycling
+  values. A list's value shows one frame after the game accepts it.
 - A managed match's refusals on the Vote page have no live probe yet.
-- The prompt bar shows keyboard keycaps only; controller glyphs wait for the
-  glyph families (`INP-011`).
+- The Vote page's Vote Yes and Vote No keys and the Voice page's push-to-talk
+  key show the keyboard bindings the session publishes, not a controller's
+  (`INP-011`).
 - Narrower views than 4:3 (5:4, portrait) do not scale the card down yet
   (`LAY-021`).
 - The multiplayer smokes join with `ui_autoJoin 1`, so they never see the

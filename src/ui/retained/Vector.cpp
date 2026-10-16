@@ -404,9 +404,27 @@ public:
 		}
 	}
 	void Emit(const Paint& paint, VectorMesh& output) {
-		std::sort(events.begin(),events.end(),[](const Event& a, const Event& b) {
-			return a.y != b.y ? a.y < b.y : a.x < b.x;
-		});
+		// Edges arrive in contour order, but coverage resolves one pixel row at
+		// a time. Bin dense rows first so their handful of x events need only
+		// tiny local sorts, rather than sorting the whole rotated path by y/x.
+		// Sparse far-apart contours retain the bounded comparison-sort path.
+		int firstRow=0,lastRow=-1;
+		if (!events.empty()) {
+			firstRow=lastRow=events.front().y;
+			for (const auto& event:events) { firstRow=std::min(firstRow,event.y); lastRow=std::max(lastRow,event.y); }
+		}
+		const size_t rows=size_t(lastRow-firstRow+1);
+		if (rows && rows<=events.size()) {
+			std::vector<size_t> offsets(rows+1);
+			for (const auto& event:events) ++offsets[size_t(event.y-firstRow)+1];
+			for (size_t row=1;row<offsets.size();++row) offsets[row]+=offsets[row-1];
+			auto next=offsets;
+			std::vector<Event> sorted(events.size());
+			for (const auto& event:events) sorted[next[size_t(event.y-firstRow)]++]=event;
+			for (size_t row=0;row<rows;++row)
+				std::sort(sorted.begin()+offsets[row],sorted.begin()+offsets[row+1],[](const Event& a,const Event& b){return a.x<b.x;});
+			events.swap(sorted);
+		} else std::sort(events.begin(),events.end(),[](const Event& a,const Event& b){return a.y!=b.y ? a.y<b.y : a.x<b.x;});
 		struct Rectangle { int left, top, right, bottom; double coverage; };
 		std::vector<Rectangle> rectangles;
 		// A row's runs reach emit left to right and never overlap, so they are
@@ -591,6 +609,49 @@ bool TessellatePath(const VectorPath& path, const VectorOptions& requested, Vect
 	} catch (const Failure& error) { diagnostic = path.id+": "+error.message; }
 	catch (const std::bad_alloc&) { diagnostic = path.id+": vector allocation failed"; }
 	return false;
+}
+bool ResolveLinearMask(const VectorPath& path, const VectorOptions& options, LinearMask& result) {
+	if (!path.antialias || !options.antialias || path.blend!=PathBlend::Normal ||
+		path.stroke.paint.type!=PaintType::None || path.fill.type!=PaintType::Linear || path.fill.stops.size()!=3 ||
+		path.fill.stops.front().at!=0 || path.fill.stops.back().at!=1 ||
+		!(path.fill.stops[1].at>0 && path.fill.stops[1].at<1) ||
+		path.commands.size()<4 || path.commands.size()>5 || path.commands.front().op!=PathOperation::Move ||
+		path.commands.back().op!=PathOperation::Close) return false;
+	LinearMask mask; const size_t count=path.commands.size()-1;
+	for (size_t i=0;i<count;++i) {
+		if (i && path.commands[i].op!=PathOperation::Line) return false;
+		mask.points[i]=options.transform.Apply(path.commands[i].points[0].Resolve(options.widthDp,options.heightDp));
+		if (!Finite(mask.points[i]) || std::abs(mask.points[i].x)>16384 || std::abs(mask.points[i].y)>16384) return false;
+	}
+	double sign=0;
+	for (size_t i=0;i<count;++i) {
+		const auto a=mask.points[i], b=mask.points[(i+1)%count], c=mask.points[(i+2)%count];
+		const double cross=Cross(b-a,c-b);
+		if (std::abs(cross)<1e-6 || (sign && (cross>0)!=(sign>0))) return false;
+		sign=cross;
+	}
+	if (sign<0) std::reverse(mask.points.begin(),mask.points.begin()+count);
+	if (count==3) mask.points[3]=mask.points[2];
+	VectorTransform inverse;
+	if (!options.transform.Inverse(inverse)) return false;
+	const auto from=path.fill.from.Resolve(options.widthDp,options.heightDp);
+	const auto direction=path.fill.to.Resolve(options.widthDp,options.heightDp)-from;
+	const double length=Dot(direction,direction);
+	if (!Finite(from) || !Finite(direction) || !(length>1e-20)) return false;
+	mask.gradient={(direction.x*inverse.a+direction.y*inverse.b)/length,
+		(direction.x*inverse.c+direction.y*inverse.d)/length,
+		(direction.x*(inverse.tx-from.x)+direction.y*(inverse.ty-from.y))/length};
+	for (double value:mask.gradient) if (!std::isfinite(static_cast<float>(value))) return false;
+	for (size_t i=0;i<3;++i) {
+		mask.alpha[i]=path.fill.stops[i].colour.a;
+		// Vertex colours carry the constants without an extra parameter buffer.
+		// Other authored stop values retain their full-precision CPU path.
+		const double value=mask.alpha[i]*255;
+		if (!std::isfinite(value) || value<0 || value>255 || std::abs(value-std::round(value))>1e-8) return false;
+	}
+	mask.middle=path.fill.stops[1].at;
+	if (!(static_cast<float>(mask.middle)>0 && static_cast<float>(mask.middle)<1)) return false;
+	result=mask; return true;
 }
 bool HitTestPaintedMesh(const VectorMesh& mesh, VectorPoint point) {
 	if (!Finite(point)) return false;

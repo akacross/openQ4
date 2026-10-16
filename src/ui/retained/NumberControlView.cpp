@@ -38,11 +38,31 @@ std::string Presented(const NumberEditView& view) {
 	const auto first=std::min(view.state.anchor,view.state.caret), last=std::max(view.state.anchor,view.state.caret);
 	return view.state.text.substr(0,first)+view.composition->text+view.state.text.substr(last);
 }
+// A masked field's presentation: one '*' per scalar of its plain text, and
+// the plain text's scalar boundaries, boundaries[i] being the plain byte
+// offset of the mask's offset i. Text that starts inside a scalar has none.
+struct Mask { std::string text; std::vector<std::size_t> boundaries; };
+bool MaskOf(std::string_view plain,Mask& out) {
+	if (!plain.empty() && (static_cast<unsigned char>(plain[0])&0xc0)==0x80) return false;
+	Mask mask; mask.boundaries.reserve(plain.size()+1);
+	for (std::size_t i=0;i<plain.size();++i) if ((static_cast<unsigned char>(plain[i])&0xc0)!=0x80) { mask.boundaries.push_back(i); mask.text+='*'; }
+	mask.boundaries.push_back(plain.size());
+	out=std::move(mask); return true;
+}
+// A plain offset's place in the mask; one inside a scalar has none.
+std::optional<std::size_t> MaskOffset(const std::vector<std::size_t>& boundaries,std::size_t plain) {
+	const auto at=std::lower_bound(boundaries.begin(),boundaries.end(),plain);
+	if (at==boundaries.end() || *at!=plain) return {};
+	return static_cast<std::size_t>(at-boundaries.begin());
+}
 }
 struct NumberControlView::Impl {
 	struct Entry {
 		NumberSpec spec;
 		std::shared_ptr<const TextRun> run;
+		// A masked field's plain scalar boundaries as painted (MaskOf); the
+		// run measures the mask, so its offsets map back through these.
+		std::vector<std::size_t> maskBoundaries;
 		NumberEditIdentity identity;
 		std::optional<NativeTextSnapshot> nativePresentation;
 		bool nativeUnsettled=false;
@@ -57,19 +77,23 @@ struct NumberControlView::Impl {
 	};
 	struct Applied { std::string requested,actual; };
 	Rml::ElementDocument* document=nullptr;
+	std::function<Rml::Element*(const std::string&)> find;
 	NumberTextRunQuery query;
 	std::function<std::string(const std::string&)> translate;
 	NumberValidationText validation;
 	std::map<std::string,Entry> entries;
-	std::map<std::string,std::map<std::string,Value>> authored;
+	// The model's authored values by node, read in place; `model` keeps them.
+	std::shared_ptr<const DocumentModel> model;
+	std::unordered_map<std::string_view,const std::map<std::string,Value>*> authored;
 	std::map<Rml::Element*,std::map<std::string,Applied>> applied;
+	const std::map<std::string,Value>& Authored(const std::string& id) const { return *authored.at(id); }
 	~Impl() {
 		// Runtime normally resets us before closing the document. Observers also
 		// make destruction safe if its DOM has already been released.
 		for (auto& [id,entry]:entries) for (auto& observer:entry.compositions)
 			if (auto* element=observer.get()) if (auto* parent=element->GetParentNode()) parent->RemoveChild(element);
 	}
-	Rml::Element* Element(const std::string& id) const { return document ? document->GetElementById(id) : nullptr; }
+	Rml::Element* Element(const std::string& id) const { return !document ? nullptr : find ? find(id) : document->GetElementById(id); }
 	bool Property(const std::string& id,const std::string& key,const std::string& value) {
 		return Property(Element(id),key,value);
 	}
@@ -88,8 +112,8 @@ struct NumberControlView::Impl {
 	}
 	bool Display(const std::string& id,bool visible) { return Display(Element(id),id,visible); }
 	bool Display(Rml::Element* element,const std::string& id,bool visible) {
-		const auto found=authored.at(id).find("display");
-		const auto shown=found!=authored.at(id).end() && found->second.text!="none" ? found->second.text : "block";
+		const auto& properties=Authored(id); const auto found=properties.find("display");
+		const auto shown=found!=properties.end() && found->second.text!="none" ? found->second.text : "block";
 		return Property(element,"display",visible ? shown : "none");
 	}
 	bool HideEditing(Entry& entry) {
@@ -200,7 +224,8 @@ struct NumberControlView::Impl {
 			Same(cp.x,entry.localCaret.x) && Same(cp.y,entry.localCaret.y) && Same(cs.x,entry.localCaret.width) && Same(cs.y,entry.localCaret.height);
 	}
 	float Length(const std::string& id,const std::string& key,float ratio,float reference,float fallback) const {
-		const auto found=authored.at(id).find(key); if (found==authored.at(id).end() || found->second.type!=ValueType::Length) return fallback;
+		const auto& properties=Authored(id); const auto found=properties.find(key);
+		if (found==properties.end() || found->second.type!=ValueType::Length) return fallback;
 		const auto& value=found->second;
 		if (value.unit=="em") {
 			const auto* element=Element(id);
@@ -231,12 +256,14 @@ struct NumberControlView::Impl {
 NumberControlView::NumberControlView():impl(std::make_unique<Impl>()) {}
 NumberControlView::~NumberControlView()=default;
 void NumberControlView::Reset() { impl=std::make_unique<Impl>(); }
-bool NumberControlView::Initialize(const DocumentModel& model,Rml::ElementDocument& document,NumberTextRunQuery query,
-	std::function<std::string(const std::string&)> translate,NumberValidationText validation,std::string& error) {
-	Reset(); impl->document=&document; impl->query=std::move(query); impl->translate=std::move(translate); impl->validation=std::move(validation);
-	std::vector<const Node*> nodes{&model.root};
+bool NumberControlView::Initialize(std::shared_ptr<const DocumentModel> model,Rml::ElementDocument& document,NumberTextRunQuery query,
+	std::function<std::string(const std::string&)> translate,NumberValidationText validation,std::string& error,
+	std::function<Rml::Element*(const std::string&)> find) {
+	Reset(); impl->document=&document; impl->find=std::move(find); impl->query=std::move(query); impl->translate=std::move(translate); impl->validation=std::move(validation);
+	impl->model=std::move(model);
+	std::vector<const Node*> nodes{&impl->model->root};
 	while (!nodes.empty()) {
-		const auto* node=nodes.back(); nodes.pop_back(); impl->authored[node->id]=node->properties;
+		const auto* node=nodes.back(); nodes.pop_back(); impl->authored[node->id]=&node->properties;
 		if (node->control) if (const auto* spec=std::get_if<NumberSpec>(&node->control->widget)) {
 			if (!impl->query) { error="Number controls require the shared text-run service"; Reset(); return false; }
 			for (const auto& id : {spec->viewport,spec->text,spec->selection,spec->caret,spec->composition,spec->validation})
@@ -255,14 +282,32 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 		return changed;
 	}
 	for (auto& [id,entry]:impl->entries) {
-		entry.geometryReady=false; entry.run.reset();
+		entry.geometryReady=false; entry.run.reset(); entry.maskBoundaries.clear();
 		const auto fail=[&] { changed|=impl->HideEditing(entry); };
-		const auto view=interaction.Widget(id); if (!view || !std::holds_alternative<double>(view->accepted)) { fail(); continue; }
+		// A text field (role "text") reads back its string; a number its value.
+		const auto view=interaction.Widget(id);
+		if (!view || !(entry.spec.textField ? std::holds_alternative<std::string>(view->accepted) : std::holds_alternative<double>(view->accepted))) { fail(); continue; }
 		const auto& spec=entry.spec; const auto* edit=view->number ? &*view->number : nullptr;
 		const bool active=edit && edit->active && interaction.Focused()==id && interaction.CanActivate(id);
 		std::string text,error;
 		if (edit) text=Presented(*edit);
+		else if (spec.textField) {
+			text=std::get<std::string>(view->accepted);
+			if (text.size()>spec.maxBytes) { fail(); continue; }
+		}
 		else if (!FormatTextNumber(std::get<double>(view->accepted),{spec.minimum,spec.maximum,spec.exponent,spec.integer},text,error)) { fail(); continue; }
+		// A masked field presents its mask, which the run measures: every plain
+		// offset below reaches the run through `position`.
+		const std::size_t plainSize=text.size();
+		if (spec.masked) {
+			Mask mask; if (!MaskOf(text,mask)) { fail(); continue; }
+			text=std::move(mask.text); entry.maskBoundaries=std::move(mask.boundaries);
+		}
+		const auto position=[&](std::size_t plain,float& x) {
+			if (!spec.masked) return entry.run->CaretPosition(plain,x);
+			const auto shown=MaskOffset(entry.maskBoundaries,plain);
+			return shown.has_value() && entry.run->CaretPosition(*shown,x);
+		};
 		const bool edited=edit && (edit->identity!=entry.identity || !impl->SamePresentation(entry,*edit));
 		entry.nativePresentation=edit ? edit->nativePresentation : std::nullopt;
 		entry.nativeUnsettled=edit && edit->nativeUnsettled;
@@ -284,10 +329,11 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 		if (invalid) {
 			if (edit->notice!=NumberEditNotice::None) {
 				const char* key=edit->notice==NumberEditNotice::ClipboardReadFailed ? "#str_230001" :
-					edit->notice==NumberEditNotice::ClipboardWriteFailed ? "#str_230002" : "#str_230003";
+					edit->notice==NumberEditNotice::ClipboardWriteFailed ? "#str_230002" :
+					edit->notice==NumberEditNotice::ClipboardMasked ? "#str_231129" : "#str_230003";
 				message=impl->translate ? impl->translate(key) : key;
 			} else if (impl->validation) message=impl->validation(spec,*edit,view->rejected.has_value());
-			else { message=impl->authored.at(spec.validation).at("text").text; if (impl->translate) message=impl->translate(message); }
+			else { message=impl->Authored(spec.validation).at("text").text; if (impl->translate) message=impl->translate(message); }
 		}
 		changed|=impl->Text(spec.validation,message); changed|=impl->Display(spec.validation,invalid);
 		const bool textChanged=impl->Text(spec.text,text); changed|=textChanged;
@@ -315,7 +361,7 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 		const auto line=ink && !ink->GetLines().empty() ? ink->GetLines()[0].position :
 			Rml::Vector2f(0,(typography->GetComputedValues().line_height().value-metrics.ascent-metrics.descent)*.5f+metrics.ascent);
 		entry.baselineX=origin.x+line.x; entry.baselineY=origin.y+line.y;
-		std::size_t caret=edit ? edit->state.caret : text.size(), anchor=edit ? edit->state.anchor : caret;
+		std::size_t caret=edit ? edit->state.caret : plainSize, anchor=edit ? edit->state.anchor : caret;
 		std::size_t compositionFirst=0,compositionLast=0;
 		std::vector<std::pair<float,float>> ranges;
 		if (edit && edit->nativePresentation) {
@@ -325,7 +371,7 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 			bool valid=true;
 			for (const auto& [token,range]:native.compositions) {
 				float first=0,last=0;
-				if (!token || range.first>range.last || !entry.run->CaretPosition(range.first,first) || !entry.run->CaretPosition(range.last,last)) { valid=false; break; }
+				if (!token || range.first>range.last || !position(range.first,first) || !position(range.last,last)) { valid=false; break; }
 				// Empty native ranges still own composition state but no underline
 				// extent. The caret remains the visible insertion-position witness.
 				if (range.first!=range.last) ranges.emplace_back(first,last);
@@ -339,12 +385,12 @@ bool NumberControlView::Paint(const Interaction& interaction,float ratio,double 
 		}
 		if (edit && !edit->nativePresentation && edit->composition) {
 			float first=0,last=0;
-			if (!entry.run->CaretPosition(compositionFirst,first) || !entry.run->CaretPosition(compositionLast,last)) { fail(); continue; }
+			if (!position(compositionFirst,first) || !position(compositionLast,last)) { fail(); continue; }
 			if (compositionFirst!=compositionLast) ranges.emplace_back(first,last);
 		}
 		if (!impl->EnsureCompositions(entry,ranges.size(),changed)) { fail(); continue; }
 		float caretX=0,anchorX=0;
-		if (!entry.run->CaretPosition(caret,caretX) || !entry.run->CaretPosition(anchor,anchorX)) { fail(); continue; }
+		if (!position(caret,caretX) || !position(anchor,anchorX)) { fail(); continue; }
 		const auto viewportOrigin=viewport->GetAbsoluteOffset(Rml::BoxArea::Content);
 		entry.localViewport={viewportOrigin.x,viewportOrigin.y,viewportSize.x,viewportSize.y};
 		if (!Finite(entry.localViewport) || !std::isfinite(entry.baselineX) || !std::isfinite(entry.baselineY) ||
@@ -400,7 +446,10 @@ std::optional<NumberTextHit> NumberControlView::Hit(Rml::Element* hit,float x,fl
 		const auto origin=viewport->GetAbsoluteOffset(Rml::BoxArea::Content),size=viewport->GetBox().GetSize(Rml::BoxArea::Content);
 		if (captured.empty() && (point.x<origin.x || point.y<origin.y || point.x>=origin.x+size.x || point.y>=origin.y+size.y)) continue;
 		const auto byte=entry.run->HitTestLtr(point.x-entry.baselineX); if (!byte) return {};
-		return NumberTextHit{id,entry.identity,*byte};
+		if (!entry.spec.masked) return NumberTextHit{id,entry.identity,*byte};
+		// The run measured the mask: its offset names a plain scalar boundary.
+		if (*byte>=entry.maskBoundaries.size()) return {};
+		return NumberTextHit{id,entry.identity,entry.maskBoundaries[*byte]};
 	}
 	return {};
 }
@@ -430,10 +479,30 @@ std::shared_ptr<const TextRun> NumberControlView::CommandRun(const std::string& 
 	if (parent->GetNumChildren()==1 && parent->GetChild(0)->GetTagName()=="#text") typography=parent->GetChild(0);
 	const auto font=typography->GetFontFaceHandle();
 	if (!font || !impl->query) { error="Number command font is unavailable"; return {}; }
-	auto run=impl->query(font,view->number->state.text,typography->GetComputedValues().letter_spacing());
-	if (!run || !run->monotonicLtr || run->text!=view->number->state.text) {
+	const auto& plain=view->number->state.text;
+	if (!found->second.spec.masked) {
+		auto run=impl->query(font,plain,typography->GetComputedValues().letter_spacing());
+		if (!run || !run->monotonicLtr || run->text!=plain) {
+			error="Number command requires a current scalar LTR text run"; return {};
+		}
+		return run;
+	}
+	// A masked field moves over its mask, which is always a scalar LTR run
+	// whatever the plain text's script: measure the mask, then carry its
+	// offsets onto the plain text's scalar boundaries.
+	Mask mask; if (!MaskOf(plain,mask)) { error="Masked command text starts inside a scalar"; return {}; }
+	const auto shown=impl->query(font,mask.text,typography->GetComputedValues().letter_spacing());
+	if (!shown || !shown->monotonicLtr || shown->text!=mask.text) {
 		error="Number command requires a current scalar LTR text run"; return {};
 	}
+	auto run=std::make_shared<TextRun>(*shown); run->text=plain;
+	const auto plainOffset=[&](std::size_t& offset) {
+		if (offset>=mask.boundaries.size()) return false;
+		offset=mask.boundaries[offset]; return true;
+	};
+	for (auto& caret:run->carets) if (!plainOffset(caret.byteOffset)) { error="Masked command run is malformed"; return {}; }
+	for (auto& glyph:run->glyphs)
+		if (!plainOffset(glyph.byteStart) || !plainOffset(glyph.byteEnd)) { error="Masked command run is malformed"; return {}; }
 	return run;
 }
 } // namespace openq4::ui

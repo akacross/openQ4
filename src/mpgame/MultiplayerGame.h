@@ -297,6 +297,9 @@ typedef struct mpBanInfo_s {
 
 class idPhysics_Player;
 
+// currentMenu's value while the single-player Arena's pause menu is open.
+static const int MP_MENU_ARENA_PAUSE = 5;
+
 class idMultiplayerGame {
 
 	// rvGameState manages our state
@@ -382,6 +385,11 @@ public:
 	void			SetRetainedMenuCover( bool covered, idUserInterface *card );
 	void			PublishRetainedMenu( idUserInterface *card );
 	bool			RetainedMenuCovered( void ) const { return retainedMenuCovered; }
+	// The Arena pause menu's match block, for the stock menu or its card.
+	void			PublishArenaPauseMenu( idUserInterface *gui, bool retained );
+	// The Arena pause menu's "arenaPause <action>" commands.
+	const char *	HandleArenaPauseCommand( const char *action );
+	idStr			RetainedScoreLine( void );
 	// The card's commands ("retained ..."); true when the menu closes.
 	bool			HandleRetainedMenuCommand( const idCmdArgs &args, int &icmd );
 	// Which card the menu opens: Welcome while the player has not answered the
@@ -791,6 +799,23 @@ public:
 	bool			IsArenaCampaignMatch( void ) const;
 	bool			ArenaCampaignLocksPlayers( void ) const;
 	bool			ArenaCampaignAllowsFreeLook( void ) const;
+	// The local view is an Arena presentation shot rather than gameplay: the
+	// HUD keeps only the match layer that carries the cinematic cards.
+	bool			ArenaCampaignPresentationActive( void ) const;
+	// The single-player Arena pauses while its in-game menu (or the main menu
+	// over it) is open, the way a story level does. Host-local, like the rest
+	// of the ceremony: the paused frames rebase every match deadline.
+	bool			ArenaCampaignPausesWorld( void ) const;
+	void			RebaseArenaCampaignPauseFrame( int deltaMsec );
+	// Escape during the end-of-match ceremony skips ahead to the match report
+	// instead of opening a menu whose Disconnect would forfeit the result.
+	bool			ArenaCampaignOwnsEscape( void );
+	// The Arena pause menu (guis/arena_pause.gui) replaces the multiplayer
+	// menu during a live Arena match: Resume, Restart match, Settings and
+	// Leave match. The retained card covers it like the menu's own card.
+	bool			IsArenaPauseMenuOpen( void ) const { return currentMenu == MP_MENU_ARENA_PAUSE; }
+	// openq4_arenaCeremony: drives a local Arena match without device input.
+	void			DebugArenaCampaignCeremony( const idCmdArgs &args );
 	void			AdvanceArenaCampaignCeremony( void );
 	void			SetupArenaCampaignStatSummary( void );
 	int				GetMapWeaponMask( void );
@@ -1125,6 +1150,15 @@ private:
 						roundState_t to ) const;
 	void			BeginArenaCampaignResult( void );
 	void			UpdateArenaCampaignResult( void );
+	// Resets every ceremony, camera and introduction field. No HUD events and
+	// no renderer calls, so the constructor and ClearMap can share it.
+	void			ResetArenaCampaignCeremonyState( void );
+	void			BuildArenaCampaignIntroOrder( void );
+	void			SkipArenaCampaignCeremony( void );
+	void			UpdateArenaCampaignSkipInput( void );
+	const char *	ArenaCampaignPresentedGameType( void );
+	const char *	ArenaCampaignMatchTitle( void ) const;
+	void			ArenaCampaignAnnounceResult( void );
 
 	// Ordered end-of-match ceremony. An Arena match is always one human on a
 	// listen server with no remote clients, so these phases are host-local and
@@ -1143,12 +1177,31 @@ private:
 	int				arenaCeremonyPhaseStartTime;
 	int				arenaCeremonyPhaseEndTime;
 	int				arenaTableauStartTime;
-	bool			arenaCeremonyFadeStarted;
+
+	// What the HUD was last asked to present: 0 nothing, 1 the match entrance,
+	// 2 the victory tableau, 3 an opponent introduction. A clear is only sent
+	// over something visible, so it cannot outlive a card armed after it.
+	int				arenaHudPresentation;
+	// Escape, or a fresh fire press after a short grace, skips the rest of the
+	// introductions or of the end-of-match ceremony.
+	bool			arenaCeremonySkipping;
+	bool			arenaSkipButtonHeld;
+	bool			arenaMenuWasPaused;
+	// The introduction order, latched when it arms: teammates first, then the
+	// opposition, each in slot order.
+	int				arenaIntroOrder[ MAX_CLIENTS ];
+	int				arenaIntroTotal;
+	int				arenaIntroTeammates;
+	// The current subject's camera side, latched on its first frame so a wall
+	// behind one candidate cannot flip the shot mid-introduction.
+	bool			arenaIntroShotLatched;
+	float			arenaIntroShotBase;
+	float			arenaVictorLookPitch;
 
 	bool			arenaResultPending;
 	bool			arenaResultReported;
 	int				arenaResultToken;
-	int				arenaResultOutcome;	// 0 loss, 1 win, 2 draw; framework handoff contract
+	int				arenaResultOutcome;	// 0 loss, 1 win, 2 draw, 3 aborted; framework handoff contract
 	int				arenaResultPlayerScore;
 	int				arenaResultOpponentScore;
 	int				arenaResultReportTime;
@@ -1351,7 +1404,8 @@ private:
 	idUserInterface *mainGui;				// ready / nick / votes etc.
 	idListGUI		*mapList;
 	idUserInterface *msgmodeGui;			// message mode
-	int				currentMenu;			// 0 - none, 1 - mainGui, 2 - msgmodeGui
+	idUserInterface *arenaPauseGui;			// the single-player Arena's pause menu
+	int				currentMenu;			// 0 - none, 1 - mainGui, 2 - msgmodeGui, 3 - statSummary, 4 - buyMenu, 5 - arenaPauseGui
 	int				nextMenu;				// if 0, will do mainGui
 	bool			bCurrentMenuMsg;		// send menu state updates to server
 

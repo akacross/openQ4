@@ -150,16 +150,17 @@ Expand Across Displays over those lists, hidden on one display unless the draft
 names a display or a span the lists cannot offer, or holds a change not yet
 applied. The [resolution rows increment](../ui/system-resolution-rows.md) adds
 Display Resolution and Refresh Rate, so the page now has a control for every
-stock setting; it stays opt-in while presets cannot apply from it and its size
-fields take no typed digits. Auto refresh now means the desktop rate on every
+stock setting; it stays opt-in while presets cannot apply from it. Its size
+fields take typed digits since committed characters reach retained fields
+([typed characters](../ui/numeric-fields.md#typed-characters)). Auto refresh now means the desktop rate on every
 display path, and MSAA applies on Vulkan. `BEH-002` and `FLOW-002` stay
 partial.
 
 The [retained screen increment](../ui/retained-screens.md) builds the title
 screen, the single-player pause menu and the stock loading screens from
 visual specification 1.7 and the design atlas, behind one `ui_retained` gate
-(off by default again from 12 October because gameplay overhead remains too
-high; `ui_retainedSystem` opts into the SYSTEM page,
+(on by default for new profiles again since 14 October, after the 12 October
+prerelease turned it off; `ui_retainedSystem` opts into the SYSTEM page,
 which joins the gate once every stock setting works there). It adds image
 nodes, additive and multiply path blends, a view-height canvas, typed session
 menu requests and exact overflow clipping under translation and scale. The
@@ -187,8 +188,70 @@ referee sign-in opening the stock page for the credential) and Admin still
 handing off to its stock page; the
 Welcome card covers the connect-time join offer, by default now that all its
 pages are built, and a join's loading screen hands over to it.
-Event programs can move focus, and Q, E and the shoulders page a document's
-tabs. The Escape pages and the Welcome menu remain. No gate closes.
+Event programs can move focus; Q, E and the shoulders page a document's
+tabs, the triggers its sections, and a controller's west and north run its
+secondary and tertiary actions. Prompts show the active device's glyphs:
+keycaps, or the controller family's face buttons (Xbox, PlayStation,
+Nintendo, Steam Deck or generic), which the HUD's `in_promptStyle` forces
+for the menus too, and
+Nintendo layouts confirm on the east button unless `in_swapConfirmBack` says
+otherwise. The initializing screen and the weapon wheels are the ones
+described above; the retained page line built its own of both, and of the
+campaign difficulty page, and gave them up when it merged into main on
+14 October. LOAD GAME on the title and the
+Marine pause opens the retained [Load Game page](../ui/retained-screens.md#load-game-page),
+the stock page's content over the home that handed off to it, with selection,
+loading, deletion with confirmation, failures in context, the empty state and
+paging. SAVE GAME on the Marine pause opens the retained
+[Save Game page](../ui/retained-screens.md#save-game-page) the same way, its
+name in a new `text` field ([text fields](../ui/numeric-fields.md#text-fields)),
+with the overwrite confirmation, the autosave refusal and the session's
+reasons in context. Committed characters now type into a focused retained
+field ([typed characters](../ui/numeric-fields.md#typed-characters)), so the
+SYSTEM page's size fields take typed digits and only presets keep it opt-in.
+RESTART LEVEL on the Marine pause opens the retained
+[Restart Level page](../ui/retained-screens.md#restart-level-page): the
+difficulty plates beside their description and the enlarged primary plate of
+the stock New Game layout.
+Accepting a campaign on the Campaign sub-page descends to its difficulty and
+Turbo setup, the fourth level (`campaign_skill.q4ui`).
+DEMOS on the title opens the retained
+[Demos page](../ui/retained-screens.md#demos-page): the demo library under
+filter tags, the selected demo's picture and lines, and PLAY, DELETE and
+REFRESH, on the Load Game page's construction.
+MODS on the title opens a retained list dialog, the modal construction grown
+to 280 u, with the installed mods, their details, LOAD MOD and CANCEL.
+After the player dies the retained
+[restart screen](../ui/retained-screens.md#restart-screen) offers RESTART,
+LOAD GAME, MAIN MENU and EXIT GAME over the stock popup art.
+CREDITS on the title opens the retained [Credits page](../ui/retained-screens.md#credits-page):
+the stock credits' choreography compiled into one repeating timeline, its words
+read from the stock menu at runtime.
+ARENA on the Single Player page opens the retained [Arena page](../ui/retained-screens.md#arena-page),
+its second sub-page: the Arena campaign's tier ladder, matches, detail column,
+entrance and result ledger, the campaign publishing into it and keeping its
+authority.
+MULTIPLAYER on the title opens the retained [Multiplayer page](../ui/retained-screens.md#multiplayer-page),
+the stock Multiplayer page's level: JOIN GAME, CREATE SERVER and PLAYER SETUP
+open the stock browser, Create Server and Settings pages, whose Back returns
+to it. CREATE SERVER goes deeper to the retained
+[Create Server sub-page](../ui/retained-screens.md#create-server-sub-page), the
+stock page's map selection and options with the session owning each setting,
+the passwords on masked text fields
+([text fields](../ui/numeric-fields.md#text-fields)) and the ban list in a
+nested dialog; it is the default, as it offers all the stock page does.
+JOIN GAME goes deeper to the retained
+[Join Game sub-page](../ui/retained-screens.md#join-game-sub-page), the
+server browser's list with its sources, column sorts, symbols, mod filter,
+favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
+PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, a
+network quality bars beside each ping, a server's players and settings in
+the stock tooltip's card beside the
+pointer's or the focused row (the runtime's detail card), a controller's
+west refreshing the list and north sorting it by the next column, the session
+publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.
+Filters beyond the browser's source, the Strogg pause's pages and in-field
+composition remain. No gate closes.
 
 ## Objective and immutable completion scope
 
@@ -833,3 +896,50 @@ user's request after this validation checkpoint; the test reservation is release
 Current gameplay evidence and acceptance limits are recorded in
 [coverage atlases and presentation replay](../ui/runtime-performance.md#coverage-atlases-and-presentation-replay-11-october-2026)
 and `.tmp/ui-negligible-overhead/REPORT.md`.
+
+The 13 October menu pass expands the existing coverage atlas to exact tiles and
+multiply artwork, reuses stable compound plates, and caches the unchanged paused
+single-player scene while continuing HUD/menu animation. It also reduces dense
+coverage sorting and Gaussian shader work and skips quiet button layout.
+Native fixtures and OpenGL/Vulkan engine captures qualify the individual paths.
+The user's acceptance scope explicitly includes title and pause-menu frame
+times alongside SP/MP gameplay; this gate is still open. Current measurements
+and limits are in [menu and gameplay optimization](../ui/runtime-performance.md#menu-and-gameplay-optimization-13-october-2026).
+
+The 14 October follow-up replays settled interactive paint, recaptures live
+backdrops, and reuses unchanged button hit geometry. Eight native UI suites pass;
+OpenGL/Vulkan captures cover focus, modal transitions and restart at 1280x720,
+with the replay path also qualified at 720x1280. Pause CPU p50 is about
+0.07–0.08 ms, but whole-frame title and pause comparisons remain above legacy.
+The parity gate remains open.
+
+The moving title glint now uses shader-evaluated convex mask coverage. A
+retained-only off/on comparison reduces title frame time from 1.539 to 1.000 ms
+on OpenGL and 1.255 to 0.574 ms on Vulkan. Nine native UI suites and same-frame
+CPU/shader captures pass, including live opacity, source-cache fallback, resize,
+four-sided masks and video restart. This is a measured improvement, not closure
+of the legacy title/pause parity gate. Larger atlas pages were rejected for
+worse residency; the 512-square/32-page bound remains.
+
+The subsequent candidate holds the ordinary pause scene clock, reuses an
+identical stock HUD evaluation and reduces repeated dictionary/number work.
+Full-view soft focus uses a filtered half-resolution path only within its
+qualified kernel and viewport guards; other cases retain full resolution.
+The eleven UI/material suites and five production renderer/HUD adapters pass.
+A flattened-menu surface experiment was removed after small, inconsistent
+cross-renderer gains and additional composition rounding. Final comparisons
+were refreshed at uncapped, 144 Hz and the default 240 Hz cap, with normal
+menu animation. Refresh-limited means differ by at most 0.3%, but uncapped
+title overhead is 2.9% on Vulkan / 17.6% on OpenGL and pause remains 39–44%.
+The parity gate remains open; capped throughput is not an uncapped-cost result.
+
+Moving-mask replay and fitted-image opacity replay now preserve the title's
+glint and montage without repeated full-tree layout/traversal. Both APIs have
+RGB-exact engine captures through motion and video restart, and all eleven
+UI/material suites pass after rebuilding restored interface dependents.
+Updated title comparisons are +1.1% on Vulkan and +10–17% on OpenGL in opposing
+orders. Stable pause comparisons remain +40% on Vulkan and +49% on OpenGL.
+A slow legacy Vulkan pause window remains recorded, without a parity claim.
+Recorded draw reordering and constant blur weights did not show consistent
+benefit and remain rejected. The [current evidence](../ui/runtime-performance.md#moving-mask-and-crossfade-replay-14-october-2026)
+keeps the menu gate open.

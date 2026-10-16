@@ -692,11 +692,10 @@ static bool R_ParseImageProgram_r(idLexer& src, byte** pic, int* width, int* hei
 		return false;
 	}
 
-	// add this to the timestamp
+	// add this to the timestamp: the newest loose time, or a hash of every
+	// part once a pk4 member is involved (FS_CombineContentStamps)
 	if (timestamps) {
-		if (timestamp > *timestamps) {
-			*timestamps = timestamp;
-		}
+		*timestamps = FS_CombineContentStamps(*timestamps, timestamp);
 	}
 
 	return true;

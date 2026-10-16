@@ -64,11 +64,17 @@ struct idSessionLocal {
     void StartMenu() { assert(false); }
     void SelectCampaign(const char*) { assert(false); }
     void OpenCampaignSelector(bool) { assert(false); }
+    bool HandleStockCampaignCommand(idUserInterface*, const char*) { return false; }
     // ui_retained home screens are covered by the retained screens suite.
-    idUserInterface* guiRetainedHome=nullptr;
+    idUserInterface* guiRetainedHome=nullptr,*guiRetainedRestartMenu=nullptr;
     void UpdateRetainedHome() {}
     void RetainedHomeFrameEvent() {}
     void UpdateRetainedSubpage() {}
+    void UpdateRetainedPage() {}
+    void UpdateRetainedMultiplayerPage() {}
+    void UpdateRetainedJoinGame() {}
+    void UpdateBrowserTooltip() {}
+    void PrecacheRetainedLevelshots(bool) {}
     bool RetainedSubpageEvent(const sysEvent_t*) { return false; }
     void HandleRetainedSessionRequest(idUserInterface*,const char*) { assert(false); }
     // The multiplayer card and the loading hold are covered by the retained screens suite.

@@ -35,6 +35,8 @@ class idChatWindow;
 class idRetainedHud;
 class idRemasteredHud;
 
+struct LegacyLevelLoadCache;
+
 class idUserInterfaceLocal : public idUserInterfaceManaged {
 	friend class idUserInterfaceManagerLocal;
 public:
@@ -46,6 +48,7 @@ public:
 	virtual bool				IsInteractive() const;
 	virtual void				SetInteractive(bool interactive);
 	virtual bool				InitFromFile( const char *qpath, bool rebuild = true, bool cache = true );
+	virtual bool KeepForLevelLoad() override;
 	virtual const char *		HandleEvent( const sysEvent_t *event, int time, bool *updateVisuals );
 	virtual void				HandleNamedEvent( const char* namedEvent );
 	virtual void				Redraw( int time, bool useAspectCorrection = true );
@@ -112,8 +115,10 @@ public:
 	// onBackAction when back is set, as a click on the window would.
 	bool						RunWindowAction( const char *windowName, bool back, idStr &command );
 	bool						HasWindow( const char *windowName ) const;
+	bool						HasNamedEvent( const char *eventName ) const;
 
 private:
+	std::unique_ptr<LegacyLevelLoadCache> levelLoadCache;
 	bool						active;
 	bool						loading;
 	bool						interactive;
@@ -122,6 +127,11 @@ private:
 	bool						controllerNavigation; // transient menu ownership; never serialized
 
 	idDict						state;
+	// Retain pooled strings so equality cannot mistake a recycled value for
+	// the previous one. This cache is transient and only used by HUD peers.
+	idDict                      evaluatedHudState;
+	int                         evaluatedHudTime = 0;
+	bool                        evaluatedHudValid = false;
 	idWindow *					desktop;
 	idChatWindow *				chatWindow; // owned by desktop; transient MP presentation
 	idRetainedHud*				retainedHud; // transient presentation, never part of saved GUI framing
@@ -171,6 +181,7 @@ public:
 	virtual void				BeginLevelLoad();
 	virtual void				EndLevelLoad();
 	virtual void				Reload( bool all );
+	void						ReloadForLevelLoad();
 	virtual void				ListGuis() const;
 	virtual bool				CheckGui( const char *qpath ) const;
 	virtual idUserInterface *	Alloc( void ) const;
@@ -219,6 +230,7 @@ public:
 private:
 	idUserInterfaceManaged* NativeTextResolve(uiNativeTextRouteProbe_t,void*,const openq4::ui::TextEditorIdentity&) const noexcept;
 	bool NativeTextCheck(uiNativeTextRouteProbe_t,void*,const openq4::ui::NativeTextEditorBarrier&) const noexcept;
+	void						ReloadGuis( bool all, bool levelLoad );
 	void						RegisterAllocation( idUserInterfaceManaged *gui );
 	void						RegisterGui( idUserInterfaceManaged *gui );
 	void						RegisterDemoGui( idUserInterfaceManaged *gui );

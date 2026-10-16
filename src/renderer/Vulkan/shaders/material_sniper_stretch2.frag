@@ -90,11 +90,13 @@ void main() {
         blurDir = vec2(0.0);
     }
 
+    vec4 sceneColor = texture(BackgroundImage, start);
     vec4 color;
     if (scopeArea.r == 0.0) {
-        color = texture(BackgroundImage, start);
+        color = sceneColor;
     } else {
-        // Preserve the retail six-tap radial offsets and weighting exactly.
+        // Preserve the retail six-tap radial offsets and weighting outside
+        // the feathered aperture rim.
         float len = scopeArea.r;
         vec2 amount = blurDir * len * 0.25;
         vec4 blurColor =
@@ -107,6 +109,11 @@ void main() {
         blurColor /= 6.0;
         color = (blurColor + material.shaderParms[2]) * 0.5;
     }
+
+    // Match the GL shader: compressed mask noise must not switch on the
+    // half-strength tint abruptly along a staircase of texture blocks.
+    float blurCoverage = smoothstep(0.0, 8.0 / 255.0, scopeArea.r);
+    color = mix(sceneColor, color, blurCoverage);
 
     if (AlphaTestFails(color.a)) {
         discard;

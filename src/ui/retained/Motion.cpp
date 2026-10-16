@@ -12,19 +12,32 @@ std::atomic<std::uint64_t> motionRevisions{0};
 bool SameValue(const Value& a, const Value& b) {
 	return a.type == b.type && a.data == b.data && a.unit == b.unit && a.text == b.text;
 }
-void BaseValues(const Node& node, PropertyValues& values) {
-	for (const auto& [name,value] : node.properties) values[{node.id,name}] = value;
-	for (const auto& child : node.children) BaseValues(child,values);
+void CollectNodes(const Node& node, std::vector<const Node*>& nodes) {
+	nodes.push_back(&node);
+	for (const auto& child : node.children) CollectNodes(child,nodes);
+}
+// Every node's authored values by (node, property). The nodes are taken in
+// ID order, so each key follows the last and its insert appends instead of
+// searching a document's tens of thousands of keys; among nodes sharing an
+// ID the last in document order wins, as it did.
+void BaseValues(const Node& root, PropertyValues& values) {
+	std::vector<const Node*> nodes;
+	CollectNodes(root,nodes);
+	std::stable_sort(nodes.begin(),nodes.end(),[](const Node* a, const Node* b) { return a->id < b->id; });
+	for (const auto* node : nodes)
+		for (const auto& [name,value] : node->properties) values.insert_or_assign(values.end(),PropertyKey{node->id,name},value);
 }
 }
-void Motion::Reset(const DocumentModel& model) {
+void Motion::Reset(const DocumentModel& model) { Reset(std::make_shared<const DocumentModel>(model)); }
+void Motion::Reset(std::shared_ptr<const DocumentModel> shared) {
 	playing.clear(); completed.clear();
-	auto loaded = std::make_shared<std::map<std::string, Timeline>>();
-	for (const auto& timeline : model.timelines) loaded->emplace(timeline.id,timeline);
+	auto loaded = std::make_shared<std::map<std::string, const Timeline*>>();
+	for (const auto& timeline : shared->timelines) loaded->emplace(timeline.id,&timeline);
 	auto authored = std::make_shared<PropertyValues>();
-	BaseValues(model.root,*authored);
-	values = std::make_shared<PropertyValues>(*authored);
-	timelines = std::move(loaded); base = std::move(authored);
+	BaseValues(shared->root,*authored);
+	// The live values are the authored ones until a write, which copies them.
+	model = std::move(shared); timelines = std::move(loaded);
+	base = authored; values = std::move(authored);
 	clock = 0; sampled = false;
 	changedKeys.clear(); changedAll = true;
 	Touch();
@@ -99,7 +112,7 @@ void Motion::Advance(double seconds) {
 }
 void Motion::NoteCompleted(const std::string& id) {
 	const auto found = timelines->find(id);
-	if (found == timelines->end() || found->second.complete.empty()) return;
+	if (found == timelines->end() || found->second->complete.empty()) return;
 	if (std::find(completed.begin(),completed.end(),id) == completed.end()) completed.push_back(id);
 }
 std::vector<std::string> Motion::TakeCompleted() {
@@ -111,7 +124,7 @@ bool Motion::Play(const std::string& id, double seconds) {
 	const auto found = timelines->find(id);
 	if (found == timelines->end()) return false;
 	Advance(seconds);
-	const auto& timeline = found->second;
+	const auto& timeline = *found->second;
 	for (const auto& track : timeline.tracks) {
 		const PropertyKey key{track.node,track.property};
 		Playing item{id,track,track.keys.front().value,clock,timeline.durationMs,0,timeline.iterations,false,timeline.essential};
@@ -192,7 +205,7 @@ PropertyValues Motion::Scrub(const std::string& id, double milliseconds) const {
 	PropertyValues result;
 	auto found = timelines->find(id);
 	if (found == timelines->end() || !std::isfinite(milliseconds)) return result;
-	for (const auto& track : found->second.tracks) result[{track.node,track.property}] = Sample(track,std::clamp(milliseconds,0.0,found->second.durationMs));
+	for (const auto& track : found->second->tracks) result[{track.node,track.property}] = Sample(track,std::clamp(milliseconds,0.0,found->second->durationMs));
 	return result;
 }
 MotionSnapshot Motion::Capture(double seconds) const {
@@ -238,7 +251,7 @@ bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string
 	candidate.sampled = false;
 	candidate.reducedMotion = snapshot.reducedMotion;
 	std::set<PropertyKey> animated;
-	for (const auto& [id,timeline] : *timelines) for (const auto& track : timeline.tracks) animated.emplace(track.node,track.property);
+	for (const auto& [id,timeline] : *timelines) for (const auto& track : timeline->tracks) animated.emplace(track.node,track.property);
 	for (const auto& [key,value] : snapshot.values) {
 		const auto original = base->find(key);
 		if ((!allowStaticValues && !animated.contains(key)) || original == base->end() ||
@@ -249,7 +262,7 @@ bool Motion::Restore(const MotionSnapshot& snapshot, double seconds, std::string
 	for (const auto& saved : snapshot.playing) {
 		const auto timeline = timelines->find(saved.owner);
 		if (timeline == timelines->end()) return reject("Unknown restored timeline");
-		const auto& authored = timeline->second;
+		const auto& authored = *timeline->second;
 		if (snapshot.reducedMotion && !authored.essential && !saved.reduced) return reject("Restored playback conflicts with reduced motion");
 		const auto track = std::find_if(authored.tracks.begin(),authored.tracks.end(),[&](const Track& t) {
 			return t.node == saved.node && t.property == saved.property;

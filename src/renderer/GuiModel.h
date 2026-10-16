@@ -47,6 +47,7 @@ public:
 	
 	void	EmitToCurrentView( float modelMatrix[16], bool depthHack );
 	void	EmitFullScreen();
+	bool	HasSceneFeedback() const;
 
 	// these calls are forwarded from the renderer
 	void	SetColor( float r, float g, float b, float a );
@@ -59,7 +60,8 @@ public:
 	//---------------------------
 private:
 	void	AdvanceSurf();
-	void	EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack );
+	void	EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack,
+				const struct viewEntity_s *sharedSpace = NULL );
 
 	guiModelSurface_t		*surf;
 

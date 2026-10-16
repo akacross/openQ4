@@ -49,8 +49,9 @@ into an unchecked write.
 Display Resolution and Refresh Rate now sit in this column as
 capability-backed choices over the published lists
 ([SYSTEM resolution rows](system-resolution-rows.md)). Further dependent
-controls, Defaults, complete effect execution, native text/IME activation (the
-size fields take no typed digits yet), full responsive artwork/motion
+controls, Defaults, complete effect execution, in-field input method
+composition (the size fields take typed digits through the committed-character
+route, [typed characters](numeric-fields.md#typed-characters)), full responsive artwork/motion
 acceptance and the editor round trip remain required. Actual fullscreen, borderless,
 multiple-monitor and window-manager behavior require separate qualification.
 Automated gameplay validation remains hidden and windowed.

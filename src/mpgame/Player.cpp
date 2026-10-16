@@ -2552,6 +2552,11 @@ void idPlayer::Spawn( void ) {
 //RITUAL END
 
 	itemCosts = static_cast< const idDeclEntityDef * >( declManager->FindType( DECL_ENTITYDEF, "ItemCostConstants", false ) );
+
+	// The local player's retained gameplay documents load now, inside the
+	// level load, so their first use builds nothing.
+	PrecacheWeaponWheelGui();
+	PrecacheQuickChatGui();
 }
 
 /*
@@ -4892,8 +4897,14 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 	// for mod developers to enable for the same functionality
 	_hud->SetStateInt( "s_debug", cvarSystem->GetCVarInteger( "s_showLevelMeter" ) );
 
+	// openQ4: an Arena presentation shot is a camera, not the player's eyes. The
+	// crosshair, the zoom and the status bar would sit over the cinematic card;
+	// the mphud below still draws, because it carries the letterbox and cards.
+	const bool arenaPresentation = gameLocal.isMultiplayer &&
+		gameLocal.mpGame.ArenaCampaignPresentationActive();
+
 	// don't draw main hud in spectator (only mphud)
-	if ( !spectating && !gameDebug.IsHudActive( DBGHUD_ANY ) ) {
+	if ( !spectating && !arenaPresentation && !gameDebug.IsHudActive( DBGHUD_ANY ) ) {
 		// weapon targeting crosshair
 		if ( !GuiActive() ) {
 			// openQ4 VR: the scope picture is head-locked on the HUD, so it would
@@ -4950,7 +4961,10 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 		}
 		
 		if ( overlayHud && overlayHudTime > gameLocal.time && overlayHudTime != 0 ) {
-			overlayHud->Redraw( gameLocal.time );
+			// openQ4: nothing over an Arena presentation shot but its own cards.
+			if ( !arenaPresentation ) {
+				overlayHud->Redraw( gameLocal.time );
+			}
 		} else {
 			overlayHud = NULL;
 			overlayHudTime = 0;
@@ -9030,8 +9044,10 @@ void idPlayer::UpdateViewAngles( void ) {
 		return;
 	}
 
-	// if dead
-	if ( health <= 0 ) {
+	// if dead - except in the Arena tableau, whose orbit is steered by look input
+	// whether or not the player survived the final frag. On a defeat they
+	// usually did not, and the death view's fixed angles froze the orbit.
+	if ( health <= 0 && !arenaFreeLook ) {
 		if ( pm_thirdPersonDeath.GetBool() ) {
 			viewAngles.roll = 0.0f;
 			viewAngles.pitch = 30.0f;

@@ -4,7 +4,9 @@ The Awakening is the Quake 4 expansion Raven Software and Ritual Entertainment
 never released. Justin Marshall recovered and published its alpha. openQ4 plays
 its single-player campaign from your copy of that content, using openQ4's own
 engine and game code. It never loads the expansion's leaked game DLL, and
-openQ4 ships none of the expansion's files.
+openQ4 ships none of the expansion's files. Where the alpha left something
+unfinished, such as the chaingun turret's skin, openQ4 adds its own art
+instead.
 
 This page lists what openQ4 changes to make the campaign run, including a first
 direction pass on the unfinished opening. To install the content and choose the campaign, see
@@ -142,6 +144,18 @@ fixes them:
   Stranarus Trench part 2), so four of them could never move. They now walk.
 - **The goob gun's burning effect** shows from the first hit; the alpha looked
   it up in the wrong place.
+- **The Strogg chaingun turret you man (Stranarus Trench, the prison)** was
+  never textured: the alpha gave it grey placeholder shading, so it showed as
+  bare clay, with a dotted stand-in in its drum's windows. openQ4 paints it as
+  a battle-worn Strogg emplacement: oxblood and field-grey armour plate,
+  brushed-steel covers, oily gunmetal, chrome bands and brass bolts, edges
+  rubbed through to bare metal, braided hoses with brass fittings and colour
+  bands, a drum with brass rounds behind its windows, glowing vents and a red
+  sensor lens.
+  Firing it now has the weight of the game's other mounted guns: a heavier
+  muzzle flash that lights the gun, tracers, heavier impacts, ejected casings
+  and smoke from the muzzle after a long burst. Its damage, rate of fire and
+  accuracy are unchanged.
 
 ## Deliberate differences from the alpha
 
@@ -180,8 +194,9 @@ scenes, keep your settings or keep the game fair:
 ## Known issues in the alpha
 
 These are holes in the expansion's content itself. The authored opening-scene
-direction reuses installed media; it does not supply missing performances or
-replacement art:
+direction reuses installed media; apart from the chaingun turret's skin and
+effects (see [Fixes to the alpha](#fixes-to-the-alpha)), openQ4 does not
+supply missing performances or replacement art:
 
 - Some voice-over never plays: thirteen scripted voice-over files are never
   loaded by the expansion's own scripts.
@@ -233,6 +248,16 @@ well as its world screens, as the expansion's code did. The pulse cannon moves
 its vehicle's `pulse_cannon_l` and `pulse_cannon_r` joints; a vehicle without
 them fires the same, with still barrels.
 
+openQ4's additions to Awakening content live in its own files and never
+replace the expansion's. While The Awakening is running, any definition
+lookup of `<name>` first tries `<name>_q4x_openq4`; openQ4's turret weapon
+(`vehicle_chaingun_weapon_q4x_openq4`) inherits the expansion's and adds only
+effects. Material files named `materials/*_openq4.mtr` that sort ahead of a
+game's own file (`00_` names) supply the material instead of it; the turret's
+skin works this way and keeps the expansion's normal maps. Any vehicle weapon
+can now eject casings (`def_ejectBrass`, `joint_view_eject`, `ejectOffset`)
+and trail `fx_burstSmoke` after a burst of `burstSmokeShots` or more.
+
 Cheat commands and settings that help when testing the campaign without input:
 
 - `openq4_testInput <ms> [attack] [zoom] [run] [crouch] [jump] [forward|back|right|left <0-127>] [aim <entity>] [yaw|pitch <deg/s>] [impulse <n>]`
@@ -254,4 +279,5 @@ The development record, with the evidence behind each change, is the
 
 Quake 4: The Awakening was developed by Raven Software and Ritual
 Entertainment. Justin Marshall recovered and published the expansion. openQ4's
-support for it is written independently and includes none of its content.
+support for it is written independently and includes none of its content; the
+chaingun turret's skin and effects are openQ4's own work.

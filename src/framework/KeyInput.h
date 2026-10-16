@@ -203,6 +203,11 @@ public:
 	static void			PreliminaryJoystickEvent( int value );
 	static bool			IsDown( int keyNum );
 	static bool			LastInputWasController( void );
+	// Menus on a controller (section 13.5): whether east confirms and south
+	// goes back, as Nintendo layouts do by default and in_swapConfirmBack can
+	// force either way, and a menu key with that swap applied.
+	static bool			MenuConfirmSwapped( void );
+	static int			MenuControllerKey( int keyNum );
 	static int			GetUsercmdAction( int keyNum );
 	static bool			GetOverstrikeMode( void );
 	static void			SetOverstrikeMode( bool state );

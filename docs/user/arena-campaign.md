@@ -28,10 +28,27 @@ matches in total:
 
 Completed matches can be replayed without losing progress. After a result,
 **Retry Match** immediately reruns a defeat, **Replay Match** repeats a victory
-or draw, and **Next Match** moves to the next available challenge after a win.
-The browser's progress bar, completion marks, boss accent, and tier briefing
-keep the route to the next unlock visible while choosing a match. A locked boss
-keeps its identity hidden until all three qualifiers are won.
+or draw, and **Next Match** moves to the next match you still have to win —
+the rest of the tier first, then the tiers after it. The browser's progress
+bar, completion marks, boss accent, and tier briefing keep the route to the
+next unlock visible while choosing a match; a tier with some qualifiers won
+reads **IN PROGRESS**. A locked boss keeps its identity hidden — from the match
+list and the tier briefing alike — until all three qualifiers are won.
+
+## Best results
+
+Every match keeps its **best result**, shown across the foot of the match's
+picture in the browser: the outcome, the final score and the difficulty it was
+played on, for example **VICTORY 10 - 3 VETERAN**. A match you have not yet
+played to a result reads **No result yet**. A victory always beats a draw, and
+a draw beats a defeat; between two results with the same outcome, the wider
+winning (or narrower losing) margin is better, then the harder difficulty. When
+a replay beats the record, the match report marks the score **NEW BEST**.
+
+Only a match played out counts. A match whose opponents left, or that you
+abandoned, leaves the record unchanged. Matches won before best results were
+kept show **VICTORY** until you replay them. Best results are saved with your
+campaign progress, survive restarts, and are cleared by **Reset Progress**.
 
 Arena screens use the standard menu confirm and back controls on keyboard and
 controller. The recommended action receives focus when a screen opens: next
@@ -47,26 +64,32 @@ ordinary multiplayer lobby and score-summary flow:
 1. **Challenge launch.** Confirming a match expands its challenge card over the
    selected map and then fades into the arena. Input is held during this short
    transition so one confirm press cannot accidentally perform two actions.
-2. **Introductions.** Each opponent on the authored roster is presented in turn,
-   named over a slow shot of the fighter themselves. Combatants are locked for
-   the whole introduction, so nobody opens fire behind it.
+2. **Introductions.** Each fighter on the authored roster is presented in turn,
+   named over a slow, face-on shot of the fighter themselves. In team matches
+   your teammates come first and the opposition last, each card naming the
+   side ("TEAMMATE 1 OF 2", "OPPONENT 2 OF 3"). Combatants are locked for the
+   whole introduction, so nobody opens fire behind it.
 3. **Countdown.** A four-second cinematic countdown follows automatically. There
    is no Ready button and no warmup vote. Combatants stay locked while a
-   collision-aware camera sweeps in toward the player, with the match name and
-   rules framed over the world.
+   collision-aware camera sweeps in toward the player, with the tier, the
+   match's place in it, the match name and its game type framed over the
+   world.
 4. **Spawn-in.** Control is held a moment longer while the camera circles your
    own body where it spawned, swings in behind your head, and settles exactly
-   onto your first-person view. **Fight** sounds as control returns, not over the
-   camera move.
+   onto your first-person view. The announcer counts "three, two, one" over the
+   move and **Fight** sounds as control returns. (Clan Arena and Red Rover count
+   down their first round themselves.)
 5. **The match.** Normal play, with the arena rules the match panel listed.
 6. **Final tableau.** The exit condition freezes the whole arena — combatants,
    projectiles, movers and effects all stop where the match ended. The camera
    moves to the unique victor and hands the look controls back: **you** orbit the
    frozen victor freely while the winner is announced, with a restrained
-   depth-of-field effect keeping that character sharp. Nothing moves no matter
-   where you look. A draw uses a neutral presentation and does not declare a
-   victor.
-7. **Scoreboard.** The arena fades down and the full scoreboard takes the screen.
+   depth-of-field effect keeping that character sharp. This works whether or
+   not you survived the final frag. Nothing moves no matter where you look. A
+   draw uses a neutral presentation, does not declare a victor, and is
+   announced as a tie.
+7. **Scoreboard.** The arena fades down and the full scoreboard takes the
+   screen, headed by the match.
 8. **Match stats.** The scoreboard fades to the detailed end-of-match statistics.
 9. **Match report.** The arena disconnects and a dedicated result ledger expands
    in the Arena browser. Outcome, final score, awards earned, unlocks, and the
@@ -77,6 +100,13 @@ ordinary multiplayer lobby and score-summary flow:
     segment, and pulses any new boss or tier gate. Control returns only after
     the update has settled, with the next useful selection ready.
 
+**Escape** skips straight to the match report from the tableau, the scoreboard
+or the stats; so does **fire**, once a beat has been on screen for a moment.
+Fire also skips the rest of the introductions. Skipping never changes the
+result: it is decided when the match ends and recorded as normal. The
+crosshair and status bar stay hidden during every cinematic shot and return
+with control.
+
 The cinematic framing used by the entrance and the final tableau is sized from
 the actual display. Its bars always reach every screen edge, and they thicken on
 narrower or taller displays so the framed picture stays close to a 16:9
@@ -86,14 +116,39 @@ it stops short of the match clock and the surrounding interface. The frame lifts
 as control returns.
 
 The match is reported to the campaign at the end of the statistics screen, not
-the moment the score freezes. Quitting or disconnecting during the tableau, the
+the moment the score freezes. Quitting the game during the tableau, the
 scoreboard or the statistics abandons the match: nothing is recorded, and a win
-taken that way does not count. Let the report reach the Arena browser before
-leaving.
+taken that way does not count. Press Escape to skip to the report instead.
+
+## Pausing and leaving a match
+
+An Arena match pauses like a story level. Press Escape (or the controller's
+menu button) during a match for the **MATCH PAUSED** menu, which shows the
+match, its tier, game type and map, the paused clock and the score:
+
+- **Resume** returns to the match. Escape or the back button does the same.
+- **Restart match** asks first, then starts the same match again from its
+  introductions. Nothing is recorded.
+- **Settings** opens the normal settings screens. The match stays paused, and
+  backing out returns you to the pause menu.
+- **Leave match** asks first, then returns you to the Arena browser with a
+  **Match abandoned** report that names the match and offers **Retry**.
+  Nothing is recorded and your progress is unchanged.
+
+While the pause menu or the settings are open, the bots, the match clock,
+projectiles, respawns and round timers all stop. Chat does not pause the match,
+because the bots answer it. Once a match has ended, Escape skips the rest of the
+end-of-match ceremony to the match report instead.
+
+A match has to be played out to count. Quitting to the menu any other way, for
+example with the `disconnect` console command, also leaves the match with a
+**Match abandoned** report. A match whose opponents all leave (for example when
+its bots are removed from the console) ends as **Match aborted**, with nothing
+recorded and **Retry** offered.
 
 If a match cannot be started or its result cannot be recorded, the browser
-raises a **Match Aborted** report naming the reason instead of returning
-silently. The usual cause is another program — often a second copy of openQ4 —
+raises a **Match Aborted** report naming the match and the reason instead of
+returning silently. The usual cause is another program — often a second copy of openQ4 —
 already holding the network port the local server needs.
 
 These ceremonies are exclusive to the single-player Arena Campaign. Private
@@ -112,9 +167,9 @@ next round.
 Any end-of-match awards you earn are listed on the match report beside the score
 and any unlock.
 
-**Reset Progress** is unavailable until at least one match has been won. It
-clears every Arena win and tier unlock, but asks for confirmation before
-changing anything. It does not affect Mission saves, ordinary multiplayer
+**Reset Progress** is unavailable until at least one match has been played to a
+result. It clears every Arena win, best result and tier unlock, but asks for
+confirmation before changing anything. It does not affect Mission saves, ordinary multiplayer
 settings, or achievements.
 
 Each tier raises the base bot skill from 1 to 5. Individual opponents may be

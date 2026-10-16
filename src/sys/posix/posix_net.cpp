@@ -527,6 +527,32 @@ bool Sys_IsLANAddress( const netadr_t adr ) {
 }
 
 /*
+==================
+Sys_GetLocalIPAddress
+
+This machine's first IPv4 interface address that is not a loopback one, as
+the stock JOIN IP ADDRESS popup shows the player ("your ip address:"; retail's
+getClientIP showed its first interface's). False when it has none.
+==================
+*/
+bool Sys_GetLocalIPAddress( netadr_t &out ) {
+	for ( int i = 0; i < num_interfaces; i++ ) {
+		const unsigned int ip = netint[i].ip;	// host byte order
+		if ( ip == 0 || ( ip & 0xff000000u ) == 0x7f000000u ) {
+			continue;
+		}
+		memset( &out, 0, sizeof( out ) );
+		out.type = NA_IP;
+		out.ip[0] = static_cast<unsigned char>( ip >> 24 );
+		out.ip[1] = static_cast<unsigned char>( ip >> 16 );
+		out.ip[2] = static_cast<unsigned char>( ip >> 8 );
+		out.ip[3] = static_cast<unsigned char>( ip );
+		return true;
+	}
+	return false;
+}
+
+/*
 ===================
 Sys_CompareNetAdrBase
 

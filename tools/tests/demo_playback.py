@@ -156,10 +156,18 @@ def validate_library_contract() -> None:
     reject(legacy_net, "DEMO_CAP_PLAY", "unsupported retail netdemo capability")
     require(legacy_net, '"#str_41547"', "legacy netdemo status")
 
-    dispatch = between(
+    # The browser's Play and the retained Demos page share one typed player.
+    browser_play = between(
         source,
         'if ( !idStr::Icmp( cmd, "demoPlay" ) ) {',
         'if ( !idStr::Icmp( cmd, "demoDelete" ) ) {',
+        "browser demo playback",
+    )
+    require(browser_play, "PlayDemoLibraryEntry( selection )", "browser demo playback")
+    dispatch = between(
+        source,
+        "bool idSessionLocal::PlayDemoLibraryEntry( int index ) {",
+        "bool idSessionLocal::DeleteDemoLibraryFile(",
         "typed demo playback dispatch",
     )
     for needle in (
@@ -169,6 +177,15 @@ def validate_library_contract() -> None:
     ):
         require(dispatch, needle, "typed demo playback dispatch")
     reject(dispatch, "commandName.StripFileExtension();", "dotted command demo dispatch")
+    # Deletion stays inside the save path's demo directory for both.
+    deletion = between(
+        source,
+        "bool idSessionLocal::DeleteDemoLibraryFile(",
+        "bool idSessionLocal::HandleDemoMenuCommand",
+        "demo deletion",
+    )
+    for needle in ("DemoPathIsSafe( entry.path )", "saveDemoRoot", "DemoEntryCanDelete( entry.path )", "RemoveExplicitFile"):
+        require(deletion, needle, "demo deletion containment")
 
     path_check = between(
         source,

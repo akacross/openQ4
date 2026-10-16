@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "tr_local.h"
 #include "RendererResourceSettings.h"
+#include "../imagetools/LegacyScopeMask.h"
 #include "OpenGL/FramebufferSamples.h"
 
 /*
@@ -570,6 +571,10 @@ name contains GetName() upon entry
 	_name.StripFileExtension();
 
 	_name += va( "#__%02d%02d", (int)_usage, (int)_cube );
+	if ( R_IsLegacyScopeDistortionMask( _policyName ) ) {
+		// Do not reuse a decoded DXT cache, including in production mode.
+		_name += "scope1";
+	}
 	if ( _usage == TD_PBR_COLOR ) {
 		// Reject caches made with gamma-2.2 RGB/alpha filtering, including in
 		// production mode where source/derived-option checks are omitted.
@@ -597,7 +602,14 @@ name contains GetName() upon entry
 }
 
 static bool R_IsPreferredDDSStale( const idStr &preferredDDSName, ID_TIME_T preferredDDSFileTime, ID_TIME_T originalSourceTime ) {
-	if ( originalSourceTime == FILE_NOT_FOUND_TIMESTAMP || preferredDDSFileTime >= originalSourceTime ) {
+	if ( originalSourceTime == FILE_NOT_FOUND_TIMESTAMP ) {
+		return false;
+	}
+	// Both arrive as content stamps. A pk4 member's stamp is an identity, not a
+	// time; it orders as the 0 every pak file has always reported.
+	preferredDDSFileTime = FS_ContentStampOrderTime( preferredDDSFileTime );
+	originalSourceTime = FS_ContentStampOrderTime( originalSourceTime );
+	if ( preferredDDSFileTime >= originalSourceTime ) {
 		return false;
 	}
 
@@ -606,6 +618,25 @@ static bool R_IsPreferredDDSStale( const idStr &preferredDDSName, ID_TIME_T pref
 	// remain strict once they exceed that narrow stock-archive allowance.
 	const bool retailProgramDDS = preferredDDSName.IcmpPrefix( "progimg/" ) == 0;
 	return !retailProgramDDS || originalSourceTime - preferredDDSFileTime > 4;
+}
+
+/*
+===============
+R_ImageSourceStampCurrent
+
+Whether a reload may keep an image loaded from a source stamped `loaded`. Loose
+files keep the old "not newer" rule. A pk4 member's content stamp is an
+identity with no order, so any difference means the member changed.
+===============
+*/
+static bool R_ImageSourceStampCurrent( ID_TIME_T current, ID_TIME_T loaded ) {
+	if ( current == FILE_NOT_FOUND_TIMESTAMP ) {
+		return true;
+	}
+	if ( FS_IsPakMemberContentStamp( current ) || FS_IsPakMemberContentStamp( loaded ) ) {
+		return current == loaded;
+	}
+	return current <= loaded;
 }
 
 /*
@@ -2094,7 +2125,7 @@ void idImage::Reload( bool force ) {
 			}
 		}
 		const bool sourceSelectionChanged = loadedSourceName.Length() == 0 || loadedSourceName.Icmp( currentSourceName ) != 0;
-		if ( !sourceSelectionChanged && current <= sourceFileTime ) {
+		if ( !sourceSelectionChanged && R_ImageSourceStampCurrent( current, sourceFileTime ) ) {
 			return;
 		}
 	}

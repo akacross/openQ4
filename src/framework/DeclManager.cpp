@@ -1,3 +1,4 @@
+#include "DeclReferenceObserver.h"
 /*
 ===========================================================================
 
@@ -230,9 +231,14 @@ static bool DeclManager_IsopenQ4OverrideDeclFile( const idDeclFile *sourceFile )
 		return false;
 	}
 
+	// openQ4 re-declares a game's decls from *_openq4 files named to load
+	// first ("00_" prefixes); the game's later copy is expected, not a clash
 	idStr fileName = sourceFile->fileName;
 	fileName.BackSlashesToSlashes();
-	return fileName.Icmpn( "def/", 4 ) == 0 && fileName.Find( "_openq4.def", false ) >= 0;
+	if ( fileName.Icmpn( "def/", 4 ) == 0 && fileName.Find( "_openq4.def", false ) >= 0 ) {
+		return true;
+	}
+	return fileName.Icmpn( "materials/", 10 ) == 0 && fileName.Find( "_openq4.mtr", false ) >= 0;
 }
 
 static bool DeclManager_DeclNameHasPrefix( const idStr &name, const char *prefix ) {
@@ -2505,6 +2511,7 @@ const idDecl *idDeclManagerLocal::FindType( declType_t type, const char *name, b
 		material->AddLevelLoadReference();
 	}
 
+	idDeclReferenceObserver::Notify( decl->self );
 	return decl->self;
 }
 
@@ -2574,6 +2581,7 @@ const idDecl *idDeclManagerLocal::DeclByIndex( declType_t type, int index, bool 
 		decl->ParseLocal();
 	}
 
+	if ( forceParse ) idDeclReferenceObserver::Notify( decl->self );
 	return decl->self;
 }
 
@@ -4023,7 +4031,7 @@ void idDeclLocal::ParseLocal( bool noCaching ) {
 	// as _ttfatlasx_; retained output-size pages use _ttfatlasr_. All exist
 	// only after runtime rasterization.
 	const bool generatedRetainedResource = type == DECL_MATERIAL && generatedDefaultText && IsImplicit() &&
-		( name.Icmp("_retainedsolid") == 0 || name.Icmp("_retainedmultiply") == 0 || name.Icmpn("_retained/_ttfatlas_",20) == 0 || name.Icmpn("_retained/_ttfatlasx_",21) == 0 || name.Icmpn("_retained/_ttfatlasr_",21) == 0 || name.Icmpn("_retainedLayer/",15) == 0 || name.Icmpn("_retainedMask/",14) == 0 || name.Icmpn("_retainedBlur/",14) == 0 || name.Icmpn("_retainedAtlas/",15) == 0 );
+		( name.Icmp("_retainedsolid") == 0 || name.Icmp("_retainedmultiply") == 0 || name.Icmp("_retainedPauseScene") == 0 || name.Icmpn("_retained/_ttfatlas_",20) == 0 || name.Icmpn("_retained/_ttfatlasx_",21) == 0 || name.Icmpn("_retained/_ttfatlasr_",21) == 0 || name.Icmpn("_retainedLayer/",15) == 0 || name.Icmpn("_retainedMask/",14) == 0 || name.Icmpn("_retainedLinearMask/",20) == 0 || name.Icmpn("_retainedBlur/",14) == 0 || name.Icmpn("_retainedAtlas/",15) == 0 || name.Icmpn("_retainedMultiplyAtlas/",23) == 0 );
 	if ( common->IsInitialized() && !declManagerLocal.GetInsideLoad() && !openQ4_IsAnyToolActive() && !generatedRetainedResource ) {
 		common->Warning( "Loading non pre-cached %s decl %s", declManagerLocal.GetDeclNameFromType( type ), name.c_str() );
 	}

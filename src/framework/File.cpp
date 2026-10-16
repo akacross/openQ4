@@ -1451,6 +1451,7 @@ idFile_InZip::idFile_InZip( void ) {
 	zipFilePos = 0;
 	fileSize = 0;
 	containerChecksum = 0;
+	contentCrc = 0;
 	memset( &z, 0, sizeof( z ) );
 }
 
@@ -1555,6 +1556,18 @@ idFile_InZip::Timestamp
 */
 ID_TIME_T idFile_InZip::Timestamp( void ) {
 	return 0;
+}
+
+/*
+================
+idFile_InZip::ContentStamp
+
+Matches the length-only ReadFile probe, which answers from the same
+central-directory entry without opening the member.
+================
+*/
+ID_TIME_T idFile_InZip::ContentStamp( void ) {
+	return FS_PakMemberContentStamp( contentCrc, fileSize );
 }
 
 /*

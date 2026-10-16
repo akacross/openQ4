@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <string>
 #include <vector>
 #undef INFINITY
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "line %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
@@ -22,6 +23,7 @@ struct idMath {
     static float Fabs(float x) { return std::fabs(x); }
     static float Sqrt(float x) { return std::sqrt(x); }
     static float Ceil(float x) { return std::ceil(x); }
+    static constexpr float FLOAT_EPSILON=1.192092896e-07f;
 };
 struct idVec3 {
     float x=0,y=0,z=0;
@@ -30,6 +32,7 @@ struct idVec3 {
     void Set(float a,float b,float c) { x=a; y=b; z=c; }
     idVec3 operator+(const idVec3& b) const { return {x+b.x,y+b.y,z+b.z}; }
     idVec3 operator-(const idVec3& b) const { return {x-b.x,y-b.y,z-b.z}; }
+    idVec3 operator-() const { return {-x,-y,-z}; }
     idVec3 operator*(float f) const { return {x*f,y*f,z*f}; }
     idVec3 operator/(float f) const { return *this*(1/f); }
     idVec3& operator+=(const idVec3& b) { *this=*this+b; return *this; }
@@ -189,17 +192,14 @@ public:
     int TransportAt(const idBounds&) const { return transported ? 1 : -1; }
     bool LineEntersTransport(const idVec3&,const idVec3&) const { return transported; }
     bool IsLethalFloor(const idVec3&) const { return lethal; }
-    bool WalkableLine(const idVec3& a,const idVec3& b) const {
-        // A landing must stay on the same platform all the way back to its
-        // sampled endpoint, not merely share its height across another gap.
-        for (int i=0;i<=32;i++) {
-            idVec3 floor;
-            const idVec3 point=a+(b-a)*(float(i)/32);
-            if (!SampleFloor(point+idVec3(0,0,1),17,floor) || std::fabs(floor.z-point.z)>16) return false;
-        }
-        return true;
-    }
+    // The production string-pull proof, on this world's hull sweeps.
+    bool WalkableLine(const idVec3& from,const idVec3& to,const char** failure=nullptr) const;
+    struct { int Num() const { return 0; } } hazards;
+    int HazardAtFloor(const idVec3&) const { return -1; }
+    float cellSize=24;
 };
+// Diagnostics for a refused sweep name entities; this world has none.
+static const char* NavWalkBlockedReason(const trace_t&,const trace_t&) { return "blocked"; }
 // PRODUCTION_FUNCTIONS
 
 void Platform(float xmin,float xmax,float z) {
@@ -451,6 +451,54 @@ int main() {
     CHECK(nav.LandingSurvivable({0,0,0},padEnd,40)); gameLocal.waterTop=-1e30f;
     target.physics.origin.z=200;
     CHECK(nav.LandingSurvivable({0,0,0},padEnd,40));
+    // q4ctf1: a string-pulled walk from the low floor to a node just past
+    // the lip of a 64-unit platform.  The raised straight sweep climbs with
+    // the line and clears the riser's top, and every interior sample stays
+    // within the drop tolerance of the ground under it - but the floor
+    // samples jump a whole riser between two of them, which no walk does.
+    solids.clear(); Platform(-256,0,0); Platform(0,256,64);
+    const char* why="walkable";
+    CHECK(!nav.WalkableLine({-110,0,0},{16,0,64},&why));
+    CHECK(std::string(why)=="rises more than a step between samples");
+    // The same climb as a stair of player-height steps is a walk: each
+    // sample catches at most a step more than the one before it.
+    solids.clear(); Platform(-256,-72,0); Platform(-72,-48,16); Platform(-48,-24,32); Platform(-24,0,48); Platform(0,256,64);
+    CHECK(nav.WalkableLine({-110,0,0},{16,0,64},&why));
+    // A corner on the lip itself, above the last floor the line crossed, is
+    // a climb onto its end.
+    solids.clear(); Platform(-256,0,0); Platform(0,256,48);
+    CHECK(!nav.WalkableLine({-92,0,0},{4,0,48},&why));
+    CHECK(std::string(why)=="rises more than a step onto its end");
+    // Level ground, a single step up and a step down stay walkable.
+    solids.clear(); Platform(-256,256,0);
+    CHECK(nav.WalkableLine({-100,0,0},{100,0,0}));
+    solids.clear(); Platform(-256,0,0); Platform(0,256,16);
+    CHECK(nav.WalkableLine({-100,0,0},{24,0,16}));
+    solids.clear(); Platform(-256,0,16); Platform(0,256,0);
+    CHECK(nav.WalkableLine({-40,0,16},{40,0,0}));
+    // A line along a platform's rim, four units past its edge as q4ctf1's
+    // platform and q4dz1's catwalk nodes stand, keeps the hull's far half
+    // over the drop: the ground a support box's width to either side of the
+    // line has to be there too.  Four units inside the edge it is.
+    solids.clear(); Platform(-256,0,0);
+    CHECK(nav.SampleFloor({4,0,1},20,rimFloor));
+    CHECK(!nav.WalkableLine({4,-100,0},{4,100,0},&why));
+    CHECK(std::string(why)=="hangs over an edge");
+    CHECK(nav.WalkableLine({-4,-100,0},{-4,100,0},&why));
+    CHECK(NavDropBeside({4,0,0},{8,0,0}));
+    CHECK(!NavDropBeside({-4,0,0},{8,0,0}));
+    // A rim node's hull hangs more than eight units past an edge.  A wall
+    // beside a node is not an edge, and neither is the next tread of a stair.
+    CHECK(NavRimNode({4,0,0}));
+    CHECK(NavRimNode({-4,0,0}));
+    CHECK(!NavRimNode({-12,0,0}));
+    solids.clear(); Platform(-256,256,0); solids.push_back({{16,-256,0},{40,256,100}});
+    CHECK(!NavRimNode({0,0,0}));
+    solids.clear(); Platform(-256,-24,0); Platform(-24,0,16); Platform(0,256,32);
+    CHECK(!NavRimNode({-12,0,16}));
+    CHECK(!NavRimNode({-36,0,0}));
+    CHECK(!NavDropBeside({-36,0,0},{16,0,0}));
+    CHECK(nav.WalkableLine({-44,-100,0},{-44,100,0},&why));
     std::puts("Player hulls and jump/drop trajectories: unsupported corners/rims rejected, broad landings/gaps retained: PASS");
     return 0;
 }

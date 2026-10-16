@@ -1,3 +1,4 @@
+#include "ParserSourceObserver.h"
 
 
 
@@ -1064,6 +1065,11 @@ idParser::Directive_include
 */
 int idParser::Directive_include( void ) {
 	idLexer *script;
+	const auto loadInclude = [&]( const char *path ) {
+		const int loaded = script->LoadFile( path, OSPath );
+		idParserSourceObserver::Notify( this, path, loaded ? script->buffer : NULL, loaded ? script->length : -1 );
+		return loaded;
+	};
 	idToken token;
 	idStr path;
 
@@ -1100,13 +1106,13 @@ int idParser::Directive_include( void ) {
 			path = tokenStr;
 		}
 
-		if ( !script->LoadFile( path, OSPath ) ) {
+		if ( !loadInclude( path ) ) {
 			// try absolute path
 			path = token;
-			if ( !script->LoadFile( path, OSPath ) ) {
+			if ( !loadInclude( path ) ) {
 				// try from the include path
 				path = includepath + token;
-				if ( !script->LoadFile( path, OSPath ) ) {
+				if ( !loadInclude( path ) ) {
 					delete script;
 					script = NULL;
 				}
@@ -1136,7 +1142,7 @@ int idParser::Directive_include( void ) {
 			return true;
 		}
 		script = new idLexer;
-		if ( !script->LoadFile( includepath + path, OSPath ) ) {
+		if ( !loadInclude( includepath + path ) ) {
 			delete script;
 			script = NULL;
 		}
@@ -3153,6 +3159,8 @@ int idParser::LoadFile( const char *filename, bool OSPath ) {
 		return false;
 	}
 	script = new idLexer( filename, 0, OSPath );
+	idParserSourceObserver::Notify( this, filename, script->IsLoaded() ? script->buffer : NULL,
+		script->IsLoaded() ? script->length : -1 );
 	if ( !script->IsLoaded() ) {
 		delete script;
 		return false;

@@ -85,7 +85,7 @@ struct RuntimeStatistics {
 	double vectorCompileMilliseconds = 0, vectorUploadMilliseconds = 0;
 	double presentationMilliseconds = 0, layoutMilliseconds = 0;
 	double sourceMilliseconds = 0, motionMilliseconds = 0, applyMilliseconds = 0, hostDrawMilliseconds = 0;
-	std::uint64_t layoutUpdates = 0;
+	std::uint64_t layoutUpdates = 0, interactionUpdates = 0;
 	std::uint64_t vectorElements = 0, vectorPathsCompiled = 0, vectorCacheHits = 0, vectorUploads = 0;
 	std::uint64_t vectorHitPathsCompiled = 0, vectorHitCacheHits = 0;
 	std::uint64_t geometryCompiles = 0, drawCalls = 0, submittedVertices = 0, submittedIndices = 0;
@@ -132,6 +132,12 @@ public:
 	// ReleaseMesh retires one. The defaults draw immediately and keep nothing.
 	virtual void DrawMesh(std::uint64_t mesh, std::uint64_t revision, const std::vector<Vertex>& vertices,
 		const std::vector<int>& indices, std::uintptr_t material) { Draw(vertices,indices,material); }
+	// Optional exact opacity of one solid mesh, after proving its coverage
+	// does not overlap. False must submit nothing; ordinary composition follows.
+	virtual bool DrawMeshOpacity(std::uint64_t mesh, std::uint64_t revision, float opacity) { return false; }
+	// Read-only admission check for a recorded direct-opacity draw. A false
+	// result rebuilds the frame before any output has been submitted.
+	virtual bool CanDrawMeshOpacity(std::uint64_t mesh, std::uint64_t revision) const { return false; }
 	virtual void ReleaseMesh(std::uint64_t mesh) {}
 	// Identifies the host's current submission frame, shared by ALL contexts.
 	// A target used in this frame cannot be resized until the token changes.
@@ -152,6 +158,17 @@ public:
 	// default to measuring; game hosts can enable timings only while profiling.
 	virtual bool CollectTimings() const { return true; }
 	virtual void CompositeLayer(std::uint32_t source, std::uint32_t destination, float opacity, const Bounds& clip) = 0;
+	// Composite a cached source through disjoint analytic mask cells directly.
+	// Mask alpha modulates all premultiplied source channels; the source target
+	// remains unchanged and the base surface is left bound.
+	virtual bool CanCompositeMaskedLayer() const { return false; }
+	virtual void CompositeMaskedLayer(std::uint32_t source, const std::vector<Vertex>& mask,
+		const std::vector<int>& indices, float opacity) {}
+	// Exact pixel-area coverage of a small convex linear-alpha mask. Source 0
+	// paints white coverage into the current target; a cached source is sampled
+	// once through the mask onto the base surface. The source stays immutable.
+	virtual bool CanDrawLinearMask() const { return false; }
+	virtual void DrawLinearMask(std::uint32_t source, const LinearMask& mask, const Bounds& clip, float opacity) {}
 	// Multiply destination RGBA by the mask alpha, including zero outside its
 	// paths. Source and destination are distinct; neither is the base surface.
 	virtual void MaskLayer(std::uint32_t mask, std::uint32_t destination, const Bounds& clip) = 0;
@@ -174,6 +191,11 @@ public:
 	// unsupported: the runtime leaves the layer transparent and counts it, and
 	// the document's scrim fallback stands in.
 	virtual bool SoftenBackdrop(std::uint32_t destination, float sigma, float saturation, const Bounds& region) { return false; }
+	// A settled, opaque full-view backdrop can finish directly on the base
+	// surface. The read-only query guarantees its resources are already ready;
+	// a false draw result must leave that surface unchanged.
+	virtual bool CanSoftenBackdropDirect(float sigma, float saturation, const Bounds& region) const { return false; }
+	virtual bool SoftenBackdropDirect(float sigma, float saturation, const Bounds& region) { return false; }
 	// The speed streak (backdrop-filter: streak()), The Awakening's speeder
 	// blur: draw the view into `destination`, opaque within `region`, each pixel
 	// averaging six samples toward the view's centre, 1 to 1.5 times its reach
@@ -236,8 +258,12 @@ public:
 	// The HUD bridge supplies presentation data to an explicit artwork catalog.
 	// This does not edit authored nodes or grant any input/command authority.
 	bool SetHudPresentation(const std::vector<HudPrimitive>& items, const Viewport&, std::string& error);
+	// A document its caller already loaded, shared rather than parsed again.
+	bool LoadDocument(const Document& document, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
 	bool SetState(const StateValues& changes, std::string& error, double monotonicSeconds);
 	StateValues GetState(bool includeHostSources = true) const;
+	// One state's value without copying the rest; false when it is undeclared.
+	bool GetStateValue(const std::string& id, StateValue& value) const;
 	std::optional<Value> PresentedValue(const std::string& node, const std::string& property) const;
 	// Public legacy names are explicitly mapped by the canonical document.
 	// Values are data, never CSS/markup. Failures leave outputs/state untouched.
@@ -381,6 +407,7 @@ private:
     std::shared_ptr<Canvas> canvas;
     bool Mutate(bool cleanup=false) noexcept;
     bool Layout(const Viewport&,double);
+    bool LoadCanonical(std::unique_ptr<Document> candidate, const std::string& sourcePath, std::vector<Diagnostic>& diagnostics);
     struct Impl;
 	std::unique_ptr<Impl> impl;
 };

@@ -7,6 +7,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <variant>
 #include "Vector.h"
@@ -153,7 +155,16 @@ struct NumberSpec {
 	double minimum = 0, maximum = 1;
 	bool exponent = true;
 	bool integer = false; // New proposals must represent an exact decimal integer.
+	// A text field (role "text"): the same editor, but its value is the
+	// draft's text itself, a non-empty single line within maxBytes, and it
+	// has no numeric bounds or syntax.
+	bool textField = false;
 	unsigned maxBytes = 1024;
+	// Text fields only. `allowEmpty` makes an empty text a value. A `masked`
+	// field (a password) presents one '*' per character, never hands its text
+	// to the clipboard or the native text services, and otherwise edits as any
+	// text field; its text is still its value, in document state and snapshots.
+	bool allowEmpty = false, masked = false;
 	// A positioned/clipped viewport owns direct absolute text and paint parts.
 	// Their transform is shared through the viewport; validation stays outside.
 	std::string viewport, text, selection, caret, composition, validation;
@@ -167,6 +178,20 @@ struct Control {
 	ControlRole role = ControlRole::Button;
 	std::optional<Expression> value;
 	std::variant<std::monostate, ToggleSpec, SliderSpec, ChoiceSpec, NumberSpec, ScrollSpec> widget;
+	// Buttons only: the detail this control names (DocumentModel::detail).
+	std::optional<double> detail;
+};
+// A document's detail card (section 7's hover card). While the pointer moved
+// last, the control it is over is the subject; otherwise the focused control
+// is. The runtime writes the subject's detail, or `none` without one, to the
+// numeric `state` and places `card` beside the subject: 6 dp from the
+// pointer, its trailing edge 28 dp past the pointer once the pointer is more
+// than 555 dp into the card's containing block; 6 dp under a focused control,
+// over it when the card would cross the view's edge; always 16 dp inside the
+// view. The card holds no controls and the runtime owns its left and top.
+struct DetailSpec {
+	std::string state, card;
+	double none = -1;
 };
 struct ControlReadback {
 	StateValue value;
@@ -177,6 +202,7 @@ struct ControlReadback {
 	// options. An absent count means every option.
 	std::vector<std::string> optionLabels;
 	std::optional<std::size_t> optionCount;
+	bool operator==(const ControlReadback&) const = default;
 };
 struct ModalSpec {
 	std::string initialFocus;
@@ -232,6 +258,7 @@ struct DocumentModel {
 	// Alias keys are ASCII case-folded public names; targets retain exact IDs.
 	std::map<std::string, PresentationAlias> aliases;
 	std::map<std::string, EventProgram> events; // Case-folded public event names.
+	std::optional<DetailSpec> detail;
 	// Reference height in dp of a view-height canvas. A stock-composition screen
 	// (title, pause, loading) lays its 4:3 canvas out at this height and scales
 	// with the view's height; zero keeps display-density layout.
@@ -239,7 +266,23 @@ struct DocumentModel {
 	// Optional minimum width: narrow views fit the center screen to the width
 	// and expose more vertical space instead of clipping the authored canvas.
 	double canvasMinWidth = 0;
+	// The root `extensions` object as compact JSON, so a tool reads its own
+	// vendor data from the loaded model instead of parsing the source again;
+	// empty when the document has none.
+	std::string extensions;
 	const Node* FindNode(const std::string& id) const;
+	// Index the tree's node IDs so FindNode answers without a search. Only a
+	// tree that no longer changes may be indexed (Document indexes the model
+	// it validated); a copy or move starts unindexed and FindNode searches.
+	void IndexNodes();
+	struct NodeIndex {
+		std::unordered_map<std::string_view, const Node*> nodes;
+		NodeIndex() = default;
+		NodeIndex(const NodeIndex&) {}
+		NodeIndex(NodeIndex&&) noexcept {}
+		NodeIndex& operator=(const NodeIndex&) { nodes.clear(); return *this; }
+		NodeIndex& operator=(NodeIndex&&) noexcept { nodes.clear(); return *this; }
+	} nodeIndex;
 	// Resolve a compiled descriptor against one supplied state snapshot.
 	// No side effects; failure preserves the caller's invocation unchanged.
 	bool ResolveAction(const std::string& id, const StateValues& variables,
@@ -255,28 +298,39 @@ struct Diagnostic {
 };
 bool ParseStateValues(const std::string& source, StateValues& values, std::vector<Diagnostic>& diagnostics);
 
+class State;
 // Canonical JSONC source is retained verbatim. DOM source offsets make edits
 // transactional and preserve comments/extension fields outside the edited span.
 // JsonCpp and its DOM do not cross this library boundary.
+// A load or an edit replaces the parsed document and never changes it, so a
+// copy shares it: a GUI and its view validate one document once.
 class Document {
 public:
 	Document();
 	~Document();
 	Document(Document&&) noexcept;
 	Document& operator=(Document&&) noexcept;
-	Document(const Document&) = delete;
-	Document& operator=(const Document&) = delete;
+	Document(const Document&) = default;
+	Document& operator=(const Document&) = default;
 	bool Load(const std::string& source, std::vector<Diagnostic>& diagnostics);
 	bool ReplaceValue(const std::string& jsonPointer, const std::string& jsonValue,
 		std::vector<Diagnostic>& diagnostics);
 	const std::string& Source() const;
 	const DocumentModel& Model() const;
+	// The model with its document's lifetime: a runtime part that keeps it
+	// references the loaded document instead of copying its declarations.
+	std::shared_ptr<const DocumentModel> SharedModel() const;
+	// The document's initial state as the load evaluated and validated it,
+	// shared by copies: a runtime starts from a copy of it instead of
+	// evaluating every binding again. Empty for a document never loaded.
+	const State& InitialState() const;
 	// Derived layout only. Text is inserted via Runtime's escaped/localized
 	// text API; neither translation strings nor extensions become markup.
 	std::string BuildMarkup() const;
 private:
 	struct Impl;
-	std::unique_ptr<Impl> impl;
+	std::shared_ptr<Impl> impl;
+	std::shared_ptr<const State> initialState;
 };
 
 } // namespace openq4::ui

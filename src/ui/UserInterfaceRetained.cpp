@@ -2,6 +2,10 @@
 #include "../idlib/precompiled.h"
 #include "../framework/NativeInputPublications.h"
 #include "UserInterfaceRetained.h"
+#include "RetainedHud.h"
+#include <span>
+#include "GuiStateNumber.h"
+#include "Rectangle.h"
 #ifndef ID_DEDICATED
 #include "RetainedUI.h"
 #include "SettingsService.h"
@@ -10,6 +14,7 @@
 #include "retained/TextEditCommand.h"
 #include "../sys/KeyEventMetadata.h"
 #include "application/SettingsTransaction.h"
+#include "../framework/ParallelJobSystem.h"
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -172,6 +177,7 @@ bool ApplicationState(const DocumentModel& model, const idDict& dictionary, Stat
 	const std::set<std::string>* fields = nullptr) {
 	const auto read = [&](const std::string& name, const StateDeclaration& declaration) {
 		if (!declaration.cvar.empty() || name.starts_with("settings.") || NumberDraftState(name.c_str())) return true;
+		if (model.detail && name == model.detail->state) return true; // The runtime writes the detail subject.
 		StateValue value = declaration.initial;
 		// A key state's glyph, and the key state as its label.
 		if (name.ends_with(".glyph") && declaration.initial.index() == 0) {
@@ -209,24 +215,43 @@ bool SessionMenuCommand(const std::string& command) {
 		"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
         "campaigns","campaignQuake4","campaignAwakening","campaignArena","campaignBack","campaignHome",
         "campaignSkill0","campaignSkill1","campaignSkill2","campaignSkill3","campaignSkill4",
-        "campaignSkillTurbo","campaignSkillStart","campaignSkillBack",
+        "campaignSkillTurbo","campaignSkillStart","campaignSkillBack","campaignChapterSelect","campaignChapterStart",
+        "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
+        "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
+        "demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",
+        "demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
+        "arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1",
+        "arenaMatch2","arenaMatch3","arenaTierPrevious","arenaTierNext","arenaEasier","arenaHarder","arenaStart",
+        "arenaReset","arenaResetConfirm","arenaResetCancel","arenaRetry","arenaDismiss",
+        "multiplayerJoin","multiplayerCreate","multiplayerSetup","multiplayerBack",
+        "createBack","createMap","createStart","createName","createMapCycle","createPassword","createRconPassword",
+        "createMapsNewer","createMapsOlder","createBanList","createBanPick","createBanRemove",
+        "joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet",
+        "joinSourceLan","joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers",
+        "joinSortGameType","joinSortMap","joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
+        "joinConnect","joinSearch","joinSearchClear","joinSortNext",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
-        "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect","mpSummaryChat"};
+        "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect","mpSummaryChat",
+        "arenaRestart","arenaLeave"};
 	return commands.contains(command);
 }
 
 // Session verbs a value control may request with its new value: the
 // multiplayer card's Vote page fields, its Settings pages' model lists and
 // crosshair, and its Match page's role, ballot target, rule value and series
-// format. The
-// session maps each verb to its field and the game checks the value against
-// the field's rules.
+// format, and the Create Server page's settings. The
+// session maps each verb to its field and the game, or for Create Server the
+// session, checks the value against the field's rules.
 bool SessionMenuValueCommand(const std::string& command) {
 	static const std::set<std::string> commands = {"mpVoteMap","mpVoteGameType","mpVoteTimeLimit","mpVoteFragLimit",
 		"mpVoteCaptureLimit","mpVoteTourneyLimit","mpVoteControlTime","mpVoteBalance","mpVoteShuffle","mpVoteRestart",
 		"mpVoteBuying","mpVoteKick","mpModelSelf","mpModelEnemy","mpModelTeam","mpCrosshair","mpMatchRole","mpMatchScope","mpMatchRuleValue",
-		"mpMatchSeriesProfile"};
+		"mpMatchSeriesProfile",
+		"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
+		"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
+		"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
+		"createBuying","createBots","createBotSkill"};
 	return commands.contains(command);
 }
 
@@ -281,6 +306,19 @@ std::optional<int> SessionMenuValue(const std::string& command, const StateValue
 bool ValidOperation(const Action& action) {
 	if (action.operation.starts_with("settings.system.")) { std::string error; return UI_SettingsOperation(action,error); }
 	if (action.operation == "ui.dismiss" || action.operation == "ui.numberDrafts.focus") return action.arguments.empty();
+	if (action.operation == "ui.state.set") {
+		// A field writes its own document state: a literal key, which
+		// ValidateApplication checks against the document, the control's own
+		// value and, optionally, a literal event to run once it is written.
+		const auto key = action.arguments.find("key"), value = action.arguments.find("value"), event = action.arguments.find("event");
+		const auto literal = [](const Expression& expression) {
+			return expression.type == 2 && expression.op.empty() && expression.state.empty() && expression.presentation.empty() &&
+				!expression.inputValue;
+		};
+		if (key == action.arguments.end() || value == action.arguments.end() || !value->second.inputValue ||
+			action.arguments.size() != (event == action.arguments.end() ? 2u : 3u)) return false;
+		return literal(key->second) && (event == action.arguments.end() || literal(event->second));
+	}
 	if (action.operation == "session.menu") {
 		const auto command = action.arguments.find("command");
 		if (action.arguments.size() != 1 || command == action.arguments.end() || command->second.type != 2) return false;
@@ -317,6 +355,14 @@ bool ValidOperation(const Action& action) {
 bool ValidInvocation(const ActionInvocation& invocation, std::string& error) {
 	if (invocation.operation.starts_with("settings.system.")) return UI_SettingsInvocation(invocation,error);
 	if ((invocation.operation == "ui.dismiss" || invocation.operation == "ui.numberDrafts.focus") && invocation.arguments.empty()) return true;
+	if (invocation.operation == "ui.state.set") {
+		const auto key = invocation.arguments.find("key"), value = invocation.arguments.find("value"), event = invocation.arguments.find("event");
+		if (key != invocation.arguments.end() && value != invocation.arguments.end() &&
+			invocation.arguments.size() == (event == invocation.arguments.end() ? 2u : 3u) &&
+			std::holds_alternative<std::string>(key->second) && ValidStateValue(value->second) &&
+			(event == invocation.arguments.end() || std::holds_alternative<std::string>(event->second))) return true;
+		error = "Unsupported field state write: "+invocation.action; return false;
+	}
 	if (invocation.operation == "session.menu") {
 		const auto command = invocation.arguments.find("command");
 		if (invocation.arguments.size() == 1 && command != invocation.arguments.end() &&
@@ -395,6 +441,18 @@ bool ValidateApplication(const DocumentModel& model, std::string& error) {
 	}
 	for (const auto& [name,action] : model.actions) {
 		if (!ValidOperation(action)) { error = "Unsupported application operation or arguments: " + name; return false; }
+		if (action.operation == "ui.state.set") {
+			// The document's own declared state of the field's type, never
+			// engine-owned or CVar-bound state, and an event it declares.
+			const auto& key = std::get<std::string>(action.arguments.at("key").literal);
+			const auto declaration = model.state.find(key);
+			const auto event = action.arguments.find("event");
+			if (declaration == model.state.end() || !declaration->second.cvar.empty() || !idStr::Icmpn(key.c_str(),"settings.",9) ||
+				NumberDraftState(key.c_str()) || !action.inputType || *action.inputType != declaration->second.initial.index() ||
+				(event != action.arguments.end() && !model.events.contains(PresentationAliasKey(std::get<std::string>(event->second.literal))))) {
+				error = "A field state write needs the document's own state of the field's type, and its event: " + name; return false;
+			}
+		}
 	}
 	std::vector<const Node*> pending{&model.root};
 	while (!pending.empty()) {
@@ -452,6 +510,18 @@ struct CursorTransform {
 		}
 	}
 };
+
+// A Unicode scalar value as UTF-8; empty for a surrogate or past U+10FFFF.
+std::string Utf8Scalar(int scalar) {
+	std::string out;
+	if (scalar < 0 || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) return out;
+	const auto byte = [&](int value) { out += static_cast<char>(value); };
+	if (scalar < 0x80) byte(scalar);
+	else if (scalar < 0x800) { byte(0xc0 | scalar >> 6); byte(0x80 | (scalar & 0x3f)); }
+	else if (scalar < 0x10000) { byte(0xe0 | scalar >> 12); byte(0x80 | (scalar >> 6 & 0x3f)); byte(0x80 | (scalar & 0x3f)); }
+	else { byte(0xf0 | scalar >> 18); byte(0x80 | (scalar >> 12 & 0x3f)); byte(0x80 | (scalar >> 6 & 0x3f)); byte(0x80 | (scalar & 0x3f)); }
+	return out;
+}
 
 bool ReadString(idFile& file, std::string& value, int limit, int& budget) {
 	int length = 0;
@@ -714,6 +784,29 @@ struct idUserInterfaceRetained::Impl {
 			else RuntimeView()->MenuAction(event.menu,event.down,RetainedUI_PresentationTime());
 		}
 	}
+	// Prompts follow the active device (section 13.5): a document that declares
+	// prompt.glyphs gets RetainedUI_PromptGlyphs in the frame it changes, the
+	// keyboard's keycaps or a controller family's face buttons.
+	void PublishPromptGlyphs() {
+		static const char* const name = "prompt.glyphs";
+		static const char* const swapped = "prompt.swapped";
+		StateValues changed;
+		if (document.Model().state.contains(name)) {
+			const int glyphs = RetainedUI_PromptGlyphs();
+			if (!state.FindKey(name) || state.GetInt(name) != glyphs) {
+				state.SetInt(name,glyphs); changed.emplace(name,static_cast<double>(glyphs));
+			}
+		}
+		// Whether east confirms: an Accept prompt shows the east button then.
+		if (document.Model().state.contains(swapped)) {
+			const bool swap = RetainedUI_PromptSwapped();
+			if (!state.FindKey(swapped) || state.GetBool(swapped) != swap) {
+				state.SetBool(swapped,swap); changed.emplace(swapped,swap);
+			}
+		}
+		std::string error;
+		if (!changed.empty() && !RuntimeView()->SetState(changed,error,RetainedUI_PresentationTime())) Error(error);
+	}
 	// Preserve undeclared and unrelated pending dictionary keys. Publish only
 	// the programs' explicit application writes, using round-trip numbers.
 	void PublishWrites(const StateValues& writes) {
@@ -792,13 +885,48 @@ struct idUserInterfaceRetained::Impl {
 		suspended = pause;
 		return !pause;
 	}
+	// A focused field that takes typed text: a number or text field.
+	std::optional<std::string> FocusedField() const {
+		auto* runtime = RuntimeView();
+		if (!runtime) return {};
+		auto id = runtime->FocusedControl();
+		const auto widget = runtime->GetWidgetState(id);
+		if (!widget || widget->role != ControlRole::Number) return {};
+		return id;
+	}
+	// A committed character from the platform's text input (SE_CHAR, queued
+	// in order with the keys around it) types into the focused field, opening
+	// an edit if none is open, as typing into a stock edit field does. Its
+	// keys keep control characters, and a space accepts a field that is not
+	// being edited rather than replacing the text that edit then selects.
+	void TypeCharacter(int character) {
+		if (character < 0x20 || (character >= 0x7f && character < 0xa0)) return;
+		const auto text = Utf8Scalar(character);
+		const auto id = FocusedField();
+		if (text.empty() || !id) return;
+		auto* runtime = RuntimeView(); const double now = RetainedUI_PresentationTime();
+		std::string error;
+		auto widget = runtime->GetWidgetState(*id);
+		if (!widget->number || !widget->number->active) {
+			if (character == ' ' || !runtime->BeginNumberEdit(*id,error,now)) return;
+			widget = runtime->GetWidgetState(*id);
+			if (!widget || !widget->number || !widget->number->active) return;
+		}
+		TextInputEvent input;
+		if (MakeTextInputCommit(text,input,error) && runtime->ApplyNumberInput(*id,widget->number->identity,input,error,now)) pointerVisible = false;
+		else if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_TEXT control=%s refused=%s\n",id->c_str(),error.c_str());
+	}
 	// Q and E, and the shoulder buttons, page a document's tabs where it
 	// declares onTabPrevious and onTabNext; the triggers page the lists within
-	// a page where it declares onSectionPrevious and onSectionNext. A field
-	// being edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
+	// a page where it declares onSectionPrevious and onSectionNext; the west
+	// face button runs its secondary action (reset, remove, refresh) where it
+	// declares onSecondary, and north its tertiary one (details, search, sort,
+	// filters) where it declares onTertiary (section 13.5). A field being
+	// edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
 	bool TabKey(int key, const openq4::KeyEventMetadata* metadata) {
 		const char* name = key == 'q' || key == K_JOY1 ? "onTabPrevious" : key == 'e' || key == K_JOY2 ? "onTabNext" :
-			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" : nullptr;
+			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" :
+			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : nullptr;
 		if (!name || !RuntimeView()->HasEvent(name)) return false;
 		const bool control = metadata ? metadata->control : held.contains(K_CTRL) || idKeyInput::IsDown(K_CTRL);
 		const bool alt = metadata ? metadata->alt : held.contains(K_ALT) || held.contains(K_RIGHT_ALT) || idKeyInput::IsDown(K_ALT) || idKeyInput::IsDown(K_RIGHT_ALT);
@@ -835,7 +963,9 @@ struct idUserInterfaceRetained::Impl {
 			case 'c': if (control && !shift) clipboard = uiClipboardOperation_t::Copy; mapped = control; break;
 			case 'x': if (control && !shift) clipboard = uiClipboardOperation_t::Cut; mapped = control; break;
 			case 'v': if (control && !shift) clipboard = uiClipboardOperation_t::Paste; mapped = control; break;
-			case K_ENTER: case K_KP_ENTER: case K_JOY3: commit = true; break;
+			case K_ENTER: case K_KP_ENTER: commit = true; break;
+			// The confirm button commits, south or east (section 13.5).
+			case K_JOY3: case K_JOY4: commit = idKeyInput::MenuControllerKey(key) == K_JOY3; mapped = commit; break;
 			// Space belongs to native text delivery while a field is editing.
 			// It must not also activate the field as an ordinary menu button.
 			case K_SPACE: break;
@@ -904,6 +1034,9 @@ void idUserInterfaceRetained::SetUniqued(bool value) { impl->unique = value; }
 size_t idUserInterfaceRetained::Size() { return sizeof(*this)+sizeof(Impl)+impl->state.Allocated()+impl->document.Source().size(); }
 int idUserInterfaceRetained::NumTransitions() { return static_cast<int>(impl->document.Model().timelines.size()); }
 
+// The parse UI_RetainedPrefetchDocuments made of this source, if it made one.
+bool UI_RetainedTakePrefetched(const std::string& path, const std::string& source, Document& document);
+
 bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool cache) {
 	if (!UI_IsRetainedPath(qpath)) return false;
 	const std::string path(qpath);
@@ -917,7 +1050,7 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	const std::string source(static_cast<const char*>(data),static_cast<size_t>(size));
 	fileSystem->FreeFile(data);
 	Document candidate; std::vector<Diagnostic> diagnostics; std::string error;
-	if (!candidate.Load(source,diagnostics)) {
+	if (!UI_RetainedTakePrefetched(path,source,candidate) && !candidate.Load(source,diagnostics)) {
 		for (const auto& diagnostic : diagnostics) common->Warning("retained GUI %s:%u:%u %s: %s",path.c_str(),
 			static_cast<unsigned>(diagnostic.line),static_cast<unsigned>(diagnostic.column),diagnostic.pointer.c_str(),diagnostic.message.c_str());
 		return false;
@@ -932,7 +1065,8 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	if (!impl->textBackend || !textDocument) { impl->Error("GUI text lifetime exhausted"); return false; }
 	auto* view = RetainedUI_CreateView(Impl::ResourceEvent,impl.get());
 	if (!view) return false;
-	bool valid = RetainedUI_LoadView(view,source,path,diagnostics);
+	// The view shares the document validated above instead of parsing it again.
+	bool valid = RetainedUI_LoadParsedView(view,candidate,path,diagnostics);
 	if (valid) valid = snapshot.empty() ? RetainedUI_ViewRuntime(view)->SetState(application,error,RetainedUI_PresentationTime()) :
 		RetainedUI_ViewRuntime(view)->RestoreSnapshot(snapshot,error,RetainedUI_PresentationTime());
 	if (!valid) {
@@ -965,12 +1099,43 @@ bool idUserInterfaceRetained::InitFromFile(const char* qpath, bool rebuild, bool
 	return true;
 }
 
+// A map change's reload of an unchanged source keeps the view: a new one
+// would restore the same snapshot, after the startup's document work again.
+// The load needs the pictures the document names, whose materials its purge
+// defaulted, to resolve again inside it, as a reload's would. And as a new
+// view starts, input, programs and session requests from before it are
+// dropped. Bound pictures resolve when their publishers precache them.
+bool idUserInterfaceRetained::KeepForLevelLoad() {
+	if (!impl->view || !impl->Prepare()) return false;
+	void* data = nullptr;
+	const int size = fileSystem->ReadFile(impl->path.c_str(),&data);
+	const auto& source = impl->document.Source();
+	const bool same = size >= 0 && data && static_cast<size_t>(size) == source.size() &&
+		std::memcmp(data,source.data(),source.size()) == 0;
+	if (data) fileSystem->FreeFile(data);
+	const auto textDocument = same ? UI_NextTextLifetime() : 0;
+	if (!textDocument) return false;
+	impl->Quarantine(false,true,true);
+	impl->textDocument = textDocument;
+	if (impl->settingsClosePending) UI_SettingsCloseOwner(impl->settingsOwner);
+	impl->settingsClosePending = false;
+	impl->lastError.clear();
+	PrecacheImages(impl->document.Model().root);
+	common->Printf("RETAINED_GUI_KEPT %s\n",impl->path.c_str());
+	return true;
+}
+
 const idDict& idUserInterfaceRetained::State() const { return impl->state; }
 void idUserInterfaceRetained::DeleteStateVar(const char* name) { if (impl->CallerState(name)) { impl->state.Delete(name); impl->DirtyApplication(name); } }
 void idUserInterfaceRetained::SetStateString(const char* name, const char* value) { if (impl->CallerState(name)) impl->SetDictionary(name,value); }
 void idUserInterfaceRetained::SetStateBool(const char* name, bool value) { SetStateString(name,value ? "1" : "0"); }
-void idUserInterfaceRetained::SetStateInt(const char* name, int value) { SetStateString(name,va("%i",value)); }
-void idUserInterfaceRetained::SetStateFloat(const char* name, float value) { SetStateString(name,va("%f",value)); }
+void idUserInterfaceRetained::SetStateInt(const char* name, int value) {
+	char text[64]; SetStateString(name,GuiStateInteger(value,text));
+}
+void idUserInterfaceRetained::SetStateFloat(const char* name, float value) {
+	char text[64]; const char* integral=GuiStateIntegralFloat(value,text);
+	SetStateString(name,integral ? integral : va("%f",value));
+}
 void idUserInterfaceRetained::SetStateVec4(const char* name, const idVec4& value) { SetStateString(name,value.ToString()); }
 const char* idUserInterfaceRetained::GetStateString(const char* name, const char* fallback) const { return impl->state.GetString(name,fallback); }
 bool idUserInterfaceRetained::GetStateBool(const char* name, const char* fallback) const { return impl->state.GetBool(name,fallback); }
@@ -1028,7 +1193,20 @@ bool idUserInterfaceRetained::SetPresentationValue(const char* name, const char*
 	if (!impl->RuntimeView()->SetPresentationAlias(name,value,overrideExpression,error)) { impl->Error(error); return false; }
 	impl->lastError.clear(); return true;
 }
-bool idUserInterfaceRetained::GetTextInputState(idRectangle&, float&) const { return false; }
+// A focused number or text field takes the platform's text input, editing or
+// not, since typing opens it. The candidate area is the field's box in
+// virtual 640x480 units, as a stock edit field reports its own.
+bool idUserInterfaceRetained::GetTextInputState(idRectangle& area, float& cursorOffset) const {
+	if (!impl->view || !impl->active || !impl->interactive || impl->suspended) return false;
+	const auto id = impl->FocusedField();
+	Viewport viewport; Bounds bounds;
+	if (!id || !RetainedUI_DefaultViewport(viewport) || !impl->RuntimeView()->GetBounds(*id,bounds)) return false;
+	const CursorTransform transform(viewport);
+	if (transform.sx <= 0 || transform.sy <= 0 || bounds.width <= 0 || bounds.height <= 0) return false;
+	area = idRectangle((bounds.x-transform.ox)/transform.sx,(bounds.y-transform.oy)/transform.sy,bounds.width/transform.sx,bounds.height/transform.sy);
+	cursorOffset = 0;
+	return true;
+}
 
 TextBrokerContext idUserInterfaceRetained::QueryTextContext(std::uint64_t allocation,
 	std::uint64_t window, std::uint64_t session) {
@@ -1075,7 +1253,8 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 		if (event->evType == SE_KEY && !event->evValue2) impl->input.ReleaseQuarantined(event->evValue);
 		// Failure must never strand the session behind an unavailable menu.
 		if (impl->active && event->evType == SE_KEY && event->evValue2 &&
-			(event->evValue == K_ESCAPE || event->evValue == K_JOY4 || event->evValue == K_JOY7 || event->evValue == K_JOY8)) {
+			(event->evValue == K_ESCAPE || idKeyInput::MenuControllerKey(event->evValue) == K_JOY4 || event->evValue == K_JOY7 ||
+			event->evValue == K_JOY8)) {
 			openq4::NativeInputBeforeUiChange(0,impl->textBackend);
 			impl->close = true;
 		}
@@ -1108,7 +1287,10 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 			}
 		} else {
 			MenuInput action; bool mapped = true;
-			switch (key) {
+			// Confirm and Back may trade the south and east buttons (section
+			// 13.5); the physical key stays the source, so a release matches
+			// its press.
+			switch (idKeyInput::MenuControllerKey(key)) {
 				case K_TAB: action = (hasMetadata ? metadata.shift : impl->held.contains(K_SHIFT) || idKeyInput::IsDown(K_SHIFT)) ? MenuInput::Previous : MenuInput::Next; break;
 				case K_UPARROW: case K_JOY9: action = MenuInput::Up; break;
 				case K_DOWNARROW: case K_JOY10: action = MenuInput::Down; break;
@@ -1125,6 +1307,8 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 			if (mapped) { impl->pointerVisible = false; impl->input.Menu(key,action,down,repeated,RetainedUI_PresentationTime()); }
 			else if (down && !repeated) impl->TabKey(key,hasMetadata ? &metadata : nullptr);
 		}
+	} else if (event->evType == SE_CHAR) {
+		impl->TypeCharacter(event->evValue);
 	}
 	impl->input.Advance(RetainedUI_PresentationTime()); impl->ApplyInput(); impl->CollectActions();
 	if (updateVisuals) *updateVisuals = true;
@@ -1167,10 +1351,17 @@ void idUserInterfaceRetained::Redraw(int time, bool useAspectCorrection) {
 		if (!impl->RuntimeView()->HasEvent("onInit") || impl->RunEvent("onInit")) impl->initialized = true;
 	}
 	impl->AcceptInput();
+	impl->PublishPromptGlyphs();
 	const bool drawn = RetainedUI_DrawViewRoot(impl->view,viewport);
 	impl->drawSucceeded = drawn;
 	// Timeline completion programs run inside the frame; publish their writes.
 	if (auto* runtime = impl->RuntimeView()) impl->PublishWrites(runtime->TakeCompletionWrites());
+	// The detail subject the frame settled on, for the session to describe.
+	if (auto* runtime = impl->RuntimeView(); runtime && impl->document.Model().detail) {
+		StateValue subject;
+		if (runtime->GetStateValue(impl->document.Model().detail->state,subject))
+			impl->PublishWrites({{impl->document.Model().detail->state,subject}});
+	}
 	// The frame read the bound state back; settle the number fields it answers.
 	impl->SettleSessionNumbers();
 	if (drawn && impl->active && impl->interactive) {
@@ -1289,6 +1480,26 @@ bool idUserInterfaceRetained::DispatchApplicationActions(const char* command, bo
 			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
 			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_SETTING path=%s cvar=%s value=%s accepted=%d\n",
 				Name(),cvar.c_str(),cvarSystem->GetCVarString(cvar.c_str()),accepted ? 1 : 0);
+			continue;
+		}
+		if (invocation.operation == "ui.state.set") {
+			// A field's committed value into its document's own state, checked
+			// at load. The runtime reads it back at once, so the field accepts
+			// it before anything later in the batch can change that state; then
+			// the event the action names, if any, runs.
+			const auto& key = std::get<std::string>(invocation.arguments.at("key"));
+			const auto& value = invocation.arguments.at("value");
+			const auto declaration = impl->document.Model().state.find(key);
+			std::string error;
+			const bool accepted = declaration != impl->document.Model().state.end() && declaration->second.initial.index() == value.index() &&
+				impl->RuntimeView()->SetState({{key,value}},error,RetainedUI_PresentationTime());
+			if (accepted) impl->PublishWrites({{key,value}});
+			else impl->Error(error.empty() ? "Field state write was not applied: "+key : error);
+			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
+			const auto event = invocation.arguments.find("event");
+			if (accepted && event != invocation.arguments.end()) impl->RunEvent(std::get<std::string>(event->second));
+			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_STATE path=%s key=%s accepted=%d\n",
+				Name(),key.c_str(),accepted ? 1 : 0);
 			continue;
 		}
 		if (invocation.operation == "session.menuValue") {
@@ -1677,7 +1888,7 @@ bool UI_RetainedDiagnostic(idUserInterface* gui, const idCmdArgs& args) {
 		else if (operation == "notice" && args.Argc() == 5) {
 			const std::map<std::string,NumberEditNotice> notices = {{"none",NumberEditNotice::None},
 				{"read",NumberEditNotice::ClipboardReadFailed},{"write",NumberEditNotice::ClipboardWriteFailed},
-				{"rejected",NumberEditNotice::ClipboardRejected}};
+				{"rejected",NumberEditNotice::ClipboardRejected},{"masked",NumberEditNotice::ClipboardMasked}};
 			const auto notice = notices.find(args.Argv(4));
 			if (notice != notices.end()) okay = runtime->SetNumberNotice(id,identity,notice->second,error,now);
 		}
@@ -1772,7 +1983,145 @@ bool UI_RetainedViewFailed(idUserInterface* gui) {
 	return found == diagnosticViews.end() || RetainedUI_ViewFailed((*found)->impl->view);
 }
 
+const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface* gui) {
+	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
+	return found == diagnosticViews.end() || (*found)->impl->document.Source().empty() ? nullptr : &(*found)->impl->document.Model();
+}
+
+int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names) {
+	names.clear();
+	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
+	if (found == diagnosticViews.end() || prefix == nullptr) return 0;
+	const std::string start(prefix);
+	for (const auto& [name,declaration] : (*found)->impl->document.Model().state)
+		if (name.compare(0,start.size(),start) == 0) names.push_back(name);
+	return static_cast<int>(names.size());
+}
+
+namespace {
+// A document a load will ask for, parsed on a worker meanwhile. The job reads
+// only its entry, and the entry's job is its last member, so destroying an
+// entry first cancels or waits for the parse.
+struct PrefetchedDocument {
+	std::string path, source;
+	Document document;
+	std::vector<Diagnostic> diagnostics;
+	bool loaded = false;
+	std::unique_ptr<idJobList> job;
+};
+std::vector<std::unique_ptr<PrefetchedDocument>> prefetchedDocuments;
+void ParsePrefetchedDocument(const idJobContext& context) {
+	auto& entry = *static_cast<PrefetchedDocument*>(context.data);
+	if (!context.IsCancellationRequested()) entry.loaded = entry.document.Load(entry.source,entry.diagnostics);
+}
+}
+
+void UI_RetainedPrefetchDocuments( const char *const *paths, int count ) {
+	// Parsed inline, they would only move the wait.
+	if ( paths == NULL || !jobSystem.IsInitialized() || jobSystem.IsSynchronous() ) return;
+	for ( int i = 0; i < count; ++i ) {
+		const char *path = paths[i];
+		if ( path == NULL || !UI_IsRetainedPath( path ) ||
+				std::any_of( prefetchedDocuments.begin(), prefetchedDocuments.end(), [&]( const auto &entry ) { return entry->path == path; } ) ) {
+			continue;
+		}
+		// The file system stays on this thread; the worker gets the bytes.
+		void *data = nullptr;
+		const int size = fileSystem->ReadFile( path, &data );
+		if ( size <= 0 || data == nullptr || size > 16 * 1024 * 1024 ) {
+			if ( data != nullptr ) fileSystem->FreeFile( data );
+			continue;
+		}
+		auto entry = std::make_unique<PrefetchedDocument>();
+		entry->path = path;
+		entry->source.assign( static_cast<const char *>( data ), static_cast<size_t>( size ) );
+		fileSystem->FreeFile( data );
+		entry->job = jobSystem.CreateJobList( "retained-document-parse", 1 );
+		if ( !entry->job || !entry->job->AddJob( ParsePrefetchedDocument, entry.get() ) ) continue;
+		const idJobSubmitResult submitted = entry->job->Submit();
+		if ( submitted != idJobSubmitResult::ACCEPTED && submitted != idJobSubmitResult::EXECUTED_SYNCHRONOUSLY ) continue;
+		prefetchedDocuments.push_back( std::move( entry ) );
+	}
+}
+
+bool UI_RetainedTakePrefetched(const std::string& path, const std::string& source, Document& document) {
+	const auto found = std::find_if(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return entry->path == path; });
+	if (found == prefetchedDocuments.end()) return false;
+	const auto entry = std::move(*found);
+	prefetchedDocuments.erase(found);
+	// A parse that failed, or of a source that has changed since, is made again
+	// by the load, which reports its diagnostics.
+	if (!entry->job->Wait() || !entry->loaded || entry->source != source) return false;
+	document = std::move(entry->document);
+	return true;
+}
+
+void UI_RetainedPrefetchClear() {
+	prefetchedDocuments.clear();
+}
+
+namespace {
+// A parse no load took, dropped.
+void DropPrefetched(const char* path) {
+	const auto found = std::find_if(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return path != nullptr && entry->path == path; });
+	if (found != prefetchedDocuments.end()) prefetchedDocuments.erase(found);
+}
+bool AwakeningGame() {
+	for (const char* cvar : {"fs_game","fs_game_base"})
+		if (!idStr::Icmp(cvarSystem->GetCVarString(cvar),"q4xbase")) return true;
+	return false;
+}
+// The weapon wheels and quick chat the game names (WeaponWheel.inl,
+// QuickChat.inl), by family and campaign; the HUD documents come from the
+// Remastered routes of the stock HUD sources a spawn creates.
+constexpr const char* WheelDocuments[] = {"guis/hud/weapon_wheel_marine.q4ui","guis/hud/weapon_wheel_strogg.q4ui"};
+constexpr const char* AwakeningWheelDocuments[] = {"guis/hud/weapon_wheel_marine_awakening.q4ui","guis/hud/weapon_wheel_strogg_awakening.q4ui"};
+// Single player precaches the scoreboard but never draws it, so its document
+// is not expected there; multiplayer draws the Marine HUD under its own.
+constexpr const char* SinglePlayerHudSources[] = {"guis/hud.gui","guis/hud_strogg.gui","guis/wristcomm.gui","guis/wristcomm_strogg.gui","guis/vehicles/hud.gui"};
+constexpr const char* AwakeningHudSources[] = {"guis/q4xhud.gui","guis/q4xhud_strogg.gui","guis/wristcomm.gui","guis/wristcomm_strogg.gui","guis/vehicles/hud.gui"};
+constexpr const char* MultiplayerHudSources[] = {"guis/mphud.gui","guis/hud.gui","guis/scoreboard.gui"};
+constexpr const char* QuickChatDocument = "guis/hud/quick_chat.q4ui";
+constexpr const char* ViewEffectsDocument = "guis/hud/view_effects.q4ui";
+std::vector<const char*> GameplayDocuments(bool multiplayer) {
+	std::vector<const char*> documents;
+	const bool awakening = !multiplayer && AwakeningGame();
+	if (idRemasteredHud::Enabled()) {
+		for (const char* source : multiplayer ? std::span<const char* const>(MultiplayerHudSources) :
+				awakening ? std::span<const char* const>(AwakeningHudSources) : std::span<const char* const>(SinglePlayerHudSources))
+			if (const char* document = idRemasteredHud::DocumentFor(source)) documents.push_back(document);
+	}
+	if (multiplayer) { documents.push_back(WheelDocuments[0]); documents.push_back(QuickChatDocument); }
+	else for (const char* wheel : awakening ? std::span<const char* const>(AwakeningWheelDocuments) : std::span<const char* const>(WheelDocuments)) documents.push_back(wheel);
+	documents.push_back(ViewEffectsDocument);
+	return documents;
+}
+}
+
+bool UI_RetainedPrefetched( const char *path ) {
+	return path != nullptr && std::any_of(prefetchedDocuments.begin(),prefetchedDocuments.end(),[&](const auto& entry) { return entry->path == path; });
+}
+
+void UI_RetainedPrefetchGameplayDocuments( bool multiplayer ) {
+	if (!cvarSystem->GetCVarBool("ui_retained")) return;
+	const auto documents = GameplayDocuments(multiplayer);
+	UI_RetainedPrefetchDocuments(documents.data(),static_cast<int>(documents.size()));
+}
+
+void UI_RetainedSettleGameplayDocuments( bool multiplayer ) {
+	// The single-player game spawned its player inside the load and took the
+	// family's documents; the other family's parses go. Multiplayer clients
+	// spawn after the load, so their documents wait for them.
+	if (multiplayer) return;
+	for (const char* document : GameplayDocuments(false)) DropPrefetched(document);
+}
+
 #else
+void UI_RetainedPrefetchDocuments( const char *const *, int ) {}
+void UI_RetainedPrefetchClear() {}
+void UI_RetainedPrefetchGameplayDocuments( bool ) {}
+void UI_RetainedSettleGameplayDocuments( bool ) {}
+bool UI_RetainedPrefetched( const char * ) { return false; }
 bool UI_RetainedImageSource( const char * ) { return false; }
 void UI_RetainedPrecacheImage( const char * ) {}
 void UI_RetainedReloadImage( const char * ) {}

@@ -47,7 +47,14 @@ the configured player hull clears the sampled move:
    link type. A smaller central support probe keeps ordinary nodes away from
    floors touched only by the outside edge of the hull. Jump and drop landings
    also need support around that centre, so a decorative rim beside a pit is
-   not treated as stable ground. The probes lift for legitimate slopes and
+   not treated as stable ground. A node whose hull still hangs more than eight
+   units past an edge - the last few units of q4ctf1's 64-unit platforms and
+   the rim of q4dz1's catwalk, where a column of cell centres falls four units
+   past the edge with twelve of the hull's thirty-two units on the floor - is
+   kept, since a player can stand there and a narrow catwalk may have nothing
+   else, but is a *rim node*: every link onto it costs a cell more, so a route
+   runs along an edge only where the edge is all there is. A wall or a stair's
+   next tread beside a node is not an edge. The probes lift for legitimate slopes and
    require the returned floor to remain within a step of the expected height.
    A node is keyed by grid cell *and* floor height, so a catwalk over
    a corridor is two nodes in the same column. Drops reach 512 units and pay
@@ -55,7 +62,9 @@ the configured player hull clears the sampled move:
    which halves the build's collision sweeps. Every jump-height lift also needs
    the full jump trajectory proof: lifting a box over a railing and dropping
    it vertically does not model momentum over a narrow lower ledge or raised
-   decorative lip. Near-ground air steps preserve momentum as multiplayer
+   decorative lip. A lift the ceiling cuts short is still a lift, as the
+   player's own step-up is, so a threshold under a low lintel is a step and
+   not a wall. Near-ground air steps preserve momentum as multiplayer
    physics does; a blocked ascent can slide up a riser, while partially
    completed air steps fail closed. Drops also simulate slow and full-speed
    walk-offs, including the permitted sideways approach velocity, through
@@ -82,7 +91,20 @@ the configured player hull clears the sampled move:
    every side a standing box can touch the volume from - a bot is thrown where
    it first touches the pad, not from its centre - up to four landings a pad. That is the only way
    onto the ledge beside q4dm1's vertical pads, whose arc falls straight back
-   down their shaft. A bot rides a natural landing without steering, as long as
+   down their shaft. The natural landing's node is the nearest one to the
+   touchdown with floor under the middle of the hull, and the flight from the
+   centre has to come down on it flown as the bot flies it - ridden where the
+   pad's own arc comes down on the node, steered for it otherwise. (q4ctf1's
+   pad 17 slides its arc along a wall and comes down ten units past its node;
+   steering for that node takes the flight off a ledge 192 units lower, and a
+   bot rides it instead. A directional pad entered from its side throws a bot
+   down beside the ledge, as q4dm5's forty pads do, and the bot recovers from
+   there: the natural landing is not held to every side.)
+   q4dz1's vertical pads sit in a shaft whose ledge the arc from the centre
+   just catches; the nearest node to that touchdown hung half a hull over the
+   shaft, and from the front of the pad, where every bot enters, a flight
+   steered for it came down short, into the shaft, and bounced until the
+   traversal timed out. A bot rides a natural landing without steering, as long as
    the ridden arc lands on or past the node and within a box of its line -
    braking onto the node slowed flyers under the bots behind them, and over
    q4ctf5's gap they met in the air. Steering is `NavAirSteer`, shared with the
@@ -139,7 +161,20 @@ selected route is then swept against the solids that can move after the build -
 movers, doors, plats and loose physics objects - and only those; a stale edge is
 excluded and A* retries. Ordinary unlocked touch/proximity doors count as open,
 because approaching them opens them; locked, no-touch, keyed or scripted doors
-stay barriers.
+stay barriers. The sweep asks only the recorded dynamic solids whose bounds the
+link crosses, never players or static props: the earlier form swept every solid
+entity and passed the static ones it met, two at most, so the bot's own body
+spent the first pass on the first link and a third static blocker ended the
+proof as "clear" with the mover beyond it untested. An excluded edge is a stamp
+in a per-link table rather than an entry in a list that every relaxed edge of
+every repair pass scanned. The cell hash mixes both grid coordinates; the plain
+sum put every anti-diagonal of the grid into one chain, about eighty nodes deep
+on q4dm5, walked for every cell a snap or a search looked at.
+
+An entity's node is cached per spawn and position, but a failed snap only for
+five seconds: the snap sweeps movers where they stand, and an item whose alcove
+a plat was parked across on the first decision tick used to stay invisible to
+every bot for the whole map.
 
 An injured bot also qualifies selected jump, drop and pad landings against its
 current health and armour. The limit comes from the player's fall thresholds
@@ -157,7 +192,34 @@ string-pulled shortcut must pass `WalkableLine`: a box sweep, floor samples
 along the line, no lethal ground, no step onto a transport, and no rise or fall
 steeper than a walk, so a bot under a balcony never routes from the balcony. A
 sweep stopped within its last two units has arrived: a player flush against a
-wall is a legal endpoint the clip epsilon stops a box just short of.
+wall is a legal endpoint the clip epsilon stops a box just short of. The line
+also refuses ground more than a step below both of its ends - a pit between
+them that the graph classed as a drop in and a jump out, each with its own
+proof and penalty, which a chord across a sunken panel or a drain used to walk
+the bot into - and survivable pain floor the graph priced to avoid, unless the
+walk starts and ends in it. The sweep is a straight line between two lifted
+endpoints, so on a line that climbs it rises with the line and clears the top
+of a riser the player on the floor walks into: q4ctf1's string-pulled walks
+from the low floor onto the lip of its 64-unit platform, and onto the side of
+its ramp, passed both sweeps and every drop-tolerance sample, and the bot
+pressed against the wall under its corner until the stuck detector threw the
+route away. The floor samples say where the ground really rises, so
+consecutive samples, the endpoints included, climb more than a step only
+where the ground sampled between them climbs at most a step on either side,
+which a 45-degree slope or a stair of player-height steps does and a riser
+does not, however the samples fall on it. A bot also counts a corner as
+reached up to 28 units short of it or beside it, so a string-pulled leg that
+climbs or descends more than a step is proven from either side of its corner
+as well: q4ctf1's lip nodes along the north edge of its ramp stand on a
+sliver of the ramp a step above the floor beside them, and the line from one
+ran diagonally up the lip while the bot, a hull's width north of it on the
+floor, walked into the ramp's side. A hull half over an edge still finds the
+floor under its other half, so a line along a rim - q4ctf1's platform edge
+nodes, q4dz1's catwalk - walked bots the whole way with their feet hanging
+over the drop until a strafe, a shove or an unstick push took them off it;
+the ground a support box's width to either side of every interior sample has
+to be there as well, within a step, which a stair's next tread or a wall
+beside the line still is.
 
 The node chain is then string-pulled: a corner is dropped when the shortcut is
 proven, and smoothing never skips a link that has to be entered deliberately.
@@ -176,7 +238,11 @@ decides. Height alone cannot tell, since a level jump lands at its takeoff's
 height whether it made it or not. A goal that
 stands in a pad's or teleporter's reach - an item beside one, an enemy at its
 edge - ends its route at the nearest node, because nobody can stand exactly
-there without being carried off. Two other final-leg refusals are not real: the
+there without being carried off. Whether it does is judged against the
+volume's own brush, as sealing judges nodes: a diagonal pad's bounding box
+covers floor beside it that the pad never touches, and an item standing there
+read as "in the pad", so its route was cut a cell short and arriving picked up
+nothing. Two other final-leg refusals are not real: the
 goal's own snap already proved the walk the other way, which stands; and a goal
 set against a wall, such as an item in an alcove, can sit where a player's box
 does not fit, so the route ends where the box stops within touching distance.
@@ -283,7 +349,12 @@ ordinary path-aware goal selector. The currently supported mode families are:
   control zone, while available artifacts are uniquely distributed among
   collectors. Maps whose control zone explicitly does not require the artifact
   are respected, with a larger contesting group for hostile or deadlocked zones
-  and a smaller anchor after control is secure.
+  and a smaller anchor after control is secure. Both ownership slots reading
+  TAKEN is read as a contest: the rules used to clear only the Marine slot,
+  where the deadlock is recorded, when the zone changed hands, so the loser's
+  slot kept saying TAKEN for the rest of the hold and each team picked a side
+  at random. The game now keeps one holder at a time as well, which the HUD's
+  zone owner reads from the same slots.
 
 These are movement objectives, not blinders. Enemy perception, aiming and safe
 fire continue throughout the route. Escorts occupy stable trailing formation
@@ -297,7 +368,10 @@ Item choice reads the bot's live inventory. Routine health is ignored at full
 health, major health remains useful for an overstack, armour scales with the
 current deficit, missing weapons outrank duplicates, ammo matters only below
 capacity, and major powerups remain worth a detour. Flags and the DeadZone
-artifact are excluded because the mode objective layer owns them.
+artifact are excluded because the mode objective layer owns them. `itemFocus`
+then scales what the pickup is worth against an enemy - a roamer plays the
+map, a hunter barely looks down - while the need-driven bonuses for arming up,
+health at the edge of death and a pickup a few steps away stay what they are.
 
 Every useful pickup in range is a candidate. Goal pricing (above) returns the
 best few by utility over route cost, including the exact legs onto the mesh and
@@ -339,6 +413,21 @@ powerups, objective carriers, enemies threatening a friendly carrier, firing
 opponents, the last attacker, grudges and personality, with stickiness
 preventing pointless target swaps.
 
+With nothing to shoot at, the view rests well ahead along the route - 320 units
+on, at eye height over the floor there - rather than on the next corner, which
+can be a step away and under the eye line; a bot that aimed at it walked every
+tight route staring at the floor. A bot standing watch, a patient one on a
+finished wander or one waiting for a timed item, sweeps the room 55 degrees
+either side of the facing it stopped with over a seven second cycle, which is
+also what lets an ambusher notice someone coming in from the flank. Movement is
+unaffected by where the view rests: it is resolved in world space against
+whatever the yaw is. The weapon carried between fights is the one for the fight
+the personality expects, chosen for its `combatRange`: a sniper crosses the map
+with the rail gun, a rusher with the shotgun and a baseline bot with the rocket
+launcher or lightning gun, instead of everyone drawing the rail gun for a
+thousand units of empty ground and switching when the fight starts at close
+range.
+
 Combat movement blends each character's preferred range with the weapon in
 hand, so a shotgun encourages a closer engagement while a railgun preserves
 space. Each fight is weighed as a trade - health and armour, the best weapon
@@ -360,7 +449,13 @@ short-horizon scan separately advances hostile explosives through segmented,
 gravity-aware hull sweeps relative to the bot's own motion. It can dodge before
 a direct intercept, a predicted world impact and splash, or a slow/resting
 fused explosive becomes dangerous; world cover is considered rather than
-treating every nearby explosive as unobstructed.
+treating every nearby explosive as unobstructed. A round that keeps hurting
+where it lies counts too: a napalm glob has no splash at all and burns 140
+units around itself every three quarters of a second for six seconds, so its
+emitted-damage radius is the hazard the scan prices, and once it has settled
+beside the bot it is treated like a fused grenade. The step away from something
+lying still goes straight away from it; a sidestep around the enemy could walk
+over it.
 
 Projectile aim resolves the live multiplayer projectile definition, including
 launch speed, gravity and collision bounds, and iterates target motion, the
@@ -382,7 +477,23 @@ suppression. Single-shot weapons also respect readiness and cadence. Splash safe
 game's own damage model - linear falloff from the explosion and half damage to
 the shooter - so a bot refuses a shot that would cost it more than a token
 amount of health, or more than it can spare, and team damage is only
-considered when `si_teamDamage` is on.
+considered when `si_teamDamage` is on. The figures carry the shooter's quad or
+doubler, as `rvWeapon` scales the launch power, and a direct hit is priced at
+the direct damage alone, since the game hands `RadiusDamage` the struck actor
+as the one to skip. With team damage off an impact within 48 units of a
+team-mate is still refused, for the knockback: `RadiusDamage` shoves every hull
+in the blast before it asks whether it may hurt it, and a rocket at a
+team-mate's feet on a ledge is a team-mate in the void.
+
+The cover test behind all of this passes through only an actor the shot
+stopped on. The worldspawn entity must never be the pass entity, because
+`idClip::Translation` skips the whole world model for it, and a wall hit used
+to switch every cover test off: a bot behind a pillar read as exposed to its
+own blast on the far side, a rocket into the wall was "useful" against a foe
+behind cover, and a grenade landing behind a thin wall was dodged. The
+speculative sweep also flies through water as the real projectile does; with
+`CONTENTS_WATER` in its mask it stopped on the surface, so a foe across a pool
+stood behind an impact that never happens.
 
 That sweep runs down the axis the weapon actually fires along - the view - and
 not toward the aim point. The trigger gate deliberately allows the two to differ
@@ -409,7 +520,14 @@ Four things keep a bot from ever parking:
   knockback leaves it, and a drop or a jump that came down more than a step
   below its takeoff without reaching its landing - momentum past the landing's
   wall, a pad beside the landing, a gap jump into its gap - since that landing
-  may now be behind a wall.
+  may now be behind a wall. Nearer than those limits, a bot more than a
+  corner's reach beside a walk leg, or more than a step off its height, asks
+  the navmesh four times a second whether the walk from where it stands to
+  its corner still holds, and re-routes when it does not: combat footwork and
+  knockback left bots a hull or two off the side of q4ctf1's ramp, on the
+  floor below it or the platform above, pressing at a corner a wall's height
+  away - which only the stuck detector ended, a second and a half later, and
+  not at all while the fight kept the detector quiet.
 - **Stuck detection.** Progress means advancing a path corner or materially
   shortening the horizontal distance to the current one, not merely moving in
   any direction. Two consecutive failed samples trigger a sidestep, a jump and
@@ -462,12 +580,21 @@ partial input and zero movement retain their strengths.
 Combat strafing, teammate separation and unsticking are local hints layered on
 top of the route. Each altered direction must pass a player-bounds sweep and a
 floor check before it can replace the nav direction, preventing a useful dodge
-from becoming a step into a wall or off a ledge.
+from becoming a step into a wall or off a ledge. Combat footwork silences the
+stuck detector and the goal give-up only while it bends the route materially,
+past about 30 degrees: holding range at about the right distance with a light
+strafe still walks the route, and progress along it is still the measure. A
+stamp on every frame an enemy was merely in view left a bot pressed against a
+lip for the whole of a long-range duel, with nothing to free it until line of
+sight broke.
 Discretionary dodge and recovery hops additionally simulate their flight
 through touchdown for both current momentum and a full-speed approach. A
 72-unit walking probe does not cover a hop's roughly 220-unit travel. The
 bounded proof runs only on fresh grounded jump pulses and refuses unsupported,
-lethal or transport landings; deliberate route jumps retain their own proof.
+lethal or transport landings; deliberate route jumps retain their own proof. A
+stranded bot asks for the recovery hop four times a second rather than on every
+other grounded frame, and the proof's per-step transport sweeps run only when a
+pad or teleporter lies within the flight's reach at all.
 An accepted hop holds that proved world-space input through touchdown while
 aiming and firing remain independent. A changed goal, strafe or view angle
 cannot bend the flight after qualification. A refused launch releases after
@@ -584,7 +711,13 @@ grab health at the edge of death. Bots under orders are left out of role
 allocation, so their team-mates share the remaining roles around them. An order
 lasts until it is replaced or dismissed, the bot changes team, or the map
 changes; a follow order lapses while its leader is dead and ends when the
-leader leaves or switches team.
+leader leaves or switches team. Only an order that means something right now
+takes a bot out of the allocation: an attack order outside CTF, or a follow
+order while its leader is dead, leaves the bot to the allocator like any other
+team-mate. It used to take the bot out of every role for as long as the order
+stood, so "everyone attack" in Freeze Tag stopped every rescue for the rest of
+the map and a bot told to follow had no objective at all while its leader was
+dead.
 
 ## Characters
 
@@ -637,21 +770,21 @@ style's opinions intact.
 The point of the curve is that the levels differ in kind, not only in degree.
 
 - **1** is genuinely poor and should be beatable by someone who has never played
-  the map. It notices you inside a 130 degree cone at 1200 units, takes
-  460 ± 180 ms to react, and pays most of that again every time you break line
-  of sight. Its aim trails the truth by 0.4 seconds, carries 4.2 degrees of
-  wandering tremor, and swings at 170 deg/s on an underdamped slew that still
-  overshoots and hunts. Its 0.80 initiative turns the raw 14 degree / 240 ms
-  trigger values into an effective 18.2 degree cone and 96 ms settle instead
-  of waiting so long for bad aim to settle that it barely fires;
-  the extra attacks remain inaccurate. It barely leads a projectile and gets
-  roughly one combat decision in two wrong.
-- **2** is a distracted human. It reacts in about 0.39 s, tracks better, still
+  the map. It notices you inside a 130 degree cone at 1200 units, takes about
+  390 ± 150 ms to react (a raw 460 ± 180 shortened by its eagerness, below),
+  and pays all of that again every time you break line of sight. Its aim trails
+  the truth by 0.4 seconds, carries 4.2 degrees of wandering tremor, and swings
+  at 170 deg/s on an underdamped slew that still overshoots and hunts. Its 0.80
+  initiative turns the raw 14 degree / 240 ms trigger values into an effective
+  18.2 degree cone and 96 ms settle instead of waiting so long for bad aim to
+  settle that it barely fires; the extra attacks remain inaccurate. It barely
+  leads a projectile and gets roughly one combat decision in two wrong.
+- **2** is a distracted human. It reacts in about 0.35 s, tracks better, still
   overshoots, and still sprays.
-- **3** is the default and is meant to read as a competent regular: 320 ms on a
-  fresh sighting, 224 ms on a re-peek, 2.1 degrees of tremor, a 6.5 degree cone
-  it settles into for 170 ms before shooting, and projectiles led at about 60 %
-  correctness.
+- **3** is the default and is meant to read as a competent regular: about 310 ms
+  on a fresh sighting, 215 ms on a re-peek, 2.1 degrees of tremor, a 7 degree
+  effective cone it settles into for about 140 ms before shooting, and
+  projectiles led at about 60 % correctness.
 - **4** punishes standing still. It notices you at 2600 units across a 170
   degree cone, reacts in 220 ms, holds a 4 degree cone, and leads well enough
   that walking in a straight line at range is fatal.
@@ -667,9 +800,17 @@ skill 5 - and `itemTiming` is how well it keeps a respawn timer it witnessed,
 from barely at all at skill 1 (0.05) to within a few percent at skill 5 (0.92).
 
 Note the trigger duty cycle runs the other way from intuition: skill 1 holds the
-trigger down about 86 % of an engagement and skill 5 about 79 %. Low skill
+trigger down about 81 % of an engagement and skill 5 about 73 %. Low skill
 *fires more* and hits far less. That is the intended read — spray and pray, not
 a nerfed rate of fire.
+
+`initiative` is taste, so it is allowed to bend competence only a little. It
+scales the reaction by a quarter at most (0.75 at 1.0, 1.25 at 0.0), widens the
+fire cone by up to half, and shortens the settle, but never below a quarter of
+the authored value. Before those bounds a style's `add initiative 0.30` on the
+skill-1 baseline of 0.80 reached 1.0, halved the reaction and set the settle to
+zero: a "genuinely poor" rusher fired the frame its cone was entered and reacted
+faster than a plain skill-4 bot.
 
 `combatRange`, `aggression`, `patience`, seven of the tactical-personality
 traits, and `chatiness` are deliberately flat across the whole curve. They are
@@ -685,9 +826,12 @@ Skill is legible in play because it is spent on the *shape* of the aim rather
 than on a hidden accuracy roll.
 
 - **Belief.** The bot aims at where it *thinks* you are, a first-order lag
-  behind where you actually are, with a time constant of 0.45 s at skill 1 and
+  behind where you actually are, with a time constant of 0.4 s at skill 1 and
   0.08 s at skill 5. On a fresh acquisition the belief snaps to the truth, so
-  an engagement never opens with the bot aiming at the last fight.
+  an engagement never opens with the bot aiming at the last fight. Out of
+  sight, the belief coasts on the last seen velocity for a moment, at no more
+  than the speed it saw: `pursuit` runs to 2 for how long a chase lasts, and as
+  a gain on that extrapolation it stops at 1.
 - **Lead.** Only for weapons that actually launch something. The test is
   whether the weapon declares `def_projectile`, not the hitscan flag, because
   that flag is false for the gauntlet and the lightning gun even though both are
@@ -1048,6 +1192,11 @@ The send delay and throttles keep the chatter believable and safe:
   drops any client whose reliable queue overflows, so unbounded bot chatter can
   kick real players off a server. `bot_chat 2` halves both throttles and makes
   every bot more talkative; `bot_chat 0` silences them completely.
+- One line at a time. A bot already typing keeps that line rather than dropping
+  it for a newer event. At `bot_chat 2` the per-bot throttle is shorter than the
+  longest typing delay, and a frag a few seconds after a death used to overwrite
+  the death line after its throttle stamp had already been spent: one
+  reservation, no line.
 
 Team chat is only ever used in a team game. `ProcessChatMessage` does not check
 that itself, and `team` set in a deathmatch colours everyone as Marine and
@@ -1098,6 +1247,7 @@ restricts delivery by the team field.
 | `botreload` | Re-read style, character and chat files without a map change. Bots keep the character they are wearing where the name survives. |
 | `navmesh build` | Rebuild the navmesh, picking up a changed `bot_navCellSize`. |
 | `navmesh info` | Report node, link and build-time counts. |
+| `navmesh probe <x> <y> <z> [radius]` | Print every node within twice the radius (default 24) of a point, with its links and the support verdicts behind the graph, then height maps of the floor around the point as the agent hull, the support box and a point each find it, four units apart. How the rim and lip cases in this record were read. |
 
 ## Cvars
 
@@ -1106,7 +1256,7 @@ restricts delivery by the team field.
 | `bot_enable` | `1` | Allow bots to be added at all. |
 | `bot_minPlayers` | `0` | Top the match up to this many players with bots. `0` disables. |
 | `bot_skill` | `3` | 1 (harmless) to 5 (unpleasant). Selects the baseline row every trait is read from - vision, reaction, aim steadiness, trigger discipline, decision quality. See "What each skill level feels like". |
-| `bot_skillVariance` | `0` | Spread skill up to this many levels either side of `bot_skill`, per bot, so a match is not all one difficulty. The roll is seeded from the client number, so it is stable for the life of that bot. |
+| `bot_skillVariance` | `0` | Spread skill up to this many levels either side of `bot_skill`, per bot, so a match is not all one difficulty. The roll is seeded from the client number, so it is stable for the life of that bot. A roll that would leave the 1..5 range is reflected back in rather than clamped, so a spread around skill 1 is a spread and not half a roster at exactly 1.0. |
 | `bot_characters` | `1` | Use the character files. `0` leaves every bot on the plain skill curve with a name from the pool and nothing to say. |
 | `bot_forceCharacter` | `""` | Put every bot on this one character, by name. A tuning knob, deliberately not archived - a server that saved it would field a roster of clones. |
 | `bot_chat` | `1` | `0` silent, `1` normal, `2` chatty and with chat throttles halved. Applies to event lines and triggered replies. |
@@ -1185,6 +1335,14 @@ result-flow pass for that mode.
 - Ladders and lifts are not modelled. No stock multiplayer map routes through
   either, but a custom map that needs one to connect its levels leaves those
   levels unreachable to bots.
+- The gap-jump scan links the first floor it finds within reach in each
+  direction, so a trench no deeper than 128 units with a level far rim gets the
+  drop into the trench and no jump across it. Stock maps' real gaps are deeper
+  or lethal, which is why the drop-first rule has not shown up in a sweep.
+- A bot below a fall-damage tier qualifies each pad landing on a selected route
+  by flying the pad again, which is up to several hundred box sweeps per pad
+  link per search. It is paid only while the bot is that hurt, which is also
+  when it is heading for health rather than crossing the map.
 - Role allocation compares landmark route-cost lower bounds rather than full
   routes, with a margin for bots already filling a role. It can mis-rank runs
   where those bounds are loose, and falls back to straight-line distance when
@@ -1239,10 +1397,12 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   allocated slot, bots re-begun after a map change, user info restored on every
   update, bots thinking before entities, and the navmesh deriving its agent
   from the movement cvars. It guards the body-free agent sweep, walk-door
-  classification, transport sealing and the walk slope bound, weighted route
+  classification, transport sealing, the walk slope bound and its per-sample
+  rise bound, the natural pad landing's supported node and centre proof, the
+  rim-node flag and its link penalty, the line's ground-beside test, weighted route
   costs, the landmark heuristic and goal pricing, dynamic-only edge validation
-  and repair, roaming retries, off-route recovery, the drop push-through, and
-  the action entry/airborne/grounded-exit contract.
+  and repair, roaming retries, off-route recovery and its displaced-leg proof,
+  the drop push-through, and the action entry/airborne/grounded-exit contract.
 - `tools/tests/mp_bot_navmesh_search.py` splices the search core - components
   and their closure, landmark selection, the heuristic, both cost fields and
   pair pricing - into a native fixture and proves it on random two-floor graphs
@@ -1265,7 +1425,15 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   with the same no-damage surface and water reductions as player physics.
   Running-drop cases reject small islands and preserve broad lower floors;
   landing continuation cases distinguish connected ground from a gap or rim,
-  with low-ceiling, small-lip and boosted-hop regressions.
+  with low-ceiling, small-lip and boosted-hop regressions. The production
+  `WalkableLine` runs on the same world: q4ctf1's chord onto the lip of a
+  64-unit platform and a corner on a 48-unit lip are refused for their rise
+  between samples and onto the end, while the same climb as a stair of
+  player-height steps, level ground, a single step up and a step down walk;
+  a line four units past a platform's edge is refused for hanging over it
+  while one four units inside walks, and the rim-node test flags a hull
+  hanging more than eight units over an edge but not one beside a wall or at
+  the bottom of a stair.
 - `tools/tests/mp_bot_regressions.py` compiles the production decision
   functions against a deterministic world: goal replacement and stall
   recovery, inventory changes, hearing and item timing, fight-or-flight,
@@ -1324,6 +1492,124 @@ took the server from 0.32 to 0.96 of real time, stuck reports from 29 to 3-4
 per two minutes, failed path searches from about 10% to under 2%, and goal
 pricing from about 7,600 settled nodes per decision to about 2,200 expanded,
 with no deaths to the map.
+
+The 14 October 2026 review was measured as a same-day A/B on the optimised
+build from a candidate runtime on loopback (`.tmp/mp-bots-review/`): HEAD's
+unmodified module and the refined one each hosted eight skill-4 bots for two
+minutes on `q4dm5`, `q4dm1` and `q4ctf1`.
+
+| | q4dm5 before / after | q4dm1 before / after | q4ctf1 before / after |
+| --- | --- | --- | --- |
+| kills | 15 / 16 | 27 / 21 | 14 / 14 |
+| deaths to the map | 0 / 2 | 0 / 0 | 0 / 0 |
+| stuck reports | 6 / 6 | 0 / 3 | 8 / 6 |
+| goals given up | 0 / 0 | 0 / 0 | 1 / 1 |
+| traversal timeouts | 1 / 2 | 1 / 0 | 0 / 0 |
+| think ms per frame | 0.87 / 1.76 | 0.74 / 0.88 | 0.93 / 1.40 |
+
+Both q4dm5 deaths followed rocket knockback into the void, the documented
+limit; the repeated q4ctf1 stop at -2596 884 186 (a walk corner 57 units above
+the floor the bots reach it from) is in both runs and predates the review - it
+is the string-pull sweep clearing a riser, fixed the same day (below). The
+"after" think times overlapped a parallel module build on the same box. The
+final module's rerun, with no build running but with the box otherwise about
+half again as busy as during the baseline (`cpu_cores_busy` 0.79-0.96 against
+0.57), gave:
+
+| map (mode) | kills | deaths to the map | stuck | no route | given up | timeouts | think ms | nav ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4dm5 (DM) | 14 | 1 | 5 | 1 | 0 | 0 | 1.42 | 0.61 |
+| q4dm1 (DM) | 30 | 0 | 1 | 0 | 0 | 0 | 1.33 | 0.36 |
+| q4dz1 (DeadZone) | 22 | 0 | 3 | 0 | 0 | 2 | 1.02 | 0.21 |
+| q4dm3 (Freeze Tag) | 23 | 0 | 0 | 2 | 0 | 0 | 0.88 | 0.21 |
+| q4ctf5 (CTF) | 18 | 6 | 3 | 0 | 1 | 0 | 0.70 | 0.12 |
+
+The navmesh is identical before and after on every map (same nodes, links,
+gap jumps and sealed transports), and no route needed a repair pass in either
+build. The two DM maps expanded more nodes per search after the review (165
+against 98 on q4dm5, 76 against 46 on q4dm1) because the bots chose different,
+longer-run goals, not because searching got dearer; with the busier box that is
+the whole of the think-time difference. Pickup refusals on q4dm5 fell from six
+to one, which is the pad-brush goal test at work. The baseline module was then
+run on the two pad-heavy maps as well: q4dz1 went from 7 stuck reports and one
+goal given up to 3 and none, and q4ctf5 from 3 deaths to the map (plus one
+suicide) to 6, with 2 stuck reports against 3. q4ctf5 keeps its known
+character: five of the six deaths were bots over the void after a knockback or
+an unplanned flight, and one was the observer. The bots now carry the rocket
+launcher rather than the rail gun between fights there, so more of the hits
+that start a fall are rockets, which is also how players die on that map.
+q4dz1's two timeouts were one bot bouncing on a vertical pad whose ledge needs
+air control, the q4dm1 pad case on another map. Neither pattern is new to this
+build; both were fixed in the navmesh the same day (below).
+
+The same-day follow-up fixed both in the navmesh (the per-sample rise and
+side-of-corner proofs for string-pulled legs, and the supported, centre-proven
+natural pad landing) and was measured the same way, eight skill-4 bots for two
+minutes per map from an optimised candidate runtime on loopback, twice on the
+two maps concerned and once on the two pad-heavy DM maps as a regression
+check:
+
+| map (mode) | kills | deaths to the map | stuck | no route | given up | timeouts | think ms | nav ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4ctf1 (CTF), run 1 | 17 | 0 | 3 | 0 | 0 | 0 | 0.95 | 0.44 |
+| q4ctf1 (CTF), run 2 | 17 | 0 | 7 | 0 | 1 | 0 | 0.89 | 0.37 |
+| q4dz1 (DeadZone), run 1 | 24 | 0 | 8 | 0 | 0 | 0 | 0.64 | 0.16 |
+| q4dz1 (DeadZone), run 2 | 25 | 0 | 6 | 0 | 0 | 0 | 0.68 | 0.18 |
+| q4dm5 (DM) | 21 | 0 | 8 | 0 | 1 | 0 | 0.75 | 0.30 |
+| q4dm1 (DM) | 33 | 0 | 0 | 0 | 0 | 0 | 0.68 | 0.22 |
+
+No bot pressed against the wall under the q4ctf1 ramp corner in either run,
+and no pad traversal timed out on q4dz1 in either; both of q4dz1's vertical
+pads were completed onto their ledge. Each stuck report now names the leg the
+bot could not finish and the navmesh's current verdict on it, which is how
+the remaining reports were read: on q4ctf1 they are bots walked off the
+platform's rim or the ramp's side by combat footwork mid-duel and then far
+from their corner, plus the rim walk along the 64-unit platform's edge nodes
+that hang four units past its riser (the pre-review runs show the same
+"off route ... below corner" pattern); on q4dz1 they moved to the catwalk rim
+at (±196, ∓2250..2396, 384), whose edge nodes hang over a 190-unit drop and
+which the pre-review baseline also stopped at three times in its own run. The
+navmeshes are identical to the review's in areas, components and dead ends on
+all four maps; the only link changes are the pad landing nodes - q4dz1's two
+vertical pads land a hull further onto the ledge, q4dm5's pad 15 and 29 and
+q4dm1's pad 18 land on the supported node beside their old one, and q4ctf1's
+pad 17 is unchanged. An earlier candidate that held the natural landing to
+every side of the pad sealed twenty of q4dm5's pads and split q4ctf1 into
+nine areas; that is why the natural landing is proven from the centre only.
+
+The two patterns those runs left - the rim walks and the combat-displaced
+stops - were fixed next (rim nodes priced, the line's ground-beside test and
+the displaced-leg proof above) and measured the same way, twice, the second
+time back to back with the previous module under the same box load (the
+"cores busy" column is the whole box during the audit window; the second
+pair ran while two other builds were compiling):
+
+| map (mode) | module | kills | stuck | given up | timeouts | think ms | nav ms | cores busy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4ctf1 (CTF) | previous, back-to-back | 29 | 3 | 0 | 0 | 1.44 | 0.54 | 0.68 |
+| q4ctf1 (CTF) | this, run 1 | 19 | 0 | 0 | 0 | 1.81 | 0.81 | 0.77 |
+| q4ctf1 (CTF) | this, run 2 (back-to-back) | 16 | 0 | 1 | 0 | 2.21 | 0.93 | 0.94 |
+| q4dz1 (DeadZone) | previous, back-to-back | 26 | 9 | 2 | 0 | 1.16 | 0.26 | 0.69 |
+| q4dz1 (DeadZone) | this, run 1 | 27 | 0 | 0 | 0 | 2.06 | 0.67 | 0.60 |
+| q4dz1 (DeadZone) | this, run 2 (back-to-back) | 30 | 0 | 0 | 0 | 1.20 | 0.33 | 0.86 |
+
+No bot reported stuck in the measured window of either run on either map;
+the previous module's runs the same morning had 7 and 3 on q4ctf1 and 6 and
+9 on q4dz1. The one report left anywhere is in q4dz1's warmup, at the toe of
+the catwalk's ramp (toward 172 -2156 334), which the pre-review baseline hit
+at the mirrored end and which is neither a rim leg nor a displacement. The
+nodes, areas, components and dead ends are identical to the previous module
+on both maps; q4ctf1 has one gap jump and three links fewer, a landing
+continuation the ground-beside test now refuses. Off-route reports rose to
+40-50 per run, which is the displaced-leg proof at work (the previous module
+reported 5-10), while path searches per profile row did not (268 to 279 on
+q4ctf1, 187 to 196 on q4dz1): a displaced bot's reroute replaces a search it
+would have made after the stuck detector anyway. The navigation cost per
+frame is higher by about the share the busier box explains - the cost-field
+share, which the change does not touch, rose by the same proportion - plus
+the two support-box sweeps the ground-beside test adds to every interior
+sample of a shortcut proof. Kill counts vary from 14 to 29 per run on q4ctf1
+across the morning's runs and say nothing either way.
 
 That single-map result does not qualify every stock map. The subsequent
 32-map sweep found world deaths on q4dm8, q4ctf3, q4ctf5 and q4dz3. Follow-up

@@ -85,6 +85,38 @@ static double PixelArea(const VectorMesh& mesh, int x, int y) {
 	}
 	return result;
 }
+static void LinearMaskChecks() {
+	VectorPath path; Polygon(path,{P(0,0),P(100,0),P(80,90),P(10,70)});
+	path.fill.type=PaintType::Linear; path.fill.from=P(10,20); path.fill.to=P(90,60);
+	path.fill.stops={{0,{1,1,1,0}},{.4,{1,1,1,1}},{1,{1,1,1,0}}};
+	VectorOptions options; options.widthDp=100; options.heightDp=90;
+	options.transform={1.3,.7,.2,-2.1,137.25,291.7};
+	LinearMask mask;
+	Check(ResolveLinearMask(path,options,mask),"convex linear mask accepts mirrored/sheared output transform");
+	for (auto point:{VectorPoint{10,20},VectorPoint{50,40},VectorPoint{90,60}}) {
+		const auto output=options.transform.Apply(point);
+		const double parameter=(80*(point.x-10)+40*(point.y-20))/8000;
+		Check(Near(mask.gradient[0]*output.x+mask.gradient[1]*output.y+mask.gradient[2],parameter,1e-10),
+			"mask gradient follows the inverse affine transform, including shear");
+	}
+	for (int i=0;i<4;++i) {
+		const auto a=mask.points[i],b=mask.points[(i+1)%4],c=mask.points[(i+2)%4];
+		Check((b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x)>0,"mask shader receives clockwise convex points");
+	}
+	path.commands[2].points[0]=P(40,20);
+	Check(!ResolveLinearMask(path,options,mask),"concave mask keeps general coverage");
+	path.commands[2].points[0]=P(80,90); path.stroke.paint.type=PaintType::Solid;
+	Check(!ResolveLinearMask(path,options,mask),"stroked mask keeps general coverage");
+	path.stroke.paint.type=PaintType::None; path.fill.stops[1].colour.a=.5;
+	Check(!ResolveLinearMask(path,options,mask),"nonrepresentable stop alpha keeps full precision");
+	path.fill.stops[1].colour.a=1; path.antialias=false;
+	Check(!ResolveLinearMask(path,options,mask),"hard-edge mask never gains antialiasing");
+	path.antialias=true; path.fill.stops[1].at=1-1e-12;
+	Check(!ResolveLinearMask(path,options,mask),"stop denominators must remain nonzero in shader precision");
+	path.fill.stops[1].at=.4; path.commands.erase(path.commands.begin()+3);
+	Check(ResolveLinearMask(path,options,mask) && mask.points[2].x==mask.points[3].x && mask.points[2].y==mask.points[3].y,
+		"triangle uses a harmless repeated fourth point");
+}
 static void CoverageChecks() {
 	VectorOptions options; VectorMesh mesh; std::string error;
 	auto build = [&](const VectorPath& path) {
@@ -319,6 +351,6 @@ int main(int argc, char** argv) {
 	Check(document.ReplaceValue("/root/paths/0/commands/0/points/0/0","16",diagnostics),"path control point shares transactional source editing");
 	Check(!document.ReplaceValue("/root/paths/0/commands/1/id","\"start\"",diagnostics),"reject duplicate editable command IDs");
 	Check(!document.ReplaceValue("/root/paths/0/commands/1/op","\"arc\"",diagnostics),"unsupported path operations fail explicitly");
-	CoverageChecks();
+	CoverageChecks(); LinearMaskChecks();
 	std::puts("UI vector: fill rules, holes/intersections, adaptive curves, transforms, strokes/joins/caps, gradients, hit geometry, budgets and editable responsive paths passed");
 }

@@ -4520,8 +4520,10 @@ void Com_ReloadGameModule_f( const idCmdArgs &args ) {
 #endif
 		session->StartMenu();
 #ifndef ID_DEDICATED
+		// Say why the match never started, as every other failed launch does,
+		// instead of reopening the browser as if the button had been ignored.
 		if ( abandonedArenaLaunch ) {
-			arenaCampaign.OpenBrowser();
+			arenaCampaign.ReportStartFailure();
 		}
 #endif
 	}

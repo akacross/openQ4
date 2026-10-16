@@ -4,7 +4,10 @@
 Length/timestamp-only reads: idFileSystemLocal::ReadFile with a null buffer
 only reports a length and a timestamp. For a pk4 member both are known without
 opening it: the length is in the central directory the pak keeps indexed, and
-idFile_InZip::Timestamp is always 0. Image staleness checks issue ~1,700 of
+idFile_InZip::Timestamp is always 0. ReadFileContentStamp's probe likewise
+answers a member's content stamp from the indexed CRC-32, and must agree with
+the stamp a full open reports, or a generated cache written after a decode
+would never match the next load's probe. Image staleness checks issue ~1,700 of
 these per level load, so the probe must keep every observable side effect of
 the old open (search order, pure filtering, the referenced flag, the asset log)
 while skipping the member open and the level-load source manifest, which would
@@ -35,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SUPPORT_HEAD = r'''
 #include <atomic>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -48,6 +52,7 @@ SUPPORT_HEAD = r'''
 typedef long long ID_TIME_T;
 typedef unsigned char byte;
 static const ID_TIME_T FILE_NOT_FOUND_TIMESTAMP = static_cast<ID_TIME_T>( -1 );
+/*CONTENT_STAMP_HELPERS*/
 #define PATHSEPERATOR_STR "/"
 #define PATHSEPERATOR_CHAR '/'
 #define FILE_HASH_SIZE 1024
@@ -142,6 +147,7 @@ public:
 	virtual ~idFile() { --live; }
 	virtual int Length() { return fileSize; }
 	virtual ID_TIME_T Timestamp() { return 0; }
+	virtual ID_TIME_T ContentStamp() { return Timestamp(); }
 	virtual int Read( void *buffer, int len ) { memset( buffer, 'x', static_cast<size_t>( len ) ); return len; }
 	int fileSize = 0;
 };
@@ -154,7 +160,11 @@ public:
 	idStr name, fullPath;
 	int mode = 0;
 };
-class idFile_InZip : public idFile {};
+class idFile_InZip : public idFile {
+public:
+	ID_TIME_T ContentStamp() override;
+	uint32_t contentCrc = 0;
+};
 
 static ID_TIME_T Sys_FileTimeStamp( FILE * ) { return 0; }
 
@@ -218,6 +228,8 @@ public:
 	int looseDirectorySkips = 0;
 
 	int ReadFile( const char *relativePath, void **buffer, ID_TIME_T *timestamp );
+	int ReadFileContentStamp( const char *relativePath, void **buffer, ID_TIME_T *contentStamp );
+	int ReadFileStamped( const char *relativePath, void **buffer, ID_TIME_T *timestamp, bool contentStamp );
 	idFile *OpenFileReadSearch( const char *relativePath, int searchFlags, pack_t **foundInPak, bool allowCopyFiles, const char *gamedir, packMemberProbe_t *probe );
 	void SetLooseDirectoryCacheActive( bool active );
 	bool LooseDirectoryMissing( const directory_t *dir, const char *relativePath );
@@ -246,6 +258,7 @@ public:
 		++zipOpens;
 		idFile_InZip *file = new idFile_InZip();
 		file->fileSize = static_cast<int>( pakFile->size );
+		file->contentCrc = pakFile->crc;
 		return file;
 	}
 	void AddAssetLogEntry( const char *relativePath ) { assetLog.push_back( relativePath ); }
@@ -265,6 +278,7 @@ struct Fixture {
 		member.name = "textures/base/wall.tga";
 		member.pos = 4096;
 		member.size = 70000;
+		member.crc = 0x1234abcdu;
 		member.next = nullptr;
 		pak.pakFilename = "pak001.pk4";
 		pak.hashTable[7] = &member;
@@ -294,6 +308,19 @@ static void LengthProbes() {
 		// a leading slash and a null timestamp are accepted as before
 		assert( f.fs.ReadFile( "/textures/base/wall.tga", nullptr, nullptr ) == 70000 );
 		assert( f.fs.zipOpens == 0 && idFile::live == 0 );
+		// the content stamp comes from the indexed CRC, still without an open
+		ID_TIME_T stamp = 55;
+		assert( f.fs.ReadFileContentStamp( "textures/base/wall.tga", nullptr, &stamp ) == 70000 );
+		assert( stamp == FS_PakMemberContentStamp( 0x1234abcdu, 70000 ) );
+		assert( FS_IsPakMemberContentStamp( stamp ) );
+		assert( f.fs.zipOpens == 0 && idFile::live == 0 );
+		// and changes with the member's CRC under the same name and length
+		f.member.crc = 0x1234abceu;
+		ID_TIME_T changed = 55;
+		assert( f.fs.ReadFileContentStamp( "textures/base/wall.tga", nullptr, &changed ) == 70000 );
+		assert( changed != stamp && FS_IsPakMemberContentStamp( changed ) );
+		// ReadFile's timestamp is untouched by the content stamp
+		assert( f.fs.ReadFile( "textures/base/wall.tga", nullptr, &timestamp ) == 70000 && timestamp == 0 );
 	}
 	{
 		// a payload read still opens the member and records it for preload
@@ -303,6 +330,14 @@ static void LengthProbes() {
 		assert( f.fs.ReadFile( "textures/base/wall.tga", &buffer, &timestamp ) == 70000 );
 		assert( buffer != nullptr && timestamp == 0 );
 		assert( f.fs.zipOpens == 1 && f.fs.recordedSources == 1 && idFile::live == 0 );
+		free( buffer );
+		// a full open reports the content stamp the probe does
+		buffer = nullptr;
+		ID_TIME_T probed = 55, opened = 55;
+		assert( f.fs.ReadFileContentStamp( "textures/base/wall.tga", nullptr, &probed ) == 70000 );
+		assert( f.fs.ReadFileContentStamp( "textures/base/wall.tga", &buffer, &opened ) == 70000 );
+		assert( buffer != nullptr && opened == probed && FS_IsPakMemberContentStamp( opened ) );
+		assert( f.fs.zipOpens == 2 && idFile::live == 0 );
 		free( buffer );
 	}
 	{
@@ -314,6 +349,10 @@ static void LengthProbes() {
 		assert( timestamp == 1234 );
 		assert( f.fs.osOpens == 1 && f.fs.zipOpens == 0 && idFile::live == 0 );
 		assert( !f.pak.referenced );
+		// a loose file's content stamp is its timestamp
+		ID_TIME_T stamp = 55;
+		assert( f.fs.ReadFileContentStamp( "textures/base/wall.tga", nullptr, &stamp ) == 99 );
+		assert( stamp == 1234 && f.fs.osOpens == 2 && idFile::live == 0 );
 	}
 	{
 		// a pak excluded by the pure list is not answered from its index
@@ -437,10 +476,18 @@ def main() -> None:
     parser.add_argument("--sanitize", action="store_true")
     args = parser.parse_args()
     source = args.source.read_text(encoding="utf-8")
+    header = (ROOT / "src/framework/FileSystem.h").read_text(encoding="utf-8")
+    stamp_start = header.index("inline ID_TIME_T FS_FoldContentIdentity(")
+    combine = function_body(header, "inline ID_TIME_T FS_CombineContentStamps(")
+    stamp_helpers = header[stamp_start:header.index(combine) + len(combine)]
+    file_source = (ROOT / "src/framework/File.cpp").read_text(encoding="utf-8")
+    zip_stamp = function_body(file_source, "ID_TIME_T idFile_InZip::ContentStamp(")
     types = "\n".join(type_definition(source, name) for name in ("fileInPack", "packMemberProbe"))
     helpers = function_body(source, "static void FS_AppendLooseDirectoryKey(")
     bodies = "\n".join(function_body(source, signature) for signature in (
         "int idFileSystemLocal::ReadFile(",
+        "int idFileSystemLocal::ReadFileContentStamp(",
+        "int idFileSystemLocal::ReadFileStamped(",
         "idFile *idFileSystemLocal::OpenFileReadSearch(",
         "void idFileSystemLocal::SetLooseDirectoryCacheActive(",
         "bool idFileSystemLocal::LooseDirectoryMissingLocked(",
@@ -457,7 +504,8 @@ def main() -> None:
     (ROOT / ".tmp").mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="length-probe-", dir=ROOT / ".tmp") as directory:
         program, binary = Path(directory) / "probe.cpp", Path(directory) / "probe.exe"
-        program.write_text(SUPPORT_HEAD + types + SUPPORT_TAIL + helpers + "\n" + bodies + MAIN,
+        head = SUPPORT_HEAD.replace("/*CONTENT_STAMP_HELPERS*/", stamp_helpers)
+        program.write_text(head + types + SUPPORT_TAIL + zip_stamp + "\n" + helpers + "\n" + bodies + MAIN,
                            encoding="utf-8")
         subprocess.run([compiler, *flags, str(program), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)

@@ -1,91 +1,1187 @@
-// Compatibility presentation while the retained interface is opt-in.
-// Shared engine campaign commands own discovery, switching and save paths.
-windowDef Desktop {
-    rect 0,0,640,480
-    onESC { set "cmd" "campaignBack"; }
-    windowDef background {
-        rect (0 - "gui::virtual_screen_x_expand"),(0 - "gui::virtual_screen_y_expand"),(640 + "gui::virtual_screen_x_expand" * 2),(480 + "gui::virtual_screen_y_expand" * 2)
-        background "gfx/guis/mainmenu/bg_darkgrad2"
-        matcolor 0.2,0.25,0.16,1
-        noevents 1
-    }
-    windowDef title {
-        rect 44,54,552,38
-        text "#str_230038"
-        font "fonts/marine"
-        textscale 0.48
-        forecolor 0.95,0.49,0.06,1
-        noevents 1
-    }
-    windowDef quake4 {
-        rect 0,190,357,30
-        background "gfx/guis/mainmenu/b1_dark"
-        matcolor 0.42,0.49,0.25,0.66
-        onAction { set "cmd" "campaignQuake4"; }
-        onMouseEnter { set "matcolor" "0.95,0.49,0.06,0.82"; }
-        onMouseExit { set "matcolor" "0.42,0.49,0.25,0.66"; }
-        windowDef label {
-            rect 44,2,305,28
-            text "#str_230039"
-            textscale 0.32
-            forecolor 0.96,0.97,0.91,1
-            font "fonts/marine"
-            noevents 1
-        }
-    }
-    windowDef awakening {
-        rect 0,220,357,30
-        background "gfx/guis/mainmenu/b1_dark"
-        matcolor 0.42,0.49,0.25,0.66
-        onAction { if ("gui::awakening_ready" == 1) { set "cmd" "campaignAwakening"; } }
-        windowDef label {
-            rect 44,2,305,28
-            text "#str_230040"
-            textscale 0.32
-            forecolor 0.96,0.97,0.91,(0.4 + "gui::awakening_ready" * 0.6)
-            font "fonts/marine"
-            noevents 1
-        }
-    }
-    windowDef back {
-        rect 0,250,357,30
-        background "gfx/guis/mainmenu/b1_dark"
-        matcolor 0.42,0.49,0.25,0.66
-        onAction { set "cmd" "campaignBack"; }
-        windowDef label {
-            rect 44,2,305,28
-            text "#str_230045"
-            textscale 0.32
-            forecolor 0.96,0.97,0.91,1
-            font "fonts/marine"
-            noevents 1
-        }
-    }
-    windowDef available {
-        rect 395,190,210,160
-        visible ("gui::awakening_ready" == 1)
-        text "#str_230041"
-        textscale 0.24
-        font "fonts/lowpixel"
-        forecolor 0.72,0.76,0.59,1
-        noevents 1
-    }
-    windowDef partial {
-        rect 395,190,210,160
-        visible ("gui::awakening_ready" == 0 && "gui::awakening_present" == 1)
-        text "#str_230042"
-        textscale 0.24
-        font "fonts/lowpixel"
-        forecolor 0.72,0.76,0.59,1
-        noevents 1
-    }
-    windowDef absent {
-        rect 395,190,210,160
-        visible ("gui::awakening_ready" == 0 && "gui::awakening_present" == 0)
-        text "#str_230043"
-        textscale 0.24
-        font "fonts/lowpixel"
-        forecolor 0.72,0.76,0.59,1
-        noevents 1
-    }
+// The stock campaign pages, the retained Campaign sub-page and campaign page
+// where ui_retained is off (docs/user/campaigns.md). The Single Player page
+// (arena_menu.gui) opens CAMPAIGN (campaign_view 0), which lists the story
+// campaigns; a campaign opens its own page (campaign_view 1): its difficulty,
+// turbo option, START GAME and CHAPTERS, every level of the campaign with the
+// ones not reached yet locked. The session publishes the state and runs the
+// commands (Session_menu.cpp, Session_HandleCampaignPageRequest); the page
+// keeps the Single Player hierarchy's frame and its black-frame hand-offs.
+windowDef Desktop
+{
+	rect		0,0,640,480
+	menugui		1
+	noclip		1
+	float		"cm_animating"	0
+	float		"cm_action"	0
+	float		"cm_dir"	1
+	float		"cm_chapters"	0
+	float		"cm_focus"	-1
+
+	// Every arrival reveals the page from the side it was reached from:
+	// deeper from the trailing edge, back from the leading one.
+	onActivate {
+		stopTransitions "cm_reveal_timeline" ;
+		stopTransitions "cm_exit_timeline" ;
+		set "Desktop::cm_animating" "1" ;
+		set "Desktop::cm_action" "0" ;
+		set "Desktop::cm_chapters" "0" ;
+		set "Desktop::cm_focus" "-1" ;
+		setfocus "cm_blocker" ;
+		resetTime "cm_reveal_timeline" "0" ;
+	}
+
+	// Leaving: 1 Quake 4, 2 The Awakening (deeper), 3 back to Single Player,
+	// 4 back to CAMPAIGN. The command goes once the black frame is up.
+	onNamedEvent cmEnterQuake4 {
+		if ( "Desktop::cm_animating" == 0 ) {
+			set "Desktop::cm_action" "1" ;
+			namedevent "cmLeave" ;
+		}
+	}
+
+	onNamedEvent cmEnterAwakening {
+		if ( "Desktop::cm_animating" == 0 && "gui::awakening_ready" == 1 ) {
+			set "Desktop::cm_action" "2" ;
+			namedevent "cmLeave" ;
+		}
+	}
+
+	onNamedEvent cmLeaveHome {
+		if ( "Desktop::cm_animating" == 0 ) {
+			set "Desktop::cm_action" "3" ;
+			namedevent "cmLeave" ;
+		}
+	}
+
+	onNamedEvent cmLeaveBack {
+		if ( "Desktop::cm_animating" == 0 ) {
+			set "Desktop::cm_action" "4" ;
+			namedevent "cmLeave" ;
+		}
+	}
+
+	onNamedEvent cmLeave {
+		set "Desktop::cm_animating" "1" ;
+		set "Desktop::cm_focus" "-1" ;
+		setfocus "cm_blocker" ;
+		resetTime "cm_exit_timeline" "0" ;
+	}
+
+	// The campaign page's chapters take the difficulty's place; BACK and
+	// Escape bring the difficulty back.
+	onNamedEvent cmOpenChapters {
+		if ( "Desktop::cm_animating" == 0 ) {
+			set "Desktop::cm_chapters" "1" ;
+			set "Desktop::cm_focus" "-1" ;
+			transition "cm_chapter_view::rect" "24,0,640,480" "0,0,640,480" "200" ;
+		}
+	}
+
+	onNamedEvent cmCloseChapters {
+		if ( "Desktop::cm_animating" == 0 ) {
+			set "Desktop::cm_chapters" "0" ;
+			set "Desktop::cm_focus" "-1" ;
+			transition "cm_skill_view::rect" "-24,0,640,480" "0,0,640,480" "200" ;
+		}
+	}
+
+	// The focus follows the visible context, chosen once it changes: the
+	// campaign being played, the chosen difficulty, or the chapter list.
+	onEvent {
+		if ( "Desktop::cm_animating" == 1 ) {
+			if ( "Desktop::cm_focus" != 9 ) {
+				setfocus "cm_blocker" ;
+				set "Desktop::cm_focus" "9" ;
+			}
+		} else if ( "gui::campaign_view" == 0 ) {
+			if ( "Desktop::cm_focus" != 0 ) {
+				if ( "gui::awakening_chosen" == 1 && "gui::awakening_ready" == 1 ) {
+					setfocus "cm_awakening_card" ;
+				} else {
+					setfocus "cm_quake4_card" ;
+				}
+				set "Desktop::cm_focus" "0" ;
+			}
+		} else if ( "Desktop::cm_chapters" == 1 ) {
+			if ( "Desktop::cm_focus" != 2 ) {
+				setfocus "cm_chapter_list" ;
+				set "Desktop::cm_focus" "2" ;
+			}
+		} else if ( "Desktop::cm_focus" != 1 ) {
+			if ( "gui::skill" == 0 ) {
+				setfocus "cm_skill0" ;
+			} else if ( "gui::skill" == 2 ) {
+				setfocus "cm_skill2" ;
+			} else if ( "gui::skill" == 3 ) {
+				setfocus "cm_skill3" ;
+			} else if ( "gui::skill" == 4 ) {
+				setfocus "cm_skill4" ;
+			} else {
+				setfocus "cm_skill1" ;
+			}
+			set "Desktop::cm_focus" "1" ;
+		}
+	}
+
+	onESC {
+		if ( "Desktop::cm_animating" == 1 ) {
+			set "Desktop::cm_focus" "9" ;
+		} else if ( "gui::campaign_view" == 1 && "Desktop::cm_chapters" == 1 ) {
+			set "cmd" "play main_menu_selection" ;
+			namedevent "cmCloseChapters" ;
+		} else if ( "gui::campaign_view" == 1 ) {
+			set "cmd" "play main_menu_selection" ;
+			namedevent "cmLeaveBack" ;
+		} else {
+			set "cmd" "play main_menu_selection" ;
+			namedevent "cmLeaveHome" ;
+		}
+	}
+
+	windowDef cm_backdrop
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		background	"gfx/guis/mainmenu/bg_darkgrad2"
+		matcolor	0.2,0.25,0.16,1
+		noevents	1
+	}
+
+	windowDef cm_grid
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		background	"gfx/guis/loading/bg_grid_tiled"
+		matcolor	0.35,0.42,0.22,0.24
+		naturalmatscale	1
+		noevents	1
+	}
+
+	windowDef cm_screen_tint
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		background	"gfx/guis/mainmenu/screen"
+		matcolor	0.44,0.48,0.3,0.18
+		noclip		1
+		noevents	1
+	}
+
+	windowDef cm_topbar
+	{
+		rect		-400,0,1045,129
+		noclip		1
+		background	"gfx/guis/mainmenu/topbar"
+		matcolor	1,1,1,0.9
+		noevents	1
+		windowDef cm_topbar_tile_left
+		{
+			rect		-4096,0,4097,129
+			background	"gfx/guis/mainmenu/topbar_tile_left"
+			matscalex	128
+			matcolor	1,1,1,0.9
+			noevents	1
+		}
+
+		windowDef cm_topbar_tile_right
+		{
+			rect		1044,0,4097,129
+			background	"gfx/guis/mainmenu/topbar_tile_right"
+			matscalex	128
+			matcolor	1,1,1,0.9
+			noevents	1
+		}
+
+	}
+
+	windowDef cm_btmbar
+	{
+		rect		-399,351,1045,129
+		noclip		1
+		background	"gfx/guis/mainmenu/btmbar"
+		matcolor	1,1,1,0.9
+		noevents	1
+		windowDef cm_btmbar_tile_left
+		{
+			rect		-4096,0,4097,129
+			background	"gfx/guis/mainmenu/btmbar_tile_left"
+			matscalex	128
+			matcolor	1,1,1,0.9
+			noevents	1
+		}
+
+		windowDef cm_btmbar_tile_right
+		{
+			rect		1044,0,4097,129
+			background	"gfx/guis/mainmenu/btmbar_tile_right"
+			matscalex	128
+			matcolor	1,1,1,0.9
+			noevents	1
+		}
+
+	}
+
+	windowDef cm_content
+	{
+		rect		0,0,640,480
+		windowDef cm_header_glow
+		{
+			rect		0,28,640,76
+			background	"gfx/guis/mainmenu/b1_dark"
+			matcolor	0.4,0.47,0.24,0.56
+			noevents	1
+		}
+
+		windowDef cm_header_line
+		{
+			rect		28,96,584,6
+			background	"gfx/guis/mainmenu/horiz_line2"
+			matcolor	0.95,0.49,0.06,0.68
+			noevents	1
+		}
+
+		windowDef cm_title_campaigns
+		{
+			rect		30,42,580,34
+			visible		( "gui::campaign_view" == 0 )
+			forecolor	0.96,0.97,0.9,1
+			text		"#str_230038"
+			textscale	0.48
+			textalign	1
+			font		"fonts/marine"
+			noevents	1
+		}
+
+		windowDef cm_title_campaign
+		{
+			rect		30,42,580,34
+			visible		( "gui::campaign_view" == 1 )
+			forecolor	0.96,0.97,0.9,1
+			text		"gui::campaign_title"
+			textscale	0.48
+			textalign	1
+			font		"fonts/marine"
+			noevents	1
+		}
+
+		windowDef cm_crumb_campaigns
+		{
+			rect		30,78,580,18
+			visible		( "gui::campaign_view" == 0 )
+			forecolor	0.72,0.76,0.59,1
+			text		"#str_42000"
+			textscale	0.19
+			textalign	1
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
+		windowDef cm_crumb_campaign
+		{
+			rect		30,78,580,18
+			visible		( "gui::campaign_view" == 1 )
+			forecolor	0.72,0.76,0.59,1
+			text		"gui::campaign_crumb"
+			textscale	0.19
+			textalign	1
+			font		"fonts/lowpixel"
+			noevents	1
+		}
+
+		windowDef cm_campaigns
+		{
+			rect		0,0,640,480
+			visible		( "gui::campaign_view" == 0 )
+			windowDef cm_quake4_card
+			{
+				rect		38,126,272,260
+				background	"gfx/guis/mainmenu/b1_dark"
+				matcolor	0.42,0.49,0.25,0.66
+				bordercolor	0.3,0.34,0.2,1
+				bordersize	1
+				onMouseEnter {
+					if ( "Desktop::cm_animating" == 0 ) {
+						set "matcolor" "0.95,0.49,0.06,0.82" ;
+						set "bordercolor" "0.95,0.49,0.06,1" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+				}
+
+				onMouseExit {
+					set "matcolor" "0.42,0.49,0.25,0.66" ;
+					set "bordercolor" "0.3,0.34,0.2,1" ;
+				}
+
+				onAction {
+					if ( "Desktop::cm_animating" == 0 ) {
+						set "cmd" "play main_menu_selection" ;
+						namedevent "cmEnterQuake4" ;
+					}
+				}
+
+				windowDef cm_quake4_card_band
+				{
+					rect		1,1,270,48
+					background	"gfx/guis/mainmenu/b1_dark"
+					matcolor	0.58,0.64,0.36,0.82
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_kicker
+				{
+					rect		18,17,236,16
+					forecolor	0.72,0.78,0.6,1
+					text		"#str_42003"
+					textscale	0.18
+					font		"fonts/lowpixel"
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_title
+				{
+					rect		18,72,236,34
+					forecolor	0.96,0.97,0.91,1
+					text		"#str_230039"
+					textscale	0.44
+					font		"fonts/marine"
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_rule
+				{
+					rect		18,111,86,2
+					backcolor	0.95,0.49,0.06,0.95
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_description
+				{
+					rect		18,130,234,82
+					forecolor	0.76,0.79,0.68,1
+					text		"#str_42028"
+					textscale	0.22
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_arrow
+				{
+					rect		219,215,28,28
+					background	"gfx/guis/mainmenu/createserver_arrow"
+					matcolor	0.95,0.49,0.06,0.9
+					noevents	1
+				}
+
+				windowDef cm_quake4_card_corner
+				{
+					rect		8,240,12,12
+					background	"gfx/guis/mainmenu/corner"
+					matcolor	0.56,0.6,0.28,0.65
+					noevents	1
+				}
+
+			}
+
+			windowDef cm_awakening_card
+			{
+				rect		330,126,272,260
+				background	"gfx/guis/mainmenu/b2_dark"
+				matcolor	0.42,0.49,0.25,0.66
+				bordercolor	0.3,0.34,0.2,1
+				bordersize	1
+				onMouseEnter {
+					if ( "Desktop::cm_animating" == 0 && "gui::awakening_ready" == 1 ) {
+						set "matcolor" "0.95,0.49,0.06,0.82" ;
+						set "bordercolor" "0.95,0.49,0.06,1" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+				}
+
+				onMouseExit {
+					set "matcolor" "0.42,0.49,0.25,0.66" ;
+					set "bordercolor" "0.3,0.34,0.2,1" ;
+				}
+
+				onAction {
+					if ( "Desktop::cm_animating" == 0 && "gui::awakening_ready" == 1 ) {
+						set "cmd" "play main_menu_selection" ;
+						namedevent "cmEnterAwakening" ;
+					}
+				}
+
+				windowDef cm_awakening_card_band
+				{
+					rect		1,1,270,48
+					background	"gfx/guis/mainmenu/b2_dark"
+					matcolor	0.58,0.64,0.36,0.82
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_kicker
+				{
+					rect		18,17,236,16
+					forecolor	0.72,0.78,0.6,1
+					text		"#str_42003"
+					textscale	0.18
+					font		"fonts/lowpixel"
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_title
+				{
+					rect		18,72,236,34
+					forecolor	0.96,0.97,0.91,( 0.4 + "gui::awakening_ready" * 0.6 )
+					text		"#str_230040"
+					textscale	0.44
+					font		"fonts/marine"
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_rule
+				{
+					rect		18,111,86,2
+					backcolor	0.95,0.49,0.06,0.95
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_description
+				{
+					rect		18,130,234,82
+					visible		( "gui::awakening_ready" == 1 )
+					forecolor	0.76,0.79,0.68,1
+					text		"#str_230041"
+					textscale	0.22
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_description1
+				{
+					rect		18,130,234,82
+					visible		( "gui::awakening_ready" == 0 && "gui::awakening_present" == 1 )
+					forecolor	0.76,0.79,0.68,1
+					text		"#str_230042"
+					textscale	0.22
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_description2
+				{
+					rect		18,130,234,82
+					visible		( "gui::awakening_ready" == 0 && "gui::awakening_present" == 0 )
+					forecolor	0.76,0.79,0.68,1
+					text		"#str_230043"
+					textscale	0.22
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_arrow
+				{
+					rect		219,215,28,28
+					background	"gfx/guis/mainmenu/createserver_arrow"
+					matcolor	0.95,0.49,0.06,( 0.25 + "gui::awakening_ready" * 0.65 )
+					noevents	1
+				}
+
+				windowDef cm_awakening_card_corner
+				{
+					rect		8,240,12,12
+					background	"gfx/guis/mainmenu/corner"
+					matcolor	0.56,0.6,0.28,0.65
+					noevents	1
+				}
+
+			}
+
+			windowDef cm_campaigns_back
+			{
+				rect		38,414,112,27
+				background	"gfx/guis/mainmenu/b4_light"
+				matcolor	0.545,0.588,0.294,0.4
+				forecolor	0.88,0.9,0.8,1
+				text		"#str_230045"
+				textscale	0.21
+				textalign	1
+				font		"fonts/lowpixel"
+				onMouseEnter {
+					set "matcolor" "0.95,0.49,0.06,0.92" ;
+					set "cmd" "play main_menu_mouseover" ;
+				}
+
+				onMouseExit {
+					set "matcolor" "0.545,0.588,0.294,0.4" ;
+				}
+
+				onAction {
+					set "cmd" "play main_menu_selection" ;
+					namedevent "cmLeaveHome" ;
+				}
+			}
+
+		}
+
+		windowDef cm_campaign
+		{
+			rect		0,0,640,480
+			visible		( "gui::campaign_view" == 1 )
+			windowDef cm_skill_view
+			{
+				rect		0,0,640,480
+				visible		( "Desktop::cm_chapters" == 0 )
+				windowDef cm_skill0
+				{
+					rect		20,120,208,30
+					noclip		1
+					onMouseEnter {
+						set "cm_skill0_hot::matcolor" "1,1,1,0.4" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "cm_skill0_hot::matcolor" "1,1,1,0" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkill0" ;
+					}
+
+					windowDef cm_skill0_art
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,( 0.4 + ( "gui::skill" == 0 ) * 0.5 )
+						noevents	1
+					}
+
+					windowDef cm_skill0_hot
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,0
+						noevents	1
+					}
+
+					windowDef cm_skill0_label
+					{
+						rect		16,2,193,23
+						forecolor	1,( 1 - ( "gui::skill" == 0 ) * 0.51 ),( 1 - ( "gui::skill" == 0 ) * 0.94 ),( 0.8 + ( "gui::skill" == 0 ) * 0.2 )
+						text		"#str_200014"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_skill1
+				{
+					rect		20,150,208,30
+					noclip		1
+					onMouseEnter {
+						set "cm_skill1_hot::matcolor" "1,1,1,0.4" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "cm_skill1_hot::matcolor" "1,1,1,0" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkill1" ;
+					}
+
+					windowDef cm_skill1_art
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,( 0.4 + ( "gui::skill" == 1 ) * 0.5 )
+						noevents	1
+					}
+
+					windowDef cm_skill1_hot
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,0
+						noevents	1
+					}
+
+					windowDef cm_skill1_label
+					{
+						rect		16,2,193,23
+						forecolor	1,( 1 - ( "gui::skill" == 1 ) * 0.51 ),( 1 - ( "gui::skill" == 1 ) * 0.94 ),( 0.8 + ( "gui::skill" == 1 ) * 0.2 )
+						text		"#str_200015"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_skill2
+				{
+					rect		20,180,208,30
+					noclip		1
+					onMouseEnter {
+						set "cm_skill2_hot::matcolor" "1,1,1,0.4" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "cm_skill2_hot::matcolor" "1,1,1,0" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkill2" ;
+					}
+
+					windowDef cm_skill2_art
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,( 0.4 + ( "gui::skill" == 2 ) * 0.5 )
+						noevents	1
+					}
+
+					windowDef cm_skill2_hot
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,0
+						noevents	1
+					}
+
+					windowDef cm_skill2_label
+					{
+						rect		16,2,193,23
+						forecolor	1,( 1 - ( "gui::skill" == 2 ) * 0.51 ),( 1 - ( "gui::skill" == 2 ) * 0.94 ),( 0.8 + ( "gui::skill" == 2 ) * 0.2 )
+						text		"#str_200016"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_skill3
+				{
+					rect		20,210,208,30
+					noclip		1
+					onMouseEnter {
+						set "cm_skill3_hot::matcolor" "1,1,1,0.4" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "cm_skill3_hot::matcolor" "1,1,1,0" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkill3" ;
+					}
+
+					windowDef cm_skill3_art
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,( 0.4 + ( "gui::skill" == 3 ) * 0.5 )
+						noevents	1
+					}
+
+					windowDef cm_skill3_hot
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,0
+						noevents	1
+					}
+
+					windowDef cm_skill3_label
+					{
+						rect		16,2,193,23
+						forecolor	1,( 1 - ( "gui::skill" == 3 ) * 0.51 ),( 1 - ( "gui::skill" == 3 ) * 0.94 ),( 0.8 + ( "gui::skill" == 3 ) * 0.2 )
+						text		"#str_200017"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_skill4
+				{
+					rect		20,240,208,30
+					noclip		1
+					onMouseEnter {
+						set "cm_skill4_hot::matcolor" "1,1,1,0.4" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "cm_skill4_hot::matcolor" "1,1,1,0" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkill4" ;
+					}
+
+					windowDef cm_skill4_art
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,( 0.4 + ( "gui::skill" == 4 ) * 0.5 )
+						noevents	1
+					}
+
+					windowDef cm_skill4_hot
+					{
+						rect		0,-10,208,52
+						background	"gfx/guis/mainmenu/b2_dark"
+						matcolor	1,1,1,0
+						noevents	1
+					}
+
+					windowDef cm_skill4_label
+					{
+						rect		16,2,193,23
+						forecolor	1,( 1 - ( "gui::skill" == 4 ) * 0.51 ),( 1 - ( "gui::skill" == 4 ) * 0.94 ),( 0.8 + ( "gui::skill" == 4 ) * 0.2 )
+						text		"#str_41117"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_skill_description
+				{
+					rect		250,124,350,90
+					forecolor	1,1,1,0.6
+					text		"gui::skill_description"
+					textscale	0.25
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_start
+				{
+					rect		246,222,356,43
+					background	"gfx/guis/mainmenu/b6_light"
+					matcolor	0.545,0.588,0.294,0.4
+					onMouseEnter {
+						set "matcolor" "0.95,0.49,0.06,0.82" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkillStart" ;
+					}
+
+					windowDef cm_start_corner
+					{
+						rect		11,12,18,18
+						background	"gfx/guis/mainmenu/corner"
+						matcolor	0.564,0.603,0.286,0.6
+						noevents	1
+					}
+
+					windowDef cm_start_label
+					{
+						rect		34,8,240,25
+						forecolor	1,1,1,0.9
+						text		"#str_200020"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_turbo
+				{
+					rect		246,270,356,43
+					background	"gfx/guis/mainmenu/b6_light"
+					matcolor	0.545,0.588,0.294,0.4
+					onMouseEnter {
+						set "matcolor" "0.95,0.49,0.06,0.82" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection campaignSkillTurbo" ;
+					}
+
+					windowDef cm_turbo_corner
+					{
+						rect		11,12,18,18
+						background	"gfx/guis/mainmenu/corner"
+						matcolor	0.564,0.603,0.286,0.6
+						noevents	1
+					}
+
+					windowDef cm_turbo_label
+					{
+						rect		34,8,240,25
+						forecolor	1,1,1,0.9
+						text		"#str_41119"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+					windowDef cm_turbo_on
+					{
+						rect		236,8,110,25
+						visible		( "gui::turbo" == 1 )
+						forecolor	0.95,0.49,0.06,1
+						text		"#str_41120"
+						textscale	0.25
+						textalign	2
+						font		"fonts/marine"
+						noevents	1
+					}
+
+					windowDef cm_turbo_off
+					{
+						rect		236,8,110,25
+						visible		( "gui::turbo" == 0 )
+						forecolor	1,1,1,0.8
+						text		"#str_41121"
+						textscale	0.25
+						textalign	2
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_chapters
+				{
+					rect		246,318,356,43
+					background	"gfx/guis/mainmenu/b6_light"
+					matcolor	0.545,0.588,0.294,0.4
+					onMouseEnter {
+						set "matcolor" "0.95,0.49,0.06,0.82" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection" ;
+						namedevent "cmOpenChapters" ;
+					}
+
+					windowDef cm_chapters_corner
+					{
+						rect		11,12,18,18
+						background	"gfx/guis/mainmenu/corner"
+						matcolor	0.564,0.603,0.286,0.6
+						noevents	1
+					}
+
+					windowDef cm_chapters_label
+					{
+						rect		34,8,240,25
+						forecolor	1,1,1,0.9
+						text		"#str_231280"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_campaign_back
+				{
+					rect		38,414,112,27
+					background	"gfx/guis/mainmenu/b4_light"
+					matcolor	0.545,0.588,0.294,0.4
+					forecolor	0.88,0.9,0.8,1
+					text		"#str_230045"
+					textscale	0.21
+					textalign	1
+					font		"fonts/lowpixel"
+					onMouseEnter {
+						set "matcolor" "0.95,0.49,0.06,0.92" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection" ;
+						namedevent "cmLeaveBack" ;
+					}
+				}
+
+			}
+
+			windowDef cm_chapter_view
+			{
+				rect		0,0,640,480
+				visible		( "Desktop::cm_chapters" == 1 )
+				windowDef cm_chapter_head_level
+				{
+					rect		24,103,220,14
+					text		"#str_231281"
+					forecolor	1,1,1,0.4
+					textscale	0.18
+					font		"fonts/lowpixel"
+					noevents	1
+				}
+
+				windowDef cm_chapter_head_status
+				{
+					rect		254,103,100,14
+					text		"#str_231282"
+					forecolor	1,1,1,0.4
+					textscale	0.18
+					font		"fonts/lowpixel"
+					noevents	1
+				}
+
+				windowDef cm_chapter_rule
+				{
+					rect		20,115,340,6
+					background	"gfx/guis/mainmenu/horiz_line2"
+					matcolor	0.545,0.588,0.294,0.26
+					noevents	1
+				}
+
+				listDef cm_chapter_list
+				{
+					rect		20,120,340,270
+					listname	chapters
+					itemheight	20
+					scrollbar	1
+					tabValigns	"0,0"
+					tabaligns	"0,0"
+					tabstops	"0,234"
+					backgroundHover	"gfx/guis/mainmenu/bg_hover"
+					backgroundLine	"gfx/guis/mainmenu/bg_line"
+					backgroundFocus	"gfx/guis/mainmenu/bg_focus"
+					backgroundGreyed	"gfx/guis/mainmenu/bg_line"
+					forecolor	1,1,1,1
+					textscale	0.22
+					font		"fonts/lowpixel"
+					onMouseEnter {
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_mouseover campaignChapterSelect" ;
+					}
+
+					onEnter {
+						if ( "gui::chapter_open" == 1 ) {
+							set "cmd" "play main_menu_selection campaignChapterStart" ;
+						}
+					}
+				}
+
+				windowDef cm_chapter_frame
+				{
+					rect		376,120,240,180
+					backcolor	0,0,0,0.6
+					bordersize	1
+					bordercolor	0.254,0.274,0.141,1
+					noevents	1
+					windowDef cm_chapter_shot
+					{
+						rect		1,1,238,178
+						background	"gui::chapter_shot"
+						matcolor	1,1,1,1
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_chapter_name
+				{
+					rect		376,306,240,20
+					forecolor	1,1,1,0.9
+					text		"gui::chapter_name"
+					textscale	0.25
+					font		"fonts/marine"
+					noevents	1
+				}
+
+				windowDef cm_chapter_detail
+				{
+					rect		376,328,240,56
+					forecolor	0.72,0.76,0.59,1
+					text		"gui::chapter_detail"
+					textscale	0.2
+					font		"fonts/lowpixel"
+					wrap		1
+					noevents	1
+				}
+
+				windowDef cm_chapter_start
+				{
+					rect		370,386,250,40
+					background	"gfx/guis/mainmenu/b6_light"
+					matcolor	0.545,0.588,0.294,0.4
+					onMouseEnter {
+						if ( "gui::chapter_open" == 1 ) {
+							set "matcolor" "0.95,0.49,0.06,0.82" ;
+							set "cmd" "play main_menu_mouseover" ;
+						}
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						if ( "gui::chapter_open" == 1 ) {
+							set "cmd" "play main_menu_selection campaignChapterStart" ;
+						}
+					}
+
+					windowDef cm_chapter_start_corner
+					{
+						rect		11,12,18,18
+						background	"gfx/guis/mainmenu/corner"
+						matcolor	0.564,0.603,0.286,0.6
+						noevents	1
+					}
+
+					windowDef cm_chapter_start_label
+					{
+						rect		34,8,240,25
+						forecolor	1,1,1,( 0.3 + "gui::chapter_open" * 0.6 )
+						text		"#str_231289"
+						textscale	0.31
+						font		"fonts/marine"
+						noevents	1
+					}
+
+				}
+
+				windowDef cm_chapter_back
+				{
+					rect		38,414,112,27
+					background	"gfx/guis/mainmenu/b4_light"
+					matcolor	0.545,0.588,0.294,0.4
+					forecolor	0.88,0.9,0.8,1
+					text		"#str_230045"
+					textscale	0.21
+					textalign	1
+					font		"fonts/lowpixel"
+					onMouseEnter {
+						set "matcolor" "0.95,0.49,0.06,0.92" ;
+						set "cmd" "play main_menu_mouseover" ;
+					}
+
+					onMouseExit {
+						set "matcolor" "0.545,0.588,0.294,0.4" ;
+					}
+
+					onAction {
+						set "cmd" "play main_menu_selection" ;
+						namedevent "cmCloseChapters" ;
+					}
+				}
+
+			}
+
+		}
+
+	}
+
+	windowDef cm_curtain
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		visible		( "Desktop::cm_animating" == 1 )
+		backcolor	0,0,0,0
+		noevents	1
+	}
+
+	windowDef cm_reveal_timeline
+	{
+		rect		0,0,1,1
+		visible		1
+		notime		1
+		onTime 0 {
+			stopTransitions "cm_reveal_timeline" ;
+			set "cm_curtain::backcolor" "0,0,0,0.86" ;
+			if ( "Desktop::cm_dir" < 0 ) {
+				set "cm_content::rect" "-36,0,640,480" ;
+				transition "cm_content::rect" "-36,0,640,480" "0,0,640,480" "320" ;
+			} else {
+				set "cm_content::rect" "36,0,640,480" ;
+				transition "cm_content::rect" "36,0,640,480" "0,0,640,480" "320" ;
+			}
+			transition "cm_curtain::backcolor" "0,0,0,0.86" "0,0,0,0" "360" ;
+		}
+
+		onTime 380 {
+			set "Desktop::cm_animating" "0" ;
+			set "Desktop::cm_dir" "1" ;
+			set "Desktop::cm_focus" "-1" ;
+		}
+	}
+
+	windowDef cm_exit_timeline
+	{
+		rect		0,0,1,1
+		visible		1
+		notime		1
+		onTime 0 {
+			stopTransitions "cm_exit_timeline" ;
+			set "cm_curtain::backcolor" "0,0,0,0" ;
+			transition "cm_curtain::backcolor" "0,0,0,0" "0,0,0,1" "260" ;
+			if ( "Desktop::cm_action" <= 2 ) {
+				transition "cm_content::rect" "0,0,640,480" "-36,0,640,480" "240" ;
+			} else {
+				transition "cm_content::rect" "0,0,640,480" "36,0,640,480" "240" ;
+			}
+		}
+
+		onTime 280 {
+			if ( "Desktop::cm_action" == 1 ) {
+				set "cmd" "campaignQuake4" ;
+			} else if ( "Desktop::cm_action" == 2 ) {
+				set "cmd" "campaignAwakening" ;
+			} else if ( "Desktop::cm_action" == 3 ) {
+				set "cmd" "campaignBack" ;
+			} else {
+				set "Desktop::cm_dir" "-1" ;
+				set "cmd" "campaignSkillBack" ;
+			}
+		}
+	}
+
+	windowDef cm_blocker
+	{
+		rect		( 0 - "gui::virtual_screen_x_expand" ),( 0 - "gui::virtual_screen_y_expand" ),( 640 + ( "gui::virtual_screen_x_expand" * 2 ) ),( 480 + ( "gui::virtual_screen_y_expand" * 2 ) )
+		visible		( "Desktop::cm_animating" == 1 )
+		backcolor	0,0,0,0
+		onAction {
+			set "Desktop::cm_focus" "9" ;
+			set "cmd" "campaignBlockInput" ;
+		}
+
+		onESC {
+			set "Desktop::cm_focus" "9" ;
+		}
+	}
 }

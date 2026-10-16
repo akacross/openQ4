@@ -139,6 +139,7 @@ static bool RetainedUI_IsOpen(){return preview;}
 static void RetainedUI_Close(){preview=false;}
 static void RetainedUI_FrameInput(){CHECK(false);}
 static bool UI_RetainedSettingsDocument(idUserInterface* gui){CHECK(gui && !gui->active);return gui->valid;}
+static bool UI_IsRetainedPath(const char* qpath){const std::string p=qpath?qpath:"";return p.size()>=5&&p.compare(p.size()-5,5,".q4ui")==0;}
 static bool UI_RetainedSettingsCanReturn(idUserInterface* gui){CHECK(gui && !gui->retired);return gui->canReturn;}
 static int menuProfileSaveVarsMsec=0,menuProfileMainVarsMsec=0;
 static int Sys_Milliseconds(){return 10;}
@@ -166,11 +167,12 @@ struct idSessionLocal {
     // Retained home screens are outside this route: they never present in these scenarios.
     idUserInterface* guiRetainedHome=nullptr;int retainedHomeUpdates=0;
     void UpdateRetainedHome(){++retainedHomeUpdates;}void RetainedHomeFrameEvent(){CHECK(guiRetainedHome==nullptr);}
-    void UpdateRetainedSubpage(){}
+    void UpdateRetainedSubpage(){}void UpdateRetainedPage(){}void UpdateRetainedMultiplayerPage(){}void UpdateRetainedJoinGame(){}void UpdateBrowserTooltip(){}void PrecacheRetainedLevelshots(bool){}idUserInterface* guiRetainedLoad=nullptr,*guiRetainedSave=nullptr;
+    bool RetainedPageActive() const{return guiActive!=nullptr&&(guiActive==guiRetainedLoad||guiActive==guiRetainedSave);}
     // Nor does the multiplayer card, or a loading screen held over a join: these scenarios have no match.
     void UpdateRetainedMultiplayer(){}void RetainedMultiplayerFrameEvent(){}
     idUserInterface* guiLoadingHold=nullptr;void UpdateRetainedLoadingHold(){}
-    idUserInterface* guiRetainedMultiplayer=nullptr;
+    idUserInterface* guiRetainedMultiplayer=nullptr,*guiRetainedRestartMenu=nullptr;
     void HandleRetainedMultiplayerRequest(idUserInterface*,const char*){CHECK(false);}void HandleGameMenuReturn(const char*){CHECK(false);}
     void HandleRetainedSessionRequest(idUserInterface*,const char*){CHECK(false);}
     void SetSaveGameGuiVars(){}void SetMainMenuGuiVars(bool){++mainRefresh;}
@@ -276,6 +278,14 @@ int main(){
         s.session.guiMsgRestore=child;s.session.guiActive=s.session.guiMsg;
         s.session.SetPlayingSoundWorld();CHECK(s.session.requestedSoundWorld==&s.menuSound);
         CHECK(!s.session.ReturnSystemSettings() && !child->retired);
+        {   // A retained front-end screen without a level plays the menu's sounds;
+            // a retained screen over a level, such as the death screen, the game's.
+            idUserInterface* active=s.session.guiActive;idUserInterface front("guis/menu/singleplayer.q4ui");
+            s.session.guiActive=&front;s.session.mapSpawned=false;s.session.SetPlayingSoundWorld();
+            CHECK(s.session.requestedSoundWorld==&s.menuSound);
+            s.session.mapSpawned=true;s.session.SetPlayingSoundWorld();CHECK(s.session.requestedSoundWorld==&s.gameSound);
+            s.session.guiActive=active;
+        }
         s.session.ExitMenu();CHECK(s.session.guiActive==s.session.guiMsg && s.session.guiMsgRestore==child && !child->retired && s.gameSound.unpauses==0);
         s.session.CloseSystemSettings();CHECK(child->retired && !s.session.guiMsgRestore && !s.session.guiSystem);
         s.session.CloseSystemSettings();CHECK(s.manager.frees==1);
@@ -392,7 +402,7 @@ def main():
     stock = gui[gui.index('onNamedEvent fromMp_toSystemStock {'):]
     assert stock[:stock.index('}')].count('set "desktop::dest" "22" ;') == 1
     assert 'ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL' in menu
-    assert 'ui_retained( "ui_retained", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,' in menu
+    assert 'ui_retained( "ui_retained", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,' in menu
     assert ('return ui_retainedSystem.GetBool() || ( Session_RetainedScreensEnabled() &&\n'
             '\t\tRETAINED_SYSTEM_MISSING_SETTINGS[0] == NULL && RETAINED_SYSTEM_INCOMPLETE_SETTINGS[0] == NULL );') in menu
     assert 'ReturnSystemSettings();' in function_body(menu, 'void idSessionLocal::StartMenu(')

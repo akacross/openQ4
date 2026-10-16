@@ -346,11 +346,11 @@ seta g_corpseRemoveDelayMP -1
 
 ## Gameplay Status Bar
 
-The classic UI is the default (`ui_retained 0`) because the new UI still adds
-gameplay overhead. To try it, enter `seta ui_retained 1`; return to the default
-with `seta ui_retained 0`. Saved preferences from earlier versions are preserved.
+The modern UI is the default (`ui_retained 1`). Select classic with
+`seta ui_retained 0`, or modern with `seta ui_retained 1`.
+Saved preferences from earlier versions are preserved.
 
-The optional new UI (`ui_retained 1`) shows a centered ammo, health and armor
+The modern UI (`ui_retained 1`) shows a centered ammo, health and armor
 bar, with Marine and Strogg artwork matching the campaign. Multiplayer shows
 total ammo in the current weapon's color. Armor reaching zero leaves the other
 gauges in place.

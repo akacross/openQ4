@@ -32,6 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../renderer/Image.h"
 #include "ImageTools.h"
+#include "LegacyScopeMask.h"
 #include "DXT/DXTCodec.h"
 
 idCVar image_usePrecompressedTextures(
@@ -176,7 +177,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 	byte		*targa_rgba;
 
 	if ( !pic ) {
-		fileSystem->ReadFile( name, NULL, timestamp );
+		fileSystem->ReadFileContentStamp( name, NULL, timestamp );
 		return;	// just getting timestamp
 	}
 
@@ -185,7 +186,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 	//
 	// load the file
 	//
-	fileSize = fileSystem->ReadFile( name, (void **)&buffer, timestamp );
+	fileSize = fileSystem->ReadFileContentStamp( name, (void **)&buffer, timestamp );
 	if ( !buffer ) {
 		return;
 	}
@@ -496,7 +497,7 @@ static void LoadJPG( const char *filename, unsigned char **pic, int *width, int 
 		}
 		len = f->Length();
 		if ( timestamp ) {
-			*timestamp = f->Timestamp();
+			*timestamp = f->ContentStamp();
 		}
 		if ( !pic ) {
 			fileSystem->CloseFile( f );
@@ -871,7 +872,7 @@ static bool R_ReadDDSFileInfoUncached( const char *name, ddsFileInfo_t &info, ID
 		return false;
 	}
 	if ( timestamp != NULL ) {
-		*timestamp = file->Timestamp();
+		*timestamp = file->ContentStamp();
 	}
 	return true;
 }
@@ -1235,6 +1236,16 @@ static void R_BuildDDSCandidates( const char *cname, idStrList &candidates, idSt
 	}
 }
 
+static bool R_HasUncompressedLegacyScopeMask( const char *name ) {
+	if ( !R_IsLegacyScopeDistortionMask( name ) ) {
+		return false;
+	}
+	idStr source = name;
+	source.BackSlashesToSlashes();
+	source.DefaultFileExtension( ".tga" );
+	return fileSystem->ReadFile( source, NULL ) > 0;
+}
+
 /*
 =============
 R_ResolvePreferredDDSImageSource
@@ -1250,7 +1261,6 @@ bool R_ResolvePreferredDDSImageSource( const char *cname, idStr &ddsName, ID_TIM
 	if ( cname == NULL || cname[0] == '\0' ) {
 		return false;
 	}
-
 	if ( image_usePrecompressedTextures.GetInteger() <= 0 ) {
 		return false;
 	}
@@ -1261,8 +1271,14 @@ bool R_ResolvePreferredDDSImageSource( const char *cname, idStr &ddsName, ID_TIM
 
 	const bool logMisses = image_showPrecompressedTextures.GetBool();
 	idStr rejections;
+	const bool preferScopeSource = R_HasUncompressedLegacyScopeMask( cname );
 
 	for ( int i = 0; i < candidates.Num(); i++ ) {
+		// Keep intentional dds/ replacement packs eligible. Only the retail
+		// sibling DDS loses priority to the precise source mask.
+		if ( preferScopeSource && candidates[i].IcmpPrefix( "dds/" ) != 0 ) {
+			continue;
+		}
 		const char *rejectReason = NULL;
 		if ( R_TryResolvePreferredDDSImageSource( candidates[i], ddsName, timestamp, allowPrecompressedDDS, precompressedDDS, &rejectReason ) ) {
 			return true;
@@ -1332,7 +1348,7 @@ bool R_LoadPrecompressedDDS( const char *cname, idBinaryImage &image, ID_TIME_T 
 			return false;
 		}
 		if ( timestamp != NULL ) {
-			*timestamp = ddsFile->Timestamp();
+			*timestamp = ddsFile->ContentStamp();
 		}
 		fileSize = ddsFile->Length();
 	    if (expected && (fileSize < 0 || std::uint64_t(fileSize) != requested.bytes)) return false;
@@ -1602,13 +1618,13 @@ static void LoadDDS( const char *name, byte **pic, int *width, int *height, ID_T
 	byte *buffer;
 
 	if ( !pic ) {
-		fileSystem->ReadFile( name, NULL, timestamp );
+		fileSystem->ReadFileContentStamp( name, NULL, timestamp );
 		return;	// just getting timestamp
 	}
 
 	*pic = NULL;
 
-	fileSize = fileSystem->ReadFile( name, (void **)&buffer, timestamp );
+	fileSize = fileSystem->ReadFileContentStamp( name, (void **)&buffer, timestamp );
 	if ( !buffer ) {
 		return;
 	}
@@ -1949,9 +1965,7 @@ bool R_LoadCubeImages( const char *imgName, cubeFiles_t extensions, byte *pics[6
 			break;
 		}
 		if ( timestamp ) {
-			if ( thisTime > *timestamp ) {
-				*timestamp = thisTime;
-			}
+			*timestamp = FS_CombineContentStamps( *timestamp, thisTime );
 		}
 		if ( pics && extensions == CF_CAMERA ) {
 			// convert from "camera" images to native cube map images

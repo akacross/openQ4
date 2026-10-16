@@ -184,7 +184,8 @@ bool State::EvaluateDerived(const StateValues& base, const StateValues* overlay,
 		cell.value = std::move(value);
 		cell.pending = false;
 	}
-	for (const auto& [id,control] : *controlDeclarations) {
+	for (const auto& [id,declared] : *controlDeclarations) {
+		const Control& control = *declared;
 		ControlReadback value;
 		const auto reject = [&]() { error = "Control '"+id+"': "+error; return false; };
 		if (!control.value || !EvaluateTyped(*control.value,base,overlay,value.value,error)) {
@@ -206,7 +207,9 @@ bool State::EvaluateDerived(const StateValues& base, const StateValues* overlay,
 				error = "Invalid slider readback type"; return reject();
 			}
 		} else if (control.role == ControlRole::Number) {
-			if (!std::holds_alternative<NumberSpec>(control.widget) || !std::holds_alternative<double>(value.value)) {
+			// A text field (role "text") reads back a string.
+			const auto* spec = std::get_if<NumberSpec>(&control.widget);
+			if (!spec || !(spec->textField ? std::holds_alternative<std::string>(value.value) : std::holds_alternative<double>(value.value))) {
 				error = "Invalid number readback type"; return reject();
 			}
 		} else if (control.role == ControlRole::Choice) {
@@ -244,18 +247,21 @@ bool State::EvaluateDerived(const StateValues& base, const StateValues* overlay,
 	}
 	return true;
 }
-bool State::Reset(const DocumentModel& model, std::string& error) {
+bool State::Reset(const DocumentModel& model, std::string& error) { return Reset(std::make_shared<const DocumentModel>(model),error); }
+bool State::Reset(std::shared_ptr<const DocumentModel> shared, std::string& error) {
 	State candidate;
-	candidate.declarations = std::make_shared<const std::map<std::string,StateDeclaration>>(model.state);
-	candidate.bindings = std::make_shared<const std::vector<Binding>>(model.bindings);
-	candidate.presentationDeclarations = std::make_shared<const std::map<std::string,PresentationVariable>>(model.presentationVariables);
-	auto controls = std::make_shared<std::map<std::string,Control>>();
+	const DocumentModel& model = *shared;
+	candidate.declarations = std::shared_ptr<const std::map<std::string,StateDeclaration>>(shared,&model.state);
+	candidate.bindings = std::shared_ptr<const std::vector<Binding>>(shared,&model.bindings);
+	candidate.presentationDeclarations = std::shared_ptr<const std::map<std::string,PresentationVariable>>(shared,&model.presentationVariables);
+	auto controls = std::make_shared<std::map<std::string,const Control*>>();
 	const auto collect = [&](const auto& self, const Node& node) -> void {
-		if (node.control && node.control->role != ControlRole::Button && node.control->role != ControlRole::Scrollbar) controls->emplace(node.id,*node.control);
+		if (node.control && node.control->role != ControlRole::Button && node.control->role != ControlRole::Scrollbar) controls->emplace(node.id,&*node.control);
 		for (const auto& child : node.children) self(self,child);
 	};
 	collect(collect,model.root);
 	candidate.controlDeclarations = std::move(controls);
+	candidate.model = std::move(shared);
 	// openQ4: index the bindings by the state they read, so a change
 	// re-evaluates only its dependents.
 	auto dependents = std::make_shared<std::map<std::string,std::vector<std::size_t>>>();

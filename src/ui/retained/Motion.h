@@ -26,7 +26,11 @@ struct MotionSnapshot {
 // monotonic seconds; sampling gaps are never clamped to simulation/frame ticks.
 class Motion {
 public:
+	// Keeps a copy of the model's timelines and authored values.
 	void Reset(const DocumentModel& model);
+	// References the shared model's timelines and reads its authored values
+	// once: the model outlives this motion and its copies.
+	void Reset(std::shared_ptr<const DocumentModel> model);
 	bool Play(const std::string& id, double seconds);
 	void Advance(double seconds);
 	void Pause(const std::string& id, double seconds);
@@ -35,6 +39,8 @@ public:
 	void SetReducedMotion(bool enabled, double seconds);
 	bool ReducedMotion() const { return reducedMotion; }
 	const PropertyValues& Values() const;
+	// The authored values, in Values()' key order.
+	const PropertyValues& Base() const { return *base; }
 	bool IsPlaying(const std::string& id) const;
 	// Pure authored-time sampling for editor scrubbing. Does not mutate playback,
 	// acquire ownership, or dispatch any future action/event notifications.
@@ -83,12 +89,15 @@ private:
 	};
 	static Value Sample(const Track& track, double milliseconds);
 	// The document's timelines and authored values are fixed after Reset and
-	// shared by copies: a transactional copy duplicates only live values.
-	std::shared_ptr<const std::map<std::string, Timeline>> timelines = std::make_shared<const std::map<std::string, Timeline>>();
+	// shared by copies: a transactional copy duplicates only live values. The
+	// timelines are the model's, which `model` keeps.
+	std::shared_ptr<const DocumentModel> model;
+	std::shared_ptr<const std::map<std::string, const Timeline*>> timelines = std::make_shared<const std::map<std::string, const Timeline*>>();
 	std::shared_ptr<const PropertyValues> base = std::make_shared<const PropertyValues>();
 	// The live values, shared by copies until one of them writes: an event's
 	// transactional copy that only plays timelines and sets state never
-	// duplicates a document's thousands of authored values.
+	// duplicates a document's thousands of authored values, and a reset shares
+	// the authored values themselves until the first write.
 	std::shared_ptr<PropertyValues> values = std::make_shared<PropertyValues>();
 	PropertyValues& Writable();
 	std::map<PropertyKey, Playing> playing;

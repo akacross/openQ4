@@ -22,6 +22,8 @@
 	int						quickChatGuiChannel;
 	void					InitQuickChat( void );
 	void					FreeQuickChatGui( void );
+	// Loads the local player's quick chat as the player spawns.
+	void					PrecacheQuickChatGui( void );
 	bool					CanUseQuickChat( void );
 	void					ApplyQuickChatInputMask( void );
 	void					ResetQuickChat( bool instantRestore = true );

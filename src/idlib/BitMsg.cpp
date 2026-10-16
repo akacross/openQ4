@@ -60,6 +60,10 @@ byte *idBitMsg::GetByteSpace( int length ) {
 	if ( !writeData ) {
 		idLib::common->FatalError( "idBitMsg::GetByteSpace: cannot write to message" );
 	}
+	if ( length < 0 || length > maxSize || length > ( idMath::INT_MAX >> 3 ) ) {
+		idLib::common->FatalError( "idBitMsg::GetByteSpace: invalid length %d", length );
+		return NULL;
+	}
 
 	// round up to the next byte
 	WriteByteAlign();
@@ -143,7 +147,7 @@ idBitMsg::WriteString
 ================
 */
 void idBitMsg::WriteString( const char *s, int maxLength ) {
-	if ( !s ) {
+	if ( !s || maxLength == 0 ) {
 		WriteData( "", 1 );
 	} else {
 		int l;
@@ -165,6 +169,14 @@ idBitMsg::WriteData
 ================
 */
 void idBitMsg::WriteData( const void *data, int length ) {
+	if ( length == 0 ) {
+		WriteByteAlign();
+		return;
+	}
+	if ( length < 0 || !data ) {
+		idLib::common->FatalError( "idBitMsg::WriteData: invalid data or length %d", length );
+		return;
+	}
 	memcpy( GetByteSpace( length ), data, length );
 }
 
@@ -427,13 +439,15 @@ int idBitMsg::ReadString( char *buffer, int bufferSize ) const {
 		// we will read past any excessively long string, so
 		// the following data can be read, but the string will
 		// be truncated
-		if ( l < bufferSize - 1 ) {
+		if ( buffer && bufferSize > 0 && l < bufferSize - 1 ) {
 			buffer[l] = c;
 			l++;
 		}
 	}
 	
-	buffer[l] = 0;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[l] = 0;
+	}
 	return l;
 }
 
@@ -447,6 +461,9 @@ int idBitMsg::ReadData( void *data, int length ) const {
 
 	ReadByteAlign();
 	if ( IsReadOverflowed() || length < 0 ) {
+		if ( data && length > 0 ) {
+			memset( data, 0, length );
+		}
 		MarkReadOverflowed();
 		return 0;
 	}
@@ -461,7 +478,7 @@ int idBitMsg::ReadData( void *data, int length ) const {
 		MarkReadOverflowed();
 		return remaining;
 	} else {
-		if ( data ) {
+		if ( data && length > 0 ) {
 			memcpy( data, readData + readCount, length );
 		}
 		readCount += length;
@@ -836,6 +853,10 @@ idBitMsgDelta::WriteData
 ================
 */
 void idBitMsgDelta::WriteData( const void *data, int length ) {
+	if ( length < 0 || ( length > 0 && !data ) ) {
+		idLib::common->FatalError( "idBitMsgDelta::WriteData: invalid data or length %d", length );
+		return;
+	}
 	if ( newBase ) {
 		newBase->WriteData( data, length );
 	}
@@ -844,10 +865,12 @@ void idBitMsgDelta::WriteData( const void *data, int length ) {
 		writeDelta->WriteData( data, length );
 		changed = true;
 	} else {
-		byte baseData[MAX_DATA_BUFFER];
-		assert( length < sizeof( baseData ) );
-		base->ReadData( baseData, length );
-		if ( !base->IsReadOverflowed() && memcmp( data, baseData, length ) == 0 ) {
+		// Compare directly with the byte-aligned base. A fixed stack copy both
+		// wasted work and imposed a hidden 1024-byte limit on binary fields.
+		base->ReadByteAlign();
+		const byte *baseData = length > 0 && length <= base->GetRemainingData() ? base->GetReadData() : NULL;
+		base->ReadData( NULL, length );
+		if ( !base->IsReadOverflowed() && ( length == 0 || memcmp( data, baseData, length ) == 0 ) ) {
 			writeDelta->WriteBits( 0, 1 );
 		} else {
 			writeDelta->WriteBits( 1, 1 );
@@ -989,22 +1012,23 @@ idBitMsgDelta::ReadData
 ================
 */
 void idBitMsgDelta::ReadData( void *data, int length ) const {
+	if ( length < 0 || ( newBase && length > 0 && !data ) ) {
+		idLib::common->FatalError( "idBitMsgDelta::ReadData: invalid data or length %d", length );
+		return;
+	}
 	if ( !base ) {
 		readDelta->ReadData( data, length );
 		changed = true;
 	} else {
-		char baseData[MAX_DATA_BUFFER];
-		assert( length < sizeof( baseData ) );
-		base->ReadData( baseData, length );
-		const bool baseOverflowed = base->IsReadOverflowed();
 		if ( !readDelta ) {
-			memcpy( data, baseData, length );
+			base->ReadData( data, length );
 		} else if ( readDelta->ReadBits( 1 ) == 0 ) {
-			memcpy( data, baseData, length );
-			if ( baseOverflowed ) {
+			base->ReadData( data, length );
+			if ( base->IsReadOverflowed() ) {
 				readDelta->MarkReadOverflowed();
 			}
 		} else {
+			base->ReadData( NULL, length );
 			readDelta->ReadData( data, length );
 			changed = true;
 		}

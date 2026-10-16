@@ -63,9 +63,11 @@ class idLexer;
 // fractional levels bot_skillVariance produces are lerped between two rows.
 static const int	BOT_SKILL_LEVELS		= 5;
 
-// Per-weapon preference biases carried by a style or a character.  Ten weapons
-// exist in multiplayer; the slack is for weapon mods and future additions.
-static const int	BOT_MAX_WEAPON_BIAS		= 12;
+// Per-weapon preference biases carried by a style or a character.  Twelve
+// weapons exist in multiplayer - the stock ten plus the Dark Matter Gun and
+// the napalm gun - so a style with an opinion about every one of them leaves
+// four slots for weapon mods and future additions.
+static const int	BOT_MAX_WEAPON_BIAS		= 16;
 
 // A chat line is dropped by idMultiplayerGame::ProcessChatMessage when the
 // decorated name plus the text reaches 240 characters.  Budget the text well

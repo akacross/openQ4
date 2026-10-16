@@ -44,6 +44,33 @@ public:
         for(char &c:y)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         return x.compare(y);
     }
+    static int Icmpn(const char *a,const char *b,int n) {
+        for(int i=0;i<n;++i){
+            const int x=std::tolower(static_cast<unsigned char>(a[i])),y=std::tolower(static_cast<unsigned char>(b[i]));
+            if(x!=y||!x)return x-y;
+        }
+        return 0;
+    }
+    friend idStr operator+(const idStr &a,const char *b) { return idStr(a.value+b); }
+    // idStr's own: a caret and a digit (or c and three digits) is a color.
+    void RemoveColors() {
+        std::string out;
+        for(size_t i=0;i<value.size();++i){
+            if(value[i]=='^'&&i+4<value.size()&&(value[i+1]=='c'||value[i+1]=='C')){i+=4;continue;}
+            if(value[i]=='^'&&i+1<value.size()&&std::isdigit(static_cast<unsigned char>(value[i+1]))){++i;continue;}
+            out+=value[i];
+        }
+        value=out;
+    }
+    void StripLeading(char c) { while(!value.empty()&&value.front()==c)value.erase(value.begin()); }
+    void StripTrailing(char c) { while(!value.empty()&&value.back()==c)value.pop_back(); }
+    int Cmp(const char *s) const { return value.compare(s); }
+    int Find(const char *text,bool casesensitive=true) const {
+        std::string a=value,b=text;
+        if(!casesensitive){for(char &c:a)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                           for(char &c:b)c=static_cast<char>(std::tolower(static_cast<unsigned char>(c)));}
+        const auto at=a.find(b);return at==std::string::npos?-1:static_cast<int>(at);
+    }
     int Icmp(const char *s) const { return Icmp(c_str(),s); }
     int Icmp(const idStr &s) const { return Icmp(c_str(),s.c_str()); }
     operator const char *() const { return c_str(); }
@@ -110,10 +137,13 @@ bool Sys_StringToNetAdr(const char *s,netadr_t *out,bool) {
     if(colon==std::string::npos)return false;
     std::string port=value.substr(colon+1);
     if(port.empty() || port.find_first_not_of("0123456789")!=std::string::npos)return false;
-    out->port=std::atoi(port.c_str());out->host=value.substr(0,colon);out->type=value[0]=='['?NA_IP6:NA_IP;
+    // As the platform's: 127.0.0.1 is the loopback endpoint.
+    out->port=std::atoi(port.c_str());out->host=value.substr(0,colon);
+    out->type=value[0]=='['?NA_IP6:out->host=="127.0.0.1"?NA_LOOPBACK:NA_IP;
     return out->port>0 && out->port<65536 && out->host.find_first_not_of("0123456789abcdefABCDEF.:[]%") == std::string::npos;
 }
-const char *Sys_NetAdrToString(const netadr_t &adr){return va("%s:%d",adr.host.c_str(),adr.port);}
+// As the platform's: a loopback endpoint reads as localhost.
+const char *Sys_NetAdrToString(const netadr_t &adr){return adr.type==NA_LOOPBACK?va("localhost:%d",adr.port):va("%s:%d",adr.host.c_str(),adr.port);}
 bool Sys_CompareNetAdrBase(const netadr_t &a,const netadr_t &b){return a.host==b.host;}
 int clockValue=100;
 int Sys_Milliseconds(){return clockValue;}
@@ -123,6 +153,7 @@ struct idUserInterface {
     void SetStateString(const char *s,const char *v){state.Set(s,v);}
     void SetStateInt(const char *s,int v){state.SetInt(s,v);}
     void SetStateBool(const char *s,bool v){state.SetInt(s,v);}
+    void SetStateFloat(const char *s,float v){state.Set(s,std::to_string(v).c_str());}
     void DeleteStateVar(const char *s){state.Delete(s);}
     void StateChanged(int){}
 };
@@ -151,6 +182,15 @@ struct Language {
     const char *GetString(const char *token){
         if(!std::strcmp(token,"#str_42861"))return "Showing %d out of %d servers";
         if(!std::strcmp(token,"#str_107298"))return "Scanning - Found: %s";
+        if(!std::strcmp(token,"#str_107293"))return "Scanning for LAN servers...";
+        if(!std::strcmp(token,"#str_107294"))return "Scanned %d openQ4 Servers";
+        if(!std::strcmp(token,"#str_107297"))return "Scanning %d/%d: %s";
+        if(!std::strcmp(token,"#str_107736"))return "Getting list of servers...";
+        static const std::map<std::string,std::string> details={{"#str_107702","Map"},{"#str_107659","Time Limit"},
+            {"#str_107660","Frag Limit"},{"#str_107661","Capture Limit"},{"#str_41404","Round Limit"},{"#str_122008","Control Time"},
+            {"#str_107664","Team Damage"},{"#str_107666","Auto Balance Teams"},{"#str_107662","Pure"},{"#str_104254","Allow Spectators"},
+            {"#str_107703","Yes"},{"#str_107704","No"}};
+        const auto detail=details.find(token);if(detail!=details.end())return detail->second.c_str();
         return token;
     }
 } language;
@@ -246,14 +286,26 @@ int main(){
     scan.SetSorting(SORT_SERVERNAME);assert(scan.GetSelectedAddress(address)&&address==original);
     assert(gui.State().GetInt("serverList_sel_0")==1);
     scan.SetSorting(SORT_SERVERNAME);assert(scan.GetSelectedAddress(address)&&address==original);
+    // The read view a menu drawing its own list uses: the servers the filter
+    // passes in the sort's walking order, the sort, whether a server is a
+    // favorite, a revision each change moves, and the game type's name.
+    {bool up=true;assert(scan.GetSorting(up)==SORT_SERVERNAME&&!up);
+     idList<int> order;scan.VisibleServers(order);assert(order.Num()==2);
+     assert(!std::strcmp(scan[order[0]].serverInfo.GetString("si_name"),"^2Zulu\tArena\n^imaterial"));
+     assert(!std::strcmp(scan[order[1]].serverInfo.GetString("si_name"),"Alpha"));
+     const int before=scan.GetRevision();scan.ApplyFilter();assert(scan.GetRevision()>before);
+     assert(!scan.IsFavoriteServer(order[0])&&!scan.IsFavoriteServer(-1)&&!scan.IsFavoriteServer(2));
+     assert(!std::strcmp(idServerScan::GameTypeName("Team DM"),"#str_107677")&&!std::strcmp(idServerScan::GameTypeName("custom"),"custom"));}
     const auto &row=uiManager->last->rows[0].second.value;
     assert(std::count(row.begin(),row.end(),'\t')==9);assert(row.find('\n')==std::string::npos);assert(row.find('^')==std::string::npos);
     assert(gui.State().GetInt("browser_count")==2); // OS mask does not reject our own modules.
     gui_filter_players.SetString("2");scan.ApplyFilter();assert(!scan.GetSelectedAddress(address));assert(gui.State().GetInt("browser_count")==0);
+    {idList<int> order;scan.VisibleServers(order);assert(order.Num()==0);}
     assert(std::string(gui.State().GetString("server_IP")).empty());
     gui_filter_players.SetString("0");scan.ApplyFilter();assert(!scan.GetSelectedAddress(address));
     gui.SetStateInt("serverList_sel_0",0);scan.GUIUpdateSelected();assert(scan.GetSelectedAddress(address));
     scan.ToggleFavorite();assert(fileValue.files["server_favorites.list"].find(address.c_str())!=std::string::npos);
+    {idList<int> order;scan.VisibleServers(order);int favorites=0;for(int i=0;i<order.Num();++i)favorites+=scan.IsFavoriteServer(order[i]);assert(favorites==1);}
     assert(std::string(gui.State().GetString("favoriteStatus"))=="#str_200293");
     scan.SetSorting(SORT_FAVORITE);assert(scan.GetSelectedAddress(address));
     fileValue.failWrite=true;scan.ToggleFavorite();assert(std::string(gui.State().GetString("favoriteStatus"))=="#str_200293");fileValue.failWrite=false;
@@ -272,11 +324,133 @@ int main(){
     fileValue.screenshot.clear();scan[0].serverInfo.Set("si_map","../secret");scan.GUIUpdateSelected();assert(fileValue.screenshot.empty());
     clockValue+=1200;scan.RunFrame();assert(scan.GetState()==idServerScan::IDLE);assert(!gui.State().GetBool("browser_scanning"));
     scan.Shutdown();
-    fileValue.files["server_favorites.list"]="10.0.0.9:28004\n[2001:db8::1]:28004\n10.0.0.9:28004\n10.0.0.3:28004;quit\n";
+    // Loopback favorites (a server on this machine) list too, numeric or as
+    // a "localhost" line saved before the numeric form.
+    fileValue.files["server_favorites.list"]="10.0.0.9:28004\n[2001:db8::1]:28004\n10.0.0.9:28004\n10.0.0.3:28004;quit\n127.0.0.1:28005\nlocalhost:28006\n";
     idServerScan restored;restored.GUIConfig(&gui,"serverList");restored.GUIInit();restored.AddFavoriteServers();restored.NetScan();
-    assert(idAsyncNetwork::client.queries.size()==2);
+    assert(idAsyncNetwork::client.queries.size()==4);
     assert(idAsyncNetwork::client.queries[1]=="[2001:db8::1]:28004");
+    assert(idAsyncNetwork::client.queries[2]=="localhost:28005"&&idAsyncNetwork::client.queries[3]=="localhost:28006");
     restored.Shutdown();
+    // A loopback server toggled into the favorites is saved in the numeric form.
+    {idServerScan local;local.GUIConfig(&gui,"serverList");local.GUIInit();local.SetupLANScan();
+     auto self=server("127.0.0.1",3,"Local");self.adr.type=NA_LOOPBACK;self.challenge=local.GetChallenge();assert(local.InfoResponse(self)==0);
+     gui.SetStateInt("serverList_sel_0",0);local.GUIUpdateSelected();assert(!local.IsFavoriteServer(0));local.ToggleFavorite();
+     assert(fileValue.files["server_favorites.list"].find("127.0.0.1:28004\n")!=std::string::npos);
+     assert(fileValue.files["server_favorites.list"].find("localhost:28004")==std::string::npos&&local.IsFavoriteServer(0));
+     // A menu drawing its own list toggles a server by index, as the stock
+     // list toggles its selection; a server that does not exist changes nothing.
+     assert(local.ToggleFavoriteServer(0)&&!local.IsFavoriteServer(0));
+     assert(fileValue.files["server_favorites.list"].find("127.0.0.1:28004")==std::string::npos);
+     const std::string kept=fileValue.files["server_favorites.list"];
+     assert(!local.ToggleFavoriteServer(1)&&!local.ToggleFavoriteServer(-1)&&fileValue.files["server_favorites.list"]==kept);
+     assert(local.ToggleFavoriteServer(0)&&local.IsFavoriteServer(0));
+     local.Shutdown();}
+    // FIND PLAYER/CLAN: only servers with a player whose name holds the text
+    // (colors removed, any case) pass; empty text, or a new search, clears it.
+    {idServerScan search;search.GUIConfig(&gui,"serverList");search.GUIInit();search.SetupLANScan();
+     auto x=server("10.2.0.1",5,"With Grunt",2);x.challenge=search.GetChallenge();
+     std::snprintf(x.nickname[0],MAX_NICKLEN,"%s","^1[Q4]^7Grunt");std::snprintf(x.nickname[1],MAX_NICKLEN,"%s","Kane");
+     auto y=server("10.2.0.2",9,"Without",1);y.challenge=search.GetChallenge();std::snprintf(y.nickname[0],MAX_NICKLEN,"%s","Strauss");
+     auto z=server("10.2.0.3",9,"Empty",0);z.challenge=search.GetChallenge();
+     assert(search.InfoResponse(x)==0&&search.InfoResponse(y)==1&&search.InfoResponse(z)==2);
+     idList<int> order;search.VisibleServers(order);assert(order.Num()==3);
+     const int before=search.GetRevision();
+     search.SetPlayerSearch("  grunt ");assert(!std::strcmp(search.GetPlayerSearch(),"grunt")&&search.GetRevision()>before);
+     search.VisibleServers(order);assert(order.Num()==1&&order[0]==0);
+     search.SetPlayerSearch("[q4]");search.VisibleServers(order);assert(order.Num()==1&&order[0]==0);   // a clan tag in a name
+     search.SetPlayerSearch("^2STRAUSS");search.VisibleServers(order);assert(order.Num()==1&&order[0]==1);
+     search.SetPlayerSearch("nobody");search.VisibleServers(order);assert(order.Num()==0);
+     const int same=search.GetRevision();search.SetPlayerSearch("nobody");assert(search.GetRevision()==same);
+     search.SetPlayerSearch("");search.VisibleServers(order);assert(order.Num()==3);
+     search.Shutdown();}
+    // The scan's progress, as the stock browser's load bar shows it (and the
+    // retained page reads it): a LAN sweep names its stage, then the server
+    // that answered, across its reply window; a completed scan its count on a
+    // full bar; a clear empties it. The stock GUI gets the same.
+    {idUserInterface bar;idServerScan lan;lan.GUIConfig(&bar,"serverList");lan.GUIInit();
+     assert(!*lan.GetLoadNotice()&&lan.GetLoadProgress()==0.0f);
+     clockValue=1000;lan.SetupLANScan();
+     assert(!std::strcmp(lan.GetLoadNotice(),"Scanning for LAN servers...")&&lan.GetLoadProgress()==0.0f);
+     assert(!std::strcmp(bar.State().GetString("loadNotice"),"Scanning for LAN servers...")&&!std::strcmp(bar.State().GetString("loadPct"),"0.000000"));
+     const int before=lan.GetRevision();
+     clockValue=1500;lan.RunFrame();
+     assert(lan.GetLoadProgress()==0.5f&&lan.GetRevision()>before&&!std::strcmp(bar.State().GetString("loadPct"),"0.500000"));
+     const int steady=lan.GetRevision();lan.RunFrame();assert(lan.GetRevision()==steady);   // nothing new, no news
+     auto a=server("10.3.0.1",5,"^2LAN Arena",1);a.challenge=lan.GetChallenge();assert(lan.InfoResponse(a)==0);
+     assert(!std::strcmp(lan.GetLoadNotice(),"Scanning - Found: LAN Arena"));
+     clockValue=2100;lan.RunFrame();
+     assert(lan.GetState()==idServerScan::IDLE&&!std::strcmp(lan.GetLoadNotice(),"Scanned 1 openQ4 Servers")&&lan.GetLoadProgress()==1.0f);
+     assert(!std::strcmp(bar.State().GetString("loadNotice"),"Scanned 1 openQ4 Servers")&&!std::strcmp(bar.State().GetString("loadPct"),"1.000000"));
+     lan.Clear();assert(!*lan.GetLoadNotice()&&lan.GetLoadProgress()==0.0f&&!*bar.State().GetString("loadNotice"));
+     lan.Shutdown();}
+    // A new Internet list: the master's request, then the server that answered
+    // with the count heard from or given up on out of those listed, then the
+    // count the scan covered. A refresh says nothing until a server answers.
+    {idUserInterface bar;idServerScan net;net.GUIConfig(&bar,"serverList");net.GUIInit();
+     clockValue=5000;net.Clear();net.NetScan();net.StartServers(true);net.RunFrame();
+     assert(net.GetState()==idServerScan::NET_SCAN&&!std::strcmp(net.GetLoadNotice(),"Getting list of servers...")&&net.GetLoadProgress()==0.0f);
+     net.AddServer(0,"10.4.0.1:28004");net.AddServer(1,"10.4.0.2:28004");net.RunFrame();
+     assert(!std::strcmp(net.GetLoadNotice(),"Getting list of servers..."));
+     auto b=server("10.4.0.1",5,"^1Answering",0);b.challenge=net.GetChallenge();assert(net.InfoResponse(b)==0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 1/2: Answering")&&net.GetLoadProgress()==0.5f);
+     clockValue=20000;net.RunFrame();
+     assert(net.GetState()==idServerScan::IDLE&&!std::strcmp(net.GetLoadNotice(),"Scanned 2 openQ4 Servers")&&net.GetLoadProgress()==1.0f);
+     net.NetScan();assert(net.GetState()==idServerScan::NET_SCAN&&!*net.GetLoadNotice()&&net.GetLoadProgress()==0.0f);
+     auto c=server("10.4.0.2",9,"Second",0);c.challenge=net.GetChallenge();assert(net.InfoResponse(c)>=0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 1/2: Second"));
+     // A server without a name is named by its address.
+     auto d=server("10.4.0.1",5,"",0);d.challenge=net.GetChallenge();assert(net.InfoResponse(d)>=0);
+     assert(!std::strcmp(net.GetLoadNotice(),"Scanning 2/2: 10.4.0.1:28004")&&net.GetLoadProgress()==1.0f);
+     net.Shutdown();}
+    // A server's details, as the stock browser's tooltip shows them: its
+    // address, its players' names as the browser reads them, and its settings
+    // with the limit its game type ends on. The tooltip follows the hovered
+    // row (or the row openq4_browser names) and hides with none.
+    {idUserInterface tip;idServerScan d;d.GUIConfig(&tip,"serverList");d.GUIInit();d.SetupLANScan();
+     auto dm=server("10.5.0.1",5,"Duel Hall",2);dm.challenge=d.GetChallenge();
+     std::snprintf(dm.nickname[0],MAX_NICKLEN,"%s","^1Grunt");std::snprintf(dm.nickname[1],MAX_NICKLEN,"%s","Kane\tX");
+     dm.serverInfo.Set("si_timeLimit","15");dm.serverInfo.Set("si_fragLimit","25");dm.serverInfo.Set("si_teamDamage","1");
+     dm.serverInfo.Set("si_autobalance","0");dm.serverInfo.Set("si_pure","1");dm.serverInfo.Set("si_spectators","0");
+     assert(d.InfoResponse(dm)==0);
+     auto flags=server("10.5.0.2",9,"Flags",0);flags.challenge=d.GetChallenge();
+     flags.serverInfo.Set("si_gameType","One Flag CTF");flags.serverInfo.Set("si_captureLimit","7");assert(d.InfoResponse(flags)==1);
+     auto rounds=server("10.5.0.3",9,"Rounds",0);rounds.challenge=d.GetChallenge();
+     rounds.serverInfo.Set("si_gameType","Clan Arena");rounds.serverInfo.Set("si_roundLimit","9");assert(d.InfoResponse(rounds)==2);
+     auto zone=server("10.5.0.4",9,"Zone",0);zone.challenge=d.GetChallenge();
+     zone.serverInfo.Set("si_gameType","DeadZone");zone.serverInfo.Set("si_controlTime","120");assert(d.InfoResponse(zone)==3);
+     idStr address;idStrList players,settings;
+     assert(d.GetServerDetails(0,address,players,settings)&&address==idStr("10.5.0.1:28004"));
+     assert(players.Num()==2&&players[0]==idStr("Grunt")&&players[1]==idStr("Kane X"));
+     assert(settings.Num()==7&&settings[0]==idStr("Map: mp/q4dm1")&&settings[1]==idStr("Time Limit: 15")&&settings[2]==idStr("Frag Limit: 25")&&
+            settings[3]==idStr("Team Damage: Yes")&&settings[4]==idStr("Auto Balance Teams: No")&&settings[5]==idStr("Pure: Yes")&&
+            settings[6]==idStr("Allow Spectators: No"));
+     assert(d.GetServerDetails(1,address,players,settings)&&settings[2]==idStr("Capture Limit: 7")&&players.Num()==0);
+     assert(d.GetServerDetails(2,address,players,settings)&&settings[2]==idStr("Round Limit: 9"));
+     assert(d.GetServerDetails(3,address,players,settings)&&settings[2]==idStr("Control Time: 120"));
+     assert(!d.GetServerDetails(4,address,players,settings)&&!d.GetServerDetails(-1,address,players,settings));
+     idList<int> order;d.VisibleServers(order);assert(order.Num()==4);
+     int dmRow=-1,flagsRow=-1;for(int i=0;i<order.Num();++i){if(order[i]==0)dmRow=i;if(order[i]==1)flagsRow=i;}
+     d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     tip.SetStateInt("serverList_hover",flagsRow);d.GUIUpdateHover();
+     assert(tip.State().GetBool("serverinfo_visible")&&!std::strcmp(tip.State().GetString("server_tooltip_ip"),"10.5.0.2:28004"));
+     assert(!std::strcmp(tip.State().GetString("server_tooltip_settingslist_item_2"),"Capture Limit: 7")&&
+            tip.State().FindKey("server_tooltip_settingslist_item_7")==nullptr&&tip.State().FindKey("server_tooltip_playerlist_item_0")==nullptr);
+     tip.SetStateInt("serverList_hover",dmRow);d.GUIUpdateHover();
+     assert(!std::strcmp(tip.State().GetString("server_tooltip_playerlist_item_0"),"Grunt")&&
+            !std::strcmp(tip.State().GetString("server_tooltip_playerlist_item_1"),"Kane X")&&
+            tip.State().FindKey("server_tooltip_playerlist_item_2")==nullptr&&
+            !std::strcmp(tip.State().GetString("server_tooltip_settingslist_item_6"),"Allow Spectators: No"));
+     tip.SetStateInt("serverList_hover",-1);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     tip.SetStateInt("serverList_hover",9);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));   // past the list
+     d.SetHoverOverride(flagsRow);d.GUIUpdateHover();   // the pointer on no row, the override names one
+     assert(tip.State().GetBool("serverinfo_visible")&&!std::strcmp(tip.State().GetString("server_tooltip_ip"),"10.5.0.2:28004"));
+     d.SetHoverOverride(-1);tip.SetStateInt("serverList_hover",-1);d.GUIUpdateHover();assert(!tip.State().GetBool("serverinfo_visible"));
+     // The selection no longer drives the tooltip.
+     tip.SetStateInt("serverList_sel_0",dmRow);d.GUIUpdateSelected();assert(!tip.State().GetBool("serverinfo_visible"));
+     d.Shutdown();}
+    // A server's map path is looked up only when it is a plain map path.
+    assert(idServerScan::ValidMapPath("mp/q4dm1")&&!idServerScan::ValidMapPath("../secret")&&!idServerScan::ValidMapPath("/absolute"));
     // Execute the real packet callback: losing any required field must not
     // create a browser row, even when the challenge was otherwise accepted.
     for(int completeFields=0;completeFields<=5;++completeFields){
@@ -308,6 +482,25 @@ def main() -> None:
         missing = labels - set(re.findall(r'"(#str_\d+)"', tables))
         if missing:
             raise AssertionError(f"Browser labels missing from {language}: {sorted(missing)}")
+    # The limit the browser's details name for each public game type is the
+    # one the game's descriptor table ends the match on.
+    types = (ROOT / "src/mpgame/mp/GameTypes.cpp").read_text(encoding="utf-8")
+    table = types[types.index("mpGameTypeInfoTable[] = {"):types.index("};", types.index("mpGameTypeInfoTable[] = {"))]
+    expected = {}
+    for name, flags, public in re.findall(r'\{\s*GAME_\w+,\s*"([^"]+)",[^{}]*?\n\s*([A-Z_| ]+?),\s*(?:\n\s*)?MP_GAMESTATE_\w+,\s*(true|false)\s*\}', table):
+        if public != "true":
+            continue
+        flags = {flag.strip() for flag in flags.split("|")}
+        expected[name] = ("si_captureLimit" if "GTF_CAPTURELIMIT" in flags else "si_roundLimit" if "GTF_ROUNDLIMIT" in flags
+                          else "si_controlTime" if "GTF_DEADZONE" in flags else "si_fragLimit" if "GTF_FRAGLIMIT" in flags else "?")
+    limits = scan[scan.index("static void ServerBrowserMatchLimit("):scan.index("static const char *ServerBrowserGameType(")]
+    listed = lambda array: re.findall(r'"([^"]+)"', re.search(array + r'\[\] = \{([^}]*)\}', limits).group(1))
+    actual = {name: "si_fragLimit" for name in expected}
+    actual.update({name: "si_captureLimit" for name in listed("capture")})
+    actual.update({name: "si_roundLimit" for name in listed("rounds")})
+    actual["DeadZone"] = "si_controlTime"
+    if len(expected) != 12 or "?" in expected.values() or actual != expected:
+        raise AssertionError(f"the browser's match limits drifted from the game types: {expected} != {actual}")
     compiler = next((p for name in ("clang++", "g++", "c++") if (p := shutil.which(name))), None)
     if compiler is None:
         raise RuntimeError("a C++ compiler is required")
@@ -318,7 +511,8 @@ def main() -> None:
         source.write_text(support + header + scan + PACKET_SUPPORT + response + MAIN, encoding="utf-8")
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
-    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, malformed input)")
+    print("server_browser_contract: PASS (production scan, rows, selection, filters, favorites, loopback favorites, player search, read view, "
+          "scan progress, server details and tooltip, malformed input)")
 
 
 if __name__ == "__main__":

@@ -673,7 +673,7 @@ def validate_two_phase_game_api_contract() -> None:
         return
 
     game_api = read(game_api_path)
-    require(game_api, "const int GAME_API_VERSION\t\t= 51;", "current game API version")
+    require(game_api, "const int GAME_API_VERSION\t\t= 52;", "current game API version")
     require(
         game_api,
         "virtual void\t\t\t\tShutdownAfterDecls( void ) = 0;",
@@ -782,6 +782,18 @@ def validate_engine_mirror() -> None:
         if unlisted:
             raise AssertionError(
                 f"si_gameTypeArgs entries missing from the engine allowlist: {unlisted}"
+            )
+
+        # The main menu runs under game_sp and carries its multiplayer mode to
+        # game_mp in si_gameType. A value outside game_sp's list falls back to
+        # its first, singleplayer, so game_sp lists every game_mp mode.
+        sp_types = parse_string_array(
+            read(GAME_LIBS_ROOT / "src" / "game" / "gamesys" / "SysCvar.cpp"), "const char *si_gameTypeArgs[]"
+        )
+        if sp_types != game_types:
+            raise AssertionError(
+                f"game_sp si_gameTypeArgs {sp_types} differs from game_mp's {game_types}; "
+                "a menu mode outside it would fall back to singleplayer"
             )
 
     # An allowlist, not "anything that is not singleplayer".

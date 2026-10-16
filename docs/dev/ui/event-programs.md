@@ -59,10 +59,19 @@ A document with tabs declares `onTabPrevious` and `onTabNext`. The adapter runs
 them for Q and E and the gamepad shoulders, once per press: never on a repeat,
 never with Ctrl or Alt, and never while a Number field is being edited
 ([input routing](input-routing.md)). With `focus`, a tab program can switch
-the page and focus its primary action.
+the page and focus its primary action. On the same terms the triggers run
+`onSectionPrevious` and `onSectionNext`, and the west and north face buttons
+`onSecondary` and `onTertiary`, section 13.5's secondary action (reset,
+remove, refresh) and tertiary one (details, search, sort, filters). A
+document that declares none of them leaves those keys inert. Join Game's
+programs refresh the list on west and sort it by the next column on north,
+each only while no dialog is open.
 
 Evidence: `.tmp/ui/event-focus-tabs/validation-evidence.json`, SHA-256
 `a46e0a80f07dade3ec51c8fe9a363e4deb53d3aff60860f86ccc522793c86df0`.
+
+Evidence for the west and north face buttons and Join Game's refresh and next-column sort: `.tmp/ui/retained-face-buttons-evidence/validation-evidence.json`, SHA-256
+`fc90b152d4822bab61ea49b047678f0e5b035bd6932284ff83c2a7fe25134753`.
 
 ## Ordering, validation and rollback
 

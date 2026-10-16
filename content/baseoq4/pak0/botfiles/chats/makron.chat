@@ -161,7 +161,6 @@ characterChat "Makron" {
 
 		trigger "help me"
 		trigger "need help"
-		trigger "medic"
 		trigger "need a medic"
 		trigger "need health"
 		trigger "need armor"

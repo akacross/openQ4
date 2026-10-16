@@ -621,6 +621,8 @@ private:
 bool			Sys_StringToNetAdr( const char *s, netadr_t *a, bool doDNSResolve );
 const char *	Sys_NetAdrToString( const netadr_t a );
 bool			Sys_IsLANAddress( const netadr_t a );
+				// this machine's first non-loopback IPv4 address (no port)
+bool			Sys_GetLocalIPAddress( netadr_t &out );
 bool			Sys_CompareNetAdrBase( const netadr_t a, const netadr_t b );
 
 void			Sys_InitNetworking( void );

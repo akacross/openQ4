@@ -417,7 +417,61 @@ static void CheckCompletionSchema() {
 	Check(loads(document(R"("complete":"finish",)",R"("complete":"settle",)"),valid),"a completion may play another timeline that completes elsewhere");
 }
 
+// A detail card: a control naming a detail needs the document's definition,
+// whose state is a declared number and whose card is a node below the root
+// that holds no controls and whose left and top nothing else owns.
+static void CheckDetailSchema() {
+	const auto document = [](const std::string& detail, const std::string& control, const std::string& timelines = "",
+		const std::string& bindings = "") {
+		return R"json({"format":"openq4-ui","version":1,"id":"detail-schema",
+		 "state":{"subject":{"type":"number","initial":-1},"flag":{"type":"boolean","initial":false}},
+		 "root":{"id":"root","type":"group","children":[
+		  {"id":"row","type":"group","properties":{"opacity":{"type":"number","value":1}},"control":{"role":"button","event":"pick",
+		   "label":"#str_row","states":{"default":"lit","hover":"lit","focus":"lit","pressed":"lit","disabled":"lit"})json"+control+R"json(}},
+		  {"id":"card","type":"group","properties":{"position":{"type":"keyword","value":"absolute"},
+		   "left":{"type":"length","value":0,"unit":"dp"},"top":{"type":"length","value":0,"unit":"dp"}}}]},
+		 "timelines":[{"id":"lit","durationMs":100,"tracks":[{"node":"row","property":"opacity","keys":[
+		  {"atMs":0,"value":{"type":"number","value":1}},{"atMs":100,"value":{"type":"number","value":0.5}}]}]})json"+timelines+R"json(],
+		 "events":{"pick":[{"op":"setState","values":{"flag":true}}]})json"+bindings+detail+"}";
+	};
+	// Loads, or prints why not; refuses for the reason named.
+	const auto valid = [](const std::string& source, Document& out) {
+		std::vector<Diagnostic> errors;
+		if (out.Load(source,errors)) return true;
+		for (const auto& e : errors) std::fprintf(stderr,"%s %s\n",e.pointer.c_str(),e.message.c_str());
+		return false;
+	};
+	const auto refused = [](const std::string& source, const char* reason) {
+		Document out; std::vector<Diagnostic> errors;
+		if (out.Load(source,errors)) return false;
+		for (const auto& e : errors) if (e.message.find(reason) != std::string::npos) return true;
+		for (const auto& e : errors) std::fprintf(stderr,"%s %s\n",e.pointer.c_str(),e.message.c_str());
+		return false;
+	};
+	const std::string definition = R"(,"detail":{"state":"subject","card":"card"})";
+	Document model;
+	Check(valid(document(definition,R"(,"detail":3)"),model) && model.Model().detail && model.Model().detail->state == "subject" &&
+		model.Model().detail->card == "card" && model.Model().detail->none == -1 && model.Model().FindNode("row")->control->detail == 3.0,
+		"a button names a detail the document's definition places");
+	Check(valid(document(R"(,"detail":{"state":"subject","card":"card","none":-5})",""),model) && model.Model().detail->none == -5 &&
+		!model.Model().FindNode("row")->control->detail,"a definition may set its none value and need no control naming a detail");
+	Check(refused(document("",R"(,"detail":3)"),"requires the document's detail definition"),"a control's detail requires the definition");
+	Check(refused(document(R"(,"detail":{"state":"missing","card":"card"})",""),"must be a declared number"),"the detail state must be declared");
+	Check(refused(document(R"(,"detail":{"state":"flag","card":"card"})",""),"must be a declared number"),"and a number");
+	Check(refused(document(R"(,"detail":{"state":"subject","card":"absent"})",""),"below the root"),"the card must exist");
+	Check(refused(document(R"(,"detail":{"state":"subject","card":"root"})",""),"below the root"),"below the root");
+	Check(refused(document(R"(,"detail":{"state":"subject","card":"row"})",""),"cannot hold controls"),"the card holds no controls");
+	Check(refused(document(definition,"","",R"(,"bindings":[{"id":"left","node":"card","property":"left","value":{"state":"subject"}}])"),
+		"cannot be bound"),"nothing binds the card's left");
+	Check(refused(document(definition,"",R"(,{"id":"t","durationMs":100,"tracks":[{"node":"card","property":"top","keys":[
+		{"atMs":0,"value":{"type":"length","value":0,"unit":"dp"}},{"atMs":100,"value":{"type":"length","value":5,"unit":"dp"}}]}]})"),
+		"cannot be animated"),"or animates its top");
+	Check(refused(document(R"(,"detail":{"state":"subject","card":"card","side":"left"})",""),"Unknown field"),"the definition has no other fields");
+	Check(refused(document(definition,R"(,"detail":"three")"),"number"),"a control's detail is a number");
+}
+
 int main() {
+	CheckDetailSchema();
 	CheckEventSchema();
 	CheckPresentationSchema();
 	CheckCompletionSchema();

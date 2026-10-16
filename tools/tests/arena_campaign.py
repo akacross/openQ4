@@ -613,6 +613,8 @@ def validate_localization(campaign: Campaign) -> None:
         | {f"#str_{value}" for value in range(42100, 42140)}
         # Arena launch and handoff failure reporting.
         | {f"#str_{value}" for value in range(42150, 42154)}
+        # Per-match best result.
+        | {"#str_42165", "#str_42166"}
         | {f"#str_{value}" for value in range(42200, 42205)}
     )
     referenced_ids = {
@@ -649,6 +651,7 @@ def validate_localization(campaign: Campaign) -> None:
         "#str_42030": "VICTORY",
         "#str_42031": "DEFEAT",
         "#str_42033": "RETRY",
+        "#str_42040": "BEST RESULT",
         "#str_42041": "Frags",
         "#str_42042": "Minutes",
         "#str_42043": "Rounds",
@@ -684,6 +687,9 @@ def validate_localization(campaign: Campaign) -> None:
         "#str_42093": "TIER 3",
         "#str_42094": "TIER 4",
         "#str_42095": "TIER 5",
+        "#str_42073": "Permanently clears Arena wins, best results and unlocks. Mission saves and multiplayer settings are not affected.",
+        "#str_42165": "NEW BEST",
+        "#str_42166": "No result yet",
         "#str_42200": "Deathmatch",
         "#str_42201": "Duel",
         "#str_42202": "Team Deathmatch",
@@ -846,8 +852,8 @@ def validate_menu_hooks() -> None:
     )
     require_regex(
         arena_menu,
-        r"windowDef\s+arena_browser_reset_disabled\s*\{.*?arenaCampaignProgress\"\s*==\s*0",
-        "disabled zero-progress reset",
+        r"windowDef\s+arena_browser_reset_disabled\s*\{.*?arena_canReset\"\s*==\s*0",
+        "disabled reset with nothing on the record",
     )
 
     esc_handler = function_body(arena_menu, "onESC")
@@ -1570,13 +1576,15 @@ def validate_engine_hooks() -> None:
 
     open_browser = function_body(arena, "void idArenaCampaign::OpenBrowser()")
     open_selector = function_body(arena, "void idArenaCampaign::OpenSelector()")
-    for name, body, view in (
-        ("selector", open_selector, "state->view = 0;"),
-        ("browser", open_browser, "state->view = 1;"),
+    # The browser presents the retained Arena page where it can, else its own.
+    require(open_browser, "idUserInterface *view = sessLocal.RetainedArenaPage();", "retained Arena page presentation")
+    for name, body, view, present in (
+        ("selector", open_selector, "state->view = 0;", "sessLocal.SetGUI( state->gui, NULL );"),
+        ("browser", open_browser, "state->view = 1;", "sessLocal.SetGUI( view, NULL );"),
     ):
         view_index = body.find(view)
         update_index = body.find("UpdateGui();", view_index)
-        set_gui_index = body.find("sessLocal.SetGUI( state->gui, NULL );", view_index)
+        set_gui_index = body.find(present, view_index)
         if not 0 <= view_index < update_index < set_gui_index:
             raise AssertionError(
                 f"Arena {name} GUI state must be published before synchronous activation"
@@ -1657,7 +1665,12 @@ def validate_engine_hooks() -> None:
         if forbidden in dismiss_result:
             raise AssertionError("DismissResult must preserve completed-match metadata")
 
-    update_body = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    # UpdateGui publishes the browser's state into the stock browser and, while
+    # it is loaded, the retained Arena page alike (PublishGui).
+    update_gui = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    for token in ("PublishGui( state->gui );", "idUserInterface *page = sessLocal.RetainedArenaGui();", "PublishGui( page );"):
+        require(update_gui, token, "Arena state published to both browsers")
+    update_body = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
     require(
         update_body,
         'SetStateInt( "arenaCampaignProgress"',
@@ -1674,13 +1687,25 @@ def validate_engine_hooks() -> None:
         "#str_42065",
         "#str_42066",
         "#str_42067",
-        "#str_42068",
-        # The abandoned-match body is chosen by reason in ArenaFailureMessageKey
-        # rather than inlined here; validate_failure_reporting pins each one.
+        # The aborted/abandoned title and body are chosen by reason in
+        # ArenaFailureTitleKey/ArenaFailureMessageKey rather than inlined here;
+        # validate_failure_reporting pins each one.
         "#str_42077",
         "#str_42078",
+        # A replayed win that changed nothing must not promise new unlocks.
+        "#str_42164",
     ):
         require(update_body, string_id, "Arena Campaign GUI state mapping")
+    require(
+        update_body,
+        'state->resultNewlyCompleted ? "#str_42066" : "#str_42164"',
+        "a replayed win reads as confirmed, not as newly opening the circuit",
+    )
+    require(
+        update_body,
+        'ArenaFailureTitleKey( state->resultFailure )',
+        "the aborted/abandoned ledger title follows the failure kind",
+    )
     require(
         update_body,
         'const char *status = !unlocked ? "#str_42022"',
@@ -1691,11 +1716,12 @@ def validate_engine_hooks() -> None:
         'complete ? "#str_42023"',
         "completed Arena status",
     )
-    require(
-        update_body,
-        'bossReady ? "#str_42045" : "#str_42065"',
-        "boss-ready and available Arena statuses",
-    )
+    # Tier statuses live in ArenaTierStatusKey, which adds IN PROGRESS for a
+    # part-cleared tier so it no longer reads like one never played.
+    require(update_body, "ArenaTierStatusKey( progress, tierIndex )", "tier status helper")
+    tier_status = function_body(arena, "static const char *ArenaTierStatusKey( int progress, int tier )")
+    for key in ('"#str_42022"', '"#str_42023"', '"#str_42045"', '"#str_42039"', '"#str_42065"'):
+        require(tier_status, key, "tier statuses: locked, complete, boss ready, in progress, available")
     require(
         update_body,
         'state->result == 1 ? ArenaLocalized( "#str_42030" )',
@@ -1708,7 +1734,7 @@ def validate_engine_hooks() -> None:
     )
     require(
         update_body,
-        'state->result == 1 ? ArenaLocalized( "#str_42066" )',
+        'state->result == 1 ? ArenaLocalized( state->resultNewlyCompleted ? "#str_42066" : "#str_42164" )',
         "Arena victory message",
     )
     require(
@@ -1718,9 +1744,12 @@ def validate_engine_hooks() -> None:
     )
     require(
         update_body,
-        'state->result == 3 ? ArenaLocalized( "#str_42068" )',
-        "Arena abandoned-match title",
+        'state->result == 3 ? ArenaLocalized( ArenaFailureTitleKey( state->resultFailure ) )',
+        "Arena aborted/abandoned-match title",
     )
+    failure_title = function_body(arena, "static const char *ArenaFailureTitleKey( int failure )")
+    for key in ('"#str_42163"', '"#str_42068"', "ARENA_FAILURE_ABANDONED"):
+        require(failure_title, key, "a walked-out match is abandoned; a failed launch or handoff is aborted")
     require(
         update_body,
         'state->result == 3 ? ArenaLocalized( ArenaFailureMessageKey( state->resultFailure ) )',
@@ -1772,10 +1801,12 @@ def validate_engine_hooks() -> None:
         post_reload_failure,
     )
     post_reload_abort = reload_module.find("arenaCampaign.AbortMatch();", abandoned_launch)
-    post_reload_browser = reload_module.find("arenaCampaign.OpenBrowser();", post_reload_abort)
+    # The recovery reports why the match never started, as every other failed
+    # launch does, rather than reopening the browser as if the click was ignored.
+    post_reload_browser = reload_module.find("arenaCampaign.ReportStartFailure();", post_reload_abort)
     if not 0 <= post_reload_failure < abandoned_launch < post_reload_abort < post_reload_browser:
         raise AssertionError(
-            "Arena must recover to its browser when the post-swap launch command is lost"
+            "Arena must recover to its browser with a report when the post-swap launch command is lost"
         )
 
     reliable_messages = function_body(
@@ -2414,17 +2445,49 @@ def validate_failure_reporting() -> None:
         "ARENA_FAILURE_NONE = 0,",
         "ARENA_FAILURE_SERVER,",
         "ARENA_FAILURE_BOTS,",
-        "ARENA_FAILURE_RESULT",
+        "ARENA_FAILURE_RESULT,",
+        "ARENA_FAILURE_OPPONENTS,",
+        "ARENA_FAILURE_ABANDONED",
         "static const char *ArenaFailureMessageKey( int failure )",
-        'case ARENA_FAILURE_SERVER:\treturn "#str_42150";',
-        'case ARENA_FAILURE_BOTS:\treturn "#str_42069";',
-        'case ARENA_FAILURE_RESULT:\treturn "#str_42151";',
+        'case ARENA_FAILURE_SERVER:\t\treturn "#str_42150";',
+        'case ARENA_FAILURE_BOTS:\t\treturn "#str_42069";',
+        'case ARENA_FAILURE_RESULT:\t\treturn "#str_42151";',
+        'case ARENA_FAILURE_OPPONENTS:\treturn "#str_42161";',
+        'case ARENA_FAILURE_ABANDONED:\treturn "#str_42162";',
         "void idArenaCampaign::ReturnToBrowserAfterStartFailure( int failure )",
         "void idArenaCampaign::ReportStartFailure()",
+        "void idArenaCampaign::ReportAbandoned( int token )",
     ):
         require(arena, token, "Arena failure reporting")
     require(
         arena_header, "void\t\t\t\t\tReportStartFailure();", "Arena failure reporting entry point"
+    )
+
+    # Leaving a match part way through returns to the Arena browser with a
+    # report that names the match and offers it again - not to the title
+    # screen in silence. The token must be read before AbortMatch clears it.
+    require(arena_header, "void\t\t\t\t\tReportAbandoned( int token );", "abandoned-match report entry point")
+    session = read(ROOT / "src" / "framework" / "Session.cpp")
+    disconnect = function_body(session, "static void Session_Disconnect_f( const idCmdArgs &args )")
+    token_at = disconnect.find("const int arenaToken = arenaCampaign.ActiveMatchToken();")
+    abort_at = disconnect.find("arenaCampaign.AbortMatch();")
+    report_at = disconnect.find("arenaCampaign.ReportAbandoned( arenaToken );")
+    if not 0 <= token_at < abort_at < report_at:
+        raise AssertionError("disconnect must report an abandoned Arena match after restoring its transaction")
+    abandoned = function_body(arena, "void idArenaCampaign::ReportAbandoned( int token )")
+    for token in ("ArenaSetResultMatch( state, token );", "state->resultFailure = ARENA_FAILURE_ABANDONED;", "OpenBrowser();"):
+        require(abandoned, token, "the abandoned report keeps the match so it can be retried")
+    # Both match-level failures keep their token, so the ledger offers RETRY.
+    can_retry = function_body(arena, "static bool ArenaResultCanRetry( const arenaCampaignState_t *state )")
+    for token in ("ARENA_FAILURE_OPPONENTS", "ARENA_FAILURE_ABANDONED", "ArenaMatchUnlocked("):
+        require(can_retry, token, "Retry follows the same match and the same unlock rule RetryResult applies")
+    retry = function_body(arena, "void idArenaCampaign::RetryResult()")
+    require(retry, "DismissResult();", "a refused retry must close the already-collapsed report")
+    require_regex(
+        arena_menu,
+        r"windowDef\s+arena_result_retry\s*\{[^}]*?"
+        r'\(\s*"gui::arena_result"\s*==\s*2\s*\|\|\s*"gui::arena_result"\s*==\s*3\s*\)',
+        "an abandoned or aborted match offers RETRY",
     )
 
     # A bare bool reintroduces the silent bounce this replaced.
@@ -2463,7 +2526,7 @@ def validate_failure_reporting() -> None:
     # The unloaded branch has to publish a whole board: the per-slot keys below
     # it are never written on this path, and an unset arena_tier%d_locked reads
     # as 0, drawing every tier and match as unlocked over blank rows.
-    unloaded = function_body(arena, "void idArenaCampaign::UpdateGui()")
+    unloaded = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
     unloaded = unloaded.split("if ( !state->loaded ) {", 1)[1].split("\n\t\treturn;", 1)[0]
     for token in (
         'va( "arena_tier%d_locked", tierIndex ), true',
@@ -2498,13 +2561,36 @@ def validate_failure_reporting() -> None:
     )
 
     # arena_campaignComplete tracks live progress, so a later replay would show
-    # the banner on a defeat, draw or aborted match without this gate.
+    # the banner - and lose its awards - without gating it on the win that
+    # actually completed the campaign.
     require_regex(
         arena_menu,
         r"windowDef\s+arena_result_campaign_complete\s*\{[^}]*?"
-        r'"gui::arena_campaignComplete"\s*==\s*1\s*&&\s*"gui::arena_result"\s*==\s*1',
-        "campaign-complete banner must be gated on a victory",
+        r'"gui::arena_resultUnlockedCampaign"\s*==\s*1\s*&&\s*"gui::arena_result"\s*==\s*1',
+        "campaign-complete banner must be gated on the completing victory",
     )
+    for window in ("arena_result_awards_label", "arena_result_awards"):
+        require(
+            gui_window_body(arena_menu, window),
+            '"gui::arena_resultUnlockedCampaign" == 0',
+            f"{window} must show on every win except the one that completed the campaign",
+        )
+    require(gui_window_body(arena_menu, "arena_result_awards"), "wrap\t\t1",
+            "a long award list must wrap, not be cut off mid-word")
+
+    # The engine sends a pending timeline command in the same string as a
+    # clicked window's command, so the blocker must not end the string, and
+    # controls behind an open overlay - reachable by keyboard and controller
+    # focus - must not run.
+    gui_command = function_body(arena, "bool idArenaCampaign::HandleGuiCommand( const char *menuCommand )")
+    blocker = gui_command[gui_command.find('if ( !idStr::Icmp( cmd, "arenaBlockInput" ) ) {'):]
+    blocker = blocker[: blocker.find("}") + 1]
+    if "return" in blocker or "continue;" not in blocker:
+        raise AssertionError("arenaBlockInput must mark the event taken and keep reading the command string")
+    for token in ("const bool overlayCommand =", "( resultOpen || resetOpen ) && !overlayCommand"):
+        require(gui_command, token, "Arena overlays must refuse the controls beneath them")
+    open_browser = function_body(arena, "void idArenaCampaign::OpenBrowser()")
+    require(open_browser, "if ( state->result != 0 ) {", "a reopened browser must reveal any open report again")
 
     # The real seat ceiling is game_mp's si_maxPlayers range, not MAX_ASYNC_CLIENTS.
     # A full engine reload replays a bare spawnServer after session shutdown has
@@ -2719,6 +2805,165 @@ def validate_result_contract() -> None:
         "gameLocal.isServer",
     ):
         require(is_arena_match, token, "Arena ceremony must be confined to the local listen server")
+
+
+def validate_best_results() -> None:
+    """Pin the per-match best result: its persistence, repair, ordering and UI.
+
+    ui_arenaBest sits beside ui_arenaProgress and must agree with it, so it is
+    repaired with it, cleared with it, and only a contested result can change
+    it. The ordering model below mirrors ArenaBestResultBeats.
+    """
+
+    arena = read(ROOT / "src" / "framework" / "ArenaCampaign.cpp")
+    arena_menu = read(ARENA_MENU)
+
+    for token in (
+        '"ui_arenaBest", ""',
+        "CVAR_SYSTEM | CVAR_ARCHIVE,",
+        "struct arenaBestResult_t",
+        "static bool ArenaBestResultValid",
+        "static bool ArenaBestResultBeats",
+        "static arenaBestResult_t ArenaEffectiveBest",
+        "static int ArenaReadBestResults",
+        "static idStr ArenaWriteBestResults",
+        "static void ArenaRepairPersistedBest()",
+        "static const int outcomeRank[] = { 0, 2, 1 };",
+    ):
+        require(arena, token, "Arena best-result record")
+
+    repair_progress = function_body(arena, "static void ArenaRepairPersistedProgress()")
+    require(
+        repair_progress,
+        "ArenaRepairPersistedBest();",
+        "best results are repaired against the repaired progress",
+    )
+    read_body = function_body(
+        arena,
+        "static int ArenaReadBestResults( const char *text, int progress, "
+        "arenaBestResult_t results[ARENA_TOTAL_MATCHES] )",
+    )
+    for token in (
+        "fieldCount != 5",
+        "ArenaParseBoundedInteger( fields[0].c_str(), 0, ARENA_TOTAL_MATCHES - 1, index )",
+        "ARENA_OUTCOME_LOSS, ARENA_OUTCOME_DRAW, result.outcome",
+        "ArenaParseBoundedInteger( fields[4].c_str(), 1, 5, result.difficulty )",
+        "!ArenaBestResultValid( result ) || results[index].recorded",
+        "!ArenaMatchUnlocked( progress, tier, match )",
+        "( result.outcome == ARENA_OUTCOME_WIN ) != ArenaMatchComplete( progress, tier, match )",
+    ):
+        require(read_body, token, "strict Arena best-result parsing")
+    if "atoi(" in read_body:
+        raise AssertionError("Arena best results must not accept partial integers")
+
+    load_body = function_body(arena, "bool idArenaCampaign::LoadCampaign()")
+    require(load_body, 'ui_arenaBest.SetString( "" );', "a new campaign version clears best results")
+    reset_body = function_body(arena, "void idArenaCampaign::ResetProgress()")
+    require(reset_body, 'ui_arenaBest.SetString( "" );', "Reset Progress clears best results")
+    for signature in (
+        "void idArenaCampaign::RequestResetProgress()",
+        "void idArenaCampaign::ResetProgress()",
+    ):
+        require(
+            function_body(arena, signature),
+            "ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults()",
+            "best results alone make Reset Progress available",
+        )
+
+    finish_body = function_body(arena, "void idArenaCampaign::FinishPendingCompletion()")
+    for token in (
+        "if ( state->pendingOutcome != ARENA_OUTCOME_ABORTED ) {",
+        "ArenaReadBestResults( ui_arenaBest.GetString(), previousProgress, bestResults );",
+        "ArenaEffectiveBest( bestResults[matchIndex], previousProgress, tier, match )",
+        "ArenaBestResultBeats( candidate, record )",
+        "newBest = bestResults[matchIndex].recorded;",
+        "state->resultNewBest = newBest;",
+        "state->matchDifficulty",
+    ):
+        require(finish_body, token, "Arena best result updated from a contested result")
+    if finish_body.index("ArenaReadBestResults(") > finish_body.index("progress |= ArenaMatchBit"):
+        raise AssertionError("the best result must be read against the progress before this win")
+    require(
+        function_body(arena, "void idArenaCampaign::PopulateBots()"),
+        "state->matchDifficulty = difficulty;",
+        "the best result keeps the difficulty the match was played on",
+    )
+    abandoned = function_body(arena, "void idArenaCampaign::ReportAbandoned( int token )")
+    if "ui_arenaBest" in abandoned:
+        raise AssertionError("an abandoned match must not touch the best results")
+
+    # PublishGui publishes to the stock browser and the retained page alike.
+    update_body = function_body(arena, "void idArenaCampaign::PublishGui( idUserInterface *gui )")
+    for token in (
+        '"arena_selectedBestVisible"',
+        '"arena_selectedHasBest"',
+        '"arena_selectedBest"',
+        '"#str_42166"',
+        '"arena_canReset", progress != 0 || ArenaHasBestResults()',
+        '"arena_resultNewBest", state->result != 0 && state->resultNewBest',
+    ):
+        require(update_body, token, "Arena best-result GUI state")
+
+    for window, tokens in (
+        ("arena_best_label", ('"#str_42040"', "arena_selectedBestVisible")),
+        ("arena_best_value", ('"gui::arena_selectedBest"', 'arena_selectedHasBest" == 1')),
+        ("arena_best_none", ('"gui::arena_selectedBest"', 'arena_selectedHasBest" == 0')),
+        ("arena_result_new_best", ('"#str_42165"', "arena_resultNewBest")),
+        ("arena_browser_reset", ('arena_canReset" == 1',)),
+    ):
+        body = gui_window_body(arena_menu, window)
+        for token in tokens:
+            require(body, token, f"Arena browser {window}")
+
+    # parse_language holds the CP1252 tables to their font set; here every
+    # table, whatever its script, only has to carry the strings.
+    tables = sorted(STRINGS_DIR.glob("*_openq4.lang"))
+    if len(tables) != 12:
+        raise AssertionError(f"expected 12 openQ4 language tables, found {len(tables)}")
+    for path in tables:
+        text = path.read_text(encoding="utf-8-sig")
+        for key in ("#str_42040", "#str_42165", "#str_42166"):
+            if not re.search(rf'"{key}"\s+"[^"\s][^"]*"', text):
+                raise AssertionError(f"{path.name} lacks Arena best-result string {key}")
+
+    # Ordering model: win > draw > loss, then margin, then difficulty, then the
+    # higher score; a scoreless record loses to a scored one of its outcome.
+    rank = {0: 0, 1: 2, 2: 1}
+
+    def beats(candidate: tuple, record: tuple | None) -> bool:
+        if record is None:
+            return True
+        c_outcome, c_player, c_opponent, c_difficulty = candidate
+        r_outcome, r_player, r_opponent, r_difficulty = record
+        if rank[c_outcome] != rank[r_outcome]:
+            return rank[c_outcome] > rank[r_outcome]
+        c_scored = c_player is not None
+        if c_scored != (r_player is not None):
+            return c_scored
+        if c_scored and c_player - c_opponent != r_player - r_opponent:
+            return c_player - c_opponent > r_player - r_opponent
+        if c_difficulty != r_difficulty:
+            return c_difficulty > r_difficulty
+        return c_scored and c_player > r_player
+
+    ordering_cases = (
+        ((1, 10, 3, 3), None, True),
+        ((2, 5, 5, 3), (0, 1, 10, 5), True),
+        ((0, 9, 10, 3), (2, 5, 5, 3), False),
+        ((1, 10, 9, 5), (1, 10, 3, 1), False),
+        ((1, 10, 2, 1), (1, 10, 3, 5), True),
+        ((1, 10, 3, 4), (1, 10, 3, 3), True),
+        ((1, 12, 5, 3), (1, 10, 3, 3), True),
+        ((1, 10, 3, 3), (1, 10, 3, 3), False),
+        # A match won before best results were kept: a scoreless win.
+        ((1, 10, 9, 1), (1, None, None, 0), True),
+        ((2, 5, 5, 5), (1, None, None, 0), False),
+    )
+    for candidate, record, expected in ordering_cases:
+        if beats(candidate, record) != expected:
+            raise AssertionError(
+                f"Arena best-result ordering drifted: {candidate} vs {record}"
+            )
 
 
 def validate_ceremony_flow() -> None:
@@ -2993,6 +3238,286 @@ def validate_ceremony_flow() -> None:
             )
 
 
+def validate_ceremony_presentation() -> None:
+    """Pin the 2026-10 Arena audit fixes, each of which shipped broken unnoticed.
+
+    The ceremony is host-local and only runs in a real match, so these static
+    pins are the guard between runtime checks (openq4_arenaCeremony drives a
+    match end to end without device input).
+    """
+
+    game = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.cpp")
+    header = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.h")
+    state = read(GAME_LIBS_ROOT / "src" / "mpgame" / "mp" / "GameState.cpp")
+    game_local = read(GAME_LIBS_ROOT / "src" / "mpgame" / "Game_local.cpp")
+    player = read(GAME_LIBS_ROOT / "src" / "mpgame" / "Player.cpp")
+    sys_cmds = read(GAME_LIBS_ROOT / "src" / "mpgame" / "gamesys" / "SysCmds.cpp")
+    arena = read(ROOT / "src" / "framework" / "ArenaCampaign.cpp")
+    mp_hud = read(ROOT / "content" / "baseoq4" / "pak0" / "guis" / "mphud.gui")
+    summary = read(ROOT / "content" / "baseoq4" / "pak0" / "guis" / "summary.gui")
+    remastered = read(ROOT / "tools" / "ui" / "remastered_hud_mp.py")
+
+    # GameStateChanged runs after Run in the same listen-server frame. Clearing
+    # the presentation there wiped the spawn-in OnMatchStarted had just armed
+    # (no camera move, no held control, no Fight) and the introduction the
+    # WARMUP case had just armed. The reset belongs to the authoritative edge.
+    changed = function_body(state, "void rvGameState::GameStateChanged( void )")
+    if "ClearArenaCampaignPresentation" in changed:
+        raise AssertionError("GameStateChanged must not clear the Arena presentation it runs after")
+    new_state = function_body(state, "bool rvGameState::NewState( mpGameState_t newState )")
+    warmup = new_state[new_state.find("case WARMUP: {"): new_state.find("case COUNTDOWN: {")]
+    require(warmup, "gameLocal.mpGame.ClearArenaCampaignPresentation();", "the Arena warmup edge resets the presentation")
+    # The count runs over the spawn-in so Fight lands with control.
+    require(changed, "} else if ( !gameLocal.IsRoundGameType() ) {", "the Arena countdown only calls prepare-to-fight")
+    started = function_body(game, "void idMultiplayerGame::OnMatchStarted( void )")
+    for token in ("AS_GENERAL_THREE, arenaCeremonyPhaseEndTime - 3000", "AS_GENERAL_ONE, arenaCeremonyPhaseEndTime - 1000"):
+        require(started, token, "the Arena count runs over the spawn-in shot")
+
+    # 0 degrees is in front of the subject: the authored orbits assume it.
+    require(game, "const idVec3 desiredView = focusPoint + radial * range + up * height;",
+            "Arena cameras place the eye along radial, so authored angles face the subject")
+    intro_view = function_body(game, "bool idMultiplayerGame::BuildArenaCampaignIntroView( idPlayer *viewer, renderView_t *view )")
+    for token in ("arenaIntroShotLatched", "pullInFractions"):
+        require(intro_view, token, "an introduction picks a clear side and pulls in rather than cutting away")
+
+    # Introductions are their own HUD mode, ordered teammates then opponents.
+    require(game, '"arenaCampaignIntroduce"', "introductions use their own presentation mode")
+    order = function_body(game, "void idMultiplayerGame::BuildArenaCampaignIntroOrder( void )")
+    require(order, "const bool teammate = teams && candidate->team == host->team;", "teammates are introduced first")
+    card = function_body(game, "void idMultiplayerGame::ShowArenaCampaignIntroCard( idPlayer *subject )")
+    for key in ('"#str_42157"', '"#str_42158"', '"#str_42159"', '"#str_42155"', "MPLocalizedTeamName"):
+        require(card, key, "introduction cards name the combatant's side")
+    fade = function_body(game, "float idMultiplayerGame::ArenaCampaignCeremonyFade( void ) const")
+    require(fade, "ARENA_INTRO_DIP_MSEC", "introductions dip briefly instead of fading through each beat")
+    clear = function_body(game, "void idMultiplayerGame::ClearArenaCampaignPresentation( void )")
+    require(clear, "if ( arenaHudPresentation == 0 ) {", "a clear is only sent over a visible card")
+    for event in ("onNamedEvent arenaCampaignIntroduce {", "windowDef oq4_arena_present_intro",
+                  'if ( "Desktop::arena_presentClearing" == 1 ) {', 'text	"gui::arena_presentKicker"'):
+        require(mp_hud, event, "the legacy HUD's introduction mode and stale-clear guard")
+    for token in ('doc.on("arenaCampaignIntroduce"', 'cancel("arena-clear-run")', '"arena-entrance-held-run"',
+                  '"opacity": num(1)'):
+        require(remastered, token, "the Remastered HUD's introduction mode, clear cancel and victor card text")
+
+    # The entrance and scoreboard present the campaign's game type: a campaign
+    # Duel runs as deathmatch and must not be labelled one.
+    entrance = function_body(game, "void idMultiplayerGame::BeginArenaCampaignEntrancePresentation( void )")
+    for token in ("ArenaCampaignPresentedGameType()", "ArenaCampaignMatchTitle()", '"#str_42156"'):
+        require(entrance, token, "the entrance card shows the campaign's own copy")
+    require(game, 'scoreBoard->SetStateString( "serverip",\tarenaBoard ? "" : serverAddress.c_str() );',
+            "an Arena board has no server address")
+    for cvar in ("ui_arenaMatchTitle", "ui_arenaMatchTier", "ui_arenaMatchRole", "ui_arenaMatchGameType"):
+        require(arena, f"{cvar}.SetString(", "the campaign publishes its match card for game_mp")
+
+    # The crosshair and status bar stay down during presentation shots.
+    require(player, "!spectating && !arenaPresentation && !gameDebug.IsHudActive( DBGHUD_ANY )",
+            "Arena presentation shots draw no crosshair or status bar")
+    # Over a presentation shot both match HUDs keep only the letterbox, its
+    # cards and the centre notice; the overlay HUD stays down too.
+    update = function_body(game, "void idMultiplayerGame::UpdateHud( idUserInterface* _mphud )")
+    require(update, '_mphud->SetStateBool( "arena_hudHidden", ArenaCampaignPresentationActive() );',
+            "the match HUD learns of presentation shots")
+    chrome = mp_hud[mp_hud.find("windowDef oq4_match_hud"): mp_hud.find("windowDef mainNotice")]
+    require(chrome, 'visible\t( "gui::arena_hudHidden" == 0 )', "the legacy match HUD hides over a presentation shot")
+    for window in ("windowDef p_ffa", "windowDef p_ctf", "windowDef fragNotice", "windowDef p_stats",
+                   "windowDef oq4_match_context_hud"):
+        require(chrome, window, "the legacy match HUD's panels hide with it")
+    if "windowDef oq4_arena" in chrome:
+        raise AssertionError("the Arena letterbox and cards must stay outside the hidden match HUD")
+    require(remastered, 'doc.show(ident, NOT(S("arena_hudHidden")))', "the Remastered match HUD hides over a presentation shot")
+    require(remastered, '"main", "display", sel(AND(S("oq4.main")', "the Remastered centre notice stays")
+    require(player, "if ( !arenaPresentation ) {", "the overlay HUD stays down over a presentation shot")
+    chat = read(ROOT / "src" / "ui" / "ChatWindow.cpp")
+    require(chat, 'if (!input && gui->GetStateBool("arena_hudHidden")) { return; }',
+            "the passive chat over the classic match HUD hides over a presentation shot")
+    # A player killed by the final frag still steers the tableau orbit.
+    require(player, "if ( health <= 0 && !arenaFreeLook ) {", "the tableau orbit works for a dead player")
+    view = function_body(game, "bool idMultiplayerGame::BuildArenaCampaignPresentationView( idPlayer *viewer, renderView_t *view )")
+    require(view, "arenaVictorLookPitch = viewer->viewAngles.pitch;", "the tableau pitch is relative to the latch")
+
+    # A draw is not announced as a defeat.
+    announce = function_body(game, "void idMultiplayerGame::ArenaCampaignAnnounceResult( void )")
+    for token in ("AS_TEAM_TEAMS_TIED", "AS_DM_YOU_TIED_LEAD"):
+        require(announce, token, "a draw gets the stock tie call")
+
+    # Emptied sides and forfeits are not wins: kicking the bots cleared the ladder.
+    result = function_body(game, "void idMultiplayerGame::BeginArenaCampaignResult( void )")
+    if "arenaResultOutcome = ( forfeitWinner == host->team ) ? ARENA_RESULT_WIN" in result:
+        raise AssertionError("an emptied side must not be recorded as an Arena win")
+    for token in ("arenaResultOutcome = ARENA_RESULT_ABORTED;", "MP_MATCH_TRANSITION_FORFEIT", "MP_MATCH_TRANSITION_MATCH_ABORTED"):
+        require(result, token, "uncontested Arena endings are aborted, not won")
+    require(game, "ARENA_RESULT_ABORTED = 3", "the aborted outcome value crosses to the framework")
+    require(arena, "ARENA_OUTCOME_ABORTED = 3", "the framework accepts the aborted outcome")
+    require(arena, "ARENA_OUTCOME_LOSS, ARENA_OUTCOME_ABORTED, outcome", "the completion parser accepts 0..3")
+    reject = function_body(game, "bool idMultiplayerGame::RejectManagedLegacyMutation( const char *action )")
+    require(reject, "if ( IsArenaCampaignMatch() ) {", "the menu's admin actions are refused in an Arena match")
+
+    # The single-player match pauses behind its menus, with every deadline rebased.
+    require(game_local, "mpGame.RebaseArenaCampaignPauseFrame( Max( 0, msec ) );", "paused Arena frames rebase the match")
+    rebase = function_body(game, "void idMultiplayerGame::RebaseArenaCampaignPauseFrame( int deltaMsec )")
+    require(rebase, "RebaseCompetitivePauseFrame( deltaMsec );", "the pause shifts the match clock, rounds, bots and respawns")
+    run = function_body(game, "void idMultiplayerGame::Run( void )")
+    require(run, "if ( IsGameplayFrozen() || arenaPaused ) {", "the rules do not run under the pause")
+    require(arena, "ui_arenaMenuOpen.SetBool( menuOpen );", "the campaign publishes the menu-over-match state")
+
+    # Escape and a fresh fire press skip the ceremony instead of risking the result.
+    require(game_local, "if ( mpGame.ArenaCampaignOwnsEscape() ) return ESC_IGNORE;", "Escape skips the ceremony")
+    skip = function_body(game, "void idMultiplayerGame::UpdateArenaCampaignSkipInput( void )")
+    require(skip, "ARENA_SKIP_GRACE_MSEC", "a held trigger cannot skip the result")
+    require(sys_cmds, '"openq4_arenaCeremony", Cmd_OpenQ4ArenaCeremony_f, CMD_FL_GAME | CMD_FL_CHEAT',
+            "the input-free ceremony driver is a cheat")
+
+    # The stats beat has no chat entry and no "return to the game" line.
+    for window in ("windowDef exit_msg", "editDef chat_enter"):
+        body = summary[summary.find(window): summary.find(window) + 200]
+        require(body, '( "gui::arena_ceremony" == 0 )', f"{window} hides during the Arena stats beat")
+    require(header, "bool\t\t\tArenaCampaignPresentationActive( void ) const;", "presentation predicate")
+
+
+def validate_pause_menu() -> None:
+    """Pin the Arena pause menu that replaces the multiplayer menu in a match.
+
+    Escape during a live Arena match opens Resume, Restart match, Settings and
+    Leave match - in the stock GUI and under its retained card - instead of the
+    multiplayer menu's Join Team, Server Info, Admin and Match Control. The
+    world keeps pausing behind it, Restart takes the campaign's own launch path,
+    and Leave takes the existing disconnect to the abandoned report.
+    """
+
+    import json
+
+    game = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.cpp")
+    header = read(GAME_LIBS_ROOT / "src" / "mpgame" / "MultiplayerGame.h")
+    arena = read(ROOT / "src" / "framework" / "ArenaCampaign.cpp")
+    arena_header = read(ROOT / "src" / "framework" / "ArenaCampaign.h")
+    session_menu = read(ROOT / "src" / "framework" / "Session_menu.cpp")
+    adapter = read(ROOT / "src" / "ui" / "UserInterfaceRetained.cpp")
+    pause_gui_path = ROOT / "content" / "baseoq4" / "pak0" / "guis" / "arena_pause.gui"
+    pause_gui = read(pause_gui_path)
+
+    # The game opens its own pause menu in mainGui's place, only in an Arena match.
+    require(header, "static const int MP_MENU_ARENA_PAUSE = 5;", "the Arena pause menu's currentMenu value")
+    start = function_body(game, "idUserInterface* idMultiplayerGame::StartMenu( void )")
+    require(start, "if ( currentMenu == 1 && IsArenaCampaignMatch() && arenaPauseGui != NULL ) {",
+            "only an Arena match swaps the multiplayer menu for its pause menu")
+    require(start, "return arenaPauseGui;", "StartMenu returns the Arena pause menu")
+    if start.find("PublishArenaPauseMenu( arenaPauseGui, false );") > start.find("arenaPauseGui->Activate( true, gameLocal.time );"):
+        raise AssertionError("the pause menu's match block must be published before its activation")
+    require(game, 'arenaPauseGui = uiManager->FindGui( "guis/arena_pause.gui", true, false, true );', "the pause menu loads with the MP GUIs")
+    disable = function_body(game, "void idMultiplayerGame::DisableMenu( void )")
+    require(disable, "arenaPauseGui->Activate( false, gameLocal.time );", "closing deactivates the pause menu")
+    commands = function_body(game, "const char *idMultiplayerGame::HandleArenaPauseCommand( const char *action )")
+    for token, reason in (
+        ('return "main fromMp_toControls";', "Settings opens the main menu's settings page"),
+        ('BufferCommandText( CMD_EXEC_APPEND, "arenaCampaignRestart\\n" );', "Restart asks the campaign"),
+        ('BufferCommandText( CMD_EXEC_APPEND, "disconnect\\n" );', "Leave takes the abandoned-report disconnect"),
+    ):
+        require(commands, token, reason)
+    # HandleGuiCommands holds braces in strings, so read the verb's own lines.
+    gui_commands = game[game.index('!idStr::Icmp( cmd, "arenaPause" )'):][:600]
+    require(gui_commands, "if ( !IsArenaPauseMenuOpen() ) {", "arenaPause commands act only on the open pause menu")
+    # Escape still belongs to the ceremony once a result is pending, and the
+    # world pause still reads the menu-over-match state the pause menu sets.
+    game_local = read(GAME_LIBS_ROOT / "src" / "mpgame" / "Game_local.cpp")
+    require(game_local, "if ( mpGame.ArenaCampaignOwnsEscape() ) return ESC_IGNORE;", "the ceremony keeps Escape")
+    pauses = function_body(game, "bool idMultiplayerGame::ArenaCampaignPausesWorld( void ) const")
+    require(pauses, 'cvarSystem->GetCVarBool( "ui_arenaMenuOpen" )', "the pause menu pauses the match")
+    covers = function_body(arena, "static bool ArenaMenuCoversMatch()")
+    require(covers, 'idStr::Icmp( gui->Name(), "guis/mpmsgmode.gui" ) != 0', "any menu but chat pauses")
+
+    # The retained card covers the pause menu; the game allows it only there.
+    cover = function_body(game, "void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *card )")
+    require(cover, "const bool arenaPause = IsArenaPauseMenuOpen() && arenaPauseGui != NULL && IsArenaCampaignMatch();",
+            "the Arena pause card covers only the Arena pause menu")
+    require(cover, 'card->SetStateBool( "mp.cover_allowed", allowed || arenaPause );', "the cover protocol answers for the pause card")
+    publish = function_body(game, "void idMultiplayerGame::PublishRetainedMenu( idUserInterface *card )")
+    require(publish, "PublishArenaPauseMenu( card, true );", "the card publishes the match block")
+    require(session_menu, 'static const char *const RETAINED_ARENA_PAUSE_GUI = "guis/menu/arena_pause.q4ui";', "the Arena pause card")
+    require(session_menu, '!idStr::Icmp( gui->Name(), "guis/arena_pause.gui" )', "the session recognises the pause menu")
+    request = function_body(session_menu, "void idSessionLocal::HandleRetainedMultiplayerRequest( idUserInterface *gui, const char *request )")
+    for verb, command in (("arenaRestart", "restart"), ("arenaLeave", "leave"), ("settings", "settings"), ("resume", "resume")):
+        require(request, f'!idStr::Icmp( request, "{verb}" )', f"the card's {verb}")
+        require(request, f'"play main_menu_selection ; arenaPause {command}"', f"the card's {verb} is the stock menu's own command")
+    for verb in ("arenaRestart", "arenaLeave"):
+        require(adapter, f'"{verb}"', "the retained adapter allows the Arena pause verbs")
+
+    # Restart is the abandoned report's Retry: same token, nothing recorded.
+    require(arena_header, "void\t\t\t\t\tRestartMatch();", "the campaign restarts its own matches")
+    require(arena, '"arenaCampaignRestart", ArenaCampaign_Restart_f, CMD_FL_SYSTEM,', "the restart command is registered")
+    require(arena, 'cmdSystem->RemoveCommand( "arenaCampaignRestart" );', "the restart command is removed with the campaign")
+    restart = function_body(arena, "void idArenaCampaign::RestartMatch()")
+    order = [restart.find(token) for token in (
+        "const int token = ActiveMatchToken();", "sessLocal.Stop();", "AbortMatch();", "OpenBrowser();",
+        "ArenaSetResultMatch( state, token );", "state->resultFailure = ARENA_FAILURE_ABANDONED;",
+        "if ( !ArenaResultCanRetry( state ) ) {", "RetryResult();")]
+    if min(order) < 0 or order != sorted(order):
+        raise AssertionError("Restart must leave the match, then retry its token through RetryResult")
+    require(restart, "ReportAbandoned( token );", "a match that cannot restart reports itself abandoned")
+    # Settings returns to the pause menu, not the main menu's multiplayer home.
+    frame = function_body(arena, "void idArenaCampaign::Frame()")
+    require(frame, "if ( menuOpen && ArenaMainMenuAtHome() && game != NULL ) {", "the settings page returns to the pause menu")
+    require(frame, "idUserInterface *pause = game->StartMenu();", "the pause menu reopens through the game")
+
+    # The stock GUI's actions and questions.
+    for window, command in (
+        ("arena_pause_resume", "play main_menu_selection arenaPause resume"),
+        ("arena_pause_settings", "play main_menu_selection arenaPause settings"),
+    ):
+        require(gui_window_body(pause_gui, window), command, f"{window} action")
+    for window, state in (("arena_pause_restart", '"Desktop::arena_confirm" "1"'), ("arena_pause_leave", '"Desktop::arena_confirm" "2"')):
+        require(gui_window_body(pause_gui, window), state, f"{window} asks first")
+    yes = gui_window_body(pause_gui, "arena_confirm_yes")
+    for command in ("play main_menu_selection arenaPause restart", "play main_menu_selection arenaPause leave"):
+        require(yes, command, "the confirmation's YES")
+    require(pause_gui, 'set "cmd" "play main_menu_selection arenaPause resume" ;', "Escape resumes")
+    require(gui_window_body(pause_gui, "arena_pause_nav"), 'noevents\t( "Desktop::arena_confirm" != 0 )',
+            "focus cannot leave an open question for the menu behind it")
+
+    # The retained card's verbs and questions.
+    text = (ROOT / "content" / "baseoq4" / "pak0" / "guis" / "menu" / "arena_pause.q4ui").read_text(encoding="utf-8")
+    document = json.loads(re.sub(r"^\s*//.*$", "", text, flags=re.M))
+    actions = {name: action["arguments"]["command"] for name, action in document["actions"].items()}
+    if actions != {"resume": "resume", "settings": "settings", "arenaRestart": "arenaRestart", "arenaLeave": "arenaLeave"}:
+        raise AssertionError(f"the Arena pause card's verbs are {sorted(actions)}")
+    if document["events"]["onBack"] != [{"op": "action", "action": "resume"}]:
+        raise AssertionError("Back on the Arena pause card resumes")
+    # The runtime refuses a document whose bound property has no base value.
+    nodes = {}
+
+    def walk(node):
+        nodes[node["id"]] = node
+        for child in node.get("children", []):
+            walk(child)
+
+    walk(document["root"])
+    unbased = [binding["id"] for binding in document["bindings"]
+               if binding["property"] not in nodes[binding["node"]].get("properties", {})]
+    if unbased:
+        raise AssertionError(f"the Arena pause card binds properties without base values: {unbased}")
+    for modal in ("restartModal", "leaveModal"):
+        if f"{modal}Show" not in document["events"]:
+            raise AssertionError(f"the Arena pause card asks before {modal}")
+
+    # Every string the menu shows is localized in every shipped table.
+    keys = set(re.findall(r"#str_\d+", pause_gui)) | set(re.findall(r"#str_\d+", text))
+    own = {f"#str_{value}" for value in range(42180, 42187)}
+    if not own <= keys:
+        raise AssertionError(f"the pause menu leaves {sorted(own - keys)} unused")
+    for path in sorted(STRINGS_DIR.glob("*_openq4.lang")):
+        entries = parse_language(path) if path.stem.startswith(("english", "french", "italian", "spanish")) else dict(
+            LANG_ENTRY_RE.findall(path.read_text(encoding="utf-8")))
+        missing = sorted(key for key in own if not entries.get(key, "").strip())
+        if missing:
+            raise AssertionError(f"{relative(path)} lacks Arena pause strings {missing}")
+    english = parse_language(STRINGS_DIR / "english_openq4.lang")
+    for key, expected in (("#str_42180", "RESTART MATCH"), ("#str_42181", "LEAVE MATCH"), ("#str_42186", "MATCH PAUSED")):
+        if english[key] != expected:
+            raise AssertionError(f"English {key} is {english[key]!r}, expected {expected!r}")
+
+    user_doc = read(ROOT / "docs" / "user" / "arena-campaign.md")
+    for token in ("**Resume**", "**Restart match**", "**Settings**", "**Leave match**"):
+        require(user_doc, token, "the player guide names the pause menu's actions")
+
+
 def validate_doc_circuit_table(campaign: Campaign) -> None:
     """The player guide's circuit table is the only human-readable manifest.
 
@@ -3057,8 +3582,11 @@ def main() -> int:
     validate_game_hooks()
     validate_failure_reporting()
     validate_result_contract()
+    validate_best_results()
     validate_ceremony_flow()
+    validate_ceremony_presentation()
     validate_docs()
+    validate_pause_menu()
     validate_doc_circuit_table(campaign)
     print("arena_campaign: ok")
     return 0

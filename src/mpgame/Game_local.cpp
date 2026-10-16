@@ -4325,6 +4325,13 @@ gameReturn_t idGameLocal::RunFrame( const usercmd_t *clientCmds, int activeEdito
 			// adding a pause kind to mpMatchSession, whose phase invariants exist
 			// to serve remote clients an Arena match never has.
 			arenaCeremonyFrozen = mpGame.ArenaCampaignFreezesWorld();
+			// The single-player Arena also pauses behind its menu. Unlike the
+			// tableau, a pause interrupts a live match, so its frames move every
+			// match deadline on as well - the clock, rounds, respawns, bots.
+			if ( !arenaCeremonyFrozen && mpGame.ArenaCampaignPausesWorld() ) {
+				mpGame.RebaseArenaCampaignPauseFrame( Max( 0, msec ) );
+				arenaCeremonyFrozen = true;
+			}
 			competitiveGameplayFrozen = mpGame.IsGameplayFrozen() || arenaCeremonyFrozen;
 		}
 		{
@@ -4836,7 +4843,7 @@ idGameLocal::Draw
 makes rendering and sound system calls
 ================
 */
-bool idGameLocal::Draw( int clientNum ) {
+bool idGameLocal::Draw( int clientNum, bool menuPaused ) {
 
 	// openQ4: the classic dynamic lights are a client presentation layer, so
 	// fade and retire them on the render frame, before the view is built.
@@ -4981,6 +4988,9 @@ escReply_t idGameLocal::HandleESC( idUserInterface **gui ) {
 	if ( isMultiplayer ) {
 		idPlayer *localPlayer = GetLocalPlayer();
 		if ( localPlayer && localPlayer->HandleESC() ) return ESC_IGNORE;
+		// openQ4: once an Arena match has ended, Escape skips its ceremony to the
+		// report instead of opening a menu that could abandon the result.
+		if ( mpGame.ArenaCampaignOwnsEscape() ) return ESC_IGNORE;
 		*gui = StartMenu();
 		// we may set the gui back to NULL to hide it
 		return ESC_GUI;
@@ -5106,7 +5116,12 @@ void idGameLocal::HandleMainMenuCommands( const char *menuCommand, idUserInterfa
 			limits += limits.Length() ? " - " : "";
 			limits += va( "%s %d", common->GetLocalizedString( "#str_200061" ), query.GetInt( "si_timeLimit" ) );
 		}
-		gui->SetStateString( "server_gametype", common->GetLocalizedString( info->localizedName ) );
+		// An Arena Campaign launch presents the campaign's own game type: its
+		// Duels run as one-on-one deathmatch, and the card must not say so.
+		const char *arenaGameType = cvarSystem->GetCVarBool( "ui_arenaCampaignActive" ) ?
+			cvarSystem->GetCVarString( "ui_arenaMatchGameType" ) : "";
+		gui->SetStateString( "server_gametype", idStr::Cmpn( arenaGameType, "#str_", 5 ) == 0 ?
+			common->GetLocalizedString( arenaGameType ) : common->GetLocalizedString( info->localizedName ) );
 		gui->SetStateString( "server_limit", limits.c_str() );
 		gui->SetStateBool( "server_team_mode", MPGameTypeHasAny( info->type, GTF_TEAM ) );
 		gui->SetStateBool( "server_answered", true );

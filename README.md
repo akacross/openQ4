@@ -8,6 +8,7 @@
 [![Status](https://img.shields.io/badge/status-Beta%20Development-d97a1f.svg)](https://github.com/themuffinator/openQ4/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20preview-lightgrey.svg)](https://github.com/themuffinator/openQ4)
 [![Architecture](https://img.shields.io/badge/arch-x64%20%7C%20ARM64-orange.svg)](https://github.com/themuffinator/openQ4)
+[![Proudly vibecoded](assets/docs/img/badge-proudly-vibecoded.svg)](AGENTS.md)
 
 **Play Quake 4 on modern systems with an open-source engine and SDK-licensed game-code replacement built around the original retail assets.**
 
@@ -50,13 +51,13 @@ It is for players who want the original Quake 4 experience on today's hardware.
 
 - **Built for modern displays.** Widescreen, ultrawide, multi-monitor, borderless and fullscreen setups all work. On 144 Hz and 240 Hz screens the camera, weapons and moving objects are drawn smoothly between the game's 60 Hz ticks, while gameplay, networking, demos and saves keep their original timing.
 - **Optional visual upgrades.** Bloom, HDR, anti-aliasing, soft particles, baked light grids, cel shading, a CRT filter and cleaner [shadow maps](docs/user/shadow-mapping.md), each one switchable.
-- **Classic interface by default.** The experimental modern interface remains available to opt into, but is disabled by default because its gameplay performance cost is still too high. See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens).
+- **Modern interface by default.** The optimized modern interface is enabled for new profiles; saved preferences and the classic interface remain available. See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens).
 - **Real liquids.** Wade, swim and drown in water, take damage in slime and lava, with underwater visuals and audio. Retail Quake 4 has no liquids, so they appear in maps built for them; see the [Liquids guide](docs/user/liquids.md).
 - **Rich, reliable audio** through OpenAL: Quake 4's room reverb, 3D headphone audio and your device's own speaker layout. macOS packages bundle their own, so there is nothing extra to install; see [Gameplay Settings](docs/user/gameplay-settings.md#audio-quality).
 - **Controller support and quality-of-life fixes**, including a better console and modern settings behaviour.
 - **Play in VR** (experimental). With a PC VR headset, play the campaign or multiplayer in stereo: look around with your head, aim with a motion controller, and get menus and cinematics on a floating screen. See the [VR guide](docs/user/vr.md).
 - **Play in your language.** Menus and game text in English, French, German, Italian, Spanish, Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian, plus Polish and Russian menus. Choose one in Settings > Game Options > Language; see the [languages guide](docs/user/languages.md).
-- **More single-player.** Alongside the original campaign there is an experimental [Arena Campaign](docs/user/arena-campaign.md): bot matches across five tiers of the stock maps, with boss matches and saved progress. **The Awakening** campaign is available too if you supply its content.
+- **More single-player.** Alongside the original campaign there is an experimental [Arena Campaign](docs/user/arena-campaign.md): bot matches across five tiers of the stock maps, with boss matches and saved progress. **The Awakening** campaign is available too if you supply its content, and either campaign can resume at any level you have reached from its **Chapters** list.
 - **Better multiplayer** (experimental): a server browser with sorting, filters and favourites, bots with team objectives and personalities, readable chat with history, Duel queues and spectator match controls.
 - **A demo library and player** with pause, speed, stepping, rewind and fast-forward, plus free-fly playback of full-match recordings.
 - **Single-player and multiplayer in one install** on Windows, Linux, Steam Deck and macOS.
@@ -125,7 +126,7 @@ When upgrading, replace the whole openQ4 package rather than individual files.
 ### Start here
 
 - [Getting Started](docs/user/getting-started.md) - system requirements, installation, first launch, and common setup questions
-- [Campaigns](docs/user/campaigns.md) - choosing Quake 4 or The Awakening, installing expansion content, and separate saves
+- [Campaigns](docs/user/campaigns.md) - choosing Quake 4 or The Awakening, chapters, installing expansion content, and separate saves
 - [The Awakening](docs/user/awakening.md) - what openQ4 fixes and changes in the expansion's campaign
 - [Client Settings Guide](docs/user/client-settings.md) - where to find the most useful in-game settings
 - [Server Setup Guide](docs/user/server-setup.md) - dedicated server setup and common server variables

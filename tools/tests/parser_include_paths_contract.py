@@ -110,6 +110,8 @@ struct idToken : idStr {
 };
 struct idLexer {
     idStr filename;
+    const char *buffer = nullptr; // the loaded text, which the parser's source observer reads
+    int length = 0;
     static std::vector<std::string> attempts;
     static std::map<std::string, std::string> files;
     const char *GetFileName() const { return filename; }
@@ -119,6 +121,7 @@ struct idLexer {
         const auto found = files.find(path);
         if (found == files.end()) return false;
         filename = found->second;
+        buffer = found->second.c_str(); length = static_cast<int>(found->second.size());
         return true;
     }
     void SetFlags(int) {}
@@ -201,8 +204,19 @@ int main() {
     idLexer::files["shared/defs.script"] = "shared/defs.script";
     idParser fallback; fallback.source.filename = "/games/baseoq4/scripts/start.script";
     fallback.includepath = "shared/"; fallback.tokens.emplace_back("defs.script");
-    assert(fallback.Directive_include());
+    // Every candidate reaches the parser's source observer, the missing ones
+    // without data and the loaded one with its text, so a cache of the sources
+    // a parse read sees a higher-priority file appear (stock GUI reuse).
+    struct Seen { std::vector<std::string> paths; std::vector<int> sizes; } seen;
+    {
+        idParserSourceObserver observer(&fallback, &seen, [](void *context, const char *path, const char *data, int size) {
+            auto *log = static_cast<Seen *>(context);
+            log->paths.emplace_back(path); log->sizes.push_back(data ? size : -1);
+        });
+        assert(fallback.Directive_include());
+    }
     assert((idLexer::attempts == std::vector<std::string>{"scripts/defs.script", "defs.script", "shared/defs.script"}));
+    assert(seen.paths == idLexer::attempts && (seen.sizes == std::vector<int>{-1, -1, 18}));
     assert(fallback.loaded == "shared/defs.script");
     std::puts("root, nested, archive, drive, UNC, POSIX and unmapped include paths: PASS");
 }
@@ -228,7 +242,9 @@ def main() -> None:
             helpers = source[source.index("static bool Parser_IsAbsolutePath("):source.index("/*\n================\nidParser::Directive_include")]
             directive = function_body(source, "int idParser::Directive_include(")
             probe = temporary / f"{name}.cpp"
-            probe.write_text(SUPPORT + strip_filename + conversion + helpers + directive + CHECKS, encoding="utf-8")
+            # The real source observer the include handler notifies.
+            observer = (tree / "src/idlib/ParserSourceObserver.h").read_text(encoding="utf-8").replace("#pragma once", "")
+            probe.write_text(SUPPORT + observer + strip_filename + conversion + helpers + directive + CHECKS, encoding="utf-8")
             executable = temporary / (f"{name}.exe" if os.name == "nt" else name)
             if Path(compiler).name.lower() in ("cl", "cl.exe"):
                 command = [compiler, "/nologo", "/std:c++17", "/EHsc", str(probe), f"/Fe:{executable}"]

@@ -1,9 +1,30 @@
 # Quake 4 and The Awakening campaigns
 
 Open **Single Player → Campaign** to choose Quake 4 or The Awakening. Selecting
-a campaign opens its new-campaign difficulty/options screen. Back returns to
-the main menu, where Continue and Load Game use that campaign's saves. Choosing
-a campaign does not overwrite a saved game.
+a campaign opens its page: the difficulty, Turbo Mode, **Start Game** and
+**Chapters**. Back climbs one level at a time, from the campaign page to
+Campaign, then Single Player, then the main menu, where Continue and Load Game
+use that campaign's saves. Choosing a campaign does not overwrite a saved game.
+The classic and the new menus have the same four levels.
+
+## Chapters
+
+**Chapters** lists every level of the campaign in the order the campaign plays
+it: 31 for Quake 4 (the storage and processing facilities count twice, once
+per visit) and 13 for The Awakening. Each shows its loading-screen name and
+levelshot.
+
+- The first level is always open. Every other level unlocks once you reach it
+  in the campaign. Starting a level records the unlock, and so does a level's
+  start autosave already on disk, so progress made before this list existed
+  counts.
+- Unlocks stay when you delete saves. Each campaign keeps its own, in its
+  configuration (`ui_chaptersQuake4` and `ui_chaptersAwakening`).
+- A chapter starts from its level's start autosave, with the arsenal and
+  difficulty you reached it with. If that autosave is gone, the level starts
+  fresh at the difficulty chosen on the page, with the map's standard test
+  arsenal where it has one, and writes a new start autosave.
+- Levels you have not reached are listed but locked.
 
 The Awakening option becomes available when openQ4 finds its campaign content.
 An absent or partial installation leaves the option unavailable and explains
@@ -61,7 +82,9 @@ the campaign, and the alpha's known content issues.
 new-campaign menu after any required restart. Add `start` to begin the fixed
 first map directly. `campaignSelect arena` opens the Arena browser on stock
 content. These commands follow the same content/module rules as menu actions.
-`campaignMenu campaigns` opens the campaign chooser.
+`campaignMenu campaigns` opens the campaign chooser. `campaignChapters` lists the
+active campaign's chapters and which are reached; `campaignChapter <number>`
+starts a reached one as the Chapters list does.
 
 ## Credits
 

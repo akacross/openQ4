@@ -36,6 +36,7 @@ ENGINE = r'''
 #include <cstdarg>
 #include <charconv>
 #include "src/ui/retained/Input.h"
+#include "src/ui/GuiStateNumber.h"
 #include "src/ui/UserInterfaceText.h"
 #include "src/ui/UserInterfaceClipboard.h"
 #include "src/ui/UserInterfaceNativeText.h"
@@ -51,12 +52,14 @@ struct idCmdArgs {
 };
 template<class T> T Min(T a,T b) { return (std::min)(a,b); }
 struct idVec2 { idVec2(float=0,float=0) {} } vec2_origin;
-enum { SE_KEY=1,SE_MOUSE,K_TAB=10,K_SHIFT,K_UPARROW,K_DOWNARROW,K_LEFTARROW,K_RIGHTARROW,
+enum { SE_KEY=1,SE_MOUSE,SE_CHAR,K_TAB=10,K_SHIFT,K_UPARROW,K_DOWNARROW,K_LEFTARROW,K_RIGHTARROW,
        K_ENTER,K_KP_ENTER,K_SPACE,K_ESCAPE,K_MOUSE1,K_MOUSE2,K_MOUSE3,K_MOUSE4,K_MOUSE5,K_MOUSE6,K_MOUSE7,K_MOUSE8,
-       K_JOY1,K_JOY2,K_JOY3,K_JOY4,K_JOY7,K_JOY8,K_JOY9,K_JOY10,K_JOY11,K_JOY12,K_JOY15,K_JOY16,
+       K_JOY1,K_JOY2,K_JOY3,K_JOY4,K_JOY5,K_JOY6,K_JOY7,K_JOY8,K_JOY9,K_JOY10,K_JOY11,K_JOY12,K_JOY15,K_JOY16,
        K_HOME,K_END,K_PGUP,K_PGDN,K_MWHEELUP,K_MWHEELDOWN,K_CTRL,K_ALT,K_RIGHT_ALT,K_BACKSPACE,K_DEL,K_INS,K_LAST_KEY=512 };
 struct idKeyInput {
-    static inline bool shift=false; static bool IsDown(int key) { return key==K_SHIFT && shift; }
+    static inline bool shift=false,swapped=false;
+    static bool IsDown(int key) { return key==K_SHIFT && shift; }
+    static int MenuControllerKey(int key) { return swapped && (key==K_JOY3 || key==K_JOY4) ? (key==K_JOY3 ? K_JOY4 : K_JOY3) : key; }
     static inline int nameReads=0;
     // Prompt glyphs name keys (UserInterfaceRetained.cpp's KeyEscapeNames).
     static const char* KeyNumToString(int key,bool) { ++nameReads; static std::string name; name=key==K_JOY3 ? "JOY3" : "KEY"+std::to_string(key); return name.c_str(); }
@@ -477,6 +480,9 @@ public:
         return true;
     }
     StateValues GetState(bool=true) const { return state; }
+    bool GetStateValue(const std::string& id, StateValue& value) const {
+        const auto found=state.find(id); if(found==state.end()) return false; value=found->second; return true;
+    }
     bool HasEvent(const std::string& name) const { eventQueries.push_back(name); return eventPlans.contains(PresentationAliasKey(name)); }
     StateValues completionWrites; unsigned completionTakes=0;
     StateValues TakeCompletionWrites() { ++completionTakes; StateValues result; result.swap(completionWrites); return result; }
@@ -615,9 +621,16 @@ void RetainedUI_DestroyView(retainedUIView_t* view) {
 openq4::ui::Runtime* RetainedUI_ViewRuntime(retainedUIView_t* view) { return view?&view->runtime:nullptr; }
 bool RetainedUI_PrepareView(retainedUIView_t* view) { return view && view->runtime.loaded; }
 bool RetainedUI_LoadView(retainedUIView_t*,const std::string&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return !rejectLoad; }
+bool RetainedUI_LoadParsedView(retainedUIView_t*,const openq4::ui::Document&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return !rejectLoad; }
+bool UI_RetainedTakePrefetched(const std::string&,const std::string&,openq4::ui::Document&) { return false; }
 bool RetainedUI_DefaultViewport(openq4::ui::Viewport& result) { result=viewport; return viewport.width>0 && viewport.height>0; }
 double RetainedUI_PresentationTime() { return presentationTime; }
-void RetainedUI_PrecacheImage(const std::string&,bool) {}
+int promptGlyphsValue=0;
+int RetainedUI_PromptGlyphs() { return promptGlyphsValue; }
+bool promptSwappedValue=false;
+bool RetainedUI_PromptSwapped() { return promptSwappedValue; }
+static std::vector<std::string> precachedImages;
+void RetainedUI_PrecacheImage(const std::string& source,bool) { precachedImages.push_back(source); }
 bool RetainedUI_DrawViewRoot(retainedUIView_t* view,const openq4::ui::Viewport&) {
     ++view->runtime.frames; view->runtime.pointerTransport.push_back("frame"); return !rejectDraw;
 }
@@ -1025,6 +1038,39 @@ static void CheckApplicationDeltas() {
     runtime.failState=false; gui.StateChanged(0);
     assert(runtime.state.at("number")==StateValue(3.0));
 }
+// A map change keeps the view of an unchanged source: its view and state stay,
+// the pictures the document names are precached again, and its input, programs
+// and session requests drop, as a new view's would. A changed source, or a
+// view that cannot draw, re-initializes instead.
+static void CheckLevelLoadKeep() {
+    assert(views.empty()); cvars=CVars{}; consoleObject.open=false; windowFocused=true;
+    eventPlans={{"queue",{{},{Brightness(1.2)}}}}; eventHistory.clear();
+    const auto root=modelTemplate.root;
+    Node picture; picture.id="picture";
+    Value image; image.type=ValueType::Image; image.text="gfx/guis/kept";
+    picture.properties.emplace("image",image);
+    modelTemplate.root.children.push_back(picture);
+    {
+        idUserInterfaceRetained gui;
+        assert(gui.InitFromFile("test.q4ui")); gui.Activate(true,0); gui.Redraw(0);
+        const auto* view=views.front();
+        gui.SetStateFloat("number",1.5f); gui.StateChanged(0);
+        gui.HandleNamedEvent("queue"); assert(*gui.PendingApplicationCommand());
+        const int cancels=Live().cancels; precachedImages.clear();
+        assert(gui.KeepForLevelLoad());
+        assert(views.size()==1 && views.front()==view && Live().cancels==cancels+1);
+        assert(!*gui.PendingApplicationCommand() && cvars.writes==0);
+        assert(std::get<double>(Live().state.at("number"))==1.5);
+        assert(precachedImages==std::vector<std::string>{"gfx/guis/kept"});
+        assert(commonObject.prints.back()=="RETAINED_GUI_KEPT test.q4ui\n");
+        files.sources["test.q4ui"]="edited";
+        assert(!gui.KeepForLevelLoad() && views.front()==view && precachedImages.size()==1);
+        files.sources["test.q4ui"]="valid";
+        Live().loaded=false; assert(!gui.KeepForLevelLoad()); Live().loaded=true;
+        assert(gui.KeepForLevelLoad() && precachedImages.size()==2);
+    }
+    modelTemplate.root=root; eventPlans={};
+}
 static void CheckEventBridge() {
     assert(views.empty()); cvars=CVars{}; consoleObject.open=false; windowFocused=true;
     eventPlans={{"batch",{{{"flag",false}},{Brightness(0),Shadows(false),Brightness(1.4)},true}},
@@ -1191,6 +1237,33 @@ static void CheckEventBridge() {
     auto unlisted=valueAction; unlisted.arguments.at("command").literal=std::string("mpClose"); assert(!ValidOperation(unlisted));
     auto fixed=valueAction; fixed.arguments.at("value").inputValue=false; assert(!ValidOperation(fixed));
     auto computed=valueAction; computed.arguments.at("command").state="card.verb"; assert(!ValidOperation(computed));
+    // A field writes its own document state: a literal key and the field's
+    // value. The document's declaration of the key is checked at load.
+    const auto field=[](StateValue key,StateValue value) {
+        return ActionInvocation{"x","ui.state.set",{{"key",key},{"value",value}}};
+    };
+    assert(ValidInvocation(field(std::string("save.name"),std::string("My save")),error));
+    for (const auto& bad : {field(1.0,std::string("My save")),field(std::string("save.name"),std::numeric_limits<double>::infinity()),
+                            ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")}}}})
+        assert(!ValidInvocation(bad,error));
+    Action fieldAction; fieldAction.operation="ui.state.set"; fieldAction.inputType=2;
+    Expression fieldKey; fieldKey.type=2; fieldKey.literal=std::string("save.name");
+    Expression fieldText; fieldText.type=2; fieldText.inputValue=true;
+    fieldAction.arguments={{"key",fieldKey},{"value",fieldText}};
+    assert(ValidOperation(fieldAction));
+    auto keyFromState=fieldAction; keyFromState.arguments.at("key").state="save.key"; assert(!ValidOperation(keyFromState));
+    auto keyFromInput=fieldAction; keyFromInput.arguments.at("key").inputValue=true; assert(!ValidOperation(keyFromInput));
+    auto fixedText=fieldAction; fixedText.arguments.at("value").inputValue=false; assert(!ValidOperation(fixedText));
+    auto extraArgument=fieldAction; extraArgument.arguments.emplace("more",fieldText); assert(!ValidOperation(extraArgument));
+    // An optional literal event runs once the value is written.
+    assert(ValidInvocation(ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")},{"value",std::string("My save")},
+                                                                {"event",std::string("nameEntered")}}},error));
+    assert(!ValidInvocation(ActionInvocation{"x","ui.state.set",{{"key",std::string("save.name")},{"value",std::string("My save")},
+                                                                 {"event",1.0}}},error));
+    Expression fieldEvent; fieldEvent.type=2; fieldEvent.literal=std::string("nameEntered");
+    auto withEvent=fieldAction; withEvent.arguments.emplace("event",fieldEvent); assert(ValidOperation(withEvent));
+    auto eventFromState=withEvent; eventFromState.arguments.at("event").state="save.next"; assert(!ValidOperation(eventFromState));
+    auto numericEvent=withEvent; numericEvent.arguments.at("event").type=0; assert(!ValidOperation(numericEvent));
     // A player setting takes its stock control's values: a slider's range
     // (whole numbers for an integer setting), a Boolean, or one of a list's
     // values as its text; nothing else may be set.
@@ -1681,6 +1754,14 @@ static void CheckValueProposalBoundary() {
     modelTemplate.actions["value.brightness"]={"settings.brightness.set",{{"value",input}},std::size_t(0)};
     modelTemplate.actions["value.settings"]={"settings.system.edit",{{"r_brightness",input}},std::size_t(0)};
     modelTemplate.actions["value.dismiss"]={"ui.dismiss",{},std::size_t(0)};
+    Expression nameKey; nameKey.type=2; nameKey.literal=std::string("field.name");
+    Expression nameInput; nameInput.type=2; nameInput.inputValue=true;
+    modelTemplate.actions["value.name"]={"ui.state.set",{{"key",nameKey},{"value",nameInput}},std::size_t(2)};
+    modelTemplate.state["field.name"]={std::string(),""};
+    Expression namedEvent; namedEvent.type=2; namedEvent.literal=std::string("nameEntered");
+    modelTemplate.actions["value.named"]={"ui.state.set",{{"key",nameKey},{"value",nameInput},{"event",namedEvent}},std::size_t(2)};
+    modelTemplate.events["nameentered"];
+    eventPlans["nameentered"]={};
     for(const auto& [key,type]:UI_SettingsStateSchema())
         modelTemplate.state[key]={type==0?StateValue(0.0):type==1?StateValue(false):StateValue(std::string()),""};
     {
@@ -1738,6 +1819,22 @@ static void CheckValueProposalBoundary() {
         proposal(110,1.2,"value.dismiss"); collect(); Drain(gui,{},true);
         assert(runtime.acknowledgements.back().token==110 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
         assert(runtime.latestProposal.empty());
+        // A text field's committed text goes into the document's own state;
+        // with no Number widget to read it back, it is acknowledged at once.
+        runtime.latestProposal["root"]=111;
+        runtime.actions.push_back({ControlAction::Kind::Activate,modelTemplate.id,"root","value.name","",StateValue(std::string("My save")),111});
+        collect(); Drain(gui,{});
+        assert(std::string(gui.GetStateString("field.name"))=="My save" && runtime.state.at("field.name")==StateValue(std::string("My save")));
+        assert(runtime.acknowledgements.back().token==111 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
+        assert(runtime.acknowledgements.back().readback.at("field.name")==StateValue(std::string("My save")));
+        // A write that names an event runs the document's program after the
+        // value is written and accepted.
+        const auto programs=eventHistory.size();
+        runtime.latestProposal["root"]=112;
+        runtime.actions.push_back({ControlAction::Kind::Activate,modelTemplate.id,"root","value.named","",StateValue(std::string("Other")),112});
+        collect(); Drain(gui,{});
+        assert(std::string(gui.GetStateString("field.name"))=="Other" && eventHistory.size()==programs+1 && eventHistory.back()=="nameentered");
+        assert(runtime.acknowledgements.back().token==112 && runtime.acknowledgements.back().accepted && runtime.acknowledgements.back().matched);
         WidgetViewState widget; widget.role=ControlRole::Slider; widget.accepted=1.05; widget.pending=1.2;
         widget.rejected=1.1; widget.proposalToken=999; widget.firstVisible=0; runtime.widgets["root"]=widget;
         idCmdArgs inspect; inspect.values={"retained","widget","root"};
@@ -2277,8 +2374,9 @@ static void CheckNumberDiagnosticBoundary() {
     assert(views.empty() && service.owners.empty());modelTemplate=original;eventPlans.clear();
 }
 // Q and E, and the shoulders, run the document's onTabPrevious and onTabNext
-// where it declares them, and the triggers its onSectionPrevious and
-// onSectionNext: once per press, never on a repeat, never with Ctrl or Alt,
+// where it declares them, the triggers its onSectionPrevious and
+// onSectionNext, and the west and north face buttons its onSecondary and
+// onTertiary: once per press, never on a repeat, never with Ctrl or Alt,
 // and never while a Number field is being edited.
 static void CheckTabKeys() {
     assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;
@@ -2316,6 +2414,128 @@ static void CheckTabKeys() {
     Key(gui,K_JOY15,true);Key(gui,K_JOY15,true);Key(gui,K_JOY15,false);
     Key(gui,K_CTRL,true);pulse(K_JOY16);Key(gui,K_CTRL,false);
     assert(sections().size()==3);
+    const auto faces=[&]{std::vector<std::string> found;for(const auto& name:eventHistory)
+        if(name=="onsecondary" || name=="ontertiary")found.push_back(name);return found;};
+    pulse(K_JOY6);pulse(K_JOY5);
+    assert(faces().empty() && runtime.menu.empty());
+    eventPlans["onsecondary"]={};eventPlans["ontertiary"]={};
+    pulse(K_JOY6);pulse(K_JOY5);
+    assert(faces()==std::vector<std::string>({"onsecondary","ontertiary"}) && sections().size()==3 && tabs().size()==6);
+    Key(gui,K_JOY5,true);Key(gui,K_JOY5,true);Key(gui,K_JOY5,false);
+    Key(gui,K_ALT,true);pulse(K_JOY6);Key(gui,K_ALT,false);
+    runtime.widgets.at("root").number->active=true;
+    pulse(K_JOY6);
+    runtime.widgets.at("root").number->active=false;
+    assert(faces().size()==3 && runtime.menu.empty());
+}
+// A document that declares prompt.glyphs gets RetainedUI_PromptGlyphs as
+// each frame draws, once per change, and the session's state pushes carry
+// the adapter's value; a document that does not declare it never gets it.
+static void CheckPromptGlyphs() {
+    assert(views.empty());const auto original=modelTemplate;
+    consoleObject.open=false;windowFocused=true;promptGlyphsValue=3;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();gui.Redraw(0);gui.Redraw(0);
+        assert(!runtime.state.contains("prompt.glyphs"));
+        for(const auto& call:runtime.stateCalls)assert(!call.contains("prompt.glyphs"));
+    }
+    modelTemplate.state["prompt.glyphs"]={0.0,""};promptGlyphsValue=0;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();
+        const auto published=[&]{size_t n=0;for(const auto& call:runtime.stateCalls)if(call.size()==1 && call.contains("prompt.glyphs"))++n;return n;};
+        const auto glyphs=[&]{return std::get<double>(runtime.state.at("prompt.glyphs"));};
+        gui.Redraw(0);
+        assert(published()==1 && glyphs()==0 && gui.GetStateInt("prompt.glyphs")==0);
+        gui.Redraw(0);assert(published()==1);
+        promptGlyphsValue=2;const auto frames=runtime.frames;gui.Redraw(0);
+        assert(published()==2 && glyphs()==2 && gui.GetStateInt("prompt.glyphs")==2 && runtime.frames==frames+1);
+        gui.StateChanged(0);assert(glyphs()==2);
+        promptGlyphsValue=5;gui.Redraw(0);promptGlyphsValue=0;gui.Redraw(0);
+        assert(published()==4 && glyphs()==0);
+    }
+    modelTemplate=original;promptGlyphsValue=0;
+}
+// prompt.swapped follows Swap Confirm and Back the same way: once per change,
+// before the frame draws, and only to a document that declares it.
+static void CheckPromptSwapped() {
+    assert(views.empty());const auto original=modelTemplate;
+    consoleObject.open=false;windowFocused=true;promptSwappedValue=true;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+        assert(!Live().state.contains("prompt.swapped"));
+    }
+    modelTemplate.state["prompt.swapped"]={false,""};promptSwappedValue=false;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();
+        const auto published=[&]{size_t n=0;for(const auto& call:runtime.stateCalls)if(call.size()==1 && call.contains("prompt.swapped"))++n;return n;};
+        gui.Redraw(0);
+        assert(published()==1 && !std::get<bool>(runtime.state.at("prompt.swapped")));
+        gui.Redraw(0);assert(published()==1);
+        promptSwappedValue=true;gui.Redraw(0);
+        assert(published()==2 && std::get<bool>(runtime.state.at("prompt.swapped")) && gui.GetStateBool("prompt.swapped"));
+        gui.StateChanged(0);assert(std::get<bool>(runtime.state.at("prompt.swapped")));
+    }
+    modelTemplate=original;promptSwappedValue=false;
+}
+// Confirm and Back on a controller (section 13.5): south accepts and east
+// goes back, or the other way round while confirm is swapped, and a release
+// ends what its press began even when the swap changes in between.
+static void CheckConfirmSwap() {
+    assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;eventPlans={};
+    idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+    auto& runtime=Live();
+    const auto pulse=[&](int key){const auto before=runtime.menu.size();Key(gui,key,true);Key(gui,key,false);
+        assert(runtime.menu.size()==before+2 && runtime.menu[before].second && !runtime.menu.back().second &&
+               runtime.menu[before].first==runtime.menu.back().first);return runtime.menu[before].first;};
+    idKeyInput::swapped=false;
+    assert(pulse(K_JOY3)==MenuInput::Accept && pulse(K_JOY4)==MenuInput::Back);
+    idKeyInput::swapped=true;
+    assert(pulse(K_JOY4)==MenuInput::Accept && pulse(K_JOY3)==MenuInput::Back);
+    const auto before=runtime.menu.size();
+    Key(gui,K_JOY4,true);idKeyInput::swapped=false;Key(gui,K_JOY4,false);
+    assert(runtime.menu.size()==before+2 && runtime.menu[before]==std::make_pair(MenuInput::Accept,true) &&
+           runtime.menu.back()==std::make_pair(MenuInput::Accept,false));
+    idKeyInput::swapped=false;
+}
+// Committed characters (SE_CHAR) type into the focused field, opening an
+// edit when none is open; a field with the focus takes the platform's
+// text input.
+static void CheckTypedCharacters() {
+    assert(views.empty());const auto original=modelTemplate;
+    Expression operand;operand.type=0;operand.inputValue=true;
+    modelTemplate.actions["number.set"]={"settings.brightness.set",{{"value",operand}},std::size_t(0)};
+    consoleObject.open=false;windowFocused=true;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+        auto& runtime=Live();runtime.InstallNumber("root","number.set");runtime.selected="root";
+        const auto type=[&](int character){sysEvent_t event{SE_CHAR,character,0};gui.HandleEvent(&event,0,nullptr);};
+        const auto text=[&]{return runtime.numberBuffers.at("root").State().text;};
+        idRectangle area;float offset=-1;
+        assert(gui.GetTextInputState(area,offset) && area.w>0 && area.h>0 && offset==0);
+        runtime.selected="missing";assert(!gui.GetTextInputState(area,offset));runtime.selected="root";
+        // Control characters stay with their keys, and a space accepts a
+        // field that is not being edited: none of them opens an edit.
+        const auto calls=runtime.numberCalls.size();
+        type(' ');type(8);type(13);type(0x7f);type(0x85);
+        assert(runtime.numberCalls.size()==calls && !runtime.widgets.at("root").number);
+        type('1');
+        assert(runtime.numberCalls.size()==calls+2 && runtime.numberCalls[calls].operation=="begin" &&
+               runtime.numberCalls[calls+1].operation=="input" && text()=="1");
+        type('.');type('5');assert(text()=="1.5");
+        // Latin-1 arrives as its code point and types as UTF-8.
+        type(0xe9);assert(text()=="1.5\xc3\xa9");
+        // An open edit takes spaces.
+        type(' ');assert(text()=="1.5\xc3\xa9 ");
+        // A suspended view takes nothing, and reports no text input.
+        consoleObject.open=true;gui.Redraw(0);
+        const auto suspended=runtime.numberCalls.size();type('2');
+        assert(runtime.numberCalls.size()==suspended && !gui.GetTextInputState(area,offset));
+        consoleObject.open=false;gui.Redraw(0);type('2');assert(text()=="1.5\xc3\xa9 2");
+    }
+    assert(views.empty());modelTemplate=original;
 }
 static void CheckNumberKeys() {
     assert(views.empty());const auto original=modelTemplate;
@@ -2542,8 +2762,22 @@ int main() {
     unsafe=modelTemplate; unsafe.state["NUMBER"]={1.0,""}; assert(!ValidateApplication(unsafe,error));
     unsafe=modelTemplate; unsafe.state["NaMe"]={1.0,""}; assert(!ValidateApplication(unsafe,error));
     CheckApplicationDeltas();
+    // A field writes only the document's own declared state of its type.
+    auto fieldModel=modelTemplate; fieldModel.state["save.name"]={std::string(),""};
+    Expression fieldKey; fieldKey.type=2; fieldKey.literal=std::string("save.name");
+    Expression fieldText; fieldText.type=2; fieldText.inputValue=true;
+    fieldModel.actions["rename"]={"ui.state.set",{{"key",fieldKey},{"value",fieldText}},std::size_t(2)};
+    assert(ValidateApplication(fieldModel,error));
+    unsafe=fieldModel; unsafe.actions["rename"].arguments.at("key").literal=std::string("save.missing"); assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.state["save.name"].cvar="ui_name"; assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.actions["rename"].inputType=0; assert(!ValidateApplication(unsafe,error));
+    unsafe=fieldModel; unsafe.state["save.name"].initial=0.0; assert(!ValidateApplication(unsafe,error));
+    Expression enteredEvent; enteredEvent.type=2; enteredEvent.literal=std::string("nameEntered");
+    unsafe=fieldModel; unsafe.actions["rename"].arguments.emplace("event",enteredEvent); assert(!ValidateApplication(unsafe,error));
+    unsafe.events["nameentered"]; assert(ValidateApplication(unsafe,error));
     CheckEventBridge();
     CheckCompletionWrites();
+    CheckLevelLoadKeep();
     CheckEventEligibility();
     CheckNodeInspection();
     CheckSettingsBoundary();
@@ -2560,7 +2794,11 @@ int main() {
     CheckNumberDiagnosticBoundary();
     CheckChoiceDiagnosticBoundary();
     CheckNumberKeys();
+    CheckTypedCharacters();
     CheckTabKeys();
+    CheckPromptGlyphs();
+    CheckPromptSwapped();
+    CheckConfirmSwap();
     std::puts("Retained adapter: Number diagnostic transport, delayed numeric identity and readback-before-acknowledgement; exactly-once Apply-and-exit receipts after complete queued batches, stationary wheel/pointer handoff, immutable value proposals/acknowledgements, authoritative settings return and authored Back, settings capability/draw ownership and state/lifecycle boundaries, ordered event/FIFO publication, restore suppression, pending dictionary, presentation delegation, framed saves, input suspension and cursor mapping passed");
 }
 '''
@@ -2571,6 +2809,7 @@ def main():
         'src/ui/UserInterfaceRetained.cpp', 'src/ui/UserInterface.h', 'src/ui/UserInterfaceManaged.h', 'src/ui/UserInterfaceText.h', 'src/ui/UserInterfaceNativeText.h',
         'src/ui/UserInterfaceRetained.h', 'src/ui/UserInterface.cpp', 'src/ui/RetainedUI.h',
         'src/ui/SettingsService.h', 'src/ui/application/SettingsTransaction.h',
+        'src/ui/GuiStateNumber.h',
         'src/ui/retained/Document.h', 'src/ui/retained/Interaction.h',
         'src/ui/retained/Input.h', 'src/ui/retained/Input.cpp',
         'src/ui/retained/TextInput.h', 'src/ui/retained/TextInput.cpp',
@@ -2650,6 +2889,11 @@ def main():
         ('text-key-selection-lost', 'movement && shift,error,now', 'false,error,now'),
         ('stale-semantic-number', 'if (pending.cancellable || pending.source.editSession)', 'if (pending.cancellable)'),
         ('ack-without-publication', 'accepted && synchronized', 'accepted'),
+        ('kept-view-holds-programs', 'impl->Quarantine(false,true,true);', ''),
+        ('kept-changed-source',
+         'const bool same = size >= 0 && data && static_cast<size_t>(size) == source.size() &&\n\t\tstd::memcmp(data,source.data(),source.size()) == 0;',
+         'const bool same = size >= 0 && data;'),
+        ('kept-pictures-unresolved', 'impl->lastError.clear();\n\tPrecacheImages(impl->document.Model().root);', 'impl->lastError.clear();'),
         ('ack-before-readback',
          'const bool synchronized = impl->SyncSettings();\n\t\t\tif (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted && synchronized);',
          'if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);\n\t\t\timpl->SyncSettings();'),

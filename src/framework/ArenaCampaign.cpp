@@ -13,7 +13,9 @@ for the final score.
 
 #include "Session_local.h"
 #include "ArenaCampaign.h"
+#include "../ui/UserInterfaceManaged.h"
 #include "async/AsyncNetwork.h"
+#include "../ui/RetainedUI.h"
 
 namespace {
 
@@ -62,7 +64,10 @@ enum arenaTransitionPhase_t {
 enum arenaOutcome_t {
 	ARENA_OUTCOME_LOSS = 0,
 	ARENA_OUTCOME_WIN = 1,
-	ARENA_OUTCOME_DRAW = 2
+	ARENA_OUTCOME_DRAW = 2,
+	// game_mp ended the match without a contest: every opponent left, or a
+	// forfeit or abort ended it. Nothing is recorded.
+	ARENA_OUTCOME_ABORTED = 3
 };
 
 // Why an Arena launch or result handoff was abandoned.  Every abandoned
@@ -74,16 +79,28 @@ enum arenaFailure_t {
 	ARENA_FAILURE_NONE = 0,
 	ARENA_FAILURE_SERVER,
 	ARENA_FAILURE_BOTS,
-	ARENA_FAILURE_RESULT
+	ARENA_FAILURE_RESULT,
+	// The match itself ended without a result. Both keep the match's token so
+	// the card can name it and offer it again.
+	ARENA_FAILURE_OPPONENTS,
+	ARENA_FAILURE_ABANDONED
 };
 
 static const char *ArenaFailureMessageKey( int failure ) {
 	switch ( failure ) {
-		case ARENA_FAILURE_SERVER:	return "#str_42150";
-		case ARENA_FAILURE_BOTS:	return "#str_42069";
-		case ARENA_FAILURE_RESULT:	return "#str_42151";
-		default:					return "";
+		case ARENA_FAILURE_SERVER:		return "#str_42150";
+		case ARENA_FAILURE_BOTS:		return "#str_42069";
+		case ARENA_FAILURE_RESULT:		return "#str_42151";
+		case ARENA_FAILURE_OPPONENTS:	return "#str_42161";
+		case ARENA_FAILURE_ABANDONED:	return "#str_42162";
+		default:						return "";
 	}
+}
+
+// The ledger's title for a result that recorded nothing: a launch or handoff
+// that failed is aborted; a match the player walked out of is abandoned.
+static const char *ArenaFailureTitleKey( int failure ) {
+	return failure == ARENA_FAILURE_ABANDONED ? "#str_42163" : "#str_42068";
 }
 
 static idCVar ui_arenaProgressVersion(
@@ -97,6 +114,14 @@ static idCVar ui_arenaProgress(
 	CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_INTEGER,
 	"arena campaign completion bit mask",
 	0, ARENA_PROGRESS_MASK );
+
+// Each played match's best result, beside the win bits it must agree with:
+// space-separated "<match>:<outcome>:<player>:<opponent>:<difficulty>"
+// entries, match a zero-based index and outcome 0 loss, 1 win, 2 draw.
+static idCVar ui_arenaBest(
+	"ui_arenaBest", "",
+	CVAR_SYSTEM | CVAR_ARCHIVE,
+	"arena campaign best result per match" );
 
 static idCVar ui_arenaDifficulty(
 	"ui_arenaDifficulty", "3",
@@ -126,6 +151,63 @@ static idCVar ui_arenaActiveMatch(
 	CVAR_SYSTEM | CVAR_INTEGER | CVAR_NOCHEAT,
 	"one-based token for the active arena campaign match",
 	0, ARENA_TOTAL_MATCHES );
+
+// The active match's card, as localization keys, for game_mp's presentation:
+// its entrance, scoreboard and loading card. game_mp cannot derive them - a
+// campaign Duel runs as deathmatch, and the copy is authored here. Always the
+// same process, because an Arena match is this engine's own listen server.
+static idCVar ui_arenaMatchTitle(
+	"ui_arenaMatchTitle", "", CVAR_SYSTEM | CVAR_NOCHEAT,
+	"localization key of the active arena campaign match's title" );
+static idCVar ui_arenaMatchTier(
+	"ui_arenaMatchTier", "", CVAR_SYSTEM | CVAR_NOCHEAT,
+	"localization key of the active arena campaign match's tier" );
+static idCVar ui_arenaMatchRole(
+	"ui_arenaMatchRole", "", CVAR_SYSTEM | CVAR_NOCHEAT,
+	"localization key of the active arena campaign match's place in its tier" );
+static idCVar ui_arenaMatchGameType(
+	"ui_arenaMatchGameType", "", CVAR_SYSTEM | CVAR_NOCHEAT,
+	"localization key of the game type the active arena campaign match presents" );
+
+// True while a menu has the screen over the live match. An Arena match is a
+// single-player game, so game_mp pauses it while this is set, the way a story
+// level pauses behind its menu. game_mp cannot see the engine's menus itself:
+// its own menu hands over to the engine's main menu and settings screens.
+// Chat is not a menu here - the bots answer it.
+static idCVar ui_arenaMenuOpen(
+	"ui_arenaMenuOpen", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT | CVAR_ROM,
+	"true while a menu covers the live arena campaign match, which pauses it" );
+
+static void ArenaClearMatchPresentation() {
+	ui_arenaMatchTitle.SetString( "" );
+	ui_arenaMatchTier.SetString( "" );
+	ui_arenaMatchRole.SetString( "" );
+	ui_arenaMatchGameType.SetString( "" );
+	ui_arenaMenuOpen.SetBool( false );
+}
+
+#ifndef ID_DEDICATED
+// The main menu at rest on its home state, with no page or transition under
+// way. Over a live Arena match it only gets there by backing out of the
+// settings page the pause menu opened.
+static bool ArenaMainMenuAtHome() {
+	idUserInterface *menu = sessLocal.guiMainMenu;
+	if ( menu == NULL || sessLocal.guiActive != menu ) {
+		return false;
+	}
+	idStr curr, active;
+	return menu->GetPresentationValue( "desktop::curr", curr ) && atoi( curr.c_str() ) == 0 &&
+		menu->GetPresentationValue( "desktop::active", active ) && atoi( active.c_str() ) == 0;
+}
+
+static bool ArenaMenuCoversMatch() {
+	if ( RetainedUI_IsOpen() ) {
+		return true;
+	}
+	const idUserInterface *gui = sessLocal.GetActiveGUI();
+	return gui != NULL && idStr::Icmp( gui->Name(), "guis/mpmsgmode.gui" ) != 0;
+}
+#endif
 
 struct arenaBot_t {
 	idStr	name;
@@ -368,17 +450,20 @@ static int ArenaCanonicalProgress( int progress ) {
 	return canonical;
 }
 
+static void ArenaRepairPersistedBest();
+
+// The best results are checked against the repaired progress, so they are
+// always repaired with it.
 static void ArenaRepairPersistedProgress() {
 	const int persisted = ui_arenaProgress.GetInteger();
 	const int canonical = ArenaCanonicalProgress( persisted );
-	if ( canonical == persisted ) {
-		return;
+	if ( canonical != persisted ) {
+		common->Warning(
+			"arena campaign: repaired non-canonical progress mask 0x%x to 0x%x",
+			persisted, canonical );
+		ui_arenaProgress.SetInteger( canonical );
 	}
-
-	common->Warning(
-		"arena campaign: repaired non-canonical progress mask 0x%x to 0x%x",
-		persisted, canonical );
-	ui_arenaProgress.SetInteger( canonical );
+	ArenaRepairPersistedBest();
 }
 
 static bool ArenaParseBoundedInteger( const char *text, int minimum, int maximum, int &value ) {
@@ -444,6 +529,203 @@ static int ArenaCountCompleted( int progress ) {
 		}
 	}
 	return completed;
+}
+
+// A match's best result. game_mp derives the outcome from the two scores, so a
+// result with both scores must agree with them; a loss handed over without
+// scores (the player never took a side) records the outcome alone.
+struct arenaBestResult_t {
+	bool	recorded;
+	int		outcome;
+	int		playerScore;
+	int		opponentScore;
+	int		difficulty;
+
+	arenaBestResult_t() :
+		recorded( false ),
+		outcome( ARENA_OUTCOME_LOSS ),
+		playerScore( ARENA_SCORE_UNAVAILABLE ),
+		opponentScore( ARENA_SCORE_UNAVAILABLE ),
+		difficulty( 0 ) {
+	}
+};
+
+static bool ArenaBestHasScore( const arenaBestResult_t &result ) {
+	return result.playerScore != ARENA_SCORE_UNAVAILABLE &&
+		result.opponentScore != ARENA_SCORE_UNAVAILABLE;
+}
+
+// A recorded result the campaign could have produced: an outcome game_mp
+// records, both scores or neither, and an outcome that agrees with its scores.
+static bool ArenaBestResultValid( const arenaBestResult_t &result ) {
+	if ( result.outcome != ARENA_OUTCOME_LOSS && result.outcome != ARENA_OUTCOME_WIN &&
+		 result.outcome != ARENA_OUTCOME_DRAW ) {
+		return false;
+	}
+	if ( result.difficulty < 1 || result.difficulty > 5 ) {
+		return false;
+	}
+	if ( ( result.playerScore == ARENA_SCORE_UNAVAILABLE ) != ( result.opponentScore == ARENA_SCORE_UNAVAILABLE ) ) {
+		return false;
+	}
+	if ( !ArenaBestHasScore( result ) ) {
+		return true;
+	}
+	const int margin = result.playerScore - result.opponentScore;
+	return result.outcome == ARENA_OUTCOME_WIN ? margin > 0 :
+		( result.outcome == ARENA_OUTCOME_DRAW ? margin == 0 : margin < 0 );
+}
+
+// Win, then draw, then loss; then the wider margin; then the harder setting;
+// then the higher score. A tie keeps the record that was set first.
+static bool ArenaBestResultBeats( const arenaBestResult_t &candidate, const arenaBestResult_t &record ) {
+	if ( !record.recorded ) {
+		return candidate.recorded;
+	}
+	static const int outcomeRank[] = { 0, 2, 1 };	// loss, win, draw
+	const int candidateRank = outcomeRank[candidate.outcome];
+	const int recordRank = outcomeRank[record.outcome];
+	if ( candidateRank != recordRank ) {
+		return candidateRank > recordRank;
+	}
+	const bool candidateScored = ArenaBestHasScore( candidate );
+	if ( candidateScored != ArenaBestHasScore( record ) ) {
+		return candidateScored;
+	}
+	if ( candidateScored ) {
+		const int candidateMargin = candidate.playerScore - candidate.opponentScore;
+		const int recordMargin = record.playerScore - record.opponentScore;
+		if ( candidateMargin != recordMargin ) {
+			return candidateMargin > recordMargin;
+		}
+	}
+	if ( candidate.difficulty != record.difficulty ) {
+		return candidate.difficulty > record.difficulty;
+	}
+	return candidateScored && candidate.playerScore > record.playerScore;
+}
+
+// The record a match carries: its persisted best result, or for a match won
+// before best results were kept, a scoreless win that any new win beats.
+static arenaBestResult_t ArenaEffectiveBest( const arenaBestResult_t &persisted, int progress, int tier, int match ) {
+	if ( persisted.recorded || !ArenaMatchComplete( progress, tier, match ) ) {
+		return persisted;
+	}
+	arenaBestResult_t legacyWin;
+	legacyWin.recorded = true;
+	legacyWin.outcome = ARENA_OUTCOME_WIN;
+	return legacyWin;
+}
+
+// Parses ui_arenaBest against a canonical progress mask, keeping only entries
+// that are well formed, in range, unique and consistent with it: the match must
+// be unlocked, and it holds a win exactly when it is complete. Returns the
+// number of entries dropped.
+static int ArenaReadBestResults( const char *text, int progress, arenaBestResult_t results[ARENA_TOTAL_MATCHES] ) {
+	for ( int i = 0; i < ARENA_TOTAL_MATCHES; i++ ) {
+		results[i] = arenaBestResult_t();
+	}
+
+	int dropped = 0;
+	const idStr persisted = text != NULL ? text : "";
+	int cursor = 0;
+	while ( cursor < persisted.Length() ) {
+		if ( persisted[cursor] == ' ' ) {
+			cursor++;
+			continue;
+		}
+		int end = cursor;
+		while ( end < persisted.Length() && persisted[end] != ' ' ) {
+			end++;
+		}
+		const idStr entry = persisted.Mid( cursor, end - cursor );
+		cursor = end;
+
+		idStr fields[5];
+		int fieldCount = 0;
+		int fieldStart = 0;
+		for ( int i = 0; i <= entry.Length() && fieldCount <= 5; i++ ) {
+			if ( i == entry.Length() || entry[i] == ':' ) {
+				if ( fieldCount < 5 ) {
+					fields[fieldCount] = entry.Mid( fieldStart, i - fieldStart );
+				}
+				fieldCount++;
+				fieldStart = i + 1;
+			}
+		}
+
+		int index = 0;
+		arenaBestResult_t result;
+		result.recorded = true;
+		if ( fieldCount != 5 ||
+			 !ArenaParseBoundedInteger( fields[0].c_str(), 0, ARENA_TOTAL_MATCHES - 1, index ) ||
+			 !ArenaParseBoundedInteger( fields[1].c_str(), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_DRAW, result.outcome ) ||
+			 !ArenaParseBoundedInteger( fields[2].c_str(), -9999, 9999, result.playerScore ) ||
+			 !ArenaParseBoundedInteger( fields[3].c_str(), -9999, 9999, result.opponentScore ) ||
+			 !ArenaParseBoundedInteger( fields[4].c_str(), 1, 5, result.difficulty ) ||
+			 !ArenaBestResultValid( result ) || results[index].recorded ) {
+			dropped++;
+			continue;
+		}
+		const int tier = index / ARENA_MATCHES_PER_TIER;
+		const int match = index % ARENA_MATCHES_PER_TIER;
+		if ( !ArenaMatchUnlocked( progress, tier, match ) ||
+			 ( result.outcome == ARENA_OUTCOME_WIN ) != ArenaMatchComplete( progress, tier, match ) ) {
+			dropped++;
+			continue;
+		}
+		results[index] = result;
+	}
+	return dropped;
+}
+
+static idStr ArenaWriteBestResults( const arenaBestResult_t results[ARENA_TOTAL_MATCHES] ) {
+	idStr text;
+	for ( int i = 0; i < ARENA_TOTAL_MATCHES; i++ ) {
+		if ( !results[i].recorded ) {
+			continue;
+		}
+		if ( !text.IsEmpty() ) {
+			text += " ";
+		}
+		text += va( "%d:%d:%d:%d:%d", i, results[i].outcome,
+			results[i].playerScore, results[i].opponentScore, results[i].difficulty );
+	}
+	return text;
+}
+
+static bool ArenaHasBestResults() {
+	return ui_arenaBest.GetString()[0] != '\0';
+}
+
+// Rewrites ui_arenaBest in canonical form when it is malformed, out of range or
+// disagrees with the (already repaired) progress mask.
+static void ArenaRepairPersistedBest() {
+	arenaBestResult_t results[ARENA_TOTAL_MATCHES];
+	const int dropped = ArenaReadBestResults( ui_arenaBest.GetString(), ui_arenaProgress.GetInteger(), results );
+	const idStr canonical = ArenaWriteBestResults( results );
+	if ( canonical == ui_arenaBest.GetString() ) {
+		return;
+	}
+	common->Warning(
+		"arena campaign: repaired best results '%s' to '%s' (%d entries dropped)",
+		ui_arenaBest.GetString(), canonical.c_str(), dropped );
+	ui_arenaBest.SetString( canonical );
+}
+
+// "VICTORY   10 - 3   VETERAN"; a match won before best results were kept has
+// the outcome alone.
+static idStr ArenaDescribeBest( const arenaBestResult_t &result ) {
+	idStr text = ArenaLocalized( result.outcome == ARENA_OUTCOME_WIN ? "#str_42030" :
+		( result.outcome == ARENA_OUTCOME_DRAW ? "#str_42077" : "#str_42031" ) );
+	if ( ArenaBestHasScore( result ) ) {
+		text += va( "   %d - %d", result.playerScore, result.opponentScore );
+	}
+	if ( result.difficulty >= 1 && result.difficulty <= 5 ) {
+		text += "   ";
+		text += ArenaLocalized( ArenaDifficultyStringKey( result.difficulty ) );
+	}
+	return text;
 }
 
 static const idDict *ArenaFindMapDecl( const idStr &map ) {
@@ -683,6 +965,7 @@ struct arenaCampaignState_t {
 	int						pendingPlayerScore;
 	int						pendingOpponentScore;
 	int						pendingAwards;
+	int						matchDifficulty;
 	int						result;
 	int						resultFailure;
 	int						resultPlayerScore;
@@ -698,6 +981,7 @@ struct arenaCampaignState_t {
 	bool					resultUnlockedTier;
 	bool					resultUnlockedCampaign;
 	bool					resultRevealPending;
+	bool					resultNewBest;
 	bool					returnWipeHeld;
 	bool					resetConfirmation;
 	idStr					resultUnlock;
@@ -723,6 +1007,7 @@ struct arenaCampaignState_t {
 		pendingPlayerScore( 0 ),
 		pendingOpponentScore( 0 ),
 		pendingAwards( 0 ),
+		matchDifficulty( 0 ),
 		result( 0 ),
 		resultFailure( ARENA_FAILURE_NONE ),
 		resultPlayerScore( 0 ),
@@ -738,6 +1023,7 @@ struct arenaCampaignState_t {
 		resultUnlockedTier( false ),
 		resultUnlockedCampaign( false ),
 		resultRevealPending( false ),
+		resultNewBest( false ),
 		returnWipeHeld( false ),
 		resetConfirmation( false ) {
 	}
@@ -765,6 +1051,7 @@ static void ArenaClearResultMetadata( arenaCampaignState_t *state ) {
 	state->resultUnlockedTier = false;
 	state->resultUnlockedCampaign = false;
 	state->resultRevealPending = false;
+	state->resultNewBest = false;
 	state->resultUnlock.Clear();
 	state->resultTierName.Clear();
 	state->resultMatchName.Clear();
@@ -869,6 +1156,43 @@ static const arenaMatch_t *ArenaMatchForToken( const arenaCampaignState_t *state
 	return &state->tiers[tier].matches[match];
 }
 
+// Retry and Replay are offered only when that very match can start again. The
+// button and RetryResult must agree: the report collapses as soon as the button
+// is pressed, so a retry the campaign then refused stranded an empty frame.
+static bool ArenaResultCanRetry( const arenaCampaignState_t *state ) {
+	if ( state == NULL ) {
+		return false;
+	}
+	const bool played = state->result == 1 || state->result == 2 || state->result == 4 ||
+		( state->result == 3 && ( state->resultFailure == ARENA_FAILURE_OPPONENTS ||
+			state->resultFailure == ARENA_FAILURE_ABANDONED ) );
+	if ( !played ) {
+		return false;
+	}
+	int tier = 0;
+	int match = 0;
+	const arenaMatch_t *retryMatch = ArenaMatchForToken( state, state->resultToken, &tier, &match );
+	return retryMatch != NULL && ArenaMatchUnlocked( ui_arenaProgress.GetInteger(), tier, match ) &&
+		ArenaMapSupportsMatch( *retryMatch );
+}
+
+// Fills the ledger's identity for a match that ended without a result, so the
+// card can still name it and, where it can start again, offer it again.
+static void ArenaSetResultMatch( arenaCampaignState_t *state, int token ) {
+	int tier = 0;
+	int match = 0;
+	if ( ArenaMatchForToken( state, token, &tier, &match ) == NULL ) {
+		return;
+	}
+	state->resultToken = token;
+	state->resultTier = tier;
+	state->resultMatch = match;
+	state->resultTierName = state->tiers[tier].name;
+	state->resultMatchName = state->tiers[tier].matches[match].name;
+	state->resultPlayerScore = ARENA_SCORE_UNAVAILABLE;
+	state->resultOpponentScore = ARENA_SCORE_UNAVAILABLE;
+}
+
 static int ArenaPreferredMatch( int progress, int tier ) {
 	for ( int match = 0; match < ARENA_BOSS_MATCH; match++ ) {
 		if ( !ArenaMatchComplete( progress, tier, match ) ) {
@@ -879,6 +1203,60 @@ static int ArenaPreferredMatch( int progress, int tier ) {
 		return ARENA_BOSS_MATCH;
 	}
 	return 0;
+}
+
+// The match's place in its tier: QUALIFIER 1-3 or BOSS MATCH.
+static const char *ArenaMatchRoleKey( int match ) {
+	static const char *qualifiers[] = { "#str_42088", "#str_42089", "#str_42090" };
+	if ( match == ARENA_BOSS_MATCH ) {
+		return "#str_42024";
+	}
+	return qualifiers[ idMath::ClampInt( 0, ARENA_BOSS_MATCH - 1, match ) ];
+}
+
+// The challenge NEXT leads to after a win: the first open, unwon match from
+// this tier onward, then from the start of the circuit. Choosing the tier's
+// preferred match instead sent a replayed win in a finished tier to that tier's
+// already-beaten boss. False when every open match is won.
+static bool ArenaNextChallenge( int progress, int fromTier, int &tierOut, int &matchOut ) {
+	for ( int pass = 0; pass < 2; pass++ ) {
+		for ( int tier = pass == 0 ? fromTier : 0; tier < ARENA_TIER_COUNT; tier++ ) {
+			if ( pass == 1 && tier >= fromTier ) {
+				break;
+			}
+			if ( !ArenaTierUnlocked( progress, tier ) ) {
+				continue;
+			}
+			for ( int match = 0; match < ARENA_MATCHES_PER_TIER; match++ ) {
+				if ( ArenaMatchUnlocked( progress, tier, match ) && !ArenaMatchComplete( progress, tier, match ) ) {
+					tierOut = tier;
+					matchOut = match;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+// A tier's browser status. IN PROGRESS marks a tier with some qualifiers won;
+// without it a part-cleared tier read exactly like one never played.
+static const char *ArenaTierStatusKey( int progress, int tier ) {
+	if ( !ArenaTierUnlocked( progress, tier ) ) {
+		return "#str_42022";
+	}
+	if ( ArenaMatchComplete( progress, tier, ARENA_BOSS_MATCH ) ) {
+		return "#str_42023";
+	}
+	if ( ArenaBossUnlocked( progress, tier ) ) {
+		return "#str_42045";
+	}
+	for ( int match = 0; match < ARENA_BOSS_MATCH; match++ ) {
+		if ( ArenaMatchComplete( progress, tier, match ) ) {
+			return "#str_42039";
+		}
+	}
+	return "#str_42065";
 }
 
 static void ArenaResolveSelection( arenaCampaignState_t *state ) {
@@ -906,6 +1284,24 @@ static void ArenaResolveSelection( arenaCampaignState_t *state ) {
 
 	ui_arenaSelectedTier.SetInteger( tier );
 	ui_arenaSelectedMatch.SetInteger( match );
+}
+
+// A match's levelshot: its map's loadscreen, else its thumbnail, else the
+// map's screenshot, else the generic loadscreen.
+static idStr ArenaLevelshot( const arenaMatch_t &match, const idDict *mapDecl ) {
+	idStr levelshot = "gfx/guis/loadscreens/generic";
+	if ( mapDecl != NULL ) {
+		levelshot = mapDecl->GetString( "loadimage" );
+		if ( levelshot.IsEmpty() ) {
+			levelshot = mapDecl->GetString( "mp_thumb" );
+		}
+	}
+	if ( levelshot.IsEmpty() ) {
+		char screenshot[MAX_STRING_CHARS];
+		fileSystem->FindMapScreenshot( match.map, screenshot, sizeof( screenshot ) );
+		levelshot = screenshot;
+	}
+	return levelshot;
 }
 
 static idStr ArenaBuildRoster( const arenaMatch_t &match ) {
@@ -969,6 +1365,17 @@ void ArenaCampaign_Finish_f( const idCmdArgs &args ) {
 
 /*
 ================
+ArenaCampaign_Restart_f
+================
+*/
+#ifndef ID_DEDICATED
+static void ArenaCampaign_Restart_f( const idCmdArgs &args ) {
+	arenaCampaign.RestartMatch();
+}
+#endif
+
+/*
+================
 idArenaCampaign::Init
 ================
 */
@@ -983,6 +1390,20 @@ void idArenaCampaign::Init() {
 	state->gui = uiManager->FindGui( "guis/arena_menu.gui", true, false, true );
 	state->returnGui = NULL;
 	LoadCampaign();
+	// The levelshots, and the retained Arena page's pictures of them, precache
+	// on the front end's idle frames, and the page reads any still waiting when
+	// it opens, so choosing a match never loads one mid-frame. Read here, they
+	// held the title back; an engine reload still precaches them in its load.
+	if ( state->loaded && sessLocal.RetainedArenaGui() != NULL ) {
+		for ( int tierIndex = 0; tierIndex < state->tiers.Num(); tierIndex++ ) {
+			for ( int matchIndex = 0; matchIndex < state->tiers[tierIndex].matches.Num(); matchIndex++ ) {
+				const arenaMatch_t &match = state->tiers[tierIndex].matches[matchIndex];
+				const idDict *mapDecl = NULL;
+				ArenaMapSupportsMatch( match, &mapDecl );
+				sessLocal.QueueRetainedLevelshot( ArenaLevelshot( match, mapDecl ).c_str(), true );
+			}
+		}
+	}
 
 	// Reaching game_mp completes the only module transition that is allowed to
 	// carry a live Arena transaction across session shutdown. If the replayed
@@ -997,6 +1418,10 @@ void idArenaCampaign::Init() {
 		cmdSystem->AddCommand(
 			"arenaCampaignFinish", ArenaCampaign_Finish_f, CMD_FL_SYSTEM,
 			"internal - completes a reported arena campaign match" );
+		// The Arena pause menu's Restart match.
+		cmdSystem->AddCommand(
+			"arenaCampaignRestart", ArenaCampaign_Restart_f, CMD_FL_SYSTEM,
+			"restarts the live arena campaign match from its introduction; nothing is recorded" );
 		state->finishCommandRegistered = true;
 	}
 #endif
@@ -1019,6 +1444,22 @@ void idArenaCampaign::Frame() {
 #else
 	if ( state == NULL ) {
 		return;
+	}
+	const bool menuOpen = IsActive() && state->transitionPhase == ARENA_TRANSITION_MATCH &&
+		sessLocal.IsMapSpawned() && ArenaMenuCoversMatch();
+	if ( ui_arenaMenuOpen.GetBool() != menuOpen ) {
+		ui_arenaMenuOpen.SetBool( menuOpen );
+	}
+	// The pause menu's Settings opens the main menu's settings page over the
+	// paused match. Backing out of it lands on the main menu's multiplayer
+	// home, which offers nothing an Arena match can use, so the pause menu
+	// takes the screen back as soon as the main menu comes to rest there.
+	if ( menuOpen && ArenaMainMenuAtHome() && game != NULL ) {
+		sessLocal.ExitMenu();
+		idUserInterface *pause = game->StartMenu();
+		if ( pause != NULL ) {
+			sessLocal.SetGUI( pause, NULL );
+		}
 	}
 	if ( state->transitionPhase == ARENA_TRANSITION_RETURN && state->completionPending ) {
 		FinishPendingCompletion();
@@ -1058,6 +1499,7 @@ void idArenaCampaign::Shutdown() {
 	}
 	if ( state->finishCommandRegistered ) {
 		cmdSystem->RemoveCommand( "arenaCampaignFinish" );
+		cmdSystem->RemoveCommand( "arenaCampaignRestart" );
 		state->finishCommandRegistered = false;
 	}
 
@@ -1194,6 +1636,7 @@ bool idArenaCampaign::LoadCampaign() {
 	if ( ui_arenaProgressVersion.GetInteger() != state->version ) {
 		ui_arenaProgressVersion.SetInteger( state->version );
 		ui_arenaProgress.SetInteger( 0 );
+		ui_arenaBest.SetString( "" );
 		ui_arenaSelectedTier.SetInteger( 0 );
 		ui_arenaSelectedMatch.SetInteger( 0 );
 	} else {
@@ -1224,6 +1667,32 @@ bool idArenaCampaign::IsActive() const {
 	return ui_arenaCampaignActive.GetBool() &&
 		ui_arenaActiveMatch.GetInteger() >= 1 &&
 		ui_arenaActiveMatch.GetInteger() <= ARENA_TOTAL_MATCHES;
+}
+
+/*
+================
+idArenaCampaign::IsEntering
+================
+*/
+bool idArenaCampaign::IsEntering() const {
+	return state != NULL && state->transitionPhase == ARENA_TRANSITION_ENTRANCE;
+}
+
+/*
+================
+idArenaCampaign::PresentedGui
+
+The browser on screen, stock or retained (NULL: neither presents).
+================
+*/
+idUserInterface *idArenaCampaign::PresentedGui() const {
+	if ( state == NULL || sessLocal.guiActive == NULL ) {
+		return NULL;
+	}
+	if ( sessLocal.guiActive == state->gui || sessLocal.guiActive == sessLocal.RetainedArenaGui() ) {
+		return sessLocal.guiActive;
+	}
+	return NULL;
 }
 
 /*
@@ -1294,18 +1763,32 @@ void idArenaCampaign::OpenBrowser() {
 		LoadCampaign();
 	}
 
-	if ( sessLocal.guiActive != state->gui ) {
-		state->returnGui = sessLocal.guiActive != NULL ? sessLocal.guiActive : sessLocal.guiMainMenu;
+	// The retained Arena page presents the browser where it can (Single
+	// Player's Arena sub-page, which it leaves through the session); else this
+	// one does.
+	idUserInterface *view = sessLocal.RetainedArenaPage();
+	if ( view == NULL ) {
+		view = state->gui;
+		if ( sessLocal.guiActive != state->gui ) {
+			state->returnGui = sessLocal.guiActive != NULL ? sessLocal.guiActive : sessLocal.guiMainMenu;
+		}
+	} else {
+		// Any levelshot the front end's idle frames have not read yet (Init).
+		sessLocal.PrecacheRetainedLevelshots( true, false );
 	}
 	state->resetConfirmation = false;
 	state->view = 1;
 	// See OpenSelector: the browser needs this state before SetGUI runs its
 	// activation script or it can briefly choose the previous view's reveal.
 	UpdateGui();
-	sessLocal.SetGUI( state->gui, NULL );
-	if ( state->resultRevealPending && state->result != 0 ) {
+	sessLocal.SetGUI( view, NULL );
+	// SetGUI re-runs the browser's activation, which resets the report's
+	// staged reveal. Any report still open has to be revealed again, not only
+	// a new one, or the reopened browser shows an empty report frame that
+	// nothing can dismiss.
+	if ( state->result != 0 ) {
 		state->resultRevealPending = false;
-		state->gui->HandleNamedEvent( "arenaResultReveal" );
+		view->HandleNamedEvent( "arenaResultReveal" );
 	}
 #endif
 }
@@ -1370,8 +1853,20 @@ void idArenaCampaign::UpdateGui() {
 	if ( state == NULL || state->gui == NULL ) {
 		return;
 	}
+	PublishGui( state->gui );
+	// The retained Arena page reads the same state while it is loaded.
+	idUserInterface *page = sessLocal.RetainedArenaGui();
+	if ( page != NULL ) {
+		PublishGui( page );
+	}
+}
 
-	idUserInterface *gui = state->gui;
+/*
+================
+idArenaCampaign::PublishGui
+================
+*/
+void idArenaCampaign::PublishGui( idUserInterface *gui ) {
 	gui->SetStateInt( "arena_view", state->view );
 	gui->SetStateBool( "arena_loaded", state->loaded );
 	gui->SetStateInt( "arena_transitionPhase", state->transitionPhase );
@@ -1412,6 +1907,11 @@ void idArenaCampaign::UpdateGui() {
 		gui->SetStateBool( "arena_progressChanged", false );
 		gui->SetStateBool( "arena_campaignComplete", false );
 		gui->SetStateBool( "arena_resetConfirm", false );
+		gui->SetStateBool( "arena_canReset", false );
+		gui->SetStateBool( "arena_selectedBestVisible", false );
+		gui->SetStateBool( "arena_selectedHasBest", false );
+		gui->SetStateString( "arena_selectedBest", "" );
+		gui->SetStateBool( "arena_resultNewBest", false );
 		gui->SetStateInt( "arena_result", 0 );
 		gui->SetStateBool( "arena_resultCanRetry", false );
 		gui->SetStateBool( "arena_resultHasScore", false );
@@ -1446,9 +1946,7 @@ void idArenaCampaign::UpdateGui() {
 		const arenaTier_t &tier = state->tiers[tierIndex];
 		const bool unlocked = ArenaTierUnlocked( progress, tierIndex );
 		const bool complete = ArenaMatchComplete( progress, tierIndex, ARENA_BOSS_MATCH );
-		const bool bossReady = !complete && ArenaBossUnlocked( progress, tierIndex );
-		const char *status = !unlocked ? "#str_42022" :
-			( complete ? "#str_42023" : ( bossReady ? "#str_42045" : "#str_42065" ) );
+		const char *status = ArenaTierStatusKey( progress, tierIndex );
 
 		gui->SetStateString( va( "arena_tier%d_name", tierIndex ), ArenaLocalized( tier.name ) );
 		gui->SetStateString( va( "arena_tier%d_status", tierIndex ), ArenaLocalized( status ) );
@@ -1480,19 +1978,10 @@ void idArenaCampaign::UpdateGui() {
 	const bool mapAvailable = ArenaMapSupportsMatch( match, &mapDecl );
 
 	idStr mapName = match.map;
-	idStr levelshot = "gfx/guis/loadscreens/generic";
 	if ( mapDecl != NULL ) {
 		mapName = ArenaLocalized( mapDecl->GetString( "name", match.map.c_str() ) );
-		levelshot = mapDecl->GetString( "loadimage" );
-		if ( levelshot.IsEmpty() ) {
-			levelshot = mapDecl->GetString( "mp_thumb" );
-		}
 	}
-	if ( levelshot.IsEmpty() ) {
-		char screenshot[MAX_STRING_CHARS];
-		fileSystem->FindMapScreenshot( match.map, screenshot, sizeof( screenshot ) );
-		levelshot = screenshot;
-	}
+	const idStr levelshot = ArenaLevelshot( match, mapDecl );
 	declManager->FindMaterial( levelshot )->SetSort( SS_GUI );
 
 	gui->SetStateString( "arena_selectedTitle", ArenaLocalized( match.name ) );
@@ -1517,6 +2006,19 @@ void idArenaCampaign::UpdateGui() {
 		"arena_selectedSkill",
 		minimumSkill == maximumSkill ? va( "%d", minimumSkill ) : va( "%d - %d", minimumSkill, maximumSkill ) );
 	gui->SetStateString( "arena_levelshot", levelshot );
+
+	// The selected match's best result. A locked match has none to show; an
+	// open one says so until it has been played to a result.
+	arenaBestResult_t bestResults[ARENA_TOTAL_MATCHES];
+	ArenaReadBestResults( ui_arenaBest.GetString(), progress, bestResults );
+	const arenaBestResult_t selectedBest = ArenaEffectiveBest(
+		bestResults[ArenaMatchIndex( selectedTier, selectedMatch )], progress, selectedTier, selectedMatch );
+	gui->SetStateBool( "arena_selectedBestVisible", ArenaMatchUnlocked( progress, selectedTier, selectedMatch ) );
+	gui->SetStateBool( "arena_selectedHasBest", selectedBest.recorded );
+	gui->SetStateString(
+		"arena_selectedBest",
+		selectedBest.recorded ? ArenaDescribeBest( selectedBest ).c_str() : ArenaLocalized( "#str_42166" ) );
+	gui->SetStateBool( "arena_canReset", progress != 0 || ArenaHasBestResults() );
 	gui->SetStateString( "arena_difficultyName", ArenaLocalized( ArenaDifficultyStringKey( ui_arenaDifficulty.GetInteger() ) ) );
 	gui->SetStateInt( "arena_difficulty", ui_arenaDifficulty.GetInteger() );
 	gui->SetStateString(
@@ -1538,6 +2040,7 @@ void idArenaCampaign::UpdateGui() {
 	gui->SetStateBool( "arena_resultUnlockedBoss", state->resultUnlockedBoss );
 	gui->SetStateBool( "arena_resultUnlockedTier", state->resultUnlockedTier );
 	gui->SetStateBool( "arena_resultUnlockedCampaign", state->resultUnlockedCampaign );
+	gui->SetStateBool( "arena_resultNewBest", state->result != 0 && state->resultNewBest );
 	gui->SetStateString(
 		"arena_resultTierName",
 		state->resultTierName.IsEmpty() ? "" : ArenaLocalized( state->resultTierName ) );
@@ -1548,11 +2051,13 @@ void idArenaCampaign::UpdateGui() {
 		"arena_resultTitle",
 		state->result == 1 ? ArenaLocalized( "#str_42030" ) :
 		( state->result == 2 ? ArenaLocalized( "#str_42031" ) :
-		  ( state->result == 3 ? ArenaLocalized( "#str_42068" ) :
+		  ( state->result == 3 ? ArenaLocalized( ArenaFailureTitleKey( state->resultFailure ) ) :
 		    ( state->result == 4 ? ArenaLocalized( "#str_42077" ) : "" ) ) ) );
+	// A win that changed nothing - a replay of a match already on the record -
+	// must not promise that the circuit opened ahead.
 	gui->SetStateString(
 		"arena_resultMessage",
-		state->result == 1 ? ArenaLocalized( "#str_42066" ) :
+		state->result == 1 ? ArenaLocalized( state->resultNewlyCompleted ? "#str_42066" : "#str_42164" ) :
 		( state->result == 2 ? ArenaLocalized( "#str_42067" ) :
 		  ( state->result == 3 ? ArenaLocalized( ArenaFailureMessageKey( state->resultFailure ) ) :
 		    ( state->result == 4 ? ArenaLocalized( "#str_42078" ) : "" ) ) ) );
@@ -1594,11 +2099,7 @@ void idArenaCampaign::UpdateGui() {
 	}
 	gui->SetStateInt( "arena_resultAwardCount", awardsShown );
 	gui->SetStateBool( "arena_resultHasAwards", awardsShown > 0 );
-	const arenaMatch_t *retryMatch = ArenaMatchForToken( state, state->resultToken );
-	gui->SetStateBool(
-		"arena_resultCanRetry",
-		!IsActive() && ( state->result == 1 || state->result == 2 || state->result == 4 ) &&
-		retryMatch != NULL && ArenaMapSupportsMatch( *retryMatch ) );
+	gui->SetStateBool( "arena_resultCanRetry", ArenaResultCanRetry( state ) && !IsActive() );
 	gui->SetStateBool( "arena_resetConfirm", state->resetConfirmation );
 	gui->SetStateBool(
 		"arena_campaignComplete",
@@ -1650,9 +2151,25 @@ bool idArenaCampaign::HandleGuiCommand( const char *menuCommand ) {
 		// the browser and return this so idWindow stops walking their siblings.
 		// Without a returned command the event falls through to whatever control
 		// happens to sit underneath, which could start a match from behind an
-		// open overlay.
+		// open overlay. It only marks the event as taken: the engine sends a
+		// transition's pending timeline command in the same string as the clicked
+		// window's, so ending the string here dropped the dismissal or navigation
+		// that finished a transition, and its curtain then stayed up for good.
 		if ( !idStr::Icmp( cmd, "arenaBlockInput" ) ) {
-			return true;
+			handled = true;
+			continue;
+		}
+
+		// Commands that carry a value consume it whether or not they run.
+		const bool takesValue = !idStr::Icmp( cmd, "arenaSelectTier" ) || !idStr::Icmp( cmd, "arenaStepTier" ) ||
+			!idStr::Icmp( cmd, "arenaSelectMatch" ) || !idStr::Icmp( cmd, "arenaDifficulty" );
+		const char *value = "";
+		if ( takesValue ) {
+			if ( icmd >= args.Argc() ) {
+				handled = true;
+				continue;
+			}
+			value = args.Argv( icmd++ );
 		}
 
 		// The entrance is deliberately short and framework-timed. Ignore menu
@@ -1660,17 +2177,37 @@ bool idArenaCampaign::HandleGuiCommand( const char *menuCommand ) {
 		// authored token while the transition is on screen.
 		if ( state->transitionPhase == ARENA_TRANSITION_ENTRANCE ) {
 			common->DPrintf( "arena campaign: ignored GUI command '%s' during entrance\n", cmd );
-			return true;
+			handled = true;
+			continue;
 		}
 
-        if ( !idStr::Icmp( cmd, "arenaCampaigns" ) ) {
-            sessLocal.OpenCampaignSelector( true );
-            return true;
-        }
-        if ( !idStr::Icmp( cmd, "arenaMission" ) ) {
-            sessLocal.SelectCampaign( "quake4" );
-            return true;
-        }
+		// An open report or reset prompt owns the screen. Keyboard and controller
+		// focus can still reach the controls beneath it - the browser stays
+		// visible under every overlay - so only the overlay's own actions run.
+		// BACK under a report reopened the browser without its reveal and left
+		// an empty frame that nothing could dismiss.
+		const bool resultOpen = state->result != 0;
+		const bool resetOpen = state->resetConfirmation;
+		const bool overlayCommand =
+			( resultOpen && ( !idStr::Icmp( cmd, "arenaDismissResult" ) || !idStr::Icmp( cmd, "arenaRetry" ) ) ) ||
+			( resetOpen && ( !idStr::Icmp( cmd, "arenaResetConfirm" ) || !idStr::Icmp( cmd, "arenaResetCancel" ) ) );
+		if ( ( resultOpen || resetOpen ) && !overlayCommand ) {
+			common->DPrintf( "arena campaign: ignored GUI command '%s' behind an open %s\n",
+				cmd, resultOpen ? "report" : "reset prompt" );
+			handled = true;
+			continue;
+		}
+
+		// These hand the screen to another menu; nothing after them in the same
+		// string belongs to this one.
+		if ( !idStr::Icmp( cmd, "arenaCampaigns" ) ) {
+			sessLocal.OpenCampaignSelector( true );
+			return true;
+		}
+		if ( !idStr::Icmp( cmd, "arenaMission" ) ) {
+			sessLocal.SelectCampaign( "quake4" );
+			return true;
+		}
 		if ( !idStr::Icmp( cmd, "arenaMissionOpen" ) ) {
 			idUserInterface *mainMenu = sessLocal.guiMainMenu;
 			state->returnGui = NULL;
@@ -1687,77 +2224,75 @@ bool idArenaCampaign::HandleGuiCommand( const char *menuCommand ) {
 			}
 			return true;
 		}
-		if ( !idStr::Icmp( cmd, "arenaBrowse" ) ) {
-			state->resetConfirmation = false;
-			state->view = 1;
-			UpdateGui();
-			return true;
-		}
 		if ( !idStr::Icmp( cmd, "arenaClose" ) ) {
 			CloseMenu();
 			return true;
 		}
 		if ( !idStr::Icmp( cmd, "arenaBackToModes" ) ) {
-            sessLocal.OpenCampaignSelector( false );
-            return true;
-        }
-        if ( !idStr::Icmp( cmd, "arenaLegacyModes" ) ) {
+			sessLocal.OpenCampaignSelector( false );
+			return true;
+		}
+
+		bool known = true;
+		if ( !idStr::Icmp( cmd, "arenaBrowse" ) ) {
+			state->resetConfirmation = false;
+			state->view = 1;
+			UpdateGui();
+		} else if ( !idStr::Icmp( cmd, "arenaLegacyModes" ) ) {
 			state->resetConfirmation = false;
 			state->view = 0;
 			UpdateGui();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaSelectTier" ) && icmd < args.Argc() ) {
-			const int tier = atoi( args.Argv( icmd++ ) );
+		} else if ( !idStr::Icmp( cmd, "arenaSelectTier" ) ) {
+			const int tier = atoi( value );
 			const int progress = ui_arenaProgress.GetInteger();
 			if ( tier >= 0 && tier < ARENA_TIER_COUNT && ArenaTierUnlocked( progress, tier ) ) {
 				ui_arenaSelectedTier.SetInteger( tier );
 				ui_arenaSelectedMatch.SetInteger( ArenaPreferredMatch( progress, tier ) );
 				UpdateGui();
 			}
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaSelectMatch" ) && icmd < args.Argc() ) {
-			const int match = atoi( args.Argv( icmd++ ) );
+		} else if ( !idStr::Icmp( cmd, "arenaStepTier" ) ) {
+			// The next unlocked tier before or after the chosen one, on its
+			// preferred match; nothing past the first or the last open tier.
+			const int step = atoi( value ) < 0 ? -1 : 1;
+			const int progress = ui_arenaProgress.GetInteger();
+			for ( int tier = ui_arenaSelectedTier.GetInteger() + step; tier >= 0 && tier < ARENA_TIER_COUNT; tier += step ) {
+				if ( ArenaTierUnlocked( progress, tier ) ) {
+					ui_arenaSelectedTier.SetInteger( tier );
+					ui_arenaSelectedMatch.SetInteger( ArenaPreferredMatch( progress, tier ) );
+					UpdateGui();
+					break;
+				}
+			}
+		} else if ( !idStr::Icmp( cmd, "arenaSelectMatch" ) ) {
+			const int match = atoi( value );
 			const int tier = ui_arenaSelectedTier.GetInteger();
 			if ( match >= 0 && match < ARENA_MATCHES_PER_TIER &&
 				 ArenaMatchUnlocked( ui_arenaProgress.GetInteger(), tier, match ) ) {
 				ui_arenaSelectedMatch.SetInteger( match );
 				UpdateGui();
 			}
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaDifficulty" ) && icmd < args.Argc() ) {
-			const int delta = atoi( args.Argv( icmd++ ) );
+		} else if ( !idStr::Icmp( cmd, "arenaDifficulty" ) ) {
+			const int delta = atoi( value );
 			ui_arenaDifficulty.SetInteger(
 				idMath::ClampInt( 1, 5, ui_arenaDifficulty.GetInteger() + delta ) );
 			UpdateGui();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaStart" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaStart" ) ) {
 			StartSelectedMatch();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaReset" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaReset" ) ) {
 			RequestResetProgress();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaResetConfirm" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaResetConfirm" ) ) {
 			ResetProgress();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaResetCancel" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaResetCancel" ) ) {
 			CancelResetProgress();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaRetry" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaRetry" ) ) {
 			RetryResult();
-			return true;
-		}
-		if ( !idStr::Icmp( cmd, "arenaDismissResult" ) ) {
+		} else if ( !idStr::Icmp( cmd, "arenaDismissResult" ) ) {
 			DismissResult();
-			return true;
+		} else {
+			known = false;
+			common->DPrintf( "arena campaign: unknown GUI command '%s'\n", cmd );
 		}
+		handled = handled || known;
 	}
 
 	if ( !handled ) {
@@ -1776,13 +2311,13 @@ void idArenaCampaign::RequestResetProgress() {
 		return;
 	}
 	ArenaRepairPersistedProgress();
-	if ( ui_arenaProgress.GetInteger() == 0 ) {
+	if ( ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults() ) {
 		return;
 	}
 	state->resetConfirmation = true;
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		state->gui->HandleNamedEvent( "arenaResetReveal" );
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( "arenaResetReveal" );
 	}
 }
 
@@ -1809,12 +2344,13 @@ void idArenaCampaign::ResetProgress() {
 		return;
 	}
 	ArenaRepairPersistedProgress();
-	if ( ui_arenaProgress.GetInteger() == 0 ) {
+	if ( ui_arenaProgress.GetInteger() == 0 && !ArenaHasBestResults() ) {
 		state->resetConfirmation = false;
 		UpdateGui();
 		return;
 	}
 	ui_arenaProgress.SetInteger( 0 );
+	ui_arenaBest.SetString( "" );
 	ui_arenaSelectedTier.SetInteger( 0 );
 	ui_arenaSelectedMatch.SetInteger( 0 );
 	ArenaClearResultMetadata( state );
@@ -1822,6 +2358,7 @@ void idArenaCampaign::ResetProgress() {
 	state->transitionDeadlineMsec = 0;
 	state->launchToken = 0;
 	state->resetConfirmation = false;
+	common->Printf( "arena campaign: progress and best results reset\n" );
 	UpdateGui();
 }
 
@@ -1831,18 +2368,17 @@ idArenaCampaign::RetryResult
 ================
 */
 void idArenaCampaign::RetryResult() {
-	if ( state == NULL || IsActive() ||
-		 ( state->result != 1 && state->result != 2 && state->result != 4 ) ) {
+	if ( state == NULL || IsActive() || state->result == 0 ) {
 		return;
 	}
 
+	// The report has already collapsed when the button is pressed, so a retry
+	// that cannot start must still close it rather than strand an empty frame.
 	int tier = 0;
 	int match = 0;
-	const arenaMatch_t *retryMatch = ArenaMatchForToken( state, state->resultToken, &tier, &match );
-	if ( retryMatch == NULL ||
-		 !ArenaMatchUnlocked( ui_arenaProgress.GetInteger(), tier, match ) ||
-		 !ArenaMapSupportsMatch( *retryMatch ) ) {
-		UpdateGui();
+	if ( !ArenaResultCanRetry( state ) ||
+		 ArenaMatchForToken( state, state->resultToken, &tier, &match ) == NULL ) {
+		DismissResult();
 		return;
 	}
 
@@ -1872,12 +2408,17 @@ void idArenaCampaign::DismissResult() {
 		ui_arenaSelectedMatch.SetInteger( match );
 	}
 	if ( state->resultWon ) {
-		if ( match == ARENA_BOSS_MATCH && tier + 1 < ARENA_TIER_COUNT &&
-			 ArenaTierUnlocked( ui_arenaProgress.GetInteger(), tier + 1 ) ) {
-			tier++;
-			ui_arenaSelectedTier.SetInteger( tier );
+		// NEXT leads to the next open, unwon challenge: the rest of this tier,
+		// then the tiers after it. A won boss therefore lands on the new tier,
+		// and a replayed win in a finished tier on the first match still to win
+		// rather than that tier's already-beaten boss. With nothing left to win
+		// the selection stays on the match just played.
+		int nextTier = tier;
+		int nextMatch = match;
+		if ( ArenaNextChallenge( ui_arenaProgress.GetInteger(), tier, nextTier, nextMatch ) ) {
+			ui_arenaSelectedTier.SetInteger( nextTier );
+			ui_arenaSelectedMatch.SetInteger( nextMatch );
 		}
-		ui_arenaSelectedMatch.SetInteger( ArenaPreferredMatch( ui_arenaProgress.GetInteger(), tier ) );
 	}
 
 	// Keep completed-match metadata alive for the browser's follow-up
@@ -1888,12 +2429,8 @@ void idArenaCampaign::DismissResult() {
 	state->transitionPhase = ARENA_TRANSITION_IDLE;
 	state->resetConfirmation = false;
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		if ( revealProgress ) {
-			state->gui->HandleNamedEvent( "arenaProgressReveal" );
-		} else {
-			state->gui->HandleNamedEvent( "arenaBrowserReveal" );
-		}
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( revealProgress ? "arenaProgressReveal" : "arenaBrowserReveal" );
 	}
 }
 
@@ -1943,8 +2480,8 @@ void idArenaCampaign::StartSelectedMatch() {
 		state->launchToken,
 		ARENA_ENTRANCE_MSEC );
 	UpdateGui();
-	if ( state->gui != NULL && sessLocal.guiActive == state->gui ) {
-		state->gui->HandleNamedEvent( "arenaMatchLaunch" );
+	if ( idUserInterface *gui = PresentedGui() ) {
+		gui->HandleNamedEvent( "arenaMatchLaunch" );
 	}
 }
 
@@ -2006,12 +2543,18 @@ bool idArenaCampaign::PrepareServer() {
 	}
 
 	const int token = ui_arenaActiveMatch.GetInteger();
-	const arenaMatch_t *match = ArenaMatchForToken( state, token );
+	int tierIndex = 0;
+	int matchIndex = 0;
+	const arenaMatch_t *match = ArenaMatchForToken( state, token, &tierIndex, &matchIndex );
 	if ( match == NULL ) {
 		common->Warning( "arena campaign: active match token %d has no campaign entry", token );
 		AbortMatch();
 		return false;
 	}
+	ui_arenaMatchTitle.SetString( match->name );
+	ui_arenaMatchTier.SetString( state->tiers[tierIndex].name );
+	ui_arenaMatchRole.SetString( ArenaMatchRoleKey( matchIndex ) );
+	ui_arenaMatchGameType.SetString( ArenaGameTypeStringKey( match->gameType ) );
 	if ( state->transitionPhase == ARENA_TRANSITION_IDLE ) {
 		// Supports command-line/runtime recovery where the persisted active token
 		// reaches SpawnServer without first visiting the browser entrance.
@@ -2123,10 +2666,16 @@ void idArenaCampaign::ReturnToBrowserAfterStartFailure( int failure ) {
 
 	// Tear the server down before restoring its archived serverInfo values so
 	// a partial listen server cannot react to the player's normal MP settings.
+	// The token goes with AbortMatch, but the report should still name the
+	// match that failed.
+	const int token = ui_arenaActiveMatch.GetInteger();
 	sessLocal.Stop();
 	AbortMatch();
 	ArenaClearResultMetadata( state );
 	const bool report = failure != ARENA_FAILURE_NONE;
+	if ( report ) {
+		ArenaSetResultMatch( state, token );
+	}
 	state->result = report ? 3 : 0;
 	state->resultFailure = report ? failure : ARENA_FAILURE_NONE;
 	state->resultPreviousProgress = ui_arenaProgress.GetInteger();
@@ -2151,6 +2700,98 @@ void idArenaCampaign::ReportStartFailure() {
 		return;
 	}
 	ReturnToBrowserAfterStartFailure( ARENA_FAILURE_SERVER );
+}
+
+/*
+================
+idArenaCampaign::ActiveMatchToken
+================
+*/
+int idArenaCampaign::ActiveMatchToken() const {
+	return IsActive() ? ui_arenaActiveMatch.GetInteger() : 0;
+}
+
+/*
+================
+idArenaCampaign::ReportAbandoned
+
+Leaving is always allowed and never costs progress - nothing is recorded for
+a match that did not finish. The report says so, names the match and offers
+it again, where the player previously landed on the title screen in silence.
+================
+*/
+void idArenaCampaign::ReportAbandoned( int token ) {
+#ifdef ID_DEDICATED
+	return;
+#else
+	if ( state == NULL || IsActive() ) {
+		return;
+	}
+	if ( !state->loaded ) {
+		LoadCampaign();
+	}
+	if ( ArenaMatchForToken( state, token ) == NULL ) {
+		return;
+	}
+	ArenaClearResultMetadata( state );
+	ArenaSetResultMatch( state, token );
+	state->result = 3;
+	state->resultFailure = ARENA_FAILURE_ABANDONED;
+	state->resultPreviousProgress = ui_arenaProgress.GetInteger();
+	state->resultRevealPending = true;
+	state->transitionPhase = ARENA_TRANSITION_RESULT;
+	state->resetConfirmation = false;
+	ui_arenaSelectedTier.SetInteger( state->resultTier );
+	ui_arenaSelectedMatch.SetInteger( state->resultMatch );
+	common->Printf( "arena campaign: match %d abandoned; nothing recorded\n", token );
+	OpenBrowser();
+#endif
+}
+
+/*
+================
+idArenaCampaign::RestartMatch
+
+The pause menu's Restart match: the live match again from its entrance and
+introductions. It leaves the match as Leave match does, so nothing is
+recorded, and then takes the abandoned report's own Retry, so the restart
+follows the one launch path every match takes: the browser's entrance
+curtain, PrepareServer and a fresh listen server. A match that can no longer
+start shows the abandoned report instead.
+================
+*/
+void idArenaCampaign::RestartMatch() {
+#ifdef ID_DEDICATED
+	return;
+#else
+	const int token = ActiveMatchToken();
+	if ( state == NULL || token == 0 || state->transitionPhase != ARENA_TRANSITION_MATCH ) {
+		common->Printf( "arena campaign: no live match to restart\n" );
+		return;
+	}
+	common->Printf( "arena campaign: restarting match %d; nothing recorded\n", token );
+	// As ReturnToBrowserAfterStartFailure: the server goes before its
+	// archived serverInfo values come back.
+	sessLocal.Stop();
+	AbortMatch();
+	sessLocal.StartMenu( false );
+	if ( !state->loaded ) {
+		LoadCampaign();
+	}
+	// The browser opens under the entrance curtain: a live match holds no
+	// result, so it opens without a report.
+	OpenBrowser();
+	ArenaClearResultMetadata( state );
+	ArenaSetResultMatch( state, token );
+	state->result = 3;
+	state->resultFailure = ARENA_FAILURE_ABANDONED;
+	if ( !ArenaResultCanRetry( state ) ) {
+		ArenaClearResultMetadata( state );
+		ReportAbandoned( token );
+		return;
+	}
+	RetryResult();
+#endif
 }
 
 /*
@@ -2220,6 +2861,7 @@ void idArenaCampaign::PopulateBots() {
 	}
 
 	state->botsPopulated = true;
+	state->matchDifficulty = difficulty;
 	common->Printf(
 		"arena campaign: populated match %d with %d bots at difficulty %d\n",
 		ui_arenaActiveMatch.GetInteger(), match->bots.Num(), difficulty );
@@ -2269,7 +2911,7 @@ bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
 	const bool arity = args.Argc() == 5 || args.Argc() == 6;
 	if ( !arity || idStr::Icmp( args.Argv( 0 ), "arenaComplete" ) != 0 ||
 		 !ArenaParseBoundedInteger( args.Argv( 1 ), 1, ARENA_TOTAL_MATCHES, token ) ||
-		 !ArenaParseBoundedInteger( args.Argv( 2 ), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_DRAW, outcome ) ||
+		 !ArenaParseBoundedInteger( args.Argv( 2 ), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_ABORTED, outcome ) ||
 		 !ArenaParseBoundedInteger( args.Argv( 3 ), -9999, 9999, playerScore ) ||
 		 !ArenaParseBoundedInteger( args.Argv( 4 ), -9999, 9999, opponentScore ) ||
 		 ( args.Argc() == 6 &&
@@ -2299,7 +2941,8 @@ bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
 	state->transitionPhase = ARENA_TRANSITION_RETURN;
 	state->transitionDeadlineMsec = 0;
 	const char *outcomeName = outcome == ARENA_OUTCOME_WIN ? "win" :
-		( outcome == ARENA_OUTCOME_DRAW ? "draw" : "loss" );
+		( outcome == ARENA_OUTCOME_DRAW ? "draw" :
+		  ( outcome == ARENA_OUTCOME_ABORTED ? "aborted" : "loss" ) );
 	common->Printf( "arena campaign: accepted result token %d (%s, %d-%d)\n",
 		token,
 		outcomeName,
@@ -2342,6 +2985,42 @@ void idArenaCampaign::FinishPendingCompletion() {
 	int progress = previousProgress;
 	const bool won = state->pendingOutcome == ARENA_OUTCOME_WIN;
 	const bool newlyCompleted = won && !ArenaMatchComplete( previousProgress, tier, match );
+
+	// The match's best result. Only a contested result competes: an aborted
+	// match records nothing, and an abandoned one never reaches this point.
+	// NEW BEST is shown only when a result already on the record is beaten.
+	bool newBest = false;
+	if ( state->pendingOutcome != ARENA_OUTCOME_ABORTED ) {
+		arenaBestResult_t bestResults[ARENA_TOTAL_MATCHES];
+		ArenaReadBestResults( ui_arenaBest.GetString(), previousProgress, bestResults );
+		const int matchIndex = ArenaMatchIndex( tier, match );
+		const arenaBestResult_t record = ArenaEffectiveBest( bestResults[matchIndex], previousProgress, tier, match );
+		arenaBestResult_t candidate;
+		candidate.recorded = true;
+		candidate.outcome = state->pendingOutcome;
+		candidate.playerScore = state->pendingPlayerScore;
+		candidate.opponentScore = state->pendingOpponentScore;
+		candidate.difficulty = state->matchDifficulty >= 1 && state->matchDifficulty <= 5
+			? state->matchDifficulty : ui_arenaDifficulty.GetInteger();
+		if ( !ArenaBestResultValid( candidate ) ) {
+			common->Warning(
+				"arena campaign: match %d result (%d, %d-%d) cannot be a best result",
+				state->pendingToken, candidate.outcome, candidate.playerScore, candidate.opponentScore );
+		} else if ( ArenaBestResultBeats( candidate, record ) ) {
+			newBest = bestResults[matchIndex].recorded;
+			bestResults[matchIndex] = candidate;
+			ui_arenaBest.SetString( ArenaWriteBestResults( bestResults ) );
+			common->Printf(
+				"arena campaign: %s for match %d: %s\n",
+				newBest ? "new best result" : "first best result",
+				state->pendingToken, ui_arenaBest.GetString() );
+		} else {
+			common->Printf(
+				"arena campaign: match %d result did not beat its best result\n",
+				state->pendingToken );
+		}
+	}
+
 	if ( newlyCompleted ) {
 		progress |= ArenaMatchBit( tier, match );
 		ui_arenaProgress.SetInteger( progress );
@@ -2354,12 +3033,17 @@ void idArenaCampaign::FinishPendingCompletion() {
 	const bool unlockedBoss = newlyCompleted && !unlockedCampaign && !unlockedTier &&
 		!ArenaBossUnlocked( previousProgress, tier ) && ArenaBossUnlocked( progress, tier );
 
-	state->result = won ? 1 : ( state->pendingOutcome == ARENA_OUTCOME_DRAW ? 4 : 2 );
+	// A match that ended without a contest records nothing. It is reported
+	// like a failed launch, but it keeps its token so the card can name the
+	// match and offer it again.
+	const bool aborted = state->pendingOutcome == ARENA_OUTCOME_ABORTED;
+	state->result = won ? 1 : ( aborted ? 3 : ( state->pendingOutcome == ARENA_OUTCOME_DRAW ? 4 : 2 ) );
+	state->resultFailure = aborted ? ARENA_FAILURE_OPPONENTS : ARENA_FAILURE_NONE;
 	state->resultToken = state->pendingToken;
 	state->resultWon = won;
-	state->resultPlayerScore = state->pendingPlayerScore;
-	state->resultOpponentScore = state->pendingOpponentScore;
-	state->resultAwards = state->pendingAwards;
+	state->resultPlayerScore = aborted ? ARENA_SCORE_UNAVAILABLE : state->pendingPlayerScore;
+	state->resultOpponentScore = aborted ? ARENA_SCORE_UNAVAILABLE : state->pendingOpponentScore;
+	state->resultAwards = aborted ? 0 : state->pendingAwards;
 	state->resultPreviousProgress = previousProgress;
 	state->resultTier = tier;
 	state->resultMatch = match;
@@ -2367,6 +3051,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 	state->resultUnlockedBoss = unlockedBoss;
 	state->resultUnlockedTier = unlockedTier;
 	state->resultUnlockedCampaign = unlockedCampaign;
+	state->resultNewBest = newBest;
 	state->resultRevealPending = true;
 	state->resultTierName = state->tiers[tier].name;
 	state->resultMatchName = completedMatch->name;
@@ -2390,6 +3075,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 	state->pendingOpponentScore = 0;
 	state->pendingAwards = 0;
 	state->botsPopulated = false;
+	state->matchDifficulty = 0;
 	state->transitionPhase = ARENA_TRANSITION_RESULT;
 	state->transitionDeadlineMsec = 0;
 	state->launchToken = 0;
@@ -2416,6 +3102,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 		sessLocal.Stop();
 	}
 	cvarSystem->SetCVarInteger( "si_arenaCampaign", 0 );
+	ArenaClearMatchPresentation();
 	ArenaRestoreSavedCVars( state );
 	sessLocal.StartMenu( false );
 	if ( soundSystem != NULL ) {
@@ -2457,6 +3144,7 @@ void idArenaCampaign::AbortMatch() {
 	state->pendingPlayerScore = 0;
 	state->pendingOpponentScore = 0;
 	state->botsPopulated = false;
+	state->matchDifficulty = 0;
 	state->moduleTransitionPending = false;
 	state->transitionPhase = ARENA_TRANSITION_IDLE;
 	state->transitionDeadlineMsec = 0;
@@ -2467,5 +3155,6 @@ void idArenaCampaign::AbortMatch() {
 	if ( cvarSystem->Find( "si_arenaCampaign" ) != NULL ) {
 		cvarSystem->SetCVarInteger( "si_arenaCampaign", 0 );
 	}
+	ArenaClearMatchPresentation();
 	ArenaRestoreSavedCVars( state );
 }

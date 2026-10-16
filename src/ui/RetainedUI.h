@@ -4,7 +4,7 @@
 #include <vector>
 #include "retained/DocumentEdit.h"
 
-namespace openq4::ui { class Runtime; struct Viewport; struct Diagnostic; }
+namespace openq4::ui { class Runtime; class Document; struct Viewport; struct Diagnostic; }
 namespace openq4::ui { struct RuntimeDocumentOptions; }
 struct retainedUIView_t;
 enum class retainedUIViewEvent_t { BeforeResourceReset, Restored, Failed };
@@ -18,6 +18,9 @@ retainedUIView_t* RetainedUI_CreateView(retainedUIViewCallback_t callback = null
 void RetainedUI_DestroyView(retainedUIView_t* view);
 openq4::ui::Runtime* RetainedUI_ViewRuntime(retainedUIView_t* view);
 bool RetainedUI_LoadView(retainedUIView_t* view, const std::string& source, const std::string& path,
+	std::vector<openq4::ui::Diagnostic>& diagnostics);
+// A canonical document the caller already loaded, which the view shares.
+bool RetainedUI_LoadParsedView(retainedUIView_t* view, const openq4::ui::Document& document, const std::string& path,
 	std::vector<openq4::ui::Diagnostic>& diagnostics);
 // Prepare before calling Runtime operations. Resource changes rebuild all live
 // views together. A failed view remains registered/address-stable but unloaded.
@@ -72,6 +75,13 @@ void RetainedUI_LanguageChanged();
 // IsOpen is safe for the async usercmd thread; all other entry points run on
 // the engine thread. Preview documents do not acquire application input.
 bool RetainedUI_IsOpen();
+// The glyphs prompts show (section 13.5): 0 the keyboard's keycaps, 1-5 a
+// controller family's face buttons (Xbox, PlayStation, Nintendo, Steam Deck,
+// generic). Documents read it as the adapter-owned state prompt.glyphs.
+int RetainedUI_PromptGlyphs();
+// Whether menus confirm on the east face button (section 13.5's Swap Confirm
+// and Back); documents read it as the adapter-owned state prompt.swapped.
+bool RetainedUI_PromptSwapped();
 unsigned RetainedUI_InputGeneration();
 // Registered retained views (documents holding an RmlUi context), for the
 // ui_retained gate report: zero while the stock interface presents everything.

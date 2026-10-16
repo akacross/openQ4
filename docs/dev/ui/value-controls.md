@@ -79,9 +79,14 @@ Sliders project pointer coordinates through the actual track transform and
 thumb travel. Capture continues outside the track and over other controls;
 loss of a usable projection, focus, eligibility or input ownership cancels the
 gesture. Keyboard changes use the authored step grid, with Home/End and
-Page Up/Down support. A choice popup owns its tentative highlight and consumes
-outside dismissal without activating a control underneath. Disabled options
-cannot be selected. Selection and keyboard/pointer highlight have separate
+Page Up/Down support. Left and right step a closed choice through its eligible
+options, as section 13.5 asks of cycling values and as a stock choiceDef
+cycles: each step proposes the next option after the latest proposal and wraps
+at either end, an unmatched value steps to the first or last option, and a
+choice with nothing else to step to lets them move focus. A choice popup owns
+its tentative highlight, takes no stepping and consumes outside dismissal
+without activating a control underneath. Disabled options cannot be
+selected. Selection and keyboard/pointer highlight have separate
 editable vector parts.
 
 Choice popups escape clipped ancestors, retain inherited typography and clamp

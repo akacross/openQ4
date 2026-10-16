@@ -120,8 +120,18 @@ public:
 	void				GUIInit();
 	bool				GetSelectedAddress( idStr &address );
 	void				ToggleFavorite();
+	// Adds a server to the favorites or takes it off them, as ToggleFavorite
+	// does for the stock list's selection. False when the favorites cannot
+	// change (no such server, the limit reached, the file not written).
+	bool				ToggleFavoriteServer( int index );
 	void				AddFavoriteServers();
 	void				UpdateFilterByMod( int direction );
+	// FIND PLAYER/CLAN: only servers with a player whose name holds `text`
+	// (colors removed, in any case) pass the filter; empty text clears it.
+	// Retail asked the master server, which no master answers now; a clan
+	// tag is part of a player's name.
+	void				SetPlayerSearch( const char *text );
+	const char *		GetPlayerSearch() const { return playerSearch.c_str(); }
 	void				ResetSorting();
 
 	void				Shutdown( );
@@ -132,6 +142,41 @@ public:
 	void				SetSorting( serverSort_t sort );
 
 	int					GetChallenge( );
+
+	// For a menu that draws its own list (the retained Join Game page): the
+	// servers the filter passes, in the sort's walking order as ApplyFilter
+	// lists them; whether one is a favorite; the sort; and a revision that
+	// moves whenever any of them or the scan's state may have changed.
+	void				VisibleServers( idList<int> &out );
+	bool				IsFavoriteServer( int index ) const;
+	serverSort_t		GetSorting( bool &ascending ) const { ascending = m_sortAscending; return m_sort; }
+	int					GetRevision() const { return revision; }
+	// A server's si_gameType as the browser names it, in the player's language.
+	static const char *	GameTypeName( const char *type );
+	// Whether a server's si_map is a map path the browser may look up (no
+	// parent references, no absolute paths, plain path characters).
+	static bool			ValidMapPath( const char *path );
+	// The scan's progress, as retail's browser showed it under the list
+	// (gui::loadNotice over gui::loadPct's bar, which this publishes too): the
+	// notice names the scan's stage or the server that answered last, and the
+	// fraction is of the listed servers the scan has heard from or given up on
+	// (a LAN scan's, of its reply window). A completed scan keeps its count
+	// and a full bar until the next scan or a clear.
+	const char *		GetLoadNotice() const { return loadNotice.c_str(); }
+	float				GetLoadProgress() const { return loadPct; }
+	// A server's details as the stock browser's tooltip shows them: its
+	// address, its players' names and its settings as "label: value" lines
+	// (the map, the time limit, the limit its game type ends on, team damage,
+	// team autobalance, pure, spectators), its text read as the browser reads
+	// a server's. False for a server the scan does not hold.
+	bool				GetServerDetails( int index, idStr &address, idStrList &players, idStrList &settings ) const;
+	// The stock browser's server tooltip, kept each frame the main menu runs:
+	// the row the pointer is over (<list>_hover, which the list draws) shows
+	// its server's details, and no row hides them.
+	void				GUIUpdateHover();
+	// openq4_browser hover: a visible row treated as the hovered one, so the
+	// tooltip shows without a pointer; -1 follows the pointer again.
+	void				SetHoverOverride( int row ) { hoverOverride = row; tooltipServer = -2; }
 
 private:
 	static const int	MAX_PINGREQUESTS 	= 32;		// how many servers to query at once
@@ -165,11 +210,23 @@ private:
 	idList<int>			m_sortedServers;	// use ascending for the walking order
 
 	idStr				screenshot;
+	idStr				playerSearch;		// see SetPlayerSearch
 	idStrList			favorites;
 	bool				favoritesLoaded;
 	int					challenge;			// challenge for current scan
 	
 	int					endWaitTime;		// when to stop waiting on a port init
+	int					revision;			// see GetRevision
+
+	idStr				loadNotice;			// see GetLoadNotice
+	float				loadPct;
+	idStr				lastResponder;		// the server that answered this scan last, as the notice names it
+	int					scanned;			// servers the last completed scan covered; -1 until one completes
+
+	idStr				listName;			// the stock list's name (GUIConfig), whose _hover the list draws
+	int					hoverOverride;		// see SetHoverOverride
+	int					tooltipServer;		// the server the tooltip shows (-1 none, -2 to publish again)
+	int					tooltipRevision;	// the scan's revision when it was published
 
 private:
 	void				LocalClear( );		// we need to clear some internal data as well
@@ -178,6 +235,8 @@ private:
 	void				GUIAdd( int id, const networkServer_t server );
 	bool				IsFiltered( const networkServer_t server );
 	void				UpdateBrowserStatus();
+	void				UpdateLoadProgress();
+	void				SetLoadProgress( const char *notice, float pct );
 	void				LoadFavorites();
 	bool				IsFavorite( const netadr_t &address ) const;
 

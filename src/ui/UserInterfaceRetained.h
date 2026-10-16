@@ -3,6 +3,8 @@
 #ifndef ID_DEDICATED
 #include "UserInterfaceManaged.h"
 #include <memory>
+#include <string>
+#include <vector>
 
 // Semantic diagnostics for a manager-created retained view. They never read
 // or inject physical input. The session dispatches any resulting typed queue.
@@ -12,6 +14,14 @@ bool UI_RetainedSettingsCanReturn(idUserInterface* gui);
 // A retained GUI that can no longer draw (its view failed to come back
 // after a renderer or language change); callers present the stock screen.
 bool UI_RetainedViewFailed(idUserInterface* gui);
+// The validated model of a retained GUI's document, which lives as long as
+// the GUI holds that document: how a HUD peer reads the declared state and
+// the generator's extension data without parsing the source again.
+namespace openq4::ui { struct DocumentModel; }
+const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface* gui);
+// The names of a retained GUI's declared state that start with `prefix`, in
+// order: how a session finds the application lines a document shows.
+int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names);
 
 // Engine adapter for explicit .q4ui resources. The public game ABI remains
 // idUserInterface; RmlUi, canonical nodes and device ownership stay private.
@@ -20,6 +30,8 @@ class idUserInterfaceRetained final : public idUserInterfaceManaged {
 	friend bool UI_RetainedSettingsDocument(idUserInterface*);
 	friend bool UI_RetainedSettingsCanReturn(idUserInterface*);
 	friend bool UI_RetainedViewFailed(idUserInterface*);
+	friend const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface*);
+	friend int UI_RetainedStateNames(idUserInterface*, const char*, std::vector<std::string>&);
 public:
 	explicit idUserInterfaceRetained(bool managed = true);
 	~idUserInterfaceRetained() override;
@@ -75,6 +87,7 @@ public:
 		const openq4::ui::TextInputEvent& input, std::string& error) override;
 	bool TakeClipboardRequest(const char* command, uiClipboardRequest_t& out) override;
 	bool TakeSessionRequest(const char* command, idStr& out) override;
+	bool KeepForLevelLoad() override;
 	bool QueryClipboardEditor(uiNumberEditorSnapshot_t& out, std::string& error) override;
 	bool ReplaceClipboardSelection(const uiNumberEditorTarget_t& expected,
 		std::string_view text, std::string& error) override;

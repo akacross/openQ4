@@ -6,6 +6,13 @@ disabled until the engine owner boundary, ordered event delivery and native
 dispatch fence are connected and qualified. This does not complete the
 [UI product plan](../plans/idtech5-ui.md) or its international text requirements.
 
+Until then, committed characters reach a focused retained field through the
+engine's ordered character events, as they reach a stock edit field
+([typed characters](numeric-fields.md#typed-characters)). That route carries no
+composition: an input method composes in its own window. The native route
+below adds in-field composition, candidate geometry and provenance; when it
+is enabled for a field, the character route must stand aside for it.
+
 ## Ownership and ordering
 
 Native callbacks collect bounded data and never call Session, GUI or renderer

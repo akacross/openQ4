@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def verify_runtime_is_current(runtime, executable_name):
+def verify_runtime_is_current(runtime: Path, executable_name: str | None = None):
     """Refuse to qualify a staged runtime older than the build it came from.
 
     These smokes run whatever sits in the staged tree, which `meson install`
@@ -27,6 +27,7 @@ def verify_runtime_is_current(runtime, executable_name):
     if not build.is_dir():
         return
 
+    executable_name = executable_name or ("openQ4-client_x64.exe" if os.name == "nt" else "openQ4-client_x64")
     pairs = [(runtime / executable_name, build / executable_name)]
     staged_game, built_game = runtime / "baseoq4", build / "baseoq4"
     if staged_game.is_dir() and built_game.is_dir():

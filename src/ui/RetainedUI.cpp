@@ -23,6 +23,7 @@ extern idUserInterfaceManagerLocal uiManagerLocal;
 #include <thread>
 #if defined(USE_SDL3)
 bool Sys_SDL_IsGameWindowFocused(void);
+int Sys_SDL_GamepadGlyphFamily(int faceLabels[4]);
 #endif
 
 struct retainedUIPreparedEditData;
@@ -71,8 +72,16 @@ idCVar ui_retainedTrace("ui_retainedTrace", "0", CVAR_GUI | CVAR_BOOL | CVAR_NOC
 	"trace retained event commits and typed application dispatch for semantic validation");
 idCVar ui_retainedAtlas("ui_retainedAtlas", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
 	"cache unchanged solid vector coverage in bounded runtime texture pages");
+idCVar ui_retainedSourceCache("ui_retainedSourceCache", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"reuse unchanged vector artwork beneath moving analytic masks");
+idCVar ui_retainedLinearMasks("ui_retainedLinearMasks", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"evaluate moving convex linear-alpha vector masks in the material shader");
 idCVar ui_retainedReplay("ui_retainedReplay", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
 	"replay settled presentation geometry while preserving live image sampling");
+idCVar ui_retainedDirectBackdrop("ui_retainedDirectBackdrop", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"finish settled opaque full-view soft focus directly on the base surface");
+idCVar ui_retainedHalfBlur("ui_retainedHalfBlur", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"evaluate broad full-view soft focus at half resolution along each blurred axis");
 idCVar ui_retainedOpaqueBacking("ui_retainedOpaqueBacking", "0", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,
 	"draw the opaque scrim behind retained modals instead of softening the screen beneath");
 // Documents read this to choose between soft focus and its scrim fallback.
@@ -92,13 +101,36 @@ public:
 	}
 	unsigned long long rasterDraws=0,rasterSavedVertices=0;
 	size_t RasterPages() const { return atlasPages.size(); }
+	void DumpGeometry() const {
+		const auto frame=RenderFrame();
+		std::vector<std::pair<std::uint64_t,const HostMesh*>> active;
+		for (const auto& [id,mesh]:meshes) if (frame>=mesh.lastFrame && frame-mesh.lastFrame<=2) active.push_back({id,&mesh});
+		std::sort(active.begin(),active.end(),[](const auto& a,const auto& b){return a.second->vertices.size()>b.second->vertices.size();});
+		for (const auto& [id,mesh]:active) common->Printf("Retained mesh %llu: verts=%u revision=%llu stable=%u tiles=%u material=%s\n",
+			static_cast<unsigned long long>(id),unsigned(mesh->vertices.size()),static_cast<unsigned long long>(mesh->revision),
+			mesh->stableFrames,unsigned(mesh->rasterTiles.size()),Material(mesh->handle)->GetName());
+	}
 	void EndRoot() {
-		for (size_t i=0;i<atlasPages.size();++i) if (atlasPages[i].dirty) {
-			auto& page=atlasPages[i];
-			if (renderSystem->UploadImage(va("_retainedAtlasImage%u",unsigned(i)),page.pixels.data(),AtlasSize,AtlasSize)) {
-				page.dirty=false; page.uploadFailed=false;
-			} else if (!page.uploadFailed) {
-				page.uploadFailed=true; common->Warning("retained UI: coverage upload unavailable; using original geometry");
+		std::vector<byte> upload;
+		for (size_t first=0;first<atlasPages.size();first+=AtlasGroup) {
+			const size_t end=(std::min)(first+AtlasGroup,atlasPages.size());
+			if (std::none_of(atlasPages.begin()+first,atlasPages.begin()+end,[](const auto& page){return page.dirty;})) continue;
+			// Allocation and retirement still operate on independent 512-square
+			// pages. Sharing an image only lets adjacent draws batch. Reassemble
+			// unchanged neighbours too; never clear a live page during upload.
+			upload.assign(AtlasImageSize*AtlasImageSize*4,0);
+			for (size_t i=first;i<end;++i) {
+				const int x=int((i-first)%AtlasGrid)*AtlasSize,y=int((i-first)/AtlasGrid)*AtlasSize;
+				for (int row=0;row<AtlasSize;++row)
+					std::memcpy(upload.data()+((y+row)*AtlasImageSize+x)*4,atlasPages[i].pixels.data()+row*AtlasSize*4,AtlasSize*4);
+			}
+			const bool ok=renderSystem->UploadImage(va("_retainedAtlasImage%u",unsigned(first/AtlasGroup)),upload.data(),AtlasImageSize,AtlasImageSize);
+			for (size_t i=first;i<end;++i) if (atlasPages[i].dirty) {
+				auto& page=atlasPages[i];
+				if (ok) { page.dirty=false; page.uploadFailed=false; }
+				else if (!page.uploadFailed) {
+					page.uploadFailed=true; common->Warning("retained UI: coverage upload unavailable; using original geometry");
+				}
 			}
 		}
 	}
@@ -182,17 +214,28 @@ public:
 			++cached.stableFrames;
 		}
 		cached.lastFrame=RenderFrame();
-		if (ui_retainedAtlas.GetBool() && !handle && !cached.rasterTried && cached.stableFrames>=2 && vertices.size()>=64) {
+		if (ui_retainedAtlas.GetBool() && (!handle || idStr::Icmp(material->GetName(),"_retainedMultiply")==0) &&
+			!cached.rasterTried && cached.stableFrames>=2 && vertices.size()>=64) {
 			cached.rasterTried=true;
 			CacheRaster(cached,vertices,indices);
 		}
-		if (ui_retainedAtlas.GetBool() && cached.atlasPage>=0 && !atlasPages[cached.atlasPage].dirty) {
-			++rasterDraws; rasterSavedVertices+=vertices.size()-4;
-			auto& page=atlasPages[cached.atlasPage]; page.lastFrame=RenderFrame();
-			renderSystem->SetColor4(1,1,1,1);
-			const glIndex_t quad[6]={0,1,2,0,2,3};
-			renderSystem->DrawStretchPic(cached.rasterQuad.data(),quad,4,6,page.material,false);
+		if (ui_retainedAtlas.GetBool() && !cached.rasterTiles.empty() &&
+			std::none_of(cached.rasterTiles.begin(),cached.rasterTiles.end(),[&](const auto& tile){return atlasPages[tile.page].dirty;})) {
+			DrawRaster(cached,1);
 		} else Submit(cached,material);
+	}
+	bool CanDrawMeshOpacity(std::uint64_t mesh,std::uint64_t revision) const override {
+		const auto found=meshes.find(mesh);
+		if (!ui_retainedAtlas.GetBool() || found==meshes.end()) return false;
+		const auto& cached=found->second;
+		if (cached.revision!=revision || cached.width!=viewportWidth || cached.height!=viewportHeight ||
+			cached.handle || cached.rasterTiles.empty() ||
+			std::any_of(cached.rasterTiles.begin(),cached.rasterTiles.end(),[&](const auto& tile){return atlasPages[tile.page].dirty;})) return false;
+		return true;
+	}
+	bool DrawMeshOpacity(std::uint64_t mesh,std::uint64_t revision,float opacity) override {
+		if (!CanDrawMeshOpacity(mesh,revision)) return false;
+		DrawRaster(meshes.at(mesh),opacity); return true;
 	}
 	void ReleaseMesh(std::uint64_t mesh) override {
 		const auto found=meshes.find(mesh);
@@ -260,6 +303,54 @@ public:
 	void CompositeLayer(std::uint32_t source, std::uint32_t destination, float opacity, const openq4::ui::Bounds& clip) override {
 		DrawLayer(layers[source-1].material,destination,opacity,clip);
 	}
+	bool CanCompositeMaskedLayer() const override { return ui_retainedSourceCache.GetBool(); }
+	void CompositeMaskedLayer(std::uint32_t source, const std::vector<openq4::ui::Vertex>& mask,
+		const std::vector<int>& indices, float opacity) override {
+		std::vector<openq4::ui::Vertex> vertices; vertices.reserve(mask.size());
+		for (const auto& v:mask) {
+			const float alpha=v.a*opacity;
+			vertices.push_back({v.x,v.y,v.x/viewportWidth,1-v.y/viewportHeight,alpha,alpha,alpha,alpha});
+		}
+		BindTarget(nullptr);
+		Draw(vertices,indices,reinterpret_cast<std::uintptr_t>(layers[source-1].material));
+	}
+	bool CanDrawLinearMask() const override {
+		if (!ui_retainedLinearMasks.GetBool()) return false;
+		const auto api=R_RendererModule_GetStatus().activeApi;
+		return api==RENDER_MODULE_API_VULKAN || ((api==RENDER_MODULE_API_GL || api==RENDER_MODULE_API_GL_MODULE) &&
+			renderSystem->GetGLConfig().GLSLProgramAvailable);
+	}
+	void DrawLinearMask(std::uint32_t source, const openq4::ui::LinearMask& mask,
+		const openq4::ui::Bounds& clip, float opacity) override {
+		if (clip.width<=0 || clip.height<=0) return;
+		float left=viewportWidth,top=viewportHeight,right=0,bottom=0;
+		for (const auto& point:mask.points) {
+			left=Min(left,float(std::floor(point.x))); top=Min(top,float(std::floor(point.y)));
+			right=Max(right,float(std::ceil(point.x))); bottom=Max(bottom,float(std::ceil(point.y)));
+		}
+		left=Max(left,clip.x); top=Max(top,clip.y);
+		right=Min(right,clip.x+clip.width); bottom=Min(bottom,clip.y+clip.height);
+		if (left>=right || top>=bottom) return;
+		const idMaterial*& material=source ? layers[source-1].linearMaskMaterial : linearMaskMaterial;
+		if (!material) material=declManager->FindMaterial(va("_retainedLinearMask/%u",source));
+		if (source) BindTarget(nullptr);
+		const float xs[4]={left,right,right,left},ys[4]={top,top,bottom,bottom};
+		idDrawVert vertices[4];
+		for (int i=0;i<4;++i) {
+			auto& v=vertices[i]; v.Clear();
+			v.xyz.Set(xs[i]*640.f/viewportWidth,ys[i]*480.f/viewportHeight,0);
+			v.tangents[0].Set(float(mask.points[0].x),float(mask.points[0].y),float(mask.points[1].x));
+			v.tangents[1].Set(float(mask.points[1].y),float(mask.points[2].x),float(mask.points[2].y));
+			v.st.Set(float(mask.points[3].x),float(mask.points[3].y));
+			v.normal.Set(float(mask.gradient[0]),float(mask.gradient[1]),float(mask.gradient[2]));
+			for (int c=0;c<3;++c) v.color[c]=byte(std::round(mask.alpha[c]*255));
+			v.color[3]=255;
+		}
+		const glIndex_t indices[6]={0,1,2,0,2,3};
+		renderSystem->SetColor4(float(viewportWidth),float(viewportHeight),opacity,float(mask.middle));
+		renderSystem->DrawStretchPic(vertices,indices,4,6,material,false);
+		renderSystem->SetColor4(1,1,1,1);
+	}
 	void MaskLayer(std::uint32_t mask, std::uint32_t destination, const openq4::ui::Bounds& clip) override {
 		DrawLayer(layers[mask-1].maskMaterial,destination,1,clip);
 	}
@@ -284,23 +375,55 @@ public:
 	// The capture and both targets keep GL row order on every backend, so
 	// each pass samples v = 1-y/h as the layer composites do.
 	bool SoftenBackdrop(std::uint32_t destination, float sigma, float saturation, const openq4::ui::Bounds& region) override {
-		if (!softFocus || !destination || destination > layers.size() || !layers[destination-1].target ||
-			!(sigma >= 0 && sigma <= 256) || !(saturation >= 0 && saturation <= 1)) return false;
+		if (!destination || destination > layers.size() || !layers[destination-1].target) return false;
+		return DrawSoftenedBackdrop(layers[destination-1].target,sigma,saturation,region);
+	}
+	bool CanSoftenBackdropDirect(float sigma, float saturation, const openq4::ui::Bounds& region) const override {
+		return ui_retainedDirectBackdrop.GetBool() && softFocus && blurScratch && backdropCreated &&
+			blurWidth==viewportWidth && blurHeight==viewportHeight && blurBackdropMaterial && blurScratchMaterial &&
+			viewportWidth>0 && viewportHeight>0 && captureWidth>0 && captureHeight>0 &&
+			sigma>=0 && sigma<=256 && saturation>=0 && saturation<=1 &&
+			region.x<=0 && region.y<=0 && region.x+region.width>=viewportWidth && region.y+region.height>=viewportHeight;
+	}
+	bool SoftenBackdropDirect(float sigma, float saturation, const openq4::ui::Bounds& region) override {
+		if (!CanSoftenBackdropDirect(sigma,saturation,region)) return false;
+		return DrawSoftenedBackdrop(nullptr,sigma,saturation,region);
+	}
+	bool DrawSoftenedBackdrop(idRenderTexture* destination, float sigma, float saturation, const openq4::ui::Bounds& region) {
+		if (!softFocus || !(sigma>=0 && sigma<=256) || !(saturation>=0 && saturation<=1)) return false;
 		const float right = static_cast<float>(viewportWidth), bottom = static_cast<float>(viewportHeight);
 		const float x0 = Max(region.x,0.f), x1 = Min(region.x+region.width,right);
 		const float y0 = Max(region.y,0.f), y1 = Min(region.y+region.height,bottom);
 		if (!(x0 < x1 && y0 < y1) || captureWidth <= 0 || captureHeight <= 0 || !EnsureBlurTargets()) return false;
+		// Decimate an axis only after filtering it: the horizontal target keeps
+		// every source row, so fine vertical detail cannot alias before the
+		// vertical pass. Small, wide-spaced, partial and offset kernels retain
+		// the ordinary full-resolution path.
+		const bool reduced = ui_retainedHalfBlur.GetBool() && !destination && sigma>=6 && sigma<=8 &&
+			x0==0 && y0==0 && x1==right && y1==bottom && viewportX==0 && viewportY==0 &&
+			viewportWidth==captureWidth && viewportHeight==captureHeight &&
+			viewportWidth>=2 && viewportHeight>=2 && !(viewportWidth%2) && !(viewportHeight%2) && EnsureReducedBlurTargets();
 		// The copy reads the whole window; the view sits at its origin within it.
 		BindTarget(nullptr,true);
 		renderSystem->CaptureRenderToImage("_retainedBackdrop");
+		if (reduced) {
+			BindTarget(reducedBlurScratch);
+			DrawBlurPass(blurBackdropMaterial,{0,0,right,bottom},{0,1,1,0},{1/right,0,-sigma,1});
+			BindTarget(reducedBlurResult);
+			DrawBlurPass(reducedBlurMaterial,{0,0,right,bottom},{0,1,1,0},{0,1/bottom,-sigma,saturation});
+			BindTarget(nullptr);
+			DrawBlurPass(reducedBlurResolve,{0,0,right,bottom},{0,1,1,0},{1,1,1,1});
+			return true;
+		}
 		// The horizontal pass covers every row the vertical pass reads.
 		const float reach = std::ceil(3*sigma), top = Max(y0-reach,0.f), end = Min(y1+reach,bottom);
 		const float w = static_cast<float>(captureWidth), h = static_cast<float>(captureHeight);
 		BindTarget(blurScratch);
-		renderSystem->ClearRenderTarget(true,false,1,0,0,0,0);
+		// A full-view horizontal pass overwrites every scratch pixel opaquely.
+		if (x0!=0 || x1!=right || top!=0 || end!=bottom) renderSystem->ClearRenderTarget(true,false,1,0,0,0,0);
 		DrawBlurPass(blurBackdropMaterial,{x0,top,x1-x0,end-top},
 			{(viewportX+x0)/w,1-(viewportY+top)/h,(viewportX+x1)/w,1-(viewportY+end)/h},{1/w,0,sigma,1});
-		BindTarget(layers[destination-1].target);
+		BindTarget(destination);
 		DrawBlurPass(blurScratchMaterial,{x0,y0,x1-x0,y1-y0},{x0/right,1-y0/bottom,x1/right,1-y1/bottom},
 			{0,1/bottom,sigma,saturation});
 		return true;
@@ -353,6 +476,25 @@ public:
 			!blurScratchMaterial || blurScratchMaterial->GetState() == DS_DEFAULTED) {
 			renderSystem->DestroyRenderTexture(blurScratch); blurScratch = nullptr; return false;
 		}
+		return true;
+	}
+	bool EnsureReducedBlurTargets() {
+		if (reducedBlurScratch && reducedBlurResult && reducedBlurWidth==viewportWidth && reducedBlurHeight==viewportHeight) return true;
+		renderSystem->DestroyRenderTexture(reducedBlurScratch); reducedBlurScratch=nullptr;
+		renderSystem->DestroyRenderTexture(reducedBlurResult); reducedBlurResult=nullptr;
+		idImageOpts options;
+		options.width=(viewportWidth+1)/2; options.height=viewportHeight;
+		options.format=FMT_RGBA8; options.numLevels=1; options.isPersistant=true;
+		idImage* scratch=renderSystem->CreateImage("_retainedReducedBlurScratch",&options,TF_LINEAR);
+		if (!scratch || !(reducedBlurScratch=renderSystem->CreateRenderTexture(scratch,nullptr))) return false;
+		options.height=(viewportHeight+1)/2;
+		idImage* result=renderSystem->CreateImage("_retainedReducedBlurResult",&options,TF_LINEAR);
+		if (!result || !(reducedBlurResult=renderSystem->CreateRenderTexture(result,nullptr))) return false;
+		reducedBlurMaterial=declManager->FindMaterial("_retainedBlur/reducedScratch");
+		reducedBlurResolve=declManager->FindMaterial("_retainedBlur/reducedResult");
+		if (!reducedBlurMaterial || reducedBlurMaterial->GetState()==DS_DEFAULTED ||
+			!reducedBlurResolve || reducedBlurResolve->GetState()==DS_DEFAULTED) return false;
+		reducedBlurWidth=viewportWidth; reducedBlurHeight=viewportHeight;
 		return true;
 	}
 	// One blur pass over a view-space box. The program reads the step along its
@@ -426,10 +568,10 @@ public:
 	// gone with it, and only the handles are dropped.
 	void Reset() {
 		meshes.clear();
-		if (renderSystem) for (size_t i=0;i<atlasPages.size();++i) {
+		if (renderSystem) for (size_t i=0;i<atlasPages.size();i+=AtlasGroup) {
 			idImageOpts options; options.width=options.height=1; options.format=FMT_RGBA8;
 			options.numLevels=1; options.isPersistant=true;
-			renderSystem->CreateImage(va("_retainedAtlasImage%u",unsigned(i)),&options,TF_NEAREST);
+			renderSystem->CreateImage(va("_retainedAtlasImage%u",unsigned(i/AtlasGroup)),&options,TF_NEAREST);
 		}
 		atlasPages.clear();
 		if (renderSystem) renderSystem->ResetRetainedFontCache();
@@ -441,10 +583,16 @@ public:
 		if (renderSystem) {
 			for (auto& layer : layers) renderSystem->DestroyRenderTexture(layer.target);
 			renderSystem->DestroyRenderTexture(blurScratch);
+			renderSystem->DestroyRenderTexture(reducedBlurScratch);
+			renderSystem->DestroyRenderTexture(reducedBlurResult);
 		}
 		layers.clear(); blurScratch = nullptr;
 		blurBackdropMaterial = blurScratchMaterial = blurStreakMaterial = nullptr;
+		linearMaskMaterial=nullptr;
 		backdropCreated = false; blurWidth = blurHeight = 0;
+		reducedBlurScratch=reducedBlurResult=nullptr;
+		reducedBlurMaterial=reducedBlurResolve=nullptr;
+		reducedBlurWidth=reducedBlurHeight=0;
 	}
 	int viewportWidth = 1280, viewportHeight = 720;
 	// The view's origin in the window and the window's size, which the
@@ -462,8 +610,8 @@ private:
 		std::uint64_t revision = 0;
 		std::uintptr_t handle = 0;
 		int width = 0, height = 0;
-		int atlasPage=-1;
-		std::array<idDrawVert,4> rasterQuad;
+		struct RasterTile { int page; std::array<idDrawVert,4> quad; };
+		std::vector<RasterTile> rasterTiles;
 		unsigned stableFrames=0;
 		std::uint64_t lastFrame=0;
 		bool rasterTried=false;
@@ -472,32 +620,78 @@ private:
 	// packing never changes a live mesh's pixels, including queued SMP draws.
 	// Only an entirely unused page, retired for four frames, can be recycled.
 	static constexpr int AtlasSize=512, AtlasPages=32;
+	static constexpr int AtlasGrid=4, AtlasGroup=AtlasGrid*AtlasGrid, AtlasImageSize=AtlasGrid*AtlasSize;
 	struct AtlasPage {
 		std::vector<byte> pixels;
 		const idMaterial* material=nullptr;
+		const idMaterial* multiplyMaterial=nullptr;
 		int x=0,y=0,rowHeight=0,references=0;
 		std::uint64_t lastFrame=0;
 		bool dirty=false,uploadFailed=false;
 	};
 	std::vector<AtlasPage> atlasPages;
+	void DrawRaster(HostMesh& mesh,float opacity) {
+		renderSystem->SetColor4(1,1,1,1);
+		++rasterDraws; rasterSavedVertices+=mesh.vertices.size()-mesh.rasterTiles.size()*4;
+		mesh.lastFrame=RenderFrame();
+		const byte alpha=static_cast<byte>(std::clamp(opacity,0.f,1.f)*255.f+.5f);
+		for (const auto& tile:mesh.rasterTiles) {
+			auto& page=atlasPages[tile.page]; page.lastFrame=RenderFrame();
+			auto vertices=tile.quad;
+			for (auto& vertex:vertices) for (int c=0;c<4;++c) vertex.color[c]=vertex.color2[c]=alpha;
+			const glIndex_t quad[6]={0,1,2,0,2,3};
+			renderSystem->DrawStretchPic(vertices.data(),quad,4,6,mesh.handle ? page.multiplyMaterial : page.material,false);
+		}
+	}
 	void DropRaster(HostMesh& mesh) {
-		if (mesh.atlasPage<0) return;
-		auto& page=atlasPages[mesh.atlasPage]; --page.references; page.lastFrame=RenderFrame(); mesh.atlasPage=-1;
+		for (const auto& tile:mesh.rasterTiles) {
+			auto& page=atlasPages[tile.page]; --page.references; page.lastFrame=RenderFrame();
+		}
+		mesh.rasterTiles.clear();
 	}
 	void CacheRaster(HostMesh& mesh,const std::vector<openq4::ui::Vertex>& vertices,const std::vector<int>& indices) {
 		openq4::ui::CoverageBitmap bitmap;
-		if (!openq4::ui::RasterizeCoverage(vertices,indices,bitmap,AtlasSize-2)) return;
-		const int w=bitmap.width+2,h=bitmap.height+2;
+		if (!openq4::ui::RasterizeCoverage(vertices,indices,bitmap,8192,mesh.handle!=0)) return;
+		// Wide frames and tall rails keep the same exact pixel coverage, split
+		// across the existing bounded pages. Never publish a partial mesh or a
+		// tile whose page upload has not succeeded.
+		constexpr int extent=AtlasSize-2;
+		if (size_t((bitmap.width+extent-1)/extent)*((bitmap.height+extent-1)/extent)*4>=vertices.size()) return;
+		for (int y=0;y<bitmap.height;y+=extent) for (int x=0;x<bitmap.width;x+=extent) {
+			const int width=Min(extent,bitmap.width-x),height=Min(extent,bitmap.height-y);
+			// Rails and disconnected shapes often touch only a small part of
+			// a tile. Trim identity borders before packing: transparent for
+			// premultiplied blending, white RGBA for multiplication. Preserve
+			// additive colour with zero alpha and multiplication of alpha itself.
+			int left=width,top=height,right=0,bottom=0;
+			for (int row=0;row<height;++row) {
+				const byte* pixels=bitmap.pixels.data()+((y+row)*bitmap.width+x)*4;
+				for (int column=0;column<width;++column) {
+					const byte* pixel=pixels+column*4;
+					if (mesh.handle ? (pixel[0]&pixel[1]&pixel[2]&pixel[3])==255 : !(pixel[0]|pixel[1]|pixel[2]|pixel[3])) continue;
+					left=Min(left,column);right=Max(right,column+1);
+					top=Min(top,row);bottom=Max(bottom,row+1);
+				}
+			}
+			if (left<right && top<bottom && !CacheRasterTile(mesh,bitmap,x+left,y+top,right-left,bottom-top)) {
+				DropRaster(mesh); return;
+			}
+		}
+	}
+	bool CacheRasterTile(HostMesh& mesh,const openq4::ui::CoverageBitmap& bitmap,int tileX,int tileY,int width,int height) {
+		const int w=width+2,h=height+2;
 		int chosen=-1,x=0,y=0;
 		const auto frame=RenderFrame();
 		for (int i=0;i<=int(atlasPages.size()) && i<AtlasPages;++i) {
 			if (i==int(atlasPages.size())) {
-				idImageOpts options; options.width=options.height=AtlasSize; options.format=FMT_RGBA8;
-				options.numLevels=1; options.isPersistant=true;
-				if (!renderSystem->CreateImage(va("_retainedAtlasImage%u",unsigned(i)),&options,TF_NEAREST)) return;
+				if (i%AtlasGroup==0) {
+					idImageOpts options; options.width=options.height=AtlasImageSize; options.format=FMT_RGBA8;
+					options.numLevels=1; options.isPersistant=true;
+					if (!renderSystem->CreateImage(va("_retainedAtlasImage%u",unsigned(i/AtlasGroup)),&options,TF_NEAREST)) return false;
+				}
 				AtlasPage page; page.pixels.resize(AtlasSize*AtlasSize*4);
-				page.material=declManager->FindMaterial(va("_retainedAtlas/%u",unsigned(i)));
-				if (!page.material || page.material->GetState()==DS_DEFAULTED) return;
+				page.material=declManager->FindMaterial(va("_retainedAtlas/%u",unsigned(i/AtlasGroup)));
+				if (!page.material || page.material->GetState()==DS_DEFAULTED) return false;
 				atlasPages.push_back(std::move(page));
 			}
 			auto& page=atlasPages[i];
@@ -507,25 +701,36 @@ private:
 			x=page.x; y=page.y;
 			if (x+w>AtlasSize) { x=0; y+=page.rowHeight; }
 			if (y+h>AtlasSize) continue;
+			if (mesh.handle && !page.multiplyMaterial) {
+				page.multiplyMaterial=declManager->FindMaterial(va("_retainedMultiplyAtlas/%u",unsigned(i/AtlasGroup)));
+				if (!page.multiplyMaterial || page.multiplyMaterial->GetState()==DS_DEFAULTED) return false;
+			}
 			chosen=i;
 			if (y!=page.y) page.rowHeight=0;
 			page.x=x+w; page.y=y; page.rowHeight=(std::max)(page.rowHeight,h);
 			++page.references; page.lastFrame=frame; page.dirty=true;
-			for (int row=0;row<bitmap.height;++row)
-				std::memcpy(page.pixels.data()+((y+1+row)*AtlasSize+x+1)*4,bitmap.pixels.data()+row*bitmap.width*4,bitmap.width*4);
+			// Atlas pages can contain both blend modes. The padding must use
+			// this tile's identity even when its neighbours use another mode.
+			for (int row=0;row<h;++row)
+				std::memset(page.pixels.data()+((y+row)*AtlasSize+x)*4,mesh.handle ? 255 : 0,w*4);
+			for (int row=0;row<height;++row)
+				std::memcpy(page.pixels.data()+((y+1+row)*AtlasSize+x+1)*4,bitmap.pixels.data()+((tileY+row)*bitmap.width+tileX)*4,width*4);
 			break;
 		}
-		if (chosen<0) return;
-		mesh.atlasPage=chosen;
+		if (chosen<0) return false;
+		HostMesh::RasterTile tile; tile.page=chosen;
 		const float sx=640.f/viewportWidth,sy=480.f/viewportHeight;
 		for (int i=0;i<4;++i) {
 			const bool right=i==1 || i==2,bottom=i>=2;
-			auto& vertex=mesh.rasterQuad[i]; vertex.Clear();
-			vertex.xyz.Set((bitmap.x+(right?bitmap.width:0))*sx,(bitmap.y+(bottom?bitmap.height:0))*sy,0);
-			vertex.st.Set(float(x+1+(right?bitmap.width:0))/AtlasSize,float(y+1+(bottom?bitmap.height:0))/AtlasSize);
+			auto& vertex=tile.quad[i]; vertex.Clear();
+			vertex.xyz.Set((bitmap.x+tileX+(right?width:0))*sx,(bitmap.y+tileY+(bottom?height:0))*sy,0);
+			vertex.st.Set(float((chosen%AtlasGrid)*AtlasSize+x+1+(right?width:0))/AtlasImageSize,
+				float(((chosen%AtlasGroup)/AtlasGrid)*AtlasSize+y+1+(bottom?height:0))/AtlasImageSize);
 			vertex.normal.Set(0,0,1); vertex.tangents[0].Set(1,0,0); vertex.tangents[1].Set(0,1,0);
 			for (int channel=0;channel<4;++channel) vertex.color[channel]=vertex.color2[channel]=255;
 		}
+		mesh.rasterTiles.push_back(std::move(tile));
+		return true;
 	}
 	HostMesh scratchMesh;
 	std::unordered_map<std::uint64_t,HostMesh> meshes;
@@ -596,13 +801,14 @@ private:
 		flush(count);
 	}
 	void Submit(const HostMesh& mesh, const idMaterial* material) {
+		renderSystem->SetColor4(1,1,1,1);
 		for (const auto& chunk : mesh.chunks) {
-			renderSystem->SetColor4(1,1,1,1);
-			renderSystem->DrawStretchPic(mesh.vertices.data()+chunk.first, mesh.indices.data()+chunk.index, chunk.count,
-				static_cast<int>(chunk.indices), material, false);
+			renderSystem->DrawStretchPic(mesh.vertices.data()+chunk.first,mesh.indices.data()+chunk.index,chunk.count,
+				static_cast<int>(chunk.indices),material,false);
 		}
 	}
-	struct Layer { idRenderTexture* target = nullptr; const idMaterial* material = nullptr; const idMaterial* maskMaterial = nullptr; int width = 0, height = 0; };
+	struct Layer { idRenderTexture* target = nullptr; const idMaterial* material = nullptr; const idMaterial* maskMaterial = nullptr; int width = 0, height = 0; const idMaterial* linearMaskMaterial=nullptr; };
+	const idMaterial* linearMaskMaterial=nullptr;
 	std::vector<Layer> layers;
 	idRenderTexture* boundTarget=nullptr;
 	idRenderTexture* blurScratch = nullptr;
@@ -611,6 +817,9 @@ private:
 	const idMaterial* blurStreakMaterial = nullptr;
 	bool backdropCreated = false;
 	int blurWidth = 0, blurHeight = 0;
+	idRenderTexture *reducedBlurScratch=nullptr, *reducedBlurResult=nullptr;
+	const idMaterial *reducedBlurMaterial=nullptr, *reducedBlurResolve=nullptr;
+	int reducedBlurWidth=0, reducedBlurHeight=0;
 	static std::string FontFamily(const std::string& family) {
 		// The faces a document may name; anything else draws in Chain.
 		static const char* const faces[] = {"marine","lowpixel","profont","r_strogg","strogg"};
@@ -706,6 +915,8 @@ struct RootProfileSample {
 	std::chrono::steady_clock::time_point at;
 	double cpu = 0, update = 0, render = 0, presentation = 0, layout = 0;
 	double sources = 0, motion = 0, apply = 0, hostDraw = 0;
+	double vectorCompile = 0, vectorUpload = 0;
+	unsigned long long pathsCompiled = 0, vectorUploads = 0;
 	int views = 0;
 	unsigned long long layerComposites = 0, backdropComposites = 0, backdropFallbacks = 0;
 	unsigned long long draws = 0, vertices = 0, cachedLayers = 0, directMasks = 0;
@@ -808,6 +1019,8 @@ void ReportRootProfile() {
 	double total = 0, update = 0, render = 0;
 	double presentation = 0, layout = 0;
 	double sources = 0, motion = 0, apply = 0, hostDraw = 0;
+	double vectorCompile = 0, vectorUpload = 0;
+	unsigned long long pathsCompiled = 0, vectorUploads = 0;
 	unsigned long long draws = 0, vertices = 0, cachedLayers = 0, directMasks = 0;
 	unsigned long long layoutUpdates = 0, motionInputs = 0, frameReplays = 0;
 	unsigned long long rasterDraws = 0, rasterSavedVertices = 0;
@@ -823,6 +1036,8 @@ void ReportRootProfile() {
 		update+=sample.update; render+=sample.render; draws+=sample.draws; vertices+=sample.vertices;
 		presentation+=sample.presentation; layout+=sample.layout; layoutUpdates+=sample.layoutUpdates; motionInputs+=sample.motionInputs;
 		sources+=sample.sources; motion+=sample.motion; apply+=sample.apply; hostDraw+=sample.hostDraw;
+		vectorCompile+=sample.vectorCompile; vectorUpload+=sample.vectorUpload;
+		pathsCompiled+=sample.pathsCompiled; vectorUploads+=sample.vectorUploads;
 		cachedLayers+=sample.cachedLayers; directMasks+=sample.directMasks;
 		frameReplays+=sample.frameReplays;
 		rasterDraws+=sample.rasterDraws; rasterSavedVertices+=sample.rasterSavedVertices;
@@ -831,8 +1046,8 @@ void ReportRootProfile() {
 	}
 	std::sort(cpu.begin(),cpu.end()); std::sort(intervals.begin(),intervals.end());
 	auto percentile = [](const std::vector<double>& values, double fraction) { return values[static_cast<size_t>(std::ceil(fraction*values.size()))-1]; };
-	common->Printf("Retained UI root profile: {\"frames\":%d,\"views\":%d,\"retained_cpu_p50_ms\":%.6f,\"retained_cpu_p95_ms\":%.6f,\"frame_interval_mean_ms\":%.6f,\"frame_interval_p50_ms\":%.6f,\"frame_interval_p95_ms\":%.6f,\"layer_composites\":%llu,\"backdrop_composites\":%llu,\"backdrop_fallbacks\":%llu}\n",
-		rootProfileFrames,views,percentile(cpu,.5),percentile(cpu,.95),total/rootProfileFrames,percentile(intervals,.5),percentile(intervals,.95),
+	common->Printf("Retained UI root profile: {\"frames\":%d,\"views\":%d,\"retained_cpu_p50_ms\":%.6f,\"retained_cpu_p95_ms\":%.6f,\"retained_cpu_p99_ms\":%.6f,\"retained_cpu_max_ms\":%.6f,\"frame_interval_mean_ms\":%.6f,\"frame_interval_p50_ms\":%.6f,\"frame_interval_p95_ms\":%.6f,\"frame_interval_p99_ms\":%.6f,\"frame_interval_max_ms\":%.6f,\"layer_composites\":%llu,\"backdrop_composites\":%llu,\"backdrop_fallbacks\":%llu}\n",
+		rootProfileFrames,views,percentile(cpu,.5),percentile(cpu,.95),percentile(cpu,.99),cpu.back(),total/rootProfileFrames,percentile(intervals,.5),percentile(intervals,.95),percentile(intervals,.99),intervals.back(),
 		layerComposites,backdropComposites,backdropFallbacks);
 	common->Printf("Retained UI root work: {\"update_mean_ms\":%.6f,\"render_mean_ms\":%.6f,\"draws_mean\":%.2f,\"vertices_mean\":%.2f,\"cached_layers_mean\":%.2f,\"direct_masks_mean\":%.2f}\n",
 		update/rootProfileFrames,render/rootProfileFrames,double(draws)/rootProfileFrames,double(vertices)/rootProfileFrames,
@@ -844,6 +1059,8 @@ void ReportRootProfile() {
 	common->Printf("Retained UI atlas work: {\"draws_mean\":%.2f,\"saved_vertices_mean\":%.2f,\"pages\":%u}\n",
 		double(rasterDraws)/rootProfileFrames,double(rasterSavedVertices)/rootProfileFrames,unsigned(host.RasterPages()));
 	common->Printf("Retained UI frame replay: {\"views_mean\":%.2f}\n",double(frameReplays)/rootProfileFrames);
+	common->Printf("Retained UI vector work: {\"compile_ms\":%.6f,\"upload_ms\":%.6f,\"paths_mean\":%.2f,\"uploads_mean\":%.2f}\n",
+		vectorCompile/rootProfileFrames,vectorUpload/rootProfileFrames,double(pathsCompiled)/rootProfileFrames,double(vectorUploads)/rootProfileFrames);
 	for (const auto& [path,view]:documents)
 		common->Printf("Retained UI document work: path=%s cpu_ms=%.6f apply_ms=%.6f render_ms=%.6f vertices=%.2f\n",
 			path.c_str(),view.cpu/rootProfileFrames,view.apply/rootProfileFrames,view.render/rootProfileFrames,double(view.vertices)/rootProfileFrames);
@@ -866,6 +1083,8 @@ void RecordRootProfile(std::uint64_t frame, std::chrono::steady_clock::time_poin
 	sample.presentation+=statistics.presentationMilliseconds; sample.layout+=statistics.layoutMilliseconds;
 	sample.sources+=statistics.sourceMilliseconds; sample.motion+=statistics.motionMilliseconds;
 	sample.apply+=statistics.applyMilliseconds; sample.hostDraw+=statistics.hostDrawMilliseconds;
+	sample.vectorCompile+=statistics.vectorCompileMilliseconds; sample.vectorUpload+=statistics.vectorUploadMilliseconds;
+	sample.pathsCompiled+=statistics.vectorPathsCompiled; sample.vectorUploads+=statistics.vectorUploads;
 	sample.layoutUpdates+=statistics.layoutUpdates; sample.motionInputs+=statistics.motionInputsScanned;
 	sample.draws+=statistics.drawCalls; sample.vertices+=statistics.submittedVertices;
 	sample.cachedLayers+=statistics.layerCacheHits; sample.directMasks+=statistics.directMaskDraws;
@@ -938,7 +1157,8 @@ void ReleaseQuarantinedInput(const retainedUIInput_t& event) {
 }
 bool MapMenuKey(int key, openq4::ui::MenuInput& action) {
 	using openq4::ui::MenuInput;
-	switch (key) {
+	// Confirm and Back may trade the south and east buttons (section 13.5).
+	switch (idKeyInput::MenuControllerKey(key)) {
 		case K_TAB: {
 			bool shift = idKeyInput::IsDown(K_SHIFT);
 			for (const auto& held : inputKeys) if (held.second == K_SHIFT) shift = true;
@@ -1249,6 +1469,17 @@ bool RetainedUI_LoadView(retainedUIView_t* view, const std::string& source, cons
 	}
 	return LoadViewDocument(*view,source,path,true,diagnostics);
 }
+bool RetainedUI_LoadParsedView(retainedUIView_t* view, const openq4::ui::Document& document, const std::string& path,
+	std::vector<openq4::ui::Diagnostic>& diagnostics) {
+	diagnostics.clear();
+	if (!RegisteredView(view) || !RefreshResources() || !RegisteredView(view) || view->edit->destroyPending) {
+		diagnostics.push_back({"","Retained view is unavailable during resource lifecycle changes"}); return false;
+	}
+	TouchEdit(*view);
+	if (!view->runtime->LoadDocument(document,path,diagnostics)) return false;
+	view->source = document.Source(); view->path = path; view->canonical = true; view->failed = false;
+	return true;
+}
 bool RetainedUI_PrepareView(retainedUIView_t* view) {
 	return RegisteredView(view) && RefreshResources() && RegisteredView(view) && !view->edit->destroyPending && !view->failed && view->runtime->IsLoaded();
 }
@@ -1432,6 +1663,7 @@ void RetainedUI_Init() {
 	cmdSystem->AddCommand("ui_retainedClose",Close_f,CMD_FL_SYSTEM,"close the retained UI integration preview");
 	cmdSystem->AddCommand("ui_retainedPlay",Play_f,CMD_FL_SYSTEM,"play a canonical retained UI timeline");
 	cmdSystem->AddCommand("ui_retainedProfile",Profile_f,CMD_FL_SYSTEM,"measure retained UI CPU submission over bounded rendered frames");
+	cmdSystem->AddCommand("ui_retainedGeometry",[](const idCmdArgs&){host.DumpGeometry();},CMD_FL_SYSTEM,"inspect active retained meshes and coverage-cache residency");
 	cmdSystem->AddCommand("ui_retainedFocus",Focus_f,CMD_FL_SYSTEM,"focus a semantic retained control without reading or moving a device");
 	cmdSystem->AddCommand("ui_retainedMenu",Menu_f,CMD_FL_SYSTEM,"submit a semantic menu action to the retained preview");
 	cmdSystem->AddCommand("ui_retainedEnabled",Enabled_f,CMD_FL_SYSTEM,"set a retained control's instance enabled state");
@@ -1473,6 +1705,7 @@ void RetainedUI_Shutdown() {
 	cmdSystem->RemoveCommand("ui_retainedClose");
 	cmdSystem->RemoveCommand("ui_retainedPlay");
 	cmdSystem->RemoveCommand("ui_retainedProfile");
+	cmdSystem->RemoveCommand("ui_retainedGeometry");
 	cmdSystem->RemoveCommand("ui_retainedFocus");
 	cmdSystem->RemoveCommand("ui_retainedMenu");
 	cmdSystem->RemoveCommand("ui_retainedEnabled");
@@ -1488,6 +1721,21 @@ void RetainedUI_Draw() {
 	if (RetainedUI_DrawViewRoot(previewView,viewport)) RecordProfile(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-profileStart).count());
 }
 bool RetainedUI_IsOpen() { return applicationOpen.load(std::memory_order_acquire); }
+// Prompts follow the active device (section 13.5): 0 shows the keyboard's
+// keycaps, 1-5 a controller family's face buttons (Xbox, PlayStation,
+// Nintendo, Steam Deck, generic). A controller used last shows the family
+// the HUD's prompts use, which in_promptStyle forces when a remapping layer
+// hides the real device (Sys_SDL_GamepadGlyphFamily: 0 generic, 1-4 a family).
+bool RetainedUI_PromptSwapped() { return idKeyInput::MenuConfirmSwapped(); }
+int RetainedUI_PromptGlyphs() {
+	if (!idKeyInput::LastInputWasController()) return 0;
+	int family = 0;
+#if defined(USE_SDL3)
+	int faces[4] = {0,0,0,0};
+	family = Sys_SDL_GamepadGlyphFamily(faces);
+#endif
+	return family >= 1 && family <= 4 ? family : 5;
+}
 int RetainedUI_ViewCount() { return static_cast<int>(views.size()); }
 void RetainedUI_PrecacheImage(const std::string& source, bool additive) {
 	if (source.empty() || !openq4::ui::ValidImageSource(source)) return;
@@ -1600,6 +1848,7 @@ retainedUIView_t* RetainedUI_CreateView(retainedUIViewCallback_t,void*) { return
 void RetainedUI_DestroyView(retainedUIView_t*) {}
 openq4::ui::Runtime* RetainedUI_ViewRuntime(retainedUIView_t*) { return nullptr; }
 bool RetainedUI_LoadView(retainedUIView_t*,const std::string&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
+bool RetainedUI_LoadParsedView(retainedUIView_t*,const openq4::ui::Document&,const std::string&,std::vector<openq4::ui::Diagnostic>&) { return false; }
 bool RetainedUI_PrepareView(retainedUIView_t*) { return false; }
 bool RetainedUI_DrawViewRoot(retainedUIView_t*,const openq4::ui::Viewport&) { return false; }
 bool RetainedUI_QueryEditIdentity(retainedUIView_t*,retainedUIEditIdentity_t&) noexcept{return false;}

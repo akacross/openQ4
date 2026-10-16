@@ -33,6 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "ScenePackets.h"
 
 static const int Q4_GUI_MODEL_MAX_SURFACE_VERTS = 12800;
+static idCVar r_guiSharedSpace( "r_guiSharedSpace", "0", CVAR_RENDERER | CVAR_BOOL,
+	"share the identical frame-local transform of fullscreen GUI surfaces" );
 
 static ID_INLINE void R_SetGuiDrawVertPayload( idDrawVert *vert ) {
 	vert->color[0] = vert->color[1] = vert->color[2] = vert->color[3] = 255;
@@ -89,11 +91,24 @@ idGuiModel::idGuiModel() {
 
 /*
 ================
-idGuiModel::Clear
+idGuiModel::HasSceneFeedback
 
-Begins collecting draw commands into surfaces
+Keep capture-dependent batches separate when switching between scene and UI.
 ================
 */
+bool idGuiModel::HasSceneFeedback() const {
+	for ( int i = 0; i < surfaces.Num(); ++i ) {
+		const guiModelSurface_t &surface = surfaces[i];
+		if ( surface.numIndexes > 0 && surface.material != NULL &&
+				( surface.material->GetSort() >= SS_POST_PROCESS ||
+				  surface.material->TestMaterialFlag( MF_NEED_CURRENT_RENDER ) ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Begins collecting draw commands into surfaces.
 void idGuiModel::Clear() {
 	surfaces.SetNum( 0, false );
 	indexes.SetNum( 0, false );
@@ -274,7 +289,8 @@ bool idGuiModel::ReadFromDemo( idDemoFile *demo ) {
 EmitSurface
 ================
 */
-void idGuiModel::EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack ) {
+void idGuiModel::EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], float modelViewMatrix[16], bool depthHack,
+		const viewEntity_t *sharedSpace ) {
 	srfTriangles_t	*tri;
 
 	if ( surf->numVerts == 0 ) {
@@ -324,10 +340,14 @@ void idGuiModel::EmitSurface( guiModelSurface_t *surf, float modelMatrix[16], fl
 	memset( &renderEntity, 0, sizeof( renderEntity ) );
 	memcpy( renderEntity.shaderParms, surf->color, sizeof( surf->color ) );
 
-	viewEntity_t *guiSpace = (viewEntity_t *)R_ClearedFrameAlloc( sizeof( *guiSpace ) );
-	memcpy( guiSpace->modelMatrix, modelMatrix, sizeof( guiSpace->modelMatrix ) );
-	memcpy( guiSpace->modelViewMatrix, modelViewMatrix, sizeof( guiSpace->modelViewMatrix ) );
-	guiSpace->weaponDepthHack = depthHack;
+	const viewEntity_t *guiSpace = sharedSpace;
+	if ( guiSpace == NULL ) {
+		viewEntity_t *privateSpace = (viewEntity_t *)R_ClearedFrameAlloc( sizeof( *privateSpace ) );
+		memcpy( privateSpace->modelMatrix, modelMatrix, sizeof( privateSpace->modelMatrix ) );
+		memcpy( privateSpace->modelViewMatrix, modelViewMatrix, sizeof( privateSpace->modelViewMatrix ) );
+		privateSpace->weaponDepthHack = depthHack;
+		guiSpace = privateSpace;
+	}
 
 	// add the surface, which might recursively create another gui
 	R_AddDrawSurf( tri, guiSpace, &renderEntity, surf->material, tr.viewDef->scissor );
@@ -452,7 +472,11 @@ void idGuiModel::EmitFullScreen( void ) {
 
 	// add the surfaces to this view
 	for ( int i = 0 ; i < surfaces.Num() ; i++ ) {
-		EmitSurface( &surfaces[i], viewDef->worldSpace.modelMatrix, viewDef->worldSpace.modelViewMatrix, false );
+		// Fullscreen surfaces use exactly the view's cleared world space. Its
+		// frame lifetime covers deferred/SMP consumption, and its identity lets
+		// the backend retain the same transform between adjacent GUI draws.
+		EmitSurface( &surfaces[i], viewDef->worldSpace.modelMatrix, viewDef->worldSpace.modelViewMatrix, false,
+			r_guiSharedSpace.GetBool() ? &viewDef->worldSpace : NULL );
 	}
 
 	tr.viewDef = oldViewDef;

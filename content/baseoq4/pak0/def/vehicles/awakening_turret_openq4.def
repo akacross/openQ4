@@ -1,0 +1,76 @@
+/*
+	openQ4: what The Awakening's mannable Strogg chaingun turret
+	(vehicle_q4x_turret_chaingun on model common_turret_strogg, m01 and m04)
+	was missing in the alpha.
+
+	While q4xbase is the active game, idGameLocal::FindEntityDef finds
+	"<name>_q4x_openq4" ahead of <name>, so the turret's weapon part picks up
+	the definition below. It inherits the expansion's own weapon, so the
+	turret's damage, rate of fire and spread are unchanged; only what the
+	player sees and hears is added: a heavier Strogg muzzle flash and its
+	light, tracers, ejected casings and barrel smoke after a long burst.
+	Outside The Awakening these definitions are never looked up.
+*/
+
+entityDef vehicle_chaingun_weapon_q4x_openq4
+{
+	"inherit"				"vehicle_chaingun_weapon"
+
+	"def_hitscan"			"hitscan_awakening_turret_chaingun"
+	"fx_muzzleflash"		"effects/openq4/awakening/turret_muzzleflash.fx"
+
+	// muzzle flash light: lights the turret's own armour and the area in front
+	"flashColor"			"1 0.58 0.28"
+	"flashRadius"			"240"
+	"flashTime"				"0.05"
+	"flashOffset"			"6 0 0"
+
+	// casings leave the port on the gun's right flank, opposite the drum
+	"def_ejectBrass"		"debris_brass_awakening_turret"
+	"joint_view_eject"		"muzzle"
+	"ejectOffset"			"-35 -4 -1.8"
+
+	// smoke from the muzzle once a burst of a second or more ends
+	"fx_burstSmoke"			"effects/openq4/awakening/turret_burstsmoke.fx"
+	"burstSmokeShots"		"16"
+}
+
+entityDef hitscan_awakening_turret_chaingun
+{
+	"inherit"				"hitscan_bullet"
+
+	// the walker's and GEV's heavier impacts, as a mounted gun's rounds
+	"fx_impact"				"effects/vehicles/walker/machinegun/impact_default.fx"
+	"fx_impact_concrete"	"effects/vehicles/walker/machinegun/impact_concrete.fx"
+	"fx_impact_rock"		"effects/vehicles/walker/machinegun/impact_rock.fx"
+	"fx_impact_electronics"	"effects/vehicles/walker/machinegun/impact_electronics.fx"
+	"fx_impact_flesh"		"effects/vehicles/walker/machinegun/impact_flesh.fx"
+	"fx_impact_glass"		"effects/vehicles/walker/machinegun/impact_glass.fx"
+	"fx_impact_monstermetal"	"effects/vehicles/walker/machinegun/impact_monstermetal.fx"
+
+	"fx_tracer"				"effects/openq4/awakening/turret_tracer.fx"
+	"tracerchance"			"0.6"
+}
+
+entityDef debris_brass_awakening_turret
+{
+	"spawnclass"			"rvClientMoveable"
+	"model"					"models/weapons/machinegun/brass.lwo"
+	"clipmodel"				"simpletri"
+	"scale"					"1"
+
+	// one casing every other round; joint frame: x along the barrel, y to the gun's left
+	"delay"					"0.11"
+	"linear_velocity"		"-25 -120 80"
+	"linear_velocity_range"	"0.25 0.2 0.3"
+	"angular_velocity"		"0 6000 1500"
+	"angular_velocity_range"	"0 0.6 1"
+
+	"density"				"0.02"
+	"linear_friction"		"0.4"
+	"angular_friction"		"0.1"
+	"friction"				"0.2"
+	"bouncyness"			"0.15"
+	"snd_bounce"			"brass_casing"
+	"bounce_sound_once"		"1"
+}

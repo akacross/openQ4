@@ -149,6 +149,68 @@ static void ChoiceNavigation() {
 	f.Press(MenuInput::Back); Check(f.Actions().empty() && !f.View("choice").popupOpen,"popup Back consumes cancel without global menu Back");
 	f.Press(MenuInput::Back); a = f.Actions(); Check(a.size() == 1 && a[0].kind == ControlAction::Kind::Back,"fresh Back after cancellation routes normally");
 }
+// Left and right step a closed choice (section 13.5): through its eligible
+// options from the latest proposal, wrapping at either end, without opening
+// its list; a custom value steps to the first or the last. With nothing to
+// step to, they move focus as before.
+static void ChoiceStepping() {
+	Fixture f; Check(f.input.Focus("choice"),"focus the choice");
+	f.Press(MenuInput::Right); auto a = f.Actions();
+	Check(a.size() == 1 && std::get<std::string>(*a[0].proposal) == "value0" && !f.View("choice").popupOpen,"Right steps a custom value to the first option");
+	f.Press(MenuInput::Right); a = f.Actions();
+	Check(a.size() == 1 && std::get<std::string>(*a[0].proposal) == "value2","Right skips a disabled option and chains from the pending proposal");
+	f.Press(MenuInput::Left); f.Press(MenuInput::Left); a = f.Actions();
+	Check(a.size() == 2 && std::get<std::string>(*a[0].proposal) == "value0" && std::get<std::string>(*a[1].proposal) == "value7","Left steps back and wraps to the last option");
+	Check(f.input.Focused() == "choice" && std::get<std::string>(f.View("choice").accepted) == "custom","stepping keeps focus and never rewrites the accepted value");
+	f.Press(MenuInput::Right); a = f.Actions();
+	Check(a.size() == 1 && std::get<std::string>(*a[0].proposal) == "value0","Right wraps from the last option to the first");
+	Fixture custom; Check(custom.input.Focus("choice"),"focus a fresh choice");
+	custom.Press(MenuInput::Left); a = custom.Actions();
+	Check(a.size() == 1 && std::get<std::string>(*a[0].proposal) == "value7","Left steps a custom value to the last option");
+	// An open list keeps its own navigation: left and right step nothing.
+	custom.Press(MenuInput::Accept); custom.Press(MenuInput::Right); custom.Press(MenuInput::Left);
+	Check(custom.Actions().empty() && custom.View("choice").popupOpen,"an open list takes no stepping");
+	custom.Press(MenuInput::Back);
+	// Nothing to step to: one eligible option already chosen, or none.
+	Fixture single; single.values["choice"] = {std::string("value3"),false,{false,false,false,true,false,false,false,false}}; single.Refresh();
+	Check(single.input.Focus("choice"),"focus a choice with one option");
+	single.Press(MenuInput::Right); single.Press(MenuInput::Left);
+	Check(single.Actions().empty(),"a choice already on its only option proposes nothing");
+	single.values["choice"].enabledOptions.assign(8,false); single.Refresh();
+	single.Press(MenuInput::Right); Check(single.Actions().empty(),"a choice without eligible options proposes nothing");
+	single.input.SetEnabled("choice",false); single.Press(MenuInput::Right); Check(single.Actions().empty(),"a disabled choice never steps");
+}
+// The most recent device sets the presentation (section 13.4): under the
+// pointer's lead only the control under it is lit, and the focus waits for
+// the next navigation input. A focus whose control turns ineligible resumes
+// from where it stood.
+static void FocusPresentation() {
+	Fixture f; Check(f.input.Focus("button") && f.input.State("button") == ControlState::Focus,"the keyboard's lead shows the focus");
+	f.input.SetPointerPresentation(true); f.input.Hover("toggle");
+	Check(f.input.State("button") == ControlState::Default && f.input.State("toggle") == ControlState::Hover && f.input.Focused() == "button",
+		"the pointer's lead lights only the control under it and keeps the focus");
+	f.input.Hover(""); Check(f.input.State("button") == ControlState::Default,"a focused button rests while the pointer leads");
+	Check(f.input.Focus("slider") && f.input.State("slider") == ControlState::Focus,"a value control keeps showing its focus");
+	f.input.Focus("button"); f.input.SetPointerPresentation(false);
+	Check(f.input.State("button") == ControlState::Focus,"the keyboard's next lead shows the focus again");
+	f.input.SetPointerPresentation(true); f.input.Hover("button"); f.input.Pointer(true);
+	Check(f.input.State("button") == ControlState::Pressed,"a press still shows");
+	f.input.Pointer(false); Check(f.input.State("button") == ControlState::Hover && f.Actions().size() == 1,"a click activates and leaves hover");
+	f.input.SetPointerPresentation(false); f.input.Hover("");
+}
+static void LostFocusResumes() {
+	Fixture f; f.input.Focus("toggle"); f.input.SetEnabled("toggle",false);
+	Check(f.input.Focused().empty(),"focus never stays on a disabled control");
+	f.Press(MenuInput::Down); Check(f.input.Focused() == "slider","Down moves on from the lost control, not from the first");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false);
+	f.Press(MenuInput::Up); Check(f.input.Focused() == "button","Up moves on from the lost control");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false); f.input.SetEnabled("toggle",true);
+	f.Press(MenuInput::Down); Check(f.input.Focused() == "toggle","a lost control that can take focus again resumes it");
+	f.input.SetEnabled("toggle",false); f.Press(MenuInput::Next); Check(f.input.Focused() == "slider","tab order resumes after the lost control");
+	f.input.SetEnabled("toggle",true); f.input.Focus("toggle"); f.input.SetEnabled("toggle",false); f.input.Focus("choice");
+	f.input.SetEnabled("toggle",true); f.input.Focus(""); f.Press(MenuInput::Down);
+	Check(f.input.Focused() == "button","a focus set since forgets the lost control");
+}
 static void ChoicePointerAndReadback() {
 	Fixture f; f.Accept("choice"); f.input.PointerPart("choice",{},"o1"); f.input.Pointer(true); f.input.Pointer(false);
 	Check(f.Actions().empty() && f.View("choice").popupOpen,"disabled row pointer press and release cannot commit");
@@ -208,6 +270,7 @@ static void QueueBound() {
 	Check(!std::get<bool>(*a.back().proposal),"overflow did not mutate queued values");
 }
 int main() {
-	ButtonAndToggle(); AtomicReadbacks(); SliderKeyboard(); SliderPointerAndCancel(); ChoiceNavigation(); ChoicePointerAndReadback(); PersistenceAndLifetime(); QueueBound();
+	ButtonAndToggle(); AtomicReadbacks(); SliderKeyboard(); SliderPointerAndCancel(); ChoiceNavigation(); ChoiceStepping(); FocusPresentation(); LostFocusResumes();
+	ChoicePointerAndReadback(); PersistenceAndLifetime(); QueueBound();
 	std::printf("PASS: value interaction (%u assertions)\n",checks); return 0;
 }

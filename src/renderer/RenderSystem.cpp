@@ -1055,7 +1055,15 @@ void idRenderSystemLocal::SetUseUIViewportFor2D( bool enable ) {
 	const bool sameViewport=currentRenderCrop!=0 || activeRenderTexture!=NULL || (viewDef && viewDef->isEditor) ||
 		(glConfig.uiViewportX==crop.x && glConfig.vidHeight-glConfig.uiViewportY-glConfig.uiViewportHeight==crop.y &&
 		 glConfig.uiViewportWidth==crop.width && glConfig.uiViewportHeight==crop.height);
-	if (!sameViewport) FlushGui();
+	bool mustFlush = !sameViewport;
+#if !defined( OPENQ4_RENDERER_VK_MODULE )
+	// GL captures _currentRender at the start of the post-process range. Keep
+	// the final scene composite separate from a following legacy scope even
+	// when their rectangles match. Ordinary UI geometry can still batch.
+	// Vulkan captures just before the consuming pass and keeps its own ordering.
+	mustFlush = mustFlush || guiModel->HasSceneFeedback();
+#endif
+	if (mustFlush) FlushGui();
 
 	useUIViewportFor2D = enable;
 }

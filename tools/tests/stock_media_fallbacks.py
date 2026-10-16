@@ -148,7 +148,7 @@ def test_images_try_authored_media_before_shape_compatible_stock_fallbacks() -> 
             "R_SelectMissingQ4StockImageSource( imgName, currentSourceName,",
             "R_LoadImageProgram( imgName, NULL, NULL, NULL, &current );",
             "loadedSourceName.Icmp( currentSourceName )",
-            "if ( !sourceSelectionChanged && current <= sourceFileTime ) {",
+            "if ( !sourceSelectionChanged && R_ImageSourceStampCurrent( current, sourceFileTime ) ) {",
         ),
         "reload must keep a fallback source stable while allowing a new authored source to take priority",
     )

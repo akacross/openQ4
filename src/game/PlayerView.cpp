@@ -14,6 +14,8 @@
 #endif
 
 const int IMPULSE_DELAY = 150;
+static idCVar ui_retainedPauseCache( "ui_retainedPauseCache", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"reuse the paused single-player scene while keeping HUD and menu presentation live" );
 /*
 ==============
 idPlayerView::idPlayerView
@@ -122,6 +124,7 @@ idPlayerView::Restore
 ==============
 */
 void idPlayerView::Restore( idRestoreGame *savefile ) {
+	pauseSceneValid = false;
 	ResetRetainedViewEffects();
 	int i;
 	screenBlob_t *blob;
@@ -183,6 +186,7 @@ idPlayerView::SetPlayerEntity
 ==============
 */
 void idPlayerView::SetPlayerEntity( idPlayer *playerEnt ) {
+	pauseSceneValid = false;
 	player = playerEnt;
 
 	const idDict* dict = NULL;
@@ -212,6 +216,7 @@ idPlayerView::ClearEffects
 ==============
 */
 void idPlayerView::ClearEffects() {
+	pauseSceneValid = false;
 	ResetRetainedViewEffects();
 	lastDamageTime = MS2SEC( gameLocal.time - 99999 );
 
@@ -1088,10 +1093,73 @@ float idPlayerView::VRComfortVignette( const vrFrameState_t &vrFrame, float trac
 
 /*
 ===================
-idPlayerView::RenderPlayerView
+idPlayerView::DrawPausedScene
 ===================
 */
-void idPlayerView::RenderPlayerView( idUserInterface *hud ) {
+bool idPlayerView::CanReusePausedScene( const renderView_t *view ) const {
+	if ( !pauseSceneValid || !ui_retainedPauseCache.GetBool() || view == NULL ) return false;
+	renderPresentationState_t presentation;
+	renderSystem->GetPresentationState( presentation );
+	return ( presentation.frameNumber == pauseSceneFrame || presentation.frameNumber == pauseSceneFrame + 1 ) &&
+		pauseSceneWidth == renderSystem->GetScreenWidth() && pauseSceneHeight == renderSystem->GetScreenHeight() &&
+		pauseSceneGeneration == renderSystem->GetVideoRestartCount() && pauseSceneTime == gameLocal.time &&
+		pauseSceneView.vieworg == view->vieworg && pauseSceneView.viewaxis == view->viewaxis &&
+		pauseSceneView.fov_x == view->fov_x && pauseSceneView.fov_y == view->fov_y &&
+		pauseSceneView.x == view->x && pauseSceneView.y == view->y && pauseSceneView.width == view->width && pauseSceneView.height == view->height;
+}
+void idPlayerView::DrawPausedScene( idUserInterface *hud, const renderView_t *view, bool menuPaused ) {
+	if ( !menuPaused || !ui_retainedPauseCache.GetBool() ) {
+		pauseSceneValid = false;
+		SingleView( hud, view, RF_NO_GUI | RF_PRIMARY_VIEW );
+		return;
+	}
+	const int width = renderSystem->GetScreenWidth(), height = renderSystem->GetScreenHeight();
+	const int generation = renderSystem->GetVideoRestartCount();
+	renderPresentationState_t presentation;
+	renderSystem->GetPresentationState( presentation );
+	const bool newFrame = presentation.frameNumber != pauseSceneFrame;
+	const bool consecutive = presentation.frameNumber == pauseSceneFrame || presentation.frameNumber == pauseSceneFrame + 1;
+	pauseSceneFrame = presentation.frameNumber;
+	const bool cache = width > 0 && height > 0;
+	const bool sameView = pauseSceneGeneration >= 0 && pauseSceneView.vieworg == view->vieworg && pauseSceneView.viewaxis == view->viewaxis &&
+		pauseSceneView.fov_x == view->fov_x && pauseSceneView.fov_y == view->fov_y &&
+		pauseSceneView.x == view->x && pauseSceneView.y == view->y && pauseSceneView.width == view->width && pauseSceneView.height == view->height;
+	const bool stable = cache && consecutive && width == pauseSceneWidth && height == pauseSceneHeight && generation == pauseSceneGeneration &&
+		gameLocal.time == pauseSceneTime && sameView;
+	if ( !stable ) pauseSceneValid = false;
+	if ( pauseSceneValid ) {
+		const bool uiViewport = renderSystem->GetUseUIViewportFor2D();
+		renderSystem->SetUseUIViewportFor2D( false );
+		renderSystem->SetColor4( 1, 1, 1, 1 );
+		renderSystem->DrawStretchPic( 0, 0, 640, 480, 0, 1, 1, 0, declManager->FindMaterial( "_retainedPauseScene" ) );
+		renderSystem->SetUseUIViewportFor2D( uiViewport );
+		return;
+	}
+	bool capture = false;
+	if ( cache ) {
+		idImageOpts options;
+		options.width = width; options.height = height; options.format = FMT_RGBA8;
+		options.numLevels = 1; options.isPersistant = true;
+		// Resolve resources before submitting the scene. Backend allocation can
+		// synchronize queued work; the capture must follow the actual scene.
+		capture = renderSystem->CreateImage( "_retainedPauseSceneImage", &options, TF_NEAREST ) != NULL;
+		if ( capture ) declManager->FindMaterial( "_retainedPauseScene" );
+	}
+	SingleView( hud, view, RF_NO_GUI | RF_PRIMARY_VIEW );
+	if ( capture ) {
+		// The transition frame can still contain renderer resource setup. Admit
+		// only a view observed unchanged in two consecutive presentation frames,
+		// rather than freezing that first frame (black on a cold Vulkan path).
+		pauseSceneValid = stable && newFrame;
+		if ( pauseSceneValid ) renderSystem->CaptureRenderToImage( "_retainedPauseSceneImage" );
+		pauseSceneWidth = width; pauseSceneHeight = height; pauseSceneGeneration = generation;
+		pauseSceneTime = gameLocal.time; pauseSceneView = *view;
+	}
+}
+
+void idPlayerView::RenderPlayerView( idUserInterface *hud, bool menuPaused ) {
+	// A resumed frame invalidates the snapshot before any special view path.
+	if ( !menuPaused ) pauseSceneValid = false;
 	if ( !player ) {
 		return;
 	}
@@ -1128,6 +1196,7 @@ void idPlayerView::RenderPlayerView( idUserInterface *hud ) {
 	vrFrameState_t vrFrame;
 	float vrTrackingYaw = 0.0f;
 	if ( player->GetVRView( vrFrame, vrTrackingYaw ) && vrFrame.stereo ) {
+		pauseSceneValid = false;
 		LiquidOverlay( eyeLiquidContents );
 		VRView( hud, view, vrFrame, vrTrackingYaw );
 		return;
@@ -1135,16 +1204,21 @@ void idPlayerView::RenderPlayerView( idUserInterface *hud ) {
 // openQ4 END
 
 	if ( g_skipViewEffects.GetBool() ) {
-		SingleView( hud, view );
+		if ( menuPaused ) {
+			DrawPausedScene( hud, view, true );
+			SingleView( hud, view, RF_GUI_ONLY );
+		} else SingleView( hud, view );
 	} else {
 		if ( player->GetInfluenceMaterial() || player->GetInfluenceEntity() ) {
+			pauseSceneValid = false;
 			InfluenceVision( hud, view );
 			guiRendered = true;
 		} else if ( g_doubleVision.GetBool() && gameLocal.time < dvFinishTime ) {
+			pauseSceneValid = false;
 			DoubleVision( hud, view, dvFinishTime - gameLocal.time );
 			guiRendered = false;
 		} else {
-			SingleView( hud, view, RF_NO_GUI | RF_PRIMARY_VIEW );
+			DrawPausedScene( hud, view, menuPaused );
 		}
 
 // openQ4 BEGIN

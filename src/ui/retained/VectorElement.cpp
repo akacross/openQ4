@@ -8,6 +8,7 @@
 #include <RmlUi/Core/PropertyDefinition.h>
 #include <RmlUi/Core/StringUtilities.h>
 #include <RmlUi/Core/StyleSheetTypes.h>
+#include <RmlUi/Core/Transform.h>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -17,21 +18,37 @@ namespace {
 // Single-precision transform composition jitters a still element's sub-pixel
 // phase by about 1e-4 px between frames, e.g. under a rotation its child turns
 // back (the emblem glint's rim). Coverage moves no further than the phase, so
-// a phase change under 1/1024 px (a quarter of one 8-bit coverage step) keeps
-// the compiled mesh. Every other term must match exactly.
+// a change under 1/1024 px (a quarter of one 8-bit coverage step) keeps the
+// compiled mesh. Test linear-transform noise over the whole clipped region,
+// including artwork outside its authored box, rather than rounding angles.
 bool SameCompilation(const std::array<double,12>& current, const std::array<double,12>& compiled) {
-	for (size_t i = 0; i < current.size(); ++i)
-		if (i == 6 || i == 7 ? !(std::abs(current[i]-compiled[i]) < 1.0/1024) : current[i] != compiled[i]) return false;
+	for (size_t i : {0u,1u,8u,9u,10u,11u}) if (current[i]!=compiled[i]) return false;
+	constexpr double tolerance=1.0/1024;
+	if (std::equal(current.begin()+2,current.begin()+6,compiled.begin()+2))
+		return std::abs(current[6]-compiled[6])<tolerance && std::abs(current[7]-compiled[7])<tolerance;
+	// Local meshes have no output-space coverage bounds. Their scale changes
+	// still require recompilation to keep the curve subdivision tolerance.
+	if (compiled[8]>=compiled[10] || compiled[9]>=compiled[11]) return false;
+	const VectorTransform before{compiled[2],compiled[3],compiled[4],compiled[5],compiled[6],compiled[7]};
+	const VectorTransform after{current[2],current[3],current[4],current[5],current[6],current[7]};
+	VectorTransform inverse;
+	if (!before.Inverse(inverse)) return false;
+	for (double x:{compiled[8],compiled[10]}) for (double y:{compiled[9],compiled[11]}) {
+		const auto moved=after.Apply(inverse.Apply({x,y}));
+		if (!(std::abs(moved.x-x)<tolerance && std::abs(moved.y-y)<tolerance)) return false;
+	}
 	return true;
 }
 }
 void VectorGeometry::Configure(const std::vector<VectorPath>& source, Host& owner, RuntimeStatistics& measurements) {
 	paths = source; host = &owner; statistics = &measurements;
+	replayMask.reset();
 	cache.clear(); valid = renderReady = false;
 	hitGeometry.clear(); hitPrepared = hitValid = hitArea = false;
 }
 void VectorGeometry::CopyArtworkFrom(const VectorGeometry& source) {
-	paths = source.paths; host = source.host; statistics = source.statistics; multiply = {}; coverage = {};
+	paths = source.paths; host = source.host; statistics = source.statistics; linearMasks=source.linearMasks; multiply = {}; coverage = {};
+	replayMask.reset();
 	cache.clear(); valid = renderReady = false;
 	hitGeometry.clear(); hitPrepared = hitValid = hitArea = false;
 }
@@ -39,6 +56,7 @@ void VectorElement::CopyArtworkFrom(const VectorElement& source) {
 	measurements=source.measurements;
 	paint.CopyArtworkFrom(source.paint); mask.CopyArtworkFrom(source.mask);
 	hasMask = source.hasMask;
+	replayProjection = source.replayProjection;
 	legacyText=source.legacyText; legacyTextClip=source.legacyTextClip; textHost=source.textHost; text=source.text;
 	textItems.clear(); textGeometry.clear(); textTextures.clear();
 	textLayoutValid=false;
@@ -136,17 +154,22 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 		const auto p = state.transform*Rml::Vector4f(offset.x+x,offset.y+y,0,1);
 		return p;
 	};
-	const auto origin = project(0,0), x = project(density,0), y = project(0,density);
+	const auto origin = project(0,0);
+	// Transform the basis as directions. Subtracting two translated float
+	// positions loses precision for small elements far from the view origin,
+	// changing coverage even when two identical shapes differ by whole pixels.
+	const auto x = state.transform*Rml::Vector4f(density,0,0,0);
+	const auto y = state.transform*Rml::Vector4f(0,density,0,0);
 	// Canonical transforms are currently affine. Perspective world surfaces
 	// will require projected subdivision and their own surface-density contract.
-	if (origin.w <= 0 || std::abs(x.w-origin.w) > 1e-6f || std::abs(y.w-origin.w) > 1e-6f) return;
+	if (origin.w <= 0 || std::abs(x.w) > 1e-6f || std::abs(y.w) > 1e-6f) return;
 	VectorOptions options;
 	// A mask edge can cut across high-contrast glyphs and every descendant.
 	// Use a tighter physical-pixel curve bound before analytic area coverage.
 	if (!inheritOpacity) options.tolerancePixels = .025;
 	options.widthDp = size.x/density; options.heightDp = size.y/density;
-	options.transform = {(x.x-origin.x)/origin.w,(x.y-origin.y)/origin.w,
-		(y.x-origin.x)/origin.w,(y.y-origin.y)/origin.w,origin.x/origin.w,origin.y/origin.w};
+	options.transform = {x.x/origin.w,x.y/origin.w,
+		y.x/origin.w,y.y/origin.w,origin.x/origin.w,origin.y/origin.w};
 	for (double value : {options.transform.a,options.transform.b,options.transform.c,options.transform.d,options.transform.tx,options.transform.ty}) {
 		if (!std::isfinite(value)) { host->Log(true,"Vector "+element.GetId()+": non-finite output transform"); return; }
 	}
@@ -168,6 +191,13 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 			{float(output.tx),float(output.ty),0,1});
 		options.transform = {scale,0,0,scale,0,0};
 	}
+	// Keep the existing sub-1/1024-pixel cache tolerance continuous across
+	// integer phases: cancellation noise around zero must not alternate
+	// between phase 0 at offset 0 and phase 1 at offset -1.
+	for (double* translation:{&options.transform.tx,&options.transform.ty}) {
+		const double integer=std::round(*translation);
+		if (std::abs(*translation-integer)<1.0/1024) *translation=integer;
+	}
 	VectorPixelBounds bounds{0,0,viewport.x,viewport.y};
 	if (state.scissor_region.Valid()) {
 		bounds.left = std::clamp(state.scissor_region.Left(),0,viewport.x);
@@ -176,6 +206,26 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 		bounds.bottom = std::clamp(state.scissor_region.Bottom(),bounds.top,viewport.y);
 	}
 	if (bounds.left == bounds.right || bounds.top == bounds.bottom) return;
+	// Only moving masks need this path: stationary masks keep their completed
+	// layer/coverage caches. Admission submits no pixels on failure.
+	if (!inheritOpacity && linearMasks && paths.size()==1 && valid &&
+		(replayMask || previous[2]!=options.transform.a || previous[3]!=options.transform.b ||
+		 previous[4]!=options.transform.c || previous[5]!=options.transform.d)) {
+		LinearMask mask;
+		const bool resolved=ResolveLinearMask(paths.front(),options,mask);
+		if (resolved) {
+			if (!replayMask) replayMask=std::make_shared<LinearMask>();
+			*replayMask=mask;
+		}
+		if (resolved && linearMasks->SubmitLinearMask(mask,replayMask)) {
+			previous[0]=options.widthDp; previous[1]=options.heightDp;
+			previous[2]=options.transform.a; previous[3]=options.transform.b;
+			previous[4]=options.transform.c; previous[5]=options.transform.d;
+			previousX=options.transform.tx; previousY=options.transform.ty;
+			cache.clear(); return;
+		}
+	}
+	replayMask.reset();
 	// An element sliding by translation alone since its last render: same size
 	// and linear transform, another position.
 	const double absoluteX = options.transform.tx, absoluteY = options.transform.ty;
@@ -298,6 +348,67 @@ void VectorGeometry::Render(Rml::Element& element, bool inheritOpacity) {
 	cachedTranslation={static_cast<float>(offsetX+residualX),static_cast<float>(offsetY+residualY)};
 	renderReady=true; drawCached();
 }
+bool VectorGeometry::UpdateReplayProjection(Rml::Element& element, const Rml::Matrix4f& transform) {
+	if (paths.empty()) return true;
+	const auto* context=element.GetContext();
+	if (!context) return false;
+	const float density=context->GetDensityIndependentPixelRatio();
+	const auto size=element.GetBox().GetSize(Rml::BoxArea::Border);
+	const auto offset=element.GetAbsoluteOffset(Rml::BoxArea::Border);
+	if (!(density>0 && size.x>0 && size.y>0)) return false;
+	const auto origin=transform*Rml::Vector4f(offset.x,offset.y,0,1);
+	const auto x=transform*Rml::Vector4f(density,0,0,0), y=transform*Rml::Vector4f(0,density,0,0);
+	if (!(origin.w>0) || std::abs(x.w)>1e-6f || std::abs(y.w)>1e-6f) return false;
+	VectorOptions options;
+	options.widthDp=size.x/density; options.heightDp=size.y/density;
+	options.transform={x.x/origin.w,x.y/origin.w,y.x/origin.w,y.y/origin.w,origin.x/origin.w,origin.y/origin.w};
+	for (double value:{options.transform.a,options.transform.b,options.transform.c,options.transform.d,options.transform.tx,options.transform.ty})
+		if (!std::isfinite(value)) return false;
+	for (double* translation:{&options.transform.tx,&options.transform.ty}) {
+		const double integer=std::round(*translation);
+		if (std::abs(*translation-integer)<1.0/1024) *translation=integer;
+	}
+	if (replayMask && paths.size()==1) {
+		LinearMask next;
+		if (!ResolveLinearMask(paths.front(),options,next)) return false;
+		*replayMask=next; return true;
+	}
+	if (!renderReady || cache.empty() || cachedLocalMesh) return false;
+	const auto& compiled=cache.front().signature;
+	auto projected=compiled;
+	projected[0]=options.widthDp; projected[1]=options.heightDp;
+	projected[2]=options.transform.a; projected[3]=options.transform.b;
+	projected[4]=options.transform.c; projected[5]=options.transform.d;
+	projected[6]=options.transform.tx-cachedTranslation.x;
+	projected[7]=options.transform.ty-cachedTranslation.y;
+	// Compare against the recorded coverage, never the preceding replay, so
+	// many tiny changes cannot accumulate into a visible displacement. The
+	// compilation's padded bounds also cover paths outside their border box.
+	return SameCompilation(projected,compiled);
+}
+bool VectorElement::UpdateReplayProjection() {
+	if (!replayProjection || !GetRenderManager()) return false;
+	// A timeline/binding can add a property absent from the initial node.
+	// Such RmlUi paint or clipping also depends on projection and is not in
+	// the vector compilation checked below.
+	const auto& values=GetComputedValues();
+	if (values.background_color().alpha || values.border_top_width() || values.border_right_width() ||
+		values.border_bottom_width() || values.border_left_width() || values.has_decorator() || values.has_backdrop_filter() || values.has_box_shadow() ||
+		values.overflow_x()!=Rml::Style::Overflow::Visible || values.overflow_y()!=Rml::Style::Overflow::Visible) return false;
+	auto* manager=GetRenderManager();
+	const auto state=manager->GetState();
+	const bool transformed=Rml::ElementUtilities::ApplyTransform(*this);
+	const auto transform=manager->GetState().transform;
+	manager->SetState(state);
+	if (!transformed || !paint.UpdateReplayProjection(*this,transform) ||
+		(hasMask && !mask.UpdateReplayProjection(*this,transform))) return false;
+	for (int i=0;i<GetNumChildren();++i) {
+		auto* child=GetChild(i);
+		if ((child->GetTagName()!="q4-node" && child->GetTagName()!="q4-vector") ||
+			!static_cast<VectorElement*>(child)->UpdateReplayProjection()) return false;
+	}
+	return true;
+}
 void VectorElement::SetCanonicalText(const std::string& value) {
 	if (legacyText) text=value;
 	else SetInnerRML(Rml::StringUtilities::EncodeRml(value));
@@ -331,6 +442,19 @@ void VectorElement::SetImageCoordinate(const std::string& property, double value
 }
 bool VectorElement::SetPresentationOpacity(const std::string& filter, float density, Rml::Vector2f dimensions) {
 	if (!SetProperty("filter",filter)) return false;
+	UpdateProperties(density,dimensions);
+	return true;
+}
+bool VectorElement::SetPresentationTransform(const Value& transform, float density, Rml::Vector2f dimensions) {
+	if (transform.type!=ValueType::Transform || (transform.unit!="dp" && transform.unit!="px")) return false;
+	const auto& v=transform.data;
+	const auto unit=transform.unit=="dp" ? Rml::Unit::DP : Rml::Unit::PX;
+	// Motion is already typed. Preserve the authored primitive order and
+	// units without formatting and parsing the same CSS on every sample.
+	if (!SetProperty(Rml::PropertyId::Transform,Rml::Transform::MakeProperty({
+		Rml::Transforms::Translate2D(float(v[0]),float(v[1]),unit),
+		Rml::Transforms::Scale2D(float(v[2]),float(v[3])),
+		Rml::Transforms::Rotate2D(float(v[4]))}))) return false;
 	UpdateProperties(density,dimensions);
 	return true;
 }
@@ -425,13 +549,33 @@ void VectorElement::RenderLegacyText() {
 void VectorElement::Configure(const Node& node, Host& owner, RuntimeStatistics& measurements) {
 	this->measurements=&measurements;
 	hasMask = node.mask.has_value();
+	// Restrict projection replay to plain vector branches. Native text,
+	// images, overflow clips, borders, backdrops and controls keep traversal.
+	replayProjection=(node.type=="group" || node.type=="vector") && !node.control && !node.modal && !node.legacyText &&
+		std::all_of(node.properties.begin(),node.properties.end(),[](const auto& property) {
+			// Told apart by the first letter before a comparison: a page's tens
+			// of thousands of properties pass here on every load.
+			const auto& name=property.first;
+			switch (name.empty() ? 0 : name[0]) {
+			case 'p': return name=="position";
+			case 'l': return name=="left";
+			case 't': return name=="top" || name=="transform";
+			case 'r': return name=="right";
+			case 'b': return name=="bottom";
+			case 'w': return name=="width";
+			case 'h': return name=="height";
+			case 'd': return name=="display";
+			case 'o': return name=="opacity";
+			default: return false;
+			}
+		});
 	legacyText=node.legacyText; legacyTextClip=node.legacyTextClip; textHost=&owner;
 	textItems.clear(); textGeometry.clear(); textTextures.clear();
 	textLayoutValid=false;
 	paint.Configure(node.paths,owner,measurements);
 	mask.Configure(node.mask ? *node.mask : std::vector<VectorPath>{},owner,measurements);
 	coordinatesImage=HasImageCoordinates(node);
-	replayOpacity=node.children.empty() && node.paths.empty() && !hasMask && !node.control && (node.type=="text" || coordinatesImage) ?
+	replayOpacity=node.children.empty() && node.paths.empty() && !hasMask && !node.control && (node.type=="text" || node.type=="image" || coordinatesImage) ?
 		std::make_shared<float>(1.f) : nullptr;
 	replayText=replayOpacity && node.type=="text" && !node.properties.contains("image");
 	additiveImage=node.properties.contains("image-blend") && node.properties.at("image-blend").text=="additive";

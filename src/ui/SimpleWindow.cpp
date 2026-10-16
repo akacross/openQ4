@@ -33,6 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Window.h"
 #include "UserInterfaceLocal.h"
 #include "RetainedHud.h"
+#include "LegacyGuiLayout.h"
 #include "AudioGraph.h"
 #include "SimpleWindow.h"
 
@@ -486,6 +487,8 @@ void idSimpleWindow::CalcClientRect(float xofs, float yofs) {
 		}
 
 		AdjustTournamentWarmupLayout( gui, name.c_str(), mParent != NULL ? mParent->GetName() : NULL, xofs, xExpand, drawRect );
+		OpenQ4_ExpandLegacyMessageBackdrop( gui != NULL ? gui->GetSourceFile() : NULL,
+			name.c_str(), xExpand, yExpand, drawRect );
 	}
 
 	clientRect = drawRect;

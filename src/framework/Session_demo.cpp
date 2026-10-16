@@ -497,6 +497,38 @@ static void Session_OpenQ4DemoLibrary_f( const idCmdArgs &args ) {
 
 }
 
+bool Session_DemoEntryMatchesFilter( const demoLibraryEntry_t &entry, const char *filter ) {
+	return DemoEntryMatchesFilter( entry, filter != NULL ? filter : DEMO_FILTER_ALL );
+}
+
+// The row caps its columns as the legacy browser's list does; the detail
+// lines keep the format's player-facing revision, the status and the first
+// line of the details.
+void Session_DemoEntryText( const demoLibraryEntry_t &entry, sessionDemoText_t &out ) {
+	out.name = DemoEllipsizeText( entry.displayName, 28 );
+	out.map = DemoEllipsizeText( entry.mapName.IsEmpty() ? "-" : entry.mapName.c_str(), 18 );
+	if ( entry.timestamp > 0 ) {
+		out.date = DemoSanitizeText( Sys_TimeStampToStr( entry.timestamp ), 32 );
+		out.date.CapLength( 10 );
+	} else {
+		out.date = "-";
+	}
+	out.length = DemoFormatTime( entry.durationMS );
+	idStr kind = entry.format;
+	const int separator = kind.Find( " / " );
+	if ( separator >= 0 ) {
+		kind.CapLength( separator );
+	}
+	out.kind = DemoEllipsizeText( kind, 28 );
+	out.status = DemoEllipsizeText( entry.status, 28 );
+	idStr detail = entry.details;
+	const int newline = detail.Find( '\n' );
+	if ( newline >= 0 ) {
+		detail.CapLength( newline );
+	}
+	out.detail = DemoEllipsizeText( detail, 28 );
+}
+
 /*
 ================
 idSessionLocal::InitDemoSystem
@@ -546,6 +578,21 @@ idSessionLocal::RefreshDemoLibrary
 ================
 */
 void idSessionLocal::RefreshDemoLibrary() {
+	ScanDemoLibrary();
+	if ( guiDemoList == NULL || guiDemoMenu == NULL ) {
+		return;
+	}
+	RefreshDemoLibraryList();
+}
+
+/*
+================
+idSessionLocal::ScanDemoLibrary
+
+Every recording under demos/, probed, newest first.
+================
+*/
+void idSessionLocal::ScanDemoLibrary() {
 	idStrList paths;
 	DemoCollectExtension( paths, ".mvd" );
 	DemoCollectExtension( paths, ".demo" );
@@ -572,11 +619,16 @@ void idSessionLocal::RefreshDemoLibrary() {
 		}
 		demoLibrary.Insert( entry, insertAt );
 	}
+}
 
-	if ( guiDemoList == NULL || guiDemoMenu == NULL ) {
-		return;
-	}
+/*
+================
+idSessionLocal::RefreshDemoLibraryList
 
+The legacy browser's list, from the scanned library.
+================
+*/
+void idSessionLocal::RefreshDemoLibraryList() {
 	idListGUILocal *list = static_cast<idListGUILocal *>( guiDemoList );
 	list->SetStateChanges( false );
 	list->Clear();
@@ -1150,6 +1202,69 @@ void idSessionLocal::StopDemoPlayback() {
 
 /*
 ================
+idSessionLocal::PlayDemoLibraryEntry
+
+Plays a library entry, as the browser's Play does. False when it cannot
+play or a render or command demo could not start; the menus are then left
+to the caller.
+================
+*/
+bool idSessionLocal::PlayDemoLibraryEntry( int index ) {
+	if ( index < 0 || index >= demoLibrary.Num() || ( demoLibrary[index].capabilities & DEMO_CAP_PLAY ) == 0 ) {
+		return false;
+	}
+	const demoLibraryEntry_t entry = demoLibrary[index];
+	guiActive = NULL;
+	demoReturnGui = NULL;
+	demoBrowserMode = false;
+	demoOverlayVisible = true;
+	if ( entry.type == DEMO_LIBRARY_MVD ) {
+		idCmdArgs play;
+		play.AppendArg( "playMVD" );
+		play.AppendArg( entry.path.c_str() );
+		idMultiViewDemo::Play_f( play );
+	} else if ( entry.type == DEMO_LIBRARY_RENDER ) {
+		StartPlayingRenderDemo( entry.path );
+		return readDemo != NULL;
+	} else if ( entry.type == DEMO_LIBRARY_COMMAND ) {
+		idStr commandName = entry.path;
+		if ( idStr::Icmpn( commandName.c_str(), "demos/", 6 ) == 0 ) {
+			commandName = commandName.c_str() + 6;
+		}
+		StartPlayingCmdDemo( commandName.c_str() );
+		return cmdDemoFile != NULL;
+	}
+	return true;
+}
+
+/*
+================
+idSessionLocal::DeleteDemoLibraryFile
+
+Deletes a library entry's recording, which must lie in the save path's
+demo directory. The caller asked first and rescans after.
+================
+*/
+bool idSessionLocal::DeleteDemoLibraryFile( const demoLibraryEntry_t &entry ) {
+	if ( ( entry.capabilities & DEMO_CAP_DELETE ) == 0 || !DemoPathIsSafe( entry.path ) ) {
+		return false;
+	}
+	const idStr saveDemoRoot = fileSystem->RelativePathToOSPath( "demos", "fs_savepath" );
+	const idStr explicitPath = fileSystem->RelativePathToOSPath( entry.path.c_str(), "fs_savepath" );
+	if ( explicitPath.Icmpn( saveDemoRoot.c_str(), saveDemoRoot.Length() ) != 0 ||
+		 !DemoEntryCanDelete( entry.path ) ) {
+		common->Warning( "Refusing to delete demo outside the save-path demo directory" );
+		return false;
+	}
+	if ( fileSystem->RemoveExplicitFile( explicitPath.c_str() ) != 0 ) {
+		common->Warning( "Could not delete demo '%s'", entry.path.c_str() );
+		return false;
+	}
+	return true;
+}
+
+/*
+================
 idSessionLocal::HandleDemoMenuCommand
 ================
 */
@@ -1221,30 +1336,8 @@ bool idSessionLocal::HandleDemoMenuCommand( const char *menuCommand ) {
 			MessageBox( MSG_OK, entry.details.c_str(), entry.status.c_str(), true );
 			return true;
 		}
-
-		guiActive = NULL;
-		demoReturnGui = NULL;
-		demoBrowserMode = false;
-		demoOverlayVisible = true;
-		if ( entry.type == DEMO_LIBRARY_MVD ) {
-			idCmdArgs play;
-			play.AppendArg( "playMVD" );
-			play.AppendArg( entry.path.c_str() );
-			idMultiViewDemo::Play_f( play );
-		} else if ( entry.type == DEMO_LIBRARY_RENDER ) {
-			StartPlayingRenderDemo( entry.path );
-			if ( readDemo == NULL ) {
-				OpenDemoMenu( true );
-			}
-		} else if ( entry.type == DEMO_LIBRARY_COMMAND ) {
-			idStr commandName = entry.path;
-			if ( idStr::Icmpn( commandName.c_str(), "demos/", 6 ) == 0 ) {
-				commandName = commandName.c_str() + 6;
-			}
-			StartPlayingCmdDemo( commandName.c_str() );
-			if ( cmdDemoFile == NULL ) {
-				OpenDemoMenu( true );
-			}
+		if ( !PlayDemoLibraryEntry( selection ) ) {
+			OpenDemoMenu( true );
 		}
 		return true;
 	}
@@ -1270,16 +1363,7 @@ bool idSessionLocal::HandleDemoMenuCommand( const char *menuCommand ) {
 			return true;
 		}
 
-		const idStr saveDemoRoot = fileSystem->RelativePathToOSPath( "demos", "fs_savepath" );
-		const idStr explicitPath = fileSystem->RelativePathToOSPath( entry.path.c_str(), "fs_savepath" );
-		if ( explicitPath.Icmpn( saveDemoRoot.c_str(), saveDemoRoot.Length() ) != 0 ||
-			 !DemoEntryCanDelete( entry.path ) ) {
-			common->Warning( "Refusing to delete demo outside the save-path demo directory" );
-			return true;
-		}
-		if ( fileSystem->RemoveExplicitFile( explicitPath.c_str() ) != 0 ) {
-			common->Warning( "Could not delete demo '%s'", entry.path.c_str() );
-		}
+		DeleteDemoLibraryFile( entry );
 		demoSelectedPath.Clear();
 		RefreshDemoLibrary();
 		return true;

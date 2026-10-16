@@ -38,6 +38,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Window.h"
 #include "LegacyGuiImport.h"
 #include "UserInterfaceLocal.h"
+#include "GuiStateNumber.h"
 #include "UserInterfaceDeferred.h"
 #ifndef ID_DEDICATED
 #include "UserInterfaceRetained.h"
@@ -49,14 +50,76 @@ If you have questions concerning this license or the applicable additional terms
 #include "RetainedUI.h"
 #include "RetainedHud.h"
 #include <limits>
+#include <cstring>
+#include <unordered_set>
+#include "../idlib/ParserSourceObserver.h"
+#include "../framework/DeclReferenceObserver.h"
 
 extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
 extern idCVar gui_debugScript;
 idCVar ui_aspectCorrection( "ui_aspectCorrection", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_BOOL,
 	"preserve classic 4:3 layout for 2D UI (menu, HUD, console, loading/init); 0 = stretch to full 2D viewport" );
+static idCVar ui_retainedHudStateCache( "ui_retainedHudStateCache", "1", CVAR_GUI | CVAR_BOOL | CVAR_NOCHEAT,
+	"reuse unchanged stock HUD state evaluation between events while its retained peer draws" );
 
 idUserInterfaceManagerLocal	uiManagerLocal;
 idUserInterfaceManager *	uiManager = &uiManagerLocal;
+
+// Only loaded source bytes and declaration identities are cached, never a
+// timestamp-only promise. Explicit reload and language changes still parse.
+struct LegacyLevelLoadCache {
+    struct Source { std::string path, bytes; bool missing; };
+    struct Resource { const idDecl* parsed; declType_t type; std::string name; bool guiSort; };
+    std::vector<Source> sources;
+    std::vector<Resource> resources;
+    std::unordered_set<const idDecl*> seen;
+    std::string windowDefaults;
+    bool valid = false;
+    static void SourceRead(void* context, const char* path, const char* data, int size) {
+        auto& cache = *static_cast<LegacyLevelLoadCache*>(context);
+        for (const auto& source : cache.sources) if (source.path == path) return;
+        cache.sources.push_back({path, data && size >= 0 ? std::string(data, size) : std::string(), size < 0});
+    }
+    static void Referenced(void* context, const idDecl* decl) {
+        auto& cache = *static_cast<LegacyLevelLoadCache*>(context);
+        if (decl && cache.seen.insert(decl).second) cache.resources.push_back({decl, decl->GetType(), decl->GetName(), false});
+    }
+    void Finish(bool loaded) {
+        valid = loaded && !sources.empty();
+        if (!valid) return;
+        for (auto& resource : resources) {
+            if (resource.type == DECL_MATERIAL)
+                resource.guiSort = static_cast<const idMaterial*>(resource.parsed)->GetSort() == SS_GUI;
+            resource.parsed = nullptr;
+        }
+        std::unordered_set<const idDecl*>().swap(seen);
+    }
+    size_t Size() const {
+        size_t size = sizeof(*this) + sources.capacity() * sizeof(Source) + resources.capacity() * sizeof(Resource);
+        for (const auto& source : sources) size += source.path.capacity() + source.bytes.capacity();
+        for (const auto& resource : resources) size += resource.name.capacity();
+        return size + windowDefaults.capacity();
+    }
+    bool Unchanged() const {
+        if (!valid) return false;
+        for (const auto& source : sources) {
+            void* data = nullptr;
+            const int size = fileSystem->ReadFile(source.path.c_str(), &data);
+            const bool same = source.missing ? size < 0 : size >= 0 && data &&
+                static_cast<size_t>(size) == source.bytes.size() &&
+                std::memcmp(data, source.bytes.data(), source.bytes.size()) == 0;
+            if (data) fileSystem->FreeFile(data);
+            if (!same) return false;
+        }
+        return true;
+    }
+    void Reference() const {
+        for (const auto& resource : resources) {
+            const idDecl* decl = declManager->FindType(resource.type, resource.name.c_str());
+            if (resource.guiSort) static_cast<const idMaterial*>(decl)->SetSort(SS_GUI);
+        }
+    }
+};
 
 idUserInterfaceManaged::idUserInterfaceManaged( bool managed ) : refs( 1 ), allocationId( 0 ), managed( managed ) {
 	if ( managed ) {
@@ -124,6 +187,10 @@ bool UI_TakeSessionRequest( idUserInterface *gui, const char *command, idStr &re
 
 void UI_RunTimeEvents( idUserInterface *gui, int time ) {
 	uiManagerLocal.RunTimeEvents( gui, time );
+}
+
+void UI_ReloadForLevelLoad() {
+	uiManagerLocal.ReloadForLevelLoad();
 }
 
 void idUserInterfaceManagerLocal::RunTimeEvents( idUserInterface *gui, int time ) {
@@ -534,6 +601,13 @@ bool idUserInterfaceManagerLocal::DispatchApplicationActions( idUserInterface *g
 			if (!MakeTextInputCommit(selection,checked,error)) continue;
 			if (request.operation != uiClipboardOperation_t::Copy && request.operation != uiClipboardOperation_t::Cut &&
 				request.operation != uiClipboardOperation_t::Paste) continue;
+			// A masked field's text never reaches the clipboard: copying or
+			// cutting a selection there is refused and said. Paste still works.
+			if (before.editor.masked && request.operation != uiClipboardOperation_t::Paste) {
+				if (!selection.empty() && !clipboardBoundaryFailed) if (auto* live = resolve())
+					live->SetClipboardNotice(request.target,NumberEditNotice::ClipboardMasked,error);
+				continue;
+			}
 			std::string paste; bool succeeded = true;
 			NumberEditNotice notice = NumberEditNotice::None;
 			try {
@@ -637,15 +711,11 @@ static idWinVar *FindPresentationVariable( idWindow *desktop, const char *name )
 	return target->simp != NULL ? target->simp->GetWinVarByName( key.c_str() ) : NULL;
 }
 
-static void SetStateRectangleComponents( idUserInterfaceLocal *gui, const char *prefix, const idRectangle &rect ) {
-	if ( gui == NULL || prefix == NULL ) {
-		return;
-	}
-
-	gui->SetStateFloat( va( "%s_x", prefix ), rect.x );
-	gui->SetStateFloat( va( "%s_y", prefix ), rect.y );
-	gui->SetStateFloat( va( "%s_w", prefix ), rect.w );
-	gui->SetStateFloat( va( "%s_h", prefix ), rect.h );
+static void SetStateRectangleComponents( idUserInterfaceLocal *gui, const char *const (&names)[4], const idRectangle &rect ) {
+	gui->SetStateFloat( names[0], rect.x );
+	gui->SetStateFloat( names[1], rect.y );
+	gui->SetStateFloat( names[2], rect.w );
+	gui->SetStateFloat( names[3], rect.h );
 }
 
 }
@@ -666,6 +736,7 @@ bool idUserInterfaceLocal::GetPresentationValue( const char *name, idStr &value 
 }
 
 bool idUserInterfaceLocal::SetPresentationValue( const char *name, const char *value, bool overrideExpression ) {
+	evaluatedHudValid = false;
 	if ( value == NULL ) {
 		return false;
 	}
@@ -684,6 +755,7 @@ bool idUserInterfaceLocal::SetPresentationValue( const char *name, const char *v
 // visible and accept events. The command comes back instead of being queued,
 // so the caller dispatches it as the click's own HandleEvent result would be.
 bool idUserInterfaceLocal::RunWindowAction( const char *windowName, bool back, idStr &command ) {
+	evaluatedHudValid = false;
 	command.Clear();
 	if ( desktop == NULL || windowName == NULL || windowName[ 0 ] == '\0' ) {
 		return false;
@@ -723,6 +795,15 @@ bool idUserInterfaceLocal::HasWindow( const char *windowName ) const {
 bool UI_LegacyWindowExists( idUserInterface *gui, const char *windowName ) {
 	const idUserInterfaceLocal *legacy = dynamic_cast<idUserInterfaceLocal *>( gui );
 	return legacy != NULL && legacy->HasWindow( windowName );
+}
+
+bool idUserInterfaceLocal::HasNamedEvent( const char *eventName ) const {
+	return desktop != NULL && eventName != NULL && eventName[ 0 ] != '\0' && desktop->HasNamedEvent( eventName );
+}
+
+bool UI_LegacyNamedEventExists( idUserInterface *gui, const char *eventName ) {
+	const idUserInterfaceLocal *legacy = dynamic_cast<idUserInterfaceLocal *>( gui );
+	return legacy != NULL && legacy->HasNamedEvent( eventName );
 }
 
 bool idUserInterfaceLocal::GetTextInputState( idRectangle &area, float &cursorOffset ) const {
@@ -855,6 +936,17 @@ void idUserInterfaceManagerLocal::RegisterIcon( const char *code, const char *sh
 // RAVEN END
 
 void idUserInterfaceManagerLocal::Reload( bool all ) {
+	ReloadGuis( all, false );
+}
+
+// A map change's reload, after BeginLevelLoad: every GUI re-initializes so
+// that the media it references resolve again inside the load, whose purge
+// defaulted them. A GUI that can keep what it has loaded does so instead.
+void idUserInterfaceManagerLocal::ReloadForLevelLoad() {
+	ReloadGuis( true, true );
+}
+
+void idUserInterfaceManagerLocal::ReloadGuis( bool all, bool levelLoad ) {
 	ID_TIME_T ts;
 
 	const idList<idUserInterfaceManaged*> reloadGuis = guis;
@@ -865,6 +957,9 @@ void idUserInterfaceManagerLocal::Reload( bool all ) {
 	for ( int i = 0; i < reloadGuis.Num(); i++ ) {
 		idUserInterfaceManaged *gui = reloadGuis[ i ];
 		if ( guis.Find( gui ) == NULL || gui->allocationId != identities[ i ] ) {
+			continue;
+		}
+		if ( levelLoad && gui->KeepForLevelLoad() ) {
 			continue;
 		}
 		// InitFromFile may replace the owned source string while parsing.
@@ -1104,10 +1199,13 @@ bool idUserInterfaceLocal::IsInteractive() const {
 }
 
 void idUserInterfaceLocal::SetInteractive(bool interactive) {
+	evaluatedHudValid = false;
 	this->interactive = interactive;
 }
 
 bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool cache ) { 
+	evaluatedHudValid = false;
+	evaluatedHudState.Clear();
 	delete retainedHud; retainedHud = NULL;
 	delete remastered; remastered = NULL;
 
@@ -1116,6 +1214,8 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	}
 
 	loading = true;
+	levelLoadCache.reset( new LegacyLevelLoadCache );
+	idDeclReferenceObserver mediaObserver( levelLoadCache.get(), LegacyLevelLoadCache::Referenced );
 
 	if ( rebuild ) {
 		delete desktop;
@@ -1128,7 +1228,10 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	source = qpath;
 	state.Set( "text", "Test Text!" );
 
+	bool parseOk = true;
 	idParser src( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_ALLOWMULTICHARLITERALS | LEXFL_ALLOWBACKSLASHSTRINGCONCAT );
+
+	idParserSourceObserver sourceObserver( &src, levelLoadCache.get(), LegacyLevelLoadCache::SourceRead );
 
 	//Load the timestamp so reload guis will work correctly
 	fileSystem->ReadFile(qpath, NULL, &timeStamp);
@@ -1143,6 +1246,8 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 				if ( desktop->Parse( &src, rebuild ) ) {
 					desktop->SetFlag( WIN_DESKTOP );
 					desktop->FixupParms();
+				} else {
+					parseOk = false;
 				}
 				continue;
 			}
@@ -1187,7 +1292,25 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 			desktop->SetFocus(chatWindow, false);
 		}
 	}
+	// The Remastered layout's document loads with its stock HUD, inside the
+	// level load, so the first gameplay frame draws it without loading it
+	// then: the documents the level's prefetch expects, since a HUD a level
+	// only precaches never draws. A save restore keeps the load for the first draw.
+	if ( const char *document = idRemasteredHud::DocumentFor( source.c_str() );
+			document != NULL && idRemasteredHud::Enabled() && src.IsLoaded() && parseOk && UI_RetainedPrefetched( document ) ) {
+		remastered = new idRemasteredHud( document );
+		remastered->Preload( source.c_str() );
+	}
 	UI_LegacyObservationLoaded(this,src.IsLoaded());
+	levelLoadCache->Finish( src.IsLoaded() && parseOk && rebuild );
+	if (levelLoadCache->valid && desktop->CanKeepForLevelLoad()) {
+		// Restore authored window/script values, not a previous menu subpage.
+		// The dictionary remains live, exactly as it does across InitFromFile.
+		desktop->CaptureForLevelLoad();
+		idFile_Memory defaults;
+		desktop->WriteToSaveGame(&defaults);
+		levelLoadCache->windowDefaults.assign(defaults.GetDataPtr(), defaults.Length());
+	}
 	interactive = desktop->Interactive();
 
 	RegisterLoaded();
@@ -1199,7 +1322,32 @@ bool idUserInterfaceLocal::InitFromFile( const char *qpath, bool rebuild, bool c
 	return true; 
 }
 
+bool idUserInterfaceLocal::KeepForLevelLoad() {
+    if (!desktop || !levelLoadCache || !desktop->CanKeepForLevelLoad() || !levelLoadCache->Unchanged()) return false;
+    // Re-find parse-time references before touching live pointers: a purged
+    // declaration retains its identity but its contents have been defaulted.
+    levelLoadCache->Reference();
+    state.Set("text", "Test Text!");
+    state.Set("name", source.c_str());
+    idFile_Memory defaults("GUI level-load defaults", levelLoadCache->windowDefaults.c_str(),
+        static_cast<int>(levelLoadCache->windowDefaults.size()));
+    desktop->ReadFromSaveGame(&defaults);
+    desktop->RefreshForLevelLoad();
+    // Preserve the parsed tree, but repeat the backend initialization and
+    // activation work that a map-change reload performed.
+    initialized = false;
+    lightColorVar = NULL;
+    interactive = desktop->Interactive();
+    if (active) Activate(true, common->GetPresentationTime());
+    bindHandler = NULL;
+    pendingCmd.Clear();
+    returnCmd.Clear();
+    common->Printf("STOCK_GUI_KEPT %s\n", source.c_str());
+    return true;
+}
+
 const char *idUserInterfaceLocal::HandleEvent( const sysEvent_t *event, int _time, bool *updateVisuals ) {
+	evaluatedHudValid = false;
 
 	time = _time;
 
@@ -1227,6 +1375,7 @@ const char *idUserInterfaceLocal::HandleEvent( const sysEvent_t *event, int _tim
 }
 
 void idUserInterfaceLocal::HandleNamedEvent ( const char* eventName ) {
+	evaluatedHudValid = false;
 	desktop->RunNamedEvent( eventName );
 	// The Remastered layout answers the same events as the stock windows,
 	// including those sent before its first frame, which it replays.
@@ -1287,11 +1436,11 @@ void idUserInterfaceLocal::Redraw( int _time, bool useAspectCorrection ) {
 		idRectangle cinematicRightBar;
 		idRectangle cinematicVisibleArea;
 		uiManagerLocal.dc.GetCinematic16x9Bars( desktop->forceAspectWidth, desktop->forceAspectHeight, cinematicTopBar, cinematicBottomBar, cinematicLeftBar, cinematicRightBar, cinematicVisibleArea );
-		SetStateRectangleComponents( this, "cinematic_bar_top", cinematicTopBar );
-		SetStateRectangleComponents( this, "cinematic_bar_bottom", cinematicBottomBar );
-		SetStateRectangleComponents( this, "cinematic_bar_left", cinematicLeftBar );
-		SetStateRectangleComponents( this, "cinematic_bar_right", cinematicRightBar );
-		SetStateRectangleComponents( this, "cinematic_visible_area", cinematicVisibleArea );
+		SetStateRectangleComponents( this, { "cinematic_bar_top_x", "cinematic_bar_top_y", "cinematic_bar_top_w", "cinematic_bar_top_h" }, cinematicTopBar );
+		SetStateRectangleComponents( this, { "cinematic_bar_bottom_x", "cinematic_bar_bottom_y", "cinematic_bar_bottom_w", "cinematic_bar_bottom_h" }, cinematicBottomBar );
+		SetStateRectangleComponents( this, { "cinematic_bar_left_x", "cinematic_bar_left_y", "cinematic_bar_left_w", "cinematic_bar_left_h" }, cinematicLeftBar );
+		SetStateRectangleComponents( this, { "cinematic_bar_right_x", "cinematic_bar_right_y", "cinematic_bar_right_w", "cinematic_bar_right_h" }, cinematicRightBar );
+		SetStateRectangleComponents( this, { "cinematic_visible_area_x", "cinematic_visible_area_y", "cinematic_visible_area_w", "cinematic_visible_area_h" }, cinematicVisibleArea );
 
 		if ( gui_debugScript.GetInteger() > 4 ) {
 			static int lastDebugRedrawTime = -10000;
@@ -1308,6 +1457,7 @@ void idUserInterfaceLocal::Redraw( int _time, bool useAspectCorrection ) {
 			}
 		}
 		if ( useAspectCorrection && DrawRemasteredHud( _time ) ) return;
+		evaluatedHudValid = false;
 		if ( useAspectCorrection && DrawRetainedHud() ) return;
 		uiManagerLocal.dc.PushClipRect( uiManagerLocal.screenRect );
 		desktop->Redraw( 0, 0 );
@@ -1337,6 +1487,18 @@ void idUserInterfaceLocal::DeleteStateVar( const char *varName ) {
 	}
 }
 
+// Game HUDs republish many unchanged fields between simulation tics. Preserve
+// publication to the replacement (events may have changed its value), while
+// avoiding a redundant pooled-string allocation and release in the stock dict.
+static const char *SetGuiDictionaryValue( idDict &state, const char *name, const char *value ) {
+	const idKeyValue *entry = state.FindKey( name );
+	if ( entry && entry->GetValue() == value ) return entry->GetValue().c_str();
+	state.Set( name, value );
+	// Updating an existing entry keeps its address. Its old pooled value may
+	// have supplied name, so do not look up that potentially freed string again.
+	return entry ? entry->GetValue().c_str() : state.GetString( name );
+}
+
 void idUserInterfaceLocal::SetStateString( const char *varName, const char *value ) {
 	// Log before storing: Set frees the pooled old string once nothing else
 	// shares it, and the caller's pointers may point into that string too.
@@ -1347,48 +1509,54 @@ void idUserInterfaceLocal::SetStateString( const char *varName, const char *valu
 			common->Printf( "GUI: state %s = \"%s\" (was \"%s\") gui=%s\n", varName, newValue, oldValue, source.c_str() );
 		}
 	}
-	state.Set( varName, value );
+	const char *stored = SetGuiDictionaryValue( state, varName, value );
 	if ( remastered ) {
-		remastered->ForwardState( varName, state.GetString( varName ) );
+		remastered->ForwardState( varName, stored );
 	}
 }
 
 void idUserInterfaceLocal::SetStateBool( const char *varName, const bool value ) {
-	bool oldValue = state.GetBool( varName, "0" );
-	state.SetBool( varName, value );
-	if ( gui_debugScript.GetInteger() > 3 ) {
+	const bool debug = gui_debugScript.GetInteger() > 3;
+	const bool oldValue = debug ? state.GetBool( varName, "0" ) : false;
+	const char *stored = SetGuiDictionaryValue( state, varName, value ? "1" : "0" );
+	if ( debug ) {
 		if ( oldValue != value ) {
 			common->Printf( "GUI: state %s = %d (was %d) gui=%s\n", varName, value ? 1 : 0, oldValue ? 1 : 0, source.c_str() );
 		}
 	}
 	if ( remastered ) {
-		remastered->ForwardState( varName, state.GetString( varName ) );
+		remastered->ForwardState( varName, stored );
 	}
 }
 
 void idUserInterfaceLocal::SetStateInt( const char *varName, const int value ) {
-	int oldValue = state.GetInt( varName, "0" );
-	state.SetInt( varName, value );
-	if ( gui_debugScript.GetInteger() > 3 ) {
+	const bool debug = gui_debugScript.GetInteger() > 3;
+	const int oldValue = debug ? state.GetInt( varName, "0" ) : 0;
+	char text[64];
+	const char *stored = SetGuiDictionaryValue( state, varName, openq4::ui::GuiStateInteger( value, text ) );
+	if ( debug ) {
 		if ( oldValue != value ) {
 			common->Printf( "GUI: state %s = %d (was %d) gui=%s\n", varName, value, oldValue, source.c_str() );
 		}
 	}
 	if ( remastered ) {
-		remastered->ForwardState( varName, state.GetString( varName ) );
+		remastered->ForwardState( varName, stored );
 	}
 }
 
 void idUserInterfaceLocal::SetStateFloat( const char *varName, const float value ) {
-	float oldValue = state.GetFloat( varName, "0" );
-	state.SetFloat( varName, value );
-	if ( gui_debugScript.GetInteger() > 3 ) {
+	const bool debug = gui_debugScript.GetInteger() > 3;
+	const float oldValue = debug ? state.GetFloat( varName, "0" ) : 0;
+	char text[64];
+	const char *integral = openq4::ui::GuiStateIntegralFloat( value, text );
+	const char *stored = SetGuiDictionaryValue( state, varName, integral ? integral : va( "%f", value ) );
+	if ( debug ) {
 		if ( oldValue != value ) {
 			common->Printf( "GUI: state %s = %.4f (was %.4f) gui=%s\n", varName, value, oldValue, source.c_str() );
 		}
 	}
 	if ( remastered ) {
-		remastered->ForwardState( varName, state.GetString( varName ) );
+		remastered->ForwardState( varName, stored );
 	}
 }
 
@@ -1423,6 +1591,20 @@ idVec4 idUserInterfaceLocal::GetLightColor( void ) {
 
 void idUserInterfaceLocal::StateChanged( int _time, bool redraw ) {
 	time = _time;
+	// UpdateHudStats can publish an identical dictionary and simulation time
+	// thousands of times while paused. Only the stock peer's expression walk
+	// is redundant: the replacement and stock timelines still run in Redraw.
+	const bool cache = !redraw && desktop && !loading && remastered && !remastered->Failed() &&
+		idRemasteredHud::Enabled() && ui_retainedHudStateCache.GetBool() &&
+		!idWindow::gui_edit.GetBool() && gui_debugScript.GetInteger() == 0;
+	if ( cache && evaluatedHudValid && evaluatedHudTime == _time &&
+		evaluatedHudState.GetNumKeyVals() == state.GetNumKeyVals() ) {
+		bool same = true;
+		for ( int i = 0; same && i < state.GetNumKeyVals(); ++i )
+			same = *state.GetKeyVal( i ) == *evaluatedHudState.GetKeyVal( i );
+		if ( same ) return;
+	}
+	evaluatedHudValid = false;
 	if (desktop) {
 		desktop->StateChanged( redraw );
 	}
@@ -1436,9 +1618,15 @@ void idUserInterfaceLocal::StateChanged( int _time, bool redraw ) {
 			interactive = false;
 		}
 	}
+	if ( cache ) {
+		evaluatedHudState = state;
+		evaluatedHudTime = _time;
+		evaluatedHudValid = true;
+	}
 }
 
 const char *idUserInterfaceLocal::Activate(bool activate, int _time) {
+	evaluatedHudValid = false;
 	time = _time;
 	active = activate;
 	if ( desktop ) {
@@ -1453,6 +1641,7 @@ const char *idUserInterfaceLocal::Activate(bool activate, int _time) {
 }
 
 void idUserInterfaceLocal::Trigger(int _time) {
+	evaluatedHudValid = false;
 	time = _time;
 	if ( desktop ) {
 		desktop->Trigger();
@@ -1460,6 +1649,10 @@ void idUserInterfaceLocal::Trigger(int _time) {
 }
 
 void idUserInterfaceLocal::ReadFromDemoFile( class idDemoFile *f ) {
+	evaluatedHudValid = false;
+	evaluatedHudState.Clear();
+	// Restore may add legacy compatibility events beyond the parsed tree.
+	levelLoadCache.reset();
 	idStr work;
 	f->ReadDict( state );
 	source = state.GetString("name");
@@ -1679,6 +1872,10 @@ static bool UI_ReadSaveGameString( idFile *savefile, idStr &string, const char *
 }
 
 bool idUserInterfaceLocal::ReadFromSaveGame( idFile *savefile ) {
+	evaluatedHudValid = false;
+	evaluatedHudState.Clear();
+	// Restore may add legacy compatibility events beyond the parsed tree.
+	levelLoadCache.reset();
 	if ( savefile == NULL || desktop == NULL ) {
 		common->Warning( "idUserInterfaceLocal::ReadFromSaveGame: gui '%s' has no valid input file/parsed desktop",
 			source.c_str() );
@@ -1767,7 +1964,8 @@ bool idUserInterfaceLocal::ReadFromSaveGame( idFile *savefile ) {
 }
 
 size_t idUserInterfaceLocal::Size() {
-	size_t sz = sizeof(*this) + state.Size() + source.Allocated();
+	size_t sz = sizeof(*this) + state.Size() + evaluatedHudState.Allocated() + source.Allocated();
+	if ( levelLoadCache ) sz += levelLoadCache->Size();
 	if ( desktop ) {
 		sz += desktop->Size();
 	}
@@ -1785,7 +1983,7 @@ bool idUserInterfaceLocal::AlwaysThink() const {
 void idUserInterfaceLocal::RunTimeEvents( int _time ) {
 	time = _time;
 	if ( desktop != NULL ) {
-		desktop->RunTimeEvents( _time );
+		if ( desktop->RunTimeEvents( _time ) ) evaluatedHudValid = false;
 	}
 }
 
@@ -1815,6 +2013,7 @@ idUserInterfaceLocal::SetKeyBindingNames
 ==============
 */
 void idUserInterfaceLocal::SetKeyBindingNames( void ) {
+	evaluatedHudValid = false;
 	if ( !desktop ) {
 		return;
 	}
