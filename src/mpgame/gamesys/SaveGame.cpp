@@ -2048,62 +2048,21 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 idRestoreGame::ReadUserInterfaceWithLayout
 
 Reads a GUI whose saved window tree follows an earlier definition than the one
-this build loads. A private instance of that definition consumes the window tree
-with every normal check, then hands its state dictionary and interaction flags to
-the live GUI. Window-local animation progress is not carried over: the live
-window tree starts from its definition, as it does when a map spawns the GUI.
+this build loads. The engine parses that definition privately to consume the
+window tree with every normal check, then moves the state dictionary, flags and
+each window value the game had changed (a visible boss bar, for example) to the
+live GUI. Animation progress is not carried over.
 ================
 */
-class idScopedSavedLayoutGui {
-public:
-	explicit idScopedSavedLayoutGui( idUserInterface *savedGui ) : gui( savedGui ) {
-	}
-
-	~idScopedSavedLayoutGui( void ) {
-		if ( gui != NULL ) {
-			uiManager->DeAlloc( gui );
-		}
-	}
-
-	idUserInterface *gui;
-
-private:
-	idScopedSavedLayoutGui( const idScopedSavedLayoutGui & );
-	idScopedSavedLayoutGui &operator=( const idScopedSavedLayoutGui & );
-};
-
 void idRestoreGame::ReadUserInterfaceWithLayout( idUserInterface *ui, const char *name, const char *layout ) {
 	const int offset = file->Tell();
-	// Released on every exit, including the error unwinds a failed read raises.
-	idScopedSavedLayoutGui scopedSaved( uiManager->FindGui( layout, true, true ) );
-	idUserInterface *saved = scopedSaved.gui;
-	if ( saved == NULL ) {
-		Error( "idRestoreGame::ReadUserInterface: v%d gui '%s' at offset %d needs its saved layout '%s', which is missing",
-			openQ4SaveGameCompatibilityVersion, name, offset, layout );
-	}
-	if ( saved->ReadFromSaveGame( file ) == false ) {
+	int restoredWindowValues = 0;
+	if ( !ui->ReadFromSaveGameWithLayout( file, layout, restoredWindowValues ) ) {
 		Error( "idRestoreGame::ReadUserInterface: v%d gui '%s' at offset %d failed to read with its saved layout '%s'",
 			openQ4SaveGameCompatibilityVersion, name, offset, layout );
 	}
-
-	const idDict &savedState = saved->State();
-	const idDict liveState = ui->State();
-	for ( int i = 0; i < liveState.GetNumKeyVals(); i++ ) {
-		const idKeyValue *kv = liveState.GetKeyVal( i );
-		if ( kv != NULL && savedState.FindKey( kv->GetKey() ) == NULL ) {
-			ui->DeleteStateVar( kv->GetKey() );
-		}
-	}
-	for ( int i = 0; i < savedState.GetNumKeyVals(); i++ ) {
-		const idKeyValue *kv = savedState.GetKeyVal( i );
-		ui->SetStateString( kv->GetKey(), kv->GetValue() );
-	}
-	ui->SetInteractive( saved->IsInteractive() );
-	ui->SetUniqued( saved->IsUniqued() );
-	ui->SetCursor( saved->CursorX(), saved->CursorY() );
-
-	common->Printf( "Restored v%d gui '%s' through its saved layout '%s' (%d state values; window animations restart)\n",
-		openQ4SaveGameCompatibilityVersion, name, layout, savedState.GetNumKeyVals() );
+	common->Printf( "Restored v%d gui '%s' through its saved layout '%s' (%d state values, %d changed window values; window animations restart)\n",
+		openQ4SaveGameCompatibilityVersion, name, layout, ui->State().GetNumKeyVals(), restoredWindowValues );
 }
 
 // RAVEN BEGIN

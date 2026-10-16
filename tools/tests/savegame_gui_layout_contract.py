@@ -306,6 +306,10 @@ def main() -> None:
     for context, source in games.items():
         if "SaveGame_FindGuiLayoutForPayload( name, openQ4SaveGameCompatibilityVersion )" not in source:
             raise AssertionError(f"{context} does not choose a GUI's saved layout by payload version")
+        # Copying only the state dictionary loses window values scripts set, such
+        # as a visible boss bar; the engine migration carries those as well.
+        if "ui->ReadFromSaveGameWithLayout( file, layout, restoredWindowValues )" not in source:
+            raise AssertionError(f"{context} does not restore older GUI layouts through the engine window migration")
     validate_release_provenance(previous)
     validate_build_number_scope(session, games)
     print("savegame_gui_layout_contract: ok")
