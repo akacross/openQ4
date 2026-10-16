@@ -17,8 +17,11 @@ difference is the payload build number (CRC recomputed). Build numbers are
 commit counts, so a source archive stamps 0 and a shallow clone 1; a payload
 layout that is not build-dependent must restore identically for any value.
 
-Saves are player data. Point this at copies or designated fixtures; the harness
-never writes to the input paths.
+Saves are player data. The harness never deletes anything: every invocation
+writes into a new run directory it creates under ``--output-root``. Before it
+touches the disk it refuses inputs (saves and their .txt/.tga companions) that
+are links or that lie inside the output root, so no run directory can contain
+an input. ``--self-test`` checks those guards without launching the game.
 """
 
 from __future__ import annotations
@@ -26,12 +29,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import re
 import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -105,6 +110,44 @@ def client_path(install_root: Path) -> Path:
     return install_root / f"openQ4-client_{arch}{suffix}"
 
 
+def input_files(source: Path) -> list[Path]:
+    """The save and whichever companions the harness will copy from beside it."""
+    return [source] + [
+        source.with_suffix(extension) for extension in (".txt", ".tga") if source.with_suffix(extension).exists()
+    ]
+
+
+def validate_inputs(sources: list[Path], output_root: Path) -> list[Path]:
+    """Refuse linked inputs and inputs inside the output root before any write."""
+    root = output_root.resolve()
+    files: list[Path] = []
+    for source in sources:
+        for path in input_files(source):
+            if path.is_symlink():
+                raise SystemExit(f"refusing linked input {path}: copy the save to a plain file first")
+            if not path.is_file():
+                raise SystemExit(f"input is not a regular file: {path}")
+            resolved = path.resolve()
+            if resolved == root or root in resolved.parents:
+                raise SystemExit(f"refusing input {path}: it is inside the output root {root}")
+            files.append(path)
+    return files
+
+
+def create_run_dir(output_root: Path) -> Path:
+    """A new directory owned by this invocation; existing content is never reused."""
+    output_root.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    for attempt in range(1000):
+        run_dir = output_root / f"run-{stamp}-{os.getpid()}-{attempt}"
+        try:
+            run_dir.mkdir()
+            return run_dir
+        except FileExistsError:
+            continue
+    raise SystemExit(f"could not allocate a run directory under {output_root}")
+
+
 def stage_slot(source: Path, home: Path, slot: str, payload: bytes | None) -> None:
     savegames = home / "baseoq4" / "savegames"
     savegames.mkdir(parents=True, exist_ok=True)
@@ -144,10 +187,10 @@ def runtime_text(home: Path, stdout_path: Path) -> str:
     return "\n".join(texts)
 
 
-def run_case(args: argparse.Namespace, client: Path, source: Path, label: str, payload: bytes | None) -> dict[str, Any]:
-    run_dir = args.output_root / label
-    if run_dir.exists():
-        shutil.rmtree(run_dir)
+def run_case(
+    args: argparse.Namespace, client: Path, source: Path, label: str, payload: bytes | None, run_dir: Path
+) -> dict[str, Any]:
+    run_dir.mkdir()
     home = run_dir / "home"
     slot = "restore_matrix"
     stage_slot(source, home, slot, payload)
@@ -230,7 +273,7 @@ def run_case(args: argparse.Namespace, client: Path, source: Path, label: str, p
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("saves", nargs="+", type=Path, help=".save files or directories of them (read only).")
+    parser.add_argument("saves", nargs="*", type=Path, help=".save files or directories of them (read only).")
     parser.add_argument("--install-root", type=Path, default=ROOT / ".install", help="Staged package root.")
     parser.add_argument("--output-root", type=Path, default=ROOT / ".tmp" / "savegame-restore-matrix")
     parser.add_argument("--render-api", default="gl", help="r_renderApi for the client (default gl).")
@@ -242,40 +285,106 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                         help="Extra client cvar, for example --set ui_retained 1.")
     parser.add_argument("--expect-reject", action="store_true",
                         help="Pass only when preflight refuses every save before map teardown.")
-    return parser.parse_args(argv)
+    parser.add_argument("--self-test", action="store_true",
+                        help="Check the input/output guards on synthetic files, without a client.")
+    args = parser.parse_args(argv)
+    if not args.self_test and not args.saves:
+        parser.error("give at least one save, or --self-test")
+    return args
+
+
+def self_test() -> int:
+    """The guards, on disposable files: refusals must leave every input intact."""
+    def refused(sources: list[Path], output_root: Path) -> bool:
+        try:
+            validate_inputs(sources, output_root)
+        except SystemExit:
+            return True
+        return False
+
+    with tempfile.TemporaryDirectory() as temp:
+        base = Path(temp)
+        out = base / "out"
+        nested = out / "slot" / "slot.save"
+        nested.parent.mkdir(parents=True)
+        nested.write_bytes(b"input")
+        nested.with_suffix(".txt").write_text("input", encoding="utf-8")
+        outside = base / "saves" / "slot.save"
+        outside.parent.mkdir()
+        outside.write_bytes(b"input")
+        companion_inside = base / "split" / "slot.save"
+        companion_inside.parent.mkdir()
+        companion_inside.write_bytes(b"input")
+
+        checks = {
+            # The reviewed case: an input under <output-root>/<stem>/.
+            "input inside the output root is refused": refused([nested], out),
+            "input inside a deeper output root is refused": refused([nested], out / "slot"),
+            "input outside the output root is accepted": not refused([outside], out),
+        }
+        try:
+            (base / "saves" / "linked.save").symlink_to(outside)
+            (companion_inside.parent / "slot.txt").symlink_to(nested.with_suffix(".txt"))
+        except (OSError, NotImplementedError):
+            print("savegame_restore_matrix: symlinks unavailable; skipped the link checks")
+        else:
+            checks["linked save is refused"] = refused([base / "saves" / "linked.save"], out)
+            checks["linked companion is refused"] = refused([companion_inside], out)
+
+        first = create_run_dir(out)
+        second = create_run_dir(out)
+        checks["each invocation gets a new run directory"] = first != second and first.is_dir() and second.is_dir()
+        checks["inputs survive every refusal"] = (
+            nested.read_bytes() == b"input"
+            and nested.with_suffix(".txt").read_text(encoding="utf-8") == "input"
+            and outside.read_bytes() == b"input"
+        )
+
+    failed = [name for name, ok in checks.items() if not ok]
+    for name, ok in checks.items():
+        print(f"{'PASS' if ok else 'FAIL'} {name}")
+    print(f"savegame_restore_matrix --self-test: {len(checks) - len(failed)}/{len(checks)} passed")
+    return 1 if failed else 0
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    if args.self_test:
+        return self_test()
     args.output_root = args.output_root.resolve()
-    client = client_path(args.install_root.resolve())
-    if not client.is_file():
-        raise SystemExit(f"client not found: {client}")
 
     sources: list[Path] = []
     for entry in args.saves:
         sources += sorted(entry.glob("*.save")) if entry.is_dir() else [entry]
     if not sources:
         raise SystemExit("no .save files given")
+    # Every guard runs before the first write anywhere.
+    inputs = validate_inputs(sources, args.output_root)
+    client = client_path(args.install_root.resolve())
+    if not client.is_file():
+        raise SystemExit(f"client not found: {client}")
 
-    before = {source: sha256_file(source) for source in sources}
+    before = {path: sha256_file(path) for path in inputs}
+    run_root = create_run_dir(args.output_root)
     results = []
+    case_index = 0
     for source in sources:
         variants: list[tuple[str, bytes | None]] = [(source.stem, None)]
         for build in args.restamp_build:
             variants.append((f"{source.stem}-build{build}", restamp_build(source.read_bytes(), build)))
         for label, payload in variants:
-            result = run_case(args, client, source, label, payload)
+            case_index += 1
+            result = run_case(args, client, source, label, payload, run_root / f"{case_index:02d}-{label}")
             results.append(result)
             stamp = result["stamp"]
             print(f"{'PASS' if result['passed'] else 'FAIL'} {label}: {result['outcome']} "
                   f"(v{stamp.get('version', '?')} build {stamp.get('build', '?')} {stamp.get('wireAbi', 'unstamped')})"
                   + (f" -- {result['errors'][0]}" if result["errors"] else ""))
 
-    modified = [str(source) for source in sources if sha256_file(source) != before[source]]
-    report = {"client": str(client), "results": results, "modifiedInputs": modified}
-    args.output_root.mkdir(parents=True, exist_ok=True)
-    (args.output_root / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    modified = [str(path) for path in inputs if not path.is_file() or sha256_file(path) != before[path]]
+    report = {"client": str(client), "runDir": str(run_root), "results": results, "modifiedInputs": modified}
+    (run_root / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"report: {run_root / 'report.json'}")
     if modified:
         print("FAIL input saves were modified: " + ", ".join(modified))
     failed = [result for result in results if not result["passed"]]

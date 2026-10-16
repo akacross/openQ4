@@ -733,8 +733,6 @@ def validate_validation_wiring() -> None:
         "linux_dedicated_server_smoke.py",
         "linux_dedicated_stock_map_smoke.py",
         "linux_wayland_stock_sp_smoke.py",
-        # Restores existing saves with a staged client on retail assets.
-        "savegame_restore_matrix.py",
         "macos_dedicated_server_smoke.py",
         "windows_dedicated_server_smoke.py",
         "renderer_gameplay_benchmark.py",
