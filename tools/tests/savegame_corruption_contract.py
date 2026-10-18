@@ -483,11 +483,14 @@ def validate_session_source_contract() -> None:
         "static bool Session_SaveDescriptionMatchesSlot( const idStr &expectedSlotName, const idStr &descriptionSaveName )",
         "static bool Session_ValidateStagedSaveDescription( const idStr &descriptionPath, const idStr &expectedSlotName, saveType_t saveType )",
         "static bool Session_ValidateStagedSavePreview( const idStr &previewPath )",
-        "static bool Session_ValidateSaveGamePayload( idFile *file, const idStr &savePath, bool allowLegacyPayload )",
+        "static bool Session_ValidateSaveGamePayload( idFile *file, const idStr &savePath, bool allowLegacyPayload, int *layoutBuildOut = NULL )",
         "OPENQ4_SAVEGAME_COMPAT_SOURCE_HASH",
         "OPENQ4_SAVEGAME_COMPAT_SOURCE_FILE_COUNT",
         "if ( marker != SESSION_OPENQ4_SAVEGAME_COMPATIBILITY_MAGIC )",
-        "payloadBuild < SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD",
+        "OpenQ4_FindSaveGameRelease( payloadBuild, payloadSourceStamp.c_str(), payloadSourceFileCount )",
+        "OPENQ4_SAVEGAME_V2_FIRST_RELEASE_BUILD : SESSION_OPENQ4_SAVEGAME_MINIMUM_SUPPORTED_BUILD;",
+        "layoutBuild < minimumBuild",
+        "payloadWireABI = OPENQ4_SAVEGAME_V2_WIRE_ABI;",
         "payloadWireABI.Icmp( Session_GetSaveGameWireABI() ) != 0",
         "static bool Session_CalculateSaveGameChecksum( idFile *file, int protectedLength, unsigned int &checksum, const idStr &savePath )",
         "static bool Session_AppendSaveGameIntegrityTrailer( const idStr &relativePath )",
@@ -561,7 +564,7 @@ def validate_session_source_contract() -> None:
     require_regex(
         source,
         r"Session_ReadSaveGameDict\s*\(\s*loadGameFile,\s*loadedPersistentPlayerInfo.*?"
-        r"Session_ValidateSaveGamePayload\s*\(\s*loadGameFile,\s*in,\s*true\s*\).*?"
+        r"Session_ValidateSaveGamePayload\s*\(\s*loadGameFile,\s*in,\s*true,\s*&payloadLayoutBuild\s*\).*?"
         r"Session_SaveGameMapExists\s*\(\s*normalizedSaveMap,\s*normalizedEntityFilter\s*\).*?"
         r"mapSpawnData\.persistentPlayerInfo.*?ExecuteMapChange",
         "payload integrity and target map are preflighted before load state is committed or the map changes",
@@ -750,7 +753,8 @@ def validate_gamelibs_save_payload_contract() -> None:
             "openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_COMPATIBILITY_VERSION",
             "OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_SWIM_SPEED",
             "OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_LIQUID_SOUND",
-            "payload format version %d is not supported (supported %d and %d)",
+            "payload format version %d is not supported (supported %d to %d)",
+            "openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_V2_VERSION",
             "ReadString( savedWireABI );",
             "savedWireABI.Icmp( OpenQ4SaveGameWireABI() ) != 0",
             "Schema-compatible save source differs",
@@ -1302,7 +1306,7 @@ def validate_minigame_restore_contract() -> None:
             "static ID_INLINE bool OpenQ4_WriteSaveGameFloat( idFile *savefile, float value, const char *context, const char *fieldName )",
             "static ID_INLINE bool OpenQ4_ReadSaveGameFloat( idFile *savefile, float &value, const char *context, const char *fieldName )",
             "common->Error( \"%s: refusing non-finite %s\"",
-            "common->Error( \"%s: non-finite %s at offset %d\"",
+            "common->DPrintf( \"%s: zeroing non-finite %s at offset %d\\n\"",
             "value = 0.0f;",
             "static ID_INLINE bool OpenQ4_WriteSaveGameField( idFile *savefile, const type &value, const char *context, const char *fieldName )",
             "static ID_INLINE bool OpenQ4_ReadSaveGameField( idFile *savefile, type &value, const char *context, const char *fieldName )",
@@ -1316,7 +1320,10 @@ def validate_minigame_restore_contract() -> None:
         ),
         "src/ui/Window.cpp": (
             "OpenQ4_ReadSaveGameInt( savefile, offset, \"idWindow::ReadSaveGameTransition\", \"offset\" )",
-            "OpenQ4_ReadSaveGameField( savefile, trans.interp, \"idWindow::ReadSaveGameTransition\", \"interpolate state\" )",
+            "Window_ReadSaveGameTransitionInterpolate( savefile, trans.interp )",
+            "OpenQ4_ReadSaveGameField( savefile, interp, \"idWindow::ReadSaveGameTransition\", \"interpolate state\" )",
+            "openQ4SaveGameLegacyInterpolate_t<idVec4> saved;",
+            "OpenQ4_SaveGameHasInterpolatorCacheFlag( OpenQ4_SaveGameRestoreLayoutBuild( savefile ) )",
             "OpenQ4_ReadSaveGameBytes( savefile, &string[0], len, \"idWindow::ReadSaveGameString\", \"string\" )",
             "OpenQ4_ReadSaveGameField( savefile, savedActualX, \"idWindow::ReadFromSaveGame\", \"actualX\" )",
             "&hadSavedFocusReference, &focusReadSucceeded",

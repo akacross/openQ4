@@ -2,8 +2,6 @@
 #ifndef __MATH_INTERPOLATE_H__
 #define __MATH_INTERPOLATE_H__
 
-#include <limits>
-
 /*
 ==============================================================================================
 
@@ -19,10 +17,10 @@ public:
 						virtual ~idInterpolate() { }
 
 	void				Init( const float startTime, const float duration, const type &startValue, const type &endValue );
-	void				SetStartTime( float time ) { this->startTime = time; currentTime = CacheInvalidTime(); }
-	void				SetDuration( float duration ) { this->duration = duration; currentTime = CacheInvalidTime(); }
-	void				SetStartValue( const type &startValue ) { this->startValue = startValue; currentTime = CacheInvalidTime(); }
-	void				SetEndValue( const type &endValue ) { this->endValue = endValue; currentTime = CacheInvalidTime(); }
+	void				SetStartTime( float time ) { this->startTime = time; cacheValid = false; }
+	void				SetDuration( float duration ) { this->duration = duration; cacheValid = false; }
+	void				SetStartValue( const type &startValue ) { this->startValue = startValue; cacheValid = false; }
+	void				SetEndValue( const type &endValue ) { this->endValue = endValue; cacheValid = false; }
 
 // RAVEN BEGIN
 // abahr: made virtual
@@ -45,14 +43,9 @@ protected:
 	float				duration;
 	type				startValue;
 	type				endValue;
-	// Saves store this object's native image (GUI transitions, animator joint
-	// modifiers), so its layout is part of the savegame wire format. A NaN
-	// currentTime marks the cached sample stale instead of a separate flag;
-	// NaN never equals a sample time, so every time, including -1, is valid.
 	mutable float		currentTime;
 	mutable type		currentValue;
-
-	static float		CacheInvalidTime( void ) { return std::numeric_limits<float>::quiet_NaN(); }
+	mutable bool		cacheValid;
 };
 
 /*
@@ -62,8 +55,8 @@ idInterpolate::idInterpolate
 */
 template< class type >
 ID_INLINE idInterpolate<type>::idInterpolate() {
-	startTime = duration = 0;
-	currentTime = CacheInvalidTime();
+	currentTime = startTime = duration = 0;
+	cacheValid = false;
 	memset( &currentValue, 0, sizeof( currentValue ) );
 	startValue = endValue = currentValue;
 }
@@ -79,7 +72,7 @@ ID_INLINE void idInterpolate<type>::Init( const float startTime, const float dur
 	this->duration = duration;
 	this->startValue = startValue;
 	this->endValue = endValue;
-	this->currentTime = CacheInvalidTime();
+	this->cacheValid = false;
 	this->currentValue = startValue;
 }
 
@@ -93,7 +86,8 @@ ID_INLINE type idInterpolate<type>::GetCurrentValue( float time ) const {
 	float deltaTime;
 
 	deltaTime = time - startTime;
-	if ( !( time == currentTime ) ) {
+	if ( !cacheValid || time != currentTime ) {
+		cacheValid = true;
 		currentTime = time;
 		if ( deltaTime <= 0 ) {
 			currentValue = startValue;
@@ -139,7 +133,7 @@ public:
 						rvSphericalInterpolate();
 	virtual idQuat		GetCurrentValue( float time ) const;
 
-	void				SetTimeFunction( TimeManipFunc func ) { timeFunc = func; currentTime = CacheInvalidTime(); }
+	void				SetTimeFunction( TimeManipFunc func ) { timeFunc = func; cacheValid = false; }
 
 protected:
 	TimeManipFunc		timeFunc;
@@ -164,7 +158,8 @@ ID_INLINE idQuat rvSphericalInterpolate::GetCurrentValue( float time ) const {
 	float deltaTime;
 
 	deltaTime = time - startTime;
-	if ( !( time == currentTime ) ) {
+	if ( !cacheValid || time != currentTime ) {
+		cacheValid = true;
 		currentTime = time;
 		if( duration == 0.0f ) {
 			currentValue = endValue;

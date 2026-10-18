@@ -43,6 +43,9 @@ OUTPUTS = {
     "loadgame": PAK0 / "guis" / "menu" / "loadgame.q4ui",
     "savegame": PAK0 / "guis" / "menu" / "savegame.q4ui",
     "restartlevel": PAK0 / "guis" / "menu" / "restartlevel.q4ui",
+    "loadgame_strogg": PAK0 / "guis" / "menu" / "loadgame_strogg.q4ui",
+    "savegame_strogg": PAK0 / "guis" / "menu" / "savegame_strogg.q4ui",
+    "restartlevel_strogg": PAK0 / "guis" / "menu" / "restartlevel_strogg.q4ui",
     "restartmenu": PAK0 / "guis" / "menu" / "restartmenu.q4ui",
     "credits": PAK0 / "guis" / "menu" / "credits.q4ui",
     "demos": PAK0 / "guis" / "menu" / "demos.q4ui",
@@ -3347,7 +3350,7 @@ def main() -> int:
     # modules, which build on this one.
     from retained_mp_menus import escape_document, welcome_document
     from retained_mp_summary import summary_document
-    from retained_saves import load_game_document, save_game_document
+    from retained_saves import STROGG, load_game_document, save_game_document
     from retained_difficulty import restart_level_document
     from retained_demos import demos_document
     from retained_death import restart_menu_document
@@ -3362,6 +3365,8 @@ def main() -> int:
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
                  "skill": retained_menu_levels.skill_document(types.SimpleNamespace(**globals())),
                  "loadgame": load_game_document(), "savegame": save_game_document(), "restartlevel": restart_level_document(),
+                 "loadgame_strogg": load_game_document(STROGG), "savegame_strogg": save_game_document(STROGG),
+                 "restartlevel_strogg": restart_level_document(STROGG),
                  "demos": demos_document(),
                  "restartmenu": restart_menu_document(),
                  "credits": credits_document(),

@@ -11,9 +11,10 @@ GAME.
 The content is the stock p_mp_browse's over the stock page backing: MOD with
 its spinner at 27,46 u and SOURCE with its INTERNET and LAN tags at 324,46 u;
 the server list at 23,83 u under its column headings on the stock 18 u rows,
-the sort's column marked (a heading sorts by its column, and again the other
-way); the scan's status at 41,291 u, a player search's tag after it, and
-CLEAR SORTING; the scan's progress bar and its notice at 21,312 u; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
+ten of them, the sort's column marked (a heading sorts by its column, and
+again the other way); under it the filter row (section 7's filter tags): the
+game type's spinner and the NOT FULL, NOT EMPTY and NO PASSWORD tags; the
+scan's status at 41,291 u, a player search's tag after it, and CLEAR SORTING; the scan's progress bar and its notice at 21,312 u; REFRESH LIST, GET NEW LIST, JOIN IP ADDRESS and FIND
 PLAYER/CLAN from 19,330 u; the chosen server's levelshot at 240,337 u; JOIN
 SERVER at 385,330 u and the favorite toggle under it; the prompt bar in the
 bottom band, its BACK where the stock BACK plate stood. JOIN IP ADDRESS and
@@ -25,7 +26,8 @@ discontinued service, no replacement column).
 
 The session owns the list: it publishes the scan's visible servers a page of
 JOIN_ROWS at a time (join.row<i>.*), their count, the scan's status, the
-source, the mod filter and the sort, and the chosen server (join.selected,
+source, the mod, game type and filter tags' filters and the sort, and the
+chosen server (join.selected,
 its levelshot and whether it is a favorite), and each control asks through
 its own verb. It offers all the stock page does, so the session presents it
 by default (RETAINED_JOIN_GAME_MISSING is empty).
@@ -43,7 +45,9 @@ from retained_saves import ERROR, PLACEHOLDER, pager_row, picture_frame, row_pla
 from retained_subpage import subpage_document
 
 JOIN_ROWS = 64                             # RETAINED_JOIN_ROWS in the session
-LIST = (23.0, 83.0, 604.0, 202.0)          # u: mp_browse_serverlist
+# u: mp_browse_serverlist, ten rows high (the stock 202 u less a row and a
+# little) so the filter row stands under it
+LIST = (23.0, 83.0, 604.0, 180.0)
 ROW_H = 18.0                               # u: its itemheight
 HEADER = (22.0, 54.0, 587.0, 37.0)         # u: mp_browse_header
 HEADING_TOP = 70.0                         # u: the headings' row
@@ -95,6 +99,19 @@ SOURCE_END = 613.0                         # u: where the stock LAN tag ends
 TAG_KEYS = (("internet", "#str_200033", "joinSourceInternet", False), ("lan", "#str_200034", "joinSourceLan", True))
 TAG_GAP = 6.0
 STATUS = (41.0, 291.0, 175.0)              # u: mp_browse_t_sortnotice; every language's status fits 175 u
+# The filter row under the list (section 7's filter tags, section 13.7's
+# lists): the game type's spinner from the list's leading edge, its value
+# ALL GAME TYPES while it shows every type, and the tags ending where the
+# source tags do, each as wide as its longest translation with room for the set
+# tag's close cross. A tag's verb toggles its filter, which the session
+# publishes as the tag's state.
+FILTER_TOP = 265.0
+FILTER_TAGS = (("full", "#str_231296", "joinFilterFull", "join.filterFull"),
+               ("empty", "#str_231297", "joinFilterEmpty", "join.filterEmpty"),
+               ("password", "#str_231298", "joinFilterPassword", "join.filterPassword"))
+FILTER_ALL_TYPES = "#str_231299"
+FILTER_CROSS = 14.0                        # u: the close cross's room at a tag's end
+GAMETYPE_SPIN = ("joinGameTypePrevious", "joinGameTypeNext")
 SEARCH_TAG_LEFT = 222.0                    # u: a player search's tag, after the status
 # The scan's progress under the list: the stock load_bar3 tube, its track at
 # 0.30 and its fill at 0.50 in marine.progress, with the notice over it.
@@ -372,6 +389,28 @@ def source_tags() -> list:
     return list(reversed(layout))
 
 
+def spinner_square(doc: Document, ident: str, left: float, top: float, verb: str, forward: bool, key: str) -> dict:
+    """A filter spinner's square (section 7's filter spinner, the stock
+    arrow6 on a 22x16 u tile) at `left`,`top` u, asking the session for the
+    previous or next value."""
+    doc.session(verb, verb)
+    width, height = U * 22, U * 16
+    points = [(width / 2 + 3, height / 2 - 4.5), (width / 2 - 3, height / 2), (width / 2 + 3, height / 2 + 4.5)]
+    if forward:
+        points = [(width - x, y) for x, y in points]
+    square = vector(f"{ident}-square", {**FULL, "opacity": number(0.6), "pointer-events": keyword("none")},
+                    [path("square", [(0, 0), (width, 0), (width, height), (0, height)], fill=solid([0, 0, 0, 0.7]),
+                          stroke=stroke(solid(rgb(OLIVE)), 1))])
+    arrow = vector(f"{ident}-arrow", {**FULL, "pointer-events": keyword("none")}, [path("arrow", points, fill=solid(rgb(VALUE)))])
+    ids = doc.states(ident, {
+        "default": [(f"{ident}-square", "opacity", number(0.6))], "hover": [(f"{ident}-square", "opacity", number(0.85))],
+        "focus": [(f"{ident}-square", "opacity", number(1))], "pressed": [(f"{ident}-square", "opacity", number(1))],
+        "disabled": [(f"{ident}-square", "opacity", number(0.3))],
+    })
+    return group(ident, absolute(left=U * left, top=U * top, width=width, height=height), [square, arrow],
+                 control={"role": "button", "label": key, "action": verb, "states": ids})
+
+
 def mod_filter(doc: Document) -> list:
     """MOD (the stock page's mod filter): the label, the filter's value (the
     session's join.mod, "All" when it shows every mod) and its spinner
@@ -387,23 +426,76 @@ def mod_filter(doc: Document) -> list:
                                                    "overflow": keyword("hidden"), "pointer-events": keyword("none")})]
     doc.bind("join-mod-value.text", "join-mod-value", "text", {"state": "join.mod"})
     for left, verb, name in MOD_SPIN:
-        doc.session(verb, verb)
-        ident = f"join_mod_{name}"
-        width = U * 22
-        points = [(width / 2 + 3, height / 2 - 4.5), (width / 2 - 3, height / 2), (width / 2 + 3, height / 2 + 4.5)]
-        if name == "next":
-            points = [(width - x, y) for x, y in points]
-        square = vector(f"{ident}-square", {**FULL, "opacity": number(0.6), "pointer-events": keyword("none")},
-                        [path("square", [(0, 0), (width, 0), (width, height), (0, height)], fill=solid([0, 0, 0, 0.7]),
-                              stroke=stroke(solid(rgb(OLIVE)), 1))])
-        arrow = vector(f"{ident}-arrow", {**FULL, "pointer-events": keyword("none")}, [path("arrow", points, fill=solid(rgb(VALUE)))])
-        ids = doc.states(ident, {
-            "default": [(f"{ident}-square", "opacity", number(0.6))], "hover": [(f"{ident}-square", "opacity", number(0.85))],
-            "focus": [(f"{ident}-square", "opacity", number(1))], "pressed": [(f"{ident}-square", "opacity", number(1))],
-            "disabled": [(f"{ident}-square", "opacity", number(0.3))],
-        })
-        parts.append(group(ident, absolute(left=U * left, top=U * MOD[1], width=width, height=height), [square, arrow],
-                           control={"role": "button", "label": "#str_223005", "action": verb, "states": ids}))
+        parts.append(spinner_square(doc, f"join_mod_{name}", left, MOD[1], verb, name == "next", "#str_223005"))
+    return parts
+
+
+def filter_tag(doc: Document, ident: str, key: str, left: float, width: float, verb: str, state: str) -> dict:
+    """A filter tag (section 7: a small cut tag built like the header band,
+    with a close cross once set; set tags rest at 0.60 and unset ones at
+    0.28, and Accept toggles): its label and, while the session's `state`
+    says the filter is set, the lit plate and the cross."""
+    doc.session(verb, verb)
+    doc.state[state] = {"type": "boolean", "initial": False}
+    height, cut = U * 16, U * 5
+    shape = [(cut, 0), (U * width, 0), (U * width, height), (0, height), (0, cut)]
+    tag = vector(f"{ident}-tag", {**FULL, "opacity": number(0.28), "pointer-events": keyword("none")},
+                 [path("tag", shape, fill=solid(rgb(OLIVE, 0.5)), stroke=stroke(solid(rgb(OLIVE)), 1))])
+    lit = vector(f"{ident}-lit", {**FULL, "display": keyword("none"), "opacity": number(0.6), "pointer-events": keyword("none")},
+                 [path("tag", shape, fill=solid(rgb(ORANGE, 0.35)), stroke=stroke(solid(rgb(ORANGE)), 1))])
+    cross = vector(f"{ident}-cross", {**absolute(left=U * width - 17, top=height / 2 - 5, width=10, height=10), "display": keyword("none"),
+                                      "pointer-events": keyword("none")},
+                   [path("a", [(1, 1), (9, 9)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5)),
+                    path("b", [(9, 1), (1, 9)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5))])
+    for node in (f"{ident}-lit", f"{ident}-cross"):
+        doc.bind(f"{node}.display", node, "display", {"op": "select", "args": [{"state": state}, "block", "none"]})
+    caption = label(f"{ident}-label", key, {**absolute(left=U * 6, top=0, width=U * (width - 8 - FILTER_CROSS), height=height),
+                                             **typeface("marine", TAG_TEXT, height, [1, 1, 1, 0.85]), "white-space": keyword("nowrap"),
+                                             "overflow": keyword("hidden"), "pointer-events": keyword("none")})
+    ids = doc.states(ident, {
+        "default": [(f"{ident}-tag", "opacity", number(0.28))], "hover": [(f"{ident}-tag", "opacity", number(0.7))],
+        "focus": [(f"{ident}-tag", "opacity", number(1))], "pressed": [(f"{ident}-tag", "opacity", number(1))],
+        "disabled": [(f"{ident}-tag", "opacity", number(0.2))],
+    })
+    return group(ident, absolute(left=U * left, top=U * FILTER_TOP, width=U * width, height=height), [tag, lit, cross, caption],
+                 control={"role": "button", "label": key, "action": verb, "states": ids})
+
+
+def filter_tags() -> list:
+    """The filter tags' layout: (ident, key, left u, width u, verb, state),
+    ending where the source tags do."""
+    right, layout = SOURCE_END, []
+    for ident, key, verb, state in reversed(FILTER_TAGS):
+        width = float(math.ceil(max(text_width("marine", text, TAG_TEXT) for text in table_text(key).values()) / U + 8 + FILTER_CROSS))
+        right -= width
+        layout.append((ident, key, right, width, verb, state))
+        right -= TAG_GAP
+    return list(reversed(layout))
+
+
+def game_type_value_width() -> float:
+    """The game type spinner's value (u): from after its previous square to
+    its next square, which stands 8 u before the first tag."""
+    return filter_tags()[0][2] - 8 - 22 - 3 - (LIST[0] + 22 + 3)
+
+
+def filter_row(doc: Document) -> list:
+    """The filter row under the list: the game type's spinner (the session's
+    join.gameType, ALL GAME TYPES while it is 0, else its name
+    join.gameTypeName) and the filter tags."""
+    doc.state.update({"join.gameType": {"type": "number", "initial": 0}, "join.gameTypeName": {"type": "string", "initial": ""}})
+    height = U * 16
+    value_left = LIST[0] + 22 + 3
+    value_w = game_type_value_width()
+    value = label("join-gametype-value", FILTER_ALL_TYPES, {**absolute(left=U * value_left, top=U * FILTER_TOP, width=U * value_w,
+                                                                       height=height), **typeface("marine", TAG_TEXT, height, rgb(VALUE, 0.8)),
+                                                            "white-space": keyword("nowrap"), "overflow": keyword("hidden"),
+                                                            "text-overflow": keyword("ellipsis"), "pointer-events": keyword("none")})
+    doc.bind("join-gametype-value.text", "join-gametype-value", "text", {"op": "select", "args": [
+        {"op": ">", "args": [{"state": "join.gameType"}, 0]}, {"state": "join.gameTypeName"}, FILTER_ALL_TYPES]})
+    parts = [spinner_square(doc, "join_gametype_previous", LIST[0], FILTER_TOP, GAMETYPE_SPIN[0], False, "#str_200039"), value,
+             spinner_square(doc, "join_gametype_next", value_left + value_w + 3, FILTER_TOP, GAMETYPE_SPIN[1], True, "#str_200039")]
+    parts += [filter_tag(doc, f"join_filter_{ident}", key, left, width, verb, state) for ident, key, left, width, verb, state in filter_tags()]
     return parts
 
 
@@ -571,6 +663,8 @@ def check_join_fits() -> None:
         width_dp = entry_dialog_size(("#str_200171", "#str_200168") if key == "#str_200025" else ("#str_200257", "#str_200168"))[0]
         one_line += [(key, "marine", 20, width_dp * (1 - 7 / 512) - 6 - (width_dp * 14 / 512 + 17))]
     one_line += [("#str_223005", "marine", TAG_TEXT, U * MOD[2])]
+    one_line += [(key, "marine", TAG_TEXT, U * (width - 8 - FILTER_CROSS)) for _i, key, _l, width, _v, _s in filter_tags()]
+    one_line += [(FILTER_ALL_TYPES, "marine", TAG_TEXT, U * game_type_value_width())]
     one_line += [("#str_200038", "lowpixel", DETAIL_HEADING, U * 80), ("#str_200928", "lowpixel", DETAIL_HEADING, U * 160)]
     one_line += [(key, "marine", 20, U * favorite_width() - 30) for key in FAVORITE_KEYS]
     check_fits(tuple(one_line), ())
@@ -614,6 +708,7 @@ def join_game_document() -> dict:
                                                              width=U * (tags[0][2] - TAG_GAP - SOURCE[0]), height=U * 16), **heading_tint})]
     parts += [source_tag(doc, f"join_{ident}", key, left, width, verb, lan) for ident, key, left, width, verb, lan in tags]
     parts += mod_filter(doc)
+    parts += filter_row(doc)
     parts += [heading(doc, column, sort, key, left, width, verb) for column, sort, key, left, width, verb in COLUMNS]
 
     left, top, list_w, list_h = LIST

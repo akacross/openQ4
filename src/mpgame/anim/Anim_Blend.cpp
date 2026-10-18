@@ -7,19 +7,7 @@
 #pragma hdrstop
 
 #include "../Game_local.h"
-
-// raw1: idAnimator saves each jointMod_t as its native image, so these sizes are
-// savegame wire format. Every member is four bytes wide on supported ABIs, so a
-// type larger than its declared members has gained one. That moves every later
-// byte of every save holding a joint modifier, and needs a payload decision.
-static_assert( sizeof( idExtrapolate<idAngles> ) == sizeof( int ) + 3 * sizeof( float ) + 4 * sizeof( idAngles ),
-	"idExtrapolate<idAngles> changed size; it is saved inside jointMod_t" );
-static_assert( sizeof( idInterpolateAccelDecelLinear<idAngles> ) ==
-	4 * sizeof( float ) + 2 * sizeof( idAngles ) + sizeof( idExtrapolate<idAngles> ),
-	"idInterpolateAccelDecelLinear<idAngles> changed size; it is saved inside jointMod_t" );
-static_assert( sizeof( jointMod_t ) == 2 * sizeof( jointHandle_t ) + sizeof( idMat3 ) + sizeof( idVec3 ) +
-	2 * sizeof( jointModTransform_t ) + sizeof( idInterpolateAccelDecelLinear<idAngles> ) + sizeof( int ),
-	"jointMod_t changed size; idAnimator saves its native image" );
+#include "framework/SaveGameReleases.h"
 #include "../../mpgame/Projectile.h"
 #include "../ai/AI.h"
 
@@ -3555,6 +3543,43 @@ void idAnimator::Save( idSaveGame *savefile ) const {
 
 /*
 =====================
+Anim_ReadSavedJointMod
+
+Joint modifiers are saved as raw jointMod_t records. One written before build
+1582 holds the shorter interpolator described in SaveGameReleases.h.
+=====================
+*/
+typedef struct {
+	jointHandle_t		jointnum;
+	idMat3				mat;
+	idVec3				pos;
+	jointModTransform_t	transform_pos;
+	jointModTransform_t	transform_axis;
+	openQ4SaveGameLegacyInterpolate_t<idAngles> angularVelocity;
+	int					lastTime;
+	jointHandle_t		collapseJoint;
+} legacyJointMod_t;
+
+static void Anim_ReadSavedJointMod( idRestoreGame *savefile, jointMod_t &jointMod ) {
+	if ( savefile->HasOpenQ4InterpolatorCacheSaveLayout() ) {
+		savefile->Read( &jointMod, sizeof( jointMod ) );
+		return;
+	}
+
+	legacyJointMod_t saved;
+	savefile->Read( &saved, sizeof( saved ) );
+	jointMod.jointnum = saved.jointnum;
+	jointMod.mat = saved.mat;
+	jointMod.pos = saved.pos;
+	jointMod.transform_pos = saved.transform_pos;
+	jointMod.transform_axis = saved.transform_axis;
+	saved.angularVelocity.ToInterpolate( jointMod.angularVelocity );
+	jointMod.lastTime = saved.lastTime;
+	jointMod.collapseJoint = saved.collapseJoint;
+}
+
+/*
+=====================
 idAnimator::Restore
 
 unarchives object from save game file
@@ -3576,7 +3601,7 @@ void idAnimator::Restore( idRestoreGame *savefile ) {
 	jointMods.SetNum( num );
 	for( i = 0; i < num; i++ ) {
 		jointMods[ i ] = new jointMod_t;
-		savefile->Read( jointMods[ i ], sizeof( *jointMods[ i ] ) );
+		Anim_ReadSavedJointMod( savefile, *jointMods[ i ] );
 	}
 	
 	savefile->ReadInt( numJoints );
@@ -3585,8 +3610,7 @@ void idAnimator::Restore( idRestoreGame *savefile ) {
 		savefile->Error( "idAnimator::Restore: invalid joint count %d", numJoints );
 	}
 	if ( numJoints != expectedJoints ) {
-		savefile->Error( "idAnimator::Restore: saved joint count %d does not match model joint count %d for model '%s' on entity '%s'",
-			numJoints, expectedJoints, modelDef ? modelDef->GetName() : "<none>", entity ? entity->GetName() : "<none>" );
+		savefile->Error( "idAnimator::Restore: saved joint count %d does not match model joint count %d", numJoints, expectedJoints );
 	}
 //RAVEN BEGIN
 //amccarthy: Added allocation tag

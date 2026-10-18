@@ -109,14 +109,14 @@ static const char *const RETAINED_MP_WELCOME_GUI = "guis/menu/mp_welcome.q4ui";
 // The version of the game's answer to retainedMultiplayerCover that the card
 // relies on; a game module without it keeps its stock menu.
 static const int RETAINED_MP_PROTOCOL = 1;
-// Each card's pages that still hand off to their stock pages. While any
-// remain, the gate leaves that card's stock menu in place and only
+// Each card's pages that still hand off to their stock pages: none now. While
+// any remain, the gate leaves that card's stock menu in place and only
 // ui_retainedMultiplayer opts into it. ui_retained_gate.py keeps each list
 // equal to its card's hand-off pages. (A built page may still open its stock
-// page for what it cannot edit yet: the Settings pages' name and clan, the
-// Match page's referee credential.)
+// page for what it cannot show: the rows of a Match Control list past the
+// card's.)
 static const char *const RETAINED_MP_ESCAPE_MISSING_PAGES[] = {
-	"admin", NULL
+	NULL
 };
 static const char *const RETAINED_MP_WELCOME_MISSING_PAGES[] = {
 	NULL
@@ -148,6 +148,25 @@ static const char *const RETAINED_MP_VOTE_FIELDS[] = {
 	"mpVoteMap", "mpVoteGameType", "mpVoteTimeLimit", "mpVoteFragLimit", "mpVoteCaptureLimit", "mpVoteTourneyLimit",
 	"mpVoteControlTime", "mpVoteBalance", "mpVoteShuffle", "mpVoteRestart", "mpVoteBuying", "mpVoteKick"
 };
+// The Admin page's drafted server settings, whose controls request "<verb>
+// <value>", in the order of the game's retainedVoteField_t without the kick;
+// the game checks each value against its field's rules.
+static const char *const RETAINED_MP_ADMIN_FIELDS[] = {
+	"mpAdminMap", "mpAdminGameType", "mpAdminTimeLimit", "mpAdminFragLimit", "mpAdminCaptureLimit", "mpAdminTourneyLimit",
+	"mpAdminControlTime", "mpAdminBalance", "mpAdminShuffle", "mpAdminRestart", "mpAdminBuying"
+};
+// The card's text fields' longest entries in bytes: the remote console
+// password, a console command, the Match page's referee credential, and the
+// player's name and clan as the stock fields took them.
+static const int RETAINED_MP_PASSWORD_BYTES = 64;
+static const int RETAINED_MP_COMMAND_BYTES = 200;
+static const int RETAINED_MP_CREDENTIAL_BYTES = 64;
+static const int RETAINED_MP_NAME_BYTES = 23;
+static const int RETAINED_MP_CLAN_BYTES = 12;
+// The Admin page's player and ban lists (RETAINED_ADMIN_PLAYERS and
+// RETAINED_ADMIN_BANS in the game).
+static const int RETAINED_MP_ADMIN_PLAYERS = 32;
+static const int RETAINED_MP_ADMIN_BANS = 32;
 // The Settings pages' value controls, "<verb> <row>": the three model lists
 // (the game's slots 0 to 2) and the crosshair.
 static const char *const RETAINED_MP_APPEARANCE_VALUES[] = {
@@ -5300,6 +5319,11 @@ static const char *const RETAINED_SKILL_GUI = "guis/menu/campaign_skill.q4ui";
 static const char *const RETAINED_LOADGAME_GUI = "guis/menu/loadgame.q4ui";
 static const char *const RETAINED_SAVEGAME_GUI = "guis/menu/savegame.q4ui";
 static const char *const RETAINED_RESTART_GUI = "guis/menu/restartlevel.q4ui";
+// The same three pages in the Strogg family, which the Strogg pause hands off
+// to; they load once a level's player is Strogg.
+static const char *const RETAINED_LOADGAME_STROGG_GUI = "guis/menu/loadgame_strogg.q4ui";
+static const char *const RETAINED_SAVEGAME_STROGG_GUI = "guis/menu/savegame_strogg.q4ui";
+static const char *const RETAINED_RESTART_STROGG_GUI = "guis/menu/restartlevel_strogg.q4ui";
 // The Demos page, which the title's DEMOS hands off to as LOAD GAME does to
 // its page. Its list holds this many demos at a time (ROWS in
 // tools/ui/retained_demos.py); demos.filter picks one of the legacy
@@ -5904,12 +5928,23 @@ idUserInterface *idSessionLocal::RetainedHomeDocument( idUserInterface *&home, c
 
 // The game answers once a level, through the main-menu command channel, on
 // the legacy menu's state; a game module that does not answer keeps the
-// Marine pause.
+// Marine pause. The first Strogg answer starts parsing the Strogg pause's
+// pages on the job workers, so a page that pause hands off to rarely waits.
 bool idSessionLocal::RetainedPauseIsStrogg() {
 	if ( retainedPauseStrogg < 0 && game != NULL && mapSpawned && guiMainMenu != NULL ) {
 		guiMainMenu->SetStateBool( "pause_strogg", false );
 		game->HandleMainMenuCommands( "retainedPauseFamily", guiMainMenu );
 		retainedPauseStrogg = guiMainMenu->State().GetBool( "pause_strogg" ) ? 1 : 0;
+#ifndef ID_DEDICATED
+		if ( retainedPauseStrogg > 0 ) {
+			const char *const pages[] = {
+				guiRetainedLoadStrogg == NULL ? RETAINED_LOADGAME_STROGG_GUI : NULL,
+				guiRetainedSaveStrogg == NULL ? RETAINED_SAVEGAME_STROGG_GUI : NULL,
+				guiRetainedRestartStrogg == NULL ? RETAINED_RESTART_STROGG_GUI : NULL
+			};
+			UI_RetainedPrefetchDocuments( pages, static_cast<int>( sizeof( pages ) / sizeof( pages[0] ) ) );
+		}
+#endif
 	}
 	return retainedPauseStrogg > 0;
 }
@@ -6131,21 +6166,21 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		HandleRetainedMultiplayerRequest( gui, request );
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedLoad ) {
+	if ( request != NULL && IsRetainedLoadPage( gui ) ) {
 		// The Load Game page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedLoadRequest( gui, request );
 		}
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedSave ) {
+	if ( request != NULL && IsRetainedSavePage( gui ) ) {
 		// The Save Game page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedSaveRequest( gui, request );
 		}
 		return;
 	}
-	if ( gui != NULL && request != NULL && gui == guiRetainedRestart ) {
+	if ( request != NULL && IsRetainedRestartPage( gui ) ) {
 		// The Restart Level page's verbs, while it presents.
 		if ( gui == guiActive ) {
 			HandleRetainedRestartRequest( gui, request );
@@ -6335,12 +6370,13 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 ===============
 idSessionLocal::BeginRetainedPage
 
-LOAD GAME on the title or the Marine pause, and SAVE GAME and RESTART LEVEL
-on the Marine pause: the home plays a page hand-off (the bands dock and the
-label carries into the title slot) and the page presents at 550 ms, when the
-stock page would (UpdateRetainedPage). The Strogg pause keeps the stock
-pages, whose family the Marine pages would break. False when the page cannot
-present: the stock page then opens as before.
+LOAD GAME on the title or the pause, and SAVE GAME and RESTART LEVEL on the
+pause: the home plays a page hand-off (the bands dock and the label carries
+into the title slot) and the page presents at 550 ms, when the stock page
+would (UpdateRetainedPage). The Strogg pause hands off to the Strogg family's
+pages; where one cannot present, the stock page opens rather than the Marine
+one, whose family would break. False when the page cannot present: the stock
+page then opens as before.
 ===============
 */
 bool idSessionLocal::BeginRetainedPage( const char *request ) {
@@ -6348,9 +6384,10 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	const bool saving = !idStr::Icmp( request, "saveGame" ), restarting = !idStr::Icmp( request, "restartLevel" );
 	const bool demos = !idStr::Icmp( request, "demos" ), credits = !idStr::Icmp( request, "credits" );
 	const bool multiplayer = !idStr::Icmp( request, "multiplayer" );
+	const bool strogg = guiRetainedHome != NULL && guiRetainedHome == guiRetainedPauseStrogg;
 	if ( ( !saving && !restarting && !demos && !credits && !multiplayer && idStr::Icmp( request, "loadGame" ) ) || guiRetainedHome == NULL ||
 			guiActive != guiMainMenu || ( ( credits || multiplayer ) && mapSpawned ) ||
-			guiRetainedHome == guiRetainedPauseStrogg || ( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
+			( ( saving || restarting ) && ( !mapSpawned || IsMultiplayer() ) ) ||
 			( demos && ( mapSpawned || IsDemoPlaybackActive() ) ) ) {
 		return false;
 	}
@@ -6360,9 +6397,11 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 	// Loaded with the other screens (PreloadRetainedScreens), or now when the
 	// gate came on after startup. A view that stopped drawing after a renderer
 	// or language change hands the page back to the stock one for good.
-	idUserInterface *&loaded = saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
+	idUserInterface *&loaded = strogg ? ( saving ? guiRetainedSaveStrogg : restarting ? guiRetainedRestartStrogg : guiRetainedLoadStrogg ) :
+		saving ? guiRetainedSave : restarting ? guiRetainedRestart : demos ? guiRetainedDemos :
 		credits ? guiRetainedCredits : multiplayer ? guiRetainedMpPage : guiRetainedLoad;
-	const char *path = saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
+	const char *path = strogg ? ( saving ? RETAINED_SAVEGAME_STROGG_GUI : restarting ? RETAINED_RESTART_STROGG_GUI : RETAINED_LOADGAME_STROGG_GUI ) :
+		saving ? RETAINED_SAVEGAME_GUI : restarting ? RETAINED_RESTART_GUI : demos ? RETAINED_DEMOS_GUI :
 		credits ? RETAINED_CREDITS_GUI : multiplayer ? RETAINED_MPPAGE_GUI : RETAINED_LOADGAME_GUI;
 	if ( loaded != NULL && UI_RetainedViewFailed( loaded ) ) {
 		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", path );
@@ -6417,7 +6456,7 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 }
 
 bool idSessionLocal::RetainedPageActive() const {
-	return guiActive != NULL && ( guiActive == guiRetainedLoad || guiActive == guiRetainedSave || guiActive == guiRetainedRestart ||
+	return guiActive != NULL && ( IsRetainedLoadPage( guiActive ) || IsRetainedSavePage( guiActive ) || IsRetainedRestartPage( guiActive ) ||
 		guiActive == guiRetainedDemos || guiActive == guiRetainedCredits || guiActive == guiRetainedMpPage );
 }
 
@@ -6438,7 +6477,7 @@ void idSessionLocal::UpdateRetainedPage() {
 	}
 	idUserInterface *page = retainedPagePending;
 	retainedPagePending = NULL;
-	if ( page == guiRetainedLoad ) {
+	if ( IsRetainedLoadPage( page ) ) {
 		page->SetStateBool( "load.ingame", mapSpawned );
 	}
 	// The home keeps drawing behind the page (DrawRetainedPageHome).
@@ -6566,7 +6605,7 @@ void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, 
 // Each row's save: its name and level, on the Load or the Save Game page.
 void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
 #ifndef ID_DEDICATED
-	const char *list = gui == guiRetainedSave ? "save" : "load";
+	const char *list = IsRetainedSavePage( gui ) ? "save" : "load";
 	for ( int row = 0; row < RETAINED_LOAD_ROWS; ++row ) {
 		const int index = retainedLoadFirst + row;
 		idStr name, location;
@@ -7643,6 +7682,11 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	gui->SetStateString( "join.mod", guiMainMenu != NULL ?
 		Session_RetainedPlayerText( guiMainMenu->State().GetString( "filterMod" ), 64, 1 ).c_str() : "" );
 	gui->SetStateString( "join.search", Session_RetainedPlayerText( servers.GetPlayerSearch(), 64, 1 ).c_str() );
+	gui->SetStateBool( "join.filterFull", servers.IsFilterSet( idServerScan::BROWSER_FILTER_FULL ) );
+	gui->SetStateBool( "join.filterEmpty", servers.IsFilterSet( idServerScan::BROWSER_FILTER_EMPTY ) );
+	gui->SetStateBool( "join.filterPassword", servers.IsFilterSet( idServerScan::BROWSER_FILTER_PASSWORD ) );
+	gui->SetStateInt( "join.gameType", servers.GetGameTypeFilter() );
+	gui->SetStateString( "join.gameTypeName", idServerScan::GameTypeFilterName( servers.GetGameTypeFilter() ) );
 	// The notice can name a server, whose text is read as a player's.
 	gui->SetStateFloat( "join.progress", servers.GetLoadProgress() );
 	gui->SetStateString( "join.notice", Session_RetainedPlayerText( servers.GetLoadNotice(), 160, 1 ).c_str() );
@@ -7738,7 +7782,9 @@ the chosen server by the address the session kept, never the page's; BACK
 climbs to the Multiplayer page. JOIN IP ADDRESS connects to the address
 the player entered (join.address), as the stock popup's does, or says why it
 cannot (join.addressError); FIND PLAYER/CLAN searches the list for the name
-the player entered (join.find), and the search's tag ends it. A change of
+the player entered (join.find), and the search's tag ends it. The filter
+row's tags hide full servers, empty ones or those with a password, and its
+spinner shows the previous or next game type, or every type. A change of
 level under way takes none.
 ===============
 */
@@ -7813,6 +7859,20 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 	if ( !idStr::Icmp( request, "joinModPrevious" ) || !idStr::Icmp( request, "joinModNext" ) ) {
 		HandleMainMenuCommands( "play main_menu_selection" );
 		servers.UpdateFilterByMod( !idStr::Icmp( request, "joinModNext" ) ? 1 : -1 );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinFilterFull" ) || !idStr::Icmp( request, "joinFilterEmpty" ) ||
+		!idStr::Icmp( request, "joinFilterPassword" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.ToggleFilter( !idStr::Icmp( request, "joinFilterFull" ) ? idServerScan::BROWSER_FILTER_FULL :
+			!idStr::Icmp( request, "joinFilterEmpty" ) ? idServerScan::BROWSER_FILTER_EMPTY : idServerScan::BROWSER_FILTER_PASSWORD );
+		PublishRetainedJoinGame( gui );
+		return;
+	}
+	if ( !idStr::Icmp( request, "joinGameTypePrevious" ) || !idStr::Icmp( request, "joinGameTypeNext" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.StepGameTypeFilter( !idStr::Icmp( request, "joinGameTypeNext" ) ? 1 : -1 );
 		PublishRetainedJoinGame( gui );
 		return;
 	}
@@ -9023,6 +9083,83 @@ void idSessionLocal::HandleRetainedMultiplayerRequest( idUserInterface *gui, con
 			return;
 		}
 		gameCommand = va( "play main_menu_selection ; retained rail %d", rail );
+		command = gameCommand.c_str();
+	} else if ( !idStr::Icmp( request, "mpAdminPass" ) || !idStr::Icmp( request, "mpRefereeLogin" ) ) {
+		// A credential the card's masked field entered: it moves straight to
+		// where the stock page's field kept it (the remote console password's
+		// CVar, the referee credential on the game's menu, which the game
+		// clears as it reads it) and leaves the card at once.
+		const bool admin = !idStr::Icmp( request, "mpAdminPass" );
+		const char *key = admin ? "card.admin.password" : "card.referee_credential";
+		const idStr credential = gui->State().GetString( key );
+		gui->SetStateString( key, "" );
+		gui->StateChanged( common->GetPresentationTime() );
+		if ( credential.Length() == 0 || credential.Length() > ( admin ? RETAINED_MP_PASSWORD_BYTES : RETAINED_MP_CREDENTIAL_BYTES ) ) {
+			return;
+		}
+		if ( admin ) {
+			cvarSystem->SetCVarString( "net_clientRemoteConsolePassword", credential.c_str() );
+			command = "play main_menu_selection ; retained adminPass";
+		} else {
+			guiActive->SetStateString( "match_referee_credential", credential.c_str() );
+			command = "play main_menu_selection ; matchControl referee_login";
+		}
+	} else if ( !idStr::Icmp( request, "mpSettingsName" ) || !idStr::Icmp( request, "mpSettingsClan" ) ) {
+		// The player's name or clan from the Settings pages' fields, as the
+		// stock fields set them; the game publishes the result.
+		const bool name = !idStr::Icmp( request, "mpSettingsName" );
+		const idStr text = gui->State().GetString( name ? "mp.settings.name_edit" : "mp.settings.clan_edit" );
+		if ( ( name && text.Length() == 0 ) || text.Length() > ( name ? RETAINED_MP_NAME_BYTES : RETAINED_MP_CLAN_BYTES ) ) {
+			return;
+		}
+		cvarSystem->SetCVarString( name ? "ui_name" : "ui_clan", text.c_str() );
+		cvarSystem->SetCVarString( name ? "gui_ui_name" : "gui_ui_clan", text.c_str() );
+		return;
+	} else if ( !idStr::Icmp( request, "mpAdminConsole" ) ) {
+		// The console's command, through the stock console's own input.
+		const idStr text = gui->State().GetString( "card.admin.command" );
+		gui->SetStateString( "card.admin.command", "" );
+		gui->StateChanged( common->GetPresentationTime() );
+		if ( text.Length() == 0 || text.Length() > RETAINED_MP_COMMAND_BYTES ) {
+			return;
+		}
+		guiActive->SetStateString( "admin_console_input", text.c_str() );
+		command = "retained adminConsole";
+	} else if ( !idStr::Icmp( request, "mpAdminSelect" ) ) {
+		const int row = gui->State().GetInt( "card.admin_row", "-1" );
+		if ( row < 0 || row >= RETAINED_MP_ADMIN_PLAYERS ) {
+			common->Warning( "retained UI: the multiplayer card asked for admin player row %d", row );
+			return;
+		}
+		// The row's client by the game's own list; the game checks it again.
+		gameCommand = va( "play main_menu_selection ; retained adminSelect %d", gui->State().GetInt( va( "mp.admin.player%d.client", row ), "-1" ) );
+		command = gameCommand.c_str();
+	} else if ( !idStr::Icmp( request, "mpAdminBanPick" ) ) {
+		const int row = gui->State().GetInt( "card.admin_ban_pick", "-1" );
+		if ( row < 0 || row >= RETAINED_MP_ADMIN_BANS ) {
+			common->Warning( "retained UI: the multiplayer card asked for ban row %d", row );
+			return;
+		}
+		gameCommand = va( "play main_menu_selection ; retained adminBanSelect %d", row );
+		command = gameCommand.c_str();
+	} else if ( !idStr::Icmp( request, "mpAdminKick" ) ) {
+		command = "play main_menu_selection ; retained adminKick";
+	} else if ( !idStr::Icmp( request, "mpAdminBan" ) ) {
+		command = "play main_menu_selection ; retained adminBan";
+	} else if ( !idStr::Icmp( request, "mpAdminSwitch" ) ) {
+		command = "play main_menu_selection ; retained adminSwitch";
+	} else if ( !idStr::Icmp( request, "mpAdminBans" ) ) {
+		command = "play main_menu_selection ; retained adminBans";
+	} else if ( !idStr::Icmp( request, "mpAdminUnban" ) ) {
+		command = "play main_menu_selection ; retained adminUnban";
+	} else if ( !idStr::Icmp( request, "mpAdminApply" ) ) {
+		// Apply closes the menu where it changes the server, as the stock
+		// page's did.
+		command = "play main_menu_selection ; retained adminApply";
+	} else if ( Session_RetainedValueRequest( request, RETAINED_MP_ADMIN_FIELDS,
+		static_cast<int>( sizeof( RETAINED_MP_ADMIN_FIELDS ) / sizeof( RETAINED_MP_ADMIN_FIELDS[0] ) ), voteField, voteValue ) ) {
+		// A drafted server setting changes quietly, and the menu stays open.
+		gameCommand = va( "retained adminSet %d %d", voteField, voteValue );
 		command = gameCommand.c_str();
 	} else if ( !idStr::Icmp( request, "mpSettingsControls" ) ) {
 		command = "play main_menu_selection ; mainMenu fromMp_toControls";

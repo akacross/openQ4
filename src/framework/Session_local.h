@@ -664,6 +664,20 @@ public:
 	idStr				retainedSaveTarget;
 	// The Restart Level page (NULL until it first loads).
 	idUserInterface *	guiRetainedRestart;
+	// The Strogg pause's Load Game, Save Game and Restart Level pages, the
+	// same pages in the Strogg family (NULL until they first load).
+	idUserInterface *	guiRetainedLoadStrogg;
+	idUserInterface *	guiRetainedSaveStrogg;
+	idUserInterface *	guiRetainedRestartStrogg;
+	bool				IsRetainedLoadPage( const idUserInterface *gui ) const {
+		return gui != NULL && ( gui == guiRetainedLoad || gui == guiRetainedLoadStrogg );
+	}
+	bool				IsRetainedSavePage( const idUserInterface *gui ) const {
+		return gui != NULL && ( gui == guiRetainedSave || gui == guiRetainedSaveStrogg );
+	}
+	bool				IsRetainedRestartPage( const idUserInterface *gui ) const {
+		return gui != NULL && ( gui == guiRetainedRestart || gui == guiRetainedRestartStrogg );
+	}
 	// The Demos page (NULL until it first loads): the library entries its
 	// filter shows (indices into demoLibrary, newest first), the first one
 	// its rows show, the selected one (-1: none) and the filter (0: all).

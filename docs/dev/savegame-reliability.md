@@ -57,20 +57,15 @@ it provides no confidentiality. The description and preview sidecars are not
 covered by the `.save` CRC; they are validated and committed separately as part
 of the same slot transaction.
 
-The v4 reader and retained v3 decoder require a matching wire ABI. Only v3
-payloads also require a build number of at least 661, and only v3 player records
-consult the historical field thresholds: `swimSpeed` at 661 and
-`nextLiquidSurfaceSoundTime` at 721. Build/source differences are otherwise
-diagnostic. The build number is the engine's commit count, so it is not a schema
-identity and no v4 layout depends on it; payload-version discipline remains the
-only way to change a layout.
-
-Serialized GUIs are part of the layout. A saved GUI's window tree follows the
-`.gui` definition the writer parsed, and the payload does not identify that
-definition. The v3 decoder therefore restores the player HUDs through the v3
-definitions shipped under `guis/savegame/v3/`, then moves their state to the live
-HUD; see the
-[compatibility policy](savegame-compatibility-policy.md#saved-gui-layouts).
+The v4 reader and retained v3 decoder require a matching wire ABI and a layout
+build of at least 640, where v3 began. The layout build is the build a payload
+carries, or for a release that stamped build 1, that release's build
+(`src/framework/SaveGameReleases.h`). Build/source differences above the floor are
+diagnostic, but fields added within a version still depend on historical build
+thresholds: `swimSpeed` at 661, `nextLiquidSurfaceSoundTime` at 721, and the
+interpolator records that grew at 1582. Payload-version discipline remains
+necessary; the build count is not a substitute for an explicit future schema
+revision.
 
 Version 4 appends typed animator playback multipliers in both libraries and
 Awakening freeze/buff state to SP AI records. It changes no raw-write structure,
@@ -82,14 +77,15 @@ after the complete entity graph restores. The
 defines these fields and the upgrade boundary.
 
 Release compilation must use complete engine Git history. A shallow checkout
-produces build 1 and a source archive build 0. For v3 that made the engine reject
-its own staged saves and made field-presence checks describe the wrong layout.
-Starting with 0.13.1, stable version generation rejects incomplete history. v4
-payloads no longer consult the build number, so development, source-archive and
-shallow-clone builds restore their own v4 saves and those of complete-history
-builds. Older released build-1 v3 saves remain unsupported: their layout is
-unknown, and previous snapshot-specific compatibility claims were withdrawn when
-actual restores failed.
+incorrectly produces build 1, causing the engine to reject its own staged saves
+and causing field-presence checks to describe the wrong layout. Starting with
+0.13.1, stable version generation rejects incomplete history. Lowering the restore
+floor alone would not repair these incorrectly stamped payloads: the released
+build-1 saves of 0.10.0 through 0.13.0 are instead recognised by their source
+snapshot and read as their release builds, which restores them (see
+[Releases That Stamped Build 1](savegame-compatibility-policy.md#releases-that-stamped-build-1)).
+The earlier snapshot-specific claims failed because they described the wrong
+layouts, not because the payloads were unreadable.
 
 Older releases could also serialize a different class-frame sequence depending on
 link optimization. The old dispatcher compared member-function addresses, and
@@ -248,15 +244,7 @@ each of the SP and MP source trees (22 calls per tree):
 | `vehicle/VehiclePosition.cpp` | 5 |
 
 Engine-owned GUI/window and interpolation aggregates also retain fixed native
-layout in parts of the positional payload. `jointMod_t` embeds
-`idInterpolateAccelDecelLinear<idAngles>`, and a running GUI transition writes its
-`idInterpolateAccelDecelLinear<idVec4>`, both as native images. Commit `f15a41f0`
-(after 0.14.000) added a `bool` to `idExtrapolate` and `idInterpolate`, growing
-each of those images by four bytes, so that build could not restore any v3 or v4
-save holding a joint modifier, which includes every player. The cache flag is now a
-NaN cached time, restoring the original layout, and `static_assert`s beside both
-raw writes require these types to contain only their declared members on every
-ABI. Adding a member to them is a payload change. The table above is the exact locked
+layout in parts of the positional payload. The table above is the exact locked
 GameLib *direct-call* inventory, not a claim that these are the only native-layout
 bytes reachable through all helper functions.
 
@@ -295,12 +283,6 @@ Use these rules for future changes:
    a gameplay-version decision.
 6. Update corruption models, ABI contracts, compatibility policy, and release
    notes with the code change.
-7. Treat a serialized GUI definition as schema. `savegame_gui_layout_contract.py`
-   pins each one by payload version. An edit that changes its window tree needs
-   a payload bump and its previous definition under `guis/savegame/v<N>/` for
-   the older decoder. Never decode a GUI positionally with a definition other than
-   the one its payload version identifies.
-8. Never gate a layout on the build number outside the historical v3 thresholds.
 
 Parser tightening that rejects values impossible in a valid existing save can
 remain within a version. A new writer representation is not merely parser
@@ -338,7 +320,10 @@ AI path.
 
 ## Issue #123
 
-The attached v0.10 save in issue #123 exposed both historical v3 differences
+The save attached to issue #123 was written by 0.12.0 (the report says so,
+although it was long recorded here as a v0.10 save). Its `ReadTrace` desync is the
+`swimSpeed` it carries being skipped by a reader that took build 1 at face value;
+release identification reads it as build 719. It exposed both historical v3 differences
 above. Reconstructing its source snapshot reproduced the embedded SHA-256
 exactly. With the targeted decoder, the original file passes the omitted physics
 frame and both four-byte player-field boundaries, including the reported
@@ -360,10 +345,9 @@ The focused regression set is:
 python tools/tests/savegame_v3_contract.py
 python tools/tests/savegame_pointer_width_safety.py
 python tools/tests/savegame_corruption_contract.py
-python tools/tests/savegame_gui_layout_contract.py
 ```
 
-All four savegame contracts pass for the current tree. They cover the v3
+All three savegame contracts pass for the current tree. They cover the v3
 integrity/transaction model, the exact v0.10 compatibility tuple and decoder,
 source-declared class-frame ownership, total-file boundary arithmetic,
 pointer-width safety, bounded and typed restore rules, raw-write inventory, and
@@ -380,41 +364,45 @@ and dedicated builds expose neither save nor load commands. These runs used
 windowed launches and engine-render-target screenshots where visual evidence was
 captured.
 
-The old v2 compatibility claim above has since been withdrawn. The 0.13.1 Windows
-candidate passes fresh manual save, quicksave, restore, and save-after-restore in
-stock `game/airdefense1`; incorrectly stamped build-1 saves remain rejected.
+The old allowlist-based v2 claim above was withdrawn on 2026-08-31 and replaced
+on 2026-10-16 by a v2 reader (see the
+[compatibility policy](savegame-compatibility-policy.md#version-2)). The 0.13.1
+Windows candidate passes fresh manual save, quicksave, restore, and
+save-after-restore in stock `game/airdefense1`.
 
-### Cross-build restore matrix (2026-10-13, Linux x64)
+Old-save corpus, 2026-10-15, Windows x64 debugoptimized candidate built from
+`d08bf5488` plus the release, interpolator, GUI-revision and non-finite GUI value
+readers. Each save was copied into an isolated save path and loaded with
+`+loadGame`; "loaded" means the restore finished and two seconds of play ran
+without an error:
 
-`tools/tests/savegame_gui_layout_contract.py` joins the focused set above. It fails
-on the 0.14.000 tree (no v3 HUD layouts), passes once they ship, and fails again
-for a simulated HUD edit or an altered v3 layout.
+| Saves | Result |
+| --- | --- |
+| 0.14.000, written by the rebuilt release (`1621aa215`) on Air Defense 1, Hangar 1, Storage 1, Tram 1B, Process 1 | 5 of 5 loaded (the unpatched build failed them) |
+| 0.12.0 release saves (`%LOCALAPPDATA%`, 2026-08-26) | 3 of 3 loaded |
+| 0.10.0, 0.11.0 and 0.13.0 equivalents (re-stamped real saves of identical layout) | 5 of 5 loaded |
+| Development builds 691–1669, base game, including walker, tank and vehicle maps | 21 of 21 loaded |
+| Development builds 1119–1561, The Awakening | 12 of 12 loaded |
+| 0.9.0 (v2), written by the rebuilt release (`7a1d0c54e` with `openQ4-game` `550271b`) on the same five maps, as built (build 621) and stamped build 1 like the release | 10 of 10 loaded (2026-10-16) |
+| Version 2 development build 614 (0.9.0's snapshot) | Loaded (2026-10-16) |
+| Version 2 development build 544 (before the 546 sound fields) | Refused before map teardown |
+| Unstamped (release build 1, builds 246 and 480-491) | Refused before map teardown; tried, they fail after teardown (see the policy) |
 
-`tools/tests/savegame_restore_matrix.py` (opt-in, retail assets) restores existing
-saves with a staged client and requires the source files to stay unchanged. It
-was run on physical Linux x64 under Wayland with OpenGL, against real v0.13.2
-build-878 player saves (not committed) and fresh map-start fixtures:
+The Load Game page was driven the same way with engine commands
+(`openq4_retainedGui focus` and `menu accept`, no device input): it listed every
+save in a mixed corpus, refused an unstamped one with "This save is damaged or
+comes from an incompatible version.", and loaded the 0.12.0 checkpoint into
+Air Defense Bunker with the HUD restored through its earlier definition.
 
-| Runtime | Input | Result |
-| --- | --- | --- |
-| 0.14.000 release | v3 build 878 (`airdefense1`, `airdefense2`) | Desync in `guis/hud.gui` after map teardown (`idWinStr::ReadFromSaveGame: invalid string length`) |
-| 0.14.000 release, loose v3 `hud.gui` beside its paks | v3 build 878 | Restored: the HUD definition alone decides the outcome |
-| 0.14.000 release | v4 build 1574 with only the build field set to 1 | Refused in preflight as below build 661 |
-| fixed, `debugoptimized` | v3 builds 878 and 1109 (marine and Strogg HUDs), v4 builds 1574 and 1576 | All restored; v3 HUDs report their saved layout |
-| fixed | v4 saves restamped to build 0 and 1 | All restored |
-| fixed, `debug` (`-O0`) | v4 saves from the `-O2` build, v3 builds 878 and 1109 | All restored, and the `-O2` build restores a `-O0` save |
-| fixed, `ui_retained 1` | v3 builds 878 and 1109, v4 build 1574 | All restored |
-| fixed | wrong ABI, payload v5, CRC damage, truncation, empty file, v3 build 1 | Each refused in preflight with its own reason; map not torn down |
-| v3-only 0.13.2-dev build 1109 | v4 saves | Refused in preflight as unsupported payload version 4 |
-
-| main at `f15a41f0` plus the v3 HUD decoder | v3 builds 878 and 1109, including a Strogg boss fight | Desync in the player's animator (`saved joint count 0 does not match model joint count 65 for model 'model_player_marine' on entity 'player1'`) |
-| fixed, after the interpolator layout restore (2026-10-16) | v3 build 878, v3 build 1109 `game/waste` boss fight, v4 build 1574 | All restored; the boss fight's HUD reports `Bossbar::visible` and its health width carried over |
-
-Restores were checked by running at least 60 post-restore frames without an
-error. The `game/waste` boss-fight restore was also compared by screenshot: the
-restored HUD shows the boss bar exactly as a boss fight started fresh on the same
-build does. Other gameplay state was not inspected. Windows, macOS and ARM64 were
-not exercised.
+The harness and fixtures live under `.tmp/savecompat/` (`load_saves.py`,
+`menu_check.py`, `restamp_save.py`, `make_save.py`). The in-repo
+`tools/tests/savegame_restore_matrix.py` restores a set of saves with a staged
+client, optionally restamped to other build numbers, never deletes anything and
+refuses inputs inside its output directory; `--self-test` runs in CI.
+`tools/tests/savegame_gui_layout_contract.py` pins every serialized openQ4 GUI and
+the `guis/savecompat/` revisions, so editing one fails until it is classified. No save written by the
+0.6.95, 0.8.0, 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available, and
+Linux and macOS old-save restores are untested.
 
 Historical Linux x64/Wayland save/load evidence predates v3 and does not prove
 the current candidate on physical Linux hardware. ARM64 contract/build results

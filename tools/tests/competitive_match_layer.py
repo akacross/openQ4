@@ -262,11 +262,16 @@ def main() -> None:
         "Unknown/hidden tokens fail closed",
     ):
         require(server_scan, token, "fail-closed browser filter")
+    # The master is asked for every server and the list applies the full
+    # registry itself, so the legacy two-bit field never names a wrong mode.
     for token in (
-        "masterGameTypeFilter",
-        "localGameTypeFilter >= 0 && localGameTypeFilter <= 3",
+        "The master is asked for every server",
+        "msg.WriteBits( 0, 2 );",
+        "extMsg.WriteBits( 0, 2 );",
     ):
         require(async_client, token, "legacy master compatibility")
+    if 'GetCVarInteger( "gui_filter_gameType" )' in async_client:
+        raise AssertionError("the master request still sends a game type filter")
 
     for token in (
         'gameType, "Duel"',

@@ -6,14 +6,15 @@ with one card over the live, softened match (section 14.18 of the
 Escape card's shell came first: the card, its header, the eight-tab strip, the
 prompt bar, the Disconnect confirmation, the softening and its release, and the
 session and game plumbing that let the card cover the game's own menu. The
-Team, Players, Vote, Settings, Voice, Server and Match pages are built on it,
-the Match page with all six of Match Control's sections; Admin still hands off
-to its stock page, so the Escape card stays opt-in. The Welcome card covers
-the connect-time join offer with its Join, Server, Players and Settings pages,
-all built, so it presents when `ui_retained 1` is selected. The loading screen hands a join over to
-the Welcome card (B8). Admin waits for text fields, as does the Match page's
-referee sign-in, which opens the stock page for its credential; the Admin
-page's password check now works (B7).
+Team, Players, Vote, Settings, Voice, Server, Match and Admin pages are built
+on it, the Match page with all six of Match Control's sections and Admin with
+the remote console password, Players, Server and Console. With no page left
+handing off, the Escape card presents with `ui_retained` alone. The Welcome
+card covers the connect-time join offer with its Join, Server, Players and
+Settings pages, all built, so it presents when `ui_retained 1` is selected.
+The loading screen hands a join over to the Welcome card (B8). The card's text
+fields carry the remote console password, the console's commands, the Match
+page's referee password and the Settings pages' name and clan.
 
 ## The gate
 
@@ -22,17 +23,15 @@ so it lasts until the player quits, and it is `CVAR_NOCHEAT`, so a join or a
 hosted spawn without cheats, which resets every unarchived cheat CVar, keeps
 it, and it can change during a match. `ui_retained` alone
 includes a card only once none of its pages hands off any more: the session
-lists the pages that still do in `RETAINED_MP_ESCAPE_MISSING_PAGES`, today
-Admin, and `RETAINED_MP_WELCOME_MISSING_PAGES`, now empty, and
+lists the pages that still do in `RETAINED_MP_ESCAPE_MISSING_PAGES` and
+`RETAINED_MP_WELCOME_MISSING_PAGES`, both now empty, and
 `tools/tests/ui_retained_gate.py` keeps each list equal to its document's
-hand-off pages (its `stock_<page>` programs). The Welcome card therefore
-presents with `ui_retained` alone, which defaults to 0 while its gameplay
-performance overhead remains too high; `ui_retained 0`
-keeps the classic join panel. A page that is built may still hand off what it
-cannot edit yet (`classic_<page>`: the Settings page's name and clan, the
-Match page's referee credential and its lists' rows past the card's) without
-counting as missing. Players never see a mix of card and stock pages unless
-they opt in.
+hand-off pages (its `stock_<page>` programs). Both cards therefore present
+with `ui_retained` alone; `ui_retained 0` keeps the classic join panel and
+the stock in-match menu. A page that is built may still hand off what it
+cannot show (`classic_<page>`: the Match page's lists' rows past the card's)
+without counting as missing. Players never see a mix of card and stock pages
+unless they opt in.
 
 ## The cover
 
@@ -239,8 +238,11 @@ Status is built:
   and asks nothing. Force ready, Forfeit and Abort arm Match Control's
   confirmation and ask in the stock confirmation, with the stock page's text;
   Yes confirms it and No, or back, cancels it.
-- **The referee.** Sign in needs the credential, a text field, so it opens
-  the stock page; Sign out asks the game. Either says why it is unavailable.
+- **The referee.** While the player may sign in, a masked field takes the
+  referee password, and Enter signs in with it: the session moves it to the
+  game's menu (`match_referee_credential`), which the game clears as it
+  reads it, and asks for `referee_login`, as the stock field and button did.
+  Sign out asks the game. Either says why it is unavailable.
 - **A spectator's camera.** Previous, Next and Free camera, for a human
   spectator.
 
@@ -320,16 +322,18 @@ and for a list's row by the list's index in `RETAINED_MP_MATCH_LISTS` and
 the row's: the session sets the stock list's own selection on the game's
 menu and sends its token, as the stock list does. The card never sends text
 of its own, and the game checks every action again against its accepted
-view. The referee's sign-in, which needs the credential, and a list's rows
-past the card's open the stock page (`classic_match`).
+view. A list's rows past the card's open the stock page (`classic_match`).
 
 ### The Settings page
 
 The player's appearance, the other players' and the way to the rest of the
 settings:
 
-- **Player.** The name and the clan tag, each a row that hands off to the
-  classic Settings page, since the card has no text fields yet; the model, a
+- **Player.** The name and the clan tag, text fields of the stock fields'
+  23 and 12 characters (the clan may be empty) holding the settings colour
+  codes and all, as the game publishes them (`mp.settings.name_edit`,
+  `.clan_edit`); Enter sets the setting (`mpSettingsName`,
+  `mpSettingsClan`); the model, a
   list of the models the mode and the player's team allow; the rail color,
   the seven stock swatches, the one the player's tint matches by hue standing
   taller; and the handicap, a slider from 1 to 100.
@@ -470,13 +474,52 @@ any language. The page has no actions; its tab keeps the focus.
 
 ### The Admin page
 
-The Admin page hands off to the stock page until the card has text fields for
-the password and the console. The stock page asks for the server's
-remote-console password and sends `rcon verifyRconPass` when the player
-chooses Accept, then waits for the game to hear the answer
-(`idGame::ProcessRconReturn`), which opens the admin controls or returns to
-Join Team. Quake 4's engine answered that check; openQ4's ran it as an unknown
-command and never passed an answer on, so the page waited for good. Now:
+The stock page (`p_admin`) asked for the server's remote console password,
+then offered Players, Server and Console. The card's page
+(`tools/ui/retained_mp_admin.py`) keeps that order:
+
+- **The password.** Until the player is an admin the page shows the server's
+  name and address, ENTER RCON PASSWORD over a masked field (64 bytes) and
+  ACCEPT. Enter, or ACCEPT, asks the session (`mpAdminPass`), which moves the
+  password to `net_clientRemoteConsolePassword`, where the stock field kept
+  it, clears the card's copy at once and asks the game to check it
+  (`retained adminPass`, the stock `checkAdminPass`). The page says it is
+  checking, and says so when the server refuses it. A listen server's host
+  is the admin from the start; a client stays one, once the server accepts
+  its password, until the map changes.
+- **Players.** The players by client number, each row the scoreboard's with
+  the player's team, the chosen one lit; a row's Accept names its client to
+  the game (`retained adminSelect <client>`). Kick, Ban and Force team switch
+  are the card's action plates, each with the chosen player beside it or,
+  unavailable, why: no player chosen, the player's own row, a mode without
+  teams, a managed match. They run the stock page's own actions, and the menu
+  stays open. View ban list asks a client's server for its list and opens
+  PLAYER BAN LIST, the Create Server page's dialog over the game's list,
+  where a row's Accept chooses a ban and REMOVE BAN lifts it.
+- **Server.** The stock page's settings drafted as the Vote page drafts a
+  call: map and game type lists, the time limit and the limit the drafted
+  game type uses, then balance, shuffle, restart and buying where it uses
+  them, each value checked by the game against its setting's range. Apply
+  changes, unavailable until something would change, sends the draft as the
+  stock page's Apply did (`HandleServerAdminCommands`) and closes the menu;
+  the server restarts the map for a new map, game type or buying.
+- **Console.** The remote console's twelve newest lines in the stock
+  console's frame, and a field whose Enter runs the command through the
+  stock console's own input (`admin command`): on a listen server, the
+  command itself, its output redirected to the page; on a client, through
+  the server's remote console.
+
+The triggers step the sections, as on the Match page. The game publishes the
+page as `mp.admin.*` (`PublishRetainedAdmin`) and checks every command again
+(`HandleRetainedAdminCommand`): every one but the password check needs the
+player to be an admin.
+
+The password check itself needed engine work. The stock page sends
+`rcon verifyRconPass` when the player chooses Accept, then waits for the game
+to hear the answer (`idGame::ProcessRconReturn`), which opens the admin
+controls or returns to Join Team. Quake 4's engine answered that check;
+openQ4's ran it as an unknown command and never passed an answer on, so the
+page waited for good. Now:
 
 - the server answers the check with the stock "rcon verified" string
   (`#str_107250`) without running anything, once the password is accepted
@@ -491,7 +534,8 @@ command and never passed an answer on, so the page waited for good. Now:
   did, so the stock page's console shows it.
 
 The stock field takes 16 characters; a longer password set at the console
-works when the player chooses Accept without typing in the field.
+works when the player chooses Accept without typing in the field. The card's
+field takes 64.
 `tools/tests/async_rcon_verify_contract.py` compiles the client and server
 code with stand-ins and drives both ends; `--mutations` reverts each rule.
 
@@ -687,8 +731,9 @@ stands in.
 
 ## Decisions taken provisionally
 
-The plan left these to the owner. The card is opt-in, so each can still change
-without affecting players:
+The plan left these to the owner. The card is now the default in-match menu,
+so changing one of these changes what players see; each stays open to the
+owner's review:
 
 - **Width (D8).** As above: the card grows past 648 dp to fit the strip.
 - **Match sections (D3).** The triggers page Match Control's sections, as
@@ -729,8 +774,8 @@ without affecting players:
   keep their room in every language; the model lists hold 24 rows (the stock
   game has 18 models); the crosshair is a slider, not a picker with arrows;
   Welcome's All settings is Controls, Game Options and System, since the
-  main menu has no settings landing to open; and name, clan and push to
-  talk hand off until text and key binding fields exist.
+  main menu has no settings landing to open; and push to talk hands off
+  until key binding fields exist.
 - **Vote page.** The rows are the runtime's value controls: lists for the
   map, game type and kick, check boxes for balance, shuffle, restart and
   buying, sliders for the limits (time 0 to 60 minutes, frags 0 to 100,
@@ -1058,10 +1103,12 @@ The card's acceptance continues under `FLOW-046`.
 
 ## Known limitations
 
-- Admin and the Match page's referee sign-in hand off to their stock pages,
+- A Match Control list's rows past the card's hand off to the stock page,
   and the stock menu then keeps the menu until it closes; the card does not
-  come back over it. So do the Settings pages' name and clan, and a Match
-  Control list's rows past the card's.
+  come back over it.
+- The Admin page's console completes nothing with Tab, as the stock console
+  did, and its player list never scrolls the chosen row into view by itself.
+  Kick and Ban ask nothing first, as on the stock page.
 - Choosing an unavailable action does not announce its reason to the
   accessibility text backing yet, and a controller gives no rumble.
 - The Team page has no Tourney queue or arena controls; Tourney offers what
@@ -1082,7 +1129,7 @@ The card's acceptance continues under `FLOW-046`.
   place in the queue (neither has a model yet), and its team cards carry no
   faction mark.
 - The Settings pages have no model preview (retained documents have no 3D
-  view) and no text fields: name and clan open the classic page.
+  view).
 - The Voice page's settings take effect, but voice chat itself does not work
   yet, so its meter and test are unavailable.
 - The crosshair slider runs to twenty, the stock list; a mod's longer list
@@ -1104,5 +1151,5 @@ The card's acceptance continues under `FLOW-046`.
 - Narrower views than 4:3 (5:4, portrait) do not scale the card down yet
   (`LAY-021`).
 - The multiplayer smokes join with `ui_autoJoin 1`, so they never see the
-  Welcome card; the smokes that capture stock in-match pages need to pin
-  `ui_retained 0` once the Escape card joins the default.
+  Welcome card, and the ones that drive and capture the stock in-match menu
+  pin `ui_retained 0`, since the Escape card now covers it by default.

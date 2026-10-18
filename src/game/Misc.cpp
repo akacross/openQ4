@@ -4300,7 +4300,9 @@ void idPhantomObjects::Restore( idRestoreGame *savefile ) {
 		savefile->ReadInt( targetTime[ i ] );
 	}
 
-	if ( savefile->GetBuildNumber() == INITIAL_RELEASE_BUILD_NUMBER ) {
+	// Only a retail 1.0 save lacks them; an openQ4 payload is stamped, and its
+	// build number may be 1262 too.
+	if ( !savefile->HasOpenQ4SaveGameCompatibilityStamp() && savefile->GetBuildNumber() == INITIAL_RELEASE_BUILD_NUMBER ) {
 		// these weren't saved out in the first release
 		for( i = 0; i < num; i++ ) {
 			lastTargetPos[ i ].Zero();

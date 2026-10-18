@@ -3076,14 +3076,18 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 	savefile->ReadInt( lastAirDamage );
 
 // openQ4 BEGIN
-	savefile->ReadInt( (int &)previousWaterLevel );
-	savefile->ReadInt( previousWaterType );
+	// Liquid support arrived with v3; a v2 payload keeps the spawned defaults.
 	nextLiquidSurfaceSoundTime = 0;
-	if ( savefile->HasOpenQ4PlayerLiquidSoundSaveField() ) {
-		savefile->ReadInt( nextLiquidSurfaceSoundTime );
+	if ( savefile->GetOpenQ4SaveGameCompatibilityVersion() >= OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
+		savefile->ReadInt( (int &)previousWaterLevel );
+		savefile->ReadInt( previousWaterType );
+		nextLiquidSurfaceSoundTime = 0;
+		if ( savefile->HasOpenQ4PlayerLiquidSoundSaveField() ) {
+			savefile->ReadInt( nextLiquidSurfaceSoundTime );
+		}
+		savefile->ReadInt( nextLiquidDamageTime );
+		savefile->ReadInt( drownDamage );
 	}
-	savefile->ReadInt( nextLiquidDamageTime );
-	savefile->ReadInt( drownDamage );
 // openQ4 END
 
 	savefile->ReadBool( gibDeath );

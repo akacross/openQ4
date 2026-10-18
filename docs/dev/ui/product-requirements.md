@@ -605,7 +605,15 @@ main's state and the line's initializing, weapon wheel and New Campaign evidence
 `WID-006`, `WID-009`, `WID-013`, `FLOW-001`, `FLOW-004`, `FLOW-005`, `FLOW-011`, `FLOW-013`, `INP-009`,
 `WID-019`, `WID-025` and `WID-029` move from pending to partial with the line's evidence.
 
-There are **114 partial, 232 pending and one verified requirement**, counting the
+On engine `84daa5a702a0e17236641993c1cc25f840068a96` the register catches up with work recorded in the
+[Remastered HUD](remastered-hud.md) notes: `FLOW-054`, `FLOW-055` and `FLOW-061`
+move from pending to partial with its checkpoint (the Awakening's on-foot and
+vehicle documents), and `FLOW-042` and `FLOW-024` record the objectives display
+held in play, its toggle, the notices, single-player loading tips and the
+multiplayer Escape card. Each row keeps its unbuilt parts and qualification
+matrices as remaining.
+
+There are **117 partial, 229 pending and one verified requirement**, counting the
 36 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock

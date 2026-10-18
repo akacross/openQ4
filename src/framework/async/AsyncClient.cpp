@@ -594,15 +594,14 @@ void idAsyncClient::GetNETServers( void ) {
 	msg.WriteString( "getServers" );
 	msg.WriteLong( ASYNC_PROTOCOL_VERSION );
 	msg.WriteString( cvarSystem->GetCVarString( "fs_game" ) );
-	msg.WriteBits( cvarSystem->GetCVarInteger( "gui_filter_password" ), 2 );
-	msg.WriteBits( cvarSystem->GetCVarInteger( "gui_filter_players" ), 2 );
-	// The public master protocol has only two legacy gametype bits.  Request an
-	// unfiltered list for extended openQ4 modes and apply the full registry in
-	// idServerScan; truncating a larger value would ask the master for the wrong
-	// legacy mode and hide valid results.
-	const int localGameTypeFilter = cvarSystem->GetCVarInteger( "gui_filter_gameType" );
-	const int masterGameTypeFilter = ( localGameTypeFilter >= 0 && localGameTypeFilter <= 3 ) ? localGameTypeFilter : 0;
-	msg.WriteBits( masterGameTypeFilter, 2 );
+	// The master is asked for every server: the list filters by password,
+	// players and the full game type registry itself (idServerScan::IsFiltered),
+	// so a filter changed after a scan never needs a new list, and the legacy
+	// two-bit fields, which cannot name openQ4's added modes, never withhold a
+	// server the list would show.
+	msg.WriteBits( 0, 2 );
+	msg.WriteBits( 0, 2 );
+	msg.WriteBits( 0, 2 );
 
 	netadr_t adr;
 	if ( idAsyncNetwork::GetMasterAddress( 0, adr ) ) {
@@ -619,9 +618,9 @@ void idAsyncClient::GetNETServers( void ) {
 		extMsg.WriteString( "getServersExt" );
 		extMsg.WriteLong( ASYNC_PROTOCOL_VERSION );
 		extMsg.WriteString( cvarSystem->GetCVarString( "fs_game" ) );
-		extMsg.WriteBits( cvarSystem->GetCVarInteger( "gui_filter_password" ), 2 );
-		extMsg.WriteBits( cvarSystem->GetCVarInteger( "gui_filter_players" ), 2 );
-		extMsg.WriteBits( masterGameTypeFilter, 2 );
+		extMsg.WriteBits( 0, 2 );
+		extMsg.WriteBits( 0, 2 );
+		extMsg.WriteBits( 0, 2 );
 		clientPort.SendPacket( adr, extMsg.GetData(), extMsg.GetSize() );
 	}
 }

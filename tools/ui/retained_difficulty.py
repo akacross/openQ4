@@ -16,14 +16,15 @@ its page (idSessionLocal::BeginRetainedPage): the page is the stock page's
 content over the departed pause, whose carried label is the page's title. The
 choice stays on the page until RESTART LEVEL restarts the level at it
 (RestartLevelAtSkill), so Back changes nothing. The in-game page offers no
-turbo mode, as the stock one hid it.
+turbo mode, as the stock one hid it. The Strogg pause hands off to the same
+page in the Strogg family (restartlevel_strogg.q4ui, see retained_saves.py).
 """
 from __future__ import annotations
 
-from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, U, Document, absolute, colour, font,
-                                    group, keyword, label, length, linear, marker_path, number, page_prompts, path, rgb,
+from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, U, Document, absolute, colour, font,
+                                    group, keyword, label, length, linear, number, page_prompts, path, rgb,
                                     solid, stroke, text_width, track, transform, typeface, vector)
-from retained_saves import backing, lines_needed, section_plate, table_text
+from retained_saves import MARINE, STROGG_SHOULDER, Family, backing, lines_needed, section_plate, table_text
 
 # The stock difficulties, easiest first (g_skill 0-4), with their descriptions.
 DIFFICULTIES = (("#str_200014", "#str_200183"), ("#str_200015", "#str_200019"), ("#str_200016", "#str_200184"),
@@ -39,7 +40,8 @@ PRIMARY_TEXT = 23.7                            # dp: Marine textscale 0.33
 
 def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, width: float, height: float, *,
                   action: str | None = None, event: str | None = None, label_box: tuple = None, text: float = None,
-                  marker: tuple = (11.0, 10.0, 18.0), extra_states: dict | None = None, extra_children: tuple = ()) -> dict:
+                  marker: tuple = (11.0, 10.0, 18.0), extra_states: dict | None = None, extra_children: tuple = (),
+                  family: Family = MARINE) -> dict:
     """The enlarged primary plate (b6_light, Appendix B.1) that carries START
     GAME on the stock page: its band rows 4-27 of 32, a 45-degree lower-leading
     cut from row 14, the olive rail along the leading edge, the cut and the
@@ -51,33 +53,38 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
     `text` and `marker` (its left, top and size in u) suit a smaller plate;
     `extra_states` adds (node, property, value) tracks to each feedback state,
     which may target only the plate's own subtree, where `extra_children`
-    places further nodes."""
+    places further nodes. The Strogg `family` washes the plate #FF9000 behind
+    a #F59512 rail, trades the cut for a 30-degree shoulder and the marker for
+    the slanted one, and sets the label in R_Strogg."""
     label_box = label_box or PRIMARY_LABEL
     text = text or PRIMARY_TEXT
+    hot, wash = family.hot, (family.light if family.strogg else OLIVE)
     w, h = U * width, U * height
     band_top, band_bottom, cut = round(h * 4 / 32, 4), round(h * 27 / 32, 4), round(h * 13 / 32, 4)
-    fill = [(0, rgb(OLIVE, 0.49)), (0.31, rgb(OLIVE, 0.49)), (0.5, rgb(OLIVE, 0.37)), (0.75, rgb(OLIVE, 0.17)),
-            (0.94, rgb(OLIVE, 0.055)), (0.953, rgb(OLIVE, 0)), (1, rgb(OLIVE, 0))]
-    rail = [(0, rgb(OLIVE)), (0.31, rgb(OLIVE)), (0.953, rgb(OLIVE, 0)), (1, rgb(OLIVE, 0))]
+    cut_x, cut_y = (round(cut * 0.6 * STROGG_SHOULDER, 4), round(cut * 0.6, 4)) if family.strogg else (cut, cut)
+    fill = [(0, rgb(wash, 0.49)), (0.31, rgb(wash, 0.49)), (0.5, rgb(wash, 0.37)), (0.75, rgb(wash, 0.17)),
+            (0.94, rgb(wash, 0.055)), (0.953, rgb(wash, 0)), (1, rgb(wash, 0))]
+    line = family.rail if family.strogg else OLIVE
+    rail = [(0, rgb(line)), (0.31, rgb(line)), (0.953, rgb(line, 0)), (1, rgb(line, 0))]
     whole = {**absolute(left=0, top=0, width=w, height=h)}
     plate = vector(f"{ident}-plate", {**whole, "opacity": number(0.4)}, [
-        path("fill", [(0, band_top), (w, band_top), (w, band_bottom), (cut, band_bottom), (0, band_bottom - cut)],
+        path("fill", [(0, band_top), (w, band_top), (w, band_bottom), (cut_x, band_bottom), (0, band_bottom - cut_y)],
              fill=linear((0, 0), (w, 0), fill)),
-        path("rail", [(0.75, band_top), (0.75, band_bottom - cut), (cut, band_bottom - 0.75), (w, band_bottom - 0.75)],
+        path("rail", [(0.75, band_top), (0.75, band_bottom - cut_y), (cut_x, band_bottom - 0.75), (w, band_bottom - 0.75)],
              closed=False, stroke=stroke(linear((0, 0), (w, 0), rail), 1.5)),
     ])
     focus = vector(f"{ident}-focus", {**whole, "opacity": number(0)}, [
-        path("inset", [(cut + 2, band_bottom - 3.2), (round(w * 0.6, 4), band_bottom - 3.2)], closed=False,
-             stroke=stroke(solid(rgb(ORANGE)), 1.2))])
+        path("inset", [(cut_x + 2, band_bottom - 3.2), (round(w * 0.6, 4), band_bottom - 3.2)], closed=False,
+             stroke=stroke(solid(rgb(hot)), 1.2))])
     # The stock corner art is 11 u, drawn here at the marker's size.
     mark_left, mark_top, mark_size = marker
     scale = mark_size / 11
     mark = (round(U * (mark_left + 1.75 * scale), 4), round(U * (mark_top + 2.75 * scale), 4), round(U * 5.5 * scale, 4))
-    marker_rest = vector(f"{ident}-marker", {**whole, "opacity": number(0.4)}, [marker_path("mark", *mark, rgb(MARKER))])
-    marker_hot = vector(f"{ident}-marker-hot", {**whole, "opacity": number(0)}, [marker_path("mark", *mark, rgb(ORANGE))])
+    marker_rest = vector(f"{ident}-marker", {**whole, "opacity": number(0.4)}, [family.mark("mark", *mark, rgb(family.marker))])
+    marker_hot = vector(f"{ident}-marker-hot", {**whole, "opacity": number(0)}, [family.mark("mark", *mark, rgb(hot))])
     x, y, label_w, label_h = label_box
     text_node = label(f"{ident}-label", key, {**absolute(left=U * x, top=U * y, width=U * label_w, height=U * label_h),
-                      **typeface("marine", text, U * label_h, [1, 1, 1, 0.8]), "white-space": keyword("nowrap"),
+                      **typeface(family.face, text, U * label_h, list(family.read)), "white-space": keyword("nowrap"),
                       "transform": transform()})
     lit, rest = number(1), number(0)
 
@@ -86,11 +93,11 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
                 (f"{ident}-marker-hot", "opacity", number(hot)), (f"{ident}-focus", "opacity", number(inset)),
                 (f"{ident}-label", "color", colour(tint)), (f"{ident}-label", "transform", moved)]
     states = {
-        "default": state(0.4, 0.4, 0, 0, [1, 1, 1, 0.8], transform()),
-        "hover": state(1, 0, 1, 0, rgb(ORANGE), transform(sx=1.03, sy=1.03)),
-        "focus": state(1, 0, 1, 1, rgb(ORANGE), transform(sx=1.03, sy=1.03)),
-        "pressed": state(1, 0, 1, 1, rgb(ORANGE), transform(tx=1, ty=1, sx=1.03, sy=1.03)),
-        "disabled": state(0.4, 0.4, 0, 0, [1, 1, 1, 0.3], transform()),
+        "default": state(0.4, 0.4, 0, 0, list(family.read), transform()),
+        "hover": state(1, 0, 1, 0, rgb(hot), transform(sx=1.03, sy=1.03)),
+        "focus": state(1, 0, 1, 1, rgb(hot), transform(sx=1.03, sy=1.03)),
+        "pressed": state(1, 0, 1, 1, rgb(hot), transform(tx=1, ty=1, sx=1.03, sy=1.03)),
+        "disabled": state(0.4, 0.4, 0, 0, family.tint(0.3), transform()),
     }
     for name, tracks in (extra_states or {}).items():
         states[name] = states[name] + list(tracks)
@@ -104,7 +111,7 @@ def primary_plate(doc: Document, ident: str, key: str, left: float, top: float, 
                  [plate, focus, marker_rest, marker_hot, text_node, *extra_children], control=control)
 
 
-def difficulty_plates(doc: Document, key: str) -> list:
+def difficulty_plates(doc: Document, key: str, family: Family = MARINE) -> list:
     """The five difficulty plates, each choosing its difficulty into `key`
     (the page's own state) and lit while it holds the choice."""
     chosen = {"state": key}
@@ -113,15 +120,15 @@ def difficulty_plates(doc: Document, key: str) -> list:
         event = f"chooseSkill{index}"
         doc.events[event] = [{"op": "setState", "values": {key: index}}]
         plates.append(section_plate(doc, f"skill-{index}", name, left, top, event=event,
-                                    selected={"op": "==", "args": [chosen, index]}))
+                                    selected={"op": "==", "args": [chosen, index]}, family=family))
     return plates
 
 
-def difficulty_description(doc: Document, ident: str, key: str) -> dict:
+def difficulty_description(doc: Document, ident: str, key: str, family: Family = MARINE) -> dict:
     """The chosen difficulty's description beside the plates."""
     left, top, width, height = DESCRIPTION
     node = label(ident, DIFFICULTIES[1][1], {**absolute(left=U * left, top=U * top, width=U * width, height=U * height),
-                 **typeface("lowpixel", DESCRIPTION_TEXT, DESCRIPTION_LINE, [1, 1, 1, 0.6]), "white-space": keyword("normal"),
+                 **typeface("lowpixel", DESCRIPTION_TEXT, DESCRIPTION_LINE, family.tint(0.6)), "white-space": keyword("normal"),
                  "overflow": keyword("hidden")})
     text = DIFFICULTIES[0][1]
     for index in range(1, len(DIFFICULTIES)):
@@ -157,20 +164,20 @@ def check_fits(one_line: tuple, wrapped: tuple) -> None:
                 raise SystemExit(f"{key} in {language} needs {lines_needed(face, text, size, width)} lines of {allowed}")
 
 
-def restart_level_document() -> dict:
+def restart_level_document(family: Family = MARINE) -> dict:
     lines = int(U * DESCRIPTION[3] // DESCRIPTION_LINE)
-    check_fits(tuple((name, "marine", 22.3, U * 186) for name, _ in DIFFICULTIES) +
-               (("#str_229983", "marine", PRIMARY_TEXT, U * PRIMARY_LABEL[2]),),
+    check_fits(tuple((name, family.face, 22.3, U * 186) for name, _ in DIFFICULTIES) +
+               (("#str_229983", family.face, PRIMARY_TEXT, U * PRIMARY_LABEL[2]),),
                tuple((text, "lowpixel", DESCRIPTION_TEXT, U * DESCRIPTION[2], lines) for _, text in DIFFICULTIES))
-    doc = Document("openq4.restartlevel")
+    doc = Document(f"openq4.restartlevel{family.suffix}")
     doc.state["restart.skill"] = {"type": "number", "initial": 1}
     doc.session("back", "restartBack")
     doc.session("go", "restartGo")
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
-    plates = difficulty_plates(doc, "restart.skill")
-    description = difficulty_description(doc, "restart-description", "restart.skill")
-    go = primary_plate(doc, "restart_go", "#str_229983", *PRIMARY, action="go")
-    back = page_prompts(doc, "restart_back", action="back")
+    plates = difficulty_plates(doc, "restart.skill", family)
+    description = difficulty_description(doc, "restart-description", "restart.skill", family)
+    go = primary_plate(doc, "restart_go", "#str_229983", *PRIMARY, action="go", family=family)
+    back = page_prompts(doc, "restart_back", action="back", **family.prompts())
     # The plates show at once, under the title the pause carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     # The plates follow the panel, whose full-size box would take their hits.

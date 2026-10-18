@@ -5,6 +5,7 @@
 #include "../Game_local.h"
 
 #include "framework/BuildVersion.h"
+#include "framework/SaveGameReleases.h"
 #include "NoGameTypeInfo.h"
 
 // The generated stamp hashes every save-relevant game source, so it changes
@@ -103,7 +104,9 @@ struct openQ4SaveGameSnapshot_t {
 // The two player liquid fields were added by different builds, so a save can
 // legitimately carry the first and not the second. These are the engine build
 // numbers of the commits that introduced each write, and a payload is only read
-// as carrying a field when it was produced at or after that build:
+// as carrying a field when its layout build (the build it carries, or for a
+// release that stamped build 1, that release's; see SaveGameReleases.h) is at
+// or after that build:
 //   swimSpeed                  openQ4-game 2cc5a61, 2026-08-13, build 661
 //   nextLiquidSurfaceSoundTime openQ4-game d06a09d, 2026-08-19, build 721
 // One boolean used to gate both against a single hard-coded v0.10 tuple, so every
@@ -111,33 +114,6 @@ struct openQ4SaveGameSnapshot_t {
 // desynced the remainder of the restore.
 static const int OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_SWIM_SPEED = 661;
 static const int OPENQ4_SAVEGAME_BUILD_WITH_PLAYER_LIQUID_SOUND = 721;
-
-// A saved GUI's window tree is positional: its bytes follow the window, variable
-// and script layout parsed from the .gui file, which the save does not record.
-// openQ4 commit 38bdc687 rewrote both player HUDs in the same change that moved the
-// payload to v4, so every v3 save carries these exact earlier definitions. They
-// are kept unchanged under guis/savegame/v3/ only to decode that window tree.
-struct openQ4SaveGameGuiLayout_t {
-	const char *gui;
-	const char *v3Layout;
-};
-
-static const openQ4SaveGameGuiLayout_t openQ4SaveGameV3GuiLayouts[] = {
-	{ "guis/hud.gui", "guis/savegame/v3/hud.gui" },
-	{ "guis/hud_strogg.gui", "guis/savegame/v3/hud_strogg.gui" },
-};
-
-static const char *SaveGame_FindGuiLayoutForPayload( const char *gui, int payloadVersion ) {
-	if ( payloadVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
-		return NULL;
-	}
-	for ( int i = 0; i < static_cast<int>( sizeof( openQ4SaveGameV3GuiLayouts ) / sizeof( openQ4SaveGameV3GuiLayouts[0] ) ); i++ ) {
-		if ( idStr::Icmp( gui, openQ4SaveGameV3GuiLayouts[i].gui ) == 0 ) {
-			return openQ4SaveGameV3GuiLayouts[i].v3Layout;
-		}
-	}
-	return NULL;
-}
 
 static const int MAX_SAVEGAME_OBJECTS = MAX_GENTITIES + MAX_CENTITIES + 4096;
 static const int MAX_SAVEGAME_DICT_ENTRIES = 16384;
@@ -1299,6 +1275,7 @@ idRestoreGame::RestoreGame
 idRestoreGame::idRestoreGame( idFile *savefile ) {
 	file = savefile;
 	buildNumber = 0;
+	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
 	openQ4SaveGameCompatibilitySourceFileCount = 0;
 	openQ4SaveGameNextSyncId = 0;
@@ -2016,40 +1993,104 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 		bool unique;
 		ReadBool( unique );
 		ui = uiManager->FindGui( name, true, unique );
-		if ( ui ) {
-			const char *payloadLayout = SaveGame_FindGuiLayoutForPayload( name, openQ4SaveGameCompatibilityVersion );
-			if ( payloadLayout != NULL ) {
-				ReadUserInterfaceWithLayout( ui, name, payloadLayout );
-			} else if ( ui->ReadFromSaveGame( file ) == false ) {
-				Error( "idSaveGame::ReadUserInterface: ui failed to read properly\n" );
-			}
-// RAVEN BEGIN
+		const openQ4SaveGameGuiRevision_t *revision = OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild );
+		if ( ui && revision != NULL && !GuiRecordNamesWindow( revision->currentWindow ) ) {
+			ReadUserInterfaceRevision( ui, *revision );
 			UpdateGuiParms( ui, args );
+			return;
+		}
+		if ( ui ) {
+			if ( ui->ReadFromSaveGame( file ) == false ) {
+				Error( "idSaveGame::ReadUserInterface: ui failed to read properly\n" );
+			} else {
+// RAVEN BEGIN
+				UpdateGuiParms( ui, args );
 // RAVEN END
+			}
 		}
 	}
 }
 
 /*
 ================
-idRestoreGame::ReadUserInterfaceWithLayout
+idRestoreGame::GuiRecordNamesWindow
 
-Reads a GUI whose saved window tree follows an earlier definition than the one
-this build loads. The engine parses that definition privately to consume the
-window tree with every normal check, then moves the state dictionary, flags and
-each window value the game had changed (a visible boss bar, for example) to the
-live GUI. Animation progress is not carried over.
+Whether the GUI record starting here saves a window of this name. GUI records
+hold no sync markers, so the next one bounds the search; the file position is
+left where it was.
 ================
 */
-void idRestoreGame::ReadUserInterfaceWithLayout( idUserInterface *ui, const char *name, const char *layout ) {
+bool idRestoreGame::GuiRecordNamesWindow( const char *windowName ) {
+	static const int SCAN_CHUNK_BYTES = 64 * 1024;
+	static const int SCAN_MAX_BYTES = 16 * 1024 * 1024;
+	if ( !openQ4SaveGameSyncMarkersEnabled || windowName == NULL || windowName[0] == '\0' ) {
+		return false;
+	}
+	// The window name as idWindow saves it: its length, then its characters.
+	char pattern[ 4 + MAX_STRING_CHARS ];
+	const int nameLength = idStr::Length( windowName );
+	if ( nameLength >= MAX_STRING_CHARS ) {
+		return false;
+	}
+	const int lengthWord = LittleLong( nameLength );
+	memcpy( pattern, &lengthWord, 4 );
+	memcpy( pattern + 4, windowName, nameLength );
+	const int patternLength = 4 + nameLength;
+	const int syncWord = LittleLong( OPENQ4_SAVEGAME_SYNC_MAGIC );
+	const char *sync = reinterpret_cast<const char *>( &syncWord );
+
+	const int start = file->Tell();
+	const int end = Min( file->Length(), start + SCAN_MAX_BYTES );
+	const int overlap = patternLength - 1;
+	char *chunk = new char[ SCAN_CHUNK_BYTES ];
+	bool found = false;
+	for ( int offset = start; offset < end && !found; offset += SCAN_CHUNK_BYTES - overlap ) {
+		const int chunkBytes = Min( SCAN_CHUNK_BYTES, end - offset );
+		if ( file->Read( chunk, chunkBytes ) != chunkBytes ) {
+			break;
+		}
+		bool bounded = false;
+		for ( int i = 0; i < chunkBytes; i++ ) {
+			if ( i + 4 <= chunkBytes && memcmp( chunk + i, sync, 4 ) == 0 ) {
+				bounded = true;
+				break;
+			}
+			if ( i + patternLength <= chunkBytes && memcmp( chunk + i, pattern, patternLength ) == 0 ) {
+				found = true;
+				break;
+			}
+		}
+		if ( bounded || chunkBytes < SCAN_CHUNK_BYTES ) {
+			break;
+		}
+		file->Seek( offset + SCAN_CHUNK_BYTES - overlap, FS_SEEK_SET );
+	}
+	delete[] chunk;
+	file->Seek( start, FS_SEEK_SET );
+	return found;
+}
+
+/*
+================
+idRestoreGame::ReadUserInterfaceRevision
+
+A GUI record written for an earlier revision of its file (SaveGameReleases.h)
+follows that revision's structure, so it is read into a copy built from that
+revision. Its state carries over to the current GUI, and so does every window
+value the game had changed from that revision -- a boss bar a script made
+visible, for example -- where the current GUI has the same window and variable.
+Animation progress is not carried over.
+================
+*/
+void idRestoreGame::ReadUserInterfaceRevision( idUserInterface *ui, const openQ4SaveGameGuiRevision_t &revision ) {
 	const int offset = file->Tell();
 	int restoredWindowValues = 0;
-	if ( !ui->ReadFromSaveGameWithLayout( file, layout, restoredWindowValues ) ) {
-		Error( "idRestoreGame::ReadUserInterface: v%d gui '%s' at offset %d failed to read with its saved layout '%s'",
-			openQ4SaveGameCompatibilityVersion, name, offset, layout );
+	if ( !ui->ReadFromSaveGameWithLayout( file, revision.savedDefinition, restoredWindowValues ) ) {
+		Error( "idRestoreGame::ReadUserInterface: '%s' at offset %d failed to read with its earlier definition '%s'",
+			revision.name, offset, revision.savedDefinition );
 	}
-	common->Printf( "Restored v%d gui '%s' through its saved layout '%s' (%d state values, %d changed window values; window animations restart)\n",
-		openQ4SaveGameCompatibilityVersion, name, layout, ui->State().GetNumKeyVals(), restoredWindowValues );
+	common->DPrintf( "Restored '%s' from a save written for its earlier definition (%d changed window values)\n",
+		revision.name, restoredWindowValues );
 }
 
 // RAVEN BEGIN
@@ -2623,6 +2664,7 @@ void idRestoreGame::ReadBuildNumber( void ) {
 	int marker;
 	ReadInt( marker );
 
+	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
 	openQ4SaveGameCompatibilitySourceFileCount = 0;
 	openQ4SaveGameNextSyncId = 0;
@@ -2634,6 +2676,7 @@ void idRestoreGame::ReadBuildNumber( void ) {
 
 	if ( marker != OPENQ4_SAVEGAME_COMPATIBILITY_MAGIC ) {
 		buildNumber = marker;
+		openQ4SaveGameLayoutBuild = buildNumber;
 		if ( buildNumber == BUILD_NUMBER &&
 			 idStr::Icmp( OpenQ4SaveGameWireABI(), "windows-msvcabi-x64-le-raw1" ) == 0 ) {
 			openQ4SaveGameCompatible = true;
@@ -2653,20 +2696,27 @@ void idRestoreGame::ReadBuildNumber( void ) {
 	ReadInt( buildNumber );
 	ReadString( openQ4SaveGameCompatibilityStamp );
 	ReadInt( openQ4SaveGameCompatibilitySourceFileCount );
+	// A release that stamped build 1 is read as its release's build.
+	openQ4SaveGameLayoutBuild = OpenQ4_SaveGameLayoutBuild( openQ4SaveGameCompatibilityVersion, buildNumber,
+		openQ4SaveGameCompatibilityStamp.c_str(), openQ4SaveGameCompatibilitySourceFileCount );
 
 	if ( openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_COMPATIBILITY_VERSION &&
-		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
+		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION &&
+		 openQ4SaveGameCompatibilityVersion != OPENQ4_SAVEGAME_V2_VERSION ) {
 		openQ4SaveGameCompatibilityError = va(
-			"payload format version %d is not supported (supported %d and %d)",
+			"payload format version %d is not supported (supported %d to %d)",
 			openQ4SaveGameCompatibilityVersion,
-			OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION,
+			OPENQ4_SAVEGAME_V2_VERSION,
 			OPENQ4_SAVEGAME_COMPATIBILITY_VERSION );
 		return;
 	}
 
 	{
-		idStr savedWireABI;
-		ReadString( savedWireABI );
+		// Version 2 predates the wire-ABI stamp; it is the layout v2 shipped.
+		idStr savedWireABI = OPENQ4_SAVEGAME_V2_WIRE_ABI;
+		if ( openQ4SaveGameCompatibilityVersion >= OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
+			ReadString( savedWireABI );
+		}
 		if ( savedWireABI.Icmp( OpenQ4SaveGameWireABI() ) != 0 ) {
 			openQ4SaveGameCompatibilityError = va(
 				"wire ABI %s does not match current ABI %s",
@@ -2841,6 +2891,18 @@ bool idRestoreGame::HasOpenQ4PlayerLiquidSoundSaveField( void ) const {
 
 /*
 =====================
+idRestoreGame::HasOpenQ4InterpolatorCacheSaveLayout
+
+Whether raw records that contain an idExtrapolate carry its cache flag. An
+unstamped payload is only ever read by the build that wrote it.
+=====================
+*/
+bool idRestoreGame::HasOpenQ4InterpolatorCacheSaveLayout( void ) const {
+	return OpenQ4_SaveGameHasInterpolatorCacheFlag( openQ4SaveGameLayoutBuild );
+}
+
+/*
+=====================
 idRestoreGame::HasOpenQ4PlayerLiquidSaveFieldForBuild
 =====================
 */
@@ -2849,14 +2911,8 @@ bool idRestoreGame::HasOpenQ4PlayerLiquidSaveFieldForBuild( int firstBuildWithFi
 		 openQ4SaveGameCompatibilityVersion < OPENQ4_SAVEGAME_TYPED_COMPATIBILITY_VERSION ) {
 		return false;
 	}
-	// Both fields entered the save inside v3, so only a v3 payload can lack them.
-	// Every later writer emits them, whatever commit count its build was stamped
-	// with: a source archive stamps 0 and a shallow clone 1.
-	if ( openQ4SaveGameCompatibilityVersion > OPENQ4_SAVEGAME_PREVIOUS_COMPATIBILITY_VERSION ) {
-		return true;
-	}
 
-	return buildNumber >= firstBuildWithField;
+	return openQ4SaveGameLayoutBuild >= firstBuildWithField;
 }
 
 

@@ -132,6 +132,26 @@ public:
 	// tag is part of a player's name.
 	void				SetPlayerSearch( const char *text );
 	const char *		GetPlayerSearch() const { return playerSearch.c_str(); }
+	// The list's own filters, for a menu that draws its own list: full and
+	// empty servers hidden (gui_filter_players' two bits, in the order of the
+	// stock strings' "Show All; Hide Full; Hide Empty; Hide Full and Empty"),
+	// only servers without a password (gui_filter_password 2), and one game
+	// type (gui_filter_gameType: 0 for every type, else 1 past its index in
+	// the browser's registry). Each change filters the list again.
+	typedef enum {
+		BROWSER_FILTER_FULL,
+		BROWSER_FILTER_EMPTY,
+		BROWSER_FILTER_PASSWORD
+	} browserFilter_t;
+	bool				IsFilterSet( browserFilter_t filter ) const;
+	void				ToggleFilter( browserFilter_t filter );
+	int					GetGameTypeFilter() const;
+	// The previous or next game type, round through every type; a filter the
+	// registry does not name steps from every type.
+	void				StepGameTypeFilter( int direction );
+	// A game type filter's name in the player's language; "" for every type
+	// or a filter the registry does not name.
+	static const char *	GameTypeFilterName( int filter );
 	void				ResetSorting();
 
 	void				Shutdown( );

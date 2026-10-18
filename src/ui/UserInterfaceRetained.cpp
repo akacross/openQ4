@@ -229,18 +229,22 @@ bool SessionMenuCommand(const std::string& command) {
         "joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet",
         "joinSourceLan","joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers",
         "joinSortGameType","joinSortMap","joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
+        "joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext",
         "joinConnect","joinSearch","joinSearchClear","joinSortNext",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
         "mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect","mpSummaryChat",
+        "mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
+        "mpAdminApply","mpAdminConsole","mpRefereeLogin","mpSettingsName","mpSettingsClan",
         "arenaRestart","arenaLeave"};
 	return commands.contains(command);
 }
 
 // Session verbs a value control may request with its new value: the
 // multiplayer card's Vote page fields, its Settings pages' model lists and
-// crosshair, and its Match page's role, ballot target, rule value and series
-// format, and the Create Server page's settings. The
+// crosshair, its Match page's role, ballot target, rule value and series
+// format and its Admin page's server settings, and the Create Server page's
+// settings. The
 // session maps each verb to its field and the game, or for Create Server the
 // session, checks the value against the field's rules.
 bool SessionMenuValueCommand(const std::string& command) {
@@ -248,6 +252,8 @@ bool SessionMenuValueCommand(const std::string& command) {
 		"mpVoteCaptureLimit","mpVoteTourneyLimit","mpVoteControlTime","mpVoteBalance","mpVoteShuffle","mpVoteRestart",
 		"mpVoteBuying","mpVoteKick","mpModelSelf","mpModelEnemy","mpModelTeam","mpCrosshair","mpMatchRole","mpMatchScope","mpMatchRuleValue",
 		"mpMatchSeriesProfile",
+		"mpAdminMap","mpAdminGameType","mpAdminTimeLimit","mpAdminFragLimit","mpAdminCaptureLimit","mpAdminTourneyLimit",
+		"mpAdminControlTime","mpAdminBalance","mpAdminShuffle","mpAdminRestart","mpAdminBuying",
 		"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
 		"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
 		"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",

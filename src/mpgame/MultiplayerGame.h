@@ -1287,6 +1287,9 @@ private:
 	bool			retainedVoteMapsRequested;
 	void			ResetRetainedVoteDraft( void );
 	void			RetainedVoteChoices( void );
+	// The rows a drafted game type uses: its own limit, team balance and
+	// shuffle in team modes, buying where the mode has a buy menu.
+	static bool		RetainedDraftFieldShown( int voteGameType, int field );
 	bool			RetainedVoteFieldShown( int field ) const;
 	bool			RetainedVoteFieldAllowed( int field ) const;
 	int				RetainedVoteChanges( voteStruct_t &data );
@@ -1295,6 +1298,37 @@ private:
 	bool			SetRetainedVoteField( int field, int value );
 	void			RetainedVoteLines( const voteStruct_t &data, idStrList &lines );
 	void			PublishRetainedVote( idUserInterface *card, bool &changed );
+	// The Escape card's Admin page (section 14.18): the remote console
+	// password first, then Players (kick, ban, force team switch and the ban
+	// list), Server (the rules, drafted as the Vote page drafts a call, and
+	// Apply changes) and Console. A listen server's host is the admin; a
+	// client becomes one once the server accepts its password, until the map
+	// changes. The drafted fields follow retainedVoteField_t without the kick,
+	// as do the session's RETAINED_MP_ADMIN_FIELDS and the document's rows.
+	enum retainedAdminState_t { RAS_NONE, RAS_CHECKING, RAS_REFUSED };
+	enum retainedAdminAction_t { RAA_KICK, RAA_BAN, RAA_SWITCH, RAA_APPLY, RAA_COUNT };
+	static const int RETAINED_ADMIN_PLAYERS = 32;
+	static const int RETAINED_ADMIN_BANS = 32;
+	static const int RETAINED_ADMIN_CONSOLE_LINES = 12;
+	bool			retainedAdminValid;
+	int				retainedAdminState;
+	int				retainedAdminClient;		// the player chosen, by client number (-1: none)
+	int				retainedAdminBan;			// the ban chosen, by row (-1: none)
+	int				retainedAdminDraft[ RVF_COUNT ];
+	idStr			retainedAdminMap;
+	idList<int>		retainedAdminMaps;
+	bool			RetainedAdmin( void ) const;
+	void			ResetRetainedAdminDraft( void );
+	void			RetainedAdminChoices( void );
+	bool			RetainedAdminFieldShown( int field ) const;
+	bool			SetRetainedAdminField( int field, int value );
+	bool			RetainedAdminChanges( serverAdminData_t &data );
+	const char *	RetainedAdminRefusal( int action );
+	void			PublishRetainedAdmin( idUserInterface *card, bool &changed );
+	bool			HandleRetainedAdminCommand( const idStr &sub, const idCmdArgs &args, int &icmd );
+	// The stock Admin console's Enter ("command") and Tab ("tab") on the
+	// menu's admin_console_input.
+	void			RunAdminConsole( idUserInterface *gui, const char *mode );
 	// The Settings pages (section 14.18): the player's name and clan, three
 	// model lists (the player's own model for the mode and team, the model
 	// forced on enemies and, in team modes, the one forced on teammates) by

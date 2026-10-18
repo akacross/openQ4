@@ -1638,30 +1638,7 @@ def row_label(ident: str, key: str, left: float, top: float, width: float) -> di
                                    "flex-direction": keyword("row"), "align-items": keyword("center")}, [caption])
 
 
-def text_row(doc: Document, ident: str, label_key: str, state: str, width: float, value_x: float, event: str) -> dict:
-    """A setting the card cannot edit yet (name and clan): its value, and the
-    row hands off to the classic page that edits it, the arrow after the
-    value saying so."""
-    doc.state[state] = {"type": "string", "initial": ""}
-    plate = vector(f"{ident}-plate", FULL, [
-        path("plate", [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)],
-             fill=solid(rgb(OLIVE, 0.12)), stroke=stroke(solid(rgb(OLIVE, 0.32)), 1)),
-    ])
-    wash = vector(f"{ident}-wash", {**FULL, "opacity": number(0)}, [
-        path("wash", [(6, 1), ({"fraction": 1}, 1), ({"fraction": 1}, {"fraction": 1, "dp": -1}), (0, {"fraction": 1, "dp": -1}), (0, 7)],
-             fill=linear((0, 0), ({"fraction": 1}, 0), [(0, rgb(OLIVE, 0.45)), (1, rgb(OLIVE, 0.1))])),
-    ])
-    rail = vector(f"{ident}-focus", {**absolute(left=0, top=0, width=4, height=VOTE_ROW_H), "opacity": number(0)}, [
-        path("rail", [(0, 7), (6, 1), (6, VOTE_ROW_H - 1), (0, VOTE_ROW_H - 1)], fill=solid(rgb(ORANGE)))])
-    caption = row_label(ident, label_key, 21, 0, value_x - 29)
-    value = label(f"{ident}-value", PLACEHOLDER, {**absolute(left=value_x, top=0, width=width - value_x - 30, height=VOTE_ROW_H),
-                  **typeface("lowpixel", 15, VOTE_ROW_H, rgb(VALUE)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
-    doc.bind(f"{ident}-value.text", f"{ident}-value", "text", {"state": state})
-    arrow = vector(f"{ident}-arrow", absolute(left=width - 21, top=9, width=6, height=9), [
-        path("arrow", [(0, 0), (5, 4.5), (0, 9)], closed=False, stroke=stroke(solid(rgb(VALUE)), 1.5))])
-    return group(ident, {"position": keyword("relative"), "display": keyword("block"), "width": length(width), "height": length(VOTE_ROW_H),
-                         "flex-shrink": number(0)}, [plate, wash, rail, caption, value, arrow],
-                 control={"role": "button", "label": label_key, "event": event, "states": row_states(doc, ident)})
+NAME_BYTES, CLAN_BYTES = 23, 12   # the stock fields' maxchars, RETAINED_MP_NAME_BYTES and _CLAN_BYTES in the session
 
 
 def rail_row(doc: Document, ident: str, width: float, value_x: float) -> tuple[dict, list]:
@@ -1710,20 +1687,23 @@ def settings_plates(doc: Document, ident: str, left: float, top: float, width: f
     return plates, controls
 
 
-def classic_settings(doc: Document, index: int) -> str:
-    """Name and clan hand off to the classic Settings page, which edits them."""
-    event = "classic_settings"
-    doc.events[event] = [{"op": "setState", "values": {"card.stock_page": index}}, {"op": "action", "action": "mpStockPage"}]
-    return event
-
-
 def player_rows(doc: Document, index: int, width: float, value_x: float, last: tuple) -> tuple[list, list]:
-    """The player's rows: name and clan (handing off), the model, the rail
-    color swatches, then `last` (the handicap on Escape, the crosshair on
-    Welcome)."""
-    event = classic_settings(doc, index)
-    rows = [text_row(doc, "settings-name", "#str_200219", "mp.settings.name", width, value_x, event),
-            text_row(doc, "settings-clan", "#str_200220", "mp.settings.clan", width, value_x, event)]
+    """The player's rows: name and clan as text fields (the stock fields'
+    23 and 12 characters, the clan may be empty) holding the settings as the
+    game publishes them, colour codes and all, and Enter setting them
+    (mpSettingsName, mpSettingsClan); the model, the rail color swatches,
+    then `last` (the handicap on Escape, the crosshair on Welcome)."""
+    from retained_create_server import text_row as field_row
+    # The plain text the game publishes beside the fields' own.
+    doc.state.update({"mp.settings.name": {"type": "string", "initial": ""}, "mp.settings.clan": {"type": "string", "initial": ""}})
+    rows = []
+    for ident, key, state, verb, size, empty in (("settings-name", "#str_200219", "mp.settings.name_edit", "mpSettingsName", NAME_BYTES, False),
+                                                  ("settings-clan", "#str_200220", "mp.settings.clan_edit", "mpSettingsClan", CLAN_BYTES, True)):
+        doc.state[state] = {"type": "string", "initial": ""}
+        doc.session(verb, verb)
+        event = f"{ident.replace('-', '_')}_entered"
+        doc.events[event] = [{"op": "action", "action": verb}]
+        rows.append(field_row(doc, ident, key, width, value_x, state, event, size, VOTE_ROW_H, allow_empty=empty))
     entries, count = model_entries(doc, 0)
     rows.append(value_row(doc, "settings-model", "#str_200221", "choice", width, value_x, value={"state": "mp.model0"},
                           action=MODEL_VERBS[0], entries=entries, count=count, wrap=True))
@@ -1760,8 +1740,7 @@ def settings_page(doc: Document, index: int, ident: str, width: float, height: f
     for the main menu's pages; beside them the appearance of opponents and
     teammates: the model forced on them, their outline, rim light, effect
     color, brightskin and its color, and the outline's width, the teammates'
-    column only in team modes. Name and clan hand off to the classic page,
-    since the card has no text fields yet."""
+    column only in team modes."""
     page_width = width - 2 * INSET
     page_height = height - PAGE_TOP - PROMPT_BOTTOM - PROMPT_H - 16
     left_w = 380.0
@@ -1771,7 +1750,6 @@ def settings_page(doc: Document, index: int, ident: str, width: float, height: f
     table_x = label_column(("#str_41204", *(row[0] for row in APPEARANCE_ROWS), "#str_41211"))
     cell_w = round((right_w - table_x - 6) / 2, 3)
     check_settings_labels(left_w, value_x, right_w, cell_w)
-    doc.state["card.stock_page"] = {"type": "number", "initial": -1}
     handicap = value_row(doc, "settings-handicap", "#str_223001", "slider", left_w, value_x, value=cvar_state(doc, "ui_handicap", "number"),
                          action=setting_action(doc, "ui_handicap", "number"), slider=(1, 100, 1, 0), wrap=True)
     rows, controls = player_rows(doc, index, left_w, value_x, (handicap, "settings-handicap"))
@@ -1882,16 +1860,15 @@ def voice_page(doc: Document, index: int, ident: str, width: float, height: floa
 
 
 def welcome_settings_page(doc: Document, index: int, ident: str, width: float, height: float) -> tuple[dict, str]:
-    """The Welcome card's Settings page (section 14.18): name and clan
-    (handing off to the classic page), the model, the rail color swatches
-    and the crosshair, a slider through the stock picker's crosshairs (0 for
-    each weapon's own) with the chosen one beside it; then Controls, Game
-    Options and System, which stand for All settings."""
+    """The Welcome card's Settings page (section 14.18): name and clan, the
+    model, the rail color swatches and the crosshair, a slider through the
+    stock picker's crosshairs (0 for each weapon's own) with the chosen one
+    beside it; then Controls, Game Options and System, which stand for All
+    settings."""
     page_width = width - 2 * INSET
     left_w = 400.0
     value_x = label_column(("#str_200219", "#str_200220", "#str_200221", "#str_200981", "#str_200307"))
     check_settings_labels(left_w, value_x, page_width - left_w, 200)
-    doc.state["card.stock_page"] = {"type": "number", "initial": -1}
     doc.state.update({"mp.crosshair": {"type": "number", "initial": 0}, "mp.crosshair_image": {"type": "string", "initial": ""}})
     doc.actions["mpCrosshair"] = {"operation": "session.menuValue", "input": "number",
                                   "arguments": {"command": "mpCrosshair", "value": {"input": "value"}}}
@@ -2039,6 +2016,7 @@ MATCH_DISPOSITION_KEYS = ("#str_42530", "#str_42531", "#str_42532")
 MATCH_HISTORY_KEYS = ("#str_42520", "#str_42521", "#str_42522", "#str_42523", "#str_42540", "#str_42541", "#str_42542", "#str_42543")
 MATCH_CONFIRM_TITLE = "#str_41797"
 MATCH_WAITING, MATCH_REFEREE, MATCH_SIGN_IN, MATCH_SIGN_OUT = "#str_41774", "#str_41779", "#str_41781", "#str_41782"
+REFEREE_BYTES = 64                 # RETAINED_MP_CREDENTIAL_BYTES in the session
 MATCH_FOLLOW = (("previous", "follow_prev", "#str_42885"), ("next", "follow_next", "#str_42886"), ("free", "follow_free", "#str_42887"))
 MATCH_STRIP_H, MATCH_STRIP_GAP = 26.0, 10.0
 MATCH_LEFT_W = 320.0                    # the status column; the actions take the rest
@@ -2586,9 +2564,9 @@ def match_page(doc: Document, index: int, ident: str, width: float, height: floa
     spectator's camera, the last result, and the readiness, pause and match
     actions, each saying why it is unavailable; Force ready, Forfeit and Abort
     ask first, as the stock page does. Teams, Proposals, Rules, Series and
-    Evidence follow it (match_teams_section and the builders after it).
-    Signing in, which needs the credential, and the rows past the card's
-    still open the stock page (classic_match). The page asks the game to
+    Evidence follow it (match_teams_section and the builders after it). The
+    referee signs in with the password in a masked field; the rows past the
+    card's still open the stock page (classic_match). The page asks the game to
     project its view again as it opens; the game mirrors Match Control's own
     states into mp.match.*."""
     doc.session("mpMatch", "mpMatch")
@@ -2666,15 +2644,22 @@ def match_page(doc: Document, index: int, ident: str, width: float, height: floa
     side_row = group("match-side", {**flow, "height": length(46), "margin-top": length(10), "display": keyword("none")}, side_children)
     doc.bind("match-side.display", "match-side", "display", {"op": "select", "args": [{"state": "mp.match.side.shown"}, "block", "none"]})
     column.append(side_row)
-    # The referee: Sign in opens the stock page, which has the credential's
-    # field; Sign out asks the game. Either says why it is unavailable.
+    # The referee: while the player may sign in, a masked field takes the
+    # referee password and Enter signs in with it (mpRefereeLogin, which hands
+    # it to the game's menu as the stock field did); Sign out asks the game.
+    # Either says why it is unavailable.
+    from retained_create_server import text_row as field_row
     login, logout = "mp.match.op.referee_login", "mp.match.op.referee_logout"
     for op_key in (login, logout):
         for field, kind in (("shown", "boolean"), ("available", "boolean"), ("label", "string"), ("reason", "string"), ("detail", "string")):
             doc.state[f"{op_key}.{field}"] = {"type": kind, "initial": False if kind == "boolean" else ""}
-    doc.events["match_referee_login"] = [{"op": "if", "condition": {"state": f"{login}.available"}, "then": [{"op": "call", "event": "classic_match"}]}]
+    doc.session("mpRefereeLogin", "mpRefereeLogin")
+    doc.state["card.referee_credential"] = {"type": "string", "initial": ""}
+    doc.events["match_referee_entered"] = [{"op": "if", "condition": {"state": f"{login}.available"},
+                                            "then": [{"op": "action", "action": "mpRefereeLogin"}]}]
     doc.events["match_referee_logout"] = [{"op": "if", "condition": {"state": f"{logout}.available"}, "then": match_op("referee_logout")}]
-    sign_in = link(doc, "match-referee-login", MATCH_SIGN_IN, event="match_referee_login")
+    sign_in = field_row(doc, "match-referee-login", MATCH_SIGN_IN, left_w - 114, 8, "card.referee_credential", "match_referee_entered",
+                        REFEREE_BYTES, 26, allow_empty=True, masked=True, caption=False)
     sign_out = link(doc, "match-referee-logout", MATCH_SIGN_OUT, event="match_referee_logout")
     for node, op_key in ((sign_in, login), (sign_out, logout)):
         node["properties"]["display"] = keyword("none")
@@ -2687,7 +2672,7 @@ def match_page(doc: Document, index: int, ident: str, width: float, height: floa
                                              {"op": "select", "args": [{"state": f"{logout}.available"}, "", {"state": f"{logout}.reason"}]}]}
     doc.bind("match-referee-reason.text", "match-referee-reason", "text", shown_reason)
     referee = group("match-referee", {**flow, "margin-top": length(8)}, [
-        group("match-referee-head", {**flow, "height": length(22), "display": keyword("flex"), "flex-direction": keyword("row"),
+        group("match-referee-head", {**flow, "height": length(26), "display": keyword("flex"), "flex-direction": keyword("row"),
                                      "align-items": keyword("center")}, [
             label("match-referee-label", MATCH_REFEREE, {"position": keyword("relative"), "display": keyword("block"),
                   "width": length(110), "flex-shrink": number(0), **typeface("lowpixel", 15, 22, rgb(OLIVE)), "white-space": keyword("nowrap")}),
@@ -2938,8 +2923,8 @@ def welcome_document() -> dict:
 
 def escape_document() -> dict:
     """The Escape card (section 14.18), opened with the menu key during a
-    match, Resume leading its prompt bar. The Team, Players, Vote and Server
-    pages are built; the others hand off to their stock pages for now."""
+    match, Resume leading its prompt bar. Every page is built: Team, Players,
+    Vote, Match, Settings, Voice, Server and Admin (retained_mp_admin)."""
     doc = Document("openq4.mp_escape")
     width, height = fitted_card_width([key for _, key, _ in ESCAPE_TABS], (VERB_RESUME, [MAIN_MENU, DISCONNECT])), ESCAPE_H
     doc.state.update({
@@ -2958,9 +2943,11 @@ def escape_document() -> dict:
     trailing = [bound_text("header-mode", doc, "mp.mode", "lowpixel", 15, [1, 1, 1, 0.7]),
                 bound_text("header-clock", doc, "mp.clock", "lowpixel", 17, rgb(VALUE)),
                 bound_text("header-score", doc, "mp.score", "lowpixel", 15, [1, 1, 1, 0.85])]
+    from retained_mp_admin import admin_modals, admin_page
+    builders = {**PAGE_BUILDERS, "admin": admin_page}
     pages, focus = [], []
     for index, (ident, _key, _window) in enumerate(ESCAPE_TABS):
-        page, primary = PAGE_BUILDERS.get(ident, lambda d, i, n, w, h: handoff_page(d, i, n, w, h))(doc, index, ident, width, height)
+        page, primary = builders.get(ident, lambda d, i, n, w, h: handoff_page(d, i, n, w, h))(doc, index, ident, width, height)
         pages.append(page)
         # A page names its primary action, or gives the steps that find it.
         focus.append([{"op": "focus", "control": primary}] if isinstance(primary, str) else primary)
@@ -2975,7 +2962,7 @@ def escape_document() -> dict:
     disconnect = confirmation(doc, "disconnectModal", DISCONNECT, DISCONNECT_BODY, "mpDisconnect")
     # Every way out hides the card and its modals at once; the backdrop
     # releases behind them.
-    chrome = group("chrome", {**FULL, "display": keyword("block")}, [card, disconnect, *match_modals(doc)])
+    chrome = group("chrome", {**FULL, "display": keyword("block")}, [card, disconnect, *match_modals(doc), *admin_modals(doc)])
     doc.bind("chrome.display", "chrome", "display", {"op": "select", "args": [{"state": "card.released"}, "none", "block"]})
     root = group("screen", {**FULL, "font-family": b.font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [*backdrop(doc), chrome])

@@ -94,8 +94,8 @@ share player logic with MP's reliable equip route. Visual 1.18 explicitly keeps
 the original 77% horizontal default through archived `ui_weaponWheelOffset 27`;
 zero centers, negative moves left, and narrow views fit without changing the
 preference. Visual 1.19 adds smooth Gaussian scene focus before the HUD,
-shared by SP and MP and faded with the wheel. See [weapon wheels](../ui/weapon-wheels.md) for runtime evidence and
-remaining wider section 14.6 work (including quick chat).
+shared by SP and MP and faded with the wheel. See [weapon wheels](../ui/weapon-wheels.md) for runtime evidence, the
+multiplayer quick-chat wheel and the remaining wider section 14.6 work.
 openQ4-game's hit marker is on by default in single player and multiplayer and
 replaces the stock pop, where section 14.7 keeps the pop and offers markers in
 multiplayer only. The hit-marker discrepancy remains to be reconciled before that section is accepted.
@@ -180,14 +180,15 @@ Single player loads run localized tips. The multiplayer server card lists the
 players by team and the server's message, on the host, on a map change and on
 a fresh connection (an optional roster block after the connect response's
 server info). The [multiplayer Escape card](../ui/multiplayer-menus.md) now
-covers the game's in-match menu behind `ui_retainedMultiplayer`: the card,
-its header, the eight-tab strip, the prompt bar, the Disconnect confirmation
-and the softening, with the Team, Players, Vote, Settings, Voice, Server and
-Match pages built (Match with all six of Match Control's sections, its
-referee sign-in opening the stock page for the credential) and Admin still
-handing off to its stock page; the
-Welcome card covers the connect-time join offer, by default now that all its
-pages are built, and a join's loading screen hands over to it.
+covers the game's in-match menu by default: the card, its header, the
+eight-tab strip, the prompt bar, the Disconnect confirmation and the
+softening, with every page built: Team, Players, Vote, Settings (name and
+clan in its own text fields), Voice, Server, Match (all six of Match
+Control's sections, the referee signing in with a masked field) and Admin
+(the remote console password, Players with kick, ban, force team switch and
+the ban list, Server with the drafted rules and Apply changes, and Console);
+the Welcome card covers the connect-time join offer, by default now that all
+its pages are built, and a join's loading screen hands over to it.
 Event programs can move focus; Q, E and the shoulders page a document's
 tabs, the triggers its sections, and a controller's west and north run its
 secondary and tertiary actions. Prompts show the active device's glyphs:
@@ -243,15 +244,18 @@ nested dialog; it is the default, as it offers all the stock page does.
 JOIN GAME goes deeper to the retained
 [Join Game sub-page](../ui/retained-screens.md#join-game-sub-page), the
 server browser's list with its sources, column sorts, symbols, mod filter,
-favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
+a filter row under the list (the game type's spinner and the NOT FULL, NOT
+EMPTY and NO PASSWORD tags), favorite toggle and the chosen server's levelshot, JOIN IP ADDRESS and FIND
 PLAYER/CLAN in entry dialogs, the scan's progress bar under the list, a
 network quality bars beside each ping, a server's players and settings in
 the stock tooltip's card beside the
 pointer's or the focused row (the runtime's detail card), a controller's
 west refreshing the list and north sorting it by the next column, the session
 publishing the scan as it finds servers; it is the default, as it offers every control the stock page does.
-Filters beyond the browser's source, the Strogg pause's pages and in-field
-composition remain. No gate closes.
+After Kane's stroggification the pause's SAVE GAME, LOAD GAME and RESTART
+LEVEL open the same pages in the Strogg family
+([Strogg pause pages](../ui/retained-screens.md#strogg-pause-pages)).
+In-field composition remains. No gate closes.
 
 ## Objective and immutable completion scope
 

@@ -152,8 +152,8 @@ The stock page stays the default until the retained page does what it did:
 - Display Resolution shows at most 37 sizes. A display that reports more
   (scaled-resolution factors, long TV lists) loses its smallest sizes, which
   Custom still reaches by size. The stock page lists every size.
-- Like every retained dropdown, these rows cannot step their value with left
-  and right; Accept opens the list.
+- Like every retained dropdown, these rows step through their lists with left
+  and right and wrap (`Interaction::ChoiceKey`); Accept opens the list.
 - No visible exclusive fullscreen Apply has been qualified on any platform:
   the automated runs keep the window hidden, and a mode switch would change
   the tester's display. The native Wayland observation follows SDL 3.4.16's

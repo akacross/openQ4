@@ -1535,6 +1535,10 @@
       {
         "op": "action",
         "action": "begin"
+      },
+      {
+        "op": "focus",
+        "control": "settings_preset"
       }
     ],
     "onBack": [

@@ -2,39 +2,91 @@
 
 ## Post-0.14.000 corrections
 
-- [x] Restore v0.10-v0.13.2 (format 3) saves. 0.14.000 rewrote both player HUD
-  definitions in the change that introduced format 4, but its format-3 decoder
-  kept parsing the saved HUD window tree with the new definitions. Every format-3
-  save therefore failed part way through its player HUD, after the running map
-  had been torn down. The verbatim format-3 HUD definitions now ship under
-  `guis/savegame/v3/`, and both game libraries decode format-3 HUDs through them.
-  `savegame_gui_layout_contract.py` pins every serialized openQ4 GUI by format, so
-  an edit to one fails until it is classified.
-- [x] Stop format-4 restores depending on the writer's commit count. Builds from a
-  source archive (build 0) or shallow clone (build 1) refused their own saves in
-  preflight, and their payloads were read against the v3 liquid-field thresholds.
-  The build floor and those thresholds now apply to format 3 only.
-- [x] Keep interpolator layouts out of the save format's way. `f15a41f0` added a
-  cache flag to `idExtrapolate`/`idInterpolate`; animator joint modifiers and
-  running GUI transitions save those types as native images, so no save holding
-  a joint modifier (every player) restored on that build. A NaN cached time now
-  marks the cache stale, keeping the original layout and the negative-time fix,
-  and `static_assert`s beside both raw writes reject any future member.
-- [x] Carry HUD window values through the format-3 HUD migration: a boss bar a
-  script had shown, and its health width, survive a format-3 load.
-- [x] Add `savegame_restore_matrix.py`, an opt-in runtime check that restores
-  existing saves with a staged client, optionally under rewritten build numbers,
-  and confirms the input files are unchanged. Linux x64 results, including real
-  v0.13.2 saves that 0.14.000 cannot restore, are in
-  [Savegame Reliability](savegame-reliability.md#cross-build-restore-matrix-2026-10-13-linux-x64).
-  Windows, macOS and ARM64 restores were not run.
+- [ ] Keep HUD window state when an older save's HUD is read through its earlier
+  definition. Copying only the GUI state dictionary lost values scripts set on
+  windows: a save taken in a boss fight loaded without its boss bar, because
+  `showBossBar` sets `BossBar::visible` and restoring the boss does not replay it.
+  `idUserInterface::ReadFromSaveGameWithLayout` now carries every window value the
+  game changed from the saved definition, as well as the state, flags and cursor.
+- [ ] Add `savegame_gui_layout_contract.py`, which pins every serialized openQ4 GUI
+  and the `guis/savecompat/` revisions, and `savegame_restore_matrix.py`, an opt-in
+  runtime restore check whose `--self-test` runs in CI.
 
-Candidate save release wording: Saves from openQ4 0.10 through 0.13.2 load again.
-0.14.000 could not restore them, despite its upgrade note saying they would. Your
-original save files were never changed, so slots that failed in 0.14.000 work
-after updating. HUD animations that were mid-flight when such a save was made
-restart on load. Format-4 saves from 0.14.000 are unaffected. Builds compiled from
-a source archive or shallow Git clone now load their own saves.
+Candidate save release wording: Older saves taken during a boss fight now load
+with the boss's health bar on screen.
+
+- [x] Add filters to the modern server browser. A row under the server list
+  narrows it by game type and hides full servers, empty ones or those with
+  a password, each a tag that lights while set and clears with a second
+  press. The list filters every server itself, so the browser now asks the
+  master server for every server and a changed filter never needs a new
+  list. The gate test, the native page checks, the browser contract and a
+  loopback capture pass.
+
+Candidate UI release wording: The server browser can now show only one game
+type and hide full, empty or password-protected servers, from a row of
+filters under the list that apply at once.
+
+- [x] Build the multiplayer Escape card's Admin page and make the card the
+  default in-match menu. Admin asks for the server's remote console
+  password in a masked field (a listen server's host skips it), then offers
+  Players (kick, ban, force team switch and the ban list, each saying why
+  it cannot act), Server (the rules drafted as the Vote page drafts a call,
+  and Apply changes) and Console. The Settings pages' name and clan and the
+  Match page's referee password are now the card's own text fields, so no
+  page hands off to the classic menu and `ui_retained` alone brings the
+  card. The multiplayer smokes that drive the stock in-match menu pin
+  `ui_retained 0`. The gate test, the native card checks and listen-server
+  and remote-client captures pass.
+
+Candidate UI release wording: The modern multiplayer menu now covers every
+in-match page, including server administration, so it replaces the classic
+in-match menu whenever the modern interface is on. Set your name and clan,
+sign in as referee and run the server's remote console without leaving it.
+
+- [x] Give the Strogg pause its own Save Game, Load Game and Restart Level
+  pages. After Kane's stroggification those three still opened the classic
+  pages; they now open the modern pages in the Strogg family (shouldered
+  plates, slanted markers, R_Strogg labels and the pause's orange), parsed
+  on the job workers once the level's player is Strogg. A Strogg page that
+  cannot load opens the classic page, never the Marine one. The gate test,
+  the native page and pointer checks, and OpenGL and Vulkan captures from
+  game/recomp pass.
+
+Candidate UI release wording: After Kane's stroggification, saving, loading
+and restarting from the pause menu stay in the modern Strogg menu instead of
+dropping back to the classic pages.
+
+- [x] Load saves from earlier releases again. Every older save was listed on the
+  Load Game page, but most could not be loaded. Four causes, each fixed:
+  releases up to 0.13.0 stamped their saves build 1, so 0.10.0–0.13.0 saves were
+  refused by the build floor or misread (they are now recognised by their source
+  snapshot and read as their release builds, and the floor drops to 640, where v3
+  began); an idlib fix on 2026-10-14 (`f15a41f03`, build 1582) grew the raw joint
+  modifier and GUI transition records, so 0.14.000 and every earlier save failed
+  mid-restore after the map was gone (both readers now decode the earlier
+  records); the 0.14.000 HUD edit changed `hud.gui`/`hud_strogg.gui`'s saved
+  structure (their earlier revisions are kept under `guis/savecompat/` and old HUD
+  records are read through them, carrying their state over); and saves before
+  2026-09-01 could hold a non-finite GUI value that the reader rejected (it is now
+  zeroed, as the writer does). Also: a stamped save from build 1262 no longer takes
+  the retail 1.0 `idShaking` path. Verified on Windows x64 with genuine 0.14.000
+  saves from the rebuilt release, the 0.12.0 release saves on hand, 0.10.0/0.11.0/0.13.0
+  equivalents and 33 development saves, base game and The Awakening, all into
+  gameplay. Version 2 saves (0.6.95–0.9.0) load again too: v3's liquid state is
+  no longer read from them, and ten saves from a rebuilt 0.9.0 load. Unstamped
+  saves (0.6.92 and earlier) are still refused before teardown: their script
+  program and sound records changed in ways a release save cannot identify.
+  Record:
+  [compatibility policy](savegame-compatibility-policy.md#releases-that-stamped-build-1),
+  [reliability evidence](savegame-reliability.md#validation-evidence-and-limits).
+
+Candidate release wording: Saves from earlier openQ4 releases load again.
+Saves made with 0.6.95 through 0.14.000 are listed on the Load Game page as
+before and now load straight back into the level, instead of failing part way
+through. A HUD restored from an older save redraws from scratch; everything else
+picks up where you left off. Saves from 0.6.92 and earlier still cannot be
+loaded.
 
 - [x] Finish The Awakening's mannable Strogg chaingun turret (m01 part 1, m04).
   The alpha shipped its model untextured (grey ambient-occlusion bakes, a black

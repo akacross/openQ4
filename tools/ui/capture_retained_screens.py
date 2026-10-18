@@ -99,6 +99,58 @@ SCENARIOS = {
             f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
         'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
+    # The Escape card's Admin page on a listen server, whose host is the
+    # admin: the players (two bots), a bot chosen and kicked, View ban list,
+    # the Server section with a frag limit drafted and applied, and the
+    # console running status.
+    'mpadmin': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_admin', 'waitMsec 600', 'openq4_retainedGui report', 'openq4_retainedGui inspect "admin-live"',
+        'openq4_retainedGui inspect "admin-player-0"', 'openq4_retainedGui inspect "admin-player-1"', 'openq4_retainedGui inspect "admin-player-2"',
+        'screenshot "screenshots/mpadmin-players.tga"',
+        'openq4_retainedGui focus "admin-player-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui inspect "admin-player-1-chosen"', 'openq4_retainedGui inspect "admin-kick"',
+        'screenshot "screenshots/mpadmin-chosen.tga"',
+        'openq4_retainedGui focus "admin-kick"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1500',
+        'openq4_retainedGui inspect "admin-player-2"', 'screenshot "screenshots/mpadmin-kicked.tga"',
+        'openq4_retainedGui focus "admin-bans"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui inspect "banModal"', 'screenshot "screenshots/mpadmin-bans.tga"',
+        'openq4_retainedGui event banModalHide', 'waitMsec 600',
+        'openq4_retainedGui event admin_section_server', 'waitMsec 400', 'openq4_retainedGui focus "admin-row-fraglimit"',
+        *[step for _ in range(5) for step in ('openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 150')],
+        'waitMsec 400', 'openq4_retainedGui inspect "admin-row-fraglimit-value"', 'openq4_retainedGui inspect "admin-apply"',
+        'screenshot "screenshots/mpadmin-server.tga"',
+        'openq4_retainedGui focus "admin-apply"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 2000',
+        'si_fragLimit', 'ui_retainedStatus',
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'openq4_retainedGui event tab_admin', 'waitMsec 400',
+        'openq4_retainedGui event admin_section_console', 'waitMsec 400', 'openq4_retainedGui focus "admin-command"',
+        'openq4_retainedGui number begin "admin-command"', 'openq4_retainedGui number input "admin-command" "serverInfo"',
+        'openq4_retainedGui number commit "admin-command"', 'waitMsec 1000', 'openq4_retainedGui inspect "admin-console-0"',
+        'openq4_retainedGui inspect "admin-console-11"', 'screenshot "screenshots/mpadmin-console.tga"',
+    ]),
+    # The Admin page from a client of a dedicated server (SCENARIO_SERVERS):
+    # the password first; a wrong one is refused, the server's own makes the
+    # player an admin, and the console sends a command. (A client's console
+    # appends its rcon to the command buffer, as the stock page did, so the
+    # command and its reply follow the rest of this script.)
+    'mpadminremote': (None, [
+        'waitMsec 6000', 'set logFileName "logs/openq4-match.log"',
+        f'connect 127.0.0.1:{27964}', AFTER_MAP,
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_admin', 'waitMsec 600', 'openq4_retainedGui report', 'openq4_retainedGui inspect "admin-pass"',
+        'screenshot "screenshots/mpadminremote-password.tga"',
+        'openq4_retainedGui number begin "admin-password"', 'openq4_retainedGui number input "admin-password" "not the password"',
+        'openq4_retainedGui number commit "admin-password"', 'waitMsec 3000', 'openq4_retainedGui inspect "admin-refused"',
+        'screenshot "screenshots/mpadminremote-refused.tga"',
+        'openq4_retainedGui number begin "admin-password"', 'openq4_retainedGui number input "admin-password" "openq4-admin-probe"',
+        'openq4_retainedGui number commit "admin-password"', 'waitMsec 3000', 'openq4_retainedGui inspect "admin-live"',
+        'openq4_retainedGui inspect "admin-player-0"', 'screenshot "screenshots/mpadminremote-admin.tga"',
+        'openq4_retainedGui event admin_section_console', 'waitMsec 400', 'openq4_retainedGui focus "admin-command"',
+        'openq4_retainedGui number begin "admin-command"', 'openq4_retainedGui number input "admin-command" "serverInfo"',
+        'openq4_retainedGui number commit "admin-command"', 'waitMsec 1000', 'openq4_retainedGui inspect "admin-console-0"',
+        'openq4_retainedGui inspect "admin-console-11"', 'screenshot "screenshots/mpadminremote-console.tga"',
+        'disconnect', 'waitMsec 2000',
+    ]),
     # The campaign difficulty page, the fourth level: Campaign descends to it
     # carrying QUAKE 4, its prompt bar where Campaign's is, and BACK climbs
     # back.
@@ -143,6 +195,38 @@ SCENARIOS = {
         'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 100', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-releasing.tga"',
         'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-resumed.tga"',
+    ]),
+    # The Strogg pause's pages: SAVE GAME, LOAD GAME and RESTART LEVEL hand
+    # off to the Strogg family's pages as the Marine pause's do to theirs. A
+    # typed name saves at once; a row's first Accept selects its save; a
+    # plate chooses a difficulty; Back returns the Strogg pause each time.
+    'pages-strogg': ('game/recomp', [
+        'waitMsec 1000', 'saveGame "Recomp entry"', 'waitMsec 1500', 'saveGame "Strogg door"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1800', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 250', 'screenshot "screenshots/savegame-strogg-handoff.tga"', 'waitMsec 800', 'ui_retainedStatus',
+        'openq4_retainedGui report', 'screenshot "screenshots/savegame-strogg.tga"',
+        'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "Nexus core"', 'waitMsec 300', 'screenshot "screenshots/savegame-strogg-typing.tga"',
+        'openq4_retainedGui number commit "save-name"', 'waitMsec 1500', 'openq4_retainedGui report',
+        'screenshot "screenshots/savegame-strogg-saved.tga"',
+        'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/pages-strogg-home.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/loadgame-strogg.tga"',
+        'openq4_retainedGui focus "row-1"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/loadgame-strogg-selected.tga"',
+        'openq4_retainedGui focus load_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'screenshot "screenshots/loadgame-strogg-delete.tga"',
+        'openq4_retainedGui focus deleteModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 500',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1300',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/restartlevel-strogg.tga"',
+        'openq4_retainedGui focus "skill-3"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'screenshot "screenshots/restartlevel-strogg-chosen.tga"',
+        'openq4_retainedGui focus restart_go', 'waitMsec 300', 'screenshot "screenshots/restartlevel-strogg-go.tga"',
+        'openq4_retainedGui focus restart_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/pages-strogg-returned.tga"',
     ]),
     # The OBJECTIVES page: airdefense1's first objective completed and two
     # more held, so the page lists two plates and one completed row.
@@ -231,10 +315,12 @@ SCENARIOS = {
         'waitMsec 1500', 'openq4_guiGet p_settings_sys::visible', 'openq4_system report', 'ui_retainedStatus',
         'screenshot "screenshots/system-default.tga"',
     ]),
-    # Opted into, the retained SYSTEM page opens from the SYSTEM button.
+    # Opted into, the retained SYSTEM page opens from the SYSTEM button, its
+    # focus on the performance preset (the report's focus=).
     'system-optin': (None, [
         'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_system',
-        'waitMsec 1500', 'openq4_system report', 'ui_retainedStatus', 'screenshot "screenshots/system-optin.tga"',
+        'waitMsec 1500', 'openq4_system report', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/system-optin.tga"',
         'openq4_system back', 'waitMsec 1000', 'openq4_system report',
     ]),
     # Opted into, the multiplayer menu's SYSTEM route (the event the game sends
@@ -630,6 +716,47 @@ SCENARIOS = {
         'openq4_retainedGui focus join_server', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', AFTER_MAP,
         'si_map', 'ui_retainedStatus', 'screenshot "screenshots/joingame-match.tga"', 'disconnect', 'waitMsec 2000',
     ]),
+    # The Join Game sub-page's filter row (section 7's filter tags): the
+    # seeded favorite, the loopback dedicated server (SCENARIO_SERVERS: Deathmatch,
+    # nobody playing, no password), is listed; NOT EMPTY hides it and says no
+    # server matches, and again brings it back; the game type's spinner shows
+    # Deathmatch, which keeps it, then Tourney, which hides it, and back to
+    # every type; NOT FULL and NO PASSWORD keep it and light their tags, and
+    # again clear them.
+    'joinfilters': (None, [
+        # A loaded machine's first start can take longer than joingame's wait.
+        'waitMsec 12000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 4800', 'gui_filter_players', 'gui_filter_password', 'gui_filter_gameType', 'openq4_retainedGui report',
+        'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-gametype-value"',
+        'openq4_retainedGui inspect "join_filter_empty-lit"', 'screenshot "screenshots/joinfilters-list.tga"',
+        'openq4_retainedGui focus join_filter_empty', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-empty"',
+        'openq4_retainedGui inspect "join_filter_empty-lit"', 'openq4_retainedGui inspect "join_filter_empty-cross"',
+        'screenshot "screenshots/joinfilters-notempty.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_players',
+        'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui focus join_gametype_next', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_gameType', 'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"',
+        'screenshot "screenshots/joinfilters-deathmatch.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_gameType',
+        'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-empty"',
+        'screenshot "screenshots/joinfilters-tourney.tga"',
+        'openq4_retainedGui focus join_gametype_previous', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600', 'gui_filter_gameType',
+        'openq4_retainedGui inspect "join-gametype-value"', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui focus join_filter_full', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus join_filter_password', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join_filter_full-lit"', 'openq4_retainedGui inspect "join_filter_password-lit"',
+        'screenshot "screenshots/joinfilters-set.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus join_filter_full', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "join_filter_full-lit"',
+        'openq4_retainedGui report',
+    ]),
     # JOIN IP ADDRESS on the Join Game sub-page: an address it cannot join
     # keeps the dialog with the reason (spaces fail before any lookup); the
     # loopback dedicated server's address (SCENARIO_SERVERS), entered, joins
@@ -835,8 +962,12 @@ SCENARIO_PORTS = {'arenafail': 27961}
 # A dedicated server a scenario starts first (its loopback port, map and
 # name), from the runtime with its own savepath; it quits once the client is
 # done.
-SCENARIO_SERVERS = {'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 'Retained Admin Arena',
+                                      'cvars': {'net_serverRemoteConsolePassword': 'openq4-admin-probe', 'bot_minPlayers': '2',
+                                               'net_allowCheats': '1'}},
+                    'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'joinfilters': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
@@ -850,6 +981,7 @@ SCENARIO_FILES = {'arenafail': {
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
 SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
+                  'mpadmin': {'bot_minPlayers': '3'}, 'mpadminremote': {'net_ip': '127.0.0.1', 'ui_autoJoin': '1', 'ui_spectate': 'Play'},
                   # An Arena match is a local multiplayer game, where the menu probe is a cheat.
                   'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
@@ -859,6 +991,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
                   'multiplayer': {'net_allowCheats': '1'},
                   'createserverstart': {'net_ip': '127.0.0.1'},
                   'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
+                  'joinfilters': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
@@ -909,6 +1042,7 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'createserver': {'banlist.txt': ban_list},
          # The browser's favorites (one address a line): the scenario's server.
          'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
+         'joinfilters': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joinfilters']['port']}\n".encode('ascii')},
          'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}
@@ -949,6 +1083,7 @@ def start_server(args, output: Path, spec: dict, options: dict) -> tuple:
         'fs_game': 'baseoq4', 'com_gameMode': 'MP', 'logFile': '2', 'logFileName': 'logs/openq4.log',
         'net_ip': '127.0.0.1', 'net_port': str(spec['port']), 'net_serverDedicated': '1', 'net_LANServer': '1',
         'si_name': spec['name'], 'si_pure': '0', 'si_maxPlayers': '4', 'si_gameType': 'DM', 'si_warmup': '0', 'bot_minPlayers': '0',
+        **spec.get('cvars', {}),
     }
     command = [str(args.runtime.resolve() / ('openQ4-ded_x64.exe' if os.name == 'nt' else 'openQ4-ded_x64'))]
     for key, value in cvars.items():

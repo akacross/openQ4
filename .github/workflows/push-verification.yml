@@ -115,6 +115,7 @@ jobs:
             tools/tests/renderer_shadow_mapping_transitions.py \
             tools/tests/server_browser_contract.py \
             tools/tests/arena_campaign.py \
+            tools/tests/campaign_chapters.py \
             tools/tests/in_game_difficulty_restart.py \
             tools/tests/async_drop_client_contract.py \
             tools/tests/async_client_frame_contract.py \
@@ -391,6 +392,7 @@ jobs:
             tools/ui/update_system_text_layout.py \
             tools/ui/update_system_soft_focus.py \
             tools/ui/update_system_render_options.py \
+            tools/ui/update_system_initial_focus.py \
             tools/tests/windows_text_store.py \
             tools/tests/windows_text_collection_bridge.py \
             tools/tests/windows_text_session.py \
@@ -514,6 +516,7 @@ jobs:
           python tools/tests/parser_include_paths_contract.py
           python tools/tests/server_browser_contract.py
           python tools/tests/arena_campaign.py
+          python tools/tests/campaign_chapters.py
           python tools/tests/in_game_difficulty_restart.py
           python tools/tests/async_drop_client_contract.py
           python tools/tests/async_client_frame_contract.py
@@ -760,6 +763,7 @@ jobs:
           python tools/ui/update_system_text_layout.py --check
           python tools/ui/update_system_soft_focus.py --check
           python tools/ui/update_system_render_options.py --check
+          python tools/ui/update_system_initial_focus.py --check
           python tools/tests/ui_text_input.py
           python tools/tests/ui_retained_input.py
           python tools/tests/ui_retained_state_sources.py

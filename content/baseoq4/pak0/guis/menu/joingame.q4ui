@@ -20,6 +20,11 @@
   "join.progress": {"type": "number", "initial": 0},
   "join.notice": {"type": "string", "initial": ""},
   "join.mod": {"type": "string", "initial": ""},
+  "join.gameType": {"type": "number", "initial": 0},
+  "join.gameTypeName": {"type": "string", "initial": ""},
+  "join.filterFull": {"type": "boolean", "initial": false},
+  "join.filterEmpty": {"type": "boolean", "initial": false},
+  "join.filterPassword": {"type": "boolean", "initial": false},
   "join.row0.fav": {"type": "boolean", "initial": false},
   "join.row0.lock": {"type": "boolean", "initial": false},
   "join.row0.ded": {"type": "boolean", "initial": false},
@@ -709,6 +714,11 @@
   "joinSourceLan": {"operation": "session.menu", "arguments": {"command": "joinSourceLan"}},
   "joinModPrevious": {"operation": "session.menu", "arguments": {"command": "joinModPrevious"}},
   "joinModNext": {"operation": "session.menu", "arguments": {"command": "joinModNext"}},
+  "joinGameTypePrevious": {"operation": "session.menu", "arguments": {"command": "joinGameTypePrevious"}},
+  "joinGameTypeNext": {"operation": "session.menu", "arguments": {"command": "joinGameTypeNext"}},
+  "joinFilterFull": {"operation": "session.menu", "arguments": {"command": "joinFilterFull"}},
+  "joinFilterEmpty": {"operation": "session.menu", "arguments": {"command": "joinFilterEmpty"}},
+  "joinFilterPassword": {"operation": "session.menu", "arguments": {"command": "joinFilterPassword"}},
   "joinSortFavorite": {"operation": "session.menu", "arguments": {"command": "joinSortFavorite"}},
   "joinSortLocked": {"operation": "session.menu", "arguments": {"command": "joinSortLocked"}},
   "joinSortDedicated": {"operation": "session.menu", "arguments": {"command": "joinSortDedicated"}},
@@ -1575,6 +1585,51 @@
    "value": {"op": "select", "args": [{"state": "join.lan"}, "block", "none"]}
   },
   {"id": "join-mod-value.text", "node": "join-mod-value", "property": "text", "value": {"state": "join.mod"}},
+  {
+   "id": "join-gametype-value.text",
+   "node": "join-gametype-value",
+   "property": "text",
+   "value": {
+    "op": "select",
+    "args": [{"op": ">", "args": [{"state": "join.gameType"}, 0]}, {"state": "join.gameTypeName"}, "#str_231299"]
+   }
+  },
+  {
+   "id": "join_filter_full-lit.display",
+   "node": "join_filter_full-lit",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterFull"}, "block", "none"]}
+  },
+  {
+   "id": "join_filter_full-cross.display",
+   "node": "join_filter_full-cross",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterFull"}, "block", "none"]}
+  },
+  {
+   "id": "join_filter_empty-lit.display",
+   "node": "join_filter_empty-lit",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterEmpty"}, "block", "none"]}
+  },
+  {
+   "id": "join_filter_empty-cross.display",
+   "node": "join_filter_empty-cross",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterEmpty"}, "block", "none"]}
+  },
+  {
+   "id": "join_filter_password-lit.display",
+   "node": "join_filter_password-lit",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterPassword"}, "block", "none"]}
+  },
+  {
+   "id": "join_filter_password-cross.display",
+   "node": "join_filter_password-cross",
+   "property": "display",
+   "value": {"op": "select", "args": [{"state": "join.filterPassword"}, "block", "none"]}
+  },
   {
    "id": "heading-fav-up.display",
    "node": "heading-fav-up",
@@ -24958,6 +25013,356 @@
    ]
   },
   {
+   "id": "join_gametype_previous.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "join_gametype_previous-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.6}},
+      {"atMs": 300, "value": {"type": "number", "value": 0.6}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_previous.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "join_gametype_previous-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.85}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.85}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_previous.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "join_gametype_previous-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_previous.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "join_gametype_previous-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_previous.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "join_gametype_previous-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.3}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0.3}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_next.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "join_gametype_next-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.6}},
+      {"atMs": 300, "value": {"type": "number", "value": 0.6}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_next.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "join_gametype_next-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.85}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.85}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_next.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "join_gametype_next-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_next.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "join_gametype_next-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_gametype_next.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "join_gametype_next-square",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.3}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0.3}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_full.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "join_filter_full-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.28}},
+      {"atMs": 300, "value": {"type": "number", "value": 0.28}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_full.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "join_filter_full-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.7}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.7}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_full.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "join_filter_full-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_full.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "join_filter_full-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_full.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "join_filter_full-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.2}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0.2}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_empty.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "join_filter_empty-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.28}},
+      {"atMs": 300, "value": {"type": "number", "value": 0.28}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_empty.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "join_filter_empty-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.7}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.7}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_empty.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "join_filter_empty-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_empty.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "join_filter_empty-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_empty.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "join_filter_empty-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.2}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0.2}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_password.default",
+   "durationMs": 300,
+   "tracks": [
+    {
+     "node": "join_filter_password-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.28}},
+      {"atMs": 300, "value": {"type": "number", "value": 0.28}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_password.hover",
+   "durationMs": 1,
+   "tracks": [
+    {
+     "node": "join_filter_password-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.7}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 1, "value": {"type": "number", "value": 0.7}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_password.focus",
+   "durationMs": 80,
+   "tracks": [
+    {
+     "node": "join_filter_password-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 80, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_password.pressed",
+   "durationMs": 60,
+   "tracks": [
+    {
+     "node": "join_filter_password-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 60, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
+   "id": "join_filter_password.disabled",
+   "durationMs": 150,
+   "tracks": [
+    {
+     "node": "join_filter_password-tag",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0.2}, "easing": [0.16, 1, 0.3, 1]},
+      {"atMs": 150, "value": {"type": "number", "value": 0.2}}
+     ]
+    }
+   ]
+  },
+  {
    "id": "heading-fav.default",
    "durationMs": 300,
    "tracks": [
@@ -47710,14 +48115,6 @@
      "node": "join-address-wash",
      "property": "opacity",
      "keys": [{"atMs": 0, "value": {"type": "number", "value": 0}}, {"atMs": 300, "value": {"type": "number", "value": 0}}]
-    },
-    {
-     "node": "join-address-label",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}},
-      {"atMs": 300, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
-     ]
     }
    ]
   },
@@ -47739,14 +48136,6 @@
      "keys": [
       {"atMs": 0, "value": {"type": "number", "value": 0.6}, "easing": [0.16, 1, 0.3, 1]},
       {"atMs": 1, "value": {"type": "number", "value": 0.6}}
-     ]
-    },
-    {
-     "node": "join-address-label",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 1]}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 1, "value": {"type": "color", "value": [1, 1, 1, 1]}}
      ]
     }
    ]
@@ -47770,14 +48159,6 @@
       {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
       {"atMs": 80, "value": {"type": "number", "value": 1}}
      ]
-    },
-    {
-     "node": "join-address-label",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 80, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
-     ]
     }
    ]
   },
@@ -47800,14 +48181,6 @@
       {"atMs": 0, "value": {"type": "number", "value": 1}, "easing": [0.16, 1, 0.3, 1]},
       {"atMs": 60, "value": {"type": "number", "value": 1}}
      ]
-    },
-    {
-     "node": "join-address-label",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 60, "value": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
-     ]
     }
    ]
   },
@@ -47829,14 +48202,6 @@
      "keys": [
       {"atMs": 0, "value": {"type": "number", "value": 0}, "easing": [0.16, 1, 0.3, 1]},
       {"atMs": 150, "value": {"type": "number", "value": 0}}
-     ]
-    },
-    {
-     "node": "join-address-label",
-     "property": "color",
-     "keys": [
-      {"atMs": 0, "value": {"type": "color", "value": [1, 1, 1, 0.85]}, "easing": [0.16, 1, 0.3, 1]},
-      {"atMs": 150, "value": {"type": "color", "value": [1, 1, 1, 0.85]}}
      ]
     }
    ]
@@ -53524,6 +53889,640 @@
         }
        },
        {
+        "id": "join_gametype_previous",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 34.5, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 33.0, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join_gametype_previous-square",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "opacity": {"type": "number", "value": 0.6},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "square",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[0, 0]]},
+             {"id": "p1", "op": "line", "points": [[33.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[33.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.7]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_gametype_previous-arrow",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "arrow",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[19.5, 7.5]]},
+             {"id": "p1", "op": "line", "points": [[13.5, 12.0]]},
+             {"id": "p2", "op": "line", "points": [[19.5, 16.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}}
+           }
+          ]
+         }
+        ],
+        "control": {
+         "role": "button",
+         "label": "#str_200039",
+         "action": "joinGameTypePrevious",
+         "states": {
+          "default": "join_gametype_previous.default",
+          "hover": "join_gametype_previous.hover",
+          "focus": "join_gametype_previous.focus",
+          "pressed": "join_gametype_previous.pressed",
+          "disabled": "join_gametype_previous.disabled"
+         }
+        }
+       },
+       {
+        "id": "join-gametype-value",
+        "type": "text",
+        "properties": {
+         "text": {"type": "text", "value": "#str_231299"},
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 72.0, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 220.5, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "font-family": {"type": "font", "value": "marine"},
+         "font-size": {"type": "length", "value": 15.0, "unit": "dp"},
+         "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 0.8]},
+         "white-space": {"type": "keyword", "value": "nowrap"},
+         "overflow": {"type": "keyword", "value": "hidden"},
+         "text-overflow": {"type": "keyword", "value": "ellipsis"},
+         "pointer-events": {"type": "keyword", "value": "none"}
+        }
+       },
+       {
+        "id": "join_gametype_next",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 297.0, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 33.0, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join_gametype_next-square",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "opacity": {"type": "number", "value": 0.6},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "square",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[0, 0]]},
+             {"id": "p1", "op": "line", "points": [[33.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[33.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0, 0, 0, 0.7]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_gametype_next-arrow",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "arrow",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[13.5, 7.5]]},
+             {"id": "p1", "op": "line", "points": [[19.5, 12.0]]},
+             {"id": "p2", "op": "line", "points": [[13.5, 16.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}}
+           }
+          ]
+         }
+        ],
+        "control": {
+         "role": "button",
+         "label": "#str_200039",
+         "action": "joinGameTypeNext",
+         "states": {
+          "default": "join_gametype_next.default",
+          "hover": "join_gametype_next.hover",
+          "focus": "join_gametype_next.focus",
+          "pressed": "join_gametype_next.pressed",
+          "disabled": "join_gametype_next.disabled"
+         }
+        }
+       },
+       {
+        "id": "join_filter_full",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 342.0, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 174.0, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join_filter_full-tag",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "opacity": {"type": "number", "value": 0.28},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[174.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[174.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.5]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_full-lit",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "display": {"type": "keyword", "value": "none"},
+           "opacity": {"type": "number", "value": 0.6},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[174.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[174.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.35]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_full-cross",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 157.0, "unit": "dp"},
+           "top": {"type": "length", "value": 7.0, "unit": "dp"},
+           "width": {"type": "length", "value": 10, "unit": "dp"},
+           "height": {"type": "length", "value": 10, "unit": "dp"},
+           "display": {"type": "keyword", "value": "none"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "a",
+            "commands": [{"id": "p0", "op": "move", "points": [[1, 1]]}, {"id": "p1", "op": "line", "points": [[9, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           },
+           {
+            "id": "b",
+            "commands": [{"id": "p0", "op": "move", "points": [[9, 1]]}, {"id": "p1", "op": "line", "points": [[1, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_full-label",
+          "type": "text",
+          "properties": {
+           "text": {"type": "text", "value": "#str_231296"},
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 9.0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 141.0, "unit": "dp"},
+           "height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "font-family": {"type": "font", "value": "marine"},
+           "font-size": {"type": "length", "value": 15.0, "unit": "dp"},
+           "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "color": {"type": "color", "value": [1, 1, 1, 0.85]},
+           "white-space": {"type": "keyword", "value": "nowrap"},
+           "overflow": {"type": "keyword", "value": "hidden"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          }
+         }
+        ],
+        "control": {
+         "role": "button",
+         "label": "#str_231296",
+         "action": "joinFilterFull",
+         "states": {
+          "default": "join_filter_full.default",
+          "hover": "join_filter_full.hover",
+          "focus": "join_filter_full.focus",
+          "pressed": "join_filter_full.pressed",
+          "disabled": "join_filter_full.disabled"
+         }
+        }
+       },
+       {
+        "id": "join_filter_empty",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 525.0, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 162.0, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join_filter_empty-tag",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "opacity": {"type": "number", "value": 0.28},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[162.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[162.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.5]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_empty-lit",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "display": {"type": "keyword", "value": "none"},
+           "opacity": {"type": "number", "value": 0.6},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[162.0, 0]]},
+             {"id": "p2", "op": "line", "points": [[162.0, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.35]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_empty-cross",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 145.0, "unit": "dp"},
+           "top": {"type": "length", "value": 7.0, "unit": "dp"},
+           "width": {"type": "length", "value": 10, "unit": "dp"},
+           "height": {"type": "length", "value": 10, "unit": "dp"},
+           "display": {"type": "keyword", "value": "none"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "a",
+            "commands": [{"id": "p0", "op": "move", "points": [[1, 1]]}, {"id": "p1", "op": "line", "points": [[9, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           },
+           {
+            "id": "b",
+            "commands": [{"id": "p0", "op": "move", "points": [[9, 1]]}, {"id": "p1", "op": "line", "points": [[1, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_empty-label",
+          "type": "text",
+          "properties": {
+           "text": {"type": "text", "value": "#str_231297"},
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 9.0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 129.0, "unit": "dp"},
+           "height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "font-family": {"type": "font", "value": "marine"},
+           "font-size": {"type": "length", "value": 15.0, "unit": "dp"},
+           "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "color": {"type": "color", "value": [1, 1, 1, 0.85]},
+           "white-space": {"type": "keyword", "value": "nowrap"},
+           "overflow": {"type": "keyword", "value": "hidden"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          }
+         }
+        ],
+        "control": {
+         "role": "button",
+         "label": "#str_231297",
+         "action": "joinFilterEmpty",
+         "states": {
+          "default": "join_filter_empty.default",
+          "hover": "join_filter_empty.hover",
+          "focus": "join_filter_empty.focus",
+          "pressed": "join_filter_empty.pressed",
+          "disabled": "join_filter_empty.disabled"
+         }
+        }
+       },
+       {
+        "id": "join_filter_password",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 696.0, "unit": "dp"},
+         "top": {"type": "length", "value": 397.5, "unit": "dp"},
+         "width": {"type": "length", "value": 223.5, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join_filter_password-tag",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "opacity": {"type": "number", "value": 0.28},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[223.5, 0]]},
+             {"id": "p2", "op": "line", "points": [[223.5, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 0.5]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.5451, 0.5882, 0.2941, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_password-lit",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 100, "unit": "%"},
+           "height": {"type": "length", "value": 100, "unit": "%"},
+           "display": {"type": "keyword", "value": "none"},
+           "opacity": {"type": "number", "value": 0.6},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "tag",
+            "commands": [
+             {"id": "p0", "op": "move", "points": [[7.5, 0]]},
+             {"id": "p1", "op": "line", "points": [[223.5, 0]]},
+             {"id": "p2", "op": "line", "points": [[223.5, 24.0]]},
+             {"id": "p3", "op": "line", "points": [[0, 24.0]]},
+             {"id": "p4", "op": "line", "points": [[0, 7.5]]},
+             {"id": "close", "op": "close"}
+            ],
+            "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 0.35]}},
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}},
+             "widthDp": 1,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_password-cross",
+          "type": "vector",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 206.5, "unit": "dp"},
+           "top": {"type": "length", "value": 7.0, "unit": "dp"},
+           "width": {"type": "length", "value": 10, "unit": "dp"},
+           "height": {"type": "length", "value": 10, "unit": "dp"},
+           "display": {"type": "keyword", "value": "none"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "paths": [
+           {
+            "id": "a",
+            "commands": [{"id": "p0", "op": "move", "points": [[1, 1]]}, {"id": "p1", "op": "line", "points": [[9, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           },
+           {
+            "id": "b",
+            "commands": [{"id": "p0", "op": "move", "points": [[9, 1]]}, {"id": "p1", "op": "line", "points": [[1, 9]]}],
+            "stroke": {
+             "paint": {"type": "solid", "color": {"type": "color", "value": [1.0, 0.7451, 0.1373, 1.0]}},
+             "widthDp": 1.5,
+             "minimumPixels": 1,
+             "join": "miter",
+             "cap": "butt"
+            }
+           }
+          ]
+         },
+         {
+          "id": "join_filter_password-label",
+          "type": "text",
+          "properties": {
+           "text": {"type": "text", "value": "#str_231298"},
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 9.0, "unit": "dp"},
+           "top": {"type": "length", "value": 0, "unit": "dp"},
+           "width": {"type": "length", "value": 190.5, "unit": "dp"},
+           "height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "font-family": {"type": "font", "value": "marine"},
+           "font-size": {"type": "length", "value": 15.0, "unit": "dp"},
+           "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+           "color": {"type": "color", "value": [1, 1, 1, 0.85]},
+           "white-space": {"type": "keyword", "value": "nowrap"},
+           "overflow": {"type": "keyword", "value": "hidden"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          }
+         }
+        ],
+        "control": {
+         "role": "button",
+         "label": "#str_231298",
+         "action": "joinFilterPassword",
+         "states": {
+          "default": "join_filter_password.default",
+          "hover": "join_filter_password.hover",
+          "focus": "join_filter_password.focus",
+          "pressed": "join_filter_password.pressed",
+          "disabled": "join_filter_password.disabled"
+         }
+        }
+       },
+       {
         "id": "heading-fav",
         "type": "group",
         "properties": {
@@ -54987,7 +55986,7 @@
          "left": {"type": "length", "value": 34.5, "unit": "dp"},
          "top": {"type": "length", "value": 124.5, "unit": "dp"},
          "width": {"type": "length", "value": 882.0, "unit": "dp"},
-         "height": {"type": "length", "value": 303.0, "unit": "dp"},
+         "height": {"type": "length", "value": 270.0, "unit": "dp"},
          "overflow": {"type": "keyword", "value": "auto"}
         },
         "children": [
@@ -98606,7 +99605,7 @@
          "left": {"type": "length", "value": 924.5, "unit": "dp"},
          "top": {"type": "length", "value": 124.5, "unit": "dp"},
          "width": {"type": "length", "value": 36, "unit": "dp"},
-         "height": {"type": "length", "value": 303.0, "unit": "dp"}
+         "height": {"type": "length", "value": 270.0, "unit": "dp"}
         },
         "children": [
          {
@@ -102727,39 +103726,6 @@
                    {"id": "close", "op": "close"}
                   ],
                   "fill": {"type": "solid", "color": {"type": "color", "value": [0.8902, 0.5373, 0.0, 1.0]}}
-                 }
-                ]
-               },
-               {
-                "id": "join-address-head",
-                "type": "group",
-                "properties": {
-                 "position": {"type": "keyword", "value": "absolute"},
-                 "left": {"type": "length", "value": 21, "unit": "dp"},
-                 "top": {"type": "length", "value": 0, "unit": "dp"},
-                 "width": {"type": "length", "value": 0, "unit": "dp"},
-                 "height": {"type": "length", "value": 36.0, "unit": "dp"},
-                 "display": {"type": "keyword", "value": "flex"},
-                 "flex-direction": {"type": "keyword", "value": "row"},
-                 "align-items": {"type": "keyword", "value": "center"}
-                },
-                "children": [
-                 {
-                  "id": "join-address-label",
-                  "type": "text",
-                  "properties": {
-                   "text": {"type": "text", "value": "#str_200025"},
-                   "position": {"type": "keyword", "value": "relative"},
-                   "display": {"type": "keyword", "value": "block"},
-                   "flex-shrink": {"type": "number", "value": 1},
-                   "min-width": {"type": "length", "value": 0, "unit": "dp"},
-                   "font-family": {"type": "font", "value": "lowpixel"},
-                   "font-size": {"type": "length", "value": 15, "unit": "dp"},
-                   "line-height": {"type": "length", "value": 36.0, "unit": "dp"},
-                   "color": {"type": "color", "value": [1, 1, 1, 0.85]},
-                   "white-space": {"type": "keyword", "value": "nowrap"},
-                   "overflow": {"type": "keyword", "value": "hidden"}
-                  }
                  }
                 ]
                },

@@ -151,10 +151,12 @@ static ID_INLINE bool OpenQ4_ReadSaveGameFloat( idFile *savefile, float &value, 
 		return false;
 	}
 	if ( !std::isfinite( value ) ) {
-		common->Error( "%s: non-finite %s at offset %d", context ? context : "savegame restore",
+		// A GUI variable can hold a non-finite expression result. Writers zero it
+		// (OpenQ4_SanitizeSaveGameWinVar), but builds before 40922f767 saved it
+		// as is; the value is still a whole float in step, so zero it here too.
+		common->DPrintf( "%s: zeroing non-finite %s at offset %d\n", context ? context : "savegame restore",
 			fieldName ? fieldName : "float", offset );
 		value = 0.0f;
-		return false;
 	}
 	return true;
 }
