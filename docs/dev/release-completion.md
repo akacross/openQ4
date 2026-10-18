@@ -2,6 +2,19 @@
 
 ## Post-0.14.000 corrections
 
+- [ ] Stop medics and techs waiting forever for a player they cannot reach
+  (#184). Choosing the player as a patient makes the healer passive and blind to
+  enemies, and the approach only ended beside a visible patient, so a player it
+  could see but not reach held it in place indefinitely, as reported for Tech Li
+  after hangar1's lift. `ai_medicApproachTimeout` (15 s, 0 disables) now abandons
+  an approach that makes no progress and holds back automatic heals for as long
+  again; a heal the player asks for is unaffected. No save-format change.
+  `ai_medic_approach_watchdog.py` keeps SP and MP aligned.
+
+Candidate AI release wording: Medics and techs no longer freeze in place when
+they cannot reach you to heal or repair you; after a short wait they carry on
+with their orders.
+
 - [x] Add filters to the modern server browser. A row under the server list
   narrows it by game type and hides full servers, empty ones or those with
   a password, each a tag that lights while set and clears with a second
