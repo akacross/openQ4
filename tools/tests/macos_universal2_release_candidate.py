@@ -188,7 +188,7 @@ def validate_candidate_workflow() -> None:
 
 def validate_docs_and_wiring() -> None:
     design = read("docs/dev/macos-universal2-design.md")
-    plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
     completion = read("docs/dev/release-completion.md")
     release_notes = read("docs/dev/releases/v0.8.1.md")
     validator = read("tools/validation/openq4_validate.py")

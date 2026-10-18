@@ -288,6 +288,8 @@ using namespace openq4::ui;
 struct Mock {
     struct String {std::string text;};
     std::map<std::string,std::map<std::string,String>> authored{{"validation",{{"text",{"#str_authored"}}}}};
+    // The view reads authored properties through Authored() since 8fb8cd3e.
+    const std::map<std::string,String>& Authored(const std::string& id) const {return authored.at(id);}
     std::function<std::string(const NumberSpec&,const NumberEditView&,bool)> validation;
     std::function<std::string(const std::string&)> translate=[](const auto& key){return "translated:"+key;};
     std::string text;bool visible=false;

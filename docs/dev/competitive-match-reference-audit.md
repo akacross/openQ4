@@ -8,7 +8,7 @@ Status: Implemented; scoped live qualification recorded, remaining release check
 This document records the behavioural comparison behind openQ4's competitive
 match framework and the remaining gap to release qualification. The
 authoritative design remains the
-[competitive match framework specification](plans/2026-08-03-competitive-match-framework.md).
+[competitive match framework specification](archive/2026-10-18/plans/2026-08-03-competitive-match-framework.md).
 This audit does not turn reference-mod behaviour into a compatibility promise.
 
 ## Reading the status column

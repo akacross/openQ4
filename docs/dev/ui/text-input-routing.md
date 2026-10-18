@@ -4,7 +4,7 @@ Status: implementation in progress. The portable broker, wire codec, SDL record
 decoder and reviewed Windows observer are implemented. The observer remains
 disabled until the engine owner boundary, ordered event delivery and native
 dispatch fence are connected and qualified. This does not complete the
-[UI product plan](../plans/idtech5-ui.md) or its international text requirements.
+[UI product plan](../archive/2026-10-18/plans/idtech5-ui.md) or its international text requirements.
 
 Until then, committed characters reach a focused retained field through the
 engine's ordered character events, as they reach a stock edit field

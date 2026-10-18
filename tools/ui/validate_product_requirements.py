@@ -11,15 +11,22 @@ remaining scope and explicit pending-to-partial states. A register revision
 changed normative source; it cannot edit, remove or accept existing rows.
 Both may re-bind document hashes. A binding matches its file in either
 line-ending form, so LF and CRLF checkouts of one commit audit alike.
+
+An archive relocation (--archive-relocation) preserves the complete register
+and migration records while moving source-document references through a checked
+archive manifest and adding the consolidated planning authority. Historical
+local captures remain unchanged and are reported separately, never requalified.
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter
+from datetime import date
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import sys
 
@@ -120,9 +127,9 @@ def check_source_bindings(root: Path, current: dict, previous: dict, defer_hashe
     return files, deferred, historical_unbound
 
 
-def check_markdown(root: Path, markdown_path: Path, rows: dict):
+def check_markdown(root: Path, markdown_path: Path, rows: dict, product_path: str):
     links = 0
-    for path in (markdown_path, root / "docs/dev/plans/ui-product-completion.md", root / "docs/dev/ui/value-controls.md"):
+    for path in (markdown_path, root / product_path, root / "docs/dev/ui/value-controls.md"):
         content = path.read_text(encoding="utf-8")
         require(repaired_dash(content) == content and "�" not in content, f"Mojibake/replacement characters remain: {path}")
         for link in re.findall(r"\]\(([^)]+)\)", content):
@@ -131,7 +138,8 @@ def check_markdown(root: Path, markdown_path: Path, rows: dict):
             require((path.parent / link.split("#")[0]).resolve().exists(), f"Broken local link: {path}: {link}")
             links += 1
     counts = Counter(row["status"] for row in rows.values())
-    count_text = f"{counts['partial']} partial, {counts['pending']} pending and one verified requirement"
+    verified = 'one' if counts['verified'] == 1 else str(counts['verified'])
+    count_text = f"{counts['partial']} partial, {counts['pending']} pending and {verified} verified requirement"
     require(count_text in markdown_path.read_text(encoding="utf-8"), "Markdown status totals are stale")
     return links, counts
 
@@ -215,13 +223,13 @@ def validate(args) -> dict:
 
     manifest_path, resources = check_migration_manifest(root, git, revision, current)
     files, deferred, historical_unbound = check_source_bindings(root, current, previous, args.defer_hashes)
-    links, counts = check_markdown(root, markdown_path, rows)
+    links, counts = check_markdown(root, markdown_path, rows, current["normative_sources"]["product"]["path"])
     return {
         "schema_version": 1, "status": "structure_valid_hashes_deferred" if args.defer_hashes else "structural_source_audit_passed",
         "product_acceptance": False, "baseline_engine_revision": revision,
         "companion_revision": current["baseline"]["companion_revision"],
         "register_sha256": digest(register_path), "markdown_sha256": digest(markdown_path),
-        "plan_sha256": digest(root / "docs/dev/plans/ui-product-completion.md"),
+        "plan_sha256": digest(root / current["normative_sources"]["product"]["path"]),
         "validator_sha256": digest(Path(__file__).resolve()),
         "requirements": len(rows), "status_counts": dict(counts), "status_changes": status_changes,
         "requirement_field_changes": changes, "strict_roundtrip_text_repairs": repairs,
@@ -371,7 +379,7 @@ def validate_revision(args) -> dict:
 
     manifest_path, resources = check_migration_manifest(root, git, revision, current)
     files, deferred, historical_unbound = check_source_bindings(root, current, previous, args.defer_hashes)
-    links, counts = check_markdown(root, markdown_path, rows)
+    links, counts = check_markdown(root, markdown_path, rows, current["normative_sources"]["product"]["path"])
     return {
         "schema_version": 1, "status": "revision_hashes_deferred" if args.defer_hashes else "register_revision_audit_passed",
         "product_acceptance": False, "baseline_engine_revision": revision,
@@ -396,6 +404,217 @@ def validate_revision(args) -> dict:
     }
 
 
+def archive_path(root: Path, value: str) -> Path:
+    """Require a canonical, project-relative path without link traversal."""
+    require(isinstance(value, str) and bool(value) and "\\" not in value and ":" not in value,
+            f"Invalid archive path: {value}")
+    relative = PurePosixPath(value)
+    require(not relative.is_absolute() and relative.as_posix() == value and
+            all(part not in (".", "..") for part in relative.parts), f"Noncanonical archive path: {value}")
+    path = root / value
+    require(path.resolve().is_relative_to(root), f"Archive path leaves project: {value}")
+    for parent in (path, *path.parents):
+        if parent == root:
+            break
+        reparse = (parent.exists() and getattr(parent.lstat(), "st_file_attributes", 0) &
+                   getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+        require(not parent.is_symlink() and not reparse,
+                f"Archive path traverses a link: {value}")
+    return path
+
+
+def validate_archive_relocation(args) -> dict:
+    """Only relocate document bindings; never revise requirements or accept work."""
+    require(not args.revision and not args.partial and not args.defer_hashes,
+            "Archive relocation cannot revise scope/status or defer document hashes")
+    root = args.root.resolve()
+
+    def git_bytes(*items):
+        return subprocess.check_output(["git", "-c", "core.safecrlf=false", *items], cwd=root)
+
+    revision = git_bytes("rev-parse", "--verify", args.baseline + "^{commit}").decode("ascii").strip()
+    manifest_path = archive_path(root, "docs/dev/archive/2026-10-18/manifest.json")
+    manifest = read_json(manifest_path.read_text(encoding="utf-8"))
+    require(set(manifest) == {"schema_version", "archived_on", "source_revision", "roadmap", "documents"},
+            "Archive manifest schema changed")
+    require(type(manifest["schema_version"]) is int and manifest["schema_version"] == 1,
+            "Unsupported archive manifest schema")
+    require(manifest["source_revision"] == revision, "Archive source revision differs from audited baseline")
+    archived_on = manifest["archived_on"]
+    require(isinstance(archived_on, str) and date.fromisoformat(archived_on).isoformat() == archived_on and
+            manifest_path.parent.name == archived_on, "Archive date/directory mismatch")
+    require(manifest["roadmap"] == "docs/dev/roadmap.md", "Archive must name the consolidated roadmap")
+    roadmap = archive_path(root, manifest["roadmap"])
+    require(roadmap.is_file(), "Consolidated roadmap is missing")
+    documents = manifest["documents"]
+    require(isinstance(documents, list) and bool(documents), "Archive manifest has no documents")
+    relocations, destination_paths = {}, set()
+    for entry in documents:
+        require(isinstance(entry, dict) and set(entry) == {
+            "original_path", "archived_path", "source_sha256", "archived_sha256", "roadmap_sections"},
+            "Archive document schema changed")
+        original, archived = entry["original_path"], entry["archived_path"]
+        original_path, archived_path = archive_path(root, original), archive_path(root, archived)
+        require(original.startswith("docs/dev/") and not original.startswith("docs/dev/archive/") and
+                original.endswith(".md"), f"Invalid original planning-document path: {original}")
+        require(archived == f"docs/dev/archive/{archived_on}/" + original.removeprefix("docs/dev/"),
+                f"Archive destination does not preserve source location: {archived}")
+        require(original not in relocations and archived not in destination_paths, "Duplicate archive document")
+        require(not original_path.exists(), f"Original plan still exists outside archive: {original}")
+        require(archived_path.is_file(), f"Archived plan is missing: {archived}")
+        sections = entry["roadmap_sections"]
+        require(isinstance(sections, list) and bool(sections) and
+                all(isinstance(section, str) and bool(section.strip()) for section in sections) and
+                len(sections) == len(set(sections)), f"Missing/duplicate roadmap disposition: {original}")
+        source = git_bytes("show", revision + ":" + original)
+        require(entry["source_sha256"] == hashlib.sha256(source).hexdigest(),
+                f"Archived source Git-object hash mismatch: {original}")
+        require(entry["archived_sha256"] in line_ending_digests(archived_path),
+                f"Archived document hash mismatch: {archived}")
+        relocations[original] = archived
+        destination_paths.add(archived)
+
+    register_path = (args.register or root / "docs/dev/ui/product-requirements.json").resolve()
+    require(register_path.is_relative_to(root), "Candidate register leaves project")
+    current = read_json(register_path.read_text(encoding="utf-8"))
+    previous = read_json(git_bytes("show", revision + ":docs/dev/ui/product-requirements.json").decode("utf-8"))
+    require(set(current) == set(previous) | {"planning_authority"}, "Archive relocation changed register schema")
+    require(current["planning_authority"] == manifest["roadmap"], "Incorrect register planning authority")
+    if "planning_authority" in previous:
+        require(previous["planning_authority"] == current["planning_authority"], "Existing planning authority changed")
+    for key, value in previous.items():
+        if key not in ("normative_sources", "evidence", "planning_authority"):
+            require(current[key] == value, f"Archive relocation changed protected register field: {key}")
+
+    bindings, rebound, relocated, historical = {}, {}, {}, []
+    for group in ("normative_sources", "evidence"):
+        require(current[group].keys() == previous[group].keys(), f"Archive relocation changed {group} identities")
+        for name, old in previous[group].items():
+            item = current[group][name]
+            require(item.keys() == old.keys(), f"Archive relocation changed source/evidence schema: {name}")
+            expected = dict(old)
+            old_path = old.get("path")
+            is_document = isinstance(old_path, str) and old_path.startswith("docs/")
+            if is_document:
+                expected["path"] = relocations.get(old_path, old_path)
+                # Documents legitimately change their local links and archive notice.
+                # Actual bytes are verified below; source authority and every other
+                # semantic field remain protected.
+                if "sha256" in old:
+                    expected["sha256"] = item["sha256"]
+            require(item == expected, f"Archive relocation changed source/evidence authority or non-document binding: {name}")
+            if is_document:
+                path = archive_path(root, item["path"])
+                require(path.is_file(), f"Missing relocated/current document: {name}")
+                require("sha256" in item and item["sha256"] in line_ending_digests(path),
+                        f"Missing/stale document hash: {name}")
+                bindings[item["path"]] = digest(path)
+                if old_path != item["path"]:
+                    relocated[f"{group}.{name}"] = {"before": old_path, "after": item["path"]}
+                if old.get("sha256") != item.get("sha256"):
+                    rebound[f"{group}.{name}"] = {"before": old.get("sha256"), "after": item.get("sha256")}
+            # A source archive cannot recreate or requalify ignored historical
+            # captures. Their paths/hashes/scope are preserved exactly above.
+            for path_key, hash_key in (("path", "sha256"), ("local_capture_summary", "local_capture_summary_sha256")):
+                if path_key not in item or (path_key == "path" and is_document):
+                    continue
+                path = archive_path(root, item[path_key])
+                historical.append({"record": f"{group}.{name}", "field": path_key,
+                    "path": item[path_key], "recorded_sha256": item.get(hash_key),
+                    "present": path.is_file(), "requalified": False})
+
+    migration_path = archive_path(root, "docs/dev/ui/migration-manifest.json")
+    migration_bytes = migration_path.read_bytes().replace(b"\r\n", b"\n")
+    previous_migration = git_bytes("show", revision + ":docs/dev/ui/migration-manifest.json").replace(b"\r\n", b"\n")
+    require(migration_bytes == previous_migration, "Archive relocation changed migration records")
+    rows = {row["id"]: row for row in current["requirements"]}
+    require(len(rows) == len(current["requirements"]), "Duplicate requirement identity")
+    markdown_path = root / "docs/dev/ui/product-requirements.md"
+    links, counts = check_markdown(root, markdown_path, rows, current["normative_sources"]["product"]["path"])
+    return {
+        "schema_version": 1, "status": "archive_relocation_audit_passed", "product_acceptance": False,
+        "archive_source_revision": revision, "archive_manifest_sha256": digest(manifest_path),
+        "planning_authority": manifest["roadmap"], "roadmap_sha256": digest(roadmap),
+        "register_sha256": digest(register_path), "markdown_sha256": digest(markdown_path),
+        "validator_sha256": digest(Path(__file__).resolve()), "archived_documents": len(documents),
+        "requirements": len(rows), "status_counts": dict(counts), "requirements_unchanged": True,
+        "baseline_metadata_unchanged": True, "source_authority_and_section_references_unchanged": True,
+        "evidence_semantics_and_historical_capture_bindings_unchanged": True,
+        "migration_manifest_unchanged": True, "migration_manifest_sha256": digest(migration_path),
+        "relocated_document_bindings": relocated, "rebound_document_hashes": rebound,
+        "source_hashes": bindings, "local_links_checked": links,
+        "historical_artifacts_not_requalified": historical,
+        "limitations": "Archive/document-binding migration only. Every requirement, acceptance state and migration record is preserved. Archive notices/local links may change document bytes. No implementation, product acceptance or historical capture qualification is inferred; existing increment/revision validation retains its stricter evidence checks."
+    }
+
+
+def validate_inventory_revision(args) -> dict:
+    """Source reconciliation may invalidate evidence, never accept product scope."""
+    from inventory_revision import validate as validate_inventory
+    root = args.root.resolve()
+    def git(*items):
+        return subprocess.check_output(['git', *items], cwd=root).decode('utf-8')
+    revision = git('rev-parse', '--verify', args.baseline + '^{commit}').strip()
+    current = read_json((args.register or root / 'docs/dev/ui/product-requirements.json').read_text(encoding='utf-8'))
+    previous = read_json(git('show', revision + ':docs/dev/ui/product-requirements.json'))
+    evidence_id = args.inventory_evidence_id
+    require(re.fullmatch(r'inventory-[a-z0-9-]+', evidence_id) is not None and evidence_id not in previous['evidence'],
+            'Choose a new inventory evidence identity; historical evidence cannot be replaced')
+    manifest = read_json((root / 'docs/dev/ui/migration-manifest.json').read_text(encoding='utf-8'))
+    sources = read_json((root / 'docs/dev/ui/inventory-sources.json').read_text(encoding='utf-8'))
+    report = validate_inventory(root, revision, manifest, sources)
+    require(current.keys() == previous.keys(), 'Inventory revision changed register schema')
+    editable = {'baseline', 'requirements', 'evidence', 'normative_sources', 'date', 'status', 'evidence_policy'}
+    for key in previous.keys() - editable:
+        require(current[key] == previous[key], f'Inventory revision changed protected field: {key}')
+    require(len(current['requirements']) == len(previous['requirements']), 'Inventory revision changed requirement count')
+    policy = dict(previous['evidence_policy'])
+    policy['constraints'] = [value.replace(
+        f"{previous['baseline']['effective_gui_count']} is the current baseline",
+        f"{len(manifest['resources'])} is the current baseline") for value in policy['constraints']]
+    require(current['evidence_policy'] == policy, 'Inventory revision may only refresh the denominator in evidence policy')
+    invalidated = []
+    for old, row in zip(previous['requirements'], current['requirements']):
+        if row == old:
+            continue
+        require(row['id'] == old['id'] == 'INV-001', 'Only stale inventory acceptance may be invalidated')
+        require({k: v for k, v in row.items() if k not in ('status', 'acceptance_evidence', 'current_evidence', 'remaining')} ==
+                {k: v for k, v in old.items() if k not in ('status', 'acceptance_evidence', 'current_evidence', 'remaining')},
+                'Inventory revision changed normative inventory requirement')
+        require(row['status'] == 'partial' and row['acceptance_evidence'] == [] and clean_text(row['remaining']),
+                'Inventory revision cannot accept a requirement')
+        require(row['current_evidence'] == old['current_evidence'] + [evidence_id], 'Inventory history was not preserved')
+        invalidated.append(row['id'])
+    require(invalidated == ['INV-001'], 'Stale inventory verification must be withdrawn')
+    expected = dict(previous['baseline'], engine_revision=revision, companion_revision=revision,
+                    effective_gui_count=len(manifest['resources']), inventory_refresh_evidence=evidence_id)
+    require(current['baseline'] == expected, 'Inventory denominator/source identity differs')
+    historical = []
+    for group in ('normative_sources', 'evidence'):
+        require(set(current[group]) == set(previous[group]) | ({evidence_id} if group == 'evidence' else set()),
+                f'Inventory revision changed {group} identities')
+        for name, old in previous[group].items():
+            item = current[group][name]
+            is_document = old.get('path', '').startswith('docs/')
+            expected = dict(old)
+            if is_document and 'sha256' in old:
+                expected['sha256'] = item['sha256']
+            require(item == expected, f'Inventory revision changed historical evidence/authority: {name}')
+            if is_document:
+                path = archive_path(root, item['path'])
+                require(path.is_file() and item.get('sha256') in line_ending_digests(path), f'Stale document binding: {name}')
+            else:
+                historical.append({'evidence': name, 'path': old.get('path'), 'requalified': False})
+    item = current['evidence'][evidence_id]
+    require(item.get('path') == 'docs/dev/ui/inventory-sources.json' and
+            item.get('sha256') in line_ending_digests(root / item['path']), 'Stale inventory snapshot binding')
+    require(not args.partial and not args.defer_hashes, 'Inventory mode cannot grant partial/deferral exceptions')
+    rows = {row['id']: row for row in current['requirements']}
+    check_markdown(root, root / 'docs/dev/ui/product-requirements.md', rows, current['normative_sources']['product']['path'])
+    report.update(product_acceptance=False, invalidated_requirements=invalidated, historical_evidence=historical)
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -404,11 +623,17 @@ def main() -> int:
     parser.add_argument("--register", type=Path, help="Optional candidate register for review/negative-case validation")
     parser.add_argument("--defer-hashes", action="store_true", help="Preparation only: report unfinalized source bindings, never report full validation")
     parser.add_argument("--revision", action="store_true", help="Audit a register revision: appended requirements and recorded supersessions only")
+    parser.add_argument("--archive-relocation", action="store_true", help="Audit only the 2026-10-18 plan archive and consolidated planning authority; preserves all requirement and migration states")
+    parser.add_argument("--inventory-revision", action="store_true", help="Reconcile source configurations/denominator and invalidate stale inventory acceptance; cannot accept requirements or resources")
+    parser.add_argument("--inventory-evidence-id", default="inventory-stage-one", help="New inventory revision evidence identity; use a new inventory-* ID for each later revision")
     parser.add_argument("--output", type=Path, required=True, help="New report path; existing evidence is never overwritten")
     args = parser.parse_args()
     try:
         require(not args.output.exists(), "Preserve existing audit; choose a new output path")
-        report = validate_revision(args) if args.revision else validate(args)
+        require(sum((args.archive_relocation, args.revision, args.inventory_revision)) <= 1, 'Select one revision mode')
+        report = (validate_inventory_revision(args) if args.inventory_revision else
+                  validate_archive_relocation(args) if args.archive_relocation else
+                  validate_revision(args) if args.revision else validate(args))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(report, stream, indent=2, ensure_ascii=False)

@@ -7,7 +7,7 @@ renderer or artwork migration. [Coverage antialiasing](coverage-antialiasing.md)
 has subsequently been added, followed by [isolated opacity layers](composition.md)
 and [vector alpha masks](masks.md). Broader layer effects, additional
 paint/stroke features and full visual qualification remain Stage 3 requirements
-in the [plan](../plans/idtech5-ui.md).
+in the [plan](../archive/2026-10-18/plans/idtech5-ui.md).
 
 ## Source model
 

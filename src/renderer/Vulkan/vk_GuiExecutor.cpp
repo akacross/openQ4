@@ -5,7 +5,7 @@
 ===============================================================================
 
 	Vulkan 2D/GUI executor (Phase D,
-	docs/dev/plans/2026-07-18-vulkan-phase-d.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-18-vulkan-phase-d.md).
 
 	Draws the engine's 2D views (main menu, console, HUD overlays, ROQ
 	cinematics) on the swapchain. The contract mirrors the GL reference

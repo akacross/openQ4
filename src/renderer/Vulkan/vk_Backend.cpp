@@ -5,7 +5,7 @@
 ===============================================================================
 
 	Vulkan backend for the shared renderer front-end (Phase C,
-	docs/dev/plans/2026-07-17-vulkan-phase-c.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md).
 
 	Phase C scope: the real game loop runs against the module's
 	idRenderSystem (the shared front-end), and every frame ends in an

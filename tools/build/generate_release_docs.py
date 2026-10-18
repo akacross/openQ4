@@ -33,6 +33,7 @@ SAFE_LINK_SCHEMES = {
 }
 REPOSITORY_BLOB_BASE = "https://github.com/themuffinator/openQ4/blob/main/"
 REPOSITORY_TREE_BASE = "https://github.com/themuffinator/openQ4/tree/main/"
+DEVELOPMENT_ROADMAP = Path("docs/dev/roadmap.md")
 
 
 SITE_CSS = r"""
@@ -725,6 +726,8 @@ def classify_group(relative: Path) -> str:
         return "Project"
     if len(relative.parts) >= 2 and relative.parts[0] == "docs" and relative.parts[1] == "user":
         return "User Guides"
+    if relative.parts[:3] == ("docs", "dev", "archive"):
+        return "Planning Archive"
     if len(relative.parts) >= 3 and relative.parts[0] == "docs" and relative.parts[1] == "dev" and relative.parts[2] == "proposals":
         return "Research and Proposals"
     if len(relative.parts) >= 3 and relative.parts[0] == "docs" and relative.parts[1] == "dev" and relative.parts[2] == "legacy":
@@ -733,6 +736,8 @@ def classify_group(relative: Path) -> str:
 
 
 def default_nav_title(relative: Path) -> str:
+    if relative == DEVELOPMENT_ROADMAP:
+        return "Development roadmap"
     if relative == Path("README.md"):
         return "Overview"
     if relative == Path("BUILDING.md"):
@@ -1001,10 +1006,13 @@ def build_doc_specs(source_root: Path) -> list[DocSpec]:
                 output_relative=relative.with_suffix(".html"),
                 group=classify_group(relative),
                 title=title,
-                nav_title=default_nav_title(relative) if relative.parent in (Path("."), Path(".github")) else title,
+                nav_title=default_nav_title(relative) if relative == DEVELOPMENT_ROADMAP or relative.parent in (Path("."), Path(".github")) else title,
                 summary=summary,
             )
         )
+    # Keep the active plan first within developer navigation; retain the
+    # established relative order of all other documents.
+    specs.sort(key=lambda spec: spec.source_relative != DEVELOPMENT_ROADMAP)
     return specs
 
 
@@ -1023,6 +1031,7 @@ def render_sidebar(specs: list[DocSpec], current_output: Path) -> str:
         "Developer Guides",
         "Research and Proposals",
         "Legacy Notes",
+        "Planning Archive",
     )
 
     sections: list[str] = []
@@ -1207,6 +1216,7 @@ def render_index_page(
         render_group("Developer Guides", "Implementation notes, audits, and current engineering references."),
         render_group("Research and Proposals", "Long-form technical investigations and design proposals."),
         render_group("Legacy Notes", "Historical context and archived notes kept for reference."),
+        render_group("Planning Archive", "Historical plans and proposals, superseded by the development roadmap."),
     ]
     cards = [card for card in cards if card]
 
@@ -1244,7 +1254,7 @@ def render_index_page(
             '      <div class="hero-actions">',
             '        <a class="button primary" href="README.html">Open Project Overview</a>',
             '        <a class="button" href="docs/user/light-grids.html">User Guide Example</a>',
-            '        <a class="button" href="docs/dev/platform-support.html">Platform Roadmap</a>',
+            '        <a class="button" href="docs/dev/roadmap.html">Development roadmap</a>',
             '      </div>',
             '      <div class="hero-meta">',
             f'        <span class="chip">Release {html.escape(version)}</span>',
@@ -1311,13 +1321,17 @@ def generate_release_docs_site(
     khronos_notice = Path("LICENSES") / "KHRONOS-GLES-MIT.txt"
     copy_docs_auxiliary_file(source_root, khronos_notice, output_root / khronos_notice)
 
-    # Keep the retained UI's linked sources and licence notices available in
-    # offline documentation. These are authored fixtures, not extracted art.
+    # Keep linked requirement/archive records, UI sources and licence notices
+    # available offline. These are authored records/fixtures, not extracted art.
     for relative in (
         "docs/licenses/RmlUi.txt", "docs/licenses/JsonCpp.txt", "docs/licenses/libtess2.txt",
         "docs/licenses/openxr-sdk.txt", "subprojects/openxr.wrap",
         "docs/dev/ui/migration-manifest.json",
         "docs/dev/ui/product-requirements.json",
+        "docs/dev/ui/inventory-sources.json",
+        "docs/dev/game-test-coverage.json",
+        "docs/dev/retail-overlay-audit.csv",
+        "docs/dev/archive/2026-10-18/manifest.json",
         # The editable atlas sheet the visual specification links (14.19).
         "docs/dev/ui/atlas/medlabs-implant.html",
         "subprojects/rmlui.wrap", "subprojects/packagefiles/libtess2/double-precision.patch",

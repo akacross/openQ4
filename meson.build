@@ -292,6 +292,35 @@ if get_option('build_native_tests')
   )
   test('openq4-interpolation', openq4_interpolation_test, timeout: 30)
 
+  presentation_clock_test = executable(
+    'openq4-presentation-clock-test', files('tools/tests/native/PresentationClockTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-presentation-clock', presentation_clock_test, timeout: 30)
+  test('openq4-clock-ownership', py,
+    args: [files('tools/tests/presentation_clock_ownership.py')], timeout: 90)
+
+  test('openq4-imported-game-regressions', py,
+    args: [files('tools/tests/game_regression_suite.py'), '--log-dir', meson.project_build_root() / 'game-regression-logs'],
+    timeout: 600, is_parallel: false)
+  game_probe_cpp = meson.get_compiler('cpp')
+  foreach probe : ['string_allocation', 'binary_token_signed_char']
+    probe_args = []
+    if probe == 'binary_token_signed_char'
+      probe_args = game_probe_cpp.get_id() == 'msvc' ? ['/J', '/DOPENQ4_EXPECT_UNSIGNED_PLAIN_CHAR=1'] : ['-funsigned-char', '-DOPENQ4_EXPECT_UNSIGNED_PLAIN_CHAR=1']
+    endif
+    probe_exe = executable('openq4-' + probe + '-probe', files('tools/tests/' + probe + '_probe.cpp'),
+      cpp_args: probe_args, install: false)
+    test('openq4-' + probe, probe_exe, timeout: 30)
+  endforeach
+  if host_machine.system() == 'linux'
+    foreach probe : ['linux_portability', 'lp64_semantics', 'md4_checksum', 'md5_checksum', 'crc_checksum']
+      probe_exe = executable('openq4-' + probe + '-probe', files('tools/tests/' + probe + '_probe.cpp'),
+        cpp_args: game_probe_cpp.get_supported_arguments(['-Wno-unknown-pragmas', '-Wno-register']), install: false)
+      test('openq4-' + probe, probe_exe, timeout: 30)
+    endforeach
+  endif
+
   openq4_bitmsg_under_test = custom_target(
     'openq4-bitmsg-under-test',
     input: files('src/idlib/BitMsg.h', 'src/idlib/BitMsg.cpp'),
@@ -1928,7 +1957,7 @@ if build_engine
   endif
 endif
 
-# OpenXR virtual reality (docs/dev/plans/2026-10-02-openxr-vr.md). The Khronos
+# OpenXR virtual reality (docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md). The Khronos
 # loader links statically into the SDL3 client on Windows and Linux, built from
 # the pinned SDK against the jsoncpp subproject above; nothing ships beside the
 # executable and dedicated servers never see it.
@@ -2704,7 +2733,7 @@ if build_engine or build_games
   )
 endif
 
-# OpenGL renderer module (Phase B8, docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md).
+# OpenGL renderer module (Phase B8, docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md).
 # Built from the same renderer sources the engine still links statically; the
 # engine keeps its static renderer until the module soak completes. Requires
 # the SDL3 window-services seam (gl_ContextSDL3.cpp compiles standalone via
@@ -2717,7 +2746,7 @@ endif
 
 # Vulkan module availability needs the SDL3 window-services seam on every host.
 # macOS is admitted through MoltenVK, a Vulkan-on-Metal translation layer, per
-# docs/dev/macos-moltenvk-decision.md; the module is built and shipped there but
+# docs/dev/archive/2026-10-18/macos-moltenvk-decision.md; the module is built and shipped there but
 # stays opt-in behind r_renderApi vulkan with OpenGL as the default renderer.
 # MoltenVK is not a native Metal renderer and must never be described as one.
 build_renderer_vk = get_option('build_renderer_vk')
@@ -2929,7 +2958,7 @@ if build_renderer_gles
 endif
 
 # Native Vulkan renderer module, full-module shape (Phase C,
-# docs/dev/plans/2026-07-17-vulkan-phase-c.md): the shared renderer front-end
+# docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md): the shared renderer front-end
 # with the GL backend replaced by the Vulkan backend. Mixed front-end TUs keep
 # their GL call sites satisfied by the hook-resolving GLEW flavor + the
 # module's GL stub TU; no GL and no SDL are linked.

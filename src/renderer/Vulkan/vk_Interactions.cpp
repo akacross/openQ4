@@ -5,8 +5,8 @@
 ===============================================================================
 
 	Vulkan interaction pass (Phase F1,
-	docs/dev/plans/2026-07-19-vulkan-phase-f.md) + stencil shadow volumes
-	(Phase G1, docs/dev/plans/2026-07-20-vulkan-phase-g.md) + fog and
+	docs/dev/archive/2026-10-18/plans/2026-07-19-vulkan-phase-f.md) + stencil shadow volumes
+	(Phase G1, docs/dev/archive/2026-10-18/plans/2026-07-20-vulkan-phase-g.md) + fog and
 	blend lights (Phase G2, same plan doc).
 
 	Per-light bump/diffuse/specular interactions for every view light,

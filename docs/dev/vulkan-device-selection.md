@@ -110,4 +110,4 @@ qualification.
 
 This startup correction does not resolve the observed cross-adapter frame
 stalls, remaining PBR/material/shadow comparisons, or the broader
-[Vulkan qualification requirements](plans/2026-09-20-vulkan-gap-closure.md).
+[Vulkan qualification requirements](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).

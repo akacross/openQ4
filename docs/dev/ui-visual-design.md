@@ -4,8 +4,11 @@ Specification version 1.22, 11 October 2026 (1.19 on 7 October, 1.15 and 1.16 ea
 1.9 on 29 September, 1.6 on 28 September, 1.4 and 1.5 on 27 September, 1.1 to
 1.3 on 26 September, 1.0 on 8 September 2026). Status:
 implementation target; the replacement has not shipped. Applies to every
-player-facing GUI and to the visual editor's Quake 4 preview. Implementation and
-evidence are tracked in [the replacement plan](plans/idtech5-ui.md).
+player-facing GUI and to the visual editor's Quake 4 preview. Implementation is
+coordinated in the [development roadmap](roadmap.md#new-user-interface), with
+acceptance and evidence in the [product register](ui/product-requirements.md).
+The [archived replacement plan](archive/2026-10-18/plans/idtech5-ui.md) preserves
+the original scope and historical stage evidence.
 
 Version 1.19 adds smoothly fading Gaussian scene focus beneath the weapon wheel and HUD, superseding the former no-blur backing. Version 1.18 preserves the weapon wheel's original right-side placement and adds an archived horizontal offset, with zero centered and narrow-view safety fitting. This supersedes the centered default in earlier wheel specifications.
 
@@ -1900,7 +1903,7 @@ and the weapon strip. Couch and Handheld raise the default HUD scale. Section
 ### 13.11 Performance and power
 
 Interface CPU and GPU work each stay within the budgets in the
-[product completion plan](plans/ui-product-completion.md): 10% of the target
+[product completion plan](archive/2026-10-18/plans/ui-product-completion.md): 10% of the target
 frame interval at p95 and 20% at p99 on the selected support tier. On phones
 and tablets the target interval is the device's refresh rate while playing and
 30 Hz for a static menu. Warm screens never retessellate unchanged paths or

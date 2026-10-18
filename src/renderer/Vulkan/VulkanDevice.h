@@ -8,7 +8,7 @@
 ===============================================================================
 
 	Persistent Vulkan device + swapchain context (Phase C,
-	docs/dev/plans/2026-07-17-vulkan-phase-c.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md).
 
 	Owns the instance, surface (created through the engine's window
 	services), physical/logical device, queues, VMA allocator, swapchain,

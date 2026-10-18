@@ -1,8 +1,74 @@
 # GUI replacement inventory
 
-Date: 8 September 2026. Status: stage 1 partial implementation, not a conversion
-or acceptance report. The [visual specification](../ui-visual-design.md) and
-[full plan](../plans/idtech5-ui.md) remain the completion requirements.
+Refreshed 18 October 2026. This is source inventory evidence, not conversion or
+product acceptance. The [roadmap](../roadmap.md) owns scheduling, the
+[visual specification](../ui-visual-design.md) owns current visual policy, and
+the register preserves the complete acceptance scope.
+
+## 18 October 2026 reconciliation
+
+The [source snapshot](inventory-sources.json) records effective source selection,
+raw and newline-normalized SHA-256, include closures, special widgets and mount
+precedence. It contains metadata only. The [migration manifest](migration-manifest.json)
+uses unique `(path, transitive include text identity)` variants as its denominator;
+identical variants shared by configurations count once. Its immutable predecessor
+is Git blob `8c1a49ca7a033e163e271ef3787a4a9ba73f7479:docs/dev/ui/migration-manifest.json`.
+
+| Configuration, mounts low to high | Effective roots/includes | Window declarations | Render/editor widgets |
+| --- | ---: | ---: | --- |
+| Installed retail q4base PK4s | 264 | 13,442 | 2 / 0 |
+| Retail, content/baseoq4/pak0, content/baseoq4/pak1 | 276 | 15,339 | 2 / 3 |
+| Base configuration, installed q4xbase | 324 | 17,166 | 2 / 3 |
+
+The union is **358 variants**, all pending with no replacement or migration
+acceptance. Base adds five paths and changes 18 old paths after newline
+normalization; it removes none. Awakening adds 53 and changes 23 relative to the
+old base manifest. Retail alone omits seven overlay-only paths; these are not
+deleted from scope. Every added/changed/absent path is enumerated in `changes`.
+Changing an included file invalidates its parent variant too. The three new
+`editorViewDef` widgets remain in scope even while map-editor work is paused.
+All configurations retain the known `tram1/bridge1.gui` lexical fragment;
+none has a missing include or include cycle. Unresolved lexical asset references
+(retail 23, base 17, Awakening 31) remain investigation inputs, not missing-media verdicts.
+
+The old inventory verification no longer describes this corpus. `INV-001` is
+partial, its acceptance references are cleared, and its original evidence is
+retained. No other requirement, supersession or gate changes. The new
+`--inventory-revision` audit permits source reconciliation and this invalidation;
+it rejects acceptance promotion and protects all other register fields. The
+checkpoint, archive and scope-revision modes retain their restrictions.
+
+Re-run `legacy_inventory.py` with the three mount sequences above, then:
+
+```powershell
+python tools/ui/inventory_revision.py --baseline 8c1a49ca7a033e163e271ef3787a4a9ba73f7479 `
+  --report retail=.tmp/stage-one/ui-retail-inventory.json `
+  --report base=.tmp/stage-one/ui-base-inventory-v2.json `
+  --report awakening=.tmp/stage-one/ui-awakening-inventory.json `
+  --output-dir .tmp/stage-one/ui-revision-new
+python tools/ui/validate_product_requirements.py --baseline 8c1a49ca7a033e163e271ef3787a4a9ba73f7479 `
+  --inventory-revision --output .tmp/stage-one/ui-register-audit-new.json
+python tools/tests/ui_inventory_revision.py
+```
+
+### Scope decisions paired with UI-05
+
+Editable vector framing, controls, icons and the 45-degree motif remain the
+default reconstruction policy. Native import is semantic/reference input; it
+does not authorize wholesale bitmap substitution or make a translated GUI
+accepted. The two dated HUD imagery exceptions below remain narrowly scoped
+implementation exceptions, not blanket approvals for any of the 358 variants.
+The later product-owner voice-graph exception is preserved as history alongside
+the visual register; UI-05 must reconcile its exact acceptance wording before
+accepting that requirement. Retained screens running by default do not close
+UI-03/UI-04 migration, UI-06 editor work, UI-09 toolkit qualification or UI-11
+acceptance tooling. Awakening remains additive SP under q4xbase; no expansion MP
+module is added. Savepath/mod/developer overrides require their own named
+configuration and fresh source bindings before acceptance.
+
+## Historical 8 September inventory
+
+The following measurements and captures retain their original scope and identities.
 
 ## Reproduction
 

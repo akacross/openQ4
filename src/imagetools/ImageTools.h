@@ -15,7 +15,7 @@
 	writes pixel data without touching GPU state or renderer globals. The
 	code builds as the openq4_imagetools static library, linked by the engine
 	executables today and by the renderer modules once the Phase B seam
-	completes (docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md, B2/B8).
+	completes (docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md, B2/B8).
 
 	Renderer-owned facts cross this boundary through explicit setters:
 	- compression capabilities gate precompressed-DDS selection and are

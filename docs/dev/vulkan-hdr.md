@@ -39,7 +39,7 @@ The later preview and target-lifetime fixes below close additional bounded
 differences. v40's explicit RGBA8 resolve also closes the classic 8x color-edge
 SMAA discrepancy. The v44 framebuffer change also closes the 125%/8x PBR
 coverage comparison; native HUD anisotropy remains open. See the records in the
-[gap ledger](plans/2026-09-20-vulkan-gap-closure.md).
+[gap ledger](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 
 The backend-owned MP/direct scene also honors `r_multiSamples`: multisampled
 color/depth resolve into a separate sampled target before post processing.
@@ -85,7 +85,7 @@ broader HDR/PBR parity requirements.
 
 ## PBR previews with tone mapping off
 
-Since Stage C of the [PBR production-readiness plan](plans/2026-10-04-pbr-production-readiness.md)
+Since Stage C of the [PBR production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md)
 the floating-point preview and the linear HDR scene are the laboratory mode
 `r_pbrLinearScene 1` (default 0). Production composition writes every PBR draw,
 encoded on its own, into the classic display-referred framebuffer and shares
@@ -767,4 +767,4 @@ together. The game scene-format integration requires the rebuilt game modules.
 - Verify map/camera discontinuities and resource-admission failures in runtime
   fixtures, beyond the numerical generation rejection tests.
 - Complete the broader clean-package, platform/driver, performance and soak
-  requirements in the [Vulkan gap ledger](plans/2026-09-20-vulkan-gap-closure.md).
+  requirements in the [Vulkan gap ledger](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).

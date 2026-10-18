@@ -272,7 +272,7 @@ Cheat commands and settings that help when testing the campaign without input:
   `g_debugDamage 1` reports damage and burns.
 
 The development record, with the evidence behind each change, is the
-[support plan](../dev/plans/q4x-awakening.md); the original gap analysis is the
+[support plan](../dev/archive/2026-10-18/plans/q4x-awakening.md); the original gap analysis is the
 [support audit](../dev/q4x-awakening-support-audit.md).
 
 ## Credits

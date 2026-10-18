@@ -9,7 +9,7 @@ retained unchanged. The supported Meson build still does not build Radiant;
 this experiment does not restore or replace it. Experimental settings and
 recovery files use their own namespace. This is an early
 authoring workspace. The
-[development roadmap](../dev/level-editor-modernization.md) tracks geometry,
+[development roadmap](../dev/roadmap.md#engine-loading-safety-and-developer-tools) tracks geometry,
 docking, asset and build/play work still needed toward an idStudio-like standard.
 
 ## Graphical workspace

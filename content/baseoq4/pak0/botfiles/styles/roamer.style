@@ -1,7 +1,7 @@
 // roamer.style
 //
 // openQ4 bot personality format, version 1.
-// Format and trait reference: docs/dev/plans/2026-07-29-bot-characters.md
+// Format and trait reference: docs/dev/archive/2026-10-18/plans/2026-07-29-bot-characters.md
 //
 // Plays the map rather than the player.  A roamer runs the item rotation,
 // takes the fights that happen to be on its route, and leaves the ones that

@@ -163,7 +163,7 @@ def validate_user_docs_and_package_readme() -> None:
 
 
 def validate_plan_status_and_ci_wiring() -> None:
-    plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
     local_runner = read("tools/validation/openq4_validate.py")
     commit = read(".github/workflows/commit-validation.yml")
     push = read(".github/workflows/push-verification.yml")

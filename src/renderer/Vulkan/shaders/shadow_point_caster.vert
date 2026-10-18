@@ -1,7 +1,7 @@
 #version 450
 
 // openQ4 Vulkan point-light shadow-map caster — vertex stage (Phase F2b,
-// docs/dev/plans/2026-07-19-vulkan-phase-f.md).
+// docs/dev/archive/2026-10-18/plans/2026-07-19-vulkan-phase-f.md).
 //
 // Depth-only caster into one face of a point light's depth cube, mirroring
 // the GL shadow_point_caster.vs contract in its hardware-compare

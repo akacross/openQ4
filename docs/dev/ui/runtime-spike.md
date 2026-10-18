@@ -11,7 +11,7 @@ Later [native vector](vector-paths.md), [coverage](coverage-antialiasing.md),
 initial limitations below. [SDL/session input ownership](input-routing.md) now
 connects these controls to the platform adapter; the game action bridge and
 broader device/platform qualification remain open.
-The [complete plan](../plans/idtech5-ui.md) and [visual specification](../ui-visual-design.md)
+The [complete plan](../archive/2026-10-18/plans/idtech5-ui.md) and [visual specification](../ui-visual-design.md)
 continue to define completion.
 
 ## Dependency and ownership

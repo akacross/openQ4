@@ -5,7 +5,7 @@
 with a source-preserving editing API shared by the future editor and runtime.
 It is **not** the complete paint/component/state/binding schema, editor, input
 bridge or translated GUI corpus. Those remain required by the
-[delivery plan](../plans/idtech5-ui.md) and
+[delivery plan](../archive/2026-10-18/plans/idtech5-ui.md) and
 [visual specification](../ui-visual-design.md).
 
 The later [live binding checkpoint](bindings.md) adds typed application/CVar

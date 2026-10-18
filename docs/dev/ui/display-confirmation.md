@@ -1,7 +1,7 @@
 # Display confirmation and settings recovery
 
 This implements the display transaction portion of the [SYSTEM contract](system-settings-contract.md)
-and M2 of the [complete UI product plan](../plans/ui-product-completion.md).
+and M2 of the [complete UI product plan](../archive/2026-10-18/plans/ui-product-completion.md).
 It does not accept the production SYSTEM screen, the 271 GUI migrations, editor
 completion, or the final platform and visual-quality gates. The requirement
 register remains authoritative for those deliverables.

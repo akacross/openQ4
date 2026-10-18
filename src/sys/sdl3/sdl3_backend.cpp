@@ -6521,7 +6521,7 @@ void GLimp_WakeBackEnd(void *data) {
 ===============================================================================
 
 	Phase B5b window services: the engine-owned half of the window/context
-	seam (docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md). The context
+	seam (docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md). The context
 	half lives in renderer/OpenGL/gl_ContextSDL3.cpp and drives these
 	callbacks; at Phase B8 they cross the renderer-module boundary through
 	renderImport_t.windowServices.

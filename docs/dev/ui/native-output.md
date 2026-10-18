@@ -105,7 +105,7 @@ Remaining work includes:
   the mode to 0–2, selecting mode-2 sharpening for mode 3. This UI-only repair
   does not qualify advertised nearest-neighbor world filtering.
 - Optimized CPU/GPU, memory/lifetime and full product qualification under
-  [M6 and the final audit](../plans/ui-product-completion.md).
+  [M6 and the final audit](../archive/2026-10-18/plans/ui-product-completion.md).
 
 All 227 requirements, 271 pending GUI migrations and seven final gates remain
 required. Preserve the earlier [SYSTEM-exit checkpoint](system-exit.md) and its

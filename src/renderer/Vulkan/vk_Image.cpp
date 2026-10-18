@@ -5,7 +5,7 @@
 ===============================================================================
 
 	Vulkan idImage backend (Phase D,
-	docs/dev/plans/2026-07-18-vulkan-phase-d.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-18-vulkan-phase-d.md).
 
 	Implements the idImage GPU half the GL build keeps in
 	OpenGL/gl_Image.cpp. texnum indexes a module-side image table; every

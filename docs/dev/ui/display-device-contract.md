@@ -8,7 +8,7 @@ journal, owner-present countdown and startup recovery. The historical integratio
 gate list below remains useful as the implementation audit; full production and
 platform acceptance still require the complete SYSTEM plan.
 This checkpoint accepts none of the 271 GUI migration entries or the complete
-[UI product](../plans/ui-product-completion.md).
+[UI product](../archive/2026-10-18/plans/ui-product-completion.md).
 
 ## Private services and ownership
 

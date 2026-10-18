@@ -204,7 +204,7 @@ def validate_source_contracts() -> None:
     shared = (ROOT / "tools" / "build" / "linux_metadata.py").read_text(encoding="utf-8")
     validation_runner = validator
     release_notes = (ROOT / "docs/dev" / "release-completion.md").read_text(encoding="utf-8")
-    plan = (ROOT / "docs/dev" / "plans" / "2026-06-20-linux.md").read_text(encoding="utf-8")
+    plan = (ROOT / "docs/dev/archive/2026-10-18" / "plans" / "2026-06-20-linux.md").read_text(encoding="utf-8")
 
     for token in (
         "more than one Exec key",

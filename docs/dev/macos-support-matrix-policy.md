@@ -173,7 +173,7 @@ Both macOS package variants now also carry the Vulkan renderer module
 package variant, no artifact name, and no architecture to the matrix above:
 OpenGL remains the default renderer and Vulkan is opt-in through
 `r_renderApi vulkan`. The decision plan is
-[macos-moltenvk-decision.md](macos-moltenvk-decision.md).
+[macos-moltenvk-decision.md](archive/2026-10-18/macos-moltenvk-decision.md).
 
 The matrix consequence is the OS floor. MoltenVK is pinned to `v1.4.1`, which is
 the newest release that still runs on macOS 11.0. MoltenVK `v1.4.2` raised its
