@@ -2067,13 +2067,24 @@ bool idUserInterfaceLocal::ReadFromSaveGameWithLayout( idFile *savefile, const c
 				idWinVar *liveVar = findVar( liveVars, savedVars[ i ].name );
 				// GUI-state-bound variables already arrived with the state dictionary.
 				if ( initialVar == NULL || liveVar == NULL || liveVar->GetDict() != NULL ||
-					 typeid( *savedVar ) != typeid( *initialVar ) || typeid( *savedVar ) != typeid( *liveVar ) ||
-					 idStr::Cmp( savedVar->c_str(), initialVar->c_str() ) == 0 ) {
+					 typeid( *savedVar ) != typeid( *initialVar ) || typeid( *savedVar ) != typeid( *liveVar ) ) {
 					continue;
 				}
-				common->DPrintf( "gui '%s': restored saved %s::%s '%s' (layout '%s' starts with '%s')\n",
-					source.c_str(), windowName, savedVars[ i ].name, savedVar->c_str(), layoutPath, initialVar->c_str() );
+				// A script `set` stores its value and clears eval, so the variable no
+				// longer follows its expression (idRegister::GetFromRegs skips it). That
+				// override matters even when the value equals the definition's: carry
+				// the saved eval with the value, or the next evaluation rewrites it.
+				// A variable still following its expression keeps eval and stays live.
+				const bool valueChanged = idStr::Cmp( savedVar->c_str(), initialVar->c_str() ) != 0;
+				const bool evalChanged = savedVar->GetEval() != initialVar->GetEval();
+				if ( !valueChanged && !evalChanged ) {
+					continue;
+				}
+				common->DPrintf( "gui '%s': restored saved %s::%s '%s' eval %d (layout '%s' starts with '%s' eval %d)\n",
+					source.c_str(), windowName, savedVars[ i ].name, savedVar->c_str(), savedVar->GetEval() ? 1 : 0,
+					layoutPath, initialVar->c_str(), initialVar->GetEval() ? 1 : 0 );
 				liveVar->Set( savedVar->c_str() );
+				liveVar->SetEval( savedVar->GetEval() );
 				changedValues++;
 			}
 		}

@@ -212,8 +212,12 @@ record with every normal check, the other shows what that definition starts with
 The state dictionary, interaction flags and cursor carry over to the current GUI,
 and so does every window value the game had changed from the saved definition
 wherever the current GUI has a window and variable of the same name and type: a
-boss bar a script made visible, and its health width, survive. Running transitions
-and timeline progress restart. Both copies are then freed. The window check matters because a
+boss bar a script made visible, and its health width, survive. Each value carries
+its evaluation flag too. A script `set` clears that flag so the variable stops
+following its expression, and the saved flag decides, even where the value equals
+the definition's: a HUD panel a script hid stays hidden through later GUI updates,
+while a variable still following its expression keeps doing so. Running
+transitions and timeline progress restart. Both copies are then freed. The window check matters because a
 build of uncommitted work can carry the edit under an earlier build number (the
 build-1561 saves on hand do). GUI records hold no sync markers, so the next one
 bounds the search. The saved definitions are copies of `38bdc6872^` and must not

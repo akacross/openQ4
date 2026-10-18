@@ -163,12 +163,13 @@ def stage_slot(source: Path, home: Path, slot: str, payload: bytes | None) -> No
         target.write_bytes(payload)
 
 
-def write_after_load_cfg(home: Path, settle_frames: int, screenshot: bool) -> None:
+def write_after_load_cfg(home: Path, settle_frames: int, screenshot: bool, after_load: list[str]) -> None:
     cfg = home / "baseoq4" / AFTER_LOAD_CFG
     cfg.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"echo {ACTIVE_MARKER}", f"wait {max(1, settle_frames)}"]
     if screenshot:
         lines += [f'screenshot "{SCREENSHOT_REL}"', "wait 5"]
+    lines += after_load
     lines += [f"echo {DONE_MARKER}", "quit", ""]
     cfg.write_text("\n".join(lines), encoding="utf-8")
 
@@ -188,7 +189,7 @@ def run_case(
     home = run_dir / "home"
     slot = "restore_matrix"
     stage_slot(source, home, slot, payload)
-    write_after_load_cfg(home, args.settle_frames, args.screenshot)
+    write_after_load_cfg(home, args.settle_frames, args.screenshot, args.after_load)
     staged = home / "baseoq4" / "savegames" / f"{slot}.save"
     stamp = read_stamp(staged.read_bytes())
 
@@ -249,8 +250,14 @@ def run_case(
         passed = bool(rejections) and not restore_started and not errors
         outcome = "rejected" if passed else ("torn-down" if restore_started else "not-rejected")
     else:
-        passed = restore_started and DONE_MARKER in text and not errors and not rejections
-        outcome = "restored" if passed else ("timeout" if timed_out else "failed")
+        missing = [pattern for pattern in args.expect_log if not re.search(pattern, text, re.MULTILINE)]
+        passed = restore_started and DONE_MARKER in text and not errors and not rejections and not missing
+        if passed:
+            outcome = "restored"
+        elif restore_started and DONE_MARKER in text and not errors and not rejections:
+            outcome = "expectation-missing"
+        else:
+            outcome = "timeout" if timed_out else "failed"
     return {
         "label": label,
         "source": str(source),
@@ -263,6 +270,7 @@ def run_case(
         "seconds": round(time.monotonic() - started, 1),
         "runDir": str(run_dir),
         "screenshot": str(home / "baseoq4" / SCREENSHOT_REL) if (home / "baseoq4" / SCREENSHOT_REL).is_file() else "",
+        "missingExpectedLog": [] if args.expect_reject else missing,
     }
 
 
@@ -278,6 +286,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                         help="Also load a copy whose payload build number is rewritten to N.")
     parser.add_argument("--set", nargs=2, action="append", default=[], metavar=("CVAR", "VALUE"),
                         help="Extra client cvar, for example --set ui_retained 1.")
+    parser.add_argument("--after-load", action="append", default=[], metavar="COMMAND",
+                        help="Console command to run after the settle frames, for example 'wait 300' or "
+                             "'hudGet p_armor::visible'. Repeatable; runs in order before the client quits.")
+    parser.add_argument("--expect-log", action="append", default=[], metavar="REGEX",
+                        help="A restore passes only if the client log matches this pattern. Repeatable.")
     parser.add_argument("--screenshot", action="store_true",
                         help="Capture the restored scene after the settle frames, for visual checks.")
     parser.add_argument("--expect-reject", action="store_true",
@@ -299,7 +312,10 @@ def self_test() -> int:
             return True
         return False
 
-    with tempfile.TemporaryDirectory() as temp:
+    # Disposable files stay under the repository's .tmp/, as the project's tests do.
+    scratch_root = ROOT / ".tmp"
+    scratch_root.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="savegame-restore-matrix-selftest-", dir=scratch_root) as temp:
         base = Path(temp)
         out = base / "out"
         nested = out / "slot" / "slot.save"
@@ -376,7 +392,8 @@ def main(argv: list[str]) -> int:
             stamp = result["stamp"]
             print(f"{'PASS' if result['passed'] else 'FAIL'} {label}: {result['outcome']} "
                   f"(v{stamp.get('version', '?')} build {stamp.get('build', '?')} {stamp.get('wireAbi', 'unstamped')})"
-                  + (f" -- {result['errors'][0]}" if result["errors"] else ""))
+                  + (f" -- {result['errors'][0]}" if result["errors"] else "")
+                  + (f" -- log lacks {result['missingExpectedLog']}" if result.get("missingExpectedLog") else ""))
 
     modified = [str(path) for path in inputs if not path.is_file() or sha256_file(path) != before[path]]
     report = {"client": str(client), "runDir": str(run_root), "results": results, "modifiedInputs": modified}

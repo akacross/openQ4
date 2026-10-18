@@ -15,7 +15,9 @@ completed release material here and publish curated notes in `releases/`.
   windows: a save taken in a boss fight loaded without its boss bar, because
   `showBossBar` sets `BossBar::visible` and restoring the boss does not replay it.
   `idUserInterface::ReadFromSaveGameWithLayout` now carries every window value the
-  game changed from the saved definition, as well as the state, flags and cursor.
+  game changed from the saved definition, with whether it still follows its
+  expression, as well as the state, flags and cursor. A HUD a level script hid
+  (as `game/mcc_1` does from its start) stays hidden after loading an older save.
 - [ ] Add `savegame_gui_layout_contract.py`, which pins every serialized openQ4 GUI
   and the `guis/savecompat/` revisions, and `savegame_restore_matrix.py`, an opt-in
   runtime restore check whose `--self-test` runs in CI.

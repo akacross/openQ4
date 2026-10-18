@@ -265,6 +265,24 @@ def validate_engine_migration() -> None:
             raise AssertionError(f"{context} still copies GUI state by hand beside the engine migration")
 
 
+def validate_eval_transfer() -> None:
+    """A carried window value keeps whether it still follows its expression."""
+    source = read(ROOT / "src" / "ui" / "UserInterface.cpp")
+    start = source.find("bool idUserInterfaceLocal::ReadFromSaveGameWithLayout(")
+    if start < 0:
+        raise AssertionError("idUserInterfaceLocal::ReadFromSaveGameWithLayout is missing")
+    body = source[start:source.index("\n}\n", start)]
+    # A script `set` clears eval so the expression stops rewriting the value;
+    # without it the next GUI update recomputes a hidden panel back into view.
+    for token in (
+        "savedVar->GetEval() != initialVar->GetEval()",
+        "if ( !valueChanged && !evalChanged )",
+        "liveVar->SetEval( savedVar->GetEval() );",
+    ):
+        if token not in body:
+            raise AssertionError(f"GUI revision migration lacks {token!r}; restored overrides would be re-evaluated")
+
+
 def main() -> None:
     guis = shipped_guis()
     validate_classification(guis)
@@ -272,6 +290,7 @@ def main() -> None:
     validate_revisions(guis)
     validate_release_provenance()
     validate_engine_migration()
+    validate_eval_transfer()
     print("savegame_gui_layout_contract: ok")
 
 
