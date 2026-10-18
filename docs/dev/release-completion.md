@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Track temporary restore ownership through map teardown, release remaining
+  objects while their dependencies are alive and avoid revisiting attachments
+  deleted by another owner. [Lifetime and gameplay evidence](savegame-reliability.md#ownership-during-an-interrupted-restore)
+  covers SP/MP native cycles and a current save's valid/rejected/valid sequence
+  without modifying either file. Deeper corrupted graphs and the player recovery
+  flow remain open under Q4-05.
+
 - [x] Preserve live entity identities when rejecting invalid or duplicate saved
   registrations, including interrupted master-table entries. Constructor-created
   client effects still restore correctly. [Production-reader and gameplay evidence](savegame-reliability.md#restore-identity-and-partial-registration)

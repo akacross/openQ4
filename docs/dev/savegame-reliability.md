@@ -232,10 +232,10 @@ tables. Those old numbers are replaceable; duplicate detection checks whether
 the same pointer was already published in the saved table being read.
 
 These checks close specific cleanup hazards, not general restore rollback.
-The remaining Q4-05 work includes ownership of factory-created objects that have
-not reached a master table, attachment cascades during failed restore, and an
-explicit player recovery flow after map teardown. The existing early rejection
-policy and supported v2/v3/v4 formats are unchanged.
+Factory-object ownership is addressed separately below; Q4-05 still requires
+deeper corrupted-graph qualification and an explicit player recovery flow after
+map teardown. The existing early rejection policy and supported v2/v3/v4 formats
+are unchanged.
 
 Evidence recorded 18 October 2026:
 
@@ -270,6 +270,59 @@ Evidence recorded 18 October 2026:
   SHA-256 `5182ff526067015d8fd882905e4858bf2fa1aae231b2dcc5da49b3fbf87e37f8`.
   Its normal-save failure prompted the constructor case above. The earlier
   209-test native pass alone did not prove valid gameplay restore.
+
+### Ownership during an interrupted restore
+
+`idRestoreGame` now owns its factory-created objects until the entire game
+initialization succeeds. A temporary pointer hash observes `idClass` destruction
+on the restoring thread. Deleting an attached object or a registered map entity
+therefore clears its restore-list entry before another cleanup pass can visit it.
+Success explicitly releases ownership to the game without deleting objects.
+
+Map shutdown first clears registered entities, then deletes remaining restore
+objects while script, renderer and collision dependencies still exist. Scope
+unwinding also shuts down an unfinished restore. An early script incompatibility
+still takes the existing fresh-map/header-loadout fallback; this change does not
+add a new recovery UI or retain the world that was torn down.
+
+The compiled fixture executes the production ownership methods, deletion loop
+and base destructor for both libraries. Six cases each run 1,000 cycles:
+independent objects, parent/child destruction, deletion by another owner,
+successful transfer, map rollback and exception unwinding. Nested owner scopes
+are also checked. Windows Clang and Linux GCC pass. Removing the destruction
+notification makes both cascade and external-deletion controls fail. The original
+unsafe cleanup is retained in `.tmp/stage-two/save-cleanup-repro.log`, SHA-256
+`fd18f0c5a304086b93824843a5389eb40d1a1735c5f9b32bc6a825565a387397`;
+the missing-notification controls are in
+`.tmp/stage-two/save-cleanup-mutations.log`, SHA-256
+`1a5ba250ee00c0cac68263fb86bb9f0b94c4b6798de19df96137b84cea803edd`.
+
+`tools/tests/savegame_restore_cleanup_runtime.py` exercises the staged Windows
+package with a current Storage1 save and a synthetic copy whose script checksum
+differs, with the outer CRC recomputed. The first probe in
+`.tmp/s2save-cleanup/report.json` (SHA-256
+`66f0a8f4c4ffb94b520a5e12597d94d8054aa5d0fcc8b8cbbaa09291f0c58490`)
+loads the valid save, rejects the synthetic copy after creating 2,962 objects
+(111 client effects), enters the existing fresh-map fallback, then loads the
+valid save again. Both save hashes remain unchanged. Three engine screenshots
+show the pod/world state; the fallback capture is during its initial fade.
+This 18.67-second hidden-window OpenGL probe uses disabled input and sound.
+It is not a deep malformed-object graph, arbitrary ownership-cycle, historical
+save, audio-device or full-campaign qualification. Existing non-precache and
+Storage1 `bridge_gui` warnings remain in its engine log.
+
+The reusable probe's final run passes in 16.52 seconds at
+`.tmp/s2save-cleanup-final/report.json`, SHA-256
+`7758a68a68a905446b05fc11d1c9404db670bc3e830da5aaf82a1a781d601d25`.
+The final native suite passes **221/221** in
+`.tmp/stage-two/save-cleanup-native-final.log`, SHA-256
+`a01850466b105391dbcdafbd4ff0cb2e1e9cb604f1ec4f985e655d1587952394`.
+The preceding run's 220/221 result is retained: its match-shutdown fixture
+needed a declaration for the new restore hook; the actual shutdown method and
+existing match-evidence assertions remain tested. The complete source/log binding
+against `4561169c`, with all 40 retail PK4 hashes rechecked, is
+`.tmp/stage-two/save-cleanup-evidence.json`, SHA-256
+`470259d315e52d5377715a98babffe087460c8cf5119eaa89bfe4133a3d847db`.
 
 ## Remaining Raw Serialization (`raw1`)
 

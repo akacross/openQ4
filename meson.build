@@ -324,6 +324,20 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-identity-' + game_mode, restore_identity_test, timeout: 30)
+    restore_cleanup_source = custom_target(
+      'openq4-restore-cleanup-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp', 'src' / game_mode / 'gamesys' / 'Class.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreCleanup-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_cleanup.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_cleanup_test = executable(
+      'openq4-restore-cleanup-' + game_mode, restore_cleanup_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach scenario : ['independent', 'cascade', 'external', 'commit', 'rollback', 'exception']
+      test('openq4-restore-cleanup-' + game_mode + '-' + scenario, restore_cleanup_test, args: [scenario], timeout: 30)
+    endforeach
   endforeach
 
   openq4_interpolation_test = executable(

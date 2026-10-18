@@ -25,6 +25,8 @@
 
 - Improved damaged-save handling: invalid or duplicate entity registrations no
   longer corrupt the identities needed to clean up a failed load.
+- Failed save loads now release remaining restored objects and avoid deleting
+  attachments a second time during cleanup.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

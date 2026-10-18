@@ -2923,6 +2923,7 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 	animationLib->FlushUnusedAnims();
 // RAVEN END
 
+	savegame.ReleaseObjects();
 	gamestate = GAMESTATE_ACTIVE;
 
 	Printf( "--------------------------------------\n" );
@@ -3150,6 +3151,8 @@ void idGameLocal::MapShutdown( void ) {
 // RAVEN END
 
 	MapClear( true );
+
+	idRestoreGame::DeleteOrphanedObjects();
 
 	instancesEntityIndexWatermarks.Clear();
 	clientInstanceFirstFreeIndex = MAX_CLIENTS;	

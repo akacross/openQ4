@@ -180,8 +180,9 @@ private:
 
 static void SaveGame_DeleteUnrestoredObjects( idList<idClass *> &objectList ) {
 	for ( int i = 1; i < objectList.Num(); i++ ) {
-		delete objectList[ i ];
+		idClass *object = objectList[ i ];
 		objectList[ i ] = NULL;
+		delete object;
 	}
 	objectList.Clear();
 }
@@ -1272,8 +1273,12 @@ void idSaveGame::WriteSaveGameFooter( int numObjects ) {
 idRestoreGame::RestoreGame
 ================
 */
+thread_local idRestoreGame *idRestoreGame::activeRestore = NULL;
+
 idRestoreGame::idRestoreGame( idFile *savefile ) {
 	file = savefile;
+	ownsObjects = false;
+	previousRestore = NULL;
 	buildNumber = 0;
 	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
@@ -1292,6 +1297,66 @@ idRestoreGame::~idRestoreGame()
 ================
 */
 idRestoreGame::~idRestoreGame() {
+	if ( ownsObjects ) {
+		// An exception can leave objects outside the master tables. Shut the map
+		// down while their renderer/script dependencies are still available.
+		gameLocal.MapShutdown();
+	}
+	ReleaseObjects();
+}
+
+void idRestoreGame::BeginObjectOwnership( void ) {
+	if ( ownsObjects ) {
+		Error( "idRestoreGame: object ownership already active" );
+	}
+	objectHash.Clear();
+	ownsObjects = true;
+	previousRestore = activeRestore;
+	activeRestore = this;
+}
+
+void idRestoreGame::TrackObject( int index ) {
+	objectHash.Add( SaveGame_ObjectHashKey( objects[index] ), index );
+}
+
+void idRestoreGame::ObjectDestroyed( const idClass *object ) {
+	if ( activeRestore == NULL ) {
+		return;
+	}
+	// Entity attachments and map shutdown may delete objects independently of
+	// the restore list. Retire every such pointer before cleanup can visit it.
+	const int key = SaveGame_ObjectHashKey( object );
+	for ( idRestoreGame *restore = activeRestore; restore != NULL; restore = restore->previousRestore ) {
+		for ( int index = restore->objectHash.First( key ); index >= 0; index = restore->objectHash.Next( index ) ) {
+			if ( index < restore->objects.Num() && restore->objects[index] == object ) {
+				restore->objects[index] = NULL;
+				restore->objectHash.Remove( key, index );
+				break;
+			}
+		}
+	}
+}
+
+void idRestoreGame::ReleaseObjects( void ) {
+	idRestoreGame **link = &activeRestore;
+	while ( *link != NULL && *link != this ) {
+		link = &( *link )->previousRestore;
+	}
+	if ( *link == this ) {
+		*link = previousRestore;
+	}
+	previousRestore = NULL;
+	ownsObjects = false;
+	objectHash.Clear();
+	objects.Clear();
+}
+
+void idRestoreGame::DeleteOrphanedObjects( void ) {
+	// MapClear has already released registered entities. Delete the remaining
+	// factory objects before the script program, render world and clips go away.
+	while ( activeRestore != NULL ) {
+		activeRestore->DeleteObjects();
+	}
 }
 
 /*
@@ -1350,6 +1415,7 @@ void idRestoreGame::CreateObjects( void ) {
 		objectTypes[ i ] = type;
 	}
 
+	BeginObjectOwnership();
 	objects.SetNum( num + 1 );
 	memset( objects.Ptr(), 0, sizeof( objects[ 0 ] ) * objects.Num() );
 	idScopedUnrestoredObjectCleanup cleanup( objects );
@@ -1359,6 +1425,7 @@ void idRestoreGame::CreateObjects( void ) {
 		if ( objects[ i ] == NULL ) {
 			Error( "idRestoreGame::CreateObjects: failed to create class '%s'", objectTypes[ i ]->classname );
 		}
+		TrackObject( i );
 	}
 	cleanup.Release();
 }
@@ -1402,6 +1469,7 @@ void idRestoreGame::DeleteObjects
 */
 void idRestoreGame::DeleteObjects( void ) {
 	SaveGame_DeleteUnrestoredObjects( objects );
+	ReleaseObjects();
 }
 
 /*
@@ -1418,12 +1486,8 @@ void idRestoreGame::Error( const char *fmt, ... ) {
 	va_end( argptr );
 	text[ sizeof( text ) - 1 ] = '\0';
 
-// RAVEN BEGIN
-	// FIXME: this crashes. It now leaks, but that's better than crashing.
-	// The problem is that some entities delete attached ents that are also in this list. When this call gets to them
-	// it tries to delete an already deleted object
-//	objects.DeleteContents( true );
-// RAVEN END
+	// Common's error path shuts the map down. ObjectDestroyed retires pointers
+	// deleted by that teardown; DeleteOrphanedObjects releases the remainder.
 
 	gameLocal.Error( "%s", text );
 }
