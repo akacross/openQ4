@@ -112,7 +112,7 @@ def validate_policy_and_wiring() -> None:
     policy = read("docs/dev/macos-support-matrix-policy.md")
     building = read("BUILDING.md")
     platform = read("docs/dev/platform-support.md")
-    plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
     release_completion = read("docs/dev/release-completion.md")
     release_notes = read("docs/dev/releases/v0.8.1.md")
     validator = read("tools/validation/openq4_validate.py")
@@ -133,7 +133,7 @@ def validate_policy_and_wiring() -> None:
         require(policy, token, "macOS Intel matrix policy")
 
     require(building, "Hosted `macos-15-intel` jobs", "build documentation Intel corridor")
-    require(platform, "Dedicated `macos-15-intel` engine and companion jobs", "platform support Intel corridor")
+    require(platform, "Dedicated `macos-15-intel` engine and game-module jobs", "platform support Intel corridor")
 
     for token in (
         "[x] Add a standard hosted Intel Mac runner",

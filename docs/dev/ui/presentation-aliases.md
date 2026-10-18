@@ -187,7 +187,7 @@ python tools/ui/capture_legacy_baseline.py --mode mp --renderer vulkan `
 
 ### Vulkan brightness/gamma correction
 
-The existing planned [H3 pass](../plans/2026-07-22-vulkan-phase-h.md) now applies
+The existing planned [H3 pass](../archive/2026-10-18/plans/2026-07-22-vulkan-phase-h.md) now applies
 `pow(clamp(rgb * brightness, 0, 1), 1 / max(gamma, 0.001))` after the completed
 scene/GUI composition and before presentation or screenshot readback. Neutral
 settings skip the entire pass. Per-slot source images use existing GPU resource

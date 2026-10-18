@@ -28,7 +28,7 @@ def main() -> None:
     push = read(".github/workflows/push-verification.yml")
     validator = read("tools/validation/openq4_validate.py")
     platform_support = read("docs/dev/platform-support.md")
-    plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
     release_completion = read("docs/dev/release-completion.md")
     release_notes = read("docs/dev/releases/v0.8.1.md")
 

@@ -3,7 +3,7 @@
 #include "pbr_vertex.glsl"
 
 // openQ4 Vulkan shadow-receiving interaction — vertex stage (Phase F2a,
-// docs/dev/plans/2026-07-19-vulkan-phase-f.md).
+// docs/dev/archive/2026-10-18/plans/2026-07-19-vulkan-phase-f.md).
 //
 // interaction.vert plus the projected shadow coordinate of the GL
 // shadow_interaction.vs contract: four sets of shadow rows are the light's

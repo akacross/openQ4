@@ -4,7 +4,10 @@
 layout, text, color, transforms and control availability. Runtime and editor
 source edits use the same evaluator. This advances Stage 2; it accepts no GUI
 as translated and does not implement the complete game action bridge. The
-[full replacement plan](../plans/idtech5-ui.md) remains authoritative.
+[archived replacement plan](../archive/2026-10-18/plans/idtech5-ui.md) preserves
+the full technical scope. The [development roadmap](../roadmap.md#new-user-interface)
+coordinates current work; the [product register](product-requirements.md) retains
+the detailed acceptance requirements.
 
 ## State and binding schema
 

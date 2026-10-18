@@ -2,7 +2,7 @@
 
 Date: 8 September 2026. Status: stage 1 partial implementation, not a conversion
 or acceptance report. The [visual specification](../ui-visual-design.md) and
-[full plan](../plans/idtech5-ui.md) remain the completion requirements.
+[full plan](../archive/2026-10-18/plans/idtech5-ui.md) remain the completion requirements.
 
 ## Reproduction
 

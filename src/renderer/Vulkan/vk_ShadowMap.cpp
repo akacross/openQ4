@@ -5,7 +5,7 @@
 ===============================================================================
 
 	Vulkan shadow maps (Phase F2a projected + F2b point,
-	docs/dev/plans/2026-07-19-vulkan-phase-f.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-19-vulkan-phase-f.md).
 
 	Port of the GL shadow-map backend (draw_arb2.cpp is excluded from the
 	vk module build):
@@ -41,7 +41,7 @@
 	  1/5/9/13-tap Poisson kernels for projected and point lights, projected
 	  receiver-plane derivative bias and PCSS-lite raw blocker search, plus
 	  the source-aware distant-light radius policy.
-	- Phase F3 (docs/dev/plans/2026-07-20-vulkan-phase-g.md): the module
+	- Phase F3 (docs/dev/archive/2026-10-18/plans/2026-07-20-vulkan-phase-g.md): the module
 	  tracks per-light-class resource generations, but keeps front-end
 	  stencil volumes until per-view atlas/cube/material admission is
 	  capacity-safe. A mapped resource miss therefore uses retained stencil

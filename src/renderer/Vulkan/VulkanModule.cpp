@@ -5,7 +5,7 @@
 ===============================================================================
 
 	renderer-vk backend tail (Phase C,
-	docs/dev/plans/2026-07-17-vulkan-phase-c.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md).
 
 	The shared module glue (RendererGLModule.cpp under OPENQ4_RENDERER_MODULE)
 	owns the GetRenderAPI export and the engine-interface binding; this TU

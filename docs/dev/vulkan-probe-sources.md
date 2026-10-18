@@ -5,7 +5,7 @@ probe atlas. Residency, shared CPU selection and shader consumption are now
 connected and undergoing [rendering qualification](vulkan-pbr-probes.md).
 The source-reader evidence below qualifies the bridge independently of that
 consumer. See the complete
-[Vulkan gap-closure requirements](plans/2026-09-20-vulkan-gap-closure.md).
+[Vulkan gap-closure requirements](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 
 ## Source contract
 

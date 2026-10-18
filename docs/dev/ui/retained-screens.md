@@ -4,7 +4,7 @@ This increment extends the retained (RmlUi) interface beyond the SYSTEM page to
 the title screen, the single-player pause menu and the stock loading screens,
 built from [visual specification 1.9](../ui-visual-design.md) and the design
 atlas. It starts from engine `f5503259a5a2f618e5dd1cebab9adc55c2513f79` and
-advances screen migration in the [idtech5-ui plan](../plans/idtech5-ui.md). It
+advances screen migration in the [idtech5-ui plan](../archive/2026-10-18/plans/idtech5-ui.md). It
 adds partial evidence for `FLOW-024`, `FLOW-047`, `FLOW-048`, `ART-030` and
 `REN-014` in the [requirement register](product-requirements.md); the
 remaining screen migrations and the final gates stay open.

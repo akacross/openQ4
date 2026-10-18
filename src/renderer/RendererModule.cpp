@@ -16,7 +16,7 @@
 
 	Renderer-module selection, loading, and fail-closed fallback.
 
-	See docs/dev/plans/2026-07-16-vulkan-renderer.md.
+	See docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer.md.
 
 ===============================================================================
 */

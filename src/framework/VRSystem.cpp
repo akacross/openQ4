@@ -10,7 +10,7 @@
 	between builds. Clients built with OpenXR (OPENQ4_OPENXR) run the
 	implementation in src/sys/openxr; everything else, dedicated servers
 	included, runs the null system, which never activates.
-	See docs/dev/plans/2026-10-02-openxr-vr.md.
+	See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 ===============================================================================
 */

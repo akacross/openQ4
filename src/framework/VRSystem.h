@@ -16,7 +16,7 @@
 
 	Everything here crosses the game-module boundary, so it stays POD apart
 	from the idVec3/idMat3 members renderView_t already carries.
-	See docs/dev/plans/2026-10-02-openxr-vr.md.
+	See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 ===============================================================================
 */

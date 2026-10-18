@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The Awakening's monsters, weapons and vehicles keep the behaviour their
-content was built for (the gameplay audit, docs/dev/plans/q4x-awakening.md
+content was built for (the gameplay audit, docs/dev/archive/2026-10-18/plans/q4x-awakening.md
 Phase 5).
 
 - The m09 Valkaryne runs her "requestDocking" script, found in any namespace.

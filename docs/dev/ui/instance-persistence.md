@@ -1,7 +1,7 @@
 # GUI ownership and retained instance persistence
 
 This is a foundation checkpoint inside M1 of the
-[product completion plan](../plans/ui-product-completion.md). It establishes
+[product completion plan](../archive/2026-10-18/plans/ui-product-completion.md). It establishes
 manager ownership independent of legacy windows and durable state for the
 currently implemented canonical document subset. It does not complete M1,
 replace a shipped GUI, or establish game save/demo compatibility.

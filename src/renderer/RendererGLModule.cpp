@@ -5,8 +5,8 @@
 ===============================================================================
 
 	Shared renderer-module glue (Phase B8 / Phase C,
-	docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md,
-	docs/dev/plans/2026-07-17-vulkan-phase-c.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md,
+	docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md).
 
 	Compiled ONLY into renderer dynamic modules (OPENQ4_RENDERER_MODULE,
 	with OPENQ4_RENDERER_GL_MODULE / OPENQ4_RENDERER_VK_MODULE selecting the

@@ -2,7 +2,7 @@
 
 8 September 2026. The retained runtime now owns button focus, navigation,
 press/release pairing, modal input scopes and authored state feedback. This
-advances the [replacement runtime](../plans/idtech5-ui.md) and supplies a shared
+advances the [replacement runtime](../archive/2026-10-18/plans/idtech5-ui.md) and supplies a shared
 interaction model for the future native editor. The subsequent
 [input integration](input-routing.md) connects this model to SDL and session
 ownership. The game action bridge, remaining widgets and GUI translation are

@@ -6,8 +6,8 @@ has; only materials with a `pbr` block change. On OpenGL and Vulkan, each PBR su
 is drawn natively inside the regular light loop, so it renders in ordinary
 gameplay next to stock surfaces, and every light keeps its own shadows. A
 material the renderer cannot prove keeps its authored classic stages. See the
-[production-readiness plan](../dev/plans/2026-10-04-pbr-production-readiness.md)
-and the earlier [qualification ledger](../dev/plans/2026-09-20-pbr-rendering-audit.md)
+[production-readiness plan](../dev/archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md)
+and the earlier [qualification ledger](../dev/archive/2026-10-18/plans/2026-09-20-pbr-rendering-audit.md)
 for current evidence and limitations.
 
 ## Material declaration

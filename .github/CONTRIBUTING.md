@@ -98,6 +98,12 @@ will need extra justification.
 
 ## Development Workflow
 
+Use the [development roadmap](../docs/dev/roadmap.md) as the single active plan.
+Relate work to its stable task IDs and update their scope, evidence and acceptance
+when needed. Earlier plans are [archived](../docs/dev/archive/2026-10-18/README.md)
+for reference; do not create a competing plan or TODO backlog. Technical contracts,
+UI requirement registers and recorded release evidence retain their specific roles.
+
 ### Prerequisites
 
 See [BUILDING.md](../BUILDING.md) for the full platform-specific requirements.

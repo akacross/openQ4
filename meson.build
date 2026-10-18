@@ -1928,7 +1928,7 @@ if build_engine
   endif
 endif
 
-# OpenXR virtual reality (docs/dev/plans/2026-10-02-openxr-vr.md). The Khronos
+# OpenXR virtual reality (docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md). The Khronos
 # loader links statically into the SDL3 client on Windows and Linux, built from
 # the pinned SDK against the jsoncpp subproject above; nothing ships beside the
 # executable and dedicated servers never see it.
@@ -2704,7 +2704,7 @@ if build_engine or build_games
   )
 endif
 
-# OpenGL renderer module (Phase B8, docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md).
+# OpenGL renderer module (Phase B8, docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md).
 # Built from the same renderer sources the engine still links statically; the
 # engine keeps its static renderer until the module soak completes. Requires
 # the SDL3 window-services seam (gl_ContextSDL3.cpp compiles standalone via
@@ -2717,7 +2717,7 @@ endif
 
 # Vulkan module availability needs the SDL3 window-services seam on every host.
 # macOS is admitted through MoltenVK, a Vulkan-on-Metal translation layer, per
-# docs/dev/macos-moltenvk-decision.md; the module is built and shipped there but
+# docs/dev/archive/2026-10-18/macos-moltenvk-decision.md; the module is built and shipped there but
 # stays opt-in behind r_renderApi vulkan with OpenGL as the default renderer.
 # MoltenVK is not a native Metal renderer and must never be described as one.
 build_renderer_vk = get_option('build_renderer_vk')
@@ -2929,7 +2929,7 @@ if build_renderer_gles
 endif
 
 # Native Vulkan renderer module, full-module shape (Phase C,
-# docs/dev/plans/2026-07-17-vulkan-phase-c.md): the shared renderer front-end
+# docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md): the shared renderer front-end
 # with the GL backend replaced by the Vulkan backend. Mixed front-end TUs keep
 # their GL call sites satisfied by the hook-resolving GLEW flavor + the
 # module's GL stub TU; no GL and no SDL are linked.

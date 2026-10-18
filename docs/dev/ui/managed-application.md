@@ -2,7 +2,7 @@
 
 This checkpoint connects explicit `.q4ui` documents to normal engine GUI
 allocation and session dispatch. It is part of M1 in the
-[product completion plan](../plans/ui-product-completion.md). It does not accept
+[product completion plan](../archive/2026-10-18/plans/ui-product-completion.md). It does not accept
 any of the 271 shipped GUI resources or complete the production settings page.
 The [full requirement register](product-requirements.md) remains authoritative.
 
@@ -88,7 +88,7 @@ failure-recovery flows.
 
 At this checkpoint's `e075e4a2` revision, brightness dispatch/readback worked on
 both renderers, but Vulkan lacked the planned
-[H3 final brightness/gamma pass](../plans/2026-07-22-vulkan-phase-h.md).
+[H3 final brightness/gamma pass](../archive/2026-10-18/plans/2026-07-22-vulkan-phase-h.md).
 Its visual effect was therefore qualified only on OpenGL. The subsequent
 [presentation alias checkpoint](presentation-aliases.md) implements that pass
 and records SDR screenshot parity; full display-settings acceptance remains open.

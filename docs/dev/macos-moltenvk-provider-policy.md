@@ -4,7 +4,7 @@ Updated: 2026-07-25
 
 This document records how openQ4 acquires, pins, stages, validates, and signs
 the MoltenVK runtime that the macOS Vulkan renderer module depends on. It is the
-companion to `docs/dev/macos-moltenvk-decision.md`, which records *why* macOS
+companion to `docs/dev/archive/2026-10-18/macos-moltenvk-decision.md`, which records *why* macOS
 Vulkan is opt-in; this document records *where the library comes from* and what
 must be true of it before it may ship.
 

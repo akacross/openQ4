@@ -158,7 +158,7 @@ def test_capability_matrix_is_authoritative_and_scoped() -> None:
         "shared-domain promotion boundary",
     )
 
-    roadmap = read("docs/dev/idtech5-modernization-roadmap.md")
+    roadmap = read("docs/dev/archive/2026-10-18/idtech5-modernization-roadmap.md")
     require(
         roadmap,
         "domains have retained local runtime qualification",
@@ -171,7 +171,7 @@ def test_capability_matrix_is_authoritative_and_scoped() -> None:
     )
 
     renderer_matrix = read("docs/dev/renderer-validation-matrix.md")
-    proposal = read("docs/dev/proposals/rbdoom3-bfg-parity-modernization-plan.md")
+    proposal = read("docs/dev/archive/2026-10-18/proposals/rbdoom3-bfg-parity-modernization-plan.md")
     readme = read("README.md")
     require(renderer_matrix, "engine capability matrix", "renderer evidence federation")
     require(proposal, "historical proposal, not a current-state inventory", "stale proposal warning")

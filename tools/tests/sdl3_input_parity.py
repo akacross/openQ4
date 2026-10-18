@@ -402,7 +402,7 @@ def validate_docs_and_ci() -> None:
     runner = read("tools/validation/openq4_validate.py")
     input_docs = read("docs/user/input-settings.md")
     platform_docs = read("docs/dev/platform-support.md")
-    migration = read("docs/dev/sdl3-linux-macos-migration.md")
+    migration = read("docs/dev/archive/2026-10-18/sdl3-linux-macos-migration.md")
     release_completion = read("docs/dev/release-completion.md")
     session = read("src/framework/Session.cpp")
 

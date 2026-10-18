@@ -1,5 +1,11 @@
 # Level editor modernization
 
+This is an implementation and evidence reference. The [development roadmap](roadmap.md#engine-loading-safety-and-developer-tools),
+TOOL-01 through TOOL-04, is the sole active planning location. The user's earlier
+pause of broader editor modernization remains in effect; consolidating the plan
+does not authorize resuming implementation. The recorded milestones, limitations
+and validation below retain their original scope.
+
 Target: a modern, integrated authoring environment at an idStudio-like standard.
 This describes the desired product standard, not compatibility with proprietary
 idStudio code, project files or tools.
@@ -127,7 +133,11 @@ graphical operation still need qualification. Compact toolbar text has been
 reduced to fit the English Save copy label at the tested sizes; other languages
 still need visual qualification.
 
-## Implementation order toward the target
+## Historical implementation sequence
+
+The sequence below records the earlier proposal, not a second active backlog.
+Its outstanding scope is carried by TOOL-01 through TOOL-04 in the roadmap and
+remains paused until the user resumes it.
 
 1. **Complete the workspace.** Build on the integrated browser, inspector and
    source viewport: add docking, richer asset previews and linked diagnostics,

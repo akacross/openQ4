@@ -3,7 +3,7 @@
 #include "../../PBRMath.h"
 
 // openQ4 Vulkan GUI/2D pipeline â€” fragment stage (Phase D,
-// docs/dev/plans/2026-07-18-vulkan-phase-d.md).
+// docs/dev/archive/2026-10-18/plans/2026-07-18-vulkan-phase-d.md).
 //
 // One combined image sampler; component swizzles (fonts' green-alpha,
 // R8-backed alpha/intensity formats) live on the VkImageView, so the

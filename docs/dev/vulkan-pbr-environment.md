@@ -3,7 +3,7 @@
 Status: implemented and locally qualified at 0x/4x MSAA on Windows/NVIDIA.
 This records the analytic environment contribution for admitted authored PBR
 surfaces. Since Stage E of the
-[production-readiness plan](plans/2026-10-04-pbr-production-readiness.md) the
+[production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md) the
 analytic studio environment lights only the laboratory
 (`r_pbrAnalyticEnvironment 1`); production environment light comes from
 authored probes, baked light grids and ambient lights. [Authored reflection probes](vulkan-pbr-probes.md) also have local
@@ -61,7 +61,7 @@ atlas is a raw texture with `GL_LINEAR_MIPMAP_LINEAR` and was never affected.
 Since 2026-10-04 the pass applies the shared roughness/AO kernel: specular
 occlusion and multi-bounce AO, horizon occlusion against the interpolated
 vertex normal, and multiple-scattering energy compensation from the split-sum
-table's `A + B`. See the [production-readiness plan](plans/2026-10-04-pbr-production-readiness.md).
+table's `A + B`. See the [production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md).
 
 The opaque environment pass checks the existing baked receiver rules per surface:
 the default `r_useLightGrid 1` switch no longer disables environment lighting

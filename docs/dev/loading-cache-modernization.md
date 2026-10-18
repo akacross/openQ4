@@ -2,7 +2,7 @@
 
 This document owns the implementation contract and promotion evidence for the
 Milestone B loading/cache slice in the
-[idTech 5-level modernization roadmap](idtech5-modernization-roadmap.md).
+[idTech 5-level modernization roadmap](archive/2026-10-18/idtech5-modernization-roadmap.md).
 The implementation and local integration gate are complete, but final
 committed-package runtime, platform, and performance evidence is **not
 complete**. Nothing in this document should be read as a universal measured

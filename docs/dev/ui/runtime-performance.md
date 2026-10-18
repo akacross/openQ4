@@ -2,7 +2,7 @@
 
 8 September 2026. This checkpoint adds runtime CPU measurements and removes
 redundant path compilation during fades and whole-pixel movement. It advances
-the [replacement plan](../plans/idtech5-ui.md); full performance qualification,
+the [replacement plan](../archive/2026-10-18/plans/idtech5-ui.md); full performance qualification,
 composition, production artwork, editor and GUI migration gates remain open.
 
 The later [composition checkpoint](composition.md) supersedes the per-primitive

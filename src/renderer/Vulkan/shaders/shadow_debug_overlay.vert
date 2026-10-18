@@ -1,7 +1,7 @@
 #version 450
 
 // openQ4 Vulkan shadow-map debug overlay — vertex stage
-// (r_shadowMapDebugOverlay, docs/dev/plans/2026-09-02-vulkan-shadow-gl-parity.md).
+// (r_shadowMapDebugOverlay, docs/dev/archive/2026-10-18/plans/2026-09-02-vulkan-shadow-gl-parity.md).
 //
 // The overlay is a handful of axis-aligned rectangles, so the quad is
 // generated from gl_VertexIndex and positioned entirely by push constants:

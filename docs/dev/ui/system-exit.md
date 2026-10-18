@@ -3,7 +3,7 @@
 This increment starts from engine
 `6c0defc8158c674c0e117a0a3754882a51bcef0d` and companion
 `1cd33980f072ac3d78978a07b388b4b6fe6b5eb2`. It advances the normal SYSTEM flow in
-M2 of the [product completion plan](../plans/ui-product-completion.md). The
+M2 of the [product completion plan](../archive/2026-10-18/plans/ui-product-completion.md). The
 [SYSTEM contract](system-settings-contract.md), all 227 product requirements,
 all 271 GUI migrations and the seven final gates remain required.
 

@@ -3,7 +3,7 @@
 This implementation increment starts from engine
 `b3bf279b4347329cd8a45a4533536adc0510e860` and companion
 `1cd33980f072ac3d78978a07b388b4b6fe6b5eb2`. It advances M2 of the
-[product completion plan](../plans/ui-product-completion.md). The complete
+[product completion plan](../archive/2026-10-18/plans/ui-product-completion.md). The complete
 [SYSTEM contract](system-settings-contract.md), all 227 product requirements,
 all 271 GUI migrations and the seven final gates remain required.
 

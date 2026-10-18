@@ -561,7 +561,7 @@ Build and packaging facts worth knowing before touching this path:
 - Loose `.install/` development runs probe MoltenVK both beside the executable and under `.install/Frameworks/`; app bundles continue to use `Contents/Frameworks/`. The SDL surface path and Vulkan module use the same ordered candidates so they cannot bind different loader images.
 - Both staged binaries are nested code and are signed inside-out with the Developer ID Application identity before the outer app is signed and notarized. The published MoltenVK dylib is ad-hoc signed only, so a credentialed release run must re-sign it.
 - Configure with `-Dbuild_renderer_vk=false` to leave the module and translation layer out entirely; `r_renderApi vulkan` then falls back to OpenGL through the normal fail-closed ladder.
-- The decision-gate plan is `docs/dev/macos-moltenvk-decision.md`, the staged record is `docs/dev/plans/2026-07-25-macos-moltenvk.md`, and the sourcing/pinning/signing policy is `docs/dev/macos-moltenvk-provider-policy.md`. `python tools/tests/macos_moltenvk_policy.py` pins the parts of this contract that no Windows or Linux build can observe.
+- The decision-gate plan is `docs/dev/archive/2026-10-18/macos-moltenvk-decision.md`, the staged record is `docs/dev/archive/2026-10-18/plans/2026-07-25-macos-moltenvk.md`, and the sourcing/pinning/signing policy is `docs/dev/macos-moltenvk-provider-policy.md`. `python tools/tests/macos_moltenvk_policy.py` pins the parts of this contract that no Windows or Linux build can observe.
 
 macOS Vulkan is experimental on a preview platform and has no accepted real-Apple-hardware evidence (one player reported it working on 0.12.0), so it must not be described as a supported renderer.
 

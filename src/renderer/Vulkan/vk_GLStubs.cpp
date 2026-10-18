@@ -5,7 +5,7 @@
 ===============================================================================
 
 	Vulkan module GL stubs (Phase C,
-	docs/dev/plans/2026-07-17-vulkan-phase-c.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-17-vulkan-phase-c.md).
 
 	The Vulkan module compiles the shared renderer front-end, whose mixed
 	TUs still carry GL call sites (image bind/copy paths, GPU timers, caps

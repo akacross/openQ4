@@ -332,7 +332,7 @@ def validate_support_info_path_resolution() -> None:
 
 
 def validate_docs_plan_and_release_notes() -> None:
-    plan = read("docs/dev/plans/2026-06-30-apple-support-no-macos-access.md")
+    plan = read("docs/dev/archive/2026-10-18/plans/2026-06-30-apple-support-no-macos-access.md")
     package_policy = read("docs/dev/macos-package-layout-and-release-policy.md")
     release_completion = read("docs/dev/release-completion.md")
     release_notes = read("docs/dev/releases/v0.6.5.md")

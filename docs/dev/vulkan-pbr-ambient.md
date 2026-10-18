@@ -8,7 +8,7 @@ light grids.
 
 Eligible PBR receivers evaluate an ambient light in the same linear material
 domain as their point and projected lights. Since Stage E of the
-[production-readiness plan](plans/2026-10-04-pbr-production-readiness.md) an
+[production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md) an
 authored ambient light is a uniform environment: an irradiance E (pi times the
 sRGB-decoded classic light term, projection x falloff x light color,
 `PBRClassicLightIrradiance`) is radiance E/pi from every direction. It reaches

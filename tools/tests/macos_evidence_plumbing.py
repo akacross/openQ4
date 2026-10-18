@@ -78,7 +78,7 @@ def validate_release_completion_gate() -> None:
 
 
 def validate_plan_status() -> None:
-    plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
 
     for token in (
         "Phase 0: Evidence plumbing",

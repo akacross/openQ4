@@ -1,5 +1,10 @@
 # macOS Native Backend Containment Policy
 
+Current work and future design/removal decisions belong in the
+[development roadmap](roadmap.md#desktop-platforms-and-packaging). References
+below to a separate design or removal plan mean a scoped roadmap decision with
+supporting technical documentation, not another active delivery plan.
+
 Updated: 2026-06-30
 
 This policy keeps the legacy macOS Cocoa/OpenGL backend useful for comparison
@@ -64,7 +69,7 @@ Added: 2026-07-25.
 
 openQ4's Vulkan renderer module now builds and ships for macOS, where it runs
 through MoltenVK, a Vulkan-on-Metal translation layer. The decision plan is
-[macos-moltenvk-decision.md](macos-moltenvk-decision.md).
+[macos-moltenvk-decision.md](archive/2026-10-18/macos-moltenvk-decision.md).
 
 That does not move the native Metal boundary above. Nothing in
 `src/renderer`, `src/sys/osx`, `src/sys/posix`, or `src/sys/sdl3` imports Metal,

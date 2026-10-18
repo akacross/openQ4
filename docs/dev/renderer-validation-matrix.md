@@ -201,7 +201,7 @@ window without a tic. The capture then shows the previous scene, and a respawned
 name can meet its unremoved predecessor (`Multiple entities named`), which ends
 the map.
 
-The [PBR audit](plans/2026-09-20-pbr-rendering-audit.md) records numerical BRDF and
+The [PBR audit](archive/2026-10-18/plans/2026-09-20-pbr-rendering-audit.md) records numerical BRDF and
 environment tests, rendered material/ownership controls, HDR float/display
 references, shadow and skinning motion, baked/fog/transparency composition,
 reloads, restarts and complete fallback. Every capture uses the engine command.

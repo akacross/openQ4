@@ -1,6 +1,6 @@
 // Copyright (C) 2026 DarkMatter Productions
 // Native per-surface PBR in the classic OpenGL light loop: Stage B of
-// docs/dev/plans/2026-10-04-pbr-production-readiness.md.
+// docs/dev/archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md.
 //
 // OpenGL drew authored PBR materials only when a whole frame qualified for the
 // experimental modern path, so ordinary gameplay on the default renderer never

@@ -3908,7 +3908,7 @@ def validate_macos_shell_entrypoints() -> None:
 def validate_docs_and_ci_hooks() -> None:
     building = read("BUILDING.md")
     platform_support = read("docs/dev/platform-support.md")
-    migration = read("docs/dev/sdl3-linux-macos-migration.md")
+    migration = read("docs/dev/archive/2026-10-18/sdl3-linux-macos-migration.md")
     getting_started = read("docs/user/getting-started.md")
     package_readme = read("assets/release/README.html")
     release_notes = read("docs/dev/release-completion.md")
