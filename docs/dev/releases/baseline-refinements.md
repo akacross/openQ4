@@ -36,6 +36,8 @@
   handles from the saved world.
 - Damaged saves with invalid attachment or physics-team links are rejected, and
   partial links are discarded before failed-load cleanup.
+- Saved actor and client-effect references now reject incompatible entity types
+  before they can be used during restoration or play.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

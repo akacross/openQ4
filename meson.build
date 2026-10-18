@@ -373,6 +373,17 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-bindings-' + game_mode, restore_bindings_test, timeout: 30)
+    restore_spawn_refs_source = custom_target(
+      'openq4-restore-spawn-refs-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Game_local.h', 'src' / game_mode / 'client' / 'ClientEntity.h'),
+      output: 'RestoreSpawnRefs-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_spawn_refs.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_spawn_refs_test = executable(
+      'openq4-restore-spawn-refs-' + game_mode, restore_spawn_refs_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-spawn-refs-' + game_mode, restore_spawn_refs_test, timeout: 30)
     restore_render_handles_source = custom_target(
       'openq4-restore-render-handles-' + game_mode + '-source',
       input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'Actor.cpp',

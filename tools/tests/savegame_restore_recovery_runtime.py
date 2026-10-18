@@ -18,7 +18,7 @@ import zlib
 from savegame_restore_cleanup_runtime import ROOT, checksum_fixture, sha
 
 
-def damaged_fixtures(data):
+def damaged_fixtures(data, spawn_refs=False):
     _, metadata = checksum_fixture(data)
     position = metadata['server_info_sync']
     sequence = 0
@@ -36,6 +36,18 @@ def damaged_fixtures(data):
         value = data[position:position+size]
         assert len(value) == size
         position += size
+        return value
+
+    def skip(size):
+        nonlocal position
+        assert 0 <= size < 1048576 and position+size <= len(data)
+        position += size
+
+    def boolean():
+        nonlocal position
+        value = data[position]
+        assert value in (0, 1)
+        position += 1
         return value
 
     def dictionary():
@@ -75,6 +87,62 @@ def damaged_fixtures(data):
     client_entities = table(capacity('CENTITYNUM_BITS'))
     first_free_offset = position
     assert 0 <= integer() < capacity('GENTITYNUM_BITS')
+    if spawn_refs:
+        assert 0 <= integer() <= 4096  # num_entities
+        assert 0 < integer() <= metadata['objects']  # world
+        for maximum in (4096, 8192, 4096, 4096):
+            count = integer()  # spawned entities, script proxies, client spawned, active
+            assert 0 <= count <= maximum
+            skip(count*4)
+        assert 0 <= integer() <= 4096  # numEntitiesToDeactivate
+        boolean()  # sortPushers
+        boolean()  # sortTeamMasters
+        dictionary()  # persistentLevelInfo
+        skip(12*4+4+3*12*4)  # global shader parms, effects enabled and effect parms
+        skip(4+4)  # random seed and frame-command thread
+        string()  # session command
+        for _ in range(2):  # AI team members
+            count = integer()
+            assert 0 <= count <= 4096
+            skip(count*4)
+        skip(2*12*4)  # AI team timers
+        count = integer()  # AI avoids
+        assert 0 <= count <= 65536
+        skip(count*20)
+        skip(3*4)  # cinematic skip/stop/max times
+        boolean()  # inCinematic
+        boolean()  # skipCinematic
+        boolean()  # isMultiplayer
+        skip(4+3*4+2*4)  # game type, frame/clocks, vacuum area and entity def bits
+        boolean()  # isServer
+        boolean()  # isClient
+        boolean()  # isListenServer
+        skip(4+4)  # local client and real client time
+        boolean()  # isNewFrame
+        boolean()  # mapCycleLoaded
+        skip(4)  # spawnCount
+        count = integer()  # location entities
+        assert 0 <= count <= 65536
+        skip(count*4)
+        skip(4)  # camera
+        string()  # global material
+        reference_offset = position
+        original = integer()  # lastAIAlertActor
+        skip(3*4)  # lastAIAlertEntity and both alert times
+        dictionary()  # spawnArgs proves the next complete sync boundary
+        parsed, _ = render_handle_fixture(data)
+        entity = parsed['ForeignModelHandle'][1]
+        assert entity['entity_class'] == 'func_static'
+        entry = next(item for item in entities if item['slot'] == entity['entity_number'])
+        replacement = (entry['spawn_id'] << 12) | entry['slot']
+        assert 0 < replacement < 2147483648 and replacement != original
+        changed = bytearray(data)
+        struct.pack_into('<i', changed, reference_offset, replacement)
+        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+        detail = dict(entity=entity['entity'], entity_number=entry['slot'], object_reference=entry['reference'],
+                      offset=reference_offset, original=original, replacement=replacement,
+                      expected="idEntityPtr::Restore: entity %d has type 'idStaticEntity', expected 'idActor'" % entry['slot'])
+        return {'WrongActorSpawnReference': (bytes(changed), detail)}, metadata
     definitions = [
         ('BadObjectIndex', entities[1]['offset'], 2147483647, 'invalid object index 2147483647'),
         ('DuplicateEntity', entities[1]['offset'], entities[0]['reference'], 'invalid entity registration'),
@@ -266,7 +334,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -279,7 +347,8 @@ def main():
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
     fixtures, metadata = (render_handle_fixture(original, bindings=args.cases == 'bindings')
-                         if args.cases != 'registrations' else damaged_fixtures(original))
+                         if args.cases in ('render-handles', 'bindings')
+                         else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs'))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
     game = save/'baseoq4'

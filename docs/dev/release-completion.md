@@ -10,6 +10,12 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Validate live saved spawn references against their declared entity/client
+  class before publishing them. Interrupted reads preserve the previous pointer;
+  expired weak references retain their existing behavior. The
+  [template and runtime evidence](savegame-reliability.md#typed-spawn-references-during-restore)
+  identifies the previous acceptance failure and the tested scope.
+
 - [x] Reject invalid saved binding/team relationships and detach partial links
   before failed-load cleanup. Valid forward references retain their saved order.
   [Graph validation and teardown evidence](savegame-reliability.md#binding-graphs-during-failed-restores)

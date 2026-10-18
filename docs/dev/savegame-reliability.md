@@ -243,7 +243,7 @@ Evidence recorded 18 October 2026:
   replaced the live object's identity. SHA-256:
   `1125c857ae3b1100d001fa97ec3e8746806bc60fe85c6b82588a27f111d08afa`.
 - `tools/tests/savegame_restore_identity.py` compiles the production SP/MP
-  identity reads and master-table helper. Windows Clang and Linux GCC pass
+  identity reads and master-table helper. Windows and Linux pass
   bounds, mismatches, valid reads, duplicate/reserved registrations, interrupted
   entries and constructor-assigned numbers. Both final logs have SHA-256
   `3751319f76c8ceaf966673950f89ab354d034aa44df9d2d1e74c76813b7c9594`.
@@ -289,7 +289,7 @@ The compiled fixture executes the production ownership methods, deletion loop
 and base destructor for both libraries. Six cases each run 1,000 cycles:
 independent objects, parent/child destruction, deletion by another owner,
 successful transfer, map rollback and exception unwinding. Nested owner scopes
-are also checked. Windows Clang and Linux GCC pass. Removing the destruction
+are also checked. Windows and Linux pass. Removing the destruction
 notification makes both cascade and external-deletion controls fail. The original
 unsafe cleanup is retained in `.tmp/stage-two/save-cleanup-repro.log`, SHA-256
 `fd18f0c5a304086b93824843a5389eb40d1a1735c5f9b32bc6a825565a387397`;
@@ -359,8 +359,8 @@ deferred removal behavior. The compiled SP/MP regression runs 1,000 fill/refuse/
 free/reuse cycles against checked storage; the pre-fix implementation fails it.
 
 Validation on 19 October 2026 uses the complete production Common error handler,
-load transaction and recovery UI method with counted services on Windows Clang
-and Linux GCC. It checks ownership unwinding before session teardown, scope
+load transaction and recovery UI method with counted services on Windows and
+Linux. It checks ownership unwinding before session teardown, scope
 reset, successful load, 1,000 repeated failures, a subsequent successful load,
 bounded error messages, ordinary/fatal behavior and retained/classic routing.
 Removing the scoped error policy reproduces premature session teardown. This
@@ -428,8 +428,8 @@ graph cleanup: even an otherwise independent object could cause it.
 all nine paths in both libraries. Four smaller Restore methods are compiled
 whole; the other five contribute their exact handle read/acquisition blocks,
 with unrelated fields explicitly omitted. Counted renderer services reject
-foreign and duplicate releases. The corrected methods pass on Windows Clang and
-Linux GCC for absent definitions, zero/ordinary/maximum saved indices and a
+foreign and duplicate releases. The corrected methods pass on Windows and
+Linux for absent definitions, zero/ordinary/maximum saved indices and a
 failure at every read/acquisition boundary, including a read that writes before
 reporting failure. For each library the positive-handle cases cover 61 distinct
 boundaries. This does not claim to test all intervening fields of the larger
@@ -511,8 +511,8 @@ are not timing comparisons. Reports and SHA-256:
 - Vulkan: `.tmp/s2save-bindings-vk/report.json`,
   `4f78c59dd548f48316abcaa709643866996e16b86a66a60788d0bc430114c227`.
 
-The native binding fixture passes for both libraries on Windows Clang and Linux
-GCC. The full Windows suite passes **244/244**, including the two registered
+The native binding fixture passes for both libraries with Clang on Windows and
+Linux. The full Windows suite passes **244/244**, including the two registered
 binding tests, in `.tmp/stage-two/save-bindings-native-suite.log`, SHA-256
 `ef4fffb35d9c19f8d0093a2614678239715bd5894d2240b7659bdb9a647bdb4d`.
 The source/runtime/asset binding against `09491d7c` is
@@ -522,6 +522,57 @@ The source/runtime/asset binding against `09491d7c` is
 This repair covers entity binding/team graphs. Other owning references,
 constructor failures and historical/platform save qualification remain separate
 Q4-05/Q4-07 work.
+
+### Typed spawn references during restore
+
+Ordinary object references already check their declared class. The saved spawn
+IDs used by `idEntityPtr<T>` and `rvClientEntityPtr<T>` now perform an equivalent
+check when the referenced generation is live. A temporary pointer record holds
+the read until validation succeeds, so an interrupted integer read cannot change
+the current reference. Correct subclasses, const-qualified pointers, empty slots
+and expired generations retain their existing behavior; client references also
+retain their existing unsigned generation interpretation. The save representation
+and normal gameplay pointer lookup are unchanged.
+
+The production-template fixture compiles both pointer readers, their validity
+checks, entity lookup and spawn-ID packing in each game module. Its checked
+eight-slot tables cover ordinary and client type mismatches, inherited types,
+null/expired references, signed boundary values and a short read that writes
+before throwing. Restoring the old unchecked readers makes the separate entity,
+client and both interrupted-read controls fail. This is pointer-reader evidence,
+not a simulation of every class that stores one of these references.
+
+The current-v4 runtime fixture decodes the game header through the AI lists,
+timers and subsequent dictionary boundary. It changes only `lastAIAlertActor`
+at offset 131097 to the live spawn ID 12321 of `tallElevatorClip` (entity 33,
+`idStaticEntity`), retaining a valid outer CRC. The previous staged build
+(`3bd58aa0`) accepts that incompatible reference and produces no recovery page;
+`.tmp/s2save-spawn-refs-before/report.json` records the failed rejection check.
+That run exits normally; it does not establish a runtime crash.
+
+The corrected native fixture passes 85 checks per game module with Windows
+Clang 20.1.7 and Ubuntu Clang 18.1.3. All four controls fail with the old reader
+restored in each module. The full Windows suite passes **246/246**, recorded in
+`.tmp/stage-two/save-spawn-refs-native-suite.log`, SHA-256
+`ca0bdaa30179aaec5f11a10791ea688a57802f7f1cd18e8272320d8ee9bbb817`.
+
+Both corrected staged runtime runs reject the wrong actor class, display the
+retained recovery page and reload the healthy save: OpenGL in 19.53 seconds and
+Vulkan in 18.94 seconds. The recovery and final gameplay captures were inspected;
+both save hashes and all forty retail PK4 hashes remain unchanged. These are hidden-window,
+input-disabled correctness runs, not performance or physical-device evidence.
+Reports and SHA-256:
+
+- Previous acceptance failure: `.tmp/s2save-spawn-refs-before/report.json`,
+  `09792dd85f65f5c9c2e5fbb04110c415e0394dfe17b1b23d033e94e6e284e5e3`.
+- OpenGL: `.tmp/s2save-spawn-refs-gl/report.json`,
+  `ccb7bbe96ca8fc3aa286446244f7f3d8029eb2df56ebb3f837edf815be7568df`.
+- Vulkan: `.tmp/s2save-spawn-refs-vk/report.json`,
+  `dfdb5dcf7ad360431b58c4ca1c9b89091ae9c622cd30a30af4e7bcdaeb569458`.
+
+The source/runtime/native/asset binding against `3bd58aa0` is
+`.tmp/stage-two/save-spawn-refs-evidence.json`, SHA-256
+`dd77220c06c40e7a183e4c0faa8d4999bb51c50bdb660ecdcfac1eede39cb110`.
 
 ## Remaining Raw Serialization (`raw1`)
 
