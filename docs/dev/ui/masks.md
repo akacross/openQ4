@@ -4,7 +4,7 @@
 editable vector paths. This adds shaped content clipping, holes and soft reveals
 to the [retained composition runtime](composition.md). Full GUI translation,
 production artwork and the visual editor remain incomplete under the
-[replacement plan](../plans/idtech5-ui.md).
+[replacement plan](../archive/2026-10-18/plans/idtech5-ui.md).
 
 ## Source and appearance
 

@@ -4,7 +4,7 @@ This M1 increment adds ordered behavior to canonical retained documents and
 connects it to normal GUI lifecycle and session delivery. It extends
 [presentation aliases](presentation-aliases.md) and
 [application integration](managed-application.md). The
-[product completion plan](../plans/ui-product-completion.md) and
+[product completion plan](../archive/2026-10-18/plans/ui-product-completion.md) and
 [requirement register](product-requirements.md) still require the complete GUI
 corpus, controls, production screen, editor and platform qualification.
 

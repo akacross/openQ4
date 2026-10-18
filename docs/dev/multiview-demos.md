@@ -1,5 +1,10 @@
 # Demo Playback and Multi-View Demo Architecture
 
+This document records implementation, format and compatibility contracts.
+Outstanding demo work is coordinated only in the [development roadmap](roadmap.md#multiplayer-bots-arena-and-demos),
+MP-05; deferred broadcast and ecosystem decisions are OPT-04. Historical delivery
+phases below do not establish a separate plan or current qualification status.
+
 ## Status
 
 The MVD core and the first unified demo-playback experience are implemented.
@@ -343,7 +348,12 @@ engine/game changes; the unified UI exposes only play and stop. The browser
 performs a bounded, nonfatal header and command-frame preflight before enabling
 Play, and playback repeats that validation before and after map load.
 
-## Delivery plan
+## Historical delivery scope
+
+This phase record is retained for provenance. MP-05 in the roadmap owns remaining
+recording, recovery and playback work; OPT-04 owns the deferred broadcast scope.
+Use the current status and dated evidence to distinguish implemented features
+from unfinished work instead of treating every historical bullet as outstanding.
 
 ### Phase 1: reliable core — complete
 

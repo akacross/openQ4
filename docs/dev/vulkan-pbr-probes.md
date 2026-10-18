@@ -52,7 +52,7 @@ shared `PBRBoxInfluence` and looks each reflection up where it leaves the box
 do. `bakeReflectionProbes` fills a probe's cubemap from the running map on
 either backend; the readback, filtering and residency of a reloaded image are
 the ones described above. See the [production-readiness
-plan](plans/2026-10-04-pbr-production-readiness.md) for the controls.
+plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md) for the controls.
 
 ## Qualification
 

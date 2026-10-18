@@ -48,7 +48,7 @@ The whole-view preparation above belongs to the laboratory's linear HDR scene
 (`r_pbrLinearScene 1`). In an ordinary display-referred frame, as players run
 it, a native PBR receiver composes its grid in its own environment pass, like
 the OpenGL owner (stage E of the
-[production-readiness plan](plans/2026-10-04-pbr-production-readiness.md)): the
+[production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md)): the
 same grid contract (`VK_LightGrid_PrepareModern`) and shader, decoding each
 atlas sample to linear light and encoding the draw once into the frame. The
 classic grid pass skips every native PBR receiver (`VK_PBR_GridOwned`), so a

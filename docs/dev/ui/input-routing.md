@@ -1,7 +1,7 @@
 # Retained menu ownership and platform input
 
 8 September 2026. Retained documents can now acquire application input through
-`ui_retainedOpen "path.q4ui"`. This advances the [full replacement plan](../plans/idtech5-ui.md)
+`ui_retainedOpen "path.q4ui"`. This advances the [full replacement plan](../archive/2026-10-18/plans/idtech5-ui.md)
 from semantic button fixtures to an engine menu host. The host closes the console,
 receives SDL input, owns the session's GUI state and inhibits gameplay controls.
 `ui_retainedPreview` remains a passive renderer. Neither command accepts a stock

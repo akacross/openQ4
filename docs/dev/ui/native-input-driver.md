@@ -75,4 +75,4 @@ getters and Pacifier, SDL shutdown/window replacement, cursor/grab housekeeping,
 unknown held-source renewal and independent legacy/system-event disposition must
 join the lifecycle before enablement. The non-SDL GL fake-window pump needs its
 separate applicability gate. All product requirements and final acceptance gates
-remain governed by the [completion plan](../plans/ui-product-completion.md).
+remain governed by the [completion plan](../archive/2026-10-18/plans/ui-product-completion.md).

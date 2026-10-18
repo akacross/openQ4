@@ -399,7 +399,7 @@ typedef struct renderPresentationState_s {
 	screen (menus, HUD, console, cinematics); the game moves its first-person
 	3D pass to an eye with SetVRRenderTarget. Swapchain images are only blit
 	destinations, so the runtime's formats never reach the render pipeline.
-	See docs/dev/plans/2026-10-02-openxr-vr.md.
+	See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 ===============================================================================
 */

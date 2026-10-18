@@ -12,7 +12,7 @@
 	Instance/device/queue/memory validation with no window or surface work,
 	safe to run while the OpenGL renderer owns the screen. Later phases grow
 	this module toward the full idRenderSystem implementation described in
-	docs/dev/plans/2026-07-16-vulkan-renderer.md.
+	docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer.md.
 
 	This translation unit is standalone: no idlib, engine services arrive
 	through the renderModuleServices_t table.

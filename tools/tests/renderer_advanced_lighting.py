@@ -463,7 +463,7 @@ def test_parity_stays_unpromoted_and_follow_ons_have_separate_gates() -> None:
     docs = "\n".join(
         (
             read("docs/dev/engine-capability-matrix.md"),
-            read("docs/dev/idtech5-modernization-roadmap.md"),
+            read("docs/dev/archive/2026-10-18/idtech5-modernization-roadmap.md"),
             read("docs/dev/renderer-validation-matrix.md"),
         )
     )

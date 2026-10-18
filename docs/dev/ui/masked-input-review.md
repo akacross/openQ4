@@ -2,7 +2,7 @@
 
 17 September 2026. Reviewed engine baseline `85c01175` on `idtech5-ui`, paired
 with companion `a4946f8b28c53bb32ec323bddcf0e2276bc8492c`. The companion is unchanged
-by this work. This review applies the [complete product plan](../plans/ui-product-completion.md)
+by this work. This review applies the [complete product plan](../archive/2026-10-18/plans/ui-product-completion.md)
 and [visual specification](../ui-visual-design.md); it does not accept a milestone.
 
 ## Current gaps and delivery priorities

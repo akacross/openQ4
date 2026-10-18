@@ -326,7 +326,7 @@ Remaining work includes:
   through the fast no-post path, so its fixtures do not sample it).
 
 The broader HDR/PBR/shadow, filtering, performance, CI, hardware and release
-requirements in the [gap-closure plan](plans/2026-09-20-vulkan-gap-closure.md)
+requirements in the [gap-closure plan](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md)
 remain in force.
 
 ## Dependency provenance

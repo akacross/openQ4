@@ -251,8 +251,8 @@ def validate_metadata_contract() -> None:
 
 
 def validate_phase8_docs() -> None:
-    plan = read("docs/dev/plans/2026-06-30-apple-support-no-macos-access.md")
-    compatibility_plan = read("docs/dev/plan/2026-06-30-macos-compatibility-support.md")
+    plan = read("docs/dev/archive/2026-10-18/plans/2026-06-30-apple-support-no-macos-access.md")
+    compatibility_plan = read("docs/dev/archive/2026-10-18/plan/2026-06-30-macos-compatibility-support.md")
     release_completion = read("docs/dev/release-completion.md")
     release_notes = read("docs/dev/releases/v0.6.5.md")
     support_data = read("docs/user/macos-support-data.md")

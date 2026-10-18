@@ -105,7 +105,7 @@ def main() -> None:
     validation = read("tools/validation/openq4_validate.py")
     commit_ci = read(".github/workflows/commit-validation.yml")
     push_ci = read(".github/workflows/push-verification.yml")
-    roadmap = read("docs/dev/idtech5-modernization-roadmap.md")
+    roadmap = read("docs/dev/archive/2026-10-18/idtech5-modernization-roadmap.md")
     domain_doc = read("docs/dev/classic-interaction-domain-modernization.md")
 
     for symbol in (

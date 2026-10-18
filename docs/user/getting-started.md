@@ -103,6 +103,37 @@ If you prefer a self-contained setup, keep these side by side in the same root f
 - On macOS, open the DMG or unpack the `-unsigned.tar.gz` archive, then drag `openQ4.app` to `/Applications` (or another user-writable folder) and launch it. The app contains openQ4's `baseoq4` data and signed SP/MP modules; keep the whole package only if you also want the loose diagnostic client, dedicated server, or support collector. Do not copy retail `q4base` assets into the signed app.
 - For crashes like GitHub issue #73, attach full terminal output as text plus `openq4.log` and any `.ips` report. See [macOS Support Data](macos-support-data.md), and run `collect_macos_support_info.sh` from the package root when it is included.
 
+#### Using a GOG offline installer on macOS
+
+openQ4 needs the installed game's `q4base/` data. It does not read a GOG setup
+`.exe` or its `.bin` files directly. You can copy the complete `q4base/` folder
+from your own Windows installation, or extract a supported offline installer on
+the Mac using [innoextract](https://constexpr.org/innoextract/).
+
+If you use Homebrew, its [innoextract package](https://formulae.brew.sh/formula/innoextract)
+can be installed with `brew install innoextract`. Keep the setup `.exe` and all
+matching `.bin` parts together with their original filenames. From a new empty
+folder for the extracted game, run the following, replacing the example path:
+
+```sh
+innoextract --gog "/path/to/setup_quake_4.exe"
+```
+
+Find `q4base/` in the extracted files; it may be inside an `app/` subfolder.
+Keep the entire folder, including language-media PK4s. Point openQ4 at its
+**parent**, for example:
+
+```sh
+"/Applications/openQ4.app/Contents/MacOS/openQ4" +set fs_basepath "/path/to/extracted/app"
+```
+
+Keep the retail data outside the signed `.app` bundle. Installer formats vary:
+innoextract does not support every future Inno Setup version, and some GOG RAR
+payloads require `unar` or `unrar` for `--gog` extraction. If extraction fails,
+retain the exact installer filename and error when requesting help; copying
+`q4base/` from your own Windows installation remains an alternative. This is an
+extraction procedure, not a claim that every GOG installer has been tested on macOS.
+
 ## If Auto-Detection Fails
 
 Point openQ4 at the **Quake 4 root folder** that contains `q4base/`.

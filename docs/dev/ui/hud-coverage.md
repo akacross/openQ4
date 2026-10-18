@@ -148,5 +148,5 @@ all Remastered behavior and layout enhancements in the visual specification,
 the full menu/editor migration, or the world-surface GUI migration. On-model
 weapon/cockpit screens and interactive world monitors still use their surface
 renderer. Cross-platform and full campaign encounter acceptance remain in the
-[UI plan](../plans/idtech5-ui.md). The network graph preserves its client-only
+[UI plan](../archive/2026-10-18/plans/idtech5-ui.md). The network graph preserves its client-only
 gate and is qualified with a connected client, rather than a listen-server view.

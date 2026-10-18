@@ -3,7 +3,7 @@
 Status: partial implementation. Committed characters reach a focused field
 ([typed characters](#typed-characters)); in-field composition, the native text
 owner route and full visual/platform acceptance remain. It contributes to the
-mandatory [UI replacement plan](../plans/idtech5-ui.md); it does not narrow
+mandatory [UI replacement plan](../archive/2026-10-18/plans/idtech5-ui.md); it does not narrow
 that plan.
 
 ## Behavior and ownership

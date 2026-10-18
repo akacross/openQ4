@@ -6,7 +6,7 @@
 
 	OpenXR presentation is OpenGL-only for now (XR_KHR_vulkan_enable2 would
 	have the runtime create the instance and device; see
-	docs/dev/plans/2026-10-02-openxr-vr.md). The shared front end still links
+	docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md). The shared front end still links
 	the presentation entry points, so the Vulkan module reports that it cannot
 	present and keeps the window as the only default target.
 

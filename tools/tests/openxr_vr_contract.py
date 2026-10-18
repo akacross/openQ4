@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source contract for OpenXR virtual reality (docs/dev/plans/2026-10-02-openxr-vr.md).
+"""Source contract for OpenXR virtual reality (docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md).
 
 Pins what keeps VR safe to ship without a headset in CI:
 - the Khronos loader is pinned, built statically and only into the SDL3 client
@@ -189,7 +189,7 @@ def check_strings() -> None:
 
 
 def check_documents() -> None:
-    for relative in ("docs/user/vr.md", "docs/dev/plans/2026-10-02-openxr-vr.md", "docs/licenses/openxr-sdk.txt",
+    for relative in ("docs/user/vr.md", "docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md", "docs/licenses/openxr-sdk.txt",
                      "tools/tests/openxr_vr_smoke.py", "tools/tests/openxr_vr_menu_smoke.py",
                      "tools/tests/openxr_vr_mp_smoke.py",
                      "tools/tests/openxr/OpenXRTestRuntime.cpp",

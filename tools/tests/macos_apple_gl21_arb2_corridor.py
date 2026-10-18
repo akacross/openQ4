@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAN_PATH = "docs/dev/plans/2026-06-30-apple-support-no-macos-access.md"
+PLAN_PATH = "docs/dev/archive/2026-10-18/plans/2026-06-30-apple-support-no-macos-access.md"
 
 
 def read(relative_path: str) -> str:

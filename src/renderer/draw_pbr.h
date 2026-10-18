@@ -3,7 +3,7 @@
 #define OPENQ4_DRAW_PBR_H
 
 // Native per-surface PBR in the classic OpenGL light loop (draw_pbr.cpp):
-// Stage B of docs/dev/plans/2026-10-04-pbr-production-readiness.md. An
+// Stage B of docs/dev/archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md. An
 // admitted surface keeps the classic depth fill, stencil shadows and shadow
 // maps; only its interaction draws, environment term and emission change
 // owner, exactly as on native Vulkan. Include after tr_local.h.

@@ -12,7 +12,7 @@ typedef struct classicInteractionDomainView_s classicInteractionDomainView_t;
 ===============================================================================
 
 	Vulkan shadow maps (Phase F2a projected + F2b point,
-	docs/dev/plans/2026-07-19-vulkan-phase-f.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-19-vulkan-phase-f.md).
 
 	One module-owned per-view depth atlas serves projected/parallel lights,
 	with a lazily populated scratch cube pool large enough for both receiver

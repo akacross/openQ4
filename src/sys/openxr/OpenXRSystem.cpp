@@ -23,7 +23,7 @@
 	  sticks become locomotion and turning, and the aim pose becomes the
 	  usercmd angles, which keeps multiplayer authoritative and unchanged.
 
-	See docs/dev/plans/2026-10-02-openxr-vr.md.
+	See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 ===============================================================================
 */

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def main():
     source = (ROOT / 'src/ui/RetainedUI.cpp').read_text(encoding='utf-8')
     raster = (ROOT / 'src/ui/retained/CoverageRaster.h').read_text(encoding='utf-8')
-    support = DRAW_SUPPORT.split('// This fixture qualifies indexed mesh submission')[0]
+    support = '#include <cmath>\n' + DRAW_SUPPORT.split('// This fixture qualifies indexed mesh submission')[0]
     support = support.replace('const char* GetName() const', 'int GetState()const{return 0;} const char* GetName() const')
     support = support.replace('idMaterial solid{"_retainedSolid"}; const idMaterial* FindMaterial(const char*){return &solid;}',
                               'std::unordered_map<std::string,idMaterial> materials; const idMaterial* FindMaterial(const char* name){return &materials.try_emplace(name,idMaterial{name}).first->second;}')

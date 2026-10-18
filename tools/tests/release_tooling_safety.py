@@ -472,7 +472,10 @@ def validate_release_docs_layout() -> None:
     write_file(source_root / "LICENSING.md", "# Licensing\n\nComponent terms.\n")
     write_file(source_root / "docs" / "user" / "getting-started.md", "# Getting Started\n\nUser guide.\n")
     write_file(source_root / "docs" / "dev" / "platform-support.md", "# Platform Support\n\nDeveloper guide.\n")
+    write_file(source_root / "docs" / "dev" / "roadmap.md", "# openQ4 development roadmap\n\nActive plan.\n")
     write_file(source_root / "docs" / "dev" / "proposals" / "renderer.md", "# Renderer Proposal\n\nResearch.\n")
+    write_file(source_root / "docs" / "dev" / "archive" / "2026-10-18" / "README.md", "# Planning archive\n\nHistorical plans.\n")
+    write_file(source_root / "docs" / "dev" / "archive" / "2026-10-18" / "plans" / "renderer.md", "# Old renderer plan\n\nSuperseded.\n")
     write_file(source_root / legacy_user_root / "legacy.md", "# Old User Path\n\nIgnored.\n")
     write_file(source_root / legacy_dev_root / "legacy.md", "# Old Dev Path\n\nIgnored.\n")
 
@@ -482,7 +485,10 @@ def validate_release_docs_layout() -> None:
         "LICENSING.md",
         "docs/user/getting-started.md",
         "docs/dev/platform-support.md",
+        "docs/dev/roadmap.md",
         "docs/dev/proposals/renderer.md",
+        "docs/dev/archive/2026-10-18/README.md",
+        "docs/dev/archive/2026-10-18/plans/renderer.md",
     }
     missing = expected - sources
     if missing:
@@ -495,12 +501,28 @@ def validate_release_docs_layout() -> None:
         "README.md": "Project",
         "docs/user/getting-started.md": "User Guides",
         "docs/dev/platform-support.md": "Developer Guides",
+        "docs/dev/roadmap.md": "Developer Guides",
         "docs/dev/proposals/renderer.md": "Research and Proposals",
+        "docs/dev/archive/2026-10-18/README.md": "Planning Archive",
+        "docs/dev/archive/2026-10-18/plans/renderer.md": "Planning Archive",
     }
     for relative, expected_group in classifications.items():
         group = DOCS.classify_group(Path(relative))
         if group != expected_group:
             raise AssertionError(f"{relative} classified as {group!r}, expected {expected_group!r}")
+
+    specs = DOCS.build_doc_specs(source_root)
+    developer_docs = [spec for spec in specs if spec.group == "Developer Guides"]
+    if developer_docs[0].source_relative != Path("docs/dev/roadmap.md") or developer_docs[0].nav_title != "Development roadmap":
+        raise AssertionError("the active development roadmap must lead developer navigation")
+    sidebar = DOCS.render_sidebar(specs, Path("index.html"))
+    if "<h3>Planning Archive</h3>" not in sidebar:
+        raise AssertionError("archived plans need their own sidebar group")
+    index = DOCS.render_index_page(specs, "1.2.3", "Windows", "x64")
+    if '<a class="button" href="docs/dev/roadmap.html">Development roadmap</a>' not in index:
+        raise AssertionError("the documentation portal needs a prominent active-roadmap link")
+    if "Historical plans and proposals, superseded by the development roadmap." not in index:
+        raise AssertionError("the planning archive must be clearly labelled historical")
 
 
 def validate_release_docs_symlink_and_link_guards() -> None:

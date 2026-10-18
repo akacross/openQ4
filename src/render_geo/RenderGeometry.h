@@ -16,7 +16,7 @@
 	construction. It builds as the openq4_render_geo static library so the
 	dmap compiler (engine-side) and the renderer (module-side after Phase B8)
 	share one implementation
-	(docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md, B6).
+	(docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md, B6).
 
 	Renderer-owned behavior crosses the boundary through renderGeoHooks_t:
 	the zeroed/default hooks give the dmap-correct behavior (sil remapping

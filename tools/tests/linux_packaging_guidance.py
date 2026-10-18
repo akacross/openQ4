@@ -54,7 +54,7 @@ def validate_platform_support() -> None:
 
 
 def validate_plan_status() -> None:
-    source = read("docs/dev/plans/2026-06-20-linux.md")
+    source = read("docs/dev/archive/2026-10-18/plans/2026-06-20-linux.md")
 
     require(source, "## Implementation status (June 20, 2026)", "Linux audit status appendix")
     require(source, "Native Wayland runtime CI", "Linux audit status appendix")

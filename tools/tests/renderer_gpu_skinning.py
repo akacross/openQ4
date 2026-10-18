@@ -509,7 +509,7 @@ def validate_runtime_commands_matrix_and_docs() -> None:
     render_init = read(RENDERER / "RenderSystem_init.cpp")
     matrix = read(ROOT / "tools" / "tests" / "renderer_validation_matrix.py")
     docs = {
-        "roadmap": read(ROOT / "docs" / "dev" / "idtech5-modernization-roadmap.md"),
+        "roadmap": read(ROOT / "docs" / "dev" / "archive" / "2026-10-18" / "idtech5-modernization-roadmap.md"),
         "capability matrix": read(ROOT / "docs" / "dev" / "engine-capability-matrix.md"),
         "GPU modernization": read(ROOT / "docs" / "dev" / "gpu-skinning-modernization.md"),
         "validation matrix": read(ROOT / "docs" / "dev" / "renderer-validation-matrix.md"),

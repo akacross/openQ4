@@ -1,5 +1,10 @@
 # macOS Renderer And Backend Policy
 
+Current work and future design/removal decisions belong in the
+[development roadmap](roadmap.md#desktop-platforms-and-packaging). References
+below to a separate design or removal plan mean a scoped roadmap decision with
+supporting technical documentation, not another active delivery plan.
+
 Updated: 2026-07-11
 
 This document defines the current macOS renderer and platform-backend support
@@ -101,8 +106,8 @@ Added: 2026-07-25.
 The gate above has been cleared for exactly one non-GL macOS renderer path: the
 existing openQ4 Vulkan renderer module running through MoltenVK, a
 Vulkan-on-Metal translation layer. The design plan is
-[macos-moltenvk-decision.md](macos-moltenvk-decision.md) and the staged record
-is [plans/2026-07-25-macos-moltenvk.md](plans/2026-07-25-macos-moltenvk.md).
+[macos-moltenvk-decision.md](archive/2026-10-18/macos-moltenvk-decision.md) and the staged record
+is [plans/2026-07-25-macos-moltenvk.md](archive/2026-10-18/plans/2026-07-25-macos-moltenvk.md).
 
 Clearing that gate did not change the default renderer, the package set, or the
 macOS support claim:

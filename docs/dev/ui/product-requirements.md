@@ -1,11 +1,19 @@
 # UI product requirement register
 
+**Planning authority, 18 October 2026:** the [development roadmap](../roadmap.md#new-user-interface)
+is the sole active plan; UI-01 through UI-11 coordinate this register's work.
+The archived plans below preserve the original completion scope and section
+provenance. This register and the [migration manifest](migration-manifest.json)
+remain the detailed acceptance records: consolidation does not change any
+requirement ID, dependency, status, evidence or migration acceptance. The
+[visual specification](../ui-visual-design.md) remains normative.
+
 9 September 2026, revised 26, 27, 28 and 29 September and 1, 7 and 9 October 2026. The
 [machine-readable register](product-requirements.json) contains **347
 requirements** for the complete UI product: 310 that define acceptance and 37
 superseded rows kept for history. It expands
-the [completion plan](../plans/ui-product-completion.md), the
-[original delivery scope](../plans/idtech5-ui.md) and the normative
+the [archived completion scope](../archive/2026-10-18/plans/ui-product-completion.md), the
+[archived original delivery scope](../archive/2026-10-18/plans/idtech5-ui.md) and the normative
 [visual specification](../ui-visual-design.md) into implementation ownership,
 dependencies, concrete evidence and explicit unfinished work.
 

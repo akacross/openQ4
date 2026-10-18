@@ -5,7 +5,7 @@
 ===============================================================================
 
 	SDL3 GL context half of the window/context seam (Phase B5b,
-	docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md).
+	docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md).
 
 	This file owns the rendering context: candidate negotiation, context
 	creation/teardown, current-ness, buffer swaps, swap interval, and

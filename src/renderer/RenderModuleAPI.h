@@ -25,7 +25,7 @@
 	opaque pointers to a standalone module) for full renderer modules that
 	compile against the engine headers.
 
-	See docs/dev/plans/2026-07-16-vulkan-renderer.md for the roadmap.
+	See docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer.md for the roadmap.
 
 ===============================================================================
 */
@@ -127,7 +127,7 @@ typedef struct renderModuleServices_s {
 	// worker-thread creation intentionally not carried yet: the light-grid
 	// bake pool's Sys_CreateThread signature (thread registry, priority,
 	// threadInfo_t) is resolved by the module-side forwarder design in
-	// Phase B8 (docs/dev/plans/2026-07-16-vulkan-renderer-phase-b.md)
+	// Phase B8 (docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer-phase-b.md)
 
 	// --- version 12: the loader also owns the archived r_renderApi value. An
 	// active module whose device fails during a later vid_restart cannot be

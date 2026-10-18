@@ -2,7 +2,7 @@
 
 8 September 2026. The replacement runtime now fades complete subtrees through
 transparent render targets. This advances Stage 3 of the
-[full replacement plan](../plans/idtech5-ui.md). [Vector alpha masks](masks.md)
+[full replacement plan](../archive/2026-10-18/plans/idtech5-ui.md). [Vector alpha masks](masks.md)
 have subsequently been added; other composition effects,
 full font/artwork qualification, the editor and all GUI migration remain open.
 

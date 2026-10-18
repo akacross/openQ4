@@ -258,7 +258,7 @@ def validate_controls_and_evidence() -> None:
     benchmark = read("tools/tests/renderer_gameplay_benchmark.py")
     baseline = read("tools/validation/stock_asset_baseline.py")
     registry = read("tools/validation/openq4_validate.py")
-    roadmap = read("docs/dev/idtech5-modernization-roadmap.md")
+    roadmap = read("docs/dev/archive/2026-10-18/idtech5-modernization-roadmap.md")
     domain_doc = read("docs/dev/classic-cinematic-post-domain-modernization.md")
     fixture = read("tools/tests/renderer_milestone_d_fixture.py")
     acceptance = read("tools/tests/renderer_milestone_d_acceptance.py")

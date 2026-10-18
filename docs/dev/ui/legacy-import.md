@@ -3,7 +3,7 @@
 Status: Stage 1 translation input, 8 September 2026. All 271 inventoried GUI
 resources have native preprocessed token exports and structured import records.
 No resource is accepted as a replacement. The [migration manifest](migration-manifest.json)
-and [full plan](../plans/idtech5-ui.md) retain the complete migration, runtime,
+and [full plan](../archive/2026-10-18/plans/idtech5-ui.md) retain the complete migration, runtime,
 artwork and editor requirements.
 
 ## Pipeline and provenance

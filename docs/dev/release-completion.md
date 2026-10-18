@@ -1,4 +1,12 @@
-# openQ4 Release Completion List
+# openQ4 release completion and evidence record
+
+**Planning authority, 18 October 2026:** the [development roadmap](roadmap.md)
+is the single active plan for outstanding work. This document retains candidate
+release wording and implementation/validation history. Its older unchecked boxes
+record findings when written; they are not an authoritative current backlog.
+Likewise, a recorded pass or failure applies to its stated revision, package and
+scope. Track new work and closure decisions against roadmap IDs, then record
+completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
@@ -100,7 +108,7 @@ loaded.
   casings (the vehicle `EjectBrass` path never fired before) and smoke after a long
   burst; damage and rate of fire are unchanged. Verified headless on m04 and m01
   and on a stock map; `awakening_turret_skin_contract.py` pins it. Record:
-  [Awakening plan, Phase 6](plans/q4x-awakening.md).
+  [Awakening plan, Phase 6](archive/2026-10-18/plans/q4x-awakening.md).
 
 Candidate release wording: The Awakening's Strogg chaingun turret is finished: it
 was never textured in the alpha, and now wears a battle-worn Strogg skin with
@@ -518,6 +526,13 @@ game modules and UI resources stay together.
 Candidate release wording: Legacy machinegun scopes show the scene correctly
 on OpenGL and have a smoother blur boundary. Legacy pop-ups dim the full view
 on wide and tall displays. The optional new UI keeps its scope and dialog effects.
+
+- [x] Document how macOS players can obtain retail data from a supported GOG
+  offline installer or an existing Windows installation, and select the folder
+  containing `q4base`. The guide keeps retail files outside the signed app and
+  explains extraction failures without claiming every installer is qualified.
+  Addresses the documentation gap in [#185](https://github.com/themuffinator/openQ4/issues/185);
+  the reporter's installation confirmation remains open under PLAT-04/REL-01.
 
 ## 0.14.000 release
 
@@ -996,7 +1011,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   had sampled the PBR environment atlas's mirror level for every roughness
   since c850233d; the atlas now keeps its mip chain, and GL/Vulkan IBL parity
   is exact. Evidence and the remaining stages:
-  [production-readiness plan](plans/2026-10-04-pbr-production-readiness.md).
+  [production-readiness plan](archive/2026-10-18/plans/2026-10-04-pbr-production-readiness.md).
 - [x] PBR production readiness, Stage C: calibration and display-domain
   composition on both backends. PBR irradiance is pi times the decoded classic
   light term (`PBRClassicLightIrradiance`), so a white rough PBR surface
@@ -1231,7 +1246,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   a `vid_restart` stays validation-clean with memory that plateaus like
   OpenGL's. `gfxInfo` and the new `rendererVulkanMemoryInfo` report Vulkan
   heap usage, budget and live allocations. See the
-  [gap-closure ledger](plans/2026-09-20-vulkan-gap-closure.md).
+  [gap-closure ledger](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 
 - [x] Bring translucent moment shadows (`r_shadowMapTranslucentMoments`) to
   the experimental Vulkan renderer: a frame-boundary RGBA16F moment atlas
@@ -1243,7 +1258,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   `variableSampleLocations`; all 11 local Vulkan matrix cases then pass there,
   and all 29 stock SP maps load validation-clean on Vulkan/NVIDIA,
   Vulkan/Intel and OpenGL. See the
-  [gap-closure ledger](plans/2026-09-20-vulkan-gap-closure.md).
+  [gap-closure ledger](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 
 - [x] Clear four Vulkan PBR-laboratory failures found on 2026-10-04. Composed
   shadow-cache hits now bind the solid alpha image for their moving casters;
@@ -1290,7 +1305,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   `r_enhancedMaterials`, the renderer-owned sharpened and nearest
   `r_resolutionScaleMode` upscales, and a `benchmark` command that times GPU
   work. See [material programs](vulkan-material-programs.md) and the
-  [gap-closure ledger](plans/2026-09-20-vulkan-gap-closure.md).
+  [gap-closure ledger](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 
 - [ ] Add an experimental OpenXR VR mode for the OpenGL client on Windows and
   Linux: a statically built Khronos loader, off-axis per-eye rendering through
@@ -1325,7 +1340,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   in the Virtual Reality section by pointing, localised action names, ending
   VR from the runtime); the Linux sources and loader compile under GCC. A run
   on real headset hardware is still open. See the
-  [plan](plans/2026-10-02-openxr-vr.md) and [VR guide](../user/vr.md).
+  [plan](archive/2026-10-18/plans/2026-10-02-openxr-vr.md) and [VR guide](../user/vr.md).
 
 - [x] Suppress startup splash windows for hidden-window, renderer-disabled and dedicated launches across Windows, Linux and macOS.
 
@@ -1355,7 +1370,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
 - [x] Consolidate SDK game sources and Awakening SP into the engine checkout;
   qualify campaign discovery, content/save isolation, stock/expansion save
   compatibility, multiplayer and Arena before archiving the historical repositories.
-  See [implementation/evidence](plans/game-source-consolidation.md).
+  See [implementation/evidence](archive/2026-10-18/plans/game-source-consolidation.md).
 
 - [x] Restore CI build coverage after game-source consolidation by checking
   Linux ARM64 cross-build guidance for the canonical in-tree SP/MP sources
@@ -1902,15 +1917,15 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
 
 - [x] HDR preserves bright texture detail and the composed portal sky. The affected stock scene is image-identical across PBR toggles. A smoother stock curve and Vulkan portal-view/depth ownership pass 224 production tone-map and 20 sky-mask GPU executions around restart, four stock SP/MP 0x/4x lifecycle cases, and frozen-scene regressions on both backends with unchanged runtime packages and no tracked warnings. GL's linear PBR tone curve is unchanged; broader HDR/PBR color parity remains open.
 
-- [ ] The [PBR completeness audit](plans/2026-09-20-pbr-rendering-audit.md) now has independent BRDF/environment numerical tests and an original 24-station map. GL material channels, authored texture sampling, filtered environment lighting, HDR float/display references, moving/multiple shadows, MSAA/cutout coverage, reload/restart and resource-limit fallback controls pass locally. The two-joint animated specimen has byte-identical CPU/GPU pose, normal and shadow captures, including paused video restarts after cache-lifetime and bounds fixes. GL 3.3 HDR/MSAA qualification also passes after target-format and cluster-budget fixes. Scoped production admission now works without a forced parity override; HDR exposure, stock HUD, native fog/blend fallback and exact PBR restoration controls pass. Eligible linear HDR scenes now preserve PBR under authored fog/blend lights, with per-pixel radiance and transparency-order controls; GL 3.3/4.5 and 4x MSAA regression passes. Baked PBR diffuse/IBL separation, normal encodings, fog/blend/transparency composition, GL 3.3/4.5, MSAA and actual shader/image/video reloads now pass 81 map controls plus 15 renderer self-test markers on the v47 runtime. Broader mixed materials and portal/view-weapon grids, final stock gameplay/performance regression and native Vulkan PBR parity remain open; this is not a renderer promotion.
+- [ ] The [PBR completeness audit](archive/2026-10-18/plans/2026-09-20-pbr-rendering-audit.md) now has independent BRDF/environment numerical tests and an original 24-station map. GL material channels, authored texture sampling, filtered environment lighting, HDR float/display references, moving/multiple shadows, MSAA/cutout coverage, reload/restart and resource-limit fallback controls pass locally. The two-joint animated specimen has byte-identical CPU/GPU pose, normal and shadow captures, including paused video restarts after cache-lifetime and bounds fixes. GL 3.3 HDR/MSAA qualification also passes after target-format and cluster-budget fixes. Scoped production admission now works without a forced parity override; HDR exposure, stock HUD, native fog/blend fallback and exact PBR restoration controls pass. Eligible linear HDR scenes now preserve PBR under authored fog/blend lights, with per-pixel radiance and transparency-order controls; GL 3.3/4.5 and 4x MSAA regression passes. Baked PBR diffuse/IBL separation, normal encodings, fog/blend/transparency composition, GL 3.3/4.5, MSAA and actual shader/image/video reloads now pass 81 map controls plus 15 renderer self-test markers on the v47 runtime. Broader mixed materials and portal/view-weapon grids, final stock gameplay/performance regression and native Vulkan PBR parity remain open; this is not a renderer promotion.
 - [x] Repeated SP/MP console script commands bypass the include-file cache. The PBR moving/restored-caster proof executes multiple script commands and restores the original rendered image.
 - [x] A narrow fixed classic bump/diffuse/specular path now preserves native lighting inside full-viewport, single-sample HDR PBR scenes without shadows or ambient lights. Four unclipped material references, baked-light composition, GL 3.3/4.5 reload/restart/resize and complete shadow/MSAA fallback controls pass. Video restart no longer leaves stale native shadow-caster arrays, and MSAA telemetry follows the executed owner. The [authoring guide](../user/pbr-materials.md) describes the qualified settings and limits; broader classic parity remains unpromoted.
 - [x] Experimental Vulkan gains cubemap face attachments and depth-only render targets, selected-face restoration after post effects, complete-layer image resolves, and safe attachment-view retirement on resize. Retirement overflow keeps resources alive until their recording frame completes. The on-device test passes 66 exact color/depth captures, real depth-only draws, 4x MSAA depth resolve, invalid-face rejection, and a retirement-capacity stress case under Vulkan validation. Validation requires a positive layer/debug-messenger marker; missing required modules and empty selections fail. The runtime-directory override selects its own executable and keeps generated output outside the tested package.
 - [x] Vulkan render targets now accept up to five color buffers within the device limit. Pipeline formats, clears, barriers, blend masks and resolves cover every attachment. GPU tests pass mixed RGBA8/RGBA16F outputs, unclamped float values, resumed scopes, cube faces, 4x MSAA color/depth resolves, resize, and invalid attachment/alias rejection without validation warnings. The startup gate requires this evidence; rectangular cube-target resizing is rejected before changing its images.
-- [x] Native Vulkan PBR supports scalar, packed/separate material data, optional XYZ/RG/AGB normals, matching alpha-tested coverage and single additive emission. The v69 map suite passes 68 controls each at 0x and 4x MSAA for decoding, visible effects, ownership, specular footprint filtering, cutouts, independent emission references, exact fallback, restarts and point/projected shadows. Raw FP16 tests preserve faint channels and bound one emission write at both sample counts. Later v70 evidence closes native source-alpha ownership, and the analytic environment increment is tracked above. Authored probes, baked PBR diffuse, quantified temporal stability, arbitrary additive overflow and full scene color parity remain open; see the [PBR audit](plans/2026-09-20-pbr-rendering-audit.md).
+- [x] Native Vulkan PBR supports scalar, packed/separate material data, optional XYZ/RG/AGB normals, matching alpha-tested coverage and single additive emission. The v69 map suite passes 68 controls each at 0x and 4x MSAA for decoding, visible effects, ownership, specular footprint filtering, cutouts, independent emission references, exact fallback, restarts and point/projected shadows. Raw FP16 tests preserve faint channels and bound one emission write at both sample counts. Later v70 evidence closes native source-alpha ownership, and the analytic environment increment is tracked above. Authored probes, baked PBR diffuse, quantified temporal stability, arbitrary additive overflow and full scene color parity remain open; see the [PBR audit](archive/2026-10-18/plans/2026-09-20-pbr-rendering-audit.md).
 - [x] Vulkan screenshot/partial-restart lifetime and hidden-window resize fixes pass stock SP/MP at 0x/4x on v63. Backend-owned MP scenes now render and resolve real MSAA, including after HDR/TAA are disabled, and diagnostics report the actual sample count. GPU attachment/MRT and 48 HDR fixture executions around full restart pass with active validation. The later highlight/portal-sky repair is qualified above; broader visual parity and Vulkan qualification remain open. See [Vulkan HDR](vulkan-hdr.md).
 - [x] Vulkan window, surface, swapchain and mandatory-resource startup failures now recover to OpenGL in the same process, after renderer owners and callbacks are retired safely. The requested renderer preference and original failure log survive. All four injected failures, ordinary Vulkan startup and both earlier fallback drills pass locally; resource-failure SP/MP gameplay produces engine captures and exits cleanly. Renderer ABI v14 requires matching engine and both renderer modules. Later full `vid_restart` device failures retain next-launch recovery; hosted/platform qualification remains open.
-- [ ] Linux x64/ARM64 push and ARM64 pull-request jobs now select mandatory lavapipe Vulkan startup/render-target and fallback checks. Hosted results, full Vulkan feature parity, physical GPU/platform qualification, repeated comparisons and promotion sign-off remain pending. See [Vulkan gap closure](plans/2026-09-20-vulkan-gap-closure.md).
+- [ ] Linux x64/ARM64 push and ARM64 pull-request jobs now select mandatory lavapipe Vulkan startup/render-target and fallback checks. Hosted results, full Vulkan feature parity, physical GPU/platform qualification, repeated comparisons and promotion sign-off remain pending. See [Vulkan gap closure](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 - [x] Bot-only effect/feedback queues no longer fill in busy multiplayer combat, and bot recipients skip network visibility work. Native delivery checks preserve human spectators, demo/repeater recording and the documented unreliable broadcast destination. This resolves queue-overflow warnings found during the bot audit.
 - [x] Multiplayer bots retain valid routes when a replacement is blocked, release stalled and no-longer-useful goals, and stop using unseen enemy positions for combat movement/weapon range. Explosion-aware threat filtering catches nearby resting explosives. Visibility and pickup shortlists avoid redundant collision queries; the native fixture reduces 80-item snap queries from 81 to 11 and checks 240 perception cases. Windows x64 build/staging, eight existing bot contracts, native regressions and live stock DM/CTF gameplay passed. CTF exercised fetch, defend, escort and capture goals. Details and reproduction: [Multiplayer bots](mp-bots.md).
 - [x] German is selectable as **Deutsch** in Game Options, with complete bundled menu, objective, terminal and gameplay-message translations. Retail German campaign dialogue remains supported; English-only installations retain English dialogue. Coverage, format arguments, choice ordering and German glyphs are checked alongside the existing localization contracts. Language changes force a deferred GUI reload so cached labels use the selected language. Player notes: [0.13.2](releases/v0.13.2.md).
@@ -2003,7 +2018,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   sounds no longer stack after each savegame load: the client effect owns its
   emitter again, as in SDK 1.4.2. `bseStats` and `bseLog` are back. Retail quirks
   kept on purpose, divergences kept and the evidence are in the
-  [BSE audit](quake4-bse-research-and-implementation-plan.md#retail-parity-audit-2026-10-02);
+  [BSE audit](archive/2026-10-18/quake4-bse-research-and-implementation-plan.md#retail-parity-audit-2026-10-02);
   `bse_retail_parity.py` pins the corrections. Evidence:
   - fixed-pose captures, before and after;
   - a save/load voice count (1, 2, 3 before; 1, 1, 1 after);
@@ -2133,7 +2148,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   The spike gun's spikes stick where they land, stay in the enemies they kill
   and pin the corpses to the wall behind them, and the scripted fights keep to
   their intended targets. Games saved on every campaign map load.
-  See the [support plan](plans/q4x-awakening.md).
+  See the [support plan](archive/2026-10-18/plans/q4x-awakening.md).
 - [x] The expansion's multiplayer: its buy menu works (`sq_buy`, bound to `b`),
   with its own prices and its new items: the core cannon (spike gun), fire
   cannon (goob gun), freeze gun, the nine weapon mods (each for the weapon you
@@ -2182,7 +2197,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   drive and turn. `awakening_speeder_physics_contract.py` pins the three fixes.
 - [x] Every unique Awakening monster, weapon and vehicle plays as its content
   was built to, checked in headless runs against the expansion's code (the
-  [plan's Phase 5](plans/q4x-awakening.md)). The m09 Valkaryne docks behind
+  [plan's Phase 5](archive/2026-10-18/plans/q4x-awakening.md)). The m09 Valkaryne docks behind
   the Makron sphere through her `requestDocking` script, which nothing ran, and
   undocks to fight on foot when the sphere dies. `ignoreplayer` holds on every
   enemy path, so the m01 death-ray turret never takes the player. Pain Lord
@@ -2955,7 +2970,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   editable vector paths, layout, states, bindings, timelines and reliable saving.
 - [ ] Qualify the complete SP/MP corpus, saves, world terminals, scopes, vehicles,
   languages, supported platforms and release-style packages before promotion.
-- Specification and staged evidence: [UI replacement plan](plans/idtech5-ui.md).
+- Specification and staged evidence: [UI replacement plan](archive/2026-10-18/plans/idtech5-ui.md).
   This is development work; no completed player feature or upgrade requirement
   is claimed yet. Curated release notes will use the actual selected release
   version once the replacement is qualified.
@@ -3007,7 +3022,7 @@ Process:
 1. Add completed work under "Ready For Changelog".
 2. When cutting a release with curated notes, save them in `docs/dev/releases/vX.Y.Z.md`; the manual release workflow will use that tracked file instead of the auto-generated history summary.
 3. If no tracked release file exists, the workflow falls back to the generated release notes from commit history.
-4. Move shipped items into a historical release section here (optional), and keep remaining work in "Carry Forward".
+4. Move shipped items into a historical release section here (optional), and keep remaining work under stable IDs in `docs/dev/roadmap.md`.
 5. For macOS support claims, complete the "macOS Evidence Gate" below and keep `docs/dev/macos-signoff-evidence.md` current before promoting anything beyond experimental wording.
 
 ## macOS Support Claim Guard
@@ -3032,7 +3047,7 @@ Added 2026-09-18. Windows ARM64 assets carry no tier suffix, so the wording is t
 
 Added 2026-07-25. Use this alongside the checklist above whenever release notes,
 package docs, or store text mention the macOS Vulkan option. The decision plan
-is `docs/dev/macos-moltenvk-decision.md`.
+is `docs/dev/archive/2026-10-18/macos-moltenvk-decision.md`.
 
 - [ ] macOS Vulkan is described as running through MoltenVK, a Vulkan-on-Metal translation layer, and the first user-facing mention includes the words "translation layer".
 - [ ] The translation layer is never called native Metal, a Metal renderer, a Metal backend, a native Vulkan driver, or an OpenGL-free renderer, and no wording implies openQ4 renders through Metal directly.
@@ -3152,7 +3167,7 @@ is `docs/dev/macos-moltenvk-decision.md`.
 
 - [x] The new **Demos** library brings recordings into one clear browser and one capability-aware player: native MVD and openQ4 render demos can pause, change speed, step, rewind, and fast-forward, while only full-world MVDs expose free flight and player following. MVD 1.2 now captures every active multiplayer instance and preserves instance-only reliable and positional events; its required feature bits, independently versioned game schema, and version-2 routed records leave the version-1 decoder available for MVD 1.0/1.1 recordings. The optional checked sparse timeline index, including valid no-index/zero-snapshot captures, retains bounded replay-from-start seeking. Render demos use a cooperative, sound-safe replay fallback with deferred restart and explicit handling for indivisible map/renderer work, and malformed legacy renderer or sound commands now stop playback with a warning instead of terminating the engine. Retail Quake 4 `.demo`/`.netdemo`, version-sensitive developer `.cdemo`, and incomplete `.part`/`.ucmd` files are identified honestly instead of being given unsupported controls; command demos pass a bounded nonfatal structural preflight before Play is enabled and are checked again around map load. Server-side MVD recording uses required-feature negotiation, bounded length-delimited records, per-record checksums, structural payload checks, a network-synchronized cvar allowlist, game-schema/simulation/content/protocol gates, per-frame and initialization work caps, recording limits, and staged `.part` finalization. Existing `recordNetDemo`, `playNetDemo`, and `stopNetDemo` aliases continue to operate on openQ4 `.mvd` files rather than claiming retail `.netdemo` compatibility.
 - [x] 64-bit builds are now safer and more reliable across Windows, Linux, and macOS: engine/game allocation paths, media parsing, renderer uploads, operating-system handles, and editor callbacks no longer truncate native-width values. Oversized or malformed inputs fail cleanly, newly written event saves use a portable typed format while legacy saves remain readable, and strict Win64 plus LP64 build and contract checks prevent regressions. No configuration or save reset is required.
-- [x] The experimental native Vulkan renderer now preserves stock Quake 4 material effects instead of dropping specialized stages or requiring replacement content. Its compatibility paths cover the environment, monochrome, and heat-haze ARB families; displacement, depth/blur, ghost, sniper, multiply, MedLabs, and AL GLSL families; and guide-driven parallax, custom lighting, water, and refractive glass. The material parser also accepts the retail `fp20Program` and `dsdt` syntax, while guide programs whose original shader source is not shipped are reconstructed natively from their authored interfaces. Windows x64 single-player gameplay validation has exercised representative map, weapon-blur, displacement, and special-effects-controller paths with Vulkan validation layers clean, including effective 4x MSAA with SMAA. OpenGL remains the default and recommended release renderer while Vulkan's broader parity, multiplayer, cross-platform, and promotion evidence continues under `docs/dev/plans/2026-07-16-vulkan-renderer.md`; Vulkan initialization failures still fall back safely to OpenGL.
+- [x] The experimental native Vulkan renderer now preserves stock Quake 4 material effects instead of dropping specialized stages or requiring replacement content. Its compatibility paths cover the environment, monochrome, and heat-haze ARB families; displacement, depth/blur, ghost, sniper, multiply, MedLabs, and AL GLSL families; and guide-driven parallax, custom lighting, water, and refractive glass. The material parser also accepts the retail `fp20Program` and `dsdt` syntax, while guide programs whose original shader source is not shipped are reconstructed natively from their authored interfaces. Windows x64 single-player gameplay validation has exercised representative map, weapon-blur, displacement, and special-effects-controller paths with Vulkan validation layers clean, including effective 4x MSAA with SMAA. OpenGL remains the default and recommended release renderer while Vulkan's broader parity, multiplayer, cross-platform, and promotion evidence continues under `docs/dev/archive/2026-10-18/plans/2026-07-16-vulkan-renderer.md`; Vulkan initialization failures still fall back safely to OpenGL.
 - [x] Stock materials no longer appear excessively glossy under Vulkan: unpacked bump maps now expose their authored red X-normal through alpha, matching the legacy interaction-shader convention and the OpenGL backend without replacement textures or material overrides.
 - [x] Level loading screens now keep their background art, logos, and other authored imagery visible throughout Vulkan map loads. Vulkan restores purged GUI images on first use just like OpenGL instead of leaving most of the screen black until the end-of-level media reload; no content overrides or configuration changes are required.
 - [x] Vulkan world lighting now preserves the full stock interaction contract: conditioned light and material stages, bump/diffuse/specular decomposition, Raven custom lighting and parallax, vertex colors, texture matrices, additive blending, culling, polygon offset, opaque/translucent depth rules, retail shadow ownership, mixed map-plus-stencil caster composition, subview-safe scissors, and optional stencil depth bounds all follow the OpenGL reference. No replacement materials or configuration changes are required.
@@ -4039,7 +4054,19 @@ Complete this section before release notes claim macOS support beyond the curren
 - [ ] Curated release notes in `docs/dev/releases/vX.Y.Z.md` mention arm64-only support, unsigned/unnotarized package behavior if applicable, and any renderer, audio, input, package-layout, SP, MP, or dedicated-server limitation found during signoff.
 - [ ] Curated release notes in `docs/dev/releases/vX.Y.Z.md` mention that the macOS Metal package is a bridge around the OpenGL renderer and do not imply native Metal or native Cocoa/OpenGL backend support.
 
-## Carry Forward
+## Carry-forward disposition
+
+Current work is tracked in the [development roadmap](roadmap.md): shared rendering
+and advanced effects under REN-01/REN-06, competitive workflows and recordings
+under MP-01/MP-05, high-refresh scope under HF-01 through HF-07, macOS signoff
+under PLAT-04, and strict-string compliance under CORE-04. Final-package evidence
+is governed by REL-01 through REL-04.
+
+<details>
+<summary>Historical carry-forward wording, superseded on 18 October 2026</summary>
+
+These entries preserve their original evidence and limitations. Their unchecked
+state and older implementation boundaries do not override the current roadmap.
 
 - [ ] Complete Milestone F release promotion from clean committed source and a freshly staged final package, then retain target platform/driver and release-review evidence. The local Windows current-source implementation exit already has passing PBR/probe/decal contracts and execution plus the 2026-08-24 independent froxel-volumetric, SSR, and SSGI native/static/shader-pin gate, individual/combined windowed OpenGL gameplay, combined validation-clean Vulkan gameplay, visible effect delta, and exact master-off packet rollback. Promotion still needs final-package recapture and any retained RenderDoc, broader authored probe/decal scene, advanced screen-space visual review, and target platform/driver evidence selected for release. All leaves remain default-off, and `MODERN_LIGHTING_PARITY_PROVEN_DOMAINS` remains `0`.
 - [ ] Repeat and retain the `r_rendererSharedGui 0/1` root-menu/loading/HUD release-acceptance set from clean committed source and a freshly staged final package on OpenGL and Vulkan, with exact engine-TGA parity, complete ownership/fallback diagnostics, human review, and target-platform/driver coverage.
@@ -4055,6 +4082,8 @@ Complete this section before release notes claim macOS support beyond the curren
 - [ ] Complete issue #99 high-refresh qualification: repeat human SP/MP feel, projectile/viewweapon, moving-platform, and cut-heavy camera checks on the final package; validate on Apple and dedicated high-refresh hardware; and decide the release scope for multiplayer actor/shadow presentation, bespoke FX/BSE owners, alternate cameras, and raw-input compensation. Remote multiplayer actors and the local body/world-weapon stencil shadows remain explicitly outside the current generic presentation pass.
 - [ ] Run macOS `Signoff -MacOSGraphicsBridge both`, complete the manual hardware checklist, then run `CollectResults -MacOSRunId <id> -MacOSGraphicsBridge both -RequireCompletedSignoffChecklist` on real Apple hardware and attach the auto-collected, auto-validated `.tmp/macos-vm/results/openq4-macos-results-<run-id>.tar.gz` evidence for input devices, audio devices, display modes, SP gameplay, MP `renderer-mp-smoke`, and in-game OpenGL/Metal renderer coverage beyond hosted CI compile/link/package checks; record the accepted archive in `docs/dev/macos-signoff-evidence.md`.
 - [ ] Replace temporary MSVC compatibility flag (`/Zc:strictStrings-`) with full strict-strings codebase compliance.
+
+</details>
 
 ### Native weapon wheels and horizontal placement (7 October 2026)
 

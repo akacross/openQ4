@@ -1,7 +1,7 @@
 # Shared Renderer Contracts and GPU Animation
 
 This document is the authoritative implementation and qualification boundary
-for Milestone C of the [idTech 5-level modernization roadmap](idtech5-modernization-roadmap.md).
+for Milestone C of the [idTech 5-level modernization roadmap](archive/2026-10-18/idtech5-modernization-roadmap.md).
 The capability is deliberately reversible: `r_gpuSkinning 0` retains the
 established CPU renderer path, and every unsupported or invalid surface falls
 back as a whole rather than mixing partially transformed vertex data.

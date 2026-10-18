@@ -8,7 +8,7 @@
 // target gets the window's back-buffer passes (CRT, brightness/gamma) when the
 // frame leaves it, and the swap blits each finished target into the swapchain
 // image the engine acquired for it, then draws the desktop mirror.
-// See docs/dev/plans/2026-10-02-openxr-vr.md.
+// See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 #include "../tr_local.h"
 

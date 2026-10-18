@@ -4,7 +4,7 @@
 > independent Awakening SP extensions live in openQ4. The expansion uses the
 > shared `baseoq4` SP module and an isolated campaign content mount. Historical
 > layer/module findings below remain useful content evidence; expansion MP is
-> excluded. See [current architecture](plans/q4x-awakening.md) and
+> excluded. See [current architecture](archive/2026-10-18/plans/q4x-awakening.md) and
 > [campaign installation](../user/campaigns.md).
 
 Audit of the unreleased Raven/Ritual Quake 4 expansion drop at
@@ -16,7 +16,7 @@ The question answered here is narrow and practical: **if a user launched openQ4 
 
 > [!NOTE]
 > **Status, 27 September 2026.** Implementation has started; the
-> [support plan](plans/q4x-awakening.md) tracks it. All 13 campaign maps now load.
+> [support plan](archive/2026-10-18/plans/q4x-awakening.md) tracks it. All 13 campaign maps now load.
 > Tier 0 is resolved: the ten events are real, the build writes `q4xbase/mod.json`,
 > `baseoq4` is searched under any mod, and the expansion's classes live in a separate
 > game-library layer (`openQ4-game-awakening`) linked with the unchanged openQ4-game
@@ -24,7 +24,7 @@ The question answered here is narrow and practical: **if a user launched openQ4 
 > - `iff`, `spawn_iff`, `bindOrientied`, `ignoreAAS` and `ai_valkaryneShots` have no
 >   reader in the expansion's own DLL either; they are dead keys, not gaps. `velScale`
 >   and `canTurn` were first filed here too, but the October gameplay audit found their
->   readers (the [plan's Phase 5](plans/q4x-awakening.md)).
+>   readers (the [plan's Phase 5](archive/2026-10-18/plans/q4x-awakening.md)).
 > - The turret keys (`dynamicAccuracy*`, `accuracyLerpTime`, `delayedTracking`,
 >   `lockDelay`, `scanAnim`) belong to the expansion's modified `rvMonsterTurret`.
 > - The "content pass" on the shadowing decl files is unnecessary: the engine now reads

@@ -2148,7 +2148,7 @@ change what the player sees.
 
 MODERN_LIGHTING_PARITY_PROVEN_DOMAINS is therefore a reviewed source constant,
 flipped one domain at a time with evidence recorded in
-docs/dev/plans/2026-08-16-modern-visible-lighting-ownership.md.  Until then a
+docs/dev/archive/2026-10-18/plans/2026-08-16-modern-visible-lighting-ownership.md.  Until then a
 consumable light is counted as "unproven" rather than owned, which is what turns
 this gate from an opaque boolean into a measurable remainder.
 r_rendererModernLightingParity forces domains proven for bring-up capture only.

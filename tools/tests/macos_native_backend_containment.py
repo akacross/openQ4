@@ -275,7 +275,7 @@ def validate_release_note_wording() -> None:
 
 
 def validate_phase7_plan_status() -> None:
-    plan = read("docs/dev/plans/2026-06-30-apple-support-no-macos-access.md")
+    plan = read("docs/dev/archive/2026-10-18/plans/2026-06-30-apple-support-no-macos-access.md")
     for token in (
         "## Phase 7: Contain Legacy And Future Renderer Paths",
         "- [x] Keep Carbon and NSOpenGL isolated to the native comparison backend.",

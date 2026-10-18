@@ -1,7 +1,7 @@
 # Production SYSTEM settings contract
 
 This is the implementation contract for the complete production SYSTEM page in
-M2 of the [product completion plan](../plans/ui-product-completion.md). It follows
+M2 of the [product completion plan](../archive/2026-10-18/plans/ui-product-completion.md). It follows
 the [visual design requirements](../ui-visual-design.md) and the
 [full requirement register](product-requirements.md). It is not a new diagnostic
 screen or an acceptance record for the shipped GUI corpus.

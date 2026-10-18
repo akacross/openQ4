@@ -13,7 +13,7 @@
 	sizes, crop 0, the 2D viewport, the presentation state the game sizes its
 	targets from) and queueing RC_VR_TARGET so the backend switches in command
 	order. The backend half is OpenGL/gl_VRPresentation.cpp.
-	See docs/dev/plans/2026-10-02-openxr-vr.md.
+	See docs/dev/archive/2026-10-18/plans/2026-10-02-openxr-vr.md.
 
 ===============================================================================
 */

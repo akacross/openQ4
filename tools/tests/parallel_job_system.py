@@ -135,7 +135,7 @@ def validate_native_coverage_and_build() -> None:
 
 
 def validate_documentation() -> None:
-    roadmap = read("docs/dev/idtech5-modernization-roadmap.md")
+    roadmap = read("docs/dev/archive/2026-10-18/idtech5-modernization-roadmap.md")
     matrix = read("docs/dev/engine-capability-matrix.md")
     release = read("docs/dev/release-completion.md")
     require(roadmap, "portable bounded job service", "modernization roadmap")
