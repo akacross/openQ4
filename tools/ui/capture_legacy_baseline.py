@@ -502,7 +502,11 @@ def capture(args: argparse.Namespace) -> int:
     prefix = '(SP) airdefense1 ' if args.mode == 'sp' else '(MP) q4dm1 '
     profile = next(c for c in configs if c['name'].startswith(prefix) and c['name'].endswith('GL'))
     savepath = output / 'save'
-    game = savepath / 'baseoq4'
+    stock_only = getattr(args, 'stock_assets_only', False)
+    game_dir = 'q4base' if stock_only else 'baseoq4'
+    if stock_only and args.retained_document:
+        raise ValueError('original-asset-only capture cannot load a retained document fixture')
+    game = savepath / game_dir
     game.mkdir(parents=True)
     data_files = []
     for path in args.retained_data:
@@ -536,7 +540,7 @@ def capture(args: argparse.Namespace) -> int:
     cfg_path.write_text(presentation + preview + legacy_import.commands(import_requests) + 'gfxInfo\nscreenshot "screenshots/ui-baseline.tga"\n' + final_inspection + 'echo UI_BASELINE_CAPTURE_COMPLETE\n' + close + 'quit\n', encoding='utf-8')
     overrides = {
         'fs_basepath': str(args.assets.resolve()), 'fs_savepath': str(savepath), 'fs_devpath': str(savepath),
-        'fs_game': 'baseoq4', 'logFile': '2', 'logFileName': 'logs/openq4.log',
+        'fs_game': game_dir, 'logFile': '2', 'logFileName': 'logs/openq4.log',
         'r_fullscreen': '0', 'r_fullscreenDesktop': '0', 'r_borderless': '0',
         'r_borderlessDefaultMigrated': '1', 'r_hiddenWindow': '1',
         'r_windowWidth': str(args.width), 'r_windowHeight': str(args.height),
@@ -548,6 +552,8 @@ def capture(args: argparse.Namespace) -> int:
         'g_autoExecAfterMapLoad': 'ui-baseline.cfg', 'g_autoExecAfterMapLoadDelayMs': '3000',
         'com_skipLoadingContinue': '1', 'com_loadingContinueAutoAdvance': '1',
         'com_maxfps': '60', 'ui_autoJoin': '1' if args.mode == 'mp' else '0',
+        'ui_retained': '0' if stock_only or getattr(args, 'stock_interface', False) else '1',
+        'win_allowMultipleInstances' if os.name == 'nt' else 'sys_allowMultipleInstances': '1',
         'ui_retainedScale': str(args.ui_scale), 'ui_retainedDensity': str(args.density),
         'ui_retainedReducedMotion': '1' if args.reduced_motion else '0',
         'ui_retainedTrace': '1' if args.event_program_probe or args.system_settings_probe or display_sources or args.retained_trace else '0',
@@ -583,6 +589,7 @@ def capture(args: argparse.Namespace) -> int:
         'requested_renderer_color': {'r_gamma': args.gamma, 'r_brightness': args.brightness},
         'capture_method': 'engine screenshot command after 3 seconds of active map drawing',
         'windowed': True, 'hidden_window': True, 'host_input_injection': False, 'shared_gui': args.shared_gui,
+        'game_dir': game_dir, 'original_assets_only': stock_only,
         'command': command, 'cwd': str(runtime), 'cfg_sha256': digest(cfg_path),
         'binaries': {str(p.relative_to(runtime)): digest(p) for p in binaries if p.is_file()},
     }
@@ -746,6 +753,8 @@ def main() -> int:
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), required=True)
     parser.add_argument('--assets', type=Path, required=True, help='Installation root containing q4base.')
     parser.add_argument('--runtime', type=Path, default=ROOT / '.install')
+    parser.add_argument('--stock-interface', action='store_true', help='Pin the legacy interface for an original-asset-only runtime comparison.')
+    parser.add_argument('--stock-assets-only', action='store_true', help='Use the supported q4base search path and stock interface, with the supplied openQ4 binaries; excludes baseoq4 content packs.')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)

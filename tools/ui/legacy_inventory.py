@@ -210,6 +210,9 @@ def analyze(path: str, resource: Resource, catalog: Catalog) -> dict:
     source, encoding = decode(data)
     result: dict = {
         'path': path, 'source': resource.owner, 'sha256': hashlib.sha256(data).hexdigest(),
+        'text_sha256': hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest(),
+        'line_ending_sha256': sorted({hashlib.sha256(variant).hexdigest() for variant in
+            (data, data.replace(b'\r\n', b'\n'), data.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))}),
         'bytes': len(data), 'encoding_view': encoding, 'windows': [], 'events': [],
         'includes': [], 'directives': [], 'asset_references': [], 'localization_keys': [],
         'state_references': [], 'script_commands': {}, 'diagnostics': [],

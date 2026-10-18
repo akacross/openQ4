@@ -15,6 +15,7 @@ from pathlib import Path
 import random
 import re
 import subprocess
+import sys
 
 from renderer_shadow_mapping_transitions import SCENARIO_MAPS, transition_commands, validate_transition_reports
 from renderer_shadow_mapping_movers import MOVER_SCENARIOS, validate_mover_images
@@ -23,6 +24,9 @@ from renderer_shadow_mapping_outdoor import OUTDOOR_SCENARIO, validate_outdoor_i
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools/validation'))
+from stock_asset_baseline import (collect_runtime_files, collect_pk4s, collect_overlay_pk4s,
+                                 collect_retail_path_collisions, file_record, git_state)
 MAPS = ("airdefense1", "airdefense2", "storage1", "storage2", "medlabs",
         "mcc_landing", "q4dm1", "q4dm9")
 CAPTURES = ("mapped", "stencil", "unshadowed")
@@ -204,6 +208,18 @@ def main() -> int:
         captures = additional_captures + CAPTURES
     results = []
     output.mkdir(parents=True)
+    runtime = opts.binary.resolve().parent
+    identity = {'git': git_state(ROOT), 'runtimeFiles': collect_runtime_files(runtime, opts.binary.resolve()),
+                'captureMode': 'hidden-offscreen' if opts.hidden else 'visible-bordered-window',
+                'timingComparison': False}
+    if opts.basepath:
+        assets = opts.basepath.resolve()
+        identity['assetRoot'] = str(assets)
+        identity['stockPk4s'] = collect_pk4s(assets)
+        identity['openQ4OverlayPk4s'] = collect_overlay_pk4s(runtime)
+        identity['retailPathCollisions'] = collect_retail_path_collisions(
+            assets, identity['stockPk4s'], runtime, identity['openQ4OverlayPk4s'])
+    (output / 'identity.json').write_text(json.dumps(identity, indent=2), encoding='utf-8')
     (output / "selection.json").write_text(json.dumps({
         "maps": opts.maps, "apis": opts.apis, "scenario": opts.scenario,
         "seed": opts.seed if opts.random_maps is not None else None,
@@ -253,7 +269,7 @@ def main() -> int:
                 setting(args, "g_openQ4Storage1NoDropPodState", 1)
             args += ["+exec", "shadow-matrix.cfg"]
             launch = {"source": source["name"], "binary": str(opts.binary.resolve()),
-                      "cwd": str(ROOT / ".install"), "args": args}
+                      "cwd": str(runtime), "args": args}
             (save / "launch.json").write_text(json.dumps(launch, indent=2), encoding="utf-8")
             if opts.dry_run:
                 continue
@@ -271,6 +287,12 @@ def main() -> int:
             result = inspect_run(save, code, map_name, captures,
                                  fail_on_missing_casters=bool(opts.scenario) and opts.scenario != OUTDOOR_SCENARIO,
                                  scenario=opts.scenario)
+            if collect_runtime_files(runtime, opts.binary.resolve()) != identity['runtimeFiles']:
+                result['failures'].append('Runtime changed during the capture matrix')
+            evidence = [cfg, save / 'launch.json', save / 'stdout.txt', save / 'stderr.txt',
+                        save / 'baseoq4/logs/shadow-matrix.log']
+            evidence += [save / f'baseoq4/screenshots/{kind}.tga' for kind in captures]
+            result['artifacts'] = [file_record(path, output) for path in evidence if path.is_file()]
             if opts.terrain_check:
                 image_failures, image_metrics = validate_terrain_images(save, map_name)
                 result["failures"].extend(image_failures)

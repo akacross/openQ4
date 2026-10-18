@@ -10,6 +10,19 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Complete the stage-one baseline implementation and audit: use a shared
+  high-resolution presentation phase for each SP/MP draw and precise OpenXR
+  smooth-turn deltas; restore imported game regression coverage; reconcile
+  retail/base/Awakening UI source identities without granting migration
+  acceptance; correct the networking/audio default documentation. Exact
+  qualification limits and retained failures are in the
+  [baseline evidence record](baseline-evidence.md).
+
+Candidate release wording: Motion between game ticks now uses a more precise
+clock, and camera, world and material presentation share one sample per draw.
+Simulation and network timing are unchanged. The multiplayer guide now correctly
+describes enhanced prediction and lag compensation as opt-in settings.
+
 - [x] Add filters to the modern server browser. A row under the server list
   narrows it by game type and hides full servers, empty ones or those with
   a password, each a tag that lights while set and clears with a second

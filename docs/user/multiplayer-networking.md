@@ -14,9 +14,9 @@ This guide covers openQ4 multiplayer networking behavior and the cvars used to t
 - IPv4 ports use the complete unsigned 16-bit range, including high ports above `32767`.
 - IPv6 is enabled by default. A server binds both families on the same port, so one address works for every client.
 - LAN scanning finds IPv6 servers through link-local multicast, which replaces the IPv4 broadcast that IPv6 does not have.
-- Server-side hitscan lag compensation is enabled by default.
-- Remote-client prediction runs in enhanced mode by default.
-- Both systems can be switched back to legacy behavior with cvars.
+- Server-side hitscan lag compensation is off by default (`net_mpLagCompensation 0`).
+- Remote-client prediction uses legacy mode by default (`net_mpPredictMode 0`).
+- Enhanced prediction and lag compensation are opt-in experiments; enabling one does not qualify their combined behavior.
 
 ## Find and join a server
 
@@ -111,11 +111,11 @@ IPv6 guarantees only a 1280-byte path MTU and forbids routers from splitting a d
 | `net_enableIPv6` | `1` | `0..1` | Client and server | Opens the IPv6 socket. Set `net_enableIPv4 0` for an IPv6-only host. |
 | `net_mcast6addr` | `ff02::1` | address | Client and server | IPv6 multicast group used by the LAN server scan. |
 | `net_mcast6iface` | `0` | index | Client and server | IPv6 interface index for the LAN scan. `0` scans every attached link. |
-| `net_mpLagCompensation` | `1` | `0..1` | Server gameplay | Enables server-side lag compensation for multiplayer hitscan traces. |
+| `net_mpLagCompensation` | `0` | `0..1` | Server gameplay | Enables server-side lag compensation for multiplayer hitscan traces. |
 | `net_mpLagCompMaxMS` | `200` | `0..1000` | Server gameplay | Caps rewind window in milliseconds used by lag compensation. |
 | `net_mpLagCompBiasMS` | `0` | `-200..200` | Server gameplay | Adds/subtracts additional rewind bias in milliseconds. |
 | `net_mpLagCompDebug` | `0` | `0..2` | Server gameplay | Debug logging for lag compensation (`0` off, `1` summary, `2` verbose). |
-| `net_mpPredictMode` | `1` | `0..1` | MP client prediction | Selects remote-player prediction mode (`0` legacy limited, `1` enhanced per-frame). |
+| `net_mpPredictMode` | `0` | `0..1` | MP client prediction | Selects remote-player prediction mode (`0` legacy limited, `1` enhanced per-frame). |
 
 ## Legacy Compatibility Switch
 

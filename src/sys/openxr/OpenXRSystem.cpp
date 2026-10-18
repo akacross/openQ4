@@ -33,6 +33,7 @@
 
 #include "../../framework/VRSystemLocal.h"
 #include "../../framework/VRMathCore.h"
+#include "../../framework/PresentationClock.h"
 #include "../../ui/RetainedUI.h"
 
 #if defined( _WIN32 )
@@ -314,7 +315,7 @@ private:
 	XrTime					frameDisplayTime;
 	XrView					views[VR_NUM_EYES];
 	bool					viewsValid;
-	int						lastFrameMsec;
+	openq4::PresentationFrameDelta frameDelta;
 	vrFrameState_t			frame;
 	XrPosef					recenterPose;		// tracking origin in the runtime's LOCAL space (yaw only)
 	XrPosef					screenAnchor;		// virtual screen centre in LOCAL space
@@ -460,7 +461,7 @@ idVRSystemOpenXR::idVRSystemOpenXR( void ) {
 	frameDisplayTime = 0;
 	memset( views, 0, sizeof( views ) );
 	viewsValid = false;
-	lastFrameMsec = 0;
+	frameDelta.Reset();
 	memset( &frame, 0, sizeof( frame ) );
 	recenterPose = VR_IdentityPose();
 	screenAnchor = VR_IdentityPose();
@@ -1245,7 +1246,7 @@ void idVRSystemOpenXR::HandleSessionState( XrSessionState state ) {
 			beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
 			if ( Check( xrBeginSession( session, &beginInfo ), "xrBeginSession" ) ) {
 				sessionRunning = true;
-				lastFrameMsec = Sys_Milliseconds();
+				frameDelta.Reset();
 				common->Printf( "OpenXR: presenting to the headset\n" );
 			}
 			break;
@@ -2050,9 +2051,7 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 	frameShouldRender = frameState.shouldRender == XR_TRUE;
 	frameDisplayTime = frameState.predictedDisplayTime;
 
-	const int now = Sys_Milliseconds();
-	const float frameSeconds = idMath::ClampFloat( 0.0f, 0.1f, ( now - lastFrameMsec ) * 0.001f );
-	lastFrameMsec = now;
+	const float frameSeconds = frameDelta.Sample( Sys_GetClockTicks(), Sys_ClockTicksPerSecond() );
 
 	LocateFrame( frameDisplayTime );
 	SyncInput( frameSeconds );

@@ -18,6 +18,7 @@ def clock_fixture():
 #include <cassert>
 #include <cstdio>
 #include <cmath>
+#include "src/framework/PresentationClock.h"
 template<class T>T Min(T a,T b){return a<b?a:b;}
 template<class T>T Max(T a,T b){return a>b?a:b;}
 struct idMath {
@@ -25,18 +26,19 @@ struct idMath {
     static int ClampInt(int lo,int hi,int n){return Max(lo,Min(hi,n));}
     static float ClampFloat(float lo,float hi,float n){return Max(lo,Min(hi,n));}
 };
-struct {float GetUserCmdMsecFloat()const{return 16;}} commonObject;
+struct {int GetUserCmdHz()const{return 60;}} commonObject;
 auto* common=&commonObject;
 struct {bool value=false;bool GetBool()const{return value;}} g_stopTime;
-int realTime=1000;
-int Sys_Milliseconds(){return realTime;}
+double realTime=1000;
+struct Clock { double GetClockTicks()const{return realTime;} double ClockTicksPerSecond()const{return 1000;} } clockSource;
+struct idLib {static Clock* sys;}; Clock* idLib::sys=&clockSource;
 enum {DEMO_PLAYING=1};
 struct idGameLocal {
     bool isMultiplayer=false,presentationMenuPaused=false,demo=false,timedemo=false;
     int time=100,presentationAnimationTime=-1;
     float presentationSceneFraction=-1;
-    mutable int presentationClockGameTime=-1,presentationClockLastTime=-1;
-    mutable double presentationClockRealTime=0;
+    mutable openq4::PresentationClock presentationClock;
+    float presentationClockSample=-1;
     int GetMSec()const{return 16;}
     int GetDemoState()const{return demo?DEMO_PLAYING:0;}
     bool IsTimeDemo()const{return timedemo;}
@@ -53,7 +55,7 @@ struct idGameLocal {
 int main(){
     idGameLocal game;
     assert(game.GetPresentationTicFraction()==0);
-    realTime+=8;assert(game.GetPresentationTicFraction()==.5f);
+    realTime+=1000.0/120;assert(game.GetPresentationTicFraction()==.5f);
     game.presentationMenuPaused=true;
     // A long ordinary pause must never periodically re-anchor at fraction zero,
     // move the camera backwards or invalidate an otherwise unchanged scene.
@@ -64,14 +66,21 @@ int main(){
     }
     game.EndPresentationSceneForRender();assert(!game.presentationMenuPaused);
     assert(game.GetPresentationTicFraction()==0);
-    realTime+=8;assert(game.GetPresentationTicFraction()==.5f && game.GetPresentationTimeMsec()==108);
-    game.time+=16;realTime+=8;assert(game.GetPresentationTicFraction()==0);
+    realTime+=1000.0/120;assert(game.GetPresentationTicFraction()==.5f && game.GetPresentationTimeMsec()==108);
+    game.time+=16;realTime+=1000.0/120;assert(game.GetPresentationTicFraction()==0);
     g_stopTime.value=true;assert(game.GetPresentationTicFraction()==1 && game.GetPresentationTimeMsec()==116);
     // Multiplayer keeps its running simulation/presentation clock even if a
     // caller supplies the pause hint or the single-player diagnostic stop flag.
     game.isMultiplayer=true;game.presentationMenuPaused=true;
-    assert(game.GetPresentationTicFraction()==0);realTime+=8;assert(game.GetPresentationTicFraction()==.5f);
+    assert(game.GetPresentationTicFraction()==0);realTime+=1000.0/120;assert(game.GetPresentationTicFraction()==.5f);
     game.demo=true;assert(game.GetPresentationTimeMsec()==116 && game.GetPresentationInterpolationFraction()==1);
+    game.demo=false;game.presentationMenuPaused=false;
+    game.presentationClockSample=game.GetPresentationTicFraction();
+    const float frozen=game.presentationClockSample;
+    const int materialTime=game.GetPresentationTimeMsec();
+    realTime+=2.125;
+    assert(game.GetPresentationTicFraction()==frozen && game.GetPresentationTimeMsec()==materialTime);
+    game.EndPresentationSceneForRender();assert(game.presentationClockSample<0);
     std::puts("retained pause: long menu pause holds the authoritative scene clock; resume, stop-time, multiplayer and demo contracts passed");
 }
 '''
@@ -159,11 +168,11 @@ int main(){
     with tempfile.TemporaryDirectory(prefix='ui-pause-', dir=ROOT / '.tmp') as folder:
         cpp, binary = Path(folder) / 'pause.cpp', Path(folder) / 'pause.exe'
         cpp.write_text(support, encoding='utf-8')
-        subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(binary)], check=True)
+        subprocess.run([compiler, '-std=c++17', '-I', str(ROOT), str(cpp), '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
         cpp, binary = Path(folder) / 'clock.cpp', Path(folder) / 'clock.exe'
         cpp.write_text(clock_fixture(), encoding='utf-8')
-        subprocess.run([compiler, '-std=c++17', str(cpp), '-o', str(binary)], check=True)
+        subprocess.run([compiler, '-std=c++17', '-I', str(ROOT), str(cpp), '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
 
