@@ -299,6 +299,18 @@ if get_option('build_native_tests')
   )
   test('openq4-cmdargs', openq4_cmdargs_test, timeout: 30)
 
+  openq4_arena_sound_source = custom_target(
+    'openq4-arena-sound-source',
+    input: files('src/mpgame/MultiplayerGame.cpp', 'src/sound/snd_world.cpp', 'src/framework/Session.cpp', 'src/framework/Session_menu.cpp'),
+    output: 'ArenaSoundPauseTest.cpp',
+    command: [py, files('tools/tests/arena_sound_pause.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openq4_arena_sound_test = executable(
+    'openq4-arena-sound-test', openq4_arena_sound_source,
+    cpp_args: ['-UNDEBUG'], install: false,
+  )
+  test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
+
   openq4_interpolation_test = executable(
     'openq4-interpolation-test', files('tools/tests/native/InterpolationTest.cpp'),
     include_directories: root_include_dir, install: false,
@@ -3324,6 +3336,23 @@ if build_openxr
     output: 'openq4_xr_test_runtime.json',
     configuration: openxr_test_runtime_manifest,
   )
+  if get_option('build_native_tests')
+    openq4_xr_lifecycle_source = custom_target(
+      'openq4-xr-lifecycle-source',
+      input: files('src/sys/openxr/OpenXRSystem.cpp'),
+      output: 'OpenXRLifecycleTest.cpp',
+      command: [py, files('tools/tests/openxr_lifecycle.py'), '--generate-native', '@OUTPUT@'],
+    )
+    openq4_xr_lifecycle_test = executable(
+      'openq4-xr-lifecycle-test', openq4_xr_lifecycle_source,
+      dependencies: openxr_headers_dep, cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach fault : ['normal', 'teardown', 'input_teardown', 'partial_acquire', 'wait_loss', 'wait_timeout', 'wait_error',
+                     'release_loss', 'release_error', 'index_large', 'index_end', 'resize_loss', 'resize_failure',
+                     'count_large', 'count_zero', 'count_changed', 'image_zero', 'instance_loss', 'session_pending']
+      test('openq4-xr-lifecycle-' + fault, openq4_xr_lifecycle_test, args: [fault], timeout: 30)
+    endforeach
+  endif
 endif
 
 version_iteration_summary = version_iteration

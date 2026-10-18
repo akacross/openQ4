@@ -360,9 +360,12 @@ precedent for adding fields within v3.
 Compatibility failures must identify the rejected layer—total size, outer
 version, payload version, ABI, v2 snapshot, legacy build, CRC, footer, or
 map—without attempting a partial restore. The running map remains active for
-failures caught by engine preflight. Deeper object-specific semantic failures can
-occur after teardown; they abort that restore and use the existing fresh-map
-initialization fallback. There is no staged-world rollback that preserves the
+failures caught by engine preflight. The fresh-map initialization fallback handles
+an explicit `false` return from `InitFromSaveGame`, such as a changed script
+program. Deeper object-specific semantic errors instead enter the general error
+path, which stops the session before throwing. They do **not** automatically reach
+that fallback. Partially restored object ownership and a reliable recovery UI
+remain Q4-05 work. There is no staged-world rollback that preserves the
 former map after this point, and the failure must report the closest class/field
 boundary available.
 

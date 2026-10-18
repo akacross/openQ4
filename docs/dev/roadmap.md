@@ -403,7 +403,7 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   motion vectors, resets and scale control before enablement. Hand presence and
   physical-object interaction require separate gameplay/comfort designs. Quest
   distribution and device qualification also depend on AND-01 through AND-05.
-- [ ] **VR-06 — P1, implementation and qualification: fault-safe XR ownership.**
+- [x] **VR-06 — P1, implementation and qualification: fault-safe XR ownership.**
   Reproduce the current `Check` → `DestroySession` → `ReleaseImages` teardown
   re-entry risk in `OpenXRSystem.cpp`: session loss can be reported before
   `frameOpen`/acquired flags are cleared. Make destruction idempotent and stop
@@ -413,9 +413,14 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   creation/resize and tracking invalidation. Require bounded cleanup, no recursion
   or stale-handle calls, balanced image/frame ownership and a recoverable desktop
   path. Ordinary call-order tests and headset happy paths do not close this item.
-  Stage-one review confirmed the source-derived risk and required fault matrix
-  in the [recovery review](platform-recovery-review.md); runtime reproduction and
-  lifecycle repair remain open.
+  Complete for the active desktop OpenGL scope: deferred retirement, bounded
+  image validation, idempotent teardown and input cancellation pass 19 native
+  production-method cases on Windows/Linux and 28 simulated-runtime SP/MP
+  gameplay cases. Original failures, exact package identities, visual captures
+  and the 207-test native suite are bound in the
+  [recovery evidence](platform-recovery-review.md#opengl-xr-lifecycle-closure-18-october-2026).
+  VR-01 carries these guarantees into other backends; VR-02 retains physical
+  headset/controller qualification.
 
 ## Android and mobile rendering
 
@@ -678,10 +683,16 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   retains their precise scope; the remaining release checks are still open.
 - [ ] **MP-02 — P1, qualification and targeted fixes: bot traversal safety.** Rerun
   staged q4dm8/q4ctf3/q4ctf5/q4dz3 after the exact-state jump/unroutable-pad fixes,
-  then the complete 32-map sweep including warmup. Separate enemy impulses from
+  then the complete declared-map sweep including warmup (currently 33 variants).
+  Separate enemy impulses from
   navigation/control failures and retain strict world-death gates. Qualify route
   generation/think budgets, objectives and real combat; source tests do not close
   the previously failing runtime safety sweep.
+  Progress, 18 October: [four-map rerun](mp-bots.md#current-four-map-rerun-18-october-2026)
+  passes CTF3/DZ3 but retains DM8/CTF5 world-death failures following logged combat
+  impulses. The subsequent [33-map sweep](mp-bots.md#current-complete-catalog-sweep-18-october-2026)
+  passes 32 maps but retains a DM8 world death following an enemy impulse. The
+  gate stays open, including recovery steering and controlled timing evidence.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
@@ -691,6 +702,11 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   pause navigation. Capture victory/defeat/draw ledgers, progression and ceremony
   through save/reload and failure paths; an aborted-launch ledger is not completion
   evidence. Coordinate with UI-03, HF-01 and AUD-02.
+  Progress, 18 October: [Arena sound ownership and result evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+  closes the continuing game-audio clock gap. Native ownership tests and final
+  GL/Vulkan gameplay runs pass pause/resume, victory/defeat/draw and persisted
+  best-result ordering. Restart/navigation cost, physical controls/audible-device
+  qualification and remaining failure-path coverage keep MP-04 open.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery
@@ -733,7 +749,14 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   [retail ledger](retail-baseline-ledger.md#stage-two-connection-regression)
   records a passing four-role stock baseline, 185 native checks and a failing
   shallow-copy control. The broader peer/architecture/interoperability gate
-  remains open.
+  remains open. The player [networking guide](../user/multiplayer-networking.md#ipv6-connections)
+  now explicitly documents single-address DNS selection and the numeric-address
+  workaround when the chosen endpoint is unreachable.
+  The [cross-platform peer evidence](retail-baseline-ledger.md#cross-platform-pure-peers-18-october-2026)
+  adds passing Windows-client/Linux-server IPv4 and scoped IPv6 pure joins and
+  successive reconnects. Canonical ZIP metadata fixes otherwise identical
+  host-built PK4s failing package identity. WAN impairment, concurrent load,
+  discovery, other architectures and the remaining content cases stay open.
 
 ## Audio and voice
 
@@ -751,7 +774,8 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
 - [ ] **AUD-02 — P1, qualification: physical device and timing lifecycle.** Test
   default/selected endpoint loss and return, hotplug, pause/resume/slow motion,
   cinematics, map/restart and long sessions on target OSes. Verify audible output,
-  not just backend initialization; include Arena's unpaused sound-world gap.
+  not just backend initialization; include physical Arena pause/resume after its
+  game-audio clock ownership correction.
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,

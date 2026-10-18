@@ -23,6 +23,15 @@
 
 ## Change log
 
+- Experimental OpenXR mode now returns safely to desktop play after frame or
+  session failures and clears held VR controls. A lost session retries after a
+  short delay; use `vr_restart` after the runtime itself stops. Screenshots taken
+  during VR gameplay now include the world.
+
+- Windows and Linux builds now produce matching bundled content packages, so
+  an identical package built on the other platform passes package validation.
+- Pausing an Arena match also pauses its game audio clock, while menu sounds stay
+  active. Resuming continues from the paused position.
 - Retained interfaces can upload generated images with correct transparency and
   bounded resource use, including tall images and renderer restarts.
 - Restored game regression coverage and added executable clock/pause checks.

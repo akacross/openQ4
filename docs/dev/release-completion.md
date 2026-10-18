@@ -10,6 +10,27 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Recover safely from OpenXR frame/session failures, retire controller state
+  and stop using lost images. Session failures retry after a short desktop
+  fallback; runtime loss waits for `vr_restart`. VR screenshots now include the
+  world in both game modes. [Current OpenGL evidence](platform-recovery-review.md#opengl-xr-lifecycle-closure-18-october-2026)
+  records failing controls, 19 Windows/Linux ownership cases, 28 simulated XR
+  gameplay runs and 207 passing native tests. Physical headset qualification
+  and integration of other backends remain separate.
+
+- [x] Produce identical bundled content packages on Windows and Linux, preventing
+  host ZIP metadata from invalidating an otherwise identical package. The real
+  writer regression passes on both hosts and rejects the old behavior.
+  [Windows/Linux IPv4 and IPv6 pure-peer gameplay](retail-baseline-ledger.md#cross-platform-pure-peers-18-october-2026)
+  passes with matching packages; broader MP-08 qualification remains open.
+
+- [x] Freeze Arena's game audio clock with its paused match while retaining menu
+  audio, and resume only the pause it owns. Direct voice-over channels now pause
+  with the world too. [Production-method and gameplay evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+  covers repeated GL/Vulkan pause/resume, victory/defeat/draw, restart persistence
+  and preservation of a better result. Physical audio/control qualification and
+  the rest of MP-04 remain open.
+
 - [x] Implement retained generated RGBA8 images with premultiplied blending,
   bounded shared storage and deferred release. Explicit 2D images keep their
   type even at 1:6 aspect ratios. The [runtime evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)

@@ -98,6 +98,55 @@ the audit uses independent PK4 copies instead. No installed assets or user
 configuration were changed. Missing-media, authored-content warnings, package
 configuration errors and renderer defects must not be merged into one verdict.
 
+## Cross-platform pure peers, 18 October 2026
+
+The production PK4 writer previously inherited Python's host-dependent ZIP
+`create_system` field. Windows and Linux builds contained identical member bytes
+but different archive bytes, so the engine's embedded package identity rejected
+a package copied from the other host. `openq4_pak.py` now writes the existing
+Windows/DOS value explicitly. No authored content, pure-check policy or protocol
+version changes. Actual Windows and Linux builds now produce identical pak0/pak1
+SHA-256 values, respectively
+`329725e33f909bf351231784c36773b0c9bbbffc8922223482112e8dca30501a` and
+`1a7c763fbba69207725774d45139ce5a8583300e4f89a55ecf12760bfb6570a9`.
+The packaging regression executes the real writer with both host metadata
+defaults, checks payloads and byte equality, and rejects the old behavior.
+Windows and Linux runs pass.
+
+`tools/tests/mp_wsl_peer_smoke.py` ran a staged Linux x64 dedicated server and two
+successive native Windows x64 clients against the same 40 retail PK4s. IPv4 and
+scoped link-local IPv6 both passed pure negotiation, active player/view checks,
+disconnect/reconnect and clean shutdown of all three processes. Engine captures
+were decoded and inspected: Q4DM1 world, weapon and HUD are visible. Each client
+played alone in warmup; these runs do not qualify combat, concurrent player load,
+WAN impairment, MTU edge cases, another architecture or physical Linux display.
+
+| Evidence | SHA-256 / identity |
+| --- | --- |
+| IPv4 `.tmp/s2peer-ipv4-r4/report.json`, 100.91 s | `ac41ca476e1cecddda1348f7ffd3c9ff0120ba642fbf7f8a3ceebd20fd83d80c` |
+| IPv6 `.tmp/s2peer-ipv6-r2/report.json`, 98.17 s | `b04b64de1117bc8855f447d2ff8dfde2c7f215262012bd435e37ee28a715433e` |
+| Windows engine / MP module | `c30c191835a11e82ac12d7c34dc5fb393af6c131e95913b0e20066e9f297bf81` / `20ce933689ee4b7fa2fe08a1327a1013a34a23241596cb04775a59dcc47cd065` |
+| Linux engine / MP module | `51ac07e50a87b6dd1885fb988f51447ead90d985e232575cd95d0c640bd2a3f9` / `10955ae59b803281f555ed8a66f28994800a0f0a4c64b5110f838fdcbdb541da` |
+| Linux stage identity `.tmp/stage-two/linux-final-runtime-identity.json` | `8e07962db5adbe590174a1a5e56305e26912f4703b1873f6308cf35b40769d32` |
+
+Runtime source is the `6de4e622e` base plus the Arena/session/sound corrections
+bound in [Arena evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+and the deterministic ZIP metadata change. OpenXR lifecycle work edited during
+these runs was not built into these binaries. Both client runs used hidden,
+windowed GL at 640x480, disabled physical input, and engine screenshots only.
+Reports retain exact commands, addresses/scopes, runtime and asset hashes.
+No firewall, installed game content or shared player profile was changed.
+
+The initial `.tmp/s2peer-ipv4/` package-identity rejection remains recorded.
+Earlier `.tmp/s2peer-ipv4-r2/`, `.tmp/s2peer-ipv4-r3/` and `.tmp/s2peer-ipv6/`
+attempts timed out during WSL startup before any peer connection; reports and
+verified process-cleanup records preserve those failures. The successful runs
+first verified that runtime, assets and writable profiles on the Windows mount
+resolve mixed-case names to the same files, then used `fs_caseSensitiveOS 0`
+for that filesystem. This avoids expensive case-recovery directory searches;
+it is not evidence for case-sensitive Linux filesystem behavior. These are
+functional checks, not controlled performance measurements. MP-08 remains open.
+
 ## Stage-two connection regression
 
 The failure reproduced again in `.tmp/s2connect/` on the staged stage-one

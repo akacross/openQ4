@@ -9798,10 +9798,12 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
+	const bool arenaPauseMenuActive = guiActive != NULL &&
+		idStr::Icmp( guiActive->Name(), "guis/arena_pause.gui" ) == 0;
 	// A retained page stands in for a main-menu page, and so does every
 	// retained front-end screen presented without a level: Single Player and
 	// its sub-pages, the Multiplayer page and its sub-pages.
-	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
+	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || arenaPauseMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
 			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ||
 			( !mapSpawned && UI_IsRetainedPath( guiActive->Name() ) ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );

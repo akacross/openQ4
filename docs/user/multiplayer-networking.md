@@ -91,6 +91,12 @@ connect play.example.net:28004
 
 The first form is an ordinary global IPv6 address. The second adds a *zone index*, which a link-local `fe80::/10` address needs so the system knows which network interface to use; openQ4 prints and accepts the numeric index. The third omits the port, which selects the default server port `28004` — brackets are optional when there is no port. The fourth resolves a hostname: if it has both an A and a AAAA record, openQ4 prefers the IPv4 address, so use the bracketed literal to force IPv6.
 
+A hostname lookup selects one usable address. If that address cannot be reached,
+openQ4 does not automatically try the hostname's other IPv4 or IPv6 addresses.
+Ask the server operator for a reachable numeric address and connect to it
+directly; use brackets for an IPv6 address followed by a port. This also applies
+when several DNS records exist within the same address family.
+
 Addresses are displayed in the canonical [RFC 5952](https://www.rfc-editor.org/rfc/rfc5952) form — lowercase, with the longest run of zero groups collapsed to `::` — so `[2001:0db8:0000:0000:0000:0000:0000:0001]:27650` is shown as `[2001:db8::1]:27650`. The same text is used by the server browser and by server-side ban lists, so one address always has exactly one spelling.
 
 A client reaching a dual-stack server over IPv4 is recorded as an IPv4 client even though the server also listens on IPv6, so bans and client-slot handling see a single identity per host.

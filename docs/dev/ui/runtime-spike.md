@@ -224,12 +224,18 @@ and rendered checks have separate scopes:
   a tolerance of three byte values. Both processes exit cleanly, and inspected
   captures include the in-game world and weapon. The Vulkan log identifies an
   RTX 4060 Laptop GPU and NVIDIA 591.74; the GL log records its 4.6 context.
+- The same probe with `--mode MP` passes GL and Vulkan on Q4DM1, with the local
+  player reported in gameplay before and after the sequence. Inspected engine
+  captures show the world, weapon and HUD behind the generated panels. These
+  runs reuse the same staged binary hashes and do not qualify physical input.
 
 | Retained evidence | SHA-256 |
 | --- | --- |
 | `.tmp/stage-two/generated-image-source.json` (runtime source-file hashes) | `9eb637cdf3734d4e48c902c2d1a4b3d8baefc378cb8032ee29fea8973a5833e3` |
 | `.tmp/s2image-gl/report.json` | `50e53cb5e4cc40d7c62eb0e45928ce50b4e146f6756a6857044e68c36a4b86bd` |
 | `.tmp/s2image-vk/report.json` | `37140dfe4e18484083522b08c6a0a2918197b10f4255b9f3cdd8f7eff5459b62` |
+| `.tmp/s2image-mp-gl/report.json` | `d199cd3a9bfb32dd2c0f28cfa1bce3dc4ecf41f2696158d84ee329848015abcc` |
+| `.tmp/s2image-mp-vk/report.json` | `c0677d51d62dd48c142b4dd6d5085a6c215e9a638b692d1e109708cd14553ba6` |
 | `.tmp/stage-two/generated-texture-native-testlog.json` | `9735dcb238604fc0ec0ffc2716fdc9d597af5b1036ad60de35d063e705caaf62` |
 
 The logs and engine-written TGAs are under each run's `save/baseoq4/`; decoded

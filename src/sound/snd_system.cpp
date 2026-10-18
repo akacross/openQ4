@@ -309,6 +309,27 @@ void ListPlayingSounds_f( const idCmdArgs& args )
 	soundSystemLocal.hardware.ListPlayingVoices();
 }
 
+// Report the production sound clocks without changing focus, routing or playback.
+// Together with listPlayingSounds this distinguishes a frozen world from a
+// world that merely became inaudible when another world acquired the output.
+static void SoundWorlds_f( const idCmdArgs& args ) {
+	(void)args;
+	const int worldIds[] = { SOUNDWORLD_MENU, SOUNDWORLD_GAME };
+	for ( int id : worldIds ) {
+		idSoundWorldLocal *world = static_cast<idSoundWorldLocal *>( soundSystemLocal.GetSoundWorldFromId( id ) );
+		if ( world == NULL ) {
+			continue;
+		}
+		int channels = 0;
+		for ( int e = 0; e < world->emitters.Num(); ++e ) {
+			channels += world->emitters[e]->channels.Num();
+		}
+		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d\n",
+			id, world->IsPaused() ? 1 : 0, world->GetSoundTime(),
+			soundSystemLocal.GetPlayingSoundWorld() == world ? 1 : 0, channels );
+	}
+}
+
 /*
 ========================
 idSoundSystemLocal::Restart
@@ -403,6 +424,7 @@ void idSoundSystemLocal::Init()
 	cmdSystem->AddCommand( "testSound", TestSound_f, CMD_FL_SOUND, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
 	cmdSystem->AddCommand( "listSounds", ListSounds_f, CMD_FL_SOUND, "lists all sounds" );
 	cmdSystem->AddCommand( "listPlayingSounds", ListPlayingSounds_f, CMD_FL_SOUND, "lists currently playing sounds" );
+	cmdSystem->AddCommand( "s_soundWorlds", SoundWorlds_f, CMD_FL_SOUND, "reports game/menu sound clocks and pause state" );
 	cmdSystem->AddCommand( "listSoundDecoders", ListSoundDecoders_f, CMD_FL_SOUND, "list active sound decoders" );
 	cmdSystem->AddCommand( "reloadSounds", ReloadSounds_f, CMD_FL_SOUND | CMD_FL_CHEAT, "reloads all sounds" );
 	cmdSystem->AddCommand( "s_restart", RestartSound_f, CMD_FL_SOUND, "restarts the sound system" );

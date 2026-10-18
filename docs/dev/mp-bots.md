@@ -1633,6 +1633,68 @@ safety or optimized-performance qualification is claimed. These four debug
 maps built navigation in 986–3,267 ms and ran at 0.963 of real time; these are
 diagnostic observations, not controlled performance comparisons.
 
+### Current four-map rerun, 18 October 2026
+
+The staged code recorded by `6de4e622e` reruns the exact-state jump and unroutable-
+pad corrections with six skill-four bots, 45 measured seconds, hidden/windowed
+OpenGL and original stock assets. The unchanged audit gate permits zero world
+deaths across warmup and the measured interval. All four processes exited cleanly.
+
+| Map and mode | Warmup world deaths | Measured world deaths | Safety gate |
+| --- | --- | --- | --- |
+| q4dm8, DM | 0 | 2 | Failed |
+| q4ctf3, CTF | 0 | 0 | Passed within this run |
+| q4ctf5, CTF | 0 | 1 | Failed |
+| q4dz3, DeadZone | 0 | 0 | Passed within this run |
+
+DM8's first fall follows two recorded enemy hits, including transverse velocity
+of -553 and then a further impulse near the outer ledge. Its second fall follows
+self damage and an enemy hit during a dodge flight. CTF5's fall follows an enemy
+hit while crossing a pad route: the logged forward speed changes from the pad's
+-646 launch to -154, followed by a fall below the landing. These are observed
+combat-impulse sequences, not proof that subsequent steering is optimal or that
+every fall was unavoidable. They remain failed safety evidence; no threshold,
+physics rule or navigation behavior was relaxed for this rerun.
+
+| Report | SHA-256 |
+| --- | --- |
+| `.tmp/s2bots/q4dm8/report.json` | `8cc40d179a6ac9899f2493e3f44a2080f825613519e7a69b86aeaa480946d126` |
+| `.tmp/s2bots/q4ctf3/report.json` | `cfc1bc6062c5e1a01e88c4b53c2569070518a10a53d5b0ae31f4d07536efc9d5` |
+| `.tmp/s2bots/q4ctf5/report.json` | `15ffbe1feda78a72b40fd94953322093f054b17e5a5de3d348b65ff313c4501e` |
+| `.tmp/s2bots/q4dz3/report.json` | `7bbc7f7e7748d14765c4b8c8e56b6b3bbfd92c5499eacb2e13757ccda3aa7187` |
+
+Each report retains the exact runtime hashes and names its engine log. The current
+stock `pak019.pk4` map declarations list 33 multiplayer maps when `q4dm11v1` is
+included; the following sweep covers every declared variant.
+
+### Current complete catalog sweep, 18 October 2026
+
+All 33 maps completed under the same six-bot, 45-second, hidden/windowed GL
+profile and zero-world-death gate. Thirty-two passed; DM8 failed with one measured
+world death and no warmup deaths. CTF3, CTF5 and DZ3 passed in this sweep. That
+does not erase CTF5's preceding failure or establish repeatable safety.
+
+DM8's Rhodes took a logged enemy hit from Strauss at game time 19,136 ms near
+`703 555 324`, leaving velocity `328 290 127`; the world death followed at
+21,264 ms near `683 1040 -1154`. No voluntary dodge flight is logged around
+this fall. The combat impulse is established, but the adequacy of edge avoidance
+and recovery steering remains unproven. MP-02 stays open with the strict gate
+unchanged. Across the catalog the diagnostic logs also contain 37 stuck events,
+10 goal give-ups and one traversal timeout, requiring route-specific review.
+
+The source is `6de4e622e`; each map's report under `.tmp/s2bots-full/` retains
+runtime hashes, map/navigation statistics and its engine log. The manifest binds
+the 33-map selection to the retail catalog archive. The completed records are:
+
+| Record | SHA-256 |
+| --- | --- |
+| `.tmp/s2bots-full/manifest.json` | `c10d0707664f9c50beb102d332c72f7c7c86918f9c112cfaa6789336a8f699e7` |
+| `.tmp/s2bots-full/summary.json` | `1b1b6457bb513df0fa6db2c1414a6fb0b56db383e490ecea95d81d46691b3fdf` |
+
+Concurrent build/probe work was present during portions of this functional sweep.
+Its diagnostic timing is not a controlled performance qualification or evidence
+that the route-generation/think budget is accepted.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include

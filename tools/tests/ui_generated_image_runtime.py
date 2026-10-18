@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Check generated-image alpha with engine screenshots during windowed SP gameplay."""
+"""Check generated-image alpha with engine screenshots during windowed SP/MP gameplay."""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -25,6 +26,7 @@ def main() -> int:
     parser.add_argument("--basepath",type=Path,required=True)
     parser.add_argument("--output-dir",type=Path,required=True)
     parser.add_argument("--renderer",choices=("gl","vulkan"),default="gl")
+    parser.add_argument("--mode",choices=("SP","MP"),default="SP")
     parser.add_argument("--timeout",type=int,default=150)
     args = parser.parse_args()
     runtime,output = args.runtime_dir.resolve(),args.output_dir.resolve()
@@ -36,11 +38,13 @@ def main() -> int:
     game.mkdir(parents=True)
     captures=("initial","reopened","restart")
     script=["waitMsec 1500","god","notarget","getviewpos","echo GENERATED_IMAGE_GAMEPLAY_BEGIN"]
+    if args.mode=="MP": script.append("openq4_reportMPState")
     for name in captures:
         if name=="restart":
             script += ["vid_restart","waitMsec 1000"]
         script += ["ui_retainedImageProbe 1","waitMsec 500",f"screenshot screenshots/generated/{name}.tga",
                    "ui_retainedImageProbe 0","waitMsec 500"]
+    if args.mode=="MP": script.append("openq4_reportMPState")
     script += ["getviewpos","echo GENERATED_IMAGE_GAMEPLAY_END","quit"]
     (game / "generated_probe.cfg").write_text("\n".join(script)+"\n",encoding="utf-8")
     settings={
@@ -51,17 +55,20 @@ def main() -> int:
         "r_windowWidth":"640","r_windowHeight":"480","r_renderApi":args.renderer,"r_swapInterval":"0",
         "r_gamma":"1","r_brightness":"1","r_hdrToneMap":"0","com_maxfps":"60","s_noSound":"1",
         "fs_basepath":str(args.basepath.resolve()),"fs_savepath":str(save),"fs_devpath":str(save),
-        "fs_game":"baseoq4","com_gameMode":"SP","si_gameType":"singleplayer","ui_autoJoin":"1",
+        "fs_game":"baseoq4","com_gameMode":args.mode,"si_gameType":"DM" if args.mode=="MP" else "singleplayer","ui_autoJoin":"1",
         "ui_retained":"1","com_skipLoadingContinue":"1","g_autoSkipCinematics":"1",
         "logFile":"2","logFileName":"logs/openq4.log","developer":"1",
         "g_autoExecAfterMapLoad":"generated_probe.cfg","g_autoExecAfterMapLoadDelayMs":"500",
     }
+    if args.mode=="MP":
+        settings.update(net_allowCheats="1",sv_cheats="1",net_ip="127.0.0.1",net_enableIPv6="0",net_port="28992",
+                        net_serverDedicated="0",net_LANServer="1",si_pure="0",si_maxPlayers="4",bot_minPlayers="0")
     command=[str(runtime / executable)]
     for key,value in settings.items(): command += ["+set",key,value]
-    command += ["+map","game/storage1"]
+    command += ["+spawnServer","mp/q4dm1"] if args.mode=="MP" else ["+map","game/storage1"]
     report={"status":"fail","source":subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip(),
             "source_dirty":bool(subprocess.check_output(["git","status","--porcelain"],cwd=ROOT,text=True)),
-            "renderer":args.renderer,"command":command,"capture_method":"engine screenshot command",
+            "renderer":args.renderer,"mode":args.mode,"command":command,"capture_method":"engine screenshot command",
             "runtime_sha256":{},"samples":{},"failures":[]}
     for path in sorted(runtime.glob("*")):
         if path.is_file() and path.suffix in (".exe",".dll"): report["runtime_sha256"][path.name]=digest(path)
@@ -80,6 +87,8 @@ def main() -> int:
         if marker not in log: report["failures"].append("missing "+marker)
     if log.count("Retained generated-image probe ready:")!=3:
         report["failures"].append("three distinct image allocations were not observed")
+    if args.mode=="MP" and len(re.findall(r"^MP_PLAYER slot=0 [^\n]*ingame=1",log,re.M))<2:
+        report["failures"].append("local multiplayer player was not in gameplay before and after the probe")
     # Sample texel centres inside each quadrant, away from filtered boundaries.
     # Both rows use a 64-grey background. The second image has a half-alpha tint.
     expected={(48,64):(160,32,32),(112,64):(0,255,0),(48,160):(48,48,112),(112,160):(64,64,64),

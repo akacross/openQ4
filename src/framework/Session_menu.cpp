@@ -1923,6 +1923,9 @@ idSessionLocal::SetGUI
 void idSessionLocal::SetGUI( idUserInterface *gui, HandleGuiCommand_t handle ) {
 	if ( RetainedUI_IsOpen() ) RetainedUI_Close();
 	const char	*cmd;
+	const bool arenaSoundRoute =
+		( guiActive != NULL && idStr::Icmp( guiActive->Name(), "guis/arena_pause.gui" ) == 0 ) ||
+		( gui != NULL && idStr::Icmp( gui->Name(), "guis/arena_pause.gui" ) == 0 );
 	const bool resumeSystemParent = guiSystem != NULL && gui == guiSystemParent;
 	if ( guiSystem != NULL && gui != guiSystem ) {
 		// Explicit replacement/stop is forced teardown. Ordinary Back uses the
@@ -1943,6 +1946,9 @@ void idSessionLocal::SetGUI( idUserInterface *gui, HandleGuiCommand_t handle ) {
 	if ( guiMsgRestore ) {
 		common->DPrintf( "idSessionLocal::SetGUI: cleared an active message box\n" );
 		guiMsgRestore = NULL;
+	}
+	if ( arenaSoundRoute ) {
+		SetPlayingSoundWorld();
 	}
 	if ( !guiActive ) {
 		return;
@@ -1985,6 +1991,7 @@ void idSessionLocal::ExitMenu( void ) {
 		return;
 	}
 	idUserInterface *previous = guiActive;
+	const bool arenaPause = previous != NULL && idStr::Icmp( previous->Name(), "guis/arena_pause.gui" ) == 0;
 	openq4::NativeInputBeforeSessionChange();
 	guiActive = NULL;
 	if ( previous ) {
@@ -1996,8 +2003,9 @@ void idSessionLocal::ExitMenu( void ) {
 	// go back to the game sounds
 	SetPlayingSoundWorld( sw );
 
-	// unpause the game sound world
-	if ( sw != NULL && sw->IsPaused() ) {
+	// Arena releases only its own pause on the next game frame. The ordinary
+	// session menu owns the SP pause; it must not release a borrowed Arena pause.
+	if ( !arenaPause && sw != NULL && sw->IsPaused() ) {
 		sw->UnPause();
 	}
 }
@@ -8905,8 +8913,12 @@ void idSessionLocal::RetainedMultiplayerFrameEvent() {
 
 void idSessionLocal::HandleGameMenuReturn( const char *cmd ) {
 	if ( !cmd ) {
-		openq4::NativeInputBeforeSessionChange();
-		guiActive = NULL;
+		if ( Session_IsArenaPause( guiActive ) ) {
+			ExitMenu();
+		} else {
+			openq4::NativeInputBeforeSessionChange();
+			guiActive = NULL;
+		}
 	} else if ( idStr::Icmp( cmd, "main" ) == 0 ) {
 		StartMenu();
 	} else if ( idStr::Icmpn( cmd, "main ", 5 ) == 0 ) {
