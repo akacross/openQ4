@@ -2,16 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.darkmatter.openq4;
 
-import android.content.res.AssetManager;
 import android.system.ErrnoException;
 import android.system.Os;
 import org.libsdl.app.SDLActivity;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
@@ -64,82 +59,6 @@ public final class OpenQ4Activity extends SDLActivity {
     }
 
     private File extractPackage() throws IOException, ErrnoException {
-        String version;
-        try (InputStream input = getAssets().open("openq4-package-version.txt")) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[128];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            version = new String(output.toByteArray(), StandardCharsets.US_ASCII).trim();
-        }
-        if (!version.matches("[0-9a-f]{64}")) {
-            throw new IOException("Invalid packaged content revision");
-        }
-        // Android may expose /data/user/0 through an alias of /data/data.
-        // Normalize that trusted parent once so cleanup can reject symlinks
-        // inside packages without mistaking the app storage alias for one.
-        File packages = new File(getFilesDir(), "packages").getCanonicalFile();
-        File root = new File(packages, version);
-        File ready = new File(root, ".ready");
-        if (!ready.isFile()) {
-            requireDirectory(root);
-            copyAssetTree(getAssets(), "baseoq4", new File(root, "baseoq4"));
-            if (!ready.createNewFile() && !ready.isFile()) {
-                throw new IOException("Cannot mark content package complete");
-            }
-        }
-        // Retain the previous version until extraction succeeds. Once the new
-        // package is complete, old generated copies must not consume another
-        // ~640 MB on every upgrade. Saves live in a different directory.
-        File[] previousPackages = packages.listFiles();
-        if (previousPackages != null) {
-            for (File previous : previousPackages) {
-                if (!previous.getName().equals(version) &&
-                        previous.getName().matches("[0-9a-f]{64}")) {
-                    deleteGeneratedPackage(previous);
-                }
-            }
-        }
-        return root;
-    }
-
-    private static void deleteGeneratedPackage(File file) {
-        // Never follow a symlink out of the app-owned package directory. An
-        // unexpected entry is left alone; cleanup must not prevent startup.
-        try {
-            if (!file.getCanonicalFile().equals(file.getAbsoluteFile())) return;
-        } catch (IOException error) {
-            return;
-        }
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children == null) return;
-            for (File child : children) deleteGeneratedPackage(child);
-        }
-        // A failed delete can be retried on the next launch. It is safe to use
-        // the new package even if an old generated file remains.
-        file.delete();
-    }
-
-    private static void copyAssetTree(AssetManager assets, String source, File target)
-            throws IOException, ErrnoException {
-        String[] children = assets.list(source);
-        if (children != null && children.length > 0) {
-            requireDirectory(target);
-            for (String child : children) {
-                copyAssetTree(assets, source + "/" + child, new File(target, child));
-            }
-            return;
-        }
-        requireDirectory(target.getParentFile());
-        File temporary = new File(target.getPath() + ".tmp");
-        try (InputStream input = assets.open(source);
-             FileOutputStream output = new FileOutputStream(temporary)) {
-            byte[] buffer = new byte[65536];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            output.getFD().sync();
-        }
-        Os.rename(temporary.getAbsolutePath(), target.getAbsolutePath());
+        return PackageStorage.extract(getAssets(), getFilesDir());
     }
 }

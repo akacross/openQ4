@@ -12,6 +12,7 @@ import subprocess
 import zipfile
 
 from android_elf import validate_library
+from android_package import package_manifest
 
 LIBRARIES = {
     'libquake4.so', 'libSDL3.so', 'librenderer-gles_arm64.so',
@@ -57,7 +58,8 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
         if native != {name for name in expected if name.startswith('lib/')}:
             raise ValueError('APK must contain exactly the seven matching arm64 native libraries')
         assets = {name for name in names if name.startswith('assets/') and not name.endswith('/')}
-        if assets != {name for name in expected if name.startswith('assets/')} | {'assets/openq4-package-version.txt'}:
+        if assets != {name for name in expected if name.startswith('assets/')} | {
+                'assets/openq4-package-version.txt', 'assets/openq4-package-manifest.txt'}:
             raise ValueError('APK asset set differs from the staged openQ4 overlays and notices')
         for name in ('assets/baseoq4/pak0.pk4', 'assets/baseoq4/pak1.pk4'):
             if archive.getinfo(name).compress_type != zipfile.ZIP_STORED:
@@ -66,14 +68,10 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
             with archive.open(name) as packaged, path.open('rb') as staged:
                 if digest(packaged) != digest(staged):
                     raise ValueError(f'APK payload differs from validated stage: {name}')
-        package_digest = hashlib.sha256()
-        for path in sorted((stage / 'baseoq4').rglob('*')):
-            if path.is_file():
-                package_digest.update(path.relative_to(stage / 'baseoq4').as_posix().encode())
-                with path.open('rb') as source:
-                    while chunk := source.read(65536):
-                        package_digest.update(chunk)
-        if archive.read('assets/openq4-package-version.txt').decode() != package_digest.hexdigest():
+        manifest = package_manifest(stage / 'baseoq4')
+        if archive.read('assets/openq4-package-manifest.txt') != manifest:
+            raise ValueError('APK extraction manifest does not match its packaged data')
+        if archive.read('assets/openq4-package-version.txt') != hashlib.sha256(manifest).hexdigest().encode('ascii'):
             raise ValueError('APK extraction revision does not match its packaged data')
         if archive.testzip() is not None:
             raise ValueError('APK ZIP integrity failure')

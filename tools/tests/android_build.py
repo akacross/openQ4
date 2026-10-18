@@ -23,6 +23,7 @@ import android_cross
 import prepare_android_deps
 import android_elf
 import verify_android_apk
+from android_package import package_manifest
 
 
 def android_library(api: int = 24, alignment: int = 16384, machine: int = 183) -> bytes:
@@ -53,16 +54,14 @@ class AndroidBuildTests(unittest.TestCase):
                 'licenses/android-ndk/NOTICE.toolchain': b'NDK',
             })
             entries = {}
-            revision = hashlib.sha256()
             for name, data in sorted(files.items()):
                 path = stage / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
                 entries['lib/arm64-v8a/' + name[4:] if name.startswith('lib/') else 'assets/' + name] = data
-                if name.startswith('baseoq4/'):
-                    revision.update(name[len('baseoq4/'):].encode())
-                    revision.update(data)
-            entries['assets/openq4-package-version.txt'] = revision.hexdigest().encode()
+            manifest = package_manifest(stage / 'baseoq4')
+            entries['assets/openq4-package-manifest.txt'] = manifest
+            entries['assets/openq4-package-version.txt'] = hashlib.sha256(manifest).hexdigest().encode()
             apk = Path(temporary) / 'release.apk'
 
             def package(payload):
@@ -81,6 +80,8 @@ class AndroidBuildTests(unittest.TestCase):
                 ('assets/licenses/QUAKE-4-SDK-EULA.rtf', None, 'asset set differs'),
                 ('assets/q4base/pak001.pk4', b'retail data', 'asset set differs'),
                 ('assets/openq4-package-version.txt', b'wrong revision', 'extraction revision'),
+                ('assets/openq4-package-manifest.txt', b'wrong manifest', 'extraction manifest'),
+                ('assets/openq4-package-manifest.txt', None, 'asset set differs'),
             ):
                 with self.subTest(name=name):
                     changed = dict(entries)

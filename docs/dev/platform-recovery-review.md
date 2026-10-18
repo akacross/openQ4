@@ -37,7 +37,8 @@ clock to the other or claiming lifecycle repair.
 
 ## OpenGL XR lifecycle closure, 18 October 2026
 
-VR-06 is complete for the active desktop OpenGL implementation. `Check` records
+VR-06 is complete for the active desktop OpenGL implementation in
+`284af3f9`. `Check` records
 session/instance retirement without destroying the caller's temporary resources;
 frame boundaries consume that request once. A failed frame call stops subsequent
 pose, action, image and submission work. Teardown invalidates published frame and
@@ -121,8 +122,64 @@ variants implemented or supported. No NDK, SDL or API bump is bundled into recov
 | `ba6d3af2e`, `c5845ca2d`, `2f1d2d681` launcher/preflight | Recover localized missing-data flow; archived `RetailData.isPresent` tests only for a regular `pak001.pk4`, not complete integrity. Preserve usable installed data on interrupted extraction; AND-03 owns full validation and recovery |
 | `023f0eeee`, `1484195c4` emulator | Recover ABI metadata, module names and ELF checks together; archived artifact-verifier changes alone miss the current exact APK allowlist. Keep diagnostic payloads out of production |
 
-Current `OpenQ4Activity` still trusts `.ready` after extraction; this is the
-known AND-03 integrity/recovery gap, not a newly fixed feature. Signed release
-verification and dependency licensing added after the archived branch must be
-preserved. Each recovered feature needs an independently reviewable change and
-its stated failure/recovery tests under the existing roadmap IDs.
+The stage-one `OpenQ4Activity` trusted `.ready` after extraction. The repair below
+addresses that part of AND-03. Signed release verification and dependency
+licensing added after the archived branch remain required. Each recovered feature
+needs an independently reviewable change and its stated failure/recovery tests
+under the existing roadmap IDs.
+
+## Android extracted-package repair, 18 October 2026
+
+`OpenQ4Activity` delegates APK-owned extraction to `PackageStorage`. Gradle now
+produces a canonical ASCII manifest of normalized paths, byte lengths and SHA-256
+digests; the package revision is the SHA-256 of that manifest. The signed-APK
+verifier requires both exact metadata files and still compares every asset and
+native library with the validated stage. ABI/API, certificate, alignment, license
+and native-library allowlists are unchanged.
+
+Before launching the engine, the host reads the bounded manifest and verifies
+every extracted file, even when `.ready` exists. Missing, truncated and mismatched
+files are copied into a separate temporary outside the mounted `baseoq4` tree,
+checked against the declared size/hash, synced and renamed over the destination.
+Healthy files are read for verification but never recopied. Failure invalidates
+readiness and leaves the previous package and saves/configuration untouched.
+Only after complete verification and readiness publication are old generated
+revisions removed. Unexpected content and links below the normalized app-private
+root fail closed without deleting that content. Android's
+[file-space estimate](https://developer.android.com/reference/java/io/File#getUsableSpace())
+is an early preflight; write/sync/rename failures still stop startup because the
+estimate does not reserve space. Atomic replacement uses
+[Android's existing rename API](https://developer.android.com/reference/android/system/Os).
+An already valid readiness record is preserved, so verified healthy content does
+not depend on a new metadata write when storage is exhausted.
+
+The original real-Activity corruption control fails with an existing `.ready`
+marker (`.tmp/stage-two/android-ready-repro.log`). The expanded
+`tools/tests/android_host_storage.py` executes the production Java host/storage
+classes with small Android/SDL stand-ins. Windows JDK 21 and Linux JDK 17 runs pass
+healthy reuse, missing/truncated/same-size corruption, interrupted partial reads,
+failed replacement, poisoned APK source length/hash, malformed/oversized metadata,
+low-space preflight, upgrade cleanup and save preservation. Linux also rejects
+active-file, nested-directory, temporary-file and package-parent links and
+preserves an outside sentinel. Windows explicitly skips Android-style link
+canonicalization instead of counting it as a pass.
+
+The optional `--package-source .install/baseoq4` run uses independent copies of
+the actual 810 MB staged package, performs two verified reuses without recopying,
+corrupts a PK4 byte without changing its length, repairs only that pack and verifies
+the result again. The log records exact package sizes and hashes. This is host
+storage validation with warm filesystem caches, not Android startup timing.
+The actual Gradle manifest closure matches Python's canonical bytes, including a
+path ordering boundary and an empty file, and rejects an invalid path. All seven
+APK-verifier/build test groups pass. The complete Java host plus the matching
+SDL 3.4.16 sources compile against configured Android SDK 35.
+
+Local evidence is `.tmp/stage-two/android-repair-evidence.json` (SHA-256
+`b787b2bbb980d07132b34c2a1a08a2a9d28a406faf50b3b20c6b8521a3a1bc9c`), with
+per-source and per-log identities. Logs include `android-repair-full-package.log`,
+`android-repair-linux-final.log`, `android-package-tests-r1.log`,
+`android-manifest-probe.log` and `android-sdk-java-compile.log`. No Android device,
+power-loss test, new signed APK installation or certificate migration is claimed.
+The existing signed release pipeline checks the new exact manifest after packaging.
+Localized onboarding/retry UI, retail-data preflight, accessible release logs and
+save export remain AND-01/AND-03 work; the broader items stay open.

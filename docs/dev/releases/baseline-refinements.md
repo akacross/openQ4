@@ -23,6 +23,11 @@
 
 ## Change log
 
+- The experimental Android app now checks its extracted bundled content and
+  repairs missing or damaged files before starting. Interrupted repairs keep
+  saves and the previous package intact. Allow free storage for a replacement
+  copy of the damaged file; retail game files remain separate.
+
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a
   short delay; use `vr_restart` after the runtime itself stops. Screenshots taken

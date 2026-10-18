@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Verify Android's extracted APK content on every launch and repair damaged
+  copies before starting the engine. Only verified replacements are committed;
+  failed repairs preserve saves and the previous package. The signed-APK verifier
+  checks the new content manifest. [Production-Java and package evidence](platform-recovery-review.md#android-extracted-package-repair-18-october-2026)
+  covers Windows/Linux fault cases and selective repair of the actual staged
+  package. Onboarding UI and device upgrade qualification remain open.
+
 - [x] Recover safely from OpenXR frame/session failures, retire controller state
   and stop using lost images. Session failures retry after a short desktop
   fallback; runtime loss waits for `vr_restart`. VR screenshots now include the

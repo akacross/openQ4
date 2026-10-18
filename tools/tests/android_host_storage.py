@@ -8,10 +8,12 @@ Requires a JDK; all fixture files remain in the repository's .tmp directory.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
@@ -20,6 +22,7 @@ def main() -> None:
     java_home = os.environ.get("JAVA_HOME", "")
     parser.add_argument("--javac", default=shutil.which("javac") or
                         (str(Path(java_home) / "bin/javac") if java_home else None))
+    parser.add_argument("--package-source", type=Path, help="also verify and repair actual staged pak0/pak1/mod data")
     args = parser.parse_args()
     if not args.javac:
         parser.error("a JDK is required (--javac or JAVA_HOME)")
@@ -35,13 +38,18 @@ import java.io.*;
 public final class AssetManager {
     public File root;
     public String fail;
+    public int opens;
     public String[] list(String path) { return new File(root, path).list(); }
     public InputStream open(String path) throws IOException {
+        if (path.startsWith("baseoq4/")) ++opens;
         InputStream source = new FileInputStream(new File(root, path));
         if (!path.equals(fail)) return source;
         return new FilterInputStream(source) {
+            private boolean delivered;
             public int read(byte[] b, int off, int len) throws IOException {
-                throw new IOException("Injected interrupted extraction");
+                if (delivered) throw new IOException("Injected interrupted extraction");
+                delivered = true;
+                return super.read(b, off, Math.min(4, len));
             }
         };
     }
@@ -55,8 +63,10 @@ public final class ErrnoException extends Exception {
 package android.system;
 import java.nio.file.*;
 public final class Os {
+    public static String failRename;
     public static void setenv(String key, String value, boolean overwrite) throws ErrnoException {}
     public static void rename(String from, String to) throws ErrnoException {
+        if (to.endsWith(String.valueOf(failRename))) throw new ErrnoException(new java.io.IOException("Injected storage commit failure"));
         try { Files.move(Path.of(from), Path.of(to), StandardCopyOption.REPLACE_EXISTING); }
         catch (Exception error) { throw new ErrnoException(error); }
     }
@@ -85,6 +95,8 @@ import android.content.res.AssetManager;
 import java.io.*;
 import java.lang.reflect.*;
 import java.nio.file.*;
+import java.security.MessageDigest;
+import java.util.*;
 import org.libsdl.app.SDLActivity;
 public final class StorageTest {
     static void require(boolean value, String reason) {
@@ -100,6 +112,29 @@ public final class StorageTest {
         try { return (File)method.invoke(activity); }
         catch (InvocationTargetException error) { throw (Exception)error.getCause(); }
     }
+    static String manifest(Path assets) throws Exception {
+        Path base = assets.resolve("baseoq4");
+        List<Path> files;
+        try (var paths = Files.walk(base)) { files = paths.filter(Files::isRegularFile).sorted().toList(); }
+        StringBuilder text = new StringBuilder("openQ4-package-v1\n");
+        for (Path file : files) {
+            byte[] data = Files.readAllBytes(file);
+            text.append(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data)))
+                .append('\t').append(data.length).append('\t').append(base.relativize(file).toString().replace('\\','/')).append('\n');
+        }
+        return setManifest(assets, text.toString());
+    }
+    static String setManifest(Path assets, String text) throws Exception {
+        write(assets.resolve("openq4-package-manifest.txt"), text);
+        String version = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+        write(assets.resolve("openq4-package-version.txt"), version);
+        return version;
+    }
+    static void expectFailure(OpenQ4Activity activity, String reason) throws Exception {
+        boolean failed = false;
+        try { extract(activity); } catch (IOException | android.system.ErrnoException expected) { failed = true; }
+        require(failed, reason);
+    }
     public static void main(String[] args) throws Exception {
         Path root = Path.of(args[0]);
         // Android's trusted app-storage prefix may itself be an alias. The
@@ -108,10 +143,11 @@ public final class StorageTest {
         SDLActivity.assets = new AssetManager();
         SDLActivity.assets.root = root.resolve("assets").toFile();
         Path assets = SDLActivity.assets.root.toPath();
-        String first = "a".repeat(64), second = "b".repeat(64);
-        write(assets.resolve("openq4-package-version.txt"), first);
         write(assets.resolve("baseoq4/pak0.pk4"), "first pack");
         write(assets.resolve("baseoq4/pak1.pk4"), "second pack");
+        write(assets.resolve("baseoq4/mod.json"), "{\"version\":1}");
+        write(assets.resolve("baseoq4/nested/data.txt"), "nested content");
+        String first = manifest(assets);
         write(root.resolve("files/saves/baseoq4/test.save"), "player save");
         write(root.resolve("files/packages/keep/test.txt"), "unmanaged");
         OpenQ4Activity activity = new OpenQ4Activity();
@@ -119,8 +155,51 @@ public final class StorageTest {
         require(new File(old, ".ready").isFile(), "successful extraction must mark ready");
         require(Files.readString(old.toPath().resolve("baseoq4/pak1.pk4")).equals("second pack"), "pack content");
         SDLActivity.assets.fail = "baseoq4/pak1.pk4";
+        int opened = SDLActivity.assets.opens;
         require(extract(activity).equals(old), "ready package must avoid recopying");
-        write(assets.resolve("openq4-package-version.txt"), second);
+        require(SDLActivity.assets.opens == opened, "healthy package must not recopy any APK data");
+        android.system.Os.failRename = ".ready";
+        require(extract(activity).equals(old), "healthy verified package must not require another metadata write");
+        android.system.Os.failRename = null;
+        Path extracted = old.toPath().resolve("baseoq4/pak0.pk4");
+        for (String corrupt : new String[] { "bad bytes!", "short", "first pack with trailing garbage" }) {
+            write(extracted, corrupt);
+            extract(activity);
+            require(Files.readString(extracted).equals("first pack"), "repair corruption despite ready marker");
+        }
+        Files.delete(extracted);
+        extract(activity);
+        require(Files.readString(extracted).equals("first pack"), "repair missing file despite ready marker");
+        write(extracted, "damaged");
+        SDLActivity.assets.fail = "baseoq4/pak0.pk4";
+        expectFailure(activity, "interrupted repair must not launch");
+        require(Files.readString(extracted).equals("damaged"), "failed copy must not overwrite destination");
+        require(!new File(old, ".ready").exists(), "failed repair must invalidate readiness");
+        SDLActivity.assets.fail = null;
+        android.system.Os.failRename = "pak0.pk4";
+        expectFailure(activity, "failed commit must not launch");
+        require(Files.readString(extracted).equals("damaged"), "failed commit must preserve destination");
+        android.system.Os.failRename = null;
+        extract(activity);
+        require(Files.readString(extracted).equals("first pack"), "retry repair after failed commit");
+        write(old.toPath().resolve("baseoq4/unexpected.cfg"), "unmanaged");
+        expectFailure(activity, "unlisted package override must not reach engine");
+        require(Files.readString(old.toPath().resolve("baseoq4/unexpected.cfg")).equals("unmanaged"), "unknown content preserved");
+        Files.delete(old.toPath().resolve("baseoq4/unexpected.cfg"));
+        // A poisoned APK source must also fail before atomic replacement.
+        write(extracted, "damaged");
+        for (String poisoned : new String[] { "other data", "", "longer than the declared first pack" }) {
+            write(assets.resolve("baseoq4/pak0.pk4"), poisoned);
+            expectFailure(activity, "incorrect APK hash or length must be rejected");
+            require(Files.readString(extracted).equals("damaged"), "incorrect source must not replace destination");
+        }
+        write(assets.resolve("baseoq4/pak0.pk4"), "first pack");
+        extract(activity);
+        // A content revision must change when bytes change, not from the marker.
+        write(assets.resolve("baseoq4/pak1.pk4"), "new second pack");
+        String second = manifest(assets);
+        require(!first.equals(second), "content addressed upgrade");
+        SDLActivity.assets.fail = "baseoq4/pak1.pk4";
         boolean failed = false;
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "fixture must interrupt upgrade");
@@ -132,6 +211,17 @@ public final class StorageTest {
         require(!old.exists(), "completed upgrade must remove old generated package");
         require(Files.readString(root.resolve("files/saves/baseoq4/test.save")).equals("player save"), "save preservation");
         require(root.resolve("files/packages/keep/test.txt").toFile().isFile(), "unmanaged content preservation");
+        // Execute the real preflight with an exhausted-volume result. A stale
+        // generated temporary is reclaimable; the existing destination is not.
+        File emptyVolume = new File(root.toString()) { public long getUsableSpace() { return 0; } };
+        File pending = new File(current, ".space-probe.tmp");
+        try {
+            PackageStorage.requireRepairSpace(emptyVolume, pending, 10);
+            throw new AssertionError("insufficient repair space must be rejected");
+        } catch (IOException expected) {}
+        write(pending.toPath(), "0123456789");
+        PackageStorage.requireRepairSpace(emptyVolume, pending, 10);
+        Files.delete(pending.toPath());
         Path outside = root.resolve("outside");
         write(outside.resolve("sentinel"), "outside package tree");
         // The cleanup guard relies on getCanonicalFile() resolving symlinks, as
@@ -143,31 +233,118 @@ public final class StorageTest {
             Files.createSymbolicLink(root.resolve("files/packages/" + "c".repeat(64)), outside);
             extract(activity);
             require(outside.resolve("sentinel").toFile().isFile(), "cleanup must not follow symlinks");
+            Path target = current.toPath().resolve("baseoq4/pak0.pk4");
+            Files.delete(target);
+            Files.createSymbolicLink(target, outside.resolve("sentinel"));
+            expectFailure(activity, "active package file links must fail before read/write");
+            require(Files.readString(outside.resolve("sentinel")).equals("outside package tree"), "linked file preservation");
+            Files.delete(target);
+            Path temporaryLink = current.toPath().resolve(".repair-2.tmp");
+            Files.createSymbolicLink(temporaryLink, outside.resolve("sentinel"));
+            expectFailure(activity, "temporary file links must fail before truncation");
+            require(Files.readString(outside.resolve("sentinel")).equals("outside package tree"), "linked temporary preservation");
+            Files.delete(temporaryLink);
+            extract(activity);
+            Path parent = current.toPath().resolve("baseoq4/nested");
+            Files.delete(parent.resolve("data.txt"));
+            Files.delete(parent);
+            Files.createSymbolicLink(parent, outside);
+            expectFailure(activity, "nested directory links must fail before creation");
+            require(!Files.exists(outside.resolve("data.txt")), "no write through directory link");
+            Files.delete(parent);
+            extract(activity);
+            Path linkedFiles = root.resolve("linked-files");
+            Files.createDirectories(linkedFiles);
+            Files.createSymbolicLink(linkedFiles.resolve("packages"), outside);
+            try {
+                PackageStorage.extract(SDLActivity.assets, linkedFiles.toFile());
+                throw new AssertionError("package parent link must be rejected");
+            } catch (IOException expected) {}
         } catch (UnsupportedOperationException | FileSystemException unsupported) {
             System.out.println("SKIP: this host cannot create directory symlinks");
         }
+        String goodManifest = Files.readString(assets.resolve("openq4-package-manifest.txt"));
+        for (String bad : new String[] {
+                goodManifest.replace("pak0.pk4", "../saves/test.save"),
+                goodManifest.replace("pak0.pk4", "/tmp/escape"),
+                goodManifest.replace("pak0.pk4", "nested/../../escape"),
+                goodManifest.replace("pak0.pk4", "pak1.pk4"),
+                goodManifest.replace("\t10\t", "\t9999999999\t"),
+                goodManifest.replace("openQ4-package-v1", "openQ4-package-v2"),
+                goodManifest + "extra", "x".repeat(1024 * 1024 + 1) }) {
+            setManifest(assets, bad);
+            expectFailure(activity, "malformed manifest must be rejected");
+            require(new File(current, ".ready").isFile(), "bad metadata preserves verified version");
+        }
+        manifest(assets);
+        write(assets.resolve("openq4-package-manifest.txt"), goodManifest + "tamper");
+        expectFailure(activity, "manifest revision mismatch must be rejected");
+        write(assets.resolve("openq4-package-version.txt"), "a".repeat(65));
+        expectFailure(activity, "revision read is bounded");
         write(assets.resolve("openq4-package-version.txt"), "../saves");
         failed = false;
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "invalid package revision must be rejected");
         require(new File(current, ".ready").isFile(), "invalid revision must not damage current package");
-        System.out.println("PASS: real Activity extraction, ready reuse, failed upgrade recovery, cleanup and save preservation");
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup and save preservation");
     }
 }''',
         }
+        sources["com/darkmatter/openq4/StoragePackageProbe.java"] = r'''
+package com.darkmatter.openq4;
+import android.content.res.AssetManager;
+import java.io.*;
+import java.nio.file.*;
+public final class StoragePackageProbe {
+    public static void main(String[] args) throws Exception {
+        File fixture = new File(args[0]);
+        AssetManager assets = new AssetManager();
+        assets.root = new File(fixture, "assets");
+        File files = new File(fixture, "files");
+        File root = PackageStorage.extract(assets, files);
+        int copies = assets.opens;
+        for (int i = 0; i < 2; ++i) {
+            PackageStorage.extract(assets, files);
+            if (assets.opens != copies) throw new AssertionError("healthy large package was recopied");
+        }
+        File pack = new File(root, "baseoq4/pak0.pk4");
+        try (RandomAccessFile output = new RandomAccessFile(pack, "rw")) {
+            output.seek(17); int value = output.read(); output.seek(17); output.write(value ^ 255);
+        }
+        PackageStorage.extract(assets, files);
+        if (assets.opens != copies + 1) throw new AssertionError("repair must copy only the damaged pack");
+        PackageStorage.extract(assets, files);
+        if (assets.opens != copies + 1) throw new AssertionError("repaired bytes failed verification");
+        System.out.println("PASS: actual staged package extraction, two verified reuses, same-size PK4 corruption and single-file repair");
+    }
+}'''
         source_paths = []
         for relative, contents in sources.items():
             path = scratch / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(contents, encoding="utf-8")
             source_paths.append(str(path))
-        source_paths.append(str(root / "mobile/android/app/src/main/java/com/darkmatter/openq4/OpenQ4Activity.java"))
+        source_paths.extend(str(path) for path in (root / "mobile/android/app/src/main/java/com/darkmatter/openq4").glob("*.java"))
         classes = scratch / "classes"
         classes.mkdir()
         javac = Path(args.javac).resolve()
         java = javac.with_name("java.exe" if os.name == "nt" else "java")
         subprocess.run([str(javac), "--release", "17", "-d", str(classes), *source_paths], check=True)
         subprocess.run([str(java), "-cp", str(classes), "com.darkmatter.openq4.StorageTest", str(scratch / "fixture")], check=True)
+        if args.package_source:
+            sys.path.insert(0, str(root / "tools/build"))
+            from android_package import package_manifest
+            assets = scratch / "full-package/assets"
+            base = assets / "baseoq4"
+            base.mkdir(parents=True)
+            for name in ("pak0.pk4", "pak1.pk4", "mod.json"):
+                shutil.copyfile(args.package_source.resolve() / name, base / name)
+            manifest = package_manifest(base)
+            (assets / "openq4-package-manifest.txt").write_bytes(manifest)
+            (assets / "openq4-package-version.txt").write_text(hashlib.sha256(manifest).hexdigest(), encoding="ascii")
+            print("Real-package manifest:", manifest.decode("ascii"), flush=True)
+            subprocess.run([str(java), "-cp", str(classes), "com.darkmatter.openq4.StoragePackageProbe",
+                            str(scratch / "full-package")], check=True)
 
 
 if __name__ == "__main__":

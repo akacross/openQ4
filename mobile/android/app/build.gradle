@@ -3,6 +3,8 @@ import groovy.json.JsonSlurper
 
 plugins { id 'com.android.application' }
 
+apply from: rootProject.file('package-manifest.gradle')
+
 def sdlRoot = providers.gradleProperty('sdl3SourceRoot').orNull
 if (sdlRoot == null) {
     throw new GradleException('Set -Psdl3SourceRoot to the SDL3 source tree used for the native build.')
@@ -106,17 +108,11 @@ tasks.register('stageOpenQ4Assets', Sync) {
     }
     doLast {
         // Each APK gets a content-addressed private package directory. A failed
-        // extraction can be retried; an upgrade never reads stale old PK4s.
-        def digest = MessageDigest.getInstance('SHA-256')
-        fileTree(new File(nativeStage, 'baseoq4')).files.sort { it.path }.each { asset ->
-            digest.update(new File(nativeStage, 'baseoq4').toPath().relativize(asset.toPath()).toString().replace('\\', '/').getBytes('UTF-8'))
-            asset.withInputStream { input ->
-                byte[] buffer = new byte[65536]
-                int count
-                while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count)
-            }
-        }
-        new File(generatedAssets.get().asFile, 'openq4-package-version.txt').text = digest.digest().encodeHex().toString()
+        // extraction or damaged copy can be repaired from the verified manifest.
+        byte[] manifest = openQ4PackageManifest(new File(generatedAssets.get().asFile, 'baseoq4'))
+        new File(generatedAssets.get().asFile, 'openq4-package-manifest.txt').bytes = manifest
+        new File(generatedAssets.get().asFile, 'openq4-package-version.txt').setText(
+            MessageDigest.getInstance('SHA-256').digest(manifest).encodeHex().toString(), 'US-ASCII')
     }
 }
 

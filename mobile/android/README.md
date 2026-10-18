@@ -10,7 +10,7 @@ The manual release workflow includes an experimental, release-signed
 `openq4-<version>-android-arm64-experimental.apk`. Install it on an ARM64 device
 with Android 7.0/API 24 or later and OpenGL ES 3.0, then provide your retail
 assets as described below. Physical-device gameplay has not been qualified.
-The APK has legacy UI enabled by default, just like desktop packages.
+The APK uses the same menu defaults as desktop packages.
 
 Published APKs use the same persistent certificate for updates. A local debug
 APK uses a different certificate; back up its private saves before uninstalling
@@ -88,7 +88,11 @@ adb shell run-as com.darkmatter.openq4 cat files/saves/baseoq4/logs/openq4.log
 ```
 
 Each packaged overlay revision extracts to its own private directory before
-engine startup; incomplete extraction is retried. Old generated revisions are
+engine startup. A manifest verifies every extracted file on each launch; missing,
+truncated or altered copies are repaired from the APK. Healthy files are not
+recopied. An interrupted repair is retried, and a replacement is installed only
+after its complete length and hash have been verified. Allow enough free storage
+for a temporary replacement of a damaged file. Old generated revisions are
 removed only after the current package is complete, so updates do not retain
 another full copy indefinitely. Saves are kept separately. App data removal also removes
 these copies and local saves. The native libraries must be extracted by the
@@ -136,6 +140,11 @@ manifest, native-library extraction, 16 KiB alignment, all seven libraries,
 overlay bytes and license notices. APK publication is blocked if any check or
 any desktop build fails. This packaging validation does not replace device
 installation and gameplay testing.
+
+The extraction manifest and its content revision are also checked against the
+validated stage. The host rejects malformed metadata and unexpected links or
+unlisted files in its private package tree. These checks do not replace the
+engine's validation of the separately supplied retail PK4s.
 
 ## Validation
 

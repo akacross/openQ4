@@ -458,12 +458,14 @@ Sources: [Android build and packaging](android-build.md),
   interrupted onboarding, APK upgrades and signing-certificate continuity. Keep
   proprietary retail data outside the APK. Optional SigmaTouch/host dependencies
   require a compatible distribution licence, not merely an available licence.
-  Repair missing/truncated/mismatched extracted files behind an existing `.ready`
-  marker: `OpenQ4Activity.extractPackage()` currently trusts that marker and has
-  no repair flow. Use a validated readiness record or an engine-validation failure
-  handoff, with bounded repair/retry and low-space/interruption coverage; retain
-  full engine PK4 checks and usable saves/configuration. Make diagnostics and
-  save export reachable in a signed, non-debuggable release with private storage.
+  The [extracted-package repair](platform-recovery-review.md#android-extracted-package-repair-18-october-2026)
+  now verifies a bounded per-file manifest on every launch and atomically repairs
+  missing/truncated/mismatched files behind `.ready`. Windows/Linux production-
+  Java tests cover interruption, replacement failure, low-space preflight and
+  save preservation; a real 810 MB package passes selective repair. Full engine
+  PK4 checks remain enabled. Localized setup/retry, retail-data validation,
+  accessible release diagnostics/save export and signed device-upgrade evidence
+  keep AND-03 open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly
