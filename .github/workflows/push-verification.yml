@@ -463,11 +463,16 @@ jobs:
             tools/tests/ui_capture_display_device.py \
             tools/ui/capture_display_device.py \
             tools/tests/ui_legacy_inventory.py \
+            tools/tests/game_regression_suite.py \
+            tools/tests/presentation_clock_ownership.py \
+            tools/tests/ui_inventory_revision.py \
+            tools/tests/ui_requirement_archive.py \
             tools/tests/ui_legacy_import.py \
             tools/tests/ui_legacy_feedback.py \
             tools/tests/ui_legacy_expression.py \
             tools/tests/ui_legacy_observation.py \
             tools/ui/legacy_inventory.py \
+            tools/ui/inventory_revision.py \
             tools/ui/legacy_import.py \
             tools/ui/legacy_syntax.py \
             tools/ui/capture_legacy_baseline.py \
@@ -824,6 +829,10 @@ jobs:
           python tools/tests/sdl3_strict_window.py
           python tools/tests/ui_capture_display_device.py
           python tools/tests/ui_legacy_inventory.py
+          python tools/tests/game_regression_suite.py --check-discovery
+          python tools/tests/presentation_clock_ownership.py
+          python tools/tests/ui_inventory_revision.py
+          python tools/tests/ui_requirement_archive.py
           python tools/tests/ui_legacy_import.py
           python tools/tests/ui_legacy_feedback.py
           python tools/tests/ui_legacy_expression.py --mutations

@@ -28,6 +28,13 @@ as `openq4-imported-game-regressions`. The push/PR validation profiles check its
 discovery, and their normal Meson test step executes it. No archived checkout or
 Git fetch is needed to run the suite.
 
+The actual `push-verification.yml` build jobs invoke `validate_push`, and
+`commit-validation.yml` build jobs invoke `validate_pr`, without `--skip-build`.
+Their common runner enables `build_native_tests` and executes `meson test` after
+compilation. The separate script-smoke dry runs are not the execution evidence.
+This source audit establishes CI wiring; local passes do not claim a completed
+remote Actions run for the final commit.
+
 Meson also runs the string-allocation and unsigned-char probes on all hosts,
 and Linux portability, LP64/random and MD4/MD5/CRC probes on Linux. Their native
 platform restriction is preserved; a Windows result is not Linux ABI evidence.

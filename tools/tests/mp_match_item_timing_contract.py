@@ -10,13 +10,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from game_regression_suite import discover as discover_game_regressions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 MATCH_DIR = ROOT / "src/mpgame/mp/match"
 HEADER = MATCH_DIR / "MatchItemTiming.h"
 SOURCE = MATCH_DIR / "MatchItemTiming.cpp"
 SESSION_SOURCE = MATCH_DIR / "MatchSession.cpp"
-INVENTORY = ROOT / "tools/tests/competitive_match_contracts.py"
 
 
 def read(path: Path) -> str:
@@ -165,11 +166,8 @@ def static_contracts(header: str, source: str) -> None:
         line.strip() for line in listing
     }:
         raise AssertionError("recursive MP source discovery omits MatchItemTiming.cpp")
-    require(
-        read(INVENTORY),
-        '"mp_match_item_timing_contract.py"',
-        "required aggregate competitive inventory",
-    )
+    if "tools/tests/mp_match_item_timing_contract.py" not in discover_game_regressions():
+        raise AssertionError("item timing contract is absent from the game regression suite")
 
 
 HARNESS = r'''

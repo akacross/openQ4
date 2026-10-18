@@ -17,6 +17,12 @@ completed release material here and publish curated notes in `releases/`.
   acceptance; correct the networking/audio default documentation. Exact
   qualification limits and retained failures are in the
   [baseline evidence record](baseline-evidence.md).
+  Implementation/tested source: `7674acef91c2653e8c6153ae11e7b158c05e52ff`;
+  184/184 Meson tests, Linux native probes, source-governance rejection controls,
+  twelve final map/clock runs and two original-content controls pass within their
+  stated scope. The roadmap closes Stage 1 only; the reproduced connecting-client
+  timeout and later gameplay/device/UI acceptance remain open. Curated candidate
+  notes: [baseline refinements](releases/baseline-refinements.md).
 
 Candidate release wording: Motion between game ticks now uses a more precise
 clock, and camera, world and material presentation share one sample per draw.

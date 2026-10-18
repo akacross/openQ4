@@ -768,8 +768,24 @@ def validate_validation_wiring() -> None:
     unknown_allowlist_entries = smoke_wiring_allowlist.difference(discovered_tests)
     if unknown_allowlist_entries:
         raise AssertionError(f"smoke wiring allowlist names missing tests: {sorted(unknown_allowlist_entries)}")
+
+    # Recovered game checks run through one explicit registry in the native
+    # suite. Validate that route before accepting its members as registered;
+    # an arbitrary missing filename must still fail the checks below.
+    game_suite = load_module("openq4_registered_game_suite", ROOT / "tools/tests/game_regression_suite.py")
+    native_game_checks = {Path(path).name for path in game_suite.discover()}
+    meson = (ROOT / "meson.build").read_text(encoding="utf-8")
+    for token in ("test('openq4-imported-game-regressions', py",
+                  "files('tools/tests/game_regression_suite.py')"):
+        if token not in meson:
+            raise AssertionError("recovered game checks are disconnected from the native suite")
+    for workflow_name, workflow in (("push", push), ("commit", commit)):
+        if "python tools/tests/game_regression_suite.py --check-discovery" not in workflow:
+            raise AssertionError(f"recovered game discovery is missing from {workflow_name} workflow")
     for test_name in discovered_tests:
         if test_name in smoke_wiring_allowlist:
+            continue
+        if test_name in native_game_checks:
             continue
         if test_name not in validator:
             raise AssertionError(f"{test_name} is not wired into local validation")

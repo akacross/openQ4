@@ -1,6 +1,6 @@
 # Engine Capability Matrix
 
-This is the current-state index for openQ4 engine capability claims. Source/default ownership was reconciled on 2026-10-18 in the [stage-one evidence record](baseline-evidence.md); runtime claims below retain their explicitly dated packages and limits. The [roadmap](roadmap.md) owns outstanding work. Domain documents linked below own detailed acceptance evidence; a source audit does not requalify an old hardware result.
+This is the authoritative current-state index for openQ4 engine capability claims. Source/default ownership was reconciled on 2026-10-18 in the [stage-one evidence record](baseline-evidence.md); runtime claims below retain their explicitly dated packages and limits. The [roadmap](roadmap.md) owns outstanding work. Domain documents linked below own detailed acceptance evidence; a source audit does not requalify an old hardware result.
 
 Status means:
 

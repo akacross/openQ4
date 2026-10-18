@@ -1,10 +1,11 @@
 # openQ4 development roadmap
 
-Updated 18 October 2026. Baseline: `49a2710cc17fff014a9c1d67f328f206f264f7bd`.
-Source review refreshed on the same date against the current working tree.
-This is a targeted implementation/contract audit, not new gameplay, hardware or
-performance qualification. Source-derived failure risks below need executable
-reproductions; historical runtime findings retain their original evidence scope.
+Updated 18 October 2026. Stage-one implementation and tested source:
+`7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
+[baseline evidence record](baseline-evidence.md) binds current native tests,
+windowed gameplay and original-content controls to their exact source, binaries
+and assets. Historical findings retain their original evidence scope; source-only
+risks and remaining device/performance qualification are identified separately.
 
 This is the single active development plan for openQ4. It consolidates the
 outstanding implementation, integration, compatibility and release qualification
@@ -84,9 +85,9 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | Temporal rendering | Automatic TAAU supports subnative bilinear/bicubic scaling and dynamic resolution on eligible desktop GL/Vulkan paths; crop/nearest modes and VR are excluded. Rigid, skinned and first-person weapon motion vectors and reactive effect coverage exist. Dynamic resolution and GPU skinning remain opt-in. GLES has no temporal resolve. |
 | VR | The active source implements OpenGL PC OpenXR, stereo, tracked input, room scale, crouch, two-handed aiming, haptics, comfort controls and vehicle views. Vulkan/EGL/Quest work is recoverable from archived history, not active implementation. Real-headset qualification remains open. |
 | Android | Experimental ARM64/API 24+ GLES3 client, SDLActivity host, in-tree game modules, signed APK/release verification and dependency licensing are implemented. Device qualification and integration of archived onboarding/touch/lifecycle work remain open. |
-| UI | Many retained screens and HUDs now run by default. The register records 347 rows, 310 active requirements, 37 superseded rows and 271 unaccepted migration entries. These are recorded scope, not a freshly reconciled corpus: current loose-source hashes have drifted and Awakening/overlay coverage needs UI-10. |
+| UI | Many retained screens and HUDs now run by default. The register preserves 347 rows, 310 active requirements and 37 superseded rows. UI-10 reconciled retail/base/Awakening mounts to 358 source/include-bound variants; all remain unaccepted for migration. Historical hashes and invalidated inventory acceptance are preserved. |
 | Retail and Awakening | Canonical SP/MP sources and BSE are in-tree. Awakening is additive SP content under `q4xbase`, not a separate multiplayer module. Retail decl and BSE audits have already resolved extensive earlier gaps. |
-| Multiplayer | Dual-stack networking, pure asset checks and bounded rcon2 exist. Actual MP defaults are `net_mpLagCompensation 0` and `net_mpPredictMode 0`; the player networking guide's enabled-by-default claim is stale. `RemoteExtrapolationMS()` is still a zero placeholder because the server cannot observe the client's prediction choice. Retail 2.85 interoperability is outside the current openQ4 2.41 protocol contract. |
+| Multiplayer | Dual-stack networking, pure asset checks and bounded rcon2 exist. Actual MP defaults are `net_mpLagCompensation 0` and `net_mpPredictMode 0`; the player networking guide now agrees. `RemoteExtrapolationMS()` is still a zero placeholder because the server cannot observe the client's prediction choice. Retail 2.85 interoperability is outside the current openQ4 2.41 protocol contract. |
 | Platforms | Windows x64 and Linux x64/Steam Deck are first-class platform targets; macOS arm64 and Linux ARM64 are previews; Windows ARM64 and Android are experimental. Renderer tiers are separate from platform tiers. |
 | Foundations and tools | The bounded job service, worker DDS prefetch, generated-cache experiments, native dmap/AAS commands, save-format compatibility readers and experimental map workspace already exist. Their remaining scope is defined below. |
 
@@ -94,7 +95,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 
 | Stage | Work to conduct | Exit condition |
 | --- | --- | --- |
-| 1. Establish the current baseline | GOV-01 through GOV-03, HF-01/HF-02, Q4-01, UI-10; scope/recovery review for VR-01/VR-06 and AND-01 | Current-source ownership, clocks, compatibility inventory, tests and evidence identities agree; no support claim rests solely on an obsolete plan. |
+| 1. Establish the current baseline — complete | GOV-01 through GOV-03, HF-01/HF-02, Q4-01, UI-10; scope/recovery review for VR-01/VR-06 and AND-01 | Current-source ownership, clocks, compatibility inventory, tests and evidence identities agree. [Closure evidence](baseline-evidence.md) retains reproduced failures and later-stage qualification limits. |
 | 2. Close product gaps | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
 | 3. Improve motion and rendering | HF-03 through HF-07, VK-01 through VK-07, REN-01 through REN-08 | Visible gameplay meets declared correctness, latency and frame-time budgets with rollback paths intact. |
 | 4. Complete tools and broader quality | Remaining UI-06 scope, CORE-01 through CORE-06, remaining P2 items; TOOL-01 through TOOL-04 only when the paused map-editor work resumes | Authoring and runtime workloads meet their stated completion gates; optimizations are justified by measurements. |
@@ -119,7 +120,7 @@ to a final project-wide phase. Important dependencies are:
 
 ## Governance and baseline evidence
 
-- [ ] **GOV-01 — P0, qualification: reconcile current scope and defaults.** Audit
+- [x] **GOV-01 — P0, qualification: reconcile current scope and defaults.** Audit
   current source, capability/support claims and remaining historical findings.
   Classify each as reproduced, resolved, intentionally unsupported, qualification
   pending or optional. Preserve old failure records without presenting them as
@@ -127,17 +128,24 @@ to a final project-wide phase. Important dependencies are:
   actual shipped defaults, beginning with multiplayer prediction/lag compensation
   and audio distance units; a documentation claim must not drive an unqualified
   default change. Close when every supported configuration and promoted default
-  has an identifiable current evidence owner.
-- [ ] **GOV-02 — P0, implementation and qualification: recover missing regression
+  has an identifiable current evidence owner. Completed: the
+  [configuration/ownership table](baseline-evidence.md#current-defaults-and-accountable-workstreams),
+  capability/platform matrices, multiplayer guide and audio contract now agree
+  with source; no unqualified default or support tier was promoted.
+- [x] **GOV-02 — P0, implementation and qualification: recover missing regression
   coverage.** Review the imported game-history tests, beginning with
-  `presentation_interpolation_contract.py`, which is absent from this checkout.
+  `presentation_interpolation_contract.py`, now restored in this checkout.
   Restore/adapt relevant contracts to in-tree SP/MP and add executable clock/state
   tests where source-token checks are insufficient. Preserve licensing/provenance.
   Map the missing historical tests to current coverage first; restore behaviors
   that are untested, not obsolete filenames or duplicate token assertions. Verify
   test discovery, native suite registration and CI actually execute the checks.
   Close when validation runs those checks without either archived companion repo.
-- [ ] **GOV-03 — P0, qualification: bind results to the actual workload.** Record
+  Completed: [83 historical entries mapped](game-test-coverage.md), 74 relevant
+  Python contracts/compiled fixtures recovered, production native clock and
+  platform probes registered with Meson and push/PR CI. The current Windows
+  Meson run passes all 184 tests; Linux portability/checksum probes pass in WSL.
+- [x] **GOV-03 — P0, qualification: bind results to the actual workload.** Record
   source revision, staged binary hashes, backend/device/driver, map/entity filter,
   camera, settings, capture mode and sample interval. Keep hidden offscreen,
   visible-window, software-rendered and physical-device results distinct. Retain
@@ -145,7 +153,11 @@ to a final project-wide phase. Important dependencies are:
   machinery instead of creating incompatible parallel acceptance formats.
   For timing comparisons declare warmup, sample size, run ordering, measurement
   overhead and acceptable noise/tolerance before testing; retain distributions
-  and failures rather than promoting a single favorable average.
+  and failures rather than promoting a single favorable average. Completed:
+  [baseline workload/timing policy and report hashes](baseline-evidence.md)
+  retain clean-source runtime identities, original media, overlays, cameras,
+  capture modes and failures using the existing harness formats. The current
+  visual controls make no before/after performance claim.
 
 ## High refresh presentation and input
 
@@ -154,21 +166,26 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
 `src/game/Game_local.cpp`, `src/framework/async/AsyncServer.cpp` and
 `src/framework/UsercmdGen.cpp`.
 
-- [ ] **HF-01 — P0, decision and qualification: specify clock ownership.** Preserve
+- [x] **HF-01 — P0, decision and qualification: specify clock ownership.** Preserve
   exact scheduling versus the current 16 ms game/snapshot clock unless a separate
   gameplay-timing project is accepted. Specify wall, usercmd, game, prediction,
   pose, material/effect, UI, audio and capture time; cover slow motion, competitive
   pause, ordinary SP pause and Arena freeze. Test long-run timestamp agreement,
-  event ordering and unchanged gameplay across presentation caps.
-- [ ] **HF-02 — P1, implementation: improve fractional presentation precision.**
+  event ordering and unchanged gameplay across presentation caps. Completed:
+  [clock ownership contract](presentation-clock.md), one-million-tick production
+  scheduler/SP/MP/network agreement and deterministic event/state fixtures across
+  presentation caps. Full game replay and physical pacing remain HF-06/HF-07.
+- [x] **HF-02 — P1, implementation: improve fractional presentation precision.**
   Replace or justify millisecond-quantized draw-phase sampling using one
   high-resolution monotonic tick-phase source and one frozen scene sample. Keep
   established integer timestamp APIs at their boundaries. Test 16/17 ms scheduling,
   non-divisor refresh rates, jitter, catch-up, missed ticks, resets and clock wrap;
   verify no accumulated phase error or authoritative state mutation.
-  Include VR smooth-turn/frame deltas: `OpenXRSystem.cpp` currently derives
-  `frameSeconds` from millisecond wall time. Define its relationship to XR
-  predicted display time without treating those clock domains as interchangeable.
+  Include VR smooth-turn/frame deltas and distinguish the host clock from XR
+  predicted display time. Completed: shared monotonic fractional SP/MP policy,
+  one frozen phase per scene, unchanged integer API boundaries and high-resolution
+  XR host deltas. Native/pause tests and 256 live samples each in SP and MP pass;
+  see the [clock contract](presentation-clock.md) and [evidence](baseline-evidence.md).
 - [ ] **HF-03 — P1, implementation: finish low-latency look presentation.** The
   optional `GetPresentationViewDelta()` sampler has no game-side consumer.
   Integrate a defined presentation-only path for mouse and applicable controller/
@@ -365,6 +382,8 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   continued headset submission when desktop presentation is unavailable; qualify
   native-Wayland Vulkan/EGL and the appropriate GLX fallback independently.
   Carry VR-06's lifecycle guarantees into each recovered backend/host change.
+  Stage-one scope/recovery review is complete in the
+  [XR/Android recovery review](platform-recovery-review.md); integration remains open.
 - [ ] **VR-02 — P1, qualification: real headset gameplay and comfort.** Qualify
   available PC runtimes/headsets for refresh pacing, tracking latency, aim/grip,
   handedness, two-hand weapons, haptics, room-scale collision/MP prediction, crouch,
@@ -394,6 +413,9 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   creation/resize and tracking invalidation. Require bounded cleanup, no recursion
   or stale-handle calls, balanced image/frame ownership and a recoverable desktop
   path. Ordinary call-order tests and headset happy paths do not close this item.
+  Stage-one review confirmed the source-derived risk and required fault matrix
+  in the [recovery review](platform-recovery-review.md); runtime reproduction and
+  lifecycle repair remain open.
 
 ## Android and mobile rendering
 
@@ -414,6 +436,9 @@ Sources: [Android build and packaging](android-build.md),
   variant-specific allowlists. Preserve matching SDL/native versions, 16 KiB
   alignment, certificate identity and licensing. Reject test-runtime/debug payloads
   from published APKs; toolchain/API bumps require their own qualification.
+  Stage-one archived-change review and explicit phone/emulator/Quest scope matrix
+  are complete in the [recovery review](platform-recovery-review.md). Feature
+  integration, flavor verification and physical-device qualification remain open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
   and current Android, ES3 capability differences, stock SP/MP, saves, map/campaign
   transitions, materials/shadows/ETC2/EAC, cold/warm caches, audio and touch/gamepad/
@@ -451,10 +476,11 @@ The [visual specification](ui-visual-design.md),
 [product register](ui/product-requirements.md),
 [machine-readable requirements](ui/product-requirements.json) and
 [migration manifest](ui/migration-manifest.json) retain the full product contract.
-This roadmap adopts all **310 active requirements, the recorded 271 migration
-entries and seven final gates**, subject to an explicit preserved-history scope
-revision for contradictions with current project policy. UI-10 must establish the
-current effective inventory rather than freeze 271 as the final denominator.
+This roadmap adopts all **310 active requirements, 358 current source/include-bound
+migration variants and seven final gates**. UI-10 reconciled retail/base/Awakening
+mounts while preserving the historical 271-entry manifest. The denominator follows
+effective source changes; it is not a fixed completion target. Scope contradictions
+remain explicitly paired with UI-05 and cannot grant migration acceptance.
 Archiving their original plans does not remove requirements,
 renumber IDs or accept a GUI. Stable `product:`/`original:` references retain their
 archived provenance; new scheduling belongs here.
@@ -536,16 +562,15 @@ archived provenance; new scheduling belongs here.
   than rebuilding them. Test actual SP/MP engine callers, simultaneous HUD/menu/
   world/editor contexts, failed recreation, timer/presentation-clock separation,
   restored state and exactly-once actions before bulk UI-03/UI-04 acceptance.
-- [ ] **UI-10 — P0, investigation and implementation: refresh effective scope and
-  source inventory.** The 18 October audit found 18 of 31 tracked loose-overlay GUI
-  sources differ from recorded hashes after allowing LF/CRLF conversion. Current
-  manifest mounts cover retail/pak0/pak1, not a qualified Awakening configuration.
-  Re-inventory supported base/Awakening/overlay mounts, roots/includes and special
-  widgets, then reconcile replacements, exceptions and the actual denominator.
-  Preserve old hashes/evidence as history; invalidate acceptance when its source
-  or behavior changed. Pair scope contradictions with UI-05, and provide a governed
-  inventory-revision path with added/removed/changed-source checks. Do not simply
-  overwrite hashes or treat the existing lexical inventory as complete migration.
+- [x] **UI-10 — P0, investigation and implementation: refresh effective scope and
+  source inventory.** Completed [retail/base/Awakening inventory](ui/inventory-report.md):
+  264/276/324 effective paths, 358 distinct source/include-bound variants, 18
+  changed loose overlays and five added base paths. Historical hashes/evidence
+  remain; stale inventory acceptance was invalidated and no GUI was accepted.
+  The governed inventory-revision path checks added/removed/changed sources,
+  include closure and exact denominator while retaining existing validator
+  restrictions. Positive and negative controls pass. UI-05 owns explicit artwork/
+  exception contradictions; UI-11 still owns product acceptance tooling.
 - [ ] **UI-11 — P1, implementation: evidence-controlled acceptance tooling.**
   `validate_product_requirements.py` deliberately freezes migration records and
   forbids new verified requirements/gates in checkpoint, revision and archive
@@ -572,7 +597,7 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
 [save compatibility policy](savegame-compatibility-policy.md),
 [retail asset baseline](stock-asset-baseline.md).
 
-- [ ] **Q4-01 — P0, investigation and qualification: current retail gap ledger.**
+- [x] **Q4-01 — P0, investigation and qualification: current retail gap ledger.**
   Inventory and reproduce compatibility reports against current binaries and
   installed base PK4s. Distinguish engine defects, absent media, authored-content
   issues and deliberate supported differences. Recheck historical Network2/Recomp/
@@ -581,6 +606,11 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   replace bootstrap workarounds with engine/game fixes where possible. Separate
   compatibility workarounds from intentional new UI/campaign content; retain the
   original-asset-only baseline and record each overlay used by a qualification.
+  Completed: [current ledger and 165-path overlay audit](retail-baseline-ledger.md),
+  both-API four-map controls plus lit Recomp, original-content SP/MP gameplay,
+  and retained complete-baseline failures with source/package identities. The
+  connecting pure-client timeout belongs to MP-08/Q4-02; unsynchronized lighting
+  differences and reports awaiting precise reproductions remain explicitly open.
 - [ ] **Q4-02 — P1, qualification: complete stock campaign and mode transitions.**
   Cover progression, scripted triggers, set pieces, AI, vehicles, bosses,
   cinematics/lip-sync, world terminals, checkpoints and saves through full campaigns

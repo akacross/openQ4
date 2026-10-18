@@ -75,3 +75,10 @@ scheduler methods and the current SP/MP/server timestamp update expressions.
 One million ticks keep SP, MP and snapshot labels identical at 16 ms while
 the scheduler follows its exact 16/17 ms ladder. This tests those production
 boundaries, with the rest of the game intentionally outside the fixture.
+
+The final live Air Defense 1 SP and Q4DM1 MP controls record 256 buffered samples
+each, including the exact frozen fractional host sample, game step, scheduler
+rate and phase. Both retain monotonic host samples, bounded phase and 16 ms game
+labels at 60 Hz. Diagnostics preserve their original `rt/t/f` prefix and add
+`hrt/step/hz/phase`; the first observation is not a serialized clock anchor for
+complete offline replay. Logs and hashes are in the baseline evidence index.

@@ -10,6 +10,8 @@ import subprocess
 import os
 from pathlib import Path
 
+from game_regression_suite import discover as discover_game_regressions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 MATCH_DIR = ROOT / "src/mpgame/mp/match"
@@ -198,9 +200,8 @@ def main() -> None:
     }:
         raise AssertionError("series report filesystem adapter absent from MP sources")
 
-    inventory = read(ROOT / "tools/tests/competitive_match_contracts.py")
-    require(inventory, '"mp_match_series_report_filesystem_contract.py"',
-            "aggregate competitive contract inventory")
+    if "tools/tests/mp_match_series_report_filesystem_contract.py" not in discover_game_regressions():
+        raise AssertionError("series report filesystem contract is absent from the game regression suite")
     print("mp_match_series_report_filesystem_contract: PASS")
 
 

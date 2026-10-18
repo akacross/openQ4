@@ -21,9 +21,10 @@ def discover():
     for row in rows:
         if not row['current'] or not (ROOT / row['current']).is_file():
             raise RuntimeError(f'Missing current coverage: {row}')
-    # The competitive aggregator is replaced by this broader, explicit suite.
+    # The historical competitive aggregator maps to this broader suite; do not
+    # recursively launch the runner as one of its own member checks.
     tests = sorted({r['current'] for r in rows if r['current'].endswith('.py')
-                    and not r['current'].endswith('competitive_match_contracts.py')})
+                    and r['current'] != 'tools/tests/game_regression_suite.py'})
     meson = (ROOT / 'meson.build').read_text(encoding='utf-8')
     profile = (ROOT / 'tools/validation/openq4_validate.py').read_text(encoding='utf-8')
     workflow = (ROOT / '.github/workflows/commit-validation.yml').read_text(encoding='utf-8')

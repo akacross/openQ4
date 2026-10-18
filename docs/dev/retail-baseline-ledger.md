@@ -4,6 +4,23 @@ Stage-one Q4-01 investigation, 18 October 2026. Starting source
 `8c1a49ca7a033e163e271ef3787a4a9ba73f7479`; current evidence is indexed in
 [baseline evidence](baseline-evidence.md). This ledger classifies observed gaps;
 it does not reopen resolved decl/BSE reconstruction or certify full campaigns.
+Final controls use clean implementation `7674acef91c2653e8c6153ae11e7b158c05e52ff`;
+earlier failed reports retain their own package/source identities.
+
+## Current reported symptoms
+
+The [roadmap report register](roadmap.md#report-and-contribution-traceability)
+retains the complete issue/PR ownership map. The following retail gameplay reports
+were checked against their current issue text and discussion on 18 October:
+
+| Report | Baseline disposition and remaining evidence |
+| --- | --- |
+| [Weapon effects, sound and reload, #170](https://github.com/themuffinator/openQ4/issues/170) | Reported on 0.13.2. The merged BSE sound-diversity fix stays closed; individual particle/reload symptoms remain qualification pending under Q4-03/AUD-01/HF-04. Current weapon, effect, build/backend and timestamped reproduction are not yet supplied; the four lighting maps do not qualify these symptoms. |
+| [Machinegun transparency, #183](https://github.com/themuffinator/openQ4/issues/183) | Report names Windows 10/RTX 3060 but no exact build, backend, map/save or asset set. Qualification pending under VK-04/REN-08; generic current weapon captures cannot reproduce or clear the reporter's firing/view conditions. The existing request for those details remains open. |
+| [Tech Li at the Hangar Perimeter lift, #184](https://github.com/themuffinator/openQ4/issues/184) | Report identifies hangar1/Windows 10 and a progression stall. The #189 medic watchdog addresses an unreachable-patient case, but the exact reporter save and normal heal/progression regression remain Q4-02 qualification; map startup does not close it. |
+
+These entries classify available evidence and preserve outstanding reports. They
+do not treat absent reproduction data as a resolution or invent a root cause.
 
 ## Lighting findings rechecked
 
@@ -22,7 +39,7 @@ processes do not share identical particle/light/actor time. MP remains live.
 
 | Report | Current observation and classification | Owner / remaining evidence |
 | --- | --- | --- |
-| Network2 shadows-off GL/Vulkan difference | **Reproduced difference** in the opening's upper/left illumination; effects also occur at different phases. This is not proof that shadow maps caused it | Q4-03 / VK-04: isolate light/material/effect and synchronize time before assigning root cause |
+| Network2 GL/Vulkan lighting difference | **Reproduced differences** around the opening's upper/left illumination across control modes. Initial shadows-off captures also differ; the final mapped/stencil contrast remains conspicuous. Effects occur at different phases, so this is not an isolated shadow-map root cause | Q4-03 / VK-04: isolate light/material/effect and synchronize time before assigning root cause |
 | Recomp dark opening and decal wall silhouette | Opening remains dark on both APIs. The lit fixture shows receiving walls and floor on both and the historical solid decal-wall failure is **not reproduced**. Residual lit/shadows-off differences remain | Keep the explicit `noShadows`/`DECAL_MACRO` repair closed; Q4-03/VK-04 own remaining non-shadow parity |
 | Storage1 corpse/fire difference | Both APIs draw corridor, corpse, fire and smoke; actor/effect phases differ. No missing-corpse verdict is supported by these controls: **qualification pending** for synchronized effect comparison | Q4-03. This corridor fixture uses the explicitly recorded pod-intro bypass; it does not qualify the original opening or campaign progression |
 | Q4DM9 darker Vulkan ambient/wall | Fixed camera `(1528,-384,452.25)`, yaw 180; matched structure and visible wall/pipe lighting, with no obvious former broad dark-wall failure. **Not reproduced in this view**; moving pickups/effects remain uncontrolled | Q4-02/VK-04; retain the old failing package, qualify additional views separately |
@@ -61,13 +78,15 @@ q4base. `capture_legacy_baseline.py --stock-assets-only` now makes that distinct
 explicit. The failed setup reports remain under `.tmp/s1os*` and `.tmp/s1ov`.
 
 The corrected controls reached Air Defense 1 SP/GL and Q4DM1 MP/Vulkan gameplay
-using original content only (`.tmp/s1oa/`, `.tmp/s1om/`). Both engine images were
+using original content only (initial `.tmp/s1oa/`, `.tmp/s1om/`; final clean-build
+`.tmp/s1oaf/`, `.tmp/s1omf/`). Both final engine images were
 visually inspected: world geometry, weapon and stock HUD are present; MP is an
 active joined player. Logs confirm loading the matching in-tree game modules
 from the fixed comparison runtime's baseoq4 binary directory, with no content
 packs mounted from it. These hidden-window captures are compatibility controls,
-not pacing or full progression evidence. They report 21 SP and 616 MP warnings
-(72 distinct MP messages), and zero ERROR records. Missing openQ4 Arena/demo
+not pacing or full progression evidence. The final controls report 21 SP and
+622 MP warnings and zero ERROR records; the initial MP run reported 616 warnings.
+Repeated runtime warnings vary with the sampled gameplay interval. Missing openQ4 Arena/demo
 menus, SMAA/postprocess/soft-particle resources and custom declarations are
 expected omissions in this control. Undefined stock `r_aspectRatio` binding,
 missing MP AAS/sound and non-precached stock decl warnings remain explicit

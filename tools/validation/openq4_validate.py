@@ -656,6 +656,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         (root / "tools" / "tests" / 'game_regression_suite.py', ['--check-discovery']),
         (root / "tools" / "tests" / 'presentation_clock_ownership.py', []),
         (root / "tools" / "tests" / 'ui_inventory_revision.py', []),
+        (root / "tools" / "tests" / 'ui_requirement_archive.py', []),
         (root / "tools" / "tests" / 'ui_text_edit_model.py', []),
         (root / "tools" / "tests" / 'ui_native_text_document.py', []),
         (root / "tools" / "tests" / 'ui_native_text_editor.py', []),

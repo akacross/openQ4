@@ -23,8 +23,8 @@
     },
     {
       "historical": "tools/tests/competitive_match_contracts.py",
-      "current": "tools/tests/competitive_match_contracts.py",
-      "disposition": "Recovered in-tree regression; adapted only where current contracts differ"
+      "current": "tools/tests/game_regression_suite.py",
+      "disposition": "Superseded aggregate runner; all relevant member checks execute through the broader in-tree suite"
     },
     {
       "historical": "tools/tests/crc_checksum_probe.cpp",
