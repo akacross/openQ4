@@ -10,6 +10,12 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Keep saved model/light indices separate from current renderer ownership
+  during restore. Interrupted fields cannot leave an invalid or foreign handle
+  for entity/effect cleanup to free. The
+  [production-reader fault tests](savegame-reliability.md#renderer-ownership-during-interrupted-field-reads)
+  cover nine paths in both game modules while retaining the save format.
+
 - [x] Recover from semantic save-load errors through the Load Game page or classic
   dialog, after unwinding temporary restore objects and closing the failed map.
   Localized guidance lets players choose another save or start again. Client

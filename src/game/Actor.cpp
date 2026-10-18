@@ -1016,12 +1016,13 @@ void idActor::Restore( idRestoreGame *savefile ) {
 // RAVEN BEGIN
 // bdube: added
 	vehicleController.Restore ( savefile );
-
-	savefile->ReadInt ( flashlightHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedFlashlightHandle;
+	savefile->ReadInt( savedFlashlightHandle );
 	savefile->ReadJoint ( flashlightJoint );
 	savefile->ReadVec3 ( flashlightOffset );
 	savefile->ReadRenderLight ( flashlight );
-	if ( flashlightHandle != -1 ) {		
+	if ( savedFlashlightHandle != -1 ) {
 		rvNormalizeProjectedRenderLight( flashlight, GetName(), "actor-flashlight" );
 		flashlightHandle = gameRenderWorld->AddLightDef( &flashlight );
 	}

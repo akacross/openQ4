@@ -271,7 +271,9 @@ rvClientMoveable::Restore
 */
 void rvClientMoveable::Restore( idRestoreGame *savefile ) {
 	savefile->ReadRenderEntity( renderEntity, NULL );
-	savefile->ReadInt( entityDefHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedEntityDefHandle;
+	savefile->ReadInt( savedEntityDefHandle );
 
 	trailEffect.Restore( savefile );
 	savefile->ReadFloat( trailAttenuateSpeed );
@@ -285,7 +287,7 @@ void rvClientMoveable::Restore( idRestoreGame *savefile ) {
 	savefile->ReadBool(mHasBounced);
 
 	// restore must retrieve entityDefHandle from the renderer
- 	if ( entityDefHandle != -1 ) {
+	if ( savedEntityDefHandle != -1 ) {
  		entityDefHandle = gameRenderWorld->AddEntityDef( &renderEntity );
  	}
 

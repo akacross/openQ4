@@ -410,6 +410,58 @@ states or other runtime ABIs. Those limits remain open under Q4-05/Q4-07. Existi
 non-precache warnings and the Storage1 `bridge_gui` script warnings remain
 separate findings.
 
+### Renderer ownership during interrupted field reads
+
+Saved model and light handles describe whether a definition existed in the saved
+world. They are never ownership of a definition in the current renderer. Entity,
+actor, projectile, exploding-barrel, client-model, client-moveable, vehicle-light,
+weapon-light and Strogg-hover restores now keep those integers in local variables
+until the renderer returns a new handle. Both game libraries retain the original
+read order, presence test and wire representation.
+
+Previously a short handle read, a later field error or a renderer acquisition
+failure could leave a saved index in the live ownership field. Cleanup would
+then free an unrelated or invalid definition. This is distinct from reference
+graph cleanup: even an otherwise independent object could cause it.
+
+`tools/tests/savegame_restore_render_handles.py` reproduces the old behavior in
+all nine paths in both libraries. Four smaller Restore methods are compiled
+whole; the other five contribute their exact handle read/acquisition blocks,
+with unrelated fields explicitly omitted. Counted renderer services reject
+foreign and duplicate releases. The corrected methods pass on Windows Clang and
+Linux GCC for absent definitions, zero/ordinary/maximum saved indices and a
+failure at every read/acquisition boundary, including a read that writes before
+reporting failure. For each library the positive-handle cases cover 61 distinct
+boundaries. This does not claim to test all intervening fields of the larger
+Restore methods or the renderer's internal allocation failure behavior.
+
+The runtime probe's `--cases render-handles` mode decodes a bounded current v4
+entity record through its render data and empty GUI slots. It changes the saved
+model handle to `INT_MAX` and corrupts the immediately following `ReadRefSound`
+sync marker, retaining a valid outer CRC. This reaches a failure after the saved
+handle was consumed and before any new render definition can be acquired.
+
+Both staged Windows runs pass on 19 October 2026: OpenGL in 19.23 seconds and
+Vulkan in 25.03 seconds. Each captures the expected recovery page and the healthy
+save's restored pod/world scene, with both save hashes unchanged. These are
+hidden-window, input-disabled, silent correctness probes, not timing comparisons.
+The parsed entity is `tallElevatorClip` (slot 33); its saved model handle is at
+offset 377026 and the rejected sound sync is at 377030. Reports:
+
+- `.tmp/s2save-render-handles-gl/report.json`, SHA-256
+  `265b12c1c3e27f7979b229461d5dfbd55493d21c8097155e4940490607c8e890`.
+- `.tmp/s2save-render-handles-vk/report.json`, SHA-256
+  `0734b42019cb34e9a395947adbf0a7c84ab76eb16f1702d6cf179d6534cf7148`.
+
+The complete native suite passes **242/242**, including eighteen registered
+renderer-handle cases, in `.tmp/stage-two/save-render-handle-native-suite.log`,
+SHA-256 `f5a91b427b8fa62642224afe25732ba39c2deb37ef2eb688f18c48d5e5a15660`.
+The source, runtime, native reproduction and asset binding against `c28d5842` is
+`.tmp/stage-two/save-render-handle-evidence.json`, SHA-256
+`c1f3dfe209a9d7f75f2905d7db4b82e99c47f1ba7d1009f41d2d58b2c7d7575a`.
+All forty retail PK4 hashes were rechecked. Other field/ownership graphs and
+historical/platform save qualification remain outside this repair's evidence.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

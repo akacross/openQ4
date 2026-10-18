@@ -958,13 +958,16 @@ void idExplodingBarrel::Restore( idRestoreGame *savefile ) {
 	savefile->ReadInt( (int &)state );
 	savefile->ReadVec3( spawnOrigin );
 	savefile->ReadMat3( spawnAxis );
-	savefile->ReadInt( (int &)ipsHandle );
-	savefile->ReadInt( (int &)lightHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedIpsHandle;
+	savefile->ReadInt( savedIpsHandle );
+	int savedLightHandle;
+	savefile->ReadInt( savedLightHandle );
 // RAVEN BEGIN
 	savefile->ReadRenderEntity( ipsEntity, &spawnArgs );
 // RAVEN END		
 	savefile->ReadRenderLight( light );
-	if ( lightHandle != -1 ) {
+	if ( savedLightHandle != -1 ) {
 		//get the handle again as it's out of date after a restore!
 		lightHandle = gameRenderWorld->AddLightDef( &light );
 	}
@@ -979,7 +982,7 @@ void idExplodingBarrel::Restore( idRestoreGame *savefile ) {
 		declManager->FindType( DECL_ENTITYDEF, splash, false, false );
 	}
 	
- 	if ( ipsHandle != -1 ) {
+	if ( savedIpsHandle != -1 ) {
  		ipsHandle = gameRenderWorld->AddEntityDef( &ipsEntity );
  	}
 }

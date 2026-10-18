@@ -32,6 +32,8 @@
   with guidance, or a message dialog when using the classic menu. The original
   save remains untouched, and another save can be loaded afterward.
 - Creating client effects when their entity table is full now fails safely.
+- Interrupted save restores no longer release models or lights using stale
+  handles from the saved world.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

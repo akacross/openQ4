@@ -944,7 +944,9 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 // RAVEN BEGIN
 	savefile->ReadRenderEntity( renderEntity, &spawnArgs );
 // RAVEN END
-	savefile->ReadInt( modelDefHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedModelDefHandle;
+	savefile->ReadInt( savedModelDefHandle );
 	savefile->ReadRefSound( refSound );
 	
 // RAVEN BEGIN
@@ -996,7 +998,7 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 	savefile->ReadInt( mpGUIState );
 
 	// restore must retrieve modelDefHandle from the renderer
-	if ( modelDefHandle != -1 ) {
+	if ( savedModelDefHandle != -1 ) {
 		modelDefHandle = gameRenderWorld->AddEntityDef( &renderEntity );
 	}
 

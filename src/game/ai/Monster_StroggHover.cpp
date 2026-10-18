@@ -679,8 +679,10 @@ void rvMonsterStroggHover::Restore ( idRestoreGame *savefile ) {
 	savefile->ReadInt ( nextBombFireTime );
 
 	savefile->ReadRenderLight ( renderLight );
-	savefile->ReadInt ( lightHandle );
-	if ( lightHandle != -1 ) {
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedLightHandle;
+	savefile->ReadInt( savedLightHandle );
+	if ( savedLightHandle != -1 ) {
 		//get the handle again as it's out of date after a restore!
 		rvNormalizeProjectedRenderLight( renderLight, GetName(), "strogg-hover-headlight" );
 		lightHandle = gameRenderWorld->AddLightDef( &renderLight );

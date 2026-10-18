@@ -361,6 +361,23 @@ if get_option('build_native_tests')
     foreach scenario : ['independent', 'cascade', 'external', 'commit', 'rollback', 'exception']
       test('openq4-restore-cleanup-' + game_mode + '-' + scenario, restore_cleanup_test, args: [scenario], timeout: 30)
     endforeach
+    restore_render_handles_source = custom_target(
+      'openq4-restore-render-handles-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'Actor.cpp',
+                   'src' / game_mode / 'Projectile.cpp', 'src' / game_mode / 'Moveable.cpp',
+                   'src' / game_mode / 'client' / 'ClientModel.cpp', 'src' / game_mode / 'client' / 'ClientMoveable.cpp',
+                   'src' / game_mode / 'vehicle' / 'VehicleParts.cpp', 'src' / game_mode / 'Weapon.cpp',
+                   'src' / game_mode / 'ai' / 'Monster_StroggHover.cpp'),
+      output: 'RestoreRenderHandles-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_render_handles.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_render_handles_test = executable(
+      'openq4-restore-render-handles-' + game_mode, restore_render_handles_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach scenario : ['entity', 'actor', 'projectile', 'barrel', 'client-model', 'client-moveable', 'vehicle-light', 'weapon-lights', 'hover-light']
+      test('openq4-restore-render-handles-' + game_mode + '-' + scenario, restore_render_handles_test, args: [scenario], timeout: 30)
+    endforeach
   endforeach
 
   openq4_interpolation_test = executable(

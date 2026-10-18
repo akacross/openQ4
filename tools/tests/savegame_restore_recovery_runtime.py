@@ -94,6 +94,98 @@ def damaged_fixtures(data):
     return fixtures, metadata
 
 
+def render_handle_fixture(data):
+    """Locate a v4 entity with empty GUI slots, using its named class record.
+
+    The parser checks every intervening sync and bounded record. It skips records
+    with GUI payloads rather than assuming their variable legacy layout.
+    """
+    _, metadata = checksum_fixture(data)
+    markers = list(re.finditer(re.escape(b'OQ4Y'), data))
+    for candidate in markers:
+        position = candidate.start()
+        sequence = struct.unpack_from('<i', data, position+4)[0]
+
+        def integer():
+            nonlocal position
+            value = struct.unpack_from('<i', data, position)[0]
+            position += 4
+            return value
+
+        def skip(size):
+            nonlocal position
+            assert 0 <= size < 1048576 and position+size <= len(data)
+            position += size
+
+        def string():
+            size = integer()
+            assert 0 <= size < 65536
+            value = data[position:position+size]
+            skip(size)
+            return value.decode('ascii')
+
+        def sync():
+            nonlocal sequence
+            assert integer() == int.from_bytes(b'OQ4Y', 'little') and integer() == sequence
+            sequence += 1
+
+        try:
+            sync()  # idEntity class start
+            number, definition, snapshot, bits = integer(), integer(), integer(), integer()
+            assert 0 <= number < 4095 and -1 <= definition < 65536
+            name = string()
+            assert re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', name)
+            sync()  # spawnArgs
+            count = integer()
+            assert 0 < count < 4096
+            args = {}
+            for _ in range(count):
+                key = string()
+                args[key] = string()
+            assert args.get('name') == name and args.get('classname')
+            typename = string()
+            if typename:
+                skip(integer())  # script object bytes
+            skip(4+4+1+4)  # thinkFlags, dormantStart, cinematic, cameraTarget
+            targets = integer()
+            assert 0 <= targets < 4096
+            skip(targets*4)
+            skip(4)  # health
+            clients = integer()
+            assert 0 <= clients < 4096
+            skip(clients*4)
+            skip(4)  # v4 typed entity flags
+            sync()  # ReadRenderEntity
+            model = string()
+            skip(4+4+24+20+12+36)  # entity/body, bounds, five view flags, origin, axis
+            for _ in range(4):
+                string()  # custom/reference/overlay shader and skin
+            skip(4+12*4)  # sound handle and MAX_ENTITY_SHADER_PARMS
+            for _ in range(3):
+                sync()
+                assert string() == ''  # only empty GUI slots
+            skip(4+4+4+4+4)  # depth float, four bools, depth-view int, LOD float/int
+            handle_offset = position
+            handle = integer()
+            assert handle >= -1
+            sound_sync = position
+            sync()  # immediately following ReadRefSound
+            sound_handle = integer()
+            assert -1 <= sound_handle < 1048576
+            changed = bytearray(data)
+            struct.pack_into('<i', changed, handle_offset, 2147483647)
+            struct.pack_into('<I', changed, sound_sync, 0)
+            struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+            detail = dict(entity=name, entity_number=number, entity_class=args['classname'], model=model,
+                          class_offset=candidate.start(), handle_offset=handle_offset, original_handle=handle,
+                          replacement_handle=2147483647, broken_sound_sync=sound_sync,
+                          expected='marker mismatch while reading ReadRefSound')
+            return {'ForeignModelHandle': (bytes(changed), detail)}, metadata
+        except (AssertionError, UnicodeError, struct.error):
+            continue
+    raise AssertionError('No fully decoded v4 entity with empty GUI slots was found.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-save', type=Path, required=True)
@@ -101,6 +193,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -112,7 +205,7 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = damaged_fixtures(original)
+    fixtures, metadata = (render_handle_fixture(original) if args.cases == 'render-handles' else damaged_fixtures(original))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
     game = save/'baseoq4'
@@ -147,7 +240,7 @@ def main():
     command = [str(executable), *[part for key, value in settings.items() for part in ('+set', key, value)], '+loadGame', 'Good']
     report = dict(source_save=dict(path=str(source), sha256=sha(source)), fixture=metadata,
         cases={name: details for name, (_, details) in fixtures.items()}, command=command,
-        harness_sha256=sha(Path(__file__)), ui=args.ui, renderer=args.renderer,
+        harness_sha256=sha(Path(__file__)), ui=args.ui, renderer=args.renderer, fixture_set=args.cases,
         runtime={relative: sha(runtime/relative) for relative in
                  ('openQ4-client_x64.exe', 'baseoq4/game-sp_x64.dll', 'baseoq4/game-mp_x64.dll', 'baseoq4/pak0.pk4', 'baseoq4/pak1.pk4')},
         before={path.name: sha(path) for path in saves},
