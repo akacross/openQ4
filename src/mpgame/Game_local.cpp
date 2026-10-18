@@ -2499,6 +2499,31 @@ static void GameLocal_ValidateSaveGameCount( idRestoreGame &savegame, int count,
 	}
 }
 
+template< class T, int Count >
+static void GameLocal_RestoreEntityTable( idRestoreGame &savegame, T *(&table)[Count], int (&spawnIds)[Count], int unregistered, const char *detail ) {
+	for ( int i = 0; i < Count; i++ ) {
+		T *restoredEntity = NULL;
+		int restoredSpawnId;
+		savegame.ReadObject( restoredEntity );
+		savegame.ReadInt( restoredSpawnId );
+		// Publish only complete, unique registrations. A repeated reference would
+		// otherwise overwrite its first identity and leave a dangling table slot
+		// when error recovery deletes the partially restored map.
+		if ( restoredEntity != NULL ) {
+			// Client-effect constructors can carry an old registration which
+			// LoadMap cleared. Only an entry published earlier in this table is
+			// a duplicate; an unused constructor number is replaced below.
+			const int previous = restoredEntity->entityNumber;
+			if ( i == unregistered || ( previous >= 0 && previous < i && table[previous] == restoredEntity ) ) {
+				savegame.Error( "idGameLocal::InitFromSaveGame: invalid %s registration at %d (already %d)", detail, i, restoredEntity->entityNumber );
+			}
+			restoredEntity->entityNumber = i;
+		}
+		table[i] = restoredEntity;
+		spawnIds[i] = restoredSpawnId;
+	}
+}
+
 bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWorld, idFile *saveGameFile ) {
 	TIME_THIS_SCOPE( __FUNCLINE__);
 	
@@ -2577,15 +2602,7 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 		savegame.ReadDict( &persistentPlayerInfo[ i ] );
 	}
 
-	for( i = 0; i < MAX_GENTITIES; i++ ) {
-		savegame.ReadObject( entities[ i ] );
-		savegame.ReadInt( spawnIds[ i ] );
-
-		// restore the entityNumber
-		if ( entities[ i ] != NULL ) {
-			entities[ i ]->entityNumber = i;
-		}
-	}
+	GameLocal_RestoreEntityTable( savegame, entities, spawnIds, ENTITYNUM_NONE, "entity" );
 
 	// Precache the player
 // RAVEN BEGIN
@@ -2593,15 +2610,7 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 	FindEntityDef( idPlayer::GetSpawnClassname( ) );
 
 // abahr: saving clientEntities
-	for( i = 0; i < MAX_CENTITIES; i++ ) {
-		savegame.ReadObject( clientEntities[ i ] );
-		savegame.ReadInt( clientSpawnIds[ i ] );
-
-		// restore the entityNumber
-		if ( clientEntities[ i ] != NULL ) {
-			clientEntities[ i ]->entityNumber = i;
-		}
-	}
+	GameLocal_RestoreEntityTable( savegame, clientEntities, clientSpawnIds, -1, "client entity" );
 // RAVEN END
 
 	savegame.ReadInt( firstFreeIndex );

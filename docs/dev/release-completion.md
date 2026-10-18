@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Preserve live entity identities when rejecting invalid or duplicate saved
+  registrations, including interrupted master-table entries. Constructor-created
+  client effects still restore correctly. [Production-reader and gameplay evidence](savegame-reliability.md#restore-identity-and-partial-registration)
+  includes Windows/Linux corruption cases, the retained failed candidate and a
+  corrected four-role stock gameplay baseline. General object ownership and
+  player recovery after failed restore remain open under Q4-05.
+
 - [x] Verify Android's extracted APK content on every launch and repair damaged
   copies before starting the engine. Only verified replacements are committed;
   failed repairs preserve saves and the previous package. The signed-APK verifier

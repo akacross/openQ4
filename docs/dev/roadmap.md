@@ -648,6 +648,10 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   restart at saved level with header loadout rather than guessing the payload;
   recognized build-1 releases already have compatibility readers. Require
   interruption/corruption fixtures and no destruction of valid existing saves.
+  Current partial repair preserves live entity identities when rejecting invalid
+  saved numbers, duplicate master-table entries and interrupted registrations;
+  see [restore identity evidence](savegame-reliability.md#restore-identity-and-partial-registration).
+  Factory-object ownership and the player recovery flow remain open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

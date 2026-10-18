@@ -855,10 +855,17 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 	rvClientEntity	*temp;
 	idStr			funcname;
 
-	savefile->ReadInt( entityNumber );
-	if ( entityNumber < 0 || entityNumber >= MAX_GENTITIES ) {
-		savefile->Error( "idEntity::Restore: invalid entity number %d", entityNumber );
+	int restoredEntityNumber;
+	savefile->ReadInt( restoredEntityNumber );
+	if ( restoredEntityNumber < 0 || restoredEntityNumber >= MAX_GENTITIES ) {
+		savefile->Error( "idEntity::Restore: invalid entity number %d", restoredEntityNumber );
 	}
+	// The master table has already registered this object. Keep that identity
+	// intact on failure so teardown cannot unregister a different table slot.
+	if ( entityNumber != ENTITYNUM_NONE && entityNumber != restoredEntityNumber ) {
+		savefile->Error( "idEntity::Restore: entity number %d does not match registered number %d", restoredEntityNumber, entityNumber );
+	}
+	entityNumber = restoredEntityNumber;
 	savefile->ReadInt( entityDefNumber );
 
 	// spawnNode and activeNode are restored by gameLocal

@@ -23,6 +23,9 @@
 
 ## Change log
 
+- Improved damaged-save handling: invalid or duplicate entity registrations no
+  longer corrupt the identities needed to clean up a failed load.
+
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep
   saves and the previous package intact. Allow free storage for a replacement

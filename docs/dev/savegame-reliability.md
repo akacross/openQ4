@@ -218,6 +218,59 @@ Reference validation includes:
 Save construction uses a pointer hash for object discovery and reference lookup,
 preserving on-disk indices while avoiding repeated full object-list scans.
 
+### Restore identity and partial registration
+
+The master entity/client tables read each pointer and spawn ID into temporary
+values before publishing them. Duplicate registrations and the reserved
+`ENTITYNUM_NONE` slot are rejected while the first registration stays intact.
+An interrupted entry cannot leave a published pointer with an unread spawn ID.
+Entity restore then validates its serialized number against that registration
+before assigning it. Invalid or mismatched numbers leave the live object's
+identity unchanged, so teardown can still unregister the correct slot.
+Client-effect constructors may have registered before `LoadMap` clears those
+tables. Those old numbers are replaceable; duplicate detection checks whether
+the same pointer was already published in the saved table being read.
+
+These checks close specific cleanup hazards, not general restore rollback.
+The remaining Q4-05 work includes ownership of factory-created objects that have
+not reached a master table, attachment cascades during failed restore, and an
+explicit player recovery flow after map teardown. The existing early rejection
+policy and supported v2/v3/v4 formats are unchanged.
+
+Evidence recorded 18 October 2026:
+
+- The original production read fails the compiled negative control in
+  `.tmp/stage-two/save-identity-repro.log`: rejecting `INT_MIN` had already
+  replaced the live object's identity. SHA-256:
+  `1125c857ae3b1100d001fa97ec3e8746806bc60fe85c6b82588a27f111d08afa`.
+- `tools/tests/savegame_restore_identity.py` compiles the production SP/MP
+  identity reads and master-table helper. Windows Clang and Linux GCC pass
+  bounds, mismatches, valid reads, duplicate/reserved registrations, interrupted
+  entries and constructor-assigned numbers. Both final logs have SHA-256
+  `3751319f76c8ceaf966673950f89ab354d034aa44df9d2d1e74c76813b7c9594`.
+  Meson runs both compiled targets; they and the imported game regression suite
+  pass in `.tmp/stage-two/save-identity-native-r2.log` (SHA-256
+  `76b31b6d19f2f29044d6757b91aed7a5016fb75dbb255733baeba21e4128d52b`).
+- `.tmp/stage-two/save-identity-source.json` binds the final source files to
+  base `aa5ebbe6c1196343e000d613528c167e3ae88835`, SHA-256
+  `164972a7a8d0dcf7c8475023d52d9a2f82b45ed2e5cf81883280e9c3e48dee91`.
+- `.tmp/s2save-identity-r2/stock_asset_baseline_report.json` passes all four
+  roles: Storage1 save/load during the pod sequence, SP demo playback, Q4DM1
+  listen-server and pure client gameplay. Its exact binaries, unchanged retail
+  PK4 inventory, engine logs and captures are hashed in the report, SHA-256
+  `3b413ab940a4b6d1c596d0032865af522da94470c9ee3c3dfcee32b4602d14e4`.
+  The helper `.tmp/stage-two/run_save_identity_baseline.py` adds a hidden
+  window, disabled joystick/TTY input and hidden console to the baseline's
+  windowed 1280x720 OpenGL launch. Before/after engine screenshots show the
+  restored pod/world state. This is valid-save regression evidence; the malformed
+  identity cases above are compiled reader tests, not a corrupted gameplay-save
+  corpus or complete campaign qualification.
+- The earlier `.tmp/s2save-identity/stock_asset_baseline_report.json` retains
+  the failed candidate which rejected client-effect constructor registrations,
+  SHA-256 `5182ff526067015d8fd882905e4858bf2fa1aae231b2dcc5da49b3fbf87e37f8`.
+  Its normal-save failure prompted the constructor case above. The earlier
+  209-test native pass alone did not prove valid gameplay restore.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

@@ -866,7 +866,7 @@ def validate_gamelibs_save_payload_contract() -> None:
             require(actor_source, token, f"{module} actor animation channel restore bounds")
 
         for token in (
-            "entityNumber < -1 || entityNumber >= MAX_CENTITIES",
+            "restoredEntityNumber < -1 || restoredEntityNumber >= MAX_CENTITIES",
             "rvClientEntity::Restore: invalid client entity number %d",
         ):
             require(client_entity, token, f"{module} client entity restore bounds")

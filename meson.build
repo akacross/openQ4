@@ -311,6 +311,21 @@ if get_option('build_native_tests')
   )
   test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
 
+  foreach game_mode : ['game', 'mpgame']
+    restore_identity_source = custom_target(
+      'openq4-restore-identity-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'client' / 'ClientEntity.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreIdentity-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_identity.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_identity_test = executable(
+      'openq4-restore-identity-' + game_mode, restore_identity_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-identity-' + game_mode, restore_identity_test, timeout: 30)
+  endforeach
+
   openq4_interpolation_test = executable(
     'openq4-interpolation-test', files('tools/tests/native/InterpolationTest.cpp'),
     include_directories: root_include_dir, install: false,
