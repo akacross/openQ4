@@ -1,6 +1,6 @@
 # openQ4 development roadmap
 
-Updated 18 October 2026. Stage-one implementation and tested source:
+Updated 19 October 2026. Stage-one implementation and tested source:
 `7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
 [baseline evidence record](baseline-evidence.md) binds current native tests,
 windowed gameplay and original-content controls to their exact source, binaries
@@ -654,8 +654,12 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   [Factory-object lifetime tracking](savegame-reliability.md#ownership-during-an-interrupted-restore)
   now releases remaining objects after map cleanup and retires attached objects
   already deleted by another owner. Native lifecycle/failure controls and a real
-  script-incompatibility/reload probe pass; deeper corrupted-graph qualification
-  and the player recovery flow remain open.
+  script-incompatibility/reload probe pass. The subsequent
+  [semantic-failure recovery flow](savegame-reliability.md#recovery-after-semantic-restore-failure)
+  unwinds before session teardown, opens the retained Load Game page or classic
+  dialog and leaves save files intact. Unknown unstamped formats still fail
+  preflight; automatic header-only restart is intentionally excluded. Broader
+  corrupted-graph and constructor-failure qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

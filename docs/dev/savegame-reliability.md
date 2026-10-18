@@ -232,10 +232,9 @@ tables. Those old numbers are replaceable; duplicate detection checks whether
 the same pointer was already published in the saved table being read.
 
 These checks close specific cleanup hazards, not general restore rollback.
-Factory-object ownership is addressed separately below; Q4-05 still requires
-deeper corrupted-graph qualification and an explicit player recovery flow after
-map teardown. The existing early rejection policy and supported v2/v3/v4 formats
-are unchanged.
+Factory-object ownership and the explicit player recovery flow are addressed
+separately below; Q4-05 still requires deeper corrupted-graph qualification.
+The existing early rejection policy and supported v2/v3/v4 formats are unchanged.
 
 Evidence recorded 18 October 2026:
 
@@ -282,8 +281,9 @@ Success explicitly releases ownership to the game without deleting objects.
 Map shutdown first clears registered entities, then deletes remaining restore
 objects while script, renderer and collision dependencies still exist. Scope
 unwinding also shuts down an unfinished restore. An early script incompatibility
-still takes the existing fresh-map/header-loadout fallback; this change does not
-add a new recovery UI or retain the world that was torn down.
+still takes the existing fresh-map/header-loadout fallback. The ownership change
+does not retain the world that was torn down; the subsequent recovery UI is
+described below.
 
 The compiled fixture executes the production ownership methods, deletion loop
 and base destructor for both libraries. Six cases each run 1,000 cycles:
@@ -323,6 +323,92 @@ existing match-evidence assertions remain tested. The complete source/log bindin
 against `4561169c`, with all 40 retail PK4 hashes rechecked, is
 `.tmp/stage-two/save-cleanup-evidence.json`, SHA-256
 `470259d315e52d5377715a98babffe087460c8cf5119eaa89bfe4133a3d847db`.
+
+### Recovery after semantic restore failure
+
+During the engine's scoped save load, an ordinary recoverable error now throws
+before the generic error handler stops the session or closes the save. This lets
+the GameLib restore owner unwind its partial map while the file, script program
+and render world still exist. The session then disarms the restore context,
+closes the file, stops the failed map and reports the failure in a fresh menu.
+Startup, recursive and explicitly fatal error policies are unchanged. Handled
+restore errors do not accumulate toward the generic rapid-error fatal threshold
+or replace the OS clipboard.
+
+The retained Load Game page selects the failed save and displays a localized
+notice offering another save or a new game. The classic menu, and a retained
+page that cannot open, use the existing nonblocking message dialog. The menu host
+must refresh its retained home before choosing the route; otherwise a load
+failure can incorrectly choose the classic dialog for one frame. All twelve
+language tables include the notice and dialog title. Recovery returns failure to
+the caller, so the normal successful-load path cannot close the new menu.
+
+This is explicit recovery, not staged-world rollback. The previous map is already
+gone, and no partial state is offered as playable. Preflight failures continue to
+preserve the running map. The existing script-checksum mismatch path still starts
+the saved level fresh. Unrecognized unstamped/build-1 formats continue to fail
+preflight: their readable header alone does not justify silently restarting a
+level or replacing a checkpoint. A separate player-requested header-only restart
+would need its own UI and save-preservation qualification; unknown payloads are
+never guessed at.
+
+Client-entity allocation also now checks table capacity before reading the next
+entry. Both a full-table hint and a scan across a full table previously accessed
+one element past the array. The bounded refusal retains the existing warning and
+deferred removal behavior. The compiled SP/MP regression runs 1,000 fill/refuse/
+free/reuse cycles against checked storage; the pre-fix implementation fails it.
+
+Validation on 19 October 2026 uses the complete production Common error handler,
+load transaction and recovery UI method with counted services on Windows Clang
+and Linux GCC. It checks ownership unwinding before session teardown, scope
+reset, successful load, 1,000 repeated failures, a subsequent successful load,
+bounded error messages, ordinary/fatal behavior and retained/classic routing.
+Removing the scoped error policy reproduces premature session teardown. This
+fixture tests control flow; actual object destruction is covered by the lifetime
+fixture and runtime probe, not by its service doubles.
+
+`tools/tests/savegame_restore_recovery_runtime.py` derives five fixtures from a
+current Windows v4 Storage1 save: an out-of-range object index, duplicate entity
+and client registrations, a wrong client-object type and an invalid free-entity
+index. Each changes one integer and recomputes the outer CRC, reaching semantic
+validation after teardown. Each run loads the healthy save, rejects all five
+copies, captures every recovery screen through the engine, then loads the healthy
+save again. All six file hashes must remain unchanged. The probe requires the
+correct recovery UI after every failure, not merely a clean process exit.
+
+The first candidate's `.tmp/s2save-recovery-retained-gl/report.json` proves the
+rejections and healthy reload but does **not** qualify retained UI routing: only
+two of five failures reached that page, with three classic dialogs. Its original
+pass field predates the strengthened UI assertion. The failure is preserved, and
+the corrected source explicitly refreshes the home before opening the load page.
+
+The final four runtime combinations all pass, totaling twenty semantic failures
+and eight successful restores. Engine screenshots show readable retained notices
+and classic dialogs on both backends, followed by the restored pod/world scene.
+These hidden-window 1280x720 probes disable mouse, joystick and sound; their
+elapsed times are workload records, not performance comparisons.
+
+| UI / renderer | Report under `.tmp/` | SHA-256 |
+| --- | --- | --- |
+| Retained / OpenGL | `s2save-recovery-retained-gl-r2/report.json` | `5da98342841f57de620b6bbbc2f6e3a156ca9b7533598ce904e1cab8bac1aeff` |
+| Classic / OpenGL | `s2save-recovery-classic-gl/report.json` | `a78a29d2c206732f8f44545ff47fc6a4c14c1c4f40c284a3b6f0e3a296728dd0` |
+| Retained / Vulkan | `s2save-recovery-retained-vk/report.json` | `af5fa9b39eb47a0200c50e1e6c30cbef6f046a65bc8de823fea55cb978a81b04` |
+| Classic / Vulkan | `s2save-recovery-classic-vk/report.json` | `b0ddbff704fc9ef24296ccd28ae55d5fa89f320e32613acb09e0bb86ca038f00` |
+
+The full Meson suite passes **224/224** in
+`.tmp/stage-two/save-recovery-native-suite.log`, SHA-256
+`72849a579f96700c675afafd2eff19ad3eb7558396acacff447b26ab0575614d`.
+The source, package and log binding against `11204fab`, including a fresh check
+of all forty retail PK4 hashes, is `.tmp/stage-two/save-recovery-evidence.json`,
+SHA-256 `756665a955927be7fbc85ebf18dee823040aa9332294550ee4881bc3d916bacb`.
+It retains the earlier UI-routing failure, Windows/Linux controls, the client
+capacity reproduction and exact engine/module/content hashes for every run.
+
+This evidence does not cover arbitrary malformed ownership cycles, every
+constructor/restore field, historical formats, physical input/audio, all campaign
+states or other runtime ABIs. Those limits remain open under Q4-05/Q4-07. Existing
+non-precache warnings and the Storage1 `bridge_gui` script warnings remain
+separate findings.
 
 ## Remaining Raw Serialization (`raw1`)
 

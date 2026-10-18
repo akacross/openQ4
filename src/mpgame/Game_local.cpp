@@ -10114,7 +10114,7 @@ void idGameLocal::RegisterClientEntity( rvClientEntity *cent ) {
 	}
 
 	// Find a free entity index to use
-	while( clientEntities[firstFreeClientIndex] && firstFreeClientIndex < MAX_CENTITIES ) {
+	while( firstFreeClientIndex < MAX_CENTITIES && clientEntities[firstFreeClientIndex] ) {
 		firstFreeClientIndex++;
 	}
 

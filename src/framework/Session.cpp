@@ -6985,7 +6985,7 @@ bool idSessionLocal::StartCampaignChapter( int chapter ) {
 	}
 	if ( saves[chapter].Length() ) {
 		common->Printf( "CAMPAIGN_CHAPTER start %d from %s\n", chapter + 1, saves[chapter].c_str() );
-		// LoadGame refuses a save it cannot use before it leaves the menu.
+		// Preflight refusals preserve the menu; deeper failures rebuild it.
 		if ( LoadGame( saves[chapter].c_str() ) ) {
 			return true;
 		}
@@ -8085,10 +8085,32 @@ bool idSessionLocal::SaveGame( const char *saveName, saveType_t saveType ) {
 
 /*
 ===============
+idSessionLocal::ExecuteSaveGameMapChange
+===============
+*/
+bool idSessionLocal::ExecuteSaveGameMapChange( const char *saveName ) {
+	try {
+		ExecuteMapChange();
+	} catch ( const idException &error ) {
+		// GameLib has unwound its owned restore objects. Stop the session with
+		// normal error policy again, close its file and present a fresh menu.
+		openQ4_saveGameRestore.file = NULL;
+		openQ4_saveGameRestore.layoutBuild = 0;
+		common->Warning( "LoadGame '%s': could not restore saved state: %s", saveName, error.error );
+		Stop();
+		loadGameFailure = LOADGAME_FAILURE_RESTORE;
+		ShowSaveRestoreFailure( saveName );
+		return false;
+	}
+	return true;
+}
+
+/*
+===============
 idSessionLocal::LoadGame
 ===============
 */
-bool idSessionLocal::LoadGame( const char *saveName ) { 
+bool idSessionLocal::LoadGame( const char *saveName ) {
 #ifdef	ID_DEDICATED
 	common->Printf( "Dedicated servers cannot load games.\n" );
 	return false;
@@ -8270,7 +8292,9 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		// make sure no buttons are pressed
 		mapSpawnData.mapSpawnUsercmd[0].buttons = 0;
 
-		ExecuteMapChange();
+		if ( !ExecuteSaveGameMapChange( requestedSaveName.c_str() ) ) {
+			return false;
+		}
 
 		SetGUI( NULL, NULL );
 	}

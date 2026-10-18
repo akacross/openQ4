@@ -311,6 +311,18 @@ if get_option('build_native_tests')
   )
   test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
 
+  restore_recovery_source = custom_target(
+    'openq4-restore-recovery-source',
+    input: files('src/framework/Common.cpp', 'src/framework/Session.cpp', 'src/framework/Session_menu.cpp'),
+    output: 'RestoreRecovery.cpp',
+    command: [py, files('tools/tests/savegame_restore_recovery.py'), '--generate-native', '@OUTPUT@'],
+  )
+  restore_recovery_test = executable(
+    'openq4-restore-recovery-test', restore_recovery_source,
+    cpp_args: ['-UNDEBUG'], install: false,
+  )
+  test('openq4-restore-recovery', restore_recovery_test, timeout: 30)
+
   foreach game_mode : ['game', 'mpgame']
     restore_identity_source = custom_target(
       'openq4-restore-identity-' + game_mode + '-source',
@@ -324,6 +336,17 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-identity-' + game_mode, restore_identity_test, timeout: 30)
+    client_registration_source = custom_target(
+      'openq4-client-registration-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Game_local.cpp'),
+      output: 'ClientRegistration-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/client_entity_registration.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    client_registration_test = executable(
+      'openq4-client-registration-' + game_mode, client_registration_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-client-registration-' + game_mode, client_registration_test, timeout: 30)
     restore_cleanup_source = custom_target(
       'openq4-restore-cleanup-' + game_mode + '-source',
       input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp', 'src' / game_mode / 'gamesys' / 'Class.cpp',

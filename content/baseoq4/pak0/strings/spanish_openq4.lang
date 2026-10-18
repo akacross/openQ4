@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Aquí aparecen tus partidas guardadas y los puntos de control y guardados automáticos de la campaña."
 	"#str_231102"	"El nivel de esta partida guardada no está instalado."
 	"#str_231103"	"Esta partida guardada está dañada o procede de una versión incompatible."
+	"#str_231190"	"No se pudo restaurar esta partida. Elige otra partida guardada o inicia una nueva."
+	"#str_231191"	"ERROR AL CARGAR"
 	"#str_231104"	"No se ha podido leer esta partida guardada."
 	"#str_231105"	"No se ha podido eliminar esta partida guardada."
 	"#str_231106"	"PARTIDAS MÁS RECIENTES"

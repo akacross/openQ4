@@ -1499,8 +1499,9 @@ void idRestoreGame::Error( const char *fmt, ... ) {
 	va_end( argptr );
 	text[ sizeof( text ) - 1 ] = '\0';
 
-	// Common's error path shuts the map down. ObjectDestroyed retires pointers
-	// deleted by that teardown; DeleteOrphanedObjects releases the remainder.
+	// During a load, Common throws before closing the file or freeing the world.
+	// The restore owner unwinds the partial map; ObjectDestroyed retires deleted
+	// pointers and DeleteOrphanedObjects releases the remainder.
 
 	gameLocal.Error( "%s", text );
 }

@@ -362,12 +362,21 @@ version, payload version, ABI, v2 snapshot, legacy build, CRC, footer, or
 map—without attempting a partial restore. The running map remains active for
 failures caught by engine preflight. The fresh-map initialization fallback handles
 an explicit `false` return from `InitFromSaveGame`, such as a changed script
-program. Deeper object-specific semantic errors instead enter the general error
-path, which stops the session before throwing. They do **not** automatically reach
-that fallback. Partially restored object ownership and a reliable recovery UI
-remain Q4-05 work. There is no staged-world rollback that preserves the
-former map after this point, and the failure must report the closest class/field
-boundary available.
+program. Deeper recoverable semantic errors now unwind the scoped restore owner
+before the session closes the save or releases the world. The session then stops
+the partial map and opens the Load Game page with a localized failure notice, or
+the classic message dialog when the retained page is unavailable. The log retains
+the closest class/field boundary available. This is explicit recovery, without
+staged-world rollback or automatic restart of a semantically damaged save.
+Fatal/startup errors retain their normal policy. The
+[recovery evidence and limits](savegame-reliability.md#recovery-after-semantic-restore-failure)
+include CRC-valid damaged saves; arbitrary malformed ownership graphs remain
+Q4-05 qualification work.
+
+Unrecognized unstamped/build-1 payloads still fail preflight. A readable header
+does not authorize an automatic level restart or checkpoint replacement. Any
+future header-only restart must be a distinct player-requested action with its
+own save-preservation checks; recognized historical release readers are unchanged.
 
 Save slots may remain visible when their bounded outer header is readable; menu
 discovery intentionally does not checksum all payloads. Selecting an incompatible

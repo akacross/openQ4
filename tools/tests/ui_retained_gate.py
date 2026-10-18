@@ -554,7 +554,7 @@ public:
     }
     void HandleMainMenuCommands(const char* command) { played.push_back(command); }
     // LoadGame refuses a save with loadRefusal's reason, or loads it.
-    enum loadGameFailure_t { LOADGAME_FAILURE_NONE, LOADGAME_FAILURE_UNREADABLE, LOADGAME_FAILURE_DAMAGED, LOADGAME_FAILURE_MAP };
+    enum loadGameFailure_t { LOADGAME_FAILURE_NONE, LOADGAME_FAILURE_UNREADABLE, LOADGAME_FAILURE_DAMAGED, LOADGAME_FAILURE_MAP, LOADGAME_FAILURE_RESTORE };
     loadGameFailure_t loadGameFailure = LOADGAME_FAILURE_NONE, loadRefusal = LOADGAME_FAILURE_NONE;
     bool LoadGame(const char* slot) { loadedGames.push_back(slot); loadGameFailure = loadRefusal; return loadRefusal == LOADGAME_FAILURE_NONE; }
     std::vector<std::string> deleted; bool deleteFails = false;

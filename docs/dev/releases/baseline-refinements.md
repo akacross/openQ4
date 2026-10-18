@@ -15,8 +15,9 @@
 
 ## Upgrade notes
 
-- Replace the engine and matching SP/MP modules together. Saves, network
-  timestamps, authoritative gameplay timing and existing controls are unchanged.
+- Replace the complete package, including the engine, matching SP/MP modules,
+  renderers and bundled openQ4 data. Save formats, network timestamps,
+  authoritative gameplay timing and existing controls are unchanged.
 - This increment does not promote a new refresh-rate target, headset/backend,
   Android device or UI migration to supported status. Current known compatibility
   gaps remain tracked in the development roadmap.
@@ -27,6 +28,10 @@
   longer corrupt the identities needed to clean up a failed load.
 - Failed save loads now release remaining restored objects and avoid deleting
   attachments a second time during cleanup.
+- A damaged save that fails during restoration now returns to the Load Game page
+  with guidance, or a message dialog when using the classic menu. The original
+  save remains untouched, and another save can be loaded afterward.
+- Creating client effects when their entity table is full now fails safely.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

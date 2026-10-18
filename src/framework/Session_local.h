@@ -419,14 +419,17 @@ public:
 	void				ScanDemoLibrary();
 	bool				PlayDemoLibraryEntry( int index );
 	bool				DeleteDemoLibraryFile( const demoLibraryEntry_t &entry );
-	// Why LoadGame last refused a save, before it left the current game.
+	// Why LoadGame last refused a save, including a failed restore after teardown.
 	enum loadGameFailure_t {
 		LOADGAME_FAILURE_NONE,
 		LOADGAME_FAILURE_UNREADABLE,	// missing, or unreadable
 		LOADGAME_FAILURE_DAMAGED,		// truncated, damaged or from an incompatible version
-		LOADGAME_FAILURE_MAP			// its level is not installed
+		LOADGAME_FAILURE_MAP,		// its level is not installed
+		LOADGAME_FAILURE_RESTORE		// semantic restore failed after map teardown
 	};
 	loadGameFailure_t	loadGameFailure;
+	bool				ExecuteSaveGameMapChange( const char *saveName );
+	void				ShowSaveRestoreFailure( const char *saveName );
 	// The multiplayer menu card (section 14.18) covers the game's own menu
 	// while it is open over a match; the game keeps the menu, its state and
 	// its commands, and publishes the card's mp.* keys.

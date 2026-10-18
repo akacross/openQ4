@@ -10,19 +10,27 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Recover from semantic save-load errors through the Load Game page or classic
+  dialog, after unwinding temporary restore objects and closing the failed map.
+  Localized guidance lets players choose another save or start again. Client
+  entity allocation also refuses a full table without reading past its end.
+  [Recovery behavior and qualification limits](savegame-reliability.md#recovery-after-semantic-restore-failure)
+  retain the initial UI-routing failure and distinguish native policy tests from
+  actual CRC-valid corrupted-save runs. Broader Q4-05/Q4-07 work remains open.
+
 - [x] Track temporary restore ownership through map teardown, release remaining
   objects while their dependencies are alive and avoid revisiting attachments
   deleted by another owner. [Lifetime and gameplay evidence](savegame-reliability.md#ownership-during-an-interrupted-restore)
   covers SP/MP native cycles and a current save's valid/rejected/valid sequence
-  without modifying either file. Deeper corrupted graphs and the player recovery
-  flow remain open under Q4-05.
+  without modifying either file. The subsequent recovery UI is recorded above;
+  deeper corrupted graphs remain open under Q4-05.
 
 - [x] Preserve live entity identities when rejecting invalid or duplicate saved
   registrations, including interrupted master-table entries. Constructor-created
   client effects still restore correctly. [Production-reader and gameplay evidence](savegame-reliability.md#restore-identity-and-partial-registration)
   includes Windows/Linux corruption cases, the retained failed candidate and a
-  corrected four-role stock gameplay baseline. General object ownership and
-  player recovery after failed restore remain open under Q4-05.
+  corrected four-role stock gameplay baseline. Subsequent ownership and recovery
+  changes are recorded above; broader Q4-05 qualification remains open.
 
 - [x] Verify Android's extracted APK content on every launch and repair damaged
   copies before starting the engine. Only verified replacements are committed;

@@ -1249,6 +1249,8 @@
 	"#str_231101"	"Vos sauvegardes, ainsi que les points de contrôle et les sauvegardes automatiques de la campagne, apparaissent ici."
 	"#str_231102"	"Le niveau de cette sauvegarde n'est pas installé."
 	"#str_231103"	"Cette sauvegarde est endommagée ou provient d'une version incompatible."
+	"#str_231190"	"Impossible de restaurer cette sauvegarde. Choisissez une autre sauvegarde ou commencez une nouvelle partie."
+	"#str_231191"	"ÉCHEC DU CHARGEMENT"
 	"#str_231104"	"Impossible de lire cette sauvegarde."
 	"#str_231105"	"Impossible de supprimer cette sauvegarde."
 	"#str_231106"	"SAUVEGARDES PLUS RÉCENTES"

@@ -6151,16 +6151,40 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 }
 
 #ifndef ID_DEDICATED
-// Why a save could not be loaded, as LoadGame found it before it left the
-// current game.
+// Why a save could not be loaded, including restore failure after map teardown.
 static const char *Session_LoadFailureText( int failure ) {
 	switch ( failure ) {
 		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
 		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
+		case idSessionLocal::LOADGAME_FAILURE_RESTORE:	return "#str_231190";
 		default:										return "#str_231104";
 	}
 }
 #endif
+
+void idSessionLocal::ShowSaveRestoreFailure( const char *saveName ) {
+#ifndef ID_DEDICATED
+	StartMenu();
+	// StartMenu activates the stock host. Refresh the retained home now, before
+	// choosing the load-page route, rather than waiting for the next frame.
+	UpdateRetainedHome();
+	const char *notice = Session_LoadFailureText( LOADGAME_FAILURE_RESTORE );
+	if ( guiRetainedHome != NULL && BeginRetainedPage( "loadGame" ) && retainedPagePending != NULL ) {
+		idStr slot = saveName;
+		ScrubSaveGameFileName( slot );
+		slot.StripFileExtension();
+		const int selected = retainedLoadSlots.FindIndex( slot );
+		if ( selected >= 0 ) {
+			retainedLoadSelected = selected;
+			retainedLoadFirst = selected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS;
+			PublishRetainedLoadRows( retainedPagePending );
+		}
+		PublishRetainedLoadSave( retainedPagePending, notice );
+	} else {
+		MessageBox( MSG_OK, common->GetLocalizedString( notice ), common->GetLocalizedString( "#str_231191" ), false );
+	}
+#endif
+}
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
@@ -6307,9 +6331,8 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		if ( fileTimes.Num() > 0 ) {
 			HandleMainMenuCommands( "play main_menu_selection" );
 			const idStr slot = fileList[ fileTimes[0].index ];
-			// LoadGame refuses a save it cannot use before it leaves the
-			// title: the Load Game page opens on that save and says why, as
-			// its own LOAD GAME would, rather than nothing happening.
+			// Preflight refusals keep the title; deeper failures rebuild it.
+			// Both routes open the Load Game page with the reason.
 			if ( !LoadGame( slot.c_str() ) && guiRetainedHome != NULL && guiActive == guiMainMenu && BeginRetainedPage( "loadGame" ) &&
 					retainedPagePending != NULL ) {
 				PublishRetainedLoadSave( retainedPagePending, Session_LoadFailureText( loadGameFailure ) );
@@ -6697,8 +6720,8 @@ void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char
 		}
 		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
 		HandleMainMenuCommands( "play main_menu_selection" );
-		// LoadGame refuses a save it cannot use before it leaves the current
-		// game, so the page is still here to say why.
+		// A preflight refusal preserves this page. A deeper restore failure
+		// builds a fresh menu and publishes its notice there instead.
 		if ( !LoadGame( slot.c_str() ) && guiActive == gui ) {
 			PublishRetainedLoadSave( gui, Session_LoadFailureText( loadGameFailure ) );
 		}
