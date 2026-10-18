@@ -31,6 +31,7 @@ static void Check(bool value,const char* why){++checks;if(!value){std::fprintf(s
 struct CanvasHost final:Host {
     unsigned calls=0,draws=0,resets=0;std::function<void()> callback,onLog;bool failFont=false;
     void Reset(){Call();Check(ContextCount()==0,"all candidate and live contexts close before host reset");++resets;}
+    void SetGeneratedImageProbe(bool){}
     void Call(){++calls;if(callback){auto copied=callback;callback={};copied();}}
     std::vector<Vertex> ink;
     bool ReadFile(const std::string&,std::string&) override{Call();return false;}

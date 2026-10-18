@@ -286,6 +286,19 @@ if get_option('build_native_tests')
   )
   test('openq4-idlist', openq4_idlist_test, timeout: 30)
 
+  openq4_cmdargs_under_test = custom_target(
+    'openq4-cmdargs-under-test',
+    input: files('src/idlib/CmdArgs.cpp', 'src/idlib/CmdArgs.h', 'src/idlib/Lib.h'),
+    output: 'CmdArgsUnderTest.inc',
+    command: [py, files('tools/tests/cmdargs_append_contract.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openq4_cmdargs_test = executable(
+    'openq4-cmdargs-test',
+    [files('tools/tests/native/CmdArgsTest.cpp'), openq4_cmdargs_under_test],
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-cmdargs', openq4_cmdargs_test, timeout: 30)
+
   openq4_interpolation_test = executable(
     'openq4-interpolation-test', files('tools/tests/native/InterpolationTest.cpp'),
     include_directories: root_include_dir, install: false,
@@ -971,6 +984,25 @@ if build_engine or get_option('build_native_tests')
     test('openq4-retained-ui', openq4_retained_test,
       args: [meson.project_source_root() / 'tools/ui/fixtures/interaction-smoke.q4ui',
              meson.project_source_root() / 'tools/ui/fixtures/binding-smoke.q4ui'], timeout: 30)
+    openq4_ui_generated_texture_test = executable(
+      'openq4-ui-generated-texture-test',
+      files('tools/tests/native/UiGeneratedTextureTest.cpp'),
+      include_directories: root_include_dir,
+      dependencies: [openq4_retained_dep, rmlui_project.get_variable('rmlui_dep')],
+      install: false,
+    )
+    test('openq4-ui-generated-texture', openq4_ui_generated_texture_test, timeout: 30)
+    openq4_ui_generated_adapter_source = custom_target(
+      'openq4-ui-generated-adapter-source',
+      input: files('src/ui/RetainedUI.cpp', 'src/renderer/RenderSystem.cpp'),
+      output: 'UiGeneratedAdapterTest.cpp',
+      command: [py, files('tools/tests/ui_generated_images.py'), '--generate-native', '@OUTPUT@'],
+    )
+    openq4_ui_generated_adapter_test = executable(
+      'openq4-ui-generated-adapter-test', openq4_ui_generated_adapter_source,
+      include_directories: root_include_dir, cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-ui-generated-adapter', openq4_ui_generated_adapter_test, timeout: 30)
     # Image nodes, path blends and view-height canvases, then the production
     # retained title, pause and loading screens (ui_retained).
     openq4_ui_retained_screens_test = executable(

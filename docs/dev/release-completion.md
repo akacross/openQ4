@@ -10,6 +10,20 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Implement retained generated RGBA8 images with premultiplied blending,
+  bounded shared storage and deferred release. Explicit 2D images keep their
+  type even at 1:6 aspect ratios. The [runtime evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)
+  records native ownership/failure/cycle tests and passing GL/Vulkan gameplay
+  alpha/reopen/renderer-restart captures. UI-09 and broader product acceptance
+  remain open.
+
+- [x] Preserve queued commands and module-reload requests when command lists
+  grow. This fixes a command-line multiplayer connection that silently stayed
+  at the main menu. Production copy/list tests reject the previous ownership
+  error, all 185 native tests pass, and the complete stock SP/demo/listen/pure-
+  client baseline passes. [Evidence and limits](retail-baseline-ledger.md#stage-two-connection-regression)
+  belong to the ongoing MP-08/Q4-02 work; Stage 2 remains in progress.
+
 - [x] Complete the stage-one baseline implementation and audit: use a shared
   high-resolution presentation phase for each SP/MP draw and precise OpenXR
   smooth-turn deltas; restore imported game regression coverage; reconcile

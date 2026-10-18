@@ -2,6 +2,9 @@
 
 ## Highlights
 
+- Command-line multiplayer connections now reach the server reliably when a
+  long launch command requires the game to switch from single player.
+
 - More precise motion between game ticks: camera, world and material presentation
   share a high-resolution sample for each draw. Pauses, hitches and clock resets
   keep a bounded presentation phase.
@@ -20,6 +23,8 @@
 
 ## Change log
 
+- Retained interfaces can upload generated images with correct transparency and
+  bounded resource use, including tall images and renderer restarts.
 - Restored game regression coverage and added executable clock/pause checks.
 - Refreshed the retail, openQ4 and Awakening GUI inventories, preserving historical
   evidence and identifying changed resources for further validation.

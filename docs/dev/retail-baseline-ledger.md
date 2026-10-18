@@ -64,9 +64,9 @@ role. Each profiled successful role supplied 256 CPU/GPU samples and passed its
 unchanged existing per-map budget. Both **failed the connecting MP client**:
 startup timed out before active gameplay/display/capture completion. The shorter
 save path did not resolve it. This is a reproduced failure of this workload,
-not a qualified pure-client result or a proven path-length diagnosis. MP-08 and
-Q4-02 own the remaining client-startup investigation; the full failed reports
-and logs remain alongside reruns.
+not a qualified pure-client result or a proven path-length diagnosis. The
+stage-two follow-up below resolves this startup failure; the full failed reports
+and logs remain alongside reruns. Broader MP-08/Q4-02 qualification remains open.
 
 An initial overlay-free probe incorrectly selected `fs_game baseoq4` without
 its required package metadata/paks. Its pre-log timeout was traced with a
@@ -97,6 +97,53 @@ and an extra baseoq4 overlay. The baseline preflight rejected that directory;
 the audit uses independent PK4 copies instead. No installed assets or user
 configuration were changed. Missing-media, authored-content warnings, package
 configuration errors and renderer defects must not be merged into one verdict.
+
+## Stage-two connection regression
+
+The failure reproduced again in `.tmp/s2connect/` on the staged stage-one
+binaries. Non-invasive debugger snapshots showed an idle, disconnected client
+with an empty command queue. Temporary command-dispatch diagnostics then showed
+empty command names at queue indices 16, 32 and 48; `connect` was index 48.
+`idList::Append` correctly copies its value before growing storage, but
+`idCmdArgs` had only a deep assignment operator and an implicit shallow copy
+constructor. Copying through the list's temporary therefore produced token
+pointers outside the receiving object. This also affected insertion and reload
+replay; changing network timeouts or bypassing the SP-to-MP handoff would not
+repair it.
+
+`idCmdArgs` now uses the same owned-token copy for construction and assignment,
+and assignment explicitly handles self-assignment. The native fixture compiles
+the production methods and actual list container. It checks 100 queued commands,
+every growth boundary, aliased growth/insertion, source destruction, independent
+copies and reload replay. Removing the copy constructor in a disposable header
+copy makes that fixture fail its pointer-ownership check. All 185 Meson tests
+pass in MSVC `debugoptimized`; the new fixture also passes with Linux g++ in WSL.
+The game-module selection, pure-pack and network-security contracts pass.
+
+After rebuilding and staging the matching engine/modules/renderers, the full
+stock baseline in `.tmp/s2fixed/` passes all four roles: SP save/restore,
+render-demo playback, listen server and connecting pure client. The client
+switches to `game_mp`, completes pure restart/admission, joins as a player and
+writes the engine screenshot bracketed by active-player/gameplay-view checks.
+That capture was visually checked. The report verifier passes all artifact and
+retail/runtime package bindings. This is Windows x64 loopback/OpenGL evidence;
+it does not close cross-platform peers, physical input or full campaign play.
+The timing samples meet the existing absolute baseline gates; no comparative
+performance improvement is claimed. Temporary dispatch instrumentation was
+removed before the final build.
+
+The tested worktree is based on `cbe967f2b`, with source and reports bound below.
+The existing report schema records the complete dirty-source and package identity.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `src/idlib/CmdArgs.h` | `5b2d49b661f60945ccfbcc5e71284a94189592edfc14380859268ff5582bb3e1` |
+| `src/idlib/CmdArgs.cpp` | `7be0cd90967b33a096ac3e79d56781733bb3383b2fddfe10dbb8f3c2c378fdbf` |
+| `.tmp/s2connect/stock_asset_baseline_report.json` (failed) | `165259e3843f13b7305948bbcfc4b2682c8223295e95cda7b03cab6ed5df5e86` |
+| `.tmp/s2fixed/stock_asset_baseline_report.json` (passed) | `4f8d444ab033ee1a1580a9b950624655827c0183c5e5592ba6b57076a4cc7444` |
+| `.tmp/stage-two/cmdargs-native-testlog.json` | `19c16f8c49dcc5dceef66b19fb41ec33e4a93f3afb758ef97892545f330f6b94` |
+| `.tmp/stage-two/cmdargs-negative.log` | `3704ea1626d27dd4d69ee27873c15498e0908b92287f08b2db9c716782ad6dd4` |
+| `.tmp/stage-two/cmdargs-linux.log` | `56f3ae643db14849a59652dacdfb8acb46f378b678d39e4cede3234372ca3486` |
 
 ## File-by-file overlay disposition
 

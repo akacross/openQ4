@@ -96,7 +96,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | Stage | Work to conduct | Exit condition |
 | --- | --- | --- |
 | 1. Establish the current baseline — complete | GOV-01 through GOV-03, HF-01/HF-02, Q4-01, UI-10; scope/recovery review for VR-01/VR-06 and AND-01 | Current-source ownership, clocks, compatibility inventory, tests and evidence identities agree. [Closure evidence](baseline-evidence.md) retains reproduced failures and later-stage qualification limits. |
-| 2. Close product gaps | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
+| 2. Close product gaps — in progress | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
 | 3. Improve motion and rendering | HF-03 through HF-07, VK-01 through VK-07, REN-01 through REN-08 | Visible gameplay meets declared correctness, latency and frame-time budgets with rollback paths intact. |
 | 4. Complete tools and broader quality | Remaining UI-06 scope, CORE-01 through CORE-06, remaining P2 items; TOOL-01 through TOOL-04 only when the paused map-editor work resumes | Authoring and runtime workloads meet their stated completion gates; optimizations are justified by measurements. |
 | 5. Qualify packages and promote scope | PLAT-01 through PLAT-05, REL-01 through REL-04, UI-07/UI-08/UI-11, VR-02, AND-02 and selected AND-05 scope | Exact release packages pass the selected platform, device, gameplay, visual and human acceptance matrix. |
@@ -555,13 +555,18 @@ archived provenance; new scheduling belongs here.
   not just individual pages: general controls/components, public GUI adapter
   methods, material/movie/model/generated-image operations, world-surface output
   and input, gameplay timers, independent instances and save/restart continuity.
-  Current code has six canonical control roles, four node kinds, an unimplemented
-  generated-texture callback, partial material-image operations, empty binding-name
+  Current code has six canonical control roles, four node kinds,
+  partial material-image operations, empty binding-name
   updates/text-wrap queries and an explicit world-output rejection. Map each
   limitation to required semantics and extend existing working facilities rather
   than rebuilding them. Test actual SP/MP engine callers, simultaneous HUD/menu/
   world/editor contexts, failed recreation, timer/presentation-clock separation,
   restored state and exactly-once actions before bulk UI-03/UI-04 acceptance.
+  Progress, 18 October: generated RGBA8 upload/release now uses bounded shared
+  storage and frame-safe retirement. Actual Rml callback/engine-adapter tests,
+  1,000-cycle checks and GL/Vulkan gameplay alpha/reopen/restart captures pass;
+  [implementation and evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)
+  do not close the wider toolkit or resource requirements.
 - [x] **UI-10 — P0, investigation and implementation: refresh effective scope and
   source inventory.** Completed [retail/base/Awakening inventory](ui/inventory-report.md):
   264/276/324 effective paths, 358 distinct source/include-bound variants, 18
@@ -668,6 +673,9 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   invalidated follow targets, journal/MVD interruption/capacity and all live roles'
   localized keyboard/controller workflows. Keep captain spectator invitations
   fail-closed and record remaining exact runtime scenarios from the current audit.
+  Progress, 18 October: current staged GL role/follow and roster/reconnect runs
+  pass, including replacement identity isolation. The [audit evidence](competitive-match-reference-audit.md#stage-two-current-runtime-rerun-2026-10-18)
+  retains their precise scope; the remaining release checks are still open.
 - [ ] **MP-02 — P1, qualification and targeted fixes: bot traversal safety.** Rerun
   staged q4dm8/q4ctf3/q4ctf5/q4dz3 after the exact-state jump/unroutable-pad fixes,
   then the complete 32-map sweep including warmup. Separate enemy impulses from
@@ -720,6 +728,12 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   do not enable direct asset downloading. Document clear rejection of unsupported
   protocols: retail 2.85 interoperability is a separate future scope decision,
   not a version-number change to openQ4 2.41 or a prerequisite for retail assets.
+  Progress, 18 October: fixed command-argument ownership during list growth and
+  reload replay, which dropped the baseline client's `connect` command. The
+  [retail ledger](retail-baseline-ledger.md#stage-two-connection-regression)
+  records a passing four-role stock baseline, 185 native checks and a failing
+  shallow-copy control. The broader peer/architecture/interoperability gate
+  remains open.
 
 ## Audio and voice
 
