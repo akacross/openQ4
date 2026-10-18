@@ -361,6 +361,18 @@ if get_option('build_native_tests')
     foreach scenario : ['independent', 'cascade', 'external', 'commit', 'rollback', 'exception']
       test('openq4-restore-cleanup-' + game_mode + '-' + scenario, restore_cleanup_test, args: [scenario], timeout: 30)
     endforeach
+    restore_bindings_source = custom_target(
+      'openq4-restore-bindings-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'gamesys' / 'SaveGame.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreBindings-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_bindings.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_bindings_test = executable(
+      'openq4-restore-bindings-' + game_mode, restore_bindings_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-bindings-' + game_mode, restore_bindings_test, timeout: 30)
     restore_render_handles_source = custom_target(
       'openq4-restore-render-handles-' + game_mode + '-source',
       input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'Actor.cpp',

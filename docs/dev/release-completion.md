@@ -10,6 +10,12 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Reject invalid saved binding/team relationships and detach partial links
+  before failed-load cleanup. Valid forward references retain their saved order.
+  [Graph validation and teardown evidence](savegame-reliability.md#binding-graphs-during-failed-restores)
+  preserves the previous staged cleanup failure and the focused qualification
+  scope. Other owning graphs remain open under Q4-05.
+
 - [x] Keep saved model/light indices separate from current renderer ownership
   during restore. Interrupted fields cannot leave an invalid or foreign handle
   for entity/effect cleanup to free. The

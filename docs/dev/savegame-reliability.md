@@ -462,6 +462,67 @@ The source, runtime, native reproduction and asset binding against `c28d5842` is
 All forty retail PK4 hashes were rechecked. Other field/ownership graphs and
 historical/platform save qualification remain outside this repair's evidence.
 
+### Binding graphs during failed restores
+
+Entity restore reads bind parents, team roots and team successors into temporary
+references. It rejects a new edge that closes a cycle before publishing the
+links, because later class restore methods may already traverse them. Once all
+objects and the footer have been read, a separate pass checks root consistency,
+membership and the contiguous parent-before-descendant order maintained by
+`JoinTeam`, before visual updates run. Forward references remain supported and
+the serialized representation is unchanged.
+
+When a restore fails, its active ownership scopes clear every surviving entity's
+binding and team links before map teardown deletes entities. Incomplete saved
+backlinks therefore never reach ordinary `RemoveBinds`, `Unbind` or `QuitTeam`
+traversal. The same preparation precedes direct restore-object deletion. An
+already committed load has no active restore owner, so ordinary map shutdown
+retains its normal team teardown behavior.
+
+The native fixture compiles the production link reader, validator, cleanup
+preparation and three teardown methods. Checked links expose loops, null links
+and references to deleted entities. It covers interrupted reads, self and
+multi-entity cycles, missing roots/membership, inconsistent roots, invalid binding
+order and valid nested, sibling and unbound teams. Valid teams are read in reverse
+order to exercise forward references, then destroyed in both orders. Its reduced
+eight-entity capacity tests the same bounded algorithms; it is not a full map or
+all-class destructor simulation.
+
+The runtime fixture parses a current Storage1 entity through the complete base
+record, including reference sound and static physics. CRC-valid copies introduce
+a partial team followed by a PVS failure, a self bind, a self successor, a missing
+root and a root without a tail. The previous staged build (`09491d7c`) loads the
+healthy control, then stalls at map cleanup for the first damaged copy until the
+50-second harness limit. `.tmp/s2save-bindings-before/report.json` retains that
+failure and the exact previous binary hashes; only the initial gameplay capture
+was produced, with no recovery page or final healthy reload.
+
+The corrected Windows runs pass all five rejections and both healthy restores:
+OpenGL in 34.39 seconds and Vulkan in 41.23 seconds. Each produces seven engine
+captures, including five load pages with the failure notice and the final
+restored pod/world scene. All six save files remain byte-identical and all forty
+retail PK4 hashes were rechecked. These hidden, input-disabled correctness probes
+are not timing comparisons. Reports and SHA-256:
+
+- Previous failure: `.tmp/s2save-bindings-before/report.json`,
+  `1a43a02188c4542be61dfa17dc765d1dc7d1f5a62dc6bdde563f38ad7c8a211d`.
+- OpenGL: `.tmp/s2save-bindings-gl/report.json`,
+  `1e34ddf56722f1d20143eda1be066317c0a286c138604c9533895d6d8a898c0b`.
+- Vulkan: `.tmp/s2save-bindings-vk/report.json`,
+  `4f78c59dd548f48316abcaa709643866996e16b86a66a60788d0bc430114c227`.
+
+The native binding fixture passes for both libraries on Windows Clang and Linux
+GCC. The full Windows suite passes **244/244**, including the two registered
+binding tests, in `.tmp/stage-two/save-bindings-native-suite.log`, SHA-256
+`ef4fffb35d9c19f8d0093a2614678239715bd5894d2240b7659bdb9a647bdb4d`.
+The source/runtime/asset binding against `09491d7c` is
+`.tmp/stage-two/save-bindings-evidence.json`, SHA-256
+`9c8b8555f86dc9423414804125900945fde507dd58bedd3746770bdbb8e61025`.
+
+This repair covers entity binding/team graphs. Other owning references,
+constructor failures and historical/platform save qualification remain separate
+Q4-05/Q4-07 work.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

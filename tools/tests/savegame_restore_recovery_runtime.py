@@ -94,7 +94,7 @@ def damaged_fixtures(data):
     return fixtures, metadata
 
 
-def render_handle_fixture(data):
+def render_handle_fixture(data, bindings=False):
     """Locate a v4 entity with empty GUI slots, using its named class record.
 
     The parser checks every intervening sync and bounded record. It skips records
@@ -128,6 +128,13 @@ def render_handle_fixture(data):
             nonlocal sequence
             assert integer() == int.from_bytes(b'OQ4Y', 'little') and integer() == sequence
             sequence += 1
+
+        def boolean():
+            nonlocal position
+            value = data[position]
+            assert value in (0, 1)
+            position += 1
+            return value
 
         try:
             sync()  # idEntity class start
@@ -172,6 +179,72 @@ def render_handle_fixture(data):
             sync()  # immediately following ReadRefSound
             sound_handle = integer()
             assert -1 <= sound_handle < 1048576
+            if bindings:
+                skip(12+12+4)  # reference sound origin, velocity and listener
+                string()  # sound shader
+                skip(4)  # diversity
+                boolean()  # waitfortrigger
+                skip(16+8)  # distance/volume/shakes and flags/class
+                skip(4)  # forwardDamageEnt spawn ID
+                sync()  # ReadStaticObject(defaultPhysicsObj)
+                empty_frames = 0
+                for _ in range(2):  # idClass and optional idPhysics empty frame
+                    if data[position+8:position+12] != b'OQ4Y':
+                        break
+                    sync()
+                    sync()
+                    empty_frames += 1
+                assert empty_frames in (1, 2)
+                sync()  # idPhysics_Static class start
+                self_reference = integer()
+                assert 0 < self_reference <= metadata['objects']
+                skip(12+36+12+36)  # origin/axis and local origin/axis
+                if boolean():  # ReadClipModel
+                    boolean()  # enabled
+                    skip(4+4+4+12+36+24+24+4)  # entity/id/owner, transform, bounds and contents
+                    string()  # collision model
+                    skip(4+4)  # trace model and render model handles
+                    boolean()  # linked
+                    skip(4)  # touch count
+                    boolean()  # checked
+                boolean()  # hasMaster
+                boolean()  # isOrientated
+                sync()  # idPhysics_Static class end
+                binding_offset = position
+                original_links = [integer() for _ in range(5)]
+                assert original_links[0] == original_links[3] == original_links[4] == 0
+                pvs_offset = position
+                pvs_count = integer()
+                assert -1 <= pvs_count <= 4
+                skip(4*4)  # MAX_PVS_AREAS
+                assert not boolean()  # only records without signal payloads
+                skip(4+4+4)  # mpGUIState, instance and clipWorld
+                sync()  # idEntity class end proves the complete record boundary
+                # Reuse the bounded registration parser to select another real
+                # entity reference, instead of assuming an object-table index.
+                registration_cases, _ = damaged_fixtures(data)
+                other_reference = registration_cases['DuplicateEntity'][1]['replacement']
+                assert self_reference != other_reference
+                definitions = [
+                    ('PartialTeam', {binding_offset+12: self_reference, pvs_offset: 5}, 'invalid PVS area count 5'),
+                    ('SelfBind', {binding_offset: self_reference}, 'cyclic bind master'),
+                    ('SelfChain', {binding_offset+16: self_reference}, 'cyclic team chain'),
+                    ('MissingTeam', {binding_offset+16: other_reference}, 'missing team master'),
+                    ('MissingTail', {binding_offset+12: self_reference}, 'invalid team root'),
+                ]
+                fixtures = {}
+                for fixture_name, edits, expected in definitions:
+                    changed = bytearray(data)
+                    for offset, value in edits.items():
+                        struct.pack_into('<i', changed, offset, value)
+                    struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+                    detail = dict(entity=name, entity_number=number, entity_class=args['classname'],
+                                  object_reference=self_reference, class_offset=candidate.start(),
+                                  binding_offset=binding_offset, original_links=original_links,
+                                  pvs_offset=pvs_offset, original_pvs_count=pvs_count,
+                                  edits=edits, expected=expected)
+                    fixtures[fixture_name] = bytes(changed), detail
+                return fixtures, metadata
             changed = bytearray(data)
             struct.pack_into('<i', changed, handle_offset, 2147483647)
             struct.pack_into('<I', changed, sound_sync, 0)
@@ -193,7 +266,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -205,7 +278,8 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = (render_handle_fixture(original) if args.cases == 'render-handles' else damaged_fixtures(original))
+    fixtures, metadata = (render_handle_fixture(original, bindings=args.cases == 'bindings')
+                         if args.cases != 'registrations' else damaged_fixtures(original))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
     game = save/'baseoq4'

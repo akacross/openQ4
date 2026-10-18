@@ -196,6 +196,9 @@ public:
 
 	void					Save( idSaveGame *savefile ) const;
 	void					Restore( idRestoreGame *savefile );
+	void					RestoreBindingLinks( idRestoreGame *savefile );
+	void					ValidateRestoredBindings( idRestoreGame *savefile ) const;
+	void					PrepareFailedRestoreShutdown( void );
 
 	const char *			GetEntityDefName( void ) const;
 	void					SetName( const char *name );

@@ -3004,6 +3004,7 @@ void idGameLocal::MapShutdown( void ) {
 
 	mpGame.PrepareForMapShutdown();
 	gamestate = GAMESTATE_SHUTDOWN;
+	idRestoreGame::PrepareMapShutdown();
 
 	// The navmesh describes the map that is going away.
 	botManager.OnMapShutdown();

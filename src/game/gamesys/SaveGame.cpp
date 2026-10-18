@@ -1351,6 +1351,17 @@ void idRestoreGame::ReleaseObjects( void ) {
 	objects.Clear();
 }
 
+void idRestoreGame::PrepareMapShutdown( void ) {
+	for ( idRestoreGame *restore = activeRestore; restore != NULL; restore = restore->previousRestore ) {
+		for ( int i = 1; i < restore->objects.Num(); i++ ) {
+			idClass *object = restore->objects[i];
+			if ( object != NULL && object->IsType( idEntity::GetClassType() ) ) {
+				static_cast<idEntity *>( object )->PrepareFailedRestoreShutdown();
+			}
+		}
+	}
+}
+
 void idRestoreGame::DeleteOrphanedObjects( void ) {
 	// MapClear has already released registered entities. Delete the remaining
 	// factory objects before the script program, render world and clips go away.
@@ -1451,6 +1462,14 @@ void idRestoreGame::RestoreObjects( void ) {
 
 	ReadSaveGameFooter();
 
+	// All forward references are now populated. Validate the complete binding
+	// teams before any visual refresh or gameplay can traverse them.
+	for ( i = 1; i < objects.Num(); i++ ) {
+		if ( objects[i]->IsType( idEntity::GetClassType() ) ) {
+			static_cast<idEntity *>( objects[i] )->ValidateRestoredBindings( this );
+		}
+	}
+
 	// regenerate render entities and render lights because are not saved
 	for( i = 1; i < objects.Num(); i++ ) {
 		if ( objects[ i ]->IsType( idEntity::GetClassType() ) ) {
@@ -1468,6 +1487,7 @@ void idRestoreGame::DeleteObjects
 ====================
 */
 void idRestoreGame::DeleteObjects( void ) {
+	PrepareMapShutdown();
 	SaveGame_DeleteUnrestoredObjects( objects );
 	ReleaseObjects();
 }

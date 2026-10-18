@@ -3129,6 +3129,7 @@ void idGameLocal::MapShutdown( void ) {
 	Printf( "------------ Game Map Shutdown --------------\n" );
 	
 	gamestate = GAMESTATE_SHUTDOWN;
+	idRestoreGame::PrepareMapShutdown();
 
 	if ( soundSystem ) {
 	//	soundSystem->ResetListener();

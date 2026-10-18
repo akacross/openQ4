@@ -19,7 +19,16 @@ SUPPORT = r'''
 #include <unordered_set>
 #include <vector>
 static std::unordered_set<const void*> alive;
-struct idClass { idClass() { alive.insert(this); } virtual ~idClass(); };
+struct idClass {
+    idClass() { alive.insert(this); } virtual ~idClass();
+    virtual bool IsType(int) const { return false; }
+};
+// The ownership fixture uses non-entity objects; entity links are covered by
+// savegame_restore_bindings.py with the production teardown methods.
+struct idEntity : idClass {
+    static int GetClassType() { return 1; }
+    void PrepareFailedRestoreShutdown() {}
+};
 struct idEvent {
     static void CancelEvents(idClass* object) {
         if(alive.erase(object)!=1) std::terminate();
@@ -77,6 +86,7 @@ struct idRestoreGame {
     void ReleaseObjects();
     void DeleteObjects();
     static void ObjectDestroyed(const idClass* object);
+    static void PrepareMapShutdown();
     static void DeleteOrphanedObjects();
     [[noreturn]] void Error(const char*,...) { throw std::runtime_error("invalid restore ownership"); }
 };
@@ -86,6 +96,7 @@ struct GameLocal {
     int shutdowns=0;
     void MapShutdown() {
         ++shutdowns;
+        idRestoreGame::PrepareMapShutdown();
         for(auto object:registered) if(alive.count(object)) delete object;
         registered.clear();
         idRestoreGame::DeleteOrphanedObjects();
@@ -153,7 +164,7 @@ def source(mode: str) -> str:
     assert shutdown.index("MapClear( true );") < shutdown.index("idRestoreGame::DeleteOrphanedObjects();") < shutdown.index("program.Restart();")
     code = SUPPORT + function_body(source_text, "static int SaveGame_ObjectHashKey(") + "\n"
     code += function_body(source_text, "static void SaveGame_DeleteUnrestoredObjects(") + "\n"
-    for name in ("BeginObjectOwnership", "TrackObject", "ObjectDestroyed", "ReleaseObjects", "DeleteObjects", "DeleteOrphanedObjects"):
+    for name in ("BeginObjectOwnership", "TrackObject", "ObjectDestroyed", "ReleaseObjects", "PrepareMapShutdown", "DeleteObjects", "DeleteOrphanedObjects"):
         code += function_body(source_text, "void idRestoreGame::" + name + "(") + "\n"
     code += function_body(source_text, "idRestoreGame::~idRestoreGame() {") + "\n"
     return code + function_body((directory / "Class.cpp").read_text(), "idClass::~idClass()") + "\n" + MAIN

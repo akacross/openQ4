@@ -964,14 +964,7 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 	defaultPhysicsObj.SetSelf( this );
 	RestorePhysics( &defaultPhysicsObj );
 
-	idEntity *templol = 0;
-	savefile->ReadObject( templol );
-	bindMaster = templol;
-
-	savefile->ReadJoint( bindJoint );
-	savefile->ReadInt( bindBody );
-	savefile->ReadObject( teamMaster );
-	savefile->ReadObject( teamChain );
+	RestoreBindingLinks( savefile );
 
 	savefile->ReadInt( numPVSAreas );
 	if ( numPVSAreas < -1 || numPVSAreas > MAX_PVS_AREAS ) {
@@ -1014,6 +1007,106 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 
 	// precache decls
 	declManager->FindType( DECL_ENTITYDEF, "damage_crush", false, false );
+}
+
+void idEntity::PrepareFailedRestoreShutdown( void ) {
+	// A failed restore may only have read one side of a team relationship.
+	// Drop these links before any entity destructor traverses or changes them.
+	bindMaster = NULL;
+	bindJoint = INVALID_JOINT;
+	bindBody = -1;
+	teamMaster = NULL;
+	teamChain = NULL;
+}
+
+void idEntity::RestoreBindingLinks( idRestoreGame *savefile ) {
+	idEntity *restoredBindMaster = NULL;
+	idEntity *restoredTeamMaster = NULL;
+	idEntity *restoredTeamChain = NULL;
+	jointHandle_t restoredBindJoint;
+	int restoredBindBody;
+	savefile->ReadObject( restoredBindMaster );
+	savefile->ReadJoint( restoredBindJoint );
+	savefile->ReadInt( restoredBindBody );
+	savefile->ReadObject( restoredTeamMaster );
+	savefile->ReadObject( restoredTeamChain );
+
+	// Check each new edge before publishing it. Later class Restore methods
+	// can already traverse these links, before the whole graph is available.
+	int visited = 0;
+	for ( const idEntity *ent = restoredBindMaster; ent != NULL; ent = ent->bindMaster ) {
+		if ( ent == this || ++visited >= MAX_GENTITIES ) {
+			savefile->Error( "idEntity::Restore: cyclic bind master for entity '%s'", name.c_str() );
+		}
+	}
+	visited = 0;
+	for ( const idEntity *ent = restoredTeamChain; ent != NULL; ent = ent->teamChain ) {
+		if ( ent == this || ++visited >= MAX_GENTITIES ) {
+			savefile->Error( "idEntity::Restore: cyclic team chain for entity '%s'", name.c_str() );
+		}
+	}
+	visited = 0;
+	for ( const idEntity *ent = restoredTeamMaster; ent != NULL; ent = ent->teamMaster ) {
+		if ( ( ent == this && restoredTeamMaster != this ) || ++visited >= MAX_GENTITIES ) {
+			savefile->Error( "idEntity::Restore: cyclic team master for entity '%s'", name.c_str() );
+		}
+		if ( ent == this || ent == ent->teamMaster ) {
+			break;
+		}
+	}
+
+	bindMaster = restoredBindMaster;
+	bindJoint = restoredBindJoint;
+	bindBody = restoredBindBody;
+	teamMaster = restoredTeamMaster;
+	teamChain = restoredTeamChain;
+}
+
+void idEntity::ValidateRestoredBindings( idRestoreGame *savefile ) const {
+	if ( teamMaster == NULL ) {
+		if ( teamChain != NULL || bindMaster != NULL ) {
+			savefile->Error( "idEntity::Restore: missing team master for entity '%s'", name.c_str() );
+		}
+		return;
+	}
+	if ( teamMaster->teamMaster != teamMaster || teamMaster->teamChain == NULL ) {
+		savefile->Error( "idEntity::Restore: invalid team root for entity '%s'", name.c_str() );
+	}
+
+	if ( teamMaster != this ) {
+		const idEntity *ent = teamMaster;
+		int visited = 0;
+		while ( ent != NULL && ent != this && visited++ < MAX_GENTITIES ) {
+			ent = ent->teamChain;
+		}
+		if ( ent != this ) {
+			savefile->Error( "idEntity::Restore: entity '%s' is absent from its team", name.c_str() );
+		}
+		return;
+	}
+
+	// JoinTeam stores each binding subtree contiguously after its parent.
+	// A stack checks that ordering in linear time per team, including parents
+	// that were serialized after their children.
+	const idEntity *ancestors[MAX_GENTITIES];
+	int depth = 0;
+	int visited = 0;
+	for ( const idEntity *ent = this; ent != NULL; ent = ent->teamChain ) {
+		if ( visited++ >= MAX_GENTITIES || ent->teamMaster != this ) {
+			savefile->Error( "idEntity::Restore: inconsistent team chain for entity '%s'", name.c_str() );
+		}
+		if ( ent->bindMaster != NULL ) {
+			while ( depth > 0 && ancestors[depth - 1] != ent->bindMaster ) {
+				--depth;
+			}
+			if ( depth == 0 ) {
+				savefile->Error( "idEntity::Restore: invalid bind order for entity '%s'", ent->name.c_str() );
+			}
+		} else {
+			depth = 0;
+		}
+		ancestors[depth++] = ent;
+	}
 }
 
 /*

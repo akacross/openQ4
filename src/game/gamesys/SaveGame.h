@@ -121,6 +121,7 @@ public:
 	void					DeleteObjects( void );
 	void					ReleaseObjects( void );
 	static void				ObjectDestroyed( const idClass *object );
+	static void				PrepareMapShutdown( void );
 	static void				DeleteOrphanedObjects( void );
 
 	void					Error( const char *fmt, ... );

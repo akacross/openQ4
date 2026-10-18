@@ -661,8 +661,11 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   preflight; automatic header-only restart is intentionally excluded.
   [Saved render handles](savegame-reliability.md#renderer-ownership-during-interrupted-field-reads)
   also stay temporary until the renderer returns a current definition, preventing
-  an interrupted read from giving cleanup a foreign handle. Broader
-  corrupted-graph and constructor-failure qualification remains open.
+  an interrupted read from giving cleanup a foreign handle.
+  [Binding/team validation and failed-load teardown](savegame-reliability.md#binding-graphs-during-failed-restores)
+  reject cyclic links, check complete team ordering and discard partial links
+  before cleanup. Broader owning-graph and constructor-failure qualification
+  remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

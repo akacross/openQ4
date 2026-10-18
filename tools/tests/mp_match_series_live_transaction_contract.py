@@ -479,7 +479,7 @@ struct idEvent { static void ClearEventList(){} };
 struct idClipModel { static void ClearTraceModelCache(){} };
 // This match-evidence fixture has no active save restore. Ownership and
 // attachment teardown are exercised by savegame_restore_cleanup.py.
-struct idRestoreGame { static void DeleteOrphanedObjects(){} };
+struct idRestoreGame { static void PrepareMapShutdown(){} static void DeleteOrphanedObjects(){} };
 struct MapName : std::string { using std::string::operator=; void Clear(){clear();} };
 struct idMultiplayerGame {
     int seals=0; bool succeeds=true;
