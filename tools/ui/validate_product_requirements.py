@@ -138,7 +138,8 @@ def check_markdown(root: Path, markdown_path: Path, rows: dict, product_path: st
             require((path.parent / link.split("#")[0]).resolve().exists(), f"Broken local link: {path}: {link}")
             links += 1
     counts = Counter(row["status"] for row in rows.values())
-    count_text = f"{counts['partial']} partial, {counts['pending']} pending and one verified requirement"
+    verified = 'one' if counts['verified'] == 1 else str(counts['verified'])
+    count_text = f"{counts['partial']} partial, {counts['pending']} pending and {verified} verified requirement"
     require(count_text in markdown_path.read_text(encoding="utf-8"), "Markdown status totals are stale")
     return links, counts
 
@@ -547,6 +548,73 @@ def validate_archive_relocation(args) -> dict:
     }
 
 
+def validate_inventory_revision(args) -> dict:
+    """Source reconciliation may invalidate evidence, never accept product scope."""
+    from inventory_revision import validate as validate_inventory
+    root = args.root.resolve()
+    def git(*items):
+        return subprocess.check_output(['git', *items], cwd=root).decode('utf-8')
+    revision = git('rev-parse', '--verify', args.baseline + '^{commit}').strip()
+    current = read_json((args.register or root / 'docs/dev/ui/product-requirements.json').read_text(encoding='utf-8'))
+    previous = read_json(git('show', revision + ':docs/dev/ui/product-requirements.json'))
+    evidence_id = args.inventory_evidence_id
+    require(re.fullmatch(r'inventory-[a-z0-9-]+', evidence_id) is not None and evidence_id not in previous['evidence'],
+            'Choose a new inventory evidence identity; historical evidence cannot be replaced')
+    manifest = read_json((root / 'docs/dev/ui/migration-manifest.json').read_text(encoding='utf-8'))
+    sources = read_json((root / 'docs/dev/ui/inventory-sources.json').read_text(encoding='utf-8'))
+    report = validate_inventory(root, revision, manifest, sources)
+    require(current.keys() == previous.keys(), 'Inventory revision changed register schema')
+    editable = {'baseline', 'requirements', 'evidence', 'normative_sources', 'date', 'status', 'evidence_policy'}
+    for key in previous.keys() - editable:
+        require(current[key] == previous[key], f'Inventory revision changed protected field: {key}')
+    require(len(current['requirements']) == len(previous['requirements']), 'Inventory revision changed requirement count')
+    policy = dict(previous['evidence_policy'])
+    policy['constraints'] = [value.replace(
+        f"{previous['baseline']['effective_gui_count']} is the current baseline",
+        f"{len(manifest['resources'])} is the current baseline") for value in policy['constraints']]
+    require(current['evidence_policy'] == policy, 'Inventory revision may only refresh the denominator in evidence policy')
+    invalidated = []
+    for old, row in zip(previous['requirements'], current['requirements']):
+        if row == old:
+            continue
+        require(row['id'] == old['id'] == 'INV-001', 'Only stale inventory acceptance may be invalidated')
+        require({k: v for k, v in row.items() if k not in ('status', 'acceptance_evidence', 'current_evidence', 'remaining')} ==
+                {k: v for k, v in old.items() if k not in ('status', 'acceptance_evidence', 'current_evidence', 'remaining')},
+                'Inventory revision changed normative inventory requirement')
+        require(row['status'] == 'partial' and row['acceptance_evidence'] == [] and clean_text(row['remaining']),
+                'Inventory revision cannot accept a requirement')
+        require(row['current_evidence'] == old['current_evidence'] + [evidence_id], 'Inventory history was not preserved')
+        invalidated.append(row['id'])
+    require(invalidated == ['INV-001'], 'Stale inventory verification must be withdrawn')
+    expected = dict(previous['baseline'], engine_revision=revision, companion_revision=revision,
+                    effective_gui_count=len(manifest['resources']), inventory_refresh_evidence=evidence_id)
+    require(current['baseline'] == expected, 'Inventory denominator/source identity differs')
+    historical = []
+    for group in ('normative_sources', 'evidence'):
+        require(set(current[group]) == set(previous[group]) | ({evidence_id} if group == 'evidence' else set()),
+                f'Inventory revision changed {group} identities')
+        for name, old in previous[group].items():
+            item = current[group][name]
+            is_document = old.get('path', '').startswith('docs/')
+            expected = dict(old)
+            if is_document and 'sha256' in old:
+                expected['sha256'] = item['sha256']
+            require(item == expected, f'Inventory revision changed historical evidence/authority: {name}')
+            if is_document:
+                path = archive_path(root, item['path'])
+                require(path.is_file() and item.get('sha256') in line_ending_digests(path), f'Stale document binding: {name}')
+            else:
+                historical.append({'evidence': name, 'path': old.get('path'), 'requalified': False})
+    item = current['evidence'][evidence_id]
+    require(item.get('path') == 'docs/dev/ui/inventory-sources.json' and
+            item.get('sha256') in line_ending_digests(root / item['path']), 'Stale inventory snapshot binding')
+    require(not args.partial and not args.defer_hashes, 'Inventory mode cannot grant partial/deferral exceptions')
+    rows = {row['id']: row for row in current['requirements']}
+    check_markdown(root, root / 'docs/dev/ui/product-requirements.md', rows, current['normative_sources']['product']['path'])
+    report.update(product_acceptance=False, invalidated_requirements=invalidated, historical_evidence=historical)
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -556,11 +624,15 @@ def main() -> int:
     parser.add_argument("--defer-hashes", action="store_true", help="Preparation only: report unfinalized source bindings, never report full validation")
     parser.add_argument("--revision", action="store_true", help="Audit a register revision: appended requirements and recorded supersessions only")
     parser.add_argument("--archive-relocation", action="store_true", help="Audit only the 2026-10-18 plan archive and consolidated planning authority; preserves all requirement and migration states")
+    parser.add_argument("--inventory-revision", action="store_true", help="Reconcile source configurations/denominator and invalidate stale inventory acceptance; cannot accept requirements or resources")
+    parser.add_argument("--inventory-evidence-id", default="inventory-stage-one", help="New inventory revision evidence identity; use a new inventory-* ID for each later revision")
     parser.add_argument("--output", type=Path, required=True, help="New report path; existing evidence is never overwritten")
     args = parser.parse_args()
     try:
         require(not args.output.exists(), "Preserve existing audit; choose a new output path")
-        report = (validate_archive_relocation(args) if args.archive_relocation else
+        require(sum((args.archive_relocation, args.revision, args.inventory_revision)) <= 1, 'Select one revision mode')
+        report = (validate_inventory_revision(args) if args.inventory_revision else
+                  validate_archive_relocation(args) if args.archive_relocation else
                   validate_revision(args) if args.revision else validate(args))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8", newline="\n") as stream:

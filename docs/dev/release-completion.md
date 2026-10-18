@@ -23,6 +23,25 @@ Candidate AI release wording: Medics and techs no longer freeze in place when
 they cannot reach you to heal or repair you; after a short wait they carry on
 with their orders.
 
+- [x] Complete the stage-one baseline implementation and audit: use a shared
+  high-resolution presentation phase for each SP/MP draw and precise OpenXR
+  smooth-turn deltas; restore imported game regression coverage; reconcile
+  retail/base/Awakening UI source identities without granting migration
+  acceptance; correct the networking/audio default documentation. Exact
+  qualification limits and retained failures are in the
+  [baseline evidence record](baseline-evidence.md).
+  Implementation/tested source: `7674acef91c2653e8c6153ae11e7b158c05e52ff`;
+  184/184 Meson tests, Linux native probes, source-governance rejection controls,
+  twelve final map/clock runs and two original-content controls pass within their
+  stated scope. The roadmap closes Stage 1 only; the reproduced connecting-client
+  timeout and later gameplay/device/UI acceptance remain open. Curated candidate
+  notes: [baseline refinements](releases/baseline-refinements.md).
+
+Candidate release wording: Motion between game ticks now uses a more precise
+clock, and camera, world and material presentation share one sample per draw.
+Simulation and network timing are unchanged. The multiplayer guide now correctly
+describes enhanced prediction and lag compensation as opt-in settings.
+
 - [x] Add filters to the modern server browser. A row under the server list
   narrows it by game type and hides full servers, empty ones or those with
   a password, each a tag that lights while set and clears with a second

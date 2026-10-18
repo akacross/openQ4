@@ -166,10 +166,11 @@ restores it on profiles still on the minimum, lowpower or performance preset.
 
 ## Deferred
 
-- **Audible distance units.** The inherited mixer still converts listener distance to
-  metres while Quake 4 shaders and speaker overrides store ranges in map units; its source
-  radius also converts these ranges as though they were metres. Camera shake no longer uses
-  that path. Correcting and qualifying the audible mix is separate work.
+- **Audible distance units.** Current `DOOM_TO_METERS` and `METERS_TO_DOOM` are both
+  `1.0f` in `src/sound/sound.h`; the earlier claim that the mixer necessarily converts
+  map units to metres is stale. AUD-01 still requires measured stock attenuation,
+  reference-distance, source-radius and reverb curves before changing the audible mix.
+  Camera shake already has its separate game-unit path.
 - **Streaming music and long voice-over.** All 43 music tracks decode to 393 MB of PCM. The
   voice already queues three buffers; streaming from the compressed Ogg would hold about 33 MB.
 - **Centre channel on 5.1.** `SetCenterChannel`, `SSF_CENTER` and `s_centerFractionVO` have no

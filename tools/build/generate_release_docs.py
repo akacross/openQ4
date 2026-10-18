@@ -1328,6 +1328,9 @@ def generate_release_docs_site(
         "docs/licenses/openxr-sdk.txt", "subprojects/openxr.wrap",
         "docs/dev/ui/migration-manifest.json",
         "docs/dev/ui/product-requirements.json",
+        "docs/dev/ui/inventory-sources.json",
+        "docs/dev/game-test-coverage.json",
+        "docs/dev/retail-overlay-audit.csv",
         "docs/dev/archive/2026-10-18/manifest.json",
         # The editable atlas sheet the visual specification links (14.19).
         "docs/dev/ui/atlas/medlabs-implant.html",

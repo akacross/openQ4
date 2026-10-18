@@ -370,9 +370,8 @@ void idGameLocal::Clear( void ) {
 	framenum = 0;
 	previousTime = 0;
 	time = 0;
-	presentationClockGameTime = -1;
-	presentationClockRealTime = 0;
-	presentationClockLastTime = -1;
+	presentationClock.Reset();
+	presentationClockSample = -1.0f;
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
 	autoExecAfterMapLoadStartTime = 0;
@@ -4781,6 +4780,7 @@ sample between authoritative game tics.
 ================
 */
 void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
+	presentationClockSample = -1.0f;
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
 	if ( player == NULL || GetDemoState() == DEMO_PLAYING || IsTimeDemo() ) {
@@ -4791,6 +4791,7 @@ void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
 	// fraction.  Animation lives on the previous-to-current interval, whereas
 	// renderView.time is the current tic plus the same elapsed offset.
 	const int authoritativeInterval = Max( 0, time - previousTime );
+	presentationClockSample = GetPresentationTicFraction();
 	presentationSceneFraction = GetPresentationInterpolationFraction();
 	const int maxSequentialInterval = static_cast<int>( idMath::Ceil( common->GetUserCmdMsecFloat() ) );
 	const bool sequentialInterval = authoritativeInterval > 0 && authoritativeInterval <= maxSequentialInterval &&
@@ -4832,6 +4833,7 @@ void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
 }
 
 void idGameLocal::EndPresentationSceneForRender( void ) {
+	presentationClockSample = -1.0f;
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
 }
@@ -8450,22 +8452,15 @@ int idGameLocal::GetSpawnId( const idEntity* ent ) const {
 	return PackEntitySpawnId( gameLocal.spawnIds[ ent->entityNumber ], ent->entityNumber );
 }
 
-// How far the presentation clock will chase the simulation before it gives up and
-// re-anchors outright: a map load, a restore, a hitch or a big client time warp
-// are all better served by a clean reseed than by creeping across the gap.
-static const int PRESENTATION_CLOCK_MAX_CATCHUP_TICS = 4;
-// Per-tic ceiling on correcting the anchor *later*.  Lateness is mostly the
-// draw-detection lag and must not be chased; genuine drift is still absorbed,
-// just over several tics.
-static const double PRESENTATION_CLOCK_MAX_LATE_CORRECTION_MSEC = 1.0;
-
-// A capture of the presentation clock's raw inputs.  The clock is a pure
-// function of the per-draw pair ( real time, gameLocal.time ), so a capture can
-// be replayed offline against any candidate implementation and the two compared
-// on identical frame timing.  Recorded rather than printed because printing per
-// draw frame changes the frame pacing that is being measured.
+// Buffered observations of the frozen scene clock, including its exact host
+// sample and integer game-step boundary. The first observation is not an anchor
+// checkpoint: offline replay must account for the preceding clock state.
+// Printing is deferred until collection ends to avoid changing each draw's pace.
 static const int MAX_PRESENTATION_CLOCK_SAMPLES = 8192;
 struct presentationClockSample_t {
+	double	realTimeHighRes;
+	int		gameStep, rate;
+	float	clockFraction;
 	int		realTime;
 	int		gameTime;
 	float	fraction;
@@ -8493,6 +8488,10 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 
 	presentationClockSample_t &sample =
 		presentationClockCaptureSamples[ presentationClockCaptureCount++ ];
+	sample.realTimeHighRes = presentationClock.SampleTimeMilliseconds();
+	sample.gameStep = GetMSec();
+	sample.rate = common->GetUserCmdHz();
+	sample.clockFraction = presentationClockSample;
 	sample.realTime = Sys_Milliseconds();
 	sample.gameTime = time;
 	sample.fraction = presentationSceneFraction;
@@ -8503,10 +8502,14 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	presentationClockCaptureDumped = true;
 	Printf( "presentationClock: %d samples\n", presentationClockCaptureCount );
 	for ( int i = 0; i < presentationClockCaptureCount; i++ ) {
-		Printf( "presentationClockSample rt=%d t=%d f=%.4f\n",
+		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f\n",
 			presentationClockCaptureSamples[ i ].realTime,
 			presentationClockCaptureSamples[ i ].gameTime,
-			presentationClockCaptureSamples[ i ].fraction );
+			presentationClockCaptureSamples[ i ].fraction,
+			presentationClockCaptureSamples[ i ].realTimeHighRes,
+			presentationClockCaptureSamples[ i ].gameStep,
+			presentationClockCaptureSamples[ i ].rate,
+			presentationClockCaptureSamples[ i ].clockFraction );
 	}
 	presentationClockCaptureCount = 0;
 }
@@ -8538,48 +8541,12 @@ observed lag, which is the boundary itself.
 ================
 */
 float idGameLocal::GetPresentationTicFraction( void ) const {
-	// Stop-time keeps the last simulation sample, but real time still advances.
-	// Re-anchoring that unchanged sample every maxDrift interval would cycle
-	// movers between their previous and current poses, repeatedly invalidating
-	// shadow depth and visibly shifting doors while their physics is frozen.
-	if ( !isMultiplayer && g_stopTime.GetBool() ) {
-		return 1.0f;
+	if ( presentationClockSample >= 0.0f ) {
+		return presentationClockSample;
 	}
-	// Real seconds per authoritative tic.  Distinct from GetMSec(), which is how
-	// much *game* time a tic adds -- an exact 1000/Hz against an integer 16 at
-	// 60Hz.  Dividing the elapsed real time by the game figure is what used to
-	// pin the fraction at 0.96 and snap the last 4% of every tic's motion.
-	const float realTicMsec = common->GetUserCmdMsecFloat();
-	if ( realTicMsec <= 0.0f ) {
-		return 1.0f;
-	}
-	const int gameTicMsec = Max( 1, GetMSec() );
-	const double realTime = static_cast<double>( Sys_Milliseconds() );
-	const double maxDrift = realTicMsec * PRESENTATION_CLOCK_MAX_CATCHUP_TICS;
-
-	const int gameDelta = time - presentationClockGameTime;
-	const bool resetClock = presentationClockGameTime < 0 ||
-		time < presentationClockGameTime ||
-		gameDelta > gameTicMsec * PRESENTATION_CLOCK_MAX_CATCHUP_TICS ||
-		realTime < presentationClockRealTime - realTicMsec ||
-		realTime > presentationClockRealTime + maxDrift;
-	if ( resetClock ) {
-		presentationClockGameTime = time;
-		presentationClockRealTime = realTime;
-		presentationClockLastTime = time;
-	} else if ( presentationClockGameTime != time ) {
-		presentationClockGameTime = time;
-		presentationClockRealTime += ( static_cast<double>( gameDelta ) / gameTicMsec ) * realTicMsec;
-		const double lateness = realTime - presentationClockRealTime;
-		if ( lateness < 0.0 ) {
-			presentationClockRealTime = realTime;
-		} else {
-			presentationClockRealTime += Min( lateness, PRESENTATION_CLOCK_MAX_LATE_CORRECTION_MSEC );
-		}
-	}
-
-	return idMath::ClampFloat( 0.0f, 1.0f,
-		static_cast<float>( ( realTime - presentationClockRealTime ) / realTicMsec ) );
+	const double realTime = idLib::sys->GetClockTicks() * 1000.0 / idLib::sys->ClockTicksPerSecond();
+	return presentationClock.Phase( time, Max( 1, GetMSec() ), common->GetUserCmdHz(), realTime,
+		!isMultiplayer && g_stopTime.GetBool() );
 }
 
 /*
@@ -8594,12 +8561,7 @@ int idGameLocal::GetPresentationTimeMsec( void ) const {
 		return time;
 	}
 
-	const int maxOffset = Max( 0, GetMSec() );
-	const int presentationOffset = idMath::ClampInt( 0, maxOffset,
-		idMath::Ftoi( GetPresentationTicFraction() * maxOffset ) );
-	const int presentationTime = time + presentationOffset;
-	presentationClockLastTime = Max( presentationClockLastTime, presentationTime );
-	return presentationClockLastTime;
+	return presentationClock.MaterialTime( time, Max( 0, GetMSec() ), GetPresentationTicFraction() );
 }
 
 /*

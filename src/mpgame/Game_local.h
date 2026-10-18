@@ -1,6 +1,8 @@
 #ifndef __GAME_LOCAL_H__
 #define	__GAME_LOCAL_H__
 
+#include "../framework/PresentationClock.h"
+
 // RAVEN BEGIN
 // jsinger: attempt to eliminate cross-DLL allocation issues
 #ifdef RV_UNIFIED_ALLOCATOR
@@ -609,9 +611,8 @@ public:
 	int						time;					// in msec
 	int						msec;					// time since last update in milliseconds
 	int						mHz;					// hertz
-	mutable int			presentationClockGameTime;	// transient game-time anchor for render interpolation
-	mutable double		presentationClockRealTime;	// transient real-time anchor for render interpolation
-	mutable int			presentationClockLastTime;	// transient monotonic presentation result
+	mutable openq4::PresentationClock presentationClock;
+	float					presentationClockSample;	// one high-resolution phase for every draw consumer
 	float					presentationSceneFraction;	// frozen camera/root fraction for the active Draw
 	int					presentationAnimationTime;	// previous-to-current skeletal sample held only during Draw
 	int						autoExecAfterMapLoadStartTime;

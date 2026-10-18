@@ -292,6 +292,35 @@ if get_option('build_native_tests')
   )
   test('openq4-interpolation', openq4_interpolation_test, timeout: 30)
 
+  presentation_clock_test = executable(
+    'openq4-presentation-clock-test', files('tools/tests/native/PresentationClockTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-presentation-clock', presentation_clock_test, timeout: 30)
+  test('openq4-clock-ownership', py,
+    args: [files('tools/tests/presentation_clock_ownership.py')], timeout: 90)
+
+  test('openq4-imported-game-regressions', py,
+    args: [files('tools/tests/game_regression_suite.py'), '--log-dir', meson.project_build_root() / 'game-regression-logs'],
+    timeout: 600, is_parallel: false)
+  game_probe_cpp = meson.get_compiler('cpp')
+  foreach probe : ['string_allocation', 'binary_token_signed_char']
+    probe_args = []
+    if probe == 'binary_token_signed_char'
+      probe_args = game_probe_cpp.get_id() == 'msvc' ? ['/J', '/DOPENQ4_EXPECT_UNSIGNED_PLAIN_CHAR=1'] : ['-funsigned-char', '-DOPENQ4_EXPECT_UNSIGNED_PLAIN_CHAR=1']
+    endif
+    probe_exe = executable('openq4-' + probe + '-probe', files('tools/tests/' + probe + '_probe.cpp'),
+      cpp_args: probe_args, install: false)
+    test('openq4-' + probe, probe_exe, timeout: 30)
+  endforeach
+  if host_machine.system() == 'linux'
+    foreach probe : ['linux_portability', 'lp64_semantics', 'md4_checksum', 'md5_checksum', 'crc_checksum']
+      probe_exe = executable('openq4-' + probe + '-probe', files('tools/tests/' + probe + '_probe.cpp'),
+        cpp_args: game_probe_cpp.get_supported_arguments(['-Wno-unknown-pragmas', '-Wno-register']), install: false)
+      test('openq4-' + probe, probe_exe, timeout: 30)
+    endforeach
+  endif
+
   openq4_bitmsg_under_test = custom_target(
     'openq4-bitmsg-under-test',
     input: files('src/idlib/BitMsg.h', 'src/idlib/BitMsg.cpp'),

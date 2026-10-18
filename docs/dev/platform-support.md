@@ -6,6 +6,11 @@ is the sole active plan for platform work (PLAT-01 through PLAT-05), renderer
 qualification and release promotion. Historical results below retain their
 stated revisions and limits; build success alone does not promote support.
 
+The [18 October baseline audit](baseline-evidence.md#current-defaults-and-accountable-workstreams)
+reconciles each target's source/evidence owner without changing support tiers.
+The [XR/Android recovery review](platform-recovery-review.md) selects candidate
+integration scope; archived code and emulator results do not promote hardware.
+
 ## Scope and source ownership
 
 - x64 (`x86_64`) is the active compatibility baseline; arm64 (`aarch64`) support

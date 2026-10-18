@@ -621,8 +621,8 @@ held in play, its toggle, the notices, single-player loading tips and the
 multiplayer Escape card. Each row keeps its unbuilt parts and qualification
 matrices as remaining.
 
-There are **117 partial, 229 pending and one verified requirement**, counting the
-36 superseded rows at their recorded states. `BEH-002`
+There are **118 partial, 229 pending and 0 verified requirements**, counting the
+37 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
 sounds and the complete device/modal/widget behavior still require implementation
@@ -633,8 +633,12 @@ The SYSTEM exit increment adds bounded qualification evidence for `BEH-001`,
 `BEH-002`, `SAVE-003`, `INP-004`, `INP-005`, `INP-006` and `FLOW-002` without
 changing any status; `INP-005` remains
 pending for the complete wheel, touch, text, composition and device contract.
-The verified requirement, `INV-001`, covers the fresh effective-source inventory only. All
-seven final product gates and all **271 migration entries remain unaccepted**.
+The 18 October inventory revision withdraws the stale `INV-001` verification and
+preserves its previous evidence as history. The reconciled retail/base/Awakening
+inventory contains **358 migration variants**, all unaccepted. All seven final
+product gates remain open. See the [inventory revision](inventory-report.md#18-october-2026-reconciliation)
+for source identities, scope decisions and the audit command. Earlier counts in
+the checkpoint narrative below describe those checkpoints, not the current corpus.
 These counts describe evidence state, not percentage of implementation effort
 or product quality.
 
