@@ -46,6 +46,32 @@ future work and decisions are coordinated here.
   and polished player notes in `releases/`. Those are release records, not a
   second development backlog. Keep the [capability matrix](engine-capability-matrix.md)
   and [platform support matrix](platform-support.md) aligned with accepted evidence.
+- GitHub issues retain reports, reproductions and contributor discussion; PRs
+  retain proposed changes and review. Link them to the work items here. A partial
+  fix or merged PR does not close a report whose remaining symptoms are unproven,
+  and a request for reporter evidence is not grounds for automatic stale closure.
+
+## Report and contribution traceability
+
+Reviewed 18 October 2026. These links connect the open reports and contributions
+to the existing workstreams; they do not create separate schedules or promise a
+release. GitHub remains the source for subsequent discussion and PR/check state.
+
+| Report or contribution | Owning work and remaining acceptance |
+| --- | --- |
+| [#168: disappearing menu text after preset changes](https://github.com/themuffinator/openQ4/issues/168) | UI-01/UI-07, REN-04: the earlier glyph reload fix is partial evidence; qualify current GL/Vulkan preset changes and seek confirmation of the intermittent symptom. |
+| [#169: resolution scaling affects menus](https://github.com/themuffinator/openQ4/issues/169) | REN-04/UI-07: reproduce the recorded softened/cropped UI in current stock and retained routes; require native-resolution 2D output through scale changes and restart. |
+| [#170: weapon effects, sound and reload animation](https://github.com/themuffinator/openQ4/issues/170) | Q4-03/AUD-01/HF-04: preserve the merged BSE sound-diversity fix; identify and qualify each remaining weapon/effect/animation symptom separately. |
+| [#181: rebuilt hub2 cannot load](https://github.com/themuffinator/openQ4/issues/181) | CORE-05: the compiler allocation crash was fixed by #182; oversized runtime surfaces and silhouette warnings remain. |
+| [#183: machinegun transparency](https://github.com/themuffinator/openQ4/issues/183) | Q4-01/VK-04/REN-08: establish exact version, backend, settings and assets before assigning a rendering cause; qualify matching GL/Vulkan views. |
+| [#184: Tech Li at the hangar1 lift](https://github.com/themuffinator/openQ4/issues/184) | Q4-02: #189 addresses an unreachable-patient stall, but the reporter's exact save and progression still need confirmation. |
+| [#185: GOG offline installation on macOS](https://github.com/themuffinator/openQ4/issues/185) | PLAT-04/REL-01: provide extraction/path guidance and qualify the reporter's installer/package combination; do not imply that openQ4 imports Windows installers. |
+| [#186: subtitles](https://github.com/themuffinator/openQ4/issues/186) | AUD-07/UI-02/UI-04: define supported dialogue text, timing, localization and accessible display coverage. |
+| [#187: dialogue volume](https://github.com/themuffinator/openQ4/issues/187) | AUD-06/UI-01: independent spoken-dialogue gain with real mixer classification and persistent settings. |
+| [#173: high-DPI menu cursor PR](https://github.com/themuffinator/openQ4/pull/173) | UI-02/PLAT-05: preserve controller-to-mouse handoff and console ownership; requalify against current routing. |
+| [#180: GUI save migration PR](https://github.com/themuffinator/openQ4/pull/180) | Q4-05/Q4-07/UI-09: preserve scripted values and evaluation flags through subsequent GUI updates; validate both legacy and retained presentation. |
+| [#189: medic approach watchdog PR](https://github.com/themuffinator/openQ4/pull/189) | Q4-02: bounded stall recovery, SP/MP parity, restore behavior and normal heal/progression regression; does not by itself prove #184 resolved. |
+| [#190: numeric clipboard harness PR](https://github.com/themuffinator/openQ4/pull/190) | CORE-04/GOV-02: mock-interface fix merged; the subsequent atlas math-include fix passes locally. Complete fresh CI without suppressing checks; neither fixture fix alone qualifies the full product. |
 
 ## Current baseline to preserve
 
@@ -702,6 +728,24 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   and backpressure before connecting voice to the current reliable client-message
   path, whose head-of-line blocking needs measurement under loss/congestion.
   Until then expose honest unavailable controls and do not advertise working voice.
+- [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
+  Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
+  persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
+  across NPC speech, radio/comms, cinematics, scripted/BSE sources and Awakening;
+  do not assume one channel or the multiplayer voice-chat CVar covers them all.
+  Keep master/effects/music controls and authored distance/reverb behavior coherent.
+  Qualify overlapping speech, mute, pause, save/restore, locale fallback and device
+  changes, including proving that the control does not mute unrelated weapon audio.
+- [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
+  Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
+  Inventory dialogue-to-text/localization data available from installed assets and
+  define licensed authored mappings for gaps; do not add extracted proprietary
+  transcripts to the repository. Drive cues from actual voice playback, covering
+  interruption, overlapping/radio speech, pause/time scale, save/restore and locale
+  fallback. Provide readable scaling, contrast/background, speaker identification
+  where available and persistent controls. Qualify SP/Awakening scenes and stereo
+  HUD placement; distinguish subtitles from optional full sound-effect captions.
+  Missing transcript coverage must remain explicit rather than counted as complete.
 
 ## Desktop platforms and packaging
 

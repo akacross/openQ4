@@ -514,6 +514,13 @@ Candidate release wording: Legacy machinegun scopes show the scene correctly
 on OpenGL and have a smoother blur boundary. Legacy pop-ups dim the full view
 on wide and tall displays. The optional new UI keeps its scope and dialog effects.
 
+- [x] Document how macOS players can obtain retail data from a supported GOG
+  offline installer or an existing Windows installation, and select the folder
+  containing `q4base`. The guide keeps retail files outside the signed app and
+  explains extraction failures without claiming every installer is qualified.
+  Addresses the documentation gap in [#185](https://github.com/themuffinator/openQ4/issues/185);
+  the reporter's installation confirmation remains open under PLAT-04/REL-01.
+
 ## 0.14.000 release
 
 - [x] Restore the shipping `ui_retained 0` default because retained gameplay
