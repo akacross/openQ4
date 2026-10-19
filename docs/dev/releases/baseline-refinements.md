@@ -64,6 +64,8 @@
   backgrounded. Returning to a live single-player game opens its pause menu
   before combat resumes, while existing menus and loading screens keep their
   current flow. Android device qualification remains in progress.
+- Android's timer wakes less often in the background and avoids prolonged
+  catch-up after the system freezes the app, including with accelerated time.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

@@ -336,7 +336,20 @@ if get_option('build_native_tests')
     depend_files: files('src/sys/sdl3/sdl3_backend.cpp', 'src/framework/Session.cpp', 'src/framework/KeyInput.cpp'),
     command: [py, files('tools/tests/android_lifecycle.py'), '--generate-native', '@OUTPUT@'],
   )
+  android_async_source = custom_target(
+    'openq4-android-async-source',
+    output: 'AndroidAsync.cpp',
+    depend_files: files('src/sys/sdl3/sdl3_backend.cpp', 'src/sys/android/android_main.cpp',
+      'src/framework/Common.cpp', 'src/framework/Common.h', 'tools/tests/presentation_clock_ownership.py'),
+    command: [py, files('tools/tests/android_async.py'), '--generate-native', '@OUTPUT@'],
+  )
   foreach platform : ['android', 'desktop']
+    android_async_test = executable(
+      'openq4-android-async-' + platform, android_async_source,
+      cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+    )
+    test('openq4-android-async-' + platform, android_async_test, timeout: 30)
+
     android_lifecycle_test = executable(
       'openq4-android-lifecycle-' + platform, android_lifecycle_source,
       cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,

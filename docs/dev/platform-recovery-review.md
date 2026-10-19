@@ -118,7 +118,7 @@ variants implemented or supported. No NDK, SDL or API bump is bundled into recov
 | `486ecf735` touch gameplay | Recover touch-owner state/controls and executable input contracts; merge with current retained UI ownership and editable layout policy, never enable duplicate SDL/usercmd consumers |
 | `3ce244cda` diagnostics/lifecycle | Recover accessible logs and lifecycle reset boundaries with localized strings; qualify pause/resume, rotation, process death and input cancellation against current SDLActivity |
 | `5c8693456`, `91fc0bad4` background audio/input and SP resume | Integrated with paired OpenAL pause/resume functions, persistent fallback mute and session-owned resume before audio/gameplay. Native recovery checks pass; physical Android qualification remains open |
-| `819846f5d` background tic sleep | Recover bounded background scheduling only after checking multiplayer/server and resumed clock semantics; retain no-background-busy-loop and no-catch-up-storm tests |
+| `819846f5d` background tic sleep | Integrated with an atomic lifecycle query, 100 ms background waits and a ten-current-tic Android catch-up budget at every timescale. Production-method clock/wake/shutdown tests pass; physical suspension and resumed network sessions remain unqualified |
 | `20766e8d1` cutouts | Recover insets/orientation behavior through the current safe-area/density model, including portrait and controller/touch ownership |
 | `ba6d3af2e`, `c5845ca2d`, `2f1d2d681` launcher/preflight | Recover localized missing-data flow; archived `RetailData.isPresent` tests only for a regular `pak001.pk4`, not complete integrity. Preserve usable installed data on interrupted extraction; AND-03 owns full validation and recovery |
 | `023f0eeee`, `1484195c4` emulator | Recover ABI metadata, module names and ELF checks together; archived artifact-verifier changes alone miss the current exact APK allowlist. Keep diagnostic payloads out of production |
@@ -360,3 +360,41 @@ Evidence is `.tmp/stage-two/android-pause-evidence.json`, SHA-256
 It binds sources, native/negative-control logs, the two builds/stages, SDL/OpenAL
 implementation identities, the desktop runtime and debug APK SHA-256
 `4e9b8c1ad27e802e9ef1b78eb3f00f87f35203b253dcc7e997ee26175ab90e98`.
+
+## Android background timer recovery, 19 October 2026
+
+The asynchronous worker previously woke every millisecond even while SDL parked
+the game loop. The recovered background sleep uses an atomic lifecycle snapshot
+and waits 100 ms in the background, retaining 1 ms foreground waits. It checks
+shutdown again after sleeping before advancing time or emitting wake events.
+
+The archived sleep alone did not bound accelerated-time catch-up. Android now
+limits each scheduler call to ten current, scaled tics, including the first call
+after an OS freeze when foreground has already been announced. The clock still
+advances and wake events correspond to emitted tics; a long suspension does not
+leave a backlog. The 60 Hz base command clock and desktop policy are unchanged.
+This does not establish that a suspended multiplayer connection survives.
+
+`android_async.py` compiles the production scheduler, Android worker and atomic
+query with controlled clocks, sleep and event APIs. Windows and Linux pass
+foreground cadence at five scales, combined game-time scales, one-hour freezes,
+smooth slow time, the ten-tic limit, wake counts, shutdown during a background
+wait, initialization and imprecise-timer controls. Substituting the old scheduler
+fails on unbounded catch-up; the old worker independently fails its sleep check.
+The production lifecycle fixtures and million-tic clock-ownership check pass.
+All **264 Windows native tests** pass, alongside Windows and Android ARM64/API 24
+builds and staging.
+
+The debug APK passes exact staged payload, seven-library, manifest, API/ABI,
+16 KiB ELF/ZIP alignment, native extraction and v2-signature checks. SHA-256:
+`ba6b01cf8c96d791a353c9ba2f435d832d053c6d3fc51f999127a6ed7e94d242`.
+It has not yet been installed: Windows enumerates the S25's file-transfer and
+modem interfaces, but not its debugging interface. No measured power, thermal,
+device suspension, network-resume or release-certificate claim is made.
+AND-01/AND-03 remain open.
+
+Evidence is `.tmp/stage-two/android-async-evidence.json`, SHA-256
+`fb0c1779500bb4df0a732db00a3850be12a7889e65a29b45f4bb790e63b7438a`.
+It binds the source and staged identities, native/negative-control logs, full
+suite, builds and verified package. Initial fixture compilation failures from
+a misspelled stand-in helper remain beside the corrected passing logs.

@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Reduce Android background timer wakes and bound catch-up after long process
+  freezes, including accelerated time, while retaining foreground cadence and
+  the desktop timing policy. The [timer evidence](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)
+  records Windows/Linux production scheduler/worker checks, failing old-code
+  controls, both platform builds, 264 passing native tests and verified debug
+  packaging. Physical power, suspension and network-resume checks remain open.
+
 - [x] Suspend Android audio and release held input before SDL parks the game
   loop. Resume live single player behind the pause menu before audio/gameplay;
   preserve existing menu, load and network flows. The

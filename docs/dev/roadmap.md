@@ -455,6 +455,10 @@ Sources: [Android build and packaging](android-build.md),
   now run before SDL blocks and return live SP behind the pause menu. Native
   Windows/Linux recovery controls and both builds pass; physical suspension,
   resumed audio and input still require device checks.
+  [Background timer recovery](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)
+  adds 100 ms background waits and bounded catch-up at every Android timescale;
+  production Windows/Linux cadence, freeze and shutdown checks pass. Physical
+  power/suspension and resumed network sessions remain unqualified.
   Broader device startup and the remaining host/input/lifecycle recovery are
   still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor

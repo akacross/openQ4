@@ -27,6 +27,7 @@ enum {SDL_EVENT_TERMINATING=1,SDL_EVENT_WILL_ENTER_BACKGROUND,SDL_EVENT_DID_ENTE
 struct SDL_Event {int type;};
 struct SDL_AtomicInt {int value=0;};
 static SDL_AtomicInt s_sdlLifecyclePending;
+static SDL_AtomicInt s_sdlAppBackgrounded;
 static int SDL_GetAtomicInt(SDL_AtomicInt* value){return value->value;}
 static int SDL_SetAtomicInt(SDL_AtomicInt* value,int replacement){int old=value->value;value->value=replacement;return old;}
 static bool SDL_CompareAndSwapAtomicInt(SDL_AtomicInt* value,int expected,int replacement){if(value->value!=expected)return false;value->value=replacement;return true;}
@@ -83,7 +84,7 @@ static void SDL3_HandleAppForegroundTransition(int,const char*);
 '''
 MAIN = r'''
 static void reset(){
-    s_sdlLifecyclePending.value=0;s_sdlAppInBackground=s_sdlAppSuspendedSinceQuery=false;
+    s_sdlLifecyclePending.value=s_sdlAppBackgrounded.value=0;s_sdlAppInBackground=s_sdlAppSuspendedSinceQuery=false;
     s_sdlFocusInputReleased=false;engineThread=true;devicePaused=false;win32.activeApp=true;
     keys=keyStorage;for(auto& key:keyStorage)key.down=false;keys[2].down=keys[6].down=true;
     writes=inputReleases=usercmdClears=rumbleStops=menus=resumes=0;
@@ -96,7 +97,7 @@ int main(){try {
 #if defined(__ANDROID__)
     // The application is now parked inside SDL_PollEvent. Its queued-event
     // handler has not run; sound and held input must already be released.
-    require(devicePaused && s_sdlAppInBackground,"Android watch waited for the blocked event queue");
+    require(devicePaused && s_sdlAppInBackground && Sys_SDL_IsAppBackgrounded(),"Android watch waited for the blocked event queue");
     require(inputReleases==2 && rumbleStops==1 && writes==1,"background transition did not release once");
     require(!Sys_SDL_ConsumeAppSuspension(),"session consumed suspension while still backgrounded");
     SDL3_ProcessPendingLifecycleEvents(100);
@@ -104,7 +105,7 @@ int main(){try {
     send(SDL_EVENT_WILL_ENTER_FOREGROUND);send(SDL_EVENT_DID_ENTER_FOREGROUND);
     require(devicePaused,"event watch resumed audio before session preparation");
     SDL3_ProcessPendingLifecycleEvents(101);
-    require(!s_sdlAppInBackground && devicePaused,"foreground bypassed session audio handoff");
+    require(!s_sdlAppInBackground && !Sys_SDL_IsAppBackgrounded() && devicePaused,"foreground bypassed session audio handoff");
     sessionValue.HandleAppResume(false);
     require(menus==1 && resumes==1 && !devicePaused,"live SP failed to pause behind menu on return");
     require(actions[actions.size()-2]=="menu" && actions.back()=="resume","audio resumed before the pause menu");
@@ -164,7 +165,8 @@ def source():
         'static bool SDLCALL SDL3_LifecycleEventWatch(',
         'static void SDL3_HandleAppBackgroundTransition(int eventTime, const char *reason) {',
         'static void SDL3_HandleAppForegroundTransition(int eventTime, const char *reason) {',
-        'static void SDL3_ProcessPendingLifecycleEvents(', 'bool Sys_SDL_ConsumeAppSuspension('))
+        'static void SDL3_ProcessPendingLifecycleEvents(', 'bool Sys_SDL_IsAppBackgrounded(',
+        'bool Sys_SDL_ConsumeAppSuspension('))
     return SUPPORT + code + function_body(session, 'void idSessionLocal::HandleAppResume(') + MAIN
 
 

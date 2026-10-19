@@ -6289,11 +6289,18 @@ void idCommonLocal::Async( void ) {
 	}
 
 	// don't skip too many
-	if ( smoothSlowTime || timescale == 1.0f ) {
-		const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
-		if ( lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
-			lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
-		}
+#if defined( __ANDROID__ )
+	// Android may freeze the entire process between timer wakes. Bound every
+	// timescale to ten current tics, including the first call after foreground,
+	// rather than replaying minutes of accelerated input in the async worker.
+	const bool boundCatchup = true;
+	const double clampedCatchupMsec = 10.0 * ticMsec;
+#else
+	const bool boundCatchup = smoothSlowTime || timescale == 1.0f;
+	const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
+#endif
+	if ( boundCatchup && lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
+		lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
 	}
 
 	while ( lastTicMsec + ticMsec <= static_cast<double>( msec ) ) {

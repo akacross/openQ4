@@ -364,7 +364,11 @@ static bool s_sdlAppInBackground = false;
 #if defined(__ANDROID__)
 // Main-thread state consumed outside SDL's pump, before gameplay/audio resume.
 static bool s_sdlAppSuspendedSinceQuery = false;
+static SDL_AtomicInt s_sdlAppBackgrounded = { 0 };
 void S_SetDevicePaused(bool paused);
+bool Sys_SDL_IsAppBackgrounded(void) {
+	return SDL_GetAtomicInt(&s_sdlAppBackgrounded) != 0;
+}
 bool Sys_SDL_ConsumeAppSuspension(void) {
 	if (s_sdlAppInBackground) return false;
 	const bool suspended = s_sdlAppSuspendedSinceQuery;
@@ -2591,6 +2595,7 @@ static void SDL3_UnregisterLifecycleEventWatch(void) {
 
 static void SDL3_HandleAppBackgroundTransition(int eventTime, const char *reason) {
 #if defined(__ANDROID__)
+	SDL_SetAtomicInt(&s_sdlAppBackgrounded, 1);
 	S_SetDevicePaused(true);
 #endif
 	if (s_sdlAppInBackground) {
@@ -2634,6 +2639,9 @@ static void SDL3_HandleAppForegroundTransition(int eventTime, const char *reason
 
 	openq4::NativeInputBeforeWindowChange();
 	s_sdlAppInBackground = false;
+#if defined(__ANDROID__)
+	SDL_SetAtomicInt(&s_sdlAppBackgrounded, 0);
+#endif
 	openq4::NativeInputBeforeWindowChange();
 	win32.activeApp = Sys_SDL_IsGameWindowFocused();
 	SDL3_QueueRetainedFocus(win32.activeApp,eventTime);
@@ -6818,6 +6826,9 @@ static void SDL3_WindowServices_BeginWindowTeardown(void) {
 	SDL3_ShutdownControllerSubsystems();
 	openq4::NativeInputBeforeWindowChange();
 	s_sdlAppInBackground = false;
+#if defined(__ANDROID__)
+	SDL_SetAtomicInt(&s_sdlAppBackgrounded, 0);
+#endif
 	if (!s_teardownPreserveWindow) {
 		(void)SDL3_LeaveFullscreenAndRestoreDesktopMode();
 	}

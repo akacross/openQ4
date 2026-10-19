@@ -55,7 +55,13 @@ void Sys_AsyncThread( void ) {
 			return;
 		}
 
-		usleep( 1000 );
+		// SDL parks the frame loop in the background. Keep advancing the clock
+		// without waking this worker every millisecond; shutdown waits at most
+		// one 100 ms interval, and Async bounds catch-up after an OS freeze.
+		usleep( Sys_SDL_IsAppBackgrounded() ? 100000 : 1000 );
+		if ( Sys_IsCurrentThreadStopRequested() ) {
+			return;
+		}
 
 		const int previousTicNumber = com_ticNumber;
 		common->Async();
