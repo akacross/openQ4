@@ -486,6 +486,10 @@ Sources: [Android build and packaging](android-build.md),
   packs are absent, with production Android/desktop selection tests. An S25
   debug APK update preserves save bytes; successful restore and release
   certificate-continuity qualification remain required.
+  [Early native diagnostics](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)
+  now share the host's save/log directory, with production native/JVM recovery
+  checks on Windows/Linux and both platform builds. Real-device diagnostics and
+  accessible release log/save export remain open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

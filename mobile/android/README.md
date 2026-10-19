@@ -87,6 +87,13 @@ the engine log using:
 adb shell run-as com.darkmatter.openq4 cat files/saves/baseoq4/logs/openq4.log
 ```
 
+When a native fatal error writes a diagnostic report, it is beside that log at
+`files/saves/baseoq4/logs/fatal.txt`. The standalone host publishes
+`OPENQ4_SAVE_ROOT` before native startup so early diagnostics use the same root
+as `fs_savepath`. External hosts may publish their absolute save directory in
+that variable; otherwise the existing `USER_FILES/quake4` or SDL private-storage
+fallback remains in use. This does not provide release-APK log export yet.
+
 Each packaged overlay revision extracts to its own private directory before
 engine startup. A manifest verifies every extracted file on each launch; missing,
 truncated or altered copies are repaired from the APK. Healthy files are not

@@ -17,6 +17,10 @@ openQ4 Android platform layer.
 // renderer-gles) are loaded from there.
 #define OPENQ4_ANDROID_NATIVE_LIBS_ENV	"OPENQ4_NATIVE_LIBS"
 
+// Match early native diagnostics to the host's +set fs_savepath, before the
+// file system and command-line CVars are initialized.
+#define OPENQ4_ANDROID_SAVE_ROOT_ENV	"OPENQ4_SAVE_ROOT"
+
 // OpenQ4_AndroidMain plus the whole touch-input bridge live here; the header
 // is engine-type-free on purpose so mobile/ can include it too.
 #include "../../../mobile/quake4_bridge.h"

@@ -64,7 +64,10 @@ package android.system;
 import java.nio.file.*;
 public final class Os {
     public static String failRename;
-    public static void setenv(String key, String value, boolean overwrite) throws ErrnoException {}
+    public static final java.util.Map<String, String> environment = new java.util.HashMap<>();
+    public static void setenv(String key, String value, boolean overwrite) throws ErrnoException {
+        if (overwrite || !environment.containsKey(key)) environment.put(key, value);
+    }
     public static void rename(String from, String to) throws ErrnoException {
         if (to.endsWith(String.valueOf(failRename))) throw new ErrnoException(new java.io.IOException("Injected storage commit failure"));
         try { Files.move(Path.of(from), Path.of(to), StandardCopyOption.REPLACE_EXISTING); }
@@ -152,6 +155,12 @@ public final class StorageTest {
         write(root.resolve("files/packages/keep/test.txt"), "unmanaged");
         OpenQ4Activity activity = new OpenQ4Activity();
         File old = extract(activity);
+        List<String> launch = Arrays.asList(activity.getArguments());
+        int saveArgument = launch.indexOf("fs_savepath");
+        require(saveArgument >= 0 && saveArgument + 1 < launch.size(), "host omitted save path");
+        require(launch.get(saveArgument + 1).equals(android.system.Os.environment.get("OPENQ4_SAVE_ROOT")),
+            "early native diagnostics and engine saves use different roots");
+        require(new File(launch.get(saveArgument + 1)).isDirectory(), "save root must exist before native startup");
         require(new File(old, ".ready").isFile(), "successful extraction must mark ready");
         require(Files.readString(old.toPath().resolve("baseoq4/pak1.pk4")).equals("second pack"), "pack content");
         SDLActivity.assets.fail = "baseoq4/pak1.pk4";
@@ -286,7 +295,7 @@ public final class StorageTest {
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "invalid package revision must be rejected");
         require(new File(current, ".ready").isFile(), "invalid revision must not damage current package");
-        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup and save preservation");
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation and matching native/engine save roots");
     }
 }''',
         }

@@ -343,6 +343,15 @@ if get_option('build_native_tests')
       'src/framework/Common.cpp', 'src/framework/Common.h', 'tools/tests/presentation_clock_ownership.py'),
     command: [py, files('tools/tests/android_async.py'), '--generate-native', '@OUTPUT@'],
   )
+  android_savepath_source = custom_target(
+    'openq4-android-savepath-source',
+    output: 'AndroidSavePath.cpp',
+    depend_files: files('src/sys/android/android_main.cpp', 'src/sys/android/android_public.h',
+      'src/sys/posix/posix_main.cpp'),
+    command: [py, files('tools/tests/android_savepath.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_savepath_test = executable('openq4-android-savepath', android_savepath_source, install: false)
+  test('openq4-android-savepath', android_savepath_test, timeout: 30)
   foreach platform : ['android', 'desktop']
     android_async_test = executable(
       'openq4-android-async-' + platform, android_async_source,

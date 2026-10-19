@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Keep Android's early fatal reports beside its regular game log by sharing
+  the standalone host's save directory with native startup. The
+  [path evidence](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)
+  records Windows/Linux production native and Java checks, preserved legacy
+  fallbacks, both builds, five focused native regressions and debug-APK
+  verification. Device diagnostics and release log export remain unqualified.
+
 - [x] Reduce Android background timer wakes and bound catch-up after long process
   freezes, including accelerated time, while retaining foreground cadence and
   the desktop timing policy. The [timer evidence](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)

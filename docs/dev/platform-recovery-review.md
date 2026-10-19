@@ -388,13 +388,50 @@ builds and staging.
 The debug APK passes exact staged payload, seven-library, manifest, API/ABI,
 16 KiB ELF/ZIP alignment, native extraction and v2-signature checks. SHA-256:
 `ba6b01cf8c96d791a353c9ba2f435d832d053c6d3fc51f999127a6ed7e94d242`.
-It has not yet been installed: Windows enumerates the S25's file-transfer and
-modem interfaces, but not its debugging interface. No measured power, thermal,
-device suspension, network-resume or release-certificate claim is made.
-AND-01/AND-03 remain open.
+At package verification, Windows enumerated the S25's file-transfer and modem
+interfaces, but not its debugging interface. After reconnection, the in-place
+debug update installs and preserves the original save, metadata and preview
+hashes. That update record is
+`.tmp/stage-two/android-s25-async-install-r1/upgrade.json` (SHA-256
+`1abe439459c81ba78f43e269a2e7af9d6795b4ecb1a96ffd979eb5701c2fc64d`).
+The restore retry awaits an unlocked phone. No measured power, thermal, device
+suspension, network-resume or release-certificate claim is made. AND-01/AND-03
+remain open.
 
 Evidence is `.tmp/stage-two/android-async-evidence.json`, SHA-256
 `fb0c1779500bb4df0a732db00a3850be12a7889e65a29b45f4bb790e63b7438a`.
 It binds the source and staged identities, native/negative-control logs, full
 suite, builds and verified package. Initial fixture compilation failures from
 a misspelled stand-in helper remain beside the corrected passing logs.
+
+## Android early diagnostic path, 19 October 2026
+
+The standalone host supplied `fs_savepath` as private `files/saves`, but the
+native default returned `files`. Early fatal reports therefore landed outside
+the normal log directory. The host now publishes `OPENQ4_SAVE_ROOT` before
+native startup and the platform's default path honors that absolute directory.
+Unset, empty, relative or content-URI values retain the legacy host/private
+storage fallback. Trailing slashes are removed without erasing `/` itself.
+Native fatal reports and the normal log now share `files/saves/baseoq4/logs`.
+
+`android_savepath.py` runs the production default-path and POSIX fatal-path
+initializers with environment, string, directory and SDL stand-ins. Windows and
+Linux pass precedence, invalid/absent overrides, legacy/private/cwd fallback,
+cached paths and breadcrumb placement; the original method fails the explicit
+host-path control. The production Java Activity/storage tests also pass on both
+hosts, including matching native-environment and engine-argument roots.
+Windows skips its unsupported Android-style symlink canonicalization; Linux
+exercises that branch. An initial Linux invocation without a JDK fails, and
+the rerun with the existing explicit JDK passes.
+
+Windows and Android ARM64/API 24 build and stage successfully. Five focused
+Meson path/lifecycle/timer tests pass. The debug APK passes exact staged payload,
+manifest, seven-library, API/ABI, native extraction, 16 KiB ELF/ZIP alignment and
+v2-signature checks; SHA-256
+`c17fe831dfbb3e0f069da4f8721cae52dabcd57a56bd0ece533b7a6ea94cb034`.
+This package is not installed, and real-device fatal diagnostics and release
+log export remain open. The S25 still has the preceding timer/GUI repair package.
+
+Evidence is `.tmp/stage-two/android-savepath-evidence.json`, SHA-256
+`fb522e1cfbde1eacde1ab71843c5fa8bde42d5b4dd5de87aede9d676c308712c`,
+binding sources, native/JVM/build/stage logs and the verified package.

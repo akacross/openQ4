@@ -75,13 +75,23 @@ void Sys_AsyncThread( void ) {
 ==============
 Sys_DefaultSavePath
 
-Everything the engine writes goes to the app's user_files/quake4 folder. The
-game data folder may be read-only (SAF-backed storage) and must never be mixed
-with the original install anyway.
+The standalone host publishes its private save root before native startup.
+Legacy hosts may instead supply USER_FILES. Neither path should mix writes
+with retail data, which may be read-only or SAF-backed.
 ==============
 */
 const char *Sys_DefaultSavePath( void ) {
 	if ( savepath.Length() ) {
+		return savepath.c_str();
+	}
+
+	const char *saveRoot = getenv( OPENQ4_ANDROID_SAVE_ROOT_ENV );
+	if ( saveRoot != NULL && saveRoot[0] == '/' ) {
+		savepath = saveRoot;
+		// Preserve the root itself while removing redundant trailing slashes.
+		while ( savepath.Length() > 1 && savepath[savepath.Length() - 1] == '/' ) {
+			savepath.CapLength( savepath.Length() - 1 );
+		}
 		return savepath.c_str();
 	}
 

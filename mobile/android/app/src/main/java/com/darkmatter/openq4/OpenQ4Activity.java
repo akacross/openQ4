@@ -27,6 +27,8 @@ public final class OpenQ4Activity extends SDLActivity {
             requireDirectory(new File(retailRoot, "q4base"));
             File saveRoot = new File(getFilesDir(), "saves");
             requireDirectory(saveRoot);
+            // Early native fatal diagnostics run before fs_savepath is parsed.
+            Os.setenv("OPENQ4_SAVE_ROOT", saveRoot.getAbsolutePath(), true);
             File contentRoot = extractPackage();
             Os.setenv("OPENQ4_NATIVE_LIBS", getApplicationInfo().nativeLibraryDir, true);
             Os.setenv("OPENQ4_CONTENT_ROOT", contentRoot.getAbsolutePath(), true);
