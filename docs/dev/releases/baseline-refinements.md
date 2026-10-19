@@ -55,6 +55,8 @@
   its startup splash. Fatal errors can replace a still-open game window.
 - Missing retail files no longer send Android startup diagnostics to the wrong
   folder; the app keeps its selected game-data location.
+- Android's optional new interface now initializes on the game's thread,
+  fixing rejected menu creation during startup and save-load preparation.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

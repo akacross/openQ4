@@ -10,6 +10,14 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Bind retained views and GUI allocation queries to the engine thread at
+  startup. Android loads native libraries on a different thread, which had
+  prevented the optional UI from loading and interrupted save-load preparation.
+  [Thread-binding evidence](platform-recovery-review.md#android-ui-engine-thread-binding-19-october-2026)
+  includes the reproduced failure, Windows/Linux production-method checks,
+  both platform builds and 257 passing Windows tests. Device restore/UI
+  qualification remains pending.
+
 - [x] Keep Android's selected game-data folder when retail files are missing,
   so startup diagnostics retain the correct copy destination. The
   [S25 and path-selection evidence](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)

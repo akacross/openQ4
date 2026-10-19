@@ -448,8 +448,11 @@ Sources: [Android build and packaging](android-build.md),
   is repaired and passes Windows/Linux production-method checks and the matching
   ARM64/API 24 cross-build. The [S25 check](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)
   reaches Storage 1, captures the opening scene and writes a save; restoration
-  exposes a retained-UI thread-binding failure. Broader device startup and the
-  remaining host/input/lifecycle recovery are still open.
+  exposes a retained-UI thread-binding failure. The
+  [engine-thread binding repair](platform-recovery-review.md#android-ui-engine-thread-binding-19-october-2026)
+  passes native Windows/Linux checks and is installed for a device retry.
+  Broader device startup and the remaining host/input/lifecycle recovery are
+  still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
   and current Android, ES3 capability differences, stock SP/MP, saves, map/campaign
   transitions, materials/shadows/ETC2/EAC, cold/warm caches, audio and touch/gamepad/

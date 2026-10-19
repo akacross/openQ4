@@ -258,7 +258,8 @@ Its restore attempt fails safely because `guis/menu/pause.q4ui` cannot be
 created; the game displays its load-failed dialog and is then force-stopped.
 The original save and failure logs are retained. Inspection identifies a UI
 thread binding captured during library loading instead of engine initialization;
-its repair and successful restore remain required. This is not a release
+the repair below passes native checks, while successful device restore remains
+required. This is not a release
 certificate-continuity qualification.
 
 Evidence is `.tmp/stage-two/android-basepath-evidence.json` (SHA-256
@@ -269,3 +270,38 @@ Remaining observed warnings include unsupported mobile window placement/MSAA,
 unavailable SMAA resources and existing Storage 1 script/content diagnostics.
 Onboarding, retained UI recovery, touch, audio and lifecycle checks remain open
 under AND-01/AND-03; this check does not close broad device qualification.
+
+## Android UI engine-thread binding, 19 October 2026
+
+SDLActivity loads native libraries on its Java thread and invokes the engine
+later on SDLThread. The retained-view coordinator and global GUI manager captured
+their owning thread during library construction. Consequently, actual engine
+calls could neither create retained views nor resolve native GUI allocations.
+Both owners now bind during UI initialization, preserving rejection of calls
+from other threads and allowing serial engine reinitialization.
+
+The S25 restore failure above occurs in optional pause-menu preparation before
+the game reads saved state. The original save contains no `pause.q4ui` reference;
+`FindGui`'s broad loading-session guard produced the serialized-GUI diagnostic.
+Moving that guard to the actual serialized reader is separate Q4-05 work.
+
+`tools/tests/ui_engine_thread.py` runs the production manager/retained
+initialization, view creation and allocation query methods with counted command
+and Runtime stand-ins. Construction happens on one thread and engine startup on
+another. Before the fix, both engine operations fail and the library-loading
+thread incorrectly remains authorized. Afterward, Windows and Linux pass that
+sequence, foreign-thread rejection and serial reinitialization on the desktop
+thread. The retained resource-lifecycle fixture and all 257 Windows native tests
+also pass. These checks do not activate a real SDL window or inject input.
+
+Android ARM64/API 24 and Windows builds/stages pass. The updated debug APK,
+SHA-256 `905cad2bccf62a55aa1aaff176f4d704b99cd237773fd5582b0f0b7393add668`,
+passes exact payload, API/ABI, alignment, native extraction and v2-signature
+verification. Its in-place installation preserves all three original save files.
+The Android debugging interface disconnected before the physical retry; no
+successful device restore or UI visual/input acceptance is claimed yet.
+
+Evidence is `.tmp/stage-two/android-ui-thread-evidence.json` (SHA-256
+`4f8d698f484efbb6ebd7e79bf0522a6f3b3fd90412ac717dc22fba74133e5ebe`),
+with source identities, original failure analysis, native logs and package/update
+records. AND-01/AND-03 and Q4-05 remain open.

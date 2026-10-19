@@ -311,6 +311,17 @@ if get_option('build_native_tests')
   )
   test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
 
+  ui_engine_thread_source = custom_target(
+    'openq4-ui-engine-thread-source',
+    output: 'UiEngineThread.cpp',
+    depend_files: files('src/ui/RetainedUI.cpp', 'src/ui/UserInterface.cpp', 'src/ui/UserInterfaceLocal.h'),
+    command: [py, files('tools/tests/ui_engine_thread.py'), '--generate-native', '@OUTPUT@'],
+  )
+  ui_engine_thread_test = executable(
+    'openq4-ui-engine-thread', ui_engine_thread_source, dependencies: dependency('threads'), install: false,
+  )
+  test('openq4-ui-engine-thread', ui_engine_thread_test, timeout: 30)
+
   foreach platform : ['android', 'desktop']
     android_window_source = custom_target(
       'openq4-android-window-' + platform + '-source',

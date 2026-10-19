@@ -1017,7 +1017,7 @@ int rootProfileFrames = 0;
 // Counts the frames submitted since startup, one per EndFrame, so a profile
 // groups its views' draws by the frame that presented them.
 std::uint64_t submittedFrames = 0;
-const std::thread::id editThread=std::this_thread::get_id();
+std::thread::id editThread=std::this_thread::get_id();
 unsigned editWorkDepth=0,editCallDepth=0;
 bool editDraining=false,editShutdownPending=false;
 retainedUIPreparedEdit_t* editPrepared=nullptr;
@@ -1740,6 +1740,9 @@ bool RetainedUI_DrawViewRoot(retainedUIView_t* view, const openq4::ui::Viewport&
 }
 
 void RetainedUI_Init() {
+	// Android loads native libraries on the Java thread, then initializes the
+	// engine on SDLThread. Bind the view owner at engine startup, not dlopen.
+	editThread = std::this_thread::get_id();
 	cmdSystem->AddCommand("ui_retainedCheckpoint",Checkpoint_f,CMD_FL_SYSTEM,"save or restore one bounded canonical instance checkpoint in memory");
 	cmdSystem->AddCommand("ui_retainedData",Data_f,CMD_FL_SYSTEM,"apply a validated retained state batch from VFS JSON");
 	cmdSystem->AddCommand("ui_retainedValue",Value_f,CMD_FL_SYSTEM,"inspect a retained bound or animated presentation value");
