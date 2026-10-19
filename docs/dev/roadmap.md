@@ -446,8 +446,10 @@ Sources: [Android build and packaging](android-build.md),
   integration, flavor verification and physical-device qualification remain open.
   The [single-window startup/fatal handoff](platform-recovery-review.md#android-window-ownership-19-october-2026)
   is repaired and passes Windows/Linux production-method checks and the matching
-  ARM64/API 24 cross-build. Device startup and the remaining host/input/lifecycle
-  recovery are still open.
+  ARM64/API 24 cross-build. The [S25 check](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)
+  reaches Storage 1, captures the opening scene and writes a save; restoration
+  exposes a retained-UI thread-binding failure. Broader device startup and the
+  remaining host/input/lifecycle recovery are still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
   and current Android, ES3 capability differences, stock SP/MP, saves, map/campaign
   transitions, materials/shadows/ETC2/EAC, cold/warm caches, audio and touch/gamepad/
@@ -469,7 +471,10 @@ Sources: [Android build and packaging](android-build.md),
   save preservation; a real 810 MB package passes selective repair. Full engine
   PK4 checks remain enabled. Localized setup/retry, retail-data validation,
   accessible release diagnostics/save export and signed device-upgrade evidence
-  keep AND-03 open.
+  keep AND-03 open. Android now preserves the host's data directory when retail
+  packs are absent, with production Android/desktop selection tests. An S25
+  debug APK update preserves save bytes; successful restore and release
+  certificate-continuity qualification remain required.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

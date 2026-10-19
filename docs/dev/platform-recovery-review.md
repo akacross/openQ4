@@ -227,4 +227,45 @@ v2 signature checks. Its SHA-256 is
 `.tmp/stage-two/android-apk-verification.json` records the checks (SHA-256
 `b2815612ffe96fcdbad60a9d3f9bfb1b5a31d4c2883885bd031fb9de5c3de3ce`).
 This local debug signature does not establish release certificate continuity.
-Physical-device startup qualification remains open.
+The subsequent S25 check below qualifies startup for that device/package only.
+
+## S25 startup, data path and upgrade check, 19 October 2026
+
+Dan's Galaxy S25 (SM-S931B, Android 16/API 36, ARM64, 4 KiB pages) installs
+the debug APK above. All 40 copied retail files match the independent source
+fixture's SHA-256 manifest. Storage 1 reaches its first active draw, the engine
+`screenshot` command captures the opening scene at 2340 by 1080, and
+`Stage2AndroidSmoke` saves successfully. Final engine/app logs show renderer
+shutdown and process exit without a reported crash. This is opening-scene
+startup evidence, not campaign progression; audio is disabled and no device
+input or OS screenshot is used.
+
+The initial missing-data launch exposed a path bug: the engine discarded the
+Android host's external data directory and fell through desktop discovery to
+`/`. Android now preserves the host's explicit directory even when retail files
+are absent. Required-PK4 integrity checks remain unchanged. The production
+selection-block fixture fails before the change and passes afterward on Windows
+and Linux, including unchanged desktop discovery and unset-path controls.
+Android/Windows builds and staging pass; all 256 Windows native tests pass.
+The corrected missing-data path still needs a physical-device retry.
+
+The updated debug APK, SHA-256
+`de949e3f506d75c12bae162129ea442bb8961b7982e2d300d07486f30caea64e`,
+passes exact staged payload, seven-library, manifest, API/ABI, 16 KiB ELF/ZIP
+alignment and v2-signature checks. An in-place update with the same debug
+certificate preserves the original save, metadata and preview byte-for-byte.
+Its restore attempt fails safely because `guis/menu/pause.q4ui` cannot be
+created; the game displays its load-failed dialog and is then force-stopped.
+The original save and failure logs are retained. Inspection identifies a UI
+thread binding captured during library loading instead of engine initialization;
+its repair and successful restore remain required. This is not a release
+certificate-continuity qualification.
+
+Evidence is `.tmp/stage-two/android-basepath-evidence.json` (SHA-256
+`7c8f08eb0179c70cb7ad44841d679a3731457a12d0acafd728961d88af12f0d8`),
+including source/build/test identities and the `android-s25-baseline/` and
+`android-s25-upgrade/` logs, engine capture, asset manifest and save hashes.
+Remaining observed warnings include unsupported mobile window placement/MSAA,
+unavailable SMAA resources and existing Storage 1 script/content diagnostics.
+Onboarding, retained UI recovery, touch, audio and lifecycle checks remain open
+under AND-01/AND-03; this check does not close broad device qualification.

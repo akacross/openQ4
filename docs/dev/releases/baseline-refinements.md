@@ -53,6 +53,8 @@
   copy of the damaged file; retail game files remain separate.
 - The experimental Android app no longer blocks game-window creation behind
   its startup splash. Fatal errors can replace a still-open game window.
+- Missing retail files no longer send Android startup diagnostics to the wrong
+  folder; the app keeps its selected game-data location.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

@@ -10,12 +10,18 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Keep Android's selected game-data folder when retail files are missing,
+  so startup diagnostics retain the correct copy destination. The
+  [S25 and path-selection evidence](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)
+  records the reproduced bug, Windows/Linux production checks and 256 passing
+  Windows tests. The separate device restore failure remains open.
+
 - [x] Leave Android's single SDL window available for the game at startup and
   release a surviving game window before creating the fatal-error console.
   [Window ownership evidence](platform-recovery-review.md#android-window-ownership-19-october-2026)
   covers Windows/Linux production-method checks, the ARM64/API 24 cross-build
-  and 254 passing Windows tests. APK/device startup, touch/back handling and
-  broader AND-01 acceptance remain open.
+  and 254 passing Windows tests. Subsequent APK/S25 startup evidence is recorded
+  separately; touch/back handling and broader AND-01 acceptance remain open.
 
 - [x] Reject standalone weapon, physics and helper classes that cannot occur in
   a valid saved object table, before any object factory runs. View weapons and

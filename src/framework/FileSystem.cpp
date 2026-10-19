@@ -6911,8 +6911,15 @@ void idFileSystemLocal::Init( void ) {
 	// 4) GOG install paths
 	if ( fs_basepath.GetString()[0] ) {
 		if ( !FS_HasGameFilesAtBasePath( fs_basepath.GetString() ) ) {
+#if defined( __ANDROID__ )
+			// The Android host supplies its accessible retail-data directory.
+			// Preserve it through missing/incomplete onboarding; desktop install
+			// discovery would replace it with the process working directory.
+			common->Warning( "fs_basepath '%s' has no %s game files", fs_basepath.GetString(), BASE_GAMEDIR );
+#else
 			common->Warning( "fs_basepath '%s' has no %s game files, auto-discovery will be attempted", fs_basepath.GetString(), BASE_GAMEDIR );
 			fs_basepath.SetString( "" );
+#endif
 		}
 	}
 	if ( fs_basepath.GetString()[0] == '\0' ) {

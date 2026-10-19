@@ -322,6 +322,17 @@ if get_option('build_native_tests')
       'openq4-android-window-' + platform, android_window_source, install: false,
     )
     test('openq4-android-window-' + platform, android_window_test, timeout: 30)
+
+    android_basepath_source = custom_target(
+      'openq4-android-basepath-' + platform + '-source',
+      input: files('src/framework/FileSystem.cpp'),
+      output: 'AndroidBasePath-' + platform + '.cpp',
+      command: [py, files('tools/tests/android_basepath.py'), '--generate-native', platform, '@OUTPUT@'],
+    )
+    android_basepath_test = executable(
+      'openq4-android-basepath-' + platform, android_basepath_source, install: false,
+    )
+    test('openq4-android-basepath-' + platform, android_basepath_test, timeout: 30)
   endforeach
 
   restore_recovery_source = custom_target(
