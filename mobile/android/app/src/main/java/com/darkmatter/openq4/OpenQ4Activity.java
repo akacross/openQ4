@@ -2,15 +2,47 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.darkmatter.openq4;
 
+import android.annotation.TargetApi;
+import android.graphics.Color;
+import android.graphics.Insets;
+import android.os.Build;
+import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.view.KeyEvent;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
 import org.libsdl.app.SDLActivity;
 import java.io.File;
 import java.io.IOException;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (!mBrokenLibraries && mLayout != null && Build.VERSION.SDK_INT >= 30) {
+            keepOutOfDisplayCutout(mLayout);
+        }
+    }
+
+    @TargetApi(30)
+    private static void keepOutOfDisplayCutout(ViewGroup layout) {
+        // SDL allows the surface under display cutouts on Android 11+. The
+        // stock HUD and in-world GUIs still use the complete render target.
+        // Keep that target inside the cutout, preserving one coordinate space
+        // for rendering, retained UI and SDL input instead of clipping controls.
+        layout.setBackgroundColor(Color.BLACK);
+        layout.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets cutout = insets.getInsets(WindowInsets.Type.displayCutout());
+            view.setPadding(cutout.left, cutout.top, cutout.right, cutout.bottom);
+            // Children, including SDL's surface and text input, receive the
+            // remaining system/IME insets relative to this padded content.
+            return insets.inset(cutout);
+        });
+        layout.requestApplyInsets();
+    }
+
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {

@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 
 def main() -> None:
@@ -27,6 +28,14 @@ def main() -> None:
     if not args.javac:
         parser.error("a JDK is required (--javac or JAVA_HOME)")
     root = Path(__file__).resolve().parents[2]
+    manifest = ET.parse(root / 'mobile/android/app/src/main/AndroidManifest.xml')
+    android = '{http://schemas.android.com/apk/res/android}'
+    activity = next(node for node in manifest.iter('activity') if node.get(android + 'name') == '.OpenQ4Activity')
+    required_changes = {'layoutDirection', 'locale', 'grammaticalGender', 'fontScale', 'fontWeightAdjustment',
+                        'orientation', 'uiMode', 'screenLayout', 'screenSize', 'smallestScreenSize',
+                        'keyboard', 'keyboardHidden', 'navigation', 'density'}
+    if not required_changes.issubset(set(activity.get(android + 'configChanges', '').split('|'))):
+        raise AssertionError('SDL Activity must retain its native session through configuration and density changes')
     scratch_root = root / ".tmp"
     scratch_root.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="android-host-storage-", dir=scratch_root) as temporary:
@@ -78,6 +87,68 @@ public final class Os {
 package android.view;
 public final class KeyEvent { public static final int KEYCODE_BACK = 4; }
 ''',
+            "android/annotation/TargetApi.java": r'''
+package android.annotation;
+public @interface TargetApi { int value(); }
+''',
+            "android/os/Bundle.java": r'''
+package android.os;
+public final class Bundle {}
+''',
+            "android/os/Build.java": r'''
+package android.os;
+public final class Build { public static final class VERSION { public static int SDK_INT = 35; } }
+''',
+            "android/graphics/Color.java": r'''
+package android.graphics;
+public final class Color { public static final int BLACK = 0xff000000; }
+''',
+            "android/graphics/Insets.java": r'''
+package android.graphics;
+public final class Insets {
+    public static final Insets NONE = of(0, 0, 0, 0);
+    public final int left, top, right, bottom;
+    private Insets(int l, int t, int r, int b) { left=l; top=t; right=r; bottom=b; }
+    public static Insets of(int l, int t, int r, int b) { return new Insets(l,t,r,b); }
+}
+''',
+            "android/view/WindowInsets.java": r'''
+package android.view;
+import android.graphics.Insets;
+public final class WindowInsets {
+    public final Insets cutout, bars, ime;
+    public WindowInsets(Insets c, Insets b, Insets i) { cutout=c; bars=b; ime=i; }
+    public Insets getInsets(int types) {
+        if (android.os.Build.VERSION.SDK_INT < 30) throw new AssertionError("API 30 call on older Android");
+        if (types != Type.displayCutout()) throw new AssertionError("only cutout padding is owned by the host");
+        return cutout;
+    }
+    private static Insets subtract(Insets a, Insets b) {
+        return Insets.of(Math.max(0,a.left-b.left),Math.max(0,a.top-b.top),
+                         Math.max(0,a.right-b.right),Math.max(0,a.bottom-b.bottom));
+    }
+    public WindowInsets inset(Insets by) {
+        return new WindowInsets(subtract(cutout,by),subtract(bars,by),subtract(ime,by));
+    }
+    public static final class Type { public static int displayCutout() { return 128; } }
+}
+''',
+            "android/view/View.java": r'''
+package android.view;
+public class View {
+    public int left, top, right, bottom, background, insetRequests;
+    public OnApplyWindowInsetsListener listener;
+    public interface OnApplyWindowInsetsListener { WindowInsets onApplyWindowInsets(View v, WindowInsets i); }
+    public void setPadding(int l,int t,int r,int b) { left=l; top=t; right=r; bottom=b; }
+    public void setBackgroundColor(int value) { background=value; }
+    public void setOnApplyWindowInsetsListener(OnApplyWindowInsetsListener value) { listener=value; }
+    public void requestApplyInsets() { ++insetRequests; }
+}
+''',
+            "android/view/ViewGroup.java": r'''
+package android.view;
+public class ViewGroup extends View {}
+''',
             "org/libsdl/app/SDLActivity.java": r'''
 package org.libsdl.app;
 import java.io.File;
@@ -86,6 +157,8 @@ public class SDLActivity {
     public static File files;
     public static AssetManager assets;
     public static boolean mBrokenLibraries, mActivityCreated = true;
+    public static android.view.ViewGroup mLayout;
+    protected void onCreate(android.os.Bundle savedInstanceState) {}
     public static final java.util.List<Integer> keys = new java.util.ArrayList<>();
     public static int systemBack;
     public boolean finishing;
@@ -168,6 +241,42 @@ public final class StorageTest {
         write(root.resolve("files/saves/baseoq4/test.save"), "player save");
         write(root.resolve("files/packages/keep/test.txt"), "unmanaged");
         OpenQ4Activity activity = new OpenQ4Activity();
+        for (int api : new int[] {24, 29, 30, 35, 36}) {
+            android.os.Build.VERSION.SDK_INT = api;
+            android.view.ViewGroup layout = new android.view.ViewGroup();
+            SDLActivity.mLayout = layout;
+            activity.onCreate(null);
+            if (api < 30) {
+                require(layout.listener == null && layout.insetRequests == 0, "older Android must keep platform cutout handling");
+                continue;
+            }
+            require(layout.listener != null && layout.insetRequests == 1 && layout.background == 0xff000000,
+                "cutout handling must be installed and requested on SDL's layout");
+            for (int[] side : new int[][] {{96,0,0,0},{0,0,96,0},{0,48,0,0},{0,0,0,48},{0,0,0,0}}) {
+                android.graphics.Insets cutout = android.graphics.Insets.of(side[0],side[1],side[2],side[3]);
+                android.view.WindowInsets insets = new android.view.WindowInsets(cutout,
+                    android.graphics.Insets.of(12,24,12,32),android.graphics.Insets.of(0,0,0,640));
+                android.view.WindowInsets remaining = layout.listener.onApplyWindowInsets(layout,insets);
+                require(layout.left == side[0] && layout.top == side[1] && layout.right == side[2] && layout.bottom == side[3],
+                    "cutout placement/removal kept stale padding");
+                require(remaining.cutout.left == 0 && remaining.cutout.top == 0 && remaining.cutout.right == 0 && remaining.cutout.bottom == 0,
+                    "SDL received the cutout a second time");
+                require(remaining.bars.left == Math.max(0,12-side[0]) && remaining.bars.top == Math.max(0,24-side[1]) &&
+                        remaining.bars.right == Math.max(0,12-side[2]) && remaining.bars.bottom == Math.max(0,32-side[3]) &&
+                        remaining.ime.bottom == 640-side[3], "remaining system/IME insets lost their content coordinates");
+                layout.listener.onApplyWindowInsets(layout,insets);
+                require(layout.left == side[0] && layout.top == side[1] && layout.right == side[2] && layout.bottom == side[3],
+                    "repeated insets accumulated padding");
+            }
+        }
+        SDLActivity.mBrokenLibraries = true;
+        SDLActivity.mLayout = new android.view.ViewGroup();
+        activity.onCreate(null);
+        require(SDLActivity.mLayout.listener == null, "failed SDL startup installed cutout handling");
+        SDLActivity.mBrokenLibraries = false;
+        SDLActivity.mLayout = null;
+        activity.onCreate(null);
+        android.os.Build.VERSION.SDK_INT = 35;
         activity.onBackPressed();
         require(SDLActivity.keys.equals(Arrays.asList(4, -4)) && SDLActivity.systemBack == 0 && !activity.finishing,
             "Back gesture must deliver one SDL Back press/release without closing the game");
@@ -328,7 +437,7 @@ public final class StorageTest {
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "invalid package revision must be rejected");
         require(new File(current, ".ready").isFile(), "invalid revision must not damage current package");
-        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots and Back gesture/lifecycle routing");
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots, Back routing and cutout/system/IME inset recovery");
     }
 }''',
         }

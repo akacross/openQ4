@@ -86,6 +86,12 @@ outside the pressed button cancels its action. The fatal screen does not open
 the on-screen keyboard. These input paths remain subject to physical-device
 qualification as part of the experimental Android package.
 
+On Android 11 and later, the SDL surface stays inside the display cutout, with
+a black strip beside the camera hole. Rendering and input therefore share the
+same content coordinates. Density changes keep the existing native Activity
+session. The app currently selects either landscape orientation; portrait and
+physical cutout/rotation/input qualification remain in progress.
+
 Saves/configuration/logs live in private `files/saves/baseoq4/`, and generated
 texture caches live in the Android cache directory. With a debug APK, retrieve
 the engine log using:

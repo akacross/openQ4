@@ -464,6 +464,10 @@ Sources: [Android build and packaging](android-build.md),
   owner with release/cancellation rules and use density-scaled error controls.
   Native/JVM recovery checks and both platform builds pass; physical touch,
   gesture, readability and cutout qualification remain required.
+  [Cutout/configuration recovery](platform-recovery-review.md#android-cutout-and-configuration-recovery-19-october-2026)
+  now keeps the actual SDL surface clear of camera cutouts and retains the
+  remaining child system/IME insets. Windows/Linux host checks and exact debug
+  package verification pass; real rotation/density/input and portrait work remain.
   Broader device startup and the remaining host/input/lifecycle recovery are
   still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor

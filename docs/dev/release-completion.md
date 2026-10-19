@@ -10,6 +10,14 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Keep Android's game surface clear of camera cutouts and retain the correct
+  remaining system/keyboard insets. Density and current SDL configuration changes
+  keep the native Activity session. The
+  [recovery evidence](platform-recovery-review.md#android-cutout-and-configuration-recovery-19-october-2026)
+  records Windows/Linux production Activity tests, three failing regression
+  controls and verified debug packaging. Real rotation, density, visual and
+  input acceptance remains open; portrait play is still pending.
+
 - [x] Restore three existing native-input SDK tests to Meson registration. An
   obsolete SDL 3.4.10 source path omitted them from builds using the current
   pinned dependency. Registration now follows the SDL wrap; the Windows setup

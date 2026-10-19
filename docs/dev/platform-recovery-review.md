@@ -119,7 +119,7 @@ variants implemented or supported. No NDK, SDL or API bump is bundled into recov
 | `3ce244cda` diagnostics/lifecycle | Recover accessible logs and lifecycle reset boundaries with localized strings; qualify pause/resume, rotation, process death and input cancellation against current SDLActivity |
 | `5c8693456`, `91fc0bad4` background audio/input and SP resume | Integrated with paired OpenAL pause/resume functions, persistent fallback mute and session-owned resume before audio/gameplay. Native recovery checks pass; physical Android qualification remains open |
 | `819846f5d` background tic sleep | Integrated with an atomic lifecycle query, 100 ms background waits and a ten-current-tic Android catch-up budget at every timescale. Production-method clock/wake/shutdown tests pass; physical suspension and resumed network sessions remain unqualified |
-| `20766e8d1` cutouts | Recover insets/orientation behavior through the current safe-area/density model, including portrait and controller/touch ownership |
+| `20766e8d1` cutouts | Surface padding and child-inset coordinates recovered in the current Activity, with density/configuration ownership and Windows/Linux JVM checks. Real orientation/density/input qualification and portrait presentation remain open |
 | `ba6d3af2e`, `c5845ca2d`, `2f1d2d681` launcher/preflight | Recover localized missing-data flow; archived `RetailData.isPresent` tests only for a regular `pak001.pk4`, not complete integrity. Preserve usable installed data on interrupted extraction; AND-03 owns full validation and recovery |
 | `023f0eeee`, `1484195c4` emulator | Recover ABI metadata, module names and ELF checks together; archived artifact-verifier changes alone miss the current exact APK allowlist. Keep diagnostic payloads out of production |
 
@@ -482,3 +482,36 @@ It is verified but not installed. Evidence is
 `.tmp/stage-two/android-console-evidence.json`, SHA-256
 `c24f379706013a555e51ce51416f8cdb5bdeaca2b14d8d5ead72cc7ffb42dd44`,
 binding the production sources, positive/negative checks, builds and package.
+
+## Android cutout and configuration recovery, 19 October 2026
+
+Archived `20766e8d1` is adapted to the current standalone Activity. On Android
+11 and later SDL permits its surface beneath a camera cutout, but stock HUDs
+and in-world GUIs still draw across the full render target. The host now pads
+SDL's parent layout by the cutout and paints that strip black. The actual
+surface shrinks, preserving one coordinate space for the scene, legacy and
+retained UI, and input. Insets passed to the children are reduced by that
+padding, retaining the remaining system-bar and IME extents. Cutout removal or
+movement replaces the padding rather than accumulating it. Earlier Android
+versions retain platform cutout handling.
+
+The Activity also handles density and the current SDL template's grammatical
+gender configuration changes, avoiding an Activity recreation around an existing
+native SDL session. This does not enable portrait play: `sensorLandscape`
+remains selected until the remaining mobile presentation/control work is ready.
+
+The production Activity/storage JVM tests pass on Windows and Linux for API
+24/29/30/35/36 selection, left/right/top/bottom cutouts, removal, repeated insets,
+system/IME remainder and missing or broken SDL layout. Windows retains the
+existing storage symlink skip; Linux exercises it. Compiled controls removing
+padding, child-inset translation or the API guard fail as intended. The
+SDK 35 debug package builds and passes exact staged payload, seven-library,
+ARM64/API 24, native extraction, 16 KiB ELF/ZIP alignment and v2-signature checks.
+Its native libraries are byte-identical to the console/Back package above.
+
+APK SHA-256 is
+`5f0e4fbbea5e049ad9413e9422ba71593a9074b2d0a83119e3b0e88a4e7abb9c`.
+Evidence is `.tmp/stage-two/android-cutout-evidence.json`, SHA-256
+`b9d882ee0fe381c09b14b5e7178bd6af15efba8ad22fddf44d4668d937a85ed1`.
+The package is not installed. Device rotation, density changes, cutout visuals
+and touch/controller/IME behavior remain unqualified; AND-01 and AND-03 stay open.

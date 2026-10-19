@@ -71,6 +71,8 @@
 - Android Back now follows menu and pause navigation. Error screens have larger
   touch controls and can be dismissed with Back, without opening the on-screen
   keyboard over the report. Dragging away from a button cancels the tap.
+- On Android 11 and later, the game renders beside camera cutouts so they do
+  not cover HUD controls. The surrounding strip stays black.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a
