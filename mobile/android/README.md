@@ -179,3 +179,10 @@ The host's extraction/retry and upgrade cleanup are exercised by
 `python tools/tests/android_host_storage.py` with a JDK. The test compiles the
 actual Activity with minimal Android API substitutes and runs against temporary
 filesystem fixtures; it does not require or control an Android device.
+
+`python tools/tests/android_retail_data.py` checks the setup verifier against the
+native PK4 checksum implementation and generated valid/damaged archives. It
+requires a JDK and GCC or Clang; `--retail-root /path/to/q4base` additionally
+performs a read-only full check of local retail media. This backend is not yet
+connected to the Activity's startup flow. Manual data placement and the engine's
+own validation remain in use until guided setup is integrated.

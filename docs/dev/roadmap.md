@@ -499,6 +499,11 @@ Sources: [Android build and packaging](android-build.md),
   now share the host's save/log directory, with production native/JVM recovery
   checks on Windows/Linux and both platform builds. Real-device diagnostics and
   accessible release log/save export remain open.
+  The [retail verifier backend](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
+  now checks the complete required set, engine-compatible checksums and every
+  entry's payload, with optional/language findings, bounded progress and
+  cancellation. The local retail set passes. It still needs the localized
+  folder-picker/import/retry flow; the Activity does not invoke it yet.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

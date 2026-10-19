@@ -41,7 +41,7 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
         expected[f'lib/arm64-v8a/{name}'] = path
     for name in ('baseoq4/pak0.pk4', 'baseoq4/pak1.pk4', 'baseoq4/mod.json',
                  'licenses/sdl3/LICENSE.txt', 'licenses/openal-soft/COPYING',
-                 'licenses/android-ndk/NOTICE.toolchain', 'licenses/QUAKE-4-SDK-EULA.rtf'):
+                 'licenses/android-ndk/NOTICE.toolchain', 'licenses/QUAKE-4-SDK-EULA.rtf', 'licenses/MD4.txt'):
         if not (stage / name).is_file():
             raise ValueError(f'Missing required packaged file: {name}')
     for directory in ('baseoq4', 'licenses'):

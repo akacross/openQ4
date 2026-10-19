@@ -446,6 +446,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "renderer_gles_alpha.py",
         root / "tools" / "tests" / "renderer_gles_upload.py",
         root / "tools" / "tests" / "android_host_storage.py",
+        root / "tools" / "tests" / "android_retail_data.py",
         root / "tools" / "tests" / "image_block_mips.py",
         root / "tools" / "tests" / "filesystem_case_segments.py",
         root / "tools" / "tests" / "filesystem_find_file_contract.py",

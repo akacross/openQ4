@@ -515,3 +515,59 @@ Evidence is `.tmp/stage-two/android-cutout-evidence.json`, SHA-256
 `b9d882ee0fe381c09b14b5e7178bd6af15efba8ad22fddf44d4668d937a85ed1`.
 The package is not installed. Device rotation, density changes, cutout visuals
 and touch/controller/IME behavior remain unqualified; AND-01 and AND-03 stay open.
+
+## Android retail verifier backend, 19 October 2026
+
+`Pk4Checksum` and `RetailData` add a read-only backend for AND-03's guided
+setup. They do not load SDL, extract archives, change saves or bypass the
+engine's startup checks. The current Activity does not call them yet; folder
+selection, import, localized results and retry presentation remain required.
+
+The Java compatibility checksum is derived from the RSA Data Security, Inc.
+MD4 Message-Digest Algorithm retained in the engine. It folds little-endian
+CRCs of nonempty ZIP entries in central-directory order. A separate full read
+checks every entry's actual length and CRC; matching central-directory metadata
+alone is never reported as payload verification. Classic ZIP metadata is bounded
+before `ZipFile` indexes it, with archive, entry, directory and expanded-size
+limits. Progress and thread cancellation interrupt the read without clearing
+the interruption flag. Observed file and folder changes invalidate the result.
+This historical checksum is a compatibility value, not authentication or a
+persistent guarantee that the folder will remain unchanged.
+
+The folder scanner requires all 22 core archives and their engine checksums.
+Missing optional archives or base language media produce nonblocking findings.
+Language patches do not stand in for an unsuffixed base archive; other recognized
+localized editions receive payload checks without claiming a known official
+checksum. A checksum disagreement in an optional archive remains a warning,
+matching the engine baseline, but corrupt present archives must be repaired or
+removed before mounting. Retail game-code packs are ignored by the same naming
+rule as the engine. Case aliases, unexpected links, unreadable files and limits
+produce structured findings for localization. Catalogue and language-list
+agreement with the native engine is checked by the executable host test.
+
+`tools/tests/android_retail_data.py` compiles the production Java classes and
+an independent probe using the actual native MD4 implementation. It compares
+136 vectors, stored/deflated/reordered and empty archives, damaged payloads,
+truncated and oversized archives, case duplicates, cancellation and retry,
+required/optional selection and changes across a whole-folder scan. With
+`--retail-root`, it also reads the caller's media without modifying it. The
+local 32-archive baseline passes every full payload/checksum check and the
+complete required-set scan. The default fixture run is registered in the
+validation runner and both CI script-smoke jobs.
+
+The original MD4 notices are retained, credited in `CONTRIBUTORS.md` and staged
+as `licenses/MD4.txt`. Android Gradle and APK verification require this notice;
+the exact asset/library allowlists, signing and alignment gates remain enabled.
+Setup integration and physical-device qualification remain open.
+
+Windows JDK 21 and Linux JDK 17 fixture checks pass, including Linux link
+rejection. Existing Activity/storage regressions and all seven Android build/
+package tests pass on Windows. Windows and ARM64/API 24 native builds and
+staging pass; no additional full native-suite result is claimed for this Java
+and notice change. The SDK 35 debug APK passes exact payload, seven-library,
+native extraction, 16 KiB alignment and v2-signature verification. Its SHA-256
+is `bbf4311c6f05a51974410380fbae6f718856b35c53347a4092c4bc01cc69d15c`.
+Evidence is `.tmp/stage-two/android-retail-evidence.json`, SHA-256
+`e7c22dfe8f88130020fb46764601d0be33dc69f6effe80f1807320bdcd104037`.
+This package is not installed; the S25's prepared restore test still waits for
+explicit readiness and uses the previously recorded timer/GUI package.

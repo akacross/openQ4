@@ -10,6 +10,15 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Prepare a read-only Android retail-data verifier for guided setup. It
+  checks all required archives against the engine catalogue, verifies entry
+  payloads and distinguishes optional/language warnings from blocking errors.
+  The [backend evidence](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
+  covers native/Java checksum agreement, corruption, limits, cancellation/retry
+  and the local retail set. Original checksum notices are included and required
+  by package verification. This is implementation groundwork: the Activity does
+  not invoke it yet, and AND-03's player-facing setup remains open.
+
 - [x] Keep Android's game surface clear of camera cutouts and retain the correct
   remaining system/keyboard insets. Density and current SDL configuration changes
   keep the native Activity session. The

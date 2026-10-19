@@ -3470,6 +3470,7 @@ install_data('LICENSES/KHRONOS-GLES-MIT.txt', install_dir: install_root_dir / 'l
 install_data('docs/licenses/RmlUi.txt', install_dir: install_root_dir / 'licenses')
 install_data('docs/licenses/JsonCpp.txt', install_dir: install_root_dir / 'licenses')
 install_data('docs/licenses/libtess2.txt', install_dir: install_root_dir / 'licenses')
+install_data('docs/licenses/MD4.txt', install_dir: install_root_dir / 'licenses')
 if build_openxr
   # the client links the Khronos OpenXR loader statically
   install_data('docs/licenses/openxr-sdk.txt', install_dir: install_root_dir / 'licenses')

@@ -50,6 +50,7 @@ class AndroidBuildTests(unittest.TestCase):
                 'baseoq4/pak0.pk4': b'first pack', 'baseoq4/pak1.pk4': b'second pack',
                 'LICENSE': b'engine license', 'LICENSING.md': b'component licenses', 'CONTRIBUTORS.md': b'credits',
                 'licenses/QUAKE-4-SDK-EULA.rtf': b'SDK EULA',
+                'licenses/MD4.txt': b'MD4 notice',
                 'licenses/sdl3/LICENSE.txt': b'SDL', 'licenses/openal-soft/COPYING': b'OpenAL',
                 'licenses/android-ndk/NOTICE.toolchain': b'NDK',
             })
@@ -72,12 +73,18 @@ class AndroidBuildTests(unittest.TestCase):
 
             package(entries)
             verify_android_apk.verify_payload(apk, stage, '0.14.000')
+            notice = stage / 'licenses/MD4.txt'
+            notice.unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing required packaged file: licenses/MD4.txt'):
+                verify_android_apk.verify_payload(apk, stage, '0.14.000')
+            notice.write_bytes(files['licenses/MD4.txt'])
             for name, replacement, message in (
                 ('lib/arm64-v8a/libquake4.so', b'old binary', 'differs from validated stage'),
                 ('lib/arm64-v8a/libgame-sp_arm64.so', None, 'seven matching'),
                 ('assets/baseoq4/pak0.pk4', b'old data', 'differs from validated stage'),
                 ('assets/licenses/openal-soft/COPYING', None, 'asset set differs'),
                 ('assets/licenses/QUAKE-4-SDK-EULA.rtf', None, 'asset set differs'),
+                ('assets/licenses/MD4.txt', None, 'asset set differs'),
                 ('assets/q4base/pak001.pk4', b'retail data', 'asset set differs'),
                 ('assets/openq4-package-version.txt', b'wrong revision', 'extraction revision'),
                 ('assets/openq4-package-manifest.txt', b'wrong manifest', 'extraction manifest'),
