@@ -445,6 +445,16 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-classes-' + game_mode, restore_classes_test, timeout: 30)
+    restore_gui_source = custom_target(
+      'openq4-restore-gui-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp'),
+      output: 'RestoreGui-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_gui.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_gui_test = executable(
+      'openq4-restore-gui-' + game_mode, restore_gui_source, install: false,
+    )
+    test('openq4-restore-gui-' + game_mode, restore_gui_test, timeout: 30)
     restore_spawn_refs_source = custom_target(
       'openq4-restore-spawn-refs-' + game_mode + '-source',
       input: files('src' / game_mode / 'Game_local.h', 'src' / game_mode / 'client' / 'ClientEntity.h'),

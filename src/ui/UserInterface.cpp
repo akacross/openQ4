@@ -1055,10 +1055,6 @@ idUserInterface *idUserInterfaceManagerLocal::FindGui( const char *qpath, bool a
 			return gui;
 		} else {
 			delete gui;
-			if ( session != NULL && session->IsLoadingSaveGame() ) {
-				common->Error( "Savegame restore could not load serialized GUI '%s'; aborting before its positional state payload can desynchronize the stream",
-					qpath ? qpath : "<null>" );
-			}
 		}
 	}
 	return NULL;

@@ -690,7 +690,11 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   [weapon-owner investigation and class admission](savegame-reliability.md#standalone-object-class-admission)
   now reject standalone weapon/physics/helper classes outside the writer's three
   object families before construction. Current GL/Vulkan recovery, 252 native
-  checks and v2/v3/v4 historical-reader controls pass. Other owning-graph and
+  checks and v2/v3/v4 historical-reader controls pass. The
+  [serialized-GUI boundary](savegame-reliability.md#serialized-gui-admission-and-optional-menu-fallback)
+  now preserves optional menu fallback during loading while rejecting a missing
+  GUI required by the save. Windows/Linux native, 259-test Windows suite and
+  GL/Vulkan recovery/reload checks pass. Other owning-graph and
   partial-constructor qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw

@@ -2092,6 +2092,12 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 		bool unique;
 		ReadBool( unique );
 		ui = uiManager->FindGui( name, true, unique );
+		if ( ui == NULL ) {
+			// This record owns an unframed GUI state payload. Reject it here;
+			// optional menu loads during map preparation may still fall back.
+			Error( "idRestoreGame::ReadUserInterface: could not load serialized GUI '%s'; aborting before its positional state payload can desynchronize the stream",
+				name.c_str() );
+		}
 		const openQ4SaveGameGuiRevision_t *revision = OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild );
 		if ( ui && revision != NULL && !GuiRecordNamesWindow( revision->currentWindow ) ) {
 			ReadUserInterfaceRevision( ui, *revision );

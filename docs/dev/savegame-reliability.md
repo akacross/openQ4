@@ -744,6 +744,44 @@ captures came from the engine. No physical-input, performance or cross-platform
 runtime acceptance is inferred. Other owning graphs and partial-constructor
 qualification remain under Q4-05.
 
+### Serialized GUI admission and optional menu fallback
+
+The S25 restore investigation exposed a second, independent issue: the GUI
+manager treated every failed GUI creation during a loading session as a missing
+serialized GUI. Save loading also prepares optional retained menus before it
+reads game state. A failed optional menu therefore aborted an otherwise valid
+save instead of leaving the stock screen available. The observed pause-menu
+name was not present in the S25 save.
+
+The missing-GUI check now belongs to `idRestoreGame::ReadUserInterface` in both
+game libraries. It rejects a nonempty saved GUI reference immediately after
+creation fails, before consuming its unframed positional state. The GUI manager
+returns failure normally so optional menu callers can fall back. Save bytes and
+historical GUI readers are unchanged.
+
+`tools/tests/savegame_restore_gui.py` compiles the production SP/MP readers with
+observed GUI/file stand-ins. The old readers fail the missing-definition check;
+the corrected readers pass missing, empty, unique/shared, healthy, malformed
+payload and historical-reader cases on Windows and Linux. The actual manager
+lifecycle fixture also reproduces the old session-wide rejection and passes
+optional legacy/retained failures afterward, including dedicated builds. Both
+platform builds and all **259 Windows native tests** pass.
+
+Windows OpenGL and Vulkan each load the healthy Storage1 save with a malformed
+optional pause document, reject a CRC-valid missing serialized GUI, show the
+retained recovery page and reload the healthy save. The isolated test mod gives
+the fault document precedence without changing the staged package. Three engine
+captures per backend show recovery and the restored opening scene; test-save
+and original-source hashes remain unchanged. Input and sound were disabled.
+
+`.tmp/stage-two/save-gui-boundary-evidence.json`, SHA-256
+`0ae778b7ec1610750bc120b208e72c7d1da7b1c805095c2155e0cf890fb341d4`,
+binds source, build, native, runtime and verified Android debug-APK identities.
+It retains the initial fixture-length error, ineffective lower-priority override
+and missing test-mod manifest as harness failures. The corrected APK has not yet
+been installed or tested physically because ADB is disconnected. Broader
+owning-graph, historical-corpus and Android gates remain open.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

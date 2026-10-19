@@ -87,6 +87,33 @@ def factory_fixtures(data):
     return result, metadata
 
 
+def gui_fixtures(data):
+    """Replace a framed GUI name while retaining its unframed state payload."""
+    _, metadata = checksum_fixture(data)
+    for marker in re.finditer(re.escape(b'OQ4Y'), data[:-16]):
+        offset = marker.start()+8
+        size = struct.unpack_from('<i', data, offset)[0]
+        name = data[offset+4:offset+4+size]
+        if not (11 <= size < 512 and name.startswith(b'guis/')
+                and name.endswith((b'.gui', b'.q4ui'))
+                and data[offset+4+size] in (0, 1)):
+            continue
+        original = name.decode('ascii')
+        # A missing retained document fails creation, whereas the legacy GUI
+        # reader may create a placeholder for a missing definition.
+        prefix, suffix = 'guis/', '.q4ui'
+        replacement = prefix+'x'*(size-len(prefix)-len(suffix))+suffix
+        changed = bytearray(data)
+        changed[offset+4:offset+4+size] = replacement.encode('ascii')
+        assert len(changed) == len(data)
+        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+        detail = dict(sync_offset=marker.start(), name_offset=offset+4,
+                      original=original, replacement=replacement,
+                      expected="could not load serialized GUI '%s'" % replacement)
+        return {'MissingSerializedGui': (bytes(changed), detail)}, metadata
+    raise AssertionError('No framed, nonempty GUI record was found.')
+
+
 def damaged_fixtures(data, spawn_refs=False, threads=False):
     _, metadata = checksum_fixture(data)
     position = metadata['server_info_sync']
@@ -604,9 +631,13 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories', 'threads', 'classes'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories', 'threads', 'classes', 'guis'), default='registrations')
+    parser.add_argument('--unavailable-pause-menu', action='store_true',
+                        help='Also exercise optional retained-menu fallback during valid save loading.')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
+    if args.unavailable_pause_menu and args.ui != 'retained':
+        parser.error('The optional retained-menu fallback probe requires --ui retained.')
     if os.name != 'nt':
         parser.error('Runtime probe targets staged Windows x64; native recovery tests also run on Linux.')
     output, source, runtime = args.output.resolve(), args.source_save.resolve(), ROOT/'.install'
@@ -616,15 +647,26 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = (object_class_fixtures(original) if args.cases == 'classes'
+    fixtures, metadata = (gui_fixtures(original) if args.cases == 'guis'
+                         else object_class_fixtures(original) if args.cases == 'classes'
                          else factory_fixtures(original) if args.cases == 'factories'
                          else render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
                          if args.cases in ('render-handles', 'bindings', 'movers')
                          else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs', threads=args.cases == 'threads'))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
-    game = save/'baseoq4'
+    # A separate test mod gives the local fault fixture precedence over staged
+    # baseoq4 packages without modifying that shared runtime or retail assets.
+    game_name = 'restore-gui-probe' if args.unavailable_pause_menu else 'baseoq4'
+    game = save/game_name
     (game/'savegames').mkdir(parents=True)
+    if args.unavailable_pause_menu:
+        manifest = json.loads((runtime/'baseoq4/mod.json').read_text())
+        manifest['name'] = 'Save GUI fallback probe'
+        (game/'mod.json').write_text(json.dumps(manifest, indent=2)+'\n')
+        menu = game/'guis/menu/pause.q4ui'
+        menu.parent.mkdir(parents=True)
+        menu.write_text('{ invalid document for optional-menu fallback probe\n')
     saves = [game/'savegames/Good.save']
     saves[0].write_bytes(original)
     for name, (data, _) in fixtures.items():
@@ -643,7 +685,7 @@ def main():
     (game/'initial.cfg').write_text('\n'.join(script)+'\n')
     markers.append('RESTORE_GOOD_FINAL')
     (game/'final.cfg').write_text('echo RESTORE_GOOD_FINAL\nscreenshot screenshots/final.tga\nquit\n')
-    settings = dict(fs_game='baseoq4', fs_basepath=str(args.basepath.resolve()), fs_savepath=str(save), fs_devpath=str(save),
+    settings = dict(fs_game=game_name, fs_basepath=str(args.basepath.resolve()), fs_savepath=str(save), fs_devpath=str(save),
         com_gameMode='SP', si_gameType='singleplayer', ui_retained='1' if args.ui == 'retained' else '0', ui_autoJoin='0',
         win_allowMultipleInstances='1', sys_consoleWindow='0', in_tty='0', in_mouse='0', in_joystick='0', s_noSound='1',
         r_fullscreen='0', r_fullscreenDesktop='0', r_borderless='0', r_borderlessDefaultMigrated='1', r_hiddenWindow='1',
@@ -656,6 +698,7 @@ def main():
     report = dict(source_save=dict(path=str(source), sha256=sha(source)), fixture=metadata,
         cases={name: details for name, (_, details) in fixtures.items()}, command=command,
         harness_sha256=sha(Path(__file__)), ui=args.ui, renderer=args.renderer, fixture_set=args.cases,
+        unavailable_pause_menu=args.unavailable_pause_menu, game_directory=game_name,
         runtime={relative: sha(runtime/relative) for relative in
                  ('openQ4-client_x64.exe', 'baseoq4/game-sp_x64.dll', 'baseoq4/game-mp_x64.dll', 'baseoq4/pak0.pk4', 'baseoq4/pak1.pk4')},
         before={path.name: sha(path) for path in saves},
@@ -680,6 +723,8 @@ def main():
     report['markers'] = {marker: text.count(marker) for marker in markers}
     report['restore_attempts'] = text.count('Game Map Init SaveGame')
     report['expected_errors'] = {name: details['expected'] in text for name, (_, details) in fixtures.items()}
+    report['optional_menu_fallback'] = (
+        "retained UI: 'guis/menu/pause.q4ui' could not be loaded; the stock screen stays in use" in text)
     report['screenshots'] = {name: sha(game/f'screenshots/{name}.tga')
         for name in ['initial', *fixtures, 'final'] if (game/f'screenshots/{name}.tga').is_file()}
     report['engine_log_sha256'] = sha(log) if log.is_file() else None
@@ -691,6 +736,7 @@ def main():
     report['passed'] = (code == 0 and not report.get('timed_out') and all(report['markers'][m] == 1 for m in markers)
         and positions == sorted(positions) and report['restore_attempts'] == len(fixtures)+2
         and all(report['expected_errors'].values()) and report['before'] == report['after']
+        and (not args.unavailable_pause_menu or report['optional_menu_fallback'])
         and len(report['screenshots']) == len(fixtures)+2 and 'ERROR:' not in text and ui_passed)
     (output/'report.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps({key: report[key] for key in ('passed', 'exit_code', 'elapsed', 'markers', 'expected_errors', 'recovery_ui')}, indent=2))

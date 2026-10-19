@@ -283,7 +283,9 @@ from other threads and allowing serial engine reinitialization.
 The S25 restore failure above occurs in optional pause-menu preparation before
 the game reads saved state. The original save contains no `pause.q4ui` reference;
 `FindGui`'s broad loading-session guard produced the serialized-GUI diagnostic.
-Moving that guard to the actual serialized reader is separate Q4-05 work.
+The subsequent [serialized-GUI boundary repair](savegame-reliability.md#serialized-gui-admission-and-optional-menu-fallback)
+preserves optional fallback while rejecting missing definitions required by the
+save. Native and Windows GL/Vulkan checks pass; physical retry remains pending.
 
 `tools/tests/ui_engine_thread.py` runs the production manager/retained
 initialization, view creation and allocation query methods with counted command

@@ -31,6 +31,9 @@
 - A damaged save that fails during restoration now returns to the Load Game page
   with guidance, or a message dialog when using the classic menu. The original
   save remains untouched, and another save can be loaded afterward.
+- An unavailable optional menu now falls back to the stock screen during save
+  loading. Missing GUI definitions required by the save still stop the load
+  safely and identify the missing file.
 - Creating client effects when their entity table is full now fails safely.
 - Interrupted save restores no longer release models or lights using stale
   handles from the saved world.

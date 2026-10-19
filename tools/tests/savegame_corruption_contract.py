@@ -1218,8 +1218,6 @@ def validate_gui_stream_alignment_contract() -> None:
 
     ui_source = read("src/ui/UserInterface.cpp")
     for token in (
-        "session != NULL && session->IsLoadingSaveGame()",
-        "aborting before its positional state payload can desynchronize the stream",
         "UI_MAX_SAVEGAME_STATE_ENTRIES = 16384",
         "UI_MAX_SAVEGAME_STATE_BYTES = 16 * 1024 * 1024",
         "UI_ReadSaveGameInt( savefile, num, \"state count\" )",
@@ -1232,6 +1230,11 @@ def validate_gui_stream_alignment_contract() -> None:
         "desktop->ReadFromSaveGame( savefile );",
     ):
         require(ui_source, token, "top-level GUI positional restore validation")
+
+    for game in ("game", "mpgame"):
+        require(read(f"src/{game}/gamesys/SaveGame.cpp"),
+                "aborting before its positional state payload can desynchronize the stream",
+                "serialized GUI restore boundary")
 
     window_source = read("src/ui/Window.cpp")
     for token in (

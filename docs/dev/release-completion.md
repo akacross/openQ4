@@ -10,6 +10,14 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Preserve optional menu fallback during a save load and reject missing
+  serialized GUI definitions at their actual reader. The previous session-wide
+  check misidentified an optional Android pause menu as saved state.
+  [GUI boundary evidence](savegame-reliability.md#serialized-gui-admission-and-optional-menu-fallback)
+  records Windows/Linux production checks, 259 passing native tests, both
+  platform builds and GL/Vulkan fallback, rejection and healthy reload.
+  Physical Android restore and broader Q4-05/Q4-07 gates remain open.
+
 - [x] Bind retained views and GUI allocation queries to the engine thread at
   startup. Android loads native libraries on a different thread, which had
   prevented the optional UI from loading and interrupted save-load preparation.
