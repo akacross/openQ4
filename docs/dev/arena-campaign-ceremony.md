@@ -320,10 +320,40 @@ final reports. Developer non-precache diagnostics, Q4DM1's embedded shotgun-ammo
 warning and two empty-key summary warnings remain in the logs; this is not a
 warning-clean whole-product claim.
 
+## Headphone pause and resume, 19 October 2026
+
+The physical mode of `tools/tests/arena_sound_runtime.py` now uses the default
+output endpoint at a master volume of −12 dB and holds each pause for eight
+seconds. `--listening-cue` starts the retail lightning-gun loop in the game sound
+world and keeps the observer alive. Protection is applied after Arena's round
+restart, which resets cheats. The live and both resumed voice lists must contain
+that loop; clock, result and ledger checks still run. No operating-system input
+is injected, and captures still use the engine command.
+
+On source `384e1a2124dc9521ed0df7ff677863a0aadef6e4`, the corrected silent control
+`.tmp/s2arena-audio-cue-null` and physical run `.tmp/s2arena-audio-cue-r2` both
+pass. OpenAL Soft selected **Headphones (Realtek(R) Audio)** through WASAPI. The
+listener confirmed: “Yes, both pauses and resumes sounded correct” when asked
+whether the cue stopped, returned twice and remained free of crackling or stuck
+sounds. This qualifies those two audible pause/resume cycles on that endpoint.
+
+The first physical run's report of missing resumed combat is preserved. Its idle
+player had died before the first pause, so that run did not establish resumed
+combat playback. The first persistent-cue attempt was not listened to and also
+exposed the round restart resetting protection. Neither counts as an audible
+pass. The corrected run had no player death and listed the cue playing at
+nonzero gain before and after both pauses. No production sound change was needed
+for this follow-up.
+
+`.tmp/stage-two/arena-audio-evidence.json` binds all four reports, engine/OpenAL
+logs, verbatim observations, harness, retail manifest and tested runtime hashes
+(SHA-256 `5d20a29e24750608005782766f2ca99d2c5b05892379f5a185e48098ef23b9fe`).
+These are functional checks, not performance or endpoint-reconnection evidence.
+
 ## Known gaps
 
-- Physical audible pause/resume, endpoint loss and return still require device
-  qualification. The null-backend checks above do not establish audible behavior.
+- Endpoint loss/return and other audio devices remain unqualified. The headphone
+  result above covers audible pause/resume on its stated endpoint only.
 - Restart match relaunches the listen server through the browser's entrance,
   so it takes as long as starting the match from the browser (the map and its
   navigation load again). Keyboard, mouse and controller navigation of the

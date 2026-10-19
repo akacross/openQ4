@@ -4459,8 +4459,18 @@ void Sys_SDL_EmergencyReleaseGameWindow(void) {
 	if (!s_sdlWindow) {
 		return;
 	}
+#if defined(__ANDROID__)
+	// Hiding the game does not release SDL's single Android window slot.
+	// Retire its published native handle before the fatal console replaces it.
+	SDL_StopTextInput(s_sdlWindow);
+	SDL_GL_MakeCurrent(s_sdlWindow, NULL);
+	SDL3_RetireNativeWindowPublication();
+	SDL_DestroyWindow(s_sdlWindow);
+	s_sdlWindow = NULL;
+#else
 	(void)SDL3_LeaveFullscreenAndRestoreDesktopMode();
 	SDL_HideWindow(s_sdlWindow);
+#endif
 }
 
 #if defined(_WIN32)

@@ -1687,7 +1687,9 @@ void Posix_ShutdownConsole( void ) {
 }
 
 void Sys_ShowSplash( void ) {
-#if defined( USE_SDL3 ) && !defined( ID_DEDICATED )
+// Android's Activity owns the launch screen. SDL permits only one Android
+// window, which must remain available for the game's graphics context.
+#if defined( USE_SDL3 ) && !defined( ID_DEDICATED ) && !defined( __ANDROID__ )
 	if ( s_splashWindow.window != NULL || s_splashWindow.createFailed ) {
 		return;
 	}

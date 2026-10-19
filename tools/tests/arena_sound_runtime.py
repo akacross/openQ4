@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Exercise Arena pause/resume and a result with engine commands and null OpenAL.
+"""Exercise Arena pause/resume and a result with engine commands.
 
-This observes actual sound-world clocks and menu routing, not audible physical
-device output. A shared isolated --profile also checks persisted result ledgers.
+Null OpenAL is the default. --audio-output physical uses the default device for
+a listening check; automated results alone never establish audible correctness.
+A shared isolated --profile also checks persisted result ledgers.
 """
 from __future__ import annotations
 
@@ -28,6 +29,8 @@ def main() -> int:
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--outcome", choices=("win", "loss", "draw"), default="win")
     parser.add_argument("--renderer", choices=("gl", "vulkan"), default="gl")
+    parser.add_argument("--audio-output", choices=("null", "physical"), default="null")
+    parser.add_argument("--listening-cue", action="store_true", help="keep the player alive and a retail lightning loop running across pauses")
     parser.add_argument("--port", type=int, default=28990)
     parser.add_argument("--timeout", type=int, default=220)
     args = parser.parse_args()
@@ -54,14 +57,21 @@ def main() -> int:
         "openq4_retainedGui focus arena_start", "openq4_retainedGui menu accept 1",
         "openq4_retainedGui menu accept 0",
     ])
-    script = ["waitMsec 30000", "echo ARENA_SAMPLE_live", "openq4_arenaCeremony status", "s_soundWorlds"]
-    for cycle, hold in ((1, 3500), (2, 1800)):
+    pauses = ((1, 8000), (2, 8000)) if args.audio_output == "physical" else ((1, 3500), (2, 1800))
+    resume_hold = 6000 if args.audio_output == "physical" else 1000
+    # Arena's countdown restarts the map and resets cheats. Set the observer's
+    # protection after that restart, before starting the persistent audio cue.
+    script = ["waitMsec 10000", "god", "waitMsec 10000"] if args.listening_cue else ["waitMsec 20000"]
+    if args.listening_cue:
+        script += ["testSound weapon_lightninggun_fireloop", "echo ARENA_LISTENING_LOOP_STARTED"]
+    script += ["waitMsec 10000", "echo ARENA_SAMPLE_live", "openq4_arenaCeremony status", "s_soundWorlds", "listPlayingSounds"]
+    for cycle, hold in pauses:
         script += ["openq4_assertMenuActivation 5000 game", "waitMsec 500",
                    f"echo ARENA_SAMPLE_pause{cycle}a", "openq4_arenaCeremony status", "s_soundWorlds",
                    f"waitMsec {hold}", f"echo ARENA_SAMPLE_pause{cycle}b", "openq4_arenaCeremony status",
                    "s_soundWorlds", f'screenshot "screenshots/arena-pause{cycle}.tga"',
-                   "openq4_retainedGui event onBack", "waitMsec 1000",
-                   f"echo ARENA_SAMPLE_resume{cycle}", "openq4_arenaCeremony status", "s_soundWorlds"]
+                   "openq4_retainedGui event onBack", f"waitMsec {resume_hold}",
+                   f"echo ARENA_SAMPLE_resume{cycle}", "openq4_arenaCeremony status", "s_soundWorlds", "listPlayingSounds"]
     # Victory review (6 s), scoreboard (5 s), stats (6 s), fades and the
     # browser handoff must finish before observing the archived result.
     script += [f"openq4_arenaCeremony {args.outcome}", "waitMsec 30000", "echo ARENA_SAMPLE_result",
@@ -80,16 +90,26 @@ def main() -> int:
         "r_borderlessDefaultMigrated": "1", "r_hiddenWindow": "1", "r_mode": "-1", "r_customWidth": "960",
         "r_customHeight": "540", "r_windowWidth": "960", "r_windowHeight": "540", "com_maxfps": "60",
         "r_swapInterval": "0", "in_mouse": "0", "in_joystick": "0", "s_noSound": "0", "s_muteUnfocused": "0",
+        "in_tty": "0", "sys_consoleWindow": "0", "s_deviceName": "",
         "logFile": "2", "logFileName": "logs/openq4.log", "developer": "1", "net_port": str(args.port),
         "net_ip": "127.0.0.1", "net_enableIPv6": "0", "net_allowCheats": "1", "com_skipLoadingContinue": "1",
         "g_autoExecAfterMapLoad": "arena_probe.cfg", "g_autoExecAfterMapLoadDelayMs": "500",
     }
+    if args.audio_output == "physical":
+        settings["s_volume_dB"] = "-12"
     executable = runtime / ("openQ4-client_x64.exe" if os.name == "nt" else "openQ4-client_x64")
     command = [str(executable), *(part for key, value in settings.items() for part in ("+set", key, value)),
                "+exec", "arena_bootstrap.cfg"]
-    environment = dict(os.environ, ALSOFT_DRIVERS="null", ALSOFT_LOGFILE=str(output / "openal.log"), ALSOFT_LOGLEVEL="3")
+    environment = dict(os.environ, ALSOFT_LOGFILE=str(output / "openal.log"), ALSOFT_LOGLEVEL="3")
+    if args.audio_output == "null":
+        environment["ALSOFT_DRIVERS"] = "null"
+    else:
+        environment.pop("ALSOFT_DRIVERS", None)
     report = {"status": "fail", "outcome": args.outcome, "renderer": args.renderer, "command": command,
-              "audio_backend": "OpenAL Soft null (no physical output)", "capture_method": "engine screenshot command",
+              "audio_backend": "OpenAL Soft null (no physical output)" if args.audio_output == "null" else "default physical endpoint requested",
+              "audible_result": "not applicable" if args.audio_output == "null" else "pending human listening check",
+              "listening_cue": args.listening_cue, "harness_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              "capture_method": "engine screenshot command",
               "source": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "runtime_sha256": {}, "samples": {}, "world_samples": {}, "failures": []}
     for path in (executable, runtime / "baseoq4/game-mp_x64.dll", runtime / "baseoq4/game-mp_x64.so",
@@ -97,14 +117,26 @@ def main() -> int:
         if path.is_file():
             with path.open("rb") as source:
                 report["runtime_sha256"][path.relative_to(runtime).as_posix()] = hashlib.file_digest(source, "sha256").hexdigest()
+    launch_options = {}
+    if os.name == "nt":
+        startup = subprocess.STARTUPINFO()
+        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startup.wShowWindow = subprocess.SW_HIDE
+        launch_options["startupinfo"] = startup
+    observed_markers = set()
     with (output / "console.log").open("w", encoding="utf-8") as stream:
         process = subprocess.Popen(command, cwd=runtime, stdout=stream, stderr=subprocess.STDOUT, env=environment,
-                                   stdin=subprocess.DEVNULL)
+                                   stdin=subprocess.DEVNULL, **launch_options)
         deadline = time.monotonic() + args.timeout
         try:
             while process.poll() is None:
                 current = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
-                if re.search(r"RETAINED_GUI_OPERATION \w+ failed|Unknown command|FATAL ERROR", current):
+                if args.audio_output == "physical":
+                    for marker in re.findall(r"^ARENA_SAMPLE_(\w+)\s*$", current, re.M):
+                        if marker not in observed_markers:
+                            observed_markers.add(marker)
+                            print("Listening check phase: " + marker, flush=True)
+                if re.search(r"RETAINED_GUI_OPERATION \w+ failed|Unknown command|FATAL ERROR|Unable to open server on port", current):
                     report["failures"].append("diagnostic action failed; terminated the isolated fixture")
                     process.terminate()
                     break
@@ -122,10 +154,14 @@ def main() -> int:
     (output / "config-after.cfg").write_text(after, encoding="utf-8")
     if report["exit_code"] != 0 or "ARENA_SOUND_COMPLETE" not in text:
         report["failures"].append("runtime did not finish cleanly")
-    if re.search(r"ERROR:|FATAL ERROR|Unknown command|usage: openq4_|requires a retained test", text):
+    if re.search(r"ERROR:|FATAL ERROR|Unknown command|usage: openq4_|requires a retained test|Unable to open server on port", text):
         report["failures"].append("engine or diagnostic command failed")
-    if "OpenAL renderer: OpenAL Soft" not in text or "No Output" not in text:
-        report["failures"].append("OpenAL Soft null device was not initialized")
+    if "OpenAL renderer: OpenAL Soft" not in text:
+        report["failures"].append("OpenAL Soft was not initialized")
+    if ("No Output" in text) != (args.audio_output == "null"):
+        report["failures"].append("OpenAL output does not match the requested null/physical mode")
+    if args.listening_cue and ("godmode ON" not in text or "Player was killed" in text or "ARENA_LISTENING_LOOP_STARTED" not in text):
+        report["failures"].append("listening cue or living-player control did not start or persist")
     for marker, block in re.findall(r"ARENA_SAMPLE_(\w+)\s*\n(.*?)(?=ARENA_SAMPLE_|\Z)", text, re.S):
         rows = re.findall(r"SOUND_WORLD id=(\d+) paused=(\d+) time=(-?\d+) active=(\d+) channels=(\d+)", block)
         report["samples"][marker] = {world: dict(zip(("paused", "time", "active", "channels"), map(int, values)))
@@ -134,8 +170,14 @@ def main() -> int:
         if state:
             report["world_samples"][marker] = {"paused": int(state[6]), "clock": state[7]}
     samples = report["samples"]
+    if args.listening_cue:
+        blocks = dict(re.findall(r"ARENA_SAMPLE_(\w+)\s*\n(.*?)(?=ARENA_SAMPLE_|\Z)", text, re.S))
+        report["cue_samples"] = {name: "sound/weapons/lightninggun/loop.wav" in blocks.get(name, "")
+                                 for name in ("live", "resume1", "resume2")}
+        if not all(report["cue_samples"].values()):
+            report["failures"].append("persistent cue missing from the live or resumed voice list")
     try:
-        for cycle, hold in ((1, 3500), (2, 1800)):
+        for cycle, hold in pauses:
             first, last, resumed = (samples[f"{name}{cycle}{suffix}"] for name, suffix in (("pause", "a"), ("pause", "b"), ("resume", "")))
             assert first["1"]["paused"] == last["1"]["paused"] == 1
             assert first["1"]["time"] == last["1"]["time"]

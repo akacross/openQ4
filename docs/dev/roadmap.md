@@ -444,6 +444,10 @@ Sources: [Android build and packaging](android-build.md),
   Stage-one archived-change review and explicit phone/emulator/Quest scope matrix
   are complete in the [recovery review](platform-recovery-review.md). Feature
   integration, flavor verification and physical-device qualification remain open.
+  The [single-window startup/fatal handoff](platform-recovery-review.md#android-window-ownership-19-october-2026)
+  is repaired and passes Windows/Linux production-method checks and the matching
+  ARM64/API 24 cross-build. Device startup and the remaining host/input/lifecycle
+  recovery are still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
   and current Android, ES3 capability differences, stock SP/MP, saves, map/campaign
   transitions, materials/shadows/ETC2/EAC, cold/warm caches, audio and touch/gamepad/
@@ -739,8 +743,9 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   Progress, 18 October: [Arena sound ownership and result evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
   closes the continuing game-audio clock gap. Native ownership tests and final
   GL/Vulkan gameplay runs pass pause/resume, victory/defeat/draw and persisted
-  best-result ordering. Restart/navigation cost, physical controls/audible-device
-  qualification and remaining failure-path coverage keep MP-04 open.
+  best-result ordering. The [19 October headphone check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
+  also passes two audible pause/resume cycles. Restart/navigation cost, physical
+  controls, endpoint loss/return and remaining failure-path coverage keep MP-04 open.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery

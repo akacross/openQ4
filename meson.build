@@ -311,6 +311,19 @@ if get_option('build_native_tests')
   )
   test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
 
+  foreach platform : ['android', 'desktop']
+    android_window_source = custom_target(
+      'openq4-android-window-' + platform + '-source',
+      input: files('src/sys/posix/posix_syscon.cpp', 'src/sys/sdl3/sdl3_backend.cpp'),
+      output: 'AndroidWindow-' + platform + '.cpp',
+      command: [py, files('tools/tests/android_window_lifecycle.py'), '--generate-native', platform, '@OUTPUT@'],
+    )
+    android_window_test = executable(
+      'openq4-android-window-' + platform, android_window_source, install: false,
+    )
+    test('openq4-android-window-' + platform, android_window_test, timeout: 30)
+  endforeach
+
   restore_recovery_source = custom_target(
     'openq4-restore-recovery-source',
     input: files('src/framework/Common.cpp', 'src/framework/Session.cpp', 'src/framework/Session_menu.cpp'),

@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Leave Android's single SDL window available for the game at startup and
+  release a surviving game window before creating the fatal-error console.
+  [Window ownership evidence](platform-recovery-review.md#android-window-ownership-19-october-2026)
+  covers Windows/Linux production-method checks, the ARM64/API 24 cross-build
+  and 254 passing Windows tests. APK/device startup, touch/back handling and
+  broader AND-01 acceptance remain open.
+
 - [x] Reject standalone weapon, physics and helper classes that cannot occur in
   a valid saved object table, before any object factory runs. View weapons and
   embedded physics retain their supported paths. The
@@ -95,8 +102,10 @@ completed release material here and publish curated notes in `releases/`.
   audio, and resume only the pause it owns. Direct voice-over channels now pause
   with the world too. [Production-method and gameplay evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
   covers repeated GL/Vulkan pause/resume, victory/defeat/draw, restart persistence
-  and preservation of a better result. Physical audio/control qualification and
-  the rest of MP-04 remain open.
+  and preservation of a better result. A subsequent
+  [headphone listening check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
+  confirms audible pause/resume twice. Physical controls, endpoint loss/return
+  and the rest of MP-04 remain open.
 
 - [x] Implement retained generated RGBA8 images with premultiplied blending,
   bounded shared storage and deferred release. Explicit 2D images keep their

@@ -183,3 +183,48 @@ power-loss test, new signed APK installation or certificate migration is claimed
 The existing signed release pipeline checks the new exact manifest after packaging.
 Localized onboarding/retry UI, retail-data preflight, accessible release logs and
 save export remain AND-01/AND-03 work; the broader items stay open.
+
+## Android window ownership, 19 October 2026
+
+The startup-window portion of archived `81d29509b` is adapted to the current
+SDL/native-window lifetime contract. SDL 3.4.16's Android driver permits one
+window. The engine splash previously occupied it until after graphics startup,
+preventing creation of the game window. Android now keeps the Activity's launch
+screen and skips the engine splash. Desktop splash behavior is unchanged.
+
+On the fatal-error path, hiding the game window did not free that slot either.
+Android now stops its text input, unbinds the GL context, retires the published
+native-window identity and destroys the game window before the error console
+creates its replacement. Repeated release is harmless. This changes window
+ownership only; fatal-screen touch/back handling and broader lifecycle recovery
+remain separate AND-01 work.
+
+`tools/tests/android_window_lifecycle.py` compiles the actual production methods
+against an in-memory SDL API enforcing the one-window rule. Before the change,
+Android fails because its splash consumes the slot; the desktop control passes.
+Afterward, Windows and Linux runs pass the Android startup/game/fatal sequence,
+retirement ordering, repeated release and unchanged desktop behavior. These
+fixtures neither inject device input nor replace a real Android runtime check.
+
+The NDK r27d ARM64/API 24 build and stage pass with matching SDL 3.4.16 and
+OpenAL Soft 1.24.3 dependencies. The Windows build/stage and all 254 native tests
+pass. The first suite's existing durable-file test failed a post-rename assertion;
+its unchanged isolated rerun passed. Its assertion now requires the intended
+injected fault before a read clears the original error, so a native rename
+failure cannot masquerade as the post-rename case. No production file-I/O change
+was made. Linux passes its 343 checks and explicitly skips DrvFS FIFO support.
+The original transient failure's OS error was not retained by the old assertion;
+its exact external cause is unproven.
+
+Source, dependency, build, test and staged-library/package identities are bound
+by `.tmp/stage-two/android-window-evidence.json` (SHA-256
+`794f400eeb26fd98f81e284cf902a771a2ab447eed23cf45121acb0d7c7ee0ff`).
+The interrupted builds were resumed after the requested pause; their original
+logs are retained. The debug APK also passes exact staged payload/manifest,
+seven-library allowlist, API/ABI, native extraction, 16 KiB ELF/ZIP alignment and
+v2 signature checks. Its SHA-256 is
+`1a2c65f4e50f39d8f68ad8ad6f557e7071a3335aa80d34ef03461c080f050231`;
+`.tmp/stage-two/android-apk-verification.json` records the checks (SHA-256
+`b2815612ffe96fcdbad60a9d3f9bfb1b5a31d4c2883885bd031fb9de5c3de3ce`).
+This local debug signature does not establish release certificate continuity.
+Physical-device startup qualification remains open.
