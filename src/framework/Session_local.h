@@ -224,6 +224,7 @@ public:
 	virtual void		EndLoadingAssetQueue();
 
 	virtual void		Frame();
+	void				HandleAppResume( bool afterMapLoad );
 
 	virtual bool		IsMultiplayer();
 	virtual bool		IsLoadingSaveGame() const { return loadingSaveGame; }

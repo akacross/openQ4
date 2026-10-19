@@ -60,6 +60,10 @@
   folder; the app keeps its selected game-data location.
 - Android's optional new interface now initializes on the game's thread,
   fixing rejected menu creation during startup and save-load preparation.
+- The experimental Android app silences audio and releases held controls when
+  backgrounded. Returning to a live single-player game opens its pause menu
+  before combat resumes, while existing menus and loading screens keep their
+  current flow. Android device qualification remains in progress.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

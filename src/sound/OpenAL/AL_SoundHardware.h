@@ -52,6 +52,8 @@ public:
 	void			BeginDeferredUpdates();
 	void			EndDeferredUpdates();
 	void 			Update();
+	// Main-thread application suspension, independent of the player's mute.
+	void			SetDevicePaused( bool paused );
 
 	idSoundVoice* 	AllocateVoice( const idSoundSample* leadinSample, const idSoundSample* loopingSample );
 	void			FreeVoice( idSoundVoice* voice );
@@ -176,6 +178,9 @@ private:
 
 	ALCdevice*			openalDevice;
 	ALCcontext*			openalContext;
+	typedef void ( ALC_APIENTRY *devicePauseFunction_t )( ALCdevice* device );
+	bool				devicePauseRequested = false;
+	devicePauseFunction_t deviceResume = NULL;
 
 	int					lastResetTime;
 	int					lastDeviceCheckTime;

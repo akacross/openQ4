@@ -1551,6 +1551,8 @@ void idSoundHardware_OpenAL::Init()
 		return;
 	}
 
+	// A restart or a device retry must retain an outstanding app suspension.
+	SetDevicePaused( devicePauseRequested );
 	if( !quietRetry )
 	{
 		common->Printf( "Done.\n" );
@@ -1795,6 +1797,45 @@ void idSoundHardware_OpenAL::Init()
 	}
 }
 
+// SDL can park the engine loop while OpenAL keeps mixing. Silence the owned
+// context immediately and, when both extension functions exist, stop the device.
+// Keep the resume function for this exact device so partial extension support
+// cannot leave it paused. The requested state survives device replacement.
+void idSoundHardware_OpenAL::SetDevicePaused( bool paused )
+{
+	devicePauseRequested = paused;
+	if( openalContext != NULL && alcGetCurrentContext() == openalContext )
+	{
+		alListenerf( AL_GAIN, ( paused || soundSystem->IsMuted() ) ? 0.0f : 1.0f );
+		EndDeferredUpdates();
+	}
+	if( openalDevice == NULL )
+	{
+		return;
+	}
+	if( !paused )
+	{
+		if( deviceResume != NULL )
+		{
+			deviceResume( openalDevice );
+			deviceResume = NULL;
+		}
+		return;
+	}
+	if( deviceResume == NULL && alcIsExtensionPresent( openalDevice, "ALC_SOFT_pause_device" ) == ALC_TRUE )
+	{
+		const devicePauseFunction_t pauseDevice = reinterpret_cast<devicePauseFunction_t>(
+			alcGetProcAddress( openalDevice, "alcDevicePauseSOFT" ) );
+		const devicePauseFunction_t resumeDevice = reinterpret_cast<devicePauseFunction_t>(
+			alcGetProcAddress( openalDevice, "alcDeviceResumeSOFT" ) );
+		if( pauseDevice != NULL && resumeDevice != NULL )
+		{
+			pauseDevice( openalDevice );
+			deviceResume = resumeDevice;
+		}
+	}
+}
+
 /*
 ========================
 idSoundHardware_OpenAL::Shutdown
@@ -1802,6 +1843,8 @@ idSoundHardware_OpenAL::Shutdown
 */
 void idSoundHardware_OpenAL::Shutdown()
 {
+	// Closing a paused device releases it; never reuse its extension pointer.
+	deviceResume = NULL;
 	SoundSettings_DeviceDestroyed();
 	EndDeferredUpdates();
 	DisableDeviceEventMonitoring();
@@ -2192,7 +2235,7 @@ void idSoundHardware_OpenAL::Update()
 		return;
 	}
 
-	if( soundSystem->IsMuted() )
+	if( devicePauseRequested || soundSystem->IsMuted() )
 	{
 		alListenerf( AL_GAIN, 0.0f );
 	}

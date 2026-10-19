@@ -117,6 +117,7 @@ variants implemented or supported. No NDK, SDL or API bump is bundled into recov
 | --- | --- |
 | `486ecf735` touch gameplay | Recover touch-owner state/controls and executable input contracts; merge with current retained UI ownership and editable layout policy, never enable duplicate SDL/usercmd consumers |
 | `3ce244cda` diagnostics/lifecycle | Recover accessible logs and lifecycle reset boundaries with localized strings; qualify pause/resume, rotation, process death and input cancellation against current SDLActivity |
+| `5c8693456`, `91fc0bad4` background audio/input and SP resume | Integrated with paired OpenAL pause/resume functions, persistent fallback mute and session-owned resume before audio/gameplay. Native recovery checks pass; physical Android qualification remains open |
 | `819846f5d` background tic sleep | Recover bounded background scheduling only after checking multiplayer/server and resumed clock semantics; retain no-background-busy-loop and no-catch-up-storm tests |
 | `20766e8d1` cutouts | Recover insets/orientation behavior through the current safe-area/density model, including portrait and controller/touch ownership |
 | `ba6d3af2e`, `c5845ca2d`, `2f1d2d681` launcher/preflight | Recover localized missing-data flow; archived `RetailData.isPresent` tests only for a regular `pak001.pk4`, not complete integrity. Preserve usable installed data on interrupted extraction; AND-03 owns full validation and recovery |
@@ -307,3 +308,55 @@ Evidence is `.tmp/stage-two/android-ui-thread-evidence.json` (SHA-256
 `4f8d698f484efbb6ebd7e79bf0522a6f3b3fd90412ac717dc22fba74133e5ebe`),
 with source identities, original failure analysis, native logs and package/update
 records. AND-01/AND-03 and Q4-05 remain open.
+
+## Android background audio and single-player resume, 19 October 2026
+
+SDL 3.4.16's Android pump sends background lifecycle events on the engine thread
+and then blocks before returning them to the game. The old deferred handler
+therefore released held input and changed the sound world only after the app
+returned. OpenAL's mixer could continue running while the game loop was parked.
+
+The Android main-thread watch now performs the existing background transition
+before that block. Foreign-thread callbacks still publish pending work for the
+engine thread. The sound hardware immediately flushes a silent listener and uses
+`ALC_SOFT_pause_device` only when both pause and resume functions exist. It retains
+the matching resume pointer for that device. Missing extensions fall back to a
+mute that normal updates preserve, and a device retry retains the requested
+suspension. A player's explicit mute remains independent.
+
+Foreground events leave audio suspended until the session handles the return.
+A live SP map opens its pause menu before sound rendering or game tics; an
+existing menu, map load, demo, editor or network session keeps its current flow.
+A suspension during loading is consumed at the map handoff. Early/late input
+cleanup also tolerates an uninitialized key table while a fatal console pumps
+events. Desktop lifecycle dispatch remains deferred.
+
+`android_lifecycle.py` compiles the production watch, transitions, input cleanup
+and session resume method with counted API stand-ins. Windows and Linux pass
+Android/desktop branches, foreign-thread deferral, repeated cycles, one-time
+consumption and the SP/menu/load/network controls. Substituting the old watch
+fails before queued events are processed. `openal_device_pause.py` runs the
+production pause, deferred-flush and update methods against counted OpenAL,
+covering absent/partial extensions, a changed later function lookup, duplicate
+events, player mute, device retry and a foreign current context. Removing the
+paired-function guard, persistent mute or deferred flush independently fails.
+Device creation/retry API calls are stand-ins; this is not a real-device test.
+
+Windows and Android ARM64/API 24 builds/stages and all **262 Windows native
+tests** pass. The new debug APK passes the existing exact-payload, ABI/API,
+16 KiB alignment, native extraction and v2-signature verification. Physical
+installation, save restoration and Android suspend/listening checks remain
+pending the disconnected phone. Background tic scheduling, process-death
+recovery and the other AND-01/AND-03 items remain open.
+
+The matched desktop package passes an input-disabled, hidden-window Arena run
+with OpenAL's null output: two pauses freeze the gameplay sound world's clock,
+both resumes retain its 14 active channels, and the results menu/ledger and
+normal shutdown complete. Engine captures show the pause and result screens.
+This checks desktop regression without a physical listening claim.
+
+Evidence is `.tmp/stage-two/android-pause-evidence.json`, SHA-256
+`cf789c484de5729b9512c58b39ba15f1a1fa021be3e23011085f6f237c0155b0`.
+It binds sources, native/negative-control logs, the two builds/stages, SDL/OpenAL
+implementation identities, the desktop runtime and debug APK SHA-256
+`4e9b8c1ad27e802e9ef1b78eb3f00f87f35203b253dcc7e997ee26175ab90e98`.

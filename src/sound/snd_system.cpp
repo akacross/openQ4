@@ -71,6 +71,12 @@ idCVar preLoad_Samples( "preLoad_Samples", "1", CVAR_SYSTEM | CVAR_BOOL, "preloa
 idSoundSystemLocal soundSystemLocal;
 idSoundSystem* soundSystem = &soundSystemLocal;
 
+// Engine/platform lifecycle hook; no change to the game-facing sound ABI.
+void S_SetDevicePaused( bool paused )
+{
+	soundSystemLocal.hardware.SetDevicePaused( paused );
+}
+
 static const int SOUND_RUMBLE_DURATION_MSEC = 120;
 static const float SOUND_RUMBLE_STOP_THRESHOLD = 0.01f;
 static const float SOUND_RUMBLE_HIGH_MOTOR_SCALE = 0.75f;

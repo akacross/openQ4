@@ -1007,6 +1007,9 @@ idKeyInput::ClearStates
 */
 void idKeyInput::ClearStates( void ) {
 	int i;
+	// Lifecycle events may arrive before input initialization or after shutdown
+	// while the fatal-error console still pumps the platform event queue.
+	if ( keys == NULL ) return;
 
 	for ( i = 0; i < MAX_KEYS; i++ ) {
 		if ( keys[i].down ) {

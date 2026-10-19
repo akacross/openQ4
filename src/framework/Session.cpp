@@ -82,6 +82,10 @@ idCVar	s_muteUnfocused( "s_muteUnfocused", "1", CVAR_ARCHIVE | CVAR_BOOL, "mute 
 
 #if defined( USE_SDL3 )
 bool Sys_SDL_IsGameWindowFocused( void );
+#if defined( __ANDROID__ )
+bool Sys_SDL_ConsumeAppSuspension( void );
+void S_SetDevicePaused( bool paused );
+#endif
 #elif defined( _WIN32 )
 bool Sys_IsGameWindowFocused( void );
 #endif
@@ -7536,6 +7540,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 
 	// don't bother spinning over all the tics we spent loading
 	lastGameTic = latchedTicNumber = com_ticNumber;
+	HandleAppResume( true );
 
 	// remove any prints from the notify lines
 	console->ClearNotifyLines();
@@ -9157,7 +9162,23 @@ void idSessionLocal::UpdateScreen( bool outOfSequence ) {
 idSessionLocal::Frame
 ===============
 */
+void idSessionLocal::HandleAppResume( bool afterMapLoad ) {
+#if defined( USE_SDL3 ) && defined( __ANDROID__ )
+	if ( !Sys_SDL_ConsumeAppSuspension() ) return;
+	// Do this outside SDL's event watch: the renderer is current again, and
+	// opening the menu switches off the gameplay sound world before unmuting.
+	if ( !afterMapLoad && mapSpawned && !insideExecuteMapChange && !IsGUIActive() &&
+		 !readDemo && !com_editorActive && !idAsyncNetwork::IsActive() ) {
+		StartMenu();
+	}
+	S_SetDevicePaused( false );
+#else
+	(void)afterMapLoad;
+#endif
+}
+
 void idSessionLocal::Frame() {
+	HandleAppResume( false );
 	// Re-derive the playing sound world from the current focus state before the
 	// mix runs, so s_muteUnfocused can never leave audio switched off once the
 	// window is back.

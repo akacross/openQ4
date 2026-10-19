@@ -10,6 +10,15 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Suspend Android audio and release held input before SDL parks the game
+  loop. Resume live single player behind the pause menu before audio/gameplay;
+  preserve existing menu, load and network flows. The
+  [lifecycle evidence](platform-recovery-review.md#android-background-audio-and-single-player-resume-19-october-2026)
+  covers paired/fallback audio suspension, device retry, repeated events,
+  foreign-thread deferral and inactive-key teardown in Windows/Linux production
+  fixtures, both platform builds and 262 passing native tests. Physical Android
+  suspend, input and listening qualification remains required.
+
 - [x] Preserve optional menu fallback during a save load and reject missing
   serialized GUI definitions at their actual reader. The previous session-wide
   check misidentified an optional Android pause menu as saved state.

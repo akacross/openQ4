@@ -322,7 +322,27 @@ if get_option('build_native_tests')
   )
   test('openq4-ui-engine-thread', ui_engine_thread_test, timeout: 30)
 
+  openal_pause_source = custom_target(
+    'openq4-openal-device-pause-source',
+    output: 'OpenALDevicePause.cpp',
+    depend_files: files('src/sound/OpenAL/AL_SoundHardware.cpp', 'src/sound/OpenAL/AL_SoundHardware.h'),
+    command: [py, files('tools/tests/openal_device_pause.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openal_pause_test = executable('openq4-openal-device-pause', openal_pause_source, install: false)
+  test('openq4-openal-device-pause', openal_pause_test, timeout: 30)
+  android_lifecycle_source = custom_target(
+    'openq4-android-lifecycle-source',
+    output: 'AndroidLifecycle.cpp',
+    depend_files: files('src/sys/sdl3/sdl3_backend.cpp', 'src/framework/Session.cpp', 'src/framework/KeyInput.cpp'),
+    command: [py, files('tools/tests/android_lifecycle.py'), '--generate-native', '@OUTPUT@'],
+  )
   foreach platform : ['android', 'desktop']
+    android_lifecycle_test = executable(
+      'openq4-android-lifecycle-' + platform, android_lifecycle_source,
+      cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+    )
+    test('openq4-android-lifecycle-' + platform, android_lifecycle_test, timeout: 30)
+
     android_window_source = custom_target(
       'openq4-android-window-' + platform + '-source',
       input: files('src/sys/posix/posix_syscon.cpp', 'src/sys/sdl3/sdl3_backend.cpp'),
