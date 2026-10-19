@@ -504,6 +504,11 @@ Sources: [Android build and packaging](android-build.md),
   entry's payload, with optional/language findings, bounded progress and
   cancellation. The local retail set passes. It still needs the localized
   folder-picker/import/retry flow; the Activity does not invoke it yet.
+  The [document import backend](platform-recovery-review.md#android-document-import-backend-19-october-2026)
+  now copies granted provider streams through verified temporary files, preserves
+  existing destinations on failure and resumes from completed archives. Host
+  recovery and provider-adapter checks pass; picker/grant ownership, localized
+  setup, export and physical provider acceptance remain open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

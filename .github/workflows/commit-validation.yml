@@ -158,6 +158,8 @@ jobs:
             tools/tests/renderer_gles_upload.py \
             tools/tests/android_host_storage.py \
             tools/tests/android_retail_data.py \
+            tools/tests/android_retail_import.py \
+            tools/tests/android_document_source.py \
             tools/tests/image_block_mips.py \
             tools/tests/filesystem_case_segments.py \
             tools/tests/filesystem_mod_manifest.py \
@@ -555,6 +557,8 @@ jobs:
           python tools/tests/renderer_gles_upload.py
           python tools/tests/android_host_storage.py
           python tools/tests/android_retail_data.py
+          python tools/tests/android_retail_import.py
+          python tools/tests/android_document_source.py
           python tools/tests/image_block_mips.py
           python tools/tests/filesystem_case_segments.py
           python tools/tests/filesystem_mod_manifest.py

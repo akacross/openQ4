@@ -475,7 +475,10 @@ public final class StoragePackageProbe {
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(contents, encoding="utf-8")
             source_paths.append(str(path))
-        source_paths.extend(str(path) for path in (root / "mobile/android/app/src/main/java/com/darkmatter/openq4").glob("*.java"))
+        # Compile this fixture's production dependency closure; document-picker
+        # and retail-import Android APIs have separate executable fixtures.
+        source_paths.extend(str(root / "mobile/android/app/src/main/java/com/darkmatter/openq4" / name)
+                            for name in ("OpenQ4Activity.java", "PackageStorage.java"))
         classes = scratch / "classes"
         classes.mkdir()
         javac = Path(args.javac).resolve()

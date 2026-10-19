@@ -571,3 +571,54 @@ Evidence is `.tmp/stage-two/android-retail-evidence.json`, SHA-256
 `e7c22dfe8f88130020fb46764601d0be33dc69f6effe80f1807320bdcd104037`.
 This package is not installed; the S25's prepared restore test still waits for
 explicit readiness and uses the previously recorded timer/GUI package.
+
+## Android document import backend, 19 October 2026
+
+`RetailImport` and `DocumentSource` implement the data-transfer backend for
+AND-03. The source uses Android's
+[Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files)
+to read an already-granted document tree. It enumerates at most 4,096 children,
+accepts direct PK4 files or one immediate `q4base` child, keeps provider IDs
+opaque and opens documents for reading. Unknown sizes are supported. Revoked
+grants, unavailable/virtual documents and cancellation have explicit failure
+paths; cursors and asset descriptors close on completion and failure. The
+system picker, persisted-grant lifecycle and localized presentation still need
+to be connected by the setup Activity.
+
+Imports write a bounded `.part` file under the app's external
+`.openq4-import/` directory, sync it, fully verify its ZIP payload and required
+retail checksum, then replace the destination with Android's same-volume
+rename. Source files, private saves and unrelated configuration are preserved.
+A healthy official destination is re-verified and reused. Failed copies,
+verification, cancellation or replacement preserve the previous destination;
+incomplete files are outside `q4base` and cannot be mounted. Retry reuses complete
+archives and restarts the current partial archive, accounting for reclaimed
+temporary storage. It does not promise byte-offset resume from arbitrary
+document providers. Writers are serialized within the host process, and the
+completed installation is scanned before readiness is returned.
+
+The production import fixtures cover copy and verification cancellation,
+replacement failure/retry, checksum and CRC rejection, provider disconnection,
+unknown/changing sizes, insufficient space, healthy reuse, exact save/config
+preservation, case aliases, bounds and concurrent-writer cancellation. Linux
+also exercises linked destination, work-directory and partial-file rejection.
+The document-source fixtures exercise tree-relative read-only calls, metadata
+and enumeration bounds, revoked access, cursor/descriptor cleanup and
+cancellation during query/open/read. An end-to-end fixture imports provider
+streams through both production classes. These are host API substitutes;
+physical Android document-provider behavior remains unqualified.
+
+Windows JDK 21 and Linux JDK 17 checks pass, and the four production
+retail/import classes compile against Android SDK 35. Existing Activity/storage
+regressions pass on Windows. Both new executable tests are registered in the
+validation runner and both CI script-smoke jobs. This remains backend work:
+no launcher entry point or persisted setup completion is enabled by it.
+
+The debug APK builds and passes the exact staged payload, seven-library,
+ARM64/API 24, native extraction, 16 KiB alignment and v2-signature checks.
+Native payload bytes match the preceding verifier package; no new native-suite
+result is claimed. APK SHA-256 is
+`33cdd7f5bf2548b9e16553dfc1770a0f837efc97e8d15842c740eb2011786f57`.
+Evidence is `.tmp/stage-two/android-import-evidence.json`, SHA-256
+`1da00da516c042f4fea15b170013d03c2ce2247ea0b0191149d39afade91269e`.
+The APK is not installed; the S25 restore check remains unchanged.

@@ -10,6 +10,15 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Prepare resumable Android retail import behind the setup flow. Verified
+  temporary files replace destinations only after complete validation; failed
+  or interrupted operations preserve installed data and private saves. A bounded
+  document-provider adapter reads the selected tree and closes active resources
+  on cancellation. [Import evidence](platform-recovery-review.md#android-document-import-backend-19-october-2026)
+  records Windows/Linux recovery fixtures and SDK compilation. The launcher,
+  persisted grants and localized setup still need integration; no player-facing
+  import entry point is enabled by this checkpoint.
+
 - [x] Prepare a read-only Android retail-data verifier for guided setup. It
   checks all required archives against the engine catalogue, verifies entry
   payloads and distinguishes optional/language warnings from blocking errors.

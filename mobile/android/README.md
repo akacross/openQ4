@@ -186,3 +186,10 @@ requires a JDK and GCC or Clang; `--retail-root /path/to/q4base` additionally
 performs a read-only full check of local retail media. This backend is not yet
 connected to the Activity's startup flow. Manual data placement and the engine's
 own validation remain in use until guided setup is integrated.
+
+`python tools/tests/android_retail_import.py` exercises verified replacement,
+interruption/retry, low space, source failures and save preservation.
+`python tools/tests/android_document_source.py` checks the read-only Android
+document-provider adapter and its connection to the importer using host API
+substitutes. Both require a JDK. Device folder-picker/grant behavior and the
+player-facing setup flow remain separate acceptance work.
