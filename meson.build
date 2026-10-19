@@ -373,6 +373,18 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-bindings-' + game_mode, restore_bindings_test, timeout: 30)
+    restore_movers_source = custom_target(
+      'openq4-restore-movers-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Mover.cpp', 'src' / game_mode / 'Mover.h',
+                   'src' / game_mode / 'Entity.h', 'src' / game_mode / 'gamesys' / 'SaveGame.cpp'),
+      output: 'RestoreMovers-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_movers.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_movers_test = executable(
+      'openq4-restore-movers-' + game_mode, restore_movers_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-movers-' + game_mode, restore_movers_test, timeout: 30)
     restore_spawn_refs_source = custom_target(
       'openq4-restore-spawn-refs-' + game_mode + '-source',
       input: files('src' / game_mode / 'Game_local.h', 'src' / game_mode / 'client' / 'ClientEntity.h'),

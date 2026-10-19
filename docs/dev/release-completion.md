@@ -10,6 +10,12 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Validate saved door/platform activation chains and detach partial links
+  before failed-load teardown. Standalone roots and forward references retain
+  their behavior. [Mover-chain evidence](savegame-reliability.md#mover-activation-chains-during-restore)
+  covers actual teardown methods and CRC-valid Storage1 door fixtures; broader
+  Q4-05 ownership/factory qualification remains open.
+
 - [x] Validate live saved spawn references against their declared entity/client
   class before publishing them. Interrupted reads preserve the previous pointer;
   expired weak references retain their existing behavior. The

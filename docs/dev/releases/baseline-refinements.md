@@ -38,6 +38,8 @@
   partial links are discarded before failed-load cleanup.
 - Saved actor and client-effect references now reject incompatible entity types
   before they can be used during restoration or play.
+- Invalid saved door and platform activation chains now return to save-load
+  recovery, including errors encountered midway through restoring a group.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

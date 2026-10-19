@@ -574,6 +574,59 @@ The source/runtime/native/asset binding against `3bd58aa0` is
 `.tmp/stage-two/save-spawn-refs-evidence.json`, SHA-256
 `dd77220c06c40e7a183e4c0faa8d4999bb51c50bdb660ecdcfac1eede39cb110`.
 
+### Mover activation chains during restore
+
+Door/platform activation chains are separate from entity physics teams. Their
+saved master and successor references now stay temporary until bounded cycle
+checks pass. Complete-graph validation checks each activation root and member
+after all fields are restored; standalone roots and forward references remain
+valid. The entity validation and failed-restore preparation hooks dispatch to the
+mover overrides, which retain the base physics-team checks and clear activation
+links before destruction. The save representation is unchanged.
+
+The native mover fixture compiles the actual destructor body with checked links
+and a stub physics setter, plus the production reader, validator and cleanup
+dispatch. It reproduces two cyclic traversals and two references to deleted
+movers with the old behavior. The corrected code covers both interrupted reads,
+five cyclic inputs, five inconsistent completed graphs, reverse-order restore,
+both deletion orders and standalone roots. The reduced eight-entity fixture does
+not simulate the entire door or platform destructor.
+
+The runtime fixture decodes the entity and mover prefixes of two independent
+Storage1 doors, through the following physics sync boundary:
+`door_typical_139` (entity 454, object 346) and `door_typical_97` (entity 495,
+object 384). CRC-valid copies introduce a self successor, a later buddy-count
+error after installing a partial relationship, a missing root, an unreachable
+member and mutually cyclic masters. The partial case points the later-deleted
+door at the earlier-deleted one, exercising the teardown ordering hazard.
+
+Windows Clang 20.1.7 and Ubuntu Clang 18.1.3 pass the SP/MP native fixtures;
+the complete Windows suite passes 248/248. The final staged Windows SP runs on
+OpenGL and Vulkan each reject all five damaged copies, display the retained load
+page, and restore the healthy checkpoint before and after the failures. Seven
+engine captures per backend and unchanged hashes for all six save files bind
+each run. The reviewed recovery and final gameplay captures show the expected
+load page and Storage1 pod/world. These hidden, input-disabled runs make no
+physical input or performance claim. All 40 retail PK4 hashes were reverified.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `.tmp/stage-two/save-movers-evidence.json` | `16998397bdf7e92928ca3bab11fdd8be9d41604f64434a957d5e0fc59f8fff7e` |
+| `.tmp/stage-two/save-movers-native-suite.log` | `247f48676761809f9593b34ce88dff52ef5845da0c229c28d606cdaa2bc6f266` |
+| `.tmp/s2save-movers-gl/report.json` | `4810002a51bd3f0ca2f1ae8f18882eab8903caee667d6c46f92c53b086b360f1` |
+| `.tmp/s2save-movers-vk/report.json` | `428759af77779cdc216cfc1369421b8e7eb0c750d3bcb438158ba3041547ba9a` |
+
+The evidence record binds the changed sources, compiler/native logs, staged
+runtime hashes and original asset manifest to base revision `6a0eef17`.
+The native reproduction is the before-fix control; no old-runtime mover result
+is claimed. An early runtime invocation was refused by the stage freshness
+guard while installation was still running; both accepted runs started after
+staging completed. That harness diagnostic remains in
+`.tmp/stage-two/save-movers-gl.log`.
+
+Other owning references, constructor failures and historical/platform save
+qualification remain separate Q4-05/Q4-07 work.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

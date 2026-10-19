@@ -162,7 +162,7 @@ def damaged_fixtures(data, spawn_refs=False):
     return fixtures, metadata
 
 
-def render_handle_fixture(data, bindings=False):
+def render_handle_fixture(data, bindings=False, movers=False):
     """Locate a v4 entity with empty GUI slots, using its named class record.
 
     The parser checks every intervening sync and bounded record. It skips records
@@ -170,6 +170,7 @@ def render_handle_fixture(data, bindings=False):
     """
     _, metadata = checksum_fixture(data)
     markers = list(re.finditer(re.escape(b'OQ4Y'), data))
+    mover_records = []
     for candidate in markers:
         position = candidate.start()
         sequence = struct.unpack_from('<i', data, position+4)[0]
@@ -218,6 +219,8 @@ def render_handle_fixture(data, bindings=False):
                 key = string()
                 args[key] = string()
             assert args.get('name') == name and args.get('classname')
+            if movers and args['classname'] not in ('func_door', 'func_plat', 'func_button'):
+                continue
             typename = string()
             if typename:
                 skip(integer())  # script object bytes
@@ -247,7 +250,7 @@ def render_handle_fixture(data, bindings=False):
             sync()  # immediately following ReadRefSound
             sound_handle = integer()
             assert -1 <= sound_handle < 1048576
-            if bindings:
+            if bindings or movers:
                 skip(12+12+4)  # reference sound origin, velocity and listener
                 string()  # sound shader
                 skip(4)  # diversity
@@ -280,7 +283,8 @@ def render_handle_fixture(data, bindings=False):
                 sync()  # idPhysics_Static class end
                 binding_offset = position
                 original_links = [integer() for _ in range(5)]
-                assert original_links[0] == original_links[3] == original_links[4] == 0
+                if not movers:
+                    assert original_links[0] == original_links[3] == original_links[4] == 0
                 pvs_offset = position
                 pvs_count = integer()
                 assert -1 <= pvs_count <= 4
@@ -288,6 +292,47 @@ def render_handle_fixture(data, bindings=False):
                 assert not boolean()  # only records without signal payloads
                 skip(4+4+4)  # mpGUIState, instance and clipWorld
                 sync()  # idEntity class end proves the complete record boundary
+                if movers:
+                    sync()  # idMover_Binary class start
+                    skip(12+12)  # endpoints
+                    assert 0 <= integer() <= 3  # moverState
+                    master_offset = position
+                    saved_master, saved_chain = integer(), integer()
+                    if saved_master != self_reference or saved_chain != 0:
+                        continue  # choose two independent activation roots
+                    skip(5*4+2*4+3*4+4+4)  # sounds, wait/damage, durations, activator and start time
+                    string()  # team name
+                    boolean()  # enabled
+                    boolean()  # deferred open
+                    skip(4+4)  # move thread and status
+                    buddy_offset = position
+                    buddy_count = integer()
+                    assert 0 <= buddy_count <= 4096
+                    for _ in range(buddy_count):
+                        string()
+                    sync()  # ReadStaticObject(physicsObj) bounds the mover prefix
+                    mover_records.append(dict(entity=name, entity_number=number, entity_class=args['classname'],
+                                              object_reference=self_reference, master_offset=master_offset,
+                                              chain_offset=master_offset+4, buddy_offset=buddy_offset,
+                                              original_buddy_count=buddy_count))
+                    if len(mover_records) < 2:
+                        continue
+                    earlier, later = sorted(mover_records, key=lambda item: item['entity_number'])
+                    definitions = [
+                        ('SelfActivationChain', {earlier['chain_offset']: earlier['object_reference']}, 'cyclic activation chain'),
+                        ('PartialActivation', {later['master_offset']: earlier['object_reference'], later['buddy_offset']: -1}, 'invalid buddy count -1'),
+                        ('MissingActivationRoot', {earlier['master_offset']: 0}, 'invalid activation root'),
+                        ('DetachedActivationMember', {later['master_offset']: earlier['object_reference']}, 'is absent from its activation team'),
+                        ('CyclicMoveMaster', {earlier['master_offset']: later['object_reference'], later['master_offset']: earlier['object_reference']}, 'cyclic move master'),
+                    ]
+                    fixtures = {}
+                    for fixture_name, edits, expected in definitions:
+                        changed = bytearray(data)
+                        for offset, value in edits.items():
+                            struct.pack_into('<i', changed, offset, value)
+                        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+                        fixtures[fixture_name] = bytes(changed), dict(movers=[earlier, later], edits=edits, expected=expected)
+                    return fixtures, metadata
                 # Reuse the bounded registration parser to select another real
                 # entity reference, instead of assuming an object-table index.
                 registration_cases, _ = damaged_fixtures(data)
@@ -334,7 +379,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -346,8 +391,8 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = (render_handle_fixture(original, bindings=args.cases == 'bindings')
-                         if args.cases in ('render-handles', 'bindings')
+    fixtures, metadata = (render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
+                         if args.cases in ('render-handles', 'bindings', 'movers')
                          else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs'))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
