@@ -489,8 +489,8 @@ Sources: [Android build and packaging](android-build.md),
   missing/truncated/mismatched files behind `.ready`. Windows/Linux production-
   Java tests cover interruption, replacement failure, low-space preflight and
   save preservation; a real 810 MB package passes selective repair. Full engine
-  PK4 checks remain enabled. Localized setup/retry, retail-data validation,
-  accessible release diagnostics/save export and signed device-upgrade evidence
+  PK4 checks remain enabled. Accessible release diagnostics/save export and
+  signed device-upgrade evidence
   keep AND-03 open. Android now preserves the host's data directory when retail
   packs are absent, with production Android/desktop selection tests. An S25
   debug APK update preserves save bytes; successful restore and release
@@ -502,13 +502,22 @@ Sources: [Android build and packaging](android-build.md),
   The [retail verifier backend](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
   now checks the complete required set, engine-compatible checksums and every
   entry's payload, with optional/language findings, bounded progress and
-  cancellation. The local retail set passes. It still needs the localized
-  folder-picker/import/retry flow; the Activity does not invoke it yet.
+  cancellation. The local retail set passes; the setup entry point below now
+  invokes it for imports and installed-data checks.
   The [document import backend](platform-recovery-review.md#android-document-import-backend-19-october-2026)
   now copies granted provider streams through verified temporary files, preserves
   existing destinations on failure and resumes from completed archives. Host
-  recovery and provider-adapter checks pass; picker/grant ownership, localized
-  setup, export and physical provider acceptance remain open.
+  recovery and provider-adapter checks pass. The setup entry point below connects
+  picker/grant ownership and localized recovery; export and physical provider
+  acceptance remain open.
+  The [localized setup entry point](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
+  now connects language selection, the system folder picker, read-only persisted
+  grants, verified import/check, bundled-file preparation and explicit SP/MP
+  launch. Progress/cancellation and retry preserve completed archives; native
+  storage ownership blocks setup until the game actually exits. Four resource
+  sets and Windows/Linux pipeline checks cover this increment. Controls and
+  interface setup, Settings re-entry, export, release signing continuity and
+  physical provider/lifecycle/accessibility/visual acceptance remain open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

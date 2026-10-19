@@ -18,6 +18,7 @@ LIBRARIES = {
     'libquake4.so', 'libSDL3.so', 'librenderer-gles_arm64.so',
     'libgame-sp_arm64.so', 'libgame-mp_arm64.so', 'libopenal.so', 'libc++_shared.so',
 }
+SETUP_FONTS = {'fonts/marine.ttf', 'fonts/lowpixel.ttf'}
 
 
 def digest(stream) -> str:
@@ -50,6 +51,13 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
                 expected['assets/' + path.relative_to(stage).as_posix()] = path
     for name in ('LICENSE', 'LICENSING.md', 'CONTRIBUTORS.md', 'android-build.json'):
         expected['assets/' + name] = stage / name
+    with zipfile.ZipFile(stage / 'baseoq4/pak0.pk4') as content:
+        fonts = {}
+        for name in sorted(SETUP_FONTS):
+            matches = [entry for entry in content.infolist() if entry.filename == name]
+            if len(matches) != 1 or not 0 < matches[0].file_size <= 4 * 1024 * 1024:
+                raise ValueError(f'Missing, duplicate or oversized setup typeface: {name}')
+            fonts['assets/' + name] = content.read(matches[0])
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()
         if len(names) != len(set(names)):
@@ -58,9 +66,12 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
         if native != {name for name in expected if name.startswith('lib/')}:
             raise ValueError('APK must contain exactly the seven matching arm64 native libraries')
         assets = {name for name in names if name.startswith('assets/') and not name.endswith('/')}
-        if assets != {name for name in expected if name.startswith('assets/')} | {
+        if assets != {name for name in expected if name.startswith('assets/')} | set(fonts) | {
                 'assets/openq4-package-version.txt', 'assets/openq4-package-manifest.txt'}:
             raise ValueError('APK asset set differs from the staged openQ4 overlays and notices')
+        for name, data in fonts.items():
+            if archive.getinfo(name).file_size != len(data) or archive.read(name) != data:
+                raise ValueError(f'APK setup typeface differs from staged pak0: {name}')
         for name in ('assets/baseoq4/pak0.pk4', 'assets/baseoq4/pak1.pk4'):
             if archive.getinfo(name).compress_type != zipfile.ZIP_STORED:
                 raise ValueError('PK4 archives must be stored without redundant APK compression')
@@ -92,7 +103,8 @@ def verify_tools(apk: Path, tools: Path, certificate: Path, version: str) -> Non
     badging = run('aapt', 'dump', 'badging', str(apk))
     code = sum(int(part) * scale for part, scale in zip(version.split('.'), (1000000, 1000, 1)))
     for token in ("package: name='com.darkmatter.openq4'", f"versionCode='{code}'", f"versionName='{version}'",
-                  "sdkVersion:'24'", "targetSdkVersion:'35'", "native-code: 'arm64-v8a'"):
+                  "sdkVersion:'24'", "targetSdkVersion:'35'", "native-code: 'arm64-v8a'",
+                  "launchable-activity: name='com.darkmatter.openq4.LauncherActivity'"):
         if token not in badging:
             raise ValueError(f'APK manifest mismatch: {token}')
     if 'application-debuggable' in badging:

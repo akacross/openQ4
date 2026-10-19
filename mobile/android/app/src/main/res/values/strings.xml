@@ -1,4 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">openQ4</string>
+    <string-array name="setup_language_names" translatable="false">
+        <item>English</item>
+        <item>Deutsch</item>
+        <item>Español</item>
+        <item>Français</item>
+    </string-array>
+    <string name="setup_title">openQ4 setup</string>
+    <string name="setup_language">Language</string>
+    <string name="setup_sample">Prepare your game files, then return to the front line.</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_data">Game data</string>
+    <string name="setup_data_help">Choose the q4base folder from your own Quake 4 1.4.2 installation. openQ4 copies and checks the archives; the original files stay where they are. A folder inside Downloads or a connected USB drive is suitable. Game data is not included in this app.</string>
+    <string name="setup_choose">Choose game folder</string>
+    <string name="setup_check">Check installed files</string>
+    <string name="setup_retry">Retry last operation</string>
+    <string name="setup_cancel">Cancel</string>
+    <string name="setup_stopping">Stopping safely…</string>
+    <string name="setup_cancelled">Stopped. Completed archives are kept. Retry to continue; the unfinished archive will be copied again.</string>
+    <string name="setup_interrupted">Setup was interrupted. Retry to check completed files and continue, or choose the game folder again.</string>
+    <string name="setup_ready">Game files are ready.</string>
+    <string name="setup_needs_data">Game files need attention. Follow the details below, then check again.</string>
+    <string name="setup_idle">Choose a folder to import, or check files already copied to this app.</string>
+    <string name="setup_no_data">Installed game files are unavailable. Choose your Quake 4 q4base folder to import them, or reconnect the storage containing your installed files.</string>
+    <string name="setup_size_bytes">%1$,d B</string>
+    <string name="setup_issue_problem">Required: %1$s</string>
+    <string name="setup_issue_warning">Warning: %1$s</string>
+    <string name="setup_game_active">The game is running or closing. Return to it now; file changes become available after it exits.</string>
+    <string name="setup_return">Return to game</string>
+    <string name="setup_play_sp">Single player</string>
+    <string name="setup_play_mp">Multiplayer</string>
+    <string name="setup_change_language">Change language</string>
+    <string name="setup_no_picker">The system folder picker is unavailable. Enable the Android Files app, then try again.</string>
+    <string name="setup_no_grant">The selected folder could not be opened. Choose it again and allow read access.</string>
+    <string name="setup_temporary_grant">This provider did not retain folder access. The current import can continue; after restarting the app, choose the folder again.</string>
+    <string name="setup_picker_cancelled">No folder was selected. Your files are unchanged.</string>
+    <string name="setup_checking_data">Checking game archives…</string>
+    <string name="setup_checking_existing">Checking installed archive…</string>
+    <string name="setup_copying_data">Copying game archive…</string>
+    <string name="setup_verifying_data">Verifying game data…</string>
+    <string name="setup_checking_package">Checking bundled files…</string>
+    <string name="setup_copying_package">Preparing bundled files…</string>
+    <string name="setup_exporting">Exporting…</string>
+    <string name="setup_file_count">Archives completed: %1$d / %2$d</string>
+    <string name="setup_bytes">%1$s of %2$s</string>
+    <string name="setup_eta">Estimated time left in this step: %1$d s</string>
+    <string name="setup_missing_required">%1$s is missing. Copy it from your Quake 4 1.4.2 installation.</string>
+    <string name="setup_missing_optional">Optional archive %1$s is missing. Related content may be unavailable.</string>
+    <string name="setup_missing_language">No base language archive was found. Copy your installation’s zpak language files to hear dialogue.</string>
+    <string name="setup_wrong_version">%1$s differs from the official archive. Replace it with a verified Quake 4 1.4.2 copy.</string>
+    <string name="setup_unknown_archive">%1$s passes integrity checks, but is not in the official checksum catalogue.</string>
+    <string name="setup_damaged_archive">%1$s is damaged or unsupported. Copy a fresh, unmodified archive and retry.</string>
+    <string name="setup_duplicate">More than one archive uses the name %1$s. Keep one verified copy, then retry.</string>
+    <string name="setup_changed">%1$s changed during the check. Finish copying it before retrying.</string>
+    <string name="setup_unreadable">%1$s could not be read. Reconnect the storage or choose an accessible copy, then retry.</string>
+    <string name="setup_limits">The folder or archive exceeds supported limits. Choose a folder containing the original Quake 4 archives.</string>
+    <string name="setup_storage_unavailable">App storage is unavailable. Reconnect storage and check Android’s app storage settings, then retry.</string>
+    <string name="setup_no_space">More storage is needed: %1$s required, %2$s available for the next file. Free space, then retry.</string>
+    <string name="setup_invalid_name">%1$s has an unsupported filename. Choose the original q4base folder.</string>
+    <string name="setup_copy_failed">Could not copy %1$s. Check the source connection and free space, then retry.</string>
+    <string name="setup_commit_failed">Could not replace %1$s. Check app storage and retry. The previous archive was kept.</string>
+    <string name="setup_prepare_failed">Bundled files could not be prepared. Free space and retry. If this persists, update the app using the same installer or signing certificate; keep the app installed to preserve saves.</string>
+    <string name="setup_launch_failed">The game could not start. Check the files again, then retry.</string>
 </resources>

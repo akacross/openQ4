@@ -449,6 +449,8 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "android_retail_data.py",
         root / "tools" / "tests" / "android_retail_import.py",
         root / "tools" / "tests" / "android_document_source.py",
+        root / "tools" / "tests" / "android_setup_task.py",
+        root / "tools" / "tests" / "android_setup_flow.py",
         root / "tools" / "tests" / "image_block_mips.py",
         root / "tools" / "tests" / "filesystem_case_segments.py",
         root / "tools" / "tests" / "filesystem_find_file_contract.py",

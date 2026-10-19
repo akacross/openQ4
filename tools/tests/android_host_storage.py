@@ -159,6 +159,9 @@ public class SDLActivity {
     public static boolean mBrokenLibraries, mActivityCreated = true;
     public static android.view.ViewGroup mLayout;
     protected void onCreate(android.os.Bundle savedInstanceState) {}
+    protected void onDestroy() {}
+    public static Runnable nativeWork;
+    protected void main() { if (nativeWork != null) nativeWork.run(); }
     public static final java.util.List<Integer> keys = new java.util.ArrayList<>();
     public static int systemBack;
     public boolean finishing;
@@ -177,8 +180,19 @@ public class SDLActivity {
     public AppInfo getApplicationInfo() { return new AppInfo(); }
     public Intent getIntent() { return new Intent(); }
     public static class AppInfo { public String nativeLibraryDir = "/fixture/native"; }
-    public static class Intent { public boolean getBooleanExtra(String key, boolean value) { return value; } }
+    public static String language;
+    public static class Intent {
+        public boolean getBooleanExtra(String key, boolean value) { return value; }
+        public String getStringExtra(String key) { return language; }
+    }
 }''',
+            "com/darkmatter/openq4/LauncherActivity.java": r'''
+package com.darkmatter.openq4;
+public final class LauncherActivity {
+    static String applied;
+    static void languageApplied(String tag) { applied = tag; }
+}
+''',
             "com/darkmatter/openq4/StorageTest.java": r'''
 package com.darkmatter.openq4;
 import android.content.res.AssetManager;
@@ -298,6 +312,14 @@ public final class StorageTest {
         SDLActivity.mActivityCreated = true;
         File old = extract(activity);
         List<String> launch = Arrays.asList(activity.getArguments());
+        require(!launch.contains("sys_lang"), "ordinary launch must preserve the game's saved language");
+        SDLActivity.language = "fr";
+        List<String> localized = Arrays.asList(activity.getArguments());
+        require(localized.get(localized.indexOf("sys_lang") + 1).equals("french"), "setup language did not reach engine");
+        require("fr".equals(LauncherActivity.applied), "prepared engine arguments did not acknowledge setup language");
+        SDLActivity.language = "+quit";
+        require(!Arrays.asList(activity.getArguments()).contains("sys_lang"), "unrecognized language became engine arguments");
+        SDLActivity.language = null;
         int saveArgument = launch.indexOf("fs_savepath");
         require(saveArgument >= 0 && saveArgument + 1 < launch.size(), "host omitted save path");
         require(launch.get(saveArgument + 1).equals(android.system.Os.environment.get("OPENQ4_SAVE_ROOT")),
@@ -313,6 +335,42 @@ public final class StorageTest {
         require(extract(activity).equals(old), "healthy verified package must not require another metadata write");
         android.system.Os.failRename = null;
         Path extracted = old.toPath().resolve("baseoq4/pak0.pk4");
+        boolean verifyCancelled = false;
+        try {
+            PackageStorage.extract(SDLActivity.assets, SDLActivity.files, (phase, name, bytes, total) ->
+                !(phase == PackageStorage.Phase.VERIFYING && name.equals("pak1.pk4") && bytes > 0));
+        } catch (InterruptedIOException expected) { verifyCancelled = true; }
+        require(verifyCancelled && new File(old, ".ready").isFile(),
+            "cancelling a healthy-package check must preserve readiness");
+        for (int stopAt : new int[] {1, 2}) {
+            write(extracted, "damaged");
+            int[] completedCallbacks = {0};
+            boolean copyCancelled = false;
+            try {
+                PackageStorage.extract(SDLActivity.assets, SDLActivity.files, (phase, name, bytes, total) -> {
+                    require(bytes >= 0 && bytes <= total, "package progress outside file bounds");
+                    if (phase == PackageStorage.Phase.COPYING && name.equals("pak0.pk4") && total > 0 && bytes == total) {
+                        return ++completedCallbacks[0] != stopAt;
+                    }
+                    return true;
+                });
+            } catch (InterruptedIOException expected) { copyCancelled = true; }
+            require(copyCancelled && completedCallbacks[0] == stopAt &&
+                    Files.readString(extracted).equals("damaged") && !new File(old, ".ready").exists(),
+                "cancellation during copy or after sync must precede promotion and invalidate repair readiness");
+            extract(activity);
+            require(Files.readString(extracted).equals("first pack") && new File(old, ".ready").isFile(),
+                "cancelled preparation did not retry");
+        }
+        int beforeInterrupted = SDLActivity.assets.opens;
+        Thread.currentThread().interrupt();
+        try {
+            try { extract(activity); throw new AssertionError("interrupted package preparation continued"); }
+            catch (InterruptedIOException expected) {
+                require(Thread.currentThread().isInterrupted() && SDLActivity.assets.opens == beforeInterrupted,
+                    "interrupted preparation cleared its flag or opened assets");
+            }
+        } finally { Thread.interrupted(); }
         for (String corrupt : new String[] { "bad bytes!", "short", "first pack with trailing garbage" }) {
             write(extracted, corrupt);
             extract(activity);
@@ -369,7 +427,10 @@ public final class StorageTest {
         try {
             PackageStorage.requireRepairSpace(emptyVolume, pending, 10);
             throw new AssertionError("insufficient repair space must be rejected");
-        } catch (IOException expected) {}
+        } catch (PackageStorage.InsufficientSpace expected) {
+            require(expected.requiredBytes == 10 && expected.availableBytes == 0,
+                "localized low-space result must retain required and available bytes");
+        }
         write(pending.toPath(), "0123456789");
         PackageStorage.requireRepairSpace(emptyVolume, pending, 10);
         Files.delete(pending.toPath());
@@ -437,7 +498,27 @@ public final class StorageTest {
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "invalid package revision must be rejected");
         require(new File(current, ".ready").isFile(), "invalid revision must not damage current package");
-        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots, Back routing and cutout/system/IME inset recovery");
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch exitNative = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<Throwable> nativeError = new java.util.concurrent.atomic.AtomicReference<>();
+        SDLActivity.nativeWork = () -> {
+            entered.countDown();
+            try { require(exitNative.await(10, java.util.concurrent.TimeUnit.SECONDS), "native fixture timed out"); }
+            catch (InterruptedException error) { throw new RuntimeException(error); }
+        };
+        Thread nativeThread = new Thread(() -> { try { activity.main(); } catch (Throwable error) { nativeError.set(error); } });
+        nativeThread.start();
+        require(entered.await(10, java.util.concurrent.TimeUnit.SECONDS), "Activity did not enter native main");
+        activity.onDestroy();
+        require(StorageSession.INSTANCE.gameActive() && !StorageSession.INSTANCE.activityActive(),
+                "Activity destruction prematurely released native storage");
+        try { StorageSession.INSTANCE.beginSetup(); throw new AssertionError("setup overlapped live native main"); }
+        catch (StorageSession.Busy expected) {}
+        exitNative.countDown(); nativeThread.join(10000);
+        require(!nativeThread.isAlive() && nativeError.get() == null && !StorageSession.INSTANCE.gameActive(),
+                "native completion failed to release Activity storage owner");
+        Object lease = StorageSession.INSTANCE.beginSetup(); StorageSession.INSTANCE.endSetup(lease);
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots, Back routing, cutout/system/IME inset recovery, setup language selection and native storage ownership through delayed shutdown");
     }
 }''',
         }
@@ -478,7 +559,7 @@ public final class StoragePackageProbe {
         # Compile this fixture's production dependency closure; document-picker
         # and retail-import Android APIs have separate executable fixtures.
         source_paths.extend(str(root / "mobile/android/app/src/main/java/com/darkmatter/openq4" / name)
-                            for name in ("OpenQ4Activity.java", "PackageStorage.java"))
+                            for name in ("OpenQ4Activity.java", "PackageStorage.java", "StorageSession.java", "SetupLanguage.java"))
         classes = scratch / "classes"
         classes.mkdir()
         javac = Path(args.javac).resolve()

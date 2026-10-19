@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,6 +25,28 @@ final class PackageStorage {
     private static final int MAX_FILES = 4096;
     private static final long MAX_FILE_BYTES = 2L * 1024 * 1024 * 1024;
     private static final long MAX_PACKAGE_BYTES = 4L * 1024 * 1024 * 1024;
+
+    enum Phase { VERIFYING, COPYING }
+    interface Progress {
+        boolean update(Phase phase, String name, long bytes, long totalBytes);
+    }
+
+    static final class InsufficientSpace extends IOException {
+        final long requiredBytes, availableBytes;
+        InsufficientSpace(long requiredBytes, long availableBytes) {
+            super("Insufficient storage for package repair");
+            this.requiredBytes = requiredBytes;
+            this.availableBytes = availableBytes;
+        }
+    }
+
+    private static void progress(Progress observer, Phase phase, String name, long bytes, long total)
+            throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted() ||
+                (observer != null && !observer.update(phase, name, bytes, total))) {
+            throw new InterruptedIOException("Package preparation cancelled");
+        }
+    }
 
     private static final class Entry {
         final String name, hash;
@@ -124,7 +147,8 @@ final class PackageStorage {
         requireUnlinked(directory);
     }
 
-    private static boolean matches(File file, Entry entry) throws IOException {
+    private static boolean matches(File file, Entry entry, Progress observer) throws IOException {
+        progress(observer, Phase.VERIFYING, entry.name, 0, entry.size);
         requireUnlinked(file);
         if (!file.isFile() || file.length() != entry.size) return false;
         MessageDigest digest = sha256();
@@ -136,6 +160,7 @@ final class PackageStorage {
                 count += read;
                 if (count > entry.size) return false;
                 digest.update(buffer, 0, read);
+                progress(observer, Phase.VERIFYING, entry.name, count, entry.size);
             }
         }
         return count == entry.size && hex(digest.digest()).equals(entry.hash);
@@ -158,7 +183,7 @@ final class PackageStorage {
         }
     }
 
-    private static void repair(AssetManager assets, File root, File target, Entry entry, int index)
+    private static void repair(AssetManager assets, File root, File target, Entry entry, int index, Progress observer)
             throws IOException, ErrnoException {
         requireDirectory(target.getParentFile());
         // Keep incomplete writes outside baseoq4, which the engine enumerates.
@@ -168,6 +193,7 @@ final class PackageStorage {
         // Keep the previous package and damaged destination until a full,
         // authenticated replacement has reached durable storage.
         requireRepairSpace(root, temporary, entry.size);
+        progress(observer, Phase.COPYING, entry.name, 0, entry.size);
         MessageDigest digest = sha256();
         long count = 0;
         try (InputStream input = assets.open("baseoq4/" + entry.name);
@@ -179,12 +205,14 @@ final class PackageStorage {
                 if (count > entry.size) throw new IOException("Packaged asset exceeds declared size: " + entry.name);
                 digest.update(buffer, 0, read);
                 output.write(buffer, 0, read);
+                progress(observer, Phase.COPYING, entry.name, count, entry.size);
             }
             if (count != entry.size || !hex(digest.digest()).equals(entry.hash)) {
                 throw new IOException("Packaged asset failed verification: " + entry.name);
             }
             output.getFD().sync();
         }
+        progress(observer, Phase.COPYING, entry.name, count, entry.size);
         requireUnlinked(target);
         Os.rename(temporary.getAbsolutePath(), target.getAbsolutePath());
     }
@@ -193,10 +221,16 @@ final class PackageStorage {
         // This is an early estimate, not a reservation. Writes, sync and rename
         // still have to succeed if available space changes during the copy.
         long required = Math.max(0, bytes - temporary.length());
-        if (directory.getUsableSpace() < required) throw new IOException("Insufficient storage for package repair");
+        long available = directory.getUsableSpace();
+        if (available < required) throw new InsufficientSpace(required, available);
     }
 
     static File extract(AssetManager assets, File files) throws IOException, ErrnoException {
+        return extract(assets, files, null);
+    }
+
+    static synchronized File extract(AssetManager assets, File files, Progress observer) throws IOException, ErrnoException {
+        progress(null, Phase.VERIFYING, "", 0, 0);
         String version = new String(readAsset(assets, "openq4-package-version.txt", 64), StandardCharsets.US_ASCII);
         if (!version.matches("[0-9a-f]{64}")) throw new IOException("Invalid packaged content revision");
         byte[] manifest = readAsset(assets, "openq4-package-manifest.txt", MAX_MANIFEST_BYTES);
@@ -220,23 +254,24 @@ final class PackageStorage {
                 directoryNames.add(entry.name.substring(0, slash));
             }
             File target = new File(root, "baseoq4/" + entry.name);
-            if (!matches(target, entry)) {
+            if (!matches(target, entry, observer)) {
                 if (!invalidated && ready.exists() && !ready.delete()) throw new IOException("Cannot invalidate content readiness");
                 invalidated = true;
-                repair(assets, root, target, entry, i);
+                repair(assets, root, target, entry, i, observer);
             }
         }
         validateTree(new File(root, "baseoq4"), "", fileNames, directoryNames);
         // A ready marker is a completion record, never a substitute for the
         // per-file checks above. A crash before rename is harmless on retry.
         byte[] readyBytes = version.getBytes(StandardCharsets.US_ASCII);
-        if (!matches(ready, new Entry(".ready", hex(sha256().digest(readyBytes)), readyBytes.length))) {
+        if (!matches(ready, new Entry(".ready", hex(sha256().digest(readyBytes)), readyBytes.length), null)) {
             File temporary = new File(root, ".ready.tmp");
             requireUnlinked(temporary);
             try (FileOutputStream output = new FileOutputStream(temporary)) {
                 output.write(readyBytes);
                 output.getFD().sync();
             }
+            progress(null, Phase.VERIFYING, "", 0, 0);
             Os.rename(temporary.getAbsolutePath(), ready.getAbsolutePath());
         }
         File[] previousPackages = packages.listFiles();
@@ -247,10 +282,12 @@ final class PackageStorage {
                 }
             }
         }
+        progress(null, Phase.VERIFYING, "", 0, 0);
         return root;
     }
 
     private static void deleteGeneratedPackage(File file) {
+        if (Thread.currentThread().isInterrupted()) return;
         try { requireUnlinked(file); }
         catch (IOException error) { return; }
         if (file.isDirectory()) {

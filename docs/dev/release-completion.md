@@ -10,6 +10,16 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Connect Android language/data setup before game startup. The system folder
+  picker supplies read-only source access; verified imports, bundled-file
+  preparation, cancellation and retry report progress and recovery guidance in
+  English, German, Spanish and French. Play remains explicit after completion.
+  Native storage ownership excludes setup during active or closing gameplay.
+  [Setup evidence](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
+  retains host pipeline/ownership checks, exact packaging and the separate SDL
+  lint findings. Controls/interface steps, Settings re-entry, exports and
+  physical qualification remain open under AND-01/AND-03.
+
 - [x] Prepare resumable Android retail import behind the setup flow. Verified
   temporary files replace destinations only after complete validation; failed
   or interrupted operations preserve installed data and private saves. A bounded

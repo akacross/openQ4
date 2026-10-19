@@ -63,21 +63,41 @@ copies those packs into private storage;
 allow room for both the APK and extracted content, plus the retail installation
 and saves.
 
-Install the APK, then copy the **contents of your licensed retail `q4base`** to
-`/sdcard/Android/data/com.darkmatter.openq4/files/q4base/`. The engine's original
-PK4 verification remains enabled. No retail game data is included in the APK.
+Install the APK and open **openQ4 setup**. Choose English, German, Spanish or
+French, then **Choose game folder** and select `q4base` from your own Quake 4
+1.4.2 installation. A subfolder inside Downloads or a connected USB drive can
+hold the source files. Android's picker grants read access to that folder;
+openQ4 copies the archives to its app-specific storage and preserves the
+originals. No retail game data is included in the APK.
+
+Setup verifies the required archives and their contents, reports optional and
+language warnings, then prepares the bundled files with progress. **Cancel**
+keeps completed archives; **Retry last operation** checks them and restarts the
+unfinished archive. If Android or the document provider loses the folder grant,
+choose the folder again. Low-space messages show the next file's requirement
+and available bytes. Once ready, choose **Single player** or **Multiplayer**.
+Completing work in the background never launches the game automatically.
+
+For development, manual data placement still works. Open the launcher and use
+**Check installed files** afterward:
 
 ```sh
 adb install builddir/android-apk/app/outputs/apk/debug/app-debug.apk
 adb shell mkdir -p /sdcard/Android/data/com.darkmatter.openq4/files/q4base
 adb push /path/to/Quake4/q4base/. /sdcard/Android/data/com.darkmatter.openq4/files/q4base/
-adb shell am start -n com.darkmatter.openq4/.OpenQ4Activity
+adb shell am start -n com.darkmatter.openq4/.LauncherActivity
 ```
 
-The default launch opens single-player. To start with multiplayer menus, close
-the existing app and launch with `--ez multiplayer true`; `ui_autoJoin` is set
-explicitly to `0`. The normal gamepad and keyboard bindings work in gameplay.
-The standalone app does not provide a full touch gameplay overlay.
+The native game Activity is internal; external launches use the setup entry
+point. Both play buttons keep `ui_autoJoin` explicitly `0`. A setup language
+choice reaches the next native launch; subsequent ordinary launches preserve
+the game's language setting. The normal gamepad and keyboard bindings work in
+gameplay. The standalone app does not provide a full touch gameplay overlay.
+
+This setup increment covers language and game data. Controls/live testing,
+interface-profile setup, reopening from in-game Settings and log/save export
+remain open. Physical folder-provider, accessibility, visual and process-death
+qualification is still required; host fixtures do not establish those results.
 
 The Android Back button or gesture follows the game's menu/pause navigation.
 Fatal-error screens accept touch release on density-scaled Copy, Clear and Quit
@@ -183,13 +203,20 @@ filesystem fixtures; it does not require or control an Android device.
 `python tools/tests/android_retail_data.py` checks the setup verifier against the
 native PK4 checksum implementation and generated valid/damaged archives. It
 requires a JDK and GCC or Clang; `--retail-root /path/to/q4base` additionally
-performs a read-only full check of local retail media. This backend is not yet
-connected to the Activity's startup flow. Manual data placement and the engine's
-own validation remain in use until guided setup is integrated.
+performs a read-only full check of local retail media. The launcher uses this
+verifier for imports and installed-data checks. The engine's own validation
+also remains enabled.
 
 `python tools/tests/android_retail_import.py` exercises verified replacement,
 interruption/retry, low space, source failures and save preservation.
 `python tools/tests/android_document_source.py` checks the read-only Android
 document-provider adapter and its connection to the importer using host API
 substitutes. Both require a JDK. Device folder-picker/grant behavior and the
-player-facing setup flow remain separate acceptance work.
+player-facing setup flow remain separate physical acceptance work.
+
+`python tools/tests/android_setup_task.py` checks retained operation delivery,
+cancellation and native/setup storage ownership. `android_setup_flow.py` runs
+the real provider/import/verification/extraction sequence, including cancellation
+between stages and retry, and checks the four complete localized resource sets.
+Neither needs a device. APK verification also compares the launcher's Marine and
+Lowpixel fonts with the exact faces inside the staged `pak0.pk4`.

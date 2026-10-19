@@ -622,3 +622,85 @@ result is claimed. APK SHA-256 is
 Evidence is `.tmp/stage-two/android-import-evidence.json`, SHA-256
 `1da00da516c042f4fea15b170013d03c2ce2247ea0b0191149d39afade91269e`.
 The APK is not installed; the S25 restore check remains unchanged.
+
+## Android language and data setup, 19 October 2026
+
+The public `LauncherActivity` now connects AND-03's retail/import backends to
+language and data setup before loading SDL. English, German, Spanish and French
+have complete setup resource sets, with a live language sample, localized
+recovery messages and explicit Single player/Multiplayer actions after a
+successful check. The native game Activity is internal. A changed setup
+language is passed to the next prepared engine launch; ordinary launches keep
+the game's saved language. No background completion automatically starts play.
+
+The system folder picker requests read access. Offered persistent read grants
+are retained; choosing another source releases the previous persisted read
+grant. Temporary grants are identified, and lost/revoked access directs the
+player to choose the folder again. The worker uses application context and
+opaque provider URIs, never an Activity or an inferred filesystem path. It
+connects import or installed-data validation to bundled-file preparation only
+after the required retail set succeeds. Missing language and optional files
+remain warnings. Failure messages name the file and corrective action; storage
+shortfalls show exact required/available bytes for the next file.
+
+`SetupTask` retains one operation through view rebinding. It coalesces progress,
+delivers on the UI thread, rejects stale callbacks and keeps cancellation in a
+stopping state until the worker returns through its cleanup. Provider
+cancellation runs off the UI thread. Setup records its selected source and
+pending operation for explicit retry after process death. Completed archives
+are reverified/reused and the active partial archive restarts; this does not
+promise arbitrary provider byte-offset resume. Package extraction now exposes
+verification/copy progress, typed insufficient-space failures and interruption
+checks, including the final check before replacing a destination.
+
+`StorageSession` excludes setup from a starting, running or closing native
+session. SDL's bounded Activity-destruction join does not release the engine's
+separate ownership: it lasts until `main()` returns. A game restored by Android
+while setup is finishing waits on SDLThread, and a destroyed waiting Activity
+does not enter native code. Host tests exercise the actual Activity's lifecycle
+hooks and the independent ownership coordinator. They do not establish real
+Android Recents/process-death behavior.
+
+The native setup views use the staged Marine/Lowpixel typefaces, vector cut
+plates, scrollable content, at least 48 dp actions with 8 dp gaps and safe-area
+insets. Pointer movement beyond 8 dp or release outside the action cancels it;
+keyboard/controller/accessibility activation stays on Android's Button path.
+Font copies in the APK are checked byte-for-byte against the staged `pak0.pk4`.
+Four-language completeness and format-argument checks pass. These are source
+and packaging results: physical touch, TalkBack, large-text layout, visual
+fidelity and translation review remain unaccepted.
+
+Windows JDK 21 and Linux JDK 17 checks pass for task ownership and the complete
+provider/import/retail/package pipeline. They cover cancellation between retail
+import and bundled-file preparation, retry without reopening a healthy source,
+provider cancellation, native exclusion, missing-data admission and exact
+private-save preservation. Updated Activity/storage tests pass on both hosts,
+including Linux links. All seven Android build/package tests pass on Windows.
+Both new executable suites are registered in the validation runner and both CI
+script-smoke jobs.
+
+SDK 35 debug packaging succeeds and passes exact payload, seven-library,
+ARM64/API 24, native extraction, 16 KiB alignment and v2-signature checks. The
+public launcher and non-exported native Activity are confirmed in the packaged
+manifest. APK SHA-256 is
+`93ad4ca0c40402ed0177d7b33e550fcd2c94dff1f7977959ddf62f6e18bdcd11`.
+Native library bytes match the preceding import package; no new native-suite
+result is claimed. Evidence is `.tmp/stage-two/android-setup-evidence.json`,
+SHA-256 `335db0e247ff6485a578937783964b51e9b516a0a16373ee647fa04ad453cb95`.
+
+The additional full Android lint run remains unsuccessful, with 28 errors in
+the existing SDL Java sources: Bluetooth permission calls, the API-29 pen
+helper and pre-33 broadcast registration. Inspection finds permission/version
+guards at the relevant SDL initialization/dispatch paths; these diagnostics
+are retained for dependency review, not reported as reproduced device failures
+or silently suppressed. Setup retains all languages offline and delegates
+activation to Android's Button; lint still reports language-bundle and custom
+touch-delegation advisories. Existing storage-space advisories remain too.
+
+This increment does not close AND-03 or accept the full first-run design.
+Controls/live testing, interface-profile/text-size setup, in-game Settings
+re-entry, accessible log/save export, release signing continuity and physical
+provider/lifecycle/visual/accessibility evidence remain. Other engine languages
+are still available in the game but lack setup translations. The APK has not
+been installed; the original S25 restore test still uses its recorded package
+and waits for explicit readiness.

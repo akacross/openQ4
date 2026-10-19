@@ -15,15 +15,37 @@ import android.view.WindowInsets;
 import org.libsdl.app.SDLActivity;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        StorageSession.INSTANCE.activityCreated(this);
         super.onCreate(savedInstanceState);
         if (!mBrokenLibraries && mLayout != null && Build.VERSION.SDK_INT >= 30) {
             keepOutOfDisplayCutout(mLayout);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        try { super.onDestroy(); }
+        finally { StorageSession.INSTANCE.activityDestroyed(this); }
+    }
+
+    @Override
+    protected void main() {
+        try {
+            if (!StorageSession.INSTANCE.beginEngine(this)) return;
+        } catch (InterruptedException cancelled) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        try { super.main(); }
+        finally { StorageSession.INSTANCE.endEngine(this); }
     }
 
     @TargetApi(30)
@@ -83,7 +105,7 @@ public final class OpenQ4Activity extends SDLActivity {
             Os.setenv("OPENQ4_NATIVE_LIBS", getApplicationInfo().nativeLibraryDir, true);
             Os.setenv("OPENQ4_CONTENT_ROOT", contentRoot.getAbsolutePath(), true);
             boolean multiplayer = getIntent().getBooleanExtra("multiplayer", false);
-            return new String[] {
+            List<String> arguments = new ArrayList<>(Arrays.asList(
                 "+set", "fs_basepath", retailRoot.getAbsolutePath(),
                 "+set", "fs_savepath", saveRoot.getAbsolutePath(),
                 "+set", "fs_cachepath", getCacheDir().getAbsolutePath(),
@@ -96,7 +118,13 @@ public final class OpenQ4Activity extends SDLActivity {
                 "+set", "in_tty", "0",
                 "+set", "logFile", "2",
                 "+set", "logFileName", "logs/openq4.log"
-            };
+            ));
+            String language = SetupLanguage.engine(getIntent().getStringExtra("setup_language"));
+            if (language != null) {
+                arguments.addAll(Arrays.asList("+set", "sys_lang", language));
+                LauncherActivity.languageApplied(getIntent().getStringExtra("setup_language"));
+            }
+            return arguments.toArray(new String[0]);
         } catch (IOException | ErrnoException error) {
             // SDL/logcat retains the actionable cause; never run with partial
             // package data or fall back to an unintended writable directory.

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import io
 import hashlib
 import os
 import shutil
@@ -44,10 +45,15 @@ class AndroidBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='android-apk-', dir=ROOT / '.tmp') as temporary:
             stage = Path(temporary) / 'stage'
             files = {'lib/' + name: android_library() for name in verify_android_apk.LIBRARIES}
+            faces = {name: ('typeface: ' + name).encode() for name in verify_android_apk.SETUP_FONTS}
+            pack = io.BytesIO()
+            with zipfile.ZipFile(pack, 'w') as archive:
+                for name, data in faces.items():
+                    archive.writestr(name, data)
             files.update({
                 'android-build.json': b'{"abi":"arm64-v8a","androidApi":24}',
                 'baseoq4/mod.json': b'{"version":"0.14.000","requiredopenQ4Version":"0.14.000"}',
-                'baseoq4/pak0.pk4': b'first pack', 'baseoq4/pak1.pk4': b'second pack',
+                'baseoq4/pak0.pk4': pack.getvalue(), 'baseoq4/pak1.pk4': b'second pack',
                 'LICENSE': b'engine license', 'LICENSING.md': b'component licenses', 'CONTRIBUTORS.md': b'credits',
                 'licenses/QUAKE-4-SDK-EULA.rtf': b'SDK EULA',
                 'licenses/MD4.txt': b'MD4 notice',
@@ -63,6 +69,7 @@ class AndroidBuildTests(unittest.TestCase):
             manifest = package_manifest(stage / 'baseoq4')
             entries['assets/openq4-package-manifest.txt'] = manifest
             entries['assets/openq4-package-version.txt'] = hashlib.sha256(manifest).hexdigest().encode()
+            entries.update({'assets/' + name: data for name, data in faces.items()})
             apk = Path(temporary) / 'release.apk'
 
             def package(payload):
@@ -85,6 +92,9 @@ class AndroidBuildTests(unittest.TestCase):
                 ('assets/licenses/openal-soft/COPYING', None, 'asset set differs'),
                 ('assets/licenses/QUAKE-4-SDK-EULA.rtf', None, 'asset set differs'),
                 ('assets/licenses/MD4.txt', None, 'asset set differs'),
+                ('assets/fonts/marine.ttf', None, 'asset set differs'),
+                ('assets/fonts/lowpixel.ttf', b'wrong face', 'typeface differs'),
+                ('assets/fonts/extra.ttf', b'unexpected face', 'asset set differs'),
                 ('assets/q4base/pak001.pk4', b'retail data', 'asset set differs'),
                 ('assets/openq4-package-version.txt', b'wrong revision', 'extraction revision'),
                 ('assets/openq4-package-manifest.txt', b'wrong manifest', 'extraction manifest'),
@@ -114,7 +124,7 @@ class AndroidBuildTests(unittest.TestCase):
         good = [
             f'Verified using v2 scheme (APK Signature Scheme v2): true\nSigner #1 certificate SHA-256 digest: {cert_digest}\n',
             '',
-            "package: name='com.darkmatter.openq4' versionCode='14000' versionName='0.14.000'\nsdkVersion:'24'\ntargetSdkVersion:'35'\nnative-code: 'arm64-v8a'\n",
+            "package: name='com.darkmatter.openq4' versionCode='14000' versionName='0.14.000'\nsdkVersion:'24'\ntargetSdkVersion:'35'\nnative-code: 'arm64-v8a'\nlaunchable-activity: name='com.darkmatter.openq4.LauncherActivity'\n",
             'A: android:extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff',
         ]
         for index, replacement, message in (
@@ -124,6 +134,7 @@ class AndroidBuildTests(unittest.TestCase):
             (2, good[2].replace("sdkVersion:'24'", "sdkVersion:'28'"), 'manifest mismatch'),
             (2, good[2].replace("versionCode='14000'", "versionCode='13001'"), 'manifest mismatch'),
             (2, good[2] + 'application-debuggable', 'not be debuggable'),
+            (2, good[2].replace('.LauncherActivity', '.OpenQ4Activity'), 'manifest mismatch'),
             (3, good[3].replace('0xffffffff', '0x0'), 'extract native libraries'),
         ):
             outputs = good.copy()

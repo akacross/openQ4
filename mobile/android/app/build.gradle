@@ -94,6 +94,11 @@ tasks.register('stageOpenQ4Assets', Sync) {
     from(new File(nativeStage, 'baseoq4')) { into 'baseoq4' }
     from(new File(nativeStage, 'licenses')) { into 'licenses' }
     from(nativeStage) { include 'LICENSE', 'LICENSING.md', 'CONTRIBUTORS.md', 'android-build.json' }
+    // Setup is visible before the engine unpacks pak0. Reuse its exact faces,
+    // rather than checking in duplicate fonts or depending on extracted data.
+    from({ zipTree(new File(nativeStage, 'baseoq4/pak0.pk4')) }) {
+        include 'fonts/marine.ttf', 'fonts/lowpixel.ttf'
+    }
     into(generatedAssets)
     doFirst {
         ['baseoq4/pak0.pk4', 'baseoq4/pak1.pk4', 'baseoq4/mod.json',
@@ -108,6 +113,11 @@ tasks.register('stageOpenQ4Assets', Sync) {
         }
     }
     doLast {
+        ['fonts/marine.ttf', 'fonts/lowpixel.ttf'].each { name ->
+            if (!new File(generatedAssets.get().asFile, name).isFile()) {
+                throw new GradleException("Missing setup typeface in staged pak0: ${name}")
+            }
+        }
         // Each APK gets a content-addressed private package directory. A failed
         // extraction or damaged copy can be repaired from the verified manifest.
         byte[] manifest = openQ4PackageManifest(new File(generatedAssets.get().asFile, 'baseoq4'))
@@ -138,6 +148,10 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+    bundle {
+        // The setup language switch must work offline, before game data exists.
+        language { enableSplit = false }
     }
     packaging {
         // Engine/game renderer modules are dlopen'ed from nativeLibraryDir.

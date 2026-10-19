@@ -73,6 +73,12 @@
   keyboard over the report. Dragging away from a button cancels the tap.
 - On Android 11 and later, the game renders beside camera cutouts so they do
   not cover HUD controls. The surrounding strip stays black.
+- The experimental Android app now opens a language and game-data setup screen.
+  Choose your own Quake 4 folder with the system picker, follow copy/check
+  progress and retry interrupted work without losing completed archives or
+  saves. Setup includes English, German, Spanish and French recovery messages;
+  select Single player or Multiplayer once the files are ready. Device testing
+  and the remaining controls, interface and export steps are still in progress.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a
