@@ -3081,6 +3081,9 @@ static void SDL3_ShutdownControllerSubsystems(void) {
 
 static int SDL3_MapPhysicalScancode(SDL_Scancode scancode) {
 	switch (scancode) {
+#if defined( __ANDROID__ )
+		case SDL_SCANCODE_AC_BACK: return K_ESCAPE;
+#endif
 		case SDL_SCANCODE_ESCAPE: return K_ESCAPE;
 		case SDL_SCANCODE_RETURN: return K_ENTER;
 		case SDL_SCANCODE_TAB: return K_TAB;
@@ -3210,6 +3213,9 @@ static int SDL3_MapPhysicalScancode(SDL_Scancode scancode) {
 
 static int SDL3_MapKeycode(SDL_Keycode keycode) {
 	switch (keycode) {
+#if defined( __ANDROID__ )
+		case SDLK_AC_BACK: return K_ESCAPE;
+#endif
 		case SDLK_ESCAPE: return K_ESCAPE;
 		case SDLK_RETURN: return K_ENTER;
 		case SDLK_TAB: return K_TAB;

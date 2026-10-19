@@ -79,6 +79,13 @@ the existing app and launch with `--ez multiplayer true`; `ui_autoJoin` is set
 explicitly to `0`. The normal gamepad and keyboard bindings work in gameplay.
 The standalone app does not provide a full touch gameplay overlay.
 
+The Android Back button or gesture follows the game's menu/pause navigation.
+Fatal-error screens accept touch release on density-scaled Copy, Clear and Quit
+buttons; Back dismisses the error screen. Dragging more than 8 dp or lifting
+outside the pressed button cancels its action. The fatal screen does not open
+the on-screen keyboard. These input paths remain subject to physical-device
+qualification as part of the experimental Android package.
+
 Saves/configuration/logs live in private `files/saves/baseoq4/`, and generated
 texture caches live in the Android cache directory. With a debug APK, retrieve
 the engine log using:

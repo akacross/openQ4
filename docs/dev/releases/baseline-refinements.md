@@ -68,6 +68,9 @@
   catch-up after the system freezes the app, including with accelerated time.
 - Android native error reports now stay beside the normal game log, making
   startup failures easier to diagnose.
+- Android Back now follows menu and pause navigation. Error screens have larger
+  touch controls and can be dismissed with Back, without opening the on-screen
+  keyboard over the report. Dragging away from a button cancels the tap.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

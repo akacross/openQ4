@@ -459,6 +459,11 @@ Sources: [Android build and packaging](android-build.md),
   adds 100 ms background waits and bounded catch-up at every Android timescale;
   production Windows/Linux cadence, freeze and shutdown checks pass. Physical
   power/suspension and resumed network sessions remain unqualified.
+  [Back and fatal-console controls](platform-recovery-review.md#android-back-and-fatal-console-controls-19-october-2026)
+  now route Android Back through menu/pause navigation, accept a single touch
+  owner with release/cancellation rules and use density-scaled error controls.
+  Native/JVM recovery checks and both platform builds pass; physical touch,
+  gesture, readability and cutout qualification remain required.
   Broader device startup and the remaining host/input/lifecycle recovery are
   still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor

@@ -74,6 +74,10 @@ public final class Os {
         catch (Exception error) { throw new ErrnoException(error); }
     }
 }''',
+            "android/view/KeyEvent.java": r'''
+package android.view;
+public final class KeyEvent { public static final int KEYCODE_BACK = 4; }
+''',
             "org/libsdl/app/SDLActivity.java": r'''
 package org.libsdl.app;
 import java.io.File;
@@ -81,6 +85,16 @@ import android.content.res.AssetManager;
 public class SDLActivity {
     public static File files;
     public static AssetManager assets;
+    public static boolean mBrokenLibraries, mActivityCreated = true;
+    public static final java.util.List<Integer> keys = new java.util.ArrayList<>();
+    public static int systemBack;
+    public boolean finishing;
+    public int finishes;
+    public void onBackPressed() { ++systemBack; }
+    public boolean isFinishing() { return finishing; }
+    public void finish() { finishing = true; ++finishes; }
+    public static void onNativeKeyDown(int key) { keys.add(key); }
+    public static void onNativeKeyUp(int key) { keys.add(-key); }
     protected String[] getLibraries() { return new String[0]; }
     protected String[] getArguments() { return new String[0]; }
     public File getExternalFilesDir(String type) { return new File(files, "retail"); }
@@ -154,6 +168,25 @@ public final class StorageTest {
         write(root.resolve("files/saves/baseoq4/test.save"), "player save");
         write(root.resolve("files/packages/keep/test.txt"), "unmanaged");
         OpenQ4Activity activity = new OpenQ4Activity();
+        activity.onBackPressed();
+        require(SDLActivity.keys.equals(Arrays.asList(4, -4)) && SDLActivity.systemBack == 0 && !activity.finishing,
+            "Back gesture must deliver one SDL Back press/release without closing the game");
+        SDLActivity.keys.clear();
+        activity.finishing = true;
+        activity.onBackPressed();
+        require(SDLActivity.keys.isEmpty() && activity.finishes == 0, "finishing Activity accepted Back");
+        activity.finishing = false;
+        for (boolean broken : new boolean[] { true, false }) {
+            SDLActivity.mBrokenLibraries = broken;
+            SDLActivity.mActivityCreated = broken;
+            OpenQ4Activity failed = new OpenQ4Activity();
+            failed.onBackPressed();
+            failed.onBackPressed();
+            require(failed.finishes == 1 && SDLActivity.keys.isEmpty() && SDLActivity.systemBack == 0,
+                "unavailable SDL Back must finish without entering JNI");
+        }
+        SDLActivity.mBrokenLibraries = false;
+        SDLActivity.mActivityCreated = true;
         File old = extract(activity);
         List<String> launch = Arrays.asList(activity.getArguments());
         int saveArgument = launch.indexOf("fs_savepath");
@@ -295,7 +328,7 @@ public final class StorageTest {
         try { extract(activity); } catch (IOException expected) { failed = true; }
         require(failed, "invalid package revision must be rejected");
         require(new File(current, ".ready").isFile(), "invalid revision must not damage current package");
-        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation and matching native/engine save roots");
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots and Back gesture/lifecycle routing");
     }
 }''',
         }

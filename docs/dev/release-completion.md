@@ -10,6 +10,15 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Route Android Back through the current menu/pause action and make the
+  fatal-error console usable with density-scaled touch targets. Press ownership,
+  release activation, cancellation and duplicate-event filtering prevent stale
+  touches from activating buttons; fatal presentation leaves the keyboard shut.
+  The [input evidence](platform-recovery-review.md#android-back-and-fatal-console-controls-19-october-2026)
+  records production native/JVM checks on Windows/Linux, failing old-code
+  controls, both platform builds and 267 passing native tests. Physical Android
+  gesture/touch and visual qualification remains open.
+
 - [x] Keep Android's early fatal reports beside its regular game log by sharing
   the standalone host's save directory with native startup. The
   [path evidence](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)

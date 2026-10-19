@@ -4,12 +4,30 @@ package com.darkmatter.openq4;
 
 import android.system.ErrnoException;
 import android.system.Os;
+import android.view.KeyEvent;
 import org.libsdl.app.SDLActivity;
 import java.io.File;
 import java.io.IOException;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (isFinishing()) return;
+        if (mBrokenLibraries || !mActivityCreated) {
+            // There is no native UI to navigate after a failed SDL load.
+            // SDL's default handler calls JNI, so do not enter it here.
+            finish();
+            return;
+        }
+        // Gesture navigation reaches this callback without a hardware key.
+        // Use the same SDL Back event as a physical button: the engine routes
+        // it through its current menu, gameplay pause or fatal-error console.
+        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_BACK);
+        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_BACK);
+    }
+
     @Override
     protected String[] getLibraries() {
         return new String[] { "SDL3", "quake4" };

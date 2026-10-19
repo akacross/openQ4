@@ -435,3 +435,50 @@ log export remain open. The S25 still has the preceding timer/GUI repair package
 Evidence is `.tmp/stage-two/android-savepath-evidence.json`, SHA-256
 `fb522e1cfbde1eacde1ab71843c5fa8bde42d5b4dd5de87aede9d676c308712c`,
 binding sources, native/JVM/build/stage logs and the verified package.
+
+## Android Back and fatal-console controls, 19 October 2026
+
+The Android error console previously received mouse events only, while normal
+backend startup disables SDL's conversion of touch into mouse input. Its fixed
+pixel-sized controls were also too small on dense phone displays. It now owns
+one finger/device pair, activates a button on release and cancels on an outside
+release, movement over 8 dp, malformed coordinates, focus loss, hiding, resize,
+density change, backgrounding or teardown. Synthetic touch/mouse duplicates
+cannot override that cancellation. Physical mouse input retains its own path.
+
+Android console layout now uses the display's density with 48 dp button and
+input heights and at least 8 dp between adjacent buttons. Fatal presentation
+does not start the text-input keyboard, which would cover the report and its
+controls. Desktop console layout and text entry keep their previous behavior.
+
+Back had two separate gaps: the engine did not map Android's Back key, and
+SDLActivity's gesture callback used Android's default activity-close behavior.
+The host now forwards a gesture as one SDL Back press/release pair. Both native
+key mappings use the normal menu/pause action on Android. The fatal console
+handles Back as dismissal; an ordinary console hides without queuing game exit.
+A finishing Activity ignores the callback, and an unavailable SDL load closes
+without entering JNI. No gameplay quit command is added.
+
+`android_console_input.py` compiles the production layout, console handlers and
+key mappings with counted SDL/command stand-ins. Windows/Linux pass Android and
+desktop variants, density/layout checks, ownership/cancellation, duplicate mouse
+events, Back up/repeat/window isolation, fatal keyboard suppression and physical
+mouse controls. Seven old-code/removed-guard controls fail as expected. The
+production Java Activity/storage tests pass on both hosts, including Back's
+gesture and unavailable-library branches; substituting the default activity
+Back action fails. Windows retains its documented symlink canonicalization
+skip; Linux exercises that storage branch.
+
+Both platform builds and stages pass, and all 267 Windows native tests pass
+after adding the Android Back mapping. These checks do not establish real
+device touch/gesture behavior, console readability, cutout handling or gameplay
+controls. The S25 retains the preceding timer/GUI package while its restore
+test waits for the user's readiness. AND-01 and AND-03 remain open.
+
+The debug APK passes exact staged payload/manifest, seven-library, API/ABI,
+native extraction, 16 KiB ELF/ZIP alignment and v2-signature checks; SHA-256
+`99df45c3f7fcdb4c1302a5a7a7e4cc7f92647019571dbe5433e690c285ff265e`.
+It is verified but not installed. Evidence is
+`.tmp/stage-two/android-console-evidence.json`, SHA-256
+`c24f379706013a555e51ce51416f8cdb5bdeaca2b14d8d5ead72cc7ffb42dd44`,
+binding the production sources, positive/negative checks, builds and package.

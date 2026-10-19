@@ -2299,6 +2299,22 @@ if build_engine or get_option('build_native_tests')
   endif
   if get_option('build_native_tests') and build_engine and use_sdl3_backend
     text_ingress_test_headers = [root_include_dir, include_directories('subprojects/packagefiles/sdl3/include')]
+    android_console_source = custom_target(
+      'openq4-android-console-source',
+      output: 'AndroidConsoleInput.cpp',
+      depend_files: files('src/sys/posix/posix_syscon.cpp', 'src/sys/sys_console_theme.h',
+        'src/sys/sdl3/sdl3_backend.cpp', 'src/framework/KeyInput.h'),
+      command: [py, files('tools/tests/android_console_input.py'), '--generate-native', '@OUTPUT@'],
+    )
+    foreach platform : ['android', 'desktop']
+      android_console_test = executable(
+        'openq4-android-console-' + platform, android_console_source,
+        include_directories: include_directories('src'),
+        dependencies: text_ingress_headers,
+        cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+      )
+      test('openq4-android-console-' + platform, android_console_test, timeout: 30)
+    endforeach
     # Match the explicitly prepared SDL tree used by the SDK CI qualification.
     native_facts_sdl_headers = meson.project_source_root() / 'subprojects/SDL3-3.4.10/include'
     if fs_mod.is_file(native_facts_sdl_headers / 'SDL3/SDL_events.h')

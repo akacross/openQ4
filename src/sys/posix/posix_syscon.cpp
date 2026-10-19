@@ -168,6 +168,16 @@ struct posixConsoleWindow_t {
 	int scrollLines;
 	int hotButton;
 	int pressedButton;
+#if defined( __ANDROID__ )
+	struct {
+		bool active = false;
+		bool cancelled = false;
+		SDL_TouchID device = 0;
+		SDL_FingerID finger = 0;
+		float startX = 0.0f;
+		float startY = 0.0f;
+	} touch;
+#endif
 	idEditField inputField;
 	idEditField history[ POSIX_CONSOLE_HISTORY ];
 	int nextHistoryLine;
@@ -198,6 +208,16 @@ struct posixConsoleWindow_t {
 
 static posixSplashWindow_t s_splashWindow;
 static posixConsoleWindow_t s_consoleWindow;
+
+#if defined( __ANDROID__ )
+static void Posix_ConsoleCancelTouch( void ) {
+	if ( s_consoleWindow.touch.active ) {
+		s_consoleWindow.hotButton = POSIX_CONSOLE_BUTTON_NONE;
+		s_consoleWindow.pressedButton = POSIX_CONSOLE_BUTTON_NONE;
+	}
+	s_consoleWindow.touch = {};
+}
+#endif
 
 static const char *Posix_ConsoleInputState( int &inputLength, int &inputCursor ) {
 	const char *inputBuffer = s_consoleWindow.inputField.GetBuffer();
@@ -613,6 +633,17 @@ static void Posix_ConsoleUpdateLayout( void ) {
 		(void)SDL_GetWindowSize( s_consoleWindow.window, &width, &height );
 	}
 
+#if defined( __ANDROID__ )
+	// Android reports window coordinates in pixels. Use a density-independent
+	// logical presentation so text and 48 dp touch targets remain readable.
+	const float displayScale = SDL_GetWindowDisplayScale( s_consoleWindow.window );
+	const float pixelDensity = SDL_GetWindowPixelDensity( s_consoleWindow.window );
+	const float contentScale = displayScale / pixelDensity;
+	if ( std::isfinite( contentScale ) && contentScale >= 0.25f && contentScale <= 16.0f ) {
+		width = Max( 1, static_cast<int>( width / contentScale ) );
+		height = Max( 1, static_cast<int>( height / contentScale ) );
+	}
+#else
 	// The window itself is clamped to the same minimum, but a compositor can
 	// still hand us a smaller size during a resize; clamp so the fixed rows
 	// never overlap the log pane.
@@ -622,13 +653,20 @@ static void Posix_ConsoleUpdateLayout( void ) {
 	if ( height < POSIX_CONSOLE_MIN_HEIGHT ) {
 		height = POSIX_CONSOLE_MIN_HEIGHT;
 	}
+#endif
 	Posix_ConsoleApplyLogicalPresentation( width, height );
 
 	const float margin = static_cast<float>( POSIX_CONSOLE_MARGIN );
+#if defined( __ANDROID__ )
+	const float gutter = Max( 8.0f, static_cast<float>( POSIX_CONSOLE_GUTTER ) );
+	const float buttonHeight = Max( 48.0f, static_cast<float>( POSIX_CONSOLE_BUTTON_HEIGHT ) );
+	const float inputHeight = Max( 48.0f, static_cast<float>( POSIX_CONSOLE_INPUT_HEIGHT ) );
+#else
 	const float gutter = static_cast<float>( POSIX_CONSOLE_GUTTER );
-	const float buttonWidth = static_cast<float>( POSIX_CONSOLE_BUTTON_WIDTH );
 	const float buttonHeight = static_cast<float>( POSIX_CONSOLE_BUTTON_HEIGHT );
 	const float inputHeight = static_cast<float>( POSIX_CONSOLE_INPUT_HEIGHT );
+#endif
+	const float buttonWidth = static_cast<float>( POSIX_CONSOLE_BUTTON_WIDTH );
 	const float statusHeight = static_cast<float>( POSIX_CONSOLE_STATUS_HEIGHT );
 	const float contentWidth = static_cast<float>( width ) - margin * 2.0f;
 
@@ -760,7 +798,11 @@ static bool Posix_ConsoleCreateWindow( void ) {
 	}
 
 	// Below this the fixed status/input/button rows would eat the log pane.
+#if !defined( __ANDROID__ )
 	(void)SDL_SetWindowMinimumSize( s_consoleWindow.window, POSIX_CONSOLE_MIN_WIDTH, POSIX_CONSOLE_MIN_HEIGHT );
+#else
+	Posix_ConsoleCancelTouch();
+#endif
 
 	s_consoleWindow.inputField.Clear();
 	for ( int i = 0; i < POSIX_CONSOLE_HISTORY; ++i ) {
@@ -780,6 +822,14 @@ static void Posix_ConsoleStartTextInput( void ) {
 	if ( s_consoleWindow.window == NULL || !s_consoleWindow.visible ) {
 		return;
 	}
+#if defined( __ANDROID__ )
+	// A fatal console cannot execute commands. Do not cover its report and
+	// dismissal buttons with the on-screen keyboard on focus or resize.
+	if ( s_consoleWindow.forceFatalWindow ) {
+		(void)SDL_StopTextInput( s_consoleWindow.window );
+		return;
+	}
+#endif
 
 	const SDL_Rect inputRect = {
 		static_cast<int>( s_consoleWindow.layout.inputRect.x ),
@@ -808,6 +858,9 @@ static void Posix_ConsoleStopTextInput( void ) {
 }
 
 static void Posix_ConsoleHide( void ) {
+#if defined( __ANDROID__ )
+	Posix_ConsoleCancelTouch();
+#endif
 	if ( s_consoleWindow.window == NULL ) {
 		s_consoleWindow.visible = false;
 		return;
@@ -997,6 +1050,63 @@ static void Posix_ConsoleClickButton( float x, float y ) {
 	}
 }
 
+#if defined( __ANDROID__ )
+static void Posix_ConsoleHandleTouch( const SDL_TouchFingerEvent &event ) {
+	auto &touch = s_consoleWindow.touch;
+	const bool down = event.type == SDL_EVENT_FINGER_DOWN;
+	if ( touch.active ) {
+		if ( down || touch.device != event.touchID || touch.finger != event.fingerID ) {
+			return;
+		}
+	} else if ( !down ) {
+		return;
+	}
+	if ( event.type == SDL_EVENT_FINGER_CANCELED ) {
+		Posix_ConsoleCancelTouch();
+		return;
+	}
+	int width = 0, height = 0;
+	(void)SDL_GetWindowSize( s_consoleWindow.window, &width, &height );
+	const bool valid = width > 0 && height > 0 && std::isfinite( event.x ) && std::isfinite( event.y ) &&
+		event.x >= 0.0f && event.x <= 1.0f && event.y >= 0.0f && event.y <= 1.0f;
+	if ( !valid ) {
+		if ( touch.active ) {
+			touch.cancelled = true;
+			s_consoleWindow.pressedButton = POSIX_CONSOLE_BUTTON_NONE;
+			if ( event.type == SDL_EVENT_FINGER_UP ) Posix_ConsoleCancelTouch();
+		}
+		return;
+	}
+	const float windowX = event.x * width, windowY = event.y * height;
+	float x = windowX, y = windowY;
+	Posix_ConsoleWindowToRenderCoordinates( x, y );
+	if ( !std::isfinite( x ) || !std::isfinite( y ) ) {
+		Posix_ConsoleCancelTouch();
+		return;
+	}
+	if ( down ) {
+		touch.active = true;
+		touch.device = event.touchID;
+		touch.finger = event.fingerID;
+		touch.startX = x;
+		touch.startY = y;
+		Posix_ConsoleBeginPress( windowX, windowY );
+		return;
+	}
+	const float dx = x - touch.startX, dy = y - touch.startY;
+	if ( dx * dx + dy * dy > 8.0f * 8.0f ) {
+		touch.cancelled = true;
+		s_consoleWindow.pressedButton = POSIX_CONSOLE_BUTTON_NONE;
+	}
+	if ( event.type == SDL_EVENT_FINGER_UP ) {
+		if ( !touch.cancelled ) Posix_ConsoleClickButton( windowX, windowY );
+		Posix_ConsoleCancelTouch();
+	} else {
+		Posix_ConsoleTrackPointer( windowX, windowY );
+	}
+}
+#endif
+
 static void Posix_ConsoleHandleClose( void ) {
 	if ( s_consoleWindow.quitOnClose ) {
 		Posix_ConsoleRequestQuit();
@@ -1027,6 +1137,14 @@ static bool Posix_ConsoleHandleKey( const SDL_KeyboardEvent &keyEvent ) {
 	}
 
 	switch ( keyEvent.key ) {
+#if defined( __ANDROID__ )
+		case SDLK_AC_BACK:
+			if ( !keyEvent.repeat ) {
+				Posix_ConsoleCancelTouch();
+				Posix_ConsoleHandleClose();
+			}
+			return true;
+#endif
 		case SDLK_ESCAPE:
 			if ( !s_consoleWindow.quitOnClose ) {
 				Posix_ConsoleHide();
@@ -1470,8 +1588,24 @@ bool Posix_ConsoleProcessEvent( const void *eventData ) {
 	const SDL_WindowID windowID = Posix_ConsoleWindowID();
 
 	switch ( event.type ) {
+#if defined( __ANDROID__ )
+		case SDL_EVENT_WILL_ENTER_BACKGROUND:
+		case SDL_EVENT_DID_ENTER_BACKGROUND:
+			Posix_ConsoleCancelTouch();
+			return false;
+		case SDL_EVENT_WINDOW_HIDDEN:
+			if ( event.window.windowID == windowID ) {
+				Posix_ConsoleCancelTouch();
+				Posix_ConsoleStopTextInput();
+				return true;
+			}
+			return false;
+#endif
 		case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
 			if ( event.window.windowID == windowID ) {
+#if defined( __ANDROID__ )
+				Posix_ConsoleCancelTouch();
+#endif
 				Posix_ConsoleHandleClose();
 				return true;
 			}
@@ -1485,6 +1619,9 @@ bool Posix_ConsoleProcessEvent( const void *eventData ) {
 			return false;
 		case SDL_EVENT_WINDOW_FOCUS_LOST:
 			if ( event.window.windowID == windowID ) {
+#if defined( __ANDROID__ )
+				Posix_ConsoleCancelTouch();
+#endif
 				s_consoleWindow.inputFocused = false;
 				// A press that ends outside our focus never becomes a click, so
 				// drop the highlight instead of leaving a button stuck lit.
@@ -1502,7 +1639,13 @@ bool Posix_ConsoleProcessEvent( const void *eventData ) {
 			return false;
 		case SDL_EVENT_WINDOW_RESIZED:
 		case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+#if defined( __ANDROID__ )
+		case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+#endif
 			if ( event.window.windowID == windowID ) {
+#if defined( __ANDROID__ )
+				Posix_ConsoleCancelTouch();
+#endif
 				Posix_ConsoleUpdateLayout();
 				Posix_ConsoleStartTextInput();
 				return true;
@@ -1532,22 +1675,45 @@ bool Posix_ConsoleProcessEvent( const void *eventData ) {
 			return event.edit.windowID == windowID;
 		case SDL_EVENT_MOUSE_MOTION:
 			if ( event.motion.windowID == windowID ) {
+#if defined( __ANDROID__ )
+				if ( event.motion.which == SDL_TOUCH_MOUSEID ) return true;
+#endif
 				Posix_ConsoleTrackPointer( event.motion.x, event.motion.y );
 				return true;
 			}
 			return false;
 		case SDL_EVENT_MOUSE_BUTTON_DOWN:
 			if ( event.button.windowID == windowID && event.button.button == SDL_BUTTON_LEFT ) {
+#if defined( __ANDROID__ )
+				// Early fatal startup can precede the backend's touch/mouse hints.
+				// A synthetic mouse duplicate must not bypass touch cancellation.
+				if ( event.button.which == SDL_TOUCH_MOUSEID ) return true;
+				Posix_ConsoleCancelTouch();
+#endif
 				Posix_ConsoleBeginPress( event.button.x, event.button.y );
 				return true;
 			}
 			return event.button.windowID == windowID;
 		case SDL_EVENT_MOUSE_BUTTON_UP:
 			if ( event.button.windowID == windowID && event.button.button == SDL_BUTTON_LEFT ) {
+#if defined( __ANDROID__ )
+				if ( event.button.which == SDL_TOUCH_MOUSEID ) return true;
+				Posix_ConsoleCancelTouch();
+#endif
 				Posix_ConsoleClickButton( event.button.x, event.button.y );
 				return true;
 			}
 			return event.button.windowID == windowID;
+#if defined( __ANDROID__ )
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_MOTION:
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_CANCELED:
+			if ( event.tfinger.windowID != windowID ) return false;
+			if ( event.tfinger.touchID == SDL_MOUSE_TOUCHID ) return true;
+			Posix_ConsoleHandleTouch( event.tfinger );
+			return true;
+#endif
 		case SDL_EVENT_MOUSE_WHEEL:
 			if ( event.wheel.windowID == windowID ) {
 				if ( !std::isfinite( event.wheel.y ) ) {
@@ -1664,6 +1830,9 @@ void Posix_ConsoleFatalErrorWait( void ) {
 
 void Posix_ShutdownConsole( void ) {
 #if defined( USE_SDL3 )
+#if defined( __ANDROID__ )
+	Posix_ConsoleCancelTouch();
+#endif
 	Posix_SplashDestroy();
 	Posix_ConsoleStopTextInput();
 	if ( s_consoleWindow.renderer != NULL ) {
