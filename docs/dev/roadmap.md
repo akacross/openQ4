@@ -669,8 +669,9 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   preserving expired-reference behavior.
   [Mover activation chains](savegame-reliability.md#mover-activation-chains-during-restore)
   receive equivalent cycle/membership checks and failed-load detachment without
-  changing their saved layout. Other owning-graph and constructor-failure
-  qualification remains open.
+  changing their saved layout. [Throwing factories](savegame-reliability.md#throwing-object-factories)
+  also recover through the staged GL/Vulkan load page and healthy reload. Other
+  owning-graph and partial-constructor qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

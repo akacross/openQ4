@@ -18,6 +18,48 @@ import zlib
 from savegame_restore_cleanup_runtime import ROOT, checksum_fixture, sha
 
 
+def factory_fixtures(data):
+    """Replace actual class-table entries with a throwing abstract factory."""
+    _, metadata = checksum_fixture(data)
+    position = data.index(b'OQ4S') + 12  # magic, version and build
+
+    def string():
+        nonlocal position
+        size = struct.unpack_from('<i', data, position)[0]
+        position += 4
+        assert 0 <= size < 4096 and position+size <= len(data)
+        offset = position
+        value = data[position:position+size].decode('ascii')
+        position += size
+        return offset, value
+
+    assert string()[1] == metadata['snapshot']
+    assert struct.unpack_from('<i', data, position)[0] == metadata['source_count']
+    position += 4
+    assert string()[1] == metadata['abi']
+    count = struct.unpack_from('<i', data, position)[0]
+    position += 4
+    assert count == metadata['objects']
+    candidates = []
+    for index in range(1, count+1):
+        offset, name = string()
+        if name == 'rvClientEffect':
+            candidates.append((index, offset))
+    assert len(candidates) >= 3
+    assert 'ABSTRACT_DECLARATION( idClass, rvClientEntity )' in (ROOT/'src/game/client/ClientEntity.cpp').read_text()
+    result = {}
+    for label, (index, offset) in zip(('EarlyFactory', 'MiddleFactory', 'LateFactory'),
+                                    (candidates[0], candidates[len(candidates)//2], candidates[-1])):
+        changed = bytearray(data)
+        changed[offset:offset+14] = b'rvClientEntity'
+        assert len(changed) == len(data)
+        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+        result[label] = bytes(changed), dict(object_index=index, class_offset=offset,
+            original_class='rvClientEffect', replacement_class='rvClientEntity',
+            expected='Cannot instanciate abstract class rvClientEntity.')
+    return result, metadata
+
+
 def damaged_fixtures(data, spawn_refs=False):
     _, metadata = checksum_fixture(data)
     position = metadata['server_info_sync']
@@ -379,7 +421,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -391,7 +433,8 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = (render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
+    fixtures, metadata = (factory_fixtures(original) if args.cases == 'factories'
+                         else render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
                          if args.cases in ('render-handles', 'bindings', 'movers')
                          else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs'))
     output.mkdir(parents=True, exist_ok=False)

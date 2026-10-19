@@ -624,8 +624,34 @@ guard while installation was still running; both accepted runs started after
 staging completed. That harness diagnostic remains in
 `.tmp/stage-two/save-movers-gl.log`.
 
-Other owning references, constructor failures and historical/platform save
-qualification remain separate Q4-05/Q4-07 work.
+Other owning references and historical/platform save qualification remain
+separate Q4-05/Q4-07 work.
+
+### Throwing object factories
+
+The existing scoped cleanup also recovers when a registered factory throws after
+earlier objects have been constructed. The runtime fixture decodes the complete
+class table and replaces `rvClientEffect` with the equally sized abstract
+`rvClientEntity` at object indices 2852, 2907 and 2962 of the 2962-object Storage1
+save. These are the first, middle and last client-effect entries near the end of
+the table, not early/middle/late positions across the entire object list. The
+abstract factory reports its existing error before any field restore begins;
+the file length and outer CRC remain valid.
+
+On source `41001b14`, Windows SP OpenGL and Vulkan each pass all three failure
+cases, show the retained recovery page and restore a healthy save before and
+after them. Each run exits cleanly, retains five engine captures and leaves all
+four saves unchanged. Reviewed recovery and final gameplay captures show the
+expected page and pod/world. This extends the unchanged 248-test native baseline
+with real factory-exception coverage; it does not simulate allocation exhaustion
+or qualify every constructor's partial initialization. The input-disabled,
+hidden-window runs make no physical-input or performance claim.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `.tmp/stage-two/save-factories-evidence.json` | `45bb765ed3e5530cb0d50b353e255efc5cb660fed18e03a8b3f27f0db654314c` |
+| `.tmp/s2save-factories-gl/report.json` | `b4a7530f739b982a5f27bb4248ebebfb5fdf1d8e8dacce93d11d8fe8f4b15a26` |
+| `.tmp/s2save-factories-vk/report.json` | `480dac47851b6e0ff3401f360c8896783047bcf95e6af73c6bb7e6fda4a3f005` |
 
 ## Remaining Raw Serialization (`raw1`)
 
