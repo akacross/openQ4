@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Reject standalone weapon, physics and helper classes that cannot occur in
+  a valid saved object table, before any object factory runs. View weapons and
+  embedded physics retain their supported paths. The
+  [class-admission evidence](savegame-reliability.md#standalone-object-class-admission)
+  covers Windows/Linux native checks, 252 passing Windows tests, GL/Vulkan
+  recovery and existing v2/v3/v4 save regression. Broader Q4-05/Q4-07 gates remain.
+
 - [x] Reject invalid script-thread ownership during saved-state restoration and
   detach partial owners before failed-load cleanup. The save representation is
   unchanged. [Ownership and recovery evidence](savegame-reliability.md#script-thread-ownership-during-restore)

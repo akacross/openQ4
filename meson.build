@@ -399,6 +399,17 @@ if get_option('build_native_tests')
       cpp_args: ['-UNDEBUG'], install: false,
     )
     test('openq4-restore-threads-' + game_mode, restore_threads_test, timeout: 30)
+    restore_classes_source = custom_target(
+      'openq4-restore-classes-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp', 'src' / game_mode / 'gamesys' / 'Class.h'),
+      output: 'RestoreClasses-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_classes.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_classes_test = executable(
+      'openq4-restore-classes-' + game_mode, restore_classes_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-classes-' + game_mode, restore_classes_test, timeout: 30)
     restore_spawn_refs_source = custom_target(
       'openq4-restore-spawn-refs-' + game_mode + '-source',
       input: files('src' / game_mode / 'Game_local.h', 'src' / game_mode / 'client' / 'ClientEntity.h'),

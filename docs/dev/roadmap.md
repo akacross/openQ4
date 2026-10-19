@@ -674,8 +674,12 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   [Script-thread ownership](savegame-reliability.md#script-thread-ownership-during-restore)
   rejects duplicate owners, interpreter mismatches and owned threads that would
   delete themselves; failed-load cleanup detaches temporary owners. Native and
-  GL/Vulkan recovery fixtures pass. Other owning-graph and partial-constructor
-  qualification remains open.
+  GL/Vulkan recovery fixtures pass. The
+  [weapon-owner investigation and class admission](savegame-reliability.md#standalone-object-class-admission)
+  now reject standalone weapon/physics/helper classes outside the writer's three
+  object families before construction. Current GL/Vulkan recovery, 252 native
+  checks and v2/v3/v4 historical-reader controls pass. Other owning-graph and
+  partial-constructor qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

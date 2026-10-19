@@ -1426,6 +1426,14 @@ void idRestoreGame::CreateObjects( void ) {
 		if ( !type ) {
 			Error( "idRestoreGame::CreateObjects: Unknown class '%s'", classname.c_str() );
 		}
+		// GameLocal saves only these three object families. Other registered
+		// classes (weapons, physics, etc.) need an initialized owner or embedded
+		// state; a factory-created instance is not a valid standalone save object.
+		if ( !type->IsType( idEntity::GetClassType() ) &&
+			 !type->IsType( idThread::GetClassType() ) &&
+			 !type->IsType( rvClientEntity::GetClassType() ) ) {
+			Error( "idRestoreGame::CreateObjects: unsupported object-table class '%s' for object %d", classname.c_str(), i );
+		}
 		objectTypes[ i ] = type;
 	}
 

@@ -707,6 +707,43 @@ and the existing 40-PK4 asset manifest to base revision `00e6649f`. Other owning
 graphs, partial constructors and historical/platform qualification remain open
 under Q4-05/Q4-07.
 
+### Standalone object-class admission
+
+The weapon-owner investigation found that `rvWeapon::Restore` assumes an
+initialized owner, weapon definition and view/world models. It is not part of
+the ordinary save table: `GameLocal::SaveGame` registers entities, script threads
+and client entities only. View weapons are entities and remain supported; the
+player reconstructs its separate weapon implementation. Physics is serialized
+as embedded state. The SDK 1.4.2 and tagged 0.14.000 writers use the same three
+families, and all eleven inspected v2/v3/v4 historical tables conform.
+
+Both readers now reject registered classes outside those families while
+validating the complete table, before calling any factory. A null-owner check
+late in weapon restoration would miss its earlier initialization assumptions.
+This admission check leaves valid save representations and embedded readers
+unchanged; it is not evidence of a normal weapon save crashing.
+
+`savegame_restore_classes.py` compiles production table creation, type-range
+checks and local exception cleanup with an observed fixture registry. The old
+reader fails twelve early/late table cases per module. Windows/Linux SP/MP pass
+the corrected cases, supported base/derived families, empty/count checks and
+null/throwing factories. The full Windows suite passes **252/252**.
+
+Current Windows GL/Vulkan each reject three CRC-valid class substitutions
+(`rvWeapon`, `idPhysics_Player`, `idClass`), show recovery and load the healthy
+Storage1 save before and after. Five engine captures and four unchanged saves
+per backend support the result. Separate GL restores pass for existing Storage1
+saves from rebuilt 0.9/0.14 tags and the original 0.12 checkpoint. These preserve
+the historical readers; they do not fill Q4-07's missing original-binary corpus.
+
+`.tmp/stage-two/save-classes-evidence.json`, SHA-256
+`b8c483c43d2a6465aa4b7d8dd8ccb5f9d2dd2abf3497a66b9aba9c8196f03b1e`,
+binds base `da36f3e60`, changed sources, build/stage/native logs, package hashes,
+the historical inventory and all three runtime reports. Input was disabled and
+captures came from the engine. No physical-input, performance or cross-platform
+runtime acceptance is inferred. Other owning graphs and partial-constructor
+qualification remain under Q4-05.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

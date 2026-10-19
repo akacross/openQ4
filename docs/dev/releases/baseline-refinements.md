@@ -40,6 +40,9 @@
   before they can be used during restoration or play.
 - Invalid saved door and platform activation chains now return to save-load
   recovery, including errors encountered midway through restoring a group.
+- Damaged saves containing invalid standalone object classes are rejected before
+  construction and return to the load menu. Supported older saves retain their
+  existing readers.
 - Damaged saves with conflicting script-thread ownership now return safely to
   the load screen instead of leaving cleanup or subsequent play with invalid
   thread references.

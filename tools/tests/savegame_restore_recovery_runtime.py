@@ -47,6 +47,27 @@ def class_table(data):
     return entries, metadata
 
 
+def object_class_fixtures(data):
+    """Known classes outside the three standalone save-object families."""
+    entries, metadata = class_table(data)
+    result = {}
+    for label, original, replacement in (
+            ('StandaloneWeapon', 'idThread', 'rvWeapon'),
+            ('StandalonePhysics', 'idLocationEntity', 'idPhysics_Player'),
+            ('StandaloneRoot', 'idLight', 'idClass')):
+        entry = next(item for item in entries if item['name'] == original)
+        assert len(original) == len(replacement)
+        changed = bytearray(data)
+        offset = entry['offset']
+        changed[offset:offset+len(original)] = replacement.encode('ascii')
+        assert len(changed) == len(data)
+        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+        result[label] = bytes(changed), dict(object_index=entry['index'], class_offset=offset,
+            original_class=original, replacement_class=replacement,
+            expected="unsupported object-table class '%s' for object %d" % (replacement, entry['index']))
+    return result, metadata
+
+
 def factory_fixtures(data):
     """Replace actual class-table entries with a throwing abstract factory."""
     entries, metadata = class_table(data)
@@ -583,7 +604,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories', 'threads'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories', 'threads', 'classes'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -595,7 +616,8 @@ def main():
         if sha(ROOT/'builddir'/relative) != sha(runtime/relative):
             parser.error('Stage the current build before running this probe: '+relative)
     original = source.read_bytes()
-    fixtures, metadata = (factory_fixtures(original) if args.cases == 'factories'
+    fixtures, metadata = (object_class_fixtures(original) if args.cases == 'classes'
+                         else factory_fixtures(original) if args.cases == 'factories'
                          else render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
                          if args.cases in ('render-handles', 'bindings', 'movers')
                          else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs', threads=args.cases == 'threads'))
