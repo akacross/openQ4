@@ -2315,8 +2315,12 @@ if build_engine or get_option('build_native_tests')
       )
       test('openq4-android-console-' + platform, android_console_test, timeout: 30)
     endforeach
-    # Match the explicitly prepared SDL tree used by the SDK CI qualification.
-    native_facts_sdl_headers = meson.project_source_root() / 'subprojects/SDL3-3.4.10/include'
+    # Follow the pinned source tree used by SDK CI. A stale version literal
+    # silently omitted these tests after the SDL dependency was updated.
+    native_facts_sdl_directory = run_command(py, '-c',
+      'import configparser,sys; c=configparser.ConfigParser(); c.read(sys.argv[1]); print(c["wrap-file"]["directory"])',
+      meson.project_source_root() / 'subprojects/sdl3.wrap', check: true).stdout().strip()
+    native_facts_sdl_headers = meson.project_source_root() / 'subprojects' / native_facts_sdl_directory / 'include'
     if fs_mod.is_file(native_facts_sdl_headers / 'SDL3/SDL_events.h')
       native_facts_args = ['--compiler', cpp.cmd_array()[-1], '--no-mutations',
         '--sdl-include', native_facts_sdl_headers]

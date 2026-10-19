@@ -10,6 +10,14 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Restore three existing native-input SDK tests to Meson registration. An
+  obsolete SDL 3.4.10 source path omitted them from builds using the current
+  pinned dependency. Registration now follows the SDL wrap; the Windows setup
+  lists 270 tests and all three restored tests pass with MSVC, separately from
+  the preceding 267-test suite. No native-input feature is enabled by this fix.
+  Evidence: `.tmp/stage-two/native-input-registration-evidence.json`, SHA-256
+  `e7ffacfe85eef190d4c3fb7e82e8823eafef9901a4906f6552c4647fd64294d5`.
+
 - [x] Route Android Back through the current menu/pause action and make the
   fatal-error console usable with density-scaled touch targets. Press ownership,
   release activation, cancellation and duplicate-event filtering prevent stale
