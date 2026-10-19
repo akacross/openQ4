@@ -10,6 +10,13 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Reject invalid script-thread ownership during saved-state restoration and
+  detach partial owners before failed-load cleanup. The save representation is
+  unchanged. [Ownership and recovery evidence](savegame-reliability.md#script-thread-ownership-during-restore)
+  covers Windows/Linux native failure controls, the 250-test Windows suite and
+  six actual CRC-valid failure/reload cases on each of GL and Vulkan. Broader
+  Q4-05 qualification remains open.
+
 - [x] Validate saved door/platform activation chains and detach partial links
   before failed-load teardown. Standalone roots and forward references retain
   their behavior. [Mover-chain evidence](savegame-reliability.md#mover-activation-chains-during-restore)

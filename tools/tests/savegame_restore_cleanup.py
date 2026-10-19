@@ -92,6 +92,7 @@ struct idRestoreGame {
 };
 thread_local idRestoreGame* idRestoreGame::activeRestore=nullptr;
 struct GameLocal {
+    idClass* frameCommandThread=nullptr;
     std::vector<idClass*> registered;
     int shutdowns=0;
     void MapShutdown() {

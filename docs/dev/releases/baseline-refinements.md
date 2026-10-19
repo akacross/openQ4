@@ -40,6 +40,9 @@
   before they can be used during restoration or play.
 - Invalid saved door and platform activation chains now return to save-load
   recovery, including errors encountered midway through restoring a group.
+- Damaged saves with conflicting script-thread ownership now return safely to
+  the load screen instead of leaving cleanup or subsequent play with invalid
+  thread references.
 
 - The experimental Android app now checks its extracted bundled content and
   repairs missing or damaged files before starting. Interrupted repairs keep

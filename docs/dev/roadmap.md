@@ -670,8 +670,12 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   [Mover activation chains](savegame-reliability.md#mover-activation-chains-during-restore)
   receive equivalent cycle/membership checks and failed-load detachment without
   changing their saved layout. [Throwing factories](savegame-reliability.md#throwing-object-factories)
-  also recover through the staged GL/Vulkan load page and healthy reload. Other
-  owning-graph and partial-constructor qualification remains open.
+  also recover through the staged GL/Vulkan load page and healthy reload.
+  [Script-thread ownership](savegame-reliability.md#script-thread-ownership-during-restore)
+  rejects duplicate owners, interpreter mismatches and owned threads that would
+  delete themselves; failed-load cleanup detaches temporary owners. Native and
+  GL/Vulkan recovery fixtures pass. Other owning-graph and partial-constructor
+  qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture

@@ -90,6 +90,7 @@ struct idRestoreGame {
     }
 };
 thread_local idRestoreGame* idRestoreGame::activeRestore=nullptr;
+struct { idClass* frameCommandThread=nullptr; } gameLocal;
 '''
 VALIDATION=r'''
 static void expectRejected(idEntity& entity,idRestoreGame& restore,bool reading) {

@@ -74,6 +74,7 @@ struct idRestoreGame {
     }
 };
 thread_local idRestoreGame* idRestoreGame::activeRestore=nullptr;
+struct { idClass* frameCommandThread=nullptr; } gameLocal;
 static void require(bool condition,const char* message) { if(!condition)throw std::runtime_error(message); }
 '''
 VALIDATION=r'''

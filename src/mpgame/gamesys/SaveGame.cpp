@@ -1368,6 +1368,9 @@ void idRestoreGame::PrepareMapShutdown( void ) {
 	for ( idRestoreGame *restore = activeRestore; restore != NULL; restore = restore->previousRestore ) {
 		for ( int i = 1; i < restore->objects.Num(); i++ ) {
 			idClass *object = restore->objects[i];
+			if ( object != NULL && object == gameLocal.frameCommandThread ) {
+				gameLocal.frameCommandThread = NULL;
+			}
 			if ( object != NULL && object->IsType( idEntity::GetClassType() ) ) {
 				static_cast<idEntity *>( object )->PrepareFailedRestoreShutdown();
 			}
@@ -1480,6 +1483,9 @@ void idRestoreGame::RestoreObjects( void ) {
 	for ( i = 1; i < objects.Num(); i++ ) {
 		if ( objects[i]->IsType( idEntity::GetClassType() ) ) {
 			static_cast<idEntity *>( objects[i] )->ValidateRestoredBindings( this );
+		}
+		if ( objects[i]->IsType( idThread::GetClassType() ) ) {
+			static_cast<idThread *>( objects[i] )->ValidateRestoreOwnership( this );
 		}
 	}
 

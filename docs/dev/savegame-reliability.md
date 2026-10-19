@@ -653,6 +653,60 @@ hidden-window runs make no physical-input or performance claim.
 | `.tmp/s2save-factories-gl/report.json` | `b4a7530f739b982a5f27bb4248ebebfb5fdf1d8e8dacce93d11d8fe8f4b15a26` |
 | `.tmp/s2save-factories-vk/report.json` | `480dac47851b6e0ff3401f360c8896783047bcf95e6af73c6bb7e6fda4a3f005` |
 
+### Script-thread ownership during restore
+
+Animated entities and the frame-command runner delete their owned script threads.
+A saved alias between these owners previously permitted a second delete; a
+partially restored entity could also outlive its thread in the temporary object
+table. Both game modules now claim owning references before publishing them,
+reject duplicate claims, and detach restored owners before failed-map cleanup.
+The registry then releases each surviving thread. An unrelated frame-command
+thread is preserved by this detachment.
+
+After all fields and the footer are read, owned threads must retain their manual
+deletion policy. Each interpreter also validates its saved thread against the
+owner installed by its constructor. The claim flag is transient: the save layout
+and healthy thread execution remain unchanged.
+
+`tools/tests/savegame_restore_threads.py` compiles the production ownership
+methods, interpreter identity reader, animated destructor body and cleanup
+dispatch. Its checked replacement for the destructor's thread delete diagnoses
+a second delete before invoking undefined C++; it does not execute interpreters,
+physics or combat-model teardown. The before-fix control fails three cleanup
+cases per module. The corrected Windows Clang 20.1.7 and Ubuntu Clang 18.1.3 runs
+pass duplicate/interrupted/wrong-type/null references, deletion policies,
+interpreter identities and five cleanup arrangements. Removing each of the five
+guards independently makes the corresponding SP/MP fixture fail. The complete
+Windows suite passes 250/250.
+
+The runtime parser reconciles all 14 thread identities and all 18 animated records
+with the Storage1 class table. The six CRC-valid copies introduce two animated
+owners for thread 2839, an animated owner sharing frame thread 2838, a field error
+after installing an owner, another/null interpreter owner, and an automatic
+deletion policy on the frame thread. The selected animated records (objects 8
+and 15) originally have null owners; these are synthetic failure fixtures, not
+claims of a broken authored Storage1 relationship.
+
+Windows SP OpenGL and Vulkan each reject all six copies, show the retained load
+page and restore the healthy checkpoint before and after them. Eight engine
+captures per backend, unchanged hashes for all seven test saves, and an unchanged
+original checkpoint bind the runs. Reviewed recovery and final gameplay captures
+show the load page and Storage1 pod/world. The hidden, input-disabled tests make
+no physical-input or performance claim; MP coverage is the native fixture, since
+multiplayer save/load is unsupported.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `.tmp/stage-two/save-threads-evidence.json` | `760233dd15b8c057c7f3e6d8ef30d91c1479e8abe0df17e0bb40ef6eaacd3992` |
+| `.tmp/stage-two/save-threads-suite.log` | `8235bfff9327c7b0139839e41e55984d788fedf8ec170ff84d36ff55f6249888` |
+| `.tmp/s2save-threads-gl/report.json` | `ed3d882e70863df54e0bba3fa30cbbddd4e8eac5a634a91e7b203616937795ff` |
+| `.tmp/s2save-threads-vk/report.json` | `01dfe9ac719208021f18ec34eb63fd71dd12f31de16b3b83b194c6ad21ee997e` |
+
+The record binds changed sources, compiler/native logs, staged package identities
+and the existing 40-PK4 asset manifest to base revision `00e6649f`. Other owning
+graphs, partial constructors and historical/platform qualification remain open
+under Q4-05/Q4-07.
+
 ## Remaining Raw Serialization (`raw1`)
 
 Many high-risk scalars, flags, vectors, references, and arrays now use explicit

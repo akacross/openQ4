@@ -18,8 +18,8 @@ import zlib
 from savegame_restore_cleanup_runtime import ROOT, checksum_fixture, sha
 
 
-def factory_fixtures(data):
-    """Replace actual class-table entries with a throwing abstract factory."""
+def class_table(data):
+    """Decode the current save's object identities and their class-name offsets."""
     _, metadata = checksum_fixture(data)
     position = data.index(b'OQ4S') + 12  # magic, version and build
 
@@ -40,11 +40,17 @@ def factory_fixtures(data):
     count = struct.unpack_from('<i', data, position)[0]
     position += 4
     assert count == metadata['objects']
-    candidates = []
+    entries = []
     for index in range(1, count+1):
         offset, name = string()
-        if name == 'rvClientEffect':
-            candidates.append((index, offset))
+        entries.append(dict(index=index, offset=offset, name=name))
+    return entries, metadata
+
+
+def factory_fixtures(data):
+    """Replace actual class-table entries with a throwing abstract factory."""
+    entries, metadata = class_table(data)
+    candidates = [(entry['index'], entry['offset']) for entry in entries if entry['name'] == 'rvClientEffect']
     assert len(candidates) >= 3
     assert 'ABSTRACT_DECLARATION( idClass, rvClientEntity )' in (ROOT/'src/game/client/ClientEntity.cpp').read_text()
     result = {}
@@ -60,7 +66,7 @@ def factory_fixtures(data):
     return result, metadata
 
 
-def damaged_fixtures(data, spawn_refs=False):
+def damaged_fixtures(data, spawn_refs=False, threads=False):
     _, metadata = checksum_fixture(data)
     position = metadata['server_info_sync']
     sequence = 0
@@ -129,7 +135,7 @@ def damaged_fixtures(data, spawn_refs=False):
     client_entities = table(capacity('CENTITYNUM_BITS'))
     first_free_offset = position
     assert 0 <= integer() < capacity('GENTITYNUM_BITS')
-    if spawn_refs:
+    if spawn_refs or threads:
         assert 0 <= integer() <= 4096  # num_entities
         assert 0 < integer() <= metadata['objects']  # world
         for maximum in (4096, 8192, 4096, 4096):
@@ -141,8 +147,12 @@ def damaged_fixtures(data, spawn_refs=False):
         boolean()  # sortTeamMasters
         dictionary()  # persistentLevelInfo
         skip(12*4+4+3*12*4)  # global shader parms, effects enabled and effect parms
-        skip(4+4)  # random seed and frame-command thread
+        skip(4)  # random seed
+        frame_offset = position
+        frame_reference = integer()
         string()  # session command
+        if threads:
+            return thread_fixtures(data, frame_offset, frame_reference)
         for _ in range(2):  # AI team members
             count = integer()
             assert 0 <= count <= 4096
@@ -202,6 +212,158 @@ def damaged_fixtures(data, spawn_refs=False):
         fixtures[name] = (bytes(changed), dict(offset=offset, original=original, replacement=value, expected=expected))
     metadata.update(clients=clients, registered_entities=len(entities), registered_clients=len(client_entities))
     return fixtures, metadata
+
+
+def thread_fixtures(data, frame_offset, frame_reference):
+    """Decode bounded thread/animated records, including their full sync frames."""
+    entries, metadata = class_table(data)
+    classes = {entry['index']: entry['name'] for entry in entries}
+    thread_ids = [index for index, name in classes.items() if name == 'idThread']
+    animated_ids = [index for index, name in classes.items() if name == 'idAnimated']
+    assert classes[frame_reference] == 'idThread'
+    assert re.search(r'ANIM_NumAnimChannels\s*=\s*5;', (ROOT/'src/game/anim/Anim.h').read_text())
+
+    class Reader:
+        def __init__(self, offset):
+            self.position = offset
+            self.sequence = struct.unpack_from('<i', data, offset+4)[0]
+
+        def integer(self):
+            value = struct.unpack_from('<i', data, self.position)[0]
+            self.position += 4
+            return value
+
+        def skip(self, size):
+            assert 0 <= size < 1048576 and self.position+size <= len(data)
+            self.position += size
+
+        def string(self):
+            size = self.integer()
+            assert 0 <= size < 4096
+            value = data[self.position:self.position+size].decode('ascii')
+            self.skip(size)
+            return value
+
+        def boolean(self):
+            value = data[self.position]
+            assert value in (0, 1)
+            self.position += 1
+            return value
+
+        def sync(self):
+            assert self.integer() == int.from_bytes(b'OQ4Y', 'little') and self.integer() == self.sequence
+            self.sequence += 1
+
+    thread_records, animated_records = [], []
+    for marker in re.finditer(re.escape(b'OQ4Y'), data):
+        reader = Reader(marker.start())
+        try:
+            reader.sync()  # idThread class start
+            for _ in range(2):  # current and waiting thread references
+                reference = reader.integer()
+                assert reference == 0 or classes.get(reference) == 'idThread'
+            reader.skip(8)  # waitingFor and waitingUntil
+            depth = reader.integer()
+            assert 0 <= depth <= 64
+            reader.skip(depth*12)
+            assert depth <= reader.integer() <= 64  # maxStackDepth
+            used = reader.integer()
+            assert 0 <= used <= 12288
+            reader.skip(used)
+            assert 0 <= reader.integer() <= used  # localstackBase
+            assert used <= reader.integer() <= 12288  # maxLocalstackUsed
+            reader.skip(12)  # current function, instruction pointer and pending parameters
+            reader.string()  # multi-frame event
+            reference = reader.integer()  # eventEntity
+            assert 0 <= reference <= metadata['objects']
+            self_offset = reader.position
+            reference = reader.integer()
+            assert classes.get(reference) == 'idThread'
+            reader.boolean()  # doneProcessing
+            reader.boolean()  # threadDying
+            terminate_offset = reader.position
+            terminate = reader.boolean()
+            reader.boolean()  # debug
+            reader.sync()  # spawnArgs
+            count = reader.integer()
+            assert -1 <= count <= 65536
+            for _ in range(max(count, 0)):
+                reader.string()
+                reader.string()
+            reader.skip(4)  # thread number
+            name = reader.string()
+            reader.skip(8)  # last execution and creation times
+            reader.boolean()  # manualControl
+            reader.skip(4)  # threadIndex
+            reader.sync()  # idThread class end
+            reader.sync()  # following object class start
+            thread_records.append(dict(reference=reference, name=name, self_offset=self_offset,
+                                       terminate_offset=terminate_offset, terminate=terminate))
+        except (AssertionError, IndexError, UnicodeDecodeError, struct.error):
+            pass
+        reader = Reader(marker.start())
+        try:
+            reader.sync()  # idAFEntity_Gibbable class start
+            reader.boolean()  # gibbed
+            reader.boolean()  # hasCombatModel
+            reader.sync()  # idAFEntity_Gibbable class end
+            reader.sync()  # idAnimated class start
+            count = reader.integer()
+            assert 0 <= count <= 65536
+            assert 0 <= reader.integer() <= count  # current animation
+            assert 0 <= reader.integer() <= 65536  # animation handle
+            reader.skip(12)  # blend frames, sound joint and activator spawn ID
+            reader.boolean()  # activated
+            owner_offset = reader.position
+            owner = reader.integer()
+            assert owner == 0 or classes.get(owner) == 'idThread'
+            state_offset = reader.position
+            reader.string()  # state
+            reader.string()  # idealState
+            reader.skip(5*4)  # animation completion times
+            reader.sync()  # idAnimated class end
+            reader.sync()  # following object class start
+            animated_records.append(dict(owner_offset=owner_offset, owner=owner, state_offset=state_offset))
+        except (AssertionError, IndexError, UnicodeDecodeError, struct.error):
+            pass
+    assert [record['reference'] for record in thread_records] == thread_ids, 'Thread record/table identity mismatch'
+    assert len(animated_records) == len(animated_ids) and len(animated_ids) >= 2, 'Animated record/table count mismatch'
+    for record, index in zip(animated_records, animated_ids):
+        record['object_reference'] = index
+    frame = next(record for record in thread_records if record['reference'] == frame_reference)
+    assert frame['name'] == 'frameCommands' and frame['terminate'] == 0
+    unowned = [record for record in animated_records if not record['owner']]
+    assert len(unowned) >= 2
+    first, second = unowned[:2]
+    claimed = {record['owner'] for record in animated_records} | {frame_reference}
+    shared_thread = next(record for record in thread_records if record['reference'] not in claimed)
+    # Each edit retains both the original save length and a correct outer CRC.
+    definitions = [
+        ('DuplicateAnimatedOwner', [(first['owner_offset'], shared_thread['reference'], '<i'),
+                                    (second['owner_offset'], shared_thread['reference'], '<i')],
+         'duplicate owning reference to script thread'),
+        ('DuplicateFrameOwner', [(first['owner_offset'], frame_reference, '<i')],
+         'duplicate owning reference to script thread'),
+        ('PartialAnimatedOwner', [(first['owner_offset'], shared_thread['reference'], '<i'),
+                                 (first['state_offset'], -1, '<i')],
+         'idRestoreGame::ReadString: invalid length (-1)'),
+        ('WrongInterpreterOwner', [(frame['self_offset'], shared_thread['reference'], '<i')],
+         'saved thread does not match interpreter owner'),
+        ('NullInterpreterOwner', [(frame['self_offset'], 0, '<i')],
+         'saved thread does not match interpreter owner'),
+        ('OwnedThreadAutoDelete', [(frame['terminate_offset'], 1, '<B')],
+         "owned script thread 'frameCommands' would delete itself"),
+    ]
+    result = {}
+    for name, edits, expected in definitions:
+        changed = bytearray(data)
+        for offset, value, fmt in edits:
+            struct.pack_into(fmt, changed, offset, value)
+        struct.pack_into('<I', changed, len(changed)-4, zlib.crc32(changed[:-16]))
+        result[name] = bytes(changed), dict(edits=edits, expected=expected)
+    metadata.update(frame_owner_offset=frame_offset, frame=frame, animated_owners=[first, second], shared_thread=shared_thread,
+                    thread_records=len(thread_records), animated_records=len(animated_records))
+    return result, metadata
 
 
 def render_handle_fixture(data, bindings=False, movers=False):
@@ -421,7 +583,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ui', choices=('retained', 'classic'), default='retained')
     parser.add_argument('--renderer', choices=('gl', 'vulkan'), default='gl')
-    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories'), default='registrations')
+    parser.add_argument('--cases', choices=('registrations', 'render-handles', 'bindings', 'spawn-refs', 'movers', 'factories', 'threads'), default='registrations')
     parser.add_argument('--timeout', type=int, default=240)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -436,7 +598,7 @@ def main():
     fixtures, metadata = (factory_fixtures(original) if args.cases == 'factories'
                          else render_handle_fixture(original, bindings=args.cases == 'bindings', movers=args.cases == 'movers')
                          if args.cases in ('render-handles', 'bindings', 'movers')
-                         else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs'))
+                         else damaged_fixtures(original, spawn_refs=args.cases == 'spawn-refs', threads=args.cases == 'threads'))
     output.mkdir(parents=True, exist_ok=False)
     save = output/'save'
     game = save/'baseoq4'

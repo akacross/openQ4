@@ -2810,7 +2810,7 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 	savegame.ReadInt( i );
 	random.SetSeed( i );
 
-	savegame.ReadObject( frameCommandThread );
+	idThread::RestoreOwnedThread( &savegame, frameCommandThread );
 
 	// clip
 	// push
