@@ -32,6 +32,7 @@ final class SetupWork implements SetupTask.Work<RetailData.Report> {
     public RetailData.Report run(SetupTask.Reporter progress) throws Exception {
         Object owner = StorageSession.INSTANCE.beginSetup();
         try {
+            SetupDiagnostics.record(context.getFilesDir(), source == null ? "Check installed game data" : "Import selected game data", null);
             File external = context.getExternalFilesDir(null);
             if (external == null) throw new RetailImport.Failure(RetailImport.Code.DESTINATION_UNAVAILABLE, "", null);
             RetailData.Report report;
@@ -53,10 +54,15 @@ final class SetupWork implements SetupTask.Work<RetailData.Report> {
                                     SetupTask.Phase.CHECKING_PACKAGE, name, 0, 0, bytes, total));
             }
             if (progress.cancelled()) throw new InterruptedIOException("Setup cancelled");
+            SetupDiagnostics.record(context.getFilesDir(), "Data check complete: ready=" + report.ready() + ", findings=" + report.issues.size(), null);
+            for (RetailData.Issue issue : report.issues)
+                SetupDiagnostics.record(context.getFilesDir(), "Data finding: " + issue.code + " " + issue.name, null);
             return report;
         } catch (InterruptedIOException cancelled) {
+            SetupDiagnostics.record(context.getFilesDir(), "Setup cancelled", null);
             throw cancelled;
         } catch (Exception error) {
+            SetupDiagnostics.record(context.getFilesDir(), "Setup operation failed", error);
             android.util.Log.e("openQ4", "Setup operation failed", error);
             throw error;
         } finally { StorageSession.INSTANCE.endSetup(owner); }

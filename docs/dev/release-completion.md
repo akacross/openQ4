@@ -10,6 +10,28 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Qualify the previously blocked original-save restore on the S25's recorded
+  timer/GUI-repair APK. Storage 1 loads, creates another save, reloads it and
+  exits cleanly, with both views captured by the engine and the original bytes
+  preserved through the following update. The
+  [device record](platform-recovery-review.md#s25-original-save-restore-round-trip-20-october-2026)
+  limits this result to that opening sequence and package. The later export
+  APK also passes the [exported-save round trip](platform-recovery-review.md#s25-exported-save-restore-20-october-2026);
+  broader campaign and audio/lifecycle gates remain open.
+
+- [x] Add Android saved-game backup and diagnostic-log export to setup. The
+  system picker creates a new ZIP destination; bounded private snapshots keep
+  saves, descriptions and previews intact and include an integrity inventory.
+  Setup failures are recorded in the exported log folder. Cancellation/retry
+  preserves the originals and warns that a failed destination may be partial.
+  [Export evidence](platform-recovery-review.md#android-save-and-log-export-20-october-2026)
+  records production-Java snapshot/provider checks on Windows/Linux, four
+  localized resource sets and verified APK packaging. Actual S25 exports to
+  Downloads pass independent ZIP/manifest checks, preserve the six original
+  save files and supply a save that restores, saves and reloads on the same
+  package. Other providers and release-upgrade acceptance remain open under
+  AND-03.
+
 - [x] Connect Android language/data setup before game startup. The system folder
   picker supplies read-only source access; verified imports, bundled-file
   preparation, cancellation and retry report progress and recovery guidance in
@@ -17,7 +39,7 @@ completed release material here and publish curated notes in `releases/`.
   Native storage ownership excludes setup during active or closing gameplay.
   [Setup evidence](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
   retains host pipeline/ownership checks, exact packaging and the separate SDL
-  lint findings. Controls/interface steps, Settings re-entry, exports and
+  lint findings. Controls/interface steps, Settings re-entry and
   physical qualification remain open under AND-01/AND-03.
 
 - [x] Prepare resumable Android retail import behind the setup flow. Verified

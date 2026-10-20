@@ -63,4 +63,27 @@
     <string name="setup_commit_failed">Could not replace %1$s. Check app storage and retry. The previous archive was kept.</string>
     <string name="setup_prepare_failed">Bundled files could not be prepared. Free space and retry. If this persists, update the app using the same installer or signing certificate; keep the app installed to preserve saves.</string>
     <string name="setup_launch_failed">The game could not start. Check the files again, then retry.</string>
+    <string name="setup_exports">Backups and diagnostics</string>
+    <string name="setup_export_help">Save a ZIP backup of your saved games, including descriptions and previews, or export diagnostic logs. Choose where to save it in Android’s file picker. The original files stay in the app. Logs may include local paths and server addresses; review them before sharing.</string>
+    <string name="setup_export_saves">Back up saved games</string>
+    <string name="setup_export_logs">Export logs</string>
+    <string name="setup_saves_filename">openQ4-saves.zip</string>
+    <string name="setup_logs_filename">openQ4-logs.zip</string>
+    <string name="setup_no_document_picker">The system file picker is unavailable. Enable the Android Files app, then try again.</string>
+    <string name="setup_export_picker_cancelled">No export destination was selected. Your files are unchanged.</string>
+    <string name="setup_export_no_grant">The destination could not be opened for writing. Retry and choose an accessible location. Your original files are unchanged.</string>
+    <string name="setup_packing_export">Preparing export archive…</string>
+    <string name="setup_export_file_count">Files prepared: %1$d / %2$d</string>
+    <string name="setup_export_done">Files exported: %1$d. ZIP size: %2$s. If you chose cloud storage, wait for its upload to finish before relying on the backup.</string>
+    <string name="setup_export_cancelled">Export stopped. Your original files are unchanged. The selected destination may contain an empty or incomplete ZIP; remove that copy in Files, then retry with a new destination.</string>
+    <string name="setup_export_interrupted">Export was interrupted. Your original files are unchanged. The destination may contain an incomplete ZIP. Retry to choose a new destination and start again.</string>
+    <string name="setup_export_empty">There are no files available for this export yet.</string>
+    <string name="setup_export_unreadable">Could not read %1$s. Restart the app and retry. Your original files are unchanged.</string>
+    <string name="setup_export_unsafe">The path %1$s cannot be included in a portable backup. Your files are unchanged. Export logs for diagnosis if this persists.</string>
+    <string name="setup_export_limit">The export exceeds supported limits: 2 GiB, 4,096 items, or the permitted path length or folder depth. Your files are unchanged.</string>
+    <string name="setup_export_changed">Files changed while the archive was being prepared. Wait for file operations to finish, then retry.</string>
+    <string name="setup_export_cache">Could not prepare the temporary ZIP in app storage. Free space and retry. Keep the app installed and preserve its data to retain your saves.</string>
+    <string name="setup_export_write">The destination did not accept the complete ZIP. Check its connection and free space, then retry with a new destination. The failed copy may be incomplete; your original files are unchanged.</string>
+    <string name="setup_export_no_space">The temporary ZIP needs %1$s of free app storage; %2$s is available. Free space, then retry. Your original files are unchanged.</string>
+    <string name="setup_export_failed">Export could not finish. Retry with a new destination. The previous destination may contain an incomplete ZIP; your original files are unchanged.</string>
 </resources>

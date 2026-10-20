@@ -56,4 +56,27 @@
     <string name="setup_commit_failed">%1$s konnte nicht ersetzt werden. Prüfe den App-Speicher und versuche es erneut. Das bisherige Archiv blieb erhalten.</string>
     <string name="setup_prepare_failed">Mitgelieferte Dateien konnten nicht vorbereitet werden. Schaffe Speicherplatz und versuche es erneut. Wenn das Problem bleibt, aktualisiere die App mit demselben Installationspaketanbieter oder Signaturzertifikat; lasse die App installiert, um Spielstände zu behalten.</string>
     <string name="setup_launch_failed">Das Spiel konnte nicht starten. Prüfe die Dateien und versuche es erneut.</string>
+    <string name="setup_exports">Sicherungen und Diagnose</string>
+    <string name="setup_export_help">Sichere deine Spielstände samt Beschreibungen und Vorschaubildern als ZIP oder exportiere Diagnoseprotokolle. Wähle den Speicherort in der Android-Dateiauswahl. Die Originaldateien bleiben in der App. Protokolle können lokale Pfade und Serveradressen enthalten; prüfe sie vor dem Teilen.</string>
+    <string name="setup_export_saves">Spielstände sichern</string>
+    <string name="setup_export_logs">Protokolle exportieren</string>
+    <string name="setup_saves_filename">openQ4-Spielstaende.zip</string>
+    <string name="setup_logs_filename">openQ4-Protokolle.zip</string>
+    <string name="setup_no_document_picker">Die System-Dateiauswahl ist nicht verfügbar. Aktiviere die Android-App Dateien und versuche es erneut.</string>
+    <string name="setup_export_picker_cancelled">Es wurde kein Exportziel gewählt. Deine Dateien sind unverändert.</string>
+    <string name="setup_export_no_grant">Das Ziel konnte nicht zum Schreiben geöffnet werden. Versuche es erneut mit einem zugänglichen Speicherort. Deine Originaldateien sind unverändert.</string>
+    <string name="setup_packing_export">Exportarchiv wird vorbereitet…</string>
+    <string name="setup_export_file_count">Dateien vorbereitet: %1$d / %2$d</string>
+    <string name="setup_export_done">Dateien exportiert: %1$d. ZIP-Größe: %2$s. Bei einem Cloud-Speicher muss der Upload abgeschlossen sein, bevor du dich auf die Sicherung verlässt.</string>
+    <string name="setup_export_cancelled">Export gestoppt. Deine Originaldateien sind unverändert. Am Ziel kann eine leere oder unvollständige ZIP-Datei liegen; entferne diese Kopie in Dateien und wähle beim nächsten Versuch ein neues Ziel.</string>
+    <string name="setup_export_interrupted">Der Export wurde unterbrochen. Deine Originaldateien sind unverändert. Am Ziel kann eine unvollständige ZIP-Datei liegen. Wähle beim nächsten Versuch ein neues Ziel, um neu zu beginnen.</string>
+    <string name="setup_export_empty">Für diesen Export sind noch keine Dateien vorhanden.</string>
+    <string name="setup_export_unreadable">%1$s konnte nicht gelesen werden. Starte die App neu und versuche es erneut. Deine Originaldateien sind unverändert.</string>
+    <string name="setup_export_unsafe">Der Pfad %1$s kann nicht in eine portable Sicherung aufgenommen werden. Deine Dateien sind unverändert. Exportiere bei anhaltendem Problem die Protokolle zur Diagnose.</string>
+    <string name="setup_export_limit">Der Export überschreitet die unterstützten Grenzen: 2 GiB, 4.096 Einträge oder die zulässige Pfadlänge oder Ordnertiefe. Deine Dateien sind unverändert.</string>
+    <string name="setup_export_changed">Während der Archivvorbereitung haben sich Dateien geändert. Warte, bis alle Dateivorgänge beendet sind, und versuche es erneut.</string>
+    <string name="setup_export_cache">Die temporäre ZIP-Datei konnte im App-Speicher nicht erstellt werden. Schaffe Speicherplatz und versuche es erneut. Lasse die App installiert und behalte ihre Daten, um deine Spielstände zu erhalten.</string>
+    <string name="setup_export_write">Das Ziel hat die ZIP-Datei nicht vollständig angenommen. Prüfe Verbindung und Speicherplatz und wähle ein neues Ziel. Die fehlgeschlagene Kopie kann unvollständig sein; deine Originaldateien sind unverändert.</string>
+    <string name="setup_export_no_space">Die temporäre ZIP-Datei benötigt %1$s freien App-Speicher; verfügbar sind %2$s. Schaffe Speicherplatz und versuche es erneut. Deine Originaldateien sind unverändert.</string>
+    <string name="setup_export_failed">Der Export konnte nicht abgeschlossen werden. Versuche es mit einem neuen Ziel erneut. Am bisherigen Ziel kann eine unvollständige ZIP-Datei liegen; deine Originaldateien sind unverändert.</string>
 </resources>

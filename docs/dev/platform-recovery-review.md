@@ -704,3 +704,141 @@ provider/lifecycle/visual/accessibility evidence remain. Other engine languages
 are still available in the game but lack setup translations. The APK has not
 been installed; the original S25 restore test still uses its recorded package
 and waits for explicit readiness.
+
+## Android save and log export, 20 October 2026
+
+AND-03's setup screen now offers saved-game backups and log export without
+requiring a successful retail-data check. Android's create-document picker
+chooses a new ZIP destination with a temporary write grant. The worker retains
+only application context and does not persist the output URI. An interrupted
+process offers explicit retry with a new picker destination. The four setup
+languages include progress, cancellation, low-space and provider-failure text.
+
+`PrivateExport` reads only each private game's `savegames` or `logs` subtree.
+Save descriptions, previews and previous-save files are included when present;
+retail archives, bundled packages and settings are excluded. It prepares and
+syncs a complete temporary ZIP before opening the destination. The root
+`openq4-export.tsv` records the selected kind, per-file SHA-256, length and
+relative path. It rejects links, case aliases, unsupported portable names,
+more than 4,096 visited entries below the selected folders, paths over 1,024
+UTF-8 bytes, folder depth over 16 and more than 2 GiB of source data. A
+conservative temporary-space preflight includes archive overhead. File
+metadata and whole-folder inventory are checked again for observed changes;
+this is not a filesystem-wide atomic snapshot guarantee.
+
+A live snapshot owns `StorageSession` until its temporary file is released.
+Native game/import work cannot overlap packing or provider transfer. Cancelled
+or failed preparation removes only the task's private temporary file. The
+reserved cache directory removes abandoned regular files matching its generated
+filename pattern and rejects links or unexpected matching directories; unrelated
+cache files remain untouched. No source file is modified by export.
+
+`DocumentExport` writes only the picker-created document using a cancellable
+write descriptor. Cancellation requests provider cancellation and closes the
+active output off the UI thread. The worker waits for descriptor close before
+releasing its storage ownership, including when a write was blocked. Success
+requires complete copy, flush and close. For cloud/pipe providers this means
+stream acceptance, not proof of remote durability or completed upload. Failed
+or cancelled destinations are not silently deleted: localized guidance warns
+that they can contain partial ZIPs and asks for a fresh destination on retry.
+
+`SetupDiagnostics` records data-check/import outcomes and bounded exception
+details under `baseoq4/logs/setup.log`, with one previous log and 256 KiB rotation.
+Messages, cause depth and stack frames are bounded; linked diagnostic paths are
+rejected. These diagnostics are included in ordinary log export even when the
+game could not start. Only the owning setup worker writes them, outside export.
+
+The actual production snapshot/provider classes pass Windows JDK 21 and Linux
+JDK 17 fixtures for exact ZIP contents, independent CRC/manifest checks,
+cancelled packing/open/write and late descriptor publication, denied/missing/
+invalid destinations, write/flush/close failures, cleanup/retry, low-space
+preflight, changed files/folders, bounded diagnostics and native storage
+exclusion. Linux exercises links and reserved filenames; this WSL mount is
+case-insensitive, so the physical two-case-alias fixture is explicitly skipped
+locally and remains enabled on case-sensitive hosts. Existing setup pipeline
+checks pass on both hosts, including diagnostic results, and all seven Android
+build/package tests pass. Both export suites are registered in the validation
+runner and CI script-smoke jobs.
+
+SDK 35 debug packaging and exact payload/seven-library/API 24/ARM64/native
+extraction/16 KiB alignment/v2-signature checks pass. APK SHA-256 is
+`b7938d1d63e66ed41d83c097ae704ad2a37d65cd18a3fd85216c2c0a6b3cc210`.
+Native library bytes match the previous setup package; no new native-suite
+result is claimed. Evidence: `.tmp/stage-two/android-export-evidence.json`,
+SHA-256 `3fe372efcc25cd904001f1752e5c39089c4858ad20ff4ae1011e7e8f78ca685c`.
+
+The user completed both exports through the S25's actual system picker to local
+Downloads. The save ZIP contains all six original save/description/preview files;
+each extracted byte, length and SHA-256 matches the source, and the originals
+remain unchanged on the phone. The log ZIP contains all three existing native
+logs. Independent ZIP CRC, exact inventory and integrity-manifest checks pass
+for both. Save ZIP SHA-256 is
+`89c819683a4365e4e911c5220900b76f8e2035d620b5fa0e03b009503dbafed1`;
+log ZIP SHA-256 is
+`783db2f513935dff04bf2493faa7ab41a2fe39412f2debb856faaa5b9afec584`.
+The later installed-data check also writes `setup.log` with a successful,
+zero-finding result; that log was created after these exports. Host fixtures
+establish its inclusion in subsequent log exports.
+
+Other providers, process-death recovery, accessibility/visual acceptance and
+release signing continuity remain separate AND-03 gates. The
+[player guide](../user/android-setup.md) describes use, limits and the current
+absence of backup-ZIP import.
+
+## S25 original-save restore round trip, 20 October 2026
+
+The previously prepared timer/GUI-repair APK, SHA-256
+`ba6b01cf8c96d791a353c9ba2f435d832d053c6d3fc51f999127a6ed7e94d242`,
+now passes the original-save retry on Dan's Galaxy S25. It loads the unchanged
+`Stage2AndroidSmoke` save in the Storage 1 opening sequence, reaches an active
+draw, writes `Stage2AndroidRestored`, loads that new save and exits cleanly.
+Both 2340x1080 captures come from the engine's `screenshot` command and show
+the rendered opening scene. No gameplay input was injected, audio was disabled
+and no forced stop was needed. This establishes the specific restore boundary;
+it is not campaign, combat, audio or lifecycle acceptance.
+
+The following export-APK update also preserves the original save, description
+and preview SHA-256 values. The original save remains
+`e9ab176d9df0b279bea580a483248aa528641b127b55b4138098feaad627ad90`.
+Before manual setup testing, the three exact test scripts were hash-checked,
+copied to the local evidence directory and removed from the app so subsequent
+ordinary launches cannot repeat the scripted load/save/quit sequence.
+
+Evidence: `.tmp/stage-two/android-s25-restore-evidence.json`, SHA-256
+`d155ff135e500c88c9b2549f54de807ec71591836f155f642a7f548c4bb7111b`.
+The record includes original logs, engine captures, the tested package identity,
+script hashes and subsequent update/save-preservation evidence. Retail
+mixed-case path warnings and unsupported mobile AA/MSAA fallbacks remain.
+The export APK contains three changed native libraries relative to this tested
+timer/GUI package; its separate restore result follows.
+
+## S25 exported-save restore, 20 October 2026
+
+The export APK identified above also loads the save extracted from the actual
+backup ZIP. A verified copy under a new test slot leaves the six existing files
+untouched. The user completes **Check installed files** (ready, zero findings)
+and selects **Single player**. The scripted probe restores Storage 1's opening
+sequence, captures the rendered scene, creates another save, reloads it and
+writes a second engine capture. Both captures are 2237x1080 after the current
+cutout handling and show the active opening sequence. Audio is disabled and no
+gameplay input is injected. This does not establish campaign or combat coverage.
+
+The initial helper incorrectly classified shutdown by waiting for the package
+to have no process. Android records the game's PID 9718 exiting itself with
+status 0 at 06:17:51.338 local time, then recreates setup as PID 12597. The
+helper force-stopped that new launcher at 06:18:24.515 after its false timeout.
+The original failed helper result is retained alongside engine logs, Android
+exit records and Activity events; the successful restore and normal engine exit
+are assessed from those records, without presenting the helper as a passing
+run. An earlier Windows ADB stdin transfer also stopped at the first SUB byte;
+binary `adb push`, exact readback and the private test-slot copy resolved that
+preparation failure. Neither helper issue changed the exported ZIP or originals.
+
+Evidence is included in `.tmp/stage-two/android-export-evidence.json` and
+`.tmp/stage-two/android-s25-export-r1/`. Test configuration files, the two test
+save slots and device captures are removed after hash verification, with local
+evidence retained and the original six files checked again. Backup-ZIP import
+is not yet a player-facing feature;
+this restore uses a developer-placed copy and qualifies the exported bytes on
+the recorded package only. Later packages, release-certificate upgrades,
+provider interruption and broader gameplay retain their own gates.

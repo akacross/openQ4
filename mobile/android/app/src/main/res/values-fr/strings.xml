@@ -56,4 +56,27 @@
     <string name="setup_commit_failed">Impossible de remplacer %1$s. Vérifiez le stockage de l’application, puis réessayez. L’archive précédente a été conservée.</string>
     <string name="setup_prepare_failed">Impossible de préparer les fichiers inclus. Libérez de l’espace et réessayez. Si le problème persiste, mettez l’application à jour avec le même distributeur ou certificat de signature ; gardez l’application installée pour conserver vos sauvegardes.</string>
     <string name="setup_launch_failed">Le jeu n’a pas pu démarrer. Vérifiez les fichiers, puis réessayez.</string>
+    <string name="setup_exports">Sauvegardes et diagnostic</string>
+    <string name="setup_export_help">Créez une copie ZIP de vos parties enregistrées, avec leurs descriptions et aperçus, ou exportez les journaux de diagnostic. Choisissez la destination dans le sélecteur de fichiers Android. Les originaux restent dans l’application. Les journaux peuvent contenir des chemins locaux et des adresses de serveurs ; vérifiez-les avant de les partager.</string>
+    <string name="setup_export_saves">Copier les parties enregistrées</string>
+    <string name="setup_export_logs">Exporter les journaux</string>
+    <string name="setup_saves_filename">openQ4-sauvegardes.zip</string>
+    <string name="setup_logs_filename">openQ4-journaux.zip</string>
+    <string name="setup_no_document_picker">Le sélecteur de fichiers du système est indisponible. Activez l’application Fichiers d’Android, puis réessayez.</string>
+    <string name="setup_export_picker_cancelled">Aucune destination d’exportation n’a été choisie. Vos fichiers sont inchangés.</string>
+    <string name="setup_export_no_grant">Impossible d’ouvrir la destination en écriture. Réessayez avec un emplacement accessible. Vos fichiers originaux sont inchangés.</string>
+    <string name="setup_packing_export">Préparation de l’archive d’exportation…</string>
+    <string name="setup_export_file_count">Fichiers préparés : %1$d / %2$d</string>
+    <string name="setup_export_done">Fichiers exportés : %1$d. Taille du ZIP : %2$s. Si vous avez choisi un stockage en ligne, attendez la fin de l’envoi avant de compter sur cette copie.</string>
+    <string name="setup_export_cancelled">Exportation arrêtée. Vos fichiers originaux sont inchangés. La destination peut contenir un ZIP vide ou incomplet ; supprimez cette copie dans Fichiers, puis réessayez avec une nouvelle destination.</string>
+    <string name="setup_export_interrupted">L’exportation a été interrompue. Vos fichiers originaux sont inchangés. La destination peut contenir un ZIP incomplet. Réessayez pour choisir une nouvelle destination et recommencer.</string>
+    <string name="setup_export_empty">Aucun fichier n’est encore disponible pour cette exportation.</string>
+    <string name="setup_export_unreadable">Impossible de lire %1$s. Redémarrez l’application et réessayez. Vos fichiers originaux sont inchangés.</string>
+    <string name="setup_export_unsafe">Le chemin %1$s ne peut pas être inclus dans une copie portable. Vos fichiers sont inchangés. Si le problème persiste, exportez les journaux pour le diagnostic.</string>
+    <string name="setup_export_limit">L’exportation dépasse les limites prises en charge : 2 Gio, 4 096 éléments, ou la longueur des chemins ou la profondeur des dossiers autorisées. Vos fichiers sont inchangés.</string>
+    <string name="setup_export_changed">Les fichiers ont changé pendant la préparation de l’archive. Attendez la fin des opérations sur les fichiers, puis réessayez.</string>
+    <string name="setup_export_cache">Impossible de préparer le ZIP temporaire dans le stockage de l’application. Libérez de l’espace et réessayez. Gardez l’application installée et conservez ses données pour préserver vos parties.</string>
+    <string name="setup_export_write">La destination n’a pas accepté le ZIP complet. Vérifiez sa connexion et son espace libre, puis réessayez avec une nouvelle destination. La copie échouée peut être incomplète ; vos fichiers originaux sont inchangés.</string>
+    <string name="setup_export_no_space">Le ZIP temporaire nécessite %1$s d’espace libre dans l’application ; %2$s sont disponibles. Libérez de l’espace, puis réessayez. Vos fichiers originaux sont inchangés.</string>
+    <string name="setup_export_failed">L’exportation n’a pas pu se terminer. Réessayez avec une nouvelle destination. La précédente peut contenir un ZIP incomplet ; vos fichiers originaux sont inchangés.</string>
 </resources>

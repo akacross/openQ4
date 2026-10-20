@@ -78,7 +78,13 @@
   progress and retry interrupted work without losing completed archives or
   saves. Setup includes English, German, Spanish and French recovery messages;
   select Single player or Multiplayer once the files are ready. Device testing
-  and the remaining controls, interface and export steps are still in progress.
+  and the remaining controls and interface steps are still in progress.
+- Android setup can now back up saved games, including descriptions and previews,
+  or export diagnostic logs to a ZIP through the system file picker. Setup
+  failures are included in the logs. Cancelled or failed exports keep the
+  original files; retry uses a new destination. See the
+  [Android setup guide](../../user/android-setup.md) for backup limits and
+  upgrade guidance. Physical device/provider qualification remains in progress.
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

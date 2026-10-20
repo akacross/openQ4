@@ -94,10 +94,19 @@ choice reaches the next native launch; subsequent ordinary launches preserve
 the game's language setting. The normal gamepad and keyboard bindings work in
 gameplay. The standalone app does not provide a full touch gameplay overlay.
 
-This setup increment covers language and game data. Controls/live testing,
-interface-profile setup, reopening from in-game Settings and log/save export
-remain open. Physical folder-provider, accessibility, visual and process-death
-qualification is still required; host fixtures do not establish those results.
+The setup screen also exports saved games or diagnostic logs through Android's
+file picker. It prepares a ZIP from private save/log folders, including setup
+diagnostics and an integrity inventory, before copying it to the chosen new
+document. Cancellation and failures preserve the originals; a partial destination
+may need removal in Files. See the [player guide](../../docs/user/android-setup.md)
+for backup contents, limits, cloud-provider completion and upgrade guidance.
+
+This setup increment covers language, game data and export. Controls/live testing,
+interface-profile setup and reopening from in-game Settings remain open.
+Save/log exports to local Downloads and an exported-save restore round trip
+pass on the recorded S25 debug package. Physical folder-import providers,
+accessibility, visual and process-death qualification are still required; host
+fixtures do not establish those results.
 
 The Android Back button or gesture follows the game's menu/pause navigation.
 Fatal-error screens accept touch release on density-scaled Copy, Clear and Quit
@@ -125,7 +134,8 @@ When a native fatal error writes a diagnostic report, it is beside that log at
 `OPENQ4_SAVE_ROOT` before native startup so early diagnostics use the same root
 as `fs_savepath`. External hosts may publish their absolute save directory in
 that variable; otherwise the existing `USER_FILES/quake4` or SDL private-storage
-fallback remains in use. This does not provide release-APK log export yet.
+fallback remains in use. The setup screen's **Export logs** action includes
+these reports without requiring a debug APK or ADB access.
 
 Each packaged overlay revision extracts to its own private directory before
 engine startup. A manifest verifies every extracted file on each launch; missing,
@@ -220,3 +230,10 @@ the real provider/import/verification/extraction sequence, including cancellatio
 between stages and retry, and checks the four complete localized resource sets.
 Neither needs a device. APK verification also compares the launcher's Marine and
 Lowpixel fonts with the exact faces inside the staged `pak0.pk4`.
+
+`python tools/tests/android_private_export.py` checks read-only save/log ZIPs,
+manifest integrity, cancellation, source changes, bounds, storage ownership and
+bounded setup diagnostics. `android_document_export.py` checks the actual
+provider writer with controlled denied/disconnected/blocked providers, including
+descriptor cleanup, cancellation, retry and byte-preserving output. These host
+fixtures do not establish physical picker/provider or cloud-upload behavior.

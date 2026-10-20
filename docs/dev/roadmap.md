@@ -450,7 +450,13 @@ Sources: [Android build and packaging](android-build.md),
   reaches Storage 1, captures the opening scene and writes a save; restoration
   exposes a retained-UI thread-binding failure. The
   [engine-thread binding repair](platform-recovery-review.md#android-ui-engine-thread-binding-19-october-2026)
-  passes native Windows/Linux checks and is installed for a device retry.
+  passes native Windows/Linux checks. The subsequent
+  [S25 restore round trip](platform-recovery-review.md#s25-original-save-restore-round-trip-20-october-2026)
+  loads the original Storage 1 save, writes/reloads another save and exits
+  cleanly on the recorded timer/GUI-repair APK. The later export APK also
+  [restores a copy from its backup ZIP](platform-recovery-review.md#s25-exported-save-restore-20-october-2026),
+  saves/reloads again and exits normally. Broader campaign/lifecycle behavior
+  retains its own device gates.
   [Background audio/input and SP resume](platform-recovery-review.md#android-background-audio-and-single-player-resume-19-october-2026)
   now run before SDL blocks and return live SP behind the pause menu. Native
   Windows/Linux recovery controls and both builds pass; physical suspension,
@@ -489,16 +495,19 @@ Sources: [Android build and packaging](android-build.md),
   missing/truncated/mismatched files behind `.ready`. Windows/Linux production-
   Java tests cover interruption, replacement failure, low-space preflight and
   save preservation; a real 810 MB package passes selective repair. Full engine
-  PK4 checks remain enabled. Accessible release diagnostics/save export and
-  signed device-upgrade evidence
-  keep AND-03 open. Android now preserves the host's data directory when retail
+  PK4 checks remain enabled. Broader provider acceptance and release-signed
+  device-upgrade evidence keep AND-03 open. Android now preserves the host's
+  data directory when retail
   packs are absent, with production Android/desktop selection tests. An S25
-  debug APK update preserves save bytes; successful restore and release
-  certificate-continuity qualification remain required.
+  debug APK update preserves save bytes, and the original Storage 1 save now
+  passes a device restore/resave/reload round trip on the recorded timer/GUI
+  package. The current export APK also passes an exported-save restore/resave/
+  reload check; release certificate-continuity qualification remains required.
   [Early native diagnostics](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)
   now share the host's save/log directory, with production native/JVM recovery
-  checks on Windows/Linux and both platform builds. Real-device diagnostics and
-  accessible release log/save export remain open.
+  checks on Windows/Linux and both platform builds. The S25 now records a
+  successful installed-data check and exports its earlier native logs through
+  the system picker; broader device diagnostics remain open.
   The [retail verifier backend](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
   now checks the complete required set, engine-compatible checksums and every
   entry's payload, with optional/language findings, bounded progress and
@@ -508,16 +517,26 @@ Sources: [Android build and packaging](android-build.md),
   now copies granted provider streams through verified temporary files, preserves
   existing destinations on failure and resumes from completed archives. Host
   recovery and provider-adapter checks pass. The setup entry point below connects
-  picker/grant ownership and localized recovery; export and physical provider
-  acceptance remain open.
+  picker/grant ownership and localized recovery; physical provider acceptance
+  remains open.
   The [localized setup entry point](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
   now connects language selection, the system folder picker, read-only persisted
   grants, verified import/check, bundled-file preparation and explicit SP/MP
   launch. Progress/cancellation and retry preserve completed archives; native
   storage ownership blocks setup until the game actually exits. Four resource
   sets and Windows/Linux pipeline checks cover this increment. Controls and
-  interface setup, Settings re-entry, export, release signing continuity and
+  interface setup, Settings re-entry, release signing continuity and
   physical provider/lifecycle/accessibility/visual acceptance remain open.
+  The [save and log export flow](platform-recovery-review.md#android-save-and-log-export-20-october-2026)
+  now prepares bounded ZIPs with per-file integrity records and copies them to
+  new documents chosen through the system picker. It preserves original saves,
+  includes release setup diagnostics and holds native storage ownership until
+  provider cleanup completes. Localized cancellation/retry, Windows/Linux
+  production-Java tests and exact APK packaging cover this increment. S25
+  picker exports to Downloads pass independent ZIP/manifest checks with all six
+  original save files unchanged; a copy from the ZIP restores on that same
+  package. Cloud/removable providers, interrupted-process recovery and release
+  signing continuity remain open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly

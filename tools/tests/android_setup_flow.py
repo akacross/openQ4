@@ -119,8 +119,12 @@ public final class SetupFlowTest {
         cancelled(()->cancelling.run(new Progress()));cancelProvider.allClosed();available();
         require(!Files.exists(installed),"cancelled provider query reached a destination commit");
         Files.move(preserved,installed);
-        Context unavailable=new Context();unavailable.external=null;
+        Context unavailable=new Context();unavailable.external=null;unavailable.files=app.files;
         failed(RetailImport.Code.DESTINATION_UNAVAILABLE,()->new SetupWork(unavailable,null,catalogue).run(new Progress()));available();
+        String diagnostics=Files.readString(app.files.toPath().resolve("saves/baseoq4/logs/setup.log"));
+        require(diagnostics.contains("Setup cancelled") && diagnostics.contains("Data finding: MISSING_LANGUAGE") &&
+                diagnostics.contains("Setup operation failed") && diagnostics.contains("DESTINATION_UNAVAILABLE"),
+                "release diagnostics omit setup results or recovery failures");
         Object game=new Object();StorageSession.INSTANCE.activityCreated(game);
         try{new SetupWork(activity,null,catalogue).run(new Progress());throw new AssertionError("setup entered active game storage");}
         catch(StorageSession.Busy expected){}finally{StorageSession.INSTANCE.activityDestroyed(game);}
@@ -176,7 +180,8 @@ def main() -> None:
             paths.append(str(path))
         production = ROOT/'mobile/android/app/src/main/java/com/darkmatter/openq4'
         paths.extend(str(production/name) for name in ('Pk4Checksum.java', 'RetailData.java', 'RetailImport.java',
-                     'DocumentSource.java', 'PackageStorage.java', 'SetupTask.java', 'StorageSession.java', 'SetupWork.java'))
+                     'DocumentSource.java', 'PackageStorage.java', 'SetupTask.java', 'StorageSession.java', 'SetupWork.java',
+                     'SetupDiagnostics.java'))
         classes = scratch/'classes'
         classes.mkdir()
         javac = Path(args.javac).resolve()

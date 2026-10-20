@@ -31,20 +31,24 @@ import java.util.Locale;
 
 /** Setup runs before SDL loads. Every game launch remains an explicit player action. */
 public final class LauncherActivity extends Activity implements SetupTask.Observer<RetailData.Report> {
-    private static final int PICK_FOLDER = 1;
+    private static final int PICK_FOLDER = 1, EXPORT_SAVES = 2, EXPORT_LOGS = 3;
     private static Session retained;
 
     private static final class Session {
         final Handler delivery = new Handler(Looper.getMainLooper());
         final SetupTask<RetailData.Report> task = new SetupTask<>(callback -> delivery.post(callback));
+        final SetupTask<DocumentExport.Result> export = new SetupTask<>(callback -> delivery.post(callback));
         final SharedPreferences prefs;
         Uri source;
-        boolean picking, consumed;
-        int notice;
+        boolean consumed, exporting;
+        int picking, notice;
+        PrivateExport.Kind exportKind;
         Session(Context context) {
             prefs = preferences(context);
             String stored = prefs.getString("source", "");
             if (!stored.isEmpty()) source = Uri.parse(stored);
+            exporting = prefs.getBoolean("exporting", false);
+            exportKind = "logs".equals(prefs.getString("export_kind", "")) ? PrivateExport.Kind.LOGS : PrivateExport.Kind.SAVES;
         }
     }
 
@@ -53,10 +57,11 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     private ScrollView scroll;
     private TextView status, detail, amount, sourceNotice;
     private ProgressBar progress;
-    private Button choose, check, retry, cancel, sp, mp, returnGame;
+    private Button choose, check, retry, cancel, sp, mp, returnGame, saves, logs;
     private boolean started;
     private final Handler refresh = new Handler(Looper.getMainLooper());
     private final Runnable refreshState = () -> { if (started) changed(session.task.state()); };
+    private final SetupTask.Observer<DocumentExport.Result> exportObserver = ignored -> changed(session.task.state());
     private SetupTask.Phase measuredPhase;
     private String measuredName;
     private long measuredAt, measuredBytes;
@@ -88,18 +93,21 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         super.onCreate(state);
         if (retained == null) retained = new Session(getApplicationContext());
         session = retained;
-        if (state != null) session.picking = state.getBoolean("picking", session.picking);
+        if (state != null) session.picking = state.getInt("picking", session.picking);
         theme = new SetupTheme(this);
         build();
         if (state != null) scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll", 0)));
     }
 
-    @Override protected void onStart() { super.onStart(); started = true; session.task.bind(this); }
+    @Override protected void onStart() {
+        super.onStart(); started = true; session.task.bind(this); session.export.bind(exportObserver);
+    }
     @Override protected void onStop() {
-        started = false; refresh.removeCallbacks(refreshState); session.task.unbind(this); super.onStop();
+        started = false; refresh.removeCallbacks(refreshState);
+        session.task.unbind(this); session.export.unbind(exportObserver); super.onStop();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
-        state.putBoolean("picking", session.picking);
+        state.putInt("picking", session.picking);
         state.putInt("scroll", scroll.getScrollY());
         super.onSaveInstanceState(state);
     }
@@ -206,13 +214,22 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         sourceNotice = theme.text(R.string.setup_idle, false); column.addView(sourceNotice);
         choose = theme.button(R.string.setup_choose, this::chooseFolder); addButton(column, choose);
         check = theme.button(R.string.setup_check, () -> run(false)); addButton(column, check);
-        retry = theme.button(R.string.setup_retry, () -> run(session.prefs.getBoolean("import", false))); addButton(column, retry);
-        cancel = theme.button(R.string.setup_cancel, () -> session.task.cancel()); addButton(column, cancel);
+        retry = theme.button(R.string.setup_retry, () -> {
+            if (session.exporting) chooseExport(session.exportKind);
+            else run(session.prefs.getBoolean("import", false));
+        }); addButton(column, retry);
+        cancel = theme.button(R.string.setup_cancel, () -> {
+            if (session.exporting) session.export.cancel(); else session.task.cancel();
+        }); addButton(column, cancel);
         sp = theme.button(R.string.setup_play_sp, () -> launch(false)); addButton(column, sp);
         mp = theme.button(R.string.setup_play_mp, () -> launch(true)); addButton(column, mp);
         returnGame = theme.button(R.string.setup_return, () -> {
             if (StorageSession.INSTANCE.activityActive()) startActivity(new Intent(this, OpenQ4Activity.class));
         }); addButton(column, returnGame);
+        column.addView(theme.text(R.string.setup_exports, true));
+        column.addView(theme.text(R.string.setup_export_help, false));
+        saves = theme.button(R.string.setup_export_saves, () -> chooseExport(PrivateExport.Kind.SAVES)); addButton(column, saves);
+        logs = theme.button(R.string.setup_export_logs, () -> chooseExport(PrivateExport.Kind.LOGS)); addButton(column, logs);
         addButton(column, theme.button(R.string.setup_change_language, () -> {
             session.prefs.edit().putBoolean("language_chosen", false).apply();
             status = null; build();
@@ -223,14 +240,14 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     }
 
     private boolean available() {
-        return !session.task.state().busy() && !session.picking && !StorageSession.INSTANCE.gameActive();
+        return !session.task.state().busy() && !session.export.state().busy() && session.picking == 0 && !StorageSession.INSTANCE.gameActive();
     }
 
     private void run(boolean importing) {
         if (!available()) return;
         if (importing && session.source == null) { chooseFolder(); return; }
-        session.consumed = false; session.notice = 0;
-        session.prefs.edit().putBoolean("pending", true).putBoolean("import", importing).apply();
+        session.consumed = false; session.notice = 0; session.exporting = false;
+        session.prefs.edit().putBoolean("pending", true).putBoolean("import", importing).putBoolean("exporting", false).apply();
         session.task.start(new SetupWork(getApplicationContext(), importing ? session.source : null));
         scroll.smoothScrollTo(0, 0);
     }
@@ -241,18 +258,49 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
-            session.picking = true;
+            session.picking = PICK_FOLDER;
             startActivityForResult(picker, PICK_FOLDER);
         } catch (ActivityNotFoundException unavailable) {
-            session.picking = false; session.notice = R.string.setup_no_picker;
+            session.picking = 0; session.notice = R.string.setup_no_picker;
         }
         changed(session.task.state());
     }
 
+    @SuppressWarnings("deprecation")
+    private void chooseExport(PrivateExport.Kind kind) {
+        if (!available()) return;
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/zip").addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            .putExtra(Intent.EXTRA_TITLE, getString(kind == PrivateExport.Kind.SAVES ? R.string.setup_saves_filename : R.string.setup_logs_filename));
+        try {
+            session.picking = kind == PrivateExport.Kind.SAVES ? EXPORT_SAVES : EXPORT_LOGS;
+            startActivityForResult(picker, session.picking);
+        } catch (ActivityNotFoundException unavailable) {
+            session.picking = 0; session.notice = R.string.setup_no_document_picker;
+        }
+        changed(session.task.state());
+    }
+
+    private void exportResult(int request, int result, Intent data) {
+        if (result != RESULT_OK) { session.notice = R.string.setup_export_picker_cancelled; changed(session.task.state()); return; }
+        Uri uri = data == null ? null : data.getData();
+        if (uri == null || !"content".equals(uri.getScheme()) || (data.getFlags() & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0) {
+            session.notice = R.string.setup_export_no_grant; changed(session.task.state()); return;
+        }
+        if (!available()) { session.notice = R.string.setup_game_active; changed(session.task.state()); return; }
+        session.exporting = true; session.notice = 0;
+        session.exportKind = request == EXPORT_SAVES ? PrivateExport.Kind.SAVES : PrivateExport.Kind.LOGS;
+        session.prefs.edit().putBoolean("pending", true).putBoolean("exporting", true)
+            .putString("export_kind", session.exportKind == PrivateExport.Kind.LOGS ? "logs" : "saves").apply();
+        session.export.start(new DocumentExport(getApplicationContext(), uri, session.exportKind));
+        scroll.smoothScrollTo(0, 0);
+    }
+
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
-        if (request != PICK_FOLDER || !session.picking) return;
-        session.picking = false;
+        if (request != session.picking || request < PICK_FOLDER || request > EXPORT_LOGS) return;
+        session.picking = 0;
+        if (request != PICK_FOLDER) { exportResult(request, result, data); return; }
         if (result != RESULT_OK) { session.notice = R.string.setup_picker_cancelled; changed(session.task.state()); return; }
         Uri uri = data == null ? null : data.getData();
         if (uri == null || !"content".equals(uri.getScheme()) || !DocumentsContract.isTreeUri(uri) ||
@@ -295,28 +343,37 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
 
     @Override public void changed(SetupTask.State<RetailData.Report> state) {
         if (status == null || isFinishing()) return;
-        boolean game = StorageSession.INSTANCE.gameActive(), busy = state.busy();
+        SetupTask.State<?> operation = session.exporting ? session.export.state() : state;
+        boolean game = StorageSession.INSTANCE.gameActive(), busy = operation.busy();
         boolean ready = !session.consumed && state.status == SetupTask.Status.SUCCEEDED && state.result != null && state.result.ready();
-        if (!busy && state.status != SetupTask.Status.IDLE && session.prefs.getBoolean("pending", false))
+        if (!busy && operation.status != SetupTask.Status.IDLE && session.prefs.getBoolean("pending", false))
             session.prefs.edit().putBoolean("pending", false).apply();
         choose.setEnabled(available()); check.setEnabled(available()); retry.setEnabled(available());
-        retry.setVisibility(state.status == SetupTask.Status.IDLE && !session.prefs.getBoolean("pending", false) ? View.GONE : View.VISIBLE);
+        saves.setEnabled(available()); logs.setEnabled(available());
+        retry.setVisibility(operation.status == SetupTask.Status.IDLE && !session.prefs.getBoolean("pending", false) ? View.GONE : View.VISIBLE);
         cancel.setVisibility(busy ? View.VISIBLE : View.GONE);
-        cancel.setEnabled(state.status == SetupTask.Status.RUNNING);
+        cancel.setEnabled(operation.status == SetupTask.Status.RUNNING);
         sp.setVisibility(ready && !game ? View.VISIBLE : View.GONE); mp.setVisibility(sp.getVisibility());
+        sp.setEnabled(available()); mp.setEnabled(available());
         returnGame.setVisibility(StorageSession.INSTANCE.activityActive() ? View.VISIBLE : View.GONE);
         progress.setVisibility(busy && !game ? View.VISIBLE : View.GONE);
         amount.setVisibility(progress.getVisibility());
         int heading = R.string.setup_idle;
         if (game) heading = R.string.setup_game_active;
-        else if (state.status == SetupTask.Status.STOPPING) heading = R.string.setup_stopping;
-        else if (busy) heading = phaseText(state.progress == null ? SetupTask.Phase.CHECKING_DATA : state.progress.phase);
-        else if (state.status == SetupTask.Status.CANCELLED) heading = R.string.setup_cancelled;
-        else if (state.status == SetupTask.Status.FAILED) heading = failureText(state.failure);
+        else if (operation.status == SetupTask.Status.STOPPING) heading = R.string.setup_stopping;
+        else if (busy) heading = phaseText(operation.progress == null ?
+            (session.exporting ? SetupTask.Phase.PACKING_EXPORT : SetupTask.Phase.CHECKING_DATA) : operation.progress.phase);
+        else if (operation.status == SetupTask.Status.CANCELLED) heading = session.exporting ? R.string.setup_export_cancelled : R.string.setup_cancelled;
         else if (ready) heading = R.string.setup_ready;
         else if (!session.consumed && state.result != null) heading = R.string.setup_needs_data;
-        else if (session.prefs.getBoolean("pending", false)) heading = R.string.setup_interrupted;
-        String title = state.status == SetupTask.Status.FAILED && !game ? failure(state.failure) : getString(heading);
+        else if (session.prefs.getBoolean("pending", false)) heading = session.exporting ? R.string.setup_export_interrupted : R.string.setup_interrupted;
+        String title = getString(heading);
+        if (!game && operation.status == SetupTask.Status.FAILED)
+            title = session.exporting ? exportFailure(operation.failure) : failure(operation.failure);
+        else if (!game && session.exporting && operation.status == SetupTask.Status.SUCCEEDED) {
+            DocumentExport.Result result = session.export.state().result;
+            title = getString(R.string.setup_export_done, result.files, Formatter.formatFileSize(this, result.bytes));
+        }
         if (!title.contentEquals(status.getText())) status.setText(title);
         StringBuilder findings = new StringBuilder();
         if (!busy && !session.consumed && state.result != null) {
@@ -329,7 +386,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         detail.setText(findings); detail.setVisibility(findings.length() == 0 ? View.GONE : View.VISIBLE);
         sourceNotice.setVisibility(session.notice == 0 ? View.GONE : View.VISIBLE);
         if (session.notice != 0) sourceNotice.setText(session.notice);
-        if (busy && state.progress != null) showProgress(state.progress);
+        if (busy && operation.progress != null) showProgress(operation.progress);
         else amount.setText("");
         // A timed-out SDL join can leave the engine closing after the Activity
         // has gone. Refresh the safe return/setup controls without running work.
@@ -341,7 +398,8 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         progress.setIndeterminate(value.totalBytes <= 0);
         if (value.totalBytes > 0) progress.setProgress((int) Math.min(1000, (double) value.bytes * 1000 / value.totalBytes));
         StringBuilder text = new StringBuilder(displayName(value.name));
-        if (value.files > 0) text.append('\n').append(getString(R.string.setup_file_count, value.completed, value.files));
+        if (value.files > 0) text.append('\n').append(getString(value.phase == SetupTask.Phase.PACKING_EXPORT ?
+            R.string.setup_export_file_count : R.string.setup_file_count, value.completed, value.files));
         text.append('\n').append(value.totalBytes >= 0 ? getString(R.string.setup_bytes,
             Formatter.formatFileSize(this, value.bytes), Formatter.formatFileSize(this, value.totalBytes)) : Formatter.formatFileSize(this, value.bytes));
         long now = android.os.SystemClock.elapsedRealtime();
@@ -368,6 +426,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
             case VERIFYING_DATA: return R.string.setup_verifying_data;
             case CHECKING_PACKAGE: return R.string.setup_checking_package;
             case COPYING_PACKAGE: return R.string.setup_copying_package;
+            case PACKING_EXPORT: return R.string.setup_packing_export;
             case EXPORTING: return R.string.setup_exporting;
             default: return R.string.setup_checking_data;
         }
@@ -425,4 +484,27 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     }
 
     private String exactSize(long bytes) { return getString(R.string.setup_size_bytes, Math.max(0, bytes)); }
+
+    private String exportFailure(Exception error) {
+        if (error instanceof StorageSession.Busy) return getString(R.string.setup_game_active);
+        int message = R.string.setup_export_failed;
+        String name = "";
+        if (error instanceof PrivateExport.Failure) {
+            PrivateExport.Failure failure = (PrivateExport.Failure) error;
+            name = displayName(failure.name);
+            switch (failure.code) {
+                case EMPTY: message = R.string.setup_export_empty; break;
+                case SOURCE_UNAVAILABLE: message = R.string.setup_export_unreadable; break;
+                case UNSAFE_PATH: message = R.string.setup_export_unsafe; break;
+                case LIMIT: message = R.string.setup_export_limit; break;
+                case CHANGED_FILE: message = R.string.setup_export_changed; break;
+                case CACHE_UNAVAILABLE: message = R.string.setup_export_cache; break;
+                case OUTPUT_UNAVAILABLE: message = R.string.setup_export_no_grant; break;
+                case WRITE_FAILED: message = R.string.setup_export_write; break;
+                case INSUFFICIENT_SPACE: return getString(R.string.setup_export_no_space,
+                    exactSize(failure.requiredBytes), exactSize(failure.availableBytes));
+            }
+        }
+        return getString(message, name);
+    }
 }

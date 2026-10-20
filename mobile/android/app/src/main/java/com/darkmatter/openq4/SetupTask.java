@@ -7,7 +7,7 @@ import java.lang.ref.WeakReference;
 /** One retained setup operation, with UI-thread delivery and explicit cancellation ownership. */
 final class SetupTask<T> {
     enum Status { IDLE, RUNNING, STOPPING, SUCCEEDED, FAILED, CANCELLED }
-    enum Phase { CHECKING_DATA, CHECKING_EXISTING, COPYING_DATA, VERIFYING_DATA, CHECKING_PACKAGE, COPYING_PACKAGE, EXPORTING }
+    enum Phase { CHECKING_DATA, CHECKING_EXISTING, COPYING_DATA, VERIFYING_DATA, CHECKING_PACKAGE, COPYING_PACKAGE, PACKING_EXPORT, EXPORTING }
 
     static final class Progress {
         final Phase phase;
