@@ -729,6 +729,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         (root / "tools" / "tests" / 'ui_capture_system_page.py', []),
         (root / "tools" / "tests" / 'ui_capture_system_exit.py', []),
         (root / "tools" / "tests" / 'renderer_vid_restart_route.py', []),
+        (root / "tools" / "tests" / 'cmd_args_copy.py', []),
         (root / "tools" / "tests" / 'renderer_image_recovery_owner.py', ['--mutations']),
         (root / "tools" / "tests" / 'renderer_image_recovery_module.py', ['--mutations']),
         (root / "tools" / "tests" / 'renderer_image_recovery_loader.py', ['--mutations']),

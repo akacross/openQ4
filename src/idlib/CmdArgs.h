@@ -14,6 +14,10 @@ class idCmdArgs {
 public:
 							idCmdArgs( void ) { argc = 0; }
 							idCmdArgs( const char *text, bool keepAsStrings ) { TokenizeString( text, keepAsStrings ); }
+							// argv points into this object's own tokenized buffer, so a copy
+							// must re-point it; the implicit member-wise copy would leave argv
+							// aimed at the source (idList::Append copies before it grows).
+							idCmdArgs( const idCmdArgs &args ) { argc = 0; *this = args; }
 
 	void					operator=( const idCmdArgs &args );
 

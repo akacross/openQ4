@@ -10,6 +10,18 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [ ] Run every startup command again (regression from f15a41f0).
+  `idList::Append` now copies its argument before growing, and `idCmdArgs` had
+  no copy constructor, so the implicit copy kept `argv` pointing into the
+  source and `operator=` turned that into a stray offset. The command that
+  landed on a growth of the startup queue (the 17th, 33rd, ... `+` command)
+  lost its text and was skipped silently. Dedicated-server smokes never ran
+  their `+quit` and timed out, the renderer startup matrix lost self-tests
+  (RenderGraphResource, ModernVisibility, the Vulkan render-target set), and
+  long client command lines dropped commands such as `+map`. `idCmdArgs` now
+  copy-constructs through `operator=`; `cmd_args_copy.py` checks copies and a
+  queue past several growths.
+
 - [x] Complete the stage-one baseline implementation and audit: use a shared
   high-resolution presentation phase for each SP/MP draw and precise OpenXR
   smooth-turn deltas; restore imported game regression coverage; reconcile
