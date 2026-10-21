@@ -227,6 +227,7 @@ private:
 
 	bool					hasVUMeter;
 	bool					paused;
+	bool					centerRouting;
 	float					appliedSourceRadius;	// last AL_SOURCE_RADIUS sent, -1 = none yet
 };
 

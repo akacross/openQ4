@@ -816,7 +816,8 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		hardwareVoice->SetCenterChannel( 1.0f );
 	}
-	else if( ( parms.soundShaderFlags & SSF_VO ) || ( parms.soundShaderFlags & SSF_IS_VO ) )
+	else if( ( parms.soundShaderFlags & ( SSF_VO | SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) || IsRadioChatterChannel( this ) ||
+		SoundIsDialogue( SoundUsesMusicVolume( parms ), false, leadinSample->GetName() ) )
 	{
 		hardwareVoice->SetCenterChannel( s_centerFractionVO.GetFloat() );
 	}

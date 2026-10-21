@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "../snd_local.h"
+#include "../SoundSurround.h"
 
 extern idCVar s_warnOnMissingSamples;
 extern idCVar s_openALEfxDebugMode;
@@ -76,6 +77,13 @@ static bool openQ4_LoadVoiceEfxProcs() {
 	#define OPENQ4_OPENAL_SOURCE_LATENCY_SUPPORTED 1
 #else
 	#define OPENQ4_OPENAL_SOURCE_LATENCY_SUPPORTED 0
+#endif
+
+// Centre routing submits 5.1 buffers played through direct channels.
+#if defined( AL_FORMAT_51CHN16 ) && defined( AL_DIRECT_CHANNELS_SOFT )
+	#define OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED 1
+#else
+	#define OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED 0
 #endif
 
 #if OPENQ4_OPENAL_SOURCE_LATENCY_SUPPORTED
@@ -187,6 +195,7 @@ idSoundVoice_OpenAL::idSoundVoice_OpenAL()
 	sampleRate( 0 ),
 	hasVUMeter( false ),
 	paused( true ),
+	centerRouting( false ),
 	appliedSourceRadius( -1.0f )
 {
 	openalStreamingBuffer[0] = 0;
@@ -654,6 +663,18 @@ bool idSoundVoice_OpenAL::Start( int offsetMS, int ssFlags )
 	{
 		return false;
 	}
+#if OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED
+	centerRouting = SoundUseCenterChannel( soundSystemLocal.hardware.HasCenterChannelOutput(),
+		numChannels == 1 && ( loopingSample == NULL || loopingSample->NumChannels() == 1 ),
+		( ssFlags & SSF_CENTER ) != 0, centerChannel, position.LengthSqr() );
+	if( centerRouting ) {
+		if( !EnsureStreamingBuffers() ) return false;
+		alSourcei( openalSource, AL_DIRECT_CHANNELS_SOFT, soundSystemLocal.hardware.GetDirectChannelsMode() );
+		if( s_debugHardware.GetBool() ) idLib::Printf( "Centre routing: %s fraction=%.3f\n", leadinSample->GetName(), centerChannel );
+	}
+#else
+	centerRouting = false;
+#endif
 
 	if( leadinSample->IsDefault() )
 	{
@@ -760,7 +781,7 @@ int idSoundVoice_OpenAL::RestartAt( int offsetSamples )
 	// Both direct playback and intro/loop queues can use an uploaded OpenAL
 	// buffer without CPU bytes. Only the streaming fallback uploads PCM slices;
 	// restore those bytes before taking any pointers into the sample buffers.
-	if( sample->openalBuffer == 0 && !sample->EnsureCpuPayload() )
+	if( ( sample->openalBuffer == 0 || centerRouting ) && !sample->IsStreamed() && !sample->EnsureCpuPayload() )
 	{
 		return 0;
 	}
@@ -804,7 +825,7 @@ int idSoundVoice_OpenAL::RestartAt( int offsetSamples )
 				return 0;
 			}
 			FlushSourceBuffers();
-			if( sample->openalBuffer != 0 && ( loopingSample == NULL || sample == loopingSample ) )
+			if( !centerRouting && sample->openalBuffer != 0 && ( loopingSample == NULL || sample == loopingSample ) )
 			{
 				alSourcei( openalSource, AL_BUFFER, sample->openalBuffer );
 				alSourcei( openalSource, AL_LOOPING, ( sample == loopingSample && loopingSample != NULL ? AL_TRUE : AL_FALSE ) );
@@ -819,7 +840,7 @@ int idSoundVoice_OpenAL::RestartAt( int offsetSamples )
 				return sample->totalBufferSize;
 			}
 
-			if( sample->openalBuffer == 0 && !EnsureStreamingBuffers() )
+			if( ( sample->openalBuffer == 0 || centerRouting ) && !EnsureStreamingBuffers() )
 			{
 				return 0;
 			}
@@ -864,7 +885,7 @@ int idSoundVoice_OpenAL::SubmitBuffer( idSoundSample_OpenAL* sample, int bufferN
 		return 0;
 	}
 
-	if( sample->openalBuffer != 0 )
+	if( sample->openalBuffer != 0 && !centerRouting )
 	{
 		ALuint staticBuffer = sample->openalBuffer;
 		alSourceQueueBuffers( openalSource, 1, &staticBuffer );
@@ -889,6 +910,7 @@ int idSoundVoice_OpenAL::SubmitBuffer( idSoundSample_OpenAL* sample, int bufferN
 	{
 		return 0;
 	}
+	if( centerRouting && !sample->EnsureCpuPayload() ) return 0;
 
 	const idSoundSample_OpenAL::sampleBuffer_t& sampleBuffer = sampleBuffers[bufferNumber];
 	if( sampleBuffer.buffer == NULL || sampleBuffer.bufferSize <= 0 )
@@ -943,7 +965,7 @@ int idSoundVoice_OpenAL::SubmitBuffer( idSoundSample_OpenAL* sample, int bufferN
 	}
 
 	const byte* audioData = reinterpret_cast<const byte*>( sampleBuffer.buffer ) + byteOffset;
-	const int submitSamples = playableEndOffset - offset;
+	const int submitSamples = Min( 4096, playableEndOffset - offset );
 	if( submitSamples <= 0 || submitSamples > ( sampleBuffer.bufferSize / bytesPerSample ) - offset )
 	{
 		return 0;
@@ -954,7 +976,16 @@ int idSoundVoice_OpenAL::SubmitBuffer( idSoundSample_OpenAL* sample, int bufferN
 		return 0;
 	}
 
-	alBufferData( streamBuffer, sample->GetOpenALBufferFormat(), audioData, audioBytes, sample->SampleRate() );
+#if OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED
+	if( centerRouting ) {
+		short surround[4096 * 6];
+		SoundRouteMonoToCenter( reinterpret_cast<const short*>( audioData ), submitSamples, centerChannel, surround );
+		alBufferData( streamBuffer, AL_FORMAT_51CHN16, surround, submitSamples * 6 * sizeof( short ), sample->SampleRate() );
+	} else
+#endif
+	{
+		alBufferData( streamBuffer, sample->GetOpenALBufferFormat(), audioData, audioBytes, sample->SampleRate() );
+	}
 	if( CheckALErrors() != AL_NO_ERROR )
 	{
 		return 0;
@@ -1093,7 +1124,7 @@ bool idSoundVoice_OpenAL::Update()
 		while( queuedBuffers < MAX_QUEUED_BUFFERS && nextQueuedSample != NULL )
 		{
 			ALuint streamBuffer = 0;
-			if( nextQueuedSample->openalBuffer == 0 )
+			if( nextQueuedSample->openalBuffer == 0 || centerRouting )
 			{
 				if( bufferToFillIndex >= buffersToFillCount )
 				{
@@ -1503,6 +1534,7 @@ void idSoundVoice_OpenAL::ResetSourceMixState()
 	velocity.Zero();
 	gain = 0.0f;
 	centerChannel = 0.0f;
+	centerRouting = false;
 	pitch = 1.0f;
 	wetLevel = 0.0f;
 	dryLevel = 1.0f;

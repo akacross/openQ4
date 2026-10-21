@@ -1378,6 +1378,30 @@ float idSoundHardware_OpenAL::GetAirAbsorptionGainHF() const
 
 /*
 ========================
+idSoundHardware_OpenAL::HasCenterChannelOutput
+
+True when the context renders a 5.1/6.1/7.1 layout and can play 5.1 buffers
+through direct channels, the only case in which centre routing is used.
+========================
+*/
+bool idSoundHardware_OpenAL::HasCenterChannelOutput() const
+{
+#if defined( ALC_OUTPUT_MODE_SOFT ) && defined( AL_FORMAT_51CHN16 ) && defined( AL_DIRECT_CHANNELS_SOFT )
+	if( openalDevice == NULL || !directChannelsAvailable ||
+		alIsExtensionPresent( "AL_EXT_MCFORMATS" ) != AL_TRUE ||
+		alcIsExtensionPresent( openalDevice, "ALC_SOFT_output_mode" ) != ALC_TRUE ) return false;
+	ALCint mode = 0;
+	alcGetError( openalDevice );
+	alcGetIntegerv( openalDevice, ALC_OUTPUT_MODE_SOFT, 1, &mode );
+	if( alcGetError( openalDevice ) != ALC_NO_ERROR ) return false;
+	return mode == ALC_SURROUND_5_1_SOFT || mode == ALC_SURROUND_6_1_SOFT || mode == ALC_SURROUND_7_1_SOFT;
+#else
+	return false;
+#endif
+}
+
+/*
+========================
 idSoundHardware_OpenAL::DetectVoiceFeatures
 
 What every voice can use on this context. Called with the context current.

@@ -117,6 +117,7 @@ public:
 	{
 		return directChannelsMode;
 	}
+	bool			HasCenterChannelOutput() const;
 	// AL_SOURCE_RESAMPLER_SOFT index for every voice, -1 keeps the runtime default
 	ALint			GetSourceResampler() const
 	{
