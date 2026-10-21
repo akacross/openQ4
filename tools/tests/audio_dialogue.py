@@ -23,8 +23,10 @@ from mp_round_remote_smoke import verify_runtime_is_current
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def rendered_tones(path):
-    """Matched-tone amplitudes in the actual OpenAL float WAV, not API state."""
+def rendered_tones(path, windows=None):
+    """Matched-tone amplitudes in the actual OpenAL float WAV, not API state.
+
+    windows, when given, receives every 440 Hz window as per-channel amplitudes."""
     data = path.read_bytes()
     offset, pcm, rate, channels = 12, None, 0, 0
     while offset + 8 <= len(data):
@@ -48,11 +50,15 @@ def rendered_tones(path):
         cosine = [math.cos(2 * math.pi * frequency * i * stride / rate) for i in range(count)]
         peaks = [0.0] * channels
         for start in range(0, len(pcm) - count * stride * channels, rate * channels // 4):
+            window = []
             for channel in range(channels):
                 values = [pcm[start + i * stride * channels + channel] for i in range(count)]
                 real = sum(v * c for v, c in zip(values, cosine))
                 imag = sum(v * s for v, s in zip(values, sine))
-                peaks[channel] = max(peaks[channel], 2 * math.hypot(real, imag) / count)
+                window.append(2 * math.hypot(real, imag) / count)
+                peaks[channel] = max(peaks[channel], window[-1])
+            if windows is not None and frequency == 440:
+                windows.append(window)
         result[str(frequency)] = peaks
     return result
 
@@ -182,12 +188,20 @@ def main():
     checks['archived'] = saved.exists() and bool(re.search(r'seta s_dialogueVolume "0\.6"', saved.read_text()))
     checks['engine_capture'] = (game / 'screenshots/audio-dialogue.tga').is_file()
     checks['rendered_audio'] = (root / 'mix.wav').is_file() and (root / 'mix.wav').stat().st_size > 48000
-    tones = rendered_tones(root / 'mix.wav') if checks['rendered_audio'] else {}
+    speech_windows = []
+    tones = rendered_tones(root / 'mix.wav', speech_windows) if checks['rendered_audio'] else {}
     checks['rendered_speech_and_effect'] = len(tones) == 2 and all(max(values) > .02 for values in tones.values())
     if args.speakers == 6:
         checks['engine_center_routing'] = 'Centre routing: sound/vo/audio_test/dialogue' in log
         speech = tones.get('440', [])
-        checks['rendered_center_speech'] = len(speech) == 6 and speech[2] > max(speech[0], speech[1], speech[4], speech[5]) * 1.5
+        # Compare channels within the same windows while the speech fixture is
+        # loud. Whole-file peaks mixed moments: the map's own ambience adds
+        # some 440 Hz energy to a surround channel, which once outweighed the
+        # fixture's routed share when the run (and so the recording) was short.
+        loud = [w for w in speech_windows if len(w) == 6 and speech and w[2] >= .5 * speech[2]]
+        ratios = sorted(w[2] / max(w[0], w[1], w[4], w[5], 1e-9) for w in loud)
+        center_ratio = ratios[len(ratios) // 2] if ratios else 0.0
+        checks['rendered_center_speech'] = len(speech) == 6 and speech[2] > .02 and center_ratio > 1.5
     memory = re.search(r'Vorbis admission: pending=(\d+) KiB peak=(\d+) KiB budget=(\d+) MiB waits=(\d+)', log)
     checks['decode_budget'] = bool(memory and int(memory[1]) == 0 and int(memory[2]) <= int(memory[3]) * 1024)
     checks['no_decode_rejections'] = 'exceed s_decodeMemoryMB' not in log and 'exceeds s_decodeMemoryMB' not in log
@@ -200,7 +214,8 @@ def main():
         streams = re.search(r'Vorbis streaming: reserved=(\d+) KiB peak=(\d+) KiB budget=(\d+) MiB rejected=(\d+)', log)
         checks['stream_budget'] = bool(streams and 0 < int(streams[1]) <= int(streams[2]) <= int(streams[3]) * 1024 and int(streams[4]) == 0)
         checks['no_stream_decode_failure'] = 'cannot open within its fixed decoder arena' not in log
-    report = {'checks': checks, 'gains': rows, 'rendered_tones': tones, 'speakers': args.speakers, 'language': args.language, 'compressed': args.compressed, 'returncode': run.returncode,
+    report = {'checks': checks, 'gains': rows, 'rendered_tones': tones,
+              'center_ratio_median': center_ratio if args.speakers == 6 else None, 'speakers': args.speakers, 'language': args.language, 'compressed': args.compressed, 'returncode': run.returncode,
               'executable_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(), 'command': command,
               'runtime_sha256': {str(p.relative_to(ROOT / '.install')): hashlib.sha256(p.read_bytes()).hexdigest()
                                  for p in (ROOT / '.install/baseoq4').iterdir()
