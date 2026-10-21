@@ -884,22 +884,67 @@ AI path.
 
 ## Issue #123
 
-The save attached to issue #123 was written by 0.12.0 (the report says so,
-although it was long recorded here as a v0.10 save). Its `ReadTrace` desync is the
-`swimSpeed` it carries being skipped by a reader that took build 1 at face value;
-release identification reads it as build 719. It exposed both historical v3 differences
-above. Reconstructing its source snapshot reproduced the embedded SHA-256
-exactly. With the targeted decoder, the original file passes the omitted physics
-frame and both four-byte player-field boundaries, including the reported
-`ReadTrace` offset, before reaching later state owned by the reporter's
-unprovided HiDef mod GUI/assets.
+The attached `anderson.save` has the **0.10.0 writer fingerprint**, despite the
+report naming 0.12.0 as the runtime being used. Reinspection on 21 October finds
+payload v3/build 1, source snapshot
+`19351be39d2d4077a74294c0442707ef9565fc7a2fa9af9b81e05fc9aca8b220`,
+404 files: exactly the independently qualified published 0.10.0 writer below.
+Release identification correctly selects layout build 657, including the omitted
+physics frame and the two player fields absent from that layout. The earlier
+claim here that the attachment was written by 0.12.0 was incorrect.
+
+The [reporter confirmed loading](https://github.com/themuffinator/openQ4/issues/123#issuecomment-5434563455),
+then [clarified that the GUI was stock](https://github.com/themuffinator/openQ4/issues/123#issuecomment-5434577318).
+The [closure record](https://github.com/themuffinator/openQ4/issues/123#issuecomment-5544391639)
+withdraws the assumption that a special HiDef GUI set was missing. Neither a
+copied stock game DLL nor a GUI mismatch establishes a modified GUI asset.
+Later model/cinematic failures were tracked separately under #151.
+
+Current candidate retests preserve two distinct failures. With the supplied
+rebuilt map archive, restoration stops at missing `_prelight_light_170`; that
+model is absent from the supplied `.proc` but present in the retail `.proc`.
+With the original retail map, restoration passes that boundary and reaches
+`mon4.gui`, where saved `topstuff` child ID 2 is encountered while the parser
+expects `template/squares`, child ID 6. The diagnostic now names both windows
+and the parsed parent instead of attributing the parsed ID to the saved name. Both
+return to the load menu with the original save unchanged; the harness later
+times out because its success-only map script cannot run. The GUI identity
+mismatch remains under investigation, without assuming modified reporter assets.
+These are not current successful restores of the attached slot.
+
+A diagnostic control removes only the decorative `template/squares` leaf from
+an isolated copy of retail `mon4.gui`. The exact original save then restores,
+saves a new slot and reloads that slot in active gameplay; both engine captures
+were inspected. The original file remains byte-identical. Fresh saves from the
+published 0.6.95, 0.8.0, 0.10.0 and 0.11.0 binaries all contain this window,
+whereas the attachment does not. This isolates the required graph difference;
+it does not establish why the reporter's saved graph differs, qualify their
+original GUI bytes, or justify a general reader fallback. No replacement GUI
+is shipped and the production structural checks remain intact.
+
+The first control's startup fallback quit command ran ahead of its queued
+map-check script, so its original report remains failed. The corrected runner
+uses only the after-map script and bounded process timeout. Its successful
+restore/resave/reload is in
+`.tmp/stage-two/issue123-stock-map-omitted-square-control-r2/`;
+`.tmp/stage-two/issue123-control-evidence.json` (SHA-256
+`c32e8e46ee6b6f021d818d692224cce6ae25be0bd8374b825175589e22784e04`)
+binds original-writer name offsets, the test-only GUI, logs, captures and runtime.
+
+Evidence: `.tmp/stage-two/issue123-current-r1/`,
+`.tmp/stage-two/issue123-stock-map-r1/` and
+`.tmp/stage-two/issue123-fixtures/`. The downloaded save ZIP is SHA-256
+`9309249d7943762fe0804145400c919a9959e9b962c7e6f2462d438719d767e0`;
+its unmodified save is
+`afb39c3dde68fa267b9720bbdfd6b8287a3fdcf8f317605237ef0df4fae6e58e`.
+Attachment URLs, map/model identities, runtime hashes and the reporter's
+clarification are retained beside the logs.
 
 An independent current-source Windows x64 run created a fresh save on
 `game/airdefense2`, reloaded it through `Game Map Init SaveGame`, captured an
 engine-render-target screenshot in active gameplay, and exited normally. This
-proves the deterministic current writer/reader round trip; completing the
-third-party-mod fixture still requires reporter-side validation with the exact
-mod installation.
+proves the deterministic current writer/reader round trip; it does not qualify
+the attached historical slot or explain the current GUI identity mismatch.
 
 ## Validation Evidence and Limits
 
@@ -959,9 +1004,55 @@ comes from an incompatible version.", and loaded the 0.12.0 checkpoint into
 Air Defense Bunker with the HUD restored through its earlier definition.
 
 The harness and fixtures live under `.tmp/savecompat/` (`load_saves.py`,
-`menu_check.py`, `restamp_save.py`, `make_save.py`). No save written by the
+`menu_check.py`, `restamp_save.py`, `make_save.py`). At that review, no save written by the
 0.6.95, 0.8.0, 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available, and
 Linux and macOS old-save restores are untested.
+
+### Original release writers, 21 October 2026
+
+The published Windows x64 ZIPs for 0.6.95, 0.8.0, 0.10.0, 0.11.0 and 0.13.0
+were downloaded and checked against their GitHub asset SHA-256 digests. Each
+original executable, matching game module and packaged data was used unchanged
+with retail Steam assets. Saves cover Air Defense 1, Hangar 1, Storage 1,
+Tram 1B and Process 1, after 2.5 seconds of active simulation at map start.
+
+| Original writer | Payload | Completed original save transactions | Current restore/resave/reload |
+| --- | --- | --- | --- |
+| 0.6.95 | v2/build 1, `4a868438…`, 218 files | 5/5 | 5/5 |
+| 0.8.0 | v2/build 1, `914dd145…`, 218 files | 5/5 | 5/5 |
+| 0.10.0 | v3/build 1, `19351be3…`, 404 files | 5/5 | 5/5 |
+| 0.11.0 | v3/build 1, `484e95b8…`, 404 files | 5/5 | 5/5 |
+| 0.13.0 | v3/build 1, `6703f7b6…`, 404 files | 0/5; original validator rejects build 1 | 5/5 from completed staged payloads |
+
+The 0.13.0 binary writes and checksums its payload, then rejects its own build
+number as below 661 and removes the staged files. The five ordinary failed
+transactions remain recorded. A debugger breakpoint at
+`Session_ValidateStagedSaveGameHeader` subsequently paused the unchanged original
+executable after the checksum was flushed. The complete temporary payload was
+copied, its length/CRC verified, and execution resumed through the original
+rejection. Those five unmodified payloads pass current restore, resave and
+reload. They are genuine original-writer **staged payloads**, not evidence that
+0.13.0 successfully committed those slots. No binary, build stamp or validator
+was patched, and no historical executable was rebuilt.
+
+All 25 current restores and all 25 subsequent reloads enter the expected map,
+preserve the expected entity filter and run active simulation; all 25 current
+resaves succeed. The original input bytes remain unchanged. Engine capture
+sheets were inspected for all five releases, including the Storage 1 opening
+and Tram 1B vehicle views. The initial 0.6.95 checker wrongly required
+`entityFilter=first` on every map; its reports are retained with independent
+assessments against the actual map-specific expected filter and unchanged
+artifacts. No favorable result was substituted for a failed game run.
+
+The aggregate `.tmp/stage-two/historical-corpus-evidence.json`, SHA-256
+`d60b0e69ee47e34b5bb06790576249e6b1225b43d66e100572717d0ceadb243a`,
+binds all 75 selected runs, five failed original v0.13.0 transactions, original
+ZIP/file identities, save stamps, captures and the exact candidate runtimes.
+Reader runs span two recorded Windows builds; the source snapshot and each
+binary hash are retained per run. This closes the missing original-binary
+map-start coverage for this ABI, with the v0.13 staging limitation explicit.
+It does not close Q4-07's current #123 fixture, other target ABIs, arbitrary
+campaign states or Q4-02's progression checks.
 
 Historical Linux x64/Wayland save/load evidence predates v3 and does not prove
 the current candidate on physical Linux hardware. ARM64 contract/build results

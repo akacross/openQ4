@@ -150,6 +150,14 @@ re-stamped as 0.11.0; the same with `swimSpeed` removed as 0.10.0; a dev build
 845 save, whose snapshot equals 0.13.0's, re-stamped as build 1). No save written
 by the 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available.
 
+The [21 October original-writer corpus](savegame-reliability.md#original-release-writers-21-october-2026)
+supersedes that evidence-availability limit for Windows x64. Five map-start
+saves from each of the published 0.6.95, 0.8.0, 0.10.0 and 0.11.0 binaries pass
+current restore/resave/reload. Five completed v0.13.0 staged payloads also pass;
+that original release rejects its own build-1 save transaction, and the record
+keeps debugger-captured staging distinct from committed saves. This adds
+runtime evidence without broadening the ABI or format policy.
+
 Version 2 has its own floor, build 546 (see [Version 2](#version-2)). Lowering
 either floor requires a real save in that format that restores cleanly, not a
 layout argument alone.
