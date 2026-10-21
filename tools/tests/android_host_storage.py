@@ -178,14 +178,83 @@ public class SDLActivity {
     public File getCacheDir() { return new File(files, "cache"); }
     public AssetManager getAssets() { return assets; }
     public AppInfo getApplicationInfo() { return new AppInfo(); }
-    public Intent getIntent() { return new Intent(); }
+    public android.content.Intent getIntent() { return new android.content.Intent(); }
     public static class AppInfo { public String nativeLibraryDir = "/fixture/native"; }
     public static String language;
-    public static class Intent {
-        public boolean getBooleanExtra(String key, boolean value) { return value; }
-        public String getStringExtra(String key) { return language; }
+    // SDL's user-message entry point and Activity/Context members.
+    public static final int COMMAND_USER = 0x8000;
+    public static final int MODE_PRIVATE = 0;
+    public static final java.util.List<android.content.Intent> started = new java.util.ArrayList<>();
+    public static boolean startFailure;
+    protected boolean onUnhandledMessage(int command, Object param) { return false; }
+    protected void onResume() {}
+    public void startActivity(android.content.Intent intent) {
+        if (startFailure) throw new android.content.ActivityNotFoundException();
+        started.add(intent);
     }
+    public static final android.content.SharedPreferences preferences = new android.content.SharedPreferences();
+    public android.content.SharedPreferences getSharedPreferences(String name, int mode) {
+        if (!"setup".equals(name) || mode != MODE_PRIVATE) throw new AssertionError("wrong setup preferences");
+        return preferences;
+    }
+    public static final android.content.res.Resources resources = new android.content.res.Resources();
+    public android.content.res.Resources getResources() { return resources; }
 }''',
+            "android/content/Intent.java": r'''
+package android.content;
+public class Intent {
+    public final Object context;
+    public final Class<?> target;
+    public Intent() { this(null, null); }
+    public Intent(Object context, Class<?> target) { this.context = context; this.target = target; }
+    public boolean getBooleanExtra(String key, boolean value) { return value; }
+    public String getStringExtra(String key) { return org.libsdl.app.SDLActivity.language; }
+}''',
+            "android/content/ActivityNotFoundException.java": r'''
+package android.content;
+public class ActivityNotFoundException extends RuntimeException {}
+''',
+            "android/content/SharedPreferences.java": r'''
+package android.content;
+public final class SharedPreferences {
+    public final java.util.Map<String, String> values = new java.util.HashMap<>();
+    public String getString(String key, String fallback) { return values.getOrDefault(key, fallback); }
+}
+''',
+            "android/content/res/Configuration.java": r'''
+package android.content.res;
+public final class Configuration { public int smallestScreenWidthDp = 411; public float fontScale = 1; }
+''',
+            "android/content/res/Resources.java": r'''
+package android.content.res;
+public final class Resources {
+    public final Configuration configuration = new Configuration();
+    public Configuration getConfiguration() { return configuration; }
+}
+''',
+            "android/util/Log.java": r'''
+package android.util;
+public final class Log {
+    public static final java.util.List<String> lines = new java.util.ArrayList<>();
+    public static int i(String tag, String message) { lines.add("I " + message); return 0; }
+    public static int e(String tag, String message, Throwable error) { lines.add("E " + message); return 0; }
+}
+''',
+            "android/widget/Toast.java": r'''
+package android.widget;
+public final class Toast {
+    public static final int LENGTH_SHORT = 0, LENGTH_LONG = 1;
+    public static final java.util.List<Integer> shown = new java.util.ArrayList<>();
+    private final int message;
+    private Toast(int message) { this.message = message; }
+    public static Toast makeText(Object context, int message, int duration) { return new Toast(message); }
+    public void show() { shown.add(message); }
+}
+''',
+            "com/darkmatter/openq4/R.java": r'''
+package com.darkmatter.openq4;
+final class R { static final class string { static final int setup_open_failed = 0x7f010001; } }
+''',
             "com/darkmatter/openq4/LauncherActivity.java": r'''
 package com.darkmatter.openq4;
 public final class LauncherActivity {
@@ -310,6 +379,38 @@ public final class StorageTest {
         }
         SDLActivity.mBrokenLibraries = false;
         SDLActivity.mActivityCreated = true;
+        // Settings > Android setup: one SDL user message opens the launcher
+        // without finishing the game; repeats wait for the game to resume.
+        require(!activity.onUnhandledMessage(1, null) && SDLActivity.started.isEmpty(), "unrelated SDL message consumed");
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 1 &&
+            SDLActivity.started.get(0).target == LauncherActivity.class && SDLActivity.started.get(0).context == activity &&
+            !activity.finishing, "Settings request did not open setup over the running game");
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 1,
+            "repeated request opened setup twice");
+        activity.onResume();
+        SDLActivity.startFailure = true;
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 1 &&
+            android.widget.Toast.shown.equals(List.of(R.string.setup_open_failed)), "unavailable setup was not reported");
+        SDLActivity.startFailure = false;
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 2,
+            "a failed request blocked the next one");
+        activity.onResume();
+        activity.finishing = true;
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 2,
+            "finishing game opened setup");
+        activity.finishing = false;
+        SDLActivity.mBrokenLibraries = true;
+        require(activity.onUnhandledMessage(SDLActivity.COMMAND_USER, null) && SDLActivity.started.size() == 2,
+            "failed SDL startup opened setup");
+        SDLActivity.mBrokenLibraries = false;
+        // Applied setup records reach the engine thread; absence never does.
+        SDLActivity.preferences.values.clear();
+        require(activity.getTouchSetup() == null, "unconfigured setup reached the engine");
+        SDLActivity.preferences.values.put(TouchSettings.SAVED, "1:2:15:8");
+        float[] touch = activity.getTouchSetup();
+        require(touch != null && touch.length == 3 && touch[0] == 2 && Math.abs(touch[1] - 1.5f) < 1e-6f &&
+            Math.abs(touch[2] - 1.15f) < 1e-6f, "applied touch setup not delivered");
+        SDLActivity.preferences.values.clear();
         File old = extract(activity);
         List<String> launch = Arrays.asList(activity.getArguments());
         require(!launch.contains("sys_lang"), "ordinary launch must preserve the game's saved language");
@@ -518,7 +619,7 @@ public final class StorageTest {
         require(!nativeThread.isAlive() && nativeError.get() == null && !StorageSession.INSTANCE.gameActive(),
                 "native completion failed to release Activity storage owner");
         Object lease = StorageSession.INSTANCE.beginSetup(); StorageSession.INSTANCE.endSetup(lease);
-        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots, Back routing, cutout/system/IME inset recovery, setup language selection and native storage ownership through delayed shutdown");
+        System.out.println("PASS: real Activity verified reuse, missing/truncated/corrupt repair, interrupted copy/commit, manifest bounds, upgrade cleanup, save preservation, matching native/engine save roots, Back routing, cutout/system/IME inset recovery, setup language selection, Settings setup re-entry, applied setup delivery and native storage ownership through delayed shutdown");
     }
 }''',
         }
@@ -559,7 +660,8 @@ public final class StoragePackageProbe {
         # Compile this fixture's production dependency closure; document-picker
         # and retail-import Android APIs have separate executable fixtures.
         source_paths.extend(str(root / "mobile/android/app/src/main/java/com/darkmatter/openq4" / name)
-                            for name in ("OpenQ4Activity.java", "PackageStorage.java", "StorageSession.java", "SetupLanguage.java"))
+                            for name in ("OpenQ4Activity.java", "PackageStorage.java", "StorageSession.java", "SetupLanguage.java",
+                                         "TouchSettings.java"))
         classes = scratch / "classes"
         classes.mkdir()
         javac = Path(args.javac).resolve()

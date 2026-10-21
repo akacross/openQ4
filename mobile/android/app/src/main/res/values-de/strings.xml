@@ -80,4 +80,27 @@
     <string name="setup_export_write">Das Ziel hat die ZIP-Datei nicht vollständig angenommen. Prüfe Verbindung und Speicherplatz und wähle ein neues Ziel. Die fehlgeschlagene Kopie kann unvollständig sein; deine Originaldateien sind unverändert.</string>
     <string name="setup_export_no_space">Die temporäre ZIP-Datei benötigt %1$s freien App-Speicher; verfügbar sind %2$s. Schaffe Speicherplatz und versuche es erneut. Deine Originaldateien sind unverändert.</string>
     <string name="setup_export_failed">Der Export konnte nicht abgeschlossen werden. Versuche es mit einem neuen Ziel erneut. Am bisherigen Ziel kann eine unvollständige ZIP-Datei liegen; deine Originaldateien sind unverändert.</string>
+    <string name="setup_open_failed">Die Android-Einrichtung konnte nicht geöffnet werden. Kehre zum Spiel zurück und versuche es erneut.</string>
+    <string name="setup_controls">Steuerung</string>
+    <string name="setup_controls_help">Wähle Touch-Layout, Tastengröße und Blickgeschwindigkeit. Anwenden speichert die Auswahl für den nächsten Spielstart oder die Rückkehr ins Spiel.</string>
+    <string name="setup_controller_none">Kein Controller erkannt. Die Touch-Steuerung bleibt verfügbar.</string>
+    <string name="setup_controller_detected">Controller erkannt: %1$s. Bei seiner Verwendung wird die Touch-Steuerung ausgeblendet; berühre das Spiel, um sie wieder anzuzeigen.</string>
+    <string name="setup_touch_preset">Touch-Layout</string>
+    <string name="setup_touch_default_help">Standard: links bewegen; rechts umsehen und feuern.</string>
+    <string name="setup_touch_compact_help">Kompakt: kleinere Bedienelemente mit mindestens 48 dp breiten Touch-Flächen.</string>
+    <string name="setup_touch_left_help">Linkshändig: rechts bewegen; links umsehen und feuern.</string>
+    <string name="setup_touch_sensitivity">Blickempfindlichkeit: %1$.1f×</string>
+    <string name="setup_touch_sensitivity_label">Blickempfindlichkeit</string>
+    <string name="setup_touch_size">Tastengröße: %1$d%%</string>
+    <string name="setup_touch_size_label">Tastengröße</string>
+    <string name="setup_look_test_help">Blicktest: Ziehe hier, um das Raster zu drehen. Passe oben die Empfindlichkeit an; dieser Test steuert das Spiel nicht.</string>
+    <string name="setup_touch_apply">Steuerung anwenden</string>
+    <string name="setup_touch_discard">Änderungen verwerfen</string>
+    <string name="setup_touch_applied">Steuerung gespeichert. Sie gilt bei der Rückkehr ins Spiel oder beim nächsten Spielstart.</string>
+    <string name="setup_touch_save_failed">Die Steuerung konnte nicht gespeichert werden. Die bisherigen Einstellungen bleiben erhalten; prüfe den freien App-Speicher und versuche es erneut.</string>
+    <string-array name="setup_touch_presets">
+        <item>Standard</item>
+        <item>Kompakt</item>
+        <item>Linkshändig</item>
+    </string-array>
 </resources>

@@ -44,6 +44,9 @@ static void AndroidTouchControls_Release(){++touchReleases;}
 static void Quake4_ClearTouchInput(){}
 static void Quake4_ResetTouchState(){}
 static bool devicePaused=false,com_editorActive=false;
+static int setupRequests=0,setupWarnings=0;static bool setupMessageSucceeds=true;
+static bool SDL_SendAndroidMessage(unsigned command,int param){require(command==0x8000 && param==0,"wrong setup command");++setupRequests;return setupMessageSucceeds;}
+static const char* SDL_GetError(){return "injected setup failure";}
 static std::vector<std::string> actions;
 static bool Posix_IsMainThread(){return engineThread;}
 static int Sys_Milliseconds(){return 100;}
@@ -72,7 +75,7 @@ static void SDL3_OpenFirstController(){}
 static void SDL3_UpdateGamepadSensorState(bool){}
 static void SDL3_UpdateGamepadAxes(int){}
 static void SDL3_UpdateJoystickAxes(){}
-struct Common {bool IsInitialized(){return true;}void Printf(const char*,...){}void WriteConfigToFile(const char*){++writes;}} commonValue,*common=&commonValue;
+struct Common {bool IsInitialized(){return true;}void Printf(const char*,...){}void Warning(const char*,...){++setupWarnings;}void WriteConfigToFile(const char*){++writes;}} commonValue,*common=&commonValue;
 struct Cvars {bool IsInitialized(){return true;}void SetModifiedFlags(int){}} cvarValue,*cvarSystem=&cvarValue;
 struct Files {bool IsInitialized(){return true;}} fileValue,*fileSystem=&fileValue;
 struct idAsyncNetwork {static bool active;static bool IsActive(){return active;}};bool idAsyncNetwork::active=false;
@@ -175,7 +178,23 @@ def source():
         'static void SDL3_HandleAppForegroundTransition(int eventTime, const char *reason) {',
         'static void SDL3_ProcessPendingLifecycleEvents(', 'bool Sys_SDL_IsAppBackgrounded(',
         'bool Sys_SDL_ConsumeAppSuspension('))
-    return SUPPORT + code + function_body(session, 'void idSessionLocal::HandleAppResume(') + MAIN
+    menu = (ROOT/'src/framework/Session_menu.cpp').read_text()
+    setup = '\n'.join(function_body(menu, signature) for signature in (
+        'static bool Session_AndroidSetupAvailable(', 'static void Session_OpenAndroidSetup('))
+    checks = '''
+    Session_OpenAndroidSetup();setupMessageSucceeds=false;Session_OpenAndroidSetup();
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+    require(Session_AndroidSetupAvailable() && setupRequests==2 && setupWarnings==1,"Android setup handoff/failure mismatch");
+#else
+    require(!Session_AndroidSetupAvailable() && setupRequests==0 && setupWarnings==0,"setup advertised outside standalone Android");
+#endif
+#if defined(OPENQ4_SIGMATOUCH)
+    std::puts("Setup re-entry is unavailable to the separate SigmaTouch host");return 0;
+#endif
+'''
+    entry = 'int main(){try {'
+    assert MAIN.count(entry) == 1, 'fixture entry point changed'
+    return SUPPORT + setup + code + function_body(session, 'void idSessionLocal::HandleAppResume(') + MAIN.replace(entry, entry + checks)
 
 
 def main():
@@ -188,8 +207,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='android-lifecycle-', dir=ROOT/'.tmp') as directory:
         cpp = Path(directory)/'lifecycle.cpp';exe = cpp.with_suffix('.exe')
         cpp.write_text(source(), encoding='utf-8')
-        for platform in ('android', 'desktop'):
-            defines = ['-D__ANDROID__=1'] if platform == 'android' else []
+        for platform in ('android', 'desktop', 'sigmatouch'):
+            defines = ['-D__ANDROID__=1'] if platform != 'desktop' else []
+            if platform == 'sigmatouch': defines.append('-DOPENQ4_SIGMATOUCH=1')
             subprocess.run([compiler, '-std=c++17', *defines, str(cpp), '-o', str(exe)], check=True)
             print(platform, flush=True)
             subprocess.run([str(exe)], check=True)

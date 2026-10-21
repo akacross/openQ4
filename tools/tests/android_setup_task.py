@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import tempfile
 
+from filesystem_case_segments import function_body
+
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = r'''
 package com.darkmatter.openq4;
@@ -20,6 +22,49 @@ import java.util.function.*;
 
 public final class SetupTaskTest {
     static void require(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    static class ActivityNotFoundException extends RuntimeException {}
+    static class Intent {final Class<?> target;Intent(Object owner,Class<?> target){this.target=target;}}
+    static class LauncherActivity {}
+    static class R {static class string {static final int setup_open_failed=1;}}
+    static class Log {static void i(String tag,String text){}static void e(String tag,String text,Throwable error){}}
+    static class Toast {
+        static final int LENGTH_LONG=1;static int shown;
+        static Toast makeText(Object context,int text,int duration){require(text==R.string.setup_open_failed,"wrong setup failure");return new Toast();}
+        void show(){++shown;}
+    }
+    static class SDLActivity {
+        static final int COMMAND_USER=0x8000;
+        boolean mBrokenLibraries,mActivityCreated=true,finishing,fail;
+        int starts,unknown,resumes,finishes;
+        protected boolean onUnhandledMessage(int command,Object value){++unknown;return false;}
+        protected void onResume(){++resumes;}
+        boolean isFinishing(){return finishing;}
+        void startActivity(Intent intent){require(intent.target==LauncherActivity.class,"wrong target");if(fail)throw new ActivityNotFoundException();++starts;}
+        void finish(){++finishes;}
+    }
+    static class GameActivity extends SDLActivity {
+        private boolean setupOpening;
+        // PRODUCTION_SETUP_REENTRY
+    }
+    static void reentry() throws Exception {
+        GameActivity game=new GameActivity();StorageSession storage=StorageSession.INSTANCE;
+        storage.activityCreated(game);require(storage.beginEngine(game),"live engine did not acquire");
+        require(!game.onUnhandledMessage(0x8001,null) && game.unknown==1 && game.starts==0,"foreign SDL message intercepted");
+        game.onUnhandledMessage(0x8000,0);game.onUnhandledMessage(0x8000,0);
+        require(game.starts==1 && game.finishes==0 && storage.activityActive(),"duplicate setup launch or game torn down");
+        try{storage.beginSetup();throw new AssertionError("setup entered live game files");}catch(StorageSession.Busy expected){}
+        game.onResume();game.onUnhandledMessage(0x8000,0);
+        require(game.resumes==1 && game.starts==2,"SDL resume or second handoff lost");
+        game.onResume();game.fail=true;game.onUnhandledMessage(0x8000,0);game.fail=false;game.onUnhandledMessage(0x8000,0);
+        require(Toast.shown==1 && game.starts==3,"failed handoff was not reported/retryable");
+        for(int state=0;state<3;++state){
+            GameActivity inactive=new GameActivity();inactive.finishing=state==0;inactive.mBrokenLibraries=state==1;inactive.mActivityCreated=state!=2;
+            require(inactive.onUnhandledMessage(0x8000,0) && inactive.starts==0,"inactive game launched setup");
+        }
+        storage.activityDestroyed(game);
+        try{storage.beginSetup();throw new AssertionError("setup entered closing engine files");}catch(StorageSession.Busy expected){}
+        storage.endEngine(game);Object lease=storage.beginSetup();storage.endSetup(lease);
+    }
     static void waitFor(BooleanSupplier condition)throws Exception {
         long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
         while(!condition.getAsBoolean() && System.nanoTime()<end)Thread.sleep(1);
@@ -35,6 +80,7 @@ public final class SetupTaskTest {
         }
     }
     public static void main(String[] args)throws Exception {
+        reentry();
         Thread main=Thread.currentThread();Queue queue=new Queue();SetupTask<String> task=new SetupTask<>(queue);
         List<SetupTask.State<String>> oldViews=new ArrayList<>(),newViews=new ArrayList<>();
         SetupTask.Observer<String> old=state->{require(Thread.currentThread()==main,"worker called UI observer");oldViews.add(state);};
@@ -144,7 +190,8 @@ public final class SetupTaskTest {
                 SetupLanguage.engine("+quit")==null && SetupLanguage.index("unknown")==0,"language boundary");
         System.out.println("PASS: UI-thread ownership; Activity rebind/unbind; retained background completion; bounded latest progress; "+
             "stale callback rejection; one writer through cancellation/cleanup; provider close off UI; late/interrupted success rejection; failure/retry; "+
-            "setup/native exclusion through Activity destruction and delayed SDL shutdown; cancelled startup; language allowlist");
+            "setup/native exclusion through Activity destruction and delayed SDL shutdown; cancelled startup; language allowlist; "+
+            "production setup handoff, duplicate suppression, return/reopen, failure/retry and inactive-host guards");
     }
 }
 '''
@@ -162,7 +209,10 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix='android-setup-task-', dir=ROOT/'.tmp') as temporary:
         scratch = Path(temporary)
         source = scratch/'SetupTaskTest.java'
-        source.write_text(JAVA)
+        activity = (ROOT/'mobile/android/app/src/main/java/com/darkmatter/openq4/OpenQ4Activity.java').read_text()
+        methods = '\n'.join(function_body(activity, signature) for signature in (
+            'protected boolean onUnhandledMessage(', 'protected void onResume('))
+        source.write_text(JAVA.replace('// PRODUCTION_SETUP_REENTRY', methods))
         classes = scratch/'classes'
         classes.mkdir()
         javac = Path(args.javac).resolve()

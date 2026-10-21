@@ -40,6 +40,7 @@ The Settings panel is `p_settings` in `mainmenu.gui`. It owns the left navigatio
 | Game Options | `windowDef set_b_gameoptions` | `p_settings_game` | Includes gameplay, mouse, controller, crosshair, corpse, language, and console options. |
 | System | `windowDef set_b_system` | `p_settings_sys` | Video, display, quality, advanced rendering, and post effects. |
 | Audio | `windowDef set_b_audio` | `p_settings_audio` | Output backend/device plus volume controls. |
+| Android setup | `windowDef set_android_setup` | Standalone Android setup Activity | `androidSetupAvailable` exposes this only on standalone Android. The SDL host opens setup without closing the running game; Return to game keeps the same session. File operations remain blocked while the native storage lease is held. |
 | Load Defaults | `windowDef set_b_loaddefaults` | Reset-confirm popup | Sets `desktop::active` and opens `anim_pop_defaultsIn`. |
 | Video Restart | `windowDef set_b_vidrestart` | `vid_restart` | Hidden by default, then shown by video-warning paths for changes that require a restart. Back also routes through the warning flow when `desktop::vidwarn` is set. |
 | Back | `windowDef set_b_back` | Exits Settings | If `desktop::vidwarn` is set, Back routes through the video warning flow. |

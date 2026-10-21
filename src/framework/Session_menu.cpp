@@ -44,6 +44,25 @@ If you have questions concerning this license or the applicable additional terms
 #include <SDL3/SDL.h>
 #endif
 
+static bool Session_AndroidSetupAvailable() {
+#if defined( __ANDROID__ ) && !defined( OPENQ4_SIGMATOUCH )
+	return true;
+#else
+	return false;
+#endif
+}
+
+static void Session_OpenAndroidSetup() {
+#if defined( __ANDROID__ ) && !defined( OPENQ4_SIGMATOUCH )
+	// SDL posts to OpenQ4Activity's main-thread handler. The existing Android
+	// lifecycle owns input release, audio suspension and the paused SP return.
+	// Keep the engine and its storage lease alive while setup is in front.
+	if ( !SDL_SendAndroidMessage( 0x8000, 0 ) ) {
+		common->Warning( "Could not open Android setup: %s", SDL_GetError() );
+	}
+#endif
+}
+
 extern idCVar com_skipLogoVideos;
 extern glconfig_t glConfig;
 
@@ -2741,6 +2760,7 @@ idSessionLocal::SetMainMenuGuiVars
 */
 void idSessionLocal::SetMainMenuGuiVars( bool refreshCatalogs ) {
 	guiMainMenu->SetStateBool( "retainedSystem", RetainedSystemAvailable() );
+	guiMainMenu->SetStateBool( "androidSetupAvailable", Session_AndroidSetupAvailable() );
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
 	guiMainMenu->SetStateString( "serverlist_selid_0", "-1" ); 
@@ -3174,6 +3194,11 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Cmp( cmd, ";" ) ) {
 			continue;
+		}
+
+		if ( !idStr::Icmp( cmd, "openAndroidSetup" ) ) {
+			Session_OpenAndroidSetup();
+			return;
 		}
 
 		if ( !idStr::Icmp( cmd, "openRetainedSystem" ) ) {

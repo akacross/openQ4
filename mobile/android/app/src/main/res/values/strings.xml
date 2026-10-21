@@ -87,4 +87,27 @@
     <string name="setup_export_write">The destination did not accept the complete ZIP. Check its connection and free space, then retry with a new destination. The failed copy may be incomplete; your original files are unchanged.</string>
     <string name="setup_export_no_space">The temporary ZIP needs %1$s of free app storage; %2$s is available. Free space, then retry. Your original files are unchanged.</string>
     <string name="setup_export_failed">Export could not finish. Retry with a new destination. The previous destination may contain an incomplete ZIP; your original files are unchanged.</string>
+    <string name="setup_open_failed">Could not open Android setup. Return to the game and try again.</string>
+    <string name="setup_controls">Controls</string>
+    <string name="setup_controls_help">Choose your touch layout, button size and look speed. Apply saves your choices for the next game launch or return to the game.</string>
+    <string name="setup_controller_none">No controller detected. Touch controls remain available.</string>
+    <string name="setup_controller_detected">Controller detected: %1$s. Using it hides touch controls; touch the game view to show them again.</string>
+    <string name="setup_touch_preset">Touch layout</string>
+    <string name="setup_touch_default_help">Default: move on the left; look and fire on the right.</string>
+    <string name="setup_touch_compact_help">Compact: smaller controls, with touch targets kept at least 48 dp wide.</string>
+    <string name="setup_touch_left_help">Left-handed: move on the right; look and fire on the left.</string>
+    <string name="setup_touch_sensitivity">Look sensitivity: %1$.1f×</string>
+    <string name="setup_touch_sensitivity_label">Look sensitivity</string>
+    <string name="setup_touch_size">Button size: %1$d%%</string>
+    <string name="setup_touch_size_label">Button size</string>
+    <string name="setup_look_test_help">Look test: drag here to turn the grid. Adjust sensitivity above; this test does not control the game.</string>
+    <string name="setup_touch_apply">Apply controls</string>
+    <string name="setup_touch_discard">Discard changes</string>
+    <string name="setup_touch_applied">Controls saved. They apply when you return to or launch the game.</string>
+    <string name="setup_touch_save_failed">Could not save controls. Your previous applied settings are retained; check free app storage and retry.</string>
+    <string-array name="setup_touch_presets">
+        <item>Default</item>
+        <item>Compact</item>
+        <item>Left-handed</item>
+    </string-array>
 </resources>

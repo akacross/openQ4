@@ -5432,7 +5432,7 @@
       "summary": {
         "gui_files": 276,
         "resources_with_includes": 276,
-        "window_declarations": 15339,
+        "window_declarations": 15340,
         "window_types": {
           "bindDef": 49,
           "choiceDef": 172,
@@ -5441,12 +5441,12 @@
           "listDef": 69,
           "renderDef": 2,
           "sliderDef": 37,
-          "windowDef": 14910
+          "windowDef": 14911
         },
-        "event_declarations": 8434,
+        "event_declarations": 8437,
         "event_types": {
           "OnAction": 9,
-          "onAction": 789,
+          "onAction": 790,
           "onActionRelease": 86,
           "onActivate": 14,
           "onBackAction": 1,
@@ -5457,8 +5457,8 @@
           "onEvent": 11,
           "onGainFocus": 47,
           "onInit": 35,
-          "onMouseEnter": 601,
-          "onMouseExit": 555,
+          "onMouseEnter": 602,
+          "onMouseExit": 556,
           "onNamedEvent": 620,
           "onSelChange": 2,
           "onTabRelease": 1,
@@ -5473,7 +5473,7 @@
           "noninteractive": 42,
           "resettime": 1328,
           "resetvideo": 3,
-          "set": 15272,
+          "set": 15275,
           "setfocus": 153,
           "setlightcolor": 11,
           "showcursor": 2,
@@ -5481,7 +5481,7 @@
           "transition": 11487,
           "videocompleteevent": 3
         },
-        "unique_localization_keys": 1333,
+        "unique_localization_keys": 1334,
         "unique_asset_references": 1224,
         "asset_resolution_counts": {
           "declared_material": 201,
@@ -6145,11 +6145,11 @@
         {
           "path": "guis/mainmenu.gui",
           "source": "openq4-pak0/loose",
-          "sha256": "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
-          "text_sha256": "b93bfe3074ba0476adc1f3a1153f1661a547ce8245d768fd1258cadfc4e470db",
+          "sha256": "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756",
+          "text_sha256": "733e29cbd733c7d615e6aa760a65fb6f2a40a476e599f470c6a63f0af95c8228",
           "line_ending_sha256": [
-            "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
-            "b93bfe3074ba0476adc1f3a1153f1661a547ce8245d768fd1258cadfc4e470db"
+            "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756",
+            "733e29cbd733c7d615e6aa760a65fb6f2a40a476e599f470c6a63f0af95c8228"
           ],
           "includes": [
             "guis/menu/settings/controls.gui",
@@ -6166,7 +6166,7 @@
             "windowDef"
           ],
           "source_diagnostics": [],
-          "closure_sha256": "ccc340bacb3ce181b7ed39cfc4cfa00f3ba6e053886329c6fd86679725ee8030"
+          "closure_sha256": "f1fc04b7e9aa46e7e7f91b17313d9f56999ae99b261b799988b559ea9710bcba"
         },
         {
           "path": "guis/maps/airdefense/gun_monitor.gui",

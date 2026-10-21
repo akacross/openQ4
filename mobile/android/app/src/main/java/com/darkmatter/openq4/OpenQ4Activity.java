@@ -3,6 +3,8 @@
 package com.darkmatter.openq4;
 
 import android.annotation.TargetApi;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.os.Build;
@@ -12,6 +14,8 @@ import android.system.Os;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.util.Log;
+import android.widget.Toast;
 import org.libsdl.app.SDLActivity;
 import java.io.File;
 import java.io.IOException;
@@ -21,6 +25,38 @@ import java.util.List;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
+    private boolean setupOpening;
+
+    /** Called by the engine thread at foreground entry; never calls native code on the UI thread. */
+    public float[] getTouchSetup() {
+        String saved = getSharedPreferences("setup", MODE_PRIVATE).getString(TouchSettings.SAVED, null);
+        return saved == null ? null : TouchSettings.decode(saved).engineValues();
+    }
+
+    @Override
+    protected boolean onUnhandledMessage(int command, Object param) {
+        if (command != COMMAND_USER) return super.onUnhandledMessage(command, param);
+        // SDL delivers user messages on the Android UI thread. Reuse the
+        // single-task launcher; never finish/recreate the live game here.
+        if (setupOpening || isFinishing() || mBrokenLibraries || !mActivityCreated) return true;
+        setupOpening = true;
+        try {
+            startActivity(new Intent(this, LauncherActivity.class));
+            Log.i("openQ4", "Opened Android setup from the game");
+        } catch (ActivityNotFoundException unavailable) {
+            setupOpening = false;
+            Log.e("openQ4", "Could not reopen Android setup", unavailable);
+            Toast.makeText(this, R.string.setup_open_failed, Toast.LENGTH_LONG).show();
+        }
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setupOpening = false;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         StorageSession.INSTANCE.activityCreated(this);

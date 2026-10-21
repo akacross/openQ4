@@ -59,6 +59,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     private ProgressBar progress;
     private Button choose, check, retry, cancel, sp, mp, returnGame, saves, logs;
     private boolean started;
+    private boolean controlsPage;
     private final Handler refresh = new Handler(Looper.getMainLooper());
     private final Runnable refreshState = () -> { if (started) changed(session.task.state()); };
     private final SetupTask.Observer<DocumentExport.Result> exportObserver = ignored -> changed(session.task.state());
@@ -93,7 +94,10 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         super.onCreate(state);
         if (retained == null) retained = new Session(getApplicationContext());
         session = retained;
-        if (state != null) session.picking = state.getInt("picking", session.picking);
+        if (state != null) {
+            session.picking = state.getInt("picking", session.picking);
+            controlsPage = state.getBoolean("controls_page", false);
+        }
         theme = new SetupTheme(this);
         build();
         if (state != null) scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll", 0)));
@@ -109,10 +113,12 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putInt("picking", session.picking);
         state.putInt("scroll", scroll.getScrollY());
+        state.putBoolean("controls_page", controlsPage);
         super.onSaveInstanceState(state);
     }
 
     private void build() {
+        status = null;
         scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setMotionEventSplittingEnabled(false);
@@ -147,8 +153,20 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         });
         scroll.addView(frame);
         column.addView(theme.text(R.string.setup_title, true));
+        // Setup can be reopened before a language choice has been committed
+        // (for example after a direct restore from Recents). Every page must
+        // offer the same route back to the existing single-instance game.
+        returnGame = theme.button(R.string.setup_return, () -> {
+            if (StorageSession.INSTANCE.activityActive()) startActivity(new Intent(this, OpenQ4Activity.class));
+        });
+        returnGame.setVisibility(StorageSession.INSTANCE.activityActive() ? View.VISIBLE : View.GONE);
+        addButton(column, returnGame);
         if (!session.prefs.getBoolean("language_chosen", false)) {
             languagePage(column);
+        } else if (controlsPage) {
+            new ControlsPage(this, theme, session.prefs).build(column, () -> {
+                controlsPage = false; build(); changed(session.task.state());
+            });
         } else dataPage(column);
         setContentView(scroll);
         scroll.requestApplyInsets();
@@ -223,9 +241,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         }); addButton(column, cancel);
         sp = theme.button(R.string.setup_play_sp, () -> launch(false)); addButton(column, sp);
         mp = theme.button(R.string.setup_play_mp, () -> launch(true)); addButton(column, mp);
-        returnGame = theme.button(R.string.setup_return, () -> {
-            if (StorageSession.INSTANCE.activityActive()) startActivity(new Intent(this, OpenQ4Activity.class));
-        }); addButton(column, returnGame);
+        addButton(column, theme.button(R.string.setup_controls, () -> { controlsPage = true; build(); }));
         column.addView(theme.text(R.string.setup_exports, true));
         column.addView(theme.text(R.string.setup_export_help, false));
         saves = theme.button(R.string.setup_export_saves, () -> chooseExport(PrivateExport.Kind.SAVES)); addButton(column, saves);
@@ -341,10 +357,22 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         changed(state);
     }
 
+    private boolean refreshGameReturn() {
+        boolean game = StorageSession.INSTANCE.gameActive();
+        if (returnGame != null) returnGame.setVisibility(StorageSession.INSTANCE.activityActive() ? View.VISIBLE : View.GONE);
+        // A timed-out SDL join can outlive its Activity. Keep observing that
+        // lease on language/controls pages too, which have no data-status view.
+        refresh.removeCallbacks(refreshState);
+        if (game && started) refresh.postDelayed(refreshState, 500);
+        return game;
+    }
+
     @Override public void changed(SetupTask.State<RetailData.Report> state) {
-        if (status == null || isFinishing()) return;
+        if (isFinishing()) return;
+        boolean game = refreshGameReturn();
+        if (status == null) return;
         SetupTask.State<?> operation = session.exporting ? session.export.state() : state;
-        boolean game = StorageSession.INSTANCE.gameActive(), busy = operation.busy();
+        boolean busy = operation.busy();
         boolean ready = !session.consumed && state.status == SetupTask.Status.SUCCEEDED && state.result != null && state.result.ready();
         if (!busy && operation.status != SetupTask.Status.IDLE && session.prefs.getBoolean("pending", false))
             session.prefs.edit().putBoolean("pending", false).apply();
@@ -355,7 +383,6 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         cancel.setEnabled(operation.status == SetupTask.Status.RUNNING);
         sp.setVisibility(ready && !game ? View.VISIBLE : View.GONE); mp.setVisibility(sp.getVisibility());
         sp.setEnabled(available()); mp.setEnabled(available());
-        returnGame.setVisibility(StorageSession.INSTANCE.activityActive() ? View.VISIBLE : View.GONE);
         progress.setVisibility(busy && !game ? View.VISIBLE : View.GONE);
         amount.setVisibility(progress.getVisibility());
         int heading = R.string.setup_idle;
@@ -388,10 +415,6 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         if (session.notice != 0) sourceNotice.setText(session.notice);
         if (busy && operation.progress != null) showProgress(operation.progress);
         else amount.setText("");
-        // A timed-out SDL join can leave the engine closing after the Activity
-        // has gone. Refresh the safe return/setup controls without running work.
-        refresh.removeCallbacks(refreshState);
-        if (game && started) refresh.postDelayed(refreshState, 500);
     }
 
     private void showProgress(SetupTask.Progress value) {

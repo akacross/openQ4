@@ -80,4 +80,27 @@
     <string name="setup_export_write">La destination n’a pas accepté le ZIP complet. Vérifiez sa connexion et son espace libre, puis réessayez avec une nouvelle destination. La copie échouée peut être incomplète ; vos fichiers originaux sont inchangés.</string>
     <string name="setup_export_no_space">Le ZIP temporaire nécessite %1$s d’espace libre dans l’application ; %2$s sont disponibles. Libérez de l’espace, puis réessayez. Vos fichiers originaux sont inchangés.</string>
     <string name="setup_export_failed">L’exportation n’a pas pu se terminer. Réessayez avec une nouvelle destination. La précédente peut contenir un ZIP incomplet ; vos fichiers originaux sont inchangés.</string>
+    <string name="setup_open_failed">Impossible d’ouvrir la configuration Android. Revenez au jeu et réessayez.</string>
+    <string name="setup_controls">Commandes</string>
+    <string name="setup_controls_help">Choisissez la disposition tactile, la taille des boutons et la vitesse de vue. Appliquer enregistre vos choix pour le prochain lancement ou retour au jeu.</string>
+    <string name="setup_controller_none">Aucune manette détectée. Les commandes tactiles restent disponibles.</string>
+    <string name="setup_controller_detected">Manette détectée : %1$s. Son utilisation masque les commandes tactiles ; touchez le jeu pour les afficher de nouveau.</string>
+    <string name="setup_touch_preset">Disposition tactile</string>
+    <string name="setup_touch_default_help">Par défaut : déplacement à gauche ; vue et tir à droite.</string>
+    <string name="setup_touch_compact_help">Compacte : commandes plus petites, avec des zones tactiles d’au moins 48 dp de large.</string>
+    <string name="setup_touch_left_help">Gaucher : déplacement à droite ; vue et tir à gauche.</string>
+    <string name="setup_touch_sensitivity">Sensibilité de la vue : %1$.1f×</string>
+    <string name="setup_touch_sensitivity_label">Sensibilité de la vue</string>
+    <string name="setup_touch_size">Taille des boutons : %1$d%%</string>
+    <string name="setup_touch_size_label">Taille des boutons</string>
+    <string name="setup_look_test_help">Test de vue : faites glisser ici pour tourner la grille. Réglez la sensibilité au-dessus ; ce test ne contrôle pas le jeu.</string>
+    <string name="setup_touch_apply">Appliquer les commandes</string>
+    <string name="setup_touch_discard">Annuler les modifications</string>
+    <string name="setup_touch_applied">Commandes enregistrées. Elles seront appliquées au retour au jeu ou à son lancement.</string>
+    <string name="setup_touch_save_failed">Impossible d’enregistrer les commandes. Les réglages précédents sont conservés ; vérifiez l’espace libre de l’application et réessayez.</string>
+    <string-array name="setup_touch_presets">
+        <item>Par défaut</item>
+        <item>Compacte</item>
+        <item>Gaucher</item>
+    </string-array>
 </resources>

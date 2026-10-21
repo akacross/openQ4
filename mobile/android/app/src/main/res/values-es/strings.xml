@@ -80,4 +80,27 @@
     <string name="setup_export_write">El destino no aceptó el ZIP completo. Comprueba su conexión y espacio libre y reintenta con otro destino. La copia fallida puede estar incompleta; tus archivos originales no han cambiado.</string>
     <string name="setup_export_no_space">El ZIP temporal necesita %1$s de espacio libre en la aplicación; hay %2$s disponibles. Libera espacio y reintenta. Tus archivos originales no han cambiado.</string>
     <string name="setup_export_failed">La exportación no pudo terminar. Reintenta con otro destino. El anterior puede contener un ZIP incompleto; tus archivos originales no han cambiado.</string>
+    <string name="setup_open_failed">No se pudo abrir la configuración de Android. Vuelve al juego e inténtalo de nuevo.</string>
+    <string name="setup_controls">Controles</string>
+    <string name="setup_controls_help">Elige la distribución táctil, el tamaño de los botones y la velocidad de la vista. Aplicar guarda los cambios para el próximo inicio o regreso al juego.</string>
+    <string name="setup_controller_none">No se detectó ningún mando. Los controles táctiles siguen disponibles.</string>
+    <string name="setup_controller_detected">Mando detectado: %1$s. Al usarlo se ocultan los controles táctiles; toca la vista del juego para mostrarlos de nuevo.</string>
+    <string name="setup_touch_preset">Distribución táctil</string>
+    <string name="setup_touch_default_help">Predeterminada: movimiento a la izquierda; vista y disparo a la derecha.</string>
+    <string name="setup_touch_compact_help">Compacta: controles más pequeños, con zonas táctiles de al menos 48 dp de ancho.</string>
+    <string name="setup_touch_left_help">Para zurdos: movimiento a la derecha; vista y disparo a la izquierda.</string>
+    <string name="setup_touch_sensitivity">Sensibilidad de la vista: %1$.1f×</string>
+    <string name="setup_touch_sensitivity_label">Sensibilidad de la vista</string>
+    <string name="setup_touch_size">Tamaño de los botones: %1$d%%</string>
+    <string name="setup_touch_size_label">Tamaño de los botones</string>
+    <string name="setup_look_test_help">Prueba de vista: arrastra aquí para girar la cuadrícula. Ajusta la sensibilidad arriba; esta prueba no controla el juego.</string>
+    <string name="setup_touch_apply">Aplicar controles</string>
+    <string name="setup_touch_discard">Descartar cambios</string>
+    <string name="setup_touch_applied">Controles guardados. Se aplicarán al volver al juego o iniciarlo.</string>
+    <string name="setup_touch_save_failed">No se pudieron guardar los controles. Se conservan los ajustes anteriores; comprueba el espacio libre de la aplicación y vuelve a intentarlo.</string>
+    <string-array name="setup_touch_presets">
+        <item>Predeterminada</item>
+        <item>Compacta</item>
+        <item>Para zurdos</item>
+    </string-array>
 </resources>
