@@ -10,6 +10,20 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [ ] Keep script-choreographed movers at their authored speed in Turbo mode
+  (#184). Turbo doubled every mover, but map scripts time their own waits and
+  actors against a `func_mover`: hangar1's Viper Squad lift arrived about 3.5 s
+  early, `aiScriptedStop` released Tech Li before his scripted stand-and-turn
+  finished, and that thread then left him in an endless scripted idle, blocking
+  the level. Reproduced from a fresh map with the real lift trigger: stuck every
+  time with `g_turboMode 1`, released with it off and with this change. Plain
+  `func_mover`s now keep their timing; doors, platforms, elevators and decorative
+  movers are still sped up. `turbo_scripted_movers.py` checks the exemption.
+
+Candidate gameplay release wording: In Turbo mode, Tech Li no longer freezes
+after the Viper Squad lift in Hangar Perimeter; lifts and machinery that levels
+choreograph keep their normal speed so scripted scenes stay in step.
+
 - [x] Complete the stage-one baseline implementation and audit: use a shared
   high-resolution presentation phase for each SP/MP draw and precise OpenXR
   smooth-turn deltas; restore imported game regression coverage; reconcile
