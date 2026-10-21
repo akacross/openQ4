@@ -1,20 +1,20 @@
 {
-  "schema_version": 18,
+  "schema_version": 19,
   "id_namespace": "openq4.ui.product",
-  "date": "2026-10-09",
+  "date": "2026-10-21",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "8c1a49ca7a033e163e271ef3787a4a9ba73f7479",
-    "companion_revision": "8c1a49ca7a033e163e271ef3787a4a9ba73f7479",
+    "engine_revision": "96b53793884e82c69d296f6ac3db3a581dec44a5",
+    "companion_revision": "96b53793884e82c69d296f6ac3db3a581dec44a5",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
-    "inventory_refresh_evidence": "inventory-stage-one"
+    "inventory_refresh_evidence": "inventory-android-setup-return"
   },
   "normative_sources": {
     "visual": {
       "path": "docs/dev/ui-visual-design.md",
       "authority": "normative visual, interaction and editor contract",
-      "sha256": "3f8398719bacbc92a7be68ebc007617bb30de01ca997421b44bf2713108c41cf"
+      "sha256": "519f0c81958090ea86e4b977878b4d4927be4ebc014b7cb584b57ea4df5c068e"
     },
     "product": {
       "path": "docs/dev/archive/2026-10-18/plans/ui-product-completion.md",
@@ -29,7 +29,7 @@
     "inventory": {
       "path": "docs/dev/ui/inventory-report.md",
       "authority": "inventory method and scope limits",
-      "sha256": "8c10c644f0b39d7980e27e362fdab1c968b4b9e71afae8c78326c900416a4247"
+      "sha256": "df872a15f06bc8ac5fc9a5ff5c6e9d75f254356a92d358924e1a305bee768720"
     },
     "import": {
       "path": "docs/dev/ui/legacy-import.md",
@@ -553,7 +553,7 @@
     "native-sink-driver": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/native-input-driver.md",
-      "sha256": "ca1e5fc0be9e5ec024299d1f94f926af0fda9450fd65f8890755395ca1154062",
+      "sha256": "1c36407c854ecb4bf801b42b830cf5af32ca7ea10234b56bd67f4b2d8edc9eec",
       "baseline_engine_revision": "b880d593e358d64276bccbb0ec58c3b83f5e5011",
       "companion_revision": "1cd33980f072ac3d78978a07b388b4b6fe6b5eb2",
       "scope": "Actual Session/poll sinks join exact owned transfers, fixed ledger schedule, held-source quarantine and checked completion/retirement. Integrated Clang16581 checks per projection,44 fatal edges and26 compiled mutants; frozen MSVC debug, sanitized GCC and SDK evidence. No live translator/bootstrap/provider activation or complete input acceptance.",
@@ -920,7 +920,7 @@
       "scope": "Classic canvas and gauge artwork, clipped family-specific traces, repeating Strogg grain, per-readout ammo gains and notice separation; compact readiness/live match cards, complete round clocks, respawn countdowns, vote glyphs, arena sudden-death state, Tourney wording/instructions/banners, and bounded chat. Native and Windows engine evidence is limited to the cases in the linked record. The remaining HUD review, full aspect/device/backend matrix and product acceptance remain open.",
       "local_capture_summary": ".tmp/claude-continuation/hud/validation-summary.json",
       "local_capture_summary_sha256": "835d3b0f478bc9d5b9f9863f3e6e9b2c6f3831d2b3b9e9ebc322ab41ef5f428f",
-      "sha256": "0796eb331601b1c5b1de85983b29c94196536775002237a9a539b9a14e43648b"
+      "sha256": "3d83e69bd67335de1447fe97b20e91b1d777bc5db4221e2c180d1d7028731b88"
     },
     "retained-loadgame-evidence": {
       "kind": "implementation_checkpoint",
@@ -1082,13 +1082,18 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/remastered-hud.md",
       "scope": "The Remastered HUD documents as recorded: the objectives display held on the scores button in play (every objective three at a time, a COMPLETED section, weapon-cycle scrolling, Toggle Objectives through g_objectivesToggle with its HUD prompt), the new-objective and objective-complete notices on their own timers and OBJECTIVE FAILED, in both families; The Awakening's on-foot documents (the expansion's strip roster, Falcon's squad emblem on the transmission display, the ship panel on foot) and vehicle documents (the space cannon's ship-status panel, the MCC cannon's hull readout, the speeder's status bar, race display, boost and prompts, the GEV's cluster), with the capture scenarios that drive each (objectives, objectives-toggle, turret, mcc, speeder, gev). A documentation checkpoint of work landed with the Remastered HUD; it does not qualify the aspect-ratio, layout or device matrices.",
-      "sha256": "0796eb331601b1c5b1de85983b29c94196536775002237a9a539b9a14e43648b"
+      "sha256": "3d83e69bd67335de1447fe97b20e91b1d777bc5db4221e2c180d1d7028731b88"
     },
     "inventory-stage-one": {
       "kind": "source_inventory_revision",
       "path": "docs/dev/ui/inventory-sources.json",
-      "sha256": "0de39ef79ca4bb0df9ca2447ccbc4cbcd5e74bb4773d1e93f0e2563745eae7b7",
+      "sha256": "0df472f0c3d6d6a036dfce1842f7c000d5cea47b8c6b8c019fe8ad5a0810c973",
       "scope": "264 retail, 276 base and 324 Awakening effective sources; 358 unique include-bound variants. No product or resource acceptance."
+    },
+    "inventory-android-setup-return": {
+      "path": "docs/dev/ui/inventory-sources.json",
+      "scope": "Fresh retail/base/Awakening source inventory and changed Android Settings include closure; no migration or product acceptance.",
+      "sha256": "0df472f0c3d6d6a036dfce1842f7c000d5cea47b8c6b8c019fe8ad5a0810c973"
     }
   },
   "groups": {
@@ -1896,6 +1901,32 @@
         "visual:14.6"
       ],
       "carried_evidence": []
+    },
+    {
+      "superseded": "FLOW-054",
+      "successors": [
+        "FLOW-066"
+      ],
+      "normative_change": "Visual 1.24 applies the project policy excluding Awakening multiplayer. The successor preserves applicable Awakening single-player or ordinary Quake 4 multiplayer obligations and carries only their bounded evidence; no acceptance is granted.",
+      "source_refs": [
+        "visual:Version 1.24"
+      ],
+      "carried_evidence": [
+        "remastered-hud-objectives-awakening"
+      ]
+    },
+    {
+      "superseded": "WID-034",
+      "successors": [
+        "WID-038"
+      ],
+      "normative_change": "Visual 1.24 applies the project policy excluding Awakening multiplayer. The successor preserves applicable Awakening single-player or ordinary Quake 4 multiplayer obligations and carries only their bounded evidence; no acceptance is granted.",
+      "source_refs": [
+        "visual:Version 1.24"
+      ],
+      "carried_evidence": [
+        "hud-wheel-continuation-20261009"
+      ]
     }
   ],
   "requirements": [
@@ -2101,10 +2132,11 @@
       "status": "partial",
       "current_evidence": [
         "inventory-refresh",
-        "inventory-stage-one"
+        "inventory-stage-one",
+        "inventory-android-setup-return"
       ],
       "acceptance_evidence": [],
-      "remaining": "The former inventory acceptance is stale. The current retail/base/Awakening source reconciliation is audited separately; complete semantic scope and governed acceptance remain required."
+      "remaining": "The 21 October Android Settings source refresh retains 358 pending variants. Complete native semantic reconciliation and product acceptance remain required."
     },
     {
       "id": "INV-002",
@@ -14439,6 +14471,101 @@
         "covers_full_view": true,
         "fades_with_wheel": true,
         "no_closed_filter_pass": true
+      }
+    },
+    {
+      "id": "FLOW-066",
+      "title": "The Awakening single-player HUD",
+      "milestone_owner": "M5",
+      "implementation_owner": "UI migration, session and single-player integration",
+      "source_refs": [
+        "visual:9",
+        "visual:11",
+        "product:4 M2",
+        "product:4 M4",
+        "product:4 M5",
+        "original:Stage 5",
+        "original:Stage 6",
+        "visual:14",
+        "visual:Version 1.24"
+      ],
+      "requirement": "Under The Awakening single-player campaign (q4xbase), run its content through the same HUD. The strip and the wheel hold thirteen weapons: its Core Cannon, the napalm launcher and its Freeze Gun in slots 10 to 12, after the stock ten, on the Strogg HUD too, where the expansion's copy has no plates for them. The new weapons keep the scopes, displays and crosshairs the content gives them: the Core Cannon's scope modification takes the machinegun scope, display and sight; the Freeze Gun the hyperblaster's display and the blaster's crosshair; the napalm launcher one static additive fire layer and the rocket launcher's crosshair. A squad line shows Falcon's stencil (FLOW-052). Every stock HUD rule otherwise holds. Expansion multiplayer is excluded by the project policy; its former powerup, ammunition, accuracy and summary requirements do not apply to this single-player scope.",
+      "dependencies": [
+        "FLOW-032",
+        "WID-036",
+        "FLOW-038",
+        "FLOW-052",
+        "ART-035"
+      ],
+      "acceptance_evidence_needed": [
+        "q4xbase single-player gameplay traces of the thirteen-slot strip and wheel, the Core Cannon's scope, the new weapons' displays and crosshairs, and Falcon's squad line on both Marine and Strogg HUD families; include wheel selection/equip and existing stock HUD behavior."
+      ],
+      "status": "partial",
+      "current_evidence": [
+        "remastered-hud-objectives-awakening"
+      ],
+      "acceptance_evidence": [],
+      "remaining": "The existing Remastered Awakening documents, thirteen-slot wheels and Falcon squad line retain their bounded implementation evidence. Full q4xbase single-player gameplay qualification of both HUD families, the new weapons' scopes/displays/crosshairs and the applicable stock HUD behavior remains. No GUI or artwork is accepted by this scope revision.",
+      "constraints": {
+        "weapons": 13,
+        "awakening_slots": {
+          "10": "corecannon",
+          "11": "napalmgun",
+          "12": "freezegun"
+        },
+        "campaign": "q4xbase",
+        "mode": "single-player"
+      }
+    },
+    {
+      "id": "WID-038",
+      "title": "Quake 4 multiplayer weapon wheel",
+      "milestone_owner": "M5",
+      "implementation_owner": "UI components and application bindings",
+      "source_refs": [
+        "visual:7",
+        "product:2 UI-03",
+        "product:3 Text, controls and accessibility",
+        "product:4 M3",
+        "visual:14",
+        "visual:9",
+        "visual:Version 1.24"
+      ],
+      "requirement": "In multiplayer the wheel takes the Marine construction for every team: the multiplayer roster in strip order with the gauntlet in the blaster's place (eleven positions); icons in the weapon color code, the pending weapon at full alpha and the rest at 0.60, never the single-player orange; no clips, so the segments and the hub read the reserve alone, the hub naming the weapon over its reserve and nothing else; and your team's text color on the selection ring and its flash, the selected number, the bezel's ticks, the hub's double ring, the compass's bright dot and the pointer (#AAE355 Marine; #FF8E00 Strogg, whose selection light is additive #6B3A08), deathmatch and Tourney keeping the stock #B2CC80 and #B3D06E. The game is never slowed, and releasing equips at once. The Awakening remains single-player only and does not add a multiplayer roster or module.",
+      "dependencies": [
+        "WID-036",
+        "FLOW-056",
+        "ART-028"
+      ],
+      "acceptance_evidence_needed": [
+        "Quake 4 multiplayer gameplay captures of the wheel for each team and in deathmatch/Tourney, with open/select/close transitions, correct reserve-only readout, immediate equip and constant simulation speed; qualify remote reliable equip and supported platforms."
+      ],
+      "status": "partial",
+      "current_evidence": [
+        "hud-wheel-continuation-20261009"
+      ],
+      "acceptance_evidence": [],
+      "remaining": "The Marine MP wheel, team-color states and reserve-only readout have native evidence; the recorded local DM gameplay checks release and constant simulation speed. Both-team gameplay captures, remote reliable equip, other supported platforms and full acceptance remain.",
+      "constraints": {
+        "construction": "marine",
+        "positions": {
+          "quake4": 11
+        },
+        "first_slot": "gauntlet",
+        "icon_alpha": {
+          "pending": 1.0,
+          "other": 0.6
+        },
+        "clips": false,
+        "team_colors": {
+          "marine": "#AAE355",
+          "strogg": "#FF8E00",
+          "deathmatch": [
+            "#B2CC80",
+            "#B3D06E"
+          ]
+        },
+        "strogg_selection_light": "#6B3A08"
       }
     }
   ],
