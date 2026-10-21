@@ -317,6 +317,7 @@ public:
 	virtual float			CurrentShakeAmplitude();
 	float					ShakeAmplitudeForPosition( const idVec3& listenerPosition );
 	float					CurrentRumbleAmplitude() const { return rumbleAmp; }
+	virtual int				GetSubtitles( soundSubtitle_t* cues, int capacity );
 
 	// where is the camera
 	virtual void			PlaceListener( const idVec3& origin, const idMat3& axis, const int listenerId );

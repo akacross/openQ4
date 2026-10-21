@@ -3672,7 +3672,44 @@ static void CheckMenusPointerReach(ScreenHost& host, char** argv) {
 // it parsing and loading the documents (the 8 MB Escape card above all), and
 // as one test they timed out on loaded machines. A group keeps its checks'
 // order; with no group every check runs.
+static void CheckSubtitles(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	const bool valid = document.Load(source,diagnostics);
+	for (const auto& d : diagnostics) std::fprintf(stderr,"subtitles %s: %s\n",d.pointer.c_str(),d.message.c_str());
+	Check(valid && document.Model().id == "openq4.subtitles", "subtitle document validates");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/hud/subtitles.q4ui",diagnostics), "subtitle runtime loads");
+	std::string error;
+	for (const auto [width,height] : std::vector<std::pair<int,int>>{{1280,720},{1024,768},{3440,1440},{720,1280}}) {
+		Viewport viewport; viewport.width=width; viewport.height=height; viewport.canvasHeight=720;
+		const double panelWidth=std::min(1040.,720.*width/height*.84);
+		for (const double size : {17.,34.}) for (const double lines : {1.,2.}) {
+			Check(runtime.SetState({{"x",(720.*width/height-panelWidth)*.5},{"width",panelWidth},
+				{"size",size},{"pitch",size*1.4},{"lines",lines},{"background",.6},
+				{"line0",std::string("A caption.")},{"line1",std::string("A second caption.")},
+				{"speaker0",std::string("Radio: ")},{"indent0",45.}},error,1),"subtitle state publishes");
+			runtime.Frame(viewport,1);
+			Bounds panel, first, second;
+			Check(runtime.GetBounds("panel",panel)&&runtime.GetBounds("line0",first),"subtitle bounds exist");
+			Check(panel.x>=0 && panel.x+panel.width<=width+.5 && panel.y>height*.5 && panel.y+panel.height<height*.85,
+				"subtitle panel fits below the crosshair across aspects and scales");
+			Check(first.x>=panel.x && first.x+first.width<=panel.x+panel.width+.5,"caption fits its backing");
+			const auto display=runtime.PresentedValue("line1","display");
+			Check(display && display->text==(lines==2 ? "block":"none"),"only requested lines display");
+			if(lines==2) {
+				Check(runtime.GetBounds("line1",second)&&second.y>=first.y+first.height-.5,"two speakers never overlap");
+			}
+		}
+	}
+	Check(host.errors==0,"subtitle rendering has no diagnostics");
+}
+
 int main(int argc, char** argv) {
+ if (argc == 3 && std::string(argv[1]) == "--subtitles") {
+     ScreenHost host; CheckSubtitles(host,argv[2]);
+     std::printf("subtitles: %d checks passed\n",checks); return 0;
+ }
  if (argc == 3 && std::string(argv[1]) == "--view-effects") {
      ScreenHost host; char* paths[] = {nullptr,nullptr,argv[2]};
      CheckContinuity(host,paths,nullptr,true);

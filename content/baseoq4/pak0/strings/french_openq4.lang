@@ -1375,6 +1375,7 @@
 	"#str_231297"	"NON VIDES"
 	"#str_231298"	"SANS MOT DE PASSE"
 	"#str_231299"	"TOUS LES TYPES"
+	"#str_231300"	"Volume des dialogues"
 	"#str_231301"	"Accès au microphone"
 	"#str_231302"	"Microphone désactivé. Autorisez l'accès pour parler."
 	"#str_231303"	"Prêt. Maintenez la touche de parole."
@@ -1382,4 +1383,9 @@
 	"#str_231305"	"Microphone indisponible. Vérifiez son accès."
 	"#str_231306"	"Chat vocal indisponible dans cette session."
 	"#str_231307"	"Test local du microphone"
+	"#str_231308"	"Sous-titres des dialogues"
+	"#str_231309"	"Taille des sous-titres"
+	"#str_231310"	"Fond des sous-titres"
+	"#str_231311"	"Noms des interlocuteurs"
+	"#str_231312"	"Radio"
 }

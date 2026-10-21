@@ -1370,6 +1370,7 @@
 	"#str_231297"	"BOŞ OLMAYAN"
 	"#str_231298"	"ŞİFRESİZ"
 	"#str_231299"	"TÜM OYUN TÜRLERİ"
+	"#str_231300"	"Diyalog ses düzeyi"
 	"#str_231301"	"Mikrofon erişimi"
 	"#str_231302"	"Mikrofon kapalı. Konuşmak için erişime izin verin."
 	"#str_231303"	"Hazır. Konuşmak için bas-konuş tuşunu basılı tutun."
@@ -1377,4 +1378,9 @@
 	"#str_231305"	"Mikrofon kullanılamıyor. Erişim iznini kontrol edin."
 	"#str_231306"	"Bu oturumda sesli sohbet kullanılamıyor."
 	"#str_231307"	"Yerel mikrofon testi"
+	"#str_231308"	"Diyalog altyazıları"
+	"#str_231309"	"Altyazı boyutu"
+	"#str_231310"	"Altyazı arka planı"
+	"#str_231311"	"Konuşmacı adları"
+	"#str_231312"	"Telsiz"
 }

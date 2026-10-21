@@ -1370,6 +1370,7 @@
 	"#str_231297"	"NOT EMPTY"
 	"#str_231298"	"NO PASSWORD"
 	"#str_231299"	"ALL GAME TYPES"
+	"#str_231300"	"Dialogue Volume"
 	"#str_231301"	"Microphone access"
 	"#str_231302"	"Microphone off. Enable access to use push-to-talk."
 	"#str_231303"	"Ready. Hold your push-to-talk key to speak."
@@ -1377,4 +1378,9 @@
 	"#str_231305"	"Microphone unavailable. Check device access."
 	"#str_231306"	"Voice chat unavailable in this session."
 	"#str_231307"	"Local microphone test"
+	"#str_231308"	"Dialogue Subtitles"
+	"#str_231309"	"Subtitle Size"
+	"#str_231310"	"Subtitle Background"
+	"#str_231311"	"Speaker Names"
+	"#str_231312"	"Radio"
 }

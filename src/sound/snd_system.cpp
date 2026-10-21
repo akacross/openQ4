@@ -38,6 +38,10 @@ idCVar s_noSound( "s_noSound", "0", CVAR_SOUND | CVAR_BOOL | CVAR_NOCHEAT, "retu
 idCVar s_volume( "s_volume", "0.5", CVAR_ARCHIVE | CVAR_FLOAT, "master volume (0-1)", 0.0f, 1.0f );
 idCVar s_musicVolume( "s_musicVolume", "0.5", CVAR_ARCHIVE | CVAR_FLOAT, "music volume (0-1)", 0.0f, 1.0f );
 idCVar s_dialogueVolume( "s_dialogueVolume", "1", CVAR_ARCHIVE | CVAR_FLOAT, "spoken dialogue volume (0-1), independent of music and multiplayer voice chat", 0.0f, 1.0f );
+idCVar ui_subtitles( "ui_subtitles", "0", CVAR_GUI | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NOCHEAT, "show installed dialogue transcripts during playback" );
+idCVar ui_subtitleScale( "ui_subtitleScale", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_FLOAT | CVAR_NOCHEAT, "subtitle text size", 1.0f, 2.0f );
+idCVar ui_subtitleBackground( "ui_subtitleBackground", "0.6", CVAR_GUI | CVAR_ARCHIVE | CVAR_FLOAT | CVAR_NOCHEAT, "subtitle backing opacity", 0.0f, 1.0f );
+idCVar ui_subtitleSpeakers( "ui_subtitleSpeakers", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NOCHEAT, "show available subtitle speaker names" );
 idCVar s_speakerFraction( "s_speakerFraction", "0.65", CVAR_ARCHIVE | CVAR_FLOAT, "speaker attenuation fraction" );
 idCVar s_radioChatterFraction( "s_radioChatterFraction", "0.9", CVAR_ARCHIVE | CVAR_FLOAT, "radio chatter attenuation fraction" );
 idCVar s_frequencyShift( "s_frequencyShift", "1", CVAR_BOOL, "enable sound shader frequency shift playback" );
@@ -317,6 +321,19 @@ void ListPlayingSounds_f( const idCmdArgs& args )
 	soundSystemLocal.hardware.ListPlayingVoices();
 }
 
+static void ListSubtitles_f( const idCmdArgs& args ) {
+	(void)args;
+	idSoundWorld* world = soundSystemLocal.GetSoundWorldFromId(SOUNDWORLD_GAME);
+	soundSubtitle_t cues[2];
+	const int count = world ? world->GetSubtitles(cues, 2) : 0;
+	idLib::Printf("Subtitles: %d\n", count);
+	for (int i = 0; i < count; ++i) {
+		idLib::Printf("Subtitle shader=%s emitter=%d speaker=%d time=%d duration=%d radio=%d textBytes=%d\n",
+			cues[i].shader, cues[i].emitterIndex, cues[i].speakerId, cues[i].timeMsec,
+			cues[i].durationMsec, cues[i].radio ? 1 : 0, idStr::Length(cues[i].text));
+	}
+}
+
 /*
 ========================
 idSoundSystemLocal::Restart
@@ -412,6 +429,7 @@ void idSoundSystemLocal::Init()
 	SoundVoiceChat_InitCommands();
 	cmdSystem->AddCommand( "listSounds", ListSounds_f, CMD_FL_SOUND, "lists all sounds" );
 	cmdSystem->AddCommand( "listPlayingSounds", ListPlayingSounds_f, CMD_FL_SOUND, "lists currently playing sounds" );
+	cmdSystem->AddCommand( "listSubtitles", ListSubtitles_f, CMD_FL_SOUND, "lists active subtitle identifiers and sample times without printing transcripts" );
 	cmdSystem->AddCommand( "listSoundDecoders", ListSoundDecoders_f, CMD_FL_SOUND, "list active sound decoders" );
 	cmdSystem->AddCommand( "reloadSounds", ReloadSounds_f, CMD_FL_SOUND | CMD_FL_CHEAT, "reloads all sounds" );
 	cmdSystem->AddCommand( "s_restart", RestartSound_f, CMD_FL_SOUND, "restarts the sound system" );

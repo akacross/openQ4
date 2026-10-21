@@ -1370,6 +1370,7 @@
 	"#str_231297"	"NEM ÜRES"
 	"#str_231298"	"JELSZÓ NÉLKÜL"
 	"#str_231299"	"MINDEN JÁTÉKMÓD"
+	"#str_231300"	"Párbeszéd hangereje"
 	"#str_231301"	"Mikrofon-hozzáférés"
 	"#str_231302"	"A mikrofon kikapcsolva. A beszédhez engedélyezze."
 	"#str_231303"	"Kész. A beszédhez tartsa lenyomva a beszédgombot."
@@ -1377,4 +1378,9 @@
 	"#str_231305"	"A mikrofon nem érhető el. Ellenőrizze az engedélyt."
 	"#str_231306"	"A hangcsevegés nem érhető el ebben a játékban."
 	"#str_231307"	"Helyi mikrofonteszt"
+	"#str_231308"	"Párbeszédfeliratok"
+	"#str_231309"	"Feliratméret"
+	"#str_231310"	"Felirat háttere"
+	"#str_231311"	"Beszélők neve"
+	"#str_231312"	"Rádió"
 }

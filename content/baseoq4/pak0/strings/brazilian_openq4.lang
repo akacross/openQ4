@@ -1370,6 +1370,7 @@
 	"#str_231297"	"NÃO VAZIOS"
 	"#str_231298"	"SEM SENHA"
 	"#str_231299"	"TODOS OS TIPOS"
+	"#str_231300"	"Volume dos diálogos"
 	"#str_231301"	"Acesso ao microfone"
 	"#str_231302"	"Microfone desligado. Permita o acesso para falar."
 	"#str_231303"	"Pronto. Segure a tecla para falar."
@@ -1377,4 +1378,9 @@
 	"#str_231305"	"Microfone indisponível. Verifique o acesso."
 	"#str_231306"	"Chat de voz indisponível nesta sessão."
 	"#str_231307"	"Teste local do microfone"
+	"#str_231308"	"Legendas de diálogo"
+	"#str_231309"	"Tamanho das legendas"
+	"#str_231310"	"Fundo das legendas"
+	"#str_231311"	"Nomes dos falantes"
+	"#str_231312"	"Rádio"
 }

@@ -15,10 +15,12 @@ static bool RetainedCrashCamera() {
 }
 
 idPlayerView::~idPlayerView() {
+	ResetSubtitles();
 	if ( presentationFx ) uiManager->DeAlloc( presentationFx );
 }
 
 void idPlayerView::ResetRetainedViewEffects() {
+	ResetSubtitles();
 	deathFxStart = -1;
 	recoveryFxUntil = 0;
 	recoverySequence = false;

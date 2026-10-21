@@ -17,6 +17,7 @@ The auto-skip cinematics, corpse cleanup, and corpse sink controls are also avai
 | `g_classicDynamicLights` | `1` | SP and MP game code | Quake II/III style dynamic lights on muzzle flashes, bright projectiles and explosions. On by default. |
 | `g_classicDynamicLightScale` | `1` | SP and MP game code | Radius multiplier for the classic dynamic lights, `0.25` to `4`. |
 | `s_musicVolume` | `0.5` | Client audio | Controls music volume independently of the main sound mix. |
+| `s_dialogueVolume` | `1` | Client audio | Spoken dialogue volume, from `0` (mute) to `1` (full), independently of effects and music. |
 | `s_useEAXReverb` | `1` | Client audio | Quake 4's per-area room reverb, as the level designers set it up. See [Room Reverb](#room-reverb). |
 | `s_useEAXOcclusion` | `1` | Client audio | Closed doors muffle the sounds behind them. Works while `s_useEAXReverb` is on. |
 | `s_numberOfSpeakers` | `0` | Client audio | Speaker layout. `0` follows your output device, `2` forces stereo, `6` forces 5.1. See [Speaker Layout](#speaker-layout). |
@@ -157,6 +158,18 @@ seta s_musicVolume 0.2
 ```cfg
 seta s_musicVolume 0
 ```
+
+## Dialogue Volume
+
+**Settings > Audio > Dialogue Volume** changes spoken dialogue without lowering
+weapons or music. The setting takes effect immediately and is saved for both the
+retail campaign and The Awakening. `seta s_dialogueVolume 0.6` sets it to 60% of
+the authored level; `0` mutes dialogue. Master volume still affects everything.
+
+NPC lip-sync speech, radio lines and sounds using the game's voice-over asset
+paths share this control, including English audio fallback in other text
+languages. Multiplayer microphone audio has its own settings. A mod that mixes
+speech and music into one recording cannot separate those parts with this slider.
 
 ## Room Reverb
 
@@ -343,6 +356,27 @@ seta g_corpseRemoveDelayMP -1
 - If music does not respond to `s_musicVolume`, test on a map or menu that is actively playing music rather than general ambience or voice-over audio.
 - If damage numbers never appear, check `g_hitFeedback` on the server: at `0` or `1` the amount never reaches you. They are also multiplayer only, and they only cover damage dealt to players.
 - If damage numbers appear for opponents but not team mates, that is `hud_damageNumbers 1` working as intended. Set it to `2` to include team and self damage.
+
+## Dialogue Subtitles
+
+Enable **Dialogue Subtitles** in **Settings > Audio** (scroll down). Subtitles
+work in both Classic and modern UI, including The Awakening, and remain visible
+when dialogue or master audio is muted. Up to two speakers appear at once;
+long lines advance in pages as their audio plays. Pause and save/load keep the
+caption at the current point in the line.
+
+| Setting | Default | Range | Effect |
+| --- | --- | --- | --- |
+| `ui_subtitles` | `0` | `0`–`1` | Enable dialogue subtitles |
+| `ui_subtitleScale` | `1` | `1`–`2` | Text size; also respects the interface text scale |
+| `ui_subtitleBackground` | `0.6` | `0`–`1` | Black backing opacity |
+| `ui_subtitleSpeakers` | `1` | `0`–`1` | Show an available speaker name or the radio label |
+
+All four settings are saved. Text comes from your installed game's lip-sync
+declarations, with the normal language fallback. Coverage is incomplete: a
+missing transcript stays blank, and a scene description is never substituted.
+Player voice chat and sound effects are not transcribed. Large captions can
+overlap Awakening title cards in portrait windows.
 
 ## Gameplay Status Bar
 

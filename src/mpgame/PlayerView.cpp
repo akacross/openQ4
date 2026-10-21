@@ -8,6 +8,7 @@
 
 #include "Game_local.h"
 #include "../game/gamesys/RetainedViewEffects.inl"
+#include "../game/gamesys/Subtitles.inl"
 
 #if defined(_XENON) && (defined(_PROFILE) || defined(_DEBUG))
 #include "../sys/xenon/ProfilingSupport.h"
@@ -713,6 +714,9 @@ void idPlayerView::SingleView( idUserInterface *hud, const renderView_t *view, i
 		}		
 		// RAVEN END
 	}
+
+	// Dialogue subtitles sit above the HUD and below debug post-process tests.
+	DrawSubtitles();
 
 	// test a single material drawn over everything
 	if ( g_testPostProcess.GetString()[0] ) {

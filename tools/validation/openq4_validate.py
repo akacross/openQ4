@@ -677,6 +677,8 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         (root / "tools" / "tests" / 'audio_decode_budget.py', []),
         (root / "tools" / "tests" / 'audio_memory.py', []),
         (root / "tools" / "tests" / 'audio_stream_budget.py', []),
+        (root / "tools" / "tests" / 'audio_subtitles.py', []),
+        (root / "tools" / "ui" / 'build_subtitles.py', ['--check']),
         (root / "tools" / "tests" / 'voice_capture_lifecycle.py', []),
         (root / "tools" / "tests" / 'voice_transport.py', []),
         (root / "tools" / "tests" / 'ui_performance_presets.py', ['--mutations', '--adjacent']),

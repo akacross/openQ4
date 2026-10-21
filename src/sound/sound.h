@@ -283,6 +283,15 @@ option existing simultaniously with a live game.
 ===============================================================================
 */
 
+// A borrowed presentation snapshot, valid until the next decl/language reload.
+// Timing follows the sample clock, including pause and frequency/time shifts.
+struct soundSubtitle_t {
+	const char* text;
+	const char* shader;
+	int emitterIndex, speakerId, startTime, timeMsec, durationMsec;
+	bool radio;
+};
+
 class idSoundWorld
 {
 public:
@@ -357,6 +366,7 @@ public:
 	// spatialisation path that already does portal tracing, so it must be cheap and main-thread.
 	typedef bool ( *liquidTest_t )( const idVec3 &point );
 	virtual void			SetLiquidTest( liquidTest_t test ) = 0;
+	virtual int				GetSubtitles( soundSubtitle_t* cues, int capacity ) = 0;
 };
 
 

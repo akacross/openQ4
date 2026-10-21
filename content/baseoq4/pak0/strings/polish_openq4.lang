@@ -1426,6 +1426,7 @@
 	"#str_231297"	"NIEPUSTE"
 	"#str_231298"	"BEZ HASŁA"
 	"#str_231299"	"WSZYSTKIE TYPY"
+	"#str_231300"	"Głośność dialogów"
 	"#str_231301"	"Dostęp do mikrofonu"
 	"#str_231302"	"Mikrofon wyłączony. Zezwól na dostęp, aby mówić."
 	"#str_231303"	"Gotowe. Przytrzymaj klawisz rozmowy."
@@ -1433,4 +1434,9 @@
 	"#str_231305"	"Mikrofon niedostępny. Sprawdź uprawnienia."
 	"#str_231306"	"Czat głosowy niedostępny w tej sesji."
 	"#str_231307"	"Lokalny test mikrofonu"
+	"#str_231308"	"Napisy dialogowe"
+	"#str_231309"	"Rozmiar napisów"
+	"#str_231310"	"Tło napisów"
+	"#str_231311"	"Imiona rozmówców"
+	"#str_231312"	"Radio"
 }

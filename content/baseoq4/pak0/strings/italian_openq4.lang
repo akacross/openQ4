@@ -1375,6 +1375,7 @@
 	"#str_231297"	"NON VUOTI"
 	"#str_231298"	"SENZA PASSWORD"
 	"#str_231299"	"TUTTI I TIPI"
+	"#str_231300"	"Volume dialoghi"
 	"#str_231301"	"Accesso al microfono"
 	"#str_231302"	"Microfono spento. Consenti l'accesso per parlare."
 	"#str_231303"	"Pronto. Tieni premuto il tasto per parlare."
@@ -1382,4 +1383,9 @@
 	"#str_231305"	"Microfono non disponibile. Verifica l'accesso."
 	"#str_231306"	"Chat vocale non disponibile in questa sessione."
 	"#str_231307"	"Test locale del microfono"
+	"#str_231308"	"Sottotitoli dialoghi"
+	"#str_231309"	"Dimensione sottotitoli"
+	"#str_231310"	"Sfondo sottotitoli"
+	"#str_231311"	"Nomi di chi parla"
+	"#str_231312"	"Radio"
 }
