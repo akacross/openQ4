@@ -478,6 +478,9 @@ public:
 	bool					RemoveBot( const char *name );
 	void					RemoveAll( void );
 	void					ListBots( void ) const;
+	// Local cheat diagnostic, restricted to one bot and the local observer.
+	bool					ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
+											const idVec3 &landing, navTravelType_t travel, idEntity *pad = NULL, bool dodge = false );
 
 	// Re-bind every live bot after the character roster has been reparsed.
 	// botreload must call this before the next frame runs, or every bot is

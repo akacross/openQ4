@@ -1695,12 +1695,338 @@ Concurrent build/probe work was present during portions of this functional sweep
 Its diagnostic timing is not a controlled performance qualification or evidence
 that the route-generation/think budget is accepted.
 
+### Sloped-floor support correction, 21 October 2026
+
+CTF6 edge-braking traces exposed a false rejection on ordinary sloped ground.
+The eight-unit support box rests below the full player's origin on a slope;
+testing the full hull at that lower height starts inside the floor. The landing
+check now derives the height difference from the contacted plane and the two
+actual hulls, then performs a full-hull floor sweep and the existing surrounding
+support/hazard checks. It does not raise the hull a whole step, which would reject
+low ceilings. Support sweeps also reach just below their one-step limit so a
+surface exactly at that limit is inside the sweep rather than its no-hit endpoint.
+
+The production-function fixture covers four player hull settings across seven
+slope headings/gradients, including three units of headroom, an insufficient
+ceiling and lethal ground. Existing unsupported-rim, gap, seam, jump/drop and
+transport cases pass on Windows and Linux/WSL. Independently restoring either
+old function makes its regression case fail. Native Windows compilation and
+staging pass. This is a geometric/controller correction, not a player-physics
+change or a performance qualification.
+
+On original CTF6 geometry, agent/support floor heights differ by 1.48 units near
+`208.95 2251.32 -117.69`, 1.32 near `411.06 -392.02 -93.05`, and 2.23 near
+`300 2284 -153`. All six current continuation checks pass. The engine-rendered
+capture shows the sampled slope in the loaded CTF map. The first probe omitted
+explicit navmesh generation and failed; its report remains beside the corrected
+run. A subsequent six-bot, 60-second CTF6 run exits normally with zero complete-run
+world deaths and zero traversal timeouts, but four stuck events. The earlier
+diagnostic run's repeated Rhodes/Voss obstruction and the remaining route stalls
+are not closed by this slope fix.
+
+Evidence is under `.tmp/stage-two/ctf6-slope-geometry-r2/`,
+`.tmp/stage-two/ctf6-edge-trace-r2/`, and
+`.tmp/stage-two/bot-slope-negative-controls/`; reports bind the tested source and
+runtime hashes. The earlier `ctf6-edge-trace-r1` support lines contain an invalid
+normal field caused by temporary formatting-buffer reuse; their separate
+assessment records that limitation. Current diagnostics print normal components
+directly. The renewed four-map, six-bot, 45-second safety sweep passes CTF3 and
+DZ3, but fails DM8 and CTF5 with one measured world death each and no warmup
+deaths. DM8's Rhodes starts an upward routed jump near `-556 876 608` toward
+`-572 844 632` and falls at 8,176 ms, with no recent recorded damage. That
+sequence requires exact takeoff/flight diagnostics. CTF5's Strauss receives an
+enemy hit at 39,184 ms, leaving velocity `434 615 -100`, and subsequently falls;
+the log does not establish whether better recovery could prevent it. These
+remain failures under the unchanged zero-world-death gate.
+
+The renewed sweep lives in `.tmp/stage-two/bot-slope-four-map-r1/`. The combined
+record `.tmp/stage-two/bot-slope-evidence.json` has SHA-256
+`ec24904ec4aa6c5670e96b75c78da74b2f64f24fe95e5514bf0e7c1e3d02a850`.
+
+### Live jump origin correction, 21 October 2026
+
+The DM8 routed-jump fall was reproduced with one isolated bot, no enemy and
+the recorded approach near `-556 876 608.25`. The predictor raised the live
+collision origin by the one-unit navigation floor-probe offset. At a raised
+ledge, that extra unit put its downward trace beyond the air-step distance.
+It consequently predicted a wall slide that removed horizontal speed. The
+actual player could step up and retained that speed, passing the landing before
+descending. At the first divergent frame, the proof predicted horizontal
+velocity `5.457 -5.457` while the player retained `-72.594 -83.483`.
+
+Live jump proofs now start at the exact player collision origin. Graph probes
+retain their existing clearance. The isolated replay refuses the unsafe
+approach, repositions and completes the jump without a world death. An independent
+box-world regression rejects the same air-step boundary on a narrow platform
+while preserving a broad landing. Windows and Linux/WSL production-function
+fixtures pass; restoring only the old live-origin offset fails the new case.
+Player physics and jump strength are unchanged.
+
+`tools/tests/mp_bot_jump_replay.py --basepath <retail-install> --output-dir <new-directory>`
+repeats this check on original DM8 assets with a hidden window and isolated
+writable profile. It requires a completed jump, zero world deaths including
+setup, unchanged runtime/source identities and the rejection controls. The
+new `bot_probeJump client x y z vx vy vz targetX targetY targetZ` diagnostic is
+restricted to an isolated local cheat server with one bot and a separate local
+observer; human clients, invalid client numbers and observer overlap are refused.
+It drives the normal bot controller and player physics after setting the state.
+
+Evidence is bound by `.tmp/stage-two/bot-jump-origin-evidence.json`, SHA-256
+`30eadd5b410bfb1fec42bae4112f25792193f84ff1aab7b7ea0dd1f48d6766be`.
+The failing original replays and the first permanent harness's echo-whitespace
+parsing failure remain preserved. The corrected final replay and eight log
+assessment controls pass. This closes the isolated prediction defect only;
+the broader DM8 rerun still records a world death, and MP-02 remains open.
+
+### Jump-pad impulse recovery, 21 October 2026
+
+The four-map rerun after the live-origin fix passes CTF3, CTF5 and DZ3 with zero
+world deaths. Its remaining DM8 death is a different flight: Rhodes launches
+from `1039 106 14`, takes a 30-damage hit from Sledge at 39,920 ms, then falls
+past the destination platform. The recorded post-hit state is `1538 108 434`
+with velocity `822 -10 412`, aimed at `2452 76 256`. The old coasting check
+accepted any projected touchdown beyond the destination and within its lateral
+tolerance, without establishing that floor existed there.
+
+Natural pad coasting now requires supported touchdown, a walkable connection to
+the destination, and supported room ahead for the existing momentum lookahead.
+When a route ends, edge braking runs before item/idle waits rather than waiting
+for off-mesh recovery. Normal air steering corrects an unsafe projected landing;
+player acceleration, gravity and pad strength are unchanged.
+
+An isolated replay of the rounded post-hit state first reproduced the death.
+Checking touchdown alone landed at `2601 89 256`, but momentum still carried the
+bot off the edge; that failed intermediate run is preserved. The final replay
+lands at `2492 80 256`, survives the remainder of the five-second sample and
+exits normally with zero world deaths. This recreates the recorded position and
+velocity through real player physics, not the complete original combat history.
+Windows/Linux synthetic collision tests preserve safe natural and deliberately
+steered landings. Independently restoring unchecked touchdown or removing the
+runout check fails the corresponding regression.
+
+Use `tools/tests/mp_bot_jump_replay.py --pad-impulse --basepath <retail-install>
+--output-dir <new-directory>` for the pad case. Its `bot_probePad` diagnostic
+uses the same restricted server/client checks as `bot_probeJump` and appends a
+pad entity name after the nine coordinates. The pad must have a proven natural
+landing. Nine log-assessment controls cover missing completion, a wrong traversal,
+world death, rejected-client controls, fatal errors and abnormal exit. The
+engine capture shows the original elevated platform. The current build also
+passes the earlier jump replay; one intervening abrupt process termination
+remains a failed run with an unestablished cause.
+
+`.tmp/stage-two/bot-pad-recovery-evidence.json` binds the reports, source/runtime
+identities, native controls and capture with SHA-256
+`a3c4b436ab12241e2e6d0f40acb37a0e9c177b3d544f0fd81bf81261dc3c0777`.
+This closes the two isolated pad-recovery defects. Other impulse recoveries,
+the renewed map/catalog safety sweep, route stalls and controlled performance
+remain under MP-02.
+
+The next six-bot, 45-second four-map run is preserved in
+`.tmp/stage-two/bot-pad-runway-four-map-r1/`. CTF3 and CTF5 pass with zero world
+deaths. DM8 has one world death after a different enemy impulse during an
+ordinary walking leg: Rhodes receives 74 damage at 19,008 ms at `-95 947 328`,
+leaving velocity `-382 -5 259`, and subsequently falls. Its recoverability is
+under investigation; it remains a failure under the unchanged gate. DZ3 stops
+early with exit `0xFFFFFFFF`, without a recorded fatal error or normal shutdown.
+No matching Application/System warning or error was found in the two-minute
+event-log window. The cause is unknown. A separate repeat on the same runtime,
+`.tmp/stage-two/dz3-runway-repeat-r1/`, completes with zero world deaths and
+16 completed traversals. That repeat does not replace the interrupted record.
+
+### Walking impulse controls, 21 October 2026
+
+An isolated replay of the rounded DM8 walking impulse (`-95 947 328.25`,
+velocity `-382 -5 259`) reproduces the fall. A control that commands maximum
+eastward braking immediately also falls; the same control with horizontal
+velocity reduced to `-200` survives. An engine capture shows the bot beyond
+the platform edge. These tests preserve the actual player acceleration and
+collision code, but do not recreate the original combat or knockback timer.
+The free-flight acceleration bound does not establish that every alternate
+landing is impossible. The original death remains a failure, not an accepted
+exception to MP-02.
+
+The three reports and their exact runtime identities are bound in
+`.tmp/stage-two/bot-walk-impulse-evidence.json`, SHA-256
+`3685bb773e0d690c07355f766ad78e66ae88d1015f3d97a3fc62df7b662ad388`.
+
+### Renewed catalog sweep, 21 October 2026
+
+The 33 declared retail map variants were rerun after the slope, live-origin and
+pad-runout repairs: six skill-four bots, five seconds of warmup and 45 seconds
+of observation, hidden/windowed Windows OpenGL. The unchanged zero-world-death
+gate passes 31 variants and fails CTF5 and q4xdm13. Across the completed samples
+there are 505 completed traversals, no traversal timeouts, 13 stuck events,
+five goal give-ups, three no-route events and 26 refused pickups. These are
+diagnostic runs with concurrent workloads, not controlled performance evidence.
+
+CTF5 records a Voss world death without a preceding positive-damage callback,
+then ends abnormally during another worktree's install. A later 60-second repeat
+completes without deaths, but does not explain or replace the original failure.
+The player damage path now logs every applied bot knockback at `bot_debug 2`,
+including impulses with zero health damage, to distinguish those causes.
+The first run with that added diagnostic was also interrupted during another
+checkout's install; `.tmp/stage-two/ctf5-impulse-diagnostic-r1/` is incomplete.
+
+q4xdm13 records a fast post-drop dodge that touches supported ground near the
+west rim and then falls. The isolated reproduction and repair are below.
+Catalog evidence is `.tmp/stage-two/bot-current-catalog-r1/`: manifest SHA-256
+`c91f063e7f3e0ff484220e7db9c7e91332df092ceaf0690236511dc1ee698023`,
+summary SHA-256
+`1b3b35fc46269ecde34fcfb57cf1a58ac4ee033ce4734cec3fdefdac3b36c31f`.
+The reports retain exact source/runtime identities and both failures. MP-02
+remains open for the remaining cause, route stalls, objectives and cost gates.
+
+### Dodge landing runout, 21 October 2026
+
+Replaying q4xdm13's rounded post-drop state at `947 -390 -319.75`, velocity
+`-575 81 0`, reproduces a world death without enemies. The old dodge proof
+accepts touchdown near `547 -334 -320`; the real player lands near
+`542 -333 -320` but carries enough horizontal momentum to leave the floor.
+Supported touchdown alone was insufficient.
+
+`DodgeJumpClear` now requires supported continuation along 0.15 seconds of
+touchdown velocity, matching the grounded edge guard's lookahead. It tests
+both actual momentum and the ordinary full-speed approach. Native Windows and
+Linux fixtures reject the narrow landing and retain wider ordinary/sprint/haste
+controls. Removing only that new decision fails the fixture. The original-map
+replay rejects unsafe momentum, then permits a slower hop, completes grounded
+and survives five seconds with no world death. Viewed engine captures show the
+original platform and the changed landing position.
+
+The permanent replay is `tools/tests/mp_bot_jump_replay.py --dodge-runout`,
+with the usual asset/output arguments. `bot_probeDodge` uses the same isolated
+one-bot/local-cheat restrictions as the other traversal probes and drives the
+normal dodge admission/controller. Human and invalid-client controls pass;
+removing the completion marker, rejection, denied momentum or grounded hop
+causes the result checker to fail. No player physics or combat rule changes.
+
+Evidence is `.tmp/stage-two/bot-dodge-runout-evidence.json`, SHA-256
+`4d115459a3ce5a91ec5049ec0a69f1eeb391348c48cdca883b74e173dfcc84da`.
+The native negative control's initial report used the wrong assertion-message
+matcher; its retained log and independent assessment identify the actual
+failing assertion. This bounded regression does not close MP-02's match,
+catalog or performance qualification.
+
+### Early pad reservation, 21 October 2026
+
+The CTF5 trace catches Cortez and Strauss meeting head-on at game time 46864:
+both opposing horizontal velocities collapse in that frame, followed by void
+deaths. Cortez's reservation starts at 45968, only one command before the pad
+launches him. The approach still has two walking corners inside braking range;
+the old check considers only the corner immediately before the jump pad.
+
+`HoldForPad` now looks through consecutive walking corners to the first action,
+using the final walking corner and pad landing for the same finite corridor
+check. An intervening jump, drop or other traversal stops that lookahead. The
+actual trigger distance, momentum braking, timeout/replan and committed-flight
+ownership remain in place. Windows/Linux production-function fixtures pass;
+restoring the immediate-next-corner decision fails the regression. Normal bot
+navigation checks and the staged Windows build pass.
+
+The first runtime repeat completes without a world death but advances only
+about 46 seconds of game time under detailed logging; it does not qualify the
+map. The audit now reports observed simulation duration and accepts an explicit
+`--min-sim-seconds` gate. Sufficient, short and missing clock samples are checked.
+The next run is interrupted with `0xFFFFFFFF` and remains failed evidence.
+A lower-logging repeat completes 110.816 measured simulation seconds, 78
+traversals and no stalls/timeouts, but still has two world deaths: a 10-health
+bot takes 10 landing damage, and another falls after an enemy rocket impulse.
+These retain the strict map failure and need separate diagnosis. This run is
+not a controlled performance result or complete catalog qualification.
+
+Evidence: `.tmp/stage-two/bot-pad-hold-evidence.json`, SHA-256
+`5fa183eb4f5681910142bd7f01441ef9d6fbe8a5c0681179ff93a45d2b28c5b1`.
+It binds the original collision trace, native checks, rejected regression,
+runtime identities and all three repeats. MP-02 remains open.
+
+### Repeated pad contact and landing health, 21 October 2026
+
+The isolated `func_jumppad_12` replay explains the earlier 10-damage landing.
+Its sloped force brush sets the player's velocity on successive contact frames,
+while the predictor previously applied one push. `PadLanding` now repeats that
+velocity while the full player hull actually intersects the brush. A bounds
+test only rejects distant positions; the collision model decides contact.
+At the recorded launch `-647 445 14`, the corrected probe predicts impact
+61.658, above the hard-fall threshold of 60. The original-map replay takes
+10 damage and completes the pad, matching that prediction. Player physics and
+damage rules are unchanged.
+
+The retained-route health check also looks through consecutive walking corners
+to the next traversal, so newly lethal landings trigger braking before the last
+approach corner. Intervening actions stop the lookahead and committed flights
+keep their landing controller. The earlier pad reservation regression now lives
+in the existing native bot fixture; its initial standalone fixture is retained
+only with the diagnostic evidence.
+
+Windows/Linux production-function checks pass. Four negative controls reject
+single-push prediction, bounds-only contact, late reservation and late health
+checks. One initial native link failed because Windows still held the first
+executable; separate fixture output paths let the retry reach its intended
+assertion. The failed attempt remains recorded.
+
+The next match completes 110.608 measured simulation seconds and 100 traversals,
+with no traversal timeout, but retains one stall and four world deaths. Two bots
+adopt opposing pads after unintended entries, a nine-health bot crosses an
+unplanned chain of pads and takes 10 landing damage, and another receives a
+railgun impulse during a committed flight. These are still failures under the
+strict map gate. A separate exact post-rocket replay also falls without further
+enemy damage. Further collision/impulse recovery, catalog and controlled timing
+qualification remain open.
+
+Evidence: `.tmp/stage-two/bot-pad-contact-evidence.json`, SHA-256
+`f764f25ef8bdfa5b2e9cd77b4ac8632615724a86228f6dddd42b0105ff136fe0`.
+It binds source/runtime identities, native controls and original-map logs.
+The diagnostic screenshot commands in those runs failed to produce captures;
+no visual acceptance is claimed.
+
+A later walking-air-steering candidate still dies after the full recorded
+rocket impulse. Both the candidate and existing steering survive a separate
+half-horizontal-velocity control, so no safety gain is established and the
+candidate is withdrawn. An initial control overlapped unfinished staging and
+correctly failed its runtime-identity check; the completed-stage retry is the
+valid comparison. Quoting screenshot filenames repairs the diagnostic commands;
+the earlier zero dimensions were an argument-parsing mistake, not a renderer
+failure. Evidence: `.tmp/stage-two/ctf5-air-recovery-investigation.json`, SHA-256
+`7aa0a8d494e1dcffdd2907be76454d28d52b9b8599bfa25f5fa74ad5dc152255`.
+
+### Installation interference, 21 October 2026
+
+The three abrupt `0xFFFFFFFF` exits in the DM8 jump replay, DZ3 four-map run
+and renewed catalog's CTF5 run coincide with installation intervals in other
+worktrees. Each corresponding install log records stopping openQ4 by name.
+The Windows wrapper selected every matching process on the machine and repeated
+that global selection before forcing shutdown. This is strong evidence of
+installation interference; no PID-level termination event was captured.
+
+Installation now selects only executables directly in that checkout's `.install`
+directory, retains their process handles across the close interval and leaves
+unreadable paths alone. Six production-function cases cover foreign and nested
+paths, a new process during shutdown, graceful exit, close refusal, concurrent
+exit and failure to stop a live target. The original wrapper and independent
+name-selection/reselection regressions all fail the test. The Windows staging
+test runs this check in normal validation. Other checkouts need this fix before
+their installations gain the same isolation.
+
+Evidence is in `.tmp/stage-two/install-process-isolation-r2/report.json`, SHA-256
+`1a38e2e2f9dd8a8a9f77fa0545359118bdde34afb1489e4adde2c413c2da6e8f`.
+The interrupted runs remain incomplete evidence. In particular, CTF5 already
+recorded a world death before shutdown; installation interference does not
+explain or excuse that death.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include
 position, velocity and game time so a fall can be traced to the preceding
-input or hit. Positive self/team/world damage is included; zero-damage
-impulses are not forwarded by the player damage callback. `bot_debugNav 2` draws the mesh and
+input or hit. `bot_debug 3` adds edge-braking origins, lookahead positions, floor
+contacts and rejection reasons, plus exact accepted takeoffs and traversal-frame
+commands. `bot_debug 4` additionally logs each live predicted jump frame and
+ordinary walking frames and dodge landing decisions. `bot_probeMove` accepts the same coordinates as
+`bot_probeJump` but installs an ordinary walking leg for isolated impulse
+investigations, under the same local-server restrictions;
+`navmesh probe` reports the full-hull and support-
+box floor/continuation verdicts at the requested point. Positive self/team/world damage is included;
+`BOT_IMPULSE` separately records all applied player knockback, including zero-health-damage
+impulses that are not forwarded by the damage callback. `bot_debugNav 2` draws the mesh and
 every bot's route near the local player, and `bot_debugAim 1` logs the
 reaction, settle and lead behind every shot.
 

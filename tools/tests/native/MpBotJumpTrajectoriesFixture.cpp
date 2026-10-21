@@ -62,6 +62,7 @@ struct idBounds {
 };
 struct CVar { float value; float GetFloat() const { return value; } int GetInteger() const { return int(value); } };
 CVar pm_stepsize{16},pm_jumpheight{48},pm_speed{320},pm_usecylinder{1};
+CVar bot_debug{0};
 constexpr int MAX_GENTITIES=64, SURF_NODAMAGE=1, MASK_WATER=2;
 struct idEntity {
     struct Physics { idVec3 origin; const idVec3& GetOrigin() const { return origin; } } physics;
@@ -69,7 +70,18 @@ struct idEntity {
     struct Targets : std::vector<Target> { int Num() const { return int(size()); } } targets;
     Physics* GetPhysics() { return &physics; }
 };
+static idEntity* repeatedPad=nullptr;
+static int repeatedPadTouches=0;
+static bool NavPadVolumeTouches(idEntity* pad,const idVec3& position) {
+    // Contact observations from the sloped CTF5 trigger: the hull is still
+    // inside it after its first two upward steps. Geometry itself is checked
+    // separately by the transport fixture and original-map replay.
+    if (pad==repeatedPad && position.z<40 && position.x<40) { ++repeatedPadTouches; return true; }
+    return false;
+}
 struct GameLocal {
+	int time=0;
+	template<class... Args> void Printf(const char* format,Args... args) { std::printf(format,args...); }
     idEntity* entities[MAX_GENTITIES]={};
     float waterTop=-1e30f;
     idVec3 GetGravity() const { return {0,0,-800}; }
@@ -117,6 +129,7 @@ struct Box { idVec3 lo,hi; };
 std::vector<Box> solids;
 bool lethal=false;
 bool slopedFloor=false;
+float slopeX=1, slopeY=0;
 bool transported=false;
 
 bool Sweep(trace_t& trace,const idVec3& start,const idVec3& end,const idTraceModel& model) {
@@ -154,8 +167,8 @@ bool Sweep(trace_t& trace,const idVec3& start,const idVec3& end,const idTraceMod
         }
     }
     if (slopedFloor) {
-        // Infinite 45-degree walkable plane z=x, with true hull support.
-        idVec3 normal(-1,0,1); normal.Normalize();
+        // Infinite plane z=slopeX*x+slopeY*y, with true hull support.
+        idVec3 normal(-slopeX,-slopeY,1); normal.Normalize();
         float support=1e30f;
         for(int i=0;i<model.numVerts;i++) support=Min(support,model.verts[i]*normal);
         const float from=start*normal+support,to=end*normal+support;
@@ -187,7 +200,8 @@ public:
     bool DodgeJumpClear(const idVec3&,const idVec3&,const idVec3&,float,float=0) const;
     bool PadLanding(idEntity*,const idVec3&,const idVec3*,idVec3&,float* = nullptr,float* = nullptr) const;
     bool LandingSurvivable(const idVec3&,const navCorner_t&,float) const;
-    bool IsSteeredPadLanding(int,const idVec3&) const { return false; }
+    bool steeredPad=false;
+    bool IsSteeredPadLanding(int,const idVec3&) const { return steeredPad; }
     static const idBounds& GetAgentBounds() { return agentBounds; }
     int TransportAt(const idBounds&) const { return transported ? 1 : -1; }
     bool LineEntersTransport(const idVec3&,const idVec3&) const { return transported; }
@@ -200,6 +214,7 @@ public:
 };
 // Diagnostics for a refused sweep name entities; this world has none.
 static const char* NavWalkBlockedReason(const trace_t&,const trace_t&) { return "blocked"; }
+rvNavMesh navMesh;
 // PRODUCTION_FUNCTIONS
 
 void Platform(float xmin,float xmax,float z) {
@@ -232,6 +247,22 @@ int main() {
     CHECK(nav.SampleFloor({24,0,1},20,rimFloor));
     solids.clear();
     const float launch=std::sqrt(2.0f*800.0f*48.0f);
+    // A hit during DM8's long pad flight pushes its ballistic touchdown
+    // beyond the destination platform. "Past the node" alone is not proof
+    // of a safe coast. Preserve natural arcs that still reach solid ground.
+    Platform(2336,2560,256);
+    const navCorner_t padImpulseLanding{{2452,76,256},NAVTRAVEL_JUMPPAD,1};
+    CHECK(!BotRidesPadArc({1538,108,434},{822,-10,412},padImpulseLanding,800));
+    // A touchdown on the far edge still needs room to shed its momentum.
+    solids.back().hi.x=2688;
+    CHECK(!BotRidesPadArc({1538,108,434},{822,-10,412},padImpulseLanding,800));
+    CHECK(BotRidesPadArc({1538,108,434},{770,-10,328},padImpulseLanding,800));
+    solids.back().hi.x=3200;
+    CHECK(BotRidesPadArc({1538,108,434},{822,-10,412},padImpulseLanding,800));
+    navMesh.steeredPad=true;
+    CHECK(!BotRidesPadArc({1538,108,434},{822,-10,412},padImpulseLanding,800));
+    navMesh.steeredPad=false;
+    solids.clear();
     // A lift/cross/down probe reaches the small landing, but a running
     // drop passes its edge. A broad destination still accepts the drop.
     Platform(-256,0,224); Platform(0,48,0);
@@ -293,6 +324,10 @@ int main() {
     CHECK(nav.SampleFloor({72,0,1},20,rimFloor));
     CHECK(!nav.DodgeJumpClear({0,0,0},{320,0,0},{1,0,0},800));
     solids.clear(); Platform(-256,250,0);
+    // This catches the touchdown but leaves less than the ground guard's
+    // lookahead. A wider floor permits normal speed, not sprint/haste.
+    CHECK(!nav.DodgeJumpClear({0,0,0},{0,0,0},{1,0,0},800));
+    solids.front().hi.x=300;
     CHECK(nav.DodgeJumpClear({0,0,0},{0,0,0},{1,0,0},800));
     CHECK(!nav.DodgeJumpClear({0,0,0},{0,0,0},{1,0,0},800,416));
     CHECK(!nav.DodgeJumpClear({0,0,0},{0,0,0},{1,0,0},800,480));
@@ -308,6 +343,12 @@ int main() {
     CHECK(!nav.DodgeJumpClear({0,0,0},{320,0,0},{1,0,0},800)); lethal=false;
     transported=true;
     CHECK(!nav.DodgeJumpClear({0,0,0},{320,0,0},{1,0,0},800)); transported=false;
+    // q4xdm13's recorded high-speed dodge reaches supported ground near the
+    // west rim, but still carries enough momentum to leave it immediately.
+    solids.clear(); Platform(-417,300,0);
+    CHECK(!nav.DodgeJumpClear({0,0,0},{-575,81,0},{-1,0,0},800));
+    solids.front().lo.x=-600;
+    CHECK(nav.DodgeJumpClear({0,0,0},{-575,81,0},{-1,0,0},800));
     solids.clear();
     // A standing hull and a vertical projection reach this ledge; a real
     // running jump, even braking after passing its corner, overshoots it.
@@ -350,6 +391,15 @@ int main() {
     CHECK(nav.TryStep({0,0,0},{24,0,0},floor,travel));
     CHECK(travel==NAVTRAVEL_JUMP && std::fabs(floor.z-28)<0.001f);
     CHECK(nav.JumpTakeoffClear({0,0,0},{0,0,0},{24,0,28},800,320));
+    // An air step can sit within one unit of its floor-distance limit.
+    // Lifting the live origin by the navigation probe offset misses that
+    // floor, clips the forward speed against the riser, and approves a
+    // landing which the real momentum-preserving step overshoots.
+    solids.clear(); Platform(-256,18,0); Platform(18,62,24);
+    const idVec3 stepWish(1,0,0);
+    CHECK(!nav.JumpTakeoffClear({0,0,0.25f},{40,0,0},{30,0,24},800,320,&stepWish,226.27417f));
+    solids.back().hi.x=512;
+    CHECK(nav.JumpTakeoffClear({0,0,0.25f},{40,0,0},{30,0,24},800,320,&stepWish,226.27417f));
     // Cortez's recorded CTF3 launch had an11u/5u corner offset and278u/s
     // transverse momentum. The central graph proof was valid but did not
     // cover that state; the live proof must reject it while retaining a
@@ -420,7 +470,36 @@ int main() {
     solids.clear(); slopedFloor=true;
     CHECK(nav.SampleFloor({0,0,64},128,floor));
     CHECK(NavLandingSupported(floor));
-    CHECK(nav.LandingContinuationClear(floor,floor)); slopedFloor=false;
+    CHECK(nav.LandingContinuationClear(floor,floor));
+    // Edge braking starts from the small support hull's floor, which sits
+    // lower on a slope than the full player hull. Both describe safe ground.
+    // Exercise signed/custom cylinders and box players across slope headings.
+    for (int cylinder : {0, 1, -1, 4}) {
+        pm_usecylinder.value=cylinder; agentHull=NavCreateAgentTrace(agentBounds);
+        for (idVec3 gradient : {idVec3(1,0,0),idVec3(-1,0,0),idVec3(0,1,0),
+                               idVec3(0,-1,0),idVec3(0.5f,0.5f,0),idVec3(-0.5f,0.5f,0),
+                               idVec3(0.25f,0,0)}) {
+            slopeX=gradient.x; slopeY=gradient.y;
+            CHECK(nav.SampleFloor({0,0,64},128,floor));
+            CHECK(NavLandingSupported(floor));
+            trace_t supportFloor;
+            CHECK(!NavTraceTranslation(supportFloor,{0,0,64},{0,0,-64},navSupportTrace,navSupportBounds));
+            CHECK(supportFloor.endpos.z < floor.z);
+            CHECK(nav.LandingContinuationClear(supportFloor.endpos,supportFloor.endpos));
+            // A whole-step lift would overlap this ceiling. The exact hull
+            // contact height leaves three units of real standing headroom.
+            solids.push_back({{-256,-256,floor.z+80},{256,256,floor.z+128}});
+            CHECK(nav.LandingContinuationClear(supportFloor.endpos,supportFloor.endpos));
+            solids.back().lo.z=floor.z+70;
+            CHECK(!nav.LandingContinuationClear(supportFloor.endpos,supportFloor.endpos));
+            solids.clear();
+            lethal=true;
+            CHECK(!nav.LandingContinuationClear(supportFloor.endpos,supportFloor.endpos));
+            lethal=false;
+        }
+    }
+    pm_usecylinder.value=1; agentHull=NavCreateAgentTrace(agentBounds);
+    slopeX=1; slopeY=0; slopedFloor=false;
     // The independent swept landing feeds CrashLand's squared speed and
     // surface/water discounts, not a hardcoded ban on pads or low health.
     trace_t impact; impact.endpos={0,0,0}; impact.c.material=&floorMaterial;
@@ -451,6 +530,17 @@ int main() {
     CHECK(nav.LandingSurvivable({0,0,0},padEnd,40)); gameLocal.waterTop=-1e30f;
     target.physics.origin.z=200;
     CHECK(nav.LandingSurvivable({0,0,0},padEnd,40));
+    // A single push is below the hard-fall threshold. Reapplying it while the
+    // player still touches the launch volume crosses that threshold.
+    solids.clear(); solids.push_back({{-2048,-2048,-64},{2048,2048,0}});
+    target.physics.origin={497,497,347};
+    CHECK(nav.LandingSurvivable({0,0,14},padEnd,60));
+    repeatedPad=&pad; repeatedPadTouches=0;
+    CHECK(!nav.LandingSurvivable({0,0,14},padEnd,60));
+    CHECK(repeatedPadTouches==2);
+    floorMaterial.flags=SURF_NODAMAGE;
+    CHECK(nav.LandingSurvivable({0,0,14},padEnd,60));
+    floorMaterial.flags=0; repeatedPad=nullptr;
     // q4ctf1: a string-pulled walk from the low floor to a node just past
     // the lip of a 64-unit platform.  The raised straight sweep climbs with
     // the line and clears the riser's top, and every interior sample stays

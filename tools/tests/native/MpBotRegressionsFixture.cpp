@@ -124,7 +124,7 @@ struct idEntity {
     bool IsHidden() const { return hidden; }
     int GetInstance() const { return instance; }
 };
-enum { NAVTRAVEL_WALK,NAVTRAVEL_JUMP,NAVTRAVEL_JUMPPAD,NAVTRAVEL_DROP,POWERUP_INVISIBILITY,POWERUP_QUADDAMAGE,POWERUP_DOUBLER,BUTTON_ATTACK,BOTCHAT_ITEM_DENIED,BUTTON_RUN,PMOD_SPEED };
+enum { NAVTRAVEL_WALK,NAVTRAVEL_JUMP,NAVTRAVEL_JUMPPAD,NAVTRAVEL_DROP,POWERUP_INVISIBILITY,POWERUP_QUADDAMAGE,POWERUP_DOUBLER,BUTTON_ATTACK,BOTCHAT_ITEM_DENIED,BUTTON_RUN,PMOD_SPEED,NAVTRAVEL_TELEPORT };
 struct idPlayer : idEntity {
     float deltaViewAngles[3]={};
     const float* GetDeltaViewAngles() const { return deltaViewAngles; }
@@ -238,7 +238,10 @@ struct Nav {
     }
     int landingChecks=0;
     float landingImpact=0,lastImpactLimit=idMath::INFINITY;
-    bool LandingSurvivable(const idVec3&,const navCorner_t&,float limit) { ++landingChecks; return landingImpact<=limit; }
+    idVec3 lastLandingFrom;
+    bool LandingSurvivable(const idVec3& from,const navCorner_t&,float limit) {
+        ++landingChecks; lastLandingFrom=from; return landingImpact<=limit;
+    }
     bool continuationClear=true;
     bool jumpTakeoffClear=false;
     int jumpTakeoffChecks=0;
@@ -794,6 +797,23 @@ void TestPadHold() {
     opposing.pfl.onGround=false; opposing.physics.origin.x=160; CHECK(!bot.HoldForPad(&self,move));
     opposing.physics.origin={0,-160,128}; CHECK(!bot.HoldForPad(&self,move));
     CHECK(bot.padHoldSince==0);
+    // Several walking corners can remain inside the pad's braking distance.
+    // The flight corridor starts at the final walking corner, not the current
+    // corner elsewhere along the approach.
+    opposing.physics.origin={0,800,128}; self.physics.velocity={0,320,0};
+    bot.path.Clear(); bot.path.Append({500,-80,0}); bot.path.Append({0,0,0});
+    bot.path.Append({0,960,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(bot.HoldForPad(&self,move) && move.y<0);
+    bot.path.corners[1].travelType=NAVTRAVEL_DROP;
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.path.corners[1].travelType=NAVTRAVEL_JUMP;
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.path.corners[1].travelType=NAVTRAVEL_WALK;
+    self.physics.origin={0,-200,0}; CHECK(!bot.HoldForPad(&self,move));
+    self.physics.origin={0,-55,0}; bot.path.corners.resize(2);
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.pathCorner=-1; CHECK(!bot.HoldForPad(&self,move));
+    bot.pathCorner=2; CHECK(!bot.HoldForPad(&self,move));
     std::puts("Pad corridor: brake through reserved entry, replan while blocked, retain launched flight and clear traffic: PASS");
 }
 void TestUnexpectedPad() {
@@ -917,6 +937,17 @@ void TestLandingHealth() {
     CHECK(bot.GuardLandingHealth(&self,cmd));
     CHECK(bot.path.IsEmpty() && bot.goalEntity.GetEntity()==nullptr && bot.IsAvoided(&goal));
     CHECK(cmd.forwardmove<0 && cmd.upmove==0 && bot.nextGoalSelectTime==gameLocal.time);
+    // Damage can make a retained route lethal while several walking corners
+    // remain. Recheck before those corners carry the player onto its trigger.
+    bot=approach(); bot.path.Clear(); bot.path.Append({0,0,0}); bot.path.Append({100,0,0});
+    bot.path.Append({300,0,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(bot.GuardLandingHealth(&self,cmd));
+    CHECK(bot.path.IsEmpty() && navMesh.lastLandingFrom.x==100 && cmd.forwardmove<0);
+    bot=approach(); bot.path.corners[1].travelType=NAVTRAVEL_TELEPORT;
+    bot.path.Append({300,0,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(!bot.GuardLandingHealth(&self,cmd));
+    bot.path.corners[1].travelType=NAVTRAVEL_WALK; bot.path.corners.resize(2);
+    CHECK(!bot.GuardLandingHealth(&self,cmd));
     // Neither an airborne route nor an observed launch with a stale grounded
     // flag may lose its controller after damage during the flight.
     bot=approach(); bot.traversalStarted=true;
