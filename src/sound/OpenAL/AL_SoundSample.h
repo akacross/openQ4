@@ -53,6 +53,7 @@ public:
 	}
 	// a worker has finished the outstanding decode; FinishDecode will not wait
 	bool			IsDecodeComplete() const;
+	static void		PrintDecodeMemoryInfo();
 
 	void			SetName( const char* n )
 	{
