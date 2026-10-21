@@ -17112,6 +17112,7 @@ windowDef Desktop
 			set "set_b_audio_6::visible" "0" ;
 			set "set_audio_vol_slider::noevents" "0" ;
 			set "set_audio_music_slider::noevents" "0" ;
+			set "set_audio_dialogue_slider::noevents" "0" ;
 			set "gui::gui_set_audio_scroll" "0" ;
 			set "cmd" "applySettingsScroll audio" ;
 			if ( "gui::s_useOpenAL" == 0 || "gui::s_loadOpenALFailed" == 1 ) {
@@ -17140,6 +17141,7 @@ windowDef Desktop
 			set "set_b_audio_6::visible" "0" ;
 			set "set_audio_vol_slider::noevents" "1" ;
 			set "set_audio_music_slider::noevents" "1" ;
+			set "set_audio_dialogue_slider::noevents" "1" ;
 			set "set_audio_device_val::noevents" "1" ;
 			set "set_audio_eax_val::noevents" "1" ;
 			set "set_audio_scroll_thumb::visible" "0" ;
@@ -20437,7 +20439,7 @@ windowDef Desktop
 		}
 		windowDef set_b_audio_2
 		{
-			rect	245,194,361,20
+			rect	245,218,361,20
 			visible	0
 
 			onMouseEnter {
@@ -20456,7 +20458,7 @@ windowDef Desktop
 		}
 		windowDef set_b_audio_3
 		{
-			rect	245,218,361,20
+			rect	245,242,361,20
 			visible	0
 
 			onMouseEnter {
@@ -20475,7 +20477,7 @@ windowDef Desktop
 		}
 		windowDef set_b_audio_4
 		{
-			rect	245,270,361,20
+			rect	245,294,361,20
 			visible	0
 
 			onMouseEnter {
@@ -20494,7 +20496,7 @@ windowDef Desktop
 		}
 		windowDef set_b_audio_5
 		{
-			rect	245,294,361,20
+			rect	245,318,361,20
 			visible	0
 
 			onMouseEnter {

@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "snd_local.h"
+#include "SoundDialogue.h"
 
 idCVar s_singleEmitter( "s_singleEmitter", "0", CVAR_INTEGER, "mute all sounds but this emitter" );
 idCVar s_showStartSound( "s_showStartSound", "0", CVAR_BOOL, "print a message every time a sound starts/stops" );
@@ -40,6 +41,7 @@ extern idCVar s_playDefaultSound;
 extern idCVar s_noSound;
 extern idCVar s_volume;
 extern idCVar s_musicVolume;
+extern idCVar s_dialogueVolume;
 extern idCVar s_constantAmplitude;
 extern idCVar s_speakerFraction;
 extern idCVar s_radioChatterFraction;
@@ -690,6 +692,22 @@ void idSoundChannel::UpdateVolume( int currentTime )
 	if( SoundUsesMusicVolume( parms ) )
 	{
 		volumeScale *= SoundSanitizeUnitValue( s_musicVolume.GetFloat(), 1.0f );
+	}
+	else
+	{
+		// Classify the sample actually playing, including a leadin/loop change.
+		// This also survives save/restore and localized fallback without storing
+		// a new flag in saves or changing retail attenuation/voice priority.
+		const idSoundSample* sample = leadinSample;
+		if( loopingSample != NULL && SoundChannelPlaybackTimeMsec( this, currentTime ) >= leadinSample->LengthInMsec() )
+		{
+			sample = loopingSample;
+		}
+		const bool authoredSpeech = ( parms.soundShaderFlags & ( SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) != 0;
+		if( SoundIsDialogue( false, authoredSpeech, sample->GetName() ) )
+		{
+			volumeScale *= SoundSanitizeUnitValue( s_dialogueVolume.GetFloat(), 1.0f );
+		}
 	}
 
 	if( soundSystemLocal.musicMuted && SoundUsesMusicVolume( parms ) )

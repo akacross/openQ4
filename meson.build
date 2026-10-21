@@ -539,6 +539,14 @@ if get_option('build_native_tests')
   )
   test('openq4-sound-reverb-core', openq4_sound_reverb_core_test, timeout: 30)
 
+  openq4_sound_dialogue_test = executable(
+    'openq4-sound-dialogue-test',
+    files('tools/tests/native/SoundDialogueTest.cpp'),
+    include_directories: root_include_dir,
+    install: false,
+  )
+  test('openq4-sound-dialogue', openq4_sound_dialogue_test, timeout: 30)
+
   openq4_display_mode_rule_test = executable(
     'openq4-display-mode-rule-test',
     files('tools/tests/native/DisplayModeRuleTest.cpp'),
