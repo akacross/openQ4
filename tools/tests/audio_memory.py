@@ -103,7 +103,8 @@ int main(){
     std::vector<void*> blocks;
     for(int i=0;i<12;++i){void* p=AllocBuffer(int(MiB)-16,"saturation");assert(p&&reinterpret_cast<std::uintptr_t>(p)%16==0);blocks.push_back(p);}
     assert(!AllocBuffer(1,"full")&&soundMemory.Used()==12*MiB&&reclaims>0);
-    for(void* p:blocks)FreeBuffer(p);assert(soundMemory.Used()==0&&allocations==0);
+    for(void* p:blocks){FreeBuffer(p);}
+    assert(soundMemory.Used()==0&&allocations==0);
     failAllocation=true;assert(!AllocBuffer(32,"allocator fault")&&soundMemory.Used()==0);failAllocation=false;
     assert(!AllocBuffer(-1,"invalid")&&!AllocBuffer(2147483647,"overflow"));
     {SoundMemoryReservation r;assert(r.Reserve(4*MiB));assert(r.Reserve(2*MiB));assert(!r.Reserve(13*MiB));}
