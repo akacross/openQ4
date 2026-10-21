@@ -547,6 +547,14 @@ if get_option('build_native_tests')
   )
   test('openq4-sound-dialogue', openq4_sound_dialogue_test, timeout: 30)
 
+  openq4_voice_packet_test = executable(
+    'openq4-voice-packet-test',
+    files('tools/tests/native/VoicePacketTest.cpp'),
+    include_directories: root_include_dir,
+    install: false,
+  )
+  test('openq4-voice-packet', openq4_voice_packet_test, timeout: 30)
+
   openq4_display_mode_rule_test = executable(
     'openq4-display-mode-rule-test',
     files('tools/tests/native/DisplayModeRuleTest.cpp'),

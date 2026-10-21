@@ -1370,4 +1370,11 @@
 	"#str_231297"	"NEM ÜRES"
 	"#str_231298"	"JELSZÓ NÉLKÜL"
 	"#str_231299"	"MINDEN JÁTÉKMÓD"
+	"#str_231301"	"Mikrofon-hozzáférés"
+	"#str_231302"	"A mikrofon kikapcsolva. A beszédhez engedélyezze."
+	"#str_231303"	"Kész. A beszédhez tartsa lenyomva a beszédgombot."
+	"#str_231304"	"A mikrofon aktív."
+	"#str_231305"	"A mikrofon nem érhető el. Ellenőrizze az engedélyt."
+	"#str_231306"	"A hangcsevegés nem érhető el ebben a játékban."
+	"#str_231307"	"Helyi mikrofonteszt"
 }

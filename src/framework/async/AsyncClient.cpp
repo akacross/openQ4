@@ -1181,6 +1181,20 @@ void idAsyncClient::SendUsercmdsToServer( void ) {
 	}
 }
 
+bool idAsyncClient::SendVoiceMessage( const idBitMsg &payload ) {
+	if ( clientState != CS_INGAME || payload.GetSize() <= 0 || payload.GetSize() > 384 ||
+		!channel.CanSendUnfragmented( clientTime, 13 + payload.GetSize() ) ) return false;
+	byte buffer[397];
+	idBitMsg msg;
+	msg.Init( buffer, sizeof( buffer ) );
+	msg.WriteLong( serverMessageSequence );
+	msg.WriteLong( gameInitId );
+	msg.WriteLong( snapshotSequence );
+	msg.WriteByte( CLIENT_UNRELIABLE_MESSAGE_VOICE );
+	msg.WriteData( payload.GetData(), payload.GetSize() );
+	return channel.SendMessage( clientPort, clientTime, msg ) >= 0;
+}
+
 /*
 ==================
 idAsyncClient::InitGame
@@ -1221,6 +1235,24 @@ void idAsyncClient::ProcessUnreliableServerMessage( const idBitMsg &msg ) {
 
 	id = msg.ReadByte();
 	switch( id ) {
+		case SERVER_UNRELIABLE_MESSAGE_VOICE: {
+			const byte* batch = msg.GetReadData();
+			if ( clientState == CS_INGAME && serverGameInitId == gameInitId &&
+				oq4voice::ValidBatch( batch, msg.GetRemainingData() ) ) {
+				int offset = 1;
+				for ( int n = 0; n < batch[0]; ++n ) {
+					const int length = batch[offset] | ( int( batch[offset + 1] ) << 8 );
+					offset += 2;
+					idBitMsg frame;
+					frame.Init( batch + offset, length );
+					frame.SetSize( length );
+					frame.BeginReading();
+					game->ClientReceiveVoice( frame );
+					offset += length;
+				}
+			}
+			break;
+		}
 		case SERVER_UNRELIABLE_MESSAGE_EMPTY: {
 			if ( idAsyncNetwork::verbose.GetInteger() ) {
 				common->Printf( "received empty message from server\n" );

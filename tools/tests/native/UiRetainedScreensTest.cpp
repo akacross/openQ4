@@ -46,6 +46,7 @@ struct ScreenHost final : Host {
 	std::string language = "english";
 	// The player settings the multiplayer card's Settings and Voice pages read back.
 	std::map<std::string,StateValue> cvars = {{"ui_handicap",100.0},{"s_voiceVolume",1.0},{"s_micInputLevel",5.0},
+		{"s_voiceChatCapture",false},{"s_voiceChatTest",false},{"s_voiceChatStatus",1.0},{"s_voiceChatLevel",0.0},
 		{"s_voiceChatSend",true},{"s_voiceChatReceive",true},{"s_voiceChatEcho",false},{"cl_player_outline_width",std::string("2.0")},
 		{"cl_player_outline_enemy",std::string("0")},{"cl_player_outline_team",std::string("0")},{"cl_player_rimlight_enemy",std::string("0")},
 		{"cl_player_rimlight_team",std::string("0")},{"cl_player_brightskin_enemy",std::string("0")},{"cl_player_brightskin_team",std::string("0")},
@@ -213,7 +214,8 @@ static const std::set<std::string> SessionValueCommands = {"mpVoteMap","mpVoteGa
 static const std::set<std::string> PlayerSettings = {"ui_handicap","cl_player_outline_enemy","cl_player_outline_team",
 	"cl_player_rimlight_enemy","cl_player_rimlight_team","cl_player_visibility_enemy_color","cl_player_visibility_team_color",
 	"cl_player_brightskin_enemy","cl_player_brightskin_team","cl_player_brightskin_enemy_color","cl_player_brightskin_team_color",
-	"cl_player_outline_width","s_voiceChatSend","s_voiceChatReceive","s_voiceChatEcho","s_voiceVolume","s_micInputLevel"};
+	"cl_player_outline_width","s_voiceChatSend","s_voiceChatReceive","s_voiceChatEcho","s_voiceVolume","s_micInputLevel",
+	"s_voiceChatCapture","s_voiceChatTest"};
 
 static void CheckSessionActions(const Document& document) {
 	for (const auto& [id,action] : document.Model().actions) {
@@ -233,6 +235,13 @@ static void CheckSessionActions(const Document& document) {
 		}
 		if (action.operation == "settings.player.set") {
 			const auto cvar = action.arguments.find("cvar");
+			if (id == "voiceTestStop") {
+				Check(cvar != action.arguments.end() && action.arguments.size() == 2 &&
+					std::get<std::string>(cvar->second.literal) == "s_voiceChatTest" &&
+					!action.arguments.at("value").inputValue && !std::get<bool>(action.arguments.at("value").literal),
+					"leaving the Voice page can only stop the local microphone test");
+				continue;
+			}
 			Check(cvar != action.arguments.end() && action.arguments.size() == 2 && PlayerSettings.contains(std::get<std::string>(cvar->second.literal)) &&
 				action.arguments.at("value").inputValue && action.inputType,"a setting control sets an allowlisted player setting");
 			continue;
@@ -1262,6 +1271,11 @@ static void CheckSettings(ScreenHost& host, const char* escapePath, const char* 
 	// The one action a control queued, resolved through its descriptor.
 	const auto taken = [&](Runtime& runtime, const char* action) {
 		const auto actions = runtime.TakeActions();
+		if (actions.size() != 1 || actions[0].action != action) {
+			std::fprintf(stderr,"Expected action %s; received %zu",action,actions.size());
+			for (const auto& pending : actions) std::fprintf(stderr," %s",pending.action.c_str());
+			std::fprintf(stderr,"\n");
+		}
 		Check(actions.size() == 1 && actions[0].action == action,"a control requests its action");
 		ActionInvocation invocation;
 		const StateValue* input = actions[0].proposal ? &*actions[0].proposal : nullptr;
@@ -1338,10 +1352,11 @@ static void CheckSettings(ScreenHost& host, const char* escapePath, const char* 
 		press(runtime,MenuInput::Accept,2.41);
 		Check(taken(runtime,"mpSettingsSystem").operation == "session.menu","System leaves for the main menu's page");
 		// The Voice page: its toggles and sliders set their settings; the
-		// push-to-talk key shows when bound; the test waits for voice chat.
+		// push-to-talk key shows when bound; testing requires separate consent.
 		Check(runtime.RunEvent("tab_voice",3,effects,error),"to the Voice tab");
 		runtime.Frame(viewport,3.3);
-		Check(runtime.FocusedControl() == "voice-send","the Voice page opens on sending voice");
+		Check(runtime.FocusedControl() == "voice-capture","the Voice page opens on microphone consent");
+		Check(runtime.FocusControl("voice-send",3.30),"focus sending voice");
 		press(runtime,MenuInput::Accept,3.31);
 		invocation = taken(runtime,"set.s_voiceChatSend");
 		Check(std::get<std::string>(invocation.arguments.at("cvar")) == "s_voiceChatSend" && !std::get<bool>(invocation.arguments.at("value")),
@@ -1353,8 +1368,26 @@ static void CheckSettings(ScreenHost& host, const char* escapePath, const char* 
 		Check(runtime.SetState({{"mp.keys.voice_chat",std::string("V")},{"mp.keys.voice_chat_bound",true}},error,3.5),"bind push to talk");
 		runtime.Frame(viewport,3.6);
 		Check(text("voice-unbound","display") == "none" && text("voice-key","display") == "block","the bound key shows");
-		Check(text("voice-test-lock","display") == "block" && text("voice-test-reason","display") == "block","the test is unavailable and says why");
-		Check(runtime.RunEvent("voice_test",3.7,effects,error) && effects.actions.empty(),"and asks nothing");
+		Check(text("voice-test-lock","display") == "block","a microphone test is locked without consent");
+		Check(!runtime.FocusControl("voice-test",3.7),"a locked test cannot acquire focus");
+		host.cvars["s_voiceChatCapture"] = true;
+		host.cvars["s_voiceChatStatus"] = 3.0;
+		host.cvars["s_voiceChatLevel"] = 0.5;
+		runtime.Frame(viewport,3.8);
+		Check(text("voice-test-lock","display") == "none","explicit microphone consent enables the test");
+		Check(Near(bounds("voice-meter-fill").width,bounds("voice-meter").width * .5f,.1f),"the meter follows the actual input peak");
+		Check(runtime.FocusControl("voice-test",3.81),"focus the local microphone test");
+		press(runtime,MenuInput::Accept,3.82);
+		Check(std::get<bool>(taken(runtime,"set.s_voiceChatTest").arguments.at("value")),"the test requests only the local test setting");
+		host.cvars["s_voiceChatTest"] = true;
+		runtime.Frame(viewport,3.825);
+		Check(runtime.RunEvent("tab_settings",3.83,effects,error),"leave the Voice tab");
+		Check(effects.actions.size() == 1 && effects.actions[0].operation == "settings.player.set" &&
+			std::get<std::string>(effects.actions[0].arguments.at("cvar")) == "s_voiceChatTest" &&
+			!std::get<bool>(effects.actions[0].arguments.at("value")),"leaving the Voice tab stops capture testing");
+		host.cvars["s_voiceChatTest"] = false;
+		host.cvars["s_voiceChatCapture"] = false;
+		host.cvars["s_voiceChatLevel"] = 0.0;
 	}
 	{
 		Runtime runtime(host);

@@ -1370,4 +1370,11 @@
 	"#str_231297"	"NEPRÁZDNÉ"
 	"#str_231298"	"BEZ HESLA"
 	"#str_231299"	"VŠECHNY TYPY"
+	"#str_231301"	"Přístup k mikrofonu"
+	"#str_231302"	"Mikrofon vypnut. Pro mluvení povolte přístup."
+	"#str_231303"	"Připraveno. Držte klávesu pro mluvení."
+	"#str_231304"	"Mikrofon aktivní."
+	"#str_231305"	"Mikrofon není dostupný. Zkontrolujte přístup."
+	"#str_231306"	"Hlasový chat není v této relaci dostupný."
+	"#str_231307"	"Místní test mikrofonu"
 }

@@ -727,6 +727,8 @@ public:
 	virtual void			ServerWriteSnapshot( int clientNum, int sequence, idBitMsg &msg, dword *clientInPVS, int numPVSClients, int lastSnapshotFrame );
 	virtual bool			ServerApplySnapshot( int clientNum, int sequence );
 	virtual void			ServerProcessReliableMessage( int clientNum, const idBitMsg &msg );
+	virtual void			ServerReceiveVoice( int clientNum, const idBitMsg &msg );
+	virtual void			ClientReceiveVoice( const idBitMsg &msg );
 	virtual bool			RepeaterApplySnapshot( int clientNum, int sequence );
 	virtual void			RepeaterProcessReliableMessage( int clientNum, const idBitMsg &msg );
 	virtual bool			ClientReadSnapshot( int clientNum, int snapshotSequence, const int gameFrame, const int gameTime, const int dupeUsercmds, const int aheadOfServer, const idBitMsg &msg, bool readEntityInstances = false );

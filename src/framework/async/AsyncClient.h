@@ -125,6 +125,7 @@ public:
 
 	void				RunFrame( bool allowBlocking = true );
 	void				SendReliableGameMessage( const idBitMsg &msg );
+	bool				SendVoiceMessage( const idBitMsg &msg );
 
 	void				SendVersionCheck( bool fromMenu = false );
 	// Legacy no-op in openQ4 (CD key auth removed).

@@ -549,6 +549,17 @@ public:
 	// pointers to them; samples loaded later become silent defaults, as on a
 	// dedicated server. Retail Quake4.exe 1.4.2 calls ShutdownHW there.
 	virtual void			ShutdownHW() = 0;
+
+	// Voice is session-owned, independent of map audio/time scale. Recording
+	// additionally requires explicit capture consent and push-to-talk (or a
+	// local microphone test); merely receiving never opens an input device.
+	virtual bool			UpdateVoiceChat( bool active, bool transmit, bool localTest ) = 0;
+	virtual int				GetVoiceData( byte* data, int capacity ) = 0;
+	virtual void			PlayVoiceData( int clientNum, unsigned int generation, const byte* data, int size ) = 0;
+	virtual void			StopVoiceData( int clientNum ) = 0;
+	virtual void			ResetVoiceChat() = 0;
+	virtual int				GetVoiceTalker() const = 0;
+	virtual float			GetVoiceLevel() const = 0;
 };
 
 extern idSoundSystem*	soundSystem;

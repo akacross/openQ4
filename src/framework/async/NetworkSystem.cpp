@@ -277,6 +277,17 @@ void idNetworkSystem::ClientSendReliableMessage( const idBitMsg &msg ) {
 	}
 }
 
+bool idNetworkSystem::ClientSendVoice( const idBitMsg &msg ) {
+	if ( idAsyncNetwork::multiViewDemo.IsPlaying() ) return false;
+	if ( idAsyncNetwork::client.IsActive() ) return idAsyncNetwork::client.SendVoiceMessage( msg );
+	if ( idAsyncNetwork::server.IsActive() ) return idAsyncNetwork::server.LocalClientSendVoiceMessage( msg );
+	return false;
+}
+
+bool idNetworkSystem::ServerSendVoice( int clientNum, const idBitMsg &msg ) {
+	return idAsyncNetwork::server.IsActive() && idAsyncNetwork::server.SendVoiceMessage( clientNum, msg );
+}
+
 /*
 ==================
 idNetworkSystem::ClientGetPrediction

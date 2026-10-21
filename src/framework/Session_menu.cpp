@@ -8866,6 +8866,7 @@ over 250 ms, as the pause screen does.
 ===============
 */
 void idSessionLocal::RetireRetainedMultiplayer( bool release ) {
+	cvarSystem->SetCVarBool( "s_voiceChatTest", false );
 #ifndef ID_DEDICATED
 	idUserInterface *card = guiRetainedMultiplayer;
 	if ( card == NULL ) {

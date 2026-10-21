@@ -1370,4 +1370,11 @@
 	"#str_231297"	"NO VACÍOS"
 	"#str_231298"	"SIN CONTRASEÑA"
 	"#str_231299"	"TODOS LOS TIPOS"
+	"#str_231301"	"Acceso al micrófono"
+	"#str_231302"	"Micrófono apagado. Permite el acceso para hablar."
+	"#str_231303"	"Listo. Mantén pulsada la tecla para hablar."
+	"#str_231304"	"Micrófono activo."
+	"#str_231305"	"Micrófono no disponible. Comprueba el acceso."
+	"#str_231306"	"Chat de voz no disponible en esta sesión."
+	"#str_231307"	"Prueba local del micrófono"
 }

@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "snd_local.h"
 #include "SoundSettings.h"
+#include "VoiceChat.h"
 
 // NOCHEAT as in retail Quake4.exe 1.4.2: a multiplayer spawn or join without
 // cheats resets every other unarchived CVar, which switched a dedicated server's
@@ -408,6 +409,7 @@ void idSoundSystemLocal::Init()
 	}
 
 	cmdSystem->AddCommand( "testSound", TestSound_f, CMD_FL_SOUND, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
+	SoundVoiceChat_InitCommands();
 	cmdSystem->AddCommand( "listSounds", ListSounds_f, CMD_FL_SOUND, "lists all sounds" );
 	cmdSystem->AddCommand( "listPlayingSounds", ListPlayingSounds_f, CMD_FL_SOUND, "lists currently playing sounds" );
 	cmdSystem->AddCommand( "listSoundDecoders", ListSoundDecoders_f, CMD_FL_SOUND, "list active sound decoders" );
@@ -640,6 +642,7 @@ idSoundSystemLocal::Render
 */
 void idSoundSystemLocal::Render()
 {
+	SoundVoiceChat_Render();
 
 	if( s_noSound.GetBool() )
 	{

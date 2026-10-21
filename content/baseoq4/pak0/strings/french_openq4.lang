@@ -1375,4 +1375,11 @@
 	"#str_231297"	"NON VIDES"
 	"#str_231298"	"SANS MOT DE PASSE"
 	"#str_231299"	"TOUS LES TYPES"
+	"#str_231301"	"Accès au microphone"
+	"#str_231302"	"Microphone désactivé. Autorisez l'accès pour parler."
+	"#str_231303"	"Prêt. Maintenez la touche de parole."
+	"#str_231304"	"Microphone actif."
+	"#str_231305"	"Microphone indisponible. Vérifiez son accès."
+	"#str_231306"	"Chat vocal indisponible dans cette session."
+	"#str_231307"	"Test local du microphone"
 }

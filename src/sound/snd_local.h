@@ -648,6 +648,13 @@ public:
 	virtual bool			SetReverb( int area, const char* reverbName, const char* fileName );
 
 	virtual void			ShutdownHW();
+	virtual bool			UpdateVoiceChat( bool active, bool transmit, bool localTest );
+	virtual int				GetVoiceData( byte* data, int capacity );
+	virtual void			PlayVoiceData( int clientNum, unsigned int generation, const byte* data, int size );
+	virtual void			StopVoiceData( int clientNum );
+	virtual void			ResetVoiceChat();
+	virtual int				GetVoiceTalker() const;
+	virtual float			GetVoiceLevel() const;
 
 	//-------------------------
 

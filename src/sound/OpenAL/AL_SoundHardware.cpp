@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "../snd_local.h"
+#include "../VoiceChat.h"
 #include "../SoundSettings.h"
 #if defined(USE_DOOMCLASSIC)
 	#include "../../../doomclassic/doom/i_sound.h"
@@ -1840,6 +1841,7 @@ idSoundHardware_OpenAL::Shutdown
 */
 void idSoundHardware_OpenAL::Shutdown()
 {
+	SoundVoiceChat_Shutdown();
 	SoundSettings_DeviceDestroyed();
 	EndDeferredUpdates();
 	DisableDeviceEventMonitoring();

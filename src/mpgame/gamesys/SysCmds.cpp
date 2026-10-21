@@ -4150,6 +4150,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "clientCallVote",		idMultiplayerGame::CallVote_f,	CMD_FL_GAME,			"call a vote: clientCallVote si_.. proposed_value" );
 	cmdSystem->AddCommand( "clientVoiceChat",		idMultiplayerGame::VoiceChat_f,	CMD_FL_GAME,			"voice chats: clientVoiceChat <sound shader>" );
 	cmdSystem->AddCommand( "clientVoiceChatTeam",	idMultiplayerGame::VoiceChatTeam_f,	CMD_FL_GAME,		"team voice chats: clientVoiceChat <sound shader>" );
+	cmdSystem->AddCommand( "serverVoiceMute", idMultiplayerGame::ServerVoiceMute_f, CMD_FL_GAME, "silence a voice sender for this connection: <client slot> <0|1>" );
 // RAVEN BEGIN
 	// jshepard
 	cmdSystem->AddCommand( "forceTeamChange",				idMultiplayerGame::ForceTeamChange_f,			CMD_FL_GAME,		"force team change: forceTeamChange <id>" );

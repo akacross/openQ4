@@ -392,6 +392,11 @@ public:
 
 	// Set any additional gui variables needed by the loading screen
 	virtual void				SetupLoadingGui( idUserInterface *gui ) = 0;
+
+	// Append-only real-time voice boundary. SP and older implementations have no
+	// voice recipients. The engine only delivers these through unreliable media.
+	virtual void				ServerReceiveVoice( int clientNum, const idBitMsg &msg ) {}
+	virtual void				ClientReceiveVoice( const idBitMsg &msg ) {}
 };
 
 extern idGame *					game;
@@ -713,7 +718,8 @@ extern rvGameLog *				gameLog;
 //     upscale of the game's below-native scene.
 // 52: idGame::Draw receives the single-player menu pause state so an unchanged
 //     scene can be reused while HUD and menu presentation continue.
-const int GAME_API_VERSION		= 52;
+// 53: bounded unreliable voice and engine-owned capture/playback interfaces.
+const int GAME_API_VERSION		= 53;
 
 struct gameImport_t {
 

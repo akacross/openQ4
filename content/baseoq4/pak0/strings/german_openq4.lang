@@ -1370,4 +1370,11 @@
 	"#str_231297"	"NICHT LEER"
 	"#str_231298"	"OHNE PASSWORT"
 	"#str_231299"	"ALLE SPIELTYPEN"
+	"#str_231301"	"Mikrofonzugriff"
+	"#str_231302"	"Mikrofon aus. Zum Sprechen Zugriff erlauben."
+	"#str_231303"	"Bereit. Zum Sprechen die Sprechtaste halten."
+	"#str_231304"	"Mikrofon aktiv."
+	"#str_231305"	"Mikrofon nicht verfügbar. Zugriff prüfen."
+	"#str_231306"	"Sprachchat in dieser Sitzung nicht verfügbar."
+	"#str_231307"	"Lokaler Mikrofontest"
 }

@@ -1370,4 +1370,11 @@
 	"#str_231297"	"BOŞ OLMAYAN"
 	"#str_231298"	"ŞİFRESİZ"
 	"#str_231299"	"TÜM OYUN TÜRLERİ"
+	"#str_231301"	"Mikrofon erişimi"
+	"#str_231302"	"Mikrofon kapalı. Konuşmak için erişime izin verin."
+	"#str_231303"	"Hazır. Konuşmak için bas-konuş tuşunu basılı tutun."
+	"#str_231304"	"Mikrofon etkin."
+	"#str_231305"	"Mikrofon kullanılamıyor. Erişim iznini kontrol edin."
+	"#str_231306"	"Bu oturumda sesli sohbet kullanılamıyor."
+	"#str_231307"	"Yerel mikrofon testi"
 }
