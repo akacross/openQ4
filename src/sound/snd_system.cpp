@@ -315,6 +315,49 @@ void ListPlayingSounds_f( const idCmdArgs& args )
 	soundSystemLocal.hardware.ListPlayingVoices();
 }
 
+// Read the last completed mix and the corresponding OpenAL state. This does
+// not update a voice, move the listener or substitute diagnostic attenuation.
+static void SoundDistances_f( const idCmdArgs& args )
+{
+	if( args.Argc() > 2 )
+	{
+		idLib::Printf( "Usage: s_soundDistances [exact shader name]\n" );
+		return;
+	}
+	const idSoundWorldLocal* world = soundSystemLocal.currentSoundWorld;
+	if( world == NULL )
+	{
+		idLib::Printf( "SOUND_DISTANCE_WORLD available=0\n" );
+		return;
+	}
+	idLib::Printf( "SOUND_DISTANCE_WORLD available=1 listener=%d area=%d origin=%.4f,%.4f,%.4f\n",
+		world->listener.id, world->listener.area, world->listener.pos.x, world->listener.pos.y, world->listener.pos.z );
+	int count = 0;
+	for( int i = 0; i < world->emitters.Num(); ++i )
+	{
+		const idSoundEmitterLocal* emitter = world->emitters[i];
+		if( emitter == NULL ) continue;
+		for( int c = 0; c < emitter->channels.Num(); ++c )
+		{
+			const idSoundChannel* channel = emitter->channels[c];
+			if( channel == NULL || channel->soundShader == NULL ) continue;
+			const char* name = channel->soundShader->GetName();
+			if( args.Argc() == 2 && idStr::Icmp( name, args.Argv( 1 ) ) ) continue;
+			idLib::Printf( "SOUND_DISTANCE emitter=%d channel=%d shader=\"%s\" flags=%d "
+				"origin=%.4f,%.4f,%.4f direct=%.4f spatial=%.4f min=%.4f max=%.4f "
+				"authoredGain=%.7f volumeDB=%.4f portals=%d\n",
+				i, channel->logicalChannel, name, channel->parms.soundShaderFlags,
+				emitter->origin.x, emitter->origin.y, emitter->origin.z,
+				emitter->directDistance, emitter->spatializedDistance,
+				channel->parms.minDistance, channel->parms.maxDistance, channel->parms.volume,
+				channel->volumeDB, emitter->occludingPortalCount );
+			soundSystemLocal.hardware.PrintDistanceInfo( channel->hardwareVoice );
+			++count;
+		}
+	}
+	idLib::Printf( "SOUND_DISTANCE_END channels=%d\n", count );
+}
+
 // Report the production sound clocks without changing focus, routing or playback.
 // Together with listPlayingSounds this distinguishes a frozen world from a
 // world that merely became inaudible when another world acquired the output.
@@ -430,6 +473,8 @@ void idSoundSystemLocal::Init()
 	cmdSystem->AddCommand( "testSound", TestSound_f, CMD_FL_SOUND, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
 	cmdSystem->AddCommand( "listSounds", ListSounds_f, CMD_FL_SOUND, "lists all sounds" );
 	cmdSystem->AddCommand( "listPlayingSounds", ListPlayingSounds_f, CMD_FL_SOUND, "lists currently playing sounds" );
+	cmdSystem->AddCommand( "s_soundDistances", SoundDistances_f, CMD_FL_SOUND,
+		"reports authored ranges, mixed distances and OpenAL spatial state", idCmdSystem::ArgCompletion_SoundName );
 	cmdSystem->AddCommand( "s_soundWorlds", SoundWorlds_f, CMD_FL_SOUND, "reports game/menu sound clocks and pause state" );
 	cmdSystem->AddCommand( "listSoundDecoders", ListSoundDecoders_f, CMD_FL_SOUND, "list active sound decoders" );
 	cmdSystem->AddCommand( "reloadSounds", ReloadSounds_f, CMD_FL_SOUND | CMD_FL_CHEAT, "reloads all sounds" );

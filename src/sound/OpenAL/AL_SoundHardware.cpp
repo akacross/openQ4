@@ -2049,6 +2049,46 @@ static void OpenQ4_DiagnosticSampleName( const idSoundSample_OpenAL* sample, idS
 
 /*
 ========================
+idSoundHardware_OpenAL::PrintDistanceInfo
+========================
+*/
+void idSoundHardware_OpenAL::PrintDistanceInfo( const idSoundVoice* voice ) const
+{
+	if( openalDevice == NULL || voice == NULL )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0\n" );
+		return;
+	}
+	const idSoundVoice_OpenAL* source = static_cast<const idSoundVoice_OpenAL*>( voice );
+	if( !alIsSource( source->openalSource ) )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0\n" );
+		return;
+	}
+	ALfloat position[3] = {}, gain = 0, listenerGain = 0, rolloff = 0, reference = 0, radius = -1;
+	ALint state = AL_INITIAL;
+	alGetSourcefv( source->openalSource, AL_POSITION, position );
+	alGetSourcef( source->openalSource, AL_GAIN, &gain );
+	alGetSourcef( source->openalSource, AL_ROLLOFF_FACTOR, &rolloff );
+	alGetSourcef( source->openalSource, AL_REFERENCE_DISTANCE, &reference );
+	alGetSourcei( source->openalSource, AL_SOURCE_STATE, &state );
+	alGetListenerf( AL_GAIN, &listenerGain );
+#if defined( AL_SOURCE_RADIUS )
+	if( HasSourceRadius() ) alGetSourcef( source->openalSource, AL_SOURCE_RADIUS, &radius );
+#endif
+	if( CheckALErrors() != AL_NO_ERROR )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0 error=1\n" );
+		return;
+	}
+	idLib::Printf( "SOUND_DISTANCE_BACKEND available=1 source=%u playing=%d gain=%.7f listenerGain=%.7f "
+		"position=%.4f,%.4f,%.4f rolloff=%.4f reference=%.4f innerRadius=%.4f sourceRadius=%.4f\n",
+		source->openalSource, state == AL_PLAYING ? 1 : 0, gain, listenerGain,
+		position[0], position[1], position[2], rolloff, reference, source->innerRadius, radius );
+}
+
+/*
+========================
 idSoundHardware_OpenAL::ListPlayingVoices
 ========================
 */

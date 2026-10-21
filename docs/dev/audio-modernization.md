@@ -76,6 +76,57 @@ a protected master bus, streaming), not with any one game's tuning, which is not
 - **Headroom.** `AL_MAX_GAIN` is raised to the voice's 16x ceiling. 57 stock map speakers are
   authored `s_unclamped` at +1 to +12 dB and were flattened to unity.
 
+### Current distance audit, 20 October 2026
+
+The current mixer does not turn Quake 4's authored ranges into metres.
+`s_soundDistances [exact shader name]` now reports the last completed mix's
+listener/emitter positions, direct and portal distances, authored minimum/maximum,
+channel gain and actual OpenAL gain, position, rolloff, reference distance and source
+radius. It only reads state; it does not move an emitter or change playback.
+
+`tools/tests/sound_distance_runtime.py` spawns three original retail looping sounds
+in a real Hangar 1 session and checks nine distances per sound. It reads and hashes
+the effective installed PK4 shader sources, isolates writable data under `.tmp/`,
+captures through the engine, and records the tested binary/source identities.
+The default OpenAL null output qualifies the mixer/backend values, not audibility.
+`--audio-output physical` uses the current device at −12 dB for a separate human
+check; `--quadratic` checks the existing optional curve without changing defaults.
+
+The Windows GL runs against client SHA-256
+`fbce6a142404a565d6ec9c07bf9cf2ec2ccb472cc23357a1ccf3560b1b33aa6b`
+pass all 27 default-linear and all 27 quadratic samples. Evidence is retained in
+`.tmp/stage-two/audio-distance-linear-r2/` and
+`.tmp/stage-two/audio-distance-quadratic-r1/`, including logs, reports, runner
+snapshots and the reviewed 960×540 in-game captures.
+
+| Original shader | Authored range (map units) | Inner radius / OpenAL radius | Near gain, before master |
+| --- | --- | --- | --- |
+| `weapon_lightninggun_fireloop` | 40–1000 | 40 / 20 | 0.3250000 |
+| `weapon_lightninggun_hum` | 80–900 | 80 / 40 | 0.4596194 |
+| `ambient_light_hum01` | 40–250 | 40 / 20 | 0.0255921 |
+
+Positions sent to OpenAL retain the source/listener separation in map units.
+`AL_REFERENCE_DISTANCE` remains 1, but `AL_ROLLOFF_FACTOR` is 0: OpenAL does not
+apply a second distance curve. The engine applies the authored curve and the
+retail speaker fraction of 0.65. Its existing gain convention is `2^(dB/6)`.
+`LengthFast` can underestimate Euclidean distance by about 0.17%; the checks compare
+that distance with independently measured coordinates and then check the resulting
+gain. Channels below the existing 1/1024 gain threshold release their hardware
+voice, including these fixtures at their authored maximum.
+
+The first run, `.tmp/stage-two/audio-distance-linear-r1/`, remains a failed harness
+calibration record: `setviewpos`/teleport raised the eye by 0.5 units, the first
+expectation used a different dB convention, and a stock speaker shared the ambient
+shader. The corrected test pins the intended eye position and identifies its
+emitter by origin. Eight parser/assessment tests include negative controls for
+unit conversion, extra attenuation, changed gain/radius, stopped/missing voices,
+ambiguous emitters and incomplete execution.
+
+These are controlled dry-path measurements with portal occlusion, air filtering
+and reverb disabled in the isolated profile. They do not replace the existing
+reverb/HRTF evidence or qualify different endpoints. No attenuation, source-radius,
+HRTF, EFX or reverb defaults changed. The physical distance check is still pending.
+
 ### Mixing and timing
 
 - **Recycled channels.** `idBlockAlloc` hands back channels without constructing them, and
@@ -168,9 +219,10 @@ restores it on profiles still on the minimum, lowpower or performance preset.
 
 - **Audible distance units.** Current `DOOM_TO_METERS` and `METERS_TO_DOOM` are both
   `1.0f` in `src/sound/sound.h`; the earlier claim that the mixer necessarily converts
-  map units to metres is stale. AUD-01 still requires measured stock attenuation,
-  reference-distance, source-radius and reverb curves before changing the audible mix.
-  Camera shake already has its separate game-unit path.
+  map units to metres is stale. The current distance audit above establishes the
+  dry-path attenuation, reference distance and source radius on Windows. Human
+  audibility remains pending under AUD-01. Reverb and HRTF retain their separate
+  qualifications; camera shake already has its separate game-unit path.
 - **Streaming music and long voice-over.** All 43 music tracks decode to 393 MB of PCM. The
   voice already queues three buffers; streaming from the compressed Ogg would hold about 33 MB.
 - **Centre channel on 5.1.** `SetCenterChannel`, `SSF_CENTER` and `s_centerFractionVO` have no
@@ -185,6 +237,7 @@ restores it on profiles still on the minimum, lowpower or performance preset.
 
 - `tools/tests/sound_settings.py` and `tools/tests/sound_recovery.py` (the device-layout and
   limiter paths), `tools/tests/sound_retail_reverb_contract.py`,
+  `tools/tests/sound_distance.py` (distance-harness failure controls),
   `tools/tests/sound_screen_shake.py` (camera strength, range and aggregation),
   `tools/tests/macos_openal_provider_policy.py`, `tools/tests/ui_performance_presets.py` and the
   in-engine `performancePresetSelfTest`.

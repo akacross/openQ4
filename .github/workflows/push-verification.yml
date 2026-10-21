@@ -380,6 +380,8 @@ jobs:
             tools/tests/ui_settings_effect_journal.py \
             tools/tests/sound_settings.py \
             tools/tests/sound_recovery.py \
+            tools/tests/sound_distance.py \
+            tools/tests/sound_distance_runtime.py \
             tools/tests/sound_retail_reverb_contract.py \
             tools/tests/sound_screen_shake.py \
             tools/tests/ui_performance_presets.py \
@@ -763,6 +765,7 @@ jobs:
           python tools/tests/ui_settings_effect_journal.py
           python tools/tests/sound_settings.py
           python tools/tests/sound_recovery.py
+          python tools/tests/sound_distance.py
           python tools/tests/sound_retail_reverb_contract.py
           python tools/tests/sound_screen_shake.py
           python tools/tests/ui_performance_presets.py --mutations --adjacent
