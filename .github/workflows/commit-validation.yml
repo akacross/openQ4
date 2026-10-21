@@ -153,6 +153,7 @@ jobs:
             tools/tests/android_build.py \
             tools/tests/android_emulator_smoke.py \
             tools/tests/android_touch_input.py \
+            tools/tests/android_touch_controls.py \
             tools/tests/audio_payload_restore.py \
             tools/tests/renderer_gles_dispatch.py \
             tools/tests/renderer_gles_alpha.py \
@@ -558,6 +559,7 @@ jobs:
           python tools/tests/fatal_error_startup_safety.py
           python tools/tests/android_build.py
           python tools/tests/android_touch_input.py
+          python tools/tests/android_touch_controls.py
           python tools/tests/audio_payload_restore.py
           python tools/tests/renderer_gles_dispatch.py
           python tools/tests/renderer_gles_alpha.py

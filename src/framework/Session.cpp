@@ -83,6 +83,7 @@ idCVar	s_muteUnfocused( "s_muteUnfocused", "1", CVAR_ARCHIVE | CVAR_BOOL, "mute 
 #if defined( USE_SDL3 )
 bool Sys_SDL_IsGameWindowFocused( void );
 #if defined( __ANDROID__ )
+#include "../sys/android/android_public.h"
 bool Sys_SDL_ConsumeAppSuspension( void );
 void S_SetDevicePaused( bool paused );
 #endif
@@ -9071,6 +9072,9 @@ void idSessionLocal::Draw() {
 	if ( mapSpawned && !insideExecuteMapChange && !guiActive && !readDemo ) {
 		DrawIAmTheDukeOverlay();
 		Session_DrawLevelshotBounds();
+#ifdef __ANDROID__
+		AndroidTouchControls_Draw();
+#endif
 	}
 
 	if ( guiActive == NULL && demoOverlayVisible && IsDemoPlaybackActive() &&

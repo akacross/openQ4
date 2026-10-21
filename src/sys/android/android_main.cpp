@@ -407,6 +407,7 @@ extern "C" __attribute__((visibility("default"))) int OpenQ4_AndroidMain( int ar
 
 	Sys_HandlePendingQuitSignal();
 	Posix_LateInit();
+	AndroidTouchControls_Init();
 
 	while ( 1 ) {
 		Sys_HandlePendingQuitSignal();

@@ -4716,6 +4716,12 @@ idPlayer::DrawHUD
 ===============
 */
 void idPlayer::DrawHUD( idUserInterface *_hud ) {
+#ifdef __ANDROID__
+	if ( this == gameLocal.GetLocalPlayer() ) {
+		cvarSystem->SetCVarBool( "ui_touchCanReload", weapon && !spectating && weapon->ClipSize() > 0 );
+		cvarSystem->SetCVarBool( "ui_touchCanZoom", weapon && !spectating && weapon->GetZoomFov() > 0 );
+	}
+#endif
 	idUserInterface * cursor = idPlayer::cursor;
 	if ( _hud ) {
 		_hud->SetStateInt( "radio_audio_emitter", GetSoundEmitter() );

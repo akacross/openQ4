@@ -441,6 +441,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "fatal_error_startup_safety.py",
         root / "tools" / "tests" / "android_build.py",
         root / "tools" / "tests" / "android_touch_input.py",
+        root / "tools" / "tests" / "android_touch_controls.py",
         root / "tools" / "tests" / "audio_payload_restore.py",
         root / "tools" / "tests" / "renderer_gles_dispatch.py",
         root / "tools" / "tests" / "renderer_gles_alpha.py",

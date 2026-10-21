@@ -358,6 +358,22 @@ if get_option('build_native_tests')
   )
   android_savepath_test = executable('openq4-android-savepath', android_savepath_source, install: false)
   test('openq4-android-savepath', android_savepath_test, timeout: 30)
+  android_touch_controls_test = executable(
+    'openq4-android-touch-controls', files('tools/tests/native/AndroidTouchControlsTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-touch-controls', android_touch_controls_test, timeout: 30)
+  android_touch_integration_source = custom_target(
+    'openq4-android-touch-integration-source',
+    input: files('src/sys/android/android_touch_controls.cpp'),
+    output: 'AndroidTouchIntegration.cpp',
+    command: [py, files('tools/tests/android_touch_controls.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_touch_integration_test = executable(
+    'openq4-android-touch-integration', android_touch_integration_source,
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-touch-integration', android_touch_integration_test, timeout: 30)
   foreach platform : ['android', 'desktop']
     android_async_test = executable(
       'openq4-android-async-' + platform, android_async_source,

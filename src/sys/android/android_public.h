@@ -32,5 +32,23 @@ bool Sys_SDL_IsAppBackgrounded( void );
 // the key bindings, for the touch controls - which have no key to be rebound.
 // Takes a usercmdGen->CommandStringUsercmdData() result.
 void Sys_SetUsercmdButton( int action, bool down );
+// Independent built-in touch channel. Callers run on the engine thread; the
+// usercmd implementation synchronizes with asynchronous command generation.
+void Sys_SetTouchMotion( float side, float forward, float yaw, float pitch, bool active, unsigned buttons, unsigned canceledButtons,
+	int nextWeapon, int reload );
+void Sys_ResetTouchMotion();
+
+enum androidTouchPhase_t {
+	ANDROID_TOUCH_DOWN, ANDROID_TOUCH_MOVE, ANDROID_TOUCH_UP, ANDROID_TOUCH_CANCEL
+};
+void AndroidTouchControls_Init();
+void AndroidTouchControls_Frame( int width, int height, float density, bool appActive );
+bool AndroidTouchControls_HandleFinger( androidTouchPhase_t phase, long long device, long long finger, float x, float y );
+void AndroidTouchControls_OtherInput();
+void AndroidTouchControls_Release();
+void AndroidTouchControls_Draw();
+// Lower edge of the visible top controls in SDL window coordinates; zero
+// when inactive. HUD placement converts this into its own viewport.
+float AndroidTouchControls_HudTop();
 
 #endif

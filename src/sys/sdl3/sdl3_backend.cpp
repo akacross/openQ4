@@ -360,6 +360,7 @@ static float s_gamepadTouchpadRemainderX = 0.0f;
 static float s_gamepadTouchpadRemainderY = 0.0f;
 static bool s_touchscreenFingerActive = false;
 static SDL_FingerID s_touchscreenFingerId = 0;
+static SDL_TouchID s_touchscreenDeviceId = 0;
 static bool s_sdlAppInBackground = false;
 #if defined(__ANDROID__)
 // Main-thread state consumed outside SDL's pump, before gameplay/audio resume.
@@ -542,6 +543,7 @@ static void SDL3_ClearInputQueues(void) {
 	s_gamepadTouchpadRemainderY = 0.0f;
 	s_touchscreenFingerActive = false;
 	s_touchscreenFingerId = 0;
+	s_touchscreenDeviceId = 0;
 	s_ignoreNextMenuWarpMotion = false;
 	s_menuWarpWindowX = 0.0f;
 	s_menuWarpWindowY = 0.0f;
@@ -2399,6 +2401,37 @@ static void SDL3_HandleGamepadTouchpadEvent(const SDL_GamepadTouchpadEvent &even
 	}
 }
 
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+static void SDL3_UpdateAndroidTouchControls() {
+	if (s_sdlWindow == NULL) return;
+	int width = 0, height = 0;
+	(void)SDL_GetWindowSize(s_sdlWindow, &width, &height);
+	AndroidTouchControls_Frame(width, height, SDL_GetWindowDisplayScale(s_sdlWindow),
+		win32.activeApp && !s_sdlFocusInputReleased);
+}
+
+static bool SDL3_IsNonTouchPlayEvent(const SDL_Event &event) {
+	switch (event.type) {
+		case SDL_EVENT_KEY_DOWN:
+			return !event.key.repeat && event.key.scancode != SDL_SCANCODE_AC_BACK &&
+				event.key.scancode != SDL_SCANCODE_VOLUMEUP && event.key.scancode != SDL_SCANCODE_VOLUMEDOWN &&
+				event.key.scancode != SDL_SCANCODE_POWER;
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+			return event.button.which != SDL_TOUCH_MOUSEID;
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+		case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:
+			return in_joystick.GetBool();
+		case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+			return in_joystick.GetBool() && abs(static_cast<int>(event.gaxis.value)) > 16000;
+		case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+			return in_joystick.GetBool() && abs(static_cast<int>(event.jaxis.value)) > 16000;
+		default:
+			return false;
+	}
+}
+#endif
+
 static void SDL3_HandleFingerEvent(const SDL_TouchFingerEvent &event, int eventTime) {
 	if (!in_touchscreen.GetBool() || !s_sdlWindow) {
 		return;
@@ -2412,6 +2445,12 @@ static void SDL3_HandleFingerEvent(const SDL_TouchFingerEvent &event, int eventT
 	const bool down = event.type == SDL_EVENT_FINGER_DOWN;
 	const bool up = event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED;
 	const bool motion = event.type == SDL_EVENT_FINGER_MOTION;
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+	const androidTouchPhase_t phase = down ? ANDROID_TOUCH_DOWN :
+		event.type == SDL_EVENT_FINGER_CANCELED ? ANDROID_TOUCH_CANCEL : up ? ANDROID_TOUCH_UP : ANDROID_TOUCH_MOVE;
+	if (AndroidTouchControls_HandleFinger(phase, static_cast<long long>(event.touchID),
+			static_cast<long long>(event.fingerID), event.x, event.y)) return;
+#endif
 
 	if (down) {
 		if (s_touchscreenFingerActive) {
@@ -2419,7 +2458,8 @@ static void SDL3_HandleFingerEvent(const SDL_TouchFingerEvent &event, int eventT
 		}
 		s_touchscreenFingerActive = true;
 		s_touchscreenFingerId = event.fingerID;
-	} else if (!s_touchscreenFingerActive || event.fingerID != s_touchscreenFingerId) {
+		s_touchscreenDeviceId = event.touchID;
+	} else if (!s_touchscreenFingerActive || event.fingerID != s_touchscreenFingerId || event.touchID != s_touchscreenDeviceId) {
 		return;
 	}
 
@@ -2450,6 +2490,7 @@ static void SDL3_HandleFingerEvent(const SDL_TouchFingerEvent &event, int eventT
 	if (up) {
 		s_touchscreenFingerActive = false;
 		s_touchscreenFingerId = 0;
+		s_touchscreenDeviceId = 0;
 	}
 }
 
@@ -2468,6 +2509,8 @@ static void SDL3_ReleaseFocusInputState(int eventTime) {
 #if defined(OPENQ4_SIGMATOUCH)
 	Quake4_ClearTouchInput();
 	Quake4_ResetTouchState();
+#elif defined(__ANDROID__)
+	AndroidTouchControls_Release();
 #endif
 	SDL3_ClearInputQueues();
 	idKeyInput::ClearStates();
@@ -5105,6 +5148,9 @@ bool Sys_SDL_PumpEvents(void) {
 
 	SDL3_ProcessPendingLifecycleEvents(Sys_Milliseconds());
 	SDL3_UpdateTextInputState();
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+	SDL3_UpdateAndroidTouchControls();
+#endif
 
 	if (in_joystick.IsModified()) {
 		if (in_joystick.GetBool()) {
@@ -5140,6 +5186,9 @@ bool Sys_SDL_PumpEvents(void) {
 		s_gamepadTouchpadRemainderY = 0.0f;
 		if (!in_touchscreen.GetBool()) {
 			s_touchscreenFingerActive = false;
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+			AndroidTouchControls_Release();
+#endif
 		}
 		in_gyro.ClearModified();
 		in_gyroSensitivity.ClearModified();
@@ -5213,6 +5262,9 @@ bool Sys_SDL_PumpEvents(void) {
 			// focus event. Do not relatch input until the game window is active.
 			continue;
 		}
+#if defined(__ANDROID__) && !defined(OPENQ4_SIGMATOUCH)
+		if (SDL3_IsNonTouchPlayEvent(event)) AndroidTouchControls_OtherInput();
+#endif
 
 		switch (event.type) {
 			case SDL_EVENT_QUIT:
@@ -5569,6 +5621,8 @@ bool Sys_SDL_PumpEvents(void) {
 	} else {
 		Quake4_ClearTouchInput();
 	}
+#elif defined(__ANDROID__)
+	SDL3_UpdateAndroidTouchControls();
 #endif
 
 	return true;

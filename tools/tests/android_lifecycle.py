@@ -39,6 +39,10 @@ static bool s_menuMouseInsideWindow=true,s_gamepadGyroEnabled=true,s_sdlFocusInp
 static int pad=1,window=1;static int* s_sdlGamepad=&pad;static int* s_sdlJoystick=nullptr;static int* s_sdlWindow=&window;
 static int s_retainedKeyOwners[4]={};
 static int writes=0,inputReleases=0,usercmdClears=0,rumbleStops=0,menus=0,resumes=0;
+static int touchReleases=0;
+static void AndroidTouchControls_Release(){++touchReleases;}
+static void Quake4_ClearTouchInput(){}
+static void Quake4_ResetTouchState(){}
 static bool devicePaused=false,com_editorActive=false;
 static std::vector<std::string> actions;
 static bool Posix_IsMainThread(){return engineThread;}
@@ -87,7 +91,7 @@ static void reset(){
     s_sdlLifecyclePending.value=s_sdlAppBackgrounded.value=0;s_sdlAppInBackground=s_sdlAppSuspendedSinceQuery=false;
     s_sdlFocusInputReleased=false;engineThread=true;devicePaused=false;win32.activeApp=true;
     keys=keyStorage;for(auto& key:keyStorage)key.down=false;keys[2].down=keys[6].down=true;
-    writes=inputReleases=usercmdClears=rumbleStops=menus=resumes=0;
+    writes=inputReleases=usercmdClears=rumbleStops=menus=resumes=touchReleases=0;
     sessionValue=idSessionLocal{};idAsyncNetwork::active=com_editorActive=false;actions.clear();
 }
 static void send(int type){SDL_Event event{type};SDL3_LifecycleEventWatch(nullptr,&event);}
@@ -99,9 +103,11 @@ int main(){try {
     // handler has not run; sound and held input must already be released.
     require(devicePaused && s_sdlAppInBackground && Sys_SDL_IsAppBackgrounded(),"Android watch waited for the blocked event queue");
     require(inputReleases==2 && rumbleStops==1 && writes==1,"background transition did not release once");
+    require(touchReleases==1,"background transition left touch actions held");
     require(!Sys_SDL_ConsumeAppSuspension(),"session consumed suspension while still backgrounded");
     SDL3_ProcessPendingLifecycleEvents(100);
     require(writes==1 && inputReleases==2,"queued background replay repeated cleanup");
+    require(touchReleases==1,"queued background replay repeated touch release");
     send(SDL_EVENT_WILL_ENTER_FOREGROUND);send(SDL_EVENT_DID_ENTER_FOREGROUND);
     require(devicePaused,"event watch resumed audio before session preparation");
     SDL3_ProcessPendingLifecycleEvents(101);
@@ -137,12 +143,14 @@ int main(){try {
         sessionValue.HandleAppResume(false);sessionValue.gui=false;
     }
     require(writes==2 && inputReleases==4 && menus==2 && resumes==2,"second suspend/resume cycle changed behavior");
+    require(touchReleases==2,"second suspend failed to release touch actions");
 #else
     require(!s_sdlAppInBackground && !writes && !devicePaused,"desktop watch became immediate");
     SDL3_ProcessPendingLifecycleEvents(100);
     require(s_sdlAppInBackground && writes==1 && inputReleases==2 && !devicePaused,"desktop deferred transition changed");
     send(SDL_EVENT_DID_ENTER_FOREGROUND);SDL3_ProcessPendingLifecycleEvents(101);
     sessionValue.HandleAppResume(false);require(!menus && !resumes && !s_sdlAppInBackground,"desktop acquired Android resume behavior");
+    require(touchReleases==0,"desktop invoked Android touch controls");
 #endif
     reset();keys=nullptr;idKeyInput::ClearStates();require(!usercmdClears,"uninitialized input touched usercmd state");
     keys=keyStorage;idKeyInput::ClearStates();require(inputReleases==2 && usercmdClears==1,"live input clearing changed");
