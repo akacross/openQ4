@@ -280,16 +280,20 @@ def main() -> int:
                  'MP_STATE' in logs['peer'][before['peer']:], 'new connection in reused slot')
 
         # The disconnect ends the match; the slot can report in-game during the
-        # warmup that follows, before the map restart that starts gameplay.
-        # Begin only once the server reports a running match after its last
-        # phase change, so the restart cannot swallow the synthetic speech.
+        # summary/warmup that follows, before the map restart that starts
+        # gameplay. Begin only once the server and both talking clients report
+        # a running match after their last restart, so neither the server's
+        # nor a client's restart can swallow the synthetic speech.
         def match_running(text):
             transitions = list(re.finditer(r'MP match phase: \d+ -> (\d+)', text))
             if transitions and transitions[-1][1] != '3':
                 return False
-            tail = text[transitions[-1].end():] if transitions else text
-            return re.search(r'^MP_STATE .* phase=3 ', tail, re.M) is not None
-        wait_for(lambda logs: match_running(logs[server_role][before[server_role]:]), 'reconnected match running')
+            restarts = list(re.finditer(r'Game Map Restart', text))
+            start = max(transitions[-1].end() if transitions else 0, restarts[-1].end() if restarts else 0)
+            states = re.findall(r'^MP_STATE .*?\bphase=(\d+) ', text[start:], re.M)
+            return bool(states) and states[-1] == '3'
+        wait_for(lambda logs: all(match_running(logs[role][before[role]:]) for role in {server_role, 'host', 'peer'}),
+                 'reconnected match running')
         reconnected = phase('RECONNECTED', {'host': ['testVoiceChat 3'], 'peer': ['testVoiceChat 3']})
         new_generations = {row['generation'] for row in reconnected['host']['ACTIVE']['playback'] if row['client'] == 1}
         checks['reconnect_identity'] = (delta(reconnected, 'host') > 20 and delta(reconnected, 'peer') > 20 and
