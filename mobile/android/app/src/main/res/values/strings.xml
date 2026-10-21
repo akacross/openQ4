@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">openQ4</string>
+    <string name="app_name_emulator">openQ4 Emulator</string>
     <string-array name="setup_language_names" translatable="false">
         <item>English</item>
         <item>Deutsch</item>

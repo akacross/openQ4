@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a signed Android release APK against its validated Meson staging tree."""
+"""Verify a signed phone release or diagnostic emulator APK against its stage."""
 from __future__ import annotations
 
 import argparse
@@ -11,14 +11,33 @@ import ssl
 import subprocess
 import zipfile
 
-from android_elf import validate_library
+from android_elf import android_abi, validate_library
 from android_package import package_manifest
 
-LIBRARIES = {
-    'libquake4.so', 'libSDL3.so', 'librenderer-gles_arm64.so',
-    'libgame-sp_arm64.so', 'libgame-mp_arm64.so', 'libopenal.so', 'libc++_shared.so',
+VARIANTS = {
+    'phone': ('arm64-v8a', 'com.darkmatter.openq4', False),
+    'emulator': ('x86_64', 'com.darkmatter.openq4.emulator', True),
 }
 SETUP_FONTS = {'fonts/marine.ttf', 'fonts/lowpixel.ttf'}
+
+
+def variant_settings(variant: str) -> tuple[str, str, bool]:
+    try:
+        return VARIANTS[variant]
+    except KeyError:
+        raise ValueError(f'Unsupported Android package variant: {variant!r}') from None
+
+
+def libraries_for_abi(abi: str) -> set[str]:
+    arch = android_abi(abi).module_arch
+    return {
+        'libquake4.so', 'libSDL3.so', f'librenderer-gles_{arch}.so',
+        f'libgame-sp_{arch}.so', f'libgame-mp_{arch}.so', 'libopenal.so', 'libc++_shared.so',
+    }
+
+
+# Preserve the established phone verifier API for existing callers.
+LIBRARIES = libraries_for_abi('arm64-v8a')
 
 
 def digest(stream) -> str:
@@ -28,18 +47,26 @@ def digest(stream) -> str:
     return result.hexdigest()
 
 
-def verify_payload(apk: Path, stage: Path, version: str) -> None:
+def verify_payload(apk: Path, stage: Path, version: str, variant: str = 'phone') -> None:
+    abi, _, _ = variant_settings(variant)
     metadata = json.loads((stage / 'android-build.json').read_text(encoding='utf-8'))
     mod = json.loads((stage / 'baseoq4/mod.json').read_text(encoding='utf-8'))
-    if metadata.get('abi') != 'arm64-v8a' or metadata.get('androidApi') != 24:
-        raise ValueError('Release must target Android arm64 API 24')
+    # Format 1 originally described only phones. Missing variant is accepted
+    # solely for those existing stages, never inferred from an emulator ABI.
+    if (metadata.get('format') != 1 or metadata.get('abi') != abi
+            or metadata.get('variant', 'phone') != variant or metadata.get('androidApi') != 24
+            or not re.fullmatch(r'\d+\.\d+\.\d+', str(metadata.get('sdlVersion', '')))):
+        raise ValueError(f'Expected {variant} Android {abi} API 24 metadata with an SDL version')
     if mod.get('version') != version or mod.get('requiredopenQ4Version') != version:
         raise ValueError('Staged engine and mod versions do not match the release')
     expected = {}
-    for name in LIBRARIES:
+    libraries = libraries_for_abi(abi)
+    if {path.name for path in (stage / 'lib').iterdir()} != libraries:
+        raise ValueError(f'Stage must contain exactly the seven matching {abi} native libraries')
+    for name in libraries:
         path = stage / 'lib' / name
-        validate_library(path, 24)
-        expected[f'lib/arm64-v8a/{name}'] = path
+        validate_library(path, 24, abi)
+        expected[f'lib/{abi}/{name}'] = path
     for name in ('baseoq4/pak0.pk4', 'baseoq4/pak1.pk4', 'baseoq4/mod.json',
                  'licenses/sdl3/LICENSE.txt', 'licenses/openal-soft/COPYING',
                  'licenses/android-ndk/NOTICE.toolchain', 'licenses/QUAKE-4-SDK-EULA.rtf', 'licenses/MD4.txt'):
@@ -64,7 +91,7 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
             raise ValueError('APK contains duplicate entries')
         native = {name for name in names if name.startswith('lib/') and not name.endswith('/')}
         if native != {name for name in expected if name.startswith('lib/')}:
-            raise ValueError('APK must contain exactly the seven matching arm64 native libraries')
+            raise ValueError(f'APK must contain exactly the seven matching {abi} native libraries')
         assets = {name for name in names if name.startswith('assets/') and not name.endswith('/')}
         if assets != {name for name in expected if name.startswith('assets/')} | set(fonts) | {
                 'assets/openq4-package-version.txt', 'assets/openq4-package-manifest.txt'}:
@@ -88,7 +115,8 @@ def verify_payload(apk: Path, stage: Path, version: str) -> None:
             raise ValueError('APK ZIP integrity failure')
 
 
-def verify_tools(apk: Path, tools: Path, certificate: Path, version: str) -> None:
+def verify_tools(apk: Path, tools: Path, certificate: Path, version: str, variant: str = 'phone') -> None:
+    abi, package_id, debuggable = variant_settings(variant)
     def run(tool: str, *args: str) -> str:
         suffix = '.bat' if tool == 'apksigner' and (tools / 'apksigner.bat').exists() else ''
         result = subprocess.run([str(tools / (tool + suffix)), *args], check=True, capture_output=True, text=True)
@@ -98,17 +126,19 @@ def verify_tools(apk: Path, tools: Path, certificate: Path, version: str) -> Non
     expected_cert = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate.read_text())).hexdigest()
     actual_certs = re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)', signature)
     if actual_certs != [expected_cert] or not re.search(r'Verified using v2 scheme.*: true', signature):
-        raise ValueError('APK must have a valid v2 signature from the pinned release certificate')
+        raise ValueError(f'APK must have a valid v2 signature from the pinned {"release" if not debuggable else "diagnostic"} certificate')
     run('zipalign', '-c', '-P', '16', '4', str(apk))
     badging = run('aapt', 'dump', 'badging', str(apk))
     code = sum(int(part) * scale for part, scale in zip(version.split('.'), (1000000, 1000, 1)))
-    for token in ("package: name='com.darkmatter.openq4'", f"versionCode='{code}'", f"versionName='{version}'",
-                  "sdkVersion:'24'", "targetSdkVersion:'35'", "native-code: 'arm64-v8a'",
+    for token in (f"package: name='{package_id}'", f"versionCode='{code}'", f"versionName='{version}'",
+                  "sdkVersion:'24'", "targetSdkVersion:'35'", f"native-code: '{abi}'",
                   "launchable-activity: name='com.darkmatter.openq4.LauncherActivity'"):
         if token not in badging:
             raise ValueError(f'APK manifest mismatch: {token}')
-    if 'application-debuggable' in badging:
+    if not debuggable and 'application-debuggable' in badging:
         raise ValueError('Release APK must not be debuggable')
+    if debuggable and 'application-debuggable' not in badging:
+        raise ValueError('Emulator APK must be a diagnostic debuggable build')
     manifest = run('aapt', 'dump', 'xmltree', str(apk), 'AndroidManifest.xml')
     if not re.search(r'android:extractNativeLibs\([^)]*\)=\(type 0x12\)0xffffffff', manifest):
         raise ValueError('APK must extract native libraries for runtime module loading')
@@ -121,12 +151,14 @@ def main() -> None:
     parser.add_argument('--version', required=True)
     parser.add_argument('--build-tools', type=Path, required=True)
     parser.add_argument('--certificate', type=Path, required=True)
+    parser.add_argument('--variant', choices=sorted(VARIANTS), default='phone',
+                        help='phone verifies the production release; emulator requires a separate debug package')
     args = parser.parse_args()
     if not re.fullmatch(r'\d{1,3}\.\d{1,3}\.\d{1,3}', args.version):
         parser.error('Invalid release version')
-    verify_tools(args.apk, args.build_tools, args.certificate, args.version)
-    verify_payload(args.apk, args.stage, args.version)
-    print('Android APK verified: release certificate, manifest, 16 KiB ELF/ZIP alignment, exact native/data/license payload.')
+    verify_tools(args.apk, args.build_tools, args.certificate, args.version, args.variant)
+    verify_payload(args.apk, args.stage, args.version, args.variant)
+    print(f'Android {args.variant} APK verified: certificate, manifest, 16 KiB ELF/ZIP alignment, exact native/data/license payload.')
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name_emulator">openQ4-Emulator</string>
     <string name="setup_title">openQ4-Einrichtung</string>
     <string name="setup_language">Sprache</string>
     <string name="setup_sample">Bereite deine Spieldateien vor und kehre an die Front zurück.</string>

@@ -14,9 +14,15 @@ if (!new File(sdlJava, 'org/libsdl/app/SDLActivity.java').isFile()) {
     throw new GradleException('sdl3SourceRoot must contain SDL3 Android Java sources.')
 }
 def abi = providers.gradleProperty('openq4Abi').getOrElse('arm64-v8a')
-if (abi != 'arm64-v8a') {
-    throw new GradleException('openQ4 currently supports the arm64-v8a Android ABI.')
+if (!(abi in ['arm64-v8a', 'x86_64'])) {
+    throw new GradleException('openQ4 supports arm64-v8a phones and diagnostic x86_64 emulators only.')
 }
+def emulator = abi == 'x86_64'
+def packageVariant = emulator ? 'emulator' : 'phone'
+def moduleArch = emulator ? 'x64' : 'arm64'
+def nativeLibraries = ['libquake4.so', 'libSDL3.so', "librenderer-gles_${moduleArch}.so",
+                       "libgame-sp_${moduleArch}.so", "libgame-mp_${moduleArch}.so",
+                       'libopenal.so', 'libc++_shared.so'].collect { it.toString() }.toSet()
 def nativeStage = file(providers.gradleProperty('openq4Stage').getOrElse("../../../.install/android/${abi}"))
 def nativeMetadataFile = new File(nativeStage, 'android-build.json')
 def modMetadataFile = new File(nativeStage, 'baseoq4/mod.json')
@@ -24,7 +30,9 @@ if (!nativeMetadataFile.isFile() || !modMetadataFile.isFile()) {
     throw new GradleException('Missing native build metadata; run the Android Meson install step first.')
 }
 def nativeMetadata = new JsonSlurper().parse(nativeMetadataFile)
+def stagedVariant = nativeMetadata.containsKey('variant') ? nativeMetadata.variant : 'phone'
 if (nativeMetadata.format != 1 || nativeMetadata.abi != abi ||
+        stagedVariant != packageVariant ||
         !(nativeMetadata.androidApi instanceof Number) || nativeMetadata.androidApi < 24 ||
         nativeMetadata.androidApi > 35) {
     throw new GradleException('Unsupported staged Android ABI/API metadata (this host supports API 24 through 35).')
@@ -80,12 +88,10 @@ tasks.register('stageOpenQ4Native', Sync) {
     from(new File(nativeStage, 'lib')) { include '*.so' }
     into(generatedJni.map { it.dir(abi) })
     doFirst {
-        ['libquake4.so', 'libSDL3.so', 'librenderer-gles_arm64.so',
-         'libgame-sp_arm64.so', 'libgame-mp_arm64.so', 'libopenal.so',
-         'libc++_shared.so'].each { name ->
-            if (!new File(nativeStage, "lib/${name}").isFile()) {
-                throw new GradleException("Missing ${name}; build and stage native Android targets with Meson first.")
-            }
+        def actual = fileTree(new File(nativeStage, 'lib')).matching { include '**/*' }
+            .files.collect { new File(nativeStage, 'lib').toPath().relativize(it.toPath()).toString() }.toSet()
+        if (actual != nativeLibraries) {
+            throw new GradleException("Expected exactly the seven ${abi} native libraries; missing ${nativeLibraries - actual}, unexpected ${actual - nativeLibraries}.")
         }
     }
 }
@@ -132,7 +138,10 @@ android {
     compileSdk 35
     buildToolsVersion "35.0.0"
     defaultConfig {
-        applicationId 'com.darkmatter.openq4'
+        // An emulator installation has its own data/saves and cannot update a
+        // phone installation. Keep the established phone identity unchanged.
+        applicationId emulator ? 'com.darkmatter.openq4.emulator' : 'com.darkmatter.openq4'
+        manifestPlaceholders = [openq4AppLabel: emulator ? '@string/app_name_emulator' : '@string/app_name']
         minSdk nativeMetadata.androidApi.intValue()
         targetSdk 35
         versionCode versionCodeText.toInteger()
@@ -169,6 +178,14 @@ android {
         release { minifyEnabled false }
     }
 }
+// A diagnostic ABI has no release APK or bundle task, even when explicitly
+// requested by a caller that supplies signing credentials.
+androidComponents {
+    beforeVariants(selector().withBuildType('release')) { variant ->
+        if (emulator) variant.enable = false
+    }
+}
+
 tasks.named('preBuild').configure {
     dependsOn 'stageOpenQ4Native', 'stageOpenQ4Assets', 'stageOpenQ4Icon'
 }

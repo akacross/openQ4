@@ -32,8 +32,14 @@ engine_client_binary_name = meson.project_name() + '-client_' + binary_arch
 engine_ded_binary_name = meson.project_name() + '-ded_' + binary_arch
 module_filename_prefix = host_system == 'android' ? 'lib' : ''
 if host_system == 'android'
-  if host_cpu_family != 'aarch64'
-    error('Android currently supports the arm64-v8a ABI only.')
+  if host_cpu_family == 'aarch64'
+    android_abi = 'arm64-v8a'
+    android_variant = 'phone'
+  elif host_cpu_family == 'x86_64'
+    android_abi = 'x86_64'
+    android_variant = 'emulator'
+  else
+    error('Android supports arm64-v8a phones and diagnostic x86_64 emulators only.')
   endif
   engine_client_binary_name = 'quake4'
 endif
@@ -220,7 +226,7 @@ install_engine_dir = install_root_dir
 if host_system == 'android'
   # Keep mobile assets/native libraries together without replacing a staged
   # desktop installation. The host app copies these into assets/ and jniLibs/.
-  install_root_dir = install_root_dir / 'android' / 'arm64-v8a'
+  install_root_dir = install_root_dir / 'android' / android_abi
   install_game_dir = install_root_dir / 'baseoq4'
   install_module_dir = install_root_dir / 'lib'
   install_engine_dir = install_module_dir
@@ -2008,7 +2014,7 @@ if build_engine
     endif
     run_command(
       py, meson.project_source_root() / 'tools/build/android_elf.py',
-      '--api', android_native_api.to_string(),
+      '--api', android_native_api.to_string(), '--abi', android_abi,
       android_deps_root / 'lib/libSDL3.so',
       android_deps_root / 'lib/libopenal.so',
       android_deps_root / 'lib/libc++_shared.so',
@@ -2020,6 +2026,8 @@ if build_engine
         prefix: '#include <SDL3/SDL_version.h>', args: android_include_args)
     endforeach
     android_build_config = configuration_data()
+    android_build_config.set('ANDROID_ABI', android_abi)
+    android_build_config.set('ANDROID_VARIANT', android_variant)
     android_build_config.set('ANDROID_API', android_native_api)
     android_build_config.set('SDL_VERSION', '.'.join(android_sdl_version))
     configure_file(

@@ -24,6 +24,7 @@ import android_cross
 import prepare_android_deps
 import android_elf
 import verify_android_apk
+import android_emulator_smoke
 from android_package import package_manifest
 
 
@@ -40,43 +41,127 @@ def android_library(api: int = 24, alignment: int = 16384, machine: int = 183) -
     return bytes(data)
 
 
+def staged_package(stage: Path, variant: str) -> tuple[dict[str, bytes], dict[str, bytes]]:
+    abi, _, _ = verify_android_apk.variant_settings(variant)
+    target = android_elf.android_abi(abi)
+    files = {'lib/' + name: android_library(machine=target.machine)
+             for name in verify_android_apk.libraries_for_abi(abi)}
+    faces = {name: ('typeface: ' + name).encode() for name in verify_android_apk.SETUP_FONTS}
+    pack = io.BytesIO()
+    with zipfile.ZipFile(pack, 'w') as archive:
+        for name, data in faces.items():
+            archive.writestr(name, data)
+    files.update({
+        'android-build.json': json.dumps({'format': 1, 'variant': variant, 'abi': abi,
+                                          'androidApi': 24, 'sdlVersion': '3.4.16'}).encode(),
+        'baseoq4/mod.json': b'{"version":"0.14.000","requiredopenQ4Version":"0.14.000"}',
+        'baseoq4/pak0.pk4': pack.getvalue(), 'baseoq4/pak1.pk4': b'second pack',
+        'LICENSE': b'engine license', 'LICENSING.md': b'component licenses', 'CONTRIBUTORS.md': b'credits',
+        'licenses/QUAKE-4-SDK-EULA.rtf': b'SDK EULA', 'licenses/MD4.txt': b'MD4 notice',
+        'licenses/sdl3/LICENSE.txt': b'SDL', 'licenses/openal-soft/COPYING': b'OpenAL',
+        'licenses/android-ndk/NOTICE.toolchain': b'NDK',
+    })
+    entries = {}
+    for name, data in sorted(files.items()):
+        path = stage / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        entries[f'lib/{abi}/' + name[4:] if name.startswith('lib/') else 'assets/' + name] = data
+    manifest = package_manifest(stage / 'baseoq4')
+    entries['assets/openq4-package-manifest.txt'] = manifest
+    entries['assets/openq4-package-version.txt'] = hashlib.sha256(manifest).hexdigest().encode()
+    entries.update({'assets/' + name: data for name, data in faces.items()})
+    return files, entries
+
+
+def write_apk(apk: Path, entries: dict[str, bytes]) -> None:
+    with zipfile.ZipFile(apk, 'w') as archive:
+        for name, data in entries.items():
+            archive.writestr(name, data)
+        archive.writestr('AndroidManifest.xml', b'manifest checked by aapt')
+
+
 class AndroidBuildTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        (ROOT / '.tmp').mkdir(exist_ok=True)
+
+    def test_emulator_file_check_distinguishes_absence_from_command_failure(self) -> None:
+        probe = android_emulator_smoke.Probe.__new__(android_emulator_smoke.Probe)
+        for code, stdout, stderr, expected in (
+            (0, b'', b'', True), (1, b'', b'', False),
+            (243, b'', b'run-as: exec failed for test: Permission denied', None),
+            (1, b'', b'permission denied', None), (0, b'unexpected output', b'', None),
+        ):
+            with self.subTest(code=code, stderr=stderr):
+                probe.adb = mock.Mock(return_value=subprocess.CompletedProcess([], code, stdout, stderr))
+                if expected is None:
+                    with self.assertRaisesRegex(RuntimeError, 'Private-file test failed'):
+                        probe.private_test('-f', 'files/saves/baseoq4/autoexec.cfg')
+                else:
+                    self.assertIs(probe.private_test('-f', 'files/saves/baseoq4/autoexec.cfg'), expected)
+                # Exercise the actual shell builtin on older Android, where
+                # directly executing `test` through run-as fails.
+                self.assertIn('sh', probe.adb.call_args.args)
+                self.assertIn('-c', probe.adb.call_args.args)
+        probe.adb = mock.Mock(return_value=subprocess.CompletedProcess([], 1, b'', b'permission denied'))
+        with self.assertRaisesRegex(RuntimeError, 'Retail-file test failed'):
+            probe.remote_sha('/sdcard/Android/data/com.darkmatter.openq4.emulator/files/q4base/pak001.pk4')
+
+    def test_emulator_preflight_rejects_gles2_before_install_or_data_writes(self) -> None:
+        probe = android_emulator_smoke.Probe.__new__(android_emulator_smoke.Probe)
+        probe.report = {}
+        properties = {
+            'ro.kernel.qemu': b'1', 'sys.boot_completed': b'1',
+            'ro.product.cpu.abi': b'x86_64', 'ro.opengles.version': b'131072',
+            'ro.build.version.sdk': b'24', 'ro.build.version.release': b'7.0',
+            'ro.build.fingerprint': b'API24 fixture',
+        }
+        calls = []
+
+        def adb(*args, **kwargs):
+            calls.append(args)
+            if args[:2] == ('shell', 'getprop'):
+                output = properties[args[2]]
+            elif args == ('shell', 'id'):
+                output = b'uid=0(root)'
+            elif args in (('shell', 'pidof', android_emulator_smoke.PACKAGE), ('root',)):
+                output = b''
+            else:
+                self.fail(f'Unexpected operation on an unsupported image: {args}')
+            return subprocess.CompletedProcess([], 0, output, b'')
+
+        probe.adb = adb
+        with self.assertRaisesRegex(ValueError, 'required OpenGL ES 3.0'):
+            probe.run()
+        self.assertEqual(probe.report['ro.opengles.version'], '131072')
+        self.assertNotIn('install', [args[0] for args in calls])
+
+    def test_emulator_pose_reader_allows_draw_messages_but_not_later_measurements(self) -> None:
+        sample = 'origin: (-5122.8 2847.2 -5819.8) angles: (4.3 -7.2 0.0)\n'
+        log = 'EMULATOR_SAVE_RESTORED \nDeferred GenerateAllInteractions (RunFrame)\n' + sample + 'EMULATOR_SMOKE_COMPLETE\n'
+        expected = [-5122.8, 2847.2, -5819.8, 4.3, -7.2, 0.0]
+        self.assertEqual(android_emulator_smoke.pose_after_marker(log, 'SAVE_RESTORED'), expected)
+        self.assertEqual(android_emulator_smoke.pose_after_marker(log + sample, 'SAVE_RESTORED'), expected)
+        for bad in (log.replace(sample, ''),
+                    log.replace(sample, sample * 2), log.replace('-5122.8', 'nan')):
+            with self.assertRaises(ValueError):
+                android_emulator_smoke.pose_after_marker(bad, 'SAVE_RESTORED')
+        with self.assertRaises(ValueError):
+            android_emulator_smoke.pose_after_marker('EMULATOR_SAVE_RESTORED\nEMULATOR_OTHER\n' + sample,
+                                                    'SAVE_RESTORED')
+        self.assertEqual(android_emulator_smoke.pose_after_marker(
+            'EMULATOR_GAMEPLAY_READY\n(1.00 -2.50 3.00) 352.8\nEMULATOR_TOUCH_RELEASED\n',
+            'GAMEPLAY_READY', 'mp'), [1.0, -2.5, 3.0, 352.8])
+
     def test_release_apk_payload_rejects_mixed_or_incomplete_packages(self) -> None:
         with tempfile.TemporaryDirectory(prefix='android-apk-', dir=ROOT / '.tmp') as temporary:
             stage = Path(temporary) / 'stage'
-            files = {'lib/' + name: android_library() for name in verify_android_apk.LIBRARIES}
-            faces = {name: ('typeface: ' + name).encode() for name in verify_android_apk.SETUP_FONTS}
-            pack = io.BytesIO()
-            with zipfile.ZipFile(pack, 'w') as archive:
-                for name, data in faces.items():
-                    archive.writestr(name, data)
-            files.update({
-                'android-build.json': b'{"abi":"arm64-v8a","androidApi":24}',
-                'baseoq4/mod.json': b'{"version":"0.14.000","requiredopenQ4Version":"0.14.000"}',
-                'baseoq4/pak0.pk4': pack.getvalue(), 'baseoq4/pak1.pk4': b'second pack',
-                'LICENSE': b'engine license', 'LICENSING.md': b'component licenses', 'CONTRIBUTORS.md': b'credits',
-                'licenses/QUAKE-4-SDK-EULA.rtf': b'SDK EULA',
-                'licenses/MD4.txt': b'MD4 notice',
-                'licenses/sdl3/LICENSE.txt': b'SDL', 'licenses/openal-soft/COPYING': b'OpenAL',
-                'licenses/android-ndk/NOTICE.toolchain': b'NDK',
-            })
-            entries = {}
-            for name, data in sorted(files.items()):
-                path = stage / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
-                entries['lib/arm64-v8a/' + name[4:] if name.startswith('lib/') else 'assets/' + name] = data
-            manifest = package_manifest(stage / 'baseoq4')
-            entries['assets/openq4-package-manifest.txt'] = manifest
-            entries['assets/openq4-package-version.txt'] = hashlib.sha256(manifest).hexdigest().encode()
-            entries.update({'assets/' + name: data for name, data in faces.items()})
+            files, entries = staged_package(stage, 'phone')
             apk = Path(temporary) / 'release.apk'
 
             def package(payload):
-                with zipfile.ZipFile(apk, 'w') as archive:
-                    for name, data in payload.items():
-                        archive.writestr(name, data)
-                    archive.writestr('AndroidManifest.xml', b'manifest checked by aapt')
+                write_apk(apk, payload)
 
             package(entries)
             verify_android_apk.verify_payload(apk, stage, '0.14.000')
@@ -118,6 +203,62 @@ class AndroidBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'without redundant APK compression'):
                 verify_android_apk.verify_payload(apk, stage, '0.14.000')
 
+    def test_emulator_payload_cannot_be_mistaken_for_phone_release(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='android-emulator-', dir=ROOT / '.tmp') as temporary:
+            stage = Path(temporary) / 'stage'
+            files, entries = staged_package(stage, 'emulator')
+            apk = Path(temporary) / 'emulator.apk'
+            write_apk(apk, entries)
+            verify_android_apk.verify_payload(apk, stage, '0.14.000', 'emulator')
+            with self.assertRaisesRegex(ValueError, 'Expected phone'):
+                verify_android_apk.verify_payload(apk, stage, '0.14.000')
+            for name, value in (
+                ('lib/x86_64/libopenxr_loader.so', android_library(machine=62)),
+                ('lib/x86_64/libgame-sp_arm64.so', android_library()),
+                ('lib/arm64-v8a/libquake4.so', android_library()),
+            ):
+                write_apk(apk, dict(entries, **{name: value}))
+                with self.assertRaisesRegex(ValueError, 'seven matching'):
+                    verify_android_apk.verify_payload(apk, stage, '0.14.000', 'emulator')
+            write_apk(apk, entries)
+            # Correct filenames are not evidence of the target instruction set.
+            library = stage / 'lib/libquake4.so'
+            library.write_bytes(android_library())
+            with self.assertRaisesRegex(ValueError, 'x86-64'):
+                verify_android_apk.verify_payload(apk, stage, '0.14.000', 'emulator')
+            library.write_bytes(files['lib/libquake4.so'])
+            extra = stage / 'lib/libdebug_runtime.so'
+            extra.write_bytes(android_library(machine=62))
+            with self.assertRaisesRegex(ValueError, 'Stage must contain exactly'):
+                verify_android_apk.verify_payload(apk, stage, '0.14.000', 'emulator')
+            extra.unlink()
+            metadata = json.loads(files['android-build.json'])
+            for field, value in (
+                ('format', 2), ('variant', None), ('variant', 'phone'), ('abi', 'arm64-v8a'),
+                ('androidApi', 28), ('sdlVersion', None),
+            ):
+                changed = dict(metadata)
+                if value is None:
+                    changed.pop(field)
+                else:
+                    changed[field] = value
+                (stage / 'android-build.json').write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, 'Expected emulator'):
+                    verify_android_apk.verify_payload(apk, stage, '0.14.000', 'emulator')
+
+    def test_existing_phone_metadata_remains_verifiable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='android-legacy-stage-', dir=ROOT / '.tmp') as temporary:
+            stage = Path(temporary) / 'stage'
+            files, entries = staged_package(stage, 'phone')
+            metadata = json.loads(files['android-build.json'])
+            metadata.pop('variant')
+            legacy = json.dumps(metadata).encode()
+            (stage / 'android-build.json').write_bytes(legacy)
+            entries['assets/android-build.json'] = legacy
+            apk = Path(temporary) / 'phone.apk'
+            write_apk(apk, entries)
+            verify_android_apk.verify_payload(apk, stage, '0.14.000')
+
     def test_release_apk_manifest_and_signer_gates(self) -> None:
         certificate = ROOT / 'mobile/android/release-signing-cert.pem'
         cert_digest = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate.read_text())).hexdigest()
@@ -149,6 +290,39 @@ class AndroidBuildTests(unittest.TestCase):
                 else:
                     verify_android_apk.verify_tools(Path('release.apk'), Path('tools'), certificate, '0.14.000')
 
+    def test_emulator_manifest_requires_separate_debug_identity_and_pinned_certificate(self) -> None:
+        # The fixture certificate is just a pinned identity here; no private
+        # signing key is used by this test.
+        certificate = ROOT / 'mobile/android/release-signing-cert.pem'
+        cert_digest = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate.read_text())).hexdigest()
+        good = [
+            f'Verified using v2 scheme (APK Signature Scheme v2): true\nSigner #1 certificate SHA-256 digest: {cert_digest}\n',
+            '',
+            "package: name='com.darkmatter.openq4.emulator' versionCode='14000' versionName='0.14.000'\nsdkVersion:'24'\ntargetSdkVersion:'35'\nnative-code: 'x86_64'\nlaunchable-activity: name='com.darkmatter.openq4.LauncherActivity'\napplication-debuggable\n",
+            'A: android:extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff',
+        ]
+        for variant, index, replacement, message in (
+            ('emulator', -1, '', ''),
+            ('phone', -1, '', 'manifest mismatch'),
+            ('emulator', 0, good[0].replace(cert_digest, '0' * 64), 'pinned diagnostic certificate'),
+            ('emulator', 0, good[0].replace(': true', ': false'), 'valid v2 signature'),
+            ('emulator', 2, good[2].replace('.openq4.emulator', '.openq4'), 'manifest mismatch'),
+            ('emulator', 2, good[2].replace("'x86_64'", "'arm64-v8a'"), 'manifest mismatch'),
+            ('emulator', 2, good[2].replace("sdkVersion:'24'", "sdkVersion:'28'"), 'manifest mismatch'),
+            ('emulator', 2, good[2].replace('application-debuggable', ''), 'diagnostic debuggable build'),
+        ):
+            outputs = good.copy()
+            if index >= 0:
+                outputs[index] = replacement
+            with self.subTest(variant=variant, index=index, message=message), mock.patch.object(
+                    verify_android_apk.subprocess, 'run', side_effect=[
+                        subprocess.CompletedProcess([], 0, stdout=text) for text in outputs]):
+                if message:
+                    with self.assertRaisesRegex(ValueError, message):
+                        verify_android_apk.verify_tools(Path('emulator.apk'), Path('tools'), certificate, '0.14.000', variant)
+                else:
+                    verify_android_apk.verify_tools(Path('emulator.apk'), Path('tools'), certificate, '0.14.000', variant)
+
     def test_library_validation_checks_loadability(self) -> None:
         (ROOT / ".tmp").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="android-elf-test-", dir=ROOT / ".tmp") as temporary:
@@ -166,8 +340,26 @@ class AndroidBuildTests(unittest.TestCase):
                     android_elf.validate_library(library, 24)
             library.write_bytes(android_library(api=28))
             self.assertEqual(android_elf.validate_library(library, 28), 28)
+            library.write_bytes(android_library(machine=62))
+            self.assertEqual(android_elf.validate_library(library, 24, 'x86_64'), 24)
+            for contents, error in (
+                (android_library(), 'x86-64'),
+                (android_library(api=28, machine=62), 'above the configured API 24'),
+                (android_library(machine=62, alignment=4096), '16 KiB'),
+            ):
+                library.write_bytes(contents)
+                with self.assertRaisesRegex(ValueError, error):
+                    android_elf.validate_library(library, 24, 'x86_64')
+            with self.assertRaisesRegex(ValueError, 'Unsupported Android ABI'):
+                android_elf.validate_library(library, 24, 'x86')
 
     def test_dependency_preparation_preserves_and_requires_notices(self) -> None:
+        self._check_dependency_preparation('arm64-v8a')
+
+    def test_emulator_dependencies_use_their_own_toolchain_and_runtime(self) -> None:
+        self._check_dependency_preparation('x86_64')
+
+    def _check_dependency_preparation(self, abi: str) -> None:
         (ROOT / ".tmp").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="android-deps-test-", dir=ROOT / ".tmp") as temporary:
             fixture = Path(temporary)
@@ -187,16 +379,18 @@ class AndroidBuildTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(contents, encoding="utf-8")
             prefix = fixture / "prefix"
-            runtime = android_library(api=21)
+            target = android_elf.android_abi(abi)
+            runtime = android_library(api=21, machine=target.machine)
+            runtime_path = ndk / "toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib" / target.triple / "libc++_shared.so"
             for path in (
-                ndk / "toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so",
+                runtime_path,
                 prefix / "lib/libSDL3.so", prefix / "lib/libopenal.so",
             ):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(runtime)
             argv = ["prepare_android_deps.py", "--ndk", str(ndk), "--sdl-source", str(sdl),
                     "--openal-source", str(openal), "--prefix", str(prefix),
-                    "--build-root", str(fixture / "build"), "--api", "28"]
+                    "--build-root", str(fixture / "build"), "--api", "28", "--abi", abi]
             with mock.patch.object(sys, "argv", argv), mock.patch.object(prepare_android_deps.platform, "system", return_value="Windows"):
                 with mock.patch.object(prepare_android_deps.subprocess, "run") as runner:
                     prepare_android_deps.main()
@@ -204,6 +398,7 @@ class AndroidBuildTests(unittest.TestCase):
                 # page-size settings for both independent native libraries.
                 self.assertEqual(runner.call_count, 6)
                 for call in (runner.call_args_list[0], runner.call_args_list[3]):
+                    self.assertIn(f"-DANDROID_ABI={abi}", call.args[0])
                     self.assertIn("-DANDROID_PLATFORM=android-28", call.args[0])
                     self.assertIn("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", call.args[0])
                 for relative, expected in {
@@ -215,6 +410,13 @@ class AndroidBuildTests(unittest.TestCase):
                 }.items():
                     self.assertEqual((prefix / relative).read_text(encoding="utf-8"), expected)
                 self.assertEqual((prefix / "lib/libc++_shared.so").read_bytes(), runtime)
+                runtime_path.write_bytes(android_library(machine=62 if abi == 'arm64-v8a' else 183))
+                with mock.patch.object(prepare_android_deps.subprocess, "run") as runner:
+                    with mock.patch("sys.stderr"), self.assertRaises(SystemExit) as error:
+                        prepare_android_deps.main()
+                    self.assertEqual(error.exception.code, 2)
+                    runner.assert_not_called()
+                runtime_path.write_bytes(runtime)
                 (sdl / "LICENSE.txt").unlink()
                 with mock.patch.object(prepare_android_deps.subprocess, "run") as runner:
                     with mock.patch("sys.stderr"), self.assertRaises(SystemExit) as error:
@@ -294,8 +496,18 @@ class AndroidBuildTests(unittest.TestCase):
             self.assertIn("max-page-size=16384", contents)
             with self.assertRaisesRegex(ValueError, "API 24"):
                 android_cross.generate(ndk, 23, "windows-x86_64")
-            with self.assertRaisesRegex(ValueError, "requested arm64 API"):
+            with self.assertRaisesRegex(ValueError, "requested arm64-v8a API"):
                 android_cross.generate(ndk, 25, "windows-x86_64")
+            with self.assertRaisesRegex(ValueError, "requested x86_64 API"):
+                android_cross.generate(ndk, 24, "windows-x86_64", "x86_64")
+            (toolchain / "sysroot/usr/lib/x86_64-linux-android/24").mkdir(parents=True)
+            emulator = android_cross.generate(ndk, 24, "windows-x86_64", "x86_64")
+            self.assertIn("--target=x86_64-linux-android24", emulator)
+            self.assertIn("cpu_family = 'x86_64'", emulator)
+            self.assertNotIn("aarch64", emulator)
+            self.assertIn("max-page-size=16384", emulator)
+            with self.assertRaisesRegex(ValueError, "Unsupported Android ABI"):
+                android_cross.generate(ndk, 24, "windows-x86_64", "x86")
             (binaries / "clang.exe").unlink()
             with self.assertRaisesRegex(ValueError, "Missing NDK tool"):
                 android_cross.generate(ndk, 24, "windows-x86_64")
