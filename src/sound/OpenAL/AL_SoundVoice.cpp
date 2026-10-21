@@ -185,6 +185,9 @@ idSoundVoice_OpenAL::idSoundVoice_OpenAL()
 	openalAuxFilter( 0 ),
 	openalAreaAuxFilter( 0 ),
 	nextQueuedSample( NULL ),
+	oggStream( NULL ),
+	oggStreamSample( NULL ),
+	oggStreamOffset( 0 ),
 	nextQueuedBuffer( 0 ),
 	nextQueuedOffset( 0 ),
 	queuedBufferPlaybackActive( false ),
@@ -234,6 +237,12 @@ bool idSoundVoice_OpenAL::CompatibleFormat( idSoundSample_OpenAL* s )
 bool idSoundVoice_OpenAL::UsesStreamingBuffers() const
 {
 	return openalStreamingBuffer[0] != 0 || openalStreamingBuffer[1] != 0 || openalStreamingBuffer[2] != 0;
+}
+
+bool idSoundVoice_OpenAL::UsesBoundedQueue() const
+{
+	return centerRouting || ( leadinSample != NULL && leadinSample->openalBuffer == 0 ) ||
+		( loopingSample != NULL && loopingSample->openalBuffer == 0 );
 }
 
 int idSoundVoice_OpenAL::StreamingBufferIndex( const ALuint buffer ) const
@@ -337,6 +346,10 @@ bool idSoundVoice_OpenAL::SourceHasPlayableBuffer() const
 
 void idSoundVoice_OpenAL::ResetQueuedBufferState()
 {
+	delete oggStream;
+	oggStream = NULL;
+	oggStreamSample = NULL;
+	oggStreamOffset = 0;
 	nextQueuedSample = NULL;
 	nextQueuedBuffer = 0;
 	nextQueuedOffset = 0;
@@ -1006,9 +1019,48 @@ bool idSoundVoice_OpenAL::QueueNextBuffer( ALuint streamBuffer )
 	{
 		return false;
 	}
-	if( nextQueuedSample->openalBuffer == 0 && streamBuffer == 0 )
+	if( ( nextQueuedSample->openalBuffer == 0 || centerRouting ) && streamBuffer == 0 )
 	{
 		return false;
+	}
+	if( nextQueuedSample->IsStreamed() ) {
+		idSoundSample_OpenAL* sample = nextQueuedSample;
+		if( oggStreamSample != sample ) {
+			delete oggStream;
+			oggStream = new idSoundOggStream;
+			oggStreamSample = sample;
+			oggStreamOffset = 0;
+			if( !oggStream->Open( sample->streamName ) || oggStream->Channels() != sample->NumChannels() ||
+				oggStream->Rate() != sample->SampleRate() || oggStream->Frames() != static_cast<unsigned int>( sample->playLength ) ) {
+				ResetQueuedBufferState(); return false;
+			}
+		}
+		if( oggStreamOffset != nextQueuedOffset && !oggStream->Seek( nextQueuedOffset ) ) {
+			ResetQueuedBufferState(); return false;
+		}
+		// Three independent 4096-frame buffers, irrespective of track length.
+		short pcm[4096 * 2];
+		const int frames = oggStream->Read( pcm, Min( 4096, sample->playLength - nextQueuedOffset ) );
+		if( frames <= 0 ) { ResetQueuedBufferState(); return false; }
+#if OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED
+		if( centerRouting ) {
+			short surround[4096 * 6];
+			SoundRouteMonoToCenter( pcm, frames, centerChannel, surround );
+			alBufferData( streamBuffer, AL_FORMAT_51CHN16, surround, frames * 6 * sizeof( short ), sample->SampleRate() );
+		} else
+#endif
+		{
+			alBufferData( streamBuffer, sample->GetOpenALBufferFormat(), pcm, frames * sample->NumChannels() * sizeof( short ), sample->SampleRate() );
+		}
+		if( CheckALErrors() != AL_NO_ERROR ) { ResetQueuedBufferState(); return false; }
+		alSourceQueueBuffers( openalSource, 1, &streamBuffer );
+		if( CheckALErrors() != AL_NO_ERROR ) { ResetQueuedBufferState(); return false; }
+		openalStreamingBufferQueued[StreamingBufferIndex( streamBuffer )] = true;
+		queuedBufferPlaybackActive = true;
+		nextQueuedOffset += frames;
+		oggStreamOffset = nextQueuedOffset;
+		if( nextQueuedOffset >= sample->playLength ) AdvanceQueuedBuffer();
+		return true;
 	}
 
 	const int submittedBytes = SubmitBuffer( nextQueuedSample, nextQueuedBuffer, nextQueuedOffset, streamBuffer );
@@ -1029,6 +1081,12 @@ bool idSoundVoice_OpenAL::QueueNextBuffer( ALuint streamBuffer )
 	}
 
 	queuedBufferPlaybackActive = true;
+	if( centerRouting || nextQueuedSample->openalBuffer == 0 ) {
+		nextQueuedOffset += submittedBytes / nextQueuedSample->format.basic.blockSize;
+		int bufferStart = 0, bufferFrames = 0, playableOffset = 0, playableFrames = 0;
+		if( GetPlayableBufferRange( nextQueuedSample, nextQueuedBuffer, bufferStart, bufferFrames, playableOffset, playableFrames ) &&
+			nextQueuedOffset < playableOffset + playableFrames ) return true;
+	}
 	AdvanceQueuedBuffer();
 	return true;
 }
@@ -1066,6 +1124,17 @@ bool idSoundVoice_OpenAL::Update()
 
 	const bool hadQueuedState = HasQueuedBufferState();
 	bool submittedAny = false;
+	if( queuedBufferPlaybackActive && !paused && UsesBoundedQueue() ) {
+		ALint state = AL_INITIAL;
+		alGetSourcei( openalSource, AL_SOURCE_STATE, &state );
+		if( CheckALErrors() != AL_NO_ERROR ) return false;
+		if( state == AL_STOPPED ) {
+			// The game channel will recreate this voice at its logical playback
+			// time. Never replay stale queued speech after a main-thread stall.
+			if( s_debugHardware.GetBool() ) idLib::Printf( "Compressed stream underrun: %s\n", leadinSample->GetName() );
+			return false;
+		}
+	}
 
 	ALint processedBuffers = 0;
 	alGetSourcei( openalSource, AL_BUFFERS_PROCESSED, &processedBuffers );
@@ -1422,6 +1491,11 @@ void idSoundVoice_OpenAL::Stop()
 	}
 
 	FlushSourceBuffers();
+	// The decoder reservation covers these buffers only while the stream is
+	// alive. A free voice must not retain unaccounted copies of the last blocks.
+	if( UsesBoundedQueue() ) {
+		DeleteStreamingBuffers();
+	}
 }
 
 /*

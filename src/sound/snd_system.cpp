@@ -155,10 +155,11 @@ void ListSounds_f( const idCmdArgs& args )
 	const char* filter = args.Argc() > 1 ? args.Argv( 1 ) : NULL;
 	int totalSounds = 0;
 	int totalLoaded = 0;
-	int totalMemory = 0;
-	int totalCompressedMemory = 0;
-	int totalPCMMemory = 0;
-	int totalResidentMemory = 0;
+	int64 totalMemory = 0;
+	int64 totalCompressedMemory = 0;
+	int64 totalPCMMemory = 0;
+	int64 totalResidentMemory = 0;
+	int64 totalStreamedMemory = 0;
 
 	idLib::Printf( "Sound samples\n-------------\n" );
 	for( int i = 0; i < soundSystemLocal.samples.Num(); i++ )
@@ -175,7 +176,7 @@ void ListSounds_f( const idCmdArgs& args )
 		const bool compressed = loaded && sample->IsCompressed();
 		const char* channels = sample->NumChannels() == 2 ? "ST" : "  ";
 		const char* format = compressed ? "OGG" : "WAV";
-		const char* state = !loaded ? "(PURGED)" : ( sample->IsDefault() ? "(DEFAULTED)" : "" );
+		const char* state = !loaded ? "(PURGED)" : ( sample->IsDefault() ? "(DEFAULTED)" : ( sample->IsStreamed() ? "(STREAMED)" : "" ) );
 		const int sampleRateKHz = sample->SampleRate() > 0 ? sample->SampleRate() / 1000 : 0;
 		const int sampleBytes = sample->BufferSize();
 
@@ -194,6 +195,7 @@ void ListSounds_f( const idCmdArgs& args )
 			totalLoaded++;
 			totalMemory += sampleBytes;
 			totalResidentMemory += sample->ResidentBufferSize();
+			if( sample->IsStreamed() ) totalStreamedMemory += sampleBytes;
 			if( compressed )
 			{
 				totalCompressedMemory += sampleBytes;
@@ -207,14 +209,18 @@ void ListSounds_f( const idCmdArgs& args )
 
 	idLib::Printf( "%8d total sounds\n", totalSounds );
 	idLib::Printf( "%8d total samples loaded\n", totalLoaded );
-	idLib::Printf( "%8d kB OGG samples loaded\n", totalCompressedMemory / 1024 );
-	idLib::Printf( "%8d kB PCM samples loaded\n", totalPCMMemory / 1024 );
-	idLib::Printf( "%8d kB total sample data\n", totalMemory / 1024 );
+	idLib::Printf( "%8lld kB OGG samples loaded\n", static_cast<long long>( totalCompressedMemory / 1024 ) );
+	idLib::Printf( "%8lld kB PCM samples loaded\n", static_cast<long long>( totalPCMMemory / 1024 ) );
+	idLib::Printf( "%8lld kB total sample data\n", static_cast<long long>( totalMemory / 1024 ) );
 	// Sample data is not the same as memory held. OpenAL keeps its own copy of
 	// everything uploaded to it, so ours is released; report what is actually
 	// still resident rather than letting the decoded size stand in for it.
-	idLib::Printf( "%8d kB held in CPU memory (%d kB released to OpenAL)\n",
-				   totalResidentMemory / 1024, ( totalMemory - totalResidentMemory ) / 1024 );
+	idLib::Printf( "%8lld kB held in CPU memory (%lld kB released to OpenAL)\n",
+				   static_cast<long long>( totalResidentMemory / 1024 ), static_cast<long long>( ( totalMemory - totalResidentMemory - totalStreamedMemory ) / 1024 ) );
+	idLib::Printf( "%8lld kB decoded track size streamed without full PCM residency\n", static_cast<long long>( totalStreamedMemory / 1024 ) );
+#if defined(USE_OPENAL)
+	idSoundSample_OpenAL::PrintDecodeMemoryInfo();
+#endif
 }
 
 /*

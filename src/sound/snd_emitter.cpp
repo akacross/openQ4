@@ -884,9 +884,10 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Start( startOffset, parms.soundShaderFlags | ( parms.shakes == 0.0f ? SSF_NO_FLICKER : 0 ) ) )
 		{
+			const bool recoverAtClock = hardwareVoice->UsesBoundedQueue();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
-			if( !IsLooping() )
+			if( !IsLooping() && !recoverAtClock )
 			{
 				endTime = 1;
 			}
@@ -896,9 +897,10 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Update() )
 		{
+			const bool recoverAtClock = hardwareVoice->UsesBoundedQueue();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
-			if( !IsLooping() )
+			if( !IsLooping() && !recoverAtClock )
 			{
 				endTime = 1;
 			}

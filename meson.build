@@ -1717,12 +1717,9 @@ if build_engine
     endif
   endif
 
-  stb_vorbis_dep = dependency(
-    'stb_vorbis',
-    required: true,
-    fallback: ['stb_vorbis', 'stb_vorbis_dep'],
-    default_options: fallback_opt,
-  )
+  # openQ4's VFS callback entry point keeps compressed streams bounded without
+  # extracting PK4 members. A system copy does not contain that small extension.
+  stb_vorbis_dep = subproject('stb_vorbis', default_options: fallback_opt).get_variable('stb_vorbis_dep')
 
   if host_system == 'android'
     if android_deps_root == ''

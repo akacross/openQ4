@@ -141,6 +141,7 @@ public:
 
 	// Sends new position/volume/pitch information to the hardware
 	bool					Update();
+	bool					UsesBoundedQueue() const;
 
 	// returns the RMS levels of the most recently processed block of audio, SSF_FLICKER must have been passed to Start
 	float					GetAmplitude();
@@ -211,6 +212,9 @@ private:
 	ALuint					openalAuxFilter;		// send 0: the listener's (primary) reverb slot
 	ALuint					openalAreaAuxFilter;	// send 1: the sound's own area slot
 	idSoundSample_OpenAL*	nextQueuedSample;
+	idSoundOggStream*		oggStream;
+	idSoundSample_OpenAL*	oggStreamSample;
+	int						oggStreamOffset;
 	int						nextQueuedBuffer;
 	int						nextQueuedOffset;
 	bool					queuedBufferPlaybackActive;
