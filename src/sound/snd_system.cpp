@@ -867,6 +867,7 @@ idSoundSample* idSoundSystemLocal::LoadSample( const char* name )
 	}
 	idSoundSample* sample = new idSoundSample;
 	sample->SetName( canonical );
+	sample->SetLevelLoadReferenced();
 	sampleHash.Add( hashKey, samples.Append( sample ) );
 	// Doom 3's sound cache: a sample first referenced outside a level load (the menus,
 	// the HUD, a sound a script reaches for mid-level) is never purged; one a level
@@ -888,8 +889,6 @@ idSoundSample* idSoundSystemLocal::LoadSample( const char* name )
 			decodingSamples.Append( sample );
 		}
 	}
-	sample->SetLevelLoadReferenced();
-
 	if( cvarSystem->GetCVarBool( "fs_buildgame" ) )
 	{
 //		fileSystem->AddSamplePreload( canonical );

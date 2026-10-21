@@ -279,6 +279,7 @@ protected:
 	// OpenAL buffer that contains all buffers
 	ALuint			openalBuffer;
 	bool			openalBufferUploadFailed;
+	uint64			openalReserved;
 
 	int				playBegin;
 	int				playLength;
@@ -286,6 +287,7 @@ protected:
 	idWaveFile::waveFmt_t	format;
 
 	idList<byte> amplitude;
+	uint64			amplitudeReserved;
 
 	// An Ogg decoding on a job worker into buffers[0] (LoadResourceAsync), and its file
 	idSoundSampleDecode*	pendingDecode;

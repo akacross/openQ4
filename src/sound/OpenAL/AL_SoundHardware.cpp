@@ -1400,6 +1400,20 @@ bool idSoundHardware_OpenAL::HasCenterChannelOutput() const
 #endif
 }
 
+uint64 idSoundHardware_OpenAL::QueuedBufferBytes() const {
+	uint64 total = 0;
+	for (int i = 0; i < voices.Num(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			const ALuint buffer = voices[i].openalStreamingBuffer[j];
+			if (buffer == 0) continue;
+			ALint bytes = 0;
+			alGetBufferi(buffer, AL_SIZE, &bytes);
+			if (CheckALErrors() == AL_NO_ERROR && bytes > 0) total += bytes;
+		}
+	}
+	return total;
+}
+
 /*
 ========================
 idSoundHardware_OpenAL::DetectVoiceFeatures

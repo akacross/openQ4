@@ -56,6 +56,7 @@ public:
 	idSoundVoice* 	AllocateVoice( const idSoundSample* leadinSample, const idSoundSample* loopingSample );
 	void			FreeVoice( idSoundVoice* voice );
 	int				ListPlayingVoices() const;
+	uint64			QueuedBufferBytes() const;
 
 	static bool		IsDefaultDeviceChoiceValue( const char* deviceName );
 	static void		BuildDeviceChoiceStrings( const char* requestedDeviceName, idStr& choiceNames, idStr& choiceValues );

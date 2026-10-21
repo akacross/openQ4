@@ -1488,6 +1488,10 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	{
 		leadinSample = shader->entries[choice];
 	}
+	// An earlier load may have been refused under memory pressure. Retry at an
+	// explicit playback request; never substitute a permanently cached beep.
+	if( !leadinSample->IsLoaded() ) leadinSample->LoadResource();
+	if( !leadinSample->IsLoaded() ) return 0;
 	leadinSample->SetLastPlayedTime( soundWorld->GetSoundTime() );
 
 	if( chanParms.soundShaderFlags & SSF_LOOPING )
@@ -1497,6 +1501,8 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 		{
 			loopingSample = leadinSample;
 		}
+		if( !loopingSample->IsLoaded() ) loopingSample->LoadResource();
+		if( !loopingSample->IsLoaded() ) return 0;
 	}
 
 	// set all the channel parameters here,
