@@ -10014,9 +10014,9 @@ idMultiplayerGame::ClearMap
 ================
 */
 void idMultiplayerGame::ClearMap( void ) {
-	ResetVoiceState();
 	// MapClear runs after client entities may already have been deleted, so only
 	// touch renderer-owned presentation state here; GUI cleanup is not safe.
+	ResetVoiceState();
 	SetArenaCampaignDepthOfField( false );
 	SetJoinScreenSoftFocus( false );
 	joinScreenPending = false;
