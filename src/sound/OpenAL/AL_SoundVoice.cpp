@@ -1530,6 +1530,7 @@ void idSoundVoice_OpenAL::ResetSourceMixState()
 	alSource3f( openalSource, AL_VELOCITY, 0.0f, 0.0f, 0.0f );
 	alSourcef( openalSource, AL_GAIN, 0.0f );
 	alSourcef( openalSource, AL_PITCH, 1.0f );
+	alSourcef( openalSource, AL_REFERENCE_DISTANCE, Max( innerRadius, 0.001f ) );
 	alSourcei( openalSource, AL_LOOPING, AL_FALSE );
 	const idSoundHardware_OpenAL& hardware = soundSystemLocal.hardware;
 #if defined( AL_SOURCE_RADIUS )

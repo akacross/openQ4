@@ -77,6 +77,12 @@ public:
 	void		SetInnerRadius( float r ) override
 	{
 		idSoundVoice_Base::SetInnerRadius( r );
+		if( alIsSource( openalSource ) )
+		{
+			// Sources and authored minDistance share map units. EFX room rolloff
+			// uses this even though the engine applies dry attenuation itself.
+			alSourcef( openalSource, AL_REFERENCE_DISTANCE, Max( innerRadius, 0.001f ) );
+		}
 		ApplySourceRadius();
 	}
 
