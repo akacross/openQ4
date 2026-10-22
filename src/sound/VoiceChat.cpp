@@ -31,6 +31,7 @@ oq4voice::CaptureQueue captureQueue;
 oq4voice::Frame partial;
 int partialSamples = 0;
 oq4voice::Admission incoming[VoiceClients + 1];
+oq4voice::AdmissionStats incomingStats[VoiceClients + 1];
 unsigned int generations[VoiceClients + 1] = {};
 
 uint32_t VoiceNow() {
@@ -218,6 +219,16 @@ void ListVoice( const idCmdArgs& ) {
 		common->Printf( "VOICE_PLAYBACK client=%d generation=%u playing=%d queued=%d gain=%.4f pitch=%.4f\n", channel.client, channel.generation, state == AL_PLAYING, queued, gain, pitch );
 	}
 #endif
+	// Per-sender admission for the current connection generation. The
+	// interval maximum covers the time since the previous report.
+	for ( int client = 0; client <= VoiceClients; ++client ) {
+		oq4voice::AdmissionStats& stats = incomingStats[client];
+		if ( !stats.accepted && !stats.rejected ) continue;
+		common->Printf( "VOICE_ADMISSION client=%d generation=%u accepted=%u rejected=%u added_ms=%u max_added_ms=%u interval_max_added_ms=%u baseline_shift_ms=%d\n",
+			client, generations[client], stats.accepted, stats.rejected, stats.lastAdded, stats.maxAdded, stats.intervalMaxAdded,
+			int( stats.BaselineShift( incoming[client] ) ) );
+		stats.intervalMaxAdded = 0;
+	}
 }
 
 void TestTone( const idCmdArgs& args ) {
@@ -251,6 +262,7 @@ void SoundVoiceChat_Shutdown() {
 	microphoneTest = false;
 	syntheticEnd = 0;
 	for ( auto& admission : incoming ) admission = {};
+	for ( auto& stats : incomingStats ) stats = {};
 	for ( auto& generation : generations ) generation = 0;
 	s_voiceChatTest.SetBool( false );
 	s_voiceChatStatus.SetInteger( 0 );
@@ -336,8 +348,12 @@ void idSoundSystemLocal::PlayVoiceData( int client, unsigned int generation, con
 		StopVoiceData( client );
 		generations[client] = generation;
 		incoming[client] = {};
+		incomingStats[client] = {};
 	}
-	if ( !incoming[client].Accept( data, size, VoiceNow() ) ) { ++rejected; return; }
+	const uint32_t now = VoiceNow();
+	const bool admitted = incoming[client].Accept( data, size, now );
+	incomingStats[client].Record( incoming[client], data, size, now, admitted );
+	if ( !admitted ) { ++rejected; return; }
 	int16_t pcm[oq4voice::Samples];
 	if ( !oq4voice::Decode( data, size, pcm ) ) return;
 #if defined(USE_OPENAL) && !defined(ID_DEDICATED)

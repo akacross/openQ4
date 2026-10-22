@@ -367,6 +367,7 @@ public:
 	void			ReceiveAndPlayVoiceData( const idBitMsg &inMsg );
 	void			ResetVoiceState( int client = -1 );
 	static void		ServerVoiceMute_f( const idCmdArgs& args );
+	static void		ServerVoiceStats_f( const idCmdArgs& args );
 
 // jshepard: selects a map at random that will run with the current game type
 	bool			PickMap( idStr gameType, bool checkOnly = false );

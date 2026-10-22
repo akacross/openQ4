@@ -84,6 +84,31 @@ int main() {
 		accepted += admission.Accept(packet, PacketBytes, i / 100) ? 1 : 0;
 	}
 	CHECK(accepted <= 53); // hostile sender cannot turn sequence numbers into bandwidth
+
+	// Soak reporting observes admission without changing it: added delay stays
+	// inside the bound, the interval maximum is per report, rejected frames are
+	// counted without training, and baseline shift reports tracked drift.
+	admission = {};
+	AdmissionStats stats;
+	uint32_t serial = 0;
+	for ( uint32_t now = 1000; now < 1000 + 600000; now += FrameMsec ) {
+		const uint32_t sender = 50000u + (now - 1000) + (now - 1000) / 10000; // +100 ppm
+		const uint32_t jitter = (now / FrameMsec) % 4 * 10;
+		Write32(packet + 1, ++serial); Write32(packet + 5, sender - jitter);
+		const bool ok = admission.Accept(packet, PacketBytes, now);
+		stats.Record(admission, packet, PacketBytes, now, ok);
+		CHECK(ok && stats.lastAdded <= uint32_t(MaxAgeMsec));
+	}
+	CHECK(stats.accepted == 30000 && stats.rejected == 0 && stats.maxAdded <= 40 && stats.intervalMaxAdded == stats.maxAdded);
+	CHECK(stats.BaselineShift(admission) <= -70 && stats.BaselineShift(admission) >= -85); // 60 ms fast plus first-frame jitter
+	stats.intervalMaxAdded = 0;
+	const uint32_t trained = admission.clockOffset;
+	Write32(packet + 1, ++serial); Write32(packet + 5, 50000u + 602000u + 60u - 250u); // 250 ms backlog after a 2 s gap
+	const bool late = admission.Accept(packet, PacketBytes, 1000 + 600000 + 2000);
+	stats.Record(admission, packet, PacketBytes, 1000 + 600000 + 2000, late);
+	CHECK(!late && stats.rejected == 1 && stats.intervalMaxAdded == 0 && admission.clockOffset == trained);
+	stats.Record(admission, packet, PacketBytes - 1, 0, true); // malformed input is never an accept
+	CHECK(stats.rejected == 2 && stats.accepted == 30000);
 	CaptureQueue capture;
 	for ( int i = 0; i < 10000; ++i ) { Frame frame; frame.time = i * FrameMsec; frame.pcm[0] = int16_t(i); capture.Push(frame); }
 	CHECK(capture.count == MaxQueuedFrames && capture.dropped == 10000 - MaxQueuedFrames);

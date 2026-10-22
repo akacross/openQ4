@@ -10,6 +10,8 @@ idCVar ui_voiceProtocol( "ui_voiceProtocol", "1", CVAR_GAME | CVAR_INTEGER | CVA
 idCVar g_voiceChatDebug( "g_voiceChatDebug", "0", CVAR_GAME | CVAR_INTEGER | CVAR_NOCHEAT, "display info on voicechat net traffic" );
 
 static oq4voice::Admission voiceAdmission[MAX_CLIENTS];
+static oq4voice::AdmissionStats voiceStats[MAX_CLIENTS];
+static unsigned int voiceForwarded[MAX_CLIENTS], voiceRefused[MAX_CLIENTS];
 static int voiceGeneration[MAX_CLIENTS];
 static bool voiceSilenced[MAX_CLIENTS];
 
@@ -19,12 +21,17 @@ static bool ManagedVoiceTransportAllows( idPlayer *from, idPlayer *to, bool echo
 
 void idMultiplayerGame::ResetVoiceState( int client ) {
 	if ( client < 0 ) {
-		for ( int i = 0; i < MAX_CLIENTS; ++i ) { voiceAdmission[i] = {}; voiceGeneration[i] = -1; voiceSilenced[i] = false; }
+		for ( int i = 0; i < MAX_CLIENTS; ++i ) {
+			voiceAdmission[i] = {}; voiceStats[i] = {}; voiceForwarded[i] = voiceRefused[i] = 0;
+			voiceGeneration[i] = -1; voiceSilenced[i] = false;
+		}
 		if ( soundSystem ) soundSystem->ResetVoiceChat();
 		return;
 	}
 	if ( client >= MAX_CLIENTS ) return;
 	voiceAdmission[client] = {};
+	voiceStats[client] = {};
+	voiceForwarded[client] = voiceRefused[client] = 0;
 	voiceGeneration[client] = -1;
 	voiceSilenced[client] = false;
 	if ( soundSystem ) soundSystem->StopVoiceData( client );
@@ -43,6 +50,20 @@ void idMultiplayerGame::ServerVoiceMute_f( const idCmdArgs& args ) {
 	if ( client < 0 || client >= gameLocal.numClients || ( idStr::Cmp( args.Argv( 2 ), "0" ) && idStr::Cmp( args.Argv( 2 ), "1" ) ) ) return;
 	voiceSilenced[client] = args.Argv( 2 )[0] == '1';
 	common->Printf( "VOICE_MODERATION client=%d muted=%d\n", client, voiceSilenced[client] );
+}
+
+void idMultiplayerGame::ServerVoiceStats_f( const idCmdArgs& ) {
+	if ( !gameLocal.isServer ) { common->Printf( "Usage (server): serverVoiceStats\n" ); return; }
+	// Per sender slot and connection generation; the interval maximum covers
+	// the time since the previous report.
+	for ( int client = 0; client < gameLocal.numClients && client < MAX_CLIENTS; ++client ) {
+		oq4voice::AdmissionStats& stats = voiceStats[client];
+		if ( !stats.accepted && !stats.rejected ) continue;
+		common->Printf( "VOICE_SERVER client=%d generation=%d accepted=%u rejected=%u forwarded=%u refused=%u added_ms=%u max_added_ms=%u interval_max_added_ms=%u baseline_shift_ms=%d\n",
+			client, voiceGeneration[client], stats.accepted, stats.rejected, voiceForwarded[client], voiceRefused[client],
+			stats.lastAdded, stats.maxAdded, stats.intervalMaxAdded, int( stats.BaselineShift( voiceAdmission[client] ) ) );
+		stats.intervalMaxAdded = 0;
+	}
 }
 
 void idGameLocal::ServerReceiveVoice( int client, const idBitMsg& msg ) {
@@ -78,9 +99,14 @@ void idMultiplayerGame::ReceiveAndForwardVoiceData( int clientNum, const idBitMs
 	if ( payloadBytes <= 0 || payloadBytes > MAX_VOICE_PACKET_SIZE ) return;
 	if ( voiceGeneration[clientNum] != gameLocal.spawnIds[clientNum] ) {
 		voiceAdmission[clientNum] = {};
+		voiceStats[clientNum] = {};
+		voiceForwarded[clientNum] = voiceRefused[clientNum] = 0;
 		voiceGeneration[clientNum] = gameLocal.spawnIds[clientNum];
 	}
-	if ( !voiceAdmission[clientNum].Accept( inMsg.GetReadData(), payloadBytes, uint32_t( Sys_Milliseconds() ) ) ) {
+	const uint32_t now = uint32_t( Sys_Milliseconds() );
+	const bool admitted = voiceAdmission[clientNum].Accept( inMsg.GetReadData(), payloadBytes, now );
+	voiceStats[clientNum].Record( voiceAdmission[clientNum], inMsg.GetReadData(), payloadBytes, now, admitted );
+	if ( !admitted ) {
 		if ( g_voiceChatDebug.GetInteger() & 2 ) common->Printf( "VOICE_REJECT client=%d bytes=%d\n", clientNum, payloadBytes );
 		return;
 	}
@@ -108,6 +134,7 @@ void idMultiplayerGame::ReceiveAndForwardVoiceData( int clientNum, const idBitMs
 		} else mayReceive = CanTalk( from, to, !!( messageType & 1 ) );
 		if ( !mayReceive || !to->AllowedVoiceDest( from->entityNumber ) ) continue;
 		const bool accepted = networkSystem->ServerSendVoice( i, outMsg );
+		++( accepted ? voiceForwarded[clientNum] : voiceRefused[clientNum] );
 		if ( g_voiceChatDebug.GetInteger() & 2 ) common->Printf( "VOICE_FORWARD from=%d to=%d accepted=%d bytes=%d\n", clientNum, i, accepted, payloadBytes );
 	}
 }

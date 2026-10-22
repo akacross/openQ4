@@ -102,6 +102,28 @@ struct Admission {
 	}
 };
 
+// Observation only; never feeds admission. Reports how far above the learned
+// baseline an accepted frame arrived (the bounded added delay) and how far the
+// baseline itself has moved since the sender's first frame (observed drift).
+// The interval maximum is reset by whoever reports it.
+struct AdmissionStats {
+	uint32_t accepted = 0, rejected = 0, firstOffset = 0;
+	uint32_t lastAdded = 0, maxAdded = 0, intervalMaxAdded = 0;
+	bool haveFirst = false;
+
+	void Record( const Admission& admission, const uint8_t* packet, int size, uint32_t now, bool ok ) {
+		if ( !ok || !Valid( packet, size ) ) { ++rejected; return; }
+		++accepted;
+		if ( !haveFirst ) { firstOffset = admission.clockOffset; haveFirst = true; }
+		lastAdded = ( now - Read32( packet + 5 ) ) - admission.clockOffset;
+		maxAdded = (std::max)( maxAdded, lastAdded );
+		intervalMaxAdded = (std::max)( intervalMaxAdded, lastAdded );
+	}
+	int32_t BaselineShift( const Admission& admission ) const {
+		return haveFirst ? int32_t( admission.clockOffset - firstOffset ) : 0;
+	}
+};
+
 struct Frame {
 	int16_t pcm[Samples] = {};
 	uint32_t time = 0;
