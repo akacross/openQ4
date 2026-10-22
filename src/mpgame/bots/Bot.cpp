@@ -7199,6 +7199,7 @@ rvBotManager::rvBotManager
 */
 rvBotManager::rvBotManager( void ) {
 	probeHealth		= 0;
+	probeKnockback	= 0;
 	navBuilt			= false;
 	navFailed			= false;
 	nextMinPlayerCheck	= 0;
@@ -8404,9 +8405,15 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		bot.airborneSince = gameLocal.time;
 	}
 	if ( probeHealth > 0 ) {
-		// A replayed impulse is survived or not at the health it left.
+		// A replayed impulse is survived or not at the health it left, and
+		// under the knockback time it started: no ground friction, and only
+		// air acceleration even on the ground, as idPhysics_Player applies.
 		self->health = probeHealth;
 		probeHealth = 0;
+		if ( probeKnockback > 0 ) {
+			static_cast<idPhysics_Player *>( self->GetPlayerPhysics() )->SetKnockBack( probeKnockback );
+			probeKnockback = 0;
+		}
 	}
 	bot.probeWatch = true;
 	bot.probeStartTime = gameLocal.time;
@@ -8423,13 +8430,14 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 rvBotManager::SetProbeHealth
 ================
 */
-bool rvBotManager::SetProbeHealth( int clientNum, int health ) {
+bool rvBotManager::SetProbeHealth( int clientNum, int health, int knockbackMsec ) {
 	if ( !gameLocal.isServer || gameLocal.isClient || !gameLocal.GetLocalPlayer() || gameLocal.numClients != 2 ||
 		 NumBots() != 1 || !IsBot( clientNum ) || gameLocal.mpGame.IsManagedMatch() || !gameLocal.CheatsOk( false ) ||
-		 health < 1 || health > 1000 ) {
+		 health < 1 || health > 1000 || knockbackMsec < 0 || knockbackMsec > 1000 ) {
 		return false;
 	}
 	probeHealth = health;
+	probeKnockback = knockbackMsec;
 	return true;
 }
 

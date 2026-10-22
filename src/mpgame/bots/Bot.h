@@ -507,8 +507,9 @@ public:
 	bool					ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
 											const idVec3 &landing, navTravelType_t travel, idEntity *pad = NULL, bool dodge = false,
 											const idVec3 *airDirection = NULL );
-	// The health the next traversal probe gives its bot, 0 for unchanged.
-	bool					SetProbeHealth( int clientNum, int health );
+	// The health, and knockback time, the next traversal probe gives its bot;
+	// 0 for unchanged.
+	bool					SetProbeHealth( int clientNum, int health, int knockbackMsec = 0 );
 
 	// Re-bind every live bot after the character roster has been reparsed.
 	// botreload must call this before the next frame runs, or every bot is
@@ -633,6 +634,7 @@ private:
 	idList<idItem *>		items;
 
 	int						probeHealth;			// pending bot_probeHealth value
+	int						probeKnockback;		// and its knockback milliseconds
 	int						decisionFrame;			// gameLocal.framenum the count belongs to
 	int						decisionsThisFrame;
 

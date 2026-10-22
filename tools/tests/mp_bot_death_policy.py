@@ -122,6 +122,10 @@ def main() -> None:
                       "def=damage_rocketSplash health=9") + death("Cortez", 4500))
     check(hurt["impulse"]["health"] == 9 and all(t.get("setup") == ["bot_probeHealth 1 9"]
           for t in policy.trials_for(hurt["impulse"])), "replays run at the victim's post-hit health")
+    [slid] = classify(state(1000, teams) + impulse(1, 2000, 2).replace("def=damage_rocketSplash",
+                      "def=damage_rocketSplash health=76 knock=200") + death("Cortez", 4500))
+    check(all(t.get("setup") == ["bot_probeHealth 1 76 200"] for t in policy.trials_for(slid["impulse"])),
+          "replays restore the knockback time that removes ground friction")
     check(all("setup" not in t for t in policy.trials_for(candidate["impulse"])),
           "an impulse without logged health replays at spawn health")
     # Trial assessment reads markers, arming, deaths and landings.
