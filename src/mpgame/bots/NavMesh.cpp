@@ -1030,13 +1030,13 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 	idVec3 wish( wishIn.x, wishIn.y, 0.0f );
 	const bool steering = wish.Normalize() > 0.0f;
 	const float speed = Max( 1.0f, pm_speed.GetFloat() );
-	// Two frames a step: a knocked bot asks for nine of these at once, and
-	// the swept hull, not the step, finds the floor.
-	const float dt = NAV_PAD_STEP_SECONDS * 2.0f;
+	// Match the 16 ms player integration step. Doubling it changes the air
+	// acceleration before each sweep and misses narrow recoverable landings.
+	const float dt = NAV_PAD_STEP_SECONDS;
 	idVec3 position = origin + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
 	idVec3 velocity = velocityIn;
 	int unstuck = 0;
-	for ( int frame = 0; frame < 100; frame++ ) {
+	for ( int frame = 0; frame < 200; frame++ ) {
 		if ( steering ) {
 			const float add = speed - velocity * wish;
 			if ( add > 0.0f ) {

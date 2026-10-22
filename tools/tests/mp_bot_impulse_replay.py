@@ -279,16 +279,22 @@ def summarise(decided: list[dict]) -> dict:
 def replay_session(runtime: Path, executable: str, basepath: Path, output: Path, map_name: str,
                    gametype: str, trials: list[dict], port: int, timeout: int) -> tuple[bool, str, int]:
     """Run trials one after another with one isolated bot; returns (completed, clean log, exit code)."""
+    from mp_round_remote_smoke import verify_runtime_is_current
+    verify_runtime_is_current(runtime, executable)
     game = output / "save/baseoq4"
     game.mkdir(parents=True, exist_ok=False)
     first = trials[0]["command"].split()
     observer = f"{float(first[2]):.0f} {float(first[3]):.0f} {float(first[4]) + 480:.0f} 60 0 0"
-    script = ["notarget", "god", "noclip", "set bot_debug 2", "set bot_chat 0", f"setviewpos {observer}",
+    script = ['set g_autoExecAfterMapLoad ""', "notarget", "god", "noclip", "set bot_debug 2", "set bot_chat 0", f"setviewpos {observer}",
               "addbot Rhodes 4 exact", "waitMsec 2000", "navmesh info", "echo MP_BOT_REPLAY_BEGIN"]
     for trial in trials:
         words = trial["command"].split()
         neutral = " ".join(words[:5] + ["0", "0", "0"] + words[8:])
-        script += ["set bot_pause 1", neutral, "waitMsec 64", f"echo MP_BOT_TRIAL_BEGIN {trial['name']}",
+        # Restore the world as well as the bot. A preceding trial can collect
+        # the health pickup that makes the next heading survivable. Restart
+        # repopulates items; player Init clears god/noclip but preserves notarget.
+        script += ["set bot_pause 1", "serverMapRestart", "waitMsec 1000", "god", "noclip", f"setviewpos {observer}",
+                   neutral, "waitMsec 64", f"echo MP_BOT_TRIAL_BEGIN {trial['name']}",
                    *trial.get("setup", []), trial["command"], "set bot_pause 0", f"waitMsec {TRIAL_OBSERVE_MSEC}",
                    f"echo MP_BOT_TRIAL_END {trial['name']}",
                    # A bot that died, or walked off later, would refuse or
@@ -309,7 +315,10 @@ def replay_session(runtime: Path, executable: str, basepath: Path, output: Path,
         "developer": "1", "ui_autoJoin": "1", "ui_spectate": "Play", "ui_name": "BotAuditObserver",
         "net_serverDedicated": "0", "net_LANServer": "1", "net_ip": "127.0.0.1", "net_enableIPv6": "0",
         "net_allowCheats": "1", "sv_cheats": "1", "net_port": str(port), "si_pure": "0",
-        "si_gameType": gametype, "si_maxPlayers": "4", "si_minPlayers": "2", "si_warmup": "0", "si_useReady": "0",
+        # Stay in playable warmup: replacing the sole bot during a live match
+        # forfeits it and puts later probes into the spectator/intermission state.
+        "si_gameType": gametype, "si_maxPlayers": "4", "si_minPlayers": "4", "si_warmup": "1", "si_useReady": "1",
+        "si_warmupReadyPercentage": "1", "ui_ready": "0",
         "si_fragLimit": "999", "si_captureLimit": "999", "si_timeLimit": "0", "g_matchProfile": "casual",
         "bot_enable": "1", "bot_minPlayers": "0", "bot_pause": "0", "bot_characters": "1",
         "bot_skillVariance": "0", "com_skipLoadingContinue": "1",

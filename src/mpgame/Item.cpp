@@ -1210,6 +1210,16 @@ void idItem::Event_DropToFloor( void ) {
 
 /*
 ================
+idItem::TouchesPickup
+================
+*/
+bool idItem::TouchesPickup( const idBounds &bounds ) const {
+	return canPickUp && !pickedUp && !IsHidden() && trigger &&
+		( trigger->GetContents() & CONTENTS_TRIGGER ) != 0 && bounds.IntersectsBounds( trigger->GetAbsBounds() );
+}
+
+/*
+================
 idItem::Event_Touch
 ================
 */

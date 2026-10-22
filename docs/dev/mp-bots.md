@@ -2234,6 +2234,96 @@ trial unarmed); and a catalog sweep on one build in an uncontended window -
 29 variants passed at `409cee58` and the four that missed rerun clean at
 `e1e41a06`, but no single sweep covers all 33 at the final build.
 
+### Air recovery and replay isolation, 22 October 2026
+
+The follow-through on the recorded CTF5 rail fall now finds the recoverable
+landing. Recovery retains a still-safe input, checks sixteen world headings
+alongside the eight braking-relative headings, and predicts at the player's
+16 ms integration step. If no affordable landing exists, supported floor is
+the last resort; a live health pickup can make that otherwise lethal impact
+survivable. Pickup eligibility uses the item's actual trigger bounds, contents,
+visibility, pickup state and match instance, rather than its smaller model
+bounds. This fallback only steers an already-knocked fall; it never approves a
+voluntary route with lethal landing damage.
+
+The recorded Cortez state (`593.061 1134.060 182.008`, velocity
+`169.541 -380.616 107.461`, health 5) now lands with the controller alive at
+50 health. In `.tmp/outstanding/recovery-reset-world-q4ctf5/result.json`, all
+three trials arm and the controller, `air06` and `air09` survive. The staged
+MP module SHA-256 is
+`1242fd199f424a6a09477e43124db5e9b289a20d6f3f26a4356ad2449b03b120`;
+the client is
+`6c08a406a1856c25f33c4c9490a7515f494d8bc5823d15e1a4e37350d28e5444`.
+The source base is `1e259bfc` plus the recovery/replay diff. The native fixture
+extracts the production chooser and item-trigger predicate; its five mutation
+controls fail when fine headings, stable steering, supported fallback, health
+priority or the actual pickup trigger are removed.
+
+Replay isolation also needed repair. Buffered `removebot` now inserts the
+server kick before the next command, freeing the character for replacement.
+The replay stays in playable warmup, avoiding a match forfeit when its sole bot
+is removed. Every trial restarts the map to restore pickups, then reinstates
+the observer's god/noclip state. Without that world reset the successful first
+trial could take the health that made a later identical heading survivable.
+The separate DM8 Sledge replay armed all 21 trials; its controller and 18 other
+trials survived, including all counterfactuals. That death is recoverable and
+continues to count as navigation, not an impulse exclusion.
+
+These targeted passes do not erase the earlier deaths or establish the cause
+of the independent DM8 jump-down failure.
+
+### Single-build complete catalog, 22 October 2026
+
+`.tmp/outstanding/catalog-final-staged/` contains the complete 33-variant sweep,
+its per-map reports/logs/launch commands and `manifest.json`. All 33 pass the
+strict zero-world-death gate, including warmup: 215 combat kills, zero world
+deaths, zero traversal timeouts and no impulse exclusions. Each map records
+46.208–48.272 seconds of simulation, above the 40-second minimum. The run uses
+six skill-4 bots, a 55-second measured window after five seconds of warmup,
+640x480 hidden/windowed Vulkan, Classic UI and installed stock assets. One
+client runs at a time, with no concurrent build or runtime test. The selected
+valid map modes cover nine CTF, twenty DM and four Dead Zone variants; this is
+not every map/mode combination.
+
+The final identity check confirms unchanged tested source and staged binaries
+throughout the sweep. The source base is `1e259bfc294ad210b103e1d3b861cab912689c56`
+plus the saved `source.diff` (SHA-256
+`7c10e135b076647e57ce79e1e0cd69d3ca024a582df1849df641f2e291d30526`).
+The final rebuild includes the same recovery behavior as the earlier targeted
+replay, with subsequent comment-only C++ edits:
+
+| Staged artifact | SHA-256 |
+| --- | --- |
+| Client | `d67bfc093c4f5e47233abbf2fd7f117c7f862bf9ab1506e5fca8b4c6089edb7b` |
+| MP module | `5e84f1eada554dce0475ebd1291a6a9c9a6d80f7ceceefe64d9c03f226a349aa` |
+| pak0 | `504ae18b437d854c4921a8cd958468cbde40f8071d6e70b4a79414f9442361e2` |
+| pak1 | `1a7c763fbba69207725774d45139ce5a8583300e4f89a55ecf12760bfb6570a9` |
+
+Selected previously investigated maps from this sweep (all have zero world
+deaths; scores are Marine–Strogg):
+
+| Map | Simulation s | Kills | Team score | Bot think mean / max ms | Whole-frame p95 ms |
+| --- | ---: | ---: | --- | ---: | ---: |
+| q4ctf3 | 48.128 | 5 | 1–0 | 1.315 / 43.852 | 27 |
+| q4ctf5 | 48.160 | 6 | 1–0 | 0.578 / 10.832 | 20 |
+| q4dm8 | 47.968 | 8 | — | 1.924 / 45.935 | 37 |
+| q4dz3 | 48.176 | 11 | 27–26 | 0.759 / 27.995 | 23 |
+| q4xdm13 | 48.160 | 11 | — | 0.824 / 16.793 | 20 |
+
+Across the catalog, mean bot think costs span 0.578–2.058 ms per game frame,
+the largest recorded think is 80.850 ms, navigation averages 0.156–1.301 ms
+per frame and navmesh generation takes 153–3,592 ms. These are observations,
+not ratified tail-budget passes. Reports retain 17 stuck events, 12 goal
+give-ups, seven no-route events and 19 refused pickups, despite the passing
+death gate. The final thirteen bot source/native harnesses and runtime
+freshness regression all pass (`.tmp/outstanding/final-checks/`); the death
+policy retains its positive control and 21 failing controls.
+
+This completes the outstanding single-build catalog rerun. It does not replace
+the earlier long-match evidence or close MP-02's independent DM8 jump-down,
+team-knockback and controlled timing requirements, nor broader route recovery
+under MP-03. No full-duration four-map or two-hour voice rerun is claimed here.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include

@@ -4739,33 +4739,70 @@ static bool BotAirLandingUnsafe( idPlayer *self, idVec3 &touchdown ) {
 
 /*
 ================
+BotRecoveryHealthAt
+
+A pickup at a last-resort landing may save a critically hurt bot. Use the
+actual pickup trigger, which can extend beyond the item's visual/physics model.
+================
+*/
+static int BotRecoveryHealthAt( idPlayer *self, const idVec3 &touchdown ) {
+	idBounds body = self->GetPhysics()->GetBounds();
+	body.TranslateSelf( touchdown );
+	int health = 0;
+	const idList<idItem *> &items = botManager.GetItems();
+	for ( int i = 0; i < items.Num(); i++ ) {
+		const idItem *item = items[i];
+		if ( item && !item->pickedUp && !item->IsHidden() && item->GetInstance() == self->GetInstance() &&
+			 item->TouchesPickup( body ) ) {
+			health += Max( 0, item->spawnArgs.GetInt( "inv_health", "0" ) );
+		}
+	}
+	return health;
+}
+
+/*
+================
 BotChooseAirInput
 
-The air input a knocked bot holds for the rest of its fall: braking against
-the throw first, then the eight headings nearest to that, then none - the
-first whose simulated fall lands safely, else the first that at least comes
-down on supported ground.  Braking is not always the answer: a rail's kick
-over q4ctf5's gap left the far walkway, not the near one, within reach.
-With nothing that lands it brakes anyway.
+Keep a proven air input, otherwise try the eight braking-relative headings,
+the sixteen world headings used by the recovery audit, then none. Prefer an
+affordable landing with stopping room, then affordable supported ground. If
+none exists, aim for supported floor, favouring a live health pickup, before
+falling back to braking. This never approves a voluntary traversal.
 ================
 */
 static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
 	const idVec3 origin = self->GetPhysics()->GetOrigin();
 	const idVec3 &velocity = self->GetPhysics()->GetLinearVelocity();
+	const float limit = BotMaxSafeFallDelta( self );
+	// Replanning must not replace a still-safe heading with a different one
+	// whose prediction starts from a slightly different point every 200 ms.
+	if ( wish.LengthSqr() > 0.0f && navMesh.AirInputLandingSafe( origin, velocity, wish, limit ) ) {
+		return;
+	}
 	idVec3 brake( -velocity.x, -velocity.y, 0.0f );
 	if ( brake.Normalize() <= 1.0f ) {
 		brake.Set( 1.0f, 0.0f, 0.0f );
 	}
-	const float limit = BotMaxSafeFallDelta( self );
 	static const float turns[8] = { 0.0f, 45.0f, -45.0f, 90.0f, -90.0f, 135.0f, -135.0f, 180.0f };
 	bool haveSupported = false;
 	idVec3 supported = brake;
-	for ( int i = 0; i < 9; i++ ) {
+	idVec3 lastTouchdown;
+	bool haveLastResort = false;
+	if ( limit < idMath::INFINITY && wish.LengthSqr() > 0.0f ) {
+		navMesh.AirInputLandingSafe( origin, velocity, wish, idMath::INFINITY, &lastTouchdown, &haveLastResort );
+	}
+	idVec3 lastResort = wish;
+	int lastResortHealth = haveLastResort ? BotRecoveryHealthAt( self, lastTouchdown ) : 0;
+	for ( int i = 0; i < 25; i++ ) {
 		idVec3 candidate = vec3_origin;
 		if ( i < 8 ) {
 			const float c = idMath::Cos( DEG2RAD( turns[i] ) );
 			const float s = idMath::Sin( DEG2RAD( turns[i] ) );
 			candidate.Set( brake.x * c - brake.y * s, brake.x * s + brake.y * c, 0.0f );
+		} else if ( i < 24 ) {
+			const float angle = DEG2RAD( ( i - 8 ) * 22.5f );
+			candidate.Set( idMath::Cos( angle ), idMath::Sin( angle ), 0.0f );
 		}
 		bool landed = false;
 		if ( navMesh.AirInputLandingSafe( origin, velocity, candidate, limit, NULL, &landed ) ) {
@@ -4779,8 +4816,30 @@ static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
 			haveSupported = true;
 			supported = candidate;
 		}
+		idVec3 candidateTouchdown = vec3_origin;
+		bool candidateSupported = false;
+		if ( limit < idMath::INFINITY && !haveSupported ) {
+			navMesh.AirInputLandingSafe( origin, velocity, candidate, idMath::INFINITY, &candidateTouchdown, &candidateSupported );
+		}
+		if ( candidateSupported ) {
+			// If every affordable landing is out of reach, supported floor
+			// still beats braking into the void or another pad. A health
+			// pickup can make the impact survivable (q4ctf5's lower walkway).
+			// This is a last resort, never approval for a voluntary jump.
+			const int health = BotRecoveryHealthAt( self, candidateTouchdown );
+			if ( !haveLastResort || health > lastResortHealth ) {
+				haveLastResort = true;
+				lastResort = candidate;
+				lastResortHealth = health;
+			}
+		}
+		if ( bot_debug.GetInteger() >= 4 ) {
+			gameLocal.Printf( "BOT_AIR_OPTION time=%d input=%.3f %.3f touchdown=%.1f %.1f %.1f supported=%d health=%d\n",
+				gameLocal.time, candidate.x, candidate.y, candidateTouchdown.x, candidateTouchdown.y, candidateTouchdown.z,
+				candidateSupported, candidateSupported ? BotRecoveryHealthAt( self, candidateTouchdown ) : 0 );
+		}
 	}
-	wish = supported;
+	wish = haveSupported ? supported : ( haveLastResort ? lastResort : brake );
 }
 
 /*
@@ -8335,9 +8394,10 @@ bool rvBotManager::RemoveBotAt( int clientNum ) {
 	// dropped along with the slot that owes it.
 	bots[clientNum].SayFarewell();
 
-	// Drop through the server's own kick path so the slot, the userinfo and
-	// every connected client are all cleaned up the usual way.
-	cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "kick %d\n", clientNum ) );
+	// Finish the server's normal disconnect before the next buffered command.
+	// Appending behind an exec loop deferred the kick until after addbot and
+	// left the character claimed throughout a replay or roster replacement.
+	cmdSystem->BufferCommandText( CMD_EXEC_INSERT, va( "kick %d\n", clientNum ) );
 
 	return true;
 }
@@ -8350,7 +8410,7 @@ rvBotManager::RemoveAll
 void rvBotManager::RemoveAll( void ) {
 	for ( int i = 0; i < MAX_CLIENTS; i++ ) {
 		if ( bots[i].IsActive() ) {
-			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, va( "kick %d\n", i ) );
+			cmdSystem->BufferCommandText( CMD_EXEC_INSERT, va( "kick %d\n", i ) );
 		}
 	}
 }

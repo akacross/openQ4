@@ -174,7 +174,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/runtime-performance.md",
       "scope": "Debug CPU fixture counters; release GPU/frame pacing/resource budgets unqualified.",
-      "sha256": "63e3362788d7f4800c14971701999b70b717f3b115eb6d9c8bc7b7ac1adbc4b8"
+      "sha256": "91f31dda783674e11a3206a0939d99562c5b27563482380e2f6de96e07770265"
     },
     "instance-persistence-foundation": {
       "kind": "qualified_foundation_checkpoint",
@@ -1093,7 +1093,7 @@
     "audio-subtitles-playback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/audio-voice-evidence.md",
-      "sha256": "16207ecafb59aafa9d28866d4ebbe6dc6bc7c0556169c6fdcaa69cc755d0fc6c",
+      "sha256": "fad16778dbe530dd3c6377e38e91fbf4efd90c5b8f54076a76a48b72ebe1a047",
       "scope": "Playback-driven installed-transcript subtitles and persistent controls; stock/Awakening runtime plus Classic and native layout checks. Portrait title-card collisions, full corpus and headset qualification remain open. No acceptance granted."
     },
     "inventory-android-setup-return": {

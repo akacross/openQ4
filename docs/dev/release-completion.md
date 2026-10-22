@@ -8,6 +8,28 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Outstanding-session follow-through, 22 October 2026
+
+- [x] Repair airborne recovery's missing narrow headings and low-health fallback,
+  using actual live pickup triggers. The recorded CTF5 controller and both
+  recoverable fixed headings land alive when each trial starts with fresh map
+  items. Native extracted-code fixtures and five failing mutation controls cover
+  heading choice, retained steering, supported fallback and pickup eligibility.
+- [x] Complete buffered bot removal before replacement; keep impulse replays in
+  playable warmup and restore the map before each trial. Trials no longer forfeit
+  the match, reuse an occupied bot slot or consume the next trial's health pickup.
+- [x] Finish one complete 33-variant catalog on an unchanged staged build:
+  33/33 pass, 215 combat kills, zero world deaths including warmup, zero traversal
+  timeouts and no impulse exclusions. All maps exceed 40 simulated seconds.
+  The [catalog evidence](mp-bots.md#single-build-complete-catalog-22-october-2026)
+  retains route stalls/give-ups and timing peaks; wider MP-02/MP-03 gates remain
+  open. Thirteen focused bot checks and the freshness regression pass.
+- [x] Record five 1,000-frame Vulkan UI samples per title/System/SP-pause view and
+  four GL/Vulkan stock/retained preset/scale capture runs. The intermittent menu
+  failures were not reproduced in this bounded matrix; title/System CPU budgets
+  still fail, and the open System page's external-preset binding remains stale.
+  See [current UI evidence](ui/runtime-performance.md#current-build-measurements-and-presetscale-reproduction-22-october-2026).
+
 ## Post-0.14.000 corrections
 
 - [x] Add one managed audio-payload budget across CPU/OpenAL data, decoder arenas,

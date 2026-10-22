@@ -44,6 +44,10 @@ def main() -> None:
     bodies = function(header, "ID_INLINE bool NavAirSteer(").replace("ID_INLINE ", "") + "\n" + bodies
     bot = (ROOT / "src/mpgame/bots/Bot.cpp").read_text(encoding="utf-8")
     bodies += "\n" + function(bot, "static bool BotRidesPadArc(")
+    item = (ROOT / "src/mpgame/Item.cpp").read_text(encoding="utf-8")
+    bodies += "\n" + function(item, "bool idItem::TouchesPickup(")
+    bodies += "\n" + function(bot, "static int BotRecoveryHealthAt(")
+    bodies += "\n" + function(bot, "static void BotChooseAirInput(")
     constants += "\n" + re.search(r"^static const float\s+BOT_EDGE_LOOKAHEAD[^\n]+", bot, re.M).group()
     constants += "\n" + re.search(r"^static const float\s+NAV_AIR_STEER_DEADBAND[^\n]+", header, re.M).group()
     hull = function(nav, "static idTraceModel NavCreateAgentTrace(")

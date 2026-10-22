@@ -604,6 +604,9 @@ archived provenance; new scheduling belongs here.
   scope. Demonstrate real effect/readback, persistence, cancel/revert, failed Apply,
   interrupted writes, restart, device/capability changes and stale-owner rejection
   in SP/MP. Localize every display string and preserve current working pages.
+  The 22 October preset/restart captures also show a stale selection on an
+  already-open SYSTEM page after console `applyPerformancePreset`; include
+  external-setting refresh in the readback/ownership qualification.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual
@@ -662,6 +665,13 @@ archived provenance; new scheduling belongs here.
   bounded-resource checks. Keep whole-frame and isolated UI measurements separate.
   Begin with the SYSTEM/editor vertical slice; do not defer architecture/cost
   decisions until all screens have been converted.
+  Progress, 22 October: [current-build measurements](ui/runtime-performance.md#current-build-measurements-and-presetscale-reproduction-22-october-2026)
+  record five 1,000-frame Vulkan samples each for title, System and SP pause.
+  Title/System exceed the proposed 60 Hz CPU budget; GPU and resource-cycle
+  qualification remain open. Four GL/Vulkan stock/retained title/pause runs
+  retain readable text through scene scaling and preset/restart cycles, without
+  reproducing #168/#169. The System route is retained in all four; its stale
+  selection after an external console preset change is a separate UI-01 gap.
 - [ ] **UI-08 — P1, qualification and decision: final cutover.** Complete all seven
   final gates with current source-bound behavior, visual/editor/performance and
   Windows/Linux/macOS/Android-GLES evidence, including dedicated packaging. Decide
@@ -899,6 +909,17 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   build with peers saturating the CPU. Remaining: those navigation causes,
   team-mate splash knockback, replay-bot replacement, one uncontended
   33-variant sweep on one build, and controlled think/route budgets.
+  Follow-through: [air recovery and replay isolation](mp-bots.md#air-recovery-and-replay-isolation-22-october-2026)
+  repair the missed CTF5 heading and bot replacement. The controller and both
+  known recoverable headings land alive with fresh pickups per trial; all 21
+  DM8 Sledge trials arm, and its surviving controller keeps that death classified
+  as navigation. Independent DM8 jump-down and team-knockback causes remain open.
+  The subsequent [single-build 33-variant sweep](mp-bots.md#single-build-complete-catalog-22-october-2026)
+  passes every map with 215 combat kills, zero world deaths including warmup,
+  zero traversal timeouts and no exclusions. Every map exceeds 40 simulated
+  seconds. This closes the outstanding catalog rerun; 17 stuck events, 12 goal
+  give-ups, earlier long-match failures and unratified timing tails keep the
+  wider MP-02/MP-03 gates open.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend

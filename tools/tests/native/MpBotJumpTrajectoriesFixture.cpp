@@ -62,6 +62,10 @@ struct idBounds {
         for(int i=0;i<3;i++) { points[0][i]=Min(points[0][i],p[i]); points[1][i]=Max(points[1][i],p[i]); }
     }
     void TranslateSelf(const idVec3& p) { points[0]=points[0]+p; points[1]=points[1]+p; }
+    bool IntersectsBounds(const idBounds& b) const {
+        for(int i=0;i<3;i++) if(points[1][i]<b[0][i] || points[0][i]>b[1][i]) return false;
+        return true;
+    }
 };
 struct CVar { float value; float GetFloat() const { return value; } int GetInteger() const { return int(value); } };
 CVar pm_stepsize{16},pm_jumpheight{48},pm_speed{320},pm_usecylinder{1};
@@ -220,6 +224,36 @@ public:
 // Diagnostics for a refused sweep name entities; this world has none.
 static const char* NavWalkBlockedReason(const trace_t&,const trace_t&) { return "blocked"; }
 rvNavMesh navMesh;
+struct idPlayer {
+    struct Physics {
+        idVec3 origin,velocity;
+        const idVec3& GetOrigin() const { return origin; }
+        const idVec3& GetLinearVelocity() const { return velocity; }
+        const idBounds& GetBounds() const { return agentBounds; }
+    } physics;
+    Physics* GetPhysics() { return &physics; }
+    int GetInstance() const { return 0; }
+};
+constexpr int CONTENTS_TRIGGER=0x100;
+struct idItem {
+    bool pickedUp=false,hidden=false;
+    int instance=0;
+    bool IsHidden() const { return hidden; }
+    int GetInstance() const { return instance; }
+    struct { int amount=50; int GetInt(const char*,const char*) const { return amount; } } spawnArgs;
+    struct Physics { idBounds bounds; const idBounds& GetAbsBounds() const { return bounds; } } physics;
+    const Physics* GetPhysics() const { return &physics; }
+    struct Trigger:Physics { int contents=CONTENTS_TRIGGER; int GetContents() const { return contents; } } triggerModel;
+    const Trigger* trigger=&triggerModel;
+    bool canPickUp=true;
+    bool TouchesPickup(const idBounds&) const;
+};
+template<class T> struct idList:std::vector<T> { int Num() const { return (int)this->size(); } };
+struct { idList<idItem*> items; const idList<idItem*>& GetItems() const { return items; } } botManager;
+float fallBudget=idMath::INFINITY;
+float BotMaxSafeFallDelta(idPlayer*) { return fallBudget; }
+#define DEG2RAD(x) ((x)*idMath::PI/180.0f)
+const idVec3 vec3_origin;
 // PRODUCTION_FUNCTIONS
 
 void Platform(float xmin,float xmax,float z) {
@@ -629,6 +663,60 @@ int main() {
         solids.clear(); Platform(-256,0,0); Platform(-256,1024,-128); solids.push_back({{60,-256,-128},{80,256,400}});
         nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,&touch);
         CHECK(std::fabs(touch.z+128)<1 && touch.x<60);
+        // A narrow lower walkway sits between the old 45-degree headings.
+        // Choose against the actual swept hull, rather than mocking which
+        // heading the navigation simulation accepts.
+        solids.clear();
+        solids.push_back({{20,26,-192},{1024,64,-128}});
+        idPlayer falling; falling.physics.origin={-10,0,0.25f}; falling.physics.velocity=thrown;
+        idVec3 chosen;
+        BotChooseAirInput(&falling,chosen);
+        bool chosenSupported=false;
+        nav.AirInputLandingSafe(falling.physics.origin,thrown,chosen,inf,nullptr,&chosenSupported);
+        CHECK(chosenSupported);
+        CHECK(chosen.y>0 && chosen.y<0.7f);
+
+        // At critically low health no impact is affordable. Still steer to
+        // a supported floor instead of default braking into the void: a
+        // pickup may save the landing, while the void cannot.
+        fallBudget=0; chosen={};
+        BotChooseAirInput(&falling,chosen);
+        nav.AirInputLandingSafe(falling.physics.origin,thrown,chosen,inf,nullptr,&chosenSupported);
+        CHECK(chosenSupported);
+        CHECK(!nav.AirInputLandingSafe(falling.physics.origin,thrown,chosen,fallBudget));
+        const idVec3 lastResort=chosen;
+        BotChooseAirInput(&falling,chosen);
+        CHECK(chosen.x==lastResort.x && chosen.y==lastResort.y);
+        fallBudget=inf;
+        // A viable held input survives a replan even when braking is also
+        // safe. Replacing it each time steers away from its original proof.
+        solids.clear(); Platform(-1024,1024,-128);
+        chosen={0,1,0};
+        BotChooseAirInput(&falling,chosen);
+        CHECK(chosen.x==0 && chosen.y==1);
+
+        // A nearby live health pickup is preferable when all supported
+        // landings exceed the health budget. Taken/hidden/other-instance
+        // pickups cannot make a landing look better.
+        fallBudget=0;
+        idVec3 healthLanding;
+        CHECK(nav.AirInputLandingSafe(falling.physics.origin,thrown,{0,1,0},inf,&healthLanding));
+        idItem healthItem; healthItem.triggerModel.bounds={{-16,-16,-16},{16,16,16}};
+        healthItem.triggerModel.bounds.TranslateSelf(healthLanding);
+        botManager.items.push_back(&healthItem);
+        CHECK(BotRecoveryHealthAt(&falling,healthLanding)==50);
+        chosen={}; BotChooseAirInput(&falling,chosen);
+        idVec3 pickedLanding;
+        CHECK(nav.AirInputLandingSafe(falling.physics.origin,thrown,chosen,inf,&pickedLanding));
+        CHECK(BotRecoveryHealthAt(&falling,pickedLanding)==50);
+        healthItem.pickedUp=true; CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        healthItem.pickedUp=false; healthItem.hidden=true; CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        healthItem.hidden=false; healthItem.instance=1; CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        healthItem.instance=0; healthItem.canPickUp=false; CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        healthItem.canPickUp=true; healthItem.triggerModel.contents=0; CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        healthItem.triggerModel.contents=CONTENTS_TRIGGER; healthItem.trigger=nullptr;
+        CHECK(BotRecoveryHealthAt(&falling,healthLanding)==0);
+        botManager.items.clear(); fallBudget=inf;
         std::puts("Knocked falls: fixed air input lands only on supported, affordable floor with room to stop; void, walls and input choice: PASS");
     }
     std::puts("Player hulls and jump/drop trajectories: unsupported corners/rims rejected, broad landings/gaps retained: PASS");

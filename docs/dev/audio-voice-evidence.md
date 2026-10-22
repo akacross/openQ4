@@ -622,7 +622,8 @@ and content without asserting that every different release pair is incompatible.
 - Dialogue classification, settings-menu coverage, audio payload restore,
   screen-shake and retail reverb contract tests pass; client and dedicated
   builds and staging pass.
-- The full native Meson suite passes on the final build (187 of 187 tests). Its
+- At the earlier audio/subtitle checkpoint, the native Meson suite passed
+  187 of 187 tests. Its
   imported game regressions caught a voice reset placed above a pinned comment
   in `ClearMap`, fixed before the final runs.
 - The audio, voice and subtitle static/native-compile tests, the API pin
