@@ -362,6 +362,7 @@ private:
 	int						airRecoverReported;	// last airborne-recovery start logged, so one line per fall
 	bool					airRecovering;		// braking a knocked fall until it has stopped on the ground
 	int						knockbackTime;		// last applied knockback, which alone can start that brake
+	int						airborneSince;		// when the current flight left the ground, 0 on the ground
 	int						airRecoverLanded;	// when that fall touched down, 0 while still airborne
 
 	// -- combat --

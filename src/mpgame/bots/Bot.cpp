@@ -71,6 +71,7 @@ static const float	BOT_AIR_RECOVER_STOP_SPEED = 60.0f;	// a recovered fall's tou
 static const int	BOT_AIR_RECOVER_RUNOUT_MSEC = 600;	// and at most this long after touchdown
 static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1000;	// a fall this soon after a knockback may be braked
 static const float	BOT_AIR_RECOVER_MIN_KICK = 150.0f;	// and only a knockback at least this strong
+static const int	BOT_AIR_RECOVER_TAKEOFF_MSEC = 50;	// that came at most this long before the bot left the ground
 static const int	BOT_DODGE_LAUNCH_MSEC	= 128;		// a rejected jump input must not hold walking forever
 static const int	BOT_DODGE_FLIGHT_MSEC	= 1600;		// DodgeJumpClear proves at most 96 sixteen-ms flight steps
 static const int	BOT_ENEMY_MEMORY_MSEC	= 3000;		// base for how long a lost enemy is chased, scaled by pursuit
@@ -618,6 +619,7 @@ rvBot::rvBot( void ) {
 	airRecoverReported	= 0;
 	airRecovering		= false;
 	knockbackTime		= 0;
+	airborneSince		= 0;
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -926,6 +928,7 @@ void rvBot::OnSpawn( void ) {
 	airRecoverReported	= 0;
 	airRecovering		= false;
 	knockbackTime		= 0;
+	airborneSince		= 0;
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -4727,31 +4730,34 @@ static bool BotAirLandingUnsafe( idPlayer *self, idVec3 &touchdown ) {
 ================
 rvBot::RecoverInAir
 
-A bot knocked into the air off its walking leg - a rocket's splash, a rail's
-kick, a shove - kept steering for its corner or for nothing, and on q4ctf5's
-walkways the arc carried it over the void.  Replays of those impulses come
-down on the floor again with full air input against the horizontal velocity,
-which is the most the player's air acceleration can take back.  Once begun
-the brake holds for the whole fall - releasing it when the prediction first
-read safe let the throw carry a bot over a lower ledge's edge - and through
-a short runout after touchdown.  Only a recent strong knockback starts it,
-and never inside a pad or teleporter: a pad's launch reads as a fall over
-the void on the frame before its traversal is marked started, and braking
-it dropped bots into the gap.  A knock taken during a committed flight
-takes that flight over when its landing is lost; a traversal begun after
-the knock, and voluntary dodge hops, keep their own controllers.
+A bot knocked into the air - a rocket's splash, a rail's kick - kept steering
+for its corner, its drop's landing or its pad's, and on q4ctf5's walkways
+the throw carried it over the void.  Replays of those impulses come down on
+the floor again with full air input against the horizontal velocity, the
+most the player's air acceleration can take back.  Once begun the brake
+holds for the whole fall - releasing it when the prediction first read safe
+let the throw carry a bot over a lower ledge's edge - and through a short
+runout after touchdown.
+
+Only a fall a strong knock caused starts it: one the knock threw off the
+ground, or one hit in the air.  A pad's launch reads as a fall over the void
+on the frame before its traversal is marked started, and braking that
+dropped bots into the gap; a jump or a drop taken after an earlier knock is
+the bot's own.  Inside a pad or teleporter, or in a transport flight that
+caught the throw, the volume owns the bot.  A knocked jump, drop or pad
+flight hands over its route, which is decided again afterwards.
 ================
 */
 bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	const idVec3 &velocity = self->GetPhysics()->GetLinearVelocity();
 	idVec3 brake( -velocity.x, -velocity.y, 0.0f );
 	const float speed = brake.Normalize();
-	// Inside a pad or teleporter the volume owns the bot; a traversal begun
-	// after the knock - a pad that caught the throw - owns its new flight.
-	const bool transported =
+	const bool transportFlight = traversalStarted && pathCorner >= 0 && pathCorner < path.Num() &&
+		( path[pathCorner].travelType == NAVTRAVEL_JUMPPAD || path[pathCorner].travelType == NAVTRAVEL_TELEPORT ) &&
+		traversalStartTime > knockbackTime;
+	const bool transported = transportFlight ||
 		navMesh.TransportOnMove( self->GetPhysics()->GetOrigin(), self->GetPhysics()->GetOrigin(), -1 ) >= 0;
-	const bool laterTraversal = traversalStarted && traversalStartTime > knockbackTime;
-	if ( airRecovering && ( laterTraversal || transported || self->health <= 0 ) ) {
+	if ( airRecovering && ( transported || self->health <= 0 ) ) {
 		airRecovering = false;
 	}
 	if ( airRecovering && self->pfl.onGround ) {
@@ -4767,29 +4773,21 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 		stuckTime = gameLocal.time;
 		return true;
 	}
-	if ( self->pfl.onGround || laterTraversal || transported || LiquidAtFeet() || !navMesh.IsValid() ) {
+	if ( self->pfl.onGround || transported || LiquidAtFeet() || !navMesh.IsValid() || speed <= 1.0f ) {
 		return false;
 	}
-	// A jump's first airborne frame precedes AdvancePath marking it started.
-	if ( !traversalStarted && pathCorner >= 0 && pathCorner < path.Num() &&
-		 path[pathCorner].travelType != NAVTRAVEL_WALK ) {
-		return false;
-	}
-	if ( speed <= 1.0f ) {
-		return false;
-	}
+	const bool knocked = knockbackTime && gameLocal.time - knockbackTime <= BOT_AIR_RECOVER_KNOCK_MSEC &&
+		airborneSince && knockbackTime >= airborneSince - BOT_AIR_RECOVER_TAKEOFF_MSEC;
 	idVec3 touchdown;
-	if ( !airRecovering && ( !knockbackTime || gameLocal.time - knockbackTime > BOT_AIR_RECOVER_KNOCK_MSEC ||
-		 !BotAirLandingUnsafe( self, touchdown ) ) ) {
+	if ( !airRecovering && ( !knocked || !BotAirLandingUnsafe( self, touchdown ) ) ) {
 		return false;
 	}
 	if ( !airRecovering ) {
 		airRecovering = true;
 		airRecoverLanded = 0;
-		if ( traversalStarted ) {
-			// A rail's kick mid-flight leaves the pad's landing out of reach:
-			// steering for it carried q4ctf5 flyers into the void. The route
-			// is decided again once the throw has been stopped.
+		if ( traversalStarted || ( pathCorner >= 0 && pathCorner < path.Num() &&
+			 path[pathCorner].travelType != NAVTRAVEL_WALK ) ) {
+			// The jump's, drop's or pad's landing is out of reach now.
 			path.Clear();
 			pathCorner = 0;
 			pathTime = 0;
@@ -6949,6 +6947,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( padApproachTime );
 	SHIFT_BOT_TIME( airRecoverLanded );
 	SHIFT_BOT_TIME( knockbackTime );
+	SHIFT_BOT_TIME( airborneSince );
 
 	SHIFT_BOT_TIME( goalSelectedTime );
 	for ( int i = 0; i < ROAM_HISTORY; i++ ) {
@@ -7078,6 +7077,12 @@ void rvBot::Think( usercmd_t &cmd ) {
 	}
 	UpdateEnemy( self );
 	AdoptPadLaunch( self );
+	// When this flight began, for telling a knock's throw from the bot's own jump.
+	if ( self->pfl.onGround ) {
+		airborneSince = 0;
+	} else if ( !airborneSince ) {
+		airborneSince = gameLocal.time;
+	}
 	UpdateGoal( self );
 	UpdateAim( self, cmd );
 	// Movement is resolved against the view angles in this same command.  Aim
@@ -8352,6 +8357,7 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		// A walking probe replays a post-impulse state: the thrown bot's own
 		// recovery is what it measures.
 		bot.knockbackTime = gameLocal.time;
+		bot.airborneSince = gameLocal.time;
 	}
 	bot.probeWatch = true;
 	bot.probeStartTime = gameLocal.time;

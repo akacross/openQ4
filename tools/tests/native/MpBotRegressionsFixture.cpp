@@ -405,7 +405,7 @@ struct rvBot {
     int padHoldSince=0,stuckTime=0,stuckChecks=0,unstickUntil=0,traversalStartTime=0;
     int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
     bool airRecovering=false;
-    int knockbackTime=0;
+    int knockbackTime=0,airborneSince=0;
     int LiquidAtFeet() const { return 0; }
     idVec3 padApproachLaunch,padApproachLanding;
     float goalUtility=0,goalBestDistance=idMath::INFINITY,stuckCornerDistance=idMath::INFINITY;
@@ -951,22 +951,22 @@ void TestAirRecovery() {
     Reset(); idPlayer self; self.pfl.onGround=false; self.physics.velocity={300,0,180};
     rvBot bot; bot.path.Append({0,0,0}); bot.path.Append({200,0,0});
     usercmd_t cmd; airLandingUnsafe=true;
-    // Only a knockback starts it: a pad launch's first frame reads as a fall
-    // over the gap before its traversal is marked started.
+    // Only a fall a knock caused: none, a stale one, or one before the bot's
+    // own takeoff - it landed and jumped since - starts nothing.
+    bot.airborneSince=gameLocal.time-84;
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.forwardmove==0);
-    bot.knockbackTime=gameLocal.time-BOT_AIR_RECOVER_KNOCK_MSEC-1;
+    bot.knockbackTime=gameLocal.time-BOT_AIR_RECOVER_KNOCK_MSEC-1; bot.airborneSince=bot.knockbackTime;
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
-    bot.knockbackTime=gameLocal.time-100;
+    bot.knockbackTime=gameLocal.time-400; bot.airborneSince=gameLocal.time-50;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
+    // Thrown off the ground by it (the knock lands a frame before the bot leaves).
+    bot.knockbackTime=gameLocal.time-100; bot.airborneSince=gameLocal.time-84;
     CHECK(bot.RecoverInAir(&self,cmd) && cmd.forwardmove<0 && cmd.rightmove==0 && cmd.upmove==0);
+    CHECK(bot.path.Num()==2); // a walking route resumes after the throw
     // An arc that comes down on the floor is left to the route.
     bot.airRecovering=false; airLandingUnsafe=false; cmd={}; CHECK(!bot.RecoverInAir(&self,cmd) && cmd.forwardmove==0);
     airLandingUnsafe=true;
-    // A committed traversal, a jump's first airborne frame and the ground
-    // keep their own controllers; a fall straight down has nothing to brake.
-    bot.traversalStarted=true; bot.traversalStartTime=gameLocal.time; // began after the knock
-    CHECK(!bot.RecoverInAir(&self,cmd)); bot.traversalStarted=false; bot.traversalStartTime=0;
-    bot.path.corners[1].travelType=NAVTRAVEL_JUMP; bot.pathCorner=1;
-    CHECK(!bot.RecoverInAir(&self,cmd)); bot.path.corners[1].travelType=NAVTRAVEL_WALK;
+    // The ground, and a fall straight down, have nothing to brake.
     self.pfl.onGround=true; CHECK(!bot.RecoverInAir(&self,cmd)); self.pfl.onGround=false;
     self.physics.velocity={0,0,-400}; CHECK(!bot.RecoverInAir(&self,cmd));
     // Off any route the throw is recovered from just the same.
@@ -980,35 +980,43 @@ void TestAirRecovery() {
     CHECK(bot.RecoverInAir(&self,cmd) && cmd.rightmove<0 && bot.airRecoverLanded==gameLocal.time);
     gameLocal.time+=BOT_AIR_RECOVER_RUNOUT_MSEC+1; cmd={};
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.rightmove==0);
-    // A slow touchdown ends it at once; a later pad flight is not braked.
     rvBot slow; slow.airRecovering=true; self.physics.velocity={0,-40,0};
     CHECK(!slow.RecoverInAir(&self,cmd) && !slow.airRecovering);
-    rvBot flying; flying.airRecovering=true; flying.traversalStarted=true; flying.traversalStartTime=gameLocal.time; self.pfl.onGround=false;
-    self.physics.velocity={0,-600,400}; CHECK(!flying.RecoverInAir(&self,cmd) && !flying.airRecovering);
-    // A pad that takes a knocked bot owns that flight: its volume, or a
-    // traversal begun after the knock, ends the brake, and neither starts one.
-    airLandingUnsafe=true; self.physics.velocity={0,-300,100}; navMesh.volumesAhead={{9,-1000}};
-    rvBot fresh; fresh.knockbackTime=gameLocal.time;
-    CHECK(!fresh.RecoverInAir(&self,cmd) && !fresh.airRecovering);
-    rvBot inside; inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
-    navMesh.volumesAhead.clear();
-    rvBot caught; caught.airRecovering=true; caught.knockbackTime=gameLocal.time-200;
-    caught.traversalStarted=true; caught.traversalStartTime=gameLocal.time-100;
-    CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
-    CHECK(fresh.RecoverInAir(&self,cmd) && fresh.airRecovering);
-    // A rail's kick during a pad flight (q4ctf5): the lost landing gives way
-    // to the brake, and the route is decided again after it.
+    // A knock that turns the walk into the route's drop (q4ctf5): the drop's
+    // landing is out of reach, so the route gives way to the brake.
+    self.pfl.onGround=false; self.physics.velocity={397,-433,38}; airLandingUnsafe=true; cmd={};
+    rvBot dropper; dropper.path.Append({0,0,0}); dropper.path.corners.push_back({{30,-30,-184},NAVTRAVEL_DROP,-1});
+    dropper.pathCorner=1; dropper.traversalStarted=true; dropper.traversalStartTime=gameLocal.time-16;
+    dropper.knockbackTime=gameLocal.time-100; dropper.airborneSince=gameLocal.time-84;
+    dropper.nextGoalSelectTime=gameLocal.time+5000;
+    CHECK(dropper.RecoverInAir(&self,cmd) && dropper.path.IsEmpty() && !dropper.traversalStarted);
+    CHECK(dropper.nextGoalSelectTime==gameLocal.time && cmd.forwardmove<0);
+    // A rail's kick during a pad flight takes the flight over the same way.
+    self.physics.velocity={0,-300,100}; cmd={};
     rvBot flyer; flyer.path.Append({0,0,0}); flyer.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8);
     flyer.pathCorner=1; flyer.traversalStarted=true; flyer.traversalStartTime=gameLocal.time-300;
-    flyer.knockbackTime=gameLocal.time-50; flyer.nextGoalSelectTime=gameLocal.time+5000; cmd={};
-    CHECK(flyer.RecoverInAir(&self,cmd) && flyer.airRecovering && flyer.path.IsEmpty() && !flyer.traversalStarted);
-    CHECK(cmd.rightmove<0 && flyer.nextGoalSelectTime==gameLocal.time);
+    flyer.airborneSince=gameLocal.time-300; flyer.knockbackTime=gameLocal.time-50;
+    CHECK(flyer.RecoverInAir(&self,cmd) && flyer.airRecovering && flyer.path.IsEmpty() && cmd.rightmove<0);
     // Whose landing survives the knock keeps its pad controller.
-    rvBot safe; safe.path=flyer.path; safe.path.Append({0,0,0}); safe.path.corners.resize(0);
-    safe.path.Append({0,0,0}); safe.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8); safe.pathCorner=1;
-    safe.traversalStarted=true; safe.traversalStartTime=gameLocal.time-300; safe.knockbackTime=gameLocal.time-50;
+    rvBot safe; safe.path.Append({0,0,0}); safe.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8); safe.pathCorner=1;
+    safe.traversalStarted=true; safe.traversalStartTime=gameLocal.time-300; safe.airborneSince=gameLocal.time-300;
+    safe.knockbackTime=gameLocal.time-50;
     airLandingUnsafe=false; CHECK(!safe.RecoverInAir(&self,cmd) && safe.path.Num()==2 && safe.traversalStarted);
-    std::puts("Air recovery: a knocked walker over nothing brakes its throw with full air input; traversals, ground and safe arcs untouched: PASS");
+    airLandingUnsafe=true;
+    // A pad's volume, or a pad flight that caught the throw, owns the bot:
+    // neither starts the brake, and either ends one.
+    rvBot caught; caught.path=safe.path; caught.pathCorner=1; caught.traversalStarted=true;
+    caught.knockbackTime=gameLocal.time-200; caught.airborneSince=gameLocal.time-216;
+    caught.traversalStartTime=gameLocal.time-100;
+    CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
+    caught.airRecovering=true; CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
+    navMesh.volumesAhead={{9,-1000}};
+    rvBot inside; inside.knockbackTime=gameLocal.time-100; inside.airborneSince=gameLocal.time-84;
+    CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
+    inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
+    navMesh.volumesAhead.clear();
+    CHECK(inside.RecoverInAir(&self,cmd) && inside.airRecovering);
+    std::puts("Air recovery: a knock-caused fall over nothing is braked, through drops and pad flights it hijacks; own jumps, pad volumes and safe arcs untouched: PASS");
 }
 void TestUnexpectedPad() {
     Reset(); idPlayer self; rvJumpPad pad; idItem goal;
