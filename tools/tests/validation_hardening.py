@@ -648,6 +648,16 @@ def validate_validation_wiring() -> None:
     # exercised by their native harnesses or runtime callers. Keep both out of
     # the argument-free lightweight suite; CI still checks their syntax.
     smoke_wiring_allowlist = {
+        # Audio/voice drivers: retail assets, a staged OpenAL Soft provider,
+        # ffmpeg or a launched game; their native-compile siblings are wired.
+        "audio_asset_inventory.py",
+        "audio_center.py",
+        "audio_dialogue.py",
+        "audio_memory_runtime.py",
+        "audio_mod_reverb.py",
+        "audio_streaming.py",
+        "audio_subtitles_runtime.py",
+        "voice_chat_runtime.py",
         "german_localization_smoke.py",
         "localization_smoke.py",
         "level_editor_runtime.py",
