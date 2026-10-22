@@ -536,7 +536,7 @@ public:
 	void					OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int damage, const idVec3 &dir );
 	// Called from idPlayer::Damage whenever knockback is applied to a bot,
 	// including impulses that friendly fire or armour leave without damage.
-	void					OnPlayerKnockback( idPlayer *victim );
+	void					OnPlayerKnockback( idPlayer *victim, const idVec3 &kick );
 
 	// Called once for an accepted typed-chat line on the server.  It chooses at
 	// most one visible bot to answer and lets that bot's character content,

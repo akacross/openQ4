@@ -68,7 +68,8 @@ static const float	BOT_EDGE_LOOKAHEAD		= 0.15f;	// seconds of velocity the void-
 static const float	BOT_SAFE_FALL			= 512.0f;	// floor this far down is a fall, not the void (NAV_MAX_DROP)
 static const float	BOT_AIR_RECOVER_STOP_SPEED = 60.0f;	// a recovered fall's touchdown brake ends below this speed
 static const int	BOT_AIR_RECOVER_RUNOUT_MSEC = 600;	// and at most this long after touchdown
-static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1500;	// a fall this soon after a knockback may be braked
+static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1000;	// a fall this soon after a knockback may be braked
+static const float	BOT_AIR_RECOVER_MIN_KICK = 150.0f;	// and only a knockback at least this strong
 static const int	BOT_DODGE_LAUNCH_MSEC	= 128;		// a rejected jump input must not hold walking forever
 static const int	BOT_DODGE_FLIGHT_MSEC	= 1600;		// DodgeJumpClear proves at most 96 sixteen-ms flight steps
 static const int	BOT_ENEMY_MEMORY_MSEC	= 3000;		// base for how long a lost enemy is chased, scaled by pursuit
@@ -4719,17 +4720,20 @@ down on the floor again with full air input against the horizontal velocity,
 which is the most the player's air acceleration can take back.  Once begun
 the brake holds for the whole fall - releasing it when the prediction first
 read safe let the throw carry a bot over a lower ledge's edge - and through
-a short runout after touchdown.  Only an applied knockback starts it: a
-pad's launch reads as a fall over the void on the frame before its
-traversal is marked started, and braking it dropped bots into the gap.
-Committed traversals and voluntary dodge hops keep their own controllers.
+a short runout after touchdown.  Only a recent strong knockback starts it,
+and never inside a pad or teleporter or at a pad's launch speed: a pad's
+launch reads as a fall over the void on the frame before its traversal is
+marked started, and braking it dropped bots into the gap.  Committed
+traversals and voluntary dodge hops keep their own controllers.
 ================
 */
 bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	const idVec3 &velocity = self->GetPhysics()->GetLinearVelocity();
 	idVec3 brake( -velocity.x, -velocity.y, 0.0f );
 	const float speed = brake.Normalize();
-	if ( airRecovering && ( traversalStarted || self->health <= 0 ) ) {
+	const bool transported = velocity.z > BOT_PAD_LAUNCH_SPEED ||
+		navMesh.TransportOnMove( self->GetPhysics()->GetOrigin(), self->GetPhysics()->GetOrigin(), -1 ) >= 0;
+	if ( airRecovering && ( traversalStarted || transported || self->health <= 0 ) ) {
 		airRecovering = false;
 	}
 	if ( airRecovering && self->pfl.onGround ) {
@@ -4745,7 +4749,7 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 		stuckTime = gameLocal.time;
 		return true;
 	}
-	if ( self->pfl.onGround || traversalStarted || LiquidAtFeet() || !navMesh.IsValid() ) {
+	if ( self->pfl.onGround || traversalStarted || transported || LiquidAtFeet() || !navMesh.IsValid() ) {
 		return false;
 	}
 	// A jump's first airborne frame precedes AdvancePath marking it started.
@@ -8638,8 +8642,10 @@ void rvBotManager::OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int da
 	bots[victim->entityNumber].OnDamaged( source, damage, dir );
 }
 
-void rvBotManager::OnPlayerKnockback( idPlayer *victim ) {
-	if ( !gameLocal.isMultiplayer || gameLocal.isClient || !victim || !IsBot( victim->entityNumber ) ) {
+void rvBotManager::OnPlayerKnockback( idPlayer *victim, const idVec3 &kick ) {
+	// A machine gun's 25-unit nudges are not a throw.
+	if ( !gameLocal.isMultiplayer || gameLocal.isClient || !victim || !IsBot( victim->entityNumber ) ||
+		 kick.LengthSqr() < Square( BOT_AIR_RECOVER_MIN_KICK ) ) {
 		return;
 	}
 	bots[victim->entityNumber].knockbackTime = gameLocal.time;

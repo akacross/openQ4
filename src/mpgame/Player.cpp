@@ -12100,7 +12100,7 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 			physicsObj.SetLinearVelocity( physicsObj.GetLinearVelocity() + kick );
 			if ( gameLocal.isMultiplayer && botManager.IsBot( entityNumber ) ) {
 				// A thrown bot may need to fight its fall; see rvBot::RecoverInAir.
-				botManager.OnPlayerKnockback( this );
+				botManager.OnPlayerKnockback( this, kick );
 			}
 			if ( gameLocal.isMultiplayer && bot_debug.GetInteger() >= 2 && botManager.IsBot( entityNumber ) ) {
 				// Friendly fire and armour can suppress health damage while the

@@ -975,6 +975,15 @@ void TestAirRecovery() {
     CHECK(!slow.RecoverInAir(&self,cmd) && !slow.airRecovering);
     rvBot flying; flying.airRecovering=true; flying.traversalStarted=true; self.pfl.onGround=false;
     self.physics.velocity={0,-600,400}; CHECK(!flying.RecoverInAir(&self,cmd) && !flying.airRecovering);
+    // A pad that takes a knocked bot owns the flight from its first frame:
+    // its launch speed or its volume ends the brake, and neither starts one.
+    rvBot launched; launched.airRecovering=true; self.physics.velocity={0,646,528};
+    CHECK(!launched.RecoverInAir(&self,cmd) && !launched.airRecovering);
+    rvBot fresh; fresh.knockbackTime=gameLocal.time; CHECK(!fresh.RecoverInAir(&self,cmd) && !fresh.airRecovering);
+    self.physics.velocity={0,-300,100}; navMesh.volumesAhead={{9,-1000}};
+    CHECK(!fresh.RecoverInAir(&self,cmd) && !fresh.airRecovering);
+    rvBot inside; inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
+    navMesh.volumesAhead.clear(); airLandingUnsafe=true; CHECK(fresh.RecoverInAir(&self,cmd) && fresh.airRecovering);
     std::puts("Air recovery: a knocked walker over nothing brakes its throw with full air input; traversals, ground and safe arcs untouched: PASS");
 }
 void TestUnexpectedPad() {

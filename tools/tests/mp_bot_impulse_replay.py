@@ -46,7 +46,7 @@ ROOT = Path(__file__).resolve().parents[2]
 IMPULSE_WINDOW_MSEC = 6000
 AIR_HEADINGS = 16
 TRIAL_OBSERVE_MSEC = 6000
-TRIAL_RESPAWN_MSEC = 5000
+TRIAL_RESPAWN_MSEC = 9000  # CTF respawns can take longer than five seconds
 FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown membership fails closed
 
 IMPULSE = re.compile(
