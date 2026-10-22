@@ -30,7 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "snd_local.h"
 #include "SoundDialogue.h"
-#include "../framework/DeclLipSync.h"
+#include "../framework/declLipSync.h"
 
 idCVar s_singleEmitter( "s_singleEmitter", "0", CVAR_INTEGER, "mute all sounds but this emitter" );
 idCVar s_showStartSound( "s_showStartSound", "0", CVAR_BOOL, "print a message every time a sound starts/stops" );
