@@ -4,7 +4,7 @@
   "date": "2026-10-09",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "8c1a49ca7a033e163e271ef3787a4a9ba73f7479",
+    "engine_revision": "cbe967f2b61935da283a873a731fe975926cf214",
     "companion_revision": "8c1a49ca7a033e163e271ef3787a4a9ba73f7479",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -1089,6 +1089,12 @@
       "path": "docs/dev/ui/inventory-sources.json",
       "sha256": "0de39ef79ca4bb0df9ca2447ccbc4cbcd5e74bb4773d1e93f0e2563745eae7b7",
       "scope": "264 retail, 276 base and 324 Awakening effective sources; 358 unique include-bound variants. No product or resource acceptance."
+    },
+    "audio-subtitles-playback": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/audio-voice-evidence.md",
+      "sha256": "c900b7665707811475824c069ae13c2d884d2bda0f54df9acdb603d2b913936a",
+      "scope": "Playback-driven installed-transcript subtitles and persistent controls; stock/Awakening runtime plus Classic and native layout checks. Portrait title-card collisions, full corpus and headset qualification remain open. No acceptance granted."
     }
   },
   "groups": {
@@ -12786,7 +12792,9 @@
         "SP gameplay traces of pickups, weapon changes during pickups, radio chatter, exit, saves, world-GUI focus and subtitled cinematics in both HUD families and both layouts. Include squad lines under Quake 4 and The Awakening."
       ],
       "status": "pending",
-      "current_evidence": [],
+      "current_evidence": [
+        "audio-subtitles-playback"
+      ],
       "acceptance_evidence": [],
       "remaining": "Implementation and acceptance evidence covering the entire stated requirement are required.",
       "constraints": {

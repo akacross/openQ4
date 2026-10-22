@@ -10,6 +10,58 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Add one managed audio-payload budget across CPU/OpenAL data, decoder arenas,
+  streams and envelopes. Bound ordinary PCM fallback queues, decode RoQ through
+  fixed input scratch and keep pressure-refused samples retryable. Stock and
+  Awakening pass at 192 MiB; forced exhaustion and two restarts retain active
+  playback without reservation growth. Provider/process metadata, Android
+  low-memory callbacks and broader performance/device qualification remain AUD-03.
+  [Memory evidence](audio-voice-evidence.md#aggregate-payload-admission).
+
+- [x] Add playback-driven dialogue subtitles using text in installed lip-sync
+  declarations, with localized persistent size, background and speaker controls.
+  Stock/Awakening runtime, missing-text, overlap, pause, time-scale, restart,
+  save/restore and locale-fallback tests pass. The caption panel works in Classic
+  and retained UI. Missing transcripts, portrait title-card collisions and full
+  scene/headset coverage remain AUD-07/UI-02/UI-04 qualification work.
+  [Subtitle evidence](audio-voice-evidence.md#dialogue-subtitles).
+
+- [x] Route mono global/radio dialogue and explicitly centred sounds to the
+  physical centre on supported surround outputs, with bounded buffers and
+  unchanged stereo/HRTF fallback. Production queue tests, real OpenAL loopback
+  PCM on 5.1/6.1/7.1 and quad layouts, and stock compressed/Awakening PCM
+  gameplay pass; physical speaker and
+  output-layout-transition qualification remains open under AUD-04.
+
+- [x] Add independent archived dialogue volume with twelve localized Audio-menu
+  labels, bound transient Vorbis input/PCM admission and restore authored
+  minimum distance for mod room rolloff.
+  Windows stock/Awakening gameplay and Turkish-to-English audio fallback checks
+  cover gain isolation, mute, pause, time scale, restart and save/load. OpenAL
+  loopback confirms the mod wet-gain correction without changing stock zero
+  rolloff or dry gain. [Audio evidence and explicit limits](audio-voice-evidence.md)
+  distinguish these repairs from open AUD-01–AUD-07 qualification. Curated
+  candidate notes: [audio refinements](releases/audio-refinements.md).
+
+- [x] Implement bounded multiplayer voice with separate opt-in microphone access,
+  push-to-talk, local-only testing, receive volume, connection-scoped mute and
+  server moderation. Windows listen and dedicated peer tests cover rendered
+  audio, loss, reorder, latency, congestion, restart and slot reuse. Gameplay
+  snapshots retain priority over voice. Admission follows slow sender clock
+  drift within a bounded slew, verified by a simulated 24-hour drift/jitter/loss
+  test. This closes the implementation slice, not AUD-05's physical-device,
+  real multi-hour-session or target-OS qualification.
+  Engine/game API 53 requires matching modules. See
+  [voice evidence](audio-voice-evidence.md#multiplayer-voice).
+
+- [x] Stream long Ogg dialogue/music and effects through bounded VFS input,
+  decoder and playback buffers. Retain exact seek, leadin/loop, pause, pitch,
+  restart and save/restore behavior; recover underruns at the channel clock.
+  Windows stock/Awakening tests pass at a 16 MiB decode budget, reducing uploaded
+  PCM in the measured scenes. The aggregate/non-Vorbis implementation is recorded
+  above; performance and Android/device qualification remain AUD-03 work.
+  [Streaming evidence](audio-voice-evidence.md#compressed-streaming).
+
 - [x] Complete the stage-one baseline implementation and audit: use a shared
   high-resolution presentation phase for each SP/MP draw and precise OpenXR
   smooth-turn deltas; restore imported game regression coverage; reconcile

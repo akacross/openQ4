@@ -734,6 +734,8 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   defect. Reconcile that report with measured source/listener behavior rather than
   applying a speculative 39.37 conversion. Preserve the authored mix and already
   implemented spatial/HRTF/EFX/reverb behavior.
+  October 21: the mod wet-path reference-distance defect is isolated and measured
+  under AUD-04; no change was made to dry attenuation or either unit macro.
 - [ ] **AUD-02 — P1, qualification: physical device and timing lifecycle.** Test
   default/selected endpoint loss and return, hotplug, pause/resume/slow motion,
   cinematics, map/restart and long sessions on target OSes. Verify audible output,
@@ -747,17 +749,54 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   pause/time scale and underrun behavior. Existing queued PCM and decode jobs do
   not by themselves establish compressed streaming. Android's required memory
   bound can ship before optional streaming completion; keep those exits separate.
+  October 21: compressed input, fixed decoder arenas and pending Vorbis PCM
+  have a 64 MiB admission budget with backpressure and cancellation accounting.
+  Ogg tracks above 512 KiB decoded size now stream from the VFS/PK4 through
+  fixed input/decoder buffers and three 4,096-frame PCM buffers, with a separate
+  32 MiB active-stream reservation limit. PCM/seek/overlap/loop tests and stock/
+  Awakening gameplay at a 16 MiB decode budget pass pause, time scale, restart,
+  save/load and gain checks without rejected tracks. `listSounds` reports sample,
+  envelope, pending decoder and stream costs. A joint 256 MiB managed-payload
+  budget now admits CPU/OpenAL data, envelopes, decoder arenas and conservative
+  queues together, including WAV/ADPCM and bounded two-pass RoQ loading.
+  Stock/Awakening tests pass at 192 MiB; deliberate exhaustion retains active
+  audio, refuses new data without caching beeps, retries after budget recovery
+  and survives repeated restart without reservation growth. Metadata/provider
+  process memory, lengthless streaming, loading-performance, Android low-memory
+  callbacks and device breadth remain open.
+  [Implementation and evidence](audio-voice-evidence.md#aggregate-payload-admission).
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
+  October 21: mod rolloff is repaired and measured using OpenAL loopback audio;
+  stock zero rolloff and the dry mix are unchanged. Mono global/radio dialogue
+  and explicit `SSF_CENTER` sounds now use bounded direct 5.1 buffers on a
+  centre-capable output. Positional NPC speech retains its direction. Loopback
+  tests (26 checks) measure exclusive centre placement, the configured VO
+  fraction and silent LFE on 5.1, 6.1 and 7.1 outputs, plus identical stereo,
+  quad and HRTF fallback PCM; stock compressed and Awakening PCM
+  gameplay pass pause, time scale, restart and restore. Physical surround
+  devices, output-layout transitions and positional mod wet sends remain open.
+  [Centre evidence](audio-voice-evidence.md#centre-channel-placement).
 - [ ] **AUD-05 — P1, implementation: functional multiplayer voice.** Capture,
-  codec, transport and playback remain disabled/incomplete despite UI controls.
-  Implement the full bounded path, consent/activation controls, mute identity,
-  moderation/rate limits, reconnect and device recovery, then qualify real peers.
-  Preserve existing recipient policy; decide bounded latency, late-packet dropping
-  and backpressure before connecting voice to the current reliable client-message
-  path, whose head-of-line blocking needs measurement under loss/congestion.
-  Until then expose honest unavailable controls and do not advertise working voice.
+  codec, transport and playback are implemented with explicit microphone consent,
+  push-to-talk, local-only testing, connection-scoped mute, server moderation and
+  existing recipient policy. The versioned 8 kHz mu-law path uses independent
+  unreliable 20 ms frames, 80 ms capture/playback rings, late/duplicate/rate
+  rejection and a server mailbox flushed after snapshots without retry backlog.
+  October 21: Windows listen and dedicated servers with three real client
+  processes pass bidirectional rendered-tone playback, volume, real-time pitch,
+  mute/receive/moderation, restart, reconnect/slot reuse, loss/reorder, delayed
+  frame rejection and congestion recovery. At 2,000 B/s voice yields while
+  snapshots continue. Capture fault/lifecycle tests execute production code
+  without a microphone. The real settings adapter and SDL dummy callback path
+  also pass local-only testing, tab-exit closure and consent revocation, with
+  inspected retained and Classic engine screenshots. Voice admission now tracks
+  sender clock drift with a bounded slew (at most 2 ms per second of accepted
+  traffic), and a simulated 24-hour drift/jitter/loss test passes. Physical
+  capture, endpoint hotplug, real multi-hour sessions and OS/device breadth
+  remain open; retain these qualification gates.
+  [Implementation and evidence](audio-voice-evidence.md#multiplayer-voice).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
   persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
@@ -766,6 +805,11 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   Keep master/effects/music controls and authored distance/reverb behavior coherent.
   Qualify overlapping speech, mute, pause, save/restore, locale fallback and device
   changes, including proving that the control does not mute unrelated weapon audio.
+  October 21: the localized archived control and central playback routing are
+  implemented. Stock/Awakening gameplay tests cover overlapping speech/effect
+  fixtures, mute, pause, time scale, restart, save/load and Turkish text with
+  English audio fallback. Complete authored NPC/script/BSE/cinematic scene and
+  physical device coverage remains open. [Evidence](audio-voice-evidence.md).
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -776,6 +820,17 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   where available and persistent controls. Qualify SP/Awakening scenes and stereo
   HUD placement; distinguish subtitles from optional full sound-effect captions.
   Missing transcript coverage must remain explicit rather than counted as complete.
+  October 21: installed-asset inventories identify 2,268 same-name lip-sync/text
+  mappings among 3,672 stock speech candidates, and 1,512 among 1,584 Awakening
+  candidates. Reports retain identifiers and localization keys, not transcripts.
+  The playback-driven overlay now uses verified single-variant shader or full
+  sample-path lip-sync text. Localized, archived enable/size/background/speaker
+  controls work in both UI modes. Stock and Awakening runtime tests pass muted
+  audio, interruption/overlap, pause/time scale, restart, save/restore and English
+  text fallback under Turkish. Pagination and native layout checks pass; missing
+  transcripts are skipped. Portrait Awakening title-card collisions, the full
+  scene/locale corpus and physical stereo-HUD qualification remain open.
+  [Subtitle evidence and mapping policy](audio-voice-evidence.md#dialogue-subtitles).
 
 ## Desktop platforms and packaging
 

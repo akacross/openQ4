@@ -54,11 +54,13 @@ It is for players who want the original Quake 4 experience on today's hardware.
 - **Modern interface by default.** The optimized modern interface is enabled for new profiles; saved preferences and the classic interface remain available. See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens).
 - **Real liquids.** Wade, swim and drown in water, take damage in slime and lava, with underwater visuals and audio. Retail Quake 4 has no liquids, so they appear in maps built for them; see the [Liquids guide](docs/user/liquids.md).
 - **Rich, reliable audio** through OpenAL: Quake 4's room reverb, 3D headphone audio and your device's own speaker layout. macOS packages bundle their own, so there is nothing extra to install; see [Gameplay Settings](docs/user/gameplay-settings.md#audio-quality).
+- **Separate dialogue volume.** Adjust spoken dialogue independently of weapons and music in [Audio settings](docs/user/gameplay-settings.md#dialogue-volume).
+- **Dialogue subtitles.** Enable [scalable captions](docs/user/gameplay-settings.md#dialogue-subtitles) for lines with text in your installed game assets.
 - **Controller support and quality-of-life fixes**, including a better console and modern settings behaviour.
 - **Play in VR** (experimental). With a PC VR headset, play the campaign or multiplayer in stereo: look around with your head, aim with a motion controller, and get menus and cinematics on a floating screen. See the [VR guide](docs/user/vr.md).
 - **Play in your language.** Menus and game text in English, French, German, Italian, Spanish, Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian, plus Polish and Russian menus. Choose one in Settings > Game Options > Language; see the [languages guide](docs/user/languages.md).
 - **More single-player.** Alongside the original campaign there is an experimental [Arena Campaign](docs/user/arena-campaign.md): bot matches across five tiers of the stock maps, with boss matches and saved progress. **The Awakening** campaign is available too if you supply its content, and either campaign can resume at any level you have reached from its **Chapters** list.
-- **Better multiplayer** (experimental): a server browser with sorting, filters and favourites, bots with team objectives and personalities, readable chat with history, Duel queues and spectator match controls.
+- **Better multiplayer** (experimental): a server browser with sorting, filters and favourites, bots with team objectives and personalities, [push-to-talk voice and readable chat with history](docs/user/multiplayer-chat.md), Duel queues and spectator match controls.
 - **A demo library and player** with pause, speed, stepping, rewind and fast-forward, plus free-fly playback of full-match recordings.
 - **Single-player and multiplayer in one install** on Windows, Linux, Steam Deck and macOS.
 - **A Vulkan renderer on Windows**: a stable alternative to OpenGL, chosen with `r_renderApi vulkan`.
@@ -200,6 +202,8 @@ Developers can also find advanced configuration and file layout in [TECHNICAL.md
 - **id Software** and **Raven Software** - Quake 4 and the underlying technology
 - **Raven Software** and **Ritual Entertainment** - Quake 4: The Awakening, the unreleased expansion whose single-player campaign openQ4 can run
 - **Chris Robinson and the [OpenAL Soft](https://openal-soft.org/) contributors** - cross-platform OpenAL runtime bundled in macOS packages
+- **Sam Lantinga and the [SDL contributors](https://github.com/libsdl-org/SDL/tree/release-3.4.16)** - cross-platform window, input and microphone support, including the dummy audio driver used in automated voice tests; SDL uses the zlib licence
+- **Sean Barrett and the [stb_vorbis contributors](https://github.com/nothings/stb/blob/master/stb_vorbis.c)** - MIT/public-domain Vorbis decoding; openQ4 adds a virtual-filesystem callback path for bounded compressed streaming
 - **The Khronos Group and [glslang contributors](https://github.com/KhronosGroup/glslang/tree/15.1.0)** - GLSL-to-SPIR-V compiler used by the Vulkan renderer; its complete licence ships under `licenses/`
 - **[The Khronos Group, Valve Corporation and LunarG](https://github.com/KhronosGroup/OpenXR-SDK/tree/release-1.1.63)** - Apache-2.0 OpenXR loader and headers behind [VR mode](docs/user/vr.md); [licence notice](docs/licenses/openxr-sdk.txt)
 - **[The Khronos Group](https://github.com/KhronosGroup/OpenGL-Registry)** - MIT-licensed OpenGL ES API headers, with their original notices retained

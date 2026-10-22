@@ -1,0 +1,49 @@
+# Audio refinements after 0.14.000
+
+## Highlights
+
+- Read dialogue subtitles in both Classic and modern UI. Settings > Audio lets
+  you enable them, enlarge the text, adjust the backing and show speaker names.
+  Captions remain visible with dialogue muted and follow pause and save/load.
+- Balance spoken dialogue independently of weapons and music with the new
+  Dialogue Volume control in Settings > Audio. The setting is saved and also
+  applies to The Awakening.
+- Long dialogue and music use smaller playback buffers, reducing audio memory
+  in tested stock and Awakening scenes. Playback recovers at the current scene
+  time after an audio underrun.
+- Mods using distance-dependent room reverb retain the intended wet sound level
+  instead of losing it too quickly. Stock room reverb keeps its existing mix.
+- Surround output now places mono radio and global dialogue toward the centre
+  speaker. Nearby NPC voices keep their direction, and stereo/headphone output
+  keeps its existing mix.
+- Talk to other players with push-to-talk voice chat, receive-volume and mute
+  controls. Microphone access starts off; enable it on the match's Voice page
+  and bind Voice Chat in Settings > Controls > Other. The local microphone test
+  stays private to your machine.
+
+## Upgrade notes
+
+- Subtitles start off and cover lines with usable text in your installed assets.
+  Coverage is incomplete in both campaigns; lines without a verified transcript
+  stay uncaptioned. Large captions can overlap Awakening title cards in portrait
+  windows. This feature does not transcribe player voice chat or caption effects.
+- Replace the engine and matching game modules together. Dialogue Volume starts
+  at full authored volume; existing saves do not need conversion for this setting.
+- Voice requires matching support on the server and clients. It uses narrowband
+  speech and drops delayed audio during congestion to preserve gameplay traffic.
+  Windows automated peer tests pass; physical microphone and other-OS
+  qualification is still pending.
+- The managed audio budget defaults to 256 MiB. Under pressure, new sounds may
+  be omitted while existing sounds continue; increasing the budget permits
+  later playback requests to retry. Advanced decoder and active-stream limits
+  remain 64 MiB and 32 MiB within that budget. Leave these defaults unless
+  diagnosing memory use; the limit does not include the audio driver's private
+  memory or the rest of the game.
+
+## Change log
+
+- Added dialogue-volume labels in all twelve supported menu languages.
+- Audio loading now accounts for retained data and temporary copies together;
+  large RoQ videos no longer require a full encoded-video copy for sound.
+- Added decode backpressure and bounded handling of Ogg files without length
+  metadata, with memory accounting for diagnostics.
