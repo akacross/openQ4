@@ -85,6 +85,14 @@ completed release material here and publish curated notes in `releases/`.
   preserves historical rows and applicable SP/ordinary-MP obligations, without
   requiring an expansion MP module or accepting any GUI/artwork.
 
+- [x] Stop multiplayer bots launching into each other from opposite jump pads,
+  keep them from sliding onto pads their route did not choose, check chained
+  pads against their health, and let a bot thrown by a rocket or rail fight
+  its fall with air control. The [bot evidence](mp-bots.md#pad-corridors-unplanned-pads-and-knocked-falls-22-october-2026)
+  covers native Windows/Linux regressions, isolated replays and full matches.
+  World deaths after enemy impulses are now classified by replay under the
+  MP-02 policy; the remaining navigation deaths keep MP-02 open.
+
 - [x] Account for repeated force-brush contact when predicting jump-pad landing
   damage, and recheck low-health approaches before their final walking corner.
   [Original-map and native evidence](mp-bots.md#repeated-pad-contact-and-landing-health-21-october-2026)

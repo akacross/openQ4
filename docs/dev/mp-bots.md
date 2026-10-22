@@ -1442,6 +1442,13 @@ fixtures need a C++17 compiler (`clang++` or `g++`, or `CXX`).
   threats, bot message queues that never accumulate, and pad holds that brake
   through reserved entry, retain real flights and reconsider blocked routes,
   plus adoption of observed unplanned pad launches without replacing goals.
+  Two bots at opposing pads (including long pads that land beyond each
+  other's launch) never launch together: the earlier published approach
+  wins. The transport guard brakes momentum short of an unplanned pad,
+  slides a wish away from it or stops, and never reverses a velocity back
+  into it; chained pads must all be survivable; and a strongly knocked bot
+  over nothing brakes its fall, including mid-flight, while pad launches and
+  later traversals keep their controllers.
   Landing-health cases cover the live damage service and armour, immunity,
   alternate pickup routes, cached pre-entry checks and preserved flights.
   Production movement projection and player command scaling are checked
@@ -1486,6 +1493,44 @@ exit alone does not establish safe navigation. A fatal engine-log error stops
 the audit's own hidden client promptly, including a content-pack mismatch.
 Timed rates retain their measurement window; warmup and complete-run world
 deaths are separate report fields and both contribute to the safety gate.
+The report also keeps the final team scores (CTF captures, DeadZone points)
+and every bot's score.
+
+**Impulse-exclusion policy (decided 21 October 2026).** The traversal gate
+counts navigation and control deaths. `--classify-impulses` (with
+`--debug 2` and `--max-world-deaths`) applies it through
+`tools/tests/mp_bot_impulse_replay.py`, which also runs on its own against
+an audit report. A world death is excluded only when both hold:
+
+1. a logged enemy `BOT_IMPULSE` precedes it - another client in DM or
+   Tourney, a client on the other team (from the nearest `MP_PLAYER` report)
+   in team modes - at most six seconds before the death and after no earlier
+   death of that bot;
+2. an isolated replay of the last such impulse's logged origin, velocity,
+   remaining health and knockback time, one bot and no enemies on the same map, falls to the
+   world under every one of sixteen fixed full air-input headings
+   (`bot_probeAir`) and with no input. Pushes after it are reported but not
+   replayed: an unrecoverable replay shows the enemy's impulse alone decided
+   the fall, and a recoverable one leaves the death counted;
+3. the same moment without the impulse - the logged velocity minus its kick,
+   at the health before the hit - lands in at least one of three
+   counterfactual trials (no input, braking, the bot's controller). A bot
+   already falling into nothing when a machine gun tapped it was not killed
+   by the tap.
+
+Any trial that lands alive, any trial that fails to arm, an incomplete
+session or a missing replay keeps the death a navigation failure; so do
+deaths with no impulse, with only self/team/world impulses, with an
+impulse outside the window, or with unknown teams. The bot's own controller
+is replayed too (`bot_probeMove`, informative only). Excluded deaths stay in
+the report with the impulse and every trial's outcome. The replay restores
+the knockback time - no ground friction and only air acceleration, as
+`idPhysics_Player` applies after a hit; without it every grounded rail slide
+looked recoverable - but omits any later hit, so it can only find a fall
+easier to recover than the match did, and sixteen headings sample - rather
+than prove - the air-control envelope. `tools/tests/mp_bot_death_policy.py` runs the
+rule without assets: one positive control and twenty-one negative controls,
+each of which must stay a navigation death.
 
 On `mp/q4dm5` with eight skill-4 bots in a debug build, the October 2026 pass
 took the server from 0.32 to 0.96 of real time, stuck reports from 29 to 3-4
@@ -2013,6 +2058,182 @@ The interrupted runs remain incomplete evidence. In particular, CTF5 already
 recorded a world death before shutdown; installation interference does not
 explain or excuse that death.
 
+### Pad corridors, unplanned pads and knocked falls, 22 October 2026
+
+Full-duration q4ctf5 matches on the 21 October build still lost two to four
+bots per two minutes. Fresh `bot_debug 2` traces of three baseline matches
+(Vulkan hidden window, since hidden OpenGL clients stall on present while
+the laptop's display is off) separate the causes:
+
+- **Opposing pad races.** Two bots held at opposite pads (func_jumppad_3 and
+  func_jumppad_4, either side of the floating armour) both saw the corridor
+  clear on the frame the last flyer landed and launched within 16 ms; they
+  met over the void. The same race later killed two bots on the long pads
+  func_jumppad_5/func_jumppad_6, which land beyond each other's launch.
+- **Unplanned pad entries.** Momentum carried walking bots onto pads their
+  route did not choose. func_jumppad_14 lands its flyer on func_jumppad_15,
+  which throws it across the map onto a 10-damage landing: a nine-health bot
+  died on that chain. An isolated replay of momentum toward func_jumppad_14
+  beside walking legs that avoid it entered the pad in 5 of 7 trials.
+- **Low-health pad chains.** The retained-route health check examined only
+  the first traversal, so a planned chain whose second pad was lethal was
+  entered.
+- **Knocked falls.** Rockets and rails threw walking, dropping and pad-flying
+  bots off the walkways while their controllers kept steering for a corner,
+  a drop's landing or a pad's landing. Isolated replays show several of
+  these land under some fixed air input.
+
+The fixes:
+
+- Every bot within 320 units of the pad its route takes next publishes that
+  approach; a bot gives way to an earlier approach (lower client number on a
+  tie) whose flight shares its corridor - both of the other's ends within the
+  corridor's width of its line and overlapping spans - while braking still
+  starts only within hold reach. Exactly one of two opposing bots launches.
+- Grounded movement looks ahead along its velocity, as the edge guard does,
+  for any live pad or teleporter other than the route's planned one
+  (`rvNavMesh::TransportOnMove`, exact brush test). Momentum that reaches one
+  brakes; a wish that alone reaches one slides square to itself, away from
+  the volume's centre, or stops - never reversing a velocity that already
+  points away, which in the first form crept a bot onto the pad a unit at a
+  time. Planned pads and committed flights are untouched.
+- `GuardLandingHealth` requires every pad of a chain to be survivable.
+- A strong knock (at least 150 units) now reaches the bot. When the fall it
+  caused - thrown off the ground, slid off a ledge within 400 ms during the
+  knockback's friction-free time, or hit in the air - would land on nothing
+  with no input (`rvNavMesh::AirInputLandingSafe`: player air acceleration,
+  gravity and the swept hull, landing supported, affordable and with room to
+  stop), the bot holds the first input that lands among braking, the eight
+  headings nearest to it, or none, re-chosen every 250 ms, through the fall
+  and a short touchdown runout. A knocked jump, drop or pad flight hands over
+  its route. Jumps the bot pressed after an earlier knock, a pad's volume and
+  a pad flight that caught the throw keep their own controllers, and a strong
+  knock ends a dodge hop's fixed input. Two intermediate forms of this guard
+  failed in full matches and are recorded below; neither is in the result.
+
+Each fix has a native regression in `MpBotRegressionsFixture.cpp` (Windows
+clang and WSL Linux), and sixteen single-reversal controls - removing the
+reservation, publishing only within hold reach, the old span test, no guard,
+a guard that blocks the planned pad, reversing any velocity, sliding either
+way, a single-pad health check, no air recovery, an unlatched brake, any
+recent knock, a knock-slide window of one frame, transport flights not
+owning the bot, a knocked drop keeping its route, always braking, and a
+knocked dodge keeping its input - each fail their case on both hosts.
+`tools/tests/mp_bot_jump_replay.py --unplanned-pad` repeats the
+func_jumppad_14 replay: before the guard `westC` rode the pad chain; with it
+no trial enters a pad.
+
+**Getting there took several rounds, each found by a full match.** Three
+baseline matches on the starting build recorded 8 world deaths (3, 2 and
+3), including both pad races. With the reservation and the guard the next
+three recorded 2, 0 and 1, all after enemy rails or rockets. The first
+airborne brake then cost eleven deaths in one match - it braked planned pad
+launches on the frame before their traversal was marked started, and its
+early return kept the traversal from ever being marked - and was gated on a
+knockback; the next match still braked a pad launch taken 1.3 s after a
+machine gun's 25-unit nudge, so only knocks of at least 150 units count and
+pad volumes own the bot. Later matches showed a drop the knock itself had
+started, a far walkway reachable only along the throw, a grounded rail
+slide during the knockback's friction-free time, a knock on the frame a
+dodge hop started, four 49-unit shotgun pellets in one frame, and a
+survivor landing onto a pad; each became the rule described above. The
+policy tooling also changed on evidence: replays now restore the victim's
+health and knockback time (without them every grounded rail slide and
+low-health fall looked survivable), give each trial a freshly added bot
+(a bot that walked off after its trial left the next one unarmed), and
+replay the last enemy impulse even when a team-mate's nudge followed it.
+
+**Qualification runs.** All use the staged Windows build, original assets,
+six skill-4 bots, the Vulkan hidden window and `--classify-impulses`. Other
+work on the machine kept it at 100% CPU for most of the evening (four
+VibeStudio builds, about 25 compilers), so the four-map set ran 180 s of
+wall time for at least 90 s of simulation and the catalog 90 s for at least
+40 s; the frame and think columns below are contended numbers, not budgets.
+
+The complete declared catalog (`.tmp/mp02/catalog-r5/`, build `409cee58`,
+33 variants, warmup included): 29 variants pass outright. q4dm8 records two
+world deaths - one excluded (a direct rocket left an 11-health bot falling
+into the void; every fixed input fell in replay) and one navigation death
+(a rocket's splash on the frame a dodge hop started; its replay lands under
+one heading and with the bot's controller). q4ctf1, q4ctf6 and q4xdm11 have
+no deaths but miss the simulation gate (33.6, 30.1 and 38.1 s; mean frames
+of 245-250 ms while peers compiled) and q4xdm11's client was stopped at the
+harness timeout. Across the catalog: 295 kills, 926 completed traversals,
+no traversal timeouts, 40 stuck reports, 10 goal give-ups, 10 no-route
+reports and 16 refused pickups; CTF and DeadZone objectives score
+normally (CTF captures on q4ctf2, q4ctf4 and q4ctf5; DeadZone 2-94 points a
+side). Navmesh generation takes a median 1.4 s (14.1 s on q4ctf1 under the
+heaviest load); bot think time is a median 2.7 ms per server frame and nav
+1.1 ms, with per-frame maxima to 343 ms that coincide with main-loop stalls
+of up to 1.5 s - contention, not bot work: the same code measured 0.55 ms
+average and 5.9 ms maximum on q4ctf5 in a calmer stretch.
+
+The four-map set at the dodge/pellet/pad-landing build `f8726c46`
+(`.tmp/mp02/four-map-r6/`): q4dm8 three deaths, all excluded (rockets and
+rails over the void); q4ctf5 three, two excluded and one navigation death
+after a **team-mate's** rocket threw a bot off the drop by the north pads
+(the policy excludes only enemy impulses); q4ctf3 one navigation death, a
+flag carrier holding for func_jumppad_20's corridor that slid into the kill
+pit beside it, which `e1e41a06` fixes; q4dz3 no deaths but 72.7 s of
+simulation. The final build (`e1e41a06`; the later commits change only the
+classifier), four-map set at 180 s (`.tmp/mp02/four-map-r7/`) and the four
+catalog variants that had missed their gate or failed, at catalog length
+(`.tmp/mp02/catalog-rerun-r7/`), with deaths reclassified under the final
+rule (`.tmp/mp02/reclassify-*`):
+
+| Map (mode) | Sim s | Kills | Team score | World deaths | Navigation | Excluded | Stuck / give-up / timeouts | Think avg / max ms | Nav ms | Navmesh ms | Frame mean / max ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| q4ctf3 (CTF) | 152.1 | 12 | 2-0 | 0 | 0 | 0 | 0 / 2 / 0 | 2.82 / 211 | 1.15 | 5603 | 41.1 / 446 |
+| q4ctf5 (CTF) | 164.8 | 27 | 3-3 | 1 | 1 | 0 | 5 / 0 / 0 | 1.64 / 120 | 0.38 | 3017 | 23.9 / 422 |
+| q4dm8 (DM) | 168.6 | 34 | - | 4 | 3 | 1 | 4 / 0 / 0 | 1.44 / 28 | 0.58 | 754 | 16.7 / 48 |
+| q4dz3 (DeadZone) | 168.6 | 28 | 46-76 | 0 | 0 | 0 | 4 / 0 / 0 | 1.02 / 21 | 0.26 | 1522 | 16.7 / 80 |
+| q4ctf1 (CTF, 90 s) | 81.9 | 10 | 1-1 | 0 | 0 | 0 | 0 / 1 / 0 | 1.43 / 19 | 0.53 | 1326 | 16.7 / 43 |
+| q4ctf6 (CTF, 90 s) | 81.9 | 4 | 1-0 | 0 | 0 | 0 | 0 / 3 / 0 | 1.51 / 19 | 0.65 | 2649 | 16.7 / 96 |
+| q4dm8 (DM, 90 s) | 81.9 | 17 | - | 0 | 0 | 0 | 0 / 0 / 0 | 1.22 / 16 | 0.46 | 759 | 16.7 / 106 |
+| q4xdm11 (DM, 90 s) | 81.9 | 12 | - | 0 | 0 | 0 | 1 / 0 / 0 | 1.58 / 15 | 0.61 | 660 | 16.7 / 48 |
+
+The last four ran in a quieter stretch (frames at 16.7 ms, 0.7-0.8 cores
+busy): about 1.2-1.6 ms of bot think per server frame with 15-19 ms peaks,
+0.5-0.65 ms of navigation and 0.7-2.6 s of navmesh generation for six bots
+on the debugoptimized build. These are the most useful budget indications
+here; they are still not a controlled performance qualification.
+
+Final-build deaths, each with its evidence:
+
+- q4ctf5 Cortez (75.2 s): a rail's kick (5 health left); the replay lands
+  under two headings (air06, air09) but not with the bot's own controller -
+  a **navigation/control** death the air-input choice did not find.
+- q4dm8 Voss (35.5 s): a machine gun's tap on a bot already falling - the
+  replay after the tap falls under every input, and so does the moment
+  before it. **Navigation**: the counterfactual rule (added after this run
+  first excluded it) refuses the exclusion.
+- q4dm8 Sledge (54.7 s): rocket splash; one replay trial failed to arm (a
+  removed replay bot was still in use), so **navigation** (fail closed).
+- q4dm8 Strauss (95.6 s): rocket splash, 51 health; every input falls and
+  all three counterfactual trials land. **Excluded** as impulse-caused.
+- q4dm8 Strauss (158.1 s): no impulse; a routed 328-unit jump down from
+  `520 -571 328` toward `532 -548 0` ended in the void. The mirrored jump
+  (`520 702 328` toward `532 676 0`) killed a bot in an earlier rerun and
+  lands in isolated replays (`.tmp/mp02/dm8-jump-r1/`), so the match-only
+  cause - most likely a collision with another player in the drop - is
+  unestablished. **Navigation**.
+
+Earlier runs' reclassified deaths agree: the four-map run at `f8726c46` has
+three excluded deaths and three navigation deaths (a team-mate's rocket off
+the north drop, a rail kick whose moment-before also falls, and a q4dm8
+splash that lands under one heading in the new replay although the first
+classification had excluded it - replays at that margin are not always
+repeatable), and the catalog's q4dm8 one excluded and one navigation death.
+
+**The zero-navigation-death gate does not pass.** What remains under MP-02:
+the air-input choice still misses narrow recoverable windows that sixteen
+fixed headings find; team-mates' splash knockback (bots fire rockets beside
+team-mates); the q4dm8 jump-down deaths; replay-bot replacement (`removebot`
+followed by `addbot` still reports the character in use, which can leave a
+trial unarmed); and a catalog sweep on one build in an uncontended window -
+29 variants passed at `409cee58` and the four that missed rerun clean at
+`e1e41a06`, but no single sweep covers all 33 at the final build.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include
@@ -2026,7 +2247,11 @@ investigations, under the same local-server restrictions;
 `navmesh probe` reports the full-hull and support-
 box floor/continuation verdicts at the requested point. Positive self/team/world damage is included;
 `BOT_IMPULSE` separately records all applied player knockback, including zero-health-damage
-impulses that are not forwarded by the damage callback. `bot_debugNav 2` draws the mesh and
+impulses that are not forwarded by the damage callback. `BOT_TRANSPORT_GUARD` and
+`BOT_AIR_RECOVER` (also `bot_debug 2`) mark the unplanned-pad guard and the airborne brake.
+`bot_probeAir client x y z vx vy vz dirX dirY dirZ` flies one fixed full air input with no
+route or controller and brakes once grounded, under the same isolated-server restrictions;
+every probe reports `BOT_PROBE_GROUNDED` at its first real touchdown. `bot_debugNav 2` draws the mesh and
 every bot's route near the local player, and `bot_debugAim 1` logs the
 reaction, settle and lead behind every shot.
 

@@ -884,6 +884,21 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   the final walking corner. Native controls and the isolated landing-damage
   replay pass. The next full-duration match retains four deaths after unintended
   pad entries or combat impulses; recovery and strict catalog gates stay open.
+  Progress, 22 October: the [pad corridor, unplanned-pad and knocked-fall work](mp-bots.md#pad-corridors-unplanned-pads-and-knocked-falls-22-october-2026)
+  reserves shared pad corridors between bots, keeps momentum off pads a route
+  did not choose, checks whole pad chains against landing health and brakes or
+  steers falls a strong knock caused. The user's impulse-exclusion policy is now
+  `mp_bot_audit.py --classify-impulses`: a death counts unless an enemy impulse
+  precedes it, its replay falls under every fixed air input, and the moment
+  without the impulse lands; 22 asset-free controls pin the rule. Windows/Linux
+  native regressions and 21 single-reversal controls pass. The final build's
+  q4ctf3 and q4dz3 and four catalog reruns have no deaths, but q4ctf5 keeps one
+  and q4dm8 three navigation deaths (a recoverable rail fall the air choice
+  missed, a tap on an already-falling bot, a fail-closed replay, an unexplained
+  jump-down), and the 33-variant catalog passed 29 variants on the previous
+  build with peers saturating the CPU. Remaining: those navigation causes,
+  team-mate splash knockback, replay-bot replacement, one uncontended
+  33-variant sweep on one build, and controlled think/route budgets.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
