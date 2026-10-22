@@ -116,7 +116,10 @@ Positions sent to OpenAL retain the source/listener separation in map units.
 the October 21 [mod reverb room rolloff](#mod-reverb-room-rolloff-october-21) repair,
 `AL_REFERENCE_DISTANCE` carries the authored minimum distance (the table's inner
 radius) instead of 1; with zero rolloff it affects only an EFX wet send's room
-rolloff, not the dry gain this audit measures. The engine applies the authored curve and the
+rolloff, not the dry gain this audit measures. A default-linear rerun on the
+combined audio/Stage 2 build (client SHA-256
+`1d1bfd2fcb201028c02a317459b4619a8815e2ec8428378340231a48c82e7cc9`) passed all
+27 samples and reported that reference distance (40/80/40). The engine applies the authored curve and the
 retail speaker fraction of 0.65. Its existing gain convention is `2^(dB/6)`.
 `LengthFast` can underestimate Euclidean distance by about 0.17%; the checks compare
 that distance with independently measured coordinates and then check the resulting
