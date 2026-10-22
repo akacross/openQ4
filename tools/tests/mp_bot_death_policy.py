@@ -5,8 +5,8 @@ Runs the classifier and replay decision in tools/tests/mp_bot_impulse_replay.py
 on synthetic match logs and replay outcomes, with no game assets. A death is
 excluded only for a logged enemy impulse followed by a replay in which every
 decisive trial armed and fell; every other shape - recoverable, missing or
-incomplete replays, no impulse, self/team/world impulses, stale impulses, a
-later non-enemy push, unknown teams - must remain a navigation death.
+incomplete replays, no impulse, self/team/world impulses, stale impulses,
+unknown teams - must remain a navigation death; later pushes are reported.
 """
 from __future__ import annotations
 
@@ -102,9 +102,14 @@ def main() -> None:
         check(policy.decide(record, outcomes(), True)["status"] == "navigation",
               f"{name} cannot be excluded even by an unrecoverable replay")
     # A team-mate's push after the enemy's is the last impulse: not excluded.
+    # A team-mate's push after the enemy's is reported, and the replay starts
+    # from the enemy's state: only an unrecoverable replay excludes it.
     [later] = classify(state(1000, teams) + impulse(1, 2000, 2) + impulse(1, 2600, 3) + death("Cortez", 4500))
-    check(later["status"] == "navigation" and "later non-enemy" in later["reason"],
-          "a later team-mate impulse keeps the death a navigation failure")
+    check(later["status"] == "impulse-candidate" and later["impulse"]["time"] == 2000 and
+          [i["attacker"] for i in later["later_impulses"]] == [3],
+          "a later team-mate impulse is reported and the enemy's state is replayed")
+    check(policy.decide(later, outcomes(survivor="air09"), True)["status"] == "navigation",
+          "a recoverable enemy state stays a navigation death whatever followed")
     # The impulse must precede this death, not an earlier one of the same bot.
     [first, second] = classify(state(1000, teams) + impulse(1, 2000, 2) + death("Cortez", 4500) + death("Cortez", 9000))
     check(first["status"] == "impulse-candidate" and second["status"] == "navigation",

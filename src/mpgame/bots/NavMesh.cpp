@@ -1006,6 +1006,66 @@ bool rvNavMesh::RunningDropClear( const idVec3 &from, const idVec3 &to ) const {
 	return true;
 }
 
+/*
+================
+rvNavMesh::AirInputLandingSafe
+
+The knocked-fall counterpart of RunningDropClear: idPhysics_Player's air
+acceleration toward one fixed wish, gravity, and the hull swept frame by
+frame, sliding along walls, until it comes down on walkable ground. The
+landing must be supported and not lethal, cost no more than the impact the
+bot can afford, and leave room to stop at MP ground acceleration. Still
+falling after three seconds is a fall into nothing.
+================
+*/
+bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocityIn, const idVec3 &wishIn,
+									 float maxImpactDelta, idVec3 *touchdown ) const {
+	const idVec3 gravity = gameLocal.GetGravity();
+	if ( gravity.Length() <= 1.0f ) {
+		return true;
+	}
+	idVec3 wish( wishIn.x, wishIn.y, 0.0f );
+	const bool steering = wish.Normalize() > 0.0f;
+	const float speed = Max( 1.0f, pm_speed.GetFloat() );
+	const float dt = NAV_PAD_STEP_SECONDS;
+	idVec3 position = origin + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
+	idVec3 velocity = velocityIn;
+	for ( int frame = 0; frame < 190; frame++ ) {
+		if ( steering ) {
+			const float add = speed - velocity * wish;
+			if ( add > 0.0f ) {
+				velocity += wish * Min( add, NAV_PAD_AIR_ACCELERATE * dt * speed );
+			}
+		}
+		const idVec3 next = position + velocity * dt + gravity * ( 0.5f * dt * dt );
+		trace_t trace;
+		if ( NavAgentTranslation( trace, position, next ) ) {
+			position = next;
+			velocity += gravity * dt;
+			continue;
+		}
+		if ( trace.c.normal.z >= NAV_WALKABLE_NORMAL_Z && velocity * gravity > 0.0f ) {
+			if ( touchdown ) {
+				*touchdown = trace.endpos;
+			}
+			if ( !NavLandingSupported( trace.endpos ) || IsLethalFloor( trace.endpos ) ||
+				 NavLandingImpactDelta( trace, velocity + gravity * ( dt * trace.fraction ), gravity ) > maxImpactDelta ) {
+				return false;
+			}
+			idVec3 flat( velocity.x, velocity.y, 0.0f );
+			const idVec3 stop = trace.endpos + flat * ( dt + flat.Length() / ( 20.0f * speed ) );
+			return LandingContinuationClear( trace.endpos, stop );
+		}
+		if ( trace.fraction <= 0.0f && velocity * trace.c.normal >= 0.0f ) {
+			return false;		// wedged
+		}
+		position = trace.endpos;
+		velocity -= trace.c.normal * ( velocity * trace.c.normal );
+		velocity += gravity * dt;
+	}
+	return false;
+}
+
 bool rvNavMesh::LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const {
 	const float step = pm_stepsize.GetFloat();
 	const idVec3 points[2] = { origin, next };

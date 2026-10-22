@@ -72,6 +72,7 @@ static const int	BOT_AIR_RECOVER_RUNOUT_MSEC = 600;	// and at most this long aft
 static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1000;	// a fall this soon after a knockback may be braked
 static const float	BOT_AIR_RECOVER_MIN_KICK = 150.0f;	// and only a knockback at least this strong
 static const int	BOT_AIR_RECOVER_TAKEOFF_MSEC = 50;	// that came at most this long before the bot left the ground
+static const int	BOT_AIR_RECOVER_REPLAN_MSEC = 250;	// how often a held fall re-chooses its air input
 static const int	BOT_DODGE_LAUNCH_MSEC	= 128;		// a rejected jump input must not hold walking forever
 static const int	BOT_DODGE_FLIGHT_MSEC	= 1600;		// DodgeJumpClear proves at most 96 sixteen-ms flight steps
 static const int	BOT_ENEMY_MEMORY_MSEC	= 3000;		// base for how long a lost enemy is chased, scaled by pursuit
@@ -620,6 +621,8 @@ rvBot::rvBot( void ) {
 	airRecovering		= false;
 	knockbackTime		= 0;
 	airborneSince		= 0;
+	airRecoverPlanTime	= 0;
+	airRecoverWish.Zero();
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -929,6 +932,8 @@ void rvBot::OnSpawn( void ) {
 	airRecovering		= false;
 	knockbackTime		= 0;
 	airborneSince		= 0;
+	airRecoverPlanTime	= 0;
+	airRecoverWish.Zero();
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -4711,25 +4716,49 @@ static bool BotBrakeForTransport( idPlayer *self, idVec3 &moveDir, int plannedEn
 ================
 BotAirLandingUnsafe
 
-Where a free fall from here comes down - on the floor now under the bot, or
-at its own height when there is none within a survivable fall - and whether
-that touchdown is the edge of nothing.
+Whether the fall from here, with no air input, comes down anywhere but
+supported ground the bot can afford to land on.
 ================
 */
 static bool BotAirLandingUnsafe( idPlayer *self, idVec3 &touchdown ) {
+	touchdown = self->GetPhysics()->GetOrigin();
+	return !navMesh.AirInputLandingSafe( self->GetPhysics()->GetOrigin(), self->GetPhysics()->GetLinearVelocity(),
+		vec3_origin, BotMaxSafeFallDelta( self ), &touchdown );
+}
+
+/*
+================
+BotChooseAirInput
+
+The air input a knocked bot holds for the rest of its fall: braking against
+the throw first, then the eight headings nearest to that, then none - the
+first whose simulated fall lands safely.  Braking is not always the answer:
+a rail's kick over q4ctf5's gap left the far walkway, not the near one,
+within reach.  With no safe input it brakes anyway.
+================
+*/
+static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
 	const idVec3 origin = self->GetPhysics()->GetOrigin();
 	const idVec3 &velocity = self->GetPhysics()->GetLinearVelocity();
-	const float gravity = gameLocal.GetCurrentGravity( self ).Length();
-	if ( gravity <= 1.0f ) {
-		return false;
+	idVec3 brake( -velocity.x, -velocity.y, 0.0f );
+	if ( brake.Normalize() <= 1.0f ) {
+		brake.Set( 1.0f, 0.0f, 0.0f );
 	}
-	trace_t floor;
-	gameLocal.TracePoint( self, floor, origin, origin - idVec3( 0.0f, 0.0f, BOT_SAFE_FALL ), MASK_PLAYERSOLID, self );
-	const float floorZ = ( floor.fraction < 1.0f ) ? floor.endpos.z : origin.z;
-	const float drop = Max( 0.0f, origin.z - floorZ );
-	const float time = ( velocity.z + idMath::Sqrt( velocity.z * velocity.z + 2.0f * gravity * drop ) ) / gravity;
-	touchdown.Set( origin.x + velocity.x * time, origin.y + velocity.y * time, floorZ );
-	return BotDeadlyDropAt( self, touchdown );
+	const float limit = BotMaxSafeFallDelta( self );
+	static const float turns[8] = { 0.0f, 45.0f, -45.0f, 90.0f, -90.0f, 135.0f, -135.0f, 180.0f };
+	for ( int i = 0; i < 9; i++ ) {
+		idVec3 candidate = vec3_origin;
+		if ( i < 8 ) {
+			const float c = idMath::Cos( DEG2RAD( turns[i] ) );
+			const float s = idMath::Sin( DEG2RAD( turns[i] ) );
+			candidate.Set( brake.x * c - brake.y * s, brake.x * s + brake.y * c, 0.0f );
+		}
+		if ( navMesh.AirInputLandingSafe( origin, velocity, candidate, limit ) ) {
+			wish = candidate;
+			return;
+		}
+	}
+	wish = brake;
 }
 
 /*
@@ -4740,8 +4769,9 @@ A bot knocked into the air - a rocket's splash, a rail's kick - kept steering
 for its corner, its drop's landing or its pad's, and on q4ctf5's walkways
 the throw carried it over the void.  Replays of those impulses come down on
 the floor again with full air input against the horizontal velocity, the
-most the player's air acceleration can take back.  Once begun the brake
-holds for the whole fall - releasing it when the prediction first read safe
+most the player's air acceleration can take back - or, when the fall's
+simulation finds the far side within reach and not the near, toward that
+(BotChooseAirInput).  Once begun the input holds for the whole fall - releasing it when the prediction first read safe
 let the throw carry a bot over a lower ledge's edge - and through a short
 runout after touchdown.
 
@@ -4788,6 +4818,10 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	if ( !airRecovering && ( !knocked || !BotAirLandingUnsafe( self, touchdown ) ) ) {
 		return false;
 	}
+	if ( !airRecovering || gameLocal.time - airRecoverPlanTime >= BOT_AIR_RECOVER_REPLAN_MSEC ) {
+		BotChooseAirInput( self, airRecoverWish );
+		airRecoverPlanTime = gameLocal.time;
+	}
 	if ( !airRecovering ) {
 		airRecovering = true;
 		airRecoverLanded = 0;
@@ -4805,11 +4839,13 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	}
 	if ( bot_debug.GetInteger() >= 2 && gameLocal.time - airRecoverReported > 1000 ) {
 		airRecoverReported = gameLocal.time;
-		gameLocal.Printf( "BOT_AIR_RECOVER client=%d time=%d origin=%s velocity=%s touchdown=%s\n",
+		gameLocal.Printf( "BOT_AIR_RECOVER client=%d time=%d origin=%s velocity=%s touchdown=%s input=%s\n",
 			self->entityNumber, gameLocal.time, self->GetPhysics()->GetOrigin().ToString( 1 ),
-			velocity.ToString( 1 ), touchdown.ToString( 1 ) );
+			velocity.ToString( 1 ), touchdown.ToString( 1 ), airRecoverWish.ToString( 2 ) );
 	}
-	ApplyMove( brake, cmd );
+	if ( airRecoverWish.LengthSqr() > 0.0f ) {
+		ApplyMove( airRecoverWish, cmd );
+	}
 	cmd.upmove = 0;
 	stuckTime = gameLocal.time;
 	return true;
@@ -6954,6 +6990,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( airRecoverLanded );
 	SHIFT_BOT_TIME( knockbackTime );
 	SHIFT_BOT_TIME( airborneSince );
+	SHIFT_BOT_TIME( airRecoverPlanTime );
 
 	SHIFT_BOT_TIME( goalSelectedTime );
 	for ( int i = 0; i < ROAM_HISTORY; i++ ) {

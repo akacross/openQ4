@@ -151,19 +151,12 @@ def classify(clean: str, names: set[str], gametype: str, window_msec: int = IMPU
                                 "only non-enemy impulses: " + ", ".join(sorted(other)))
             results.append(record)
             continue
-        last = {k: v for k, v in prior[-1].items() if k != "offset"}
-        if last["time"] > enemy[-1]["time"] or (last["time"] == enemy[-1]["time"] and
-                                                 not is_enemy(record["client"], last["attacker"], last["time"],
-                                                              gametype, reports)[0]):
-            # The enemy's push is not the last one: a team-mate's or the
-            # bot's own splash came after it, and the policy excludes only
-            # enemy impulses.
-            record["impulse"] = enemy[-1]
-            record["later_impulse"] = last
-            record["reason"] = "a later non-enemy impulse (" + is_enemy(
-                record["client"], last["attacker"], last["time"], gametype, reports)[1] + ") followed the enemy's"
-            results.append(record)
-            continue
+        # Pushes after the enemy's are reported, not replayed: a replay from
+        # the enemy's post-impulse state that falls under every input shows
+        # the enemy's impulse alone decided the fall, and one that lands
+        # leaves the death a navigation failure whatever came later.
+        record["later_impulses"] = [{k: v for k, v in i.items() if k != "offset"}
+                                    for i in prior if i["time"] > enemy[-1]["time"]]
         record["impulse"] = enemy[-1]
         record["status"] = "impulse-candidate"
         record["reason"] = "enemy impulse precedes the death; replay required"

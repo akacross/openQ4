@@ -405,7 +405,8 @@ struct rvBot {
     int padHoldSince=0,stuckTime=0,stuckChecks=0,unstickUntil=0,traversalStartTime=0;
     int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
     bool airRecovering=false;
-    int knockbackTime=0,airborneSince=0;
+    int knockbackTime=0,airborneSince=0,airRecoverPlanTime=0;
+    idVec3 airRecoverWish;
     int LiquidAtFeet() const { return 0; }
     idVec3 padApproachLaunch,padApproachLanding;
     float goalUtility=0,goalBestDistance=idMath::INFINITY,stuckCornerDistance=idMath::INFINITY;
@@ -518,6 +519,12 @@ bool moveDirectionSafe=true;
 // Whether a free fall lands on nothing is BotDeadlyDropAt's geometry; here it is given.
 bool airLandingUnsafe=false;
 bool BotAirLandingUnsafe(idPlayer*,idVec3& touchdown) { touchdown={}; return airLandingUnsafe; }
+// The fall simulation is the navmesh's; here a chosen input may be imposed.
+bool airChoiceSet=false; idVec3 airChoice; int airChoices=0;
+void BotChooseAirInput(idPlayer* self,idVec3& wish) {
+    ++airChoices; if(airChoiceSet) { wish=airChoice; return; }
+    wish=idVec3(-self->physics.velocity.x,-self->physics.velocity.y,0); wish.Normalize();
+}
 bool BotMoveDirectionSafe(idPlayer*,const idVec3&) { return moveDirectionSafe; }
 // PRODUCTION_FUNCTIONS
 // The manager publishes only an approach confirmed within the stale window.
@@ -532,6 +539,7 @@ void Reset() {
     gameLocal=idGameLocal(); gameLocal.usercmds=gameLocal.commands;
     botManager=rvBotManager(); commonObject.warnings=0;
     navMesh=Nav(); fixtureObjective={}; fixtureImpact={}; impactSweeps=0; moveDirectionSafe=true; airLandingUnsafe=false;
+    airChoiceSet=false; airChoices=0;
 }
 void GoalRoute(rvBot& b,idEntity* e,int type) {
     b.goalType=type; b.goalEntity=e; b.goalOrigin=e->physics.origin;
@@ -1016,6 +1024,17 @@ void TestAirRecovery() {
     inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
     navMesh.volumesAhead.clear();
     CHECK(inside.RecoverInAir(&self,cmd) && inside.airRecovering);
+    // The input is the fall simulation's choice - here the far side - held
+    // between re-plans, and no input at all when that is what lands.
+    rvBot chooser; chooser.knockbackTime=gameLocal.time-100; chooser.airborneSince=gameLocal.time-84;
+    airChoiceSet=true; airChoice={0,-1,0}; airChoices=0; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove>0 && airChoices==1); // velocity (0,-300): forward is -y
+    airChoice={0,1,0}; gameLocal.time+=16; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove>0 && airChoices==1);
+    gameLocal.time+=BOT_AIR_RECOVER_REPLAN_MSEC; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove<0 && airChoices==2);
+    airChoice={}; gameLocal.time+=BOT_AIR_RECOVER_REPLAN_MSEC; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove==0 && cmd.forwardmove==0 && airChoices==3);
     std::puts("Air recovery: a knock-caused fall over nothing is braked, through drops and pad flights it hijacks; own jumps, pad volumes and safe arcs untouched: PASS");
 }
 void TestUnexpectedPad() {

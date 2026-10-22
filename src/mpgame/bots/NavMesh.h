@@ -319,6 +319,11 @@ public:
 	bool					NaturalPadLanding( int padEntityNum, idVec3 &landing ) const;
 	bool					LandingSurvivable( const idVec3 &from, const navCorner_t &corner, float maxImpactDelta ) const;
 	bool					LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const;
+	// Whether a fall from this state under one fixed horizontal air input (zero
+	// for none) comes down on supported, non-lethal ground with room to stop,
+	// within maxImpactDelta of landing damage.
+	bool					AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocity, const idVec3 &wish,
+											 float maxImpactDelta, idVec3 *touchdown = NULL ) const;
 	// Diagnostics: would a route leg between these points be accepted as a
 	// walk now, and if not, which test refuses it.
 	bool					WalkLegAccepted( const idVec3 &from, const idVec3 &to, const char **failure ) const {
