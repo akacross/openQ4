@@ -50,9 +50,18 @@ completed release material here and publish curated notes in `releases/`.
   snapshots retain priority over voice. Admission follows slow sender clock
   drift within a bounded slew, verified by a simulated 24-hour drift/jitter/loss
   test. This closes the implementation slice, not AUD-05's physical-device,
-  real multi-hour-session or target-OS qualification.
+  independent-machine clock-drift or target-OS qualification. The saved October
+  22 local session reports 1:59:29 with 120 passing intervals; the old harness's
+  one-interval duration tolerance prevents claiming a full two-hour pass.
+  The endpoint check is corrected without repeating the long test.
   Engine/game API 53 requires matching modules. See
   [voice evidence](audio-voice-evidence.md#multiplayer-voice).
+
+- [x] Record explicit two-way refusal between published 0.13.0 and the current
+  candidate, with pure checking both enabled and disabled. This is rejection
+  evidence, not a successful mixed-version voice session. The networking guide
+  recommends matching releases and content; protocol-capability checks remain
+  covered by regression tests. [Compatibility evidence](audio-voice-evidence.md#mixed-release-voice-check-22-october-2026).
 
 - [x] Stream long Ogg dialogue/music and effects through bounded VFS input,
   decoder and playback buffers. Retain exact seek, leadin/loop, pause, pitch,

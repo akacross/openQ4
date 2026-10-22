@@ -188,6 +188,8 @@ def parse_section(text: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--assets', type=Path, required=True)
+    parser.add_argument('--runtime-dir', type=Path, default=ROOT / '.install',
+                        help='existing staged runtime (keeps executable paths stable across worktrees)')
     parser.add_argument('--output', type=Path, default=ROOT / '.tmp/audio/voice-soak')
     parser.add_argument('--port', type=int, default=28961)
     parser.add_argument('--duration', type=int, default=7200, help='soak wall time in seconds after all peers are in game')
@@ -201,7 +203,7 @@ def main() -> int:
     if args.interval < 20 or args.duration < args.interval * 4:
         parser.error('use an interval of at least 20 s and a duration of at least four intervals')
 
-    output, runtime = args.output.resolve(), ROOT / '.install'
+    output, runtime = args.output.resolve(), args.runtime_dir.resolve()
     suffix = '.exe' if os.name == 'nt' else ''
     exe, server_exe = runtime / f'openQ4-client_x64{suffix}', runtime / f'openQ4-ded_x64{suffix}'
     verify_runtime_is_current(runtime)
@@ -334,6 +336,7 @@ def main() -> int:
     previous = {}
     error = None
     soak_start = None
+    soak_end = None
     reconnect = {}
     try:
         launch('server')
@@ -350,7 +353,10 @@ def main() -> int:
         baseline = run_step('BASELINE', {'server': ['serverVoiceStats'], 'host': ['listVoiceChat'], 'peer': ['listVoiceChat']})
         previous = {role: parse_section(text) for role, text in baseline.items()}
         soak_start = time.monotonic()
-        count = args.duration // args.interval
+        # Include a measured burst at or after the requested endpoint. Merely
+        # scheduling duration/interval bursts starts the last one an interval
+        # early, and shutdown/analysis time is not live-session evidence.
+        count = math.ceil(args.duration / args.interval) + 1
         reconnect_at = None if args.no_reconnect else count // 2
         schedule_shift = 0.0  # the reconnect pauses the schedule instead of compressing later gaps
         for index in range(count):
@@ -503,8 +509,10 @@ def main() -> int:
                 checks['reconnect_restarts_admission'] = (old.get('server_accepted_total') is not None and
                                                           reconnect['new']['server_accepted_total'] is not None and
                                                           reconnect['new']['server_accepted_total'] < old['server_accepted_total'])
+        soak_end = time.monotonic()
         checks['complete'] = True
     except Exception as exc:
+        soak_end = time.monotonic()
         error = f'{type(exc).__name__}: {exc}'
         checks['complete'] = False
     finally:
@@ -526,10 +534,11 @@ def main() -> int:
             stream.close()
         proxy.close()
 
-    soak_seconds = round(time.monotonic() - soak_start, 1) if soak_start else 0
+    live_seconds = soak_end - soak_start if soak_start is not None and soak_end is not None else 0
+    soak_seconds = round(live_seconds, 1)
     talk_rows = [row for row in rows if row['kind'] not in ('late', 'silent')]
     checks['clean_exit'] = all(process.returncode == 0 for process in processes.values())
-    checks['duration_met'] = soak_seconds >= args.duration - args.interval
+    checks['duration_met'] = live_seconds >= args.duration
     checks['every_interval_passed'] = bool(rows) and all(row['passed'] for row in rows)
     checks['late_probes_rejected'] = any(row['kind'] == 'late' for row in rows) and all(row['passed'] for row in rows if row['kind'] == 'late')
     checks['still_admitting_at_end'] = bool(talk_rows) and talk_rows[-1]['passed']

@@ -14,7 +14,7 @@
     "visual": {
       "path": "docs/dev/ui-visual-design.md",
       "authority": "normative visual, interaction and editor contract",
-      "sha256": "519f0c81958090ea86e4b977878b4d4927be4ebc014b7cb584b57ea4df5c068e"
+      "sha256": "0bf342a64ac3e5f914b8a68583cf9b6d3c06acf8b9ac461cd1cb9b4b30a1d122"
     },
     "product": {
       "path": "docs/dev/archive/2026-10-18/plans/ui-product-completion.md",
@@ -1093,7 +1093,7 @@
     "audio-subtitles-playback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/audio-voice-evidence.md",
-      "sha256": "c900b7665707811475824c069ae13c2d884d2bda0f54df9acdb603d2b913936a",
+      "sha256": "16207ecafb59aafa9d28866d4ebbe6dc6bc7c0556169c6fdcaa69cc755d0fc6c",
       "scope": "Playback-driven installed-transcript subtitles and persistent controls; stock/Awakening runtime plus Classic and native layout checks. Portrait title-card collisions, full corpus and headset qualification remain open. No acceptance granted."
     },
     "inventory-android-setup-return": {

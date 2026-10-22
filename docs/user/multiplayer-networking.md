@@ -17,6 +17,7 @@ This guide covers openQ4 multiplayer networking behavior and the cvars used to t
 - Server-side hitscan lag compensation is off by default (`net_mpLagCompensation 0`).
 - Remote-client prediction uses legacy mode by default (`net_mpPredictMode 0`).
 - Enhanced prediction and lag compensation are opt-in experiments; enabling one does not qualify their combined behavior.
+- Use matching openQ4 releases and content on the server and clients. The voice-enabled candidate and release 0.13.0 refuse to join each other: pure servers report missing packages, while non-pure servers report data out of sync. Other release pairs need their own compatibility check. Voice packets are sent only to peers advertising the supported voice protocol.
 
 ## Find and join a server
 

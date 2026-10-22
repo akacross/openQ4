@@ -959,6 +959,12 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   remains open. The player [networking guide](../user/multiplayer-networking.md#ipv6-connections)
   now explicitly documents single-address DNS selection and the numeric-address
   workaround when the chosen endpoint is unreachable.
+  October 22: published 0.13.0 and the voice-enabled candidate explicitly refuse
+  each other in both directions: missing packages with pure checking, declaration
+  checksum mismatch without it. The four scenarios produce no unknown voice
+  messages, but no mixed-release peer joins or transmits; they do not qualify
+  mixed-release voice. Capability-gating regression checks pass separately.
+  [Exact compatibility scope](audio-voice-evidence.md#mixed-release-voice-check-22-october-2026).
   The [cross-platform peer evidence](retail-baseline-ledger.md#cross-platform-pure-peers-18-october-2026)
   adds passing Windows-client/Linux-server IPv4 and scoped IPv6 pure joins and
   successive reconnects. Canonical ZIP metadata fixes otherwise identical
@@ -986,11 +992,17 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   remain unchanged; physical audibility is still pending.
   October 21: the mod wet-path reference-distance defect is isolated and measured
   under AUD-04; no change was made to dry attenuation or either unit macro.
+  October 22 audit: the remaining gate is human listening on real speakers or
+  headphones against retail. The measured distance-curve audit is complete;
+  keep this item open until that listening pass is recorded.
 - [ ] **AUD-02 — P1, qualification: physical device and timing lifecycle.** Test
   default/selected endpoint loss and return, hotplug, pause/resume/slow motion,
   cinematics, map/restart and long sessions on target OSes. Verify audible output,
   not just backend initialization; include physical Arena pause/resume after its
   game-audio clock ownership correction.
+  October 22 audit: the remaining gates require physical devices and target-OS
+  audible-output checks. Counted API recovery tests and the long local voice
+  session support those checks but do not replace them.
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -1003,7 +1015,7 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   October 21: compressed input, fixed decoder arenas and pending Vorbis PCM
   have a 64 MiB admission budget with backpressure and cancellation accounting.
   Ogg tracks above 512 KiB decoded size now stream from the VFS/PK4 through
-  fixed input/decoder buffers and three 4,096-frame PCM buffers, with a separate
+  fixed input/decoder buffers and bounded PCM queues, with a separate
   32 MiB active-stream reservation limit. PCM/seek/overlap/loop tests and stock/
   Awakening gameplay at a 16 MiB decode budget pass pause, time scale, restart,
   save/load and gain checks without rejected tracks. `listSounds` reports sample,
@@ -1016,6 +1028,9 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   process memory, lengthless streaming, loading-performance, Android low-memory
   callbacks and device breadth remain open.
   [Implementation and evidence](audio-voice-evidence.md#aggregate-payload-admission).
+  The October 22 queue correction retains about one second of audio within the
+  same reserved bytes. This item still includes automated and implementation
+  work as well as physical/mobile qualification; it is not a listening-only gate.
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1045,8 +1060,16 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   inspected retained and Classic engine screenshots. Voice admission now tracks
   sender clock drift with a bounded slew (at most 2 ms per second of accepted
   traffic), and a simulated 24-hour drift/jitter/loss test passes. Physical
-  capture, endpoint hotplug, real multi-hour sessions and OS/device breadth
-  remain open; retain these qualification gates.
+  capture, endpoint hotplug, independent-machine clock drift and OS/device
+  breadth remain open; retain these qualification gates.
+  October 22: the saved dedicated-server/two-client session reports 7,168.9 s
+  (1:59:29), with all 120 intervals passing, continued admission after reconnect,
+  bounded queues and rejected delayed backlog. Its old duration check allowed
+  one missing interval, so this is long-session evidence, not a full two-hour
+  pass. The harness now measures through the requested endpoint and excludes
+  shutdown time. The requested two-hour rerun was cancelled at the user's
+  direction; it is not required to record the useful existing evidence honestly.
+  [Session evidence and limits](audio-voice-evidence.md#long-session-voice-evidence-22-october-2026).
   [Implementation and evidence](audio-voice-evidence.md#multiplayer-voice).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,

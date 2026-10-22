@@ -34,6 +34,8 @@
   at full authored volume; existing saves do not need conversion for this setting.
 - Voice requires matching support on the server and clients. It uses narrowband
   speech and drops delayed audio during congestion to preserve gameplay traffic.
+  Install matching releases and content for everyone in the match; release
+  0.13.0 cannot join this candidate, or host its clients.
   Windows automated peer tests pass; physical microphone and other-OS
   qualification is still pending.
 - The managed audio budget defaults to 256 MiB. Under pressure, new sounds may

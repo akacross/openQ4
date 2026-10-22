@@ -545,6 +545,75 @@ cinematic HUDs, complete authored scene/locale coverage and physical headset
 stereo placement remain unqualified. Missing transcripts stay an explicit AUD-07
 gap; this does not provide effect captions or speech recognition for voice chat.
 
+## Long-session voice evidence, 22 October 2026
+
+The interrupted Claude session left a completed dedicated-server/two-client
+run in worktree `1388`, `.tmp/soak/soak-2h-final/`. Its `result.json` reports
+7,168.9 seconds (1:59:29), not the requested 7,200 seconds. The original harness
+accepted a duration one interval short and included shutdown time. Preserve
+that report unchanged: its `duration_met: true` is not a strict two-hour pass.
+`voice_chat_soak.py` now takes a sample at or beyond the requested endpoint,
+stops its duration clock before shutdown, and requires the full live duration.
+The user cancelled the repeat long run; no replacement two-hour run is claimed.
+
+All 120 measured intervals pass. Synthetic 400 Hz PCM traverses the real codec,
+net channel, server policy and OpenAL wave backend in `mp/q4dm1`; microphone
+opens and host input are zero. The server admits 19,390 frames, rejects 1,261
+and refuses zero sends. Host/peer playback totals are 8,261/8,983 frames.
+Delayed-backlog probes reject 1,168 frames at the peer. Maximum admitted added
+delay is 120 ms and the maximum observed playback queue is three frames.
+Admission baseline shifts span -48 to +6 ms. A reconnect after interval 60
+changes the peer generation from 356 to 359, clears mute/moderation and resumes
+admission in 16.8 seconds. No console step runs twice.
+
+Private-memory growth from the warmed first quarter to the final quarter is
+-18.2 MiB for the server, -34.3 MiB for the host and +4.1 MiB for the peer
+(peer comparison excludes reconnect warmup). The recorded rendered tone remains
+present late in the session. Machine CPU load ranges from 27.8% to 100%; free
+commit falls from an initial 14.62 GiB to a minimum 1.32 GiB. This is useful
+loaded-host stability evidence, not an uncontended performance measurement.
+All processes share one machine clock; the native simulated 24-hour drift test
+remains the independent-clock drift evidence. Physical capture, WAN peers,
+endpoint changes and target-OS breadth remain unqualified.
+
+The saved run binds these SHA-256 identities:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Client | `6c3a4dfeaaf5e8e98473d739e1eddc7598de724b2e828d1184bce6fadca724ff` |
+| Dedicated server | `14744541d29cc00b6584c89b3fd5080a693b801f3e47f9a34465a6d8d8f4e0d8` |
+| MP module | `ea2079fa810e93602757018111c8cfaee012f4447d49e4f43245a21f42e19112` |
+| Original harness | `d665d5b8cf3071ce17eba89b1a2f0ea4ef97edda11a7245a4b530a2cf6b89e6f` |
+
+The recovered implementation is in `bf6b50800` (per-sender admission telemetry)
+and `c9ca2e315` (session and mixed-release harnesses). Do not transfer the old
+runtime result to a newly built executable solely because these commits match.
+
+Worktree `2993` verifies the corrected endpoint with a new 220-second request:
+`.tmp/outstanding/voice-short/result.json` records 232.4 seconds, twelve passing
+intervals and all thirteen checks passing, including reconnect, delayed backlog,
+exactly-once steps and rendered tone. The server admits 2,454 frames and rejects
+132; clients play 973/1,043 frames. Maximum admitted added delay is 101 ms and
+the queue peaks at four frames. This short run qualifies the harness correction
+and current staged runtime, not another long session. The rebuilt native suite
+passes 276/276, and transport, capture lifecycle and capability-gating checks pass.
+
+## Mixed-release voice check, 22 October 2026
+
+The saved `.tmp/soak/mixed2/result.json` in worktree `1388` covers published
+0.13.0 against the voice-enabled candidate, in both server/client directions,
+with `si_pure` both 1 and 0. All fourteen harness checks pass. Pure connections
+are explicitly refused for missing packages; non-pure connections are refused
+for declaration-checksum mismatch. No unknown unreliable voice messages appear.
+
+No mixed-release peer joins and the talker counters stay at zero. These results
+establish explicit refusal for this release pair, not voice interoperability or
+runtime capability negotiation with an admitted old peer. The existing
+`ui_voiceProtocol`/`si_voiceProtocol` gates and appended message identities are
+covered separately by `voice_protocol_gating_contract.py`; production transport
+and capture-lifecycle tests pass. The player guide recommends matching releases
+and content without asserting that every different release pair is incompatible.
+
 ## Other verification and limitations
 
 - `sound_settings.py --no-mutations`: 35,807 checks pass.
