@@ -169,6 +169,34 @@ jobs:
             tools/tests/android_private_export.py \
             tools/tests/android_document_export.py \
             tools/tests/image_block_mips.py \
+            tools/tests/android_async.py \
+            tools/tests/android_basepath.py \
+            tools/tests/android_console_input.py \
+            tools/tests/android_lifecycle.py \
+            tools/tests/android_savepath.py \
+            tools/tests/android_window_lifecycle.py \
+            tools/tests/arena_sound_pause.py \
+            tools/tests/client_entity_registration.py \
+            tools/tests/openal_device_pause.py \
+            tools/tests/openxr_lifecycle.py \
+            tools/tests/savegame_restore_bindings.py \
+            tools/tests/savegame_restore_classes.py \
+            tools/tests/savegame_restore_cleanup.py \
+            tools/tests/savegame_restore_gui.py \
+            tools/tests/savegame_restore_identity.py \
+            tools/tests/savegame_restore_movers.py \
+            tools/tests/savegame_restore_recovery.py \
+            tools/tests/savegame_restore_render_handles.py \
+            tools/tests/savegame_restore_spawn_refs.py \
+            tools/tests/savegame_restore_threads.py \
+            tools/tests/ui_engine_thread.py \
+            tools/tests/ui_generated_images.py \
+            tools/tests/arena_sound_runtime.py \
+            tools/tests/mp_wsl_peer_smoke.py \
+            tools/tests/openxr_lifecycle_runtime.py \
+            tools/tests/savegame_restore_cleanup_runtime.py \
+            tools/tests/savegame_restore_recovery_runtime.py \
+            tools/tests/ui_generated_image_runtime.py \
             tools/tests/filesystem_case_segments.py \
             tools/tests/filesystem_mod_manifest.py \
             tools/tests/filesystem_write_qpath_safety.py \
@@ -591,6 +619,28 @@ jobs:
           python tools/tests/android_private_export.py
           python tools/tests/android_document_export.py
           python tools/tests/image_block_mips.py
+          python tools/tests/android_async.py
+          python tools/tests/android_basepath.py
+          python tools/tests/android_console_input.py
+          python tools/tests/android_lifecycle.py
+          python tools/tests/android_savepath.py
+          python tools/tests/android_window_lifecycle.py
+          python tools/tests/arena_sound_pause.py
+          python tools/tests/client_entity_registration.py
+          python tools/tests/openal_device_pause.py
+          python tools/tests/openxr_lifecycle.py
+          python tools/tests/savegame_restore_bindings.py
+          python tools/tests/savegame_restore_classes.py
+          python tools/tests/savegame_restore_cleanup.py
+          python tools/tests/savegame_restore_gui.py
+          python tools/tests/savegame_restore_identity.py
+          python tools/tests/savegame_restore_movers.py
+          python tools/tests/savegame_restore_recovery.py
+          python tools/tests/savegame_restore_render_handles.py
+          python tools/tests/savegame_restore_spawn_refs.py
+          python tools/tests/savegame_restore_threads.py
+          python tools/tests/ui_engine_thread.py
+          python tools/tests/ui_generated_images.py
           python tools/tests/filesystem_case_segments.py
           python tools/tests/filesystem_mod_manifest.py
           python tools/tests/filesystem_write_qpath_safety.py

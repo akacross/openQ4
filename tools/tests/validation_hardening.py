@@ -648,6 +648,15 @@ def validate_validation_wiring() -> None:
     # exercised by their native harnesses or runtime callers. Keep both out of
     # the argument-free lightweight suite; CI still checks their syntax.
     smoke_wiring_allowlist = {
+        # Stage 2 drivers: each launches a staged client, dedicated server,
+        # WSL peer or OpenXR runtime on retail assets; the workflows py_compile
+        # them and their production-extraction siblings are wired.
+        "arena_sound_runtime.py",
+        "mp_wsl_peer_smoke.py",
+        "openxr_lifecycle_runtime.py",
+        "savegame_restore_cleanup_runtime.py",
+        "savegame_restore_recovery_runtime.py",
+        "ui_generated_image_runtime.py",
         # Audio/voice drivers: retail assets, a staged OpenAL Soft provider,
         # ffmpeg or a launched game; their native-compile siblings are wired.
         "audio_asset_inventory.py",
