@@ -73,6 +73,8 @@ static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1000;	// a fall this soon after a 
 static const float	BOT_AIR_RECOVER_MIN_KICK = 150.0f;	// and only a knockback at least this strong
 static const int	BOT_AIR_RECOVER_TAKEOFF_MSEC = 50;	// that came at most this long before the bot left the ground
 static const int	BOT_AIR_RECOVER_REPLAN_MSEC = 250;	// how often a held fall re-chooses its air input
+static const int	BOT_AIR_RECOVER_SLIDE_MSEC = 400;	// a walk-off this soon after a knock is the knock's slide
+static const int	BOT_AIR_RECOVER_PRESS_MSEC = 100;	// a jump press this recent makes a takeoff the bot's own
 static const int	BOT_DODGE_LAUNCH_MSEC	= 128;		// a rejected jump input must not hold walking forever
 static const int	BOT_DODGE_FLIGHT_MSEC	= 1600;		// DodgeJumpClear proves at most 96 sixteen-ms flight steps
 static const int	BOT_ENEMY_MEMORY_MSEC	= 3000;		// base for how long a lost enemy is chased, scaled by pursuit
@@ -621,6 +623,8 @@ rvBot::rvBot( void ) {
 	airRecovering		= false;
 	knockbackTime		= 0;
 	airborneSince		= 0;
+	airborneVoluntary	= false;
+	jumpPressTime		= 0;
 	airRecoverPlanTime	= 0;
 	airRecoverWish.Zero();
 	airRecoverLanded	= 0;
@@ -932,6 +936,8 @@ void rvBot::OnSpawn( void ) {
 	airRecovering		= false;
 	knockbackTime		= 0;
 	airborneSince		= 0;
+	airborneVoluntary	= false;
+	jumpPressTime		= 0;
 	airRecoverPlanTime	= 0;
 	airRecoverWish.Zero();
 	airRecoverLanded	= 0;
@@ -4776,7 +4782,9 @@ let the throw carry a bot over a lower ledge's edge - and through a short
 runout after touchdown.
 
 Only a fall a strong knock caused starts it: one the knock threw off the
-ground, or one hit in the air.  A pad's launch reads as a fall over the void
+ground, one that slid off a ledge in the knockback's friction-free time -
+q4ctf5's rail kicks slid grounded bots off the walkway at 550 units a
+second - or one hit in the air.  A pad's launch reads as a fall over the void
 on the frame before its traversal is marked started, and braking that
 dropped bots into the gap; a jump or a drop taken after an earlier knock is
 the bot's own.  Inside a pad or teleporter, or in a transport flight that
@@ -4812,8 +4820,12 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	if ( self->pfl.onGround || transported || LiquidAtFeet() || !navMesh.IsValid() || speed <= 1.0f ) {
 		return false;
 	}
+	// The knock's own fall: thrown off the ground by it, slid off a ledge
+	// during its friction-free knockback time, or hit in the air - but not a
+	// jump the bot pressed after an earlier knock.
 	const bool knocked = knockbackTime && gameLocal.time - knockbackTime <= BOT_AIR_RECOVER_KNOCK_MSEC &&
-		airborneSince && knockbackTime >= airborneSince - BOT_AIR_RECOVER_TAKEOFF_MSEC;
+		airborneSince && knockbackTime >= airborneSince -
+		( airborneVoluntary ? BOT_AIR_RECOVER_TAKEOFF_MSEC : BOT_AIR_RECOVER_SLIDE_MSEC );
 	idVec3 touchdown;
 	if ( !airRecovering && ( !knocked || !BotAirLandingUnsafe( self, touchdown ) ) ) {
 		return false;
@@ -6990,6 +7002,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( airRecoverLanded );
 	SHIFT_BOT_TIME( knockbackTime );
 	SHIFT_BOT_TIME( airborneSince );
+	SHIFT_BOT_TIME( jumpPressTime );
 	SHIFT_BOT_TIME( airRecoverPlanTime );
 
 	SHIFT_BOT_TIME( goalSelectedTime );
@@ -7125,6 +7138,7 @@ void rvBot::Think( usercmd_t &cmd ) {
 		airborneSince = 0;
 	} else if ( !airborneSince ) {
 		airborneSince = gameLocal.time;
+		airborneVoluntary = jumpPressTime && gameLocal.time - jumpPressTime <= BOT_AIR_RECOVER_PRESS_MSEC;
 	}
 	UpdateGoal( self );
 	UpdateAim( self, cmd );
@@ -7135,6 +7149,9 @@ void rvBot::Think( usercmd_t &cmd ) {
 	UpdateBuying( self );
 	UpdateWeapon( self );
 	UpdateFire( self, cmd );
+	if ( self->pfl.onGround && cmd.upmove > 0 ) {
+		jumpPressTime = gameLocal.time;
+	}
 	ReportProbeGrounding( self );
 	if ( bot_debug.GetInteger() >= 3 && pathCorner >= 0 && pathCorner < path.Num() &&
 		( path[pathCorner].travelType != NAVTRAVEL_WALK || bot_debug.GetInteger() >= 4 ) ) {

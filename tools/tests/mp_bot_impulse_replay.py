@@ -11,7 +11,8 @@ is excluded as impulse-caused only when BOTH hold:
    before the death and with no other world death of the victim in between.
 2. An isolated replay of the post-impulse state proves the fall unrecoverable
    with the game's existing physics: one bot, no enemies, teleported to the
-   logged origin with the logged post-impulse velocity, then every one of
+   logged origin with the logged post-impulse velocity, remaining health and
+   knockback time (`bot_probeHealth`), then every one of
    AIR_HEADINGS fixed full air-input directions plus no input (`bot_probeAir`)
    and the bot's own controller (`bot_probeMove` back toward where it was hit)
    is flown. If any trial survives - grounded and alive at the end of its
@@ -23,9 +24,9 @@ Everything else - no impulse, a self/team/world impulse, an impulse outside
 the window, a missing replay - is a navigation/control death. Every excluded
 death is still reported, with its impulse and every trial's outcome.
 
-The replay is conservative in the bot's favour: it does not recreate the
-knockback timer or any later hit, so it can only find the fall easier to
-recover than the match did. A constant full-input direction is the extremal
+The replay is conservative in the bot's favour: it does not recreate any
+later hit, so it can only find the fall easier to recover than the match
+did. Pushes after the replayed enemy impulse are listed with the death. A constant full-input direction is the extremal
 air-control policy for displacement along that direction; sixteen headings
 sample that envelope, which is evidence rather than proof for a landing
 inside a sector narrower than the sampling.
@@ -46,7 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 IMPULSE_WINDOW_MSEC = 6000
 AIR_HEADINGS = 16
 TRIAL_OBSERVE_MSEC = 6000
-TRIAL_RESPAWN_MSEC = 9000  # CTF respawns can take longer than five seconds
+TRIAL_RESPAWN_MSEC = 3000  # each trial gets a freshly added bot
 FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown membership fails closed
 
 IMPULSE = re.compile(
@@ -257,7 +258,10 @@ def replay_session(runtime: Path, executable: str, basepath: Path, output: Path,
         neutral = " ".join(words[:5] + ["0", "0", "0"] + words[8:])
         script += ["set bot_pause 1", neutral, "waitMsec 64", f"echo MP_BOT_TRIAL_BEGIN {trial['name']}",
                    *trial.get("setup", []), trial["command"], "set bot_pause 0", f"waitMsec {TRIAL_OBSERVE_MSEC}",
-                   f"echo MP_BOT_TRIAL_END {trial['name']}", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
+                   f"echo MP_BOT_TRIAL_END {trial['name']}",
+                   # A bot that died, or walked off later, would refuse or
+                   # spoil the next trial: replace it with a fresh one.
+                   "removebot Rhodes", "waitMsec 500", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
     script += ["echo MP_BOT_REPLAY_END", "quit"]
     (game / "impulse_replay.cfg").write_text("\n".join(script) + "\n", encoding="utf-8")
     cvars = {

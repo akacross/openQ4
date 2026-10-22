@@ -406,6 +406,7 @@ struct rvBot {
     int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
     bool airRecovering=false;
     int knockbackTime=0,airborneSince=0,airRecoverPlanTime=0;
+    bool airborneVoluntary=false;
     idVec3 airRecoverWish;
     int LiquidAtFeet() const { return 0; }
     idVec3 padApproachLaunch,padApproachLanding;
@@ -965,8 +966,14 @@ void TestAirRecovery() {
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.forwardmove==0);
     bot.knockbackTime=gameLocal.time-BOT_AIR_RECOVER_KNOCK_MSEC-1; bot.airborneSince=bot.knockbackTime;
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
-    bot.knockbackTime=gameLocal.time-400; bot.airborneSince=gameLocal.time-50;
+    bot.knockbackTime=gameLocal.time-400; bot.airborneSince=gameLocal.time-50; bot.airborneVoluntary=true;
     CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
+    // Walked off a ledge, unpressed, while the knock still slid it there.
+    bot.airborneVoluntary=false; bot.knockbackTime=gameLocal.time-500; bot.airborneSince=gameLocal.time-50;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering); // 450 ms: its own walk
+    bot.knockbackTime=gameLocal.time-300;
+    CHECK(bot.RecoverInAir(&self,cmd) && bot.airRecovering);
+    bot.airRecovering=false; bot.airborneVoluntary=true; cmd={};
     // Thrown off the ground by it (the knock lands a frame before the bot leaves).
     bot.knockbackTime=gameLocal.time-100; bot.airborneSince=gameLocal.time-84;
     CHECK(bot.RecoverInAir(&self,cmd) && cmd.forwardmove<0 && cmd.rightmove==0 && cmd.upmove==0);

@@ -363,6 +363,8 @@ private:
 	bool					airRecovering;		// braking a knocked fall until it has stopped on the ground
 	int						knockbackTime;		// last applied knockback, which alone can start that brake
 	int						airborneSince;		// when the current flight left the ground, 0 on the ground
+	bool					airborneVoluntary;	// that flight began with the bot's own jump press
+	int						jumpPressTime;		// last grounded frame the bot pressed jump
 	idVec3					airRecoverWish;		// the air input that brake holds, zero for none
 	int						airRecoverPlanTime;	// when it was last chosen
 	int						airRecoverLanded;	// when that fall touched down, 0 while still airborne
