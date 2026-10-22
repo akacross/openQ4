@@ -213,6 +213,10 @@ one (p50 172 ms, 15 frames over 300 ms, two over 1 s) and logged no underruns,
 against 30 before. A hitch longer than the queue still recovers at the channel's
 sound clock, as before. Refilling from a worker thread was not attempted: voice
 queue state has no locking and is touched only on the main thread.
+On the final build (branch tip `ec89ff31c`, client SHA-256 recorded in each
+report) the native Meson suite passed 276 of 276, and so did the audio,
+sound-settings, recovery, payload-restore, portability and validation-hardening
+static tests.
 
 ## Mod room rolloff
 
