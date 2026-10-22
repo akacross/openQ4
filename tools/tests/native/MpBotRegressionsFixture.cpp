@@ -405,7 +405,8 @@ struct rvBot {
     int padHoldSince=0,stuckTime=0,stuckChecks=0,unstickUntil=0,traversalStartTime=0;
     int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
     bool airRecovering=false;
-    int knockbackTime=0,airborneSince=0,airRecoverPlanTime=0;
+    int knockbackTime=0,airborneSince=0,airRecoverPlanTime=0,knockbackFrameTime=-1;
+    idVec3 knockbackFrameKick;
     bool airborneVoluntary=false;
     idVec3 airRecoverWish;
     int LiquidAtFeet() const { return 0; }
@@ -1316,6 +1317,8 @@ void TestDodgeOwnership() {
     {   // A strong knock under the hop releases it to the airborne brake.
         rvBot knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime+16; usercmd_t held;
         CHECK(!knocked.HoldDodgeJump(&self,held) && !knocked.dodgeHopActive && held.forwardmove==0);
+        knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime; // the same frame
+        CHECK(!knocked.HoldDodgeJump(&self,held) && !knocked.dodgeHopActive);
         knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime-16;
         CHECK(knocked.HoldDodgeJump(&self,held) && knocked.dodgeHopActive);
     }

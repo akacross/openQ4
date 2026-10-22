@@ -362,6 +362,8 @@ private:
 	int						airRecoverReported;	// last airborne-recovery start logged, so one line per fall
 	bool					airRecovering;		// braking a knocked fall until it has stopped on the ground
 	int						knockbackTime;		// last applied knockback, which alone can start that brake
+	int						knockbackFrameTime;	// the frame knockbackFrameKick sums
+	idVec3					knockbackFrameKick;	// every kick of that frame, a shotgun's pellets together
 	int						airborneSince;		// when the current flight left the ground, 0 on the ground
 	bool					airborneVoluntary;	// that flight began with the bot's own jump press
 	int						jumpPressTime;		// last grounded frame the bot pressed jump

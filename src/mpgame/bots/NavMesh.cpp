@@ -1058,11 +1058,17 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 				 NavLandingImpactDelta( trace, velocity + gravity * ( dt * trace.fraction ), gravity ) > maxImpactDelta ) {
 				return false;
 			}
+			idVec3 flat( velocity.x, velocity.y, 0.0f );
+			const idVec3 stop = trace.endpos + flat * ( dt + flat.Length() / ( 20.0f * speed ) );
+			// A landing whose runout reaches a pad or a teleporter is another
+			// throw: a q4ctf5 bot that survived a rail's kick slid onto
+			// func_jumppad_3 and was flown off the map.
+			if ( TransportOnMove( trace.endpos, stop, -1 ) >= 0 ) {
+				return false;
+			}
 			if ( landedSupported ) {
 				*landedSupported = true;
 			}
-			idVec3 flat( velocity.x, velocity.y, 0.0f );
-			const idVec3 stop = trace.endpos + flat * ( dt + flat.Length() / ( 20.0f * speed ) );
 			return LandingContinuationClear( trace.endpos, stop );
 		}
 		if ( trace.fraction <= 0.0f ) {

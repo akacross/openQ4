@@ -209,6 +209,7 @@ public:
     static const idBounds& GetAgentBounds() { return agentBounds; }
     int TransportAt(const idBounds&) const { return transported ? 1 : -1; }
     bool LineEntersTransport(const idVec3&,const idVec3&) const { return transported; }
+    int TransportOnMove(const idVec3&,const idVec3&,int) const { return transported ? 1 : -1; }
     bool IsLethalFloor(const idVec3&) const { return lethal; }
     // The production string-pull proof, on this world's hull sweeps.
     bool WalkableLine(const idVec3& from,const idVec3& to,const char** failure=nullptr) const;
@@ -603,6 +604,9 @@ int main() {
         CHECK(std::fabs(touch.z+128)<1 && touch.x>150 && touch.x<230); // the coast's own touchdown
         CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},0.0f,nullptr,&supported) && !supported); // unaffordable impact
         lethal=true; CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,nullptr,&supported) && !supported); lethal=false;
+        // Landing into a pad's volume is another throw, not a landing.
+        transported=true; CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,nullptr,&supported) && !supported);
+        transported=false;
         // Nothing below: a fall into the void never lands.
         solids.clear(); Platform(-256,0,0);
         CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,nullptr,&supported) && !supported);

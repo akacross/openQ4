@@ -622,6 +622,8 @@ rvBot::rvBot( void ) {
 	airRecoverReported	= 0;
 	airRecovering		= false;
 	knockbackTime		= 0;
+	knockbackFrameTime	= -1;
+	knockbackFrameKick.Zero();
 	airborneSince		= 0;
 	airborneVoluntary	= false;
 	jumpPressTime		= 0;
@@ -935,6 +937,8 @@ void rvBot::OnSpawn( void ) {
 	airRecoverReported	= 0;
 	airRecovering		= false;
 	knockbackTime		= 0;
+	knockbackFrameTime	= -1;
+	knockbackFrameKick.Zero();
 	airborneSince		= 0;
 	airborneVoluntary	= false;
 	jumpPressTime		= 0;
@@ -4142,9 +4146,10 @@ bool rvBot::HoldDodgeJump( idPlayer *self, usercmd_t &cmd ) {
 		ResetDodgeJump();
 		return false;
 	}
-	if ( knockbackTime > dodgeHopStartTime ) {
+	if ( knockbackTime >= dodgeHopStartTime ) {
 		// A rocket under a dodge hop throws it somewhere its proof never
-		// went; the airborne brake answers for that flight.
+		// went, including one landing on the frame the hop starts (q4dm8);
+		// the airborne brake answers for that flight.
 		ResetDodgeJump();
 		return false;
 	}
@@ -8781,12 +8786,21 @@ void rvBotManager::OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int da
 }
 
 void rvBotManager::OnPlayerKnockback( idPlayer *victim, const idVec3 &kick ) {
-	// A machine gun's 25-unit nudges are not a throw.
-	if ( !gameLocal.isMultiplayer || gameLocal.isClient || !victim || !IsBot( victim->entityNumber ) ||
-		 kick.LengthSqr() < Square( BOT_AIR_RECOVER_MIN_KICK ) ) {
+	if ( !gameLocal.isMultiplayer || gameLocal.isClient || !victim || !IsBot( victim->entityNumber ) ) {
 		return;
 	}
-	bots[victim->entityNumber].knockbackTime = gameLocal.time;
+	// A machine gun's 25-unit nudges are not a throw, but a shotgun's pellets
+	// land as separate hits in one frame: four of 49 threw a q4dm8 bot off
+	// its ledge. Sum one frame's kicks before judging the throw.
+	rvBot &bot = bots[victim->entityNumber];
+	if ( bot.knockbackFrameTime != gameLocal.time ) {
+		bot.knockbackFrameTime = gameLocal.time;
+		bot.knockbackFrameKick.Zero();
+	}
+	bot.knockbackFrameKick += kick;
+	if ( bot.knockbackFrameKick.LengthSqr() >= Square( BOT_AIR_RECOVER_MIN_KICK ) ) {
+		bot.knockbackTime = gameLocal.time;
+	}
 }
 
 /*
