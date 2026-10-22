@@ -42,7 +42,7 @@ def main() -> None:
         network, re.M))
     bodies = "\n".join(function(bot, signature) for signature in (
         "static float BotGapToPad(",
-        "static bool BotPadSegmentInCorridor(",
+        "static bool BotPadFlightsShareCorridor(",
         "static bool BotPadCorridorBusy(",
         "bool rvBot::HoldForPad(",
         "void rvBot::ResetDodgeJump(",

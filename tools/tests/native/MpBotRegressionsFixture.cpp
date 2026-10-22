@@ -885,13 +885,22 @@ void TestPadReservation() {
     botB.padApproachTime=gameLocal.time-BOT_PAD_APPROACH_STALE_MSEC-1;
     CHECK(!botA.HoldForPad(&a,moveA));
     botB.padApproachTime=gameLocal.time;
+    // q4ctf5's long pads land beyond each other's launch; their flights
+    // still share one corridor.
+    botB.padApproachLaunch={0,1040,0}; botB.padApproachLanding={0,-600,0};
+    botA.padApproachSince=gameLocal.time; botB.padApproachSince=gameLocal.time-500;
+    CHECK(botA.HoldForPad(&a,moveA));
+    botB.padApproachLanding={0,-40,0};
     // A corridor elsewhere is not shared, nor is a human's unknowable intent.
     botB.padApproachLaunch={600,1040,0}; botB.padApproachLanding={600,-40,0};
     CHECK(!botA.HoldForPad(&a,moveA));
     botB.padApproachLaunch={0,1040,0}; botB.padApproachLanding={0,-40,0};
     botManager.bots[1]=false; CHECK(!botA.HoldForPad(&a,moveA)); botManager.bots[1]=true;
-    // Leaving reach or the route ending withdraws the published approach.
-    a.physics.origin={0,-300,0}; CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==-1);
+    // Approaching from outside braking range publishes without braking;
+    // leaving that range or the route ending withdraws the approach.
+    a.physics.origin={0,-200,0}; moveA={0,1,0};
+    CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==8 && moveA.y==1);
+    a.physics.origin={0,-500,0}; CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==-1);
     a.physics.origin={0,-80,0}; botA.path.Clear(); CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==-1);
     std::puts("Pad reservation: exactly one of two bots at opposing pads launches; first approach wins, lapsed and unshared approaches ignored: PASS");
 }
@@ -954,7 +963,8 @@ void TestAirRecovery() {
     airLandingUnsafe=true;
     // A committed traversal, a jump's first airborne frame and the ground
     // keep their own controllers; a fall straight down has nothing to brake.
-    bot.traversalStarted=true; CHECK(!bot.RecoverInAir(&self,cmd)); bot.traversalStarted=false;
+    bot.traversalStarted=true; bot.traversalStartTime=gameLocal.time; // began after the knock
+    CHECK(!bot.RecoverInAir(&self,cmd)); bot.traversalStarted=false; bot.traversalStartTime=0;
     bot.path.corners[1].travelType=NAVTRAVEL_JUMP; bot.pathCorner=1;
     CHECK(!bot.RecoverInAir(&self,cmd)); bot.path.corners[1].travelType=NAVTRAVEL_WALK;
     self.pfl.onGround=true; CHECK(!bot.RecoverInAir(&self,cmd)); self.pfl.onGround=false;
@@ -973,17 +983,31 @@ void TestAirRecovery() {
     // A slow touchdown ends it at once; a later pad flight is not braked.
     rvBot slow; slow.airRecovering=true; self.physics.velocity={0,-40,0};
     CHECK(!slow.RecoverInAir(&self,cmd) && !slow.airRecovering);
-    rvBot flying; flying.airRecovering=true; flying.traversalStarted=true; self.pfl.onGround=false;
+    rvBot flying; flying.airRecovering=true; flying.traversalStarted=true; flying.traversalStartTime=gameLocal.time; self.pfl.onGround=false;
     self.physics.velocity={0,-600,400}; CHECK(!flying.RecoverInAir(&self,cmd) && !flying.airRecovering);
-    // A pad that takes a knocked bot owns the flight from its first frame:
-    // its launch speed or its volume ends the brake, and neither starts one.
-    rvBot launched; launched.airRecovering=true; self.physics.velocity={0,646,528};
-    CHECK(!launched.RecoverInAir(&self,cmd) && !launched.airRecovering);
-    rvBot fresh; fresh.knockbackTime=gameLocal.time; CHECK(!fresh.RecoverInAir(&self,cmd) && !fresh.airRecovering);
-    self.physics.velocity={0,-300,100}; navMesh.volumesAhead={{9,-1000}};
+    // A pad that takes a knocked bot owns that flight: its volume, or a
+    // traversal begun after the knock, ends the brake, and neither starts one.
+    airLandingUnsafe=true; self.physics.velocity={0,-300,100}; navMesh.volumesAhead={{9,-1000}};
+    rvBot fresh; fresh.knockbackTime=gameLocal.time;
     CHECK(!fresh.RecoverInAir(&self,cmd) && !fresh.airRecovering);
     rvBot inside; inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
-    navMesh.volumesAhead.clear(); airLandingUnsafe=true; CHECK(fresh.RecoverInAir(&self,cmd) && fresh.airRecovering);
+    navMesh.volumesAhead.clear();
+    rvBot caught; caught.airRecovering=true; caught.knockbackTime=gameLocal.time-200;
+    caught.traversalStarted=true; caught.traversalStartTime=gameLocal.time-100;
+    CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
+    CHECK(fresh.RecoverInAir(&self,cmd) && fresh.airRecovering);
+    // A rail's kick during a pad flight (q4ctf5): the lost landing gives way
+    // to the brake, and the route is decided again after it.
+    rvBot flyer; flyer.path.Append({0,0,0}); flyer.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8);
+    flyer.pathCorner=1; flyer.traversalStarted=true; flyer.traversalStartTime=gameLocal.time-300;
+    flyer.knockbackTime=gameLocal.time-50; flyer.nextGoalSelectTime=gameLocal.time+5000; cmd={};
+    CHECK(flyer.RecoverInAir(&self,cmd) && flyer.airRecovering && flyer.path.IsEmpty() && !flyer.traversalStarted);
+    CHECK(cmd.rightmove<0 && flyer.nextGoalSelectTime==gameLocal.time);
+    // Whose landing survives the knock keeps its pad controller.
+    rvBot safe; safe.path=flyer.path; safe.path.Append({0,0,0}); safe.path.corners.resize(0);
+    safe.path.Append({0,0,0}); safe.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8); safe.pathCorner=1;
+    safe.traversalStarted=true; safe.traversalStartTime=gameLocal.time-300; safe.knockbackTime=gameLocal.time-50;
+    airLandingUnsafe=false; CHECK(!safe.RecoverInAir(&self,cmd) && safe.path.Num()==2 && safe.traversalStarted);
     std::puts("Air recovery: a knocked walker over nothing brakes its throw with full air input; traversals, ground and safe arcs untouched: PASS");
 }
 void TestUnexpectedPad() {

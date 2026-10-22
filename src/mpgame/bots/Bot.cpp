@@ -64,6 +64,7 @@ static const float	BOT_PAD_HOLD_REACH		= 80.0f;	// this close to touching a pad 
 static const float	BOT_PAD_CORRIDOR_WIDTH	= 64.0f;	// a flyer this close to a pad's line is in its path
 static const int	BOT_PAD_HOLD_MSEC		= 2000;		// reconsider the route if its pad corridor stays busy
 static const int	BOT_PAD_APPROACH_STALE_MSEC = 100;	// a pad approach not confirmed this recently has lapsed
+static const float	BOT_PAD_APPROACH_REACH	= 320.0f;	// a bot this close to its pad publishes the approach
 static const float	BOT_EDGE_LOOKAHEAD		= 0.15f;	// seconds of velocity the void-edge guard looks ahead
 static const float	BOT_SAFE_FALL			= 512.0f;	// floor this far down is a fall, not the void (NAV_MAX_DROP)
 static const float	BOT_AIR_RECOVER_STOP_SPEED = 60.0f;	// a recovered fall's touchdown brake ends below this speed
@@ -1953,25 +1954,34 @@ static float BotGapToPad( idPlayer *self, const navCorner_t &action ) {
 
 /*
 ================
-BotPadSegmentInCorridor
+BotPadFlightsShareCorridor
 
-Whether a point lies in the finite flight corridor from launch to landing,
-with a corridor width of slack at either end for the entry corner and the
-landing's runout.
+Whether another flight runs along this one's corridor: both its ends lie
+within the corridor's width of this flight's line, and the two spans along
+it overlap.  q4ctf5's long pads land beyond each other's launch, so one
+flight's ends need not lie inside the other's span.
 ================
 */
-static bool BotPadSegmentInCorridor( const idVec3 &launch, const idVec3 &landing, const idVec3 &point ) {
+static bool BotPadFlightsShareCorridor( const idVec3 &launch, const idVec3 &landing,
+										const idVec3 &otherLaunch, const idVec3 &otherLanding ) {
 	idVec3 along = landing - launch;
 	along.z = 0.0f;
 	const float length = along.Normalize();
 	if ( length < 1.0f ) {
 		return false;
 	}
-	idVec3 offset = point - launch;
-	offset.z = 0.0f;
-	const float ahead = offset * along;
-	return ahead >= -BOT_PAD_CORRIDOR_WIDTH && ahead <= length + BOT_PAD_CORRIDOR_WIDTH &&
-		( offset - along * ahead ).LengthSqr() <= Square( BOT_PAD_CORRIDOR_WIDTH * 2.0f );
+	float span[2];
+	const idVec3 ends[2] = { otherLaunch, otherLanding };
+	for ( int i = 0; i < 2; i++ ) {
+		idVec3 offset = ends[i] - launch;
+		offset.z = 0.0f;
+		span[i] = offset * along;
+		if ( ( offset - along * span[i] ).LengthSqr() > Square( BOT_PAD_CORRIDOR_WIDTH * 2.0f ) ) {
+			return false;
+		}
+	}
+	return Max( span[0], span[1] ) >= -BOT_PAD_CORRIDOR_WIDTH &&
+		Min( span[0], span[1] ) <= length + BOT_PAD_CORRIDOR_WIDTH;
 }
 
 /*
@@ -2010,8 +2020,7 @@ static bool BotPadCorridorBusy( idPlayer *self, const idVec3 &launch, const idVe
 		idVec3 otherLaunch, otherLanding;
 		if ( other->pfl.onGround && botManager.PadApproachOf( i, otherPad, otherSince, otherLaunch, otherLanding ) &&
 			 ( otherSince < approachSince || ( otherSince == approachSince && i < self->entityNumber ) ) &&
-			 BotPadSegmentInCorridor( launch, landing, otherLaunch ) &&
-			 BotPadSegmentInCorridor( launch, landing, otherLanding ) ) {
+			 BotPadFlightsShareCorridor( launch, landing, otherLaunch, otherLanding ) ) {
 			return true;	// it reserved the shared corridor first
 		}
 		if ( other->pfl.onGround ) {
@@ -2042,8 +2051,10 @@ Reserve the approach until the opposing flight clears. traversalEntered only
 means the expanded trigger bounds are close; it must not cancel the wait.
 Brake instead of coasting into the actual trigger, and reconsider a prolonged
 blockage instead of deliberately launching into a known head-on collision.
-Every bot within reach of its pad publishes that approach, held or not, so
-the other bots can give way to it.
+Every bot within a second's run of its pad publishes that approach, held or
+not, so that the other bots give way to it before either is too close to
+stop: a bot that reached braking range on the frame its opponent launched
+was still carried in.
 ================
 */
 bool rvBot::HoldForPad( idPlayer *self, idVec3 &moveDir ) {
@@ -2061,8 +2072,9 @@ bool rvBot::HoldForPad( idPlayer *self, idVec3 &moveDir ) {
 	while ( actionCorner < path.Num() && path[actionCorner].travelType == NAVTRAVEL_WALK ) {
 		actionCorner++;
 	}
-	if ( actionCorner >= path.Num() || path[actionCorner].travelType != NAVTRAVEL_JUMPPAD ||
-		 BotGapToPad( self, path[actionCorner] ) >= BOT_PAD_HOLD_REACH ) {
+	const float gap = ( actionCorner < path.Num() && path[actionCorner].travelType == NAVTRAVEL_JUMPPAD ) ?
+		BotGapToPad( self, path[actionCorner] ) : idMath::INFINITY;
+	if ( gap >= BOT_PAD_APPROACH_REACH ) {
 		padHoldSince = 0;
 		padApproachEntity = -1;
 		return false;
@@ -2074,7 +2086,9 @@ bool rvBot::HoldForPad( idPlayer *self, idVec3 &moveDir ) {
 	padApproachTime = gameLocal.time;
 	padApproachLaunch = path[actionCorner - 1].origin;
 	padApproachLanding = path[actionCorner].origin;
-	if ( !BotPadCorridorBusy( self, padApproachLaunch, padApproachLanding, padApproachSince ) ) {
+	// Published from BOT_PAD_APPROACH_REACH; braking only within hold reach.
+	if ( gap >= BOT_PAD_HOLD_REACH ||
+		 !BotPadCorridorBusy( self, padApproachLaunch, padApproachLanding, padApproachSince ) ) {
 		padHoldSince = 0;
 		return false;
 	}
@@ -4721,19 +4735,23 @@ which is the most the player's air acceleration can take back.  Once begun
 the brake holds for the whole fall - releasing it when the prediction first
 read safe let the throw carry a bot over a lower ledge's edge - and through
 a short runout after touchdown.  Only a recent strong knockback starts it,
-and never inside a pad or teleporter or at a pad's launch speed: a pad's
-launch reads as a fall over the void on the frame before its traversal is
-marked started, and braking it dropped bots into the gap.  Committed
-traversals and voluntary dodge hops keep their own controllers.
+and never inside a pad or teleporter: a pad's launch reads as a fall over
+the void on the frame before its traversal is marked started, and braking
+it dropped bots into the gap.  A knock taken during a committed flight
+takes that flight over when its landing is lost; a traversal begun after
+the knock, and voluntary dodge hops, keep their own controllers.
 ================
 */
 bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	const idVec3 &velocity = self->GetPhysics()->GetLinearVelocity();
 	idVec3 brake( -velocity.x, -velocity.y, 0.0f );
 	const float speed = brake.Normalize();
-	const bool transported = velocity.z > BOT_PAD_LAUNCH_SPEED ||
+	// Inside a pad or teleporter the volume owns the bot; a traversal begun
+	// after the knock - a pad that caught the throw - owns its new flight.
+	const bool transported =
 		navMesh.TransportOnMove( self->GetPhysics()->GetOrigin(), self->GetPhysics()->GetOrigin(), -1 ) >= 0;
-	if ( airRecovering && ( traversalStarted || transported || self->health <= 0 ) ) {
+	const bool laterTraversal = traversalStarted && traversalStartTime > knockbackTime;
+	if ( airRecovering && ( laterTraversal || transported || self->health <= 0 ) ) {
 		airRecovering = false;
 	}
 	if ( airRecovering && self->pfl.onGround ) {
@@ -4749,11 +4767,12 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 		stuckTime = gameLocal.time;
 		return true;
 	}
-	if ( self->pfl.onGround || traversalStarted || transported || LiquidAtFeet() || !navMesh.IsValid() ) {
+	if ( self->pfl.onGround || laterTraversal || transported || LiquidAtFeet() || !navMesh.IsValid() ) {
 		return false;
 	}
 	// A jump's first airborne frame precedes AdvancePath marking it started.
-	if ( pathCorner >= 0 && pathCorner < path.Num() && path[pathCorner].travelType != NAVTRAVEL_WALK ) {
+	if ( !traversalStarted && pathCorner >= 0 && pathCorner < path.Num() &&
+		 path[pathCorner].travelType != NAVTRAVEL_WALK ) {
 		return false;
 	}
 	if ( speed <= 1.0f ) {
@@ -4767,6 +4786,16 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 	if ( !airRecovering ) {
 		airRecovering = true;
 		airRecoverLanded = 0;
+		if ( traversalStarted ) {
+			// A rail's kick mid-flight leaves the pad's landing out of reach:
+			// steering for it carried q4ctf5 flyers into the void. The route
+			// is decided again once the throw has been stopped.
+			path.Clear();
+			pathCorner = 0;
+			pathTime = 0;
+			ResetTraversal();
+			nextGoalSelectTime = Min( nextGoalSelectTime, gameLocal.time );
+		}
 	} else {
 		touchdown = self->GetPhysics()->GetOrigin();
 	}
