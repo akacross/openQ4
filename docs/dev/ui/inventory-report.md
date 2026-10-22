@@ -1,9 +1,28 @@
 # GUI replacement inventory
 
-Refreshed 21 October 2026. This is source inventory evidence, not conversion or
+Refreshed 22 October 2026. This is source inventory evidence, not conversion or
 product acceptance. The [roadmap](../roadmap.md) owns scheduling, the
 [visual specification](../ui-visual-design.md) owns current visual policy, and
 the register preserves the complete acceptance scope.
+
+## 22 October 2026 audio and voice merge revision
+
+Combining the Stage 2 line with the audio and voice milestones changes three
+base variants: `guis/mainmenu.gui` (Android setup action plus the Dialogue
+Volume row), `guis/menu/settings/audio.gui` (dialogue, subtitle and voice
+controls) and `guis/mpmain.gui` (voice controls). Awakening's
+`guis/menu/settings/audio.gui` variant changes with it; Awakening's own main and
+multiplayer menus override the other two. Retail is unchanged. A fresh
+inventory of the same three mount sequences retains 358 variants, all pending.
+Base now has 15,364 window declarations and Awakening 17,185. The retained
+`.q4ui` documents those changes touched are outside this lexical GUI inventory.
+
+The current manifest's immutable predecessor is
+`18f000a7ff3b99f1da25a73282a0eca1dc1244f0:docs/dev/ui/migration-manifest.json`.
+The reproducible revision is under `.tmp/merge-ab/ui/`. The register adds
+`inventory-audio-voice-merge`; all earlier evidence and the 349 requirements
+retain their scope/status. This refresh grants no GUI migration or product
+acceptance.
 
 ## 21 October 2026 Android Settings revision
 

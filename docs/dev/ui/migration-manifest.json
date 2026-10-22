@@ -2,11 +2,11 @@
   "schema_version": 2,
   "status": "Reconciled lexical inventory; migration acceptance remains governed separately by UI-11.",
   "previous_manifest": {
-    "revision": "96b53793884e82c69d296f6ac3db3a581dec44a5",
-    "git_blob": "14e2d5724514f69c9e2bdc3feaa8f72644d88d9e",
+    "revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
+    "git_blob": "4200af14c7264d82cfd18ebdb81965eb3abd19ef",
     "path": "docs/dev/ui/migration-manifest.json"
   },
-  "source_snapshot_sha256": "f977f001f0146c19010ac40814f33a528c9fd30bb0524c42d6359af9752a9c5b",
+  "source_snapshot_sha256": "7090286870446dd84e494ad552e82c8eb873be21ce6b509300bbd1ecdba2f956",
   "denominator_policy": "Unique effective (path, transitive include text identity) variants across named configurations.",
   "configurations": {
     "awakening": {
@@ -189,7 +189,7 @@
         "guis/maps/waste/lasers.gui@888b956a9cd321fc7afa7f005b04382b365fc5f0d17ef503794899fa2b21a1be",
         "guis/matchcontrol.gui@cd766a25fa4322e0201e462ade13e5bfc2ccd602838bfbb86e54df751cdd81d3",
         "guis/mcchealth.gui@06d4b02b5e7f292fc7e1b2ec9342c9affe64329a642a2bed77805901ccbdc72c",
-        "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+        "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
         "guis/menu/settings/controls.gui@1df0651a69fe36ae75c64c865b7912e4bb006f23a47c58f95f0990209acf4e39",
         "guis/menu/settings/game.gui@72e190a15b7a99d4fdd80fc7af9503bc81261e1e39243fc08b915b43cab84c99",
         "guis/menu/settings/game_hovers.gui@ccc124fd8df43d47828f32d777e9d126f030b503a7d173e357968bd3a3002cd3",
@@ -496,7 +496,7 @@
         "guis/loading/generic.gui@82702b947d5ea5625320b0e162fe82083c537373676cbf3651325fc95ddc2c97",
         "guis/loading/intro.gui@3082d12b93baa7094fadd81ab6ec8456ce463f1d45816a89528275991caf6bff",
         "guis/loading/mplevel.gui@55c96bce99d6b6614d48c2e7d28361f2534d9f913e5d457a95450345b1aedb47",
-        "guis/mainmenu.gui@f1fc04b7e9aa46e7e7f91b17313d9f56999ae99b261b799988b559ea9710bcba",
+        "guis/mainmenu.gui@a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
         "guis/maps/airdefense/gun_monitor.gui@b027f8ab4950f19cabe2e71c1160a3d28498c1af394f6e92ebbfe36b02fa1e2d",
         "guis/maps/airdefense/gun_schematic.gui@5fc8b697ad56b60701d94bd801e817f2fef76dc052a545ce3eb15f64f2970f1c",
         "guis/maps/bldg_b/barriercontrol.gui@ffec1122a1ff7093ec7f754bcc2aba159c902826200ca084fdfeebc8f86664c9",
@@ -557,7 +557,7 @@
         "guis/maps/waste/bridge.gui@352127e78691e6528192a766385da803240794bdb3bb1538e8be42ac71a0f7fb",
         "guis/maps/waste/lasers.gui@888b956a9cd321fc7afa7f005b04382b365fc5f0d17ef503794899fa2b21a1be",
         "guis/matchcontrol.gui@cd766a25fa4322e0201e462ade13e5bfc2ccd602838bfbb86e54df751cdd81d3",
-        "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+        "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
         "guis/menu/settings/controls.gui@1df0651a69fe36ae75c64c865b7912e4bb006f23a47c58f95f0990209acf4e39",
         "guis/menu/settings/game.gui@72e190a15b7a99d4fdd80fc7af9503bc81261e1e39243fc08b915b43cab84c99",
         "guis/menu/settings/game_hovers.gui@ccc124fd8df43d47828f32d777e9d126f030b503a7d173e357968bd3a3002cd3",
@@ -698,7 +698,7 @@
         "guis/movers/strogg/call_lift.gui@1456151fe6fd57c3c8ff24a38eae69e4558b46206edd6f225f1d470c973f5e34",
         "guis/movers/strogg/call_lift_blue.gui@0e7e5bdbb3d0392c60cfefaa8a00db830729f9a5cefe7c3e6e0cd34f424cccf6",
         "guis/mphud.gui@ea787dfaa462a17a86ae6e411678e616af1d5306964dd9673b3c3c1b405da15e",
-        "guis/mpmain.gui@fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
+        "guis/mpmain.gui@64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
         "guis/mpmsgmode.gui@5da0d01d6cd2797aa0128d789805a92617abb94b2330818046175c4b456734d3",
         "guis/msg.gui@803911ed987a06b777ba264c921ac6db266827cf8fc11d9e3af09d69dc160504",
         "guis/netmenu.gui@6faeff21f1487d0334c48ed3955715a01c0e843510393a25b00732245d896b90",
@@ -1052,7 +1052,15 @@
   "changes": {
     "awakening": {
       "added": [],
-      "changed": [],
+      "changed": [
+        {
+          "path": "guis/menu/settings/audio.gui",
+          "before": [
+            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+          ],
+          "after": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc"
+        }
+      ],
       "absent_previous_paths": []
     },
     "base": {
@@ -1061,11 +1069,27 @@
         {
           "path": "guis/mainmenu.gui",
           "before": [
-            "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
+            "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756",
             "c4bf96513314718eea55df2ace0a7a44562d1e95fd5657194f472019a1c617c6",
             "cdb02c665f19e8a0b2b007faed528492206778c9000d890abe88cf718da43516"
           ],
-          "after": "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756"
+          "after": "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646"
+        },
+        {
+          "path": "guis/menu/settings/audio.gui",
+          "before": [
+            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+          ],
+          "after": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc"
+        },
+        {
+          "path": "guis/mpmain.gui",
+          "before": [
+            "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154",
+            "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
+            "b732316d9b0695ae078a92310f727e4f708002895113d909c832a352186a7adc"
+          ],
+          "after": "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab"
         }
       ],
       "absent_previous_paths": [
@@ -2573,10 +2597,10 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mainmenu.gui@f1fc04b7e9aa46e7e7f91b17313d9f56999ae99b261b799988b559ea9710bcba",
+      "resource_id": "guis/mainmenu.gui@a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
       "source": "openq4-pak0/loose",
-      "source_sha256": "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756",
-      "source_closure_sha256": "f1fc04b7e9aa46e7e7f91b17313d9f56999ae99b261b799988b559ea9710bcba",
+      "source_sha256": "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646",
+      "source_closure_sha256": "a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
       "includes": [
         "guis/menu/settings/controls.gui",
         "guis/menu/settings/game.gui",
@@ -3884,10 +3908,10 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+      "resource_id": "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
       "source": "openq4-pak0/loose",
-      "source_sha256": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b",
-      "source_closure_sha256": "43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+      "source_sha256": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+      "source_closure_sha256": "977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
       "includes": [],
       "source_diagnostics": [],
       "configurations": [
@@ -7276,14 +7300,16 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mpmain.gui@984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
-      "source": "retail/pak021.pk4",
-      "source_sha256": "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
-      "source_closure_sha256": "984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
-      "includes": [],
+      "resource_id": "guis/mpmain.gui@64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
+      "source": "openq4-pak0/loose",
+      "source_sha256": "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab",
+      "source_closure_sha256": "64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
+      "includes": [
+        "guis/matchcontrol.gui"
+      ],
       "source_diagnostics": [],
       "configurations": [
-        "retail"
+        "base"
       ]
     },
     {
@@ -7295,16 +7321,14 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mpmain.gui@fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
-      "source": "openq4-pak0/loose",
-      "source_sha256": "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154",
-      "source_closure_sha256": "fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
-      "includes": [
-        "guis/matchcontrol.gui"
-      ],
+      "resource_id": "guis/mpmain.gui@984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
+      "source": "retail/pak021.pk4",
+      "source_sha256": "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
+      "source_closure_sha256": "984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
+      "includes": [],
       "source_diagnostics": [],
       "configurations": [
-        "base"
+        "retail"
       ]
     },
     {

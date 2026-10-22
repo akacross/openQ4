@@ -1,14 +1,14 @@
 {
   "schema_version": 19,
   "id_namespace": "openq4.ui.product",
-  "date": "2026-10-21",
+  "date": "2026-10-22",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "6728676eed4075d79409d8538d0631531e3bee11",
-    "companion_revision": "96b53793884e82c69d296f6ac3db3a581dec44a5",
+    "engine_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
+    "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
-    "inventory_refresh_evidence": "inventory-android-setup-return"
+    "inventory_refresh_evidence": "inventory-audio-voice-merge"
   },
   "normative_sources": {
     "visual": {
@@ -29,7 +29,7 @@
     "inventory": {
       "path": "docs/dev/ui/inventory-report.md",
       "authority": "inventory method and scope limits",
-      "sha256": "df872a15f06bc8ac5fc9a5ff5c6e9d75f254356a92d358924e1a305bee768720"
+      "sha256": "c21db9d7e83077101c4e523c003934dc3351b5cbc4f92138cc8f5c874d9fb4bf"
     },
     "import": {
       "path": "docs/dev/ui/legacy-import.md",
@@ -1087,7 +1087,7 @@
     "inventory-stage-one": {
       "kind": "source_inventory_revision",
       "path": "docs/dev/ui/inventory-sources.json",
-      "sha256": "0df472f0c3d6d6a036dfce1842f7c000d5cea47b8c6b8c019fe8ad5a0810c973",
+      "sha256": "c56c91ea71d483fa9f7febe814e8815c01771bafe6f0d24e308cdbadbec4eb52",
       "scope": "264 retail, 276 base and 324 Awakening effective sources; 358 unique include-bound variants. No product or resource acceptance."
     },
     "audio-subtitles-playback": {
@@ -1099,7 +1099,12 @@
     "inventory-android-setup-return": {
       "path": "docs/dev/ui/inventory-sources.json",
       "scope": "Fresh retail/base/Awakening source inventory and changed Android Settings include closure; no migration or product acceptance.",
-      "sha256": "0df472f0c3d6d6a036dfce1842f7c000d5cea47b8c6b8c019fe8ad5a0810c973"
+      "sha256": "c56c91ea71d483fa9f7febe814e8815c01771bafe6f0d24e308cdbadbec4eb52"
+    },
+    "inventory-audio-voice-merge": {
+      "path": "docs/dev/ui/inventory-sources.json",
+      "scope": "Fresh retail/base/Awakening source inventory after combining the Stage 2 and audio/voice lines; changed main, audio-settings and multiplayer include closures; no migration or product acceptance.",
+      "sha256": "c56c91ea71d483fa9f7febe814e8815c01771bafe6f0d24e308cdbadbec4eb52"
     }
   },
   "groups": {
@@ -2139,10 +2144,11 @@
       "current_evidence": [
         "inventory-refresh",
         "inventory-stage-one",
-        "inventory-android-setup-return"
+        "inventory-android-setup-return",
+        "inventory-audio-voice-merge"
       ],
       "acceptance_evidence": [],
-      "remaining": "The 21 October Android Settings source refresh retains 358 pending variants. Complete native semantic reconciliation and product acceptance remain required."
+      "remaining": "The 22 October audio/voice merge source refresh retains 358 pending variants. Complete native semantic reconciliation and product acceptance remain required."
     },
     {
       "id": "INV-002",
