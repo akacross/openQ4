@@ -12098,6 +12098,10 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
  			kick *= g_knockback.GetFloat() * knockback * attackerPushScale / 200.0f;
 			
 			physicsObj.SetLinearVelocity( physicsObj.GetLinearVelocity() + kick );
+			if ( gameLocal.isMultiplayer && botManager.IsBot( entityNumber ) ) {
+				// A thrown bot may need to fight its fall; see rvBot::RecoverInAir.
+				botManager.OnPlayerKnockback( this );
+			}
 			if ( gameLocal.isMultiplayer && bot_debug.GetInteger() >= 2 && botManager.IsBot( entityNumber ) ) {
 				// Friendly fire and armour can suppress health damage while the
 				// impulse still moves a bot. Keep that cause visible to fall audits.

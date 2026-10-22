@@ -405,6 +405,7 @@ struct rvBot {
     int padHoldSince=0,stuckTime=0,stuckChecks=0,unstickUntil=0,traversalStartTime=0;
     int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
     bool airRecovering=false;
+    int knockbackTime=0;
     int LiquidAtFeet() const { return 0; }
     idVec3 padApproachLaunch,padApproachLanding;
     float goalUtility=0,goalBestDistance=idMath::INFINITY,stuckCornerDistance=idMath::INFINITY;
@@ -941,6 +942,12 @@ void TestAirRecovery() {
     Reset(); idPlayer self; self.pfl.onGround=false; self.physics.velocity={300,0,180};
     rvBot bot; bot.path.Append({0,0,0}); bot.path.Append({200,0,0});
     usercmd_t cmd; airLandingUnsafe=true;
+    // Only a knockback starts it: a pad launch's first frame reads as a fall
+    // over the gap before its traversal is marked started.
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.forwardmove==0);
+    bot.knockbackTime=gameLocal.time-BOT_AIR_RECOVER_KNOCK_MSEC-1;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
+    bot.knockbackTime=gameLocal.time-100;
     CHECK(bot.RecoverInAir(&self,cmd) && cmd.forwardmove<0 && cmd.rightmove==0 && cmd.upmove==0);
     // An arc that comes down on the floor is left to the route.
     bot.airRecovering=false; airLandingUnsafe=false; cmd={}; CHECK(!bot.RecoverInAir(&self,cmd) && cmd.forwardmove==0);

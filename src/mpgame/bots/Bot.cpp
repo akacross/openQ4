@@ -68,6 +68,7 @@ static const float	BOT_EDGE_LOOKAHEAD		= 0.15f;	// seconds of velocity the void-
 static const float	BOT_SAFE_FALL			= 512.0f;	// floor this far down is a fall, not the void (NAV_MAX_DROP)
 static const float	BOT_AIR_RECOVER_STOP_SPEED = 60.0f;	// a recovered fall's touchdown brake ends below this speed
 static const int	BOT_AIR_RECOVER_RUNOUT_MSEC = 600;	// and at most this long after touchdown
+static const int	BOT_AIR_RECOVER_KNOCK_MSEC = 1500;	// a fall this soon after a knockback may be braked
 static const int	BOT_DODGE_LAUNCH_MSEC	= 128;		// a rejected jump input must not hold walking forever
 static const int	BOT_DODGE_FLIGHT_MSEC	= 1600;		// DodgeJumpClear proves at most 96 sixteen-ms flight steps
 static const int	BOT_ENEMY_MEMORY_MSEC	= 3000;		// base for how long a lost enemy is chased, scaled by pursuit
@@ -614,6 +615,7 @@ rvBot::rvBot( void ) {
 	probeAirborneSeen	= false;
 	airRecoverReported	= 0;
 	airRecovering		= false;
+	knockbackTime		= 0;
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -921,6 +923,7 @@ void rvBot::OnSpawn( void ) {
 	probeAirborneSeen	= false;
 	airRecoverReported	= 0;
 	airRecovering		= false;
+	knockbackTime		= 0;
 	airRecoverLanded	= 0;
 	outmatched			= false;
 	selfStrong			= false;
@@ -4716,8 +4719,10 @@ down on the floor again with full air input against the horizontal velocity,
 which is the most the player's air acceleration can take back.  Once begun
 the brake holds for the whole fall - releasing it when the prediction first
 read safe let the throw carry a bot over a lower ledge's edge - and through
-a short runout after touchdown.  Committed traversals and voluntary dodge
-hops keep their own flight controllers.
+a short runout after touchdown.  Only an applied knockback starts it: a
+pad's launch reads as a fall over the void on the frame before its
+traversal is marked started, and braking it dropped bots into the gap.
+Committed traversals and voluntary dodge hops keep their own controllers.
 ================
 */
 bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
@@ -4751,7 +4756,8 @@ bool rvBot::RecoverInAir( idPlayer *self, usercmd_t &cmd ) {
 		return false;
 	}
 	idVec3 touchdown;
-	if ( !airRecovering && !BotAirLandingUnsafe( self, touchdown ) ) {
+	if ( !airRecovering && ( !knockbackTime || gameLocal.time - knockbackTime > BOT_AIR_RECOVER_KNOCK_MSEC ||
+		 !BotAirLandingUnsafe( self, touchdown ) ) ) {
 		return false;
 	}
 	if ( !airRecovering ) {
@@ -6909,6 +6915,7 @@ void rvBot::ShiftMatchTime( int deltaMsec ) {
 	SHIFT_BOT_TIME( padApproachSince );
 	SHIFT_BOT_TIME( padApproachTime );
 	SHIFT_BOT_TIME( airRecoverLanded );
+	SHIFT_BOT_TIME( knockbackTime );
 
 	SHIFT_BOT_TIME( goalSelectedTime );
 	for ( int i = 0; i < ROAM_HISTORY; i++ ) {
@@ -8308,6 +8315,11 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		bot.probeAirDirection.Set( airDirection->x, airDirection->y, 0.0f );
 		bot.probeAirDirection.Normalize();
 	}
+	if ( travel == NAVTRAVEL_WALK && !dodge && !airDirection ) {
+		// A walking probe replays a post-impulse state: the thrown bot's own
+		// recovery is what it measures.
+		bot.knockbackTime = gameLocal.time;
+	}
 	bot.probeWatch = true;
 	bot.probeStartTime = gameLocal.time;
 	bot.probeAirborneSeen = false;
@@ -8624,6 +8636,13 @@ void rvBotManager::OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int da
 	}
 
 	bots[victim->entityNumber].OnDamaged( source, damage, dir );
+}
+
+void rvBotManager::OnPlayerKnockback( idPlayer *victim ) {
+	if ( !gameLocal.isMultiplayer || gameLocal.isClient || !victim || !IsBot( victim->entityNumber ) ) {
+		return;
+	}
+	bots[victim->entityNumber].knockbackTime = gameLocal.time;
 }
 
 /*

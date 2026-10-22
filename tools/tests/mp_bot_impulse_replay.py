@@ -85,9 +85,13 @@ def is_enemy(victim: int, attacker: int, at_time: int, gametype: str, reports) -
         return False, "non-player impulse"
     if gametype.strip().upper() in FREE_FOR_ALL_MODES:
         return True, "free-for-all opponent"
+    # The report at or before the impulse; before the first one, the first
+    # report (teams are assigned before anyone can fire).
     teams = None
     for stamp, block in reports:
         if stamp > at_time:
+            if teams is None:
+                teams = block
             break
         teams = block
     if not teams or victim not in teams or attacker not in teams:

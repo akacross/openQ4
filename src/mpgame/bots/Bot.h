@@ -361,6 +361,7 @@ private:
 	bool					probeAirborneSeen;	// the probed bot has left the ground since the probe
 	int						airRecoverReported;	// last airborne-recovery start logged, so one line per fall
 	bool					airRecovering;		// braking a knocked fall until it has stopped on the ground
+	int						knockbackTime;		// last applied knockback, which alone can start that brake
 	int						airRecoverLanded;	// when that fall touched down, 0 while still airborne
 
 	// -- combat --
@@ -533,6 +534,9 @@ public:
 	// already expired: reactions forgiven, goals abandoned, stuck checks fired.
 	void					ShiftMatchTime( int deltaMsec );
 	void					OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int damage, const idVec3 &dir );
+	// Called from idPlayer::Damage whenever knockback is applied to a bot,
+	// including impulses that friendly fire or armour leave without damage.
+	void					OnPlayerKnockback( idPlayer *victim );
 
 	// Called once for an accepted typed-chat line on the server.  It chooses at
 	// most one visible bot to answer and lets that bot's character content,

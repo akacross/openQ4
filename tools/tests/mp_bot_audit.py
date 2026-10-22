@@ -316,6 +316,13 @@ def main() -> int:
 
     navmesh = re.search(r"^rvNavMesh: (\d+) nodes, (\d+) links[^\n]*in (\d+) ms", clean, re.M)
 
+    # Objectives and combat: the last report's team scores (CTF captures,
+    # DeadZone/One Flag points) and the bots' own scores.
+    team_scores = re.findall(r"^MP_STATE time=\d+ .*? marine=(-?\d+) strogg=(-?\d+)", sample, re.M)
+    last_report = sample.split("MP_STATE time=")[-1] if "MP_STATE time=" in sample else ""
+    bot_scores = {slot: int(score) for slot, score in
+                  re.findall(r"^MP_PLAYER slot=(\d+) bot=1 .*? score=(-?\d+) ", last_report, re.M)}
+
     # The server's own clock against the real-time report interval: below 1
     # the simulation could not keep up with real time.
     game_times = [int(v) for v in re.findall(r"^MP_STATE time=(\d+) ", sample, re.M)]
@@ -347,6 +354,9 @@ def main() -> int:
                     "build_ms": int(navmesh.group(3))} if navmesh else None,
         "navmesh_line": next(iter(re.findall(r"^rvNavMesh: [^\n]*nodes[^\n]*$", clean, re.M)), ""),
         "kills": len(kills),
+        "team_scores": ({"marine": int(team_scores[-1][0]), "strogg": int(team_scores[-1][1])}
+                        if team_scores else None),
+        "bot_scores": bot_scores,
         "world_deaths": len(died), "suicides": len(suicides),
         "warmup_world_deaths": len(warmup_died),
         "complete_run_world_deaths": len(all_died),
@@ -379,7 +389,7 @@ def main() -> int:
         "log": str(log_path),
     }
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    summary = {key: report[key] for key in ("map", "gametype", "bots", "navmesh_line", "kills",
+    summary = {key: report[key] for key in ("map", "gametype", "bots", "navmesh_line", "kills", "team_scores",
                                              "world_deaths", "warmup_world_deaths", "complete_run_world_deaths",
                                              "navigation_world_deaths", "excluded_impulse_deaths",
                                              "suicides", "nav_events",
