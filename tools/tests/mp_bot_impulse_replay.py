@@ -19,6 +19,9 @@ is excluded as impulse-caused only when BOTH hold:
    observation window - the death was recoverable and stays a navigation
    failure. A trial that fails to arm, or a session that does not complete,
    leaves the death a navigation failure too (fail closed).
+3. The impulse makes the difference: the same moment without it (the logged
+   velocity minus its kick, at the health before the hit) lands in at least
+   one of three counterfactual trials. Otherwise the bot was already lost.
 
 Everything else - no impulse, a self/team/world impulse, an impulse outside
 the window, a missing replay - is a navigation/control death. Every excluded
@@ -53,7 +56,7 @@ FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown me
 
 IMPULSE = re.compile(
     r"^BOT_IMPULSE client=(\d+) time=(-?\d+) attacker=(-?\d+) damage=(-?\d+) origin=(\S+) (\S+) (\S+) "
-    r"kick=\S+ \S+ \S+ velocity=(\S+) (\S+) (\S+) def=(\S+)(?: health=(-?\d+))?(?: knock=(\d+))?", re.M)
+    r"kick=(\S+) (\S+) (\S+) velocity=(\S+) (\S+) (\S+) def=(\S+)(?: health=(-?\d+))?(?: knock=(\d+))?", re.M)
 WORLD_DEATH = re.compile(r"^(\S+) (?:was killed by world|died|drowned|dissolved in slime|burned in lava)$", re.M)
 WORLD_HIT = re.compile(r"^bot (\S+): hit by world for \d+ at (\S+) (\S+) (\S+) .*\(time (\d+)\)$", re.M)
 ROSTER = re.compile(r"^\s*(\d+)\s+(\S+)\s+\S+\s+\S+\s+[\d.]+\s*$", re.M)
@@ -127,9 +130,10 @@ def classify(clean: str, names: set[str], gametype: str, window_msec: int = IMPU
     reports = team_reports(clean)
     impulses = [{"client": int(m.group(1)), "time": int(m.group(2)), "attacker": int(m.group(3)),
                  "damage": int(m.group(4)), "origin": [float(m.group(i)) for i in (5, 6, 7)],
-                 "velocity": [float(m.group(i)) for i in (8, 9, 10)], "def": m.group(11),
-                 "health": int(m.group(12)) if m.group(12) else None,
-                 "knock_msec": int(m.group(13)) if m.group(13) else None, "offset": m.start()}
+                 "kick": [float(m.group(i)) for i in (8, 9, 10)],
+                 "velocity": [float(m.group(i)) for i in (11, 12, 13)], "def": m.group(14),
+                 "health": int(m.group(15)) if m.group(15) else None,
+                 "knock_msec": int(m.group(16)) if m.group(16) else None, "offset": m.start()}
                 for m in IMPULSE.finditer(clean)]
     deaths = world_deaths(clean, names)
     results = []
@@ -187,6 +191,24 @@ def trials_for(impulse: dict) -> list[dict]:
         knock = impulse.get("knock_msec")
         for trial in trials:
             trial["setup"] = [f"bot_probeHealth 1 {health}" + (f" {knock}" if knock else "")]
+    # The counterfactual: the same moment without the impulse. A bot already
+    # falling into nothing before a machine gun's tap was not thrown by it.
+    kick = impulse.get("kick")
+    if kick is not None:
+        px, py, pz = (vx - kick[0], vy - kick[1], vz - kick[2])
+        before = f"{ox:.3f} {oy:.3f} {oz:.3f} {px:.3f} {py:.3f} {pz:.3f}"
+        flat = math.hypot(px, py)
+        bx, by = ((-px / flat, -py / flat) if flat > 1.0 else (0.0, 0.0))
+        counterfactual = [
+            {"name": "preNone", "command": f"bot_probeAir 1 {before} 0 0 0"},
+            {"name": "preBrake", "command": f"bot_probeAir 1 {before} {bx:.4f} {by:.4f} 0"},
+            {"name": "preController", "command": f"bot_probeMove 1 {before} {ox:.3f} {oy:.3f} {oz:.3f}"},
+        ]
+        for trial in counterfactual:
+            trial.update(decisive=False, counterfactual=True)
+            if health is not None and health >= 1:
+                trial["setup"] = [f"bot_probeHealth 1 {health + max(0, impulse.get('damage', 0))}"]
+        trials += counterfactual
     return trials
 
 
@@ -225,7 +247,7 @@ def decide(candidate: dict, outcomes: list[dict] | None, session_ok: bool) -> di
     if len(decisive) != AIR_HEADINGS + 1 or not all(o["armed"] for o in decisive):
         decided.update(status="navigation", reason="an impulse replay trial did not arm (fail closed)")
         return decided
-    survivors = [o["name"] for o in outcomes if o["survived"]]
+    survivors = [o["name"] for o in outcomes if o["survived"] and not o.get("counterfactual")]
     if survivors:
         decided.update(status="navigation",
                        reason="recoverable: replay survived with " + ", ".join(survivors))
@@ -233,8 +255,17 @@ def decide(candidate: dict, outcomes: list[dict] | None, session_ok: bool) -> di
     if not all(o["died"] for o in decisive):
         decided.update(status="navigation", reason="a decisive trial neither survived nor died (fail closed)")
         return decided
+    # The impulse has to make the difference: the same moment without it
+    # must be survivable, or the bot was already lost to navigation.
+    before = [o for o in outcomes if o.get("counterfactual")]
+    if not before or not any(o["survived"] for o in before):
+        decided.update(status="navigation",
+                       reason="unrecoverable after the impulse, but not shown survivable without it (fail closed)")
+        return decided
     decided.update(status="excluded-impulse",
-                   reason="enemy impulse; every fixed air input and no input fell to the world in replay")
+                   reason="enemy impulse; every fixed air input and no input fell to the world in replay, "
+                          "and the same moment without the impulse landed (" +
+                          ", ".join(o["name"] for o in before if o["survived"]) + ")")
     return decided
 
 

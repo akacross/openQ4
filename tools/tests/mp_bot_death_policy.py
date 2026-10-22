@@ -44,13 +44,15 @@ def classify(log: str, gametype: str = "CTF") -> list[dict]:
 
 
 def outcomes(died: bool = True, survivor: str | None = None, unarmed: str | None = None,
-             missing: str | None = None, airborne: str | None = None) -> list[dict]:
+             missing: str | None = None, airborne: str | None = None,
+             before: str | None = "preNone") -> list[dict]:
+    """Replay outcomes; `before` names the counterfactual trial that lands (None: none do)."""
     rows = []
-    for trial in policy.trials_for({"origin": [0, 0, 0], "velocity": [0, 0, 0]}):
+    for trial in policy.trials_for({"origin": [0, 0, 0], "velocity": [0, 0, 0], "kick": [0, 0, 0]}):
         if trial["name"] == missing:
             continue
         armed = trial["name"] != unarmed
-        survived = trial["name"] == survivor
+        survived = trial["name"] in (survivor, before if trial.get("counterfactual") else None)
         fell = died and not survived and trial["name"] != airborne
         rows.append({**trial, "armed": armed, "died": fell if armed else None, "grounded": survived,
                      "survived": survived and armed})
@@ -69,7 +71,19 @@ def main() -> None:
     check(candidate["status"] == "impulse-candidate" and candidate["impulse"]["attacker"] == 2,
           "an enemy impulse inside the window makes a replay candidate")
     check(policy.decide(candidate, outcomes(), True)["status"] == "excluded-impulse",
-          "an unrecoverable replay excludes the death")
+          "an unrecoverable replay excludes the death when the moment before the impulse landed")
+    # Counterfactual negative controls: a bot already doomed before the
+    # impulse - a machine gun tapping a falling bot - is a navigation death.
+    check(policy.decide(candidate, outcomes(before=None), True)["status"] == "navigation",
+          "a fall already unrecoverable without the impulse stays a navigation death")
+    check(policy.decide(candidate, outcomes(before="preBrake", unarmed="preBrake"), True)["status"] == "navigation",
+          "an unarmed counterfactual trial cannot show the impulse made the difference")
+    check(policy.decide(candidate, [o for o in outcomes() if not o.get("counterfactual")], True)["status"] ==
+          "navigation", "no counterfactual trials fail closed")
+    pre = [t for t in policy.trials_for({"origin": [1, 2, 3], "velocity": [300, 0, 100], "kick": [250, 0, 50],
+                                         "health": 40, "damage": 20}) if t.get("counterfactual")]
+    check(len(pre) == 3 and "50.000 0.000 50.000" in pre[0]["command"] and
+          pre[0]["setup"] == ["bot_probeHealth 1 60"], "the counterfactual removes the kick and the hit's damage")
     # Negative controls: the same impulse with a recoverable replay still fails.
     check(policy.decide(candidate, outcomes(survivor="air05"), True)["status"] == "navigation",
           "a surviving fixed-input trial keeps the death a navigation failure")
@@ -121,10 +135,12 @@ def main() -> None:
     [hurt] = classify(state(1000, teams) + impulse(1, 2000, 2).replace("def=damage_rocketSplash",
                       "def=damage_rocketSplash health=9") + death("Cortez", 4500))
     check(hurt["impulse"]["health"] == 9 and all(t.get("setup") == ["bot_probeHealth 1 9"]
-          for t in policy.trials_for(hurt["impulse"])), "replays run at the victim's post-hit health")
+          for t in policy.trials_for(hurt["impulse"]) if not t.get("counterfactual")),
+          "replays run at the victim's post-hit health")
     [slid] = classify(state(1000, teams) + impulse(1, 2000, 2).replace("def=damage_rocketSplash",
                       "def=damage_rocketSplash health=76 knock=200") + death("Cortez", 4500))
-    check(all(t.get("setup") == ["bot_probeHealth 1 76 200"] for t in policy.trials_for(slid["impulse"])),
+    check(all(t.get("setup") == ["bot_probeHealth 1 76 200"] for t in policy.trials_for(slid["impulse"])
+              if not t.get("counterfactual")),
           "replays restore the knockback time that removes ground friction")
     check(all("setup" not in t for t in policy.trials_for(candidate["impulse"])),
           "an impulse without logged health replays at spawn health")
@@ -146,7 +162,7 @@ def main() -> None:
                                 policy.decide(candidate, outcomes(survivor="air00"), True)])
     check(summary["navigation_world_deaths"] == 1 and summary["excluded_impulse_deaths"] == 1,
           "the summary counts excluded deaths separately and keeps the rest")
-    print("mp_bot_death_policy: OK (positive control excluded; 9 replay and 9 log negative controls fail closed)")
+    print("mp_bot_death_policy: OK (positive control excluded; 12 replay and 9 log negative controls fail closed)")
 
 
 if __name__ == "__main__":
