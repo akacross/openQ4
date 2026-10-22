@@ -667,6 +667,8 @@ def validate_validation_wiring() -> None:
         "audio_streaming.py",
         "audio_subtitles_runtime.py",
         "voice_chat_runtime.py",
+        "voice_chat_soak.py",
+        "voice_mixed_version.py",
         "german_localization_smoke.py",
         "localization_smoke.py",
         "level_editor_runtime.py",

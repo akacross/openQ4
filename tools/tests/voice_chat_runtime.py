@@ -108,6 +108,8 @@ def main() -> int:
     parser.add_argument('--port', type=int, default=28941)
     parser.add_argument('--timeout', type=int, default=360)
     parser.add_argument('--dedicated', action='store_true', help='use the staged dedicated server and three separate clients')
+    parser.add_argument('--render-api', default='gl', help='client r_renderApi; vulkan renders hidden windows offscreen, '
+                        'which avoids hidden GL present stalls while the display is off')
     args = parser.parse_args()
     output, runtime = args.output.resolve(), ROOT / '.install'
     verify_runtime_is_current(runtime)
@@ -138,7 +140,7 @@ def main() -> int:
         'fs_basepath': str(args.assets.resolve()), 'fs_game': 'baseoq4', 'com_gameMode': 'MP',
         'r_fullscreen': '0', 'r_borderless': '0', 'r_fullscreenDesktop': '0', 'r_borderlessDefaultMigrated': '1',
         'r_mode': '-1', 'r_customWidth': '960', 'r_customHeight': '540', 'r_windowWidth': '960', 'r_windowHeight': '540',
-        'r_hiddenWindow': '1', 'r_renderApi': 'gl', 'r_multiSamples': '0', 'r_swapInterval': '0', 'com_maxfps': '60',
+        'r_hiddenWindow': '1', 'r_renderApi': args.render_api, 'r_multiSamples': '0', 'r_swapInterval': '0', 'com_maxfps': '60',
         'in_mouse': '0', 'in_joystick': '0', 'in_joystickRumble': '0', 's_noSound': '0', 's_muteUnfocused': '0',
         's_volume': '.5', 's_musicVolume': '0', 's_voiceChatCapture': '0', 's_voiceChatSend': '1', 's_voiceChatReceive': '1',
         's_voiceChatEcho': '0', 's_voiceVolume': '1', 'logFile': '2', 'logFileName': 'logs/openq4.log', 'developer': '1',

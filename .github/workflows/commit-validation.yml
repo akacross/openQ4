@@ -431,6 +431,9 @@ jobs:
             tools/tests/audio_subtitles_runtime.py \
             tools/tests/voice_capture_lifecycle.py \
             tools/tests/voice_chat_runtime.py \
+            tools/tests/voice_chat_soak.py \
+            tools/tests/voice_mixed_version.py \
+            tools/tests/voice_protocol_gating_contract.py \
             tools/tests/voice_transport.py \
             tools/tests/ui_performance_presets.py \
             tools/tests/ui_system_number_fields.py \
@@ -848,6 +851,7 @@ jobs:
           python tools/tests/audio_subtitles.py
           python tools/tests/voice_capture_lifecycle.py
           python tools/tests/voice_transport.py
+          python tools/tests/voice_protocol_gating_contract.py
           python tools/tests/ui_performance_presets.py --mutations --adjacent
           python tools/tests/ui_system_number_fields.py
           python tools/tests/ui_system_presets.py

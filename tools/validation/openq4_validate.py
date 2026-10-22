@@ -715,6 +715,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         (root / "tools" / "ui" / 'build_subtitles.py', ['--check']),
         (root / "tools" / "tests" / 'voice_capture_lifecycle.py', []),
         (root / "tools" / "tests" / 'voice_transport.py', []),
+        (root / "tools" / "tests" / 'voice_protocol_gating_contract.py', []),
         (root / "tools" / "tests" / 'ui_performance_presets.py', ['--mutations', '--adjacent']),
         (root / "tools" / "tests" / 'ui_system_number_fields.py', []),
         (root / "tools" / "tests" / 'ui_system_presets.py', []),
