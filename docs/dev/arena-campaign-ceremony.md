@@ -350,6 +350,35 @@ logs, verbatim observations, harness, retail manifest and tested runtime hashes
 (SHA-256 `5d20a29e24750608005782766f2ca99d2c5b05892379f5a185e48098ef23b9fe`).
 These are functional checks, not performance or endpoint-reconnection evidence.
 
+## Runtime clock checks, 22 October 2026
+
+On the merged A+B build, `arena_sound_runtime.py` passed 1 of 4 GL runs and
+the Vulkan run. Each failure was one cycle: the game clock rose 554-585 ms
+over the 1 s resume hold, or the menu clock 3,198-3,262 ms over the 3.5 s
+pause. Both world clocks derive from one stamp the sound system takes once per
+frame, before the frame presents, but the harness compared them with `waitMsec`
+wall time. The laptop was in Modern Standby with its display off, and there the
+hidden GL window's present stalled for about 450 ms at intervals. Whenever a
+stall fell at either end of a window, the reading lost that whole frame.
+Vulkan renders hidden windows offscreen and never presents.
+
+`s_soundWorlds` now also prints `stamp` (that frame stamp) and `now` (wall
+time). The harness checks each clock against its stamp and each wait against
+wall time:
+
+- the menu clock tracks the stamp through the pause;
+- the game clock never carries the paused interval forward;
+- the game world unpauses within the resume hold minus 200 ms, measured from the
+  stamp its clock uses (the old 800 ms window);
+- a second resume sample shows the game clock running with the stamp.
+
+The report records the measured unpause latency. After the change, GL passed 7 of 7
+runs in the same display-off state and Vulkan passed 1 of 1; the unpause took
+12-39 ms. Two of those GL runs would have failed the old checks: the samples
+read stamps 456-459 ms stale while the unpause itself took 25-31 ms. Reports:
+`.tmp/mrt/arena-gl-fix-*`, `arena-gl-fixb-*` and `arena-vk-fix-1` in the
+`1388` worktree.
+
 ## Known gaps
 
 - Endpoint loss/return and other audio devices remain unqualified. The headphone

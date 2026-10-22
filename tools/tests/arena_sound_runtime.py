@@ -71,7 +71,8 @@ def main() -> int:
                    f"waitMsec {hold}", f"echo ARENA_SAMPLE_pause{cycle}b", "openq4_arenaCeremony status",
                    "s_soundWorlds", f'screenshot "screenshots/arena-pause{cycle}.tga"',
                    "openq4_retainedGui event onBack", f"waitMsec {resume_hold}",
-                   f"echo ARENA_SAMPLE_resume{cycle}", "openq4_arenaCeremony status", "s_soundWorlds", "listPlayingSounds"]
+                   f"echo ARENA_SAMPLE_resume{cycle}", "openq4_arenaCeremony status", "s_soundWorlds", "listPlayingSounds",
+                   "waitMsec 500", f"echo ARENA_SAMPLE_resume{cycle}b", "s_soundWorlds"]
     # Victory review (6 s), scoreboard (5 s), stats (6 s), fades and the
     # browser handoff must finish before observing the archived result.
     script += [f"openq4_arenaCeremony {args.outcome}", "waitMsec 30000", "echo ARENA_SAMPLE_result",
@@ -163,8 +164,10 @@ def main() -> int:
     if args.listening_cue and ("godmode ON" not in text or "Player was killed" in text or "ARENA_LISTENING_LOOP_STARTED" not in text):
         report["failures"].append("listening cue or living-player control did not start or persist")
     for marker, block in re.findall(r"ARENA_SAMPLE_(\w+)\s*\n(.*?)(?=ARENA_SAMPLE_|\Z)", text, re.S):
-        rows = re.findall(r"SOUND_WORLD id=(\d+) paused=(\d+) time=(-?\d+) active=(\d+) channels=(\d+)", block)
-        report["samples"][marker] = {world: dict(zip(("paused", "time", "active", "channels"), map(int, values)))
+        rows = re.findall(r"SOUND_WORLD id=(\d+) paused=(\d+) time=(-?\d+) active=(\d+) channels=(\d+)"
+                          r"(?: stamp=(-?\d+) now=(-?\d+))?", block)
+        report["samples"][marker] = {world: {name: int(value) for name, value in
+                                             zip(("paused", "time", "active", "channels", "stamp", "now"), values) if value}
                                      for world, *values in rows}
         state = re.search(r"arena campaign: ceremony phase (\d+) state (\d+) pending (\d+) reported (\d+) outcome (\d+) paused (\d+) clock (\S+)", block)
         if state:
@@ -176,17 +179,35 @@ def main() -> int:
                                  for name in ("live", "resume1", "resume2")}
         if not all(report["cue_samples"].values()):
             report["failures"].append("persistent cue missing from the live or resumed voice list")
+    report["resume_latency_ms"] = {}
     try:
         for cycle, hold in pauses:
-            first, last, resumed = (samples[f"{name}{cycle}{suffix}"] for name, suffix in (("pause", "a"), ("pause", "b"), ("resume", "")))
+            first, last, resumed, later = (samples[f"{name}{cycle}{suffix}"] for name, suffix in
+                                           (("pause", "a"), ("pause", "b"), ("resume", ""), ("resume", "b")))
             assert first["1"]["paused"] == last["1"]["paused"] == 1
             assert first["1"]["time"] == last["1"]["time"]
             assert first["1"]["active"] == last["1"]["active"] == 0
             assert first["2"]["paused"] == last["2"]["paused"] == 0
             assert first["2"]["active"] == last["2"]["active"] == 1
-            assert last["2"]["time"] - first["2"]["time"] >= hold - 100
+            # Both world clocks derive from one stamp the sound system takes once
+            # per frame, while waitMsec counts wall time. Compare each clock with
+            # its stamp and the waits with wall time: comparing the two kinds lost
+            # a whole frame at either end (~450 ms when a hidden GL window
+            # presented with the display asleep).
+            assert last["2"]["time"] - first["2"]["time"] == last["2"]["stamp"] - first["2"]["stamp"] > 0
+            assert last["2"]["now"] - first["2"]["now"] >= hold - 100
             assert resumed["1"]["paused"] == 0 and resumed["1"]["active"] == 1
-            assert resumed["1"]["time"] - last["1"]["time"] >= 800
+            advanced = resumed["1"]["time"] - last["1"]["time"]
+            # Resuming never carries the paused interval into the game clock.
+            assert 0 < advanced <= resumed["1"]["stamp"] - last["1"]["stamp"]
+            # The game world unpaused at stamp (resume stamp - advanced). Keep the
+            # old window: running for at least 200 ms of the resume hold.
+            latency = resumed["1"]["stamp"] - advanced - last["1"]["now"]
+            report["resume_latency_ms"][str(cycle)] = latency
+            assert latency <= resume_hold - 200
+            # Once resumed, the game clock runs with the live stamp.
+            assert later["1"]["paused"] == 0
+            assert later["1"]["time"] - resumed["1"]["time"] == later["1"]["stamp"] - resumed["1"]["stamp"] > 0
             old_world, new_world = (report["world_samples"][f"pause{cycle}{suffix}"] for suffix in ("a", "b"))
             assert old_world == new_world and old_world["paused"] == 1
             assert report["world_samples"][f"resume{cycle}"]["paused"] == 0

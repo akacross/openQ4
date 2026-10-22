@@ -386,6 +386,8 @@ static void SoundDistances_f( const idCmdArgs& args )
 // Report the production sound clocks without changing focus, routing or playback.
 // Together with listPlayingSounds this distinguishes a frozen world from a
 // world that merely became inaudible when another world acquired the output.
+// Both clocks derive from one stamp taken once per frame in Render(); stamp and
+// now let a caller compare them with wall-clock waits across long frames.
 static void SoundWorlds_f( const idCmdArgs& args ) {
 	(void)args;
 	const int worldIds[] = { SOUNDWORLD_MENU, SOUNDWORLD_GAME };
@@ -398,9 +400,10 @@ static void SoundWorlds_f( const idCmdArgs& args ) {
 		for ( int e = 0; e < world->emitters.Num(); ++e ) {
 			channels += world->emitters[e]->channels.Num();
 		}
-		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d\n",
+		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d stamp=%d now=%d\n",
 			id, world->IsPaused() ? 1 : 0, world->GetSoundTime(),
-			soundSystemLocal.GetPlayingSoundWorld() == world ? 1 : 0, channels );
+			soundSystemLocal.GetPlayingSoundWorld() == world ? 1 : 0, channels,
+			soundSystemLocal.SoundTime(), Sys_Milliseconds() );
 	}
 }
 
