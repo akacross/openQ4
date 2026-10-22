@@ -48,6 +48,7 @@ IMPULSE_WINDOW_MSEC = 6000
 AIR_HEADINGS = 16
 TRIAL_OBSERVE_MSEC = 6000
 TRIAL_RESPAWN_MSEC = 3000  # each trial gets a freshly added bot
+TRIAL_REMOVE_MSEC = 2500   # the removed client takes a moment to leave its slot
 FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown membership fails closed
 
 IMPULSE = re.compile(
@@ -262,7 +263,7 @@ def replay_session(runtime: Path, executable: str, basepath: Path, output: Path,
                    # A bot that died, or walked off later, would refuse or
                    # spoil the next trial: replace it with a fresh one.
                    # The removed client takes a moment to leave its slot.
-                   "removebot Rhodes", "waitMsec 2500", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
+                   "removebot Rhodes", f"waitMsec {TRIAL_REMOVE_MSEC}", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
     script += ["echo MP_BOT_REPLAY_END", "quit"]
     (game / "impulse_replay.cfg").write_text("\n".join(script) + "\n", encoding="utf-8")
     cvars = {
@@ -315,7 +316,10 @@ def classify_log(clean: str, names: set[str], gametype: str, map_name: str, runt
             continue
         trials = trials_for(candidate["impulse"])
         folder = output / f"replay-{index:02d}-{candidate['victim']}"
-        timeout = 90 + len(trials) * (TRIAL_OBSERVE_MSEC + TRIAL_RESPAWN_MSEC + 200) // 1000
+        # Map load, then per trial: the observation, the bot's removal and
+        # replacement, with half again as slack for a busy machine.
+        per_trial = TRIAL_OBSERVE_MSEC + TRIAL_REMOVE_MSEC + TRIAL_RESPAWN_MSEC + 200
+        timeout = 150 + len(trials) * per_trial * 3 // 2000
         completed, sample_log, code = replay_session(runtime, executable, basepath, folder, map_name, gametype,
                                                      trials, port, timeout)
         sample = sample_log.partition("\nMP_BOT_REPLAY_BEGIN\n")[2]
