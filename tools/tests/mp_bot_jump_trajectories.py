@@ -38,6 +38,7 @@ def main() -> None:
         "bool rvNavMesh::DodgeJumpClear(",
         "bool rvNavMesh::PadLanding(",
         "bool rvNavMesh::LandingSurvivable(",
+        "bool rvNavMesh::AirInputLandingSafe(",
     ))
     header = (ROOT / "src/mpgame/bots/NavMesh.h").read_text(encoding="utf-8")
     bodies = function(header, "ID_INLINE bool NavAirSteer(").replace("ID_INLINE ", "") + "\n" + bodies

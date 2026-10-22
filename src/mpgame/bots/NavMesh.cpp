@@ -1019,7 +1019,10 @@ falling after three seconds is a fall into nothing.
 ================
 */
 bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocityIn, const idVec3 &wishIn,
-									 float maxImpactDelta, idVec3 *touchdown ) const {
+									 float maxImpactDelta, idVec3 *touchdown, bool *landedSupported ) const {
+	if ( landedSupported ) {
+		*landedSupported = false;
+	}
 	const idVec3 gravity = gameLocal.GetGravity();
 	if ( gravity.Length() <= 1.0f ) {
 		return true;
@@ -1027,10 +1030,13 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 	idVec3 wish( wishIn.x, wishIn.y, 0.0f );
 	const bool steering = wish.Normalize() > 0.0f;
 	const float speed = Max( 1.0f, pm_speed.GetFloat() );
-	const float dt = NAV_PAD_STEP_SECONDS;
+	// Two frames a step: a knocked bot asks for nine of these at once, and
+	// the swept hull, not the step, finds the floor.
+	const float dt = NAV_PAD_STEP_SECONDS * 2.0f;
 	idVec3 position = origin + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
 	idVec3 velocity = velocityIn;
-	for ( int frame = 0; frame < 190; frame++ ) {
+	int unstuck = 0;
+	for ( int frame = 0; frame < 100; frame++ ) {
 		if ( steering ) {
 			const float add = speed - velocity * wish;
 			if ( add > 0.0f ) {
@@ -1052,14 +1058,23 @@ bool rvNavMesh::AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocit
 				 NavLandingImpactDelta( trace, velocity + gravity * ( dt * trace.fraction ), gravity ) > maxImpactDelta ) {
 				return false;
 			}
+			if ( landedSupported ) {
+				*landedSupported = true;
+			}
 			idVec3 flat( velocity.x, velocity.y, 0.0f );
 			const idVec3 stop = trace.endpos + flat * ( dt + flat.Length() / ( 20.0f * speed ) );
 			return LandingContinuationClear( trace.endpos, stop );
 		}
-		if ( trace.fraction <= 0.0f && velocity * trace.c.normal >= 0.0f ) {
-			return false;		// wedged
+		if ( trace.fraction <= 0.0f ) {
+			// Resting against the wall it slid down: step off its plane, as
+			// the player's own clip epsilon does, rather than read a wedge.
+			if ( ++unstuck > 8 ) {
+				return false;
+			}
+			position += trace.c.normal * CM_CLIP_EPSILON;
+		} else {
+			position = trace.endpos;
 		}
-		position = trace.endpos;
 		velocity -= trace.c.normal * ( velocity * trace.c.normal );
 		velocity += gravity * dt;
 	}

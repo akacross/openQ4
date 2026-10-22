@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#ifndef CM_CLIP_EPSILON
+#define CM_CLIP_EPSILON 0.25f // CollisionModel.h
+#endif
 #include <string>
 #include <vector>
 #undef INFINITY
@@ -200,6 +203,7 @@ public:
     bool DodgeJumpClear(const idVec3&,const idVec3&,const idVec3&,float,float=0) const;
     bool PadLanding(idEntity*,const idVec3&,const idVec3*,idVec3&,float* = nullptr,float* = nullptr) const;
     bool LandingSurvivable(const idVec3&,const navCorner_t&,float) const;
+    bool AirInputLandingSafe(const idVec3&,const idVec3&,const idVec3&,float,idVec3* = nullptr,bool* = nullptr) const;
     bool steeredPad=false;
     bool IsSteeredPadLanding(int,const idVec3&) const { return steeredPad; }
     static const idBounds& GetAgentBounds() { return agentBounds; }
@@ -589,6 +593,40 @@ int main() {
     CHECK(!NavRimNode({-36,0,0}));
     CHECK(!NavDropBeside({-36,0,0},{16,0,0}));
     CHECK(nav.WalkableLine({-44,-100,0},{-44,100,0},&why));
+    {   // A knocked fall (q4ctf5/q4dm8): which fixed air input comes down on
+        // supported, affordable ground with room to stop, on this world.
+        const float inf=std::numeric_limits<float>::infinity();
+        const idVec3 thrown{250,0,150};
+        idVec3 touch; bool supported=false;
+        solids.clear(); Platform(-256,0,0); Platform(-256,1024,-128);
+        CHECK(nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,&touch,&supported) && supported);
+        CHECK(std::fabs(touch.z+128)<1 && touch.x>150 && touch.x<230); // the coast's own touchdown
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},0.0f,nullptr,&supported) && !supported); // unaffordable impact
+        lethal=true; CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,nullptr,&supported) && !supported); lethal=false;
+        // Nothing below: a fall into the void never lands.
+        solids.clear(); Platform(-256,0,0);
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,nullptr,&supported) && !supported);
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{-1,0,0},inf,nullptr,&supported) && !supported);
+        // A ledge beyond the coast's touchdown is reached only by input along
+        // the throw, and a ledge short of it only by braking: the input decides.
+        Platform(215,1024,-128);
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf));
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{-1,0,0},inf));
+        CHECK(nav.AirInputLandingSafe({-10,0,0.25f},thrown,{1,0,0},inf,&touch) && touch.x>215);
+        solids.clear(); Platform(-256,0,0); Platform(40,130,-128);
+        CHECK(!nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf));
+        CHECK(nav.AirInputLandingSafe({-10,0,0.25f},thrown,{-1,0,0},inf,&touch) && touch.x<130);
+        // Supported ground without room to stop is reported as such.
+        solids.clear(); Platform(-256,0,0); Platform(168,196,-128);
+        bool safe=nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,&touch,&supported);
+        CHECK(!safe && supported);
+        // A wall in the throw's path is slid down, not landed on: the fall
+        // still ends on the floor below, in front of the wall.
+        solids.clear(); Platform(-256,0,0); Platform(-256,1024,-128); solids.push_back({{60,-256,-128},{80,256,400}});
+        nav.AirInputLandingSafe({-10,0,0.25f},thrown,{},inf,&touch);
+        CHECK(std::fabs(touch.z+128)<1 && touch.x<60);
+        std::puts("Knocked falls: fixed air input lands only on supported, affordable floor with room to stop; void, walls and input choice: PASS");
+    }
     std::puts("Player hulls and jump/drop trajectories: unsupported corners/rims rejected, broad landings/gaps retained: PASS");
     return 0;
 }

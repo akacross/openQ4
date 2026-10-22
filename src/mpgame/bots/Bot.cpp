@@ -4738,9 +4738,10 @@ BotChooseAirInput
 
 The air input a knocked bot holds for the rest of its fall: braking against
 the throw first, then the eight headings nearest to that, then none - the
-first whose simulated fall lands safely.  Braking is not always the answer:
-a rail's kick over q4ctf5's gap left the far walkway, not the near one,
-within reach.  With no safe input it brakes anyway.
+first whose simulated fall lands safely, else the first that at least comes
+down on supported ground.  Braking is not always the answer: a rail's kick
+over q4ctf5's gap left the far walkway, not the near one, within reach.
+With nothing that lands it brakes anyway.
 ================
 */
 static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
@@ -4752,6 +4753,8 @@ static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
 	}
 	const float limit = BotMaxSafeFallDelta( self );
 	static const float turns[8] = { 0.0f, 45.0f, -45.0f, 90.0f, -90.0f, 135.0f, -135.0f, 180.0f };
+	bool haveSupported = false;
+	idVec3 supported = brake;
 	for ( int i = 0; i < 9; i++ ) {
 		idVec3 candidate = vec3_origin;
 		if ( i < 8 ) {
@@ -4759,12 +4762,20 @@ static void BotChooseAirInput( idPlayer *self, idVec3 &wish ) {
 			const float s = idMath::Sin( DEG2RAD( turns[i] ) );
 			candidate.Set( brake.x * c - brake.y * s, brake.x * s + brake.y * c, 0.0f );
 		}
-		if ( navMesh.AirInputLandingSafe( origin, velocity, candidate, limit ) ) {
+		bool landed = false;
+		if ( navMesh.AirInputLandingSafe( origin, velocity, candidate, limit, NULL, &landed ) ) {
 			wish = candidate;
 			return;
 		}
+		if ( landed && !haveSupported ) {
+			// Supported floor without the stopping reserve still beats the
+			// void: the touchdown runout brakes on it. A q4dm8 rocket left
+			// only such a ledge within reach.
+			haveSupported = true;
+			supported = candidate;
+		}
 	}
-	wish = brake;
+	wish = supported;
 }
 
 /*
