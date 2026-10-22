@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Hier erscheinen deine Spielstände sowie die Kontrollpunkte und automatischen Speicherungen der Kampagne."
 	"#str_231102"	"Der Level dieses Spielstands ist nicht installiert."
 	"#str_231103"	"Dieser Spielstand ist beschädigt oder stammt aus einer inkompatiblen Version."
+	"#str_231190"	"Dieser Spielstand konnte nicht wiederhergestellt werden. Wähle einen anderen Spielstand oder starte ein neues Spiel."
+	"#str_231191"	"LADEN FEHLGESCHLAGEN"
 	"#str_231104"	"Dieser Spielstand konnte nicht gelesen werden."
 	"#str_231105"	"Dieser Spielstand konnte nicht gelöscht werden."
 	"#str_231106"	"NEUERE SPIELSTÄNDE"
@@ -1383,4 +1385,5 @@
 	"#str_231310"	"Untertitelhintergrund"
 	"#str_231311"	"Sprechernamen"
 	"#str_231312"	"Funk"
+	"#str_231400"	"Android-Einrichtung"
 }

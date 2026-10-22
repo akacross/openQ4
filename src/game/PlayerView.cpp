@@ -1038,6 +1038,11 @@ void idPlayerView::VRView( idUserInterface *hud, const renderView_t *view, const
 
 	for ( int eye = 0; eye < VR_NUM_EYES; eye++ ) {
 		if ( !renderSystem->SetVRRenderTarget( eye ) ) {
+			// Tiled screenshots deliberately render to the desktop. The XR
+			// pose can still be valid, but no eye target belongs to this draw.
+			if ( eye == 0 ) {
+				SingleView( hud, view, RF_NO_GUI | RF_PRIMARY_VIEW );
+			}
 			break;
 		}
 		renderView_t eyeView = *view;

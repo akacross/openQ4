@@ -287,6 +287,8 @@ def validate_game_wiring() -> None:
     require(movement, "bounds.GetCenter() - origin", "rvBot::UpdateMovement volume entry steering")
     # Grounded movement never walks off into the void or a kill volume.
     require(movement, "BotBrakeAtEdge( self, moveDir )", "rvBot::UpdateMovement void-edge guard")
+    require_order(movement, "BotBrakeAtEdge( self, brakeDir )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
     require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
     # A bot waits short of a pad while someone flies its corridor the other way.

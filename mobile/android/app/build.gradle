@@ -3,6 +3,8 @@ import groovy.json.JsonSlurper
 
 plugins { id 'com.android.application' }
 
+apply from: rootProject.file('package-manifest.gradle')
+
 def sdlRoot = providers.gradleProperty('sdl3SourceRoot').orNull
 if (sdlRoot == null) {
     throw new GradleException('Set -Psdl3SourceRoot to the SDL3 source tree used for the native build.')
@@ -12,9 +14,15 @@ if (!new File(sdlJava, 'org/libsdl/app/SDLActivity.java').isFile()) {
     throw new GradleException('sdl3SourceRoot must contain SDL3 Android Java sources.')
 }
 def abi = providers.gradleProperty('openq4Abi').getOrElse('arm64-v8a')
-if (abi != 'arm64-v8a') {
-    throw new GradleException('openQ4 currently supports the arm64-v8a Android ABI.')
+if (!(abi in ['arm64-v8a', 'x86_64'])) {
+    throw new GradleException('openQ4 supports arm64-v8a phones and diagnostic x86_64 emulators only.')
 }
+def emulator = abi == 'x86_64'
+def packageVariant = emulator ? 'emulator' : 'phone'
+def moduleArch = emulator ? 'x64' : 'arm64'
+def nativeLibraries = ['libquake4.so', 'libSDL3.so', "librenderer-gles_${moduleArch}.so",
+                       "libgame-sp_${moduleArch}.so", "libgame-mp_${moduleArch}.so",
+                       'libopenal.so', 'libc++_shared.so'].collect { it.toString() }.toSet()
 def nativeStage = file(providers.gradleProperty('openq4Stage').getOrElse("../../../.install/android/${abi}"))
 def nativeMetadataFile = new File(nativeStage, 'android-build.json')
 def modMetadataFile = new File(nativeStage, 'baseoq4/mod.json')
@@ -22,7 +30,9 @@ if (!nativeMetadataFile.isFile() || !modMetadataFile.isFile()) {
     throw new GradleException('Missing native build metadata; run the Android Meson install step first.')
 }
 def nativeMetadata = new JsonSlurper().parse(nativeMetadataFile)
+def stagedVariant = nativeMetadata.containsKey('variant') ? nativeMetadata.variant : 'phone'
 if (nativeMetadata.format != 1 || nativeMetadata.abi != abi ||
+        stagedVariant != packageVariant ||
         !(nativeMetadata.androidApi instanceof Number) || nativeMetadata.androidApi < 24 ||
         nativeMetadata.androidApi > 35) {
     throw new GradleException('Unsupported staged Android ABI/API metadata (this host supports API 24 through 35).')
@@ -78,12 +88,10 @@ tasks.register('stageOpenQ4Native', Sync) {
     from(new File(nativeStage, 'lib')) { include '*.so' }
     into(generatedJni.map { it.dir(abi) })
     doFirst {
-        ['libquake4.so', 'libSDL3.so', 'librenderer-gles_arm64.so',
-         'libgame-sp_arm64.so', 'libgame-mp_arm64.so', 'libopenal.so',
-         'libc++_shared.so'].each { name ->
-            if (!new File(nativeStage, "lib/${name}").isFile()) {
-                throw new GradleException("Missing ${name}; build and stage native Android targets with Meson first.")
-            }
+        def actual = fileTree(new File(nativeStage, 'lib')).matching { include '**/*' }
+            .files.collect { new File(nativeStage, 'lib').toPath().relativize(it.toPath()).toString() }.toSet()
+        if (actual != nativeLibraries) {
+            throw new GradleException("Expected exactly the seven ${abi} native libraries; missing ${nativeLibraries - actual}, unexpected ${actual - nativeLibraries}.")
         }
     }
 }
@@ -92,10 +100,16 @@ tasks.register('stageOpenQ4Assets', Sync) {
     from(new File(nativeStage, 'baseoq4')) { into 'baseoq4' }
     from(new File(nativeStage, 'licenses')) { into 'licenses' }
     from(nativeStage) { include 'LICENSE', 'LICENSING.md', 'CONTRIBUTORS.md', 'android-build.json' }
+    // Setup is visible before the engine unpacks pak0. Reuse its exact faces,
+    // rather than checking in duplicate fonts or depending on extracted data.
+    from({ zipTree(new File(nativeStage, 'baseoq4/pak0.pk4')) }) {
+        include 'fonts/marine.ttf', 'fonts/lowpixel.ttf'
+    }
     into(generatedAssets)
     doFirst {
         ['baseoq4/pak0.pk4', 'baseoq4/pak1.pk4', 'baseoq4/mod.json',
-         'LICENSE', 'LICENSING.md', 'CONTRIBUTORS.md', 'licenses/QUAKE-4-SDK-EULA.rtf'].each { name ->
+         'LICENSE', 'LICENSING.md', 'CONTRIBUTORS.md', 'licenses/QUAKE-4-SDK-EULA.rtf',
+         'licenses/MD4.txt'].each { name ->
             if (!new File(nativeStage, name).isFile()) {
                 throw new GradleException("Missing staged ${name}; run the Meson install step first.")
             }
@@ -105,18 +119,17 @@ tasks.register('stageOpenQ4Assets', Sync) {
         }
     }
     doLast {
-        // Each APK gets a content-addressed private package directory. A failed
-        // extraction can be retried; an upgrade never reads stale old PK4s.
-        def digest = MessageDigest.getInstance('SHA-256')
-        fileTree(new File(nativeStage, 'baseoq4')).files.sort { it.path }.each { asset ->
-            digest.update(new File(nativeStage, 'baseoq4').toPath().relativize(asset.toPath()).toString().replace('\\', '/').getBytes('UTF-8'))
-            asset.withInputStream { input ->
-                byte[] buffer = new byte[65536]
-                int count
-                while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count)
+        ['fonts/marine.ttf', 'fonts/lowpixel.ttf'].each { name ->
+            if (!new File(generatedAssets.get().asFile, name).isFile()) {
+                throw new GradleException("Missing setup typeface in staged pak0: ${name}")
             }
         }
-        new File(generatedAssets.get().asFile, 'openq4-package-version.txt').text = digest.digest().encodeHex().toString()
+        // Each APK gets a content-addressed private package directory. A failed
+        // extraction or damaged copy can be repaired from the verified manifest.
+        byte[] manifest = openQ4PackageManifest(new File(generatedAssets.get().asFile, 'baseoq4'))
+        new File(generatedAssets.get().asFile, 'openq4-package-manifest.txt').bytes = manifest
+        new File(generatedAssets.get().asFile, 'openq4-package-version.txt').setText(
+            MessageDigest.getInstance('SHA-256').digest(manifest).encodeHex().toString(), 'US-ASCII')
     }
 }
 
@@ -125,7 +138,10 @@ android {
     compileSdk 35
     buildToolsVersion "35.0.0"
     defaultConfig {
-        applicationId 'com.darkmatter.openq4'
+        // An emulator installation has its own data/saves and cannot update a
+        // phone installation. Keep the established phone identity unchanged.
+        applicationId emulator ? 'com.darkmatter.openq4.emulator' : 'com.darkmatter.openq4'
+        manifestPlaceholders = [openq4AppLabel: emulator ? '@string/app_name_emulator' : '@string/app_name']
         minSdk nativeMetadata.androidApi.intValue()
         targetSdk 35
         versionCode versionCodeText.toInteger()
@@ -141,6 +157,10 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+    bundle {
+        // The setup language switch must work offline, before game data exists.
+        language { enableSplit = false }
     }
     packaging {
         // Engine/game renderer modules are dlopen'ed from nativeLibraryDir.
@@ -158,6 +178,14 @@ android {
         release { minifyEnabled false }
     }
 }
+// A diagnostic ABI has no release APK or bundle task, even when explicitly
+// requested by a caller that supplies signing credentials.
+androidComponents {
+    beforeVariants(selector().withBuildType('release')) { variant ->
+        if (emulator) variant.enable = false
+    }
+}
+
 tasks.named('preBuild').configure {
     dependsOn 'stageOpenQ4Native', 'stageOpenQ4Assets', 'stageOpenQ4Icon'
 }

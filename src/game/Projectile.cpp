@@ -191,9 +191,10 @@ void idProjectile::Restore( idRestoreGame *savefile ) {
 	savefile->ReadFloat( damagePower );
 
 	savefile->ReadRenderLight( renderLight );
-
-	savefile->ReadInt( (int &)lightDefHandle );
-	if ( lightDefHandle != -1 ) {
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedLightDefHandle;
+	savefile->ReadInt( savedLightDefHandle );
+	if ( savedLightDefHandle != -1 ) {
 		//get the handle again as it's out of date after a restore!
 		lightDefHandle = gameRenderWorld->AddLightDef( &renderLight );
 	}

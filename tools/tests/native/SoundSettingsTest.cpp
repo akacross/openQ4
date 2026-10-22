@@ -41,6 +41,7 @@ class idSoundHardware_OpenAL {
 public:
 	ALCdevice* openalDevice=nullptr; ALCcontext* openalContext=nullptr;
 	bool initFailed=false,deferredUpdatesActive=false,efxFiltersAvailable=true,efxEnabled=false;
+	bool devicePauseRequested=false;
 	ALuint auxEffectSlot=0,auxReverbEffect=0;
 	int openedSpeakerCount=2,openedHrtfMode=0,lastResetTime=0;
 	List<idSoundVoice_OpenAL> voices; List<idSoundVoice_OpenAL*> zombieVoices,freeVoices;

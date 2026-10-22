@@ -101,6 +101,7 @@ static const float	NAV_PAD_RIDE_SHORT		= 8.0f;		// a ridden arc may come down th
 static const float	NAV_PAD_RIDE_SIDE		= 32.0f;	// and this far beside it: a hull
 static const float	NAV_PAD_RIDE_OVERSHOOT	= 128.0f;	// past that it came down somewhere else
 static const float	NAV_PAD_AIR_ACCELERATE	= 1.18f;	// PM_AIRACCELERATE_MP: what a steering player adds in flight
+static const float	NAV_DODGE_RUNOUT_SECONDS = 0.15f;	// grounded edge guard's momentum lookahead after a hop
 static const int	NAV_MAX_LANDMARKS		= 8;
 static const int	NAV_LANDMARK_STRIDE		= 2 * NAV_MAX_LANDMARKS;	// floats per node row: from, to per landmark
 static const int	NAV_PRICING_MIN_BUDGET	= 2048;		// exact-search expansions one goal decision may spend
@@ -181,6 +182,20 @@ static const idClipModel *NavTravelVolumeClip( idEntity *ent ) {
 		return static_cast<rvJumpPad *>( ent )->GetForceFieldClipModel();
 	}
 	return ent->GetPhysics() ? ent->GetPhysics()->GetClipModel() : NULL;
+}
+
+// A pad applies its velocity every frame that the player hull touches its
+// actual brush, including a sloped trigger's upper portion during takeoff.
+static bool NavPadVolumeTouches( idEntity *pad, const idVec3 &position ) {
+	const idClipModel *clip = NavTravelVolumeClip( pad );
+	if ( !clip ) {
+		return false;
+	}
+	idBounds hull = rvNavMesh::GetAgentBounds();
+	hull.TranslateSelf( position );
+	return hull.IntersectsBounds( clip->GetAbsBounds() ) &&
+		collisionModelManager->Contents( position, &navAgentTrace, mat3_identity, -1,
+			clip->GetCollisionModel(), clip->GetOrigin(), clip->GetAxis() ) != 0;
 }
 
 /*
@@ -339,7 +354,9 @@ static bool NavFloorSupported( const idVec3 &floor ) {
 	// rise rather than mistaking a probe that begins inside it for no floor.
 	const float lift = Max( step, navSupportBounds[1].x * 2.0f ) + NAV_GROUND_OFFSET;
 	const idVec3 start = floor + idVec3( 0.0f, 0.0f, lift );
-	const idVec3 end = floor - idVec3( 0.0f, 0.0f, step );
+	// Include a tread exactly one step lower inside the sweep, not at its
+	// no-contact endpoint (also reached by side probes on a 45-degree slope).
+	const idVec3 end = floor - idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
 	return !NavTraceTranslation( trace, start, end, navSupportTrace, navSupportBounds ) &&
 		trace.fraction > 0.0f && trace.c.normal.z >= NAV_WALKABLE_NORMAL_Z &&
 		idMath::Fabs( trace.endpos.z - floor.z ) <= step + NAV_GROUND_OFFSET;
@@ -999,8 +1016,9 @@ bool rvNavMesh::LandingContinuationClear( const idVec3 &origin, const idVec3 &ne
 		// first would overlap the ceiling in a valid low corridor.
 		if ( !SampleFloor( points[i] + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET ),
 			step + 2.0f * NAV_GROUND_OFFSET, floors[i] ) ) {
-			// An item origin can float above its floor. Find that floor with
-			// the low support hull, then prove the full hull fits there.
+			// An item origin can float above its floor; an edge probe can sit
+			// below the player's standing height on a slope. Find the surface
+			// with the low support hull, then resample with the full hull.
 			trace_t trace;
 			const idVec3 start = points[i] + idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
 			const idVec3 end = points[i] - idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
@@ -1008,9 +1026,21 @@ bool rvNavMesh::LandingContinuationClear( const idVec3 &origin, const idVec3 &ne
 				trace.fraction <= 0.0f || trace.c.normal.z < NAV_WALKABLE_NORMAL_Z ) {
 				return false;
 			}
-			floors[i] = trace.endpos;
-			const idVec3 standing = floors[i] + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
-			if ( !NavAgentTranslation( trace, standing, standing ) ) {
+			// The two hulls contact a sloped plane at different origin heights.
+			// Account for their footprints before the full-hull sweep, instead
+			// of starting inside the slope. Raising by a whole step would
+			// reject a valid corridor with only a little headroom.
+			float supportOffset = idMath::INFINITY;
+			float agentOffset = idMath::INFINITY;
+			for ( int v = 0; v < navSupportTrace.numVerts; v++ ) {
+				supportOffset = Min( supportOffset, navSupportTrace.verts[v] * trace.c.normal );
+			}
+			for ( int v = 0; v < navAgentTrace.numVerts; v++ ) {
+				agentOffset = Min( agentOffset, navAgentTrace.verts[v] * trace.c.normal );
+			}
+			const float rise = Max( 0.0f, ( supportOffset - agentOffset ) / trace.c.normal.z );
+			const idVec3 standing = trace.endpos + idVec3( 0.0f, 0.0f, rise + NAV_GROUND_OFFSET );
+			if ( !SampleFloor( standing, step + 2.0f * NAV_GROUND_OFFSET, floors[i] ) ) {
 				return false;
 			}
 		}
@@ -1538,8 +1568,13 @@ bool rvNavMesh::GapJumpClear( const idVec3 &start, const idVec3 &end, float runS
 		( jumpSpeed + idMath::Sqrt( discriminant + 2.0f * gravity * pm_stepsize.GetFloat() ) ) / gravity : landTime;
 	const int steps = Min( NAV_PAD_MAX_STEPS,
 		(int)idMath::Ceil( ( steppedLandTime + 0.1f ) / NAV_PAD_STEP_SECONDS ) );
+	const bool traceJump = actualVelocity && bot_debug.GetInteger() >= 4;
 	for ( int approach = 0; approach < ( actualVelocity ? 1 : 2 ); approach++ ) {
-		idVec3 position = takeoff + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
+		// A live proof starts at the player's exact collision origin. Raising
+		// it for floor-probe clearance can cross the air-step distance limit:
+		// the proof then clips speed at a wall which the player steps over.
+		idVec3 position = actualVelocity ? takeoff :
+			takeoff + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
 		idVec3 velocity = actualVelocity ? *actualVelocity : direction * ( approach ? wishSpeed : runSpeed );
 		velocity.z = jumpSpeed;
 		bool landed = false;
@@ -1599,6 +1634,11 @@ bool rvNavMesh::GapJumpClear( const idVec3 &start, const idVec3 &end, float runS
 				}
 				break;
 			}
+			if ( traceJump ) {
+				gameLocal.Printf( "NAV_JUMP_FRAME time=%d step=%d position=%.3f %.3f %.3f next=%.3f %.3f %.3f velocity=%.3f %.3f %.3f clear=%d fraction=%.4f\n",
+					gameLocal.time, step, position.x, position.y, position.z, next.x, next.y, next.z,
+					velocity.x, velocity.y, velocity.z, clear ? 1 : 0, trace.fraction );
+			}
 			if ( !clear ) {
 				landed = velocity.z < 0.0f && trace.fraction > 0.0f &&
 					trace.c.normal.z >= NAV_WALKABLE_NORMAL_Z &&
@@ -1642,8 +1682,8 @@ bool rvNavMesh::JumpTakeoffClear( const idVec3 &origin, const idVec3 &velocity,
 rvNavMesh::DodgeJumpClear
 
 The walking dodge probe covers 72 units; a running hop carries a player more
-than 200. Prove a supported, ordinary touchdown for the actual momentum and
-for a full-speed approach. These voluntary hops do not need to reach a lower
+than 200. Prove a supported touchdown and room for the remaining momentum,
+both for the actual velocity and for a full-speed approach. These voluntary hops do not need to reach a lower
 floor or use a transport, so stop at the normal flight time and fail closed.
 ================
 */
@@ -1697,6 +1737,19 @@ bool rvNavMesh::DodgeJumpClear( const idVec3 &origin, const idVec3 &velocity,
 					trace.endpos.z >= origin.z - pm_stepsize.GetFloat() &&
 					NavLandingSupported( trace.endpos ) && !IsLethalFloor( trace.endpos ) &&
 					TransportAt( standing ) < 0;
+				if ( landed ) {
+					// A rim touchdown can retain enough sideways speed to leave
+					// the floor before grounded steering can stop it. Reserve the
+					// same supported runway used by the grounded edge guard.
+					const idVec3 runout = trace.endpos +
+						idVec3( speed.x, speed.y, 0.0f ) * NAV_DODGE_RUNOUT_SECONDS;
+					landed = LandingContinuationClear( trace.endpos, runout );
+				}
+				if ( bot_debug.GetInteger() >= 4 ) {
+					gameLocal.Printf( "NAV_DODGE_LANDING approach=%d supported=%d origin=%.3f %.3f %.3f touchdown=%.3f %.3f %.3f velocity=%.3f %.3f %.3f\n",
+						approach, landed ? 1 : 0, origin.x, origin.y, origin.z,
+						trace.endpos.x, trace.endpos.y, trace.endpos.z, speed.x, speed.y, speed.z );
+				}
 				break;
 			}
 			position = next;
@@ -1867,11 +1920,18 @@ bool rvNavMesh::PadLanding( idEntity *pad, const idVec3 &launch, const idVec3 *s
 	}
 	idVec3 horizontal = diff - vert;
 	const float span = horizontal.Normalize();
-	idVec3 velocity = horizontal * ( span / flightTime ) - gravity * flightTime;
+	const idVec3 launchVelocity = horizontal * ( span / flightTime ) - gravity * flightTime;
+	idVec3 velocity = launchVelocity;
 
 	const float wishSpeed = Max( 1.0f, pm_speed.GetFloat() );
 	idVec3 position = launch + idVec3( 0.0f, 0.0f, NAV_GROUND_OFFSET );
 	for ( int step = 0; step < NAV_PAD_MAX_STEPS; step++ ) {
+		// Force_Field runs after player movement. The following command starts
+		// with the pad's velocity again if that movement still touched it.
+		// Missing these repeated pushes underestimates both range and impact.
+		if ( step > 0 && NavPadVolumeTouches( pad, position ) ) {
+			velocity = launchVelocity;
+		}
 		idVec3 wish;
 		if ( steerTo && NavAirSteer( position, velocity, *steerTo, g, wish ) ) {
 			// idPhysics_Player::Accelerate, Quake 2 style.
@@ -5092,6 +5152,35 @@ void rvNavMesh::Probe( const idVec3 &point, float radius ) const {
 
 	gameLocal.Printf( "navmesh probe %s: cell %g, support box %g, step %g\n",
 					  point.ToString( 0 ), cellSize, support, step );
+	for ( int t = 0; t < transports.Num(); t++ ) {
+		const navTransport_t &transport = transports[t];
+		if ( transport.travelType != NAVTRAVEL_JUMPPAD ||
+			 !transport.bounds.Expand( radius ).ContainsPoint( point ) ) {
+			continue;
+		}
+		idEntity *pad = gameLocal.entities[transport.entityNum];
+		idVec3 landing;
+		float flight = 0.0f, impact = 0.0f;
+		const bool landed = PadLanding( pad, point, NULL, landing, &flight, &impact );
+		gameLocal.Printf( "NAV_PROBE_PAD pad=%d from=%s landed=%d landing=%s flight=%.3f impact=%.3f\n",
+			transport.entityNum, point.ToString( 3 ), landed ? 1 : 0,
+			landed ? landing.ToString( 3 ) : "none", flight, impact );
+	}
+	for ( int kind = 0; kind < 2; kind++ ) {
+		trace_t trace;
+		const idVec3 start = point + idVec3( 0.0f, 0.0f, step + NAV_GROUND_OFFSET );
+		const idVec3 end = point - idVec3( 0.0f, 0.0f, 256.0f );
+		if ( kind == 0 ) {
+			NavAgentTranslation( trace, start, end );
+		} else {
+			NavTraceTranslation( trace, start, end, navSupportTrace, navSupportBounds );
+		}
+		const bool supported = trace.fraction > 0.0f && trace.fraction < 1.0f &&
+			trace.c.normal.z >= NAV_WALKABLE_NORMAL_Z && LandingContinuationClear( trace.endpos, trace.endpos );
+		gameLocal.Printf( "NAV_PROBE_SURFACE kind=%s point=%s floor=%s fraction=%.4f normal=%.3f %.3f %.3f continuation=%d\n",
+			kind == 0 ? "agent" : "support", point.ToString( 2 ), trace.endpos.ToString( 2 ), trace.fraction,
+			trace.c.normal.x, trace.c.normal.y, trace.c.normal.z, supported ? 1 : 0 );
+	}
 
 	for ( int i = 0; i < nodes.Num(); i++ ) {
 		idVec3 delta = nodes[i].origin - point;

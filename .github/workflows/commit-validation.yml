@@ -151,12 +151,23 @@ jobs:
             tools/tests/dmap_vertex_sharing.py \
             tools/tests/fatal_error_startup_safety.py \
             tools/tests/android_build.py \
+            tools/tests/android_emulator_smoke.py \
             tools/tests/android_touch_input.py \
+            tools/tests/android_touch_controls.py \
             tools/tests/audio_payload_restore.py \
             tools/tests/renderer_gles_dispatch.py \
             tools/tests/renderer_gles_alpha.py \
             tools/tests/renderer_gles_upload.py \
             tools/tests/android_host_storage.py \
+            tools/tests/android_retail_data.py \
+            tools/tests/android_retail_import.py \
+            tools/tests/android_document_source.py \
+            tools/tests/android_setup_task.py \
+            tools/tests/android_setup_flow.py \
+            tools/tests/android_touch_setup.py \
+            tools/tests/android_interface_setup.py \
+            tools/tests/android_private_export.py \
+            tools/tests/android_document_export.py \
             tools/tests/image_block_mips.py \
             tools/tests/filesystem_case_segments.py \
             tools/tests/filesystem_mod_manifest.py \
@@ -373,6 +384,8 @@ jobs:
             tools/tests/ui_settings_effect_journal.py \
             tools/tests/sound_settings.py \
             tools/tests/sound_recovery.py \
+            tools/tests/sound_distance.py \
+            tools/tests/sound_distance_runtime.py \
             tools/tests/sound_retail_reverb_contract.py \
             tools/tests/sound_screen_shake.py \
             tools/tests/audio_asset_inventory.py \
@@ -562,11 +575,21 @@ jobs:
           python tools/tests/fatal_error_startup_safety.py
           python tools/tests/android_build.py
           python tools/tests/android_touch_input.py
+          python tools/tests/android_touch_controls.py
           python tools/tests/audio_payload_restore.py
           python tools/tests/renderer_gles_dispatch.py
           python tools/tests/renderer_gles_alpha.py
           python tools/tests/renderer_gles_upload.py
           python tools/tests/android_host_storage.py
+          python tools/tests/android_retail_data.py
+          python tools/tests/android_retail_import.py
+          python tools/tests/android_document_source.py
+          python tools/tests/android_setup_task.py
+          python tools/tests/android_setup_flow.py
+          python tools/tests/android_touch_setup.py
+          python tools/tests/android_interface_setup.py
+          python tools/tests/android_private_export.py
+          python tools/tests/android_document_export.py
           python tools/tests/image_block_mips.py
           python tools/tests/filesystem_case_segments.py
           python tools/tests/filesystem_mod_manifest.py
@@ -763,6 +786,7 @@ jobs:
           python tools/tests/ui_settings_effect_journal.py
           python tools/tests/sound_settings.py
           python tools/tests/sound_recovery.py
+          python tools/tests/sound_distance.py
           python tools/tests/sound_retail_reverb_contract.py
           python tools/tests/sound_screen_shake.py
           python tools/tests/audio_decode_budget.py

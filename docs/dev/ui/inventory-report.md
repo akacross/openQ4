@@ -1,9 +1,24 @@
 # GUI replacement inventory
 
-Refreshed 18 October 2026. This is source inventory evidence, not conversion or
+Refreshed 21 October 2026. This is source inventory evidence, not conversion or
 product acceptance. The [roadmap](../roadmap.md) owns scheduling, the
 [visual specification](../ui-visual-design.md) owns current visual policy, and
 the register preserves the complete acceptance scope.
+
+## 21 October 2026 Android Settings revision
+
+The standalone Android setup action changes the base `guis/mainmenu.gui`
+variant. A fresh inventory of the same three mount sequences retains 358
+variants, all pending. Base now has 15,340 window declarations; retail and
+Awakening are unchanged. Awakening's own menu overrides this base entry and
+has not been qualified for the Android setup-return flow.
+
+The current manifest's immutable predecessor is
+`96b53793884e82c69d296f6ac3db3a581dec44a5:docs/dev/ui/migration-manifest.json`.
+Reports and the reproducible revision are under `.tmp/stage-two/ui-*`.
+The register adds `inventory-android-setup-return`; all earlier evidence and
+the 310 requirements retain their scope/status. This refresh grants no GUI
+migration or product acceptance.
 
 ## 18 October 2026 reconciliation
 
@@ -12,7 +27,7 @@ raw and newline-normalized SHA-256, include closures, special widgets and mount
 precedence. It contains metadata only. The [migration manifest](migration-manifest.json)
 uses unique `(path, transitive include text identity)` variants as its denominator;
 identical variants shared by configurations count once. Its immutable predecessor
-is Git blob `8c1a49ca7a033e163e271ef3787a4a9ba73f7479:docs/dev/ui/migration-manifest.json`.
+was Git blob `8c1a49ca7a033e163e271ef3787a4a9ba73f7479:docs/dev/ui/migration-manifest.json`.
 
 | Configuration, mounts low to high | Effective roots/includes | Window declarations | Render/editor widgets |
 | --- | ---: | ---: | --- |

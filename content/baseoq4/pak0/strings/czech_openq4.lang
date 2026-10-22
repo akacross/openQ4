@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Zde se zobrazují vaše uložené pozice a také kontrolní body a automatická uložení kampaně."
 	"#str_231102"	"Úroveň této uložené pozice není nainstalována."
 	"#str_231103"	"Tato uložená pozice je poškozená nebo pochází z nekompatibilní verze."
+	"#str_231190"	"Tuto uloženou pozici nelze obnovit. Vyberte jinou pozici nebo začněte novou hru."
+	"#str_231191"	"NAČÍTÁNÍ SELHALO"
 	"#str_231104"	"Tuto uloženou pozici nelze přečíst."
 	"#str_231105"	"Tuto uloženou pozici nelze smazat."
 	"#str_231106"	"NOVĚJŠÍ POZICE"
@@ -1383,4 +1385,5 @@
 	"#str_231310"	"Pozadí titulků"
 	"#str_231311"	"Jména mluvčích"
 	"#str_231312"	"Rádio"
+	"#str_231400"	"Nastavení Androidu"
 }

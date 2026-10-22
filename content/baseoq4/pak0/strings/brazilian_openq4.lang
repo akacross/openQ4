@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Seus jogos salvos e os pontos de controle e salvamentos automáticos da campanha aparecem aqui."
 	"#str_231102"	"O nível deste jogo salvo não está instalado."
 	"#str_231103"	"Este jogo salvo está danificado ou vem de uma versão incompatível."
+	"#str_231190"	"Não foi possível restaurar este jogo salvo. Escolha outro jogo salvo ou inicie um novo jogo."
+	"#str_231191"	"FALHA AO CARREGAR"
 	"#str_231104"	"Não foi possível ler este jogo salvo."
 	"#str_231105"	"Não foi possível excluir este jogo salvo."
 	"#str_231106"	"JOGOS SALVOS MAIS RECENTES"
@@ -1383,4 +1385,5 @@
 	"#str_231310"	"Fundo das legendas"
 	"#str_231311"	"Nomes dos falantes"
 	"#str_231312"	"Rádio"
+	"#str_231400"	"Configuração do Android"
 }

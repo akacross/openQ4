@@ -3476,6 +3476,57 @@ void Cmd_BotReload_f( const idCmdArgs &args ) {
 
 /*
 ==================
+Cmd_BotProbeTraversal_f
+==================
+*/
+void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
+	const bool padProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probePad" );
+	const bool dodgeProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeDodge" );
+	const navTravelType_t travel = padProbe ? NAVTRAVEL_JUMPPAD :
+		( dodgeProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP );
+	if ( args.Argc() != ( padProbe ? 12 : 11 ) ) {
+		gameLocal.Printf( "usage: %s client x y z vx vy vz targetX targetY targetZ%s\n",
+			args.Argv( 0 ), padProbe ? " padName" : "" );
+		return;
+	}
+	int clientNum = 0;
+	const char *clientText = args.Argv( 1 );
+	if ( !*clientText ) {
+		return;
+	}
+	for ( const char *digit = clientText; *digit; digit++ ) {
+		if ( *digit < '0' || *digit > '9' ||
+			 ( clientNum = clientNum * 10 + ( *digit - '0' ) ) >= MAX_CLIENTS ) {
+			gameLocal.Printf( "%s: client must be an integer from 0 to %d\n", args.Argv( 0 ), MAX_CLIENTS - 1 );
+			return;
+		}
+	}
+	float values[9];
+	for ( int i = 0; i < 9; i++ ) {
+		if ( !idStr::IsNumeric( args.Argv( i + 2 ) ) ) {
+			gameLocal.Printf( "%s: coordinates must be numeric\n", args.Argv( 0 ) );
+			return;
+		}
+		values[i] = atof( args.Argv( i + 2 ) );
+		if ( idMath::Fabs( values[i] ) > 65536.0f ) {
+			gameLocal.Printf( "%s: coordinate or speed outside diagnostic range\n", args.Argv( 0 ) );
+			return;
+		}
+	}
+	idEntity *pad = padProbe ? gameLocal.FindEntity( args.Argv( 11 ) ) : NULL;
+	if ( padProbe && !pad ) {
+		gameLocal.Printf( "bot_probePad: pad entity not found\n" );
+		return;
+	}
+	if ( !botManager.ProbeTraversal( clientNum, idVec3( values[0], values[1], values[2] ),
+			idVec3( values[3], values[4], values[5] ), idVec3( values[6], values[7], values[8] ), travel, pad, dodgeProbe ) ) {
+		gameLocal.Printf( "%s: requires an isolated local cheat server with one live bot and a separate observer%s\n",
+			args.Argv( 0 ), padProbe ? ", and a pad with a proven natural landing" : "" );
+	}
+}
+
+/*
+==================
 Cmd_NavMesh_f
 ==================
 */
@@ -4255,6 +4306,10 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "botcharacters",			Cmd_BotCharacters_f,		CMD_FL_GAME,				"list the loaded bot characters, their play style and their skill band" );
 	cmdSystem->AddCommand( "botreload",				Cmd_BotReload_f,			CMD_FL_GAME,				"re-read the bot style and character files without a map change" );
 	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info|probe x y z [radius]> - generate, report or probe the bot navigation mesh" );
+	cmdSystem->AddCommand( "bot_probeJump", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot jump on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probePad", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot pad flight on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeMove", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot movement on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeDodge", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot dodge admission on an isolated local cheat server" );
 }
 
 /*

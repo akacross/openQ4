@@ -352,6 +352,7 @@ Destructor for object.  Cancels any events that depend on this object.
 ================
 */
 idClass::~idClass() {
+	idRestoreGame::ObjectDestroyed( this );
 	idEvent::CancelEvents( this );
 }
 

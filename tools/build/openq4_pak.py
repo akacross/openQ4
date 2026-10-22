@@ -329,6 +329,11 @@ def _write_deterministic_zip(
         with ZipFile(tmp_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as pk4:
             for path, arcname in entries:
                 info = ZipInfo(arcname, date_time=DETERMINISTIC_ZIP_TIMESTAMP)
+                # ZipInfo otherwise records the build host (DOS=0, Unix=3).
+                # The engine embeds a whole-archive checksum, so identical
+                # authored content must also have identical container metadata.
+                # Preserve the existing Windows package identity on every host.
+                info.create_system = 0
                 info.compress_type = ZIP_DEFLATED
                 info.external_attr = 0o644 << 16
                 with path.open("rb") as source, pk4.open(info, "w") as target:

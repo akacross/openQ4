@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Your saves, and the checkpoints and autosaves the campaign makes, appear here."
 	"#str_231102"	"This save's level is not installed."
 	"#str_231103"	"This save is damaged or comes from an incompatible version."
+	"#str_231190"	"Could not restore this save. Choose another save or start a new game."
+	"#str_231191"	"LOAD FAILED"
 	"#str_231104"	"This save could not be read."
 	"#str_231105"	"This save could not be deleted."
 	"#str_231106"	"NEWER SAVES"
@@ -1383,4 +1385,5 @@
 	"#str_231310"	"Subtitle Background"
 	"#str_231311"	"Speaker Names"
 	"#str_231312"	"Radio"
+	"#str_231400"	"Android setup"
 }

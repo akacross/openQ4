@@ -1859,9 +1859,9 @@ idVec3 rvBot::EnemyPursuitOrigin( void ) const {
 BotRidesPadArc
 
 Coast through a pad's flight when the route lands where the pad's own arc
-comes down and the arc, ridden, lands on or past the corner and no further to
-the side than a box: a mapper's pad already carries a player to its landing,
-and overshooting onto the floor beyond it is safe where falling short is not.
+comes down and the arc, ridden, lands on supported ground connected to the
+corner. A mapper's pad already carries a player to its landing, but an enemy
+impulse can shift touchdown beyond that floor even without much sideways drift.
 Air control is kept for the landings only it reaches and for an arc that
 would come down short or wide.
 ================
@@ -1885,7 +1885,16 @@ static bool BotRidesPadArc( const idVec3 &origin, const idVec3 &velocity, const 
 	toCorner.z = 0.0f;
 	const float along = toCorner * flat;
 	const idVec3 side = toCorner - flat * along;
-	return along <= speed * time + 8.0f && side.LengthSqr() <= Square( 32.0f );
+	if ( time <= 0.0f || along > speed * time + 8.0f || side.LengthSqr() > Square( 32.0f ) ) {
+		return false;
+	}
+	idVec3 touchdown = origin + velocity * time;
+	touchdown.z = corner.origin.z;
+	// Touching the far rim at pad speed is not enough: leave the same
+	// supported momentum runway that the grounded edge guard looks ahead.
+	const idVec3 rollout = touchdown + flat * ( speed * BOT_EDGE_LOOKAHEAD );
+	return navMesh.LandingContinuationClear( touchdown, corner.origin ) &&
+		navMesh.LandingContinuationClear( touchdown, rollout );
 }
 
 /*
@@ -1968,10 +1977,21 @@ blockage instead of deliberately launching into a known head-on collision.
 */
 bool rvBot::HoldForPad( idPlayer *self, idVec3 &moveDir ) {
 	if ( pathCorner < 0 || pathCorner + 1 >= path.Num() ||
-		 path[pathCorner].travelType != NAVTRAVEL_WALK || traversalStarted ||
-		 path[pathCorner + 1].travelType != NAVTRAVEL_JUMPPAD ||
-		 BotGapToPad( self, path[pathCorner + 1] ) >= BOT_PAD_HOLD_REACH ||
-		 !BotPadCorridorBusy( self, path[pathCorner].origin, path[pathCorner + 1].origin ) ) {
+		 path[pathCorner].travelType != NAVTRAVEL_WALK || traversalStarted ) {
+		padHoldSince = 0;
+		return false;
+	}
+	// Several walking corners can fit inside the braking distance of a pad.
+	// Waiting for the final corner lets existing momentum carry us into its
+	// trigger before the next command can stop us. Only look through walking
+	// corners: an intervening traversal must retain ownership of its approach.
+	int actionCorner = pathCorner + 1;
+	while ( actionCorner < path.Num() && path[actionCorner].travelType == NAVTRAVEL_WALK ) {
+		actionCorner++;
+	}
+	if ( actionCorner >= path.Num() || path[actionCorner].travelType != NAVTRAVEL_JUMPPAD ||
+		 BotGapToPad( self, path[actionCorner] ) >= BOT_PAD_HOLD_REACH ||
+		 !BotPadCorridorBusy( self, path[actionCorner - 1].origin, path[actionCorner].origin ) ) {
 		padHoldSince = 0;
 		return false;
 	}
@@ -2122,7 +2142,9 @@ bool rvBot::GuardLandingHealth( idPlayer *self, usercmd_t &cmd ) {
 		return false;		// a committed flight must keep its landing controller
 	}
 	int action = pathCorner;
-	if ( path[action].travelType == NAVTRAVEL_WALK && action + 1 < path.Num() ) {
+	// Recheck the first traversal as soon as damage makes a retained route
+	// lethal. Waiting for its final walking corner may leave no braking room.
+	while ( path[action].travelType == NAVTRAVEL_WALK && action + 1 < path.Num() ) {
 		action++;
 	}
 	const navCorner_t corner = path[action];
@@ -4398,10 +4420,21 @@ static bool BotDeadlyDropAt( idPlayer *self, const idVec3 &point ) {
 	gameLocal.TraceBounds( self, trace, point + idVec3( 0.0f, 0.0f, 8.0f ),
 						   point - idVec3( 0.0f, 0.0f, BOT_SAFE_FALL ), middle, MASK_PLAYERSOLID, self );
 	if ( trace.fraction >= 1.0f || trace.c.normal.z < 0.7f ) {
+		if ( bot_debug.GetInteger() >= 3 ) {
+			gameLocal.Printf( "BOT_EDGE client=%d time=%d origin=%s ahead=%s velocity=%s fraction=%.4f normal=%.3f %.3f %.3f reason=trace\n",
+				self->entityNumber, gameLocal.time, self->GetPhysics()->GetOrigin().ToString( 2 ), point.ToString( 2 ),
+				self->GetPhysics()->GetLinearVelocity().ToString( 2 ), trace.fraction, trace.c.normal.x, trace.c.normal.y, trace.c.normal.z );
+		}
 		return true;
 	}
-	return navMesh.IsValid() && ( navMesh.IsHazardous( trace.endpos, true ) ||
+	const bool unsafe = navMesh.IsValid() && ( navMesh.IsHazardous( trace.endpos, true ) ||
 		!navMesh.LandingContinuationClear( trace.endpos, trace.endpos ) );
+	if ( unsafe && bot_debug.GetInteger() >= 3 ) {
+		gameLocal.Printf( "BOT_EDGE client=%d time=%d origin=%s ahead=%s velocity=%s floor=%s fraction=%.4f normal=%.3f %.3f %.3f reason=support\n",
+			self->entityNumber, gameLocal.time, self->GetPhysics()->GetOrigin().ToString( 2 ), point.ToString( 2 ),
+			self->GetPhysics()->GetLinearVelocity().ToString( 2 ), trace.endpos.ToString( 2 ), trace.fraction, trace.c.normal.x, trace.c.normal.y, trace.c.normal.z );
+	}
+	return unsafe;
 }
 
 // Recovery has no route to vouch for its direction. It must use the same
@@ -4497,6 +4530,11 @@ bool rvBot::HandleJumpTakeoff( idPlayer *self, usercmd_t &cmd ) {
 		const float firstSpeed = pm_speed.GetFloat() * modifier * maxAxis * horizontal / ( 127.0f * total );
 		if ( navMesh.JumpTakeoffClear( origin, velocity, landing,
 			 gameLocal.GetCurrentGravity( self ).Length(), wishSpeed, &firstWish, firstSpeed ) ) {
+			if ( bot_debug.GetInteger() >= 3 ) {
+				gameLocal.Printf( "BOT_JUMP_TAKEOFF client=%d time=%d origin=%s velocity=%s landing=%s firstWish=%s firstSpeed=%.3f wishSpeed=%.3f\n",
+					self->entityNumber, gameLocal.time, origin.ToString( 3 ), velocity.ToString( 3 ),
+					landing.ToString( 3 ), firstWish.ToString( 3 ), firstSpeed, wishSpeed );
+			}
 			return true;
 		}
 	}
@@ -4692,6 +4730,17 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 		ResetTraversal();
 		if ( !noRouteSince ) {
 			noRouteSince = gameLocal.time;
+		}
+
+		// A completed pad can leave substantial momentum at the last corner.
+		// Route selection and deliberate idle waits must not postpone braking
+		// until off-mesh recovery, by which time that momentum has left the floor.
+		idVec3 brakeDir = vec3_origin;
+		if ( BotBrakeAtEdge( self, brakeDir ) && brakeDir.LengthSqr() > 0.0f ) {
+			ApplyMove( brakeDir, cmd );
+			cmd.upmove = 0;
+			stuckTime = gameLocal.time;
+			return;
 		}
 
 		// Standing on an item that is still sitting there means it is not one
@@ -6667,6 +6716,14 @@ void rvBot::Think( usercmd_t &cmd ) {
 	UpdateBuying( self );
 	UpdateWeapon( self );
 	UpdateFire( self, cmd );
+	if ( bot_debug.GetInteger() >= 3 && pathCorner >= 0 && pathCorner < path.Num() &&
+		( path[pathCorner].travelType != NAVTRAVEL_WALK || bot_debug.GetInteger() >= 4 ) ) {
+		gameLocal.Printf( "BOT_TRAVEL client=%d time=%d origin=%s velocity=%s grounded=%d type=%d corner=%d/%d started=%d target=%s cmd=%d,%d,%d yaw=%.3f\n",
+			self->entityNumber, gameLocal.time, self->GetPhysics()->GetOrigin().ToString( 3 ),
+			self->GetPhysics()->GetLinearVelocity().ToString( 3 ), self->pfl.onGround ? 1 : 0,
+			path[pathCorner].travelType, pathCorner, path.Num(), traversalStarted ? 1 : 0,
+			path[pathCorner].origin.ToString( 3 ), cmd.forwardmove, cmd.rightmove, cmd.upmove, aimAngles.yaw );
+	}
 
 	if ( bot_debug.GetInteger() >= 2 && gameLocal.time >= nextStatusTime ) {
 		static const char *goalNames[] = { "none", "roam", "item", "enemy", "objective" };
@@ -7815,6 +7872,79 @@ void rvBotManager::RebindCharacters( void ) {
 			bots[i].RebindCharacter();
 		}
 	}
+}
+
+/*
+================
+rvBotManager::ProbeTraversal
+================
+*/
+bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
+								 const idVec3 &landing, navTravelType_t travel, idEntity *pad, bool dodge ) {
+	if ( ( travel != NAVTRAVEL_WALK && travel != NAVTRAVEL_JUMP && travel != NAVTRAVEL_JUMPPAD ) ||
+		( ( travel == NAVTRAVEL_JUMPPAD ) != ( pad != NULL ) ) || ( dodge && travel != NAVTRAVEL_WALK ) ) {
+		return false;
+	}
+	if ( !gameLocal.isServer || gameLocal.isClient || !gameLocal.GetLocalPlayer() ||
+		gameLocal.numClients != 2 || NumBots() != 1 || !IsBot( clientNum ) ||
+		gameLocal.mpGame.IsManagedMatch() || !gameLocal.CheatsOk( false ) || !navMesh.IsValid() ) {
+		return false;
+	}
+	idPlayer *self = bots[clientNum].GetPlayer();
+	if ( !self || self == gameLocal.GetLocalPlayer() || self->health <= 0 || self->spectating ) {
+		return false;
+	}
+	idVec3 naturalLanding;
+	if ( pad && ( !pad->IsType( rvJumpPad::GetClassType() ) ||
+		 !navMesh.NaturalPadLanding( pad->entityNumber, naturalLanding ) ) ) {
+		return false;
+	}
+	// Do not let this diagnostic's teleport displace or telefrag the observer.
+	idBounds destination = self->GetPhysics()->GetBounds();
+	destination.TranslateSelf( origin );
+	if ( destination.IntersectsBounds( gameLocal.GetLocalPlayer()->GetPhysics()->GetAbsBounds() ) ) {
+		return false;
+	}
+	rvBot &bot = bots[clientNum];
+	bot.OnSpawn();
+	const idAngles facing( 0.0f, ( landing - origin ).ToYaw(), 0.0f );
+	self->Teleport( origin - idVec3( 0.0f, 0.0f, CM_CLIP_EPSILON ), facing, NULL );
+	self->GetPhysics()->SetLinearVelocity( velocity );
+	bot.aimAngles = facing;
+	bot.goalType = BOTGOAL_ROAM;
+	bot.goalOrigin = landing;
+	if ( travel == NAVTRAVEL_WALK ) {
+		// A walking probe has no committed jump action to defer goal selection.
+		// Keep its supplied leg long enough to observe the impulse response.
+		bot.nextGoalSelectTime = gameLocal.time + BOT_TRAVEL_TIMEOUT_MSEC;
+	}
+	bot.path.Clear();
+	bot.path.Append( origin, NAVTRAVEL_WALK );
+	bot.path.Append( landing, travel, pad ? pad->entityNumber : -1 );
+	bot.pathCorner = 1;
+	bot.pathTime = gameLocal.time;
+	bot.traversalCorner = 1;
+	bot.traversalStartOrigin = origin;
+	bot.traversalStartTime = gameLocal.time;
+	bot.traversalEntered = bot.traversalStarted = ( pad != NULL );
+	if ( dodge ) {
+		// Use normal no-route dodge admission and HoldDodgeJump, including
+		// the fresh-press pulse and player physics. This never bypasses proof.
+		bot.path.Clear();
+		bot.pathCorner = 0;
+		bot.ResetTraversal();
+		bot.dodgeDirection = landing - origin;
+		bot.dodgeDirection.z = 0.0f;
+		bot.dodgeDirection.Normalize();
+		bot.dodgeStartTime = gameLocal.time;
+		bot.dodgeEndTime = gameLocal.time + BOT_DODGE_MSEC;
+		bot.dodgeJump = true;
+	}
+	gameLocal.Printf( "BOT_%s_PROBE client=%d time=%d origin=%s velocity=%s landing=%s gravity=%.3f\n",
+		dodge ? "DODGE" : ( pad ? "PAD" : ( travel == NAVTRAVEL_WALK ? "MOVE" : "JUMP" ) ),
+		clientNum, gameLocal.time, origin.ToString( 3 ), velocity.ToString( 3 ), landing.ToString( 3 ),
+		gameLocal.GetCurrentGravity( self ).Length() );
+	return true;
 }
 
 /*

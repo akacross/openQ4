@@ -705,6 +705,19 @@ def validate_source_contracts() -> None:
     assert "stage_gamelibs.py" not in meson
     assert "subdir('content/q4xbase')" not in meson
 
+
+def validate_windows_install_processes(work: Path) -> None:
+    if os.name != "nt":
+        return
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        raise AssertionError("PowerShell is required for Windows installation isolation checks")
+    subprocess.run([
+        powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        str(ROOT / "tools/tests/windows_install_processes.ps1"),
+        "-WrapperPath", str(POWERSHELL_WRAPPER), "-TestRoot", str(work),
+    ], check=True, cwd=ROOT)
+
 def validate_canonical_inventory(work: Path) -> None:
     from game_source_inventory import inventory
     root = work / "project"
@@ -779,6 +792,7 @@ def main() -> None:
         validate_stage_root_guard(work / "stage-root")
         validate_canonical_inventory(work / "canonical")
         validate_source_contracts()
+        validate_windows_install_processes(work / "process-isolation")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     print("gamelibs_staging: ok")

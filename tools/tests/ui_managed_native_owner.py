@@ -17,7 +17,7 @@ def manager_source(full=False):
     header=(ROOT/'src/ui/UserInterfaceLocal.h').read_text()
     declarations=header[header.index('bool NativeTextAttach('):header.index('\n\tvoid\t',header.index('bool NativeTextEnter('))]
     declarations=declarations.replace('private:','public:')
-    declarations+='\n'+re.search(r'const std::thread::id nativePresenceThread[^;]+;',header).group(0)+'\n'
+    declarations+='\n'+re.search(r'std::thread::id nativePresenceThread[^;]+;',header).group(0)+'\n'
     declarations+='\n bool textBoundaryActive=false,textBoundaryFailed=false;\n'
     if full:
         declarations+=header[header.index('\topenq4::ui::TextBrokerContext QueryTextContext('):header.index('\nbool NativeTextAttach(')]
@@ -198,7 +198,7 @@ int main() {
         'allocate-at-publication':('const auto& expected=prepared.Receipt().before;','const auto expected=prepared.Receipt().before;'),
         'prepare-inside-current':('return owner && owner->CurrentNativeText(expected);','return owner && owner->PrepareNativeText(expected.editor) && owner->CurrentNativeText(expected);'),
         'omit-current-native-barrier':('return runtime && runtime->IsNumberNativeCurrent(expected);','return runtime != nullptr;'),
-        'presence-global-thread-identity':('const std::thread::id nativePresenceThread = std::this_thread::get_id();','inline static const std::thread::id nativePresenceThread = std::this_thread::get_id();'),
+        'presence-global-thread-identity':('std::thread::id nativePresenceThread = std::this_thread::get_id();','inline static std::thread::id nativePresenceThread = std::this_thread::get_id();'),
         'presence-on-wrong-thread':('std::this_thread::get_id()!=nativePresenceThread || nativeBoundaryActive','nativeBoundaryActive'),
         'presence-in-native-callback':('nativePresenceThread || nativeBoundaryActive || textBoundaryActive','nativePresenceThread || textBoundaryActive'),
         'presence-in-text-callback':('nativeBoundaryActive || textBoundaryActive ||\n        clipboardBoundaryActive','nativeBoundaryActive ||\n        clipboardBoundaryActive'),

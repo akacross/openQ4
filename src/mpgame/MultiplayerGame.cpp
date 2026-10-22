@@ -1287,6 +1287,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	mapWeaponMaskValid = false;
 	arenaHudPresentation = -1;
 	arenaMenuWasPaused = false;
+	arenaSoundPauseOwned = false;
 
 	memset( lights, 0, sizeof( lights ) );
 	memset( lightHandles, -1, sizeof( lightHandles ) );
@@ -9849,6 +9850,7 @@ void idMultiplayerGame::Clear() {
 	ResetVoiceState();
 	
 	int		i;
+	UpdateArenaSoundPause( false );
 
 	// Clear can be reached directly by reset/shutdown paths.  Do this before
 	// resetting our ownership bit so an interrupted Arena handoff cannot leave
@@ -10017,6 +10019,7 @@ void idMultiplayerGame::ClearMap( void ) {
 	// MapClear runs after client entities may already have been deleted, so only
 	// touch renderer-owned presentation state here; GUI cleanup is not safe.
 	ResetVoiceState();
+	UpdateArenaSoundPause( false );
 	SetArenaCampaignDepthOfField( false );
 	SetJoinScreenSoftFocus( false );
 	joinScreenPending = false;
@@ -14163,6 +14166,35 @@ bool idMultiplayerGame::ArenaCampaignPausesWorld( void ) const {
 
 /*
 ================
+idMultiplayerGame::UpdateArenaSoundPause
+
+Own only the pause acquired by the local Arena menu. The sound world keeps its
+playback clock and resumable voices, while the separate menu world stays live.
+Clear/ClearMap release this ownership before a restart, abandon or module swap.
+================
+*/
+void idMultiplayerGame::UpdateArenaSoundPause( bool pause ) {
+	if ( !pause && !arenaSoundPauseOwned ) {
+		return;
+	}
+	idSoundWorld *world = soundSystem != NULL ? soundSystem->GetSoundWorldFromId( SOUNDWORLD_GAME ) : NULL;
+	if ( world == NULL ) {
+		arenaSoundPauseOwned = false;
+		return;
+	}
+	if ( pause ) {
+		if ( !world->IsPaused() ) {
+			world->Pause();
+			arenaSoundPauseOwned = true;
+		}
+	} else if ( arenaSoundPauseOwned ) {
+		world->UnPause();
+		arenaSoundPauseOwned = false;
+	}
+}
+
+/*
+================
 idMultiplayerGame::RebaseArenaCampaignPauseFrame
 
 The Arena's own deadlines, moved with the match ones RebaseCompetitivePauseFrame
@@ -16053,6 +16085,7 @@ void idMultiplayerGame::Run( void ) {
 	// the rules must not run either, or the clock, the respawns and the rounds
 	// would advance underneath the menu.
 	const bool arenaPaused = ArenaCampaignPausesWorld();
+	UpdateArenaSoundPause( arenaPaused );
 	if ( arenaPaused != arenaMenuWasPaused ) {
 		arenaMenuWasPaused = arenaPaused;
 		gameLocal.Printf( "arena campaign: match %s\n", arenaPaused ? "paused" : "resumed" );
@@ -19671,7 +19704,7 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 					channel	= atoi(	snd	);
 					snd	= args.Argv( icmd++	);
 				}
-				soundSystem->PlayShaderDirectly( SOUNDWORLD_GAME, snd, channel );
+				soundSystem->PlayShaderDirectly( IsArenaPauseMenuOpen() ? SOUNDWORLD_MENU : SOUNDWORLD_GAME, snd, channel );
 			}
 			continue;
 		} else if (	!idStr::Icmp( cmd, "callVote" )	) {

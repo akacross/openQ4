@@ -2072,9 +2072,11 @@ void rvWeapon::Restore ( idRestoreGame *savefile ) {
 
 	// Lights
 	for ( i = 0; i < WPLIGHT_MAX; i ++ ) {
-		savefile->ReadInt ( lightHandles[i] );
+		// Saved handles only describe presence; cleanup must own current renderer IDs.
+		int savedLightHandle;
+		savefile->ReadInt( savedLightHandle );
 		savefile->ReadRenderLight( lights[i] );
-		if ( lightHandles[i] != -1 ) {
+		if ( savedLightHandle != -1 ) {
 			//get the handle again as it's out of date after a restore!
 			rvNormalizeProjectedRenderLight( lights[i], owner ? owner->GetName() : weaponDef->GetName(), "weapon-restored-light" );
 			lightHandles[i] = gameRenderWorld->AddLightDef ( &lights[i] );

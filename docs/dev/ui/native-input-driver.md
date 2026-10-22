@@ -68,6 +68,12 @@ test the critical ordering checks. Windows SDK tests exercise the real store and
 controller interfaces; portable sanitizer and complete engine-unit compilation
 are separate evidence. These tests do not establish installed IME behavior.
 
+With `build_native_tests` enabled and the pinned SDL source prepared, Meson also
+registers `openq4-ui-native-input-facts`, `openq4-ui-native-input-terminal` and,
+on Windows, `openq4-ui-windows-native-input-facts`. The source-header path follows
+`subprojects/sdl3.wrap`, so updating SDL does not silently select an obsolete
+directory and omit those SDK checks.
+
 Live activation still requires the exact translator/bootstrap, immutable provider,
 window and document lifetimes, character provenance and association, queue-group
 collection, and lifecycle renewal. Asynchronous usercmd input is refused. Loading
@@ -75,4 +81,4 @@ getters and Pacifier, SDL shutdown/window replacement, cursor/grab housekeeping,
 unknown held-source renewal and independent legacy/system-event disposition must
 join the lifecycle before enablement. The non-SDL GL fake-window pump needs its
 separate applicability gate. All product requirements and final acceptance gates
-remain governed by the [completion plan](../archive/2026-10-18/plans/ui-product-completion.md).
+remain governed by the [development roadmap](../roadmap.md).

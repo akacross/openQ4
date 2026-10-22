@@ -174,8 +174,10 @@ match, which exercises the pause. `openq4_assertMenuActivation <msec> game`
 opens the in-game menu through `game->HandleESC`, the Escape path, so it shows
 the Arena pause menu; `openq4_guiAction <window>` presses a stock button
 (`arena_pause_restart`, `arena_confirm_yes`, `arena_pause_leave`,
-`arena_pause_settings`), and `openq4_retainedGui menu <action> 1` (or `event
-restartModalShow` and `menu arenaRestart 1`) drives the retained card.
+`arena_pause_settings`). The retained diagnostic accepts navigation names:
+`openq4_retainedGui focus <control>` followed by `menu accept 1` / `menu accept 0`
+activates a control; `event onBack` resumes from the pause card. Session command
+names such as `arenaStart` are not accepted by its `menu` verb.
 
 ## 2026-10 audit
 
@@ -260,10 +262,98 @@ malformed, duplicate, locked tier, locked boss, and a win with a losing score).
 The same 1-0 win on NIGHTMARE then replaced it, and the ledger showed
 **NEW BEST** beside the score.
 
+## Current pause and result evidence, 18 October 2026
+
+Arena now owns the game sound world's pause while its local menu freezes the
+match. That clock remains fixed and the separate menu world keeps running.
+Resume releases only the pause Arena acquired; the session's ordinary SP menu
+unpause must not release a borrowed Arena pause. Clear/map teardown also releases
+Arena ownership. Direct voice-over channels in emitter zero participate in the
+same sound-world pause as entity voice-over channels.
+
+`tools/tests/arena_sound_pause.py` executes the production ownership, sound-clock,
+pause/unpause, sound-route and menu-exit methods. Windows/MSVC and Linux/Clang
+checks pass 1,000 cycles, emitter-zero/entity voices, independent menu time,
+borrowed pauses and backend absence. Removing voice pause or excluding emitter
+zero fails the negative controls. The added menu-exit test reproduced the generic
+unpause releasing a borrowed pause before the final correction. The complete
+188-test Windows suite passed before that last correction; the final native
+ownership check and Arena/presentation/retained-pause/SDL input contracts pass
+after it.
+
+`tools/tests/arena_sound_runtime.py` starts through the SP campaign browser,
+activates its Start control, enters actual MP Q4DM1 gameplay and observes two
+pause/resume cycles before ending the match through the authoritative ceremony
+diagnostic. Each run holds game time and game audio time through 3.5 s and 1.8 s
+pauses while menu time advances, then verifies resumed game time/audio, the
+result browser's menu-audio route and the saved ledger. OpenAL Soft's **No Output**
+device executes the backend without physical output. The hidden 960×540 windows
+use original retail assets and input disabled; all captures come from the
+engine's `screenshot` command. NVIDIA RTX 4060 Laptop / driver 591.74 was used;
+these functional runs, some concurrent with builds, make no performance claim.
+
+| Final run | Backend | Persisted first-match best | Progress | Result |
+| --- | --- | --- | --- | --- |
+| `.tmp/s2arena-final-win` | GL | `0:1:2:1:3` | `1` | Pass; victory 2–1 |
+| `.tmp/s2arena-final-loss` | Vulkan | `0:0:0:1:3` | `0` | Pass; defeat 0–1 |
+| `.tmp/s2arena-final-draw` | Vulkan | `0:2:1:1:3` | `0` | Pass; restart loads the loss, draw 1–1 replaces it |
+| `.tmp/s2arena-final-keep-win` | GL | `0:1:2:1:3` | `1` | Pass; restart loads the win, a loss preserves it |
+
+The pause and victory/defeat/draw engine captures were inspected; the draw shows
+NEW BEST over the earlier loss. Each report retains commands, clock observations,
+before/after configuration, binary/package SHA-256 and its engine log. Report
+SHA-256, in table order: `1952b5d990599d938c0780933c5bdee6693a37d4ea875d45709c5aed51616d85`,
+`b00fe7638312aaa0fbcc8ef2191413f2667538090899116ba605a776ee5734ff`,
+`6daa3c5d4f08e906b2f655018475c84e4edc96c93bf5587b8e2ca5f05d206d77`,
+`84b462a0ca9434c0767c89a748c00c0fd566aeb419b1d55b48174134446b51f7`.
+The tested engine is `c30c191835a11e82ac12d7c34dc5fb393af6c131e95913b0e20066e9f297bf81`,
+MP module `20ce933689ee4b7fa2fe08a1327a1013a34a23241596cb04775a59dcc47cd065`.
+`.tmp/stage-two/arena-source.json` binds the source changes over `6de4e622e`
+(SHA-256 `204dfc1a96a01eb8fc342005ab419990853756303055bb9068908ba59567ed45`).
+
+Earlier failed fixture runs remain under `.tmp/s2arena-win`, `-r2` and `-r3`:
+the first lost a script across the MP-to-SP browser reload, the second used an
+unsupported diagnostic verb, and the third used unquoted hyphenated screenshot
+names and sampled before the full ceremony finished. `-r4` passes the corrected
+flow before the final menu-exit ownership correction. None replaces the four
+final reports. Developer non-precache diagnostics, Q4DM1's embedded shotgun-ammo
+warning and two empty-key summary warnings remain in the logs; this is not a
+warning-clean whole-product claim.
+
+## Headphone pause and resume, 19 October 2026
+
+The physical mode of `tools/tests/arena_sound_runtime.py` now uses the default
+output endpoint at a master volume of −12 dB and holds each pause for eight
+seconds. `--listening-cue` starts the retail lightning-gun loop in the game sound
+world and keeps the observer alive. Protection is applied after Arena's round
+restart, which resets cheats. The live and both resumed voice lists must contain
+that loop; clock, result and ledger checks still run. No operating-system input
+is injected, and captures still use the engine command.
+
+On source `384e1a2124dc9521ed0df7ff677863a0aadef6e4`, the corrected silent control
+`.tmp/s2arena-audio-cue-null` and physical run `.tmp/s2arena-audio-cue-r2` both
+pass. OpenAL Soft selected **Headphones (Realtek(R) Audio)** through WASAPI. The
+listener confirmed: “Yes, both pauses and resumes sounded correct” when asked
+whether the cue stopped, returned twice and remained free of crackling or stuck
+sounds. This qualifies those two audible pause/resume cycles on that endpoint.
+
+The first physical run's report of missing resumed combat is preserved. Its idle
+player had died before the first pause, so that run did not establish resumed
+combat playback. The first persistent-cue attempt was not listened to and also
+exposed the round restart resetting protection. Neither counts as an audible
+pass. The corrected run had no player death and listed the cue playing at
+nonzero gain before and after both pauses. No production sound change was needed
+for this follow-up.
+
+`.tmp/stage-two/arena-audio-evidence.json` binds all four reports, engine/OpenAL
+logs, verbatim observations, harness, retail manifest and tested runtime hashes
+(SHA-256 `5d20a29e24750608005782766f2ca99d2c5b05892379f5a185e48098ef23b9fe`).
+These are functional checks, not performance or endpoint-reconnection evidence.
+
 ## Known gaps
 
-- The pause menu stops the world but not the game sound world, as the
-  multiplayer menu never did: ambient loops keep playing behind it.
+- Endpoint loss/return and other audio devices remain unqualified. The headphone
+  result above covers audible pause/resume on its stated endpoint only.
 - Restart match relaunches the listen server through the browser's entrance,
   so it takes as long as starting the match from the browser (the map and its
   navigation load again). Keyboard, mouse and controller navigation of the

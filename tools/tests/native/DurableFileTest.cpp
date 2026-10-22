@@ -134,7 +134,10 @@ void ReplaceCases(const fs::path& dir) {
     Check(Get(path) == old,"oversize write preserves final");
     Arm(Point::MetadataSync);
     Check(!DurableReplaceExact(path,"published-but-unconfirmed",error) &&
-        error.find("durability") != std::string::npos,"post-rename uncertainty reported as failure");
+        faults.calls == 1 && error.find("(injected)") != std::string::npos &&
+        error.find("durability") != std::string::npos,"post-rename metadata fault reached and reported");
+    // A native rename failure can also report uncertain durability. Require the
+    // intended fault above, before Get resets fault state and clears its error.
     Check(Get(path) == "published-but-unconfirmed","post-rename failure does not pretend old file survived");
     Put(path,"retry"); Check(Get(path) == "retry","retry after uncertain publication works");
 

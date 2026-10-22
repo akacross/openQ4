@@ -1244,6 +1244,8 @@
 	"#str_231101"	"Kayıtların ve seferin kontrol noktaları ile otomatik kayıtları burada görünür."
 	"#str_231102"	"Bu kaydın bölümü yüklü değil."
 	"#str_231103"	"Bu kayıt bozuk ya da uyumsuz bir sürümden."
+	"#str_231190"	"Bu kayıt geri yüklenemedi. Başka bir kayıt seçin veya yeni bir oyun başlatın."
+	"#str_231191"	"YÜKLEME BAŞARISIZ"
 	"#str_231104"	"Bu kayıt okunamadı."
 	"#str_231105"	"Bu kayıt silinemedi."
 	"#str_231106"	"DAHA YENİ KAYITLAR"
@@ -1383,4 +1385,5 @@
 	"#str_231310"	"Altyazı arka planı"
 	"#str_231311"	"Konuşmacı adları"
 	"#str_231312"	"Telsiz"
+	"#str_231400"	"Android kurulumu"
 }

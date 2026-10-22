@@ -1,20 +1,47 @@
 #!/usr/bin/env python3
-"""Validate Android arm64 shared libraries before staging an installable APK."""
+"""Validate Android libraries for the phone and diagnostic emulator packages."""
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 import struct
 
 
-def validate_library(path: Path, api: int) -> int:
+@dataclass(frozen=True)
+class AndroidAbi:
+    triple: str
+    cpu_family: str
+    machine: int
+    label: str
+    module_arch: str
+
+
+# The cross compiler, dependency builder and APK verifier share this mapping.
+# x86_64 is a diagnostic emulator target, not a second release ABI.
+ANDROID_ABIS = {
+    "arm64-v8a": AndroidAbi("aarch64-linux-android", "aarch64", 183, "AArch64", "arm64"),
+    "x86_64": AndroidAbi("x86_64-linux-android", "x86_64", 62, "x86-64", "x64"),
+}
+DEFAULT_ABI = "arm64-v8a"
+
+
+def android_abi(name: str) -> AndroidAbi:
+    try:
+        return ANDROID_ABIS[name]
+    except KeyError:
+        raise ValueError(f"Unsupported Android ABI {name!r}; expected one of {', '.join(ANDROID_ABIS)}") from None
+
+
+def validate_library(path: Path, api: int, abi: str = DEFAULT_ABI) -> int:
+    target = android_abi(abi)
     data = path.read_bytes()
     if len(data) < 64 or data[:6] != b"\x7fELF\x02\x01":
         raise ValueError(f"{path}: expected a little-endian ELF64 library")
     elf_type, machine = struct.unpack_from("<HH", data, 16)
-    if elf_type != 3 or machine != 183:
-        raise ValueError(f"{path}: expected an AArch64 shared library")
+    if elf_type != 3 or machine != target.machine:
+        raise ValueError(f"{path}: expected an {target.label} shared library")
     ph_offset = struct.unpack_from("<Q", data, 32)[0]
     ph_size, ph_count = struct.unpack_from("<HH", data, 54)
     if ph_size < 56 or not ph_count or ph_offset + ph_size * ph_count > len(data):
@@ -55,12 +82,13 @@ def validate_library(path: Path, api: int) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api", type=int, required=True)
+    parser.add_argument("--abi", choices=sorted(ANDROID_ABIS), default=DEFAULT_ABI)
     parser.add_argument("libraries", nargs="+", type=Path)
     args = parser.parse_args()
     try:
         for path in args.libraries:
-            native_api = validate_library(path, args.api)
-            print(f"{path.name}: Android arm64 API {native_api}, 16 KiB load alignment")
+            native_api = validate_library(path, args.api, args.abi)
+            print(f"{path.name}: Android {args.abi} API {native_api}, 16 KiB load alignment")
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
 

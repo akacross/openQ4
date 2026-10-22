@@ -32,8 +32,14 @@ engine_client_binary_name = meson.project_name() + '-client_' + binary_arch
 engine_ded_binary_name = meson.project_name() + '-ded_' + binary_arch
 module_filename_prefix = host_system == 'android' ? 'lib' : ''
 if host_system == 'android'
-  if host_cpu_family != 'aarch64'
-    error('Android currently supports the arm64-v8a ABI only.')
+  if host_cpu_family == 'aarch64'
+    android_abi = 'arm64-v8a'
+    android_variant = 'phone'
+  elif host_cpu_family == 'x86_64'
+    android_abi = 'x86_64'
+    android_variant = 'emulator'
+  else
+    error('Android supports arm64-v8a phones and diagnostic x86_64 emulators only.')
   endif
   engine_client_binary_name = 'quake4'
 endif
@@ -220,7 +226,7 @@ install_engine_dir = install_root_dir
 if host_system == 'android'
   # Keep mobile assets/native libraries together without replacing a staged
   # desktop installation. The host app copies these into assets/ and jniLibs/.
-  install_root_dir = install_root_dir / 'android' / 'arm64-v8a'
+  install_root_dir = install_root_dir / 'android' / android_abi
   install_game_dir = install_root_dir / 'baseoq4'
   install_module_dir = install_root_dir / 'lib'
   install_engine_dir = install_module_dir
@@ -285,6 +291,268 @@ if get_option('build_native_tests')
     include_directories: root_include_dir, install: false,
   )
   test('openq4-idlist', openq4_idlist_test, timeout: 30)
+
+  openq4_cmdargs_under_test = custom_target(
+    'openq4-cmdargs-under-test',
+    input: files('src/idlib/CmdArgs.cpp', 'src/idlib/CmdArgs.h', 'src/idlib/Lib.h'),
+    output: 'CmdArgsUnderTest.inc',
+    command: [py, files('tools/tests/cmdargs_append_contract.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openq4_cmdargs_test = executable(
+    'openq4-cmdargs-test',
+    [files('tools/tests/native/CmdArgsTest.cpp'), openq4_cmdargs_under_test],
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-cmdargs', openq4_cmdargs_test, timeout: 30)
+
+  openq4_arena_sound_source = custom_target(
+    'openq4-arena-sound-source',
+    input: files('src/mpgame/MultiplayerGame.cpp', 'src/sound/snd_world.cpp', 'src/framework/Session.cpp', 'src/framework/Session_menu.cpp'),
+    output: 'ArenaSoundPauseTest.cpp',
+    command: [py, files('tools/tests/arena_sound_pause.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openq4_arena_sound_test = executable(
+    'openq4-arena-sound-test', openq4_arena_sound_source,
+    cpp_args: ['-UNDEBUG'], install: false,
+  )
+  test('openq4-arena-sound', openq4_arena_sound_test, timeout: 30)
+
+  ui_engine_thread_source = custom_target(
+    'openq4-ui-engine-thread-source',
+    output: 'UiEngineThread.cpp',
+    depend_files: files('src/ui/RetainedUI.cpp', 'src/ui/UserInterface.cpp', 'src/ui/UserInterfaceLocal.h'),
+    command: [py, files('tools/tests/ui_engine_thread.py'), '--generate-native', '@OUTPUT@'],
+  )
+  ui_engine_thread_test = executable(
+    'openq4-ui-engine-thread', ui_engine_thread_source, dependencies: dependency('threads'), install: false,
+  )
+  test('openq4-ui-engine-thread', ui_engine_thread_test, timeout: 30)
+
+  openal_pause_source = custom_target(
+    'openq4-openal-device-pause-source',
+    output: 'OpenALDevicePause.cpp',
+    depend_files: files('src/sound/OpenAL/AL_SoundHardware.cpp', 'src/sound/OpenAL/AL_SoundHardware.h'),
+    command: [py, files('tools/tests/openal_device_pause.py'), '--generate-native', '@OUTPUT@'],
+  )
+  openal_pause_test = executable('openq4-openal-device-pause', openal_pause_source, install: false)
+  test('openq4-openal-device-pause', openal_pause_test, timeout: 30)
+  android_lifecycle_source = custom_target(
+    'openq4-android-lifecycle-source',
+    output: 'AndroidLifecycle.cpp',
+    depend_files: files('src/sys/sdl3/sdl3_backend.cpp', 'src/framework/Session.cpp', 'src/framework/KeyInput.cpp'),
+    command: [py, files('tools/tests/android_lifecycle.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_async_source = custom_target(
+    'openq4-android-async-source',
+    output: 'AndroidAsync.cpp',
+    depend_files: files('src/sys/sdl3/sdl3_backend.cpp', 'src/sys/android/android_main.cpp',
+      'src/framework/Common.cpp', 'src/framework/Common.h', 'tools/tests/presentation_clock_ownership.py'),
+    command: [py, files('tools/tests/android_async.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_savepath_source = custom_target(
+    'openq4-android-savepath-source',
+    output: 'AndroidSavePath.cpp',
+    depend_files: files('src/sys/android/android_main.cpp', 'src/sys/android/android_public.h',
+      'src/sys/posix/posix_main.cpp'),
+    command: [py, files('tools/tests/android_savepath.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_savepath_test = executable('openq4-android-savepath', android_savepath_source, install: false)
+  test('openq4-android-savepath', android_savepath_test, timeout: 30)
+  android_touch_controls_test = executable(
+    'openq4-android-touch-controls', files('tools/tests/native/AndroidTouchControlsTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-touch-controls', android_touch_controls_test, timeout: 30)
+  android_touch_integration_source = custom_target(
+    'openq4-android-touch-integration-source',
+    input: files('src/sys/android/android_touch_controls.cpp'),
+    output: 'AndroidTouchIntegration.cpp',
+    command: [py, files('tools/tests/android_touch_controls.py'), '--generate-native', '@OUTPUT@'],
+  )
+  android_touch_integration_test = executable(
+    'openq4-android-touch-integration', android_touch_integration_source,
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-touch-integration', android_touch_integration_test, timeout: 30)
+  android_interface_setup_test = executable(
+    'openq4-android-interface-setup', files('tools/tests/native/AndroidInterfaceSetupTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-interface-setup', android_interface_setup_test, timeout: 30)
+  foreach platform : ['android', 'desktop']
+    android_async_test = executable(
+      'openq4-android-async-' + platform, android_async_source,
+      cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+    )
+    test('openq4-android-async-' + platform, android_async_test, timeout: 30)
+
+    android_lifecycle_test = executable(
+      'openq4-android-lifecycle-' + platform, android_lifecycle_source,
+      cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+    )
+    test('openq4-android-lifecycle-' + platform, android_lifecycle_test, timeout: 30)
+
+    android_window_source = custom_target(
+      'openq4-android-window-' + platform + '-source',
+      input: files('src/sys/posix/posix_syscon.cpp', 'src/sys/sdl3/sdl3_backend.cpp'),
+      output: 'AndroidWindow-' + platform + '.cpp',
+      command: [py, files('tools/tests/android_window_lifecycle.py'), '--generate-native', platform, '@OUTPUT@'],
+    )
+    android_window_test = executable(
+      'openq4-android-window-' + platform, android_window_source, install: false,
+    )
+    test('openq4-android-window-' + platform, android_window_test, timeout: 30)
+
+    android_basepath_source = custom_target(
+      'openq4-android-basepath-' + platform + '-source',
+      input: files('src/framework/FileSystem.cpp'),
+      output: 'AndroidBasePath-' + platform + '.cpp',
+      command: [py, files('tools/tests/android_basepath.py'), '--generate-native', platform, '@OUTPUT@'],
+    )
+    android_basepath_test = executable(
+      'openq4-android-basepath-' + platform, android_basepath_source, install: false,
+    )
+    test('openq4-android-basepath-' + platform, android_basepath_test, timeout: 30)
+  endforeach
+
+  restore_recovery_source = custom_target(
+    'openq4-restore-recovery-source',
+    input: files('src/framework/Common.cpp', 'src/framework/Session.cpp', 'src/framework/Session_menu.cpp'),
+    output: 'RestoreRecovery.cpp',
+    command: [py, files('tools/tests/savegame_restore_recovery.py'), '--generate-native', '@OUTPUT@'],
+  )
+  restore_recovery_test = executable(
+    'openq4-restore-recovery-test', restore_recovery_source,
+    cpp_args: ['-UNDEBUG'], install: false,
+  )
+  test('openq4-restore-recovery', restore_recovery_test, timeout: 30)
+
+  foreach game_mode : ['game', 'mpgame']
+    restore_identity_source = custom_target(
+      'openq4-restore-identity-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'client' / 'ClientEntity.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreIdentity-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_identity.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_identity_test = executable(
+      'openq4-restore-identity-' + game_mode, restore_identity_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-identity-' + game_mode, restore_identity_test, timeout: 30)
+    client_registration_source = custom_target(
+      'openq4-client-registration-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Game_local.cpp'),
+      output: 'ClientRegistration-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/client_entity_registration.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    client_registration_test = executable(
+      'openq4-client-registration-' + game_mode, client_registration_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-client-registration-' + game_mode, client_registration_test, timeout: 30)
+    restore_cleanup_source = custom_target(
+      'openq4-restore-cleanup-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp', 'src' / game_mode / 'gamesys' / 'Class.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreCleanup-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_cleanup.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_cleanup_test = executable(
+      'openq4-restore-cleanup-' + game_mode, restore_cleanup_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach scenario : ['independent', 'cascade', 'external', 'commit', 'rollback', 'exception']
+      test('openq4-restore-cleanup-' + game_mode + '-' + scenario, restore_cleanup_test, args: [scenario], timeout: 30)
+    endforeach
+    restore_bindings_source = custom_target(
+      'openq4-restore-bindings-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'gamesys' / 'SaveGame.cpp',
+                   'src' / game_mode / 'Game_local.cpp'),
+      output: 'RestoreBindings-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_bindings.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_bindings_test = executable(
+      'openq4-restore-bindings-' + game_mode, restore_bindings_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-bindings-' + game_mode, restore_bindings_test, timeout: 30)
+    restore_movers_source = custom_target(
+      'openq4-restore-movers-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Mover.cpp', 'src' / game_mode / 'Mover.h',
+                   'src' / game_mode / 'Entity.h', 'src' / game_mode / 'gamesys' / 'SaveGame.cpp'),
+      output: 'RestoreMovers-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_movers.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_movers_test = executable(
+      'openq4-restore-movers-' + game_mode, restore_movers_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-movers-' + game_mode, restore_movers_test, timeout: 30)
+    restore_threads_source = custom_target(
+      'openq4-restore-threads-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Misc.cpp', 'src' / game_mode / 'Game_local.cpp',
+                   'src' / game_mode / 'script' / 'Script_Thread.cpp',
+                   'src' / game_mode / 'script' / 'Script_Interpreter.cpp',
+                   'src' / game_mode / 'gamesys' / 'SaveGame.cpp'),
+      output: 'RestoreThreads-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_threads.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_threads_test = executable(
+      'openq4-restore-threads-' + game_mode, restore_threads_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-threads-' + game_mode, restore_threads_test, timeout: 30)
+    restore_classes_source = custom_target(
+      'openq4-restore-classes-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp', 'src' / game_mode / 'gamesys' / 'Class.h'),
+      output: 'RestoreClasses-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_classes.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_classes_test = executable(
+      'openq4-restore-classes-' + game_mode, restore_classes_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-classes-' + game_mode, restore_classes_test, timeout: 30)
+    restore_gui_source = custom_target(
+      'openq4-restore-gui-' + game_mode + '-source',
+      input: files('src' / game_mode / 'gamesys' / 'SaveGame.cpp'),
+      output: 'RestoreGui-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_gui.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_gui_test = executable(
+      'openq4-restore-gui-' + game_mode, restore_gui_source, install: false,
+    )
+    test('openq4-restore-gui-' + game_mode, restore_gui_test, timeout: 30)
+    restore_spawn_refs_source = custom_target(
+      'openq4-restore-spawn-refs-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Game_local.h', 'src' / game_mode / 'client' / 'ClientEntity.h'),
+      output: 'RestoreSpawnRefs-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_spawn_refs.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_spawn_refs_test = executable(
+      'openq4-restore-spawn-refs-' + game_mode, restore_spawn_refs_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-restore-spawn-refs-' + game_mode, restore_spawn_refs_test, timeout: 30)
+    restore_render_handles_source = custom_target(
+      'openq4-restore-render-handles-' + game_mode + '-source',
+      input: files('src' / game_mode / 'Entity.cpp', 'src' / game_mode / 'Actor.cpp',
+                   'src' / game_mode / 'Projectile.cpp', 'src' / game_mode / 'Moveable.cpp',
+                   'src' / game_mode / 'client' / 'ClientModel.cpp', 'src' / game_mode / 'client' / 'ClientMoveable.cpp',
+                   'src' / game_mode / 'vehicle' / 'VehicleParts.cpp', 'src' / game_mode / 'Weapon.cpp',
+                   'src' / game_mode / 'ai' / 'Monster_StroggHover.cpp'),
+      output: 'RestoreRenderHandles-' + game_mode + '.cpp',
+      command: [py, files('tools/tests/savegame_restore_render_handles.py'), '--generate-native', game_mode, '@OUTPUT@'],
+    )
+    restore_render_handles_test = executable(
+      'openq4-restore-render-handles-' + game_mode, restore_render_handles_source,
+      cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach scenario : ['entity', 'actor', 'projectile', 'barrel', 'client-model', 'client-moveable', 'vehicle-light', 'weapon-lights', 'hover-light']
+      test('openq4-restore-render-handles-' + game_mode + '-' + scenario, restore_render_handles_test, args: [scenario], timeout: 30)
+    endforeach
+  endforeach
 
   openq4_interpolation_test = executable(
     'openq4-interpolation-test', files('tools/tests/native/InterpolationTest.cpp'),
@@ -987,6 +1255,25 @@ if build_engine or get_option('build_native_tests')
     test('openq4-retained-ui', openq4_retained_test,
       args: [meson.project_source_root() / 'tools/ui/fixtures/interaction-smoke.q4ui',
              meson.project_source_root() / 'tools/ui/fixtures/binding-smoke.q4ui'], timeout: 30)
+    openq4_ui_generated_texture_test = executable(
+      'openq4-ui-generated-texture-test',
+      files('tools/tests/native/UiGeneratedTextureTest.cpp'),
+      include_directories: root_include_dir,
+      dependencies: [openq4_retained_dep, rmlui_project.get_variable('rmlui_dep')],
+      install: false,
+    )
+    test('openq4-ui-generated-texture', openq4_ui_generated_texture_test, timeout: 30)
+    openq4_ui_generated_adapter_source = custom_target(
+      'openq4-ui-generated-adapter-source',
+      input: files('src/ui/RetainedUI.cpp', 'src/renderer/RenderSystem.cpp'),
+      output: 'UiGeneratedAdapterTest.cpp',
+      command: [py, files('tools/tests/ui_generated_images.py'), '--generate-native', '@OUTPUT@'],
+    )
+    openq4_ui_generated_adapter_test = executable(
+      'openq4-ui-generated-adapter-test', openq4_ui_generated_adapter_source,
+      include_directories: root_include_dir, cpp_args: ['-UNDEBUG'], install: false,
+    )
+    test('openq4-ui-generated-adapter', openq4_ui_generated_adapter_test, timeout: 30)
     # Image nodes, path blends and view-height canvases, then the production
     # retained title, pause and loading screens (ui_retained).
     openq4_ui_retained_screens_test = executable(
@@ -1763,7 +2050,7 @@ if build_engine
     endif
     run_command(
       py, meson.project_source_root() / 'tools/build/android_elf.py',
-      '--api', android_native_api.to_string(),
+      '--api', android_native_api.to_string(), '--abi', android_abi,
       android_deps_root / 'lib/libSDL3.so',
       android_deps_root / 'lib/libopenal.so',
       android_deps_root / 'lib/libc++_shared.so',
@@ -1775,6 +2062,8 @@ if build_engine
         prefix: '#include <SDL3/SDL_version.h>', args: android_include_args)
     endforeach
     android_build_config = configuration_data()
+    android_build_config.set('ANDROID_ABI', android_abi)
+    android_build_config.set('ANDROID_VARIANT', android_variant)
     android_build_config.set('ANDROID_API', android_native_api)
     android_build_config.set('SDL_VERSION', '.'.join(android_sdl_version))
     configure_file(
@@ -2054,8 +2343,28 @@ if build_engine or get_option('build_native_tests')
   endif
   if get_option('build_native_tests') and build_engine and use_sdl3_backend
     text_ingress_test_headers = [root_include_dir, include_directories('subprojects/packagefiles/sdl3/include')]
-    # Match the explicitly prepared SDL tree used by the SDK CI qualification.
-    native_facts_sdl_headers = meson.project_source_root() / 'subprojects/SDL3-3.4.10/include'
+    android_console_source = custom_target(
+      'openq4-android-console-source',
+      output: 'AndroidConsoleInput.cpp',
+      depend_files: files('src/sys/posix/posix_syscon.cpp', 'src/sys/sys_console_theme.h',
+        'src/sys/sdl3/sdl3_backend.cpp', 'src/framework/KeyInput.h'),
+      command: [py, files('tools/tests/android_console_input.py'), '--generate-native', '@OUTPUT@'],
+    )
+    foreach platform : ['android', 'desktop']
+      android_console_test = executable(
+        'openq4-android-console-' + platform, android_console_source,
+        include_directories: include_directories('src'),
+        dependencies: text_ingress_headers,
+        cpp_args: platform == 'android' ? ['-D__ANDROID__=1'] : [], install: false,
+      )
+      test('openq4-android-console-' + platform, android_console_test, timeout: 30)
+    endforeach
+    # Follow the pinned source tree used by SDK CI. A stale version literal
+    # silently omitted these tests after the SDL dependency was updated.
+    native_facts_sdl_directory = run_command(py, '-c',
+      'import configparser,sys; c=configparser.ConfigParser(); c.read(sys.argv[1]); print(c["wrap-file"]["directory"])',
+      meson.project_source_root() / 'subprojects/sdl3.wrap', check: true).stdout().strip()
+    native_facts_sdl_headers = meson.project_source_root() / 'subprojects' / native_facts_sdl_directory / 'include'
     if fs_mod.is_file(native_facts_sdl_headers / 'SDL3/SDL_events.h')
       native_facts_args = ['--compiler', cpp.cmd_array()[-1], '--no-mutations',
         '--sdl-include', native_facts_sdl_headers]
@@ -3205,6 +3514,7 @@ install_data('LICENSES/KHRONOS-GLES-MIT.txt', install_dir: install_root_dir / 'l
 install_data('docs/licenses/RmlUi.txt', install_dir: install_root_dir / 'licenses')
 install_data('docs/licenses/JsonCpp.txt', install_dir: install_root_dir / 'licenses')
 install_data('docs/licenses/libtess2.txt', install_dir: install_root_dir / 'licenses')
+install_data('docs/licenses/MD4.txt', install_dir: install_root_dir / 'licenses')
 if build_openxr
   # the client links the Khronos OpenXR loader statically
   install_data('docs/licenses/openxr-sdk.txt', install_dir: install_root_dir / 'licenses')
@@ -3307,6 +3617,23 @@ if build_openxr
     output: 'openq4_xr_test_runtime.json',
     configuration: openxr_test_runtime_manifest,
   )
+  if get_option('build_native_tests')
+    openq4_xr_lifecycle_source = custom_target(
+      'openq4-xr-lifecycle-source',
+      input: files('src/sys/openxr/OpenXRSystem.cpp'),
+      output: 'OpenXRLifecycleTest.cpp',
+      command: [py, files('tools/tests/openxr_lifecycle.py'), '--generate-native', '@OUTPUT@'],
+    )
+    openq4_xr_lifecycle_test = executable(
+      'openq4-xr-lifecycle-test', openq4_xr_lifecycle_source,
+      dependencies: openxr_headers_dep, cpp_args: ['-UNDEBUG'], install: false,
+    )
+    foreach fault : ['normal', 'teardown', 'input_teardown', 'partial_acquire', 'wait_loss', 'wait_timeout', 'wait_error',
+                     'release_loss', 'release_error', 'index_large', 'index_end', 'resize_loss', 'resize_failure',
+                     'count_large', 'count_zero', 'count_changed', 'image_zero', 'instance_loss', 'session_pending']
+      test('openq4-xr-lifecycle-' + fault, openq4_xr_lifecycle_test, args: [fault], timeout: 30)
+    endforeach
+  endif
 endif
 
 version_iteration_summary = version_iteration

@@ -105,11 +105,13 @@ def main() -> int:
     parser.add_argument("--map", dest="map_name", default="mp/q4dm1")
     parser.add_argument("--bots", type=int, default=8)
     parser.add_argument("--skill", type=int, choices=range(1, 6), default=4)
-    parser.add_argument("--debug", type=int, choices=range(1, 3), default=1,
-                        help="2 includes bot status, damage and movement diagnostics")
+    parser.add_argument("--debug", type=int, choices=range(1, 5), default=1,
+                        help="2 includes bot status/damage, 3 adds edge/traversal traces, 4 adds jump predictions")
     parser.add_argument("--max-world-deaths", type=int, default=None,
                         help="fail the audit if deaths to the map exceed this limit")
     parser.add_argument("--seconds", type=int, default=120)
+    parser.add_argument("--min-sim-seconds", type=int, default=None,
+                        help="require this much observed server time, independent of wall-clock waits")
     parser.add_argument("--port", type=int, default=28972)
     parser.add_argument("--timeout", type=int, default=0, help="defaults to seconds + 150")
     parser.add_argument("--profile-period", type=int, default=10)
@@ -122,6 +124,8 @@ def main() -> int:
     args = parser.parse_args()
     if not 2 <= args.bots <= len(NAMES):
         parser.error(f"use 2 to {len(NAMES)} bots")
+    if args.min_sim_seconds is not None and args.min_sim_seconds < 1:
+        parser.error("--min-sim-seconds must be positive")
     timeout = args.timeout or args.seconds + 150
     runtime, output = args.runtime_dir.resolve(), args.output_dir.resolve()
     exe = runtime / args.executable_name
@@ -298,8 +302,13 @@ def main() -> int:
     # the simulation could not keep up with real time.
     game_times = [int(v) for v in re.findall(r"^MP_STATE time=(\d+) ", sample, re.M)]
     sim_speed = None
+    simulation_seconds = None
     if len(game_times) >= 2:
-        sim_speed = round((game_times[-1] - game_times[0]) / (5000.0 * (len(game_times) - 1)), 3)
+        simulation_seconds = (game_times[-1] - game_times[0]) / 1000.0
+        sim_speed = round(simulation_seconds / (5.0 * (len(game_times) - 1)), 3)
+    if args.min_sim_seconds is not None and (simulation_seconds is None or simulation_seconds < args.min_sim_seconds):
+        failures.append(f"observed simulation duration {simulation_seconds} seconds "
+                        f"is below the required {args.min_sim_seconds} seconds")
 
     # CPU over the audit window: the last `seconds` before the run ended.
     window_cpu = None
@@ -330,6 +339,8 @@ def main() -> int:
         "nav_failures_per_bot_minute": round((nav["no_route"] + nav["stuck"] + nav["traversal_timeout"] +
                                               nav["goal_give_up"]) / bot_minutes, 3),
         "sim_speed": sim_speed,
+        "simulation_seconds": simulation_seconds,
+        "min_sim_seconds": args.min_sim_seconds,
         "cpu_cores_busy": window_cpu,
         "main_loop_frame_ms": {"frames": len(loop_frames),
                                "mean": round(statistics.fmean(loop_frames), 2) if loop_frames else None,

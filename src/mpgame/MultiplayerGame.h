@@ -806,6 +806,7 @@ public:
 	// over it) is open, the way a story level does. Host-local, like the rest
 	// of the ceremony: the paused frames rebase every match deadline.
 	bool			ArenaCampaignPausesWorld( void ) const;
+	void			UpdateArenaSoundPause( bool pause );
 	void			RebaseArenaCampaignPauseFrame( int deltaMsec );
 	// Escape during the end-of-match ceremony skips ahead to the match report
 	// instead of opening a menu whose Disconnect would forfeit the result.
@@ -1187,6 +1188,7 @@ private:
 	bool			arenaCeremonySkipping;
 	bool			arenaSkipButtonHeld;
 	bool			arenaMenuWasPaused;
+	bool			arenaSoundPauseOwned;
 	// The introduction order, latched when it arms: teammates first, then the
 	// opposition, each in slot order.
 	int				arenaIntroOrder[ MAX_CLIENTS ];

@@ -64,9 +64,9 @@ role. Each profiled successful role supplied 256 CPU/GPU samples and passed its
 unchanged existing per-map budget. Both **failed the connecting MP client**:
 startup timed out before active gameplay/display/capture completion. The shorter
 save path did not resolve it. This is a reproduced failure of this workload,
-not a qualified pure-client result or a proven path-length diagnosis. MP-08 and
-Q4-02 own the remaining client-startup investigation; the full failed reports
-and logs remain alongside reruns.
+not a qualified pure-client result or a proven path-length diagnosis. The
+stage-two follow-up below resolves this startup failure; the full failed reports
+and logs remain alongside reruns. Broader MP-08/Q4-02 qualification remains open.
 
 An initial overlay-free probe incorrectly selected `fs_game baseoq4` without
 its required package metadata/paks. Its pre-log timeout was traced with a
@@ -97,6 +97,102 @@ and an extra baseoq4 overlay. The baseline preflight rejected that directory;
 the audit uses independent PK4 copies instead. No installed assets or user
 configuration were changed. Missing-media, authored-content warnings, package
 configuration errors and renderer defects must not be merged into one verdict.
+
+## Cross-platform pure peers, 18 October 2026
+
+The production PK4 writer previously inherited Python's host-dependent ZIP
+`create_system` field. Windows and Linux builds contained identical member bytes
+but different archive bytes, so the engine's embedded package identity rejected
+a package copied from the other host. `openq4_pak.py` now writes the existing
+Windows/DOS value explicitly. No authored content, pure-check policy or protocol
+version changes. Actual Windows and Linux builds now produce identical pak0/pak1
+SHA-256 values, respectively
+`329725e33f909bf351231784c36773b0c9bbbffc8922223482112e8dca30501a` and
+`1a7c763fbba69207725774d45139ce5a8583300e4f89a55ecf12760bfb6570a9`.
+The packaging regression executes the real writer with both host metadata
+defaults, checks payloads and byte equality, and rejects the old behavior.
+Windows and Linux runs pass.
+
+`tools/tests/mp_wsl_peer_smoke.py` ran a staged Linux x64 dedicated server and two
+successive native Windows x64 clients against the same 40 retail PK4s. IPv4 and
+scoped link-local IPv6 both passed pure negotiation, active player/view checks,
+disconnect/reconnect and clean shutdown of all three processes. Engine captures
+were decoded and inspected: Q4DM1 world, weapon and HUD are visible. Each client
+played alone in warmup; these runs do not qualify combat, concurrent player load,
+WAN impairment, MTU edge cases, another architecture or physical Linux display.
+
+| Evidence | SHA-256 / identity |
+| --- | --- |
+| IPv4 `.tmp/s2peer-ipv4-r4/report.json`, 100.91 s | `ac41ca476e1cecddda1348f7ffd3c9ff0120ba642fbf7f8a3ceebd20fd83d80c` |
+| IPv6 `.tmp/s2peer-ipv6-r2/report.json`, 98.17 s | `b04b64de1117bc8855f447d2ff8dfde2c7f215262012bd435e37ee28a715433e` |
+| Windows engine / MP module | `c30c191835a11e82ac12d7c34dc5fb393af6c131e95913b0e20066e9f297bf81` / `20ce933689ee4b7fa2fe08a1327a1013a34a23241596cb04775a59dcc47cd065` |
+| Linux engine / MP module | `51ac07e50a87b6dd1885fb988f51447ead90d985e232575cd95d0c640bd2a3f9` / `10955ae59b803281f555ed8a66f28994800a0f0a4c64b5110f838fdcbdb541da` |
+| Linux stage identity `.tmp/stage-two/linux-final-runtime-identity.json` | `8e07962db5adbe590174a1a5e56305e26912f4703b1873f6308cf35b40769d32` |
+
+Runtime source is the `6de4e622e` base plus the Arena/session/sound corrections
+bound in [Arena evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+and the deterministic ZIP metadata change. OpenXR lifecycle work edited during
+these runs was not built into these binaries. Both client runs used hidden,
+windowed GL at 640x480, disabled physical input, and engine screenshots only.
+Reports retain exact commands, addresses/scopes, runtime and asset hashes.
+No firewall, installed game content or shared player profile was changed.
+
+The initial `.tmp/s2peer-ipv4/` package-identity rejection remains recorded.
+Earlier `.tmp/s2peer-ipv4-r2/`, `.tmp/s2peer-ipv4-r3/` and `.tmp/s2peer-ipv6/`
+attempts timed out during WSL startup before any peer connection; reports and
+verified process-cleanup records preserve those failures. The successful runs
+first verified that runtime, assets and writable profiles on the Windows mount
+resolve mixed-case names to the same files, then used `fs_caseSensitiveOS 0`
+for that filesystem. This avoids expensive case-recovery directory searches;
+it is not evidence for case-sensitive Linux filesystem behavior. These are
+functional checks, not controlled performance measurements. MP-08 remains open.
+
+## Stage-two connection regression
+
+The failure reproduced again in `.tmp/s2connect/` on the staged stage-one
+binaries. Non-invasive debugger snapshots showed an idle, disconnected client
+with an empty command queue. Temporary command-dispatch diagnostics then showed
+empty command names at queue indices 16, 32 and 48; `connect` was index 48.
+`idList::Append` correctly copies its value before growing storage, but
+`idCmdArgs` had only a deep assignment operator and an implicit shallow copy
+constructor. Copying through the list's temporary therefore produced token
+pointers outside the receiving object. This also affected insertion and reload
+replay; changing network timeouts or bypassing the SP-to-MP handoff would not
+repair it.
+
+`idCmdArgs` now uses the same owned-token copy for construction and assignment,
+and assignment explicitly handles self-assignment. The native fixture compiles
+the production methods and actual list container. It checks 100 queued commands,
+every growth boundary, aliased growth/insertion, source destruction, independent
+copies and reload replay. Removing the copy constructor in a disposable header
+copy makes that fixture fail its pointer-ownership check. All 185 Meson tests
+pass in MSVC `debugoptimized`; the new fixture also passes with Linux g++ in WSL.
+The game-module selection, pure-pack and network-security contracts pass.
+
+After rebuilding and staging the matching engine/modules/renderers, the full
+stock baseline in `.tmp/s2fixed/` passes all four roles: SP save/restore,
+render-demo playback, listen server and connecting pure client. The client
+switches to `game_mp`, completes pure restart/admission, joins as a player and
+writes the engine screenshot bracketed by active-player/gameplay-view checks.
+That capture was visually checked. The report verifier passes all artifact and
+retail/runtime package bindings. This is Windows x64 loopback/OpenGL evidence;
+it does not close cross-platform peers, physical input or full campaign play.
+The timing samples meet the existing absolute baseline gates; no comparative
+performance improvement is claimed. Temporary dispatch instrumentation was
+removed before the final build.
+
+The tested worktree is based on `cbe967f2b`, with source and reports bound below.
+The existing report schema records the complete dirty-source and package identity.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `src/idlib/CmdArgs.h` | `5b2d49b661f60945ccfbcc5e71284a94189592edfc14380859268ff5582bb3e1` |
+| `src/idlib/CmdArgs.cpp` | `7be0cd90967b33a096ac3e79d56781733bb3383b2fddfe10dbb8f3c2c378fdbf` |
+| `.tmp/s2connect/stock_asset_baseline_report.json` (failed) | `165259e3843f13b7305948bbcfc4b2682c8223295e95cda7b03cab6ed5df5e86` |
+| `.tmp/s2fixed/stock_asset_baseline_report.json` (passed) | `4f8d444ab033ee1a1580a9b950624655827c0183c5e5592ba6b57076a4cc7444` |
+| `.tmp/stage-two/cmdargs-native-testlog.json` | `19c16f8c49dcc5dceef66b19fb41ec33e4a93f3afb758ef97892545f330f6b94` |
+| `.tmp/stage-two/cmdargs-negative.log` | `3704ea1626d27dd4d69ee27873c15498e0908b92287f08b2db9c716782ad6dd4` |
+| `.tmp/stage-two/cmdargs-linux.log` | `56f3ae643db14849a59652dacdfb8acb46f378b678d39e4cede3234372ca3486` |
 
 ## File-by-file overlay disposition
 
