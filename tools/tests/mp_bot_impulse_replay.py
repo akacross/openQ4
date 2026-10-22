@@ -261,7 +261,8 @@ def replay_session(runtime: Path, executable: str, basepath: Path, output: Path,
                    f"echo MP_BOT_TRIAL_END {trial['name']}",
                    # A bot that died, or walked off later, would refuse or
                    # spoil the next trial: replace it with a fresh one.
-                   "removebot Rhodes", "waitMsec 500", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
+                   # The removed client takes a moment to leave its slot.
+                   "removebot Rhodes", "waitMsec 2500", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
     script += ["echo MP_BOT_REPLAY_END", "quit"]
     (game / "impulse_replay.cfg").write_text("\n".join(script) + "\n", encoding="utf-8")
     cvars = {

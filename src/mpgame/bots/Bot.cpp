@@ -5577,7 +5577,10 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 	const bool leavesOnPurpose = corner.travelType == NAVTRAVEL_JUMP ||
 		( pathCorner + 1 < path.Num() && path[pathCorner + 1].travelType != NAVTRAVEL_WALK &&
 		  path[pathCorner + 1].travelType != NAVTRAVEL_DROP );
-	if ( hasMoveDir && self->pfl.onGround && !leavesOnPurpose ) {
+	// A strong knock's slide is not the planned departure: on q4dm8 a rocket
+	// slid a bot approaching its pad off the platform's far edge unbraked.
+	const bool knockSliding = knockbackTime && gameLocal.time - knockbackTime <= BOT_AIR_RECOVER_SLIDE_MSEC;
+	if ( hasMoveDir && self->pfl.onGround && ( !leavesOnPurpose || knockSliding ) ) {
 		BotBrakeAtEdge( self, moveDir );
 	}
 	// Nor into a pad or teleporter the route did not choose; a held approach

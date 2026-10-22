@@ -291,6 +291,8 @@ def validate_game_wiring() -> None:
                   "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
     require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
+    # A knock's slide toward an edge is braked even on an action's approach.
+    require(movement, "( !leavesOnPurpose || knockSliding )", "rvBot::UpdateMovement knocked edge guard")
     # Momentum never carries a grounded bot into a pad or teleporter its route
     # did not choose, on a route or off one (q4ctf5's unplanned pad entries).
     require(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
