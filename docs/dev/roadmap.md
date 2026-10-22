@@ -1,6 +1,6 @@
 # openQ4 development roadmap
 
-Updated 19 October 2026. Stage-one implementation and tested source:
+Updated 21 October 2026. Stage-one implementation and tested source:
 `7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
 [baseline evidence record](baseline-evidence.md) binds current native tests,
 windowed gameplay and original-content controls to their exact source, binaries
@@ -85,7 +85,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | Temporal rendering | Automatic TAAU supports subnative bilinear/bicubic scaling and dynamic resolution on eligible desktop GL/Vulkan paths; crop/nearest modes and VR are excluded. Rigid, skinned and first-person weapon motion vectors and reactive effect coverage exist. Dynamic resolution and GPU skinning remain opt-in. GLES has no temporal resolve. |
 | VR | The active source implements OpenGL PC OpenXR, stereo, tracked input, room scale, crouch, two-handed aiming, haptics, comfort controls and vehicle views. Vulkan/EGL/Quest work is recoverable from archived history, not active implementation. Real-headset qualification remains open. |
 | Android | Experimental ARM64/API 24+ GLES3 client, SDLActivity host, in-tree game modules, signed APK/release verification and dependency licensing are implemented. Device qualification and integration of archived onboarding/touch/lifecycle work remain open. |
-| UI | Many retained screens and HUDs now run by default. The register preserves 347 rows, 310 active requirements and 37 superseded rows. UI-10 reconciled retail/base/Awakening mounts to 358 source/include-bound variants; all remain unaccepted for migration. Historical hashes and invalidated inventory acceptance are preserved. |
+| UI | Many retained screens and HUDs now run by default. The register preserves 349 rows, 310 active requirements and 39 superseded rows. UI-10 reconciled retail/base/Awakening mounts to 358 source/include-bound variants; all remain unaccepted for migration. Historical hashes and invalidated inventory acceptance are preserved. |
 | Retail and Awakening | Canonical SP/MP sources and BSE are in-tree. Awakening is additive SP content under `q4xbase`, not a separate multiplayer module. Retail decl and BSE audits have already resolved extensive earlier gaps. |
 | Multiplayer | Dual-stack networking, pure asset checks and bounded rcon2 exist. Actual MP defaults are `net_mpLagCompensation 0` and `net_mpPredictMode 0`; the player networking guide now agrees. `RemoteExtrapolationMS()` is still a zero placeholder because the server cannot observe the client's prediction choice. Retail 2.85 interoperability is outside the current openQ4 2.41 protocol contract. |
 | Platforms | Windows x64 and Linux x64/Steam Deck are first-class platform targets; macOS arm64 and Linux ARM64 are previews; Windows ARM64 and Android are experimental. Renderer tiers are separate from platform tiers. |
@@ -436,9 +436,17 @@ Sources: [Android build and packaging](android-build.md),
   verification, notices, existing usable assets during failed extraction and the
   retained UI. Accept each integrated feature independently with recovery tests.
   Select an explicit ABI/API/device/flavor matrix before integration. Current
-  Meson/Gradle admit ARM64 and `verify_android_apk.py` expects an exact library and
-  asset set; emulator/Quest additions need coordinated metadata, staging and
-  variant-specific allowlists. Preserve matching SDL/native versions, 16 KiB
+  Meson/Gradle admit ARM64 phones and a separate debug-only x86_64 emulator
+  package. Both use exact library/asset allowlists and coordinated native
+  metadata; Quest still needs its own staging and variant checks.
+  The [diagnostic emulator recovery](platform-recovery-review.md#android-diagnostic-emulator-recovery-20-october-2026)
+  passes native/package builds, phone regression checks and silent SP save/load
+  and MP movement/release on a current GLES3, 16 KiB x86_64 image. The API 24
+  image tested exposes only GLES2 and is rejected before installation. Engine
+  captures exposed touch/HUD overlap and corner-hit issues; the recorded follow-up
+  APK fixes them for the default landscape layout and passes fresh SP/MP probes.
+  Full editable/portrait layouts retain their separate acceptance.
+  Preserve matching SDL/native versions, 16 KiB
   alignment, certificate identity and licensing. Reject test-runtime/debug payloads
   from published APKs; toolchain/API bumps require their own qualification.
   Stage-one archived-change review and explicit phone/emulator/Quest scope matrix
@@ -459,8 +467,9 @@ Sources: [Android build and packaging](android-build.md),
   retains its own device gates.
   [Background audio/input and SP resume](platform-recovery-review.md#android-background-audio-and-single-player-resume-19-october-2026)
   now run before SDL blocks and return live SP behind the pause menu. Native
-  Windows/Linux recovery controls and both builds pass; physical suspension,
-  resumed audio and input still require device checks.
+  Windows/Linux recovery controls and both builds pass. The S25 touch check
+  below also passes audible background/resume and paused SP return; sustained
+  suspension, process death and resumed network sessions remain unqualified.
   [Background timer recovery](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)
   adds 100 ms background waits and bounded catch-up at every Android timescale;
   production Windows/Linux cadence, freeze and shutdown checks pass. Physical
@@ -474,6 +483,14 @@ Sources: [Android build and packaging](android-build.md),
   now keeps the actual SDL surface clear of camera cutouts and retains the
   remaining child system/IME insets. Windows/Linux host checks and exact debug
   package verification pass; real rotation/density/input and portrait work remain.
+  [Gameplay touch recovery](platform-recovery-review.md#android-gameplay-touch-recovery-20-october-2026)
+  now integrates the standalone vector controls with independent usercmd motion,
+  preserved quick taps, touch-driven weapon selection and contact cancellation.
+  Windows/Linux behavioral checks, both native builds and exact APK checks pass;
+  the debug S25 updates preserve all six existing save files. Scripted
+  gameplay/save round trips and physical move/look/fire, tap/hold weapon
+  selection and background/resume audio pass on the recorded S25 builds.
+  The full editable layout/portrait contract and setup integration remain open.
   Broader device startup and the remaining host/input/lifecycle recovery are
   still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
@@ -524,9 +541,27 @@ Sources: [Android build and packaging](android-build.md),
   grants, verified import/check, bundled-file preparation and explicit SP/MP
   launch. Progress/cancellation and retry preserve completed archives; native
   storage ownership blocks setup until the game actually exits. Four resource
-  sets and Windows/Linux pipeline checks cover this increment. Controls and
-  interface setup, Settings re-entry, release signing continuity and
+  sets and Windows/Linux pipeline checks cover this increment. Release signing
+  continuity and
   physical provider/lifecycle/accessibility/visual acceptance remain open.
+  [Settings re-entry](platform-recovery-review.md#android-settings-return-21-october-2026)
+  now opens setup without ending the native game and returns to the same session.
+  Two emulator handoffs preserve map/save state; desktop visibility and
+  native/JVM recovery controls pass. Physical navigation on the new APK remains
+  unqualified, and storage operations still require the game to finish closing.
+  [Touch controls setup](platform-recovery-review.md#android-controls-setup-21-october-2026)
+  adds Default/Compact/Left-handed presets, size/sensitivity controls, a live
+  look-speed test and detected-controller information. Drafts stay separate
+  from applied settings, which reach the engine at startup/foreground entry.
+  Native/JVM, negative controls and two emulator handoffs pass. Physical setup
+  interaction, controller behavior and full editor/portrait acceptance remain.
+  [Interface setup](platform-recovery-review.md#android-interface-setup-21-october-2026)
+  previews the section 13.2 viewing profiles with independent UI and text size.
+  Each Apply reaches `ui_retainedScale`/`ui_retainedTextScale` once at
+  foreground entry, so later in-game size changes survive a return. JVM/JNI,
+  native parser and mutation checks pass, and the emulator drives the page from
+  Apply to the engine. Physical S25 interaction and the in-game Interface
+  settings page remain open.
   The [save and log export flow](platform-recovery-review.md#android-save-and-log-export-20-october-2026)
   now prepares bounded ZIPs with per-file integrity records and copies them to
   new documents chosen through the system picker. It preserves original saves,
@@ -599,9 +634,15 @@ archived provenance; new scheduling belongs here.
   other recorded deviations before acceptance. Preserve editable vector framing,
   controls, symbols, 45-degree geometry and continuous motion; use bitmaps only for
   approved complex imagery. Keep stock references without adding proprietary art.
-  Resolve `FLOW-054`/`WID-034` clauses still requiring Awakening multiplayer through
-  a register revision preserving their history and applicable SP/ordinary-MP
-  obligations. Do not build expansion MP to satisfy stale acceptance clauses.
+  Progress, 21 October: [register revision 19](ui/product-requirements.md#revision-19-awakening-single-player-scope)
+  preserves `FLOW-054`/`WID-034` as history and replaces their active scope with
+  `FLOW-066`/`WID-038`. Awakening single-player and ordinary Quake 4 multiplayer
+  obligations remain; an expansion multiplayer module is explicitly excluded.
+  This resolves the stale scope clauses without accepting a GUI. The
+  [hit-feedback default correction](ui/remastered-hud.md#hit-feedback-defaults-21-october-2026)
+  restores stock feedback for fresh SP/MP profiles and preserves archived opt-ins;
+  four actual-map default/write/restore/reset runs pass. Optional marker artwork,
+  timing and the remaining visual-policy qualification stay open.
 - [ ] **UI-06 — P1, implementation: finish the visual authoring editor.** Build on
   DocumentEdit/history/prepared-view foundations: shell, hierarchy, property/layout/
   anchor tools, reusable components, pen/path/gradient/mask editing, timelines/state
@@ -766,6 +807,16 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   other target ABIs, identifying source executable, architecture and save layout.
   Keep synthetic corruption/layout tests separately labelled; they cannot prove
   compatibility with saves generated by the original binaries.
+  Progress, 21 October: the [published-writer corpus](savegame-reliability.md#original-release-writers-21-october-2026)
+  passes current restore/resave/reload for five maps from each requested release
+  on Windows x64. Four releases commit their original saves; v0.13.0 rejects its
+  own build stamp, so its five completed staged payloads were captured without
+  changing the writer or bytes. That original transaction failure remains explicit.
+  The exact [#123 retest](savegame-reliability.md#issue-123) still fails safely:
+  the supplied rebuilt map lacks a saved prelight model, and the retail-map
+  control reaches a GUI child-identity mismatch. Its writer is fingerprinted
+  0.10.0; historical reporter confirmation and corrections to prior assumptions
+  are preserved. This current failure and the other target ABIs keep Q4-07 open.
 - [ ] **Q4-08 — P2, investigation and qualification: save cost and durability.**
   Measure large-save CRC/sync time and fault behavior across target filesystems.
   Directory metadata is not synced and full power-loss atomicity is not established.
@@ -802,6 +853,37 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   impulses. The subsequent [33-map sweep](mp-bots.md#current-complete-catalog-sweep-18-october-2026)
   passes 32 maps but retains a DM8 world death following an enemy impulse. The
   gate stays open, including recovery steering and controlled timing evidence.
+  Progress, 21 October: a [sloped-floor support correction](mp-bots.md#sloped-floor-support-correction-21-october-2026)
+  fixes false edge braking caused by the support box/full-player height difference.
+  Windows/Linux fixtures, isolated failing controls and original CTF6 geometry
+  checks pass. A 60-second CTF6 bot run has no world deaths or traversal timeouts;
+  remaining stalls and the renewed four-map sweep's DM8/CTF5 world deaths keep
+  the wider gate open. A subsequent [live-origin correction](mp-bots.md#live-jump-origin-correction-21-october-2026)
+  resolves the isolated DM8 air-step false approval: the proof had started one
+  unit above the actual player and incorrectly removed horizontal momentum.
+  Native regression controls and the original-map replay pass; the broader DM8
+  rerun still has a world death, so its remaining cause and the full gate stay open.
+  The ensuing [pad-flight investigation](mp-bots.md#jump-pad-impulse-recovery-21-october-2026)
+  reproduces that separate post-hit overshoot. Supported touchdown/runout checks
+  and immediate braking at an exhausted route now pass the isolated replay and
+  Windows/Linux regression controls. The wider map/catalog and timing gates remain
+  open; the failed intermediate touchdown-only fix is retained as evidence.
+  The [renewed 33-variant sweep](mp-bots.md#renewed-catalog-sweep-21-october-2026)
+  passes 31 variants and retains CTF5/q4xdm13 failures. The isolated
+  [q4xdm13 dodge repair](mp-bots.md#dodge-landing-runout-21-october-2026)
+  now reserves supported ground for touchdown momentum; Windows/Linux native
+  controls and the original-map replay pass. CTF5 impact diagnosis, current
+  match/catalog reruns and the broader acceptance gates remain open.
+  The [CTF5 pad reservation correction](mp-bots.md#early-pad-reservation-21-october-2026)
+  brakes before multiple nearby walking corners can carry a bot into a busy
+  pad. Windows/Linux regression controls pass. A full-duration repeat retains
+  two separate world deaths (low-health landing and post-rocket fall), so the
+  strict map/catalog safety gate remains open.
+  The [repeated-contact correction](mp-bots.md#repeated-pad-contact-and-landing-health-21-october-2026)
+  models successive force-brush pushes and rechecks low-health approaches before
+  the final walking corner. Native controls and the isolated landing-damage
+  replay pass. The next full-duration match retains four deaths after unintended
+  pad entries or combat impulses; recovery and strict catalog gates stay open.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
@@ -881,6 +963,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   defect. Reconcile that report with measured source/listener behavior rather than
   applying a speculative 39.37 conversion. Preserve the authored mix and already
   implemented spatial/HRTF/EFX/reverb behavior.
+  Progress, 20 October: the [current distance audit](audio-modernization.md#current-distance-audit-20-october-2026)
+  passes 54 actual emitter/OpenAL measurements across three original shaders,
+  with default linear and optional quadratic curves. Source/listener coordinates
+  and radii remain in map units; OpenAL rolloff is zero and does not double the
+  engine curve. The failed initial harness calibration is preserved. Defaults
+  remain unchanged; physical audibility is still pending.
 - [ ] **AUD-02 — P1, qualification: physical device and timing lifecycle.** Test
   default/selected endpoint loss and return, hotplug, pause/resume/slow motion,
   cinematics, map/restart and long sessions on target OSes. Verify audible output,

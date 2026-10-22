@@ -10,6 +10,128 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Add an Android setup Interface page with Desk, Couch, Handheld, Phone and
+  Tablet viewing profiles, UI size (75–200%) and text size (100–200%, following
+  the Android font size on phones and tablets). Each Apply sets the game's
+  retained UI and text scale once, at the next launch or return, so later
+  in-game changes are kept. The [interface setup check](platform-recovery-review.md#android-interface-setup-21-october-2026)
+  passes JVM/JNI, native, mutation and emulator Apply-and-return checks.
+  Physical S25 qualification remains open under AND-03.
+
+- [x] Keep stock crosshair hit feedback for fresh SP/MP profiles by default.
+  Saved marker opt-ins remain intact. Four
+  [actual-map default/persistence/reset checks](ui/remastered-hud.md#hit-feedback-defaults-21-october-2026)
+  and diagnostic engine captures pass. Optional marker artwork/timing and wider
+  UI-05 qualification remain open.
+
+- [x] Reconcile the UI register with the existing Awakening single-player scope.
+  [Revision 19](ui/product-requirements.md#revision-19-awakening-single-player-scope)
+  preserves historical rows and applicable SP/ordinary-MP obligations, without
+  requiring an expansion MP module or accepting any GUI/artwork.
+
+- [x] Account for repeated force-brush contact when predicting jump-pad landing
+  damage, and recheck low-health approaches before their final walking corner.
+  [Original-map and native evidence](mp-bots.md#repeated-pad-contact-and-landing-health-21-october-2026)
+  covers the underpredicted impact and late health check. Unintended entries,
+  combat impulses and the failing strict map/catalog gate keep MP-02 open.
+
+- [x] Reserve occupied jump-pad corridors before the final approach corner,
+  giving bots time to brake across nearby walking corners. The
+  [CTF5 diagnosis](mp-bots.md#early-pad-reservation-21-october-2026) and native
+  Windows/Linux regression checks cover the late reservation. Full-duration
+  gameplay retains separate landing/rocket-fall failures; MP-02 stays open.
+
+- [x] Add Android touch setup with Default, Compact and Left-handed presets,
+  button size, look sensitivity and a live drag test. Applied preferences reach
+  the engine at startup/return; drafts and failed writes preserve the previous
+  settings. The [bounded controls check](platform-recovery-review.md#android-controls-setup-21-october-2026)
+  passes Windows/Linux native tests, JVM recovery and emulator returns. Physical
+  setup/controller qualification and the full layout editor remain open.
+
+- [x] Reopen Android setup from the game's Settings and return to the same
+  running session. Return to game is also available on the language page.
+  The [setup return check](platform-recovery-review.md#android-settings-return-21-october-2026)
+  passes two emulator handoffs, a desktop visibility control and native/JVM
+  recovery tests. Physical navigation and broader onboarding remain open.
+
+- [x] Add genuine published-Windows-writer evidence for the historical readers.
+  Twenty original committed slots from 0.6.95/0.8.0/0.10.0/0.11.0 and five
+  completed v0.13.0 staged payloads pass current restore/resave/reload across
+  five maps. The [corpus record](savegame-reliability.md#original-release-writers-21-october-2026)
+  retains v0.13.0's self-rejected transactions, exact identities and failed
+  harness assessments. Current #123 GUI/map compatibility and other-ABI
+  qualification remain open; no save-format or support policy changed.
+
+- [x] Reject voluntary bot hops that touch a platform but carry too much momentum
+  to remain on it. The [q4xdm13 replay](mp-bots.md#dodge-landing-runout-21-october-2026)
+  now slows before taking a supported hop. Windows/Linux fixtures preserve safe
+  wider landings; negative controls and the isolated original-map replay pass.
+  The renewed catalog's remaining failures and wider MP-02 gates stay open.
+
+- [x] Scope Windows installation shutdown to the current checkout's staged
+  runtime. Installing one worktree previously stopped matching games in other
+  worktrees or installations. Six production-function cases and three failing
+  regression controls cover process/path ownership and shutdown races; normal
+  Windows staging validation executes them. The
+  [interference evidence](mp-bots.md#installation-interference-21-october-2026)
+  preserves the interrupted gameplay runs and their remaining safety failures.
+
+- [x] Check both the predicted jump-pad touchdown and room to slow down, and
+  brake unsafe momentum before an exhausted route's idle wait. The recorded
+  [DM8 post-hit flight](mp-bots.md#jump-pad-impulse-recovery-21-october-2026)
+  now lands and survives on the isolated replay. Native Windows/Linux cases and
+  negative controls cover unsupported touchdown and insufficient runout. The
+  intermediate failed fix and remaining MP-02 qualification are preserved.
+
+- [x] Start live bot jump predictions at the actual collision origin. The old
+  one-unit lift could miss a valid air step and approve an overshooting jump.
+  The [isolated DM8 replay](mp-bots.md#live-jump-origin-correction-21-october-2026)
+  now completes safely; Windows/Linux fixtures preserve broad landings and fail
+  when the old offset is restored. Wider MP-02 safety qualification remains open.
+
+- [x] Correct the support-box/full-player height mismatch that made bot edge
+  braking reject valid slopes. Windows/Linux production-function fixtures cover
+  box and cylindrical hulls, low ceilings and hazards; isolated regressions reject
+  either old implementation. Original CTF6 surface checks and a 60-second bot run
+  pass their scoped checks. The [bot evidence](mp-bots.md#sloped-floor-support-correction-21-october-2026)
+  preserves remaining route stalls and failing DM8/CTF5 safety reruns. MP-02 and
+  controlled performance qualification remain open.
+
+- [x] Add read-only authored-distance/OpenAL diagnostics and measure three stock
+  looping sounds through real Hangar 1 emitters. All 54 linear/quadratic samples
+  pass on the recorded Windows build, preserving map-unit ranges, source radii
+  and the existing mix. The [distance audit](audio-modernization.md#current-distance-audit-20-october-2026)
+  retains exact evidence, the failed initial harness calibration and eight
+  failure-detection tests. Human audibility remains pending under AUD-01;
+  no audio defaults or support claims changed.
+
+- [x] Recover a separate x86_64 Android diagnostic app with coordinated native
+  metadata, exact package verification and disabled release variants. The ARM64
+  phone packaging regression remains passing. A current 16 KiB Android emulator
+  passes silent Hangar 1 touch/save/load and Q4DM1 movement/release checks,
+  restores settings and exits normally. The
+  [recovery record](platform-recovery-review.md#android-diagnostic-emulator-recovery-20-october-2026)
+  retains exact identities, failed older-image attempts and the observed touch
+  layout defects; software-rendered results do not promote physical-device support.
+
+- [x] Recover the standalone Android gameplay controls against current input
+  ownership. Touch movement/look bypass physical mouse/controller preferences,
+  short taps survive game-tick boundaries, wheel steering preserves the view,
+  and menu/focus/device changes release held actions. Fixed enlarged-control
+  placement, physical target spacing and invalid-density handling.
+  [Recovery evidence](platform-recovery-review.md#android-gameplay-touch-recovery-20-october-2026)
+  records Windows/Linux behavior checks, both native builds, exact APK checks
+  and same-debug-certificate S25 updates preserving all six original save files.
+  Scripted movement, weapon selection and save round trips pass; the final
+  engine capture confirms an unobscured weapon wheel. Physical move/look/fire,
+  release, tap/hold selection and audible background/pause/resume pass on the
+  recorded S25 build. Layout editing/portrait presentation, other devices and
+  guided controls setup remain AND-01/AND-03 acceptance work.
+  A later emulator-qualified increment keeps the visible button corners inside
+  their hit targets, clears Pause from the MP rank display and lifts default
+  Reload above the status readouts. Native Windows/Linux tests and fresh SP/MP
+  captures pass; it has not replaced the physically checked S25 build.
+
 - [x] Qualify the previously blocked original-save restore on the S25's recorded
   timer/GUI-repair APK. Storage 1 loads, creates another save, reloads it and
   exits cleanly, with both views captured by the engine and the original bytes

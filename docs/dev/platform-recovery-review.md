@@ -109,9 +109,11 @@ Linux GL runtime or headset support. No frame-time or audible-device claim is ma
 | Emulator diagnostic | x86_64, API 24 floor plus current emulator image, GLES3 | Debug-only recovery candidate; separate module suffix/ELF metadata/allowlist, no release publication until separately selected and qualified |
 | Quest | arm64-v8a, GLES3/OpenXR, explicit headset manifest | Optional experimental flavor; API floor/device claims need Quest-specific verification. Depends on VR-01/VR-06 and flavor-aware stage/APK checks; no debug runtime in distributable artifacts |
 
-Current Meson/Gradle and `verify_android_apk.py` admit the ARM64 package only.
-The matrix selects the scope for integration; it does not make the two candidate
-variants implemented or supported. No NDK, SDL or API bump is bundled into recovery.
+At the stage-one review, Meson/Gradle and `verify_android_apk.py` admitted the
+ARM64 package only. The subsequent diagnostic emulator recovery below adds
+x86_64 with a separate application identity and disables release packaging for
+that ABI. Quest remains a candidate. No NDK, SDL or API bump is bundled into
+recovery, and build support alone does not establish runtime qualification.
 
 | Archived change | Recovery decision and current conflict |
 | --- | --- |
@@ -232,7 +234,7 @@ The subsequent S25 check below qualifies startup for that device/package only.
 
 ## S25 startup, data path and upgrade check, 19 October 2026
 
-Dan's Galaxy S25 (SM-S931B, Android 16/API 36, ARM64, 4 KiB pages) installs
+The test Galaxy S25 (SM-S931B, Android 16/API 36, ARM64, 4 KiB pages) installs
 the debug APK above. All 40 copied retail files match the independent source
 fixture's SHA-256 manifest. Storage 1 reaches its first active draw, the engine
 `screenshot` command captures the opening scene at 2340 by 1080, and
@@ -789,7 +791,7 @@ absence of backup-ZIP import.
 
 The previously prepared timer/GUI-repair APK, SHA-256
 `ba6b01cf8c96d791a353c9ba2f435d832d053c6d3fc51f999127a6ed7e94d242`,
-now passes the original-save retry on Dan's Galaxy S25. It loads the unchanged
+now passes the original-save retry on the test Galaxy S25 (SM-S931B). It loads the unchanged
 `Stage2AndroidSmoke` save in the Storage 1 opening sequence, reaches an active
 draw, writes `Stage2AndroidRestored`, loads that new save and exits cleanly.
 Both 2340x1080 captures come from the engine's `screenshot` command and show
@@ -842,3 +844,356 @@ is not yet a player-facing feature;
 this restore uses a developer-placed copy and qualifies the exported bytes on
 the recorded package only. Later packages, release-certificate upgrades,
 provider interruption and broader gameplay retain their own gates.
+
+## Android gameplay touch recovery, 20 October 2026
+
+The standalone host now includes the first-party controls recovered from
+`486ecf735`, adapted to the current SDL, retained UI and usercmd ownership
+contracts. A floating movement stick, independent drag-to-look, Fire,
+Jump/Crouch, weapon tap/hold selector and capability-dependent Reload/Zoom
+use vector artwork. Pause remains available during cinematics; multiplayer
+also exposes scoreboard and chat actions. SigmaTouch retains its separate
+host bridge.
+
+Touch motion and button edges have a dedicated, synchronized usercmd channel.
+They remain usable with physical joystick input disabled and do not inherit
+mouse sensitivity, acceleration or smoothing. Quick taps survive an intervening
+render frame; reload/weapon impulses are queued one per game command. Wheel
+steering uses an absolute touch offset and does not turn the camera or apply a
+second hold delay. Focus, menu, controller/mouse/keyboard handoff, disabled
+controls and geometry changes release held input. Device/finger identity and
+contact ownership prevent a gameplay contact from becoming a menu click after
+the menu opens.
+
+The recovered layout's out-of-bounds enlarged controls, overlapping multiplayer
+targets and nonfinite-density geometry are repaired. Hit regions retain at
+least 48 physical dp and 8 dp separation across the tested sizes/scales.
+Discrete actions use release activation and permanent 8 dp drag cancellation.
+The full layout editor, independent saved orientation layouts, portrait
+presentation, setup/live preview, haptics and broader accessibility acceptance
+remain open; the current fixed layout does not establish those gates.
+
+Validation on the recorded source:
+
+- Native layout/state tests cover 54 phone/tablet/orientation/density/scale
+  combinations, invalid geometry, multiple touch devices, contact overflow,
+  final-owner release, cancellation and queued usercmd edges/impulses.
+- The production-body integration fixture passes on Windows and Linux,
+  covering multi-finger move/fire/look, disabled physical controllers,
+  quick taps, wheel ownership, cinematic/menu/focus changes and hidden
+  weapon capabilities. The existing SigmaTouch input fixture also passes.
+- All eight selected Meson touch, lifecycle, engine-thread and native-input
+  tests pass. The retained-input fixture and 67 weapon-wheel behavior checks
+  pass, including conflicting mouse/controller input during touch steering.
+- Windows and Android ARM64/API 24 builds pass. The standalone debug APK,
+  SHA-256 `345668f4ff8ffad0fa1b653c234c73a51a9ebd22b1d8b6da5ce3276f4f9e013d`,
+  passes exact payload, matching SDL/native metadata, API, signature and
+  16 KiB alignment checks. Its same-debug-certificate S25 update preserves
+  all six original save, description and preview files.
+
+Evidence is under `.tmp/stage-two/touch/` and
+`.tmp/stage-two/android-s25-touch-r1/`; `apk-verification.json` records
+the base commit, changed tracked/untracked source hashes and staged native
+library hashes. A scripted S25 Hangar 1 run moves 200.8 game units while
+firing and turning 11.2 degrees, then settles at an identical position/view
+across the released and neutral samples. A short weapon tap advances slot
+1 to 2; holding and steering the selector chooses slot 3 on release. Pause
+clears every held action. The same run restores the unchanged original
+Storage 1 save, writes/reloads a disposable slot and exits itself with status
+0 (PID 16518). All six engine captures are 2237x1080. Original settings are
+restored and the exact test scripts, slot and captures are retired after
+hash verification, while the six original save files remain unchanged.
+
+`probe-assessment.json` retains this as **behavior pass, visual fix required**:
+the ordinary gameplay plates overlap the open weapon wheel. The subsequent
+draw change suppresses those plates while preserving Pause and the active
+selector gesture. Its verified APK, SHA-256
+`0116fe65ced53f28426406f8768cdbb0573194669fc14360aacac883d4d9267f`,
+preserves the six original files through another debug-certificate update.
+The engine's `s25-touch-r2-wheel-clear` capture confirms the unobscured wheel.
+
+The user then completed the three-minute Hangar 1 physical check on the test
+Galaxy S25 (SM-S931B, Android 16/API 36): simultaneous movement/look/fire
+and release, tap-next and hold/drag weapon selection, audio stopping in the
+background, return through Recents to a paused game, and resumed audio/fire
+all passed. The recorded response is “All checks passed.” The engine exits
+itself with status 0 (PID 20571); original settings are restored, verified test
+scripts/captures are removed from the device and all six original save files
+remain unchanged.
+
+`.tmp/stage-two/android-s25-touch-r2/` retains the source/package identities,
+engine captures/log, Android exit record, `physical-observation.json` and
+`manual-cleanup.json`. This establishes the stated gestures and one audible
+background/resume cycle on that device and build. Other devices, controllers,
+portrait/layout editing, sustained suspension, process death and resumed
+network sessions retain their separate gates. Release-certificate continuity
+is not established by either debug update.
+
+## Android diagnostic emulator recovery, 20 October 2026
+
+The selected x86_64 work from `023f0eeee` and `1484195c4` is integrated against
+the current build and package contracts. A shared ABI table drives the NDK
+cross file, dependency builds, module suffixes and ELF machine checks. Meson
+stages the seven x86_64 native libraries separately from ARM64 and records
+the ABI, package variant, API and SDL version. No toolchain, API or SDL version
+was raised.
+
+Gradle requires matching stage metadata and an exact native-library set.
+The localized diagnostic app uses `com.darkmatter.openq4.emulator`, separate
+output directories and private data; its release APK/bundle variants are
+disabled. The APK verifier requires this identity and a debuggable package
+only when explicitly selecting `--variant emulator`. The default phone
+verification still requires the established ARM64 identity and a nondebuggable
+release. Both paths retain signature, 16 KiB ELF/ZIP alignment, exact asset and
+notice checks. Old phone metadata without a variant remains accepted solely
+as the original phone format.
+
+The API 24 x86_64 SDL 3.4.16/OpenAL 1.24.3 dependencies, all 1,246 native
+targets and the debug APK build pass. APK SHA-256:
+`055e3972f4eb87c9ebd03d6b308c3f021fbb7ef3aba83b5bf6234a514e5119a3`.
+Exact package verification passes with the recorded diagnostic certificate.
+An actual emulator `assembleRelease` request is rejected because the task
+does not exist. The ARM64 debug build and exact payload/manifest regression
+pass; its release task remains available in a dry run. These checks do not
+claim a newly signed phone release.
+
+Fourteen Windows build/harness checks pass; Linux passes the same suite with
+the Windows-only Meson-wrapper test skipped. They cover mismatched stage,
+ABI, ELF machine, library/asset sets, SDL metadata, certificate, package
+identity and debug admission, as well as the emulator's capability and
+private-file error handling. Logs are retained under
+`.tmp/stage-two/emulator/`.
+
+`tools/tests/android_emulator_smoke.py` verifies an exact installed APK or
+installs that package without clearing data, hashes independently copied
+retail files and runs engine-command SP/touch/save or MP diagnostics. It only admits
+an explicitly selected, booted, rooted x86_64 emulator with GLES3. It uses the
+internal game Activity, so it is not setup-navigation evidence. The ordinary
+Android shell's Windows stdin translation and newer Android shared-storage
+restrictions required binary `exec-in` private-file writes with exact
+readback. Shell command errors are distinguished from missing files.
+
+API 24 default x86_64 image revision 8 exposes GLES2 with both SwiftShader and
+NVIDIA host graphics. The preserved initial run reaches the native fatal
+path after EGL rejects ES3; it is stopped and its scripts/configuration are
+cleaned up. The corrected probe rejects this image before app/data writes
+(`api24-host-preflight/report.json`). This is an explicit unsupported virtual
+configuration, not API-floor gameplay evidence. A 4 GiB configuration also
+panicked in the old guest kernel before app installation; its 2 GiB
+configuration boots. The original failures and both graphics reports remain
+with the evidence.
+
+The current Android 17/API 37 Google APIs 16 KiB x86_64 image, revision 6,
+boots with emulator 37.2.12 and exposes GLES3 through SwiftShader. The guest
+reports 16,384-byte pages. The final SP run (`current-sp-final/report.json`)
+enters Hangar 1, moves 244.4 units and turns 12.8 degrees with simultaneous
+touch movement/fire/look, then holds an identical released/neutral pose.
+A disposable save restores that same pose. The MP run
+(`current-mp-r2/report.json`) enters Q4DM1 with `game_mp` and explicit
+auto-join, moves 236.0 units, turns 12.8 degrees and settles identically after
+release. Both exit themselves with status 0 (SP PID 23583, MP PID 21175).
+Each report retains its exact runner, source and package hashes, independently
+verified retail archives, engine log, exit record and three 1280x720 engine
+captures. Test scripts, captures and the SP save are retired after collection;
+the original settings are restored.
+
+These are silent software-rendered virtual-device results. The reviewed
+captures show the native world and HUD, but also expose a Pause/rank overlap
+in multiplayer and a reload/status overlap in SP. A separate corner-hit
+regression reproduces visible button corners outside their touch region.
+Those presentation/input findings require fixes before touch-layout acceptance;
+this runtime pass does not close the portrait/editor contract. The earlier
+portrait SP pass and failed probe attempts remain retained with their original
+reports, including the corrected pose-parser reassessment. Physical gestures
+and audible resume remain established only by the separate S25 result.
+
+The follow-up fixes inscribe each complete button plate, rail and pressed
+marker inside its hit region, reserve space below the active top controls for
+the retained HUD, and lift the default Reload plate above the status readouts.
+The top reservation accounts for the HUD viewport and drawable density; menus,
+backgrounding and physical-input handoff remove it without rewriting saved
+HUD preferences. Windows Clang/MSVC and Linux production touch tests pass,
+including the original failing corner-hit control, all 54 layout combinations
+and the active/inactive HUD handoffs. Windows, ARM64 and x86_64 native builds pass.
+
+APK `73a63e2155ebfa42cd8195d55234793eb6606ac6ccd6dae12bf7e43b09d48800`
+passes exact verification and the same emulator's SP/MP checks in
+`touch-hud-sp-r2/` and `touch-hud-mp-r2/`. All six engine captures were reviewed:
+Pause clears the MP rank display and Reload clears the SP status readouts.
+SP moves 134.2 units, MP 246.2; both turn 12.8 degrees and settle at identical
+released/neutral poses. SP restores that pose from its disposable save.
+Native self-exits are status 0 (SP PID 7458, MP PID 3866), and exact script,
+capture/save cleanup restores the original settings. The emulator's previous
+rotation settings were restored before shutdown.
+
+`touch-hud-mp-r1/` remains a failed release-settling sample: no action remained
+held, but the player travelled about one unit between the 600 ms and later
+samples. The runner now uses a fixed Q4DM1 starting pose and allows two seconds
+plus 60 engine frames for settling, retaining the strict identical-pose
+assertion. This bounded default-layout correction does not qualify custom
+layouts, the full Touch HUD preset, portrait presentation or physical gestures
+on the new APK. The S25 retains its previously accepted build.
+
+## Android Settings return, 21 October 2026
+
+The standalone Android Settings shell now exposes a localized Android setup
+action. The engine sends an SDL host message, and the Activity opens the
+existing launcher without finishing the native game. Duplicate requests are
+suppressed until return; missing/closing hosts fail safely. Desktop and
+SigmaTouch builds keep this action unavailable. Return to game now appears on
+both the language and data pages. The existing storage lease still blocks
+imports, checks and exports throughout live/closing native ownership.
+
+Production-method JVM checks cover message delegation, duplicate suppression,
+re-entry, launch failure and inactive guards. Native Windows/Linux checks cover
+the engine message and platform exclusions; five deliberately broken controls
+are rejected. Resource/pipeline, fourteen Android build checks, Settings
+coverage and the retained UI gate pass. The Linux JVM attempt lacks a JDK and
+is retained as an unavailable test. Windows, ARM64 and x86_64 builds/stages pass.
+
+The current 16 KiB Android 17 x86_64 emulator runs APK
+`c72a13d2fcc9a3584a27db6f1baedd89f48e4c7aa91971022816ef367dfa7264`.
+`emulator/setup-reentry-r3/report.json` records two actual engine Settings
+actions from Hangar 1 into setup, with Return to game visible in the Android
+accessibility hierarchy. The probe brings the existing game Activity forward
+with `am start`; it does not tap that button. Both handoffs preserve native
+PID 16360, the map pose and save SHA-256
+`4620ca7a113191c801e3fa55bf3a442881edc82a744d2aa30b1c76deb7e466c9`.
+After both returns the game resumes and exits itself with status 0. The report's
+cleanup force-stop applies only to the separate launcher process recreated
+after that exit. Exact test files are retired and the original config restored.
+
+All four engine captures were reviewed: the button is visible in Settings
+before and after both returns, followed by normal Hangar 1 gameplay. The
+portrait emulator view does not establish the wider portrait-layout contract.
+The Windows active-map control confirms the Android action stays invisible
+and unreachable. Earlier attempts remain failed: the first used the wrong
+asset-root argument; the second completed the product handoffs but used an
+outdated Activity-status parser and misclassified normal exit/launcher restart.
+
+The ARM64 debug APK
+`b248dc1554e9ac67975c3b5cb4b8c10030d2fc4c1d78da8cf042135dff323955`
+passes exact payload, manifest, certificate and 16 KiB packaging checks. It
+has not been installed or physically tested on the S25. These results do not
+qualify physical taps/audio, release-signing continuity, full controls/interface
+setup or all provider/lifecycle cases. AND-01/AND-03 remain open.
+
+Evidence is bound in `.tmp/stage-two/android-setup-reentry-evidence.json`,
+SHA-256 `7882bee8a0ff08fdbbf3ccd817a47c45b11fcf6dcc19ec91f2514bb7bcd86ee6`,
+including source/package identities, reports, logs, negative controls and the
+capture review. All referenced paths are relative to `.tmp/stage-two/`.
+
+## Android controls setup, 21 October 2026
+
+The standalone setup now offers Default, Compact and Left-handed touch
+presets, 75–150% button sizing, 0.1–4.0 look sensitivity and a live look-speed
+grid. It reports controllers detected when the page opens. Four complete
+localized resource sets retain the setup typefaces and 48 dp controls.
+The look test uses gameplay's 0.25 degrees per physical dp, without submitting
+input to the running game. This is not the full touch layout editor or
+interface-profile step.
+
+One versioned preference record is applied atomically. Unapplied drafts
+survive setup recreation separately. Failed disk commits restore the previous
+in-memory applied record as well as retaining the draft; a failed first apply
+keeps the engine's existing preferences. The engine reads the applied record
+through the actual Activity/JNI boundary at startup/foreground entry. All CVar
+and input changes run on the engine thread. Missing/malformed host data leaves
+the current values unchanged, JNI exceptions are cleared and local references
+released. Preset or scale changes release held contacts before moving targets.
+Once setup choices are applied, they remain authoritative on later game returns.
+The Return to game control refreshes on the language and controls pages too,
+including when the native game finishes while setup is open. Its refresh does
+not depend on the data-installation status view being present.
+
+The native matrix now covers 162 viewport/density/size/preset combinations,
+including 48 dp targets, spacing, mesh containment and crosshair clearance.
+Mirrored movement preserves drag direction; the look axes do not invert.
+MSVC, Windows Clang and Linux checks pass. JVM tests pass 1,920 preference
+round trips, malformed recovery, initial/update write failures, draft isolation,
+process persistence, the production Activity getter and active/closing/ended/
+stopped return-control refresh. Five deliberately broken JNI/transaction/
+foreground/return-refresh controls fail as expected. Resource/pipeline
+and existing setup ownership tests pass. Windows and both Android native builds
+and the phone/emulator APKs pass.
+
+`emulator/touch-setup-r2/report.json` records exact APK
+`6b8d7bb65382c44ca2154e35c86c5a67728305ed07d9c9e7f8df2b96d2aa28ec`
+on the same Android 17 16 KiB x86_64 emulator. A prepared applied preference
+selects left-handed, sensitivity 1.5 and size 115%. The actual Java/JNI path
+applies those values at startup and after both engine Settings/setup returns,
+replacing deliberately altered test CVars. The map pose and save remain
+unchanged. Engine captures show the mirrored controls and smaller Compact
+plates; all test scripts/config/preferences are restored or retired after a
+normal native exit. The recreated launcher's later cleanup stop is separate.
+This does not exercise physical setup taps, controller input or audible output.
+
+The ARM64 debug APK
+`19d123703a100e38d63a3024483b0fc77320fe9e0d937a7918d915e2554b8ee6`
+passes exact payload, manifest, existing debug-certificate and 16 KiB checks.
+S25 installation and physical setup testing are pending. Layout editing,
+full portrait/Touch HUD presentation, interface setup and broader controller/
+accessibility/lifecycle coverage retain their gates. AND-01/AND-03 remain open.
+
+Evidence: `.tmp/stage-two/android-touch-setup-evidence-r2.json`, SHA-256
+`614dd334c0847e75451c0592f8955172e1a4f8cc98a318d735680f65c8aafdff`.
+Its bound reports retain source/package identities, native/JVM logs, rejected
+controls, engine captures and exact cleanup records.
+
+## Android interface setup, 21 October 2026
+
+The standalone setup now has an Interface page beside Controls. It offers the
+[section 13.2 viewing profiles](ui-visual-design.md#132-viewing-profiles):
+Automatic (Phone, or Tablet from a 600 dp smallest width), Desk, Couch,
+Handheld, Phone and Tablet. UI size (75–200%) and text size (100–200%) can
+replace the profile's values. Phone and Tablet text starts from the Android
+font scale. A live sample and the resolved sizes are shown, in all four setup
+languages.
+
+The page edits a draft. Apply writes one versioned record with a new 32-hex
+transaction identity; a failed disk commit restores the previous applied record
+and keeps the draft. The Activity resolves profile, screen class and font
+scale. The engine reads the record through `getInterfaceSetup()` at
+startup/foreground entry. It applies the record to `ui_retainedScale` and
+`ui_retainedTextScale` only when its identity differs from the archived
+`ui_androidInterfaceApplied`, so later in-game changes survive returns and
+restarts until the next Apply. Malformed, out-of-range or oversized records
+and JNI exceptions leave the CVars unchanged. No separate viewing-profile CVar
+is stored; the engine consumes the profile only through the resolved scales.
+
+`tools/tests/android_interface_setup.py` passes 3,564 preference round trips,
+the 13.2 defaults, font-scale bounds, transaction identity, draft isolation,
+initial/update commit failures and the actual Activity getter. Its production
+JNI reader accepts all 960 Java-produced records and rejects every invalid
+payload. The native `openq4-android-interface-setup` test checks 2,730 records,
+applied-once identity and truncation/range/format rejection under idlib's
+string-function replacements. Seven deliberately broken boundaries fail.
+Linux g++/clang++ runs pass the native and JNI halves; WSL has no JDK, so the
+JVM half ran on Windows. The Activity storage fixture now compiles the
+re-entry, touch and interface APIs. The Windows native suite passes 273/273.
+
+`emulator/interface-setup-r5/report.json` records APK
+`cd3e472920ca7838053084f7bd0d12197e150ded9898e97fdf2164c4fa6e8e03` on the
+Android 17 16 KiB x86_64 emulator. A prepared Couch record applies once at
+startup (150%/125%). In setup cycle 1, uiautomator and `adb shell input` inside
+the headless emulator open the actual Interface page and select 90% size and
+150% text. The page previews them and Apply writes a new identity. The return
+applies 0.90/1.50 exactly once. An in-game 1.1 UI scale survives the second
+return without re-application. The touch-setup and Settings re-entry assertions
+pass in the same run, and the test preferences/config are restored.
+
+The engine captures of the retained SYSTEM page show visibly larger type after
+Apply. In portrait, the root-menu fit to 640x480 dp holds the effective menu
+density at the 640 dp width, so UI size does not change that capture. On
+landscape phones the same fit caps density at 480 dp of height. UI size is
+therefore visible only on larger screens, while text size applies everywhere.
+Only retained screens follow these CVars; the classic in-game Settings menu
+does not. The previewed SYSTEM page also lists UI scale/text size as 100%
+whatever the CVars hold; that display was not investigated. The 13.2 touch
+fitting exception (640x360 compact layouts) and an in-game Interface settings
+page remain UI work. Earlier runs r1-r4 failed on a short deadline, an emulator
+System UI ANR and a probe race, or predate the final strings. Physical S25
+interaction is pending; AND-03 remains open.
+
+Evidence: `.tmp/stage-two/android-interface-setup-evidence.json`, SHA-256
+`4ab95f6993ed201853bb886bc5ae6b30f80523eebd69a1cf627e1e341d2962fc`.

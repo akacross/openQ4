@@ -24,6 +24,26 @@
 
 ## Change log
 
+- Fresh profiles keep Quake 4's stock crosshair hit feedback. Optional hit
+  markers remain available in Game settings, and existing saved choices are kept.
+
+- Installing a Windows development build no longer closes openQ4 games running
+  from other worktrees or installations.
+
+- Bots can correct jump-pad flights that would overshoot the platform after a
+  hit, and brake dangerous momentum when their route ends.
+- Bots allow room to slow down after a dodge jump, avoiding hops that land at
+  a platform's edge and immediately slide off.
+- Bots brake earlier when another player is already using a jump-pad corridor.
+- Bots account for repeated jump-pad pushes when checking landing damage and
+  reconsider dangerous routes earlier after losing health.
+- Bots check their actual takeoff position before jumping onto raised ledges,
+  preventing a mistaken wall-slide prediction from approving an overshoot.
+- Bots can traverse valid slopes without mistaking the lower support probe for
+  an obstructed player position, including under low ceilings. Their checks for
+  unsupported edges and hazardous landings remain in place.
+- Android touch buttons now respond across their full visible plates. Default
+  Pause and Reload placement leaves the multiplayer rank and status readouts clear.
 - Improved damaged-save handling: invalid or duplicate entity registrations no
   longer corrupt the identities needed to clean up a failed load.
 - Failed save loads now release remaining restored objects and avoid deleting
@@ -64,6 +84,9 @@
   backgrounded. Returning to a live single-player game opens its pause menu
   before combat resumes, while existing menus and loading screens keep their
   current flow. Android device qualification remains in progress.
+- Developers can build a separate x86_64 Android emulator app for diagnosis.
+  It keeps its own saves and data and cannot replace the ARM64 phone app.
+  This diagnostic build is not offered as a release APK.
 - Android's timer wakes less often in the background and avoids prolonged
   catch-up after the system freezes the app, including with accelerated time.
 - Android native error reports now stay beside the normal game log, making
@@ -77,14 +100,31 @@
   Choose your own Quake 4 folder with the system picker, follow copy/check
   progress and retry interrupted work without losing completed archives or
   saves. Setup includes English, German, Spanish and French recovery messages;
-  select Single player or Multiplayer once the files are ready. Device testing
-  and the remaining controls and interface steps are still in progress.
+  select Single player or Multiplayer once the files are ready. Physical device
+  testing is still in progress.
 - Android setup can now back up saved games, including descriptions and previews,
   or export diagnostic logs to a ZIP through the system file picker. Setup
   failures are included in the logs. Cancelled or failed exports keep the
   original files; retry uses a new destination. See the
   [Android setup guide](../../user/android-setup.md) for backup limits and
   upgrade guidance. Physical device/provider qualification remains in progress.
+- Open **Android setup** from the game's Settings and use **Return to game**
+  to keep playing the same session. Quit the game before importing files or
+  exporting saves and logs.
+- Android setup now offers Default, Compact and Left-handed touch layouts,
+  button size and look sensitivity with a drag test. Apply your choices before
+  launching or returning to the game. Unapplied drafts leave your active
+  controls unchanged.
+- Android setup now has an **Interface** page. Choose a viewing profile such as
+  Phone, Tablet or Couch, or set the menu and text size yourself, with a live
+  preview. Applied sizes reach the game at its next launch or return from
+  setup; size changes you make later in the game are kept. See the
+  [Android setup guide](../../user/android-setup.md#adjust-menu-and-text-size).
+- The standalone Android app now provides experimental touch gameplay controls:
+  move, look and fire together, tap to cycle weapons or hold for the selector,
+  and pause without a controller. Reload and zoom appear for supported weapons.
+  Layout editing and portrait presentation are still in development; see the
+  [touch controls guide](../../user/android-setup.md#play-with-touch-controls).
 
 - Experimental OpenXR mode now returns safely to desktop play after frame or
   session failures and clears held VR controls. A lost session retries after a

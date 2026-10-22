@@ -2,8 +2,8 @@
 
 The Android app is experimental. It needs your own Quake 4 1.4.2 game data;
 retail files are not included in the APK. The current setup screen supports
-English, German, Spanish and French. Gameplay still needs a supported controller
-or keyboard; a complete standalone touch overlay is not available yet.
+English, German, Spanish and French. The standalone app includes experimental
+touch gameplay controls and also supports controllers and keyboards.
 
 ## Prepare the game files
 
@@ -20,6 +20,71 @@ or keyboard; a complete standalone touch overlay is not available yet.
 copies and starts the unfinished archive again. If the source folder becomes
 unavailable, reconnect it or choose it again. If files were copied manually
 into the app’s game-data directory, use **Check installed files**.
+
+## Play with touch controls
+
+- Drag on the left half of the game view to move; drag on a free area of the
+  right half to look.
+- Hold the crosshair button to fire. Dragging from that button also turns the
+  view. The up and down arrow buttons jump and crouch.
+- Tap the double chevron to cycle weapons, or hold it to open the weapon wheel.
+  Drag toward a weapon and release to select it.
+- The curved arrow reloads and the magnifier zooms when the current weapon
+  supports those actions.
+- Tap Pause in the upper-left corner, or use Android Back, to open the pause
+  menu. During cinematics, Pause follows the game's skip behavior.
+
+Using a controller, keyboard or mouse hides the gameplay controls; touching
+the game view brings them back. Multiplayer adds scoreboard and chat buttons
+at the top. Layout editing and full portrait presentation are still in
+development.
+
+Select **Controls** in Android setup to choose Default, Compact or Left-handed.
+Left-handed moves the movement area to the right and mirrors the buttons.
+Compact uses smaller artwork while retaining touch targets of at least 48 dp.
+Adjust **Button size** and **Look sensitivity**, then drag in the test grid to
+try the look speed. The page also lists controllers detected when it opens.
+
+Select **Apply controls** to save. These choices take effect at the next game
+launch or return from setup. **Discard changes** keeps the previously applied
+settings. Unapplied choices are retained as a draft if setup is interrupted;
+the test grid never sends movement or fire commands to the running game.
+
+## Adjust menu and text size
+
+Select **Interface** in Android setup to choose how large the game's menus and
+text appear. **Viewing profile** sets the starting sizes:
+
+| Viewing profile | Interface size | Text size |
+| --- | --- | --- |
+| Automatic | Phone, or Tablet on a large screen | As that profile |
+| Desk (monitor) | 100% | 100% |
+| Couch (television) | 150% | 125% |
+| Handheld | 125% | 100% |
+| Phone, Tablet | 100% | Your Android font size, 100–200% |
+
+Choose a percentage under **Interface size** (75–200%) or **Text size**
+(100–200%) to replace the profile's value; **Profile default** follows the
+profile again. The sample heading and text preview the result, and the page
+shows the sizes the game will use. The game still fits its menus to the screen,
+so on a phone a larger interface size may not enlarge them; text size
+always applies.
+
+Select **Apply interface** to save. The game uses these sizes at its next launch
+or return from setup. Each Apply takes effect once: if you later change the
+UI scale or text size inside the game, returning from setup keeps
+those changes until you apply the Interface page again. **Discard changes**
+keeps the previously applied settings.
+
+## Return to setup during play
+
+Open the game's **Settings**, then select **Android setup**. Select
+**Return to game** at the top of setup to return to the running session.
+Single player stays paused until you resume it. This also works before a
+setup language has been selected.
+
+Imports, file checks and exports remain unavailable while the game is running
+or closing. Quit the game before using those operations.
 
 ## Back up saved games or export logs
 

@@ -1,15 +1,18 @@
 # Standalone Android application
 
 This SDL3 Activity hosts Emile Belanger's Android/GLES port without SigmaTouch.
-It supports the engine's SDL gamepad, mouse, keyboard and menu touch input; the
-configurable SigmaTouch overlay remains an optional, separately licensed host.
+It supports the engine's SDL gamepad, mouse and keyboard input, menu touch input
+and experimental first-party gameplay touch controls. The configurable
+SigmaTouch overlay remains an optional, separately licensed host.
 
 ## Release download
 
 The manual release workflow includes an experimental, release-signed
 `openq4-<version>-android-arm64-experimental.apk`. Install it on an ARM64 device
 with Android 7.0/API 24 or later and OpenGL ES 3.0, then provide your retail
-assets as described below. Physical-device gameplay has not been qualified.
+assets as described below. Broad device and release-package qualification remains
+open; the recorded S25 development builds pass the scoped save/touch/audio checks
+in the [recovery evidence](../../docs/dev/platform-recovery-review.md).
 The APK uses the same menu defaults as desktop packages.
 
 Published APKs use the same persistent certificate for updates. A local debug
@@ -37,7 +40,14 @@ gradle -p mobile/android \
 Set `ANDROID_HOME` to an installed Android SDK, or set `sdk.dir` in the ignored
 `mobile/android/local.properties`. The APK is written under
 `builddir/android-apk/app/outputs/apk/debug/`. Native compilation stays in Meson;
-Gradle only packages staged libraries and openQ4-owned overlays. Android currently targets `arm64-v8a` and API 24 or later.
+Gradle only packages staged libraries and openQ4-owned overlays. The phone
+package targets `arm64-v8a` and API 24 or later.
+
+The separate [diagnostic emulator build](../../docs/dev/android-build.md#diagnostic-emulator-build)
+uses `-Popenq4Abi=x86_64` and its matching stage. It produces a debug APK under
+`builddir/android-apk-emulator/`, uses application ID
+`com.darkmatter.openq4.emulator` and keeps separate saves/data. Release packaging
+is disabled for that ABI; it is not a published phone upgrade.
 
 Gradle uses a 4 GiB heap and at most two workers. PK4 assets are already
 compressed archives and are stored directly in the APK to avoid redundant
@@ -92,7 +102,11 @@ The native game Activity is internal; external launches use the setup entry
 point. Both play buttons keep `ui_autoJoin` explicitly `0`. A setup language
 choice reaches the next native launch; subsequent ordinary launches preserve
 the game's language setting. The normal gamepad and keyboard bindings work in
-gameplay. The standalone app does not provide a full touch gameplay overlay.
+gameplay. The standalone overlay supports independent move/look/fire contacts,
+jump/crouch, weapon tap/hold selection and weapon-dependent reload/zoom. Physical
+mouse/controller settings do not change touch motion. See the
+[player guide](../../docs/user/android-setup.md#play-with-touch-controls) for the
+current controls and remaining layout/setup limitations.
 
 The setup screen also exports saved games or diagnostic logs through Android's
 file picker. It prepares a ZIP from private save/log folders, including setup
@@ -101,8 +115,9 @@ document. Cancellation and failures preserve the originals; a partial destinatio
 may need removal in Files. See the [player guide](../../docs/user/android-setup.md)
 for backup contents, limits, cloud-provider completion and upgrade guidance.
 
-This setup increment covers language, game data and export. Controls/live testing,
-interface-profile setup and reopening from in-game Settings remain open.
+Setup also provides touch controls presets and an Interface page for the viewing
+profile, menu size and text size, and the game's Settings can reopen it during
+play. See the [player guide](../../docs/user/android-setup.md) for both pages.
 Save/log exports to local Downloads and an exported-save restore round trip
 pass on the recorded S25 debug package. Physical folder-import providers,
 accessibility, visual and process-death qualification are still required; host
