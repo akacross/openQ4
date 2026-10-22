@@ -293,6 +293,9 @@ def validate_game_wiring() -> None:
                   "rvBot::UpdateMovement guards before it moves")
     # A knock's slide toward an edge is braked even on an action's approach.
     require(movement, "( !leavesOnPurpose || knockSliding )", "rvBot::UpdateMovement knocked edge guard")
+    # A held pad approach guards its momentum at the edge, input or none.
+    require(movement, "if ( holdForPad && self->pfl.onGround ) {", "rvBot::UpdateMovement held approach edge guard")
+    require(movement, "( hasMoveDir || transportBrake || heldEdgeBrake )", "rvBot::UpdateMovement applies the held edge brake")
     # A shotgun's pellets are one throw: a frame's kicks are summed.
     require(bot, "bot.knockbackFrameKick += kick;", "rvBotManager::OnPlayerKnockback pellet sum")
     # Momentum never carries a grounded bot into a pad or teleporter its route

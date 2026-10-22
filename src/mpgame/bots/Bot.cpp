@@ -5599,6 +5599,17 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 	if ( hasMoveDir && self->pfl.onGround && ( !leavesOnPurpose || knockSliding ) ) {
 		BotBrakeAtEdge( self, moveDir );
 	}
+	// Nor is a held approach: waiting for q4ctf3's func_jumppad_20 corridor,
+	// which overhangs a kill pit, a bot's braking and separation carried it
+	// over the side. The hold may have no input at all, so guard its momentum.
+	bool heldEdgeBrake = false;
+	if ( holdForPad && self->pfl.onGround ) {
+		idVec3 heldDir = hasMoveDir ? moveDir : vec3_origin;
+		if ( BotBrakeAtEdge( self, heldDir ) ) {
+			moveDir = heldDir;
+			heldEdgeBrake = true;
+		}
+	}
 	// Nor into a pad or teleporter the route did not choose; a held approach
 	// is already braking and only its own pad is ahead of it.
 	const bool transportBrake = self->pfl.onGround && !holdForPad &&
@@ -5607,7 +5618,7 @@ void rvBot::UpdateMovement( idPlayer *self, usercmd_t &cmd ) {
 	if ( HandleJumpTakeoff( self, cmd ) ) {
 		return;
 	}
-	if ( ( hasMoveDir || transportBrake ) && moveDir.LengthSqr() > 0.0f ) {
+	if ( ( hasMoveDir || transportBrake || heldEdgeBrake ) && moveDir.LengthSqr() > 0.0f ) {
 		ApplyMove( moveDir, cmd );
 	}
 
