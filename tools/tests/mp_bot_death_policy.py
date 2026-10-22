@@ -112,6 +112,13 @@ def main() -> None:
     # Free-for-all: any other client is an enemy, teams or not.
     [ffa] = classify(impulse(1, 2000, 3) + death("Cortez", 4500), gametype="DM")
     check(ffa["status"] == "impulse-candidate", "every other client is an enemy in DM")
+    # The replay restores the health the hit left, so fall damage counts.
+    [hurt] = classify(state(1000, teams) + impulse(1, 2000, 2).replace("def=damage_rocketSplash",
+                      "def=damage_rocketSplash health=9") + death("Cortez", 4500))
+    check(hurt["impulse"]["health"] == 9 and all(t.get("setup") == ["bot_probeHealth 1 9"]
+          for t in policy.trials_for(hurt["impulse"])), "replays run at the victim's post-hit health")
+    check(all("setup" not in t for t in policy.trials_for(candidate["impulse"])),
+          "an impulse without logged health replays at spawn health")
     # Trial assessment reads markers, arming, deaths and landings.
     trials = policy.trials_for({"origin": [1, 2, 3], "velocity": [4, 5, 6]})
     check(len([t for t in trials if t["decisive"]]) == policy.AIR_HEADINGS + 1, "16 headings plus no input decide")

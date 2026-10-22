@@ -1287,6 +1287,12 @@ void TestDodgeOwnership() {
     CHECK(!bot.dodgeHopActive && cmd.upmove==0); // no fresh press on this frame
     gameLocal.framenum=2; bot.TryDodgeJump(&self,{0.25f,0,0},cmd);
     CHECK(bot.dodgeHopActive && cmd.upmove==127 && cmd.forwardmove==127);
+    {   // A strong knock under the hop releases it to the airborne brake.
+        rvBot knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime+16; usercmd_t held;
+        CHECK(!knocked.HoldDodgeJump(&self,held) && !knocked.dodgeHopActive && held.forwardmove==0);
+        knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime-16;
+        CHECK(knocked.HoldDodgeJump(&self,held) && knocked.dodgeHopActive);
+    }
     CHECK(navMesh.lastDodgeDirection.Compare({1,0,0}) && navMesh.lastDodgeSpeed==320);
     const int searches=navMesh.searches;
     self.pfl.onGround=false; gameLocal.time+=16;

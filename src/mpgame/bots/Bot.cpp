@@ -4131,6 +4131,12 @@ bool rvBot::HoldDodgeJump( idPlayer *self, usercmd_t &cmd ) {
 		ResetDodgeJump();
 		return false;
 	}
+	if ( knockbackTime > dodgeHopStartTime ) {
+		// A rocket under a dodge hop throws it somewhere its proof never
+		// went; the airborne brake answers for that flight.
+		ResetDodgeJump();
+		return false;
+	}
 	dodgeHopAirborne |= !self->pfl.onGround;
 	ApplyMove( dodgeHopDirection, cmd );
 	cmd.upmove = 0;		// a flight never holds or repeats the jump press
@@ -7155,6 +7161,7 @@ rvBotManager::rvBotManager
 ================
 */
 rvBotManager::rvBotManager( void ) {
+	probeHealth		= 0;
 	navBuilt			= false;
 	navFailed			= false;
 	nextMinPlayerCheck	= 0;
@@ -8359,6 +8366,11 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		bot.knockbackTime = gameLocal.time;
 		bot.airborneSince = gameLocal.time;
 	}
+	if ( probeHealth > 0 ) {
+		// A replayed impulse is survived or not at the health it left.
+		self->health = probeHealth;
+		probeHealth = 0;
+	}
 	bot.probeWatch = true;
 	bot.probeStartTime = gameLocal.time;
 	bot.probeAirborneSeen = false;
@@ -8366,6 +8378,21 @@ bool rvBotManager::ProbeTraversal( int clientNum, const idVec3 &origin, const id
 		airDirection ? "AIR" : ( dodge ? "DODGE" : ( pad ? "PAD" : ( travel == NAVTRAVEL_WALK ? "MOVE" : "JUMP" ) ) ),
 		clientNum, gameLocal.time, origin.ToString( 3 ), velocity.ToString( 3 ), landing.ToString( 3 ),
 		gameLocal.GetCurrentGravity( self ).Length() );
+	return true;
+}
+
+/*
+================
+rvBotManager::SetProbeHealth
+================
+*/
+bool rvBotManager::SetProbeHealth( int clientNum, int health ) {
+	if ( !gameLocal.isServer || gameLocal.isClient || !gameLocal.GetLocalPlayer() || gameLocal.numClients != 2 ||
+		 NumBots() != 1 || !IsBot( clientNum ) || gameLocal.mpGame.IsManagedMatch() || !gameLocal.CheatsOk( false ) ||
+		 health < 1 || health > 1000 ) {
+		return false;
+	}
+	probeHealth = health;
 	return true;
 }
 

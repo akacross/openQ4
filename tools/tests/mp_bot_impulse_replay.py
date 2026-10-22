@@ -51,7 +51,7 @@ FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown me
 
 IMPULSE = re.compile(
     r"^BOT_IMPULSE client=(\d+) time=(-?\d+) attacker=(-?\d+) damage=(-?\d+) origin=(\S+) (\S+) (\S+) "
-    r"kick=\S+ \S+ \S+ velocity=(\S+) (\S+) (\S+) def=(\S+)", re.M)
+    r"kick=\S+ \S+ \S+ velocity=(\S+) (\S+) (\S+) def=(\S+)(?: health=(-?\d+))?", re.M)
 WORLD_DEATH = re.compile(r"^(\S+) (?:was killed by world|died|drowned|dissolved in slime|burned in lava)$", re.M)
 WORLD_HIT = re.compile(r"^bot (\S+): hit by world for \d+ at (\S+) (\S+) (\S+) .*\(time (\d+)\)$", re.M)
 ROSTER = re.compile(r"^\s*(\d+)\s+(\S+)\s+\S+\s+\S+\s+[\d.]+\s*$", re.M)
@@ -125,7 +125,8 @@ def classify(clean: str, names: set[str], gametype: str, window_msec: int = IMPU
     reports = team_reports(clean)
     impulses = [{"client": int(m.group(1)), "time": int(m.group(2)), "attacker": int(m.group(3)),
                  "damage": int(m.group(4)), "origin": [float(m.group(i)) for i in (5, 6, 7)],
-                 "velocity": [float(m.group(i)) for i in (8, 9, 10)], "def": m.group(11), "offset": m.start()}
+                 "velocity": [float(m.group(i)) for i in (8, 9, 10)], "def": m.group(11),
+                 "health": int(m.group(12)) if m.group(12) else None, "offset": m.start()}
                 for m in IMPULSE.finditer(clean)]
     deaths = world_deaths(clean, names)
     results = []
@@ -183,6 +184,11 @@ def trials_for(impulse: dict) -> list[dict]:
     trials.append({"name": "none", "decisive": True, "command": f"bot_probeAir 1 {state} 0 0 0"})
     trials.append({"name": "controller", "decisive": False,
                    "command": f"bot_probeMove 1 {state} {ox:.3f} {oy:.3f} {oz:.3f}"})
+    # Fall damage is survived or not at the health the hit left.
+    health = impulse.get("health")
+    if health is not None and health >= 1:
+        for trial in trials:
+            trial["setup"] = [f"bot_probeHealth 1 {health}"]
     return trials
 
 
@@ -254,7 +260,7 @@ def replay_session(runtime: Path, executable: str, basepath: Path, output: Path,
         words = trial["command"].split()
         neutral = " ".join(words[:5] + ["0", "0", "0"] + words[8:])
         script += ["set bot_pause 1", neutral, "waitMsec 64", f"echo MP_BOT_TRIAL_BEGIN {trial['name']}",
-                   trial["command"], "set bot_pause 0", f"waitMsec {TRIAL_OBSERVE_MSEC}",
+                   *trial.get("setup", []), trial["command"], "set bot_pause 0", f"waitMsec {TRIAL_OBSERVE_MSEC}",
                    f"echo MP_BOT_TRIAL_END {trial['name']}", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
     script += ["echo MP_BOT_REPLAY_END", "quit"]
     (game / "impulse_replay.cfg").write_text("\n".join(script) + "\n", encoding="utf-8")

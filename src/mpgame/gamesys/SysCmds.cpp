@@ -3533,6 +3533,21 @@ void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 
 /*
 ==================
+Cmd_BotProbeHealth_f
+==================
+*/
+void Cmd_BotProbeHealth_f( const idCmdArgs &args ) {
+	if ( args.Argc() != 3 || !idStr::IsNumeric( args.Argv( 1 ) ) || !idStr::IsNumeric( args.Argv( 2 ) ) ) {
+		gameLocal.Printf( "usage: bot_probeHealth client health\n" );
+		return;
+	}
+	if ( !botManager.SetProbeHealth( atoi( args.Argv( 1 ) ), atoi( args.Argv( 2 ) ) ) ) {
+		gameLocal.Printf( "bot_probeHealth: requires an isolated local cheat server with one live bot, and 1-1000 health\n" );
+	}
+}
+
+/*
+==================
 Cmd_NavMesh_f
 ==================
 */
@@ -4317,6 +4332,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "bot_probeMove", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot movement on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeDodge", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot dodge admission on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeAir", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a fall under one fixed full air input on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeHealth", Cmd_BotProbeHealth_f, CMD_FL_GAME, "give the next traversal probe's bot this health on an isolated local cheat server" );
 }
 
 /*

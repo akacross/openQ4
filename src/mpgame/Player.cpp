@@ -12105,9 +12105,10 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 			if ( gameLocal.isMultiplayer && bot_debug.GetInteger() >= 2 && botManager.IsBot( entityNumber ) ) {
 				// Friendly fire and armour can suppress health damage while the
 				// impulse still moves a bot. Keep that cause visible to fall audits.
-				gameLocal.Printf( "BOT_IMPULSE client=%d time=%d attacker=%d damage=%d origin=%s kick=%s velocity=%s def=%s\n",
+				// health is what this hit leaves, which an impulse replay restores.
+				gameLocal.Printf( "BOT_IMPULSE client=%d time=%d attacker=%d damage=%d origin=%s kick=%s velocity=%s def=%s health=%d\n",
 					entityNumber, gameLocal.time, attacker->entityNumber, damage, physicsObj.GetOrigin().ToString( 3 ),
-					kick.ToString( 3 ), physicsObj.GetLinearVelocity().ToString( 3 ), damageDefName );
+					kick.ToString( 3 ), physicsObj.GetLinearVelocity().ToString( 3 ), damageDefName, health - damage );
 			}
 
 			// set the timer so that the player can't cancel out the movement immediately
