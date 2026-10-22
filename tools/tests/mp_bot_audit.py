@@ -109,6 +109,10 @@ def main() -> int:
                         help="2 includes bot status/damage, 3 adds edge/traversal traces, 4 adds jump predictions")
     parser.add_argument("--max-world-deaths", type=int, default=None,
                         help="fail the audit if deaths to the map exceed this limit")
+    parser.add_argument("--classify-impulses", action="store_true",
+                        help="apply the MP-02 policy (mp_bot_impulse_replay.py): replay each death that follows "
+                             "a logged enemy impulse and apply --max-world-deaths to navigation deaths only; "
+                             "excluded deaths are still reported with their evidence (needs --debug 2 or more)")
     parser.add_argument("--seconds", type=int, default=120)
     parser.add_argument("--min-sim-seconds", type=int, default=None,
                         help="require this much observed server time, independent of wall-clock waits")
@@ -126,6 +130,8 @@ def main() -> int:
         parser.error(f"use 2 to {len(NAMES)} bots")
     if args.min_sim_seconds is not None and args.min_sim_seconds < 1:
         parser.error("--min-sim-seconds must be positive")
+    if args.classify_impulses and (args.debug < 2 or args.max_world_deaths is None):
+        parser.error("--classify-impulses needs --debug 2 (BOT_IMPULSE traces) and --max-world-deaths")
     timeout = args.timeout or args.seconds + 150
     runtime, output = args.runtime_dir.resolve(), args.output_dir.resolve()
     exe = runtime / args.executable_name
@@ -247,7 +253,19 @@ def main() -> int:
     all_died = world_deaths(clean, bot_names)
     # Rates remain tied to the measured window. Safety qualification includes
     # startup too: a lethal route is no safer because a bot took it before BEGIN.
-    if args.max_world_deaths is not None and len(all_died) > args.max_world_deaths:
+    classification = None
+    if args.classify_impulses and all_died:
+        # Only deaths after a logged enemy impulse whose isolated replay falls
+        # with every fixed air input are excluded; everything else counts.
+        from mp_bot_impulse_replay import classify_log
+        classification = classify_log(clean, bot_names, args.gametype, args.map_name, runtime, args.executable_name,
+                                      args.basepath.resolve(), output / "impulse-replays", args.port + 1)
+        counted = classification["navigation_world_deaths"]
+        if counted > args.max_world_deaths:
+            failures.append(f"{counted} complete-run navigation/control world deaths "
+                            f"({len(all_died)} world deaths, {classification['excluded_impulse_deaths']} "
+                            f"excluded as unrecoverable enemy impulses) exceed the limit of {args.max_world_deaths}")
+    elif args.max_world_deaths is not None and len(all_died) > args.max_world_deaths:
         failures.append(f"{len(all_died)} complete-run world deaths "
                         f"({len(warmup_died)} during warmup, {len(died)} measured) "
                         f"exceed the limit of {args.max_world_deaths}")
@@ -332,6 +350,11 @@ def main() -> int:
         "world_deaths": len(died), "suicides": len(suicides),
         "warmup_world_deaths": len(warmup_died),
         "complete_run_world_deaths": len(all_died),
+        "navigation_world_deaths": (classification["navigation_world_deaths"] if classification else
+                                    (len(all_died) if args.classify_impulses else None)),
+        "excluded_impulse_deaths": (classification["excluded_impulse_deaths"] if classification else
+                                    (0 if args.classify_impulses else None)),
+        "death_classification": classification["deaths"] if classification else [],
         "world_deaths_per_bot_minute": round(len(died) / bot_minutes, 3),
         "suicides_per_bot_minute": round(len(suicides) / bot_minutes, 3),
         "kills_per_bot_minute": round(len(kills) / bot_minutes, 3),
@@ -358,6 +381,7 @@ def main() -> int:
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     summary = {key: report[key] for key in ("map", "gametype", "bots", "navmesh_line", "kills",
                                              "world_deaths", "warmup_world_deaths", "complete_run_world_deaths",
+                                             "navigation_world_deaths", "excluded_impulse_deaths",
                                              "suicides", "nav_events",
                                              "nav_failures_per_bot_minute", "sim_speed", "cpu_cores_busy",
                                              "main_loop_frame_ms", "failures")}

@@ -767,6 +767,9 @@ def validate_validation_wiring() -> None:
         "mp_bot_audit.py",
         # Isolated bot jump replays launch a staged MP server and client.
         "mp_bot_jump_replay.py",
+        # Impulse-death replays launch a staged MP server and client; their
+        # policy is exercised without assets by mp_bot_death_policy.py.
+        "mp_bot_impulse_replay.py",
         # Stock sound distance measurements launch a staged client on retail assets.
         "sound_distance_runtime.py",
         # Drives a rooted x86_64 Android emulator; the workflows py_compile it.

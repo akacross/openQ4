@@ -59,6 +59,62 @@ def assess(log: str, exit_code: int, pad_impulse: bool = False, dodge_runout: bo
             "traversal_frames": len(re.findall(r"^BOT_TRAVEL ", sample, re.M))}
 
 
+# q4ctf5's func_jumppad_14 (entity 34) lies beside the walkway its trigger
+# shares with the jump landing at 604 -484 -184; its natural flight lands on
+# func_jumppad_15, which throws the bot across the map. Each walking leg below
+# avoids the trigger, while the starting momentum carries toward it. Before
+# the transport guard, "westC" entered the pad and rode that chain.
+UNPLANNED_PAD_TRIALS = {
+    "westA": "680 -370 -183.75 130 290 0 560 -200 -184",
+    "westB": "690 -380 -183.75 200 250 0 560 -200 -184",
+    "westC": "700 -400 -183.75 250 250 0 600 -172 -184",
+}
+
+
+def assess_unplanned_pad(sample: str) -> dict:
+    failures, trials = [], {}
+    for name in UNPLANNED_PAD_TRIALS:
+        begin, end = f"MP_BOT_TRIAL_BEGIN {name}", f"MP_BOT_TRIAL_END {name}"
+        if begin not in sample or end not in sample:
+            failures.append(f"{name}: trial did not run")
+            continue
+        body = sample.split(begin, 1)[1].split(end, 1)[0]
+        trials[name] = {"armed": len(re.findall(r"^BOT_MOVE_PROBE client=1 ", body, re.M)) == 1,
+                        "adopted": re.findall(r"^bot Rhodes: adopted pad .*$", body, re.M),
+                        "guarded": len(re.findall(r"^BOT_TRANSPORT_GUARD client=1 ", body, re.M)),
+                        "world_death": bool(re.search(r"^Rhodes (?:was killed by world|died)$", body, re.M))}
+        if not trials[name]["armed"]:
+            failures.append(f"{name}: probe did not arm")
+        if trials[name]["adopted"]:
+            failures.append(f"{name}: entered a pad the route did not choose")
+        if trials[name]["world_death"]:
+            failures.append(f"{name}: died to the world")
+    if trials.get("westC", {}).get("guarded", 0) == 0:
+        failures.append("westC: the transport guard never engaged")
+    return {"failures": failures, "trials": trials}
+
+
+def unplanned_pad_replay(runtime: Path, executable: str, basepath: Path, output: Path, port: int) -> int:
+    from mp_bot_impulse_replay import replay_session
+    trials = [{"name": name, "decisive": True, "command": f"bot_probeMove 1 {state}"}
+              for name, state in UNPLANNED_PAD_TRIALS.items()]
+    started = time.monotonic()
+    completed, clean, code = replay_session(runtime, executable, basepath, output, "mp/q4ctf5", "CTF",
+                                            trials, port, 200)
+    result = assess_unplanned_pad(clean.partition("\nMP_BOT_REPLAY_BEGIN\n")[2])
+    if not completed:
+        result["failures"].insert(0, "Replay did not complete")
+    result.update({"exit_code": code, "elapsed_seconds": round(time.monotonic() - started, 2),
+                   "identity": {str(p): file_sha256(p) for p in
+                                (runtime / executable, runtime / "baseoq4/pak0.pk4", runtime / "baseoq4/pak1.pk4",
+                                 *[p for p in (runtime / "baseoq4").glob("game-mp*") if p.suffix in (".dll", ".so", ".dylib")])},
+                   "scope": "One isolated q4ctf5 bot on walking legs clear of func_jumppad_14 with momentum toward it; "
+                            "no enemies. Bounded regression, not match acceptance."})
+    (output / "report.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(result, indent=2))
+    return int(bool(result["failures"]))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-dir", type=Path, default=ROOT / ".install")
@@ -70,6 +126,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--pad-impulse", action="store_true", help="replay the recorded post-hit pad flight instead of the air-step jump")
     mode.add_argument("--dodge-runout", action="store_true", help="replay q4xdm13's high-momentum post-drop dodge")
+    mode.add_argument("--unplanned-pad", action="store_true",
+                      help="replay q4ctf5 momentum toward func_jumppad_14 beside a walking leg that avoids it")
     args = parser.parse_args()
     runtime, output, basepath = args.runtime_dir.resolve(), args.output_dir.resolve(), args.basepath.resolve()
     exe = runtime / args.executable_name
@@ -78,6 +136,8 @@ def main() -> int:
     if output.exists():
         parser.error("Use a new output directory to preserve earlier evidence")
     verify_runtime_is_current(runtime, args.executable_name)
+    if args.unplanned_pad:
+        return unplanned_pad_replay(runtime, args.executable_name, basepath, output, args.port)
     game = output / "save/baseoq4"
     game.mkdir(parents=True)
     command_name = "bot_probePad" if args.pad_impulse else "bot_probeJump"

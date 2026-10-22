@@ -562,6 +562,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "macos_moltenvk_policy.py",
         root / "tools" / "tests" / "mp_bot_characters.py",
         root / "tools" / "tests" / "mp_bot_combat.py",
+        root / "tools" / "tests" / "mp_bot_death_policy.py",
         root / "tools" / "tests" / "mp_bot_goal_contracts.py",
         root / "tools" / "tests" / "mp_bot_navmesh_search.py",
         root / "tools" / "tests" / "mp_bot_objectives.py",

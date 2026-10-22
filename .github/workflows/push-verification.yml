@@ -105,6 +105,7 @@ jobs:
             tools/tests/mp_match_flow_smoke.py \
             tools/tests/mp_bot_gameplay_smoke.py \
             tools/tests/mp_bot_audit.py \
+            tools/tests/mp_bot_impulse_replay.py \
             tools/tests/mp_roster_smoke.py \
             tools/tests/mp_round_remote_smoke.py \
             tools/tests/mp_tourney_smoke.py \
@@ -293,6 +294,7 @@ jobs:
             tools/tests/macos_moltenvk_policy.py \
             tools/tests/mp_bot_characters.py \
             tools/tests/mp_bot_combat.py \
+            tools/tests/mp_bot_death_policy.py \
             tools/tests/mp_bot_goal_contracts.py \
             tools/tests/mp_bot_intelligence.py \
             tools/tests/mp_bot_navigation.py \
@@ -731,6 +733,7 @@ jobs:
           python tools/tests/macos_moltenvk_policy.py
           python tools/tests/mp_bot_characters.py
           python tools/tests/mp_bot_combat.py
+          python tools/tests/mp_bot_death_policy.py
           python tools/tests/mp_bot_goal_contracts.py
           python tools/tests/mp_bot_intelligence.py
           python tools/tests/mp_bot_navigation.py
