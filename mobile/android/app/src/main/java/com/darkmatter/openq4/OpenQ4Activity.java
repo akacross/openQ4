@@ -5,6 +5,7 @@ package com.darkmatter.openq4;
 import android.annotation.TargetApi;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.os.Build;
@@ -31,6 +32,14 @@ public final class OpenQ4Activity extends SDLActivity {
     public float[] getTouchSetup() {
         String saved = getSharedPreferences("setup", MODE_PRIVATE).getString(TouchSettings.SAVED, null);
         return saved == null ? null : TouchSettings.decode(saved).engineValues();
+    }
+
+    /** An unchanged applied revision never overwrites later in-game scale choices. */
+    public String getInterfaceSetup() {
+        InterfaceSettings saved = InterfaceSettings.decodeOrNull(
+                getSharedPreferences("setup", MODE_PRIVATE).getString(InterfaceSettings.SAVED, null));
+        Configuration config = getResources().getConfiguration();
+        return saved == null ? null : saved.engineValues(config.smallestScreenWidthDp >= 600, config.fontScale);
     }
 
     @Override

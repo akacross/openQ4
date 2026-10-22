@@ -453,6 +453,7 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "android_setup_task.py",
         root / "tools" / "tests" / "android_setup_flow.py",
         root / "tools" / "tests" / "android_touch_setup.py",
+        root / "tools" / "tests" / "android_interface_setup.py",
         root / "tools" / "tests" / "android_private_export.py",
         root / "tools" / "tests" / "android_document_export.py",
         root / "tools" / "tests" / "image_block_mips.py",

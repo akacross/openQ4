@@ -165,6 +165,7 @@ jobs:
             tools/tests/android_setup_task.py \
             tools/tests/android_setup_flow.py \
             tools/tests/android_touch_setup.py \
+            tools/tests/android_interface_setup.py \
             tools/tests/android_private_export.py \
             tools/tests/android_document_export.py \
             tools/tests/image_block_mips.py \
@@ -572,6 +573,7 @@ jobs:
           python tools/tests/android_setup_task.py
           python tools/tests/android_setup_flow.py
           python tools/tests/android_touch_setup.py
+          python tools/tests/android_interface_setup.py
           python tools/tests/android_private_export.py
           python tools/tests/android_document_export.py
           python tools/tests/image_block_mips.py

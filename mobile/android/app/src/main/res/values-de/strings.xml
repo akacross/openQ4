@@ -103,4 +103,26 @@
         <item>Kompakt</item>
         <item>Linkshändig</item>
     </string-array>
+    <string name="setup_interface">Oberfläche</string>
+    <string name="setup_interface_help">Wähle die Größe von Menüs und Text im Spiel. Automatisch wählt Telefon oder Tablet passend zu diesem Gerät. Text für Telefon und Tablet beginnt bei deiner Android-Schriftgröße. Anwenden setzt diese Größen einmal beim nächsten Spielstart oder bei der Rückkehr ins Spiel; spätere Änderungen in den Spieleinstellungen bleiben erhalten.</string>
+    <string name="setup_viewing_profile">Anzeigeprofil</string>
+    <string name="setup_interface_size">Oberflächengröße</string>
+    <string name="setup_profile_size">Profilstandard</string>
+    <string name="setup_text_size">Textgröße</string>
+    <string name="setup_profile_text_size">Profilstandard</string>
+    <string name="setup_interface_effective">Spielmenüs: %1$d %% Größe, %2$d %% Text</string>
+    <string name="setup_interface_sample_title">Ziel aktualisiert</string>
+    <string name="setup_interface_sample_body">Triff Rhino Squad im Hangar. Dieses Beispiel zeigt die Textgröße der Spielmenüs.</string>
+    <string name="setup_interface_apply">Oberfläche anwenden</string>
+    <string name="setup_interface_applied">Oberfläche gespeichert. Sie gilt bei der Rückkehr ins Spiel oder beim nächsten Spielstart.</string>
+    <string name="setup_interface_save_failed">Die Oberflächeneinstellungen konnten nicht gespeichert werden. Die bisherigen Einstellungen bleiben erhalten; prüfe den freien App-Speicher und versuche es erneut.</string>
+    <string name="setup_interface_percent">%1$d %%</string>
+    <string-array name="setup_viewing_profiles">
+        <item>Automatisch (dieses Gerät)</item>
+        <item>Schreibtisch (Monitor)</item>
+        <item>Sofa (Fernseher)</item>
+        <item>Handheld</item>
+        <item>Telefon</item>
+        <item>Tablet</item>
+    </string-array>
 </resources>

@@ -374,6 +374,11 @@ if get_option('build_native_tests')
     include_directories: root_include_dir, install: false,
   )
   test('openq4-android-touch-integration', android_touch_integration_test, timeout: 30)
+  android_interface_setup_test = executable(
+    'openq4-android-interface-setup', files('tools/tests/native/AndroidInterfaceSetupTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-android-interface-setup', android_interface_setup_test, timeout: 30)
   foreach platform : ['android', 'desktop']
     android_async_test = executable(
       'openq4-android-async-' + platform, android_async_source,

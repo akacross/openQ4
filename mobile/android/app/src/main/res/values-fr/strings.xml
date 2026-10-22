@@ -103,4 +103,26 @@
         <item>Compacte</item>
         <item>Gaucher</item>
     </string-array>
+    <string name="setup_interface">Interface</string>
+    <string name="setup_interface_help">Choisissez la taille des menus et du texte du jeu. Automatique choisit Téléphone ou Tablette selon cet appareil. Sur Téléphone et Tablette, le texte part de la taille de police Android. Appliquer définit ces tailles une seule fois, au prochain lancement ou retour au jeu ; les modifications faites ensuite dans les paramètres du jeu sont conservées.</string>
+    <string name="setup_viewing_profile">Profil d’affichage</string>
+    <string name="setup_interface_size">Taille de l’interface</string>
+    <string name="setup_profile_size">Valeur du profil</string>
+    <string name="setup_text_size">Taille du texte</string>
+    <string name="setup_profile_text_size">Valeur du profil</string>
+    <string name="setup_interface_effective">Menus du jeu : taille %1$d %%, texte %2$d %%</string>
+    <string name="setup_interface_sample_title">Objectif mis à jour</string>
+    <string name="setup_interface_sample_body">Rejoignez l’escouade Rhino au hangar. Cet exemple montre la taille du texte des menus du jeu.</string>
+    <string name="setup_interface_apply">Appliquer l’interface</string>
+    <string name="setup_interface_applied">Interface enregistrée. Elle sera appliquée au retour au jeu ou à son lancement.</string>
+    <string name="setup_interface_save_failed">Impossible d’enregistrer les réglages de l’interface. Les réglages précédents sont conservés ; vérifiez l’espace libre de l’application et réessayez.</string>
+    <string name="setup_interface_percent">%1$d %%</string>
+    <string-array name="setup_viewing_profiles">
+        <item>Automatique (cet appareil)</item>
+        <item>Bureau (écran)</item>
+        <item>Canapé (téléviseur)</item>
+        <item>Console portable</item>
+        <item>Téléphone</item>
+        <item>Tablette</item>
+    </string-array>
 </resources>

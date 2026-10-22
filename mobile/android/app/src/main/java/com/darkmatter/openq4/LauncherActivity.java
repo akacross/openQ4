@@ -60,6 +60,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
     private Button choose, check, retry, cancel, sp, mp, returnGame, saves, logs;
     private boolean started;
     private boolean controlsPage;
+    private boolean interfacePage;
     private final Handler refresh = new Handler(Looper.getMainLooper());
     private final Runnable refreshState = () -> { if (started) changed(session.task.state()); };
     private final SetupTask.Observer<DocumentExport.Result> exportObserver = ignored -> changed(session.task.state());
@@ -97,6 +98,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         if (state != null) {
             session.picking = state.getInt("picking", session.picking);
             controlsPage = state.getBoolean("controls_page", false);
+            interfacePage = state.getBoolean("interface_page", false);
         }
         theme = new SetupTheme(this);
         build();
@@ -114,6 +116,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         state.putInt("picking", session.picking);
         state.putInt("scroll", scroll.getScrollY());
         state.putBoolean("controls_page", controlsPage);
+        state.putBoolean("interface_page", interfacePage);
         super.onSaveInstanceState(state);
     }
 
@@ -166,6 +169,10 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         } else if (controlsPage) {
             new ControlsPage(this, theme, session.prefs).build(column, () -> {
                 controlsPage = false; build(); changed(session.task.state());
+            });
+        } else if (interfacePage) {
+            new InterfacePage(this, theme, session.prefs).build(column, () -> {
+                interfacePage = false; build(); changed(session.task.state());
             });
         } else dataPage(column);
         setContentView(scroll);
@@ -242,6 +249,7 @@ public final class LauncherActivity extends Activity implements SetupTask.Observ
         sp = theme.button(R.string.setup_play_sp, () -> launch(false)); addButton(column, sp);
         mp = theme.button(R.string.setup_play_mp, () -> launch(true)); addButton(column, mp);
         addButton(column, theme.button(R.string.setup_controls, () -> { controlsPage = true; build(); }));
+        addButton(column, theme.button(R.string.setup_interface, () -> { interfacePage = true; build(); }));
         column.addView(theme.text(R.string.setup_exports, true));
         column.addView(theme.text(R.string.setup_export_help, false));
         saves = theme.button(R.string.setup_export_saves, () -> chooseExport(PrivateExport.Kind.SAVES)); addButton(column, saves);

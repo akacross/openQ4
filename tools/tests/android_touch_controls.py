@@ -76,6 +76,9 @@ static float touchDisplayScale=1,touchWheelX=0,touchWheelY=0,touchPlayerScale=-1
 static int touchPlayerPreset=-1;
 static int setupLoads=0;
 static void TouchControls_LoadSetup(){++setupLoads;}
+// The interface record has its own transaction test (android_interface_setup.py).
+static int interfaceLoads=0;
+static void Interface_LoadSetup(){++interfaceLoads;}
 static bool touchWheelOwned=false,touchAppActive=false,touchPosted=false,touchOverlayHidden=false;
 @FUNCTIONS@
 static void frame(){AndroidTouchControls_Frame(720,360,1,true);}
@@ -93,10 +96,11 @@ static void reset(){
 }
 int main(){try{
     using namespace openq4::touch;
-    reset();int loaded=setupLoads;frame();frame();
-    check(setupLoads==loaded,"setup read every frame");
+    reset();int loaded=setupLoads,interfaceLoaded=interfaceLoads;frame();frame();
+    check(setupLoads==loaded && interfaceLoads==interfaceLoaded,"setup read every frame");
     AndroidTouchControls_Release();frame();
     check(setupLoads==loaded+1,"setup was not reloaded on foreground entry");
+    check(interfaceLoads==interfaceLoaded+1,"interface setup was not checked on foreground entry");
     reset();button(ANDROID_TOUCH_DOWN,1,1,BUTTON_FIRE);frame();
     check(motion.Take().buttons&(1u<<QUAKE4_BTN_ATTACK),"preset precondition fire held");
     in_touchLayoutPreset.SetFloat(PRESET_LEFT_HANDED);frame();

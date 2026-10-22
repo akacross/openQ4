@@ -405,11 +405,20 @@ public final class StorageTest {
         SDLActivity.mBrokenLibraries = false;
         // Applied setup records reach the engine thread; absence never does.
         SDLActivity.preferences.values.clear();
-        require(activity.getTouchSetup() == null, "unconfigured setup reached the engine");
+        require(activity.getTouchSetup() == null && activity.getInterfaceSetup() == null, "unconfigured setup reached the engine");
         SDLActivity.preferences.values.put(TouchSettings.SAVED, "1:2:15:8");
         float[] touch = activity.getTouchSetup();
         require(touch != null && touch.length == 3 && touch[0] == 2 && Math.abs(touch[1] - 1.5f) < 1e-6f &&
             Math.abs(touch[2] - 1.15f) < 1e-6f, "applied touch setup not delivered");
+        SDLActivity.preferences.values.put(InterfaceSettings.SAVED, "1:0123456789abcdef0123456789abcdef:0:0:0");
+        SDLActivity.resources.configuration.fontScale = 1.3f;
+        require("1:0123456789abcdef0123456789abcdef:4:100:130".equals(activity.getInterfaceSetup()),
+            "applied interface setup not resolved for this phone");
+        SDLActivity.resources.configuration.smallestScreenWidthDp = 720;
+        require("1:0123456789abcdef0123456789abcdef:5:100:130".equals(activity.getInterfaceSetup()),
+            "applied interface setup not resolved for this tablet");
+        SDLActivity.preferences.values.put(InterfaceSettings.SAVED, "1:damaged");
+        require(activity.getInterfaceSetup() == null, "damaged interface record reached the engine");
         SDLActivity.preferences.values.clear();
         File old = extract(activity);
         List<String> launch = Arrays.asList(activity.getArguments());
@@ -661,7 +670,7 @@ public final class StoragePackageProbe {
         # and retail-import Android APIs have separate executable fixtures.
         source_paths.extend(str(root / "mobile/android/app/src/main/java/com/darkmatter/openq4" / name)
                             for name in ("OpenQ4Activity.java", "PackageStorage.java", "StorageSession.java", "SetupLanguage.java",
-                                         "TouchSettings.java"))
+                                         "TouchSettings.java", "InterfaceSettings.java"))
         classes = scratch / "classes"
         classes.mkdir()
         javac = Path(args.javac).resolve()

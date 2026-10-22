@@ -103,4 +103,26 @@
         <item>Compacta</item>
         <item>Para zurdos</item>
     </string-array>
+    <string name="setup_interface">Interfaz</string>
+    <string name="setup_interface_help">Elige el tamaño de los menús y del texto del juego. Automático elige Teléfono o Tableta según este dispositivo. En Teléfono y Tableta, el texto parte del tamaño de fuente de Android. Aplicar fija estos tamaños una vez, en el próximo inicio o regreso al juego; los cambios posteriores en los ajustes del juego se conservan.</string>
+    <string name="setup_viewing_profile">Perfil de visualización</string>
+    <string name="setup_interface_size">Tamaño de la interfaz</string>
+    <string name="setup_profile_size">Valor del perfil</string>
+    <string name="setup_text_size">Tamaño del texto</string>
+    <string name="setup_profile_text_size">Valor del perfil</string>
+    <string name="setup_interface_effective">Menús del juego: tamaño %1$d %%, texto %2$d %%</string>
+    <string name="setup_interface_sample_title">Objetivo actualizado</string>
+    <string name="setup_interface_sample_body">Reúnete con el escuadrón Rhino en el hangar. Este ejemplo muestra el tamaño del texto de los menús del juego.</string>
+    <string name="setup_interface_apply">Aplicar interfaz</string>
+    <string name="setup_interface_applied">Interfaz guardada. Se aplicará al volver al juego o iniciarlo.</string>
+    <string name="setup_interface_save_failed">No se pudieron guardar los ajustes de la interfaz. Se conservan los ajustes anteriores; comprueba el espacio libre de la aplicación y vuelve a intentarlo.</string>
+    <string name="setup_interface_percent">%1$d %%</string>
+    <string-array name="setup_viewing_profiles">
+        <item>Automático (este dispositivo)</item>
+        <item>Escritorio (monitor)</item>
+        <item>Sofá (televisor)</item>
+        <item>Consola portátil</item>
+        <item>Teléfono</item>
+        <item>Tableta</item>
+    </string-array>
 </resources>

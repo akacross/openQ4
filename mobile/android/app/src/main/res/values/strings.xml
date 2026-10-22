@@ -110,4 +110,26 @@
         <item>Compact</item>
         <item>Left-handed</item>
     </string-array>
+    <string name="setup_interface">Interface</string>
+    <string name="setup_interface_help">Choose the size of menus and text in the game. Automatic picks Phone or Tablet for this device. Phone and Tablet text starts from your Android font size. Apply sets these sizes once, at the next game launch or return to the game; later changes in the game Settings are kept.</string>
+    <string name="setup_viewing_profile">Viewing profile</string>
+    <string name="setup_interface_size">Interface size</string>
+    <string name="setup_profile_size">Profile default</string>
+    <string name="setup_text_size">Text size</string>
+    <string name="setup_profile_text_size">Profile default</string>
+    <string name="setup_interface_effective">Game menus: %1$d%% size, %2$d%% text</string>
+    <string name="setup_interface_sample_title">Objective updated</string>
+    <string name="setup_interface_sample_body">Rendezvous with Rhino Squad at the hangar. This sample shows the text size the game menus will use.</string>
+    <string name="setup_interface_apply">Apply interface</string>
+    <string name="setup_interface_applied">Interface saved. It applies when you return to or launch the game.</string>
+    <string name="setup_interface_save_failed">Could not save interface settings. Your previous applied settings are retained; check free app storage and retry.</string>
+    <string name="setup_interface_percent">%1$d%%</string>
+    <string-array name="setup_viewing_profiles">
+        <item>Automatic (this device)</item>
+        <item>Desk (monitor)</item>
+        <item>Couch (television)</item>
+        <item>Handheld</item>
+        <item>Phone</item>
+        <item>Tablet</item>
+    </string-array>
 </resources>

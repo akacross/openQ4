@@ -32,6 +32,7 @@
 #include "../../framework/Session_local.h"
 #include "../../ui/RetainedUI.h"
 #include "android_touch_controls.h"
+#include "android_interface_settings.h"
 #include <SDL3/SDL_system.h>
 #include <jni.h>
 
@@ -70,6 +71,46 @@ static int						touchPlayerPreset = -1;
 static bool						touchAppActive = false;
 static bool						touchPosted = false;	// some input reached the bridge since the last let-go
 static bool						touchOverlayHidden = false;
+
+// Archived beside ui_retainedScale/ui_retainedTextScale so a restart, which
+// reloads both from the config, never re-applies an already applied record.
+static idCVar ui_androidInterfaceApplied("ui_androidInterfaceApplied", "", CVAR_SYSTEM | CVAR_ARCHIVE,
+	"last Android interface setup transaction applied to the game");
+
+// Java resolves the viewing profile (ui-visual-design.md 13.2) and the system
+// font scale into the retained UI and text scales. Apply each new transaction
+// once on foreground entry, so later in-game size changes survive a return.
+static void Interface_LoadSetup(void) {
+	JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+	if (!env) return;
+	jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+	if (!activity) return;
+	jclass type = env->GetObjectClass(activity);
+	jmethodID getter = type ? env->GetMethodID(type, "getInterfaceSetup", "()Ljava/lang/String;") : NULL;
+	jstring record = getter ? static_cast<jstring>(env->CallObjectMethod(activity, getter)) : NULL;
+	openq4::android::InterfaceSetup settings;
+	bool pending = false;
+	if (!env->ExceptionCheck() && record && env->GetStringUTFLength(record) <= 48) {
+		const char* bytes = env->GetStringUTFChars(record, NULL);
+		if (bytes) {
+			pending = openq4::android::PendingInterfaceSetup(bytes, ui_androidInterfaceApplied.GetString(), settings);
+			env->ReleaseStringUTFChars(record, bytes);
+		}
+	}
+	if (env->ExceptionCheck()) {
+		env->ExceptionClear(); pending = false;
+		common->Warning("Could not read Android interface setup");
+	}
+	if (record) env->DeleteLocalRef(record);
+	if (type) env->DeleteLocalRef(type);
+	env->DeleteLocalRef(activity);
+	if (!pending) return;
+	cvarSystem->SetCVarFloat("ui_retainedScale", settings.scale);
+	cvarSystem->SetCVarFloat("ui_retainedTextScale", settings.textScale);
+	ui_androidInterfaceApplied.SetString(settings.revision);
+	common->Printf("ANDROID_INTERFACE_SETUP profile=%d uiScale=%.2f textScale=%.2f\n",
+		settings.profile, settings.scale, settings.textScale);
+}
 
 // Java owns the standalone setup preference. Read its one atomic applied
 // record on startup/foreground only, after SDL has restored the Activity.
@@ -208,6 +249,7 @@ static void TouchControls_Apply( const openq4::touch::Output &out ) {
 void AndroidTouchControls_Frame( int windowWidth, int windowHeight, float displayScale, bool appActive ) {
 	if ( appActive && !touchAppActive ) {
 		TouchControls_LoadSetup();
+		Interface_LoadSetup();
 	}
 	touchAppActive = appActive;
 	const openq4::touch::Layout &previous = touchControls.GetLayout();
