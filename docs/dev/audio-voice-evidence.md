@@ -107,7 +107,8 @@ runtime budget reduction.
 Long Ogg samples now retain their metadata and 60 Hz amplitude envelope, with no
 complete compressed file or decoded PCM resident. Above 512 KiB decoded size,
 each active voice opens its own VFS/PK4 stream with a 64 KiB read cache, fixed
-2 MiB Vorbis arena and three 4,096-frame PCM queue buffers. The separate
+2 MiB Vorbis arena and three PCM queue buffers (4,096 frames when first
+measured; now about a third of a second each, see below). The separate
 `s_streamMemoryMB` limit defaults to 32 MiB, reserving 2,304 KiB per voice including
 scratch, queued PCM and conservative VFS bookkeeping. Stop and purge release
 decoders, file handles and queue buffers. Short-track decode jobs now include
@@ -157,6 +158,62 @@ leadin/loop behavior, an enforced joint residency limit including WAV/RoQ and
 Android/device breadth remain open under AUD-03. The decoder and queue limits
 alone are not a total audio-memory guarantee.
 
+### Queue depth across long frames, 22 October 2026
+
+On the merged A+B build (`9255c199c`) `audio_dialogue.py --compressed` failed
+4 of 4 runs with about 25 underruns each, and `audio_memory_runtime.py` failed
+`retry_and_restarts_play_both`. Earlier passing reports on the same audio code
+came from before 23:51 on 21 October. From then on, the laptop sat in Modern
+Standby with the display off (Kernel-Power event 506, no 507 afterwards), and
+every failing run fell in that period. With `com_speeds 1` the hidden GL window
+ran at p50 139 ms with 49 frames over 200 ms and a 2.5 s maximum; the time was
+outside the game, front end and back end, in presentation. With
+`r_swapInterval 0` the median returned to 17 ms, but periodic ~450 ms present
+stalls remained. Vulkan, which renders hidden windows offscreen and never
+presents (90ed5029), paced at p50 17 ms with no stalls apart from the first
+frame, `s_restart` and save/load, and the same dialogue run passed. CPU load
+stayed at 8-30%, with no build processes and over 36 GB of free commit. The
+~500 ms CPU p99 in the same day's GL stock baseline has the same cause.
+
+The trigger was environmental, but the failures exposed a real limit. Every
+bounded queue (streamed Ogg, CPU-resident PCM without an uploaded buffer,
+centre-routed mono) held three 4,096-frame buffers and was refilled once per
+main-thread frame. That is 512 ms at 24 kHz and 279 ms at 44.1 kHz. Each
+underrun followed a frame of about 450 ms or longer, so a single loading hitch
+of that size cut out music or dialogue until the channel restarted it at its
+clock. The 64 MiB fallback WAV in `audio_memory_runtime.py` ran dry the same way
+before its probe.
+
+Queue buffers are now sized by duration within the bytes the reservations
+already count (`src/sound/SoundQueue.h`). A buffer holds about a third of a
+second, up to one 4,096-frame 5.1 block (48 KiB). Mono therefore keeps about
+1.0 s queued at rates up to 48 kHz, stereo 1.0 s at up to 24 kHz and at least
+768 ms at 44.1/48 kHz. Centre-routed mono uploads 5.1 frames, so eight routed
+voices at a time take deep slots of up to 16,384 frames per buffer for the
+same depth. Further routed voices keep 4,096 frames. The fixed 20 MiB
+reservation now also asserts the slots' extra bytes and their routing scratch
+(about 19.1 MiB in total). Stream reservations, aggregate admission and the
+reported memory numbers are unchanged. The memory runtime still reports
+214,246 KiB reserved through both restarts. `audio_streaming.py` now proves the
+one-second depth, the per-buffer byte bounds, continuity across multi-read
+buffers, and that deep slots are bounded, reused and returned. Against the
+previous voice code it fails.
+
+The post-fix runs were made in the same display-off state, with machine load
+recorded for each run (`.tmp/mrt/*.jsonl` in that worktree):
+
+| Suite | Before | After |
+| --- | --- | --- |
+| `audio_dialogue.py --compressed --speakers 6 --decode-memory 16 --audio-memory 192` | 0/2 (25 and 30 underruns) | 3/3 |
+| `audio_dialogue.py --compressed` (2 speakers) | 0/4 | 3/3 |
+| `audio_memory_runtime.py` | 0/1 | 3/3 |
+
+A frame-timed run of the fixed build had the same stall profile as the failing
+one (p50 172 ms, 15 frames over 300 ms, two over 1 s) and logged no underruns,
+against 30 before. A hitch longer than the queue still recovers at the channel's
+sound clock, as before. Refilling from a worker thread was not attempted: voice
+queue state has no locking and is touched only on the main thread.
+
 ## Mod room rolloff
 
 The voice now sets `AL_REFERENCE_DISTANCE` from the authored minimum distance,
@@ -186,8 +243,9 @@ changed or qualified by this measurement.
 `s_audioMemoryMB` now defaults to 256 MiB (range 32–2048). One byte ledger
 admits sample CPU data, compressed input, pending decoder arenas, amplitude
 envelopes, OpenAL sample uploads and stream reservations together. A fixed
-20 MiB conservative allowance covers all 96 hardware voices' three 4,096-frame
-5.1 queues, voice-chat rings and scratch. Stream reservations also include their
+20 MiB conservative allowance covers all 96 hardware voices' three 48 KiB
+queue buffers (one 4,096-frame 5.1 block each), the deep centre-routed slots,
+voice-chat rings and scratch. Stream reservations also include their
 queues; this intentionally overcounts them. This is a managed-payload ceiling,
 not a provider-process/RSS limit: driver internals, resource metadata and general
 filesystem caches are outside its claim.
@@ -202,7 +260,8 @@ longer loads the complete video or grows a second PCM container. Envelope
 allocations and failed uploads release reservations on all tested exits.
 
 A failed static upload retains CPU PCM for three bounded fallback buffers;
-those buffers now use at most 4,096 frames for ordinary PCM as well as centre
+each holds at most one 4,096-frame 5.1 block of bytes (about a third of a second
+of mono or stereo PCM since 22 October) for ordinary PCM as well as centre
 routing. Failed sample loads stay retryable and never become cached replacement
 beeps. Exhaustion can omit new audio when it cannot fit; it does not evict active
 sounds. Reducing the budget during playback blocks new admissions without
@@ -248,8 +307,9 @@ qualification. AUD-03 remains open for those gates and lengthless streaming.
 
 ## Centre-channel placement
 
-`SoundSurround.h` routes eligible mono samples through bounded 4,096-frame 5.1
-buffers only when the provider reports a centre-capable output and supports
+`SoundSurround.h` routes eligible mono samples through bounded 5.1 queue
+buffers (4,096 frames, or about a third of a second for the eight voices holding
+a deep slot since 22 October) only when the provider reports a centre-capable output and supports
 multichannel/direct-channel playback. Explicit `SSF_CENTER` uses fraction 1;
 global/radio VO uses `s_centerFractionVO` (default 0.75). Centre amplitude is
 the fraction; the remaining power is shared equally by FL/FR/SL/SR. LFE stays

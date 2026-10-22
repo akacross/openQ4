@@ -179,6 +179,8 @@ private:
 	// Helper function to submit a buffer
 	int						SubmitBuffer( idSoundSample_OpenAL* sample, int bufferNumber, int offset, ALuint streamBuffer );
 	bool					QueueNextBuffer( ALuint streamBuffer );
+	// Frames per buffer for a centre-routed queue; claims a deep-queue slot while one is free.
+	int						RoutedQueueFrames( int sampleRate );
 	void					AdvanceQueuedBuffer();
 	bool					SetNextQueuedSampleStart( idSoundSample_OpenAL* sample );
 	static bool				GetPlayableBufferRange( const idSoundSample_OpenAL* sample, int bufferNumber, int& bufferStart, int& bufferSamples, int& playableOffset, int& playableSamples );
@@ -232,6 +234,7 @@ private:
 	bool					hasVUMeter;
 	bool					paused;
 	bool					centerRouting;
+	bool					deepRoutedQueue;		// holds one of SOUND_QUEUE_DEEP_ROUTED_VOICES until its buffers are deleted
 	float					appliedSourceRadius;	// last AL_SOURCE_RADIUS sent, -1 = none yet
 };
 

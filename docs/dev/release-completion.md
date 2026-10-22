@@ -61,6 +61,10 @@ completed release material here and publish curated notes in `releases/`.
   PCM in the measured scenes. The aggregate/non-Vorbis implementation is recorded
   above; performance and Android/device qualification remain AUD-03 work.
   [Streaming evidence](audio-voice-evidence.md#compressed-streaming).
+  On 22 October the bounded queues were deepened from three 4,096-frame buffers
+  to about one second within the same reserved bytes. Centre-routed dialogue
+  uses a fixed pool of deep slots. A 450 ms hitch had been enough to interrupt
+  them. [Queue depth evidence](audio-voice-evidence.md#queue-depth-across-long-frames-22-october-2026).
 
 - [x] Add an Android setup Interface page with Desk, Couch, Handheld, Phone and
   Tablet viewing profiles, UI size (75–200%) and text size (100–200%, following

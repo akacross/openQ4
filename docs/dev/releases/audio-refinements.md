@@ -11,6 +11,9 @@
 - Long dialogue and music use smaller playback buffers, reducing audio memory
   in tested stock and Awakening scenes. Playback recovers at the current scene
   time after an audio underrun.
+- Streamed music, long dialogue and centre-speaker dialogue keep about a second
+  of audio queued, so a brief stall such as a mid-level load no longer cuts
+  them out. The audio memory budget is unchanged.
 - Mods using distance-dependent room reverb retain the intended wet sound level
   instead of losing it too quickly. Stock room reverb keeps its existing mix.
 - Surround output now places mono radio and global dialogue toward the centre

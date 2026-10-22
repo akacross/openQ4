@@ -36,6 +36,11 @@ If you have questions concerning this license or the applicable additional terms
 #include <stdint.h>
 #include "../SoundVorbisStream.h"
 #include "../SoundMemoryBudget.h"
+#include "../SoundQueue.h"
+static_assert( SoundVorbisStream::ChunkFrames == SOUND_QUEUE_DECODE_FRAMES,
+	"voice queues fill a buffer in decoder-sized reads" );
+static_assert( SoundVorbisStream::ChunkFrames * 6 * sizeof( short ) == SOUND_QUEUE_BUFFER_BYTES,
+	"stream reservations count three SOUND_QUEUE_BUFFER_BYTES queue buffers" );
 
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
@@ -67,8 +72,10 @@ extern idCVar sys_lang;
 idCVar s_audioMemoryMB( "s_audioMemoryMB", "256", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
 	"MiB cap for managed audio payloads, decoders and conservative queue/scratch reservations; excludes provider internals and metadata", 32, 2048 );
 static SoundMemoryBudget soundMemory;
-// All 96 hardware voices can retain three 4096-frame 5.1 buffers. The rest
-// covers fixed voice-chat rings, decode/probe scratch and allocation headers.
+// All 96 hardware voices can retain three queue buffers of one 4096-frame 5.1
+// block each (SOUND_QUEUE_BUFFER_BYTES; mono and stereo fit more frames), and the
+// deep centre-routed slots their larger buffers plus routing scratch (asserted
+// below). The rest covers voice-chat rings, decode/probe scratch and headers.
 static const uint64 SOUND_MEMORY_FIXED_BYTES = 20 * 1024 * 1024;
 static_assert( MAX_HARDWARE_VOICES * 2ULL * MAX_QUEUED_BUFFERS * 4096 * 6 * sizeof( short ) + 2 * 1024 * 1024 <= SOUND_MEMORY_FIXED_BYTES,
 	"Update the fixed audio reservation when voice queue capacity changes" );
@@ -107,11 +114,16 @@ private:
 
 idCVar s_streamThresholdKB( "s_streamThresholdKB", "512", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
 	"stream Ogg samples whose decoded PCM exceeds this many KiB (0 disables streaming; applies on load)", 0, 16384 );
+static_assert( MAX_HARDWARE_VOICES * 2ULL * MAX_QUEUED_BUFFERS * SOUND_QUEUE_BUFFER_BYTES +
+	SOUND_QUEUE_DEEP_ROUTED_VOICES * static_cast<uint64>( MAX_QUEUED_BUFFERS ) * ( SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES - SOUND_QUEUE_BUFFER_BYTES ) +
+	SOUND_QUEUE_MAX_FRAMES * 7ULL * sizeof( short ) + 2 * 1024 * 1024 <= SOUND_MEMORY_FIXED_BYTES,
+	"the fixed audio reservation must cover every voice queue, the deep routed slots and their scratch" );
 idCVar s_streamMemoryMB( "s_streamMemoryMB", "32", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
 	"MiB reserved for active Vorbis decoders, input caches and three PCM queue buffers per voice", 8, 256 );
 static uint64 soundStreamBytes = 0, soundStreamPeakBytes = 0;
 static unsigned int soundStreamRejected = 0;
-// Includes a scratch PCM block, the three OpenAL blocks and conservative VFS
+// Includes the decode/routing scratch, the three OpenAL queue buffers (each at
+// most one 4096-frame 5.1 block, SOUND_QUEUE_BUFFER_BYTES) and conservative VFS
 // zip/inflate bookkeeping. OpenAL implementation-private overhead is separate.
 static const uint64 SOUND_STREAM_BYTES = SoundVorbisStream::ArenaBytes + sizeof( SoundVorbisStream ) +
 	SoundVorbisStream::ChunkFrames * ( 2 + 4 * 6 ) * sizeof( short ) + 128 * 1024;
@@ -159,7 +171,7 @@ int idSoundOggStream::Channels() const { return decoder != NULL ? decoder->Chann
 int idSoundOggStream::Rate() const { return decoder != NULL ? decoder->Rate() : 0; }
 unsigned int idSoundOggStream::Frames() const { return decoder != NULL ? decoder->Frames() : 0; }
 void idSoundOggStream::PrintMemoryInfo() {
-	idLib::Printf( "Vorbis streaming: reserved=%llu KiB peak=%llu KiB budget=%d MiB rejected=%u chunk=%d frames\n",
+	idLib::Printf( "Vorbis streaming: reserved=%llu KiB peak=%llu KiB budget=%d MiB rejected=%u decode=%d frames\n",
 		static_cast<unsigned long long>( soundStreamBytes / 1024 ), static_cast<unsigned long long>( soundStreamPeakBytes / 1024 ),
 		s_streamMemoryMB.GetInteger(), soundStreamRejected, SoundVorbisStream::ChunkFrames );
 }

@@ -3,6 +3,7 @@
 // decoder. The fixture compares every submitted PCM sample across loop seams.
 #include "src/sound/SoundVorbisStream.h"
 #include "src/sound/SoundSurround.h"
+#include "src/sound/SoundQueue.h"
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
@@ -20,6 +21,7 @@ struct idMath { static const int INT_MAX = 0x7fffffff; };
 using ALuint = unsigned;
 using byte = unsigned char;
 using ALint = int;
+using ALsizei = int;
 constexpr int AL_NO_ERROR = 0;
 enum { AL_INITIAL, AL_PLAYING, AL_STOPPED, AL_SOURCE_STATE, AL_BUFFERS_PROCESSED, AL_BUFFERS_QUEUED };
 enum { AL_SAMPLE_OFFSET, AL_FORMAT_51CHN16 };
@@ -34,6 +36,7 @@ static int sourceState = AL_PLAYING;
 void alGetSourcei(ALuint,int property,int* value) { *value = property == AL_SOURCE_STATE ? sourceState : 0; }
 void alSourceUnqueueBuffers(ALuint,int,ALuint*) {}
 void alSourcePlay(ALuint) { sourceState = AL_PLAYING; }
+void alDeleteBuffers(ALsizei, const ALuint*) {}
 template<class T> struct List : std::vector<T> { int Num() const { return static_cast<int>(this->size()); } const T* Ptr() const { return this->data(); } };
 static int alive = 0;
 struct idSoundOggStream {
@@ -110,10 +113,11 @@ public:
 	ALuint openalStreamingBuffer[3] = {1,2,3};
 	bool paused = true;
 	bool centerRouting = false;
+	bool deepRoutedQueue = false;
 	float centerChannel = 0.75f;
 	bool openalStreamingBufferQueued[3] = {};
 	bool queuedBufferPlaybackActive = false;
-	~idSoundVoice_OpenAL() { ResetQueuedBufferState(); }
+	~idSoundVoice_OpenAL() { ResetQueuedBufferState(); DeleteStreamingBuffers(); }
 	int StreamingBufferIndex(ALuint id) { return static_cast<int>(id) - 1; }
 	int SubmitBuffer(idSoundSample_OpenAL* sample, int buffer, int offset, ALuint streamBuffer);
 	void ResetQueuedBufferState();
@@ -121,11 +125,18 @@ public:
 	bool SetNextQueuedSampleStart(idSoundSample_OpenAL* sample);
 	static bool GetPlayableBufferRange(const idSoundSample_OpenAL*,int,int&,int&,int&,int&);
 	bool QueueNextBuffer(ALuint buffer);
+	int RoutedQueueFrames(int sampleRate);
+	void DeleteStreamingBuffers();
 	bool HasQueuedBufferState() const { return queuedBufferPlaybackActive || nextQueuedSample; }
 	bool UsesStreamingBuffers() const { return true; }
 	bool UsesBoundedQueue() const;
 	bool Update();
 };
+
+// Production statics of AL_SoundVoice.cpp that the extracted bodies use.
+static int soundDeepRoutedQueueVoices = 0;
+static short soundRoutedQueueMono[SOUND_QUEUE_MAX_FRAMES];
+static short soundRoutedQueueScratch[SOUND_QUEUE_MAX_FRAMES * 6];
 
 // @PRODUCTION@
 
@@ -184,6 +195,63 @@ int main(int argc, char** argv) {
 	Check(!voice.Update() && queued.size() == oldQueueSize, "underrun requests logical-time recovery without replaying stale PCM");
 	voice.ResetQueuedBufferState();
 	Check(alive == 0, "underrun teardown releases decoder");
-	Check(uploadedMax <= SoundVorbisStream::ChunkFrames * 6 * static_cast<int>(sizeof(short)), "bounded queued PCM including centre routing");
-	std::puts("PASS production queue: leadin/loop, mixed static/streamed, offset, three scratch buffers, cancellation and release");
+	Check(uploadedMax <= SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES, "bounded queued PCM including centre routing");
+	Check(soundDeepRoutedQueueVoices == 0, "finished voices return their deep routed slots");
+	// The queue is refilled once per main-thread frame. Three buffers must ride
+	// out a long frame (about one second) without exceeding the bytes per buffer
+	// that the fixed and stream reservations count.
+	for (int rate : {8000, 11025, 22050, 24000, 32000, 44100, 48000, 96000}) {
+		for (int frameBytes : {2, 4, 12}) {
+			const int frames = SoundQueueChunkFrames(rate, frameBytes);
+			Check(frames >= 1 && frames * frameBytes <= SOUND_QUEUE_BUFFER_BYTES, "queue buffer within its reservation");
+			Check(frames >= SOUND_QUEUE_MIN_FRAMES || frames * frameBytes == SOUND_QUEUE_BUFFER_BYTES, "queue never shallower than before");
+			if (frameBytes == 2 && rate <= 48000) Check(3.0 * frames >= rate, "three mono buffers cover one second");
+			if (frameBytes == 4 && rate <= 24000) Check(3.0 * frames >= rate, "three stereo buffers cover one second");
+			if (frameBytes == 4 && rate <= 48000) Check(3.0 * frames >= 0.75 * rate, "three stereo buffers cover 750 ms");
+			if (frameBytes == 12) Check(frames == 4096, "routed 5.1 outside the deep pool keeps one 4096-frame block");
+			if (frameBytes == 12 && rate <= 48000) {
+				const int deep = SoundQueueFrames(rate, 12, SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES);
+				Check(3.0 * deep >= rate && deep * 12 <= SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES, "deep routed buffers cover one second");
+			}
+		}
+	}
+	for (int mode = 0; mode < 3; ++mode) {
+		// 0: streamed Ogg, 1: CPU-resident PCM without an uploaded buffer, 2: centre-routed stream.
+		idSoundVoice_OpenAL depth;
+		lead.streamed = mode != 1; lead.openalBuffer = 0;
+		lead.buffers.clear(); lead.buffers.push_back({lead.playLength,lead.pcm.data(),lead.totalBufferSize});
+		depth.centerRouting = mode == 2;
+		depth.leadinSample = &lead;
+		Check(depth.SetNextQueuedSampleStart(&lead), "depth queue start");
+		queued.clear(); uploadedMax = 0;
+		for (ALuint buffer = 1; buffer <= 3; ++buffer) Check(depth.QueueNextBuffer(buffer), "depth queue block");
+		const int outputChannels = mode == 2 ? 6 : lead.channels;
+		const size_t queuedFrames = queued.size() / outputChannels;
+		Check(queuedFrames >= static_cast<size_t>(Min(lead.playLength, lead.rate)), "three queued buffers hold one second");
+		Check(uploadedMax <= (mode == 2 ? SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES : SOUND_QUEUE_BUFFER_BYTES), "deeper queue keeps its per-buffer byte bound");
+		Check(soundDeepRoutedQueueVoices == (mode == 2 ? 1 : 0) && depth.deepRoutedQueue == (mode == 2), "only routed voices hold a deep slot");
+		std::vector<short> expected(lead.pcm.begin(), lead.pcm.begin() + Min(queuedFrames, lead.pcm.size()) * (mode == 2 ? 1 : lead.channels));
+		if (mode == 2) {
+			std::vector<short> surround(expected.size() * 6);
+			SoundRouteMonoToCenter(expected.data(), static_cast<int>(expected.size()), depth.centerChannel, surround.data());
+			expected.swap(surround);
+		}
+		Check(expected.size() == queued.size() && std::equal(expected.begin(), expected.end(), queued.begin()), "multi-read buffers keep sample continuity");
+		depth.ResetQueuedBufferState();
+		Check(alive == 0, "depth check releases decoder");
+		depth.DeleteStreamingBuffers();
+		Check(soundDeepRoutedQueueVoices == 0 && !depth.deepRoutedQueue, "deleting the buffers returns the deep slot");
+	}
+	{
+		// The pool is bounded: routed voices beyond it keep 4096 frames until a slot frees.
+		std::vector<idSoundVoice_OpenAL> routed(SOUND_QUEUE_DEEP_ROUTED_VOICES + 1);
+		for (auto& voice : routed) voice.centerRouting = true;
+		for (int i = 0; i < SOUND_QUEUE_DEEP_ROUTED_VOICES; ++i) Check(routed[i].RoutedQueueFrames(22050) == 7680, "deep routed slot");
+		Check(routed.back().RoutedQueueFrames(22050) == 4096 && !routed.back().deepRoutedQueue, "pool exhausted keeps 4096 frames");
+		Check(routed[0].RoutedQueueFrames(22050) == 7680 && soundDeepRoutedQueueVoices == SOUND_QUEUE_DEEP_ROUTED_VOICES, "slot reuse is not double counted");
+		routed[0].DeleteStreamingBuffers();
+		Check(routed.back().RoutedQueueFrames(22050) == 7680 && routed.back().deepRoutedQueue, "freed slot is reused");
+	}
+	Check(soundDeepRoutedQueueVoices == 0, "destroyed voices return every deep slot");
+	std::puts("PASS production queue: leadin/loop, mixed static/streamed, offset, three scratch buffers, one-second depth, cancellation and release");
 }

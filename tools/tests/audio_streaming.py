@@ -39,7 +39,8 @@ def main():
         'void idSoundVoice_OpenAL::ResetQueuedBufferState()', 'void idSoundVoice_OpenAL::AdvanceQueuedBuffer()',
         'bool idSoundVoice_OpenAL::GetPlayableBufferRange(', 'bool idSoundVoice_OpenAL::SetNextQueuedSampleStart(',
         'bool idSoundVoice_OpenAL::QueueNextBuffer(', 'bool idSoundVoice_OpenAL::Update()',
-        'bool idSoundVoice_OpenAL::UsesBoundedQueue()', 'int idSoundVoice_OpenAL::SubmitBuffer('])
+        'bool idSoundVoice_OpenAL::UsesBoundedQueue()', 'int idSoundVoice_OpenAL::SubmitBuffer(',
+        'void idSoundVoice_OpenAL::DeleteStreamingBuffers()', 'int idSoundVoice_OpenAL::RoutedQueueFrames('])
     queue_cpp = scratch / 'queue.cpp'
     queue_cpp.write_text((ROOT / 'tools/tests/native/SoundStreamQueueTest.cpp').read_text().replace('// @PRODUCTION@', production))
     queue_exe = scratch / ('queue.exe' if os.name == 'nt' else 'queue')
