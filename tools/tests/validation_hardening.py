@@ -746,6 +746,12 @@ def validate_validation_wiring() -> None:
         "awakening_status_runtime.py",
         "monster_hit_materials.py",
         "mp_bot_audit.py",
+        # Isolated bot jump replays launch a staged MP server and client.
+        "mp_bot_jump_replay.py",
+        # Stock sound distance measurements launch a staged client on retail assets.
+        "sound_distance_runtime.py",
+        # Drives a rooted x86_64 Android emulator; the workflows py_compile it.
+        "android_emulator_smoke.py",
         "renderer_milestone_d_acceptance.py",
         "renderer_milestone_d_fixture.py",
         # Radio graph evidence plays decoded audio through a staged client on
