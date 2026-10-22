@@ -107,7 +107,13 @@ static void RuntimeOwnership() {
     Check(host.images.begin()->second==std::vector<std::uint8_t>({128,0,0,128}),"host receives exact premultiplied pixels");
     auto geometry=Quad(a); geometry.Render({},image); const auto old=host.lastDraw;
     Load(second,1);
-    auto& b=Rml::GetContext(1)->GetRenderManager();
+    // RmlUi keeps contexts in an unordered map, so an index does not name the
+    // second view on every standard library; select the other render manager.
+    Rml::RenderManager* other_manager=nullptr;
+    for(int i=0;i<Rml::GetNumContexts();++i)
+        if(auto* candidate=&Rml::GetContext(i)->GetRenderManager(); candidate!=&a) other_manager=candidate;
+    Check(Rml::GetNumContexts()==2 && other_manager,"second context has its own render manager");
+    auto& b=*other_manager;
     auto peer=Texture(b); auto other=Quad(b); other.Render({},peer);
     Check(host.lastDraw!=old && host.pool.ResidentBytes()==8,"independent contexts own distinct generated images");
     auto replacement=Texture(a,{0,128,0,128}); geometry.Render({},replacement);
