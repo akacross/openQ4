@@ -291,6 +291,16 @@ def validate_game_wiring() -> None:
                   "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
     require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
+    # Momentum never carries a grounded bot into a pad or teleporter its route
+    # did not choose, on a route or off one (q4ctf5's unplanned pad entries).
+    require(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+            "rvBot::UpdateMovement unplanned transport guard")
+    require(movement, "BotBrakeForTransport( self, brakeDir, -1 )",
+            "rvBot::UpdateMovement unrouted transport guard")
+    require_order(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+                  "ApplyMove( moveDir, cmd );", "rvBot::UpdateMovement guards transports before it moves")
+    require_order(movement, "BotBrakeForTransport( self, brakeDir, -1 )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum short of a pad before idle/item holds")
     # A bot waits short of a pad while someone flies its corridor the other way.
     require(movement, "HoldForPad( self, moveDir )", "rvBot::UpdateMovement pad hold owns movement")
     require(movement, "hasMoveDir && !holdForPad && self->pfl.onGround",

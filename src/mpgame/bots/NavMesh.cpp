@@ -2690,6 +2690,58 @@ int rvNavMesh::TransportAtFloor( const idVec3 &floor ) const {
 	return -1;
 }
 
+/*
+================
+rvNavMesh::TransportOnMove
+
+The run-time form of LineEntersTransport for the bot's own box at its actual
+origin: no string-pull dip, and a box that starts in contact is reported
+rather than treated as leaving, because the bot asking is still on the
+ground and the next frame of contact launches it.
+================
+*/
+int rvNavMesh::TransportOnMove( const idVec3 &from, const idVec3 &to, int ignoreEntityNum ) const {
+	const idBounds &agent = GetAgentBounds();
+	idBounds sweep;
+	sweep.Clear();
+	sweep.AddPoint( from );
+	sweep.AddPoint( to );
+	sweep[0] += agent[0];
+	sweep[1] += agent[1];
+
+	for ( int t = 0; t < transports.Num(); t++ ) {
+		const navTransport_t &transport = transports[t];
+		if ( transport.entityNum == ignoreEntityNum || !transport.bounds.IntersectsBounds( sweep ) ) {
+			continue;
+		}
+		const idClipModel *clip = NavTravelVolumeClip( gameLocal.entities[transport.entityNum] );
+		if ( !clip || !clip->GetCollisionModel() ) {
+			return transport.entityNum;		// a brushless volume is its box
+		}
+		if ( collisionModelManager->Contents( from, &navAgentTrace, mat3_identity, -1, clip->GetCollisionModel(),
+											   clip->GetOrigin(), clip->GetAxis() ) ) {
+			return transport.entityNum;
+		}
+		trace_t trace;
+		collisionModelManager->Translation( &trace, from, to, &navAgentTrace, mat3_identity, -1,
+											clip->GetCollisionModel(), clip->GetOrigin(), clip->GetAxis() );
+		if ( trace.fraction < 1.0f ) {
+			return transport.entityNum;
+		}
+	}
+	return -1;
+}
+
+bool rvNavMesh::TransportCentre( int entityNum, idVec3 &centre ) const {
+	for ( int t = 0; t < transports.Num(); t++ ) {
+		if ( transports[t].entityNum == entityNum ) {
+			centre = transports[t].bounds.GetCenter();
+			return true;
+		}
+	}
+	return false;
+}
+
 bool rvNavMesh::NaturalPadLanding( int padEntityNum, idVec3 &landing ) const {
 	for ( int t = 0; t < transports.Num(); t++ ) {
 		const navTransport_t &transport = transports[t];

@@ -302,6 +302,13 @@ public:
 	// volume's own brush where it has one: a diagonal pad's bounding box
 	// covers floor beside it that the pad never touches.
 	int						TransportAtFloor( const idVec3 &floor ) const;
+	// The live transport, other than ignoreEntityNum, that a standing box
+	// carried from one origin to another would touch - exactly, against the
+	// volume's brush where it has one - or -1.  A box already touching one
+	// counts: the pad throws on any frame of contact.
+	int						TransportOnMove( const idVec3 &from, const idVec3 &to, int ignoreEntityNum ) const;
+	// The centre of a live transport's volume, false for an unknown entity.
+	bool					TransportCentre( int entityNum, idVec3 &centre ) const;
 
 	// Is this landing of the pad one only air control reaches - not where the
 	// pad's own arc comes down?  A bot rides a natural landing and steers for

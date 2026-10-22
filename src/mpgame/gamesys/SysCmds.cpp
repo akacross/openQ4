@@ -3482,11 +3482,12 @@ Cmd_BotProbeTraversal_f
 void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 	const bool padProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probePad" );
 	const bool dodgeProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeDodge" );
+	const bool airProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeAir" );
 	const navTravelType_t travel = padProbe ? NAVTRAVEL_JUMPPAD :
-		( dodgeProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP );
+		( dodgeProbe || airProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP );
 	if ( args.Argc() != ( padProbe ? 12 : 11 ) ) {
-		gameLocal.Printf( "usage: %s client x y z vx vy vz targetX targetY targetZ%s\n",
-			args.Argv( 0 ), padProbe ? " padName" : "" );
+		gameLocal.Printf( "usage: %s client x y z vx vy vz %s%s\n", args.Argv( 0 ),
+			airProbe ? "inputX inputY inputZ" : "targetX targetY targetZ", padProbe ? " padName" : "" );
 		return;
 	}
 	int clientNum = 0;
@@ -3518,8 +3519,13 @@ void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
 		gameLocal.Printf( "bot_probePad: pad entity not found\n" );
 		return;
 	}
-	if ( !botManager.ProbeTraversal( clientNum, idVec3( values[0], values[1], values[2] ),
-			idVec3( values[3], values[4], values[5] ), idVec3( values[6], values[7], values[8] ), travel, pad, dodgeProbe ) ) {
+	// bot_probeAir's last three values are a fixed input direction, not a
+	// target; the bot only faces along it.
+	const idVec3 origin( values[0], values[1], values[2] );
+	const idVec3 airInput( values[6], values[7], 0.0f );
+	const idVec3 target = airProbe ? origin + airInput * 64.0f : idVec3( values[6], values[7], values[8] );
+	if ( !botManager.ProbeTraversal( clientNum, origin, idVec3( values[3], values[4], values[5] ), target,
+			travel, pad, dodgeProbe, airProbe ? &airInput : NULL ) ) {
 		gameLocal.Printf( "%s: requires an isolated local cheat server with one live bot and a separate observer%s\n",
 			args.Argv( 0 ), padProbe ? ", and a pad with a proven natural landing" : "" );
 	}
@@ -4310,6 +4316,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "bot_probePad", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot pad flight on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeMove", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot movement on an isolated local cheat server" );
 	cmdSystem->AddCommand( "bot_probeDodge", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot dodge admission on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeAir", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a fall under one fixed full air input on an isolated local cheat server" );
 }
 
 /*
