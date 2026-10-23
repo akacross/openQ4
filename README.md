@@ -51,7 +51,7 @@ It is for players who want the original Quake 4 experience on today's hardware.
 
 - **Built for modern displays.** Widescreen, ultrawide, multi-monitor, borderless and fullscreen setups all work. On 144 Hz and 240 Hz screens the camera, weapons and moving objects are drawn smoothly between the game's 60 Hz ticks, while gameplay, networking, demos and saves keep their original timing.
 - **Optional visual upgrades.** Bloom, HDR, anti-aliasing, soft particles, baked light grids, cel shading, a CRT filter and cleaner [shadow maps](docs/user/shadow-mapping.md), each one switchable.
-- **Modern interface by default.** The optimized modern interface is enabled for new profiles; saved preferences and the classic interface remain available. See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens).
+- **Modern and classic interfaces.** Current source builds default to the modern interface; saved preferences are preserved. See [Modern and classic screens](docs/user/client-settings.md#modern-and-classic-screens) for release defaults and switching interfaces.
 - **Real liquids.** Wade, swim and drown in water, take damage in slime and lava, with underwater visuals and audio. Retail Quake 4 has no liquids, so they appear in maps built for them; see the [Liquids guide](docs/user/liquids.md).
 - **Rich, reliable audio** through OpenAL: Quake 4's room reverb, 3D headphone audio and your device's own speaker layout. macOS packages bundle their own, so there is nothing extra to install; see [Gameplay Settings](docs/user/gameplay-settings.md#audio-quality).
 - **Separate dialogue volume.** Adjust spoken dialogue independently of weapons and music in [Audio settings](docs/user/gameplay-settings.md#dialogue-volume).
@@ -105,7 +105,7 @@ You need a legitimate Quake 4 install plus the openQ4 package that matches your 
 Packages are available for Windows x64, Linux x64 and Steam Deck/SteamOS, with preview Linux ARM64, preview Apple Silicon/arm64 macOS and experimental Windows ARM64 builds:
 
 - **Linux** ships as directly executable AppImages and archives for `x86_64` and `aarch64`. Linux ARM64 needs a desktop OpenGL compatibility driver.
-- **macOS** downloads are unsigned OpenGL/Metal bridge packages, and players have run them only on current macOS.
+- **macOS** players can get [signed and notarized builds for Apple Silicon and Intel Macs](https://www.macsourceports.com/game/quake4) from Schnapple at Mac Source Ports. Our GitHub packages remain unsigned Apple Silicon previews.
 - **Windows ARM64** packages are built but have not yet been confirmed to run on real hardware.
 
 See [Getting Started](docs/user/getting-started.md#system-requirements) for platform details.
@@ -188,6 +188,7 @@ Developers can also find advanced configuration and file layout in [TECHNICAL.md
 ## Credits
 
 - **themuffinator** - openQ4 development and maintenance
+- **[Schnapple / Mac Source Ports](https://www.macsourceports.com/game/quake4)** - signed and notarized macOS builds for Apple Silicon and Intel Macs
 - **[Emile Belanger (emileb)](https://github.com/emileb)** - contributor and original author of the Android port, SigmaTouch integration, OpenGL ES 3.0 renderer, GLES shader variants, ETC2/EAC compression, and associated mobile memory/loading work. This integration builds on his [Android branch](https://github.com/emileb/openQ4/tree/android) and [GLES shader-variants branch](https://github.com/emileb/openQ4/tree/gles-shader-variants); see the [contribution and adaptation record](docs/dev/android-gles-integration.md).
 - **DarkMatter Productions** - project stewardship and website
 - **[The RmlUi Team, CodePoint, Shift Technology and contributors](https://github.com/mikke89/RmlUi/tree/6.3)** - MIT-licensed layout library behind the new interface, with [openQ4 patches](subprojects/packagefiles/rmlui/README.openq4.md); [licence notice](docs/licenses/RmlUi.txt)

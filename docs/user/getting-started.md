@@ -92,8 +92,9 @@ If you prefer a self-contained setup, keep these side by side in the same root f
 
 ### macOS
 
-- macOS support is a preview. Current packages are for Apple Silicon/arm64 Macs on macOS 11 or later. Players have run them on macOS 26, including the single-player campaign and multiplayer with sound, but nothing older than the current macOS has been tested. Intel Mac and universal2 packages are not published yet, and Rosetta is not a supported release target.
-- Release runs with Apple Developer ID signing and notarization credentials publish signed/notarized OpenGL and Metal bridge DMGs. Those credentials are not set up yet, so current releases publish clearly labeled `-unsigned.tar.gz` archives instead.
+- **Signed macOS download:** Schnapple provides a [signed and notarized openQ4 build through Mac Source Ports](https://www.macsourceports.com/game/quake4), packaged as Universal 2 for Apple Silicon and Intel Macs on macOS 11 or later. Visit the page for the download and installation instructions; your own Quake 4 game data is still required.
+- Our GitHub macOS packages remain a preview for Apple Silicon/arm64 Macs on macOS 11 or later. Players have run them on macOS 26, including the single-player campaign and multiplayer with sound, but nothing older than the current macOS has been tested. Our GitHub releases do not yet publish Intel Mac or universal2 packages, and Rosetta is not a supported release target. The package notes below describe those GitHub builds.
+- GitHub release runs with Apple Developer ID signing and notarization credentials publish signed/notarized OpenGL and Metal bridge DMGs. Those credentials are not set up yet, so our current GitHub releases publish clearly labeled `-unsigned.tar.gz` archives instead.
 - The Metal bridge package still uses openQ4's OpenGL renderer path; it is not a native Metal renderer.
 - Both macOS packages also carry openQ4's experimental Vulkan renderer. Apple ships no Vulkan driver, so on macOS it runs on top of MoltenVK, a Vulkan-on-Metal translation layer bundled inside the package. It is a translation layer, not a Metal renderer.
 - macOS packages bundle OpenAL Soft for audio; no Homebrew or separate audio install is required. Its LGPL notice and corresponding source archive are included inside `openQ4.app/Contents/Resources/licenses/openal-soft/`.

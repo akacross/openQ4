@@ -380,9 +380,10 @@ overlap Awakening title cards in portrait windows.
 
 ## Gameplay Status Bar
 
-The modern UI is the default (`ui_retained 1`). Select classic with
+Current source builds default to the modern UI (`ui_retained 1`). Select classic with
 `seta ui_retained 0`, or modern with `seta ui_retained 1`.
-Saved preferences from earlier versions are preserved.
+Saved preferences from earlier versions are preserved. For released-package
+defaults, see [Modern and Classic Screens](client-settings.md#modern-and-classic-screens).
 
 The modern UI (`ui_retained 1`) shows a centered ammo, health and armor
 bar, with Marine and Strogg artwork matching the campaign. Multiplayer shows
