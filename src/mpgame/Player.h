@@ -1086,6 +1086,8 @@ private:
 	int						connectTime;
 	unsigned int			mutedPlayers;			// bitfield set to which clients this player wants muted
 	unsigned int			friendPlayers;			// bitfield set to which clients this player has marked as friends
+	int						mutedPlayerIdentities[MAX_CLIENTS] = {};
+	int						friendPlayerIdentities[MAX_CLIENTS] = {};
 	
 	int						voiceDest[MAX_CONCURRENT_VOICES];
 	int						voiceDestTimes[MAX_CONCURRENT_VOICES];
@@ -1403,10 +1405,6 @@ ID_INLINE bool idPlayer::IsPlayerMuted( idPlayer* player ) const {
 	return player != NULL && IsPlayerMuted( player->entityNumber );
 }
 
-ID_INLINE bool idPlayer::IsPlayerMuted( int clientNum ) const {
-	return clientNum >= 0 && clientNum < MAX_CLIENTS && ( mutedPlayers & ( 1u << clientNum ) ) != 0;
-}
-
 ID_INLINE void idPlayer::MutePlayer( idPlayer* player, bool mute ) {
 	if ( player == NULL ) {
 		return;
@@ -1414,24 +1412,8 @@ ID_INLINE void idPlayer::MutePlayer( idPlayer* player, bool mute ) {
 	MutePlayer( player->entityNumber, mute );
 }
 
-ID_INLINE void idPlayer::MutePlayer( int clientNum, bool mute ) {
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return;
-	}
-	const unsigned int clientMask = 1u << clientNum;
-	if( mute ) {
-		mutedPlayers |= clientMask;
-	} else {
-		mutedPlayers &= ~clientMask;
-	}
-}
-
 ID_INLINE bool idPlayer::IsFriend( idPlayer* player ) const {
 	return player != NULL && IsFriend( player->entityNumber );
-}
-
-ID_INLINE bool idPlayer::IsFriend( int clientNum ) const {
-	return clientNum >= 0 && clientNum < MAX_CLIENTS && ( friendPlayers & ( 1u << clientNum ) ) != 0;
 }
 
 ID_INLINE void idPlayer::SetFriend( idPlayer* player, bool isFriend ) {
@@ -1439,18 +1421,6 @@ ID_INLINE void idPlayer::SetFriend( idPlayer* player, bool isFriend ) {
 		return;
 	}
 	SetFriend( player->entityNumber, isFriend );
-}
-
-ID_INLINE void idPlayer::SetFriend( int clientNum, bool isFriend ) {
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return;
-	}
-	const unsigned int clientMask = 1u << clientNum;
-	if( isFriend ) {
-		friendPlayers |= clientMask;
-	} else {
-		friendPlayers &= ~clientMask;
-	}
 }
 
 ID_INLINE int idPlayer::GetConnectTime( void ) const {

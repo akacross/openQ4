@@ -19,11 +19,12 @@ static void CheckRosterCapacity(ScreenHost& host, const char* path, const char* 
     };
     StateValues values = {{"mp.players.a.shown",true},{"mp.players.a.count",32.0},
         {"mp.players.b.shown",false},{"mp.players.b.count",0.0},{"mp.players.s.count",0.0}};
-    if (interactive) values["mp.stat.client"] = 31.0;
+    if (interactive) { values["mp.stat.client"] = 31.0; values["mp.stat.identity"] = std::string("8223"); }
     for (int row = 0; row < 32; ++row) {
         const std::string entry = "mp.players.a"+std::to_string(row);
         values[entry+".client"] = double(row);
         values[entry+".name"] = "Player "+std::to_string(row);
+        values[entry+".identity"] = std::to_string(8192+row);
     }
     Check(runtime.SetState(values,error,now),"all 32 connection slots are declared");
     frame();
@@ -45,6 +46,27 @@ static void CheckRosterCapacity(ScreenHost& host, const char* path, const char* 
         Check(actions.size() == 1 && runtime.RunEvent(actions[0].event,now,effects,error) && effects.actions.size() == 1 &&
             std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpSelectPlayer" &&
             std::get<double>(runtime.GetState().at("card.client")) == 31,"late row selects its actual client");
+        Check(std::get<double>(effects.actions[0].arguments.at("client")) == 31 &&
+            std::get<std::string>(effects.actions[0].arguments.at("identity")) == "8223","player event freezes the connection identity in its operands");
+        key(MenuInput::Accept);
+        const auto stale = runtime.TakeActions();
+        Check(stale.size() == 1 && runtime.CanDispatchControlAction(stale[0],now),"queued selection belongs to its current player");
+        Check(runtime.SetState({{"mp.players.a31.score",std::string("100")}},error,now),"score changes without reconnect"); frame();
+        Check(runtime.CanDispatchControlAction(stale[0],now),"score refresh retains queued player selection");
+        Check(runtime.SetState({{"mp.players.a31.identity",std::string("16415")}},error,now),"same slot receives a new connection"); frame();
+        Check(!runtime.CanDispatchControlAction(stale[0],now),"queued row cannot select a replacement occupant");
+        Check(runtime.SetState({{"mp.players.a31.identity",std::string("8223")}},error,now),"original identity returns"); frame();
+        Check(!runtime.CanDispatchControlAction(stale[0],now),"old work cannot revive when identity changes back");
+        if (std::string(path).find("mp_escape") != std::string::npos) for (const auto* button : {"players-mute","players-friend"}) {
+            Check(runtime.SetState({{"mp.mute.available",true},{"mp.friend.available",true},
+                {"mp.mute.shown",true},{"mp.friend.shown",true}},error,now),"player permits marks"); frame();
+            Check(runtime.FocusControl(button,now),"focus player mark"); key(MenuInput::Accept);
+            const auto mark = runtime.TakeActions();
+            Check(mark.size() == 1 && runtime.CanDispatchControlAction(mark[0],now),"current player mark is dispatchable");
+            Check(runtime.SetState({{"mp.stat.identity",std::string("16415")}},error,now),"selected subject replaced"); frame();
+            Check(!runtime.CanDispatchControlAction(mark[0],now),"queued mark cannot follow another selected connection");
+            Check(runtime.SetState({{"mp.stat.identity",std::string("8223")}},error,now),"restore selected identity"); frame();
+        }
     } else {
         Check(runtime.FocusedControl() == bar,"read-only roster gives navigation to its scrollbar");
     }

@@ -1211,6 +1211,34 @@ static void CheckEventBridge() {
     assert(!ValidInvocation({"x","settings.brightness.set",{{"value",true}}},error));
     assert(!ValidInvocation({"x","ui.dismiss",{{"value",1.0}}},error));
     assert(!ValidInvocation({"x","exec",{}},error));
+    const auto player=[](const char* command,StateValue client,StateValue identity) {
+        return ActionInvocation{"player","session.menu",{{"command",std::string(command)},{"client",client},{"identity",identity}}};
+    };
+    for (const auto* command : {"mpSelectPlayer","mpMute","mpFriend"}) {
+        assert(ValidInvocation(player(command,0.0,std::string("8192")),error));
+        assert(ValidInvocation(player(command,31.0,std::string("4294967295")),error));
+        for (StateValue client : {StateValue(-1.0),StateValue(32.0),StateValue(2.5),StateValue(true),
+                                 StateValue(std::string("1")),StateValue(std::numeric_limits<double>::infinity())})
+            assert(!ValidInvocation(player(command,client,std::string("8193")),error));
+        for (const auto* identity : {"","-1","001","4294967296","8193;quit","8193 1"})
+            assert(!ValidInvocation(player(command,1.0,std::string(identity)),error));
+        assert(!ValidInvocation(player(command,1.0,8193.0),error));
+        assert(!ValidInvocation({"player","session.menu",{{"command",std::string(command)}}},error));
+    }
+    {
+        idUserInterfaceRetained gui; assert(gui.InitFromFile("test.q4ui")); gui.Activate(true,0);
+        eventPlans["players"]={{},{player("mpSelectPlayer",4.0,std::string("8196")),
+                                  player("mpMute",31.0,std::string("4294967295")),
+                                  player("mpFriend",7.0,std::string("16391"))}};
+        gui.HandleNamedEvent("players");
+        gui.SetStateInt("card.client",19); gui.SetStateString("card.identity","99999");
+        bool close=false; assert(gui.DispatchApplicationActions(gui.PendingApplicationCommand(),close) && !close);
+        for (const auto* expected : {"mpSelectPlayer 4 8196","mpMute 31 4294967295","mpFriend 7 16391"}) {
+            idStr request; assert(gui.TakeSessionRequest(ActionMarker,request) && request==expected);
+        }
+        idStr none; assert(!gui.TakeSessionRequest(ActionMarker,none));
+        eventPlans.clear();
+    }
     // A value verb carries a whole number from -1 to 999, or a Boolean, and
     // only the multiplayer card's Vote page verbs may carry one.
     const auto valued=[](const char* command,StateValue value) {

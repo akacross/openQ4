@@ -1662,6 +1662,8 @@ idPlayer::idPlayer() {
 
 	mutedPlayers = 0;
 	friendPlayers = 0;
+	memset( mutedPlayerIdentities, 0, sizeof( mutedPlayerIdentities ) );
+	memset( friendPlayerIdentities, 0, sizeof( friendPlayerIdentities ) );
 	connectTime = 0;
 	rank = -1;
 	arena = 0;
@@ -17066,4 +17068,56 @@ bool idPlayer::IsSpectatedClient( void ) const {
 		return true;
 	}
 	return false;
+}
+
+// Player marks belong to one connection; a reused slot starts unmarked even
+// when a snapshot replaces its entity before a disconnect notification arrives.
+bool idPlayer::IsPlayerMuted( int clientNum ) const {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || ( mutedPlayers & ( 1u << clientNum ) ) == 0 ) {
+		return false;
+	}
+	idEntity *target = gameLocal.entities[ clientNum ];
+	return target != NULL && target->IsType( idPlayer::GetClassType() ) &&
+		mutedPlayerIdentities[ clientNum ] == gameLocal.GetSpawnId( target );
+}
+
+void idPlayer::MutePlayer( int clientNum, bool mute ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	idEntity *target = gameLocal.entities[ clientNum ];
+	const unsigned int mask = 1u << clientNum;
+	if ( mute && target != NULL && target->IsType( idPlayer::GetClassType() ) ) {
+		mutedPlayers |= mask;
+		mutedPlayerIdentities[ clientNum ] = gameLocal.GetSpawnId( target );
+	} else {
+		mutedPlayers &= ~mask;
+		mutedPlayerIdentities[ clientNum ] = 0;
+	}
+}
+
+// Player marks belong to one connection; a reused slot starts unmarked even
+// when a snapshot replaces its entity before a disconnect notification arrives.
+bool idPlayer::IsFriend( int clientNum ) const {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || ( friendPlayers & ( 1u << clientNum ) ) == 0 ) {
+		return false;
+	}
+	idEntity *target = gameLocal.entities[ clientNum ];
+	return target != NULL && target->IsType( idPlayer::GetClassType() ) &&
+		friendPlayerIdentities[ clientNum ] == gameLocal.GetSpawnId( target );
+}
+
+void idPlayer::SetFriend( int clientNum, bool isFriend ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	idEntity *target = gameLocal.entities[ clientNum ];
+	const unsigned int mask = 1u << clientNum;
+	if ( isFriend && target != NULL && target->IsType( idPlayer::GetClassType() ) ) {
+		friendPlayers |= mask;
+		friendPlayerIdentities[ clientNum ] = gameLocal.GetSpawnId( target );
+	} else {
+		friendPlayers &= ~mask;
+		friendPlayerIdentities[ clientNum ] = 0;
+	}
 }

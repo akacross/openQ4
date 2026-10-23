@@ -625,8 +625,9 @@ archived provenance; new scheduling belongs here.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled
-  reasons and role-specific vote operations. Bind mute/friend state to the right
-  occupant across slot reuse. Complete save sorting/filter/refresh, chapter and
+  reasons and role-specific vote operations. Finish identity protection for
+  delayed remote mute packets and kick/admin targets across slot reuse.
+  Complete save sorting/filter/refresh, chapter and
   objective/play-time details, Strogg confirmations, loading handoffs, remote-load
   arsenal and MVD rosters. Qualify real task completion and failure/cancellation.
   Progress, 23 October: [full roster scrolling](ui/multiplayer-menus.md#full-roster-scrolling-23-october-2026)
@@ -634,6 +635,11 @@ archived provenance; new scheduling belongs here.
   summary's Statistics/Scoreboard pages. Rows keep a 24 dp pitch beneath fixed
   headings; kick choices cover the engine's connection table. This bounded
   implementation does not change server capacity or accept the full UI-03 scope.
+  Progress, 23 October: [player identity guards](ui/player-identity.md) bind
+  selections, local friend/mute marks and retained player requests to connection
+  generations. Held and queued controls cannot follow a replacement occupant;
+  stale selections return to the local player. Remote voice transport and other
+  player-targeted flows remain open.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder
@@ -702,6 +708,10 @@ archived provenance; new scheduling belongs here.
   than rebuilding them. Test actual SP/MP engine callers, simultaneous HUD/menu/
   world/editor contexts, failed recreation, timer/presentation-clock separation,
   restored state and exactly-once actions before bulk UI-03/UI-04 acceptance.
+  Progress, 23 October: optional [button contexts](ui/player-identity.md#contract)
+  cancel held and queued actions when their subject changes, including changes
+  back to the old subject. Existing buttons retain their behavior. This bounded
+  facility does not close the toolkit or device/platform qualification.
   Progress, 18 October: generated RGBA8 upload/release now uses bounded shared
   storage and frame-safe retirement. Actual Rml callback/engine-adapter tests,
   1,000-cycle checks and GL/Vulkan gameplay alpha/reopen/restart captures pass;

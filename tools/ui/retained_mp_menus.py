@@ -650,6 +650,12 @@ def team_band(ident: str, width: float, height: float, tint: str, cut: float = 8
     ])
 
 
+def player_action(doc: Document, verb: str) -> None:
+    """Capture the selected connection in each queued Session request."""
+    doc.actions[verb] = {"operation": "session.menu", "arguments": {
+        "command": verb, "client": {"state": "card.client"}, "identity": {"state": "card.identity"}}}
+
+
 def player_row(doc: Document, prefix: str, kind: str, row: int, width: float, columns: dict,
                interactive: bool = True) -> tuple[dict, str]:
     """One row of a list, the scoreboard's row (section 14.14): a band at
@@ -660,7 +666,8 @@ def player_row(doc: Document, prefix: str, kind: str, row: int, width: float, co
     ident = f"{prefix}-{kind}-{row}"
     key = f"mp.players.{kind}{row}"
     doc.state.update({
-        f"{key}.client": {"type": "number", "initial": -1}, f"{key}.name": {"type": "string", "initial": ""},
+        f"{key}.client": {"type": "number", "initial": -1}, f"{key}.identity": {"type": "string", "initial": ""},
+        f"{key}.name": {"type": "string", "initial": ""},
         f"{key}.score": {"type": "string", "initial": ""}, f"{key}.ping": {"type": "string", "initial": ""},
         f"{key}.friend": {"type": "boolean", "initial": False}, f"{key}.muted": {"type": "boolean", "initial": False},
         f"{key}.local": {"type": "boolean", "initial": False},
@@ -718,10 +725,12 @@ def player_row(doc: Document, prefix: str, kind: str, row: int, width: float, co
             "disabled": [(f"{ident}-focus", "opacity", number(0)), (f"{ident}-name", "color", colour([1, 1, 1, 0.85]))],
         })
         event = f"{prefix}_{kind}{row}"
-        doc.events[event] = [{"op": "setState", "values": {"card.client": {"state": f"{key}.client"}}},
+        doc.events[event] = [{"op": "setState", "values": {"card.client": {"state": f"{key}.client"},
+                                                          "card.identity": {"state": f"{key}.identity"}}},
                              {"op": "action", "action": "mpSelectPlayer"}]
         node = group(ident, props, [band, chosen, focus, content],
-                     control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
+                     control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids,
+                              "context": {"state": f"{key}.identity"}})
     else:
         node = group(ident, props, [band, content])
     doc.bind(f"{ident}.display", ident, "display",
@@ -773,7 +782,8 @@ def player_lists(doc: Document, prefix: str, width: float, height: float, intera
     outer_width = width
     width -= ROSTER_GUTTER
     if interactive:
-        doc.state.update({"card.client": {"type": "number", "initial": -1}, "mp.stat.client": {"type": "number", "initial": -1}})
+        doc.state.update({"card.client": {"type": "number", "initial": -1}, "mp.stat.client": {"type": "number", "initial": -1},
+                          "card.identity": {"type": "string", "initial": ""}, "mp.stat.identity": {"type": "string", "initial": ""}})
     columns = list_columns(width)
     heading = {**typeface("lowpixel", 11, LIST_HEAD_H, [1, 1, 1, 0.4]), "white-space": keyword("nowrap")}
     name_left = columns["marker"] + columns["speaker"] + columns["friend"] + 2
@@ -837,7 +847,7 @@ def player_lists(doc: Document, prefix: str, width: float, height: float, intera
                 {"op": "<", "args": [row, {"state": f"mp.players.{kind}.count"}]},
                 {"op": "==", "args": [{"state": f"{key}.client"}, {"state": "mp.stat.client"}]}]},
                 "then": [{"op": "focus", "control": f"{prefix}-{kind}-{row}"}]})
-    doc.session("mpSelectPlayer", "mpSelectPlayer")
+    player_action(doc, "mpSelectPlayer")
     return lists, controls, focus
 
 
@@ -944,9 +954,12 @@ def player_stats(doc: Document, left: float, width: float, height: float, plates
     plates = []
     for index, (verb, key) in enumerate((("mpMute", "mp.mute"), ("mpFriend", "mp.friend"))):
         ident = f"players-{key.split('.')[1]}"
-        steps = [{"op": "setState", "values": {"card.client": {"state": "mp.stat.client"}}}, {"op": "action", "action": verb}]
-        plates.append(action_plate(doc, ident, key, width, STAT_PLATES_TOP + SLOT_PITCH * index, f"players_{key.split('.')[1]}", steps))
-        doc.session(verb, verb)
+        steps = [{"op": "setState", "values": {"card.client": {"state": "mp.stat.client"},
+                                              "card.identity": {"state": "mp.stat.identity"}}}, {"op": "action", "action": verb}]
+        holder = action_plate(doc, ident, key, width, STAT_PLATES_TOP + SLOT_PITCH * index, f"players_{key.split('.')[1]}", steps)
+        holder["children"][0]["control"]["context"] = {"state": "mp.stat.identity"}
+        plates.append(holder)
+        player_action(doc, verb)
     if STAT_PLATES_TOP + SLOT_PITCH + 58 > height:
         raise SystemExit("the Players page's Mute and Friend leave the page")
     stats = group("players-stats", absolute(left=left, top=0, width=width, height=height), [*children, *plates])

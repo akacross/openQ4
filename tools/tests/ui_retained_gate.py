@@ -2318,7 +2318,7 @@ int main() {
             chat = idUserInterface("guis/mpchat.gui"); chat.state["gameDraw"] = "1";
             gameObject.publish = [](idUserInterface* gui) {
                 if (gameObject.commands.back() == "retainedMultiplayerVariant") gui->SetStateBool("mp.welcome", welcomeAnswer);
-                if (gameObject.commands.back() == "retainedMultiplayerCover") { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", true); }
+                if (gameObject.commands.back() == "retainedMultiplayerCover") { gui->SetStateInt("mp.protocol", 2); gui->SetStateBool("mp.cover_allowed", true); }
                 if (gameObject.commands.back() != "retainedMultiplayerUncover") gui->SetStateInt("mp.revision", static_cast<int>(gameObject.commands.size()));
             };
             return s;
@@ -2363,7 +2363,7 @@ int main() {
         CHECK(s.guiRetainedReleasing == card && s.retainedReleaseUntil == commonObject.time + 250 && gameObject.commands.back() == "retainedMultiplayerUncover");
         s.UpdateRetainedMultiplayer(); CHECK(s.guiRetainedMultiplayer == nullptr && card->deactivations == 1);
         // Main Menu leaves for the main menu with the match running: no release.
-        s.guiActive = &mpMenu; gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", true); };
+        s.guiActive = &mpMenu; gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 2); gui->SetStateBool("mp.cover_allowed", true); };
         s.UpdateRetainedMultiplayer(); CHECK(s.guiRetainedMultiplayer == card && card->activations == 2 && card->named.back() == "open");
         gameObject.answer = [](const char*) -> const char* { return "main"; };
         s.HandleRetainedSessionRequest(card, "mpMainMenu");
@@ -2514,20 +2514,20 @@ int main() {
                   commonObject.warnings.back().find("unhandled multiplayer request") != std::string::npos);
         }
         // The Players page: the client a row or the statistics name reaches the
-        // game as "retained select|mute|friend <client>", none of which closes
+        // game as "retained select|mute|friend <client> <identity>", none of which closes
         // the menu; a client outside the server's slots is refused.
         gameObject.answer = [](const char*) -> const char* { return "continue"; };
-        card->state["card.client"] = "4"; s.HandleRetainedSessionRequest(card, "mpSelectPlayer");
-        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained select 4" && s.guiRetainedMultiplayer == card);
-        s.HandleRetainedSessionRequest(card, "mpMute");
-        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained mute 4" && s.guiRetainedMultiplayer == card);
-        card->state["card.client"] = "31"; s.HandleRetainedSessionRequest(card, "mpFriend");
-        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained friend 31" && s.guiRetainedMultiplayer == card);
+        card->state["card.client"] = "19"; s.HandleRetainedSessionRequest(card, "mpSelectPlayer 4 8196");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained select 4 8196" && s.guiRetainedMultiplayer == card);
+        s.HandleRetainedSessionRequest(card, "mpMute 4 8196");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained mute 4 8196" && s.guiRetainedMultiplayer == card);
+        card->state["card.client"] = "0"; s.HandleRetainedSessionRequest(card, "mpFriend 31 4294967295");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained friend 31 4294967295" && s.guiRetainedMultiplayer == card);
         const size_t named = gameObject.guiCommands.size();
-        for (const char* client : {"-1", "32"}) {
-            card->state["card.client"] = client; s.HandleRetainedSessionRequest(card, "mpSelectPlayer");
+        for (const char* bad : {"mpSelectPlayer", "mpSelectPlayer -1 100", "mpSelectPlayer 32 100", "mpMute 4", "mpFriend 4 x", "mpFriend 4 100;quit", "mpFriend 4 100 2"}) {
+            s.HandleRetainedSessionRequest(card, bad);
             CHECK(gameObject.guiCommands.size() == named && s.guiRetainedMultiplayer == card &&
-                  commonObject.warnings.back().find("named client") != std::string::npos);
+                  commonObject.warnings.back().find("player identity") != std::string::npos);
         }
         // The Vote page: a drafted field's value control requests "<verb> <value>",
         // which reaches the game quietly as "retained voteSet <field> <value>" and
@@ -2653,7 +2653,7 @@ int main() {
         // and Back is the summary's own close. The menu replacing the summary
         // retires the summary card and covers the menu with its own.
         static idUserInterface summary("guis/summary.gui"); summary = idUserInterface("guis/summary.gui"); summary.state["gameDraw"] = "1";
-        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", true); };
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 2); gui->SetStateBool("mp.cover_allowed", true); };
         s.guiRetainedSummary->state["card.tab"] = "2"; s.guiActive = &summary; s.UpdateRetainedMultiplayer();
         auto* sheet = s.guiRetainedMultiplayer;
         CHECK(sheet == s.guiRetainedSummary && s.retainedMultiplayerSummary && s.RetainedSummaryCovers() && sheet->named.back() == "open" &&
@@ -2661,8 +2661,8 @@ int main() {
         s.ReportRetainedScreens(); CHECK(commonObject.output.find(" mp=summary ") != std::string::npos);
         s.HandleRetainedSessionRequest(sheet, "mpSummaryChat"); CHECK(s.summaryChats == 1 && s.retainedSummaryTyping);
         gameObject.answer = [](const char*) -> const char* { return "continue"; };
-        sheet->state["card.client"] = "3"; s.HandleRetainedSessionRequest(sheet, "mpSelectPlayer");
-        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained select 3" && s.guiRetainedMultiplayer == sheet);
+        sheet->state["card.client"] = "0"; s.HandleRetainedSessionRequest(sheet, "mpSelectPlayer 3 8195");
+        CHECK(gameObject.guiCommands.back() == "play main_menu_selection ; retained select 3 8195" && s.guiRetainedMultiplayer == sheet);
         s.guiActive = &mpMenu; s.UpdateRetainedMultiplayer(); s.UpdateRetainedMultiplayer();
         CHECK(s.guiRetainedMultiplayer == card && !s.retainedMultiplayerSummary && !s.retainedSummaryTyping && !sheet->active);
         s.guiActive = &summary; s.UpdateRetainedMultiplayer(); CHECK(s.guiRetainedMultiplayer == sheet);
@@ -2677,7 +2677,7 @@ int main() {
         // questions) keep the menu up for the campaign; Resume closes it with
         // the release.
         static idUserInterface arenaMenu("guis/arena_pause.gui"); arenaMenu = idUserInterface("guis/arena_pause.gui"); arenaMenu.state["gameDraw"] = "1";
-        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", true); };
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 2); gui->SetStateBool("mp.cover_allowed", true); };
         const size_t arenaAsked = gameObject.commands.size();
         s.guiActive = &arenaMenu; s.UpdateRetainedMultiplayer();
         auto* arenaPause = s.guiRetainedMultiplayer;
@@ -2701,7 +2701,7 @@ int main() {
         // The game may refuse now (the join offer, an Arena Campaign match): the
         // stock menu keeps this opening, and the next asks again.
         auto refused = Mp(true, true);
-        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 1); gui->SetStateBool("mp.cover_allowed", false); };
+        gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("mp.protocol", 2); gui->SetStateBool("mp.cover_allowed", false); };
         refused.UpdateRetainedMultiplayer(); refused.UpdateRetainedMultiplayer();
         CHECK(refused.guiRetainedMultiplayer == nullptr && refused.retainedMultiplayerUncovered && gameObject.commands.size() == 2 && refused.retainedStock.Num() == 0);
         refused.guiActive = nullptr; refused.UpdateRetainedMultiplayer(); refused.guiActive = &mpMenu; refused.UpdateRetainedMultiplayer();
@@ -4534,8 +4534,8 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     # and the game acts only on a client with a row now, never mutes or
     # befriends the player's own row, and keeps the menu open.
     assert 'static const int RETAINED_MP_CLIENTS = MAX_ASYNC_CLIENTS;' in menu
-    assert 'if ( client < 0 || client >= RETAINED_MP_CLIENTS ) {' in function_body(menu, 'void idSessionLocal::HandleRetainedMultiplayerRequest(')
-    listed = command.index('if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ) {')
+    assert 'if ( client < 0 || client >= RETAINED_MP_CLIENTS || !digits( identity, 10 ) ) {' in function_body(menu, 'void idSessionLocal::HandleRetainedMultiplayerRequest(')
+    listed = command.index('if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ||')
     assert listed < command.index('retainedStatClient = client;')
     own = command.index('} else if ( local != NULL && client != local->entityNumber ) {')
     assert listed < own < command.index('ClientVoiceMute( client, !local->IsPlayerMuted( client ) );') < command.index('ToggleFriend( client );')

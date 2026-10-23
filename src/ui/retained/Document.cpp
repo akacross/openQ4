@@ -1123,7 +1123,7 @@ private:
 			const auto& control = value["control"]; const auto p = path+"/control";
 			Require(control.isObject() && control["role"].isString(),control,p,"Expected a semantic control role");
 			const auto role = control["role"].asString();
-			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","detail","extensions"});
+			if (role == "button") Fields(control,p,{"role","action","event","label","enabled","states","navigation","detail","context","extensions"});
 			else if (role == "toggle") Fields(control,p,{"role","action","label","enabled","states","navigation","value","mixed","parts","extensions"});
 			else if (role == "slider") Fields(control,p,{"role","action","label","enabled","states","navigation","value","minimum","maximum","step","decimals","orientation","parts","extensions"});
 			else if (role == "choice") Fields(control,p,{"role","action","label","enabled","states","navigation","value","parts","visibleRows","options","optionCount","scrollbar","placementBounds","extensions"});
@@ -1136,6 +1136,10 @@ private:
 			if (control.isMember("action")) parsed.action = Id(control["action"],p+"/action");
 			else if (role != "scrollbar") parsed.event = EventName(control["event"],p+"/event");
 			parsed.label = ControlLabel(control["label"],p+"/label");
+			if (control.isMember("context")) {
+				parsed.context = ReadExpression(control["context"],p+"/context");
+				Require(parsed.context->type == 2,control["context"],p+"/context","Button context must be a string");
+			}
 			if (control.isMember("detail")) {
 				parsed.detail = Numeric(control["detail"],p+"/detail",-1e9,1e9);
 				detailControls.emplace_back(result.id,p+"/detail");

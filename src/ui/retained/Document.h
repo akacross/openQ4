@@ -180,6 +180,9 @@ struct Control {
 	std::variant<std::monostate, ToggleSpec, SliderSpec, ChoiceSpec, NumberSpec, ScrollSpec> widget;
 	// Buttons only: the detail this control names (DocumentModel::detail).
 	std::optional<double> detail;
+	// Buttons may name the current subject of an activation. A changed context
+	// cancels a held press and invalidates queued work, even if it changes back.
+	std::optional<Expression> context;
 };
 // A document's detail card (section 7's hover card). While the pointer moved
 // last, the control it is over is the subject; otherwise the focused control

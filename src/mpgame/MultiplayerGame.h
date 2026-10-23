@@ -1256,6 +1256,8 @@ private:
 	static_assert( RETAINED_PLAYER_ROWS == MAX_CLIENTS, "retained rosters cover every client slot" );
 	idList<int>		retainedPlayerOrder[ RETAINED_PLAYER_LISTS ];
 	int				retainedStatClient;
+	idStr			retainedStatIdentity;
+	idStr			RetainedPlayerIdentity( int client ) const;
 	void			RetainedPlayerLists( idList<int> lists[ RETAINED_PLAYER_LISTS ], int colors[ RETAINED_PLAYER_LISTS ] );
 	bool			RetainedListed( int client );
 	void			PublishRetainedPlayers( idUserInterface *card, bool &changed );

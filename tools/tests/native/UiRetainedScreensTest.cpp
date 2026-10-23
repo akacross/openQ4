@@ -249,7 +249,11 @@ static void CheckSessionActions(const Document& document) {
 		const bool value = action.operation == "session.menuValue";
 		Check(action.operation == "session.menu" || value,"production screens request only session operations");
 		const auto command = action.arguments.find("command");
-		Check(command != action.arguments.end() && action.arguments.size() == (value ? 2u : 1u),"one command argument, and a value");
+		Check(command != action.arguments.end(),"session operation names a command");
+		const auto& verb = std::get<std::string>(command->second.literal);
+		const bool player = verb == "mpSelectPlayer" || verb == "mpMute" || verb == "mpFriend";
+		Check(action.arguments.size() == (player ? 3u : value ? 2u : 1u),"command carries exactly its typed operands");
+		Check(!player || (action.arguments.at("client").type == 0 && action.arguments.at("identity").type == 2),"player command carries client and connection identity");
 		Check((value ? SessionValueCommands : SessionCommands).contains(std::get<std::string>(command->second.literal)),
 			"every command is in the session allowlist");
 		Check(!value || (action.arguments.at("value").inputValue && action.inputType),"a value verb carries its control's value");

@@ -1266,6 +1266,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	retainedMenuCovered = false;
 	retainedMenuRevision = 0;
 	retainedStatClient = -1;
+	retainedStatIdentity.Clear();
 	memset( retainedVoteDraft, 0, sizeof( retainedVoteDraft ) );
 	retainedVoteDraft[ RVF_KICK ] = -1;
 	retainedVoteMapsRequested = false;
@@ -9860,6 +9861,7 @@ void idMultiplayerGame::Clear() {
 	joinScreenPending = false;
 	retainedMenuCovered = false;
 	retainedStatClient = -1;
+	retainedStatIdentity.Clear();
 	for ( int list = 0; list < RETAINED_PLAYER_LISTS; list++ ) {
 		retainedPlayerOrder[ list ].Clear();
 	}
@@ -16509,7 +16511,7 @@ join panel's blur while it covers the connect-time join offer, and
 uncovering gives the panel its soft focus back while the offer stands.
 ================
 */
-static const int RETAINED_MENU_PROTOCOL = 1;
+static const int RETAINED_MENU_PROTOCOL = 2;
 
 void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *card ) {
 	if ( card == NULL ) {
@@ -16547,6 +16549,7 @@ void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *car
 	// by score again.
 	idPlayer *local = gameLocal.GetLocalPlayer();
 	retainedStatClient = local != NULL ? local->entityNumber : -1;
+	retainedStatIdentity = RetainedPlayerIdentity( retainedStatClient );
 	for ( int list = 0; list < RETAINED_PLAYER_LISTS; list++ ) {
 		retainedPlayerOrder[ list ].Clear();
 	}
@@ -16863,6 +16866,16 @@ void idMultiplayerGame::ToggleFriend( int client ) {
 	}
 }
 
+// Use the entity's connection generation, never its name or row number. The
+// unsigned decimal spelling also preserves spawn IDs with the high bit set.
+idStr idMultiplayerGame::RetainedPlayerIdentity( int client ) const {
+	idEntity *entity = client >= 0 && client < MAX_CLIENTS ? gameLocal.entities[ client ] : NULL;
+	if ( entity == NULL || !entity->IsType( idPlayer::GetClassType() ) ) {
+		return idStr();
+	}
+	return va( "%u", static_cast<unsigned int>( gameLocal.GetSpawnId( entity ) ) );
+}
+
 // The Players page's accuracy row, in the stock statistics' order; the
 // document shows each weapon's icon (tools/ui/retained_mp_menus.py WEAPONS).
 static const char *const RETAINED_ACCURACY_WEAPONS[] = { "weapon_machinegun", "weapon_shotgun", "weapon_hyperblaster",
@@ -16928,6 +16941,7 @@ void idMultiplayerGame::PublishRetainedPlayers( idUserInterface *card, bool &cha
 			// A copy: va() reuses its eight buffers within the row.
 			const idStr key = va( "mp.players.%s%d", name, row );
 			publish( va( "%s.client", key.c_str() ), va( "%d", player != NULL ? client : -1 ) );
+			publish( va( "%s.identity", key.c_str() ), RetainedPlayerIdentity( client ).c_str() );
 			publish( va( "%s.name", key.c_str() ), player != NULL ? MPRetainedPlainText( player->GetUserInfo()->GetString( "ui_name" ), 64, 1 ).c_str() : "" );
 			publish( va( "%s.score", key.c_str() ), player != NULL && list != 2 ? va( "%d", scores[ client ] ) : "" );
 			publish( va( "%s.ping", key.c_str() ), player != NULL ? va( "%d", playerState[ client ].ping ) : "" );
@@ -16952,13 +16966,15 @@ void idMultiplayerGame::PublishRetainedPlayers( idUserInterface *card, bool &cha
 
 	// The statistics: the selected player's, or the local player's once the
 	// selected one has left.
-	if ( !selectedListed ) {
+	if ( !selectedListed || retainedStatIdentity != RetainedPlayerIdentity( retainedStatClient ) ) {
 		retainedStatClient = local != NULL ? local->entityNumber : -1;
+		retainedStatIdentity = RetainedPlayerIdentity( retainedStatClient );
 	}
 	const int selected = retainedStatClient;
 	idEntity *entity = selected >= 0 && selected < MAX_CLIENTS ? gameLocal.entities[ selected ] : NULL;
 	idPlayer *chosen = entity != NULL && entity->IsType( idPlayer::GetClassType() ) ? static_cast<idPlayer *>( entity ) : NULL;
 	publish( "mp.stat.client", va( "%d", chosen != NULL ? selected : -1 ) );
+	publish( "mp.stat.identity", chosen != NULL ? retainedStatIdentity.c_str() : "" );
 	publish( "mp.stat.name", chosen != NULL ? MPRetainedPlainText( chosen->GetUserInfo()->GetString( "ui_name" ), 64, 1 ).c_str() : "" );
 	// The end-of-match review spectates everyone; a ranked player keeps the
 	// team the match was played on.
@@ -19064,19 +19080,22 @@ bool idMultiplayerGame::HandleRetainedMenuCommand( const idCmdArgs &args, int &i
 		DisableMenu();
 		return true;
 	}
-	if ( ( !sub.Icmp( "select" ) || !sub.Icmp( "mute" ) || !sub.Icmp( "friend" ) ) && args.Argc() - icmd >= 1 ) {
+	if ( ( !sub.Icmp( "select" ) || !sub.Icmp( "mute" ) || !sub.Icmp( "friend" ) ) && args.Argc() - icmd >= 2 ) {
 		const idStr clientText = args.Argv( icmd++ );
+		const idStr identity = args.Argv( icmd++ );
 		bool digits = clientText.Length() >= 1 && clientText.Length() <= 2;
 		for ( int i = 0; digits && i < clientText.Length(); i++ ) {
 			digits = clientText[ i ] >= '0' && clientText[ i ] <= '9';
 		}
 		const int client = digits ? atoi( clientText.c_str() ) : -1;
-		if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ) {
+		if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ||
+			identity.IsEmpty() || identity != RetainedPlayerIdentity( client ) ) {
 			return false;
 		}
 		idPlayer *local = gameLocal.GetLocalPlayer();
 		if ( !sub.Icmp( "select" ) ) {
 			retainedStatClient = client;
+			retainedStatIdentity = identity;
 		} else if ( local != NULL && client != local->entityNumber ) {
 			if ( !sub.Icmp( "mute" ) ) {
 				ClientVoiceMute( client, !local->IsPlayerMuted( client ) );

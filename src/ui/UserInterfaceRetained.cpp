@@ -240,6 +240,29 @@ bool SessionMenuCommand(const std::string& command) {
 	return commands.contains(command);
 }
 
+bool SessionMenuPlayerCommand(const std::string& command) {
+	return command == "mpSelectPlayer" || command == "mpMute" || command == "mpFriend";
+}
+
+// Freeze a player operand in the typed queue. Reading card.client when Session
+// drains several events would silently redirect every request to the last row.
+std::optional<std::string> SessionMenuPlayerRequest(const ActionInvocation& invocation) {
+	const auto command = invocation.arguments.find("command"), client = invocation.arguments.find("client"),
+		identity = invocation.arguments.find("identity");
+	if (invocation.arguments.size() != 3 || command == invocation.arguments.end() || client == invocation.arguments.end() ||
+		identity == invocation.arguments.end() || !std::holds_alternative<std::string>(command->second) ||
+		!SessionMenuPlayerCommand(std::get<std::string>(command->second)) || !std::holds_alternative<double>(client->second) ||
+		!std::holds_alternative<std::string>(identity->second)) return {};
+	const double slot = std::get<double>(client->second);
+	const auto& token = std::get<std::string>(identity->second);
+	if (!std::isfinite(slot) || slot < 0 || slot >= 32 || std::floor(slot) != slot || token.empty() || token.size() > 10 ||
+		(token.size() > 1 && token[0] == '0') || std::any_of(token.begin(),token.end(),[](char c) { return c < '0' || c > '9'; })) return {};
+	std::uint32_t packed = 0;
+	const auto parsed = std::from_chars(token.data(),token.data()+token.size(),packed);
+	if (parsed.ec != std::errc{} || parsed.ptr != token.data()+token.size()) return {};
+	return std::get<std::string>(command->second)+" "+std::to_string(static_cast<int>(slot))+" "+token;
+}
+
 // Session verbs a value control may request with its new value: the
 // multiplayer card's Vote page fields, its Settings pages' model lists and
 // crosshair, its Match page's role, ballot target, rule value and series
@@ -328,10 +351,15 @@ bool ValidOperation(const Action& action) {
 	}
 	if (action.operation == "session.menu") {
 		const auto command = action.arguments.find("command");
-		if (action.arguments.size() != 1 || command == action.arguments.end() || command->second.type != 2) return false;
+		if (command == action.arguments.end() || command->second.type != 2) return false;
 		const auto& expression = command->second;
 		const bool literal = expression.op.empty() && expression.state.empty() && expression.presentation.empty() && !expression.inputValue;
-		return !literal || SessionMenuCommand(std::get<std::string>(expression.literal));
+		if (literal && SessionMenuPlayerCommand(std::get<std::string>(expression.literal))) {
+			const auto client = action.arguments.find("client"), identity = action.arguments.find("identity");
+			return action.arguments.size() == 3 && client != action.arguments.end() && client->second.type == 0 &&
+				identity != action.arguments.end() && identity->second.type == 2;
+		}
+		return action.arguments.size() == 1 && (!literal || SessionMenuCommand(std::get<std::string>(expression.literal)));
 	}
 	if (action.operation == "settings.player.set") {
 		// A literal setting, and the control's value or a literal one it takes.
@@ -372,6 +400,11 @@ bool ValidInvocation(const ActionInvocation& invocation, std::string& error) {
 	}
 	if (invocation.operation == "session.menu") {
 		const auto command = invocation.arguments.find("command");
+		if (command != invocation.arguments.end() && std::holds_alternative<std::string>(command->second) &&
+			SessionMenuPlayerCommand(std::get<std::string>(command->second))) {
+			if (SessionMenuPlayerRequest(invocation)) return true;
+			error = "Invalid multiplayer player identity: "+invocation.action; return false;
+		}
 		if (invocation.arguments.size() == 1 && command != invocation.arguments.end() &&
 			std::holds_alternative<std::string>(command->second) && SessionMenuCommand(std::get<std::string>(command->second))) return true;
 		error = "Unsupported session menu request: "+invocation.action; return false;
@@ -1455,9 +1488,10 @@ bool idUserInterfaceRetained::DispatchApplicationActions(const char* command, bo
 		if (invocation.operation == "session.menu") {
 			// Validated again at resolution; the session maps the verb itself.
 			const auto& command = std::get<std::string>(invocation.arguments.at("command"));
-			const bool accepted = impl->sessionRequests.size() < 64;
-			if (accepted) impl->sessionRequests.push_back(command);
-			else impl->Error("Session menu request queue exceeded 64 requests");
+			const auto request = SessionMenuPlayerCommand(command) ? SessionMenuPlayerRequest(invocation) : std::optional<std::string>(command);
+			const bool accepted = request && impl->sessionRequests.size() < 64;
+			if (accepted) impl->sessionRequests.push_back(*request);
+			else impl->Error(request ? "Session menu request queue exceeded 64 requests" : "Invalid multiplayer player identity");
 			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
 			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_SESSION path=%s command=%s accepted=%d\n",
 				Name(),command.c_str(),accepted ? 1 : 0);

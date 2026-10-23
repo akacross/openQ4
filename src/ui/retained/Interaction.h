@@ -26,6 +26,7 @@ struct ControlAction {
 	// a stale step instead of silently replacing the newly observed value.
 	std::optional<StateValue> proposalBaseline;
 	bool proposalBaselineMixed = false;
+	std::uint64_t contextToken = 0; // Button subject lifetime; transient, never restored.
 };
 struct ControlFeedback { std::string node, timeline; ControlState state = ControlState::Default; };
 struct InteractionSnapshot {
@@ -350,6 +351,7 @@ private:
         std::uint64_t choiceRevision = 0, choiceReveal = 0, choiceLayoutRevision = 0;
 		std::optional<StateValue> pending, rejected;
 		std::uint64_t proposalToken = 0, proposalStart = 0;
+		std::uint64_t contextToken = 0;
 		unsigned firstVisible = 0;
 		std::optional<NumberEditor> number;
 	};

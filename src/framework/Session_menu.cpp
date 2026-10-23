@@ -127,7 +127,7 @@ static const char *const RETAINED_MP_ESCAPE_GUI = "guis/menu/mp_escape.q4ui";
 static const char *const RETAINED_MP_WELCOME_GUI = "guis/menu/mp_welcome.q4ui";
 // The version of the game's answer to retainedMultiplayerCover that the card
 // relies on; a game module without it keeps its stock menu.
-static const int RETAINED_MP_PROTOCOL = 1;
+static const int RETAINED_MP_PROTOCOL = 2;
 // Each card's pages that still hand off to their stock pages: none now. While
 // any remain, the gate leaves that card's stock menu in place and only
 // ui_retainedMultiplayer opts into it. ui_retained_gate.py keeps each list
@@ -9040,16 +9040,27 @@ void idSessionLocal::HandleRetainedMultiplayerRequest( idUserInterface *gui, con
 	const char *command = NULL;
 	idStr gameCommand;
 	int voteField = -1, voteValue = 0;
-	const bool select = !idStr::Icmp( request, "mpSelectPlayer" ), mute = !idStr::Icmp( request, "mpMute" ),
-		befriend = !idStr::Icmp( request, "mpFriend" );
+	const bool select = !idStr::Icmp( request, "mpSelectPlayer" ) || !idStr::Icmpn( request, "mpSelectPlayer ", 15 ),
+		mute = !idStr::Icmp( request, "mpMute" ) || !idStr::Icmpn( request, "mpMute ", 7 ),
+		befriend = !idStr::Icmp( request, "mpFriend" ) || !idStr::Icmpn( request, "mpFriend ", 9 );
 	if ( select || mute || befriend ) {
-		const int client = gui->State().GetInt( "card.client", "-1" );
-		if ( client < 0 || client >= RETAINED_MP_CLIENTS ) {
-			common->Warning( "retained UI: the multiplayer card named client %d", client );
+		const char *payload = strchr( request, ' ' );
+		const idStr operands = payload != NULL ? payload + 1 : "";
+		const int separator = operands.Find( ' ' );
+		const idStr clientText = separator >= 0 ? operands.Left( separator ) : idStr();
+		const idStr identity = separator >= 0 ? operands.Right( operands.Length() - separator - 1 ) : idStr();
+		const auto digits = []( const idStr &text, int maximum ) {
+			if ( text.Length() < 1 || text.Length() > maximum ) return false;
+			for ( int i = 0; i < text.Length(); ++i ) if ( text[i] < '0' || text[i] > '9' ) return false;
+			return true;
+		};
+		const int client = digits( clientText, 2 ) ? atoi( clientText.c_str() ) : -1;
+		if ( client < 0 || client >= RETAINED_MP_CLIENTS || !digits( identity, 10 ) ) {
+			common->Warning( "retained UI: invalid multiplayer player identity" );
 			return;
 		}
 		// None of them closes the menu.
-		gameCommand = va( "play main_menu_selection ; retained %s %d", select ? "select" : mute ? "mute" : "friend", client );
+		gameCommand = va( "play main_menu_selection ; retained %s %d %s", select ? "select" : mute ? "mute" : "friend", client, identity.c_str() );
 		command = gameCommand.c_str();
 	} else if ( !idStr::Icmp( request, "mpWelcomeAction" ) ) {
 		const int slot = gui->State().GetInt( "card.welcome_action", "-1" );

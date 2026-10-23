@@ -26,6 +26,10 @@
 
 ## Change log
 
+- Multiplayer friend and mute marks now clear when another player takes over
+  a vacated slot. The Players menu returns to your statistics if the selected
+  player leaves, and pending menu actions cannot follow their replacement.
+
 - Multiplayer player lists now scroll at a readable row height, with column
   headings kept in view. Crowded rosters remain reachable in Welcome, Players
   and the match summary, and kick-vote choices no longer stop after 16 entries.

@@ -24,6 +24,24 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Multiplayer player identity, 23 October 2026
+
+- [x] Bind Players selections and local friend/mute marks to a connection's
+  generation. Held or queued menu actions cannot follow a replacement occupant;
+  ordinary score refresh retains valid work. The statistics return to the local
+  player when the selected connection leaves. Package the matching engine and
+  game modules together; the retained-menu cover protocol is now version 2.
+- [x] Pass the Windows build/stage, 12 targeted native suites, the adapter's
+  production case and 20 rejected mutations, the session gate, and production
+  player-state checks across 32 slots with three rejected mutations. Review
+  14 engine screenshots from live slot-replacement matches in OpenGL at
+  1280×720 and Vulkan at 1920×1080. Both return to gameplay with no retained-UI
+  warnings or errors; stock/bot asset warnings remain.
+- [Player identity evidence and limits](ui/player-identity.md) preserve delayed
+  remote voice-mute packets, kick/admin identity, device/platform qualification
+  and full UI-03/UI-09 acceptance as outstanding. Candidate player wording is in
+  [baseline refinements](releases/baseline-refinements.md).
+
 ## Multiplayer roster reachability, 23 October 2026
 
 - [x] Keep multiplayer player lists and summary scoreboards readable with fixed

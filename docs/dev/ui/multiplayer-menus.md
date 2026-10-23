@@ -54,7 +54,7 @@ over it while all of these hold (`idSessionLocal::UpdateRetainedMultiplayer`):
   `ui_autoJoin` never sees the offer), Escape otherwise; and that card's gate
   is on;
 - the game answers `retainedMultiplayerCover` with the protocol the session
-  expects (`mp.protocol` 1) and allows the cover now (`mp.cover_allowed`). It
+  expects (`mp.protocol` 2) and allows the cover now (`mp.cover_allowed`). It
   refuses in an Arena Campaign match, which keeps its own menu. Over the join
   offer the card's softening replaces the join panel's blur, which comes back
   if the stock menu takes the offer over.
@@ -666,9 +666,9 @@ The card's verbs are the stock menu's own commands with its selection sound:
 | `mpDisconnect` (after the confirmation) | `play main_menu_selection ; disconnect` |
 | `mpStockPage` | the stock page's own button, by `card.stock_page` |
 | `mpTeamAction` | `play main_menu_selection ; retained team <slot>`, by `card.team_action` |
-| `mpSelectPlayer` | `play main_menu_selection ; retained select <client>`, by `card.client` |
-| `mpMute` | `play main_menu_selection ; retained mute <client>`, by `card.client` |
-| `mpFriend` | `play main_menu_selection ; retained friend <client>`, by `card.client` |
+| `mpSelectPlayer` | `play main_menu_selection ; retained select <client> <identity>`, frozen event operands |
+| `mpMute` | `play main_menu_selection ; retained mute <client> <identity>`, frozen event operands |
+| `mpFriend` | `play main_menu_selection ; retained friend <client> <identity>`, frozen event operands |
 | `mpWelcomeAction` | `play main_menu_selection ; retained welcome <slot>`, by `card.welcome_action` |
 | `mpVoteYes`, `mpVoteNo` | `play main_menu_selection ; retained vote yes\|no` |
 | `mpCallVote` | `play main_menu_selection ; retained callVote` |
@@ -896,7 +896,7 @@ Evidence: `.tmp/ui/retained-mp-team-server/validation-evidence.json`, SHA-256
 The Players page adds:
 
 - gate cases for `mpSelectPlayer`, `mpMute` and `mpFriend`: the client the
-  card records reaches the game as `retained select|mute|friend <client>`
+  card records reaches the game as `retained select|mute|friend <client> <identity>`
   without closing the menu, and a client outside the server's slots is
   refused; pins that the game acts only on a listed client, never mutes or
   befriends the player's own row and keeps the menu open, that the game and
@@ -1168,10 +1168,10 @@ The card's acceptance continues under `FLOW-046`.
   deathmatch does.
 - The stock team-refusal messages are English in French and Italian, whose
   tables lack them.
-- Friend marks and queued player actions still use client-slot numbers;
-  complete occupant-identity protection remains required under UI-03. The voice
-  lifecycle clears mute marks on disconnect, but this increment does not
-  qualify delayed requests across slot reuse.
+- [Player identity guards](player-identity.md) now protect local friend/mute
+  marks, selections and retained player requests across slot reuse. Delayed
+  remote voice-mute packets still name only a slot; their server-side race and
+  identity protection for kick/admin targets remain under UI-03.
 - The Players lists still lack the BOT tag, dead-player mark and network-quality
   bars used by the remastered scoreboard; their capacity and scrolling are
   covered by the bounded increment above.

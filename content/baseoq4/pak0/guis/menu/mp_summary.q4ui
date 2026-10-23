@@ -236,12 +236,15 @@
   "mp.summary.result_score": {"type": "string", "initial": ""},
   "card.client": {"type": "number", "initial": -1},
   "mp.stat.client": {"type": "number", "initial": -1},
+  "card.identity": {"type": "string", "initial": ""},
+  "mp.stat.identity": {"type": "string", "initial": ""},
   "mp.players.a.shown": {"type": "boolean", "initial": false},
   "mp.players.a.title": {"type": "string", "initial": ""},
   "mp.players.a.color": {"type": "number", "initial": 0},
   "mp.players.a.score": {"type": "string", "initial": ""},
   "mp.players.a.count": {"type": "number", "initial": 0},
   "mp.players.a0.client": {"type": "number", "initial": -1},
+  "mp.players.a0.identity": {"type": "string", "initial": ""},
   "mp.players.a0.name": {"type": "string", "initial": ""},
   "mp.players.a0.score": {"type": "string", "initial": ""},
   "mp.players.a0.ping": {"type": "string", "initial": ""},
@@ -249,6 +252,7 @@
   "mp.players.a0.muted": {"type": "boolean", "initial": false},
   "mp.players.a0.local": {"type": "boolean", "initial": false},
   "mp.players.a1.client": {"type": "number", "initial": -1},
+  "mp.players.a1.identity": {"type": "string", "initial": ""},
   "mp.players.a1.name": {"type": "string", "initial": ""},
   "mp.players.a1.score": {"type": "string", "initial": ""},
   "mp.players.a1.ping": {"type": "string", "initial": ""},
@@ -256,6 +260,7 @@
   "mp.players.a1.muted": {"type": "boolean", "initial": false},
   "mp.players.a1.local": {"type": "boolean", "initial": false},
   "mp.players.a2.client": {"type": "number", "initial": -1},
+  "mp.players.a2.identity": {"type": "string", "initial": ""},
   "mp.players.a2.name": {"type": "string", "initial": ""},
   "mp.players.a2.score": {"type": "string", "initial": ""},
   "mp.players.a2.ping": {"type": "string", "initial": ""},
@@ -263,6 +268,7 @@
   "mp.players.a2.muted": {"type": "boolean", "initial": false},
   "mp.players.a2.local": {"type": "boolean", "initial": false},
   "mp.players.a3.client": {"type": "number", "initial": -1},
+  "mp.players.a3.identity": {"type": "string", "initial": ""},
   "mp.players.a3.name": {"type": "string", "initial": ""},
   "mp.players.a3.score": {"type": "string", "initial": ""},
   "mp.players.a3.ping": {"type": "string", "initial": ""},
@@ -270,6 +276,7 @@
   "mp.players.a3.muted": {"type": "boolean", "initial": false},
   "mp.players.a3.local": {"type": "boolean", "initial": false},
   "mp.players.a4.client": {"type": "number", "initial": -1},
+  "mp.players.a4.identity": {"type": "string", "initial": ""},
   "mp.players.a4.name": {"type": "string", "initial": ""},
   "mp.players.a4.score": {"type": "string", "initial": ""},
   "mp.players.a4.ping": {"type": "string", "initial": ""},
@@ -277,6 +284,7 @@
   "mp.players.a4.muted": {"type": "boolean", "initial": false},
   "mp.players.a4.local": {"type": "boolean", "initial": false},
   "mp.players.a5.client": {"type": "number", "initial": -1},
+  "mp.players.a5.identity": {"type": "string", "initial": ""},
   "mp.players.a5.name": {"type": "string", "initial": ""},
   "mp.players.a5.score": {"type": "string", "initial": ""},
   "mp.players.a5.ping": {"type": "string", "initial": ""},
@@ -284,6 +292,7 @@
   "mp.players.a5.muted": {"type": "boolean", "initial": false},
   "mp.players.a5.local": {"type": "boolean", "initial": false},
   "mp.players.a6.client": {"type": "number", "initial": -1},
+  "mp.players.a6.identity": {"type": "string", "initial": ""},
   "mp.players.a6.name": {"type": "string", "initial": ""},
   "mp.players.a6.score": {"type": "string", "initial": ""},
   "mp.players.a6.ping": {"type": "string", "initial": ""},
@@ -291,6 +300,7 @@
   "mp.players.a6.muted": {"type": "boolean", "initial": false},
   "mp.players.a6.local": {"type": "boolean", "initial": false},
   "mp.players.a7.client": {"type": "number", "initial": -1},
+  "mp.players.a7.identity": {"type": "string", "initial": ""},
   "mp.players.a7.name": {"type": "string", "initial": ""},
   "mp.players.a7.score": {"type": "string", "initial": ""},
   "mp.players.a7.ping": {"type": "string", "initial": ""},
@@ -298,6 +308,7 @@
   "mp.players.a7.muted": {"type": "boolean", "initial": false},
   "mp.players.a7.local": {"type": "boolean", "initial": false},
   "mp.players.a8.client": {"type": "number", "initial": -1},
+  "mp.players.a8.identity": {"type": "string", "initial": ""},
   "mp.players.a8.name": {"type": "string", "initial": ""},
   "mp.players.a8.score": {"type": "string", "initial": ""},
   "mp.players.a8.ping": {"type": "string", "initial": ""},
@@ -305,6 +316,7 @@
   "mp.players.a8.muted": {"type": "boolean", "initial": false},
   "mp.players.a8.local": {"type": "boolean", "initial": false},
   "mp.players.a9.client": {"type": "number", "initial": -1},
+  "mp.players.a9.identity": {"type": "string", "initial": ""},
   "mp.players.a9.name": {"type": "string", "initial": ""},
   "mp.players.a9.score": {"type": "string", "initial": ""},
   "mp.players.a9.ping": {"type": "string", "initial": ""},
@@ -312,6 +324,7 @@
   "mp.players.a9.muted": {"type": "boolean", "initial": false},
   "mp.players.a9.local": {"type": "boolean", "initial": false},
   "mp.players.a10.client": {"type": "number", "initial": -1},
+  "mp.players.a10.identity": {"type": "string", "initial": ""},
   "mp.players.a10.name": {"type": "string", "initial": ""},
   "mp.players.a10.score": {"type": "string", "initial": ""},
   "mp.players.a10.ping": {"type": "string", "initial": ""},
@@ -319,6 +332,7 @@
   "mp.players.a10.muted": {"type": "boolean", "initial": false},
   "mp.players.a10.local": {"type": "boolean", "initial": false},
   "mp.players.a11.client": {"type": "number", "initial": -1},
+  "mp.players.a11.identity": {"type": "string", "initial": ""},
   "mp.players.a11.name": {"type": "string", "initial": ""},
   "mp.players.a11.score": {"type": "string", "initial": ""},
   "mp.players.a11.ping": {"type": "string", "initial": ""},
@@ -326,6 +340,7 @@
   "mp.players.a11.muted": {"type": "boolean", "initial": false},
   "mp.players.a11.local": {"type": "boolean", "initial": false},
   "mp.players.a12.client": {"type": "number", "initial": -1},
+  "mp.players.a12.identity": {"type": "string", "initial": ""},
   "mp.players.a12.name": {"type": "string", "initial": ""},
   "mp.players.a12.score": {"type": "string", "initial": ""},
   "mp.players.a12.ping": {"type": "string", "initial": ""},
@@ -333,6 +348,7 @@
   "mp.players.a12.muted": {"type": "boolean", "initial": false},
   "mp.players.a12.local": {"type": "boolean", "initial": false},
   "mp.players.a13.client": {"type": "number", "initial": -1},
+  "mp.players.a13.identity": {"type": "string", "initial": ""},
   "mp.players.a13.name": {"type": "string", "initial": ""},
   "mp.players.a13.score": {"type": "string", "initial": ""},
   "mp.players.a13.ping": {"type": "string", "initial": ""},
@@ -340,6 +356,7 @@
   "mp.players.a13.muted": {"type": "boolean", "initial": false},
   "mp.players.a13.local": {"type": "boolean", "initial": false},
   "mp.players.a14.client": {"type": "number", "initial": -1},
+  "mp.players.a14.identity": {"type": "string", "initial": ""},
   "mp.players.a14.name": {"type": "string", "initial": ""},
   "mp.players.a14.score": {"type": "string", "initial": ""},
   "mp.players.a14.ping": {"type": "string", "initial": ""},
@@ -347,6 +364,7 @@
   "mp.players.a14.muted": {"type": "boolean", "initial": false},
   "mp.players.a14.local": {"type": "boolean", "initial": false},
   "mp.players.a15.client": {"type": "number", "initial": -1},
+  "mp.players.a15.identity": {"type": "string", "initial": ""},
   "mp.players.a15.name": {"type": "string", "initial": ""},
   "mp.players.a15.score": {"type": "string", "initial": ""},
   "mp.players.a15.ping": {"type": "string", "initial": ""},
@@ -354,6 +372,7 @@
   "mp.players.a15.muted": {"type": "boolean", "initial": false},
   "mp.players.a15.local": {"type": "boolean", "initial": false},
   "mp.players.a16.client": {"type": "number", "initial": -1},
+  "mp.players.a16.identity": {"type": "string", "initial": ""},
   "mp.players.a16.name": {"type": "string", "initial": ""},
   "mp.players.a16.score": {"type": "string", "initial": ""},
   "mp.players.a16.ping": {"type": "string", "initial": ""},
@@ -361,6 +380,7 @@
   "mp.players.a16.muted": {"type": "boolean", "initial": false},
   "mp.players.a16.local": {"type": "boolean", "initial": false},
   "mp.players.a17.client": {"type": "number", "initial": -1},
+  "mp.players.a17.identity": {"type": "string", "initial": ""},
   "mp.players.a17.name": {"type": "string", "initial": ""},
   "mp.players.a17.score": {"type": "string", "initial": ""},
   "mp.players.a17.ping": {"type": "string", "initial": ""},
@@ -368,6 +388,7 @@
   "mp.players.a17.muted": {"type": "boolean", "initial": false},
   "mp.players.a17.local": {"type": "boolean", "initial": false},
   "mp.players.a18.client": {"type": "number", "initial": -1},
+  "mp.players.a18.identity": {"type": "string", "initial": ""},
   "mp.players.a18.name": {"type": "string", "initial": ""},
   "mp.players.a18.score": {"type": "string", "initial": ""},
   "mp.players.a18.ping": {"type": "string", "initial": ""},
@@ -375,6 +396,7 @@
   "mp.players.a18.muted": {"type": "boolean", "initial": false},
   "mp.players.a18.local": {"type": "boolean", "initial": false},
   "mp.players.a19.client": {"type": "number", "initial": -1},
+  "mp.players.a19.identity": {"type": "string", "initial": ""},
   "mp.players.a19.name": {"type": "string", "initial": ""},
   "mp.players.a19.score": {"type": "string", "initial": ""},
   "mp.players.a19.ping": {"type": "string", "initial": ""},
@@ -382,6 +404,7 @@
   "mp.players.a19.muted": {"type": "boolean", "initial": false},
   "mp.players.a19.local": {"type": "boolean", "initial": false},
   "mp.players.a20.client": {"type": "number", "initial": -1},
+  "mp.players.a20.identity": {"type": "string", "initial": ""},
   "mp.players.a20.name": {"type": "string", "initial": ""},
   "mp.players.a20.score": {"type": "string", "initial": ""},
   "mp.players.a20.ping": {"type": "string", "initial": ""},
@@ -389,6 +412,7 @@
   "mp.players.a20.muted": {"type": "boolean", "initial": false},
   "mp.players.a20.local": {"type": "boolean", "initial": false},
   "mp.players.a21.client": {"type": "number", "initial": -1},
+  "mp.players.a21.identity": {"type": "string", "initial": ""},
   "mp.players.a21.name": {"type": "string", "initial": ""},
   "mp.players.a21.score": {"type": "string", "initial": ""},
   "mp.players.a21.ping": {"type": "string", "initial": ""},
@@ -396,6 +420,7 @@
   "mp.players.a21.muted": {"type": "boolean", "initial": false},
   "mp.players.a21.local": {"type": "boolean", "initial": false},
   "mp.players.a22.client": {"type": "number", "initial": -1},
+  "mp.players.a22.identity": {"type": "string", "initial": ""},
   "mp.players.a22.name": {"type": "string", "initial": ""},
   "mp.players.a22.score": {"type": "string", "initial": ""},
   "mp.players.a22.ping": {"type": "string", "initial": ""},
@@ -403,6 +428,7 @@
   "mp.players.a22.muted": {"type": "boolean", "initial": false},
   "mp.players.a22.local": {"type": "boolean", "initial": false},
   "mp.players.a23.client": {"type": "number", "initial": -1},
+  "mp.players.a23.identity": {"type": "string", "initial": ""},
   "mp.players.a23.name": {"type": "string", "initial": ""},
   "mp.players.a23.score": {"type": "string", "initial": ""},
   "mp.players.a23.ping": {"type": "string", "initial": ""},
@@ -410,6 +436,7 @@
   "mp.players.a23.muted": {"type": "boolean", "initial": false},
   "mp.players.a23.local": {"type": "boolean", "initial": false},
   "mp.players.a24.client": {"type": "number", "initial": -1},
+  "mp.players.a24.identity": {"type": "string", "initial": ""},
   "mp.players.a24.name": {"type": "string", "initial": ""},
   "mp.players.a24.score": {"type": "string", "initial": ""},
   "mp.players.a24.ping": {"type": "string", "initial": ""},
@@ -417,6 +444,7 @@
   "mp.players.a24.muted": {"type": "boolean", "initial": false},
   "mp.players.a24.local": {"type": "boolean", "initial": false},
   "mp.players.a25.client": {"type": "number", "initial": -1},
+  "mp.players.a25.identity": {"type": "string", "initial": ""},
   "mp.players.a25.name": {"type": "string", "initial": ""},
   "mp.players.a25.score": {"type": "string", "initial": ""},
   "mp.players.a25.ping": {"type": "string", "initial": ""},
@@ -424,6 +452,7 @@
   "mp.players.a25.muted": {"type": "boolean", "initial": false},
   "mp.players.a25.local": {"type": "boolean", "initial": false},
   "mp.players.a26.client": {"type": "number", "initial": -1},
+  "mp.players.a26.identity": {"type": "string", "initial": ""},
   "mp.players.a26.name": {"type": "string", "initial": ""},
   "mp.players.a26.score": {"type": "string", "initial": ""},
   "mp.players.a26.ping": {"type": "string", "initial": ""},
@@ -431,6 +460,7 @@
   "mp.players.a26.muted": {"type": "boolean", "initial": false},
   "mp.players.a26.local": {"type": "boolean", "initial": false},
   "mp.players.a27.client": {"type": "number", "initial": -1},
+  "mp.players.a27.identity": {"type": "string", "initial": ""},
   "mp.players.a27.name": {"type": "string", "initial": ""},
   "mp.players.a27.score": {"type": "string", "initial": ""},
   "mp.players.a27.ping": {"type": "string", "initial": ""},
@@ -438,6 +468,7 @@
   "mp.players.a27.muted": {"type": "boolean", "initial": false},
   "mp.players.a27.local": {"type": "boolean", "initial": false},
   "mp.players.a28.client": {"type": "number", "initial": -1},
+  "mp.players.a28.identity": {"type": "string", "initial": ""},
   "mp.players.a28.name": {"type": "string", "initial": ""},
   "mp.players.a28.score": {"type": "string", "initial": ""},
   "mp.players.a28.ping": {"type": "string", "initial": ""},
@@ -445,6 +476,7 @@
   "mp.players.a28.muted": {"type": "boolean", "initial": false},
   "mp.players.a28.local": {"type": "boolean", "initial": false},
   "mp.players.a29.client": {"type": "number", "initial": -1},
+  "mp.players.a29.identity": {"type": "string", "initial": ""},
   "mp.players.a29.name": {"type": "string", "initial": ""},
   "mp.players.a29.score": {"type": "string", "initial": ""},
   "mp.players.a29.ping": {"type": "string", "initial": ""},
@@ -452,6 +484,7 @@
   "mp.players.a29.muted": {"type": "boolean", "initial": false},
   "mp.players.a29.local": {"type": "boolean", "initial": false},
   "mp.players.a30.client": {"type": "number", "initial": -1},
+  "mp.players.a30.identity": {"type": "string", "initial": ""},
   "mp.players.a30.name": {"type": "string", "initial": ""},
   "mp.players.a30.score": {"type": "string", "initial": ""},
   "mp.players.a30.ping": {"type": "string", "initial": ""},
@@ -459,6 +492,7 @@
   "mp.players.a30.muted": {"type": "boolean", "initial": false},
   "mp.players.a30.local": {"type": "boolean", "initial": false},
   "mp.players.a31.client": {"type": "number", "initial": -1},
+  "mp.players.a31.identity": {"type": "string", "initial": ""},
   "mp.players.a31.name": {"type": "string", "initial": ""},
   "mp.players.a31.score": {"type": "string", "initial": ""},
   "mp.players.a31.ping": {"type": "string", "initial": ""},
@@ -471,6 +505,7 @@
   "mp.players.b.score": {"type": "string", "initial": ""},
   "mp.players.b.count": {"type": "number", "initial": 0},
   "mp.players.b0.client": {"type": "number", "initial": -1},
+  "mp.players.b0.identity": {"type": "string", "initial": ""},
   "mp.players.b0.name": {"type": "string", "initial": ""},
   "mp.players.b0.score": {"type": "string", "initial": ""},
   "mp.players.b0.ping": {"type": "string", "initial": ""},
@@ -478,6 +513,7 @@
   "mp.players.b0.muted": {"type": "boolean", "initial": false},
   "mp.players.b0.local": {"type": "boolean", "initial": false},
   "mp.players.b1.client": {"type": "number", "initial": -1},
+  "mp.players.b1.identity": {"type": "string", "initial": ""},
   "mp.players.b1.name": {"type": "string", "initial": ""},
   "mp.players.b1.score": {"type": "string", "initial": ""},
   "mp.players.b1.ping": {"type": "string", "initial": ""},
@@ -485,6 +521,7 @@
   "mp.players.b1.muted": {"type": "boolean", "initial": false},
   "mp.players.b1.local": {"type": "boolean", "initial": false},
   "mp.players.b2.client": {"type": "number", "initial": -1},
+  "mp.players.b2.identity": {"type": "string", "initial": ""},
   "mp.players.b2.name": {"type": "string", "initial": ""},
   "mp.players.b2.score": {"type": "string", "initial": ""},
   "mp.players.b2.ping": {"type": "string", "initial": ""},
@@ -492,6 +529,7 @@
   "mp.players.b2.muted": {"type": "boolean", "initial": false},
   "mp.players.b2.local": {"type": "boolean", "initial": false},
   "mp.players.b3.client": {"type": "number", "initial": -1},
+  "mp.players.b3.identity": {"type": "string", "initial": ""},
   "mp.players.b3.name": {"type": "string", "initial": ""},
   "mp.players.b3.score": {"type": "string", "initial": ""},
   "mp.players.b3.ping": {"type": "string", "initial": ""},
@@ -499,6 +537,7 @@
   "mp.players.b3.muted": {"type": "boolean", "initial": false},
   "mp.players.b3.local": {"type": "boolean", "initial": false},
   "mp.players.b4.client": {"type": "number", "initial": -1},
+  "mp.players.b4.identity": {"type": "string", "initial": ""},
   "mp.players.b4.name": {"type": "string", "initial": ""},
   "mp.players.b4.score": {"type": "string", "initial": ""},
   "mp.players.b4.ping": {"type": "string", "initial": ""},
@@ -506,6 +545,7 @@
   "mp.players.b4.muted": {"type": "boolean", "initial": false},
   "mp.players.b4.local": {"type": "boolean", "initial": false},
   "mp.players.b5.client": {"type": "number", "initial": -1},
+  "mp.players.b5.identity": {"type": "string", "initial": ""},
   "mp.players.b5.name": {"type": "string", "initial": ""},
   "mp.players.b5.score": {"type": "string", "initial": ""},
   "mp.players.b5.ping": {"type": "string", "initial": ""},
@@ -513,6 +553,7 @@
   "mp.players.b5.muted": {"type": "boolean", "initial": false},
   "mp.players.b5.local": {"type": "boolean", "initial": false},
   "mp.players.b6.client": {"type": "number", "initial": -1},
+  "mp.players.b6.identity": {"type": "string", "initial": ""},
   "mp.players.b6.name": {"type": "string", "initial": ""},
   "mp.players.b6.score": {"type": "string", "initial": ""},
   "mp.players.b6.ping": {"type": "string", "initial": ""},
@@ -520,6 +561,7 @@
   "mp.players.b6.muted": {"type": "boolean", "initial": false},
   "mp.players.b6.local": {"type": "boolean", "initial": false},
   "mp.players.b7.client": {"type": "number", "initial": -1},
+  "mp.players.b7.identity": {"type": "string", "initial": ""},
   "mp.players.b7.name": {"type": "string", "initial": ""},
   "mp.players.b7.score": {"type": "string", "initial": ""},
   "mp.players.b7.ping": {"type": "string", "initial": ""},
@@ -527,6 +569,7 @@
   "mp.players.b7.muted": {"type": "boolean", "initial": false},
   "mp.players.b7.local": {"type": "boolean", "initial": false},
   "mp.players.b8.client": {"type": "number", "initial": -1},
+  "mp.players.b8.identity": {"type": "string", "initial": ""},
   "mp.players.b8.name": {"type": "string", "initial": ""},
   "mp.players.b8.score": {"type": "string", "initial": ""},
   "mp.players.b8.ping": {"type": "string", "initial": ""},
@@ -534,6 +577,7 @@
   "mp.players.b8.muted": {"type": "boolean", "initial": false},
   "mp.players.b8.local": {"type": "boolean", "initial": false},
   "mp.players.b9.client": {"type": "number", "initial": -1},
+  "mp.players.b9.identity": {"type": "string", "initial": ""},
   "mp.players.b9.name": {"type": "string", "initial": ""},
   "mp.players.b9.score": {"type": "string", "initial": ""},
   "mp.players.b9.ping": {"type": "string", "initial": ""},
@@ -541,6 +585,7 @@
   "mp.players.b9.muted": {"type": "boolean", "initial": false},
   "mp.players.b9.local": {"type": "boolean", "initial": false},
   "mp.players.b10.client": {"type": "number", "initial": -1},
+  "mp.players.b10.identity": {"type": "string", "initial": ""},
   "mp.players.b10.name": {"type": "string", "initial": ""},
   "mp.players.b10.score": {"type": "string", "initial": ""},
   "mp.players.b10.ping": {"type": "string", "initial": ""},
@@ -548,6 +593,7 @@
   "mp.players.b10.muted": {"type": "boolean", "initial": false},
   "mp.players.b10.local": {"type": "boolean", "initial": false},
   "mp.players.b11.client": {"type": "number", "initial": -1},
+  "mp.players.b11.identity": {"type": "string", "initial": ""},
   "mp.players.b11.name": {"type": "string", "initial": ""},
   "mp.players.b11.score": {"type": "string", "initial": ""},
   "mp.players.b11.ping": {"type": "string", "initial": ""},
@@ -555,6 +601,7 @@
   "mp.players.b11.muted": {"type": "boolean", "initial": false},
   "mp.players.b11.local": {"type": "boolean", "initial": false},
   "mp.players.b12.client": {"type": "number", "initial": -1},
+  "mp.players.b12.identity": {"type": "string", "initial": ""},
   "mp.players.b12.name": {"type": "string", "initial": ""},
   "mp.players.b12.score": {"type": "string", "initial": ""},
   "mp.players.b12.ping": {"type": "string", "initial": ""},
@@ -562,6 +609,7 @@
   "mp.players.b12.muted": {"type": "boolean", "initial": false},
   "mp.players.b12.local": {"type": "boolean", "initial": false},
   "mp.players.b13.client": {"type": "number", "initial": -1},
+  "mp.players.b13.identity": {"type": "string", "initial": ""},
   "mp.players.b13.name": {"type": "string", "initial": ""},
   "mp.players.b13.score": {"type": "string", "initial": ""},
   "mp.players.b13.ping": {"type": "string", "initial": ""},
@@ -569,6 +617,7 @@
   "mp.players.b13.muted": {"type": "boolean", "initial": false},
   "mp.players.b13.local": {"type": "boolean", "initial": false},
   "mp.players.b14.client": {"type": "number", "initial": -1},
+  "mp.players.b14.identity": {"type": "string", "initial": ""},
   "mp.players.b14.name": {"type": "string", "initial": ""},
   "mp.players.b14.score": {"type": "string", "initial": ""},
   "mp.players.b14.ping": {"type": "string", "initial": ""},
@@ -576,6 +625,7 @@
   "mp.players.b14.muted": {"type": "boolean", "initial": false},
   "mp.players.b14.local": {"type": "boolean", "initial": false},
   "mp.players.b15.client": {"type": "number", "initial": -1},
+  "mp.players.b15.identity": {"type": "string", "initial": ""},
   "mp.players.b15.name": {"type": "string", "initial": ""},
   "mp.players.b15.score": {"type": "string", "initial": ""},
   "mp.players.b15.ping": {"type": "string", "initial": ""},
@@ -583,6 +633,7 @@
   "mp.players.b15.muted": {"type": "boolean", "initial": false},
   "mp.players.b15.local": {"type": "boolean", "initial": false},
   "mp.players.b16.client": {"type": "number", "initial": -1},
+  "mp.players.b16.identity": {"type": "string", "initial": ""},
   "mp.players.b16.name": {"type": "string", "initial": ""},
   "mp.players.b16.score": {"type": "string", "initial": ""},
   "mp.players.b16.ping": {"type": "string", "initial": ""},
@@ -590,6 +641,7 @@
   "mp.players.b16.muted": {"type": "boolean", "initial": false},
   "mp.players.b16.local": {"type": "boolean", "initial": false},
   "mp.players.b17.client": {"type": "number", "initial": -1},
+  "mp.players.b17.identity": {"type": "string", "initial": ""},
   "mp.players.b17.name": {"type": "string", "initial": ""},
   "mp.players.b17.score": {"type": "string", "initial": ""},
   "mp.players.b17.ping": {"type": "string", "initial": ""},
@@ -597,6 +649,7 @@
   "mp.players.b17.muted": {"type": "boolean", "initial": false},
   "mp.players.b17.local": {"type": "boolean", "initial": false},
   "mp.players.b18.client": {"type": "number", "initial": -1},
+  "mp.players.b18.identity": {"type": "string", "initial": ""},
   "mp.players.b18.name": {"type": "string", "initial": ""},
   "mp.players.b18.score": {"type": "string", "initial": ""},
   "mp.players.b18.ping": {"type": "string", "initial": ""},
@@ -604,6 +657,7 @@
   "mp.players.b18.muted": {"type": "boolean", "initial": false},
   "mp.players.b18.local": {"type": "boolean", "initial": false},
   "mp.players.b19.client": {"type": "number", "initial": -1},
+  "mp.players.b19.identity": {"type": "string", "initial": ""},
   "mp.players.b19.name": {"type": "string", "initial": ""},
   "mp.players.b19.score": {"type": "string", "initial": ""},
   "mp.players.b19.ping": {"type": "string", "initial": ""},
@@ -611,6 +665,7 @@
   "mp.players.b19.muted": {"type": "boolean", "initial": false},
   "mp.players.b19.local": {"type": "boolean", "initial": false},
   "mp.players.b20.client": {"type": "number", "initial": -1},
+  "mp.players.b20.identity": {"type": "string", "initial": ""},
   "mp.players.b20.name": {"type": "string", "initial": ""},
   "mp.players.b20.score": {"type": "string", "initial": ""},
   "mp.players.b20.ping": {"type": "string", "initial": ""},
@@ -618,6 +673,7 @@
   "mp.players.b20.muted": {"type": "boolean", "initial": false},
   "mp.players.b20.local": {"type": "boolean", "initial": false},
   "mp.players.b21.client": {"type": "number", "initial": -1},
+  "mp.players.b21.identity": {"type": "string", "initial": ""},
   "mp.players.b21.name": {"type": "string", "initial": ""},
   "mp.players.b21.score": {"type": "string", "initial": ""},
   "mp.players.b21.ping": {"type": "string", "initial": ""},
@@ -625,6 +681,7 @@
   "mp.players.b21.muted": {"type": "boolean", "initial": false},
   "mp.players.b21.local": {"type": "boolean", "initial": false},
   "mp.players.b22.client": {"type": "number", "initial": -1},
+  "mp.players.b22.identity": {"type": "string", "initial": ""},
   "mp.players.b22.name": {"type": "string", "initial": ""},
   "mp.players.b22.score": {"type": "string", "initial": ""},
   "mp.players.b22.ping": {"type": "string", "initial": ""},
@@ -632,6 +689,7 @@
   "mp.players.b22.muted": {"type": "boolean", "initial": false},
   "mp.players.b22.local": {"type": "boolean", "initial": false},
   "mp.players.b23.client": {"type": "number", "initial": -1},
+  "mp.players.b23.identity": {"type": "string", "initial": ""},
   "mp.players.b23.name": {"type": "string", "initial": ""},
   "mp.players.b23.score": {"type": "string", "initial": ""},
   "mp.players.b23.ping": {"type": "string", "initial": ""},
@@ -639,6 +697,7 @@
   "mp.players.b23.muted": {"type": "boolean", "initial": false},
   "mp.players.b23.local": {"type": "boolean", "initial": false},
   "mp.players.b24.client": {"type": "number", "initial": -1},
+  "mp.players.b24.identity": {"type": "string", "initial": ""},
   "mp.players.b24.name": {"type": "string", "initial": ""},
   "mp.players.b24.score": {"type": "string", "initial": ""},
   "mp.players.b24.ping": {"type": "string", "initial": ""},
@@ -646,6 +705,7 @@
   "mp.players.b24.muted": {"type": "boolean", "initial": false},
   "mp.players.b24.local": {"type": "boolean", "initial": false},
   "mp.players.b25.client": {"type": "number", "initial": -1},
+  "mp.players.b25.identity": {"type": "string", "initial": ""},
   "mp.players.b25.name": {"type": "string", "initial": ""},
   "mp.players.b25.score": {"type": "string", "initial": ""},
   "mp.players.b25.ping": {"type": "string", "initial": ""},
@@ -653,6 +713,7 @@
   "mp.players.b25.muted": {"type": "boolean", "initial": false},
   "mp.players.b25.local": {"type": "boolean", "initial": false},
   "mp.players.b26.client": {"type": "number", "initial": -1},
+  "mp.players.b26.identity": {"type": "string", "initial": ""},
   "mp.players.b26.name": {"type": "string", "initial": ""},
   "mp.players.b26.score": {"type": "string", "initial": ""},
   "mp.players.b26.ping": {"type": "string", "initial": ""},
@@ -660,6 +721,7 @@
   "mp.players.b26.muted": {"type": "boolean", "initial": false},
   "mp.players.b26.local": {"type": "boolean", "initial": false},
   "mp.players.b27.client": {"type": "number", "initial": -1},
+  "mp.players.b27.identity": {"type": "string", "initial": ""},
   "mp.players.b27.name": {"type": "string", "initial": ""},
   "mp.players.b27.score": {"type": "string", "initial": ""},
   "mp.players.b27.ping": {"type": "string", "initial": ""},
@@ -667,6 +729,7 @@
   "mp.players.b27.muted": {"type": "boolean", "initial": false},
   "mp.players.b27.local": {"type": "boolean", "initial": false},
   "mp.players.b28.client": {"type": "number", "initial": -1},
+  "mp.players.b28.identity": {"type": "string", "initial": ""},
   "mp.players.b28.name": {"type": "string", "initial": ""},
   "mp.players.b28.score": {"type": "string", "initial": ""},
   "mp.players.b28.ping": {"type": "string", "initial": ""},
@@ -674,6 +737,7 @@
   "mp.players.b28.muted": {"type": "boolean", "initial": false},
   "mp.players.b28.local": {"type": "boolean", "initial": false},
   "mp.players.b29.client": {"type": "number", "initial": -1},
+  "mp.players.b29.identity": {"type": "string", "initial": ""},
   "mp.players.b29.name": {"type": "string", "initial": ""},
   "mp.players.b29.score": {"type": "string", "initial": ""},
   "mp.players.b29.ping": {"type": "string", "initial": ""},
@@ -681,6 +745,7 @@
   "mp.players.b29.muted": {"type": "boolean", "initial": false},
   "mp.players.b29.local": {"type": "boolean", "initial": false},
   "mp.players.b30.client": {"type": "number", "initial": -1},
+  "mp.players.b30.identity": {"type": "string", "initial": ""},
   "mp.players.b30.name": {"type": "string", "initial": ""},
   "mp.players.b30.score": {"type": "string", "initial": ""},
   "mp.players.b30.ping": {"type": "string", "initial": ""},
@@ -688,6 +753,7 @@
   "mp.players.b30.muted": {"type": "boolean", "initial": false},
   "mp.players.b30.local": {"type": "boolean", "initial": false},
   "mp.players.b31.client": {"type": "number", "initial": -1},
+  "mp.players.b31.identity": {"type": "string", "initial": ""},
   "mp.players.b31.name": {"type": "string", "initial": ""},
   "mp.players.b31.score": {"type": "string", "initial": ""},
   "mp.players.b31.ping": {"type": "string", "initial": ""},
@@ -700,6 +766,7 @@
   "mp.players.s.score": {"type": "string", "initial": ""},
   "mp.players.s.count": {"type": "number", "initial": 0},
   "mp.players.s0.client": {"type": "number", "initial": -1},
+  "mp.players.s0.identity": {"type": "string", "initial": ""},
   "mp.players.s0.name": {"type": "string", "initial": ""},
   "mp.players.s0.score": {"type": "string", "initial": ""},
   "mp.players.s0.ping": {"type": "string", "initial": ""},
@@ -707,6 +774,7 @@
   "mp.players.s0.muted": {"type": "boolean", "initial": false},
   "mp.players.s0.local": {"type": "boolean", "initial": false},
   "mp.players.s1.client": {"type": "number", "initial": -1},
+  "mp.players.s1.identity": {"type": "string", "initial": ""},
   "mp.players.s1.name": {"type": "string", "initial": ""},
   "mp.players.s1.score": {"type": "string", "initial": ""},
   "mp.players.s1.ping": {"type": "string", "initial": ""},
@@ -714,6 +782,7 @@
   "mp.players.s1.muted": {"type": "boolean", "initial": false},
   "mp.players.s1.local": {"type": "boolean", "initial": false},
   "mp.players.s2.client": {"type": "number", "initial": -1},
+  "mp.players.s2.identity": {"type": "string", "initial": ""},
   "mp.players.s2.name": {"type": "string", "initial": ""},
   "mp.players.s2.score": {"type": "string", "initial": ""},
   "mp.players.s2.ping": {"type": "string", "initial": ""},
@@ -721,6 +790,7 @@
   "mp.players.s2.muted": {"type": "boolean", "initial": false},
   "mp.players.s2.local": {"type": "boolean", "initial": false},
   "mp.players.s3.client": {"type": "number", "initial": -1},
+  "mp.players.s3.identity": {"type": "string", "initial": ""},
   "mp.players.s3.name": {"type": "string", "initial": ""},
   "mp.players.s3.score": {"type": "string", "initial": ""},
   "mp.players.s3.ping": {"type": "string", "initial": ""},
@@ -728,6 +798,7 @@
   "mp.players.s3.muted": {"type": "boolean", "initial": false},
   "mp.players.s3.local": {"type": "boolean", "initial": false},
   "mp.players.s4.client": {"type": "number", "initial": -1},
+  "mp.players.s4.identity": {"type": "string", "initial": ""},
   "mp.players.s4.name": {"type": "string", "initial": ""},
   "mp.players.s4.score": {"type": "string", "initial": ""},
   "mp.players.s4.ping": {"type": "string", "initial": ""},
@@ -735,6 +806,7 @@
   "mp.players.s4.muted": {"type": "boolean", "initial": false},
   "mp.players.s4.local": {"type": "boolean", "initial": false},
   "mp.players.s5.client": {"type": "number", "initial": -1},
+  "mp.players.s5.identity": {"type": "string", "initial": ""},
   "mp.players.s5.name": {"type": "string", "initial": ""},
   "mp.players.s5.score": {"type": "string", "initial": ""},
   "mp.players.s5.ping": {"type": "string", "initial": ""},
@@ -742,6 +814,7 @@
   "mp.players.s5.muted": {"type": "boolean", "initial": false},
   "mp.players.s5.local": {"type": "boolean", "initial": false},
   "mp.players.s6.client": {"type": "number", "initial": -1},
+  "mp.players.s6.identity": {"type": "string", "initial": ""},
   "mp.players.s6.name": {"type": "string", "initial": ""},
   "mp.players.s6.score": {"type": "string", "initial": ""},
   "mp.players.s6.ping": {"type": "string", "initial": ""},
@@ -749,6 +822,7 @@
   "mp.players.s6.muted": {"type": "boolean", "initial": false},
   "mp.players.s6.local": {"type": "boolean", "initial": false},
   "mp.players.s7.client": {"type": "number", "initial": -1},
+  "mp.players.s7.identity": {"type": "string", "initial": ""},
   "mp.players.s7.name": {"type": "string", "initial": ""},
   "mp.players.s7.score": {"type": "string", "initial": ""},
   "mp.players.s7.ping": {"type": "string", "initial": ""},
@@ -756,6 +830,7 @@
   "mp.players.s7.muted": {"type": "boolean", "initial": false},
   "mp.players.s7.local": {"type": "boolean", "initial": false},
   "mp.players.s8.client": {"type": "number", "initial": -1},
+  "mp.players.s8.identity": {"type": "string", "initial": ""},
   "mp.players.s8.name": {"type": "string", "initial": ""},
   "mp.players.s8.score": {"type": "string", "initial": ""},
   "mp.players.s8.ping": {"type": "string", "initial": ""},
@@ -763,6 +838,7 @@
   "mp.players.s8.muted": {"type": "boolean", "initial": false},
   "mp.players.s8.local": {"type": "boolean", "initial": false},
   "mp.players.s9.client": {"type": "number", "initial": -1},
+  "mp.players.s9.identity": {"type": "string", "initial": ""},
   "mp.players.s9.name": {"type": "string", "initial": ""},
   "mp.players.s9.score": {"type": "string", "initial": ""},
   "mp.players.s9.ping": {"type": "string", "initial": ""},
@@ -770,6 +846,7 @@
   "mp.players.s9.muted": {"type": "boolean", "initial": false},
   "mp.players.s9.local": {"type": "boolean", "initial": false},
   "mp.players.s10.client": {"type": "number", "initial": -1},
+  "mp.players.s10.identity": {"type": "string", "initial": ""},
   "mp.players.s10.name": {"type": "string", "initial": ""},
   "mp.players.s10.score": {"type": "string", "initial": ""},
   "mp.players.s10.ping": {"type": "string", "initial": ""},
@@ -777,6 +854,7 @@
   "mp.players.s10.muted": {"type": "boolean", "initial": false},
   "mp.players.s10.local": {"type": "boolean", "initial": false},
   "mp.players.s11.client": {"type": "number", "initial": -1},
+  "mp.players.s11.identity": {"type": "string", "initial": ""},
   "mp.players.s11.name": {"type": "string", "initial": ""},
   "mp.players.s11.score": {"type": "string", "initial": ""},
   "mp.players.s11.ping": {"type": "string", "initial": ""},
@@ -784,6 +862,7 @@
   "mp.players.s11.muted": {"type": "boolean", "initial": false},
   "mp.players.s11.local": {"type": "boolean", "initial": false},
   "mp.players.s12.client": {"type": "number", "initial": -1},
+  "mp.players.s12.identity": {"type": "string", "initial": ""},
   "mp.players.s12.name": {"type": "string", "initial": ""},
   "mp.players.s12.score": {"type": "string", "initial": ""},
   "mp.players.s12.ping": {"type": "string", "initial": ""},
@@ -791,6 +870,7 @@
   "mp.players.s12.muted": {"type": "boolean", "initial": false},
   "mp.players.s12.local": {"type": "boolean", "initial": false},
   "mp.players.s13.client": {"type": "number", "initial": -1},
+  "mp.players.s13.identity": {"type": "string", "initial": ""},
   "mp.players.s13.name": {"type": "string", "initial": ""},
   "mp.players.s13.score": {"type": "string", "initial": ""},
   "mp.players.s13.ping": {"type": "string", "initial": ""},
@@ -798,6 +878,7 @@
   "mp.players.s13.muted": {"type": "boolean", "initial": false},
   "mp.players.s13.local": {"type": "boolean", "initial": false},
   "mp.players.s14.client": {"type": "number", "initial": -1},
+  "mp.players.s14.identity": {"type": "string", "initial": ""},
   "mp.players.s14.name": {"type": "string", "initial": ""},
   "mp.players.s14.score": {"type": "string", "initial": ""},
   "mp.players.s14.ping": {"type": "string", "initial": ""},
@@ -805,6 +886,7 @@
   "mp.players.s14.muted": {"type": "boolean", "initial": false},
   "mp.players.s14.local": {"type": "boolean", "initial": false},
   "mp.players.s15.client": {"type": "number", "initial": -1},
+  "mp.players.s15.identity": {"type": "string", "initial": ""},
   "mp.players.s15.name": {"type": "string", "initial": ""},
   "mp.players.s15.score": {"type": "string", "initial": ""},
   "mp.players.s15.ping": {"type": "string", "initial": ""},
@@ -812,6 +894,7 @@
   "mp.players.s15.muted": {"type": "boolean", "initial": false},
   "mp.players.s15.local": {"type": "boolean", "initial": false},
   "mp.players.s16.client": {"type": "number", "initial": -1},
+  "mp.players.s16.identity": {"type": "string", "initial": ""},
   "mp.players.s16.name": {"type": "string", "initial": ""},
   "mp.players.s16.score": {"type": "string", "initial": ""},
   "mp.players.s16.ping": {"type": "string", "initial": ""},
@@ -819,6 +902,7 @@
   "mp.players.s16.muted": {"type": "boolean", "initial": false},
   "mp.players.s16.local": {"type": "boolean", "initial": false},
   "mp.players.s17.client": {"type": "number", "initial": -1},
+  "mp.players.s17.identity": {"type": "string", "initial": ""},
   "mp.players.s17.name": {"type": "string", "initial": ""},
   "mp.players.s17.score": {"type": "string", "initial": ""},
   "mp.players.s17.ping": {"type": "string", "initial": ""},
@@ -826,6 +910,7 @@
   "mp.players.s17.muted": {"type": "boolean", "initial": false},
   "mp.players.s17.local": {"type": "boolean", "initial": false},
   "mp.players.s18.client": {"type": "number", "initial": -1},
+  "mp.players.s18.identity": {"type": "string", "initial": ""},
   "mp.players.s18.name": {"type": "string", "initial": ""},
   "mp.players.s18.score": {"type": "string", "initial": ""},
   "mp.players.s18.ping": {"type": "string", "initial": ""},
@@ -833,6 +918,7 @@
   "mp.players.s18.muted": {"type": "boolean", "initial": false},
   "mp.players.s18.local": {"type": "boolean", "initial": false},
   "mp.players.s19.client": {"type": "number", "initial": -1},
+  "mp.players.s19.identity": {"type": "string", "initial": ""},
   "mp.players.s19.name": {"type": "string", "initial": ""},
   "mp.players.s19.score": {"type": "string", "initial": ""},
   "mp.players.s19.ping": {"type": "string", "initial": ""},
@@ -840,6 +926,7 @@
   "mp.players.s19.muted": {"type": "boolean", "initial": false},
   "mp.players.s19.local": {"type": "boolean", "initial": false},
   "mp.players.s20.client": {"type": "number", "initial": -1},
+  "mp.players.s20.identity": {"type": "string", "initial": ""},
   "mp.players.s20.name": {"type": "string", "initial": ""},
   "mp.players.s20.score": {"type": "string", "initial": ""},
   "mp.players.s20.ping": {"type": "string", "initial": ""},
@@ -847,6 +934,7 @@
   "mp.players.s20.muted": {"type": "boolean", "initial": false},
   "mp.players.s20.local": {"type": "boolean", "initial": false},
   "mp.players.s21.client": {"type": "number", "initial": -1},
+  "mp.players.s21.identity": {"type": "string", "initial": ""},
   "mp.players.s21.name": {"type": "string", "initial": ""},
   "mp.players.s21.score": {"type": "string", "initial": ""},
   "mp.players.s21.ping": {"type": "string", "initial": ""},
@@ -854,6 +942,7 @@
   "mp.players.s21.muted": {"type": "boolean", "initial": false},
   "mp.players.s21.local": {"type": "boolean", "initial": false},
   "mp.players.s22.client": {"type": "number", "initial": -1},
+  "mp.players.s22.identity": {"type": "string", "initial": ""},
   "mp.players.s22.name": {"type": "string", "initial": ""},
   "mp.players.s22.score": {"type": "string", "initial": ""},
   "mp.players.s22.ping": {"type": "string", "initial": ""},
@@ -861,6 +950,7 @@
   "mp.players.s22.muted": {"type": "boolean", "initial": false},
   "mp.players.s22.local": {"type": "boolean", "initial": false},
   "mp.players.s23.client": {"type": "number", "initial": -1},
+  "mp.players.s23.identity": {"type": "string", "initial": ""},
   "mp.players.s23.name": {"type": "string", "initial": ""},
   "mp.players.s23.score": {"type": "string", "initial": ""},
   "mp.players.s23.ping": {"type": "string", "initial": ""},
@@ -868,6 +958,7 @@
   "mp.players.s23.muted": {"type": "boolean", "initial": false},
   "mp.players.s23.local": {"type": "boolean", "initial": false},
   "mp.players.s24.client": {"type": "number", "initial": -1},
+  "mp.players.s24.identity": {"type": "string", "initial": ""},
   "mp.players.s24.name": {"type": "string", "initial": ""},
   "mp.players.s24.score": {"type": "string", "initial": ""},
   "mp.players.s24.ping": {"type": "string", "initial": ""},
@@ -875,6 +966,7 @@
   "mp.players.s24.muted": {"type": "boolean", "initial": false},
   "mp.players.s24.local": {"type": "boolean", "initial": false},
   "mp.players.s25.client": {"type": "number", "initial": -1},
+  "mp.players.s25.identity": {"type": "string", "initial": ""},
   "mp.players.s25.name": {"type": "string", "initial": ""},
   "mp.players.s25.score": {"type": "string", "initial": ""},
   "mp.players.s25.ping": {"type": "string", "initial": ""},
@@ -882,6 +974,7 @@
   "mp.players.s25.muted": {"type": "boolean", "initial": false},
   "mp.players.s25.local": {"type": "boolean", "initial": false},
   "mp.players.s26.client": {"type": "number", "initial": -1},
+  "mp.players.s26.identity": {"type": "string", "initial": ""},
   "mp.players.s26.name": {"type": "string", "initial": ""},
   "mp.players.s26.score": {"type": "string", "initial": ""},
   "mp.players.s26.ping": {"type": "string", "initial": ""},
@@ -889,6 +982,7 @@
   "mp.players.s26.muted": {"type": "boolean", "initial": false},
   "mp.players.s26.local": {"type": "boolean", "initial": false},
   "mp.players.s27.client": {"type": "number", "initial": -1},
+  "mp.players.s27.identity": {"type": "string", "initial": ""},
   "mp.players.s27.name": {"type": "string", "initial": ""},
   "mp.players.s27.score": {"type": "string", "initial": ""},
   "mp.players.s27.ping": {"type": "string", "initial": ""},
@@ -896,6 +990,7 @@
   "mp.players.s27.muted": {"type": "boolean", "initial": false},
   "mp.players.s27.local": {"type": "boolean", "initial": false},
   "mp.players.s28.client": {"type": "number", "initial": -1},
+  "mp.players.s28.identity": {"type": "string", "initial": ""},
   "mp.players.s28.name": {"type": "string", "initial": ""},
   "mp.players.s28.score": {"type": "string", "initial": ""},
   "mp.players.s28.ping": {"type": "string", "initial": ""},
@@ -903,6 +998,7 @@
   "mp.players.s28.muted": {"type": "boolean", "initial": false},
   "mp.players.s28.local": {"type": "boolean", "initial": false},
   "mp.players.s29.client": {"type": "number", "initial": -1},
+  "mp.players.s29.identity": {"type": "string", "initial": ""},
   "mp.players.s29.name": {"type": "string", "initial": ""},
   "mp.players.s29.score": {"type": "string", "initial": ""},
   "mp.players.s29.ping": {"type": "string", "initial": ""},
@@ -910,6 +1006,7 @@
   "mp.players.s29.muted": {"type": "boolean", "initial": false},
   "mp.players.s29.local": {"type": "boolean", "initial": false},
   "mp.players.s30.client": {"type": "number", "initial": -1},
+  "mp.players.s30.identity": {"type": "string", "initial": ""},
   "mp.players.s30.name": {"type": "string", "initial": ""},
   "mp.players.s30.score": {"type": "string", "initial": ""},
   "mp.players.s30.ping": {"type": "string", "initial": ""},
@@ -917,6 +1014,7 @@
   "mp.players.s30.muted": {"type": "boolean", "initial": false},
   "mp.players.s30.local": {"type": "boolean", "initial": false},
   "mp.players.s31.client": {"type": "number", "initial": -1},
+  "mp.players.s31.identity": {"type": "string", "initial": ""},
   "mp.players.s31.name": {"type": "string", "initial": ""},
   "mp.players.s31.score": {"type": "string", "initial": ""},
   "mp.players.s31.ping": {"type": "string", "initial": ""},
@@ -1534,393 +1632,684 @@
  "actions": {
   "mpClose": {"operation": "session.menu", "arguments": {"command": "mpClose"}},
   "mpSummaryChat": {"operation": "session.menu", "arguments": {"command": "mpSummaryChat"}},
-  "mpSelectPlayer": {"operation": "session.menu", "arguments": {"command": "mpSelectPlayer"}}
+  "mpSelectPlayer": {
+   "operation": "session.menu",
+   "arguments": {"command": "mpSelectPlayer", "client": {"state": "card.client"}, "identity": {"state": "card.identity"}}
+  }
  },
  "events": {
   "summary_chat": [{"op": "action", "action": "mpSummaryChat"}],
   "chatType": [{"op": "playTimeline", "timeline": "summary-caret-blink"}],
   "statistics_a0": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a0.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a0.client"}, "card.identity": {"state": "mp.players.a0.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a1": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a1.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a1.client"}, "card.identity": {"state": "mp.players.a1.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a2": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a2.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a2.client"}, "card.identity": {"state": "mp.players.a2.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a3": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a3.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a3.client"}, "card.identity": {"state": "mp.players.a3.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a4": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a4.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a4.client"}, "card.identity": {"state": "mp.players.a4.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a5": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a5.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a5.client"}, "card.identity": {"state": "mp.players.a5.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a6": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a6.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a6.client"}, "card.identity": {"state": "mp.players.a6.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a7": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a7.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a7.client"}, "card.identity": {"state": "mp.players.a7.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a8": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a8.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a8.client"}, "card.identity": {"state": "mp.players.a8.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a9": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a9.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a9.client"}, "card.identity": {"state": "mp.players.a9.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a10": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a10.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a10.client"}, "card.identity": {"state": "mp.players.a10.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a11": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a11.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a11.client"}, "card.identity": {"state": "mp.players.a11.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a12": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a12.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a12.client"}, "card.identity": {"state": "mp.players.a12.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a13": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a13.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a13.client"}, "card.identity": {"state": "mp.players.a13.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a14": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a14.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a14.client"}, "card.identity": {"state": "mp.players.a14.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a15": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a15.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a15.client"}, "card.identity": {"state": "mp.players.a15.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a16": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a16.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a16.client"}, "card.identity": {"state": "mp.players.a16.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a17": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a17.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a17.client"}, "card.identity": {"state": "mp.players.a17.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a18": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a18.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a18.client"}, "card.identity": {"state": "mp.players.a18.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a19": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a19.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a19.client"}, "card.identity": {"state": "mp.players.a19.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a20": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a20.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a20.client"}, "card.identity": {"state": "mp.players.a20.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a21": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a21.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a21.client"}, "card.identity": {"state": "mp.players.a21.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a22": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a22.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a22.client"}, "card.identity": {"state": "mp.players.a22.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a23": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a23.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a23.client"}, "card.identity": {"state": "mp.players.a23.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a24": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a24.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a24.client"}, "card.identity": {"state": "mp.players.a24.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a25": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a25.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a25.client"}, "card.identity": {"state": "mp.players.a25.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a26": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a26.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a26.client"}, "card.identity": {"state": "mp.players.a26.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a27": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a27.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a27.client"}, "card.identity": {"state": "mp.players.a27.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a28": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a28.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a28.client"}, "card.identity": {"state": "mp.players.a28.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a29": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a29.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a29.client"}, "card.identity": {"state": "mp.players.a29.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a30": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a30.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a30.client"}, "card.identity": {"state": "mp.players.a30.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_a31": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.a31.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.a31.client"}, "card.identity": {"state": "mp.players.a31.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b0": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b0.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b0.client"}, "card.identity": {"state": "mp.players.b0.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b1": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b1.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b1.client"}, "card.identity": {"state": "mp.players.b1.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b2": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b2.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b2.client"}, "card.identity": {"state": "mp.players.b2.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b3": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b3.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b3.client"}, "card.identity": {"state": "mp.players.b3.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b4": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b4.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b4.client"}, "card.identity": {"state": "mp.players.b4.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b5": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b5.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b5.client"}, "card.identity": {"state": "mp.players.b5.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b6": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b6.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b6.client"}, "card.identity": {"state": "mp.players.b6.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b7": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b7.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b7.client"}, "card.identity": {"state": "mp.players.b7.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b8": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b8.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b8.client"}, "card.identity": {"state": "mp.players.b8.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b9": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b9.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b9.client"}, "card.identity": {"state": "mp.players.b9.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b10": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b10.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b10.client"}, "card.identity": {"state": "mp.players.b10.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b11": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b11.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b11.client"}, "card.identity": {"state": "mp.players.b11.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b12": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b12.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b12.client"}, "card.identity": {"state": "mp.players.b12.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b13": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b13.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b13.client"}, "card.identity": {"state": "mp.players.b13.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b14": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b14.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b14.client"}, "card.identity": {"state": "mp.players.b14.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b15": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b15.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b15.client"}, "card.identity": {"state": "mp.players.b15.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b16": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b16.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b16.client"}, "card.identity": {"state": "mp.players.b16.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b17": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b17.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b17.client"}, "card.identity": {"state": "mp.players.b17.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b18": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b18.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b18.client"}, "card.identity": {"state": "mp.players.b18.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b19": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b19.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b19.client"}, "card.identity": {"state": "mp.players.b19.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b20": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b20.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b20.client"}, "card.identity": {"state": "mp.players.b20.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b21": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b21.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b21.client"}, "card.identity": {"state": "mp.players.b21.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b22": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b22.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b22.client"}, "card.identity": {"state": "mp.players.b22.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b23": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b23.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b23.client"}, "card.identity": {"state": "mp.players.b23.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b24": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b24.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b24.client"}, "card.identity": {"state": "mp.players.b24.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b25": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b25.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b25.client"}, "card.identity": {"state": "mp.players.b25.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b26": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b26.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b26.client"}, "card.identity": {"state": "mp.players.b26.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b27": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b27.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b27.client"}, "card.identity": {"state": "mp.players.b27.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b28": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b28.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b28.client"}, "card.identity": {"state": "mp.players.b28.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b29": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b29.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b29.client"}, "card.identity": {"state": "mp.players.b29.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b30": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b30.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b30.client"}, "card.identity": {"state": "mp.players.b30.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_b31": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.b31.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.b31.client"}, "card.identity": {"state": "mp.players.b31.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s0": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s0.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s0.client"}, "card.identity": {"state": "mp.players.s0.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s1": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s1.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s1.client"}, "card.identity": {"state": "mp.players.s1.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s2": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s2.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s2.client"}, "card.identity": {"state": "mp.players.s2.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s3": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s3.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s3.client"}, "card.identity": {"state": "mp.players.s3.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s4": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s4.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s4.client"}, "card.identity": {"state": "mp.players.s4.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s5": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s5.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s5.client"}, "card.identity": {"state": "mp.players.s5.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s6": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s6.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s6.client"}, "card.identity": {"state": "mp.players.s6.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s7": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s7.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s7.client"}, "card.identity": {"state": "mp.players.s7.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s8": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s8.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s8.client"}, "card.identity": {"state": "mp.players.s8.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s9": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s9.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s9.client"}, "card.identity": {"state": "mp.players.s9.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s10": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s10.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s10.client"}, "card.identity": {"state": "mp.players.s10.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s11": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s11.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s11.client"}, "card.identity": {"state": "mp.players.s11.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s12": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s12.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s12.client"}, "card.identity": {"state": "mp.players.s12.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s13": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s13.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s13.client"}, "card.identity": {"state": "mp.players.s13.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s14": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s14.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s14.client"}, "card.identity": {"state": "mp.players.s14.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s15": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s15.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s15.client"}, "card.identity": {"state": "mp.players.s15.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s16": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s16.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s16.client"}, "card.identity": {"state": "mp.players.s16.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s17": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s17.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s17.client"}, "card.identity": {"state": "mp.players.s17.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s18": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s18.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s18.client"}, "card.identity": {"state": "mp.players.s18.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s19": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s19.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s19.client"}, "card.identity": {"state": "mp.players.s19.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s20": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s20.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s20.client"}, "card.identity": {"state": "mp.players.s20.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s21": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s21.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s21.client"}, "card.identity": {"state": "mp.players.s21.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s22": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s22.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s22.client"}, "card.identity": {"state": "mp.players.s22.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s23": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s23.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s23.client"}, "card.identity": {"state": "mp.players.s23.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s24": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s24.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s24.client"}, "card.identity": {"state": "mp.players.s24.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s25": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s25.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s25.client"}, "card.identity": {"state": "mp.players.s25.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s26": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s26.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s26.client"}, "card.identity": {"state": "mp.players.s26.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s27": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s27.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s27.client"}, "card.identity": {"state": "mp.players.s27.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s28": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s28.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s28.client"}, "card.identity": {"state": "mp.players.s28.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s29": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s29.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s29.client"}, "card.identity": {"state": "mp.players.s29.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s30": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s30.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s30.client"}, "card.identity": {"state": "mp.players.s30.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "statistics_s31": [
-   {"op": "setState", "values": {"card.client": {"state": "mp.players.s31.client"}}},
+   {
+    "op": "setState",
+    "values": {"card.client": {"state": "mp.players.s31.client"}, "card.identity": {"state": "mp.players.s31.identity"}}
+   },
    {"op": "action", "action": "mpSelectPlayer"}
   ],
   "tab_summary": [
@@ -72255,7 +72644,8 @@
                   "focus": "statistics-a-0.focus",
                   "pressed": "statistics-a-0.pressed",
                   "disabled": "statistics-a-0.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a0.identity"}
                 }
                },
                {
@@ -72588,7 +72978,8 @@
                   "focus": "statistics-a-1.focus",
                   "pressed": "statistics-a-1.pressed",
                   "disabled": "statistics-a-1.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a1.identity"}
                 }
                },
                {
@@ -72921,7 +73312,8 @@
                   "focus": "statistics-a-2.focus",
                   "pressed": "statistics-a-2.pressed",
                   "disabled": "statistics-a-2.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a2.identity"}
                 }
                },
                {
@@ -73254,7 +73646,8 @@
                   "focus": "statistics-a-3.focus",
                   "pressed": "statistics-a-3.pressed",
                   "disabled": "statistics-a-3.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a3.identity"}
                 }
                },
                {
@@ -73587,7 +73980,8 @@
                   "focus": "statistics-a-4.focus",
                   "pressed": "statistics-a-4.pressed",
                   "disabled": "statistics-a-4.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a4.identity"}
                 }
                },
                {
@@ -73920,7 +74314,8 @@
                   "focus": "statistics-a-5.focus",
                   "pressed": "statistics-a-5.pressed",
                   "disabled": "statistics-a-5.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a5.identity"}
                 }
                },
                {
@@ -74253,7 +74648,8 @@
                   "focus": "statistics-a-6.focus",
                   "pressed": "statistics-a-6.pressed",
                   "disabled": "statistics-a-6.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a6.identity"}
                 }
                },
                {
@@ -74586,7 +74982,8 @@
                   "focus": "statistics-a-7.focus",
                   "pressed": "statistics-a-7.pressed",
                   "disabled": "statistics-a-7.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a7.identity"}
                 }
                },
                {
@@ -74919,7 +75316,8 @@
                   "focus": "statistics-a-8.focus",
                   "pressed": "statistics-a-8.pressed",
                   "disabled": "statistics-a-8.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a8.identity"}
                 }
                },
                {
@@ -75252,7 +75650,8 @@
                   "focus": "statistics-a-9.focus",
                   "pressed": "statistics-a-9.pressed",
                   "disabled": "statistics-a-9.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a9.identity"}
                 }
                },
                {
@@ -75585,7 +75984,8 @@
                   "focus": "statistics-a-10.focus",
                   "pressed": "statistics-a-10.pressed",
                   "disabled": "statistics-a-10.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a10.identity"}
                 }
                },
                {
@@ -75918,7 +76318,8 @@
                   "focus": "statistics-a-11.focus",
                   "pressed": "statistics-a-11.pressed",
                   "disabled": "statistics-a-11.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a11.identity"}
                 }
                },
                {
@@ -76251,7 +76652,8 @@
                   "focus": "statistics-a-12.focus",
                   "pressed": "statistics-a-12.pressed",
                   "disabled": "statistics-a-12.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a12.identity"}
                 }
                },
                {
@@ -76584,7 +76986,8 @@
                   "focus": "statistics-a-13.focus",
                   "pressed": "statistics-a-13.pressed",
                   "disabled": "statistics-a-13.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a13.identity"}
                 }
                },
                {
@@ -76917,7 +77320,8 @@
                   "focus": "statistics-a-14.focus",
                   "pressed": "statistics-a-14.pressed",
                   "disabled": "statistics-a-14.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a14.identity"}
                 }
                },
                {
@@ -77250,7 +77654,8 @@
                   "focus": "statistics-a-15.focus",
                   "pressed": "statistics-a-15.pressed",
                   "disabled": "statistics-a-15.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a15.identity"}
                 }
                },
                {
@@ -77583,7 +77988,8 @@
                   "focus": "statistics-a-16.focus",
                   "pressed": "statistics-a-16.pressed",
                   "disabled": "statistics-a-16.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a16.identity"}
                 }
                },
                {
@@ -77916,7 +78322,8 @@
                   "focus": "statistics-a-17.focus",
                   "pressed": "statistics-a-17.pressed",
                   "disabled": "statistics-a-17.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a17.identity"}
                 }
                },
                {
@@ -78249,7 +78656,8 @@
                   "focus": "statistics-a-18.focus",
                   "pressed": "statistics-a-18.pressed",
                   "disabled": "statistics-a-18.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a18.identity"}
                 }
                },
                {
@@ -78582,7 +78990,8 @@
                   "focus": "statistics-a-19.focus",
                   "pressed": "statistics-a-19.pressed",
                   "disabled": "statistics-a-19.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a19.identity"}
                 }
                },
                {
@@ -78915,7 +79324,8 @@
                   "focus": "statistics-a-20.focus",
                   "pressed": "statistics-a-20.pressed",
                   "disabled": "statistics-a-20.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a20.identity"}
                 }
                },
                {
@@ -79248,7 +79658,8 @@
                   "focus": "statistics-a-21.focus",
                   "pressed": "statistics-a-21.pressed",
                   "disabled": "statistics-a-21.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a21.identity"}
                 }
                },
                {
@@ -79581,7 +79992,8 @@
                   "focus": "statistics-a-22.focus",
                   "pressed": "statistics-a-22.pressed",
                   "disabled": "statistics-a-22.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a22.identity"}
                 }
                },
                {
@@ -79914,7 +80326,8 @@
                   "focus": "statistics-a-23.focus",
                   "pressed": "statistics-a-23.pressed",
                   "disabled": "statistics-a-23.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a23.identity"}
                 }
                },
                {
@@ -80247,7 +80660,8 @@
                   "focus": "statistics-a-24.focus",
                   "pressed": "statistics-a-24.pressed",
                   "disabled": "statistics-a-24.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a24.identity"}
                 }
                },
                {
@@ -80580,7 +80994,8 @@
                   "focus": "statistics-a-25.focus",
                   "pressed": "statistics-a-25.pressed",
                   "disabled": "statistics-a-25.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a25.identity"}
                 }
                },
                {
@@ -80913,7 +81328,8 @@
                   "focus": "statistics-a-26.focus",
                   "pressed": "statistics-a-26.pressed",
                   "disabled": "statistics-a-26.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a26.identity"}
                 }
                },
                {
@@ -81246,7 +81662,8 @@
                   "focus": "statistics-a-27.focus",
                   "pressed": "statistics-a-27.pressed",
                   "disabled": "statistics-a-27.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a27.identity"}
                 }
                },
                {
@@ -81579,7 +81996,8 @@
                   "focus": "statistics-a-28.focus",
                   "pressed": "statistics-a-28.pressed",
                   "disabled": "statistics-a-28.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a28.identity"}
                 }
                },
                {
@@ -81912,7 +82330,8 @@
                   "focus": "statistics-a-29.focus",
                   "pressed": "statistics-a-29.pressed",
                   "disabled": "statistics-a-29.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a29.identity"}
                 }
                },
                {
@@ -82245,7 +82664,8 @@
                   "focus": "statistics-a-30.focus",
                   "pressed": "statistics-a-30.pressed",
                   "disabled": "statistics-a-30.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a30.identity"}
                 }
                },
                {
@@ -82578,7 +82998,8 @@
                   "focus": "statistics-a-31.focus",
                   "pressed": "statistics-a-31.pressed",
                   "disabled": "statistics-a-31.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.a31.identity"}
                 }
                },
                {
@@ -83085,7 +83506,8 @@
                   "focus": "statistics-b-0.focus",
                   "pressed": "statistics-b-0.pressed",
                   "disabled": "statistics-b-0.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b0.identity"}
                 }
                },
                {
@@ -83418,7 +83840,8 @@
                   "focus": "statistics-b-1.focus",
                   "pressed": "statistics-b-1.pressed",
                   "disabled": "statistics-b-1.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b1.identity"}
                 }
                },
                {
@@ -83751,7 +84174,8 @@
                   "focus": "statistics-b-2.focus",
                   "pressed": "statistics-b-2.pressed",
                   "disabled": "statistics-b-2.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b2.identity"}
                 }
                },
                {
@@ -84084,7 +84508,8 @@
                   "focus": "statistics-b-3.focus",
                   "pressed": "statistics-b-3.pressed",
                   "disabled": "statistics-b-3.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b3.identity"}
                 }
                },
                {
@@ -84417,7 +84842,8 @@
                   "focus": "statistics-b-4.focus",
                   "pressed": "statistics-b-4.pressed",
                   "disabled": "statistics-b-4.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b4.identity"}
                 }
                },
                {
@@ -84750,7 +85176,8 @@
                   "focus": "statistics-b-5.focus",
                   "pressed": "statistics-b-5.pressed",
                   "disabled": "statistics-b-5.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b5.identity"}
                 }
                },
                {
@@ -85083,7 +85510,8 @@
                   "focus": "statistics-b-6.focus",
                   "pressed": "statistics-b-6.pressed",
                   "disabled": "statistics-b-6.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b6.identity"}
                 }
                },
                {
@@ -85416,7 +85844,8 @@
                   "focus": "statistics-b-7.focus",
                   "pressed": "statistics-b-7.pressed",
                   "disabled": "statistics-b-7.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b7.identity"}
                 }
                },
                {
@@ -85749,7 +86178,8 @@
                   "focus": "statistics-b-8.focus",
                   "pressed": "statistics-b-8.pressed",
                   "disabled": "statistics-b-8.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b8.identity"}
                 }
                },
                {
@@ -86082,7 +86512,8 @@
                   "focus": "statistics-b-9.focus",
                   "pressed": "statistics-b-9.pressed",
                   "disabled": "statistics-b-9.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b9.identity"}
                 }
                },
                {
@@ -86415,7 +86846,8 @@
                   "focus": "statistics-b-10.focus",
                   "pressed": "statistics-b-10.pressed",
                   "disabled": "statistics-b-10.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b10.identity"}
                 }
                },
                {
@@ -86748,7 +87180,8 @@
                   "focus": "statistics-b-11.focus",
                   "pressed": "statistics-b-11.pressed",
                   "disabled": "statistics-b-11.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b11.identity"}
                 }
                },
                {
@@ -87081,7 +87514,8 @@
                   "focus": "statistics-b-12.focus",
                   "pressed": "statistics-b-12.pressed",
                   "disabled": "statistics-b-12.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b12.identity"}
                 }
                },
                {
@@ -87414,7 +87848,8 @@
                   "focus": "statistics-b-13.focus",
                   "pressed": "statistics-b-13.pressed",
                   "disabled": "statistics-b-13.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b13.identity"}
                 }
                },
                {
@@ -87747,7 +88182,8 @@
                   "focus": "statistics-b-14.focus",
                   "pressed": "statistics-b-14.pressed",
                   "disabled": "statistics-b-14.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b14.identity"}
                 }
                },
                {
@@ -88080,7 +88516,8 @@
                   "focus": "statistics-b-15.focus",
                   "pressed": "statistics-b-15.pressed",
                   "disabled": "statistics-b-15.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b15.identity"}
                 }
                },
                {
@@ -88413,7 +88850,8 @@
                   "focus": "statistics-b-16.focus",
                   "pressed": "statistics-b-16.pressed",
                   "disabled": "statistics-b-16.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b16.identity"}
                 }
                },
                {
@@ -88746,7 +89184,8 @@
                   "focus": "statistics-b-17.focus",
                   "pressed": "statistics-b-17.pressed",
                   "disabled": "statistics-b-17.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b17.identity"}
                 }
                },
                {
@@ -89079,7 +89518,8 @@
                   "focus": "statistics-b-18.focus",
                   "pressed": "statistics-b-18.pressed",
                   "disabled": "statistics-b-18.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b18.identity"}
                 }
                },
                {
@@ -89412,7 +89852,8 @@
                   "focus": "statistics-b-19.focus",
                   "pressed": "statistics-b-19.pressed",
                   "disabled": "statistics-b-19.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b19.identity"}
                 }
                },
                {
@@ -89745,7 +90186,8 @@
                   "focus": "statistics-b-20.focus",
                   "pressed": "statistics-b-20.pressed",
                   "disabled": "statistics-b-20.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b20.identity"}
                 }
                },
                {
@@ -90078,7 +90520,8 @@
                   "focus": "statistics-b-21.focus",
                   "pressed": "statistics-b-21.pressed",
                   "disabled": "statistics-b-21.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b21.identity"}
                 }
                },
                {
@@ -90411,7 +90854,8 @@
                   "focus": "statistics-b-22.focus",
                   "pressed": "statistics-b-22.pressed",
                   "disabled": "statistics-b-22.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b22.identity"}
                 }
                },
                {
@@ -90744,7 +91188,8 @@
                   "focus": "statistics-b-23.focus",
                   "pressed": "statistics-b-23.pressed",
                   "disabled": "statistics-b-23.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b23.identity"}
                 }
                },
                {
@@ -91077,7 +91522,8 @@
                   "focus": "statistics-b-24.focus",
                   "pressed": "statistics-b-24.pressed",
                   "disabled": "statistics-b-24.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b24.identity"}
                 }
                },
                {
@@ -91410,7 +91856,8 @@
                   "focus": "statistics-b-25.focus",
                   "pressed": "statistics-b-25.pressed",
                   "disabled": "statistics-b-25.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b25.identity"}
                 }
                },
                {
@@ -91743,7 +92190,8 @@
                   "focus": "statistics-b-26.focus",
                   "pressed": "statistics-b-26.pressed",
                   "disabled": "statistics-b-26.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b26.identity"}
                 }
                },
                {
@@ -92076,7 +92524,8 @@
                   "focus": "statistics-b-27.focus",
                   "pressed": "statistics-b-27.pressed",
                   "disabled": "statistics-b-27.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b27.identity"}
                 }
                },
                {
@@ -92409,7 +92858,8 @@
                   "focus": "statistics-b-28.focus",
                   "pressed": "statistics-b-28.pressed",
                   "disabled": "statistics-b-28.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b28.identity"}
                 }
                },
                {
@@ -92742,7 +93192,8 @@
                   "focus": "statistics-b-29.focus",
                   "pressed": "statistics-b-29.pressed",
                   "disabled": "statistics-b-29.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b29.identity"}
                 }
                },
                {
@@ -93075,7 +93526,8 @@
                   "focus": "statistics-b-30.focus",
                   "pressed": "statistics-b-30.pressed",
                   "disabled": "statistics-b-30.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b30.identity"}
                 }
                },
                {
@@ -93408,7 +93860,8 @@
                   "focus": "statistics-b-31.focus",
                   "pressed": "statistics-b-31.pressed",
                   "disabled": "statistics-b-31.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.b31.identity"}
                 }
                },
                {
@@ -93853,7 +94306,8 @@
                   "focus": "statistics-s-0.focus",
                   "pressed": "statistics-s-0.pressed",
                   "disabled": "statistics-s-0.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s0.identity"}
                 }
                },
                {
@@ -94186,7 +94640,8 @@
                   "focus": "statistics-s-1.focus",
                   "pressed": "statistics-s-1.pressed",
                   "disabled": "statistics-s-1.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s1.identity"}
                 }
                },
                {
@@ -94519,7 +94974,8 @@
                   "focus": "statistics-s-2.focus",
                   "pressed": "statistics-s-2.pressed",
                   "disabled": "statistics-s-2.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s2.identity"}
                 }
                },
                {
@@ -94852,7 +95308,8 @@
                   "focus": "statistics-s-3.focus",
                   "pressed": "statistics-s-3.pressed",
                   "disabled": "statistics-s-3.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s3.identity"}
                 }
                },
                {
@@ -95185,7 +95642,8 @@
                   "focus": "statistics-s-4.focus",
                   "pressed": "statistics-s-4.pressed",
                   "disabled": "statistics-s-4.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s4.identity"}
                 }
                },
                {
@@ -95518,7 +95976,8 @@
                   "focus": "statistics-s-5.focus",
                   "pressed": "statistics-s-5.pressed",
                   "disabled": "statistics-s-5.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s5.identity"}
                 }
                },
                {
@@ -95851,7 +96310,8 @@
                   "focus": "statistics-s-6.focus",
                   "pressed": "statistics-s-6.pressed",
                   "disabled": "statistics-s-6.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s6.identity"}
                 }
                },
                {
@@ -96184,7 +96644,8 @@
                   "focus": "statistics-s-7.focus",
                   "pressed": "statistics-s-7.pressed",
                   "disabled": "statistics-s-7.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s7.identity"}
                 }
                },
                {
@@ -96517,7 +96978,8 @@
                   "focus": "statistics-s-8.focus",
                   "pressed": "statistics-s-8.pressed",
                   "disabled": "statistics-s-8.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s8.identity"}
                 }
                },
                {
@@ -96850,7 +97312,8 @@
                   "focus": "statistics-s-9.focus",
                   "pressed": "statistics-s-9.pressed",
                   "disabled": "statistics-s-9.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s9.identity"}
                 }
                },
                {
@@ -97183,7 +97646,8 @@
                   "focus": "statistics-s-10.focus",
                   "pressed": "statistics-s-10.pressed",
                   "disabled": "statistics-s-10.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s10.identity"}
                 }
                },
                {
@@ -97516,7 +97980,8 @@
                   "focus": "statistics-s-11.focus",
                   "pressed": "statistics-s-11.pressed",
                   "disabled": "statistics-s-11.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s11.identity"}
                 }
                },
                {
@@ -97849,7 +98314,8 @@
                   "focus": "statistics-s-12.focus",
                   "pressed": "statistics-s-12.pressed",
                   "disabled": "statistics-s-12.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s12.identity"}
                 }
                },
                {
@@ -98182,7 +98648,8 @@
                   "focus": "statistics-s-13.focus",
                   "pressed": "statistics-s-13.pressed",
                   "disabled": "statistics-s-13.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s13.identity"}
                 }
                },
                {
@@ -98515,7 +98982,8 @@
                   "focus": "statistics-s-14.focus",
                   "pressed": "statistics-s-14.pressed",
                   "disabled": "statistics-s-14.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s14.identity"}
                 }
                },
                {
@@ -98848,7 +99316,8 @@
                   "focus": "statistics-s-15.focus",
                   "pressed": "statistics-s-15.pressed",
                   "disabled": "statistics-s-15.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s15.identity"}
                 }
                },
                {
@@ -99181,7 +99650,8 @@
                   "focus": "statistics-s-16.focus",
                   "pressed": "statistics-s-16.pressed",
                   "disabled": "statistics-s-16.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s16.identity"}
                 }
                },
                {
@@ -99514,7 +99984,8 @@
                   "focus": "statistics-s-17.focus",
                   "pressed": "statistics-s-17.pressed",
                   "disabled": "statistics-s-17.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s17.identity"}
                 }
                },
                {
@@ -99847,7 +100318,8 @@
                   "focus": "statistics-s-18.focus",
                   "pressed": "statistics-s-18.pressed",
                   "disabled": "statistics-s-18.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s18.identity"}
                 }
                },
                {
@@ -100180,7 +100652,8 @@
                   "focus": "statistics-s-19.focus",
                   "pressed": "statistics-s-19.pressed",
                   "disabled": "statistics-s-19.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s19.identity"}
                 }
                },
                {
@@ -100513,7 +100986,8 @@
                   "focus": "statistics-s-20.focus",
                   "pressed": "statistics-s-20.pressed",
                   "disabled": "statistics-s-20.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s20.identity"}
                 }
                },
                {
@@ -100846,7 +101320,8 @@
                   "focus": "statistics-s-21.focus",
                   "pressed": "statistics-s-21.pressed",
                   "disabled": "statistics-s-21.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s21.identity"}
                 }
                },
                {
@@ -101179,7 +101654,8 @@
                   "focus": "statistics-s-22.focus",
                   "pressed": "statistics-s-22.pressed",
                   "disabled": "statistics-s-22.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s22.identity"}
                 }
                },
                {
@@ -101512,7 +101988,8 @@
                   "focus": "statistics-s-23.focus",
                   "pressed": "statistics-s-23.pressed",
                   "disabled": "statistics-s-23.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s23.identity"}
                 }
                },
                {
@@ -101845,7 +102322,8 @@
                   "focus": "statistics-s-24.focus",
                   "pressed": "statistics-s-24.pressed",
                   "disabled": "statistics-s-24.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s24.identity"}
                 }
                },
                {
@@ -102178,7 +102656,8 @@
                   "focus": "statistics-s-25.focus",
                   "pressed": "statistics-s-25.pressed",
                   "disabled": "statistics-s-25.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s25.identity"}
                 }
                },
                {
@@ -102511,7 +102990,8 @@
                   "focus": "statistics-s-26.focus",
                   "pressed": "statistics-s-26.pressed",
                   "disabled": "statistics-s-26.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s26.identity"}
                 }
                },
                {
@@ -102844,7 +103324,8 @@
                   "focus": "statistics-s-27.focus",
                   "pressed": "statistics-s-27.pressed",
                   "disabled": "statistics-s-27.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s27.identity"}
                 }
                },
                {
@@ -103177,7 +103658,8 @@
                   "focus": "statistics-s-28.focus",
                   "pressed": "statistics-s-28.pressed",
                   "disabled": "statistics-s-28.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s28.identity"}
                 }
                },
                {
@@ -103510,7 +103992,8 @@
                   "focus": "statistics-s-29.focus",
                   "pressed": "statistics-s-29.pressed",
                   "disabled": "statistics-s-29.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s29.identity"}
                 }
                },
                {
@@ -103843,7 +104326,8 @@
                   "focus": "statistics-s-30.focus",
                   "pressed": "statistics-s-30.pressed",
                   "disabled": "statistics-s-30.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s30.identity"}
                 }
                },
                {
@@ -104176,7 +104660,8 @@
                   "focus": "statistics-s-31.focus",
                   "pressed": "statistics-s-31.pressed",
                   "disabled": "statistics-s-31.disabled"
-                 }
+                 },
+                 "context": {"state": "mp.players.s31.identity"}
                 }
                }
               ]
