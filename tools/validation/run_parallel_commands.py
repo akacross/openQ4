@@ -10,7 +10,8 @@ command failed, after listing every failure.
 
 The workflows' script-smoke steps feed their check lists through this. Every
 check runs in its own process and writes only to fresh temporary directories,
-which is what lets them overlap.
+which is what lets them overlap. The runner creates the repository's .tmp
+before starting any of them.
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def positive_int(value: str) -> int:
@@ -70,6 +74,9 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     jobs = args.jobs or default_jobs()
     commands = parse_commands(sys.stdin.read())
+    # Checks put their temporary directories under .tmp without creating it; run
+    # in sequence an earlier check always had, but in parallel any can go first.
+    (ROOT / ".tmp").mkdir(exist_ok=True)
 
     print(f"==> {len(commands)} validation command(s) with {jobs} parallel job(s)", flush=True)
     started = time.monotonic()

@@ -440,6 +440,9 @@ def run_python_checks_parallel(
     directories, so they can overlap. Output is held until a check finishes and
     printed in the original order, so the log reads as a sequential run does.
     """
+    # Checks put their temporary directories under .tmp without creating it; run
+    # in sequence an earlier check always had, but in parallel any can go first.
+    (root / ".tmp").mkdir(exist_ok=True)
     print(f"\n==> Python checks: {len(checks)} with {jobs} parallel job(s)", flush=True)
     failures: list[str] = []
     started = time.monotonic()
