@@ -1393,4 +1393,8 @@
 	"#str_231424"	"Töröld a szűrőt az összes mentés megjelenítéséhez."
 	"#str_231425"	"ELŐZŐ MENTÉSEK"
 	"#str_231426"	"KÖVETKEZŐ MENTÉSEK"
+	"#str_231520"	"BETÖLTÉS"
+	"#str_231521"	"TÖRLÉS"
+	"#str_231522"	"MENTÉS"
+	"#str_231523"	"LEJÁTSZÁS"
 }

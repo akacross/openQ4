@@ -670,6 +670,7 @@
   "join.favorite": {"type": "boolean", "initial": false},
   "prompt.glyphs": {"type": "number", "initial": 0},
   "prompt.swapped": {"type": "boolean", "initial": false},
+  "prompt.accept": {"type": "string", "initial": "#str_231042"},
   "join.detail": {"type": "number", "initial": -1},
   "join.detail.row": {"type": "number", "initial": -1},
   "join.detail.address": {"type": "string", "initial": ""},
@@ -24348,6 +24349,18 @@
      "none"
     ]
    }
+  },
+  {
+   "id": "prompt-231042-verb.text",
+   "node": "prompt-231042-verb",
+   "property": "text",
+   "value": {"state": "prompt.accept"}
+  },
+  {
+   "id": "prompts-lead.display",
+   "node": "prompts-lead",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.accept"}, ""]}, "none", "flex"]}
   },
   {
    "id": "join_back-cap.display",
@@ -101144,7 +101157,8 @@
           "pressed": "join_server.pressed",
           "disabled": "join_server.disabled"
          },
-         "action": "joinServer"
+         "action": "joinServer",
+         "prompt": "#str_231033"
         }
        },
        {

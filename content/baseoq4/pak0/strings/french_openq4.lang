@@ -1398,4 +1398,8 @@
 	"#str_231424"	"Effacez le filtre pour voir toutes les sauvegardes."
 	"#str_231425"	"SAUVEGARDES PRÉCÉDENTES"
 	"#str_231426"	"SAUVEGARDES SUIVANTES"
+	"#str_231520"	"CHARGER"
+	"#str_231521"	"SUPPRIMER"
+	"#str_231522"	"SAUVEGARDER"
+	"#str_231523"	"LIRE"
 }

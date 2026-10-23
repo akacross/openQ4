@@ -1639,10 +1639,24 @@ Every page in the docked state carries section 13.4's prompt bar in the
 bottom band's raised trailing section, which spans 375.1-717.9 u of the
 canvas at every aspect. Back keeps the stock Back position: its 45 dp target
 starts where the stock BACK plate's did, at 532,441 u, with its glyph 8 dp in
-and its verb, BACK, 6 dp after the glyph. SELECT, the focused control's
-Accept, ends 22 dp before Back's glyph. Each prompt is the title's
-construction: the active device's glyph ([prompt glyphs](#prompt-glyphs))
-and a Marine 14 dp verb at 0.80.
+and its verb, BACK, 6 dp after the glyph. Accept ends 22 dp before Back's
+glyph. Each prompt is the title's construction: the active device's glyph
+([prompt glyphs](#prompt-glyphs)) and a Marine 14 dp verb at 0.80.
+
+- **Accept follows focus** (section 13.4). Its verb names what the focused
+  control does, in the same frame as the focus moves. A button may name its
+  verb with its `prompt` (a localization key, or a string expression over
+  state, [document format](document-format.md)); the runtime's
+  `AcceptPrompt` answers with it for the focused button, or with the bar's
+  own SELECT for any other control, and with nothing while no focused
+  control can act. The adapter publishes the answer to `prompt.accept`
+  before the frame draws, once per change, and Accept leaves the bar while
+  it is empty. The pages name LOAD on LOAD GAME and on the chosen save,
+  DELETE on DELETE GAME and the Demos page's DELETE, SAVE on SAVE GAME and
+  on the chosen save, PLAY on PLAY and on a chosen demo that can play, and
+  JOIN on JOIN SERVER; a row that is not chosen yet keeps SELECT, which
+  chooses it. The five short verbs are capitals in every shipped language,
+  in each page's own terminology (JOIN is the Join Game card's).
 
 - **Pages.** Load Game, Save Game, Restart Level, Demos,
   Credits, Create Server, Join Game and the pause's Objectives page carry the
@@ -1662,9 +1676,11 @@ and a Marine 14 dp verb at 0.80.
   view-anchored bar hung past it.
 - **Fit.** `check_page_prompts` fails generation unless every shipped
   language's prompts fit, with the wider of each keycap and a controller
-  button: Back's verb ends at least 8 dp inside the 4:3 view, and SELECT
-  starts inside the bar, 5 u past the riser. Spanish is the tightest: 17 dp
-  clear in Marine and 13 dp in R_Strogg.
+  button: Back's verb ends at least 8 dp inside the 4:3 view, and Accept,
+  with SELECT and each verb the page's controls name, starts inside the bar,
+  5 u past the riser. The Save and Load pages' toolbar must end before the
+  bar begins. German REFRESH did not fit, so the Refresh plates keep SELECT;
+  their own labels already name the action.
 - **Pointer.** The bar's box runs from 380 u to the 4:3 view's trailing edge
   and covers no control of the page's own. Legend bars, the title's and the
   pauses' included, never take the pointer, so the pause's faded bar cannot
@@ -1677,7 +1693,19 @@ Checks:
   where it shows. The pointer over SELECT lights nothing and a click there
   does nothing; anywhere in Back's target the pointer lights Back, and a
   click runs the page's Back. Single Player's, Campaign's and Multiplayer's
-  legends take no input.
+  legends take no input. On the Load, Save, Demos and Join Game pages it
+  checks each control's Accept verb, and that the bar shows a published
+  verb and drops Accept while none is published.
+- The retained runtime test checks `AcceptPrompt` for a named verb, the
+  fallback, an expression over state, a state without a localization key,
+  a disabled focus and no focus, and that only buttons take a `prompt`,
+  which must be text and a localization key when literal.
+  `ui_retained_adapter.py` checks the publication: only to a document that
+  declares `prompt.accept`, before the frame draws, once per change, and
+  empty while nothing focused can act.
+- The `prompt-verbs` capture saves twice in airdefense1 and walks the Load
+  and Save pages from the pause, taking the bar on the chosen save, another
+  save, DELETE GAME and a newly chosen save.
 - `ui_retained_gate.py` checks every page's glyph groups with the others'
   ([prompt glyphs](#prompt-glyphs)).
 
@@ -2207,6 +2235,9 @@ SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
 
 The Strogg confirmations: `.tmp/ui/strogg-confirmations/validation-evidence.json`,
 SHA-256 `eaa963119faf7b24401189911309b07e78a456e2433ea2afeb433663b56a1b50`.
+
+Focus-following prompt verbs: `.tmp/ui/prompt-verbs/validation-evidence.json`,
+SHA-256 `71816710d9c56e5637f37b311deddf278eaf32122fe0710fbf49418a408720e2`.
 
 ## Known limitations
 

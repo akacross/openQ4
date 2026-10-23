@@ -664,6 +664,11 @@ archived provenance; new scheduling belongs here.
   bootstrap, activation and disposal; they currently have tests but no normal
   construction path. Require native-message/SDL routing, focus/loss/recreation,
   held-source handling and a working fallback before claiming live IME support.
+  Progress, 23 October: [focus-following prompts](ui/retained-screens.md#page-prompt-bars)
+  give the pages' prompt bars Accept verbs that follow focus in the same frame:
+  LOAD, DELETE, SAVE, PLAY and JOIN, from a button's new `prompt`, in every
+  shipped language. Accept leaves the bar while no focused control can act.
+  Contextual west/north prompts and the home screens' bars remain open.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled

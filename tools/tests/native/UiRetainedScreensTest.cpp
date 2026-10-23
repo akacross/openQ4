@@ -1918,6 +1918,22 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	runtime.MenuAction(MenuInput::Down,true,2.3); runtime.MenuAction(MenuInput::Down,false,2.31);
 	runtime.Frame(viewport,2.32);
 	Check(runtime.FocusedControl() == "row-1","Down moves to the next save");
+	// The prompt bar names what Accept does (section 13.4): LOAD on the
+	// chosen save and on LOAD GAME, SELECT on another save, DELETE on DELETE
+	// GAME.
+	const std::string select = "#str_231042";
+	Check(runtime.AcceptPrompt(select,2.33) == "#str_231520","Accept loads the chosen save");
+	Check(runtime.FocusControl("row-0",2.34) && runtime.AcceptPrompt(select,2.34) == select,"Accept selects another save");
+	Check(runtime.FocusControl("load_go",2.35) && runtime.AcceptPrompt(select,2.35) == "#str_231520" &&
+		runtime.FocusControl("load_delete",2.36) && runtime.AcceptPrompt(select,2.36) == "#str_231521","the plates name their verbs");
+	Check(runtime.SetState({{"prompt.accept",std::string("#str_231521")}},error,2.37),"the adapter publishes DELETE");
+	runtime.Frame(viewport,2.38);
+	Check(text("prompt-231042-verb","text") == "#str_231521" && text("prompts-lead","display") == "flex","the bar shows the published verb");
+	Check(runtime.SetState({{"prompt.accept",std::string()}},error,2.39),"nothing to accept");
+	runtime.Frame(viewport,2.4);
+	Check(text("prompts-lead","display") == "none","Accept leaves the bar while nothing focused can act");
+	Check(runtime.SetState({{"prompt.accept",select}},error,2.41) && runtime.FocusControl("row-1",2.41),"back to the chosen save");
+	runtime.Frame(viewport,2.42);
 	// A row's first Accept selects its save; Accept on the selected save loads it.
 	Check(runtime.RunEvent("loadRow0",3,effects,error) && requested("select") && effects.stateChanges.count("load.pick") &&
 		std::get<double>(effects.stateChanges.at("load.pick")) == 0,"Accept on another save selects it");
@@ -2082,6 +2098,12 @@ static void CheckSavePage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(text("row-1-selected","display") == "block" && text("save-name-hint","display") == "none" && filled &&
 		std::get<std::string>(filled->accepted) == "Bunker door","the selected save is lit and its name fills the field");
 	Check(runtime.CanActivateControl("save_go",3.2),"a name enables SAVE GAME");
+	// The prompt bar names Accept SAVE on SAVE GAME and on the chosen save,
+	// SELECT on another save (section 13.4).
+	const std::string select = "#str_231042";
+	Check(runtime.FocusControl("save_go",3.21) && runtime.AcceptPrompt(select,3.21) == "#str_231522" &&
+		runtime.FocusControl("row-1",3.22) && runtime.AcceptPrompt(select,3.22) == "#str_231522" &&
+		runtime.FocusControl("row-0",3.23) && runtime.AcceptPrompt(select,3.23) == select,"Accept's verb follows the focus");
 	Check(runtime.RunEvent("saveRow1",3.3,effects,error) && requested("save"),"Accept on the selected save saves under its name");
 	Check(runtime.RunEvent("saveRequested",3.4,effects,error) && requested("save"),"SAVE GAME saves under the name");
 	// A name typed but not entered: SAVE GAME returns the focus to it.
@@ -2273,6 +2295,11 @@ static void CheckDemosPage(ScreenHost& host, const char* path) {
 	Check(runtime.RunEvent("demosRow0",3.1,effects,error) && requested("play"),"Accept on the selected demo plays it");
 	Check(runtime.CanActivateControl("demo_play",3.2) && runtime.CanActivateControl("demo_delete",3.2) &&
 		runtime.CanActivateControl("demo_refresh",3.2),"a playable, deletable selection enables the plates");
+	// Accept's verb (section 13.4): PLAY on PLAY and on a chosen demo that can
+	// play, DELETE on DELETE, SELECT on REFRESH.
+	Check(runtime.FocusControl("demo_play",3.21) && runtime.AcceptPrompt("#str_231042",3.21) == "#str_231523" &&
+		runtime.FocusControl("demo_delete",3.22) && runtime.AcceptPrompt("#str_231042",3.22) == "#str_231521" &&
+		runtime.FocusControl("demo_refresh",3.23) && runtime.AcceptPrompt("#str_231042",3.23) == "#str_231042","the plates name their verbs");
 	// A demo this build cannot play: PLAY rests disabled, Accept on it does
 	// nothing, and its status takes the error color.
 	Check(runtime.SetState({{"demos.canPlay",false},{"demos.playable",false},{"demos.canDelete",false},
@@ -3117,6 +3144,7 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		"a favorite offers REMOVE FAVORITE, and its levelshot fills the frame");
 	Check(runtime.RunEvent("serverRow1",1.25,effects,error) && effects.actions.empty() && runtime.FocusedControl() == "join_server",
 		"Accept on the chosen server moves on to JOIN SERVER");
+	Check(runtime.AcceptPrompt("#str_231042",1.26) == "#str_231033","and the prompt bar names Accept JOIN there (section 13.4)");
 	// More servers than a page: the pagers.
 	Check(runtime.SetState({{"join.count",70.0}},error,1.3),"seventy servers");
 	runtime.Frame(viewport,1.35);

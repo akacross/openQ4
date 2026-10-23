@@ -196,6 +196,27 @@ SCENARIOS = {
         'waitMsec 100', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-releasing.tga"',
         'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-resumed.tga"',
     ]),
+    # The prompt bar names what Accept does (section 13.4): on LOAD GAME's
+    # page LOAD on the chosen save, SELECT on another and DELETE on DELETE
+    # GAME; on SAVE GAME's page SELECT on a save, then SAVE once it is chosen.
+    'prompt-verbs': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Alpha"', 'waitMsec 1500', 'saveGame "Bravo"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1800', 'ui_retainedStatus',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'openq4_retainedGui focus "row-0"', 'waitMsec 300', 'openq4_retainedGui report', 'screenshot "screenshots/prompt-load-chosen.tga"',
+        'openq4_retainedGui focus "row-1"', 'waitMsec 300', 'openq4_retainedGui report', 'screenshot "screenshots/prompt-load-other.tga"',
+        'openq4_retainedGui focus load_delete', 'waitMsec 300', 'openq4_retainedGui report', 'screenshot "screenshots/prompt-load-delete.tga"',
+        'openq4_retainedGui focus load_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1300',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus',
+        'openq4_retainedGui focus "row-1"', 'waitMsec 300', 'openq4_retainedGui report', 'screenshot "screenshots/prompt-save-other.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui report', 'screenshot "screenshots/prompt-save-chosen.tga"',
+        'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 1300',
+        'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 800', 'ui_retainedStatus', 'screenshot "screenshots/prompt-resumed.tga"',
+    ]),
     # The Strogg pause's confirmations ask in its family: each label arrives
     # in runes as the dialog's contents show and translates. QUIT TO MENU is
     # taken mid-translation and settled, with YES focused, then EXIT, and SAVE

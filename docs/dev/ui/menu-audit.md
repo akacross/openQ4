@@ -117,9 +117,9 @@ Highest impact first.
   string keys in every language. The Italian and Polish crumbs of long titles
   are cut at the 13 dp floor.
 - **Join Game** republishes all 64 rows on every change of the scan.
-- **Prompt bar verbs.** Every bar names Accept SELECT, whatever the focused
-  control does, and lists no contextual action: Join Game's west and north
-  buttons refresh and sort with no prompt. Section 13.4's verbs that follow
-  focus (LOAD GAME on the chosen save) need the runtime to publish the
-  focused control's prompt, and short verbs in every language, since the
-  plates' own labels overrun the bar in French and Italian.
+- **Prompt bar verbs.** The pages' Accept now follows focus with short
+  verbs in every language (LOAD, DELETE, SAVE, PLAY and JOIN; [page prompt
+  bars](retained-screens.md#page-prompt-bars)), and leaves the bar while no
+  focused control can act. The bars still list no contextual action: the
+  west and north buttons of Join Game and the Save and Load pages refresh
+  and sort with no prompt, and the title's and pauses' bars keep SELECT.

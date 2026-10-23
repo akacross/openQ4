@@ -1,5 +1,12 @@
 # UI product requirement register
 
+23 October 2026: [focus-following prompt verbs](retained-screens.md#page-prompt-bars)
+add bounded UI-02 evidence to `WID-019`, `FLOW-004` and `FLOW-013`. The pages'
+Accept names the focused control's verb in the focus frame and leaves the bar
+while nothing focused can act. The increment is audited against
+`2f6c628a306b9dc42f752df505ebce5f26595996`. No requirement status, migration
+acceptance or final gate changes.
+
 23 October 2026: [Strogg confirmations](retained-screens.md#strogg-confirmations)
 add bounded UI-03 evidence to `FLOW-048`, `WID-013`, `ART-037` and `MOT-015`.
 The Strogg pause's and Strogg pages' dialogs take the Strogg family and

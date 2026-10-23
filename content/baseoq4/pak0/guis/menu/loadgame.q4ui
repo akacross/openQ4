@@ -218,6 +218,7 @@
   "browser.context": {"type": "string", "initial": ""},
   "prompt.glyphs": {"type": "number", "initial": 0},
   "prompt.swapped": {"type": "boolean", "initial": false},
+  "prompt.accept": {"type": "string", "initial": "#str_231042"},
   "deleteModal.visible": {"type": "boolean", "initial": false},
   "deleteModal.contents": {"type": "boolean", "initial": false},
   "soft_focus": {"type": "boolean", "initial": false, "cvar": "ui_retainedSoftFocus"}
@@ -3308,6 +3309,18 @@
      "none"
     ]
    }
+  },
+  {
+   "id": "prompt-231042-verb.text",
+   "node": "prompt-231042-verb",
+   "property": "text",
+   "value": {"state": "prompt.accept"}
+  },
+  {
+   "id": "prompts-lead.display",
+   "node": "prompts-lead",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.accept"}, ""]}, "none", "flex"]}
   },
   {
    "id": "load_back-cap.display",
@@ -18754,7 +18767,15 @@
               "pressed": "row-0.pressed",
               "disabled": "row-0.disabled"
              },
-             "context": {"state": "load.row0.context"}
+             "context": {"state": "load.row0.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 0]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -18979,7 +19000,15 @@
               "pressed": "row-1.pressed",
               "disabled": "row-1.disabled"
              },
-             "context": {"state": "load.row1.context"}
+             "context": {"state": "load.row1.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 1]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19204,7 +19233,15 @@
               "pressed": "row-2.pressed",
               "disabled": "row-2.disabled"
              },
-             "context": {"state": "load.row2.context"}
+             "context": {"state": "load.row2.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 2]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19429,7 +19466,15 @@
               "pressed": "row-3.pressed",
               "disabled": "row-3.disabled"
              },
-             "context": {"state": "load.row3.context"}
+             "context": {"state": "load.row3.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 3]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19654,7 +19699,15 @@
               "pressed": "row-4.pressed",
               "disabled": "row-4.disabled"
              },
-             "context": {"state": "load.row4.context"}
+             "context": {"state": "load.row4.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 4]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19879,7 +19932,15 @@
               "pressed": "row-5.pressed",
               "disabled": "row-5.disabled"
              },
-             "context": {"state": "load.row5.context"}
+             "context": {"state": "load.row5.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 5]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20104,7 +20165,15 @@
               "pressed": "row-6.pressed",
               "disabled": "row-6.disabled"
              },
-             "context": {"state": "load.row6.context"}
+             "context": {"state": "load.row6.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 6]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20329,7 +20398,15 @@
               "pressed": "row-7.pressed",
               "disabled": "row-7.disabled"
              },
-             "context": {"state": "load.row7.context"}
+             "context": {"state": "load.row7.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 7]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20554,7 +20631,15 @@
               "pressed": "row-8.pressed",
               "disabled": "row-8.disabled"
              },
-             "context": {"state": "load.row8.context"}
+             "context": {"state": "load.row8.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 8]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20779,7 +20864,15 @@
               "pressed": "row-9.pressed",
               "disabled": "row-9.disabled"
              },
-             "context": {"state": "load.row9.context"}
+             "context": {"state": "load.row9.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 9]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21004,7 +21097,15 @@
               "pressed": "row-10.pressed",
               "disabled": "row-10.disabled"
              },
-             "context": {"state": "load.row10.context"}
+             "context": {"state": "load.row10.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 10]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21229,7 +21330,15 @@
               "pressed": "row-11.pressed",
               "disabled": "row-11.disabled"
              },
-             "context": {"state": "load.row11.context"}
+             "context": {"state": "load.row11.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 11]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21454,7 +21563,15 @@
               "pressed": "row-12.pressed",
               "disabled": "row-12.disabled"
              },
-             "context": {"state": "load.row12.context"}
+             "context": {"state": "load.row12.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 12]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21679,7 +21796,15 @@
               "pressed": "row-13.pressed",
               "disabled": "row-13.disabled"
              },
-             "context": {"state": "load.row13.context"}
+             "context": {"state": "load.row13.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 13]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21904,7 +22029,15 @@
               "pressed": "row-14.pressed",
               "disabled": "row-14.disabled"
              },
-             "context": {"state": "load.row14.context"}
+             "context": {"state": "load.row14.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 14]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22129,7 +22262,15 @@
               "pressed": "row-15.pressed",
               "disabled": "row-15.disabled"
              },
-             "context": {"state": "load.row15.context"}
+             "context": {"state": "load.row15.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 15]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22354,7 +22495,15 @@
               "pressed": "row-16.pressed",
               "disabled": "row-16.disabled"
              },
-             "context": {"state": "load.row16.context"}
+             "context": {"state": "load.row16.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 16]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22579,7 +22728,15 @@
               "pressed": "row-17.pressed",
               "disabled": "row-17.disabled"
              },
-             "context": {"state": "load.row17.context"}
+             "context": {"state": "load.row17.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 17]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22804,7 +22961,15 @@
               "pressed": "row-18.pressed",
               "disabled": "row-18.disabled"
              },
-             "context": {"state": "load.row18.context"}
+             "context": {"state": "load.row18.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 18]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23029,7 +23194,15 @@
               "pressed": "row-19.pressed",
               "disabled": "row-19.disabled"
              },
-             "context": {"state": "load.row19.context"}
+             "context": {"state": "load.row19.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 19]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23254,7 +23427,15 @@
               "pressed": "row-20.pressed",
               "disabled": "row-20.disabled"
              },
-             "context": {"state": "load.row20.context"}
+             "context": {"state": "load.row20.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 20]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23479,7 +23660,15 @@
               "pressed": "row-21.pressed",
               "disabled": "row-21.disabled"
              },
-             "context": {"state": "load.row21.context"}
+             "context": {"state": "load.row21.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 21]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23704,7 +23893,15 @@
               "pressed": "row-22.pressed",
               "disabled": "row-22.disabled"
              },
-             "context": {"state": "load.row22.context"}
+             "context": {"state": "load.row22.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 22]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23929,7 +24126,15 @@
               "pressed": "row-23.pressed",
               "disabled": "row-23.disabled"
              },
-             "context": {"state": "load.row23.context"}
+             "context": {"state": "load.row23.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 23]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24154,7 +24359,15 @@
               "pressed": "row-24.pressed",
               "disabled": "row-24.disabled"
              },
-             "context": {"state": "load.row24.context"}
+             "context": {"state": "load.row24.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 24]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24379,7 +24592,15 @@
               "pressed": "row-25.pressed",
               "disabled": "row-25.disabled"
              },
-             "context": {"state": "load.row25.context"}
+             "context": {"state": "load.row25.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 25]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24604,7 +24825,15 @@
               "pressed": "row-26.pressed",
               "disabled": "row-26.disabled"
              },
-             "context": {"state": "load.row26.context"}
+             "context": {"state": "load.row26.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 26]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24829,7 +25058,15 @@
               "pressed": "row-27.pressed",
               "disabled": "row-27.disabled"
              },
-             "context": {"state": "load.row27.context"}
+             "context": {"state": "load.row27.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 27]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25054,7 +25291,15 @@
               "pressed": "row-28.pressed",
               "disabled": "row-28.disabled"
              },
-             "context": {"state": "load.row28.context"}
+             "context": {"state": "load.row28.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 28]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25279,7 +25524,15 @@
               "pressed": "row-29.pressed",
               "disabled": "row-29.disabled"
              },
-             "context": {"state": "load.row29.context"}
+             "context": {"state": "load.row29.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 29]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25504,7 +25757,15 @@
               "pressed": "row-30.pressed",
               "disabled": "row-30.disabled"
              },
-             "context": {"state": "load.row30.context"}
+             "context": {"state": "load.row30.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 30]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25729,7 +25990,15 @@
               "pressed": "row-31.pressed",
               "disabled": "row-31.disabled"
              },
-             "context": {"state": "load.row31.context"}
+             "context": {"state": "load.row31.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 31]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25954,7 +26223,15 @@
               "pressed": "row-32.pressed",
               "disabled": "row-32.disabled"
              },
-             "context": {"state": "load.row32.context"}
+             "context": {"state": "load.row32.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 32]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26179,7 +26456,15 @@
               "pressed": "row-33.pressed",
               "disabled": "row-33.disabled"
              },
-             "context": {"state": "load.row33.context"}
+             "context": {"state": "load.row33.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 33]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26404,7 +26689,15 @@
               "pressed": "row-34.pressed",
               "disabled": "row-34.disabled"
              },
-             "context": {"state": "load.row34.context"}
+             "context": {"state": "load.row34.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 34]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26629,7 +26922,15 @@
               "pressed": "row-35.pressed",
               "disabled": "row-35.disabled"
              },
-             "context": {"state": "load.row35.context"}
+             "context": {"state": "load.row35.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 35]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26854,7 +27155,15 @@
               "pressed": "row-36.pressed",
               "disabled": "row-36.disabled"
              },
-             "context": {"state": "load.row36.context"}
+             "context": {"state": "load.row36.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 36]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27079,7 +27388,15 @@
               "pressed": "row-37.pressed",
               "disabled": "row-37.disabled"
              },
-             "context": {"state": "load.row37.context"}
+             "context": {"state": "load.row37.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 37]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27304,7 +27621,15 @@
               "pressed": "row-38.pressed",
               "disabled": "row-38.disabled"
              },
-             "context": {"state": "load.row38.context"}
+             "context": {"state": "load.row38.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 38]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27529,7 +27854,15 @@
               "pressed": "row-39.pressed",
               "disabled": "row-39.disabled"
              },
-             "context": {"state": "load.row39.context"}
+             "context": {"state": "load.row39.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 39]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27754,7 +28087,15 @@
               "pressed": "row-40.pressed",
               "disabled": "row-40.disabled"
              },
-             "context": {"state": "load.row40.context"}
+             "context": {"state": "load.row40.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 40]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27979,7 +28320,15 @@
               "pressed": "row-41.pressed",
               "disabled": "row-41.disabled"
              },
-             "context": {"state": "load.row41.context"}
+             "context": {"state": "load.row41.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 41]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28204,7 +28553,15 @@
               "pressed": "row-42.pressed",
               "disabled": "row-42.disabled"
              },
-             "context": {"state": "load.row42.context"}
+             "context": {"state": "load.row42.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 42]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28429,7 +28786,15 @@
               "pressed": "row-43.pressed",
               "disabled": "row-43.disabled"
              },
-             "context": {"state": "load.row43.context"}
+             "context": {"state": "load.row43.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 43]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28654,7 +29019,15 @@
               "pressed": "row-44.pressed",
               "disabled": "row-44.disabled"
              },
-             "context": {"state": "load.row44.context"}
+             "context": {"state": "load.row44.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 44]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28879,7 +29252,15 @@
               "pressed": "row-45.pressed",
               "disabled": "row-45.disabled"
              },
-             "context": {"state": "load.row45.context"}
+             "context": {"state": "load.row45.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 45]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29104,7 +29485,15 @@
               "pressed": "row-46.pressed",
               "disabled": "row-46.disabled"
              },
-             "context": {"state": "load.row46.context"}
+             "context": {"state": "load.row46.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 46]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29329,7 +29718,15 @@
               "pressed": "row-47.pressed",
               "disabled": "row-47.disabled"
              },
-             "context": {"state": "load.row47.context"}
+             "context": {"state": "load.row47.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 47]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29554,7 +29951,15 @@
               "pressed": "row-48.pressed",
               "disabled": "row-48.disabled"
              },
-             "context": {"state": "load.row48.context"}
+             "context": {"state": "load.row48.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 48]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29779,7 +30184,15 @@
               "pressed": "row-49.pressed",
               "disabled": "row-49.disabled"
              },
-             "context": {"state": "load.row49.context"}
+             "context": {"state": "load.row49.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 49]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30004,7 +30417,15 @@
               "pressed": "row-50.pressed",
               "disabled": "row-50.disabled"
              },
-             "context": {"state": "load.row50.context"}
+             "context": {"state": "load.row50.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 50]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30229,7 +30650,15 @@
               "pressed": "row-51.pressed",
               "disabled": "row-51.disabled"
              },
-             "context": {"state": "load.row51.context"}
+             "context": {"state": "load.row51.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 51]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30454,7 +30883,15 @@
               "pressed": "row-52.pressed",
               "disabled": "row-52.disabled"
              },
-             "context": {"state": "load.row52.context"}
+             "context": {"state": "load.row52.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 52]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30679,7 +31116,15 @@
               "pressed": "row-53.pressed",
               "disabled": "row-53.disabled"
              },
-             "context": {"state": "load.row53.context"}
+             "context": {"state": "load.row53.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 53]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30904,7 +31349,15 @@
               "pressed": "row-54.pressed",
               "disabled": "row-54.disabled"
              },
-             "context": {"state": "load.row54.context"}
+             "context": {"state": "load.row54.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 54]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31129,7 +31582,15 @@
               "pressed": "row-55.pressed",
               "disabled": "row-55.disabled"
              },
-             "context": {"state": "load.row55.context"}
+             "context": {"state": "load.row55.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 55]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31354,7 +31815,15 @@
               "pressed": "row-56.pressed",
               "disabled": "row-56.disabled"
              },
-             "context": {"state": "load.row56.context"}
+             "context": {"state": "load.row56.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 56]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31579,7 +32048,15 @@
               "pressed": "row-57.pressed",
               "disabled": "row-57.disabled"
              },
-             "context": {"state": "load.row57.context"}
+             "context": {"state": "load.row57.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 57]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31804,7 +32281,15 @@
               "pressed": "row-58.pressed",
               "disabled": "row-58.disabled"
              },
-             "context": {"state": "load.row58.context"}
+             "context": {"state": "load.row58.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 58]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32029,7 +32514,15 @@
               "pressed": "row-59.pressed",
               "disabled": "row-59.disabled"
              },
-             "context": {"state": "load.row59.context"}
+             "context": {"state": "load.row59.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 59]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32254,7 +32747,15 @@
               "pressed": "row-60.pressed",
               "disabled": "row-60.disabled"
              },
-             "context": {"state": "load.row60.context"}
+             "context": {"state": "load.row60.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 60]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32479,7 +32980,15 @@
               "pressed": "row-61.pressed",
               "disabled": "row-61.disabled"
              },
-             "context": {"state": "load.row61.context"}
+             "context": {"state": "load.row61.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 61]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32704,7 +33213,15 @@
               "pressed": "row-62.pressed",
               "disabled": "row-62.disabled"
              },
-             "context": {"state": "load.row62.context"}
+             "context": {"state": "load.row62.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 62]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32929,7 +33446,15 @@
               "pressed": "row-63.pressed",
               "disabled": "row-63.disabled"
              },
-             "context": {"state": "load.row63.context"}
+             "context": {"state": "load.row63.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "load.selected"}, {"op": "+", "args": [{"state": "load.first"}, 63]}]},
+               "#str_231520",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -35856,7 +36381,8 @@
         "disabled": "load_go.disabled"
        },
        "action": "save",
-       "context": {"state": "load.context"}
+       "context": {"state": "load.context"},
+       "prompt": "#str_231520"
       }
      },
      {
@@ -36051,7 +36577,8 @@
         "disabled": "load_delete.disabled"
        },
        "event": "deleteRequested",
-       "context": {"state": "load.context"}
+       "context": {"state": "load.context"},
+       "prompt": "#str_231521"
       }
      }
     ]

@@ -1398,4 +1398,8 @@
 	"#str_231424"	"Azzera il filtro per mostrare tutti i salvataggi."
 	"#str_231425"	"SALVATAGGI PRECEDENTI"
 	"#str_231426"	"SALVATAGGI SUCCESSIVI"
+	"#str_231520"	"CARICA"
+	"#str_231521"	"ELIMINA"
+	"#str_231522"	"SALVA"
+	"#str_231523"	"RIPRODUCI"
 }

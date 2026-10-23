@@ -3773,6 +3773,17 @@ bool Runtime::CanDispatchControlAction(const ControlAction& action, double secon
 	if(!impl->UpdateInteraction(seconds,false,true))return false; return impl->interaction.CanDispatchControlAction(action);
 }
 std::string Runtime::FocusedControl() const { return impl->interaction.Focused(); }
+std::string Runtime::AcceptPrompt(const std::string& fallback, double seconds) {
+	const auto id = FocusedControl();
+	if (id.empty() || !CanActivateControl(id,seconds)) return {};
+	const auto* node = impl->canonical->Model().FindNode(id);
+	if (!node || !node->control || !node->control->prompt) return fallback;
+	// A verb the state cannot settle keeps the bar's own.
+	StateValue value; std::string error;
+	if (!EvaluateStateExpression(*node->control->prompt,impl->state.Variables(),value,error)) return fallback;
+	const auto* verb = std::get_if<std::string>(&value);
+	return verb && verb->starts_with("#str_") ? *verb : fallback;
+}
 std::optional<ControlState> Runtime::GetControlState(const std::string& id) const { return impl->interaction.State(id); }
 std::optional<WidgetViewState> Runtime::GetWidgetState(const std::string& id) const {
     auto value=impl->interaction.Widget(id);

@@ -44,10 +44,10 @@ import re
 from dataclasses import dataclass
 
 from build_retained_screens import (CANVAS_W, CLOSE_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, PICTURE, RAIL_DARK, ST_FILL, ST_LINE,
-                                    ST_OBJ_FRAME, ST_READ, ST_SELECT, STRINGS, U, Document, absolute, action_plate, colour,
-                                    confirmation, font, group, keyword, label, length, linear, localized, marker_path, number,
-                                    objectives_scrollbar, page_prompts, path, picture, rgb, solid, stroke, text_width, track,
-                                    transform, typeface, vector)
+                                    ST_OBJ_FRAME, PAGE_BAR_LEFT, ST_READ, ST_SELECT, STRINGS, U, VERB_DELETE, VERB_LOAD, VERB_SAVE,
+                                    Document, absolute, action_plate, colour, confirmation, font, group, keyword, label, length,
+                                    linear, localized, marker_path, number, objectives_scrollbar, page_prompts, path, picture, rgb,
+                                    row_prompt, solid, stroke, text_width, track, transform, typeface, vector)
 
 ROWS = 64                      # RETAINED_LOAD_ROWS in the session: the saves the list holds at a time
 PLACEHOLDER = "#str_230030"    # bound labels' text before their first binding
@@ -257,13 +257,15 @@ NAME_TINT, LOCATION_TINT = [1, 1, 1, 0.9], [1, 1, 1, 0.65]
 
 
 def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW_W,
-             chosen: list | None = None, location_x: float = LOCATION_X, family: Family = MARINE, guarded: bool = False) -> dict:
+             chosen: list | None = None, location_x: float = LOCATION_X, family: Family = MARINE, guarded: bool = False,
+             verb: str = VERB_LOAD) -> dict:
     """One of the list's rows: the save's name in the SAVE NAME column and its
     level in the LOCATION column (tabstops 0 and 180 u), Lowpixel at the stock
     list's textscale 0.22 (15.8 dp) on its 20 u pitch. Its first Accept selects
     the save; Accept on the selected save runs `chosen` (by default it loads
-    it). `prefix` names the page's list state, `row_w` its row width and
-    `location_x` where its second column starts."""
+    it), so the prompt bar names Accept SELECT, then `verb`. `prefix` names
+    the page's list state, `row_w` its row width and `location_x` where its
+    second column starts."""
     ident, key = f"row-{index}", f"{prefix}.row{index}"
     if guarded:
         doc.state[f"{key}.context"] = {"type": "string", "initial": ""}
@@ -292,7 +294,8 @@ def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW
                          "flex-shrink": number(0)},
                  [*row_plates(ident, width, height, family), name, location],
                  control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids,
-                          **({"context": {"state": f"{key}.context"}} if guarded else {})})
+                          **({"context": {"state": f"{key}.context"}} if guarded else {}),
+                          "prompt": row_prompt(verb, {"op": "==", "args": [{"state": f"{prefix}.selected"}, save]})})
 
 
 def pager_row(doc: Document, ident: str, key: str, action: str, shown: dict, row_w: float = ROW_W,
@@ -504,8 +507,9 @@ def save_browser(doc: Document, prefix: str, left: float, width: float, family: 
             doc.bind("browser-clear.display","browser-clear","display",{"op":"select","args":[filtered,"block","none"]})
         nodes.append(node)
         x+=w+8
-    # Keep the prompt bar's Select and Back clear even in the longest locale.
-    if x > 395: raise SystemExit("save browser prompts overlap Select")
+    # The toolbar ends before the prompt bar begins, so Accept and Back stay
+    # clear in the longest locale whatever verb Accept shows.
+    if U * x > PAGE_BAR_LEFT: raise SystemExit("save browser toolbar reaches the prompt bar")
     return nodes
 
 
@@ -555,6 +559,7 @@ def load_game_document(family: Family = MARINE) -> dict:
         plates.append(section_plate(doc, ident, key, left, top, action=action, event=None if action else "deleteRequested",
                                     family=family))
         plates[-1]["control"]["context"] = {"state": "load.context"}
+        plates[-1]["control"]["prompt"] = VERB_DELETE if ident == "load_delete" else VERB_LOAD
         doc.bind(f"{ident}.enabled", ident, "enabled", chosen)
 
     # The trailing side: headings over an olive rule, then the list.
@@ -598,7 +603,7 @@ def load_game_document(family: Family = MARINE) -> dict:
         {"op":"||", "args":[{"state":"load.ingame"},{"op":"!=", "args":[{"state":"browser.filter"},0]}]}, "none", "block"]})
 
     toolbar = save_browser(doc, "load", LIST_LEFT, ROW_W, family)
-    back = page_prompts(doc, "load_back", action="back", **family.prompts())
+    back = page_prompts(doc, "load_back", action="back", verbs=(VERB_LOAD, VERB_DELETE), **family.prompts())
     # The plates show at once, under the title the home carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     # The plates follow the panel, whose full-size box would take their hits.
@@ -801,7 +806,7 @@ def save_game_document(family: Family = MARINE) -> dict:
             path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(family.rule, 0.26)), 1.2))]),
     ]
     chosen = [{"op": "call", "event": "saveRequested"}]
-    rows = [save_row(doc, index, "save", SAVE_ROW_W, chosen, family=family, guarded=True) for index in range(ROWS)]
+    rows = [save_row(doc, index, "save", SAVE_ROW_W, chosen, family=family, guarded=True, verb=VERB_SAVE) for index in range(ROWS)]
     newer = pager_row(doc, "page-newer", "#str_231425", "newer", {"op": ">", "args": [{"state": "save.first"}, 0]}, SAVE_ROW_W,
                       family=family)
     older = pager_row(doc, "page-older", "#str_231426", "older",
@@ -827,11 +832,12 @@ def save_game_document(family: Family = MARINE) -> dict:
     # Under the list: the name on its plate, then SAVE GAME, which needs a
     # name, entered or typed.
     save_plate = section_plate(doc, "save_go", "#str_200003", *SAVE_PLATE, event="saveRequested", label_w=SAVE_LABEL_W, family=family)
+    save_plate["control"]["prompt"] = VERB_SAVE
     doc.bind("save_go.enabled", "save_go", "enabled",
              {"op": "||", "args": [{"op": "!=", "args": [{"state": "save.name"}, ""]}, {"state": "ui.numberDraftsPending"}]})
     field = name_field(doc, family)
     toolbar = save_browser(doc, "save", SAVE_LIST_LEFT, SAVE_ROW_W, family)
-    back = page_prompts(doc, "save_back", action="back", **family.prompts())
+    back = page_prompts(doc, "save_back", action="back", verbs=(VERB_SAVE,), **family.prompts())
     # SAVE GAME follows the panel, whose full-size box would take its hits.
     panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(family), field, back, *toolbar])
     stage = group("save-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},

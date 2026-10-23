@@ -874,6 +874,17 @@ struct idUserInterfaceRetained::Impl {
 				state.SetBool(swapped,swap); changed.emplace(swapped,swap);
 			}
 		}
+		// Accept's verb follows focus in the same frame (section 13.4): the
+		// focused button's own, the document's declared verb for any other
+		// control, or empty while nothing focused can be activated.
+		static const char* const accept = "prompt.accept";
+		if (const auto declared = document.Model().state.find(accept); declared != document.Model().state.end()) {
+			const auto* fallback = std::get_if<std::string>(&declared->second.initial);
+			const auto verb = RuntimeView()->AcceptPrompt(fallback ? *fallback : std::string(),RetainedUI_PresentationTime());
+			if (!state.FindKey(accept) || verb != state.GetString(accept)) {
+				state.Set(accept,verb.c_str()); changed.emplace(accept,verb);
+			}
+		}
 		std::string error;
 		if (!changed.empty() && !RuntimeView()->SetState(changed,error,RetainedUI_PresentationTime())) Error(error);
 	}

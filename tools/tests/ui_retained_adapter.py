@@ -433,6 +433,13 @@ public:
     std::set<std::string> disabledControls;
     int validations=0;
     std::string FocusedControl() const {return selected;}
+    std::string acceptVerb;
+    std::vector<std::pair<std::string,double>> acceptQueries;
+    std::string AcceptPrompt(const std::string& fallback,double seconds) {
+        acceptQueries.emplace_back(fallback,seconds);
+        if(selected.empty() || disabledControls.contains(selected))return {};
+        return acceptVerb.empty() ? fallback : acceptVerb;
+    }
     unsigned long long StateRevision() const {return 0;}
     struct Stats {unsigned long long activeContexts=1,vectorElements=0,vectorPathsCompiled=0,vectorUploads=0,vectorCacheHits=0,submittedVertices=0,submittedIndices=0,layoutUpdates=0;};
     Stats stats;
@@ -2540,6 +2547,36 @@ static void CheckPromptSwapped() {
     }
     modelTemplate=original;promptSwappedValue=false;
 }
+// prompt.accept carries Accept's verb for the focused control (section 13.4)
+// before the frame draws, once per change: the runtime's answer for the
+// document's declared verb, and empty while nothing focused can act; a
+// document that does not declare it never asks.
+static void CheckPromptAccept() {
+    assert(views.empty());const auto original=modelTemplate;
+    consoleObject.open=false;windowFocused=true;
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);gui.Redraw(0);
+        assert(!Live().state.contains("prompt.accept") && Live().acceptQueries.empty());
+    }
+    modelTemplate.state["prompt.accept"]={std::string("#str_231042"),""};
+    {
+        idUserInterfaceRetained gui;assert(gui.InitFromFile("test.q4ui"));gui.Activate(true,0);
+        auto& runtime=Live();
+        const auto published=[&]{size_t n=0;for(const auto& call:runtime.stateCalls)if(call.size()==1 && call.contains("prompt.accept"))++n;return n;};
+        const auto verb=[&]{return std::get<std::string>(runtime.state.at("prompt.accept"));};
+        runtime.selected="button";const auto frames=runtime.frames;gui.Redraw(0);
+        assert(published()==1 && verb()=="#str_231042" && runtime.acceptQueries.back().first=="#str_231042" && runtime.frames==frames+1);
+        gui.Redraw(0);assert(published()==1);
+        runtime.acceptVerb="#str_231520";gui.Redraw(0);
+        assert(published()==2 && verb()=="#str_231520" && std::string(gui.GetStateString("prompt.accept"))=="#str_231520");
+        gui.StateChanged(0);assert(verb()=="#str_231520");
+        runtime.disabledControls.insert("button");gui.Redraw(0);
+        assert(published()==3 && verb().empty());
+        runtime.disabledControls.erase("button");runtime.selected.clear();gui.Redraw(0);
+        assert(published()==3 && verb().empty());
+    }
+    modelTemplate=original;
+}
 // Confirm and Back on a controller (section 13.5): south accepts and east
 // goes back, or the other way round while confirm is swapped, and a release
 // ends what its press began even when the swap changes in between.
@@ -2858,6 +2895,7 @@ int main() {
     CheckTabKeys();
     CheckPromptGlyphs();
     CheckPromptSwapped();
+    CheckPromptAccept();
     CheckConfirmSwap();
     std::puts("Retained adapter: Number diagnostic transport, delayed numeric identity and readback-before-acknowledgement; exactly-once Apply-and-exit receipts after complete queued batches, stationary wheel/pointer handoff, immutable value proposals/acknowledgements, authoritative settings return and authored Back, settings capability/draw ownership and state/lifecycle boundaries, ordered event/FIFO publication, restore suppression, pending dictionary, presentation delegation, framed saves, input suspension and cursor mapping passed");
 }

@@ -1393,4 +1393,8 @@
 	"#str_231424"	"Limpe o filtro para mostrar todos os jogos salvos."
 	"#str_231425"	"JOGOS ANTERIORES"
 	"#str_231426"	"PRÓXIMOS JOGOS"
+	"#str_231520"	"CARREGAR"
+	"#str_231521"	"EXCLUIR"
+	"#str_231522"	"SALVAR"
+	"#str_231523"	"REPRODUZIR"
 }

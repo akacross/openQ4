@@ -26,9 +26,10 @@ own title does when nothing carried it.
 """
 from __future__ import annotations
 
-from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, ORANGE, TITLE_SLOT, U, Document, absolute, colour,
-                                    confirmation, font, group, keyword, label, length, number, objectives_scrollbar, page_prompts,
-                                    path, rgb, solid, stroke, text_width, track, typeface, vector)
+from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, ORANGE, TITLE_SLOT, U, VERB_DELETE, VERB_PLAY,
+                                    Document, absolute, colour, confirmation, font, group, keyword, label, length, number,
+                                    objectives_scrollbar, page_prompts, path, rgb, row_prompt, solid, stroke, text_width, track,
+                                    typeface, vector)
 from retained_saves import (ERROR, ERROR_LINE, ERROR_STRIP, HEADING, LIST_H, LIST_LEFT, LIST_TOP, LIST_W, PLACEHOLDER, PREVIEW,
                             ROW_H, ROW_W, RULE_Y, backing, lines_needed, pager_row, picture_frame, row_plates, row_states,
                             section_plate, table_text)
@@ -134,7 +135,9 @@ def demo_row(doc: Document, index: int) -> dict:
     return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
                          "flex-shrink": number(0)},
                  [*row_plates(ident, width, height), *cells],
-                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
+                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids,
+                          "prompt": row_prompt(VERB_PLAY, {"op": "&&", "args": [
+                              {"op": "==", "args": [{"state": "demos.selected"}, demo]}, {"state": "demos.canPlay"}]})})
 
 
 def check_demo_text_fits() -> None:
@@ -219,6 +222,8 @@ def demos_document() -> dict:
     plates = []
     for ident, key, left, top, action in PLATES:
         plates.append(section_plate(doc, ident, key, left, top, action=action, event=None if action else "deleteModalShow"))
+        if ident in ("demo_play", "demo_delete"):
+            plates[-1]["control"]["prompt"] = VERB_PLAY if ident == "demo_play" else VERB_DELETE
     doc.bind("demo_play.enabled", "demo_play", "enabled", {"state": "demos.canPlay"})
     doc.bind("demo_delete.enabled", "demo_delete", "enabled", {"state": "demos.canDelete"})
 
@@ -259,7 +264,7 @@ def demos_document() -> dict:
     doc.bind("demo-empty-text.text", "demo-empty-text", "text",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "demos.filter"}, 0]}, "#str_231115", "#str_231118"]})
 
-    back = page_prompts(doc, "demo_back", action="back")
+    back = page_prompts(doc, "demo_back", action="back", verbs=(VERB_PLAY, VERB_DELETE))
     title = label("demo-title", TITLE, {**absolute(left=U * TITLE_SLOT[0], top=U * TITLE_SLOT[1], width=U * 300, height=U * 24.4 * 0.75),
                   **typeface("marine", 18, U * 24.4 * 0.75, [1, 1, 1, 0.5]), "white-space": keyword("nowrap")})
     # The plates show at once; the title, the panel and the backing fade in

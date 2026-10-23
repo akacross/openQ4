@@ -214,6 +214,7 @@
   "browser.context": {"type": "string", "initial": ""},
   "prompt.glyphs": {"type": "number", "initial": 0},
   "prompt.swapped": {"type": "boolean", "initial": false},
+  "prompt.accept": {"type": "string", "initial": "#str_231042"},
   "overwriteModal.visible": {"type": "boolean", "initial": false},
   "overwriteModal.contents": {"type": "boolean", "initial": false},
   "soft_focus": {"type": "boolean", "initial": false, "cvar": "ui_retainedSoftFocus"},
@@ -3288,6 +3289,18 @@
      "none"
     ]
    }
+  },
+  {
+   "id": "prompt-231042-verb.text",
+   "node": "prompt-231042-verb",
+   "property": "text",
+   "value": {"state": "prompt.accept"}
+  },
+  {
+   "id": "prompts-lead.display",
+   "node": "prompts-lead",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.accept"}, ""]}, "none", "flex"]}
   },
   {
    "id": "save_back-cap.display",
@@ -18579,7 +18592,15 @@
               "pressed": "row-0.pressed",
               "disabled": "row-0.disabled"
              },
-             "context": {"state": "save.row0.context"}
+             "context": {"state": "save.row0.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 0]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -18804,7 +18825,15 @@
               "pressed": "row-1.pressed",
               "disabled": "row-1.disabled"
              },
-             "context": {"state": "save.row1.context"}
+             "context": {"state": "save.row1.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 1]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19029,7 +19058,15 @@
               "pressed": "row-2.pressed",
               "disabled": "row-2.disabled"
              },
-             "context": {"state": "save.row2.context"}
+             "context": {"state": "save.row2.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 2]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19254,7 +19291,15 @@
               "pressed": "row-3.pressed",
               "disabled": "row-3.disabled"
              },
-             "context": {"state": "save.row3.context"}
+             "context": {"state": "save.row3.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 3]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19479,7 +19524,15 @@
               "pressed": "row-4.pressed",
               "disabled": "row-4.disabled"
              },
-             "context": {"state": "save.row4.context"}
+             "context": {"state": "save.row4.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 4]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19704,7 +19757,15 @@
               "pressed": "row-5.pressed",
               "disabled": "row-5.disabled"
              },
-             "context": {"state": "save.row5.context"}
+             "context": {"state": "save.row5.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 5]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -19929,7 +19990,15 @@
               "pressed": "row-6.pressed",
               "disabled": "row-6.disabled"
              },
-             "context": {"state": "save.row6.context"}
+             "context": {"state": "save.row6.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 6]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20154,7 +20223,15 @@
               "pressed": "row-7.pressed",
               "disabled": "row-7.disabled"
              },
-             "context": {"state": "save.row7.context"}
+             "context": {"state": "save.row7.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 7]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20379,7 +20456,15 @@
               "pressed": "row-8.pressed",
               "disabled": "row-8.disabled"
              },
-             "context": {"state": "save.row8.context"}
+             "context": {"state": "save.row8.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 8]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20604,7 +20689,15 @@
               "pressed": "row-9.pressed",
               "disabled": "row-9.disabled"
              },
-             "context": {"state": "save.row9.context"}
+             "context": {"state": "save.row9.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 9]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -20829,7 +20922,15 @@
               "pressed": "row-10.pressed",
               "disabled": "row-10.disabled"
              },
-             "context": {"state": "save.row10.context"}
+             "context": {"state": "save.row10.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 10]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21054,7 +21155,15 @@
               "pressed": "row-11.pressed",
               "disabled": "row-11.disabled"
              },
-             "context": {"state": "save.row11.context"}
+             "context": {"state": "save.row11.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 11]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21279,7 +21388,15 @@
               "pressed": "row-12.pressed",
               "disabled": "row-12.disabled"
              },
-             "context": {"state": "save.row12.context"}
+             "context": {"state": "save.row12.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 12]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21504,7 +21621,15 @@
               "pressed": "row-13.pressed",
               "disabled": "row-13.disabled"
              },
-             "context": {"state": "save.row13.context"}
+             "context": {"state": "save.row13.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 13]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21729,7 +21854,15 @@
               "pressed": "row-14.pressed",
               "disabled": "row-14.disabled"
              },
-             "context": {"state": "save.row14.context"}
+             "context": {"state": "save.row14.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 14]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -21954,7 +22087,15 @@
               "pressed": "row-15.pressed",
               "disabled": "row-15.disabled"
              },
-             "context": {"state": "save.row15.context"}
+             "context": {"state": "save.row15.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 15]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22179,7 +22320,15 @@
               "pressed": "row-16.pressed",
               "disabled": "row-16.disabled"
              },
-             "context": {"state": "save.row16.context"}
+             "context": {"state": "save.row16.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 16]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22404,7 +22553,15 @@
               "pressed": "row-17.pressed",
               "disabled": "row-17.disabled"
              },
-             "context": {"state": "save.row17.context"}
+             "context": {"state": "save.row17.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 17]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22629,7 +22786,15 @@
               "pressed": "row-18.pressed",
               "disabled": "row-18.disabled"
              },
-             "context": {"state": "save.row18.context"}
+             "context": {"state": "save.row18.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 18]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -22854,7 +23019,15 @@
               "pressed": "row-19.pressed",
               "disabled": "row-19.disabled"
              },
-             "context": {"state": "save.row19.context"}
+             "context": {"state": "save.row19.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 19]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23079,7 +23252,15 @@
               "pressed": "row-20.pressed",
               "disabled": "row-20.disabled"
              },
-             "context": {"state": "save.row20.context"}
+             "context": {"state": "save.row20.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 20]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23304,7 +23485,15 @@
               "pressed": "row-21.pressed",
               "disabled": "row-21.disabled"
              },
-             "context": {"state": "save.row21.context"}
+             "context": {"state": "save.row21.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 21]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23529,7 +23718,15 @@
               "pressed": "row-22.pressed",
               "disabled": "row-22.disabled"
              },
-             "context": {"state": "save.row22.context"}
+             "context": {"state": "save.row22.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 22]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23754,7 +23951,15 @@
               "pressed": "row-23.pressed",
               "disabled": "row-23.disabled"
              },
-             "context": {"state": "save.row23.context"}
+             "context": {"state": "save.row23.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 23]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -23979,7 +24184,15 @@
               "pressed": "row-24.pressed",
               "disabled": "row-24.disabled"
              },
-             "context": {"state": "save.row24.context"}
+             "context": {"state": "save.row24.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 24]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24204,7 +24417,15 @@
               "pressed": "row-25.pressed",
               "disabled": "row-25.disabled"
              },
-             "context": {"state": "save.row25.context"}
+             "context": {"state": "save.row25.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 25]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24429,7 +24650,15 @@
               "pressed": "row-26.pressed",
               "disabled": "row-26.disabled"
              },
-             "context": {"state": "save.row26.context"}
+             "context": {"state": "save.row26.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 26]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24654,7 +24883,15 @@
               "pressed": "row-27.pressed",
               "disabled": "row-27.disabled"
              },
-             "context": {"state": "save.row27.context"}
+             "context": {"state": "save.row27.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 27]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -24879,7 +25116,15 @@
               "pressed": "row-28.pressed",
               "disabled": "row-28.disabled"
              },
-             "context": {"state": "save.row28.context"}
+             "context": {"state": "save.row28.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 28]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25104,7 +25349,15 @@
               "pressed": "row-29.pressed",
               "disabled": "row-29.disabled"
              },
-             "context": {"state": "save.row29.context"}
+             "context": {"state": "save.row29.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 29]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25329,7 +25582,15 @@
               "pressed": "row-30.pressed",
               "disabled": "row-30.disabled"
              },
-             "context": {"state": "save.row30.context"}
+             "context": {"state": "save.row30.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 30]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25554,7 +25815,15 @@
               "pressed": "row-31.pressed",
               "disabled": "row-31.disabled"
              },
-             "context": {"state": "save.row31.context"}
+             "context": {"state": "save.row31.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 31]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -25779,7 +26048,15 @@
               "pressed": "row-32.pressed",
               "disabled": "row-32.disabled"
              },
-             "context": {"state": "save.row32.context"}
+             "context": {"state": "save.row32.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 32]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26004,7 +26281,15 @@
               "pressed": "row-33.pressed",
               "disabled": "row-33.disabled"
              },
-             "context": {"state": "save.row33.context"}
+             "context": {"state": "save.row33.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 33]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26229,7 +26514,15 @@
               "pressed": "row-34.pressed",
               "disabled": "row-34.disabled"
              },
-             "context": {"state": "save.row34.context"}
+             "context": {"state": "save.row34.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 34]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26454,7 +26747,15 @@
               "pressed": "row-35.pressed",
               "disabled": "row-35.disabled"
              },
-             "context": {"state": "save.row35.context"}
+             "context": {"state": "save.row35.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 35]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26679,7 +26980,15 @@
               "pressed": "row-36.pressed",
               "disabled": "row-36.disabled"
              },
-             "context": {"state": "save.row36.context"}
+             "context": {"state": "save.row36.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 36]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -26904,7 +27213,15 @@
               "pressed": "row-37.pressed",
               "disabled": "row-37.disabled"
              },
-             "context": {"state": "save.row37.context"}
+             "context": {"state": "save.row37.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 37]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27129,7 +27446,15 @@
               "pressed": "row-38.pressed",
               "disabled": "row-38.disabled"
              },
-             "context": {"state": "save.row38.context"}
+             "context": {"state": "save.row38.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 38]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27354,7 +27679,15 @@
               "pressed": "row-39.pressed",
               "disabled": "row-39.disabled"
              },
-             "context": {"state": "save.row39.context"}
+             "context": {"state": "save.row39.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 39]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27579,7 +27912,15 @@
               "pressed": "row-40.pressed",
               "disabled": "row-40.disabled"
              },
-             "context": {"state": "save.row40.context"}
+             "context": {"state": "save.row40.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 40]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -27804,7 +28145,15 @@
               "pressed": "row-41.pressed",
               "disabled": "row-41.disabled"
              },
-             "context": {"state": "save.row41.context"}
+             "context": {"state": "save.row41.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 41]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28029,7 +28378,15 @@
               "pressed": "row-42.pressed",
               "disabled": "row-42.disabled"
              },
-             "context": {"state": "save.row42.context"}
+             "context": {"state": "save.row42.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 42]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28254,7 +28611,15 @@
               "pressed": "row-43.pressed",
               "disabled": "row-43.disabled"
              },
-             "context": {"state": "save.row43.context"}
+             "context": {"state": "save.row43.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 43]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28479,7 +28844,15 @@
               "pressed": "row-44.pressed",
               "disabled": "row-44.disabled"
              },
-             "context": {"state": "save.row44.context"}
+             "context": {"state": "save.row44.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 44]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28704,7 +29077,15 @@
               "pressed": "row-45.pressed",
               "disabled": "row-45.disabled"
              },
-             "context": {"state": "save.row45.context"}
+             "context": {"state": "save.row45.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 45]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -28929,7 +29310,15 @@
               "pressed": "row-46.pressed",
               "disabled": "row-46.disabled"
              },
-             "context": {"state": "save.row46.context"}
+             "context": {"state": "save.row46.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 46]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29154,7 +29543,15 @@
               "pressed": "row-47.pressed",
               "disabled": "row-47.disabled"
              },
-             "context": {"state": "save.row47.context"}
+             "context": {"state": "save.row47.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 47]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29379,7 +29776,15 @@
               "pressed": "row-48.pressed",
               "disabled": "row-48.disabled"
              },
-             "context": {"state": "save.row48.context"}
+             "context": {"state": "save.row48.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 48]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29604,7 +30009,15 @@
               "pressed": "row-49.pressed",
               "disabled": "row-49.disabled"
              },
-             "context": {"state": "save.row49.context"}
+             "context": {"state": "save.row49.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 49]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -29829,7 +30242,15 @@
               "pressed": "row-50.pressed",
               "disabled": "row-50.disabled"
              },
-             "context": {"state": "save.row50.context"}
+             "context": {"state": "save.row50.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 50]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30054,7 +30475,15 @@
               "pressed": "row-51.pressed",
               "disabled": "row-51.disabled"
              },
-             "context": {"state": "save.row51.context"}
+             "context": {"state": "save.row51.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 51]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30279,7 +30708,15 @@
               "pressed": "row-52.pressed",
               "disabled": "row-52.disabled"
              },
-             "context": {"state": "save.row52.context"}
+             "context": {"state": "save.row52.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 52]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30504,7 +30941,15 @@
               "pressed": "row-53.pressed",
               "disabled": "row-53.disabled"
              },
-             "context": {"state": "save.row53.context"}
+             "context": {"state": "save.row53.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 53]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30729,7 +31174,15 @@
               "pressed": "row-54.pressed",
               "disabled": "row-54.disabled"
              },
-             "context": {"state": "save.row54.context"}
+             "context": {"state": "save.row54.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 54]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -30954,7 +31407,15 @@
               "pressed": "row-55.pressed",
               "disabled": "row-55.disabled"
              },
-             "context": {"state": "save.row55.context"}
+             "context": {"state": "save.row55.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 55]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31179,7 +31640,15 @@
               "pressed": "row-56.pressed",
               "disabled": "row-56.disabled"
              },
-             "context": {"state": "save.row56.context"}
+             "context": {"state": "save.row56.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 56]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31404,7 +31873,15 @@
               "pressed": "row-57.pressed",
               "disabled": "row-57.disabled"
              },
-             "context": {"state": "save.row57.context"}
+             "context": {"state": "save.row57.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 57]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31629,7 +32106,15 @@
               "pressed": "row-58.pressed",
               "disabled": "row-58.disabled"
              },
-             "context": {"state": "save.row58.context"}
+             "context": {"state": "save.row58.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 58]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -31854,7 +32339,15 @@
               "pressed": "row-59.pressed",
               "disabled": "row-59.disabled"
              },
-             "context": {"state": "save.row59.context"}
+             "context": {"state": "save.row59.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 59]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32079,7 +32572,15 @@
               "pressed": "row-60.pressed",
               "disabled": "row-60.disabled"
              },
-             "context": {"state": "save.row60.context"}
+             "context": {"state": "save.row60.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 60]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32304,7 +32805,15 @@
               "pressed": "row-61.pressed",
               "disabled": "row-61.disabled"
              },
-             "context": {"state": "save.row61.context"}
+             "context": {"state": "save.row61.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 61]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32529,7 +33038,15 @@
               "pressed": "row-62.pressed",
               "disabled": "row-62.disabled"
              },
-             "context": {"state": "save.row62.context"}
+             "context": {"state": "save.row62.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 62]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -32754,7 +33271,15 @@
               "pressed": "row-63.pressed",
               "disabled": "row-63.disabled"
              },
-             "context": {"state": "save.row63.context"}
+             "context": {"state": "save.row63.context"},
+             "prompt": {
+              "op": "select",
+              "args": [
+               {"op": "==", "args": [{"state": "save.selected"}, {"op": "+", "args": [{"state": "save.first"}, 63]}]},
+               "#str_231522",
+               "#str_231042"
+              ]
+             }
             }
            },
            {
@@ -35740,7 +36265,8 @@
         "pressed": "save_go.pressed",
         "disabled": "save_go.disabled"
        },
-       "event": "saveRequested"
+       "event": "saveRequested",
+       "prompt": "#str_231522"
       }
      }
     ]

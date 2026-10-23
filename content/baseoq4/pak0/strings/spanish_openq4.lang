@@ -1393,4 +1393,8 @@
 	"#str_231424"	"Borra el filtro para ver todas las partidas guardadas."
 	"#str_231425"	"PARTIDAS ANTERIORES"
 	"#str_231426"	"PARTIDAS SIGUIENTES"
+	"#str_231520"	"CARGAR"
+	"#str_231521"	"BORRAR"
+	"#str_231522"	"GUARDAR"
+	"#str_231523"	"REPRODUCIR"
 }

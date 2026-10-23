@@ -329,6 +329,10 @@ public:
 	bool PushModal(const std::string& root, double monotonicSeconds);
 	bool PopModal(double monotonicSeconds);
 	std::string FocusedControl() const;
+	// The verb a prompt bar shows for Accept (section 13.4): the focused
+	// button's prompt, `fallback` for a control that names none, or empty
+	// while nothing focused can be activated.
+	std::string AcceptPrompt(const std::string& fallback, double monotonicSeconds);
 	std::optional<ControlState> GetControlState(const std::string& id) const;
 	std::optional<WidgetViewState> GetWidgetState(const std::string& id) const;
     // Semantic popup presentation only. No device event, option acceptance or

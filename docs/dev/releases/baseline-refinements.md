@@ -26,6 +26,10 @@
 
 ## Change log
 
+- Menu prompt bars now say what Enter or the confirm button will do: LOAD on
+  the save you have chosen, DELETE, SAVE, PLAY or JOIN, in every supported
+  language. The prompt disappears when nothing you have selected can be used.
+
 - After Kane's stroggification, the pause menu's quit and exit questions and
   the Save and Load pages' delete and overwrite questions match the Strogg
   menus around them, their text translating from Strogg runes as they open.

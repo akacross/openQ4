@@ -1393,4 +1393,8 @@
 	"#str_231424"	"Filter löschen, um alle Spielstände anzuzeigen."
 	"#str_231425"	"VORHERIGE SPIELSTÄNDE"
 	"#str_231426"	"NÄCHSTE SPIELSTÄNDE"
+	"#str_231520"	"LADEN"
+	"#str_231521"	"LÖSCHEN"
+	"#str_231522"	"SPEICHERN"
+	"#str_231523"	"ABSPIELEN"
 }

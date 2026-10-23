@@ -1220,6 +1220,18 @@ def prompt_bar(doc: Document, prompts: list, cap_tint: list[float] | None = None
 # trailing edge, under no control of the page's own.
 PROMPT_SELECT, PROMPT_BACK = "#str_231042", "#str_230045"
 KEY_ENTER, KEY_ESCAPE = "#str_107019", "#str_107020"
+# Accept's verb follows focus (section 13.4): the adapter publishes the
+# focused button's prompt to PROMPT_ACCEPT, SELECT for a control that names
+# none, or nothing while no focused control can act. The pages' short verbs:
+PROMPT_ACCEPT = "prompt.accept"
+VERB_LOAD, VERB_DELETE, VERB_SAVE = "#str_231520", "#str_231521", "#str_231522"
+VERB_PLAY, VERB_JOIN = "#str_231523", "#str_231033"
+
+
+def row_prompt(verb: str, chosen: dict) -> dict:
+    """A list row's Accept verb: `verb` while the row holds the choice
+    (`chosen`), when Accept acts on it, otherwise SELECT, which chooses it."""
+    return {"op": "select", "args": [chosen, verb, PROMPT_SELECT]}
 PROMPT_TARGET = 45.0             # the stock plate's target height
 PROMPT_PAD = 8.0                 # Back's target either side of its glyph and verb
 PAGE_BACK_X = U * 532 + PROMPT_PAD   # canvas dp: Back's glyph
@@ -1242,12 +1254,13 @@ def engine_text(key: str) -> dict:
     return {language: texts.get(language, texts["english"]) for language in LANGUAGES}
 
 
-def check_page_prompts(select: bool, face: str, size: float) -> None:
+def check_page_prompts(select: bool, face: str, size: float, verbs: tuple = (), lead_limit: float = PAGE_BAR_LEFT) -> None:
     """Every shipped language's prompts fit a page's bar with the wider of
     each keycap and a controller button: Back's verb ends 8 dp inside the 4:3
-    view's trailing edge, and SELECT starts inside the bar. Generation fails
-    otherwise."""
-    texts = {key: engine_text(key) for key in (KEY_ENTER, KEY_ESCAPE, PROMPT_SELECT, PROMPT_BACK)}
+    view's trailing edge, and Accept, with SELECT or any of the page's
+    `verbs`, starts inside the bar and after `lead_limit` (canvas dp), past
+    whatever the page sets beside the bar. Generation fails otherwise."""
+    texts = {key: engine_text(key) for key in (KEY_ENTER, KEY_ESCAPE, PROMPT_SELECT, PROMPT_BACK, *verbs)}
 
     def glyph(key: str, language: str) -> float:
         return max(22.0, 16 + text_width("lowpixel", texts[key][language], 13))
@@ -1255,25 +1268,30 @@ def check_page_prompts(select: bool, face: str, size: float) -> None:
         end = PAGE_BACK_X + glyph(KEY_ESCAPE, language) + 6 + text_width(face, texts[PROMPT_BACK][language], size)
         if end > CANVAS_W - 8:
             raise SystemExit(f"the prompt bar's Back in {language} ends at {end:.0f} dp, past {CANVAS_W - 8:g}")
-        start = PAGE_BACK_X - 22 - glyph(KEY_ENTER, language) - 6 - text_width(face, texts[PROMPT_SELECT][language], size)
-        if select and start < PAGE_BAR_LEFT:
-            raise SystemExit(f"the prompt bar's SELECT in {language} starts at {start:.0f} dp, before {PAGE_BAR_LEFT:g}")
+        for verb in (PROMPT_SELECT, *verbs):
+            start = PAGE_BACK_X - 22 - glyph(KEY_ENTER, language) - 6 - text_width(face, texts[verb][language], size)
+            if select and start < max(PAGE_BAR_LEFT, lead_limit):
+                raise SystemExit(f"the prompt bar's {verb} in {language} starts at {start:.0f} dp, "
+                                 f"before {max(PAGE_BAR_LEFT, lead_limit):g}")
 
 
 def page_prompts(doc: Document, back: str | None = None, *, action: str | None = None, event: str | None = None,
                  select: bool = True, in_canvas: bool = True, ident: str = "prompts", cap_tint: list[float] | None = None,
-                 verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8]), hot: str = ORANGE) -> dict:
-    """A page's prompt bar (section 13.4): SELECT, the focused control's
-    Accept, then BACK at the trailing end, in the glyphs of the active
-    device. With `action` or `event` Back is the button `back`, standing in
+                 verb_face: tuple = ("marine", 14, [1, 1, 1, 0.8]), hot: str = ORANGE, verbs: tuple = (),
+                 lead_limit: float = PAGE_BAR_LEFT) -> dict:
+    """A page's prompt bar (section 13.4): Accept, then BACK at the trailing
+    end, in the glyphs of the active device. Accept names what the focused
+    control does: its own prompt verb (one of the page's `verbs`), SELECT for
+    a control without one, and Accept leaves the bar while no focused control
+    can act. With `action` or `event` Back is the button `back`, standing in
     for the stock BACK plate in its 45 dp target: the pointer or focus turns
     its verb `hot` and lights its glyph, focus underlines it and a press
     insets it 1 dp. Otherwise both are legends. Legends never take the
-    pointer. `select` False leaves SELECT out where Accept has nothing to do.
+    pointer. `select` False leaves Accept out where it has nothing to do.
     The bar sits in a 4:3 canvas group, or with `in_canvas` False in a node
-    spanning the view."""
+    spanning the view; Accept starts after `lead_limit` (canvas dp)."""
     face, size, verb_tint = verb_face
-    check_page_prompts(select, face, size)
+    check_page_prompts(select, face, size, verbs, lead_limit)
     tint = cap_tint or [1, 1, 1, 0.85]
     middle = (PROMPT_TARGET - 22) / 2
     back_x = PAGE_BACK_X - PAGE_BAR_LEFT
@@ -1285,6 +1303,10 @@ def page_prompts(doc: Document, back: str | None = None, *, action: str | None =
     if select:
         name = f"prompt-{PROMPT_SELECT[5:]}"
         lead = [prompt_glyph(doc, name, KEY_ENTER, tint), verb_label(f"{name}-verb", PROMPT_SELECT)]
+        doc.state[PROMPT_ACCEPT] = {"type": "string", "initial": PROMPT_SELECT}
+        doc.bind(f"{name}-verb.text", f"{name}-verb", "text", {"state": PROMPT_ACCEPT})
+        doc.bind(f"{ident}-lead.display", f"{ident}-lead", "display",
+                 {"op": "select", "args": [{"op": "==", "args": [{"state": PROMPT_ACCEPT}, ""]}, "none", "flex"]})
     leading = group(f"{ident}-lead", {**absolute(top=middle, height=22, right=PAGE_BAR_W - back_x + 22), "display": keyword("flex"),
                                       "flex-direction": keyword("row"), "align-items": keyword("center"),
                                       "pointer-events": keyword("none")}, lead)

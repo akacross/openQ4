@@ -1393,4 +1393,8 @@
 	"#str_231424"	"Clear the filter to show all saved games."
 	"#str_231425"	"PREVIOUS SAVES"
 	"#str_231426"	"NEXT SAVES"
+	"#str_231520"	"LOAD"
+	"#str_231521"	"DELETE"
+	"#str_231522"	"SAVE"
+	"#str_231523"	"PLAY"
 }

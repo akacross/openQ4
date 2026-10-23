@@ -24,6 +24,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Focus-following prompt verbs, 23 October 2026
+
+- [x] The pages' prompt bars name what Accept does for the focused control:
+  LOAD on LOAD GAME and the chosen save, DELETE, SAVE on SAVE GAME and the
+  chosen save, PLAY and JOIN, and SELECT elsewhere. Accept leaves the bar
+  while nothing focused can act. Buttons gain an optional `prompt`; five
+  capitals verbs are in all twelve language tables.
+- [Behavior, checks and limits](ui/retained-screens.md#page-prompt-bars):
+  runtime, adapter and native page checks, and OpenGL (English) and Vulkan
+  (French) captures. Contextual west/north prompts remain open (UI-02).
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Strogg confirmations, 23 October 2026
 
 - [x] Give the Strogg pause's QUIT TO MENU and EXIT questions, and the Strogg
