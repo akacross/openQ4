@@ -469,6 +469,8 @@ after editing the script; `--check` fails when an output is stale.
     language.
   - **Input and reduced motion.** Input works from the first frame. Reduced
     motion shows the translated labels at once.
+  - **Confirmations.** QUIT TO MENU and EXIT ask in the Strogg family too
+    ([Strogg confirmations](#strogg-confirmations)).
   - **Choosing it.** The session asks the game once a level, with the
     `retainedPauseFamily` menu command, whether the player is Strogg (the
     `player_strogg` definition, from game/medlabs on). Every single-player
@@ -964,8 +966,9 @@ family).
   0.45), turning #FFCC00 with the plate's focus inset and the row's first
   column. The saves' names, the date, the descriptions and the typed name
   stay Lowpixel, tinted #FCFFC8. The prompt bar takes the Strogg pause's
-  #FFCC00 glyphs and R_Strogg verbs. The confirmations stay the stock dialogs,
-  as the Strogg pause's own do.
+  #FFCC00 glyphs and R_Strogg verbs. DELETE GAME, the overwrite question and
+  the save notice ask in the family's confirmations, as the Strogg pause's
+  own do; the overwritten save's name stays Lowpixel, in #FFCC00.
 - **Hand-off.** The Strogg pause carries the chosen label in R_Strogg as for
   any page, and the page presents at 550 ms. The first Strogg answer of a
   level (`RetainedPauseIsStrogg`) queues the three documents on the job
@@ -979,6 +982,50 @@ family).
   GAME (typing a name and saving), LOAD GAME (selecting a save, asking to
   delete it and declining) and RESTART LEVEL (choosing a difficulty) from the
   Strogg pause, returning each time.
+
+### Strogg confirmations
+
+The Strogg pause and its pages ask in the Strogg family: QUIT TO MENU and
+EXIT on the pause, and DELETE GAME, the overwrite question and the save notice
+on the pages. `confirmation(..., strogg=True)` in
+`tools/ui/build_retained_screens.py` applies section 13.7's Strogg rules to
+the stock modal construction of section 6. The visual specification defines
+no Strogg dialog of its own, so the construction below derives from those
+rules.
+
+- **Silhouette.** The dialog keeps the stock rectangle, inset and title slot.
+  The slot keeps its 17 dp depth, but its flanks fall at 30 degrees (29.4 dp
+  along). The lower-leading chamfer becomes a 30-degree shoulder over the same
+  38 dp run. It is filled with the Strogg level card's #0A0503 at 0.85 inside
+  a #F59512 rail at 0.75. The glow column, cut to the dialog over soft focus
+  as in the stock modal, takes the Strogg backdrop's #6B2A0E light.
+- **Text.** The title is R_Strogg 20 dp in #FCFFC8, with the stock title's
+  tracking and 1 dp black outline, hanging from the raised top line into the
+  lit slot. A title too long for the slot runs on over the raised trailing
+  section, as on the stock dialog. The body is R_Strogg 15 dp in #FCFFC8 at
+  0.85 on the stock body's 22 dp lines, so every shipped language still fits
+  two lines above the actions.
+- **Actions.** The actions are the stock 180 dp action plates in the Strogg
+  family. The 20 dp lower-leading cut becomes a 30-degree shoulder over the
+  same run, with a black fade fill, a #F59512 rail and a slanted marker. Their
+  R_Strogg labels turn #FFCC00 with the focus inset.
+- **Translation.** While the dialog's contents are hidden, every line returns
+  to runes. When modal.enter completes and the contents show, they play the
+  short credits translation. The title, outline and fill as one, translates
+  over 300 ms. The body fades in from 60 ms. YES and NO, or CLOSE, follow
+  45 ms apart from 100 ms, over 200 ms each. Reduced motion shows the
+  translated dialog at once.
+- **Behavior.** Ids, events, focus, the soft focus, modal.enter and
+  modal.leave are the stock dialog's, so the session and its tests treat both
+  families alike. Every Marine document is unchanged.
+
+The native screens test checks the faces, the rune copies, the order of the
+translation, NO's focus color, reopening in runes and reduced motion on the
+Strogg pause, and each page's dialogs in their family. The `confirm-strogg`
+capture saves in game/recomp and then, from the Strogg pause, asks QUIT TO
+MENU mid-translation and settled (NO, then YES focused) and EXIT. It then
+types an existing save's name to raise the overwrite question, declines,
+and resumes.
 
 ## Arena page
 
@@ -2158,6 +2205,9 @@ SHA-256 `f756cd836ed5469f16f0f60658c9568d31f35bff637eb694493c464dc0f58854`.
 Join Game's network quality bars: `.tmp/ui/retained-network-quality-evidence/validation-evidence.json`,
 SHA-256 `05402c1366af7555381f7142104d346e7e019382670c6b9801977120db398e28`.
 
+The Strogg confirmations: `.tmp/ui/strogg-confirmations/validation-evidence.json`,
+SHA-256 `eaa963119faf7b24401189911309b07e78a456e2433ea2afeb433663b56a1b50`.
+
 ## Known limitations
 
 The [menu audit](menu-audit.md) of 8 October 2026 records what it fixed and
@@ -2176,9 +2226,11 @@ what remains across every retained menu.
   objectives display held on the scores button in play, its hold or toggle
   setting, the notices and the failure banner are the Remastered HUD's
   ([Remastered HUD](remastered-hud.md)), not this page's.
-- The Strogg pause and its pages keep the stock confirmation dialogs, and its
-  grain does not drift. The Strogg pages arrive translated: only the pause's
-  own labels play the rune translation. Its translation is the menu's short form: the full credits
+- The Strogg pause's grain does not drift. The Strogg pages arrive translated:
+  only the pause's own labels and the confirmations play the rune
+  translation. The Strogg confirmations derive from section 13.7's family
+  rules; the specification has no Strogg dialog of its own, so their art
+  awaits review with the rest of `ART-037`. Its translation is the menu's short form: the full credits
   translation, with its 2000 ms rune fade-in and 250 ms line stagger, is not
   built.
 - Only RESUME releases the softened view over 250 ms: a disconnect, a level

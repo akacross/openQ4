@@ -1928,6 +1928,12 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(runtime.RunEvent("deleteRequested",3.3,effects,error) && effects.actions.empty(),"DELETE GAME asks first");
 	runtime.Frame(viewport,3.6);
 	Check(text("deleteModal","display") == "block" && runtime.FocusedControl() == "deleteModal_no","the confirmation opens on NO");
+	// The Strogg page asks in the Strogg pause's family; the Marine page keeps
+	// the stock dialog.
+	Check(strogg ? text("deleteModal-title","font-family") == "r_strogg" && text("deleteModal_no-label","font-family") == "r_strogg" &&
+			document.Model().FindNode("deleteModal_no-rune") && runtime.HasEvent("deleteModalShow") :
+		text("deleteModal-title","font-family") == "marine" && !document.Model().FindNode("deleteModal_no-rune"),
+		"the confirmation takes the page's family");
 	Check(runtime.RunEvent("deleteConfirmed",3.7,effects,error) && requested("delete"),"YES deletes and closes the confirmation");
 	runtime.Frame(viewport,4.2);
 	Check(text("deleteModal","display") == "none","the confirmation has closed");
@@ -2108,6 +2114,12 @@ static void CheckSavePage(ScreenHost& host, const char* path, bool strogg = fals
 	runtime.Frame(viewport,6.3);
 	Check(text("noticeModal","display") == "block" && runtime.FocusedControl() == "noticeModal_close" && text("noticeModal-body","text") == "You cannot save over an autosave." &&
 		!document.Model().FindNode("noticeModal_yes") && !document.Model().FindNode("noticeModal_no"),"the notice says why and offers CLOSE alone");
+	// Both dialogs take the page's family: the Strogg ones ask in R_Strogg
+	// over runes on Strogg plates.
+	Check(strogg ? text("overwriteModal-title","font-family") == "r_strogg" && text("noticeModal_close-label","font-family") == "r_strogg" &&
+			document.Model().FindNode("overwriteModal_yes-rune") && document.Model().FindNode("noticeModal_close-rune") :
+		text("overwriteModal-title","font-family") == "marine" && !document.Model().FindNode("noticeModal_close-rune"),
+		"the dialogs take the page's family");
 	Check(runtime.RunEvent("noticeModalHide",6.4,effects,error),"CLOSE closes it");
 	runtime.Frame(viewport,6.9);
 	Check(text("noticeModal","display") == "none","the notice has closed");
@@ -4522,6 +4534,58 @@ int main(int argc, char** argv) {
 		runtime.Frame(viewport,21.05);
 		const auto translating = runtime.PresentedValue("nav_resume-latin","opacity");
 		Check(translating && Near(static_cast<float>(translating->data[0]),0,.001f),"returning plays the translation again");
+		// The quit confirmation asks in the Strogg family: R_Strogg labels over
+		// rune copies on Strogg plates, arriving in runes as the contents show
+		// at modal.enter's end and translating, the title over 300 ms and the
+		// actions 45 ms apart after it.
+		const auto opacity = [&](const char* node, const char* property, int channel) {
+			const auto value = runtime.PresentedValue(node,property); return value ? static_cast<float>(value->data[channel]) : -1.f;
+		};
+		const auto family = [&](const char* node) { const auto value = runtime.PresentedValue(node,"font-family"); return value ? value->text : std::string(); };
+		Check(document.Model().FindNode("quitModal-title-rune") && document.Model().FindNode("quitModal_yes-rune") &&
+			document.Model().FindNode("exitModal_no-rune") && runtime.HasEvent("quitModalShow") && runtime.HasEvent("exitModalShow"),
+			"both confirmations carry rune copies");
+		Runtime::EventEffects modal;
+		Check(runtime.RunEvent("quitModalShow",30,modal,error),"QUIT TO MENU asks first");
+		runtime.Frame(viewport,30.1);
+		Check(Near(opacity("quitModal-title-latin","opacity",0),0,.001f) && Near(opacity("quitModal-title-rune","color",3),.8f,.001f) &&
+			Near(opacity("quitModal_no-latin","opacity",0),0,.001f),"the hidden contents wait in runes");
+		Check(family("quitModal-title") == "r_strogg" && family("quitModal-title-rune") == "strogg" && family("quitModal-body") == "r_strogg" &&
+			family("quitModal_yes-label") == "r_strogg" && family("quitModal_no-rune") == "strogg","the dialog sets R_Strogg over runes");
+		runtime.Frame(viewport,30.21);
+		const auto shownContents = runtime.PresentedValue("quitModal-contents","display");
+		Check(shownContents && shownContents->text == "block" && opacity("quitModal-title-latin","opacity",0) < .1f &&
+			opacity("quitModal-title-rune","color",3) > .7f,"the contents show at modal.enter's end, the title still in runes");
+		runtime.Frame(viewport,30.33);
+		Check(opacity("quitModal_yes-latin","opacity",0) > .02f && opacity("quitModal_yes-latin","opacity",0) < .9f &&
+			Near(opacity("quitModal_no-latin","opacity",0),0,.001f),"YES translates while NO waits its turn");
+		runtime.Frame(viewport,30.7);
+		Check(Near(opacity("quitModal-title-latin","opacity",0),1,.001f) && Near(opacity("quitModal-title-rune","color",3),0,.001f) &&
+			Near(opacity("quitModal_yes-latin","opacity",0),1,.001f) && Near(opacity("quitModal_no-latin","opacity",0),1,.001f) &&
+			Near(opacity("quitModal_no-rune","color",3),0,.001f) && Near(opacity("quitModal-body","color",3),.85f,.002f),
+			"every label has translated and the body has faded in");
+		const auto noColour = runtime.PresentedValue("quitModal_no-label","color");
+		Check(runtime.FocusedControl() == "quitModal_no" && noColour && Near(static_cast<float>(noColour->data[0]),1,.001f) &&
+			Near(static_cast<float>(noColour->data[1]),.8f,.002f) && Near(static_cast<float>(noColour->data[2]),0,.001f),
+			"the confirmation opens on NO, its label #FFCC00");
+		ActionInvocation quitInvocation;
+		Check(runtime.ResolveAction("quitToMenu",quitInvocation,error),"YES still quits to the menu");
+		Check(runtime.RunEvent("quitModalHide",31,modal,error),"NO closes the confirmation");
+		runtime.Frame(viewport,31.4);
+		const auto closedModal = runtime.PresentedValue("quitModal","display");
+		Check(closedModal && closedModal->text == "none","the confirmation has closed");
+		Check(runtime.RunEvent("quitModalShow",32,modal,error),"the confirmation opens again");
+		runtime.Frame(viewport,32.1);
+		Check(Near(opacity("quitModal-title-latin","opacity",0),0,.001f) && Near(opacity("quitModal-title-rune","color",3),.8f,.001f),
+			"reopening starts in runes again");
+		Check(runtime.RunEvent("quitModalHide",32.5,modal,error),"and closes");
+		runtime.Frame(viewport,33);
+		runtime.SetReducedMotion(true,33.1);
+		Check(runtime.RunEvent("exitModalShow",33.1,modal,error),"EXIT asks with reduced motion");
+		runtime.Frame(viewport,33.2); runtime.Frame(viewport,33.32);
+		Check(Near(opacity("exitModal-title-latin","opacity",0),1,.001f) && Near(opacity("exitModal-title-rune","color",3),0,.001f) &&
+			Near(opacity("exitModal_no-latin","opacity",0),1,.001f),"reduced motion shows the confirmation translated at once");
+		runtime.SetReducedMotion(false,33.4);
 	}
 	// Loading: progress, the continue prompt and the multiplayer server card.
 	if (runs("loading-hud")) {

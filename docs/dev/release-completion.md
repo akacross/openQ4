@@ -24,6 +24,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Strogg confirmations, 23 October 2026
+
+- [x] Give the Strogg pause's QUIT TO MENU and EXIT questions, and the Strogg
+  Save/Load pages' delete, overwrite and notice dialogs, the Strogg family:
+  30-degree shoulders, #F59512 rails, R_Strogg text and Strogg action plates,
+  with every label translating from runes as the dialog opens. Behavior,
+  focus and timing stay the stock dialog's; Marine dialogs are unchanged.
+- [The construction and its evidence](ui/retained-screens.md#strogg-confirmations)
+  cover native checks and OpenGL/Vulkan captures in English, French and
+  Russian. The art derives from section 13.7 and awaits review under UI-05.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## UI acceptance transition, 23 October 2026
 
 - [x] Add the register's separate acceptance audit (UI-11). It accepts only

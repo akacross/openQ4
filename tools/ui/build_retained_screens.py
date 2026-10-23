@@ -184,6 +184,13 @@ def group(ident: str, props: dict, children=(), **extra) -> dict:
     node.update(extra)
     return node
 
+def walk_nodes(node: dict):
+    """`node` and every node under it, depth first."""
+    yield node
+    for child in node.get("children", ()):
+        yield from walk_nodes(child)
+
+
 def vector(ident: str, props: dict, paths: list, children=(), **extra) -> dict:
     node = {"id": ident, "type": "vector", "properties": props, "paths": paths}
     if children:
@@ -644,7 +651,8 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                  no_event: str | None = None, close_key: str | None = None, wide_title: bool = False,
                  height_u: float = 136.0, top_u: float = 155.0, actions_u: float = 96.0, contents: list | None = None,
                  yes_key: str = "#str_200157", no_key: str = "#str_200158", initial: str | None = None,
-                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0, close_w: float = CLOSE_W) -> dict:
+                 width_dp: float = 480.0, action_w: float = 180, action_text: float = 20.0, close_w: float = CLOSE_W,
+                 strogg: bool = False) -> dict:
     """A stock confirmation modal (section 6) over the soft-focused screen: an
     additive glow behind the 480 dp dialog, and inside it the stock popup
     art's black 0.70 silhouette, inset so a 6 dp lit margin shows beside it,
@@ -679,7 +687,16 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     its actions at `actions_u`, its own `contents` in place of the body and
     its own action labels and first focus; a ledger grows to `width_dp`, and
     actions whose labels run long widen to `action_w` with `action_text` dp
-    labels, or a notice's lone action to `close_w`."""
+    labels, or a notice's lone action to `close_w`.
+
+    With `strogg` the dialog takes the Strogg pause's family (section 13.7):
+    the silhouette's slot flanks and lower-leading chamfer become 30-degree
+    shoulders in the Strogg card fill with its #F59512 rail, the glow takes the
+    Strogg backdrop's light, the title and body are R_Strogg in #FCFFC8 and
+    the actions are Strogg plates (strogg_action_plate). Every label arrives
+    in runes as the contents show and plays the short credits translation:
+    the title over 300 ms, the actions 45 ms apart after it; the wrapped body
+    fades in. Ids, events, focus and timing are the stock dialog's."""
     body_nodes = contents
     visible, contents = f"{ident}.visible", f"{ident}.contents"
     doc.state[visible] = {"type": "boolean", "initial": False}
@@ -698,15 +715,18 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     inset = width * 7 / 512
     slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
     slot_depth = 17.0
+    # A Strogg shoulder keeps the slot's depth and runs 30 degrees.
+    flank = round(slot_depth * STROGG_SHOULDER, 4) if strogg else slot_depth
     right = width - inset
-    silhouette = modal_silhouette(width, height)
+    silhouette = strogg_modal_silhouette(width, height) if strogg else [modal_silhouette(width, height)]
+    glow_tint = ST_LIGHT if strogg else GLOW_MODAL
     whole = [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, {"fraction": 1}), (0, {"fraction": 1})]
     glow_top, glow_bottom = -U * 87, height + U * 108
     glow = vector(f"{ident}-glow", {**absolute(left=0, top=glow_top, width=width, height=glow_bottom - glow_top), "opacity": number(0),
                                     "display": keyword("block")}, [
         path("column", whole,
-             fill=linear((0, 0), (0, {"fraction": 1}), [(0, rgb(GLOW_MODAL, 0)), (0.28, rgb(GLOW_MODAL, 0.5)), (0.41, rgb(GLOW_MODAL, 0.9)),
-                                                        (0.58, rgb(GLOW_MODAL, 0.9)), (0.72, rgb(GLOW_MODAL, 0.5)), (1, rgb(GLOW_MODAL, 0))]),
+             fill=linear((0, 0), (0, {"fraction": 1}), [(0, rgb(glow_tint, 0)), (0.28, rgb(glow_tint, 0.5)), (0.41, rgb(glow_tint, 0.9)),
+                                                        (0.58, rgb(glow_tint, 0.9)), (0.72, rgb(glow_tint, 0.5)), (1, rgb(glow_tint, 0))]),
              blend="additive")])
     # The soft-focus glow keeps the stock column's plateau inside the rectangle
     # and grades from half strength at its edges to nothing 40 dp beyond them.
@@ -719,47 +739,82 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
     soft_glow = vector(f"{ident}-glow-soft", {**absolute(left=-side, top=-reach, width=soft_width, height=soft_height),
                                               "opacity": number(0), "display": keyword("none")}, [
         path("column", whole,
-             fill=linear((0, 0), (0, {"fraction": 1}), [(0, rgb(GLOW_MODAL, 0)), (soft_stop(0), rgb(GLOW_MODAL, 0.5)),
-                                                        (soft_stop(plateau[0]), rgb(GLOW_MODAL, 0.9)), (soft_stop(plateau[1]), rgb(GLOW_MODAL, 0.9)),
-                                                        (soft_stop(height), rgb(GLOW_MODAL, 0.5)), (1, rgb(GLOW_MODAL, 0))]),
+             fill=linear((0, 0), (0, {"fraction": 1}), [(0, rgb(glow_tint, 0)), (soft_stop(0), rgb(glow_tint, 0.5)),
+                                                        (soft_stop(plateau[0]), rgb(glow_tint, 0.9)), (soft_stop(plateau[1]), rgb(glow_tint, 0.9)),
+                                                        (soft_stop(height), rgb(glow_tint, 0.5)), (1, rgb(glow_tint, 0))]),
              blend="additive")],
         mask={"paths": [path("sides", whole, fill=linear((0, 0), ({"fraction": 1}, 0), [
             (0, [1, 1, 1, 0]), (round(side / soft_width, 4), [1, 1, 1, 1]), (round(1 - side / soft_width, 4), [1, 1, 1, 1]), (1, [1, 1, 1, 0])]))]})
-    frame = vector(f"{ident}-frame", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0)}, [silhouette])
+    frame = vector(f"{ident}-frame", {**absolute(left=0, top=0, width=width, height=height), "opacity": number(0)}, silhouette)
     # The title starts at the foot of the slot's leading flank; its capitals
     # hang from the raised top line into the lit slot, as the stock title's
     # do, its baseline 13.5 dp down where the stock one sits.
-    foot = slot_lead + slot_depth
-    title_end = right - 6 if wide_title else slot_trail - slot_depth
+    foot = slot_lead + flank
+    title_end = right - 6 if wide_title else slot_trail - flank
+    face, title_tint = ("r_strogg", rgb(ST_READ, 0.9)) if strogg else ("marine", [1, 1, 1, 0.9])
     if title_key.startswith("#str_"):
-        # Marine 20 dp at -0.075 em: every shipped language's title must fit
-        # its box, which clips the outline while the fill runs on.
-        needed, language = max((text_width("marine", text, 20) - 1.5 * (len(text) - 1), language)
+        # 20 dp at -0.075 em: every shipped language's title must fit its
+        # box, which clips the outline while the fill runs on.
+        needed, language = max((text_width(face, text, 20) - 1.5 * (len(text) - 1), language)
                                for language, text in merged_text(title_key).items())
         if needed > title_end - foot:
             raise ValueError(f"{ident}: the {language} title {title_key} needs {needed:.1f} dp of {title_end - foot:.1f}"
                              + ("" if wide_title else "; pass wide_title=True"))
-    title = outlined_label(f"{ident}-title", title_key,
-                           absolute(left=round(foot, 4), top=-4, width=round(title_end - foot, 4), height=24),
-                           {**typeface("marine", 20, 24, [1, 1, 1, 0.9]), "letter-spacing": length(-0.075, "em"),
-                            "white-space": keyword("nowrap")}, [1, 1, 1, 0.9], [0, 0, 0, 0.85])
+    title_style = {**typeface(face, 20, 24, title_tint), "letter-spacing": length(-0.075, "em"), "white-space": keyword("nowrap")}
+    title_box = absolute(left=round(foot, 4), top=-4, width=round(title_end - foot, 4), height=24)
+    if strogg:
+        # The outline and its fill translate as one, so the pop keeps them
+        # registered; the rune copy shares their baseline.
+        pad = 3.0
+        title = [label(f"{ident}-title-rune", title_key, {**absolute(left=round(foot, 4), top=round(-4 - rune_rise(20), 3),
+                                                                     width=round(title_end - foot, 4), height=24),
+                       **typeface("strogg", round(20 * RUNE_SCALE, 3), 24, [*rgb(ST_SELECT)[:3], 0]), "white-space": keyword("nowrap"),
+                       "transform": transform(), "pointer-events": keyword("none")}),
+                 group(f"{ident}-title-latin", {**absolute(left=round(foot - pad, 4), top=-4 - pad, width=round(title_end - foot + 2 * pad, 4),
+                                                           height=24 + 2 * pad), "opacity": number(1), "transform": transform(),
+                                                "pointer-events": keyword("none")},
+                       outlined_label(f"{ident}-title", title_key, absolute(left=pad, top=pad, width=round(title_end - foot, 4), height=24),
+                                      title_style, title_tint, [0, 0, 0, 0.85]))]
+    else:
+        title = outlined_label(f"{ident}-title", title_key, title_box, title_style, title_tint, [0, 0, 0, 0.85])
     # The stock body box starts 45 u down (first baseline 87.5 dp) and runs
-    # to the actions at 96 u.
+    # to the actions at 96 u. R_Strogg runs wider than Lowpixel, so the
+    # Strogg body sets a size smaller on the same lines.
+    body_tint = rgb(ST_READ, 0.85) if strogg else [1, 1, 1, 0.8]
     body = [label(f"{ident}-body", body_key, {**absolute(left=33, top=71, width=width - 66, height=73),
-        **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8])})] if body_nodes is None else body_nodes
+        **(typeface("r_strogg", 15, 22, body_tint) if strogg else typeface("lowpixel", 17, 22, body_tint))})] if body_nodes is None else body_nodes
     # The modal's own programs may answer for it: `yes_event` in place of the
     # session action, `no_event` for No and back; each must hide the modal.
+    plate_kind = strogg_action_plate if strogg else action_plate
     if close_key:
-        actions = [action_plate(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=close_w)]
+        actions = [plate_kind(doc, f"{ident}_close", close_key, 30, U * actions_u, event=no_event or hide, width=close_w)]
         initial = initial or f"{ident}_close"
     else:
-        yes = action_plate(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event,
-                           width=action_w)
-        no = action_plate(doc, f"{ident}_no", no_key, width - 33 - action_w, U * actions_u, event=no_event or hide, width=action_w)
+        yes = plate_kind(doc, f"{ident}_yes", yes_key, 30, U * actions_u, action=None if yes_event else yes_action, event=yes_event,
+                         width=action_w)
+        no = plate_kind(doc, f"{ident}_no", no_key, width - 33 - action_w, U * actions_u, event=no_event or hide, width=action_w)
         actions, initial = [yes, no], initial or f"{ident}_no"
         if action_text != 20:
             for plate in actions:
-                next(child for child in plate["children"] if child["id"].endswith("-label"))["properties"]["font-size"] = length(action_text)
+                plate_label = next(node for node in walk_nodes(plate) if node.get("id", "").endswith("-label"))
+                plate_label["properties"]["font-size"] = length(action_text)
+    if strogg:
+        # The labels arrive in runes as the contents show, and translate:
+        # the title over 300 ms, the actions 45 ms apart after it; the wrapped
+        # body fades in. While the contents are hidden, the reset puts every
+        # line back in runes, so the first shown frame never flashes the
+        # translated text.
+        translation = Translation()
+        translation.add(f"{ident}-title", 0, 300, width=round(title_end - foot + 2 * pad, 4))
+        if body_nodes is None:
+            translation.add(f"{ident}-body", 60, 200, rest=body_tint, runes=False)
+        for index, plate in enumerate(actions):
+            translation.add(plate["id"], 100 + 45 * index, 200)
+        tracks, end = translation.tracks(0)
+        doc.timelines.add(f"{ident}Translate", end, tracks)
+        doc.timelines.add(f"{ident}Runes", 1, translation.reset_tracks())
+        doc.events[show].append({"op": "playTimeline", "timeline": f"{ident}Runes"})
+        doc.events[shown].append({"op": "playTimeline", "timeline": f"{ident}Translate"})
     shown_contents = group(f"{ident}-contents", {**FULL, "display": keyword("none")}, [*title, *body, *actions])
     dialog = group(f"{ident}-dialog", absolute(left=left, top=top, width=width, height=height),
                    [glow, soft_glow, frame, shown_contents])
@@ -2207,6 +2262,21 @@ class Translation:
     def bar(self, ident: str, delay: float, slide: float) -> None:
         self.bars.append((ident, delay, slide))
 
+    def reset_tracks(self) -> list:
+        """Tracks that put every line back in runes at once: the rune copy at
+        0.80, the R_Strogg label or its wrapper hidden."""
+        runes = [*rgb(ST_SELECT)[:3], 0.8]
+        result = []
+        for prefix, _, _, rest, white, _, has_runes in self.lines:
+            if has_runes:
+                result.append(track(f"{prefix}-rune", "color", [(0, colour(runes)), (1, colour(runes))]))
+            if rest is None:
+                result.append(track(f"{prefix}-latin", "opacity", [(0, number(0)), (1, number(0))]))
+            else:
+                hidden = [1, 1, 1, 0] if white else [*rest[:3], 0]
+                result.append(track(prefix, "color", [(0, colour(hidden)), (1, colour(hidden))]))
+        return result
+
     @staticmethod
     def pop(scale: float, width: float | None) -> dict:
         return transform(tx=(scale - 1) * width / 2 if width else 0, sx=scale, sy=scale)
@@ -2431,6 +2501,85 @@ def strogg_plinth(links: list) -> dict:
                                   "display": keyword("flex"), "flex-direction": keyword("row"),
                                   "align-items": keyword("flex-start")}, links)
     return vector("plinth", {**absolute(left=U * left, top=U * top, width=width, height=height), "opacity": number(1)}, [shape], [row])
+
+
+STROGG_SHOULDER = 1.732   # a 30-degree shoulder runs this far along per unit it falls
+
+
+def strogg_modal_silhouette(width: float, height: float) -> list:
+    """modal_silhouette in the Strogg family (section 13.7): the slot keeps
+    its 17 dp depth but its flanks fall at 30 degrees, and the lower-leading
+    chamfer becomes a 30-degree shoulder over the same 38 dp run. The
+    silhouette takes the Strogg level card's fill and its #F59512 rail."""
+    inset, raised, bottom = width * 7 / 512, 3.5625, height - 5.34375
+    slot_lead, slot_trail = width * 14 / 512, width * 388 / 512
+    depth = 17.0
+    flank = round(depth * STROGG_SHOULDER, 4)
+    run, rise = 38.0, round(38.0 / STROGG_SHOULDER, 4)
+    right = width - inset
+    outline = [(inset, raised), (slot_lead, raised), (slot_lead + flank, raised + depth), (slot_trail - flank, raised + depth),
+               (slot_trail, raised), (right, raised), (right, bottom), (inset + run, bottom), (inset, bottom - rise)]
+    return [path("frame", outline, fill=solid(rgb(ST_CARD, 0.85))),
+            path("rail", outline, stroke=stroke(solid(rgb(ST_LINE, 0.75)), 1.5))]
+
+
+def strogg_action_plate(doc: Document, ident: str, key: str, left: float, top: float, *, action: str | None = None,
+                        event: str | None = None, width: float = 180) -> dict:
+    """action_plate in the Strogg family (section 13.7): the 35 dp band in its
+    45 dp target keeps its 20 dp run, but the lower-leading cut becomes a
+    30-degree shoulder; the fill is the Strogg plates' black fade and the rail
+    #F59512. The slanted marker and the R_Strogg label turn #FFCC00 on focus.
+    The label rests translated over its rune copy; the confirmation's
+    translation plays them, so the control's states keep the label's color."""
+    band_top, band_bottom = 5.0, 40.0
+    run, rise = 20.0, round(20.0 / STROGG_SHOULDER, 4)
+    fade = [(0, [0, 0, 0, 1]), (0.55, [0, 0, 0, 1]), (0.8, [0, 0, 0, 0.5]), (1, [0, 0, 0, 0])]
+    rail = [(0, rgb(ST_LINE, 0.9)), (0.55, rgb(ST_LINE, 0.9)), (1, rgb(ST_LINE, 0.2))]
+    whole = absolute(left=0, top=0, width=width, height=45)
+    plate = vector(f"{ident}-plate", {**whole, "opacity": number(0.4)}, [
+        path("fill", [(0, band_top), (width, band_top), (width, band_bottom), (run, band_bottom), (0, band_bottom - rise)],
+             fill=linear((0, 0), (width, 0), fade)),
+        path("rail", [(0.75, band_top), (0.75, band_bottom - rise), (run, band_bottom - 0.75), (width, band_bottom - 0.75)],
+             closed=False, stroke=stroke(linear((0, 0), (width, 0), rail), 1.5)),
+    ])
+    focus = vector(f"{ident}-focus", {**whole, "opacity": number(0)}, [
+        path("inset", [(run + 2, band_bottom - 3.5), (width - 20, band_bottom - 3.5)], closed=False,
+             stroke=stroke(solid(rgb(ST_SELECT)), 1.2))])
+
+    def slanted(tint: list[float]) -> dict:
+        lean = round(8 * 0.267, 4)
+        return path("mark", [(lean, 0), (8, 0), (8 - lean, 8), (0, 8)], fill=solid(tint))
+    marker_rest = vector(f"{ident}-marker", {**absolute(left=14, top=14, width=8, height=8), "opacity": number(0.4)}, [slanted(rgb(ST_LINE))])
+    marker_hot = vector(f"{ident}-marker-hot", {**absolute(left=14, top=14, width=8, height=8), "opacity": number(0)},
+                        [slanted(rgb(ST_SELECT))])
+    size = 20.0
+    read, hot = rgb(ST_READ, 0.8), rgb(ST_SELECT)
+    text_node = label(f"{ident}-label", key, {"position": keyword("relative"), "display": keyword("block"),
+                                              **typeface("r_strogg", size, 45, read), "white-space": keyword("nowrap"),
+                                              "transform": transform()})
+    latin = group(f"{ident}-latin", {"position": keyword("relative"), "display": keyword("block"), "opacity": number(1),
+                                     "transform": transform()}, [text_node])
+    rune = label(f"{ident}-rune", key, {**absolute(left=0, top=round(-rune_rise(size), 3)),
+                                        **typeface("strogg", round(size * RUNE_SCALE, 3), 45, [*rgb(ST_SELECT)[:3], 0]),
+                                        "white-space": keyword("nowrap"), "transform": transform(), "pointer-events": keyword("none")})
+    fit = group(f"{ident}-fit", absolute(left=26, top=0, width=width - 30, height=45), [rune, latin])
+    def state(plate_alpha, marker, marker_lit, focus_alpha, tint, moved):
+        return [(f"{ident}-plate", "opacity", number(plate_alpha)), (f"{ident}-marker", "opacity", number(marker)),
+                (f"{ident}-marker-hot", "opacity", number(marker_lit)), (f"{ident}-focus", "opacity", number(focus_alpha)),
+                (f"{ident}-label", "color", colour(tint)), (f"{ident}-label", "transform", moved)]
+    ids = doc.states(ident, {
+        "default": state(0.4, 0.4, 0, 0, read, transform()),
+        "hover": state(0.8, 0, 1, 0, hot, transform(sx=1.03, sy=1.03)),
+        "focus": state(0.8, 0, 1, 1, hot, transform(sx=1.03, sy=1.03)),
+        "pressed": state(1, 0, 1, 1, hot, transform(tx=1, ty=1, sx=1.03, sy=1.03)),
+        "disabled": state(0.4, 0.4, 0, 0, rgb(ST_READ, 0.4), transform()),
+    })
+    control = {"role": "button", "label": key, "states": ids}
+    if action:
+        control["action"] = action
+    else:
+        control["event"] = event
+    return group(ident, absolute(left=left, top=top, width=width, height=45), [plate, focus, marker_rest, marker_hot, fit], control=control)
 
 
 def strogg_level_block(doc: Document, translation: Translation, start: float) -> dict:
@@ -2787,9 +2936,10 @@ def pause_document(strogg: bool = False) -> dict:
     doc.session("quitToMenu", "quitToMenu")
     doc.session("quit", "quit")
     # QUIT CURRENT GAME outruns the lit slot in French: it runs on over the
-    # raised trailing section, as the longer dialog titles do.
-    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu", wide_title=True)
-    exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200)
+    # raised trailing section, as the longer dialog titles do. The Strogg
+    # pause asks in its own family.
+    quit_modal = confirmation(doc, "quitModal", "#str_200004", "#str_200174", "quitToMenu", wide_title=True, strogg=strogg)
+    exit_modal = confirmation(doc, "exitModal", "#str_200169", "#str_200170", "quit", frame_leave_ms=200, strogg=strogg)
     doc.events["onBack"] = [{"op": "action", "action": "resume"}]
     items = [("nav_resume", "#str_200381", "resume", None), ("nav_savegame", "#str_200003", "saveGame", None),
              ("nav_loadgame", "#str_200001", "loadGame", None), ("nav_restart", "#str_229983", "restartLevel", None),
@@ -2838,8 +2988,7 @@ def pause_document(strogg: bool = False) -> dict:
                ("settings", "#str_200009", 332.2)]
     objectives_bar, objectives = objectives_page(doc, strogg)
     if strogg:
-        # The Strogg light, crosses and bands; the confirmations stay the
-        # stock dialogs of section 6.
+        # The Strogg light, crosses and bands.
         field = lit_field("field", 0.55, glow=ST_LIGHT, grid={"tint": rgb(ST_GRID), "arm_u": 5.5})
         bands = framing_bands("band", STROGG_BANDS)
         prompt = prompt_bar(doc, prompts, cap_tint=rgb(ST_SELECT, 0.85), verb_face=("r_strogg", 14, rgb(ST_READ, 0.8)))

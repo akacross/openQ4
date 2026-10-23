@@ -645,6 +645,11 @@ archived provenance; new scheduling belongs here.
   families. Selection and row focus follow filenames, typed names survive refresh,
   and catalog generations reject stale actions. The remaining save details and
   wider device/platform acceptance stay open.
+  Progress, 23 October: [Strogg confirmations](ui/retained-screens.md#strogg-confirmations)
+  give the Strogg pause and its Save/Load pages dialogs in the Strogg family,
+  translating from runes as they open. Ids, focus, soft focus and timing stay
+  the stock dialog's. The construction derives from section 13.7's family rules
+  and awaits art review under UI-05.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder

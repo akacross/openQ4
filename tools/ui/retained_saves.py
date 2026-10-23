@@ -35,7 +35,8 @@ restartlevel_strogg.q4ui): the construction stays, the plates end in the
 Strogg pause's 30-degree shoulders with slanted markers, and the rails,
 rules, frames and row light take its #F59512 and #FF9000. Labels and headings
 are R_Strogg in #FCFFC8, turning #FFCC00, and the saves' names stay Lowpixel.
-The confirmations stay the stock dialogs, as the Strogg pause's own do.
+The confirmations take the Strogg family too, as the Strogg pause's own do
+(confirmation's `strogg`).
 """
 from __future__ import annotations
 
@@ -606,7 +607,8 @@ def load_game_document(family: Family = MARINE) -> dict:
     stage = group("load-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
                   [panel, *plates])
 
-    modal = confirmation(doc, "deleteModal", "#str_200021", "#str_200245", None, yes_event="deleteConfirmed")
+    modal = confirmation(doc, "deleteModal", "#str_200021", "#str_200245", None, yes_event="deleteConfirmed",
+                         strogg=family.strogg)
     doc.events["deleteRequested"] = [{"op":"setState", "values":{"load.deleteIndex":{"state":"load.selected"},
                                                                   "load.deleteGeneration":{"state":"browser.generation"}}},
                                       {"op":"call", "event":"deleteModalShow"}]
@@ -838,14 +840,14 @@ def save_game_document(family: Family = MARINE) -> dict:
     # Saving over a save asks first and names it; an autosave, or a save the
     # session refuses, says why.
     overwrite = confirmation(doc, "overwriteModal", "#str_200252", "#str_200253", None, yes_event="overwriteConfirmed",
-                             wide_title=True)
+                             wide_title=True, strogg=family.strogg)
     doc.events["overwriteConfirmed"] = [{"op": "call", "event": "overwriteModalHide"}, {"op": "action", "action": "overwrite"}]
     target = label("overwriteModal-target", PLACEHOLDER, {**absolute(left=33, top=71 + 44, width=480 - 66, height=22),
-                   **typeface("lowpixel", 17, 22, rgb(ORANGE)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
+                   **typeface("lowpixel", 17, 22, rgb(family.hot)), "white-space": keyword("nowrap"), "overflow": keyword("hidden")})
     doc.bind("overwriteModal-target.text", "overwriteModal-target", "text", {"state": "save.target"})
     contents = next(child for child in walk(overwrite) if child.get("id") == "overwriteModal-contents")
     contents["children"].append(target)
-    notice = confirmation(doc, "noticeModal", "#str_200266", PLACEHOLDER, None, close_key="#str_200923")
+    notice = confirmation(doc, "noticeModal", "#str_200266", PLACEHOLDER, None, close_key="#str_200923", strogg=family.strogg)
     doc.bind("noticeModal-body.text", "noticeModal-body", "text", {"state": "save.notice"})
 
     doc.timelines.add("arrive", 150, [track(node, "opacity", [(0, number(0)), (1, number(0)), (150, number(1))])

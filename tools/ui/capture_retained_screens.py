@@ -196,6 +196,28 @@ SCENARIOS = {
         'waitMsec 100', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-releasing.tga"',
         'waitMsec 700', 'ui_retainedStatus', 'screenshot "screenshots/pause-strogg-resumed.tga"',
     ]),
+    # The Strogg pause's confirmations ask in its family: each label arrives
+    # in runes as the dialog's contents show and translates. QUIT TO MENU is
+    # taken mid-translation and settled, with YES focused, then EXIT, and SAVE
+    # GAME with an existing save's name asks to overwrite it; NO keeps it.
+    'confirm-strogg': ('game/recomp', [
+        'waitMsec 1000', 'saveGame "Strogg door"', 'waitMsec 1500',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1800', 'ui_retainedStatus',
+        'openq4_retainedGui event quitModalShow', 'waitMsec 260', 'screenshot "screenshots/confirm-strogg-quit-runes.tga"',
+        'waitMsec 700', 'openq4_retainedGui report', 'screenshot "screenshots/confirm-strogg-quit.tga"',
+        'openq4_retainedGui focus quitModal_yes', 'waitMsec 300', 'screenshot "screenshots/confirm-strogg-quit-yes.tga"',
+        'openq4_retainedGui event quitModalHide', 'waitMsec 700',
+        'openq4_retainedGui event exitModalShow', 'waitMsec 1000', 'screenshot "screenshots/confirm-strogg-exit.tga"',
+        'openq4_retainedGui event exitModalHide', 'waitMsec 700',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1100', 'ui_retainedStatus', 'openq4_retainedGui focus "save-name"', 'openq4_retainedGui number begin "save-name"',
+        'openq4_retainedGui number input "save-name" "Strogg door"', 'openq4_retainedGui number commit "save-name"',
+        'waitMsec 1000', 'openq4_retainedGui report', 'screenshot "screenshots/confirm-strogg-overwrite.tga"',
+        'openq4_retainedGui focus overwriteModal_no', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 700', 'openq4_retainedGui focus save_back', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 800', 'ui_retainedStatus', 'screenshot "screenshots/confirm-strogg-resumed.tga"',
+    ]),
     # The Strogg pause's pages: SAVE GAME, LOAD GAME and RESTART LEVEL hand
     # off to the Strogg family's pages as the Marine pause's do to theirs. A
     # typed name saves at once; a row's first Accept selects its save; a

@@ -26,6 +26,10 @@
 
 ## Change log
 
+- After Kane's stroggification, the pause menu's quit and exit questions and
+  the Save and Load pages' delete and overwrite questions match the Strogg
+  menus around them, their text translating from Strogg runes as they open.
+
 - Save and Load Game now offer date, name and location sorting, manual-save and
   autosave filters, and Refresh List. Your selection follows the same save as the
   list changes, and refreshing preserves a name you are typing.

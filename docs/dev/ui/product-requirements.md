@@ -1,5 +1,18 @@
 # UI product requirement register
 
+23 October 2026: [Strogg confirmations](retained-screens.md#strogg-confirmations)
+add bounded UI-03 evidence to `FLOW-048`, `WID-013`, `ART-037` and `MOT-015`.
+The Strogg pause's and Strogg pages' dialogs take the Strogg family and
+translate from runes as they open; their art derives from section 13.7 and
+awaits review. The increment is audited against `e3cf8d037b1458c8ed49b9b423bf76201a194879`.
+No requirement status, migration acceptance or final gate changes.
+
+23 October 2026: the [acceptance transition](acceptance-transition.md) adds
+UI-11 tooling evidence to `GOV-002` and `QUAL-006`. Only it may accept
+requirements and resources, from current, separately reviewed records. It was
+audited against `f74b48edb4b5cb3153749241f0b087df17e3eb0d`. Nothing has been
+accepted with it, and no status changes.
+
 23 October 2026: [save browser controls](save-browser.md) add bounded UI-03
 evidence to `WID-009`, `FLOW-004` and `FLOW-026`: sorting, filter tags, explicit
 refresh, filename-based selection/focus and stale catalog rejection in both
