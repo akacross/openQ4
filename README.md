@@ -99,7 +99,7 @@ You need a legitimate Quake 4 install plus the openQ4 package that matches your 
 Packages are available for Windows x64, Linux x64 and Steam Deck/SteamOS, with preview Linux ARM64, experimental Apple Silicon/arm64 macOS and experimental Windows ARM64 builds:
 
 - **Linux** ships as directly executable AppImages and archives for `x86_64` and `aarch64`. Linux ARM64 needs a desktop OpenGL compatibility driver.
-- **macOS** players can get [signed and notarized builds for Apple Silicon and Intel Macs](https://www.macsourceports.com/game/quake4) from Schnapple at Mac Source Ports. Our GitHub packages remain unsigned Apple Silicon previews.
+- **macOS** players can get [signed and notarized builds for Apple Silicon and Intel Macs](https://www.macsourceports.com/game/quake4) from Schnapple at Mac Source Ports. Our GitHub OpenGL/Metal bridge packages remain unsigned Apple Silicon previews; players have run them only on current macOS.
 - **Windows ARM64** packages are built but have not yet been confirmed to run on real hardware.
 
 See [Getting Started](https://github.com/themuffinator/openQ4/blob/v0.13.2/docs/user/getting-started.md#system-requirements) for platform details.
@@ -189,7 +189,7 @@ Developers can also find advanced configuration and file layout in [TECHNICAL.md
 - **[Mikko Mononen, Eric Veach and the libtess2 contributors](https://github.com/memononen/libtess2/tree/8dbd6483e920311a58c9af10a10beb278efebc36)** - SGI-B-2.0 polygon tessellator for the new interface's vector shapes, with an [openQ4 precision patch](subprojects/packagefiles/libtess2/double-precision.patch); [licence notice](docs/licenses/libtess2.txt)
 - **[Q2REX Project Team](https://github.com/themuffinator/Q2REX)** - design reference for the [multiplayer chat panel](docs/user/multiplayer-chat.md)
 - **[MuffMode](https://github.com/themuffinator/MuffMode)** and **[Q4MAX](https://www.moddb.com/mods/q4max)** - multiplayer workflow and usability references
-- **[Team Beef](https://github.com/Team-Beef-Studios)** - design reference for [VR mode](docs/user/vr.md): [PreyVR](https://github.com/Team-Beef-Studios/PreyVR) (Luboš Vonásek, GLKarin, DrBeef, Baggyg, Bummser and contributors) and [Doom3Quest](https://github.com/DrBeef/Doom3Quest) (DrBeef and contributors) shaped its head-driven movement, two-handed aim, zoom, comfort options and physical crouch; ideas only, no code copied
+- **[Team Beef](https://github.com/Team-Beef-Studios)** - design reference for [VR mode](docs/user/vr.md): [PreyVR](https://github.com/Team-Beef-Studios/PreyVR) (LuboÅ¡ VonÃ¡sek, GLKarin, DrBeef, Baggyg, Bummser and contributors) and [Doom3Quest](https://github.com/DrBeef/Doom3Quest) (DrBeef and contributors) shaped its head-driven movement, two-handed aim, zoom, comfort options and physical crouch; ideas only, no code copied
 - **Justin Marshall** - Quake4Doom and early BSE reverse engineering reference work, and recovering and publishing Quake 4: The Awakening
 - **Robert Beckebans** - renderer modernization reference work, including RBDOOM-3-BFG inspiration
 - **id Software's official Doom 3 and Doom 3 BFG source releases** - retained idTech 4 source lineage; see the [source provenance inventory](docs/dev/source-provenance.md)

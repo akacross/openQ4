@@ -66,10 +66,10 @@ def validate_release_facing_docs() -> None:
             "comparison-only",
         ),
         "docs/user/getting-started.md": (
-            "macOS support is a preview",
+            "Our GitHub macOS packages remain a preview",
             "Apple Silicon/arm64 Macs on macOS 11 or later",
             "nothing older than the current macOS has been tested",
-            "Intel Mac and universal2 packages are not published yet",
+            "Our GitHub releases do not yet publish Intel Mac or universal2 packages",
             "Rosetta is not a supported release target",
             "Metal bridge",
             "not a native Metal renderer",
