@@ -1,6 +1,6 @@
 # openQ4 development roadmap
 
-Updated 21 October 2026. Stage-one implementation and tested source:
+Updated 23 October 2026. Stage-one implementation and tested source:
 `7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
 [baseline evidence record](baseline-evidence.md) binds current native tests,
 windowed gameplay and original-content controls to their exact source, binaries
@@ -604,9 +604,12 @@ archived provenance; new scheduling belongs here.
   scope. Demonstrate real effect/readback, persistence, cancel/revert, failed Apply,
   interrupted writes, restart, device/capability changes and stale-owner rejection
   in SP/MP. Localize every display string and preserve current working pages.
-  The 22 October preset/restart captures also show a stale selection on an
-  already-open SYSTEM page after console `applyPerformancePreset`; include
-  external-setting refresh in the readback/ownership qualification.
+  Progress, 23 October: [external settings refresh](ui/external-settings-refresh.md)
+  closes the stale selection recorded on 22 October after console
+  `applyPerformancePreset`. Clean pages adopt current values; dirty drafts and
+  unfinished numeric text remain protected, with explicit conflict feedback.
+  Native and windowed SP/OpenGL/MP/Vulkan gameplay checks cover this subset.
+  The remaining settings/effect/editor and platform qualification stays open.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual
@@ -671,7 +674,8 @@ archived provenance; new scheduling belongs here.
   qualification remain open. Four GL/Vulkan stock/retained title/pause runs
   retain readable text through scene scaling and preset/restart cycles, without
   reproducing #168/#169. The System route is retained in all four; its stale
-  selection after an external console preset change is a separate UI-01 gap.
+  selection after an external console preset change was subsequently repaired
+  under UI-01; that repair does not change these performance measurements.
 - [ ] **UI-08 — P1, qualification and decision: final cutover.** Complete all seven
   final gates with current source-bound behavior, visual/editor/performance and
   Windows/Linux/macOS/Android-GLES evidence, including dedicated packaging. Decide
@@ -696,6 +700,11 @@ archived provenance; new scheduling belongs here.
   1,000-cycle checks and GL/Vulkan gameplay alpha/reopen/restart captures pass;
   [implementation and evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)
   do not close the wider toolkit or resource requirements.
+  Progress, 23 October: [queued value ownership](ui/external-settings-refresh.md)
+  now checks current starting values, mixed state and choice availability before
+  dispatch. Ordered pending steps still work; external changes and removed or
+  disabled options reject stale proposals. Native control/page regressions pass;
+  complete toolkit and exactly-once corpus qualification remain open.
 - [x] **UI-10 — P0, investigation and implementation: refresh effective scope and
   source inventory.** Completed [retail/base/Awakening inventory](ui/inventory-report.md):
   264/276/324 effective paths, 358 distinct source/include-bound variants, 18

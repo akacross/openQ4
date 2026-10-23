@@ -8,6 +8,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## UI settings and control follow-through, 23 October 2026
+
+- [x] Refresh an open, clean SYSTEM page after external settings and performance
+  preset changes. Preserve dirty drafts and unfinished numeric text, report
+  conflicts and prevent stale Apply. Queued value controls now check their
+  starting values and current choice availability before dispatch, while valid
+  ordered edits still work. Eleven native suites, 110 production-service
+  scenarios and nine-stage SP/OpenGL/MP/Vulkan gameplay captures cover this
+  bounded UI-01/UI-09 increment. [Evidence and remaining scope](ui/external-settings-refresh.md).
+  No requirement, migration or final UI gate is accepted.
+- Candidate player wording is included in [baseline refinements](releases/baseline-refinements.md).
+
 ## Outstanding-session follow-through, 22 October 2026
 
 - [x] Repair airborne recovery's missing narrow headings and low-health fallback,

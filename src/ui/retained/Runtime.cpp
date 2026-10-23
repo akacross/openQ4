@@ -3764,9 +3764,9 @@ bool Runtime::CanDispatchControlAction(const ControlAction& action, double secon
 
 	if (!impl->canonical || !std::isfinite(seconds) || seconds < 0) return false;
 	// A host source may change after a proposal is queued, including between
-	// commands in one application pump. Retire stale numeric proposals before
+	// commands in one application pump. Retire stale value proposals before
 	// their side effect, not only when acknowledging the resulting readback.
-	if (action.editSession) {
+	if (action.proposal) {
 		impl->ReadStateSources();
 		if (!impl->stateError.empty()) return false;
 	}

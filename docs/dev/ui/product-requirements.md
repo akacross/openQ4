@@ -1,5 +1,13 @@
 # UI product requirement register
 
+23 October 2026: the [external settings refresh and queued value ownership
+increment](external-settings-refresh.md) contributes bounded evidence to
+`BEH-002`, `FLOW-002`, `WID-005`, `WID-017` and `WID-018`. Clean SYSTEM pages now
+follow live settings; dirty drafts and local numeric text remain protected;
+queued values check their starting readback and choice availability. Eleven
+native suites, 110 production-service scenarios and SP/OpenGL/MP/Vulkan gameplay
+captures cover this subset. No status, migration acceptance or final gate changes.
+
 **Planning authority, 18 October 2026:** the [development roadmap](../roadmap.md#new-user-interface)
 is the sole active plan; UI-01 through UI-11 coordinate this register's work.
 The archived plans below preserve the original completion scope and section

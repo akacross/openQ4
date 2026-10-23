@@ -24,6 +24,11 @@
 
 ## Change log
 
+- The opt-in SYSTEM page now follows performance presets and settings changed
+  from the console while it is open. Unfinished edits are preserved with a
+  conflict message, and queued controls cannot overwrite newly changed values
+  or select an option that has become unavailable.
+
 - Fresh profiles keep Quake 4's stock crosshair hit feedback. Optional hit
   markers remain available in Game settings, and existing saved choices are kept.
 

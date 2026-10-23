@@ -21,6 +21,11 @@ struct ControlAction {
 	std::uint64_t proposalToken = 0;
 	std::uint64_t modalToken = 0; // Transient scope identity for every Back record.
 	std::uint64_t editSession = 0, editRevision = 0; // Number proposals only; never persisted.
+	// Non-numeric value controls carry the value from which this step was made.
+	// Queued steps chain through their predecessors; external changes invalidate
+	// a stale step instead of silently replacing the newly observed value.
+	std::optional<StateValue> proposalBaseline;
+	bool proposalBaselineMixed = false;
 };
 struct ControlFeedback { std::string node, timeline; ControlState state = ControlState::Default; };
 struct InteractionSnapshot {
@@ -344,7 +349,7 @@ private:
         double choiceOffsetDp = 0;
         std::uint64_t choiceRevision = 0, choiceReveal = 0, choiceLayoutRevision = 0;
 		std::optional<StateValue> pending, rejected;
-		std::uint64_t proposalToken = 0;
+		std::uint64_t proposalToken = 0, proposalStart = 0;
 		unsigned firstVisible = 0;
 		std::optional<NumberEditor> number;
 	};

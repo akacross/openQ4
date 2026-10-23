@@ -452,6 +452,9 @@ bool Interaction::Propose(const std::string& id, const StateValue& value) {
 	if (actions.size() >= 256) { overflowed = true; return false; }
 	const auto token = ProposalToken(); if (!token) { overflowed = true; return false; }
 	ControlAction action{ControlAction::Kind::Activate,document,id,item.control.action,item.control.event,value,token};
+	action.proposalBaseline = EditingValue(item);
+	action.proposalBaselineMixed = !item.pending && item.readback->mixed;
+	if (!item.pending) item.proposalStart = token;
 	Queue(std::move(action)); item.pending = value; item.proposalToken = token; item.rejected.reset();
 	if (item.number) item.number->draftRevision = token;
 	return true;
@@ -1481,6 +1484,17 @@ bool Interaction::CanDispatchControlAction(const ControlAction& action) const {
 		return focused == action.node && item.number && !item.number->detached && !item.number->conflict && item.pending && action.proposal == item.pending &&
 			action.proposalToken != 0 && action.proposalToken == item.proposalToken &&
 			action.editSession == item.number->identity.session && action.editRevision == item.number->identity.revision;
+	if (control.role != ControlRole::Button) {
+		if (!item.pending || !action.proposal || !action.proposalToken || action.proposalToken < item.proposalStart ||
+			action.proposalToken > item.proposalToken || !action.proposalBaseline || !item.readback ||
+			*action.proposalBaseline != item.readback->value || action.proposalBaselineMixed != item.readback->mixed) return false;
+		if (control.role == ControlRole::Choice) {
+			const auto& options = std::get<ChoiceSpec>(control.widget).options;
+			for (size_t i = 0; i < options.size(); ++i)
+				if (options[i].value == *action.proposal && OptionEligible(item,i)) return true;
+			return false;
+		}
+	}
 	return true;
 }
 bool Interaction::PushModal(const std::string& root) {
