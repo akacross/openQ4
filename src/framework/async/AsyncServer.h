@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #ifndef __ASYNCSERVER_H__
 #define __ASYNCSERVER_H__
+#include "VoiceTransport.h"
 
 /*
 ===============================================================================
@@ -167,6 +168,7 @@ typedef struct serverClient_s {
 	int					statsSnapshotsSent;
 	int					statsSnapshotBytes;
 	int					statsSendsRefusedByRate;
+	oq4voice::Mailbox	voiceMailbox;
 
 	char				guid[12];  // Even Balance - M. Quinn
 
@@ -211,6 +213,9 @@ public:
 	void				SendReliableGameMessage( int clientNum, const idBitMsg &msg, bool captureDemo = true );
 	void				SendReliableGameMessageExcluding( int clientNum, const idBitMsg &msg, bool captureDemo = true );
 	void				LocalClientSendReliableMessage( const idBitMsg &msg );
+	bool				LocalClientSendVoiceMessage( const idBitMsg &msg );
+	bool				SendVoiceMessage( int clientNum, const idBitMsg &msg );
+	void				FlushVoiceMessages();
 
 	void				MasterHeartbeat( bool force = false );
 	void				DropClient( int clientNum, const char *reason );

@@ -40,6 +40,7 @@ The Settings panel is `p_settings` in `mainmenu.gui`. It owns the left navigatio
 | Game Options | `windowDef set_b_gameoptions` | `p_settings_game` | Includes gameplay, mouse, controller, crosshair, corpse, language, and console options. |
 | System | `windowDef set_b_system` | `p_settings_sys` | Video, display, quality, advanced rendering, and post effects. |
 | Audio | `windowDef set_b_audio` | `p_settings_audio` | Output backend/device plus volume controls. |
+| Android setup | `windowDef set_android_setup` | Standalone Android setup Activity | `androidSetupAvailable` exposes this only on standalone Android. The SDL host opens setup without closing the running game; Return to game keeps the same session. File operations remain blocked while the native storage lease is held. |
 | Load Defaults | `windowDef set_b_loaddefaults` | Reset-confirm popup | Sets `desktop::active` and opens `anim_pop_defaultsIn`. |
 | Video Restart | `windowDef set_b_vidrestart` | `vid_restart` | Hidden by default, then shown by video-warning paths for changes that require a restart. Back also routes through the warning flow when `desktop::vidwarn` is set. |
 | Back | `windowDef set_b_back` | Exits Settings | If `desktop::vidwarn` is set, Back routes through the video warning flow. |
@@ -209,7 +210,7 @@ The Game Options pane is `p_settings_game` and is included from `content/baseoq4
 | Crosshair Preview | `windowDef` action | `set_game_previewxhair` and preview size windows | `chooseCrosshair` command, `g_crosshairCustomFile` | Click steps to the next of the twenty custom crosshairs (`chooseCrosshair 1`), right-click to the previous (`-1`), wrapping at both ends | Disabled when `g_crosshairCustom` is off. Each menu build shows the current crosshair; a value outside the set becomes the first. |
 | Crosshair Size | `choiceDef` | `set_game_xhairsize_value` | `g_crosshairSize` | `16 Small`, `24 Medium`, `32 Default`, `40 Large`, `48 Extra Large` | Paired with preview update events. |
 | Crosshair Color | `choiceDef` | `set_game_xhaircolor_value` | GUI state `g_crosshairColorChoice` | White, red, orange, yellow, green, cyan, blue, magenta | Focusable picker. Selection writes `g_crosshairColor` RGBA values and updates the preview. The in-game crosshair takes the new colour at once. |
-| Hit Marker | `choiceDef` | `set_game_hitmarker_value` | `hud_hitMarker` | `No;Yes` | Boolean picker, on by default. Off restores stock Quake 4's crosshair recolour on a hit; `hud_hitMarkerScale` and `hud_crosshairHitFlash` stay console-only. |
+| Hit Marker | `choiceDef` | `set_game_hitmarker_value` | `hud_hitMarker` | `No;Yes` | Boolean picker, off by default in both game modes to retain stock hit feedback. Existing archived choices are preserved. Off restores stock Quake 4's crosshair recolour on a hit; `hud_hitMarkerScale` and `hud_crosshairHitFlash` stay console-only. |
 
 ### HUD
 

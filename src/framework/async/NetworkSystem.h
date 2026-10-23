@@ -204,6 +204,11 @@ public:
 	virtual bool			ServerIsMVDRecording( void ) const;
 	virtual bool			ServerCopyMVDRecordingQPath( char *buffer, int bufferSize ) const;
 	virtual bool			ServerCopyMVDRecordingResult( serverMVDRecordingResult_t &result ) const;
+	// Voice has exact recipients, no spectator/demo fanout and no reliable
+	// delivery. The server batches only the current frame, after snapshots.
+	// False means dropped; true never promises delivery of disposable media.
+	virtual bool			ClientSendVoice( const idBitMsg &msg );
+	virtual bool			ServerSendVoice( int clientNum, const idBitMsg &msg );
 };
 
 extern idNetworkSystem *	networkSystem;

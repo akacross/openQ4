@@ -397,6 +397,7 @@ idGameLocal::ServerClientConnect
 ================
 */
 void idGameLocal::ServerClientConnect( int clientNum, const char *guid ) {
+	mpGame.ResetVoiceState( clientNum );
 	// make sure no parasite entity is left
 	if ( entities[ clientNum ] ) {
 		common->DPrintf( "ServerClientConnect: remove old player entity\n" );
@@ -539,6 +540,7 @@ clientNum == MAX_CLIENTS for cleanup of server demo recording data
 ================
 */
 void idGameLocal::ServerClientDisconnect( int clientNum ) {
+	if ( clientNum < MAX_CLIENTS ) mpGame.ResetVoiceState( clientNum );
 	int			i;
 	idBitMsg	outMsg;
 	byte		msgBuf[MAX_GAME_MESSAGE_SIZE];
@@ -1590,7 +1592,8 @@ void idGameLocal::ServerProcessReliableMessage( int clientNum, const idBitMsg &m
 		case GAME_RELIABLE_MESSAGE_VOICEDATA_CLIENT_ECHO:
 		case GAME_RELIABLE_MESSAGE_VOICEDATA_CLIENT_TEST:
 		case GAME_RELIABLE_MESSAGE_VOICEDATA_CLIENT_ECHO_TEST: {
-			mpGame.ReceiveAndForwardVoiceData( clientNum, msg, id - GAME_RELIABLE_MESSAGE_VOICEDATA_CLIENT );
+			// Obsolete reliable media is intentionally discarded. Versioned voice
+			// enters only through ServerReceiveVoice's unreliable boundary.
 			break;
 		}
 // ddynerman: stats
@@ -2707,6 +2710,7 @@ void idGameLocal::ClientProcessReliableMessage( int clientNum, const idBitMsg &m
 				break;
 			}
 			if( entPtr.GetEntity() && entPtr.GetEntity()->entityNumber < MAX_CLIENTS ) {
+				mpGame.ResetVoiceState( entPtr.GetEntity()->entityNumber );
 				delete entPtr.GetEntity();
 				gameLocal.mpGame.UpdatePlayerRanks();
 			} else {

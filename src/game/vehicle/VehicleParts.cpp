@@ -583,8 +583,10 @@ rvVehicleLight::Restore
 */
 void rvVehicleLight::Restore ( idRestoreGame* savefile ) {
 	savefile->ReadRenderLight ( renderLight );
-	savefile->ReadInt ( lightHandle );
-	if ( lightHandle != -1 ) {
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedLightHandle;
+	savefile->ReadInt( savedLightHandle );
+	if ( savedLightHandle != -1 ) {
 		//get the handle again as it's out of date after a restore!
 		rvNormalizeProjectedRenderLight( renderLight, parent ? parent->GetName() : "<vehicle>", "vehicle-light" );
 		lightHandle = gameRenderWorld->AddLightDef( &renderLight );

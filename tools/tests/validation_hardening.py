@@ -648,6 +648,27 @@ def validate_validation_wiring() -> None:
     # exercised by their native harnesses or runtime callers. Keep both out of
     # the argument-free lightweight suite; CI still checks their syntax.
     smoke_wiring_allowlist = {
+        # Stage 2 drivers: each launches a staged client, dedicated server,
+        # WSL peer or OpenXR runtime on retail assets; the workflows py_compile
+        # them and their production-extraction siblings are wired.
+        "arena_sound_runtime.py",
+        "mp_wsl_peer_smoke.py",
+        "openxr_lifecycle_runtime.py",
+        "savegame_restore_cleanup_runtime.py",
+        "savegame_restore_recovery_runtime.py",
+        "ui_generated_image_runtime.py",
+        # Audio/voice drivers: retail assets, a staged OpenAL Soft provider,
+        # ffmpeg or a launched game; their native-compile siblings are wired.
+        "audio_asset_inventory.py",
+        "audio_center.py",
+        "audio_dialogue.py",
+        "audio_memory_runtime.py",
+        "audio_mod_reverb.py",
+        "audio_streaming.py",
+        "audio_subtitles_runtime.py",
+        "voice_chat_runtime.py",
+        "voice_chat_soak.py",
+        "voice_mixed_version.py",
         "german_localization_smoke.py",
         "localization_smoke.py",
         "level_editor_runtime.py",
@@ -746,6 +767,15 @@ def validate_validation_wiring() -> None:
         "awakening_status_runtime.py",
         "monster_hit_materials.py",
         "mp_bot_audit.py",
+        # Isolated bot jump replays launch a staged MP server and client.
+        "mp_bot_jump_replay.py",
+        # Impulse-death replays launch a staged MP server and client; their
+        # policy is exercised without assets by mp_bot_death_policy.py.
+        "mp_bot_impulse_replay.py",
+        # Stock sound distance measurements launch a staged client on retail assets.
+        "sound_distance_runtime.py",
+        # Drives a rooted x86_64 Android emulator; the workflows py_compile it.
+        "android_emulator_smoke.py",
         "renderer_milestone_d_acceptance.py",
         "renderer_milestone_d_fixture.py",
         # Radio graph evidence plays decoded audio through a staged client on

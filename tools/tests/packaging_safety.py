@@ -100,6 +100,31 @@ def run_script(script: Path, *args: Path | str) -> subprocess.CompletedProcess[s
     )
 
 
+def validate_pk4_cross_host_identity() -> None:
+    source = WORK / "cross-host-source"
+    payload = b"authored package content\n" * 2048
+    write_file(source / "materials/example.mtr", payload)
+    original_info = OPENQ4_PAK.ZipInfo
+    archives = []
+    try:
+        for host in (0, 3):
+            def host_info(*args, **kwargs):
+                info = original_info(*args, **kwargs)
+                info.create_system = host
+                return info
+
+            OPENQ4_PAK.ZipInfo = host_info
+            output = WORK / f"host-{host}.pk4"
+            OPENQ4_PAK.create_game_pk4(source, output, pak_name="pak0.pk4", required_files=set())
+            with ZipFile(output) as archive:
+                assert archive.read("materials/example.mtr") == payload
+            archives.append(output.read_bytes())
+    finally:
+        OPENQ4_PAK.ZipInfo = original_info
+    if archives[0] != archives[1]:
+        raise AssertionError("identical PK4 content produced different Windows/Unix archive checksums")
+
+
 def validate_pk4_source_containment() -> None:
     source_root = WORK / "pak-source-root"
     inside = source_root / "content" / "baseoq4" / "pak0"
@@ -1554,6 +1579,7 @@ def main() -> None:
     shutil.rmtree(WORK, ignore_errors=True)
     try:
         validate_target_repository_metadata()
+        validate_pk4_cross_host_identity()
         validate_pk4_source_containment()
         validate_pk4_archive_member_guards()
         validate_copy_helpers_do_not_follow_destination_symlinks()

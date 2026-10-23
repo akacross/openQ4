@@ -246,7 +246,8 @@ idCVar hud_damageNumberScale(		"hud_damageNumberScale",	"1",			CVAR_GAME | CVAR_
 // replaces stock Quake 4's crosshair recolour, which hud_crosshairHitFlash can
 // bring back; turning the marker off restores that flash on its own so a player
 // is never left with no hit cue at all.
-idCVar hud_hitMarker(				"hud_hitMarker",			"1",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "crosshair hit marker on hits you land" );
+// Fresh profiles keep stock hit feedback; existing archived choices are kept.
+idCVar hud_hitMarker(				"hud_hitMarker",			"0",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "crosshair hit marker on hits you land" );
 idCVar hud_hitMarkerScale(			"hud_hitMarkerScale",		"1",			CVAR_GAME | CVAR_ARCHIVE | CVAR_FLOAT, "hit marker size multiplier, on top of g_crosshairSize", 0.25f, 4.0f );
 idCVar hud_crosshairHitFlash(		"hud_crosshairHitFlash",	"0",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "recolour the crosshair on a hit, as stock Quake 4 does; implied when hud_hitMarker is off" );
 // openQ4 END
@@ -825,7 +826,7 @@ idCVar net_mpLagCompDebug(					"net_mpLagCompDebug",				"0",			CVAR_GAME | CVAR_
 idCVar bot_enable(							"bot_enable",						"1",			CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE, "allow bots to be added to multiplayer matches" );
 idCVar bot_minPlayers(						"bot_minPlayers",					"0",			CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE, "keep the match topped up to this many players with bots, 0 disables" );
 idCVar bot_skill(							"bot_skill",						"3",			CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE, "bot difficulty, 1 (easiest) to 5 (hardest)", 1, 5 );
-idCVar bot_debug(							"bot_debug",						"0",			CVAR_GAME | CVAR_INTEGER | CVAR_NOCHEAT, "log bot decisions: 1 navigation events, 2 adds a periodic per-bot status line" );
+idCVar bot_debug(							"bot_debug",						"0",			CVAR_GAME | CVAR_INTEGER | CVAR_NOCHEAT, "log bot decisions: 1 navigation events, 2 adds periodic bot status, 3 adds edge and traversal traces, 4 adds live jump predictions" );
 idCVar bot_debugNav(						"bot_debugNav",						"0",			CVAR_GAME | CVAR_INTEGER | CVAR_NOCHEAT, "draw the navmesh (1) and bot routes (2) near the local player" );
 idCVar bot_navCellSize(						"bot_navCellSize",					"24",			CVAR_GAME | CVAR_FLOAT | CVAR_NOCHEAT, "navmesh sampling resolution in world units; smaller finds more ground and costs more to build", 8, 64 );
 idCVar bot_pause(							"bot_pause",						"0",			CVAR_GAME | CVAR_BOOL | CVAR_NOCHEAT, "freeze all bot input" );

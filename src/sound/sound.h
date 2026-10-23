@@ -283,6 +283,15 @@ option existing simultaniously with a live game.
 ===============================================================================
 */
 
+// A borrowed presentation snapshot, valid until the next decl/language reload.
+// Timing follows the sample clock, including pause and frequency/time shifts.
+struct soundSubtitle_t {
+	const char* text;
+	const char* shader;
+	int emitterIndex, speakerId, startTime, timeMsec, durationMsec;
+	bool radio;
+};
+
 class idSoundWorld
 {
 public:
@@ -357,6 +366,7 @@ public:
 	// spatialisation path that already does portal tracing, so it must be cheap and main-thread.
 	typedef bool ( *liquidTest_t )( const idVec3 &point );
 	virtual void			SetLiquidTest( liquidTest_t test ) = 0;
+	virtual int				GetSubtitles( soundSubtitle_t* cues, int capacity ) = 0;
 };
 
 
@@ -549,6 +559,17 @@ public:
 	// pointers to them; samples loaded later become silent defaults, as on a
 	// dedicated server. Retail Quake4.exe 1.4.2 calls ShutdownHW there.
 	virtual void			ShutdownHW() = 0;
+
+	// Voice is session-owned, independent of map audio/time scale. Recording
+	// additionally requires explicit capture consent and push-to-talk (or a
+	// local microphone test); merely receiving never opens an input device.
+	virtual bool			UpdateVoiceChat( bool active, bool transmit, bool localTest ) = 0;
+	virtual int				GetVoiceData( byte* data, int capacity ) = 0;
+	virtual void			PlayVoiceData( int clientNum, unsigned int generation, const byte* data, int size ) = 0;
+	virtual void			StopVoiceData( int clientNum ) = 0;
+	virtual void			ResetVoiceChat() = 0;
+	virtual int				GetVoiceTalker() const = 0;
+	virtual float			GetVoiceLevel() const = 0;
 };
 
 extern idSoundSystem*	soundSystem;

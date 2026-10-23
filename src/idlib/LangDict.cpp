@@ -784,6 +784,14 @@ const char *idLangDict::GetString( const char *str ) const {
 	return str;
 }
 
+const char *idLangDict::FindString( const char *key ) const {
+	if (key == NULL || key[0] == '\0') return NULL;
+	for (int i = hash.First(GetHashKey(key)); i != -1; i = hash.Next(i)) {
+		if (args[i].key.Cmp(key) == 0) return args[i].value.c_str();
+	}
+	return NULL;
+}
+
 /*
 ============
 idLangDict::AddString

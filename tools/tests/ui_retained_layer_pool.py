@@ -184,6 +184,11 @@ int main(){
     // A straight image is unpremultiplied and keeps its coverage.
     host.Draw(quad,indices,reinterpret_cast<std::uintptr_t>(&picture));
     for (const auto& vertex : renderer.drawn) assert(vertex.color[0]==255 && vertex.color[3]==128);
+    // Generated pixels already carry premultiplied alpha. The engine keeps
+    // their tint premultiplied too, unlike ordinary file-backed pictures.
+    idMaterial generated{"_retainedGenerated/1"};
+    host.Draw(quad,indices,reinterpret_cast<std::uintptr_t>(&generated));
+    for (const auto& vertex : renderer.drawn) assert(vertex.color[0]==128 && vertex.color[3]==128);
     // A retained mesh converts once per revision, and its release frees it.
     const auto pictureHandle=reinterpret_cast<std::uintptr_t>(&picture);
     host.DrawMesh(7,1,quad,indices,pictureHandle);
@@ -221,6 +226,7 @@ int main(){
 
 
 SOFT_SUPPORT = r'''
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -304,6 +310,11 @@ struct Host {
     std::vector<int> meshes;
     std::vector<std::string> scalableFaces,fonts;
     bool fontFallbackReported=false;
+    // Generated image ownership has its own production adapter/runtime fixture.
+    struct GeneratedImages {template<class F> void Reset(F release){}} generatedImages;
+    std::array<const idMaterial*,64> generatedMaterials{};
+    std::uintptr_t generatedProbe=0;
+    bool ShrinkGeneratedImage(unsigned){return true;}
 '''
 SOFT_MAIN = r'''
 };

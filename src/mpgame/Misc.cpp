@@ -1576,6 +1576,18 @@ void idAnimated::Save( idSaveGame *savefile ) const {
 
 /*
 ===============
+idAnimated::PrepareFailedRestoreShutdown
+================
+*/
+void idAnimated::PrepareFailedRestoreShutdown( void ) {
+	// The restore registry owns these threads until the load commits. Detach
+	// first so partial/corrupt ownership and table order cannot double-delete.
+	scriptThread = NULL;
+	idAFEntity_Gibbable::PrepareFailedRestoreShutdown();
+}
+
+/*
+================
 idAnimated::Restore
 ================
 */
@@ -1600,7 +1612,7 @@ void idAnimated::Restore( idRestoreGame *savefile ) {
 	savefile->ReadBool( activated );
 
 // RAVEN BEGIN
-	savefile->ReadObject( scriptThread );
+	idThread::RestoreOwnedThread( savefile, scriptThread );
 	savefile->ReadString( state );
 	savefile->ReadString( idealState );
 	for( i = 0; i < ANIM_NumAnimChannels; i++ ) {

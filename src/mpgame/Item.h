@@ -33,6 +33,7 @@ public:
 	void					GetAttributes( idDict &attributes );
 	virtual bool			GiveToPlayer( idPlayer *player, bool updateHud = true );
 	virtual bool			Pickup( idPlayer *player );
+	bool					TouchesPickup( const idBounds &bounds ) const;
 	virtual void			Think( void );
 	virtual void			Present();
 	virtual	void			InstanceJoin( void );

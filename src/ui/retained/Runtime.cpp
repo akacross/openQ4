@@ -8,6 +8,7 @@
 #include "TextRun.h"
 #include "NumberControlView.h"
 #include "FloatChars.h"
+#include "GeneratedImagePool.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/FontEngineInterface.h>
@@ -628,11 +629,23 @@ public:
 		if (handle && source.starts_with("q4-add/")) additiveImages.insert(handle);
 		return handle;
 	}
-	Rml::TextureHandle GenerateTexture(Rml::Span<const Rml::byte>, Rml::Vector2i) override {
-		host.Log(true, "Generated textures are not implemented in the retained renderer spike");
-		return 0;
+	Rml::TextureHandle GenerateTexture(Rml::Span<const Rml::byte> pixels, Rml::Vector2i dimensions) override {
+		if (!GeneratedImagePool::ValidSize(dimensions.x,dimensions.y,pixels.size()) || !pixels.data()) {
+			host.Log(true,"Invalid retained generated image dimensions or byte count"); return 0;
+		}
+		const auto handle=host.GenerateTexture({pixels.data(),pixels.size()},dimensions.x,dimensions.y);
+		if (!handle) { host.Log(true,"Retained generated image upload unavailable or budget exhausted"); return 0; }
+		generatedImages.insert(handle);
+		return handle;
 	}
-	void ReleaseTexture(Rml::TextureHandle) override {} // Host material manager owns them.
+	void ReleaseTexture(Rml::TextureHandle texture) override {
+		// Ordinary materials remain engine-owned. Only retire this context's
+		// generated leases, and never replay a frame that names a retired image.
+		if (generatedImages.erase(texture)) {
+			InvalidateFrame(); ClearLayerCache();
+			host.ReleaseGeneratedTexture(texture);
+		}
+	}
 	void EnableScissorRegion(bool enable) override { scissorEnabled = enable; }
 	void SetScissorRegion(Rml::Rectanglei region) override { scissor = region; }
 	// Under a transform RmlUi clips overflow with the clipping box's geometry
@@ -1043,6 +1056,7 @@ private:
 	size_t frameRecordedVertices=0;
 	std::uint64_t frameVectorBytes=0;
 	std::set<std::uintptr_t> additiveImages;
+	std::set<std::uintptr_t> generatedImages;
 	static bool DisjointQuads(const RecordedDraw& draw) {
 		const auto& vertices=draw.Vertices(); const auto& indices=draw.Indices();
 		if (vertices.empty() || vertices.size()>1024 || vertices.size()%4 || indices.size()!=vertices.size()/4*6) return false;

@@ -54,6 +54,16 @@ If you quit SteamVR, or the runtime closes VR some other way, the game carries
 on in its desktop window. Enter `vr_restart` to go back into VR; `vr_enable`
 stays on, so the next launch starts in VR as usual.
 
+If an XR frame or session fails, openQ4 clears held VR controls and returns to
+desktop rendering. Session failures retry after three seconds; a stopped or lost
+runtime waits for `vr_restart`. This recovery has been checked with a simulated
+OpenXR runtime; real-headset qualification remains open.
+
+The ordinary `screenshot` command captures a desktop view during VR gameplay.
+For a developer capture of the last rendered eye, use
+`screenshot image _vrEyeColor0 screenshots/vr-left.tga` or `_vrEyeColor1` for the
+right eye. These are engine render-target captures.
+
 ## Controls
 
 Controllers act like a gamepad, so the default gamepad bindings apply and you

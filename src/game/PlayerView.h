@@ -5,6 +5,7 @@
 
 #ifndef __GAME_PLAYERVIEW_H__
 #define __GAME_PLAYERVIEW_H__
+#include "gamesys/SubtitlePaging.h"
 
 /*
 ===============================================================================
@@ -81,6 +82,7 @@ public:
 // RAVEN END
 
 private:
+#include "gamesys/SubtitleState.h"
 	void DrawPausedScene( idUserInterface *hud, const renderView_t *view, bool menuPaused );
 	bool pauseSceneValid = false;
 	int pauseSceneWidth = 0, pauseSceneHeight = 0, pauseSceneGeneration = -1, pauseSceneTime = -1, pauseSceneFrame = -1;

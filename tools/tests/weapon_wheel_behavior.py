@@ -111,6 +111,16 @@ static void Stick(float x,float y){vars.SetCVarFloat("ui_radialStickX",x);vars.S
 static void Slot(int slot,int count=11){const float a=slot*idMath::TWO_PI/count;Stick(std::sin(a),-std::cos(a));}
 static void Open(idPlayer& p){p.usercmd.buttons=BUTTON_WEAPONWHEEL;p.UpdateWeaponWheel();CHECK(p.weaponWheelActive);}
 int main() {
+    // Touch has already qualified its 300ms hold in the overlay. Show its
+    // wheel immediately, steer independently of mouse/controller settings,
+    // and release the selected weapon even inside the controller tap window.
+    Reset();{idPlayer p;vars.SetCVarBool("ui_radialTouchActive",true);
+        const float a=5*idMath::TWO_PI/11;
+        vars.SetCVarFloat("ui_radialTouchX",std::sin(a));vars.SetCVarFloat("ui_radialTouchY",-std::cos(a));
+        Open(p);now+=16;p.usercmd.mx=100;p.usercmd.my=-100;Stick(0,-1);p.UpdateWeaponWheel();
+        CHECK(p.weaponWheelHoveredSlot==5 && p.weaponWheelBlend>0);
+        p.usercmd.buttons=0;p.UpdateWeaponWheel();CHECK(p.impulses==std::vector<int>{5});
+    }
     // Any sub-180ms tap uses previous, even after the pointer crossed to a
     // different weapon; neither the wheel nor transient scene focus appears.
     for(int duration:{0,80,179}) {

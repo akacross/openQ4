@@ -35,6 +35,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../ui/RetainedUI.h"
 #ifdef __ANDROID__
 #include "../sys/android/android_public.h"
+#include "TouchInput.h"
 #endif
 
 static const float MOUSE_CPI_INCHES_PER_CM = 2.5399999618530273f;
@@ -401,6 +402,11 @@ public:
 	usercmd_t		GetDirectUsercmd( void );
 	void			TriggerImpulse( int impulseNum );
 	void			SetUsercmdButton( int action, bool down );	// not part of idUsercmdGen, see Sys_SetUsercmdButton
+#ifdef __ANDROID__
+	void			SetTouchMotion( const openq4::touch::Motion &motion ) { touchMotion.Submit( motion ); }
+	void			ResetTouchMotion();
+	void			SetTouchButtons( unsigned buttons );
+#endif
 	bool			GetPresentationViewDelta( float &yawDelta, float &pitchDelta );
 
 private:
@@ -448,6 +454,9 @@ private:
 	int				buttonState[UB_MAX_BUTTONS];
 	bool			keyState[K_LAST_KEY];
 	bool			directButtonState[UB_MAX_BUTTONS];	// SetUsercmdButton's own held-state, see Key()'s keyState
+#ifdef __ANDROID__
+	openq4::touch::MotionState touchMotion;
+#endif
     bool nativeUnknownKeyBlocked[K_LAST_KEY] = {};
     struct nativeHeldSource_t {
         std::uint64_t route=0,window=0,device=0;
@@ -1275,8 +1284,17 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 	int		i;
 
 	oldAngles = viewangles;
+#ifdef __ANDROID__
+	const openq4::touch::Motion touch = touchMotion.Take();
+#ifndef OPENQ4_SIGMATOUCH
+	SetTouchButtons( touch.buttons );
+#endif
+#endif
 	
 	if ( !Inhibited() ) {
+#ifdef __ANDROID__
+		if ( touch.impulse >= 0 ) TriggerImpulse( touch.impulse );
+#endif
 		// update toggled key states
 		toggled_crouch.SetKeyState( ButtonState( UB_DOWN ), in_toggleCrouch.GetBool() );
 		toggled_run.SetKeyState( ButtonState( UB_SPEED ), ShouldToggleRun() );
@@ -1298,6 +1316,13 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 
 		// get basic movement from joystick
 		JoystickMove();
+#ifdef __ANDROID__
+		cmd.rightmove = idMath::ClampChar( cmd.rightmove + idMath::FtoiFast( touch.side * 127.0f ) );
+		cmd.forwardmove = idMath::ClampChar( cmd.forwardmove + idMath::FtoiFast( touch.forward * 127.0f ) );
+		const float touchZoomScale = GetZoomLookSensitivityScale();
+		viewangles[YAW] += touch.yaw * touchZoomScale;
+		viewangles[PITCH] += touch.pitch * touchZoomScale;
+#endif
 
 		// check to make sure the angles haven't wrapped
 		if ( viewangles[PITCH] - oldAngles[PITCH] > 90 ) {
@@ -1322,6 +1347,9 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 	} else {
 		mouseDx = 0;
 		mouseDy = 0;
+#ifdef __ANDROID__
+		touchMotion.Block();
+#endif
 	}
 
 	for ( i = 0; i < 3; i++ ) {
@@ -1415,6 +1443,9 @@ idUsercmdGenLocal::Clear
 ================
 */
 void idUsercmdGenLocal::Clear( void ) {
+#ifdef __ANDROID__
+	touchMotion.Block();
+#endif
 	// clears all key states 
 	memset( buttonState, 0, sizeof( buttonState ) );
 	memset( keyState, false, sizeof( keyState ) );
@@ -1589,7 +1620,7 @@ void idUsercmdGenLocal::SetUsercmdButton( int action, bool down ) {
 	if ( action <= UB_NONE || action >= UB_MAX_BUTTONS ) {
 		return;
 	}
-	if ( RetainedUI_IsOpen() || retainedDirectBlocked[action] ) {
+	if ( NativeInput_Inhibited() || RetainedUI_IsOpen() || retainedDirectBlocked[action] ) {
 		retainedDirectBlocked[action] = down;
 		return;
 	}
@@ -1736,6 +1767,9 @@ void idUsercmdGenLocal::Joystick( void ) {
 }
 
 void idUsercmdGenLocal::RetainedInputChanged() {
+#ifdef __ANDROID__
+	touchMotion.Block();
+#endif
 	for ( int key = 0; key < K_LAST_KEY; ++key )
 		// The ordered event path may already have observed a release whose
 		// poll sample will be discarded at this handoff. Use that current state
@@ -1780,6 +1814,9 @@ void idUsercmdGenLocal::NativeInputSource(std::uint64_t route,std::uint64_t wind
     if(down){if(vacant)*vacant={route,window,device,source,key,true};else nativeSourceExhausted=true;}
 }
 void idUsercmdGenLocal::NativeInputChanged() noexcept {
+#ifdef __ANDROID__
+    touchMotion.Block();
+#endif
     if(NativeInput_Inhibited()) {
         for(int key=1;key<K_LAST_KEY;++key)
             nativeUnknownKeyBlocked[key]=nativeUnknownKeyBlocked[key] || keyState[key] || idKeyInput::IsDown(key);
@@ -1957,6 +1994,31 @@ rather than in sys/android because idUsercmdGenLocal never leaves this file.
 void Sys_SetUsercmdButton( int action, bool down ) {
 	Sys_EnterCriticalSection();
 	localUsercmdGen.SetUsercmdButton( action, down );
+	Sys_LeaveCriticalSection();
+}
+
+void idUsercmdGenLocal::SetTouchButtons( unsigned buttons ) {
+	static const int actions[QUAKE4_BTN_COUNT] = {
+		UB_ATTACK, UB_ZOOM, UB_UP, UB_DOWN, UB_SPEED, UB_STRAFE, UB_WEAPONWHEEL, UB_SHOWSCORES
+	};
+	for ( int i = 0; i < QUAKE4_BTN_COUNT; ++i ) SetUsercmdButton( actions[i], ( buttons & ( 1u << i ) ) != 0 );
+}
+
+void idUsercmdGenLocal::ResetTouchMotion() {
+	touchMotion.Clear();
+	SetTouchButtons( 0 );
+}
+
+void Sys_SetTouchMotion( float side, float forward, float yaw, float pitch, bool active, unsigned buttons, unsigned canceledButtons,
+		int nextWeapon, int reload ) {
+	Sys_EnterCriticalSection();
+	localUsercmdGen.SetTouchMotion( { side, forward, yaw, pitch, active, buttons, canceledButtons, nextWeapon, reload } );
+	Sys_LeaveCriticalSection();
+}
+
+void Sys_ResetTouchMotion() {
+	Sys_EnterCriticalSection();
+	localUsercmdGen.ResetTouchMotion();
 	Sys_LeaveCriticalSection();
 }
 #endif

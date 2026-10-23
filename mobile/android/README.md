@@ -1,16 +1,19 @@
 # Standalone Android application
 
 This SDL3 Activity hosts Emile Belanger's Android/GLES port without SigmaTouch.
-It supports the engine's SDL gamepad, mouse, keyboard and menu touch input; the
-configurable SigmaTouch overlay remains an optional, separately licensed host.
+It supports the engine's SDL gamepad, mouse and keyboard input, menu touch input
+and experimental first-party gameplay touch controls. The configurable
+SigmaTouch overlay remains an optional, separately licensed host.
 
 ## Release download
 
 The manual release workflow includes an experimental, release-signed
 `openq4-<version>-android-arm64-experimental.apk`. Install it on an ARM64 device
 with Android 7.0/API 24 or later and OpenGL ES 3.0, then provide your retail
-assets as described below. Physical-device gameplay has not been qualified.
-The APK has legacy UI enabled by default, just like desktop packages.
+assets as described below. Broad device and release-package qualification remains
+open; the recorded S25 development builds pass the scoped save/touch/audio checks
+in the [recovery evidence](../../docs/dev/platform-recovery-review.md).
+The APK uses the same menu defaults as desktop packages.
 
 Published APKs use the same persistent certificate for updates. A local debug
 APK uses a different certificate; back up its private saves before uninstalling
@@ -37,7 +40,14 @@ gradle -p mobile/android \
 Set `ANDROID_HOME` to an installed Android SDK, or set `sdk.dir` in the ignored
 `mobile/android/local.properties`. The APK is written under
 `builddir/android-apk/app/outputs/apk/debug/`. Native compilation stays in Meson;
-Gradle only packages staged libraries and openQ4-owned overlays. Android currently targets `arm64-v8a` and API 24 or later.
+Gradle only packages staged libraries and openQ4-owned overlays. The phone
+package targets `arm64-v8a` and API 24 or later.
+
+The separate [diagnostic emulator build](../../docs/dev/android-build.md#diagnostic-emulator-build)
+uses `-Popenq4Abi=x86_64` and its matching stage. It produces a debug APK under
+`builddir/android-apk-emulator/`, uses application ID
+`com.darkmatter.openq4.emulator` and keeps separate saves/data. Release packaging
+is disabled for that ABI; it is not a published phone upgrade.
 
 Gradle uses a 4 GiB heap and at most two workers. PK4 assets are already
 compressed archives and are stored directly in the APK to avoid redundant
@@ -63,21 +73,68 @@ copies those packs into private storage;
 allow room for both the APK and extracted content, plus the retail installation
 and saves.
 
-Install the APK, then copy the **contents of your licensed retail `q4base`** to
-`/sdcard/Android/data/com.darkmatter.openq4/files/q4base/`. The engine's original
-PK4 verification remains enabled. No retail game data is included in the APK.
+Install the APK and open **openQ4 setup**. Choose English, German, Spanish or
+French, then **Choose game folder** and select `q4base` from your own Quake 4
+1.4.2 installation. A subfolder inside Downloads or a connected USB drive can
+hold the source files. Android's picker grants read access to that folder;
+openQ4 copies the archives to its app-specific storage and preserves the
+originals. No retail game data is included in the APK.
+
+Setup verifies the required archives and their contents, reports optional and
+language warnings, then prepares the bundled files with progress. **Cancel**
+keeps completed archives; **Retry last operation** checks them and restarts the
+unfinished archive. If Android or the document provider loses the folder grant,
+choose the folder again. Low-space messages show the next file's requirement
+and available bytes. Once ready, choose **Single player** or **Multiplayer**.
+Completing work in the background never launches the game automatically.
+
+For development, manual data placement still works. Open the launcher and use
+**Check installed files** afterward:
 
 ```sh
 adb install builddir/android-apk/app/outputs/apk/debug/app-debug.apk
 adb shell mkdir -p /sdcard/Android/data/com.darkmatter.openq4/files/q4base
 adb push /path/to/Quake4/q4base/. /sdcard/Android/data/com.darkmatter.openq4/files/q4base/
-adb shell am start -n com.darkmatter.openq4/.OpenQ4Activity
+adb shell am start -n com.darkmatter.openq4/.LauncherActivity
 ```
 
-The default launch opens single-player. To start with multiplayer menus, close
-the existing app and launch with `--ez multiplayer true`; `ui_autoJoin` is set
-explicitly to `0`. The normal gamepad and keyboard bindings work in gameplay.
-The standalone app does not provide a full touch gameplay overlay.
+The native game Activity is internal; external launches use the setup entry
+point. Both play buttons keep `ui_autoJoin` explicitly `0`. A setup language
+choice reaches the next native launch; subsequent ordinary launches preserve
+the game's language setting. The normal gamepad and keyboard bindings work in
+gameplay. The standalone overlay supports independent move/look/fire contacts,
+jump/crouch, weapon tap/hold selection and weapon-dependent reload/zoom. Physical
+mouse/controller settings do not change touch motion. See the
+[player guide](../../docs/user/android-setup.md#play-with-touch-controls) for the
+current controls and remaining layout/setup limitations.
+
+The setup screen also exports saved games or diagnostic logs through Android's
+file picker. It prepares a ZIP from private save/log folders, including setup
+diagnostics and an integrity inventory, before copying it to the chosen new
+document. Cancellation and failures preserve the originals; a partial destination
+may need removal in Files. See the [player guide](../../docs/user/android-setup.md)
+for backup contents, limits, cloud-provider completion and upgrade guidance.
+
+Setup also provides touch controls presets and an Interface page for the viewing
+profile, menu size and text size, and the game's Settings can reopen it during
+play. See the [player guide](../../docs/user/android-setup.md) for both pages.
+Save/log exports to local Downloads and an exported-save restore round trip
+pass on the recorded S25 debug package. Physical folder-import providers,
+accessibility, visual and process-death qualification are still required; host
+fixtures do not establish those results.
+
+The Android Back button or gesture follows the game's menu/pause navigation.
+Fatal-error screens accept touch release on density-scaled Copy, Clear and Quit
+buttons; Back dismisses the error screen. Dragging more than 8 dp or lifting
+outside the pressed button cancels its action. The fatal screen does not open
+the on-screen keyboard. These input paths remain subject to physical-device
+qualification as part of the experimental Android package.
+
+On Android 11 and later, the SDL surface stays inside the display cutout, with
+a black strip beside the camera hole. Rendering and input therefore share the
+same content coordinates. Density changes keep the existing native Activity
+session. The app currently selects either landscape orientation; portrait and
+physical cutout/rotation/input qualification remain in progress.
 
 Saves/configuration/logs live in private `files/saves/baseoq4/`, and generated
 texture caches live in the Android cache directory. With a debug APK, retrieve
@@ -87,8 +144,20 @@ the engine log using:
 adb shell run-as com.darkmatter.openq4 cat files/saves/baseoq4/logs/openq4.log
 ```
 
+When a native fatal error writes a diagnostic report, it is beside that log at
+`files/saves/baseoq4/logs/fatal.txt`. The standalone host publishes
+`OPENQ4_SAVE_ROOT` before native startup so early diagnostics use the same root
+as `fs_savepath`. External hosts may publish their absolute save directory in
+that variable; otherwise the existing `USER_FILES/quake4` or SDL private-storage
+fallback remains in use. The setup screen's **Export logs** action includes
+these reports without requiring a debug APK or ADB access.
+
 Each packaged overlay revision extracts to its own private directory before
-engine startup; incomplete extraction is retried. Old generated revisions are
+engine startup. A manifest verifies every extracted file on each launch; missing,
+truncated or altered copies are repaired from the APK. Healthy files are not
+recopied. An interrupted repair is retried, and a replacement is installed only
+after its complete length and hash have been verified. Allow enough free storage
+for a temporary replacement of a damaged file. Old generated revisions are
 removed only after the current package is complete, so updates do not retain
 another full copy indefinitely. Saves are kept separately. App data removal also removes
 these copies and local saves. The native libraries must be extracted by the
@@ -137,6 +206,11 @@ overlay bytes and license notices. APK publication is blocked if any check or
 any desktop build fails. This packaging validation does not replace device
 installation and gameplay testing.
 
+The extraction manifest and its content revision are also checked against the
+validated stage. The host rejects malformed metadata and unexpected links or
+unlisted files in its private package tree. These checks do not replace the
+engine's validation of the separately supplied retail PK4s.
+
 ## Validation
 
 The standalone debug APK was assembled with Gradle 8.12, Android plugin 8.7.3,
@@ -150,3 +224,31 @@ The host's extraction/retry and upgrade cleanup are exercised by
 `python tools/tests/android_host_storage.py` with a JDK. The test compiles the
 actual Activity with minimal Android API substitutes and runs against temporary
 filesystem fixtures; it does not require or control an Android device.
+
+`python tools/tests/android_retail_data.py` checks the setup verifier against the
+native PK4 checksum implementation and generated valid/damaged archives. It
+requires a JDK and GCC or Clang; `--retail-root /path/to/q4base` additionally
+performs a read-only full check of local retail media. The launcher uses this
+verifier for imports and installed-data checks. The engine's own validation
+also remains enabled.
+
+`python tools/tests/android_retail_import.py` exercises verified replacement,
+interruption/retry, low space, source failures and save preservation.
+`python tools/tests/android_document_source.py` checks the read-only Android
+document-provider adapter and its connection to the importer using host API
+substitutes. Both require a JDK. Device folder-picker/grant behavior and the
+player-facing setup flow remain separate physical acceptance work.
+
+`python tools/tests/android_setup_task.py` checks retained operation delivery,
+cancellation and native/setup storage ownership. `android_setup_flow.py` runs
+the real provider/import/verification/extraction sequence, including cancellation
+between stages and retry, and checks the four complete localized resource sets.
+Neither needs a device. APK verification also compares the launcher's Marine and
+Lowpixel fonts with the exact faces inside the staged `pak0.pk4`.
+
+`python tools/tests/android_private_export.py` checks read-only save/log ZIPs,
+manifest integrity, cancellation, source changes, bounds, storage ownership and
+bounded setup diagnostics. `android_document_export.py` checks the actual
+provider writer with controlled denied/disconnected/blocked providers, including
+descriptor cleanup, cancellation, retry and byte-preserving output. These host
+fixtures do not establish physical picker/provider or cloud-upload behavior.

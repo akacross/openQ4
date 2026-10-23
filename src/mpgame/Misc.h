@@ -330,6 +330,7 @@ public:
 
 							idAnimated();
 							~idAnimated();
+	virtual void			PrepareFailedRestoreShutdown( void ) override;
 
 	void					Save( idSaveGame *savefile ) const;
 	void					Restore( idRestoreGame *savefile );

@@ -384,6 +384,10 @@ public:
 							idMover_Binary();
 							~idMover_Binary();
 
+	void					RestoreMoverLinks( idRestoreGame *savefile );
+	virtual void			ValidateRestoredBindings( idRestoreGame *savefile ) const override;
+	virtual void			PrepareFailedRestoreShutdown( void ) override;
+
 	void					Spawn( void );
 
 	void					Save( idSaveGame *savefile ) const;
