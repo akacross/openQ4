@@ -7,9 +7,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 
 from filesystem_case_segments import function_body
+from sdl3_clipboard_status import provision_source
 
 ROOT=Path(__file__).resolve().parents[2]
 SUPPORT=r'''
@@ -212,23 +214,58 @@ def source():
     return SUPPORT.replace('// ENGINE_KEY_ENUM',key_enum)+definitions+MAIN
 
 
+def pinned_sdl_include(scratch):
+    """The pinned SDL3 include directory, without needing Meson to have provisioned it.
+
+    CI's script smoke runs this before any subproject exists, so read just the
+    public headers from the pinned, hash-checked archive, as sdl3_clipboard_status
+    does for its sources. An existing default tree is used as it is.
+    """
+    wrap=configparser.ConfigParser()
+    wrap.read(ROOT/'subprojects/sdl3.wrap')
+    specification=dict(wrap['wrap-file'])
+    directory=specification['directory']
+    if (ROOT/'subprojects'/directory/'include/SDL3/SDL.h').is_file():
+        return ROOT/'subprojects'/directory/'include'
+    # Fetches and verifies the archive (packagecache or HTTPS download, SHA-256 and size bounds).
+    selected,_,archives=provision_source(None,specification,scratch,files=['include/SDL3/SDL.h'])
+    if not archives:
+        return selected/'include'
+    prefix=directory+'/include/SDL3/'
+    target=scratch/'sdl-include'
+    count=0
+    with tarfile.open(archives[0],'r:gz') as package:
+        for member in package:
+            if not member.name.startswith(prefix) or not member.isfile():
+                continue
+            name=member.name[len(prefix):]
+            if not re.fullmatch(r'[A-Za-z0-9_.-]+\.h',name) or member.size<0 or member.size>4*1024*1024:
+                raise RuntimeError(f'Unexpected pinned SDL header: {member.name}')
+            count+=1
+            if count>256:raise RuntimeError('Pinned SDL archive has more headers than expected')
+            stream=package.extractfile(member)
+            if stream is None:raise RuntimeError(f'Cannot read pinned SDL header: {member.name}')
+            with stream:data=stream.read(member.size+1)
+            if len(data)!=member.size:raise RuntimeError(f'Pinned SDL header size mismatch: {member.name}')
+            (target/'SDL3').mkdir(parents=True,exist_ok=True)
+            (target/'SDL3'/name).write_bytes(data)
+    return target
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--generate-native',type=Path)
-    parser.add_argument('--sdl-include',type=Path,help='SDL3 include directory; defaults to the pinned Meson wrap')
+    parser.add_argument('--sdl-include',type=Path,help='SDL3 include directory; defaults to the pinned Meson wrap, read from its archive when not provisioned')
     args=parser.parse_args()
     if args.generate_native:
         args.generate_native.write_text(source(),encoding='utf-8');return 0
-    sdl_include=args.sdl_include
-    if sdl_include is None:
-        wrap=configparser.ConfigParser()
-        wrap.read(ROOT/'subprojects/sdl3.wrap')
-        sdl_include=ROOT/'subprojects'/wrap['wrap-file']['directory']/'include'
-    if not (sdl_include/'SDL3/SDL.h').is_file():
-        raise RuntimeError('SDL3 headers required; prepare the pinned Meson dependency or pass --sdl-include')
     compiler=next((p for name in ('clang++','g++','c++') if (p:=shutil.which(name))),None)
     if not compiler:raise RuntimeError('C++17 compiler required')
+    (ROOT/'.tmp').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='android-console-',dir=ROOT/'.tmp') as directory:
+        sdl_include=args.sdl_include or pinned_sdl_include(Path(directory))
+        if not (sdl_include/'SDL3/SDL.h').is_file():
+            raise RuntimeError(f'SDL3 headers are missing from {sdl_include}')
         cpp=Path(directory)/'console.cpp';exe=cpp.with_suffix('.exe');cpp.write_text(source(),encoding='utf-8')
         for platform in ('android','desktop'):
             defines=['-D__ANDROID__=1'] if platform=='android' else []
