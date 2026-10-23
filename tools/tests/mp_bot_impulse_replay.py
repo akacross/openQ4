@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""Classify multiplayer bot world deaths under the impulse-exclusion policy.
+
+The MP-02 traversal gate counts navigation and control deaths. A world death
+is excluded as impulse-caused only when BOTH hold:
+
+1. A logged enemy impulse precedes it: a `BOT_IMPULSE` line (bot_debug 2) for
+   the victim, from another client that was its enemy (any other client in a
+   free-for-all mode; a client on the other team in a team mode, read from the
+   nearest preceding `MP_PLAYER` report), no more than IMPULSE_WINDOW_MSEC
+   before the death and with no other world death of the victim in between.
+2. An isolated replay of the post-impulse state proves the fall unrecoverable
+   with the game's existing physics: one bot, no enemies, teleported to the
+   logged origin with the logged post-impulse velocity, remaining health and
+   knockback time (`bot_probeHealth`), then every one of
+   AIR_HEADINGS fixed full air-input directions plus no input (`bot_probeAir`)
+   and the bot's own controller (`bot_probeMove` back toward where it was hit)
+   is flown. If any trial survives - grounded and alive at the end of its
+   observation window - the death was recoverable and stays a navigation
+   failure. A trial that fails to arm, or a session that does not complete,
+   leaves the death a navigation failure too (fail closed).
+3. The impulse makes the difference: the same moment without it (the logged
+   velocity minus its kick, at the health before the hit) lands in at least
+   one of three counterfactual trials. Otherwise the bot was already lost.
+
+Everything else - no impulse, a self/team/world impulse, an impulse outside
+the window, a missing replay - is a navigation/control death. Every excluded
+death is still reported, with its impulse and every trial's outcome.
+
+The replay is conservative in the bot's favour: it does not recreate any
+later hit, so it can only find the fall easier to recover than the match
+did. Pushes after the replayed enemy impulse are listed with the death. A constant full-input direction is the extremal
+air-control policy for displacement along that direction; sixteen headings
+sample that envelope, which is evidence rather than proof for a landing
+inside a sector narrower than the sampling.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import re
+import subprocess
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+IMPULSE_WINDOW_MSEC = 6000
+AIR_HEADINGS = 16
+TRIAL_OBSERVE_MSEC = 6000
+TRIAL_RESPAWN_MSEC = 3000  # each trial gets a freshly added bot
+TRIAL_REMOVE_MSEC = 2500   # the removed client takes a moment to leave its slot
+FREE_FOR_ALL_MODES = {"DM", "TOURNEY"}  # every other mode has teams; unknown membership fails closed
+
+IMPULSE = re.compile(
+    r"^BOT_IMPULSE client=(\d+) time=(-?\d+) attacker=(-?\d+) damage=(-?\d+) origin=(\S+) (\S+) (\S+) "
+    r"kick=(\S+) (\S+) (\S+) velocity=(\S+) (\S+) (\S+) def=(\S+)(?: health=(-?\d+))?(?: knock=(\d+))?", re.M)
+WORLD_DEATH = re.compile(r"^(\S+) (?:was killed by world|died|drowned|dissolved in slime|burned in lava)$", re.M)
+WORLD_HIT = re.compile(r"^bot (\S+): hit by world for \d+ at (\S+) (\S+) (\S+) .*\(time (\d+)\)$", re.M)
+ROSTER = re.compile(r"^\s*(\d+)\s+(\S+)\s+\S+\s+\S+\s+[\d.]+\s*$", re.M)
+
+
+def strip_colours(text: str) -> str:
+    return re.sub(r"\^[0-9a-zA-Z]", "", text)
+
+
+def roster(clean: str) -> dict[str, int]:
+    """Bot name to client number, from `botlist`."""
+    return {name: int(client) for client, name in ROSTER.findall(clean)}
+
+
+def team_reports(clean: str) -> list[tuple[int, dict[int, int]]]:
+    """(game time, {slot: team}) for every MP_STATE report, in log order."""
+    reports = []
+    for block in clean.split("MP_STATE time=")[1:]:
+        stamp = re.match(r"(\d+)", block)
+        if not stamp:
+            continue
+        teams = {int(slot): int(team) for slot, team in re.findall(r"MP_PLAYER slot=(\d+) bot=\d team=(-?\d+) ", block)}
+        reports.append((int(stamp.group(1)), teams))
+    return reports
+
+
+def is_enemy(victim: int, attacker: int, at_time: int, gametype: str, reports) -> tuple[bool, str]:
+    if attacker == victim:
+        return False, "self impulse"
+    if attacker < 0 or attacker >= 64:
+        return False, "non-player impulse"
+    if gametype.strip().upper() in FREE_FOR_ALL_MODES:
+        return True, "free-for-all opponent"
+    # The report at or before the impulse; before the first one, the first
+    # report (teams are assigned before anyone can fire).
+    teams = None
+    for stamp, block in reports:
+        if stamp > at_time:
+            if teams is None:
+                teams = block
+            break
+        teams = block
+    if not teams or victim not in teams or attacker not in teams:
+        return False, "team membership unknown"
+    if teams[victim] == teams[attacker]:
+        return False, "team-mate impulse"
+    return True, "opposing team"
+
+
+def world_deaths(clean: str, names: set[str]) -> list[dict]:
+    """Each bot world death with its time and position from the following damage line."""
+    deaths = []
+    for match in WORLD_DEATH.finditer(clean):
+        name = match.group(1)
+        if name not in names:
+            continue
+        hit = None
+        for candidate in WORLD_HIT.finditer(clean, match.end(), match.end() + 4000):
+            if candidate.group(1) == name:
+                hit = candidate
+                break
+        deaths.append({"victim": name, "offset": match.start(),
+                       "time": int(hit.group(5)) if hit else None,
+                       "origin": [float(hit.group(i)) for i in (2, 3, 4)] if hit else None})
+    return deaths
+
+
+def classify(clean: str, names: set[str], gametype: str, window_msec: int = IMPULSE_WINDOW_MSEC) -> list[dict]:
+    """Classify every bot world death: 'navigation', or 'impulse-candidate' needing a replay."""
+    clients = roster(clean)
+    reports = team_reports(clean)
+    impulses = [{"client": int(m.group(1)), "time": int(m.group(2)), "attacker": int(m.group(3)),
+                 "damage": int(m.group(4)), "origin": [float(m.group(i)) for i in (5, 6, 7)],
+                 "kick": [float(m.group(i)) for i in (8, 9, 10)],
+                 "velocity": [float(m.group(i)) for i in (11, 12, 13)], "def": m.group(14),
+                 "health": int(m.group(15)) if m.group(15) else None,
+                 "knock_msec": int(m.group(16)) if m.group(16) else None, "offset": m.start()}
+                for m in IMPULSE.finditer(clean)]
+    deaths = world_deaths(clean, names)
+    results = []
+    for index, death in enumerate(deaths):
+        record = {"victim": death["victim"], "death_time": death["time"], "death_origin": death["origin"],
+                  "client": clients.get(death["victim"]), "impulse": None, "status": "navigation"}
+        if record["client"] is None or death["time"] is None:
+            record["reason"] = "victim client or death time not logged"
+            results.append(record)
+            continue
+        previous = max((d["offset"] for d in deaths[:index] if d["victim"] == death["victim"]), default=-1)
+        prior = [i for i in impulses if i["client"] == record["client"] and previous < i["offset"] < death["offset"]
+                 and 0 <= death["time"] - i["time"] <= window_msec]
+        enemy, other = [], set()
+        for impulse in prior:
+            ok, why = is_enemy(record["client"], impulse["attacker"], impulse["time"], gametype, reports)
+            impulse = {k: v for k, v in impulse.items() if k != "offset"}
+            impulse["enemy_reason"] = why
+            (enemy.append(impulse) if ok else other.add(why))
+        if not enemy:
+            record["reason"] = ("no logged impulse within the window" if not prior else
+                                "only non-enemy impulses: " + ", ".join(sorted(other)))
+            results.append(record)
+            continue
+        # Pushes after the enemy's are reported, not replayed: a replay from
+        # the enemy's post-impulse state that falls under every input shows
+        # the enemy's impulse alone decided the fall, and one that lands
+        # leaves the death a navigation failure whatever came later.
+        record["later_impulses"] = [{k: v for k, v in i.items() if k != "offset"}
+                                    for i in prior if i["time"] > enemy[-1]["time"]]
+        record["impulse"] = enemy[-1]
+        record["status"] = "impulse-candidate"
+        record["reason"] = "enemy impulse precedes the death; replay required"
+        results.append(record)
+    return results
+
+
+def trials_for(impulse: dict) -> list[dict]:
+    """The decisive fixed-input trials and the informative controller trial."""
+    ox, oy, oz = impulse["origin"]
+    vx, vy, vz = impulse["velocity"]
+    state = f"{ox:.3f} {oy:.3f} {oz:.3f} {vx:.3f} {vy:.3f} {vz:.3f}"
+    trials = []
+    for k in range(AIR_HEADINGS):
+        angle = 2.0 * math.pi * k / AIR_HEADINGS
+        trials.append({"name": f"air{k:02d}", "decisive": True,
+                       "command": f"bot_probeAir 1 {state} {math.cos(angle):.4f} {math.sin(angle):.4f} 0"})
+    trials.append({"name": "none", "decisive": True, "command": f"bot_probeAir 1 {state} 0 0 0"})
+    trials.append({"name": "controller", "decisive": False,
+                   "command": f"bot_probeMove 1 {state} {ox:.3f} {oy:.3f} {oz:.3f}"})
+    # Fall damage is survived or not at the health the hit left, and the
+    # knockback time takes ground friction and control away as it did.
+    health = impulse.get("health")
+    if health is not None and health >= 1:
+        knock = impulse.get("knock_msec")
+        for trial in trials:
+            trial["setup"] = [f"bot_probeHealth 1 {health}" + (f" {knock}" if knock else "")]
+    # The counterfactual: the same moment without the impulse. A bot already
+    # falling into nothing before a machine gun's tap was not thrown by it.
+    kick = impulse.get("kick")
+    if kick is not None:
+        px, py, pz = (vx - kick[0], vy - kick[1], vz - kick[2])
+        before = f"{ox:.3f} {oy:.3f} {oz:.3f} {px:.3f} {py:.3f} {pz:.3f}"
+        flat = math.hypot(px, py)
+        bx, by = ((-px / flat, -py / flat) if flat > 1.0 else (0.0, 0.0))
+        counterfactual = [
+            {"name": "preNone", "command": f"bot_probeAir 1 {before} 0 0 0"},
+            {"name": "preBrake", "command": f"bot_probeAir 1 {before} {bx:.4f} {by:.4f} 0"},
+            {"name": "preController", "command": f"bot_probeMove 1 {before} {ox:.3f} {oy:.3f} {oz:.3f}"},
+        ]
+        for trial in counterfactual:
+            trial.update(decisive=False, counterfactual=True)
+            if health is not None and health >= 1:
+                trial["setup"] = [f"bot_probeHealth 1 {health + max(0, impulse.get('damage', 0))}"]
+        trials += counterfactual
+    return trials
+
+
+def assess_trials(sample: str, trials: list[dict], bot: str = "Rhodes") -> list[dict]:
+    """Per trial: armed exactly once, died to the world, grounded alive."""
+    outcomes = []
+    for trial in trials:
+        begin = f"MP_BOT_TRIAL_BEGIN {trial['name']}"
+        end = f"MP_BOT_TRIAL_END {trial['name']}"
+        if begin not in sample or end not in sample:
+            outcomes.append({**trial, "armed": False, "died": None, "grounded": None, "survived": False,
+                             "reason": "trial markers missing"})
+            continue
+        body = sample.split(begin, 1)[1].split(end, 1)[0]
+        armed = len(re.findall(r"^BOT_(?:AIR|MOVE)_PROBE client=1 ", body, re.M)) == 1
+        died = re.search(rf"^{re.escape(bot)} (?:was killed by world|died)$", body, re.M) is not None
+        grounded = re.search(r"^BOT_PROBE_GROUNDED client=1 .* health=(\d+)$", body, re.M)
+        survived = armed and not died and grounded is not None and int(grounded.group(1)) > 0
+        outcomes.append({**trial, "armed": armed, "died": died, "grounded": grounded is not None,
+                         "survived": survived,
+                         "reason": ("not armed" if not armed else "died to the world" if died else
+                                    "still airborne at the end" if grounded is None else "landed alive")})
+    return outcomes
+
+
+def decide(candidate: dict, outcomes: list[dict] | None, session_ok: bool) -> dict:
+    """Exclude only a candidate whose every decisive trial armed and died."""
+    decided = dict(candidate)
+    decided["replay"] = outcomes
+    if candidate.get("status") != "impulse-candidate":
+        return decided
+    if not session_ok or not outcomes:
+        decided.update(status="navigation", reason="impulse replay did not complete (fail closed)")
+        return decided
+    decisive = [o for o in outcomes if o["decisive"]]
+    if len(decisive) != AIR_HEADINGS + 1 or not all(o["armed"] for o in decisive):
+        decided.update(status="navigation", reason="an impulse replay trial did not arm (fail closed)")
+        return decided
+    survivors = [o["name"] for o in outcomes if o["survived"] and not o.get("counterfactual")]
+    if survivors:
+        decided.update(status="navigation",
+                       reason="recoverable: replay survived with " + ", ".join(survivors))
+        return decided
+    if not all(o["died"] for o in decisive):
+        decided.update(status="navigation", reason="a decisive trial neither survived nor died (fail closed)")
+        return decided
+    # The impulse has to make the difference: the same moment without it
+    # must be survivable, or the bot was already lost to navigation.
+    before = [o for o in outcomes if o.get("counterfactual")]
+    if not before or not any(o["survived"] for o in before):
+        decided.update(status="navigation",
+                       reason="unrecoverable after the impulse, but not shown survivable without it (fail closed)")
+        return decided
+    decided.update(status="excluded-impulse",
+                   reason="enemy impulse; every fixed air input and no input fell to the world in replay, "
+                          "and the same moment without the impulse landed (" +
+                          ", ".join(o["name"] for o in before if o["survived"]) + ")")
+    return decided
+
+
+def summarise(decided: list[dict]) -> dict:
+    navigation = [d for d in decided if d["status"] != "excluded-impulse"]
+    excluded = [d for d in decided if d["status"] == "excluded-impulse"]
+    return {"world_deaths": len(decided), "navigation_world_deaths": len(navigation),
+            "excluded_impulse_deaths": len(excluded), "deaths": decided}
+
+
+def replay_session(runtime: Path, executable: str, basepath: Path, output: Path, map_name: str,
+                   gametype: str, trials: list[dict], port: int, timeout: int) -> tuple[bool, str, int]:
+    """Run trials one after another with one isolated bot; returns (completed, clean log, exit code)."""
+    from mp_round_remote_smoke import verify_runtime_is_current
+    verify_runtime_is_current(runtime, executable)
+    game = output / "save/baseoq4"
+    game.mkdir(parents=True, exist_ok=False)
+    first = trials[0]["command"].split()
+    observer = f"{float(first[2]):.0f} {float(first[3]):.0f} {float(first[4]) + 480:.0f} 60 0 0"
+    script = ['set g_autoExecAfterMapLoad ""', "notarget", "god", "noclip", "set bot_debug 2", "set bot_chat 0", f"setviewpos {observer}",
+              "addbot Rhodes 4 exact", "waitMsec 2000", "navmesh info", "echo MP_BOT_REPLAY_BEGIN"]
+    for trial in trials:
+        words = trial["command"].split()
+        neutral = " ".join(words[:5] + ["0", "0", "0"] + words[8:])
+        # Restore the world as well as the bot. A preceding trial can collect
+        # the health pickup that makes the next heading survivable. Restart
+        # repopulates items; player Init clears god/noclip but preserves notarget.
+        script += ["set bot_pause 1", "serverMapRestart", "waitMsec 1000", "god", "noclip", f"setviewpos {observer}",
+                   neutral, "waitMsec 64", f"echo MP_BOT_TRIAL_BEGIN {trial['name']}",
+                   *trial.get("setup", []), trial["command"], "set bot_pause 0", f"waitMsec {TRIAL_OBSERVE_MSEC}",
+                   f"echo MP_BOT_TRIAL_END {trial['name']}",
+                   # A bot that died, or walked off later, would refuse or
+                   # spoil the next trial: replace it with a fresh one.
+                   # The removed client takes a moment to leave its slot.
+                   "removebot Rhodes", f"waitMsec {TRIAL_REMOVE_MSEC}", "addbot Rhodes 4 exact", f"waitMsec {TRIAL_RESPAWN_MSEC}"]
+    script += ["echo MP_BOT_REPLAY_END", "quit"]
+    (game / "impulse_replay.cfg").write_text("\n".join(script) + "\n", encoding="utf-8")
+    cvars = {
+        "win_allowMultipleInstances" if os.name == "nt" else "sys_allowMultipleInstances": "1",
+        "sys_consoleWindow": "0", "in_tty": "0", "in_mouse": "0", "in_joystick": "0",
+        "r_fullscreen": "0", "r_borderless": "0", "r_fullscreenDesktop": "0",
+        "r_borderlessDefaultMigrated": "1", "r_hiddenWindow": "1", "s_noSound": "1",
+        "r_mode": "-1", "r_customWidth": "640", "r_customHeight": "480", "r_renderApi": "vulkan",
+        "r_swapInterval": "0", "com_maxfps": "60", "ui_retained": "0",
+        "fs_basepath": str(basepath), "fs_savepath": str(game.parent), "fs_devpath": str(game.parent),
+        "fs_game": "baseoq4", "com_gameMode": "MP", "logFile": "2", "logFileName": "logs/openq4.log",
+        "developer": "1", "ui_autoJoin": "1", "ui_spectate": "Play", "ui_name": "BotAuditObserver",
+        "net_serverDedicated": "0", "net_LANServer": "1", "net_ip": "127.0.0.1", "net_enableIPv6": "0",
+        "net_allowCheats": "1", "sv_cheats": "1", "net_port": str(port), "si_pure": "0",
+        # Stay in playable warmup: replacing the sole bot during a live match
+        # forfeits it and puts later probes into the spectator/intermission state.
+        "si_gameType": gametype, "si_maxPlayers": "4", "si_minPlayers": "4", "si_warmup": "1", "si_useReady": "1",
+        "si_warmupReadyPercentage": "1", "ui_ready": "0",
+        "si_fragLimit": "999", "si_captureLimit": "999", "si_timeLimit": "0", "g_matchProfile": "casual",
+        "bot_enable": "1", "bot_minPlayers": "0", "bot_pause": "0", "bot_characters": "1",
+        "bot_skillVariance": "0", "com_skipLoadingContinue": "1",
+        "g_autoExecAfterMapLoad": "impulse_replay.cfg", "g_autoExecAfterMapLoadDelayMs": "500",
+    }
+    command = [str(runtime / executable)]
+    for key, value in cvars.items():
+        command += ["+set", key, value]
+    command += ["+spawnServer", map_name]
+    (output / "launch.json").write_text(json.dumps(command, indent=2) + "\n", encoding="utf-8")
+    with (output / "console.log").open("w", encoding="utf-8") as console:
+        process = subprocess.Popen(command, cwd=runtime, stdout=console, stderr=subprocess.STDOUT,
+                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        try:
+            code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            code = -1
+    log_path = game / "logs/openq4.log"
+    clean = strip_colours(log_path.read_text(encoding="utf-8", errors="replace")) if log_path.exists() else ""
+    clean = "\n" + "\n".join(line.rstrip() for line in clean.splitlines()) + "\n"
+    fatal = re.search(r"^.*(?:ERROR:|FATAL:|Assertion failed).*$", clean, re.M)
+    completed = code == 0 and "\nMP_BOT_REPLAY_END\n" in clean and not fatal
+    return completed, clean, code
+
+
+def classify_log(clean: str, names: set[str], gametype: str, map_name: str, runtime: Path, executable: str,
+                 basepath: Path, output: Path, port: int) -> dict:
+    """Classify a match log and replay every impulse candidate; returns the summary."""
+    decided = []
+    for index, candidate in enumerate(classify(clean, names, gametype)):
+        if candidate["status"] != "impulse-candidate":
+            decided.append(decide(candidate, None, False))
+            continue
+        trials = trials_for(candidate["impulse"])
+        folder = output / f"replay-{index:02d}-{candidate['victim']}"
+        # Map load, then per trial: the observation, the bot's removal and
+        # replacement, with half again as slack for a busy machine.
+        per_trial = TRIAL_OBSERVE_MSEC + TRIAL_REMOVE_MSEC + TRIAL_RESPAWN_MSEC + 200
+        timeout = 150 + len(trials) * per_trial * 3 // 2000
+        completed, sample_log, code = replay_session(runtime, executable, basepath, folder, map_name, gametype,
+                                                     trials, port, timeout)
+        sample = sample_log.partition("\nMP_BOT_REPLAY_BEGIN\n")[2]
+        outcomes = assess_trials(sample, trials)
+        result = decide(candidate, outcomes, completed)
+        result["replay_dir"] = str(folder)
+        result["replay_exit"] = code
+        decided.append(result)
+    return summarise(decided)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--report", type=Path, required=True, help="an mp_bot_audit.py report.json")
+    parser.add_argument("--runtime-dir", type=Path, default=ROOT / ".install")
+    parser.add_argument("--executable-name", default="openQ4-client_x64.exe" if os.name == "nt" else "openQ4-client_x64")
+    parser.add_argument("--basepath", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--port", type=int, default=28973)
+    args = parser.parse_args()
+    report = json.loads(args.report.read_text(encoding="utf-8"))
+    output = args.output_dir.resolve()
+    if output.exists():
+        parser.error("use a new output directory to preserve earlier evidence")
+    output.mkdir(parents=True)
+    from mp_bot_audit import NAMES
+    clean = strip_colours(Path(report["log"]).read_text(encoding="utf-8", errors="replace"))
+    started = time.monotonic()
+    summary = classify_log(clean, set(NAMES[:report["bots"]]), report["gametype"], report["map"],
+                           args.runtime_dir.resolve(), args.executable_name, args.basepath.resolve(), output, args.port)
+    summary.update(report=str(args.report.resolve()), elapsed_seconds=round(time.monotonic() - started, 1),
+                   policy=__doc__.split("\n\n")[1].strip())
+    (output / "classification.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({k: summary[k] for k in ("world_deaths", "navigation_world_deaths", "excluded_impulse_deaths")}))
+    for death in summary["deaths"]:
+        print(f"  {death['victim']} at {death['death_time']}: {death['status']} - {death['reason']}")
+    return int(summary["navigation_world_deaths"] > 0)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -25,6 +25,7 @@ struct idMath {
     static float Fabs(float x) { return std::fabs(x); }
     static float Sqrt(float x) { return std::sqrt(x); }
     static float Cos(float x) { return std::cos(x); }
+    static float Sin(float x) { return std::sin(x); }
     static float Ceil(float x) { return std::ceil(x); }
     static int ClampChar(int x) { return std::clamp(x,-128,127); }
     static float AngleNormalize180(float x) { while(x>180) x-=360; while(x<-180) x+=360; return x; }
@@ -124,7 +125,7 @@ struct idEntity {
     bool IsHidden() const { return hidden; }
     int GetInstance() const { return instance; }
 };
-enum { NAVTRAVEL_WALK,NAVTRAVEL_JUMP,NAVTRAVEL_JUMPPAD,NAVTRAVEL_DROP,POWERUP_INVISIBILITY,POWERUP_QUADDAMAGE,POWERUP_DOUBLER,BUTTON_ATTACK,BOTCHAT_ITEM_DENIED,BUTTON_RUN,PMOD_SPEED };
+enum { NAVTRAVEL_WALK,NAVTRAVEL_JUMP,NAVTRAVEL_JUMPPAD,NAVTRAVEL_DROP,POWERUP_INVISIBILITY,POWERUP_QUADDAMAGE,POWERUP_DOUBLER,BUTTON_ATTACK,BOTCHAT_ITEM_DENIED,BUTTON_RUN,PMOD_SPEED,NAVTRAVEL_TELEPORT };
 struct idPlayer : idEntity {
     float deltaViewAngles[3]={};
     const float* GetDeltaViewAngles() const { return deltaViewAngles; }
@@ -238,7 +239,13 @@ struct Nav {
     }
     int landingChecks=0;
     float landingImpact=0,lastImpactLimit=idMath::INFINITY;
-    bool LandingSurvivable(const idVec3&,const navCorner_t&,float limit) { ++landingChecks; return landingImpact<=limit; }
+    idVec3 lastLandingFrom;
+    std::map<float,float> impactAtX; // a corner whose x is listed lands with that impact instead
+    bool LandingSurvivable(const idVec3& from,const navCorner_t& corner,float limit) {
+        ++landingChecks; lastLandingFrom=from;
+        auto it=impactAtX.find(corner.origin.x);
+        return (it==impactAtX.end() ? landingImpact : it->second)<=limit;
+    }
     bool continuationClear=true;
     bool jumpTakeoffClear=false;
     int jumpTakeoffChecks=0;
@@ -254,6 +261,15 @@ struct Nav {
     bool RecoveryStepClear(const idVec3&,const idVec3&) { ++recoveryStepChecks; return recoveryStepClear; }
     bool LandingContinuationClear(const idVec3&,const idVec3&) { return continuationClear; }
     int TransportAt(const idBounds&) const { return transport; }
+    std::vector<std::pair<int,float>> volumesAhead;
+    mutable int transportMoves=0;
+    idVec3 volumeCentre{100,10,0};
+    bool TransportCentre(int,idVec3& centre) const { centre=volumeCentre; return true; }
+    int TransportOnMove(const idVec3&,const idVec3& to,int ignore) const {
+        ++transportMoves;
+        for(auto& v:volumesAhead) if(v.first!=ignore && to.x>=v.second) return v.first;
+        return -1;
+    }
     bool NaturalPadLanding(int entity,idVec3& out) const {
         if(entity!=transport || !naturalPad) return false; out=padLanding; return true;
     }
@@ -374,6 +390,8 @@ struct rvBotManager {
     int ItemPickupTime(const idItem* item) const { return item->pickupTime; }
     int decisions=0;
     bool ClaimDecision() { ++decisions; return true; }
+    const rvBot* approachBots[MAX_CLIENTS]={};
+    bool PadApproachOf(int i,int& pad,int& since,idVec3& launch,idVec3& landing) const;
 } botManager;
 struct botItemCandidate_t { idItem* item; float utility,score; };
 struct botItemOption_t { idItem* item; float utility; int pendingMsec; int node; };
@@ -385,6 +403,14 @@ struct rvBot {
     int enemyPathTime=0,nextGoalSelectTime=0,holdUntil=0,noRouteSince=0;
     int traversalCorner=-1,stuckPathCorner=0,goalSelectedTime=0;
     int padHoldSince=0,stuckTime=0,stuckChecks=0,unstickUntil=0,traversalStartTime=0;
+    int padApproachEntity=-1,padApproachSince=0,padApproachTime=0,airRecoverReported=0,airRecoverLanded=0;
+    bool airRecovering=false;
+    int knockbackTime=0,airborneSince=0,airRecoverPlanTime=0,knockbackFrameTime=-1;
+    idVec3 knockbackFrameKick;
+    bool airborneVoluntary=false;
+    idVec3 airRecoverWish;
+    int LiquidAtFeet() const { return 0; }
+    idVec3 padApproachLaunch,padApproachLanding;
     float goalUtility=0,goalBestDistance=idMath::INFINITY,stuckCornerDistance=idMath::INFINITY;
     bool objectiveHoldPosition=false,traversalEntered=false,goalItemPending=false;
     bool traversalStarted=false;
@@ -458,6 +484,7 @@ struct rvBot {
     bool GuardLandingContinuation(idPlayer*,usercmd_t&);
     void AdoptPadLaunch(idPlayer*);
     bool GuardLandingHealth(idPlayer*,usercmd_t&);
+    bool RecoverInAir(idPlayer*,usercmd_t&);
 };
 struct botCombatProjectileImpact_t {
     bool collided=false,terminating=false,hitsSelf=false;
@@ -488,12 +515,33 @@ bool BotCombatSplashThreatensPlayer(idPlayer* p,idEntity*,idVec3 impact,float ra
 // production edge guard, including the nearest-node and wander branches.
 idVec3 lastEdgeProbe;
 bool BotDeadlyDropAt(idPlayer*,const idVec3& point) { lastEdgeProbe=point; return point.x>0; }
+// The floor/trace half of a step's safety is MpBotJumpTrajectoriesFixture's;
+// here a sidestep is safe unless the test says otherwise.
+bool moveDirectionSafe=true;
+// Whether a free fall lands on nothing is BotDeadlyDropAt's geometry; here it is given.
+bool airLandingUnsafe=false;
+bool BotAirLandingUnsafe(idPlayer*,idVec3& touchdown) { touchdown={}; return airLandingUnsafe; }
+// The fall simulation is the navmesh's; here a chosen input may be imposed.
+bool airChoiceSet=false; idVec3 airChoice; int airChoices=0;
+void BotChooseAirInput(idPlayer* self,idVec3& wish) {
+    ++airChoices; if(airChoiceSet) { wish=airChoice; return; }
+    wish=idVec3(-self->physics.velocity.x,-self->physics.velocity.y,0); wish.Normalize();
+}
+bool BotMoveDirectionSafe(idPlayer*,const idVec3&) { return moveDirectionSafe; }
 // PRODUCTION_FUNCTIONS
+// The manager publishes only an approach confirmed within the stale window.
+bool rvBotManager::PadApproachOf(int i,int& pad,int& since,idVec3& launch,idVec3& landing) const {
+    const rvBot* b=(i>=0 && i<MAX_CLIENTS && bots[i]) ? approachBots[i] : nullptr;
+    if(!b || b->padApproachEntity<0 || gameLocal.time-b->padApproachTime>BOT_PAD_APPROACH_STALE_MSEC) return false;
+    pad=b->padApproachEntity; since=b->padApproachSince; launch=b->padApproachLaunch; landing=b->padApproachLanding;
+    return true;
+}
 
 void Reset() {
     gameLocal=idGameLocal(); gameLocal.usercmds=gameLocal.commands;
     botManager=rvBotManager(); commonObject.warnings=0;
-    navMesh=Nav(); fixtureObjective={}; fixtureImpact={}; impactSweeps=0;
+    navMesh=Nav(); fixtureObjective={}; fixtureImpact={}; impactSweeps=0; moveDirectionSafe=true; airLandingUnsafe=false;
+    airChoiceSet=false; airChoices=0;
 }
 void GoalRoute(rvBot& b,idEntity* e,int type) {
     b.goalType=type; b.goalEntity=e; b.goalOrigin=e->physics.origin;
@@ -794,7 +842,208 @@ void TestPadHold() {
     opposing.pfl.onGround=false; opposing.physics.origin.x=160; CHECK(!bot.HoldForPad(&self,move));
     opposing.physics.origin={0,-160,128}; CHECK(!bot.HoldForPad(&self,move));
     CHECK(bot.padHoldSince==0);
+    // Several walking corners can remain inside the pad's braking distance.
+    // The flight corridor starts at the final walking corner, not the current
+    // corner elsewhere along the approach.
+    opposing.physics.origin={0,800,128}; self.physics.velocity={0,320,0};
+    bot.path.Clear(); bot.path.Append({500,-80,0}); bot.path.Append({0,0,0});
+    bot.path.Append({0,960,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(bot.HoldForPad(&self,move) && move.y<0);
+    bot.path.corners[1].travelType=NAVTRAVEL_DROP;
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.path.corners[1].travelType=NAVTRAVEL_JUMP;
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.path.corners[1].travelType=NAVTRAVEL_WALK;
+    self.physics.origin={0,-200,0}; CHECK(!bot.HoldForPad(&self,move));
+    self.physics.origin={0,-55,0}; bot.path.corners.resize(2);
+    CHECK(!bot.HoldForPad(&self,move));
+    bot.pathCorner=-1; CHECK(!bot.HoldForPad(&self,move));
+    bot.pathCorner=2; CHECK(!bot.HoldForPad(&self,move));
     std::puts("Pad corridor: brake through reserved entry, replan while blocked, retain launched flight and clear traffic: PASS");
+}
+void TestPadReservation() {
+    // q4ctf5's pads 3 and 4 throw players at each other over the void. Two
+    // bots held at either end both saw the corridor clear on the frame the
+    // last flyer landed and launched within 16 ms of each other.
+    Reset(); idPlayer a,b; rvJumpPad north,south;
+    a.physics.origin={0,-80,0}; a.physics.radius=16; a.entityNumber=0;
+    b.physics.origin={0,1080,0}; b.physics.radius=16; b.entityNumber=1;
+    south.physics.origin={0,0,0}; south.physics.radius=32;
+    north.physics.origin={0,1000,0}; north.physics.radius=32;
+    gameLocal.entities[0]=&a; gameLocal.entities[1]=&b; gameLocal.entities[8]=&south; gameLocal.entities[9]=&north;
+    gameLocal.numClients=2; botManager.bots[0]=botManager.bots[1]=true;
+    rvBot botA,botB; botA.clientNum=0; botB.clientNum=1;
+    botManager.approachBots[0]=&botA; botManager.approachBots[1]=&botB;
+    botA.path.Append({0,-40,0}); botA.path.corners.push_back({{0,1040,0},NAVTRAVEL_JUMPPAD,8});
+    botB.path.Append({0,1040,0}); botB.path.corners.push_back({{0,-40,0},NAVTRAVEL_JUMPPAD,9});
+    idVec3 moveA{0,1,0},moveB{0,-1,0};
+    int bothGo=0,neither=0;
+    for(int frame=0;frame<8;frame++,gameLocal.time+=16) {
+        const bool holdA=botA.HoldForPad(&a,moveA), holdB=botB.HoldForPad(&b,moveB);
+        if(frame>0) { bothGo+=(!holdA && !holdB); neither+=(holdA && holdB); }
+        CHECK(botA.padApproachEntity==8 && botB.padApproachEntity==9);
+    }
+    // From the frame both approaches are published, exactly one goes: the
+    // earlier, and on a tie the lower client number.
+    CHECK(bothGo==0 && neither==0);
+    CHECK(!botA.HoldForPad(&a,moveA) && botB.HoldForPad(&b,moveB));
+    // Whoever came within reach first keeps the corridor.
+    botA.padApproachSince=gameLocal.time; botB.padApproachSince=gameLocal.time-500;
+    CHECK(botA.HoldForPad(&a,moveA) && !botB.HoldForPad(&b,moveB));
+    // An approach the owner stopped confirming lapses; it cannot hold the
+    // corridor after its bot died or changed route.
+    botB.padApproachTime=gameLocal.time-BOT_PAD_APPROACH_STALE_MSEC-1;
+    CHECK(!botA.HoldForPad(&a,moveA));
+    botB.padApproachTime=gameLocal.time;
+    // q4ctf5's long pads land beyond each other's launch; their flights
+    // still share one corridor.
+    botB.padApproachLaunch={0,1040,0}; botB.padApproachLanding={0,-600,0};
+    botA.padApproachSince=gameLocal.time; botB.padApproachSince=gameLocal.time-500;
+    CHECK(botA.HoldForPad(&a,moveA));
+    botB.padApproachLanding={0,-40,0};
+    // A corridor elsewhere is not shared, nor is a human's unknowable intent.
+    botB.padApproachLaunch={600,1040,0}; botB.padApproachLanding={600,-40,0};
+    CHECK(!botA.HoldForPad(&a,moveA));
+    botB.padApproachLaunch={0,1040,0}; botB.padApproachLanding={0,-40,0};
+    botManager.bots[1]=false; CHECK(!botA.HoldForPad(&a,moveA)); botManager.bots[1]=true;
+    // Approaching from outside braking range publishes without braking;
+    // leaving that range or the route ending withdraws the approach.
+    a.physics.origin={0,-200,0}; moveA={0,1,0};
+    CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==8 && moveA.y==1);
+    a.physics.origin={0,-500,0}; CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==-1);
+    a.physics.origin={0,-80,0}; botA.path.Clear(); CHECK(!botA.HoldForPad(&a,moveA) && botA.padApproachEntity==-1);
+    std::puts("Pad reservation: exactly one of two bots at opposing pads launches; first approach wins, lapsed and unshared approaches ignored: PASS");
+}
+void TestTransportGuard() {
+    Reset(); idPlayer self; self.physics.velocity={320,0,0};
+    rvNavPath route; route.Append({100,0,0}); route.Append({200,0,0}); route.Append({300,0,0},NAVTRAVEL_JUMPPAD,9);
+    CHECK(BotPlannedTransport(route,0)==9 && BotPlannedTransport(route,2)==9 && BotPlannedTransport(route,3)==-1);
+    route.corners[1].travelType=NAVTRAVEL_DROP; CHECK(BotPlannedTransport(route,0)==-1);
+    route.corners[1].travelType=NAVTRAVEL_TELEPORT; route.corners[1].actionEntityNum=7;
+    CHECK(BotPlannedTransport(route,0)==7);
+    // A pad 40 units ahead: 0.15 s of running speed plus the steering stride reaches it.
+    navMesh.volumesAhead={{9,40}};
+    idVec3 move{1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && move.x<-0.99f);
+    // The route's own pad is the one volume it may enter.
+    move={1,0,0}; CHECK(!BotBrakeForTransport(&self,move,9) && move.x==1);
+    // Nothing ahead, or nothing reached yet: no intervention.
+    navMesh.volumesAhead={{9,90}}; move={1,0,0}; CHECK(!BotBrakeForTransport(&self,move,-1) && move.x==1);
+    // Walking pace slides along the volume, square to the wish, instead of
+    // stopping at it; a diagonal would still close on the trigger.
+    navMesh.volumesAhead={{9,20}}; self.physics.velocity={50,0,0}; move={1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && std::fabs(move.x)<0.01f && move.y<-0.99f);
+    // Only away from the volume's centre: the other side runs along the trigger.
+    navMesh.volumeCentre={100,-10,0}; move={1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && std::fabs(move.x)<0.01f && move.y>0.99f);
+    navMesh.volumeCentre={100,10,0};
+    // With no safe way round, it stops pressing rather than walking in.
+    moveDirectionSafe=false; move={1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && move.LengthSqr()==0);
+    // Momentum already leaving the volume is never reversed back into it:
+    // alternating that with the wish crept a bot onto func_jumppad_14.
+    navMesh.volumesAhead={{9,5}}; self.physics.velocity={-50,0,0}; move={1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && move.LengthSqr()==0);
+    moveDirectionSafe=true; move={1,0,0};
+    CHECK(BotBrakeForTransport(&self,move,-1) && std::fabs(move.x)<0.01f && move.y<-0.99f);
+    // Momentum alone, with no input, is still checked; standing still is not.
+    moveDirectionSafe=true; navMesh.volumesAhead={{9,40}}; self.physics.velocity={320,0,0}; move={};
+    CHECK(BotBrakeForTransport(&self,move,-1) && move.x<-0.99f);
+    self.physics.velocity={}; move={}; CHECK(!BotBrakeForTransport(&self,move,-1) && move.LengthSqr()==0);
+    // A flight belongs to its own controller.
+    self.pfl.onGround=false; self.physics.velocity={320,0,0}; move={1,0,0};
+    CHECK(!BotBrakeForTransport(&self,move,-1) && move.x==1);
+    std::puts("Transport guard: momentum short of an unplanned pad brakes, a wish slides square or stops, never reverses inward; planned pad and flights untouched: PASS");
+}
+void TestAirRecovery() {
+    // q4ctf5: a rocket's splash threw a walking bot off the south walkway;
+    // its replay lands again with full air input against the throw.
+    Reset(); idPlayer self; self.pfl.onGround=false; self.physics.velocity={300,0,180};
+    rvBot bot; bot.path.Append({0,0,0}); bot.path.Append({200,0,0});
+    usercmd_t cmd; airLandingUnsafe=true;
+    // Only a fall a knock caused: none, a stale one, or one before the bot's
+    // own takeoff - it landed and jumped since - starts nothing.
+    bot.airborneSince=gameLocal.time-84;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.forwardmove==0);
+    bot.knockbackTime=gameLocal.time-BOT_AIR_RECOVER_KNOCK_MSEC-1; bot.airborneSince=bot.knockbackTime;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
+    bot.knockbackTime=gameLocal.time-400; bot.airborneSince=gameLocal.time-50; bot.airborneVoluntary=true;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering);
+    // Walked off a ledge, unpressed, while the knock still slid it there.
+    bot.airborneVoluntary=false; bot.knockbackTime=gameLocal.time-500; bot.airborneSince=gameLocal.time-50;
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering); // 450 ms: its own walk
+    bot.knockbackTime=gameLocal.time-300;
+    CHECK(bot.RecoverInAir(&self,cmd) && bot.airRecovering);
+    bot.airRecovering=false; bot.airborneVoluntary=true; cmd={};
+    // Thrown off the ground by it (the knock lands a frame before the bot leaves).
+    bot.knockbackTime=gameLocal.time-100; bot.airborneSince=gameLocal.time-84;
+    CHECK(bot.RecoverInAir(&self,cmd) && cmd.forwardmove<0 && cmd.rightmove==0 && cmd.upmove==0);
+    CHECK(bot.path.Num()==2); // a walking route resumes after the throw
+    // An arc that comes down on the floor is left to the route.
+    bot.airRecovering=false; airLandingUnsafe=false; cmd={}; CHECK(!bot.RecoverInAir(&self,cmd) && cmd.forwardmove==0);
+    airLandingUnsafe=true;
+    // The ground, and a fall straight down, have nothing to brake.
+    self.pfl.onGround=true; CHECK(!bot.RecoverInAir(&self,cmd)); self.pfl.onGround=false;
+    self.physics.velocity={0,0,-400}; CHECK(!bot.RecoverInAir(&self,cmd));
+    // Off any route the throw is recovered from just the same.
+    self.physics.velocity={0,-300,100}; bot.path.Clear(); bot.pathCorner=0; cmd={};
+    CHECK(bot.RecoverInAir(&self,cmd) && cmd.rightmove<0 && cmd.forwardmove==0);
+    // Once begun, the brake holds while the prediction reads safe, and
+    // through the runout after touchdown until the throw has stopped.
+    airLandingUnsafe=false; cmd={};
+    CHECK(bot.RecoverInAir(&self,cmd) && cmd.rightmove<0);
+    self.pfl.onGround=true; self.physics.velocity={0,-200,0}; cmd={};
+    CHECK(bot.RecoverInAir(&self,cmd) && cmd.rightmove<0 && bot.airRecoverLanded==gameLocal.time);
+    gameLocal.time+=BOT_AIR_RECOVER_RUNOUT_MSEC+1; cmd={};
+    CHECK(!bot.RecoverInAir(&self,cmd) && !bot.airRecovering && cmd.rightmove==0);
+    rvBot slow; slow.airRecovering=true; self.physics.velocity={0,-40,0};
+    CHECK(!slow.RecoverInAir(&self,cmd) && !slow.airRecovering);
+    // A knock that turns the walk into the route's drop (q4ctf5): the drop's
+    // landing is out of reach, so the route gives way to the brake.
+    self.pfl.onGround=false; self.physics.velocity={397,-433,38}; airLandingUnsafe=true; cmd={};
+    rvBot dropper; dropper.path.Append({0,0,0}); dropper.path.corners.push_back({{30,-30,-184},NAVTRAVEL_DROP,-1});
+    dropper.pathCorner=1; dropper.traversalStarted=true; dropper.traversalStartTime=gameLocal.time-16;
+    dropper.knockbackTime=gameLocal.time-100; dropper.airborneSince=gameLocal.time-84;
+    dropper.nextGoalSelectTime=gameLocal.time+5000;
+    CHECK(dropper.RecoverInAir(&self,cmd) && dropper.path.IsEmpty() && !dropper.traversalStarted);
+    CHECK(dropper.nextGoalSelectTime==gameLocal.time && cmd.forwardmove<0);
+    // A rail's kick during a pad flight takes the flight over the same way.
+    self.physics.velocity={0,-300,100}; cmd={};
+    rvBot flyer; flyer.path.Append({0,0,0}); flyer.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8);
+    flyer.pathCorner=1; flyer.traversalStarted=true; flyer.traversalStartTime=gameLocal.time-300;
+    flyer.airborneSince=gameLocal.time-300; flyer.knockbackTime=gameLocal.time-50;
+    CHECK(flyer.RecoverInAir(&self,cmd) && flyer.airRecovering && flyer.path.IsEmpty() && cmd.rightmove<0);
+    // Whose landing survives the knock keeps its pad controller.
+    rvBot safe; safe.path.Append({0,0,0}); safe.path.Append({0,1000,0},NAVTRAVEL_JUMPPAD,8); safe.pathCorner=1;
+    safe.traversalStarted=true; safe.traversalStartTime=gameLocal.time-300; safe.airborneSince=gameLocal.time-300;
+    safe.knockbackTime=gameLocal.time-50;
+    airLandingUnsafe=false; CHECK(!safe.RecoverInAir(&self,cmd) && safe.path.Num()==2 && safe.traversalStarted);
+    airLandingUnsafe=true;
+    // A pad's volume, or a pad flight that caught the throw, owns the bot:
+    // neither starts the brake, and either ends one.
+    rvBot caught; caught.path=safe.path; caught.pathCorner=1; caught.traversalStarted=true;
+    caught.knockbackTime=gameLocal.time-200; caught.airborneSince=gameLocal.time-216;
+    caught.traversalStartTime=gameLocal.time-100;
+    CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
+    caught.airRecovering=true; CHECK(!caught.RecoverInAir(&self,cmd) && !caught.airRecovering);
+    navMesh.volumesAhead={{9,-1000}};
+    rvBot inside; inside.knockbackTime=gameLocal.time-100; inside.airborneSince=gameLocal.time-84;
+    CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
+    inside.airRecovering=true; CHECK(!inside.RecoverInAir(&self,cmd) && !inside.airRecovering);
+    navMesh.volumesAhead.clear();
+    CHECK(inside.RecoverInAir(&self,cmd) && inside.airRecovering);
+    // The input is the fall simulation's choice - here the far side - held
+    // between re-plans, and no input at all when that is what lands.
+    rvBot chooser; chooser.knockbackTime=gameLocal.time-100; chooser.airborneSince=gameLocal.time-84;
+    airChoiceSet=true; airChoice={0,-1,0}; airChoices=0; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove>0 && airChoices==1); // velocity (0,-300): forward is -y
+    airChoice={0,1,0}; gameLocal.time+=16; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove>0 && airChoices==1);
+    gameLocal.time+=BOT_AIR_RECOVER_REPLAN_MSEC; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove<0 && airChoices==2);
+    airChoice={}; gameLocal.time+=BOT_AIR_RECOVER_REPLAN_MSEC; cmd={};
+    CHECK(chooser.RecoverInAir(&self,cmd) && cmd.rightmove==0 && cmd.forwardmove==0 && airChoices==3);
+    std::puts("Air recovery: a knock-caused fall over nothing is braked, through drops and pad flights it hijacks; own jumps, pad volumes and safe arcs untouched: PASS");
 }
 void TestUnexpectedPad() {
     Reset(); idPlayer self; rvJumpPad pad; idItem goal;
@@ -917,6 +1166,17 @@ void TestLandingHealth() {
     CHECK(bot.GuardLandingHealth(&self,cmd));
     CHECK(bot.path.IsEmpty() && bot.goalEntity.GetEntity()==nullptr && bot.IsAvoided(&goal));
     CHECK(cmd.forwardmove<0 && cmd.upmove==0 && bot.nextGoalSelectTime==gameLocal.time);
+    // Damage can make a retained route lethal while several walking corners
+    // remain. Recheck before those corners carry the player onto its trigger.
+    bot=approach(); bot.path.Clear(); bot.path.Append({0,0,0}); bot.path.Append({100,0,0});
+    bot.path.Append({300,0,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(bot.GuardLandingHealth(&self,cmd));
+    CHECK(bot.path.IsEmpty() && navMesh.lastLandingFrom.x==100 && cmd.forwardmove<0);
+    bot=approach(); bot.path.corners[1].travelType=NAVTRAVEL_TELEPORT;
+    bot.path.Append({300,0,0},NAVTRAVEL_JUMPPAD,8);
+    CHECK(!bot.GuardLandingHealth(&self,cmd));
+    bot.path.corners[1].travelType=NAVTRAVEL_WALK; bot.path.corners.resize(2);
+    CHECK(!bot.GuardLandingHealth(&self,cmd));
     // Neither an airborne route nor an observed launch with a stale grounded
     // flag may lose its controller after damage during the flight.
     bot=approach(); bot.traversalStarted=true;
@@ -934,7 +1194,18 @@ void TestLandingHealth() {
     CHECK(bot.PickItemGoal(&self,route,utility)==&safe);
     self.health=11;
     CHECK(bot.PickItemGoal(&self,route,utility)==&valuable); // graph remains usable when healthy
-    std::puts("Landing health: live damage/armour tiers, immunity without side effects, cached entry brake and retained flight ownership: PASS");
+    // q4ctf5's func_jumppad_14 lands on func_jumppad_15, which throws its
+    // flyer across the map: a survivable first landing does not make the
+    // chain survivable. A walk between two actions does end the chain.
+    self.health=3; self.physics.velocity={100,0,0}; self.pfl.onGround=true;
+    navMesh.landingImpact=30; navMesh.impactAtX[900]=55;
+    rvBot chain=approach(); chain.path.Append({900,0,0},NAVTRAVEL_JUMPPAD,9); cmd={};
+    CHECK(chain.GuardLandingHealth(&self,cmd));
+    CHECK(chain.path.IsEmpty() && navMesh.lastLandingFrom.x==300 && cmd.forwardmove<0);
+    chain=approach(); chain.path.Append({600,0,0}); chain.path.Append({900,0,0},NAVTRAVEL_JUMPPAD,9);
+    CHECK(!chain.GuardLandingHealth(&self,cmd) && chain.path.Num()==4);
+    navMesh.impactAtX.clear();
+    std::puts("Landing health: live damage/armour tiers, immunity without side effects, cached entry brake, pad chains and retained flight ownership: PASS");
 }
 void TestDropHandoff() {
     CHECK(!BotPadFlightComplete(true,false,true,1000,false)); // still descending near target
@@ -1043,6 +1314,14 @@ void TestDodgeOwnership() {
     CHECK(!bot.dodgeHopActive && cmd.upmove==0); // no fresh press on this frame
     gameLocal.framenum=2; bot.TryDodgeJump(&self,{0.25f,0,0},cmd);
     CHECK(bot.dodgeHopActive && cmd.upmove==127 && cmd.forwardmove==127);
+    {   // A strong knock under the hop releases it to the airborne brake.
+        rvBot knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime+16; usercmd_t held;
+        CHECK(!knocked.HoldDodgeJump(&self,held) && !knocked.dodgeHopActive && held.forwardmove==0);
+        knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime; // the same frame
+        CHECK(!knocked.HoldDodgeJump(&self,held) && !knocked.dodgeHopActive);
+        knocked=bot; knocked.knockbackTime=knocked.dodgeHopStartTime-16;
+        CHECK(knocked.HoldDodgeJump(&self,held) && knocked.dodgeHopActive);
+    }
     CHECK(navMesh.lastDodgeDirection.Compare({1,0,0}) && navMesh.lastDodgeSpeed==320);
     const int searches=navMesh.searches;
     self.pfl.onGround=false; gameLocal.time+=16;
@@ -1140,7 +1419,10 @@ int main(int argc,char** argv) {
     if(argc==1 || !std::strcmp(argv[1],"threats")) TestThreats();
     if(argc==1 || !std::strcmp(argv[1],"network")) TestNetwork();
     if(argc==1 || !std::strcmp(argv[1],"pads")) TestPadHold();
+    if(argc==1 || !std::strcmp(argv[1],"pads")) TestPadReservation();
+    if(argc==1 || !std::strcmp(argv[1],"pads")) TestTransportGuard();
     if(argc==1 || !std::strcmp(argv[1],"pads")) TestUnexpectedPad();
+    if(argc==1 || !std::strcmp(argv[1],"landings")) TestAirRecovery();
     if(argc==1 || !std::strcmp(argv[1],"landings")) TestLandingHealth();
     if(argc==1 || !std::strcmp(argv[1],"landings")) TestDropHandoff();
     if(argc==1 || !std::strcmp(argv[1],"landings")) TestJumpEntry();

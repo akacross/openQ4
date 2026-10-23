@@ -1939,6 +1939,54 @@ of each node's paths, the control feedback timelines' first play (which
 copies the live values once), and the value-control view's and the
 interaction's initialization.
 
+## Current-build measurements and preset/scale reproduction, 22 October 2026
+
+The staged Windows debugoptimized client at `1e259bfc.dirty`, SHA-256
+`6c08a406a1856c25f33c4c9490a7515f494d8bc5823d15e1a4e37350d28e5444`,
+ran sequentially on an i7-13700H / RTX 4060 Laptop GPU (NVIDIA 591.74).
+Evidence is under `.tmp/outstanding/ui/`; `summary.json` binds each run's
+command, log, engine screenshot hashes and root profiles. The source changes
+after that commit are multiplayer bot/replay changes, not UI changes.
+All runs used a hidden, windowed 1280x720 client, installed stock assets,
+disabled host input and the engine's `screenshot` command. Vulkan rendered
+offscreen without presentation. These are host CPU observations, not display
+latency or GPU timings.
+
+Vulkan retained title, System and in-game pause each have five separate
+1,000-frame warm samples. The table gives the range across all five, including
+the slower first System sample; it does not select the best repeat.
+
+| View | Root CPU p50 ms | Root CPU p95 ms | Root CPU p99 ms | Whole-frame interval p95 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Title, native scene scale | 1.251–1.431 | 3.900–4.208 | 4.761–5.585 | 30.308–30.711 |
+| System, native scene scale | 1.096–1.408 | 1.880–5.017 | 3.110–8.211 | 17.906–24.296 |
+| SP pause plus HUD, 50% scene scale | 0.198–0.357 | 0.463–1.465 | 0.808–1.900 | 17.982–29.725 |
+
+Title/System report one root view; pause reports four, including HUD work.
+All samples report zero backdrop fallbacks. Against UI-07's inherited proposal
+at 60 Hz (p95 1.667 ms, p99 3.333 ms), title and System do not pass. Pause is
+within those CPU limits in this configuration only. These measurements do not
+close GPU, cold/restart/resize timing, 1,000-cycle resource bounds, higher
+refresh rates, all UI families or other-platform requirements.
+
+The bounded reproduction matrix for issues #168/#169 covers GL and Vulkan,
+`ui_retained` 0 and 1, title and SP `game/airdefense1` pause at 100%/50%
+`r_screenFraction`, and four alternating `minimum`/`ultra` applications with
+`vid_restart` while System is open. All four runs exit normally and produce
+ten engine captures each. Inspected title/pause text remains readable and
+uncropped; the six static System images per run (native, half scale and four
+restarts) are byte-identical across both APIs. The System route explicitly
+uses `ui_retainedSystem 1` in all runs, so this does not qualify the legacy
+System implementation. The earlier scaled-scene contract also passes its
+frontend/OpenGL/game checks and rejects nine mutations.
+
+No disappearing-text or scaled/cropped-menu symptom was reproduced in this
+matrix. It is bounded evidence, not closure of the reported intermittent
+failure on different hardware. A separate discrepancy is visible: console
+`applyPerformancePreset` updates the renderer settings, but the already-open
+System page continues to display its old `Balanced` selection. Its binding
+refresh and the full interactive apply flow remain separate work under UI-01.
+
 ## Remaining requirements
 
 Fractional motion and cold compilation still need optimized-build profiling,

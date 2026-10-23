@@ -17,6 +17,7 @@ This guide covers openQ4 multiplayer networking behavior and the cvars used to t
 - Server-side hitscan lag compensation is off by default (`net_mpLagCompensation 0`).
 - Remote-client prediction uses legacy mode by default (`net_mpPredictMode 0`).
 - Enhanced prediction and lag compensation are opt-in experiments; enabling one does not qualify their combined behavior.
+- Use matching openQ4 releases and content on the server and clients. The voice-enabled candidate and release 0.13.0 refuse to join each other: pure servers report missing packages, while non-pure servers report data out of sync. Other release pairs need their own compatibility check. Voice packets are sent only to peers advertising the supported voice protocol.
 
 ## Find and join a server
 
@@ -90,6 +91,12 @@ connect play.example.net:28004
 ```
 
 The first form is an ordinary global IPv6 address. The second adds a *zone index*, which a link-local `fe80::/10` address needs so the system knows which network interface to use; openQ4 prints and accepts the numeric index. The third omits the port, which selects the default server port `28004` — brackets are optional when there is no port. The fourth resolves a hostname: if it has both an A and a AAAA record, openQ4 prefers the IPv4 address, so use the bracketed literal to force IPv6.
+
+A hostname lookup selects one usable address. If that address cannot be reached,
+openQ4 does not automatically try the hostname's other IPv4 or IPv6 addresses.
+Ask the server operator for a reachable numeric address and connect to it
+directly; use brackets for an IPv6 address followed by a port. This also applies
+when several DNS records exist within the same address family.
 
 Addresses are displayed in the canonical [RFC 5952](https://www.rfc-editor.org/rfc/rfc5952) form — lowercase, with the longest run of zero groups collapsed to `::` — so `[2001:0db8:0000:0000:0000:0000:0000:0001]:27650` is shown as `[2001:db8::1]:27650`. The same text is used by the server browser and by server-side ban lists, so one address always has exactly one spelling.
 

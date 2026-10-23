@@ -1,0 +1,249 @@
+// Copyright (C) 2026 DarkMatter Productions. GPL-3.0-or-later.
+#include "src/sys/android/android_touch_controls.h"
+#include "src/framework/TouchInput.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+
+using namespace openq4::touch;
+
+static void Check( bool condition, const char *message ) {
+	if ( !condition ) {
+		std::fprintf( stderr, "FAIL: %s\n", message );
+		std::exit( 1 );
+	}
+}
+
+static bool Near( float a, float b ) { return std::fabs( a - b ) < 0.001f; }
+
+static void CheckLayout( float width, float height, float density, float scale, int preset ) {
+	const Layout layout = ComputeLayout( width * density, height * density, density, scale, preset );
+	if ( !layout.available ) {
+		std::fprintf( stderr, "Layout unavailable: %.0fx%.0f dp, density %.2f, scale %.2f\n", width, height, density, scale );
+	}
+	Check( layout.available, "supported phone/tablet layout must fit" );
+	Check( HudTop( layout, 0 ) == 0, "no hidden top controls reserve HUD space" );
+	const float hudTop = HudTop( layout, kAllButtons );
+	for ( int button : { BUTTON_PAUSE, BUTTON_SCORES, BUTTON_CHAT } ) {
+		Check( hudTop >= layout.buttons[button].y + HitRadius( layout, button ) + 8 * density - .001f,
+			"top HUD stays below visible targets and their 8 dp clearance" );
+	}
+	for ( int button = 0; button < BUTTON_COUNT; ++button ) {
+		const Circle &circle = layout.buttons[button];
+		const float reach = HitRadius( layout, button );
+		Check( std::isfinite( circle.x ) && std::isfinite( circle.y ) && std::isfinite( reach ), "finite targets" );
+		Check( reach >= 24.0f * density, "48 physical dp target at every player scale" );
+		Check( circle.x - reach >= 0 && circle.y - reach >= 0
+			&& circle.x + reach <= layout.width && circle.y + reach <= layout.height, "entire hit region on screen" );
+		Check( HitButton( layout, circle.x, circle.y ) == button, "each target owns its center" );
+		Check( HitButton( layout, circle.x, circle.y, kAllButtons & ~( 1u << button ) ) == BUTTON_NONE, "hidden target cannot act" );
+		for ( const bool pressed : { false, true } ) {
+			Mesh plate;
+			AddPlate( plate, circle, layout.dp, pressed );
+			AddSymbol( plate, button, circle.x, circle.y, circle.radius * 1.1f, layout.dp, pressed );
+			for ( const auto &vertex : plate.vertices ) {
+				Check( HitButton( layout, vertex.x, vertex.y ) == button,
+					"every visible plate, rail, symbol and press marker belongs to its target" );
+			}
+		}
+		const float crosshairGap = reach + 24 * density;
+		Check( DistanceSquared( circle.x, circle.y, layout.width / 2, layout.height / 2 )
+			>= crosshairGap * crosshairGap - 0.01f, "controls leave the crosshair clear" );
+		for ( int other = 0; other < button; ++other ) {
+			const float gap = std::sqrt( DistanceSquared( circle.x, circle.y, layout.buttons[other].x, layout.buttons[other].y ) )
+				- reach - HitRadius( layout, other );
+			Check( gap >= 8.0f * density - 0.01f, "8 physical dp between hit regions" );
+		}
+	}
+}
+
+int main() {
+	Contacts contacts;
+	Check( contacts.Begin( {1, 1}, true ) == CONTACT_GAME, "gameplay claims initial contact" );
+	Check( contacts.Begin( {2, 1}, false ) == CONTACT_MENU, "separate device may own menu pointer" );
+	Check( contacts.Get( {1, 1} ) == CONTACT_GAME, "opening a menu never steals the gameplay contact" );
+	Check( contacts.Begin( {2, 2}, false ) == CONTACT_DISCARDED, "only one menu finger" );
+	contacts.End( {2, 1} );
+	Check( contacts.Get( {2, 2} ) == CONTACT_DISCARDED, "secondary finger never inherits menu ownership" );
+	Check( contacts.Begin( {1, 1}, false ) == CONTACT_DISCARDED, "duplicate down cannot reassign ownership" );
+	contacts.Clear();
+	Check( contacts.Get( {1, 1} ) == CONTACT_DISCARDED, "post-focus orphan events discarded" );
+	for ( int i = 0; i < 32; ++i ) contacts.Begin( {1, i}, true );
+	Check( contacts.Begin( {2, 99}, false ) == CONTACT_DISCARDED
+		&& contacts.Get( {2, 99} ) == CONTACT_DISCARDED, "overflow cannot click a menu" );
+	MotionState motion;
+	motion.Submit( { 1, -1, 0.25f, -0.5f, true } );
+	motion.Submit( { 0.5f, -1, 0.75f, -0.5f, true } );
+	auto sample = motion.Take();
+	Check( Near( sample.side, 0.5f ) && Near( sample.yaw, 1 ) && Near( sample.pitch, -1 ), "motion accumulates between usercmd ticks" );
+	sample = motion.Take();
+	Check( Near( sample.side, 0.5f ) && Near( sample.yaw, 0 ), "motion levels persist, deltas consumed once" );
+	motion.Block();
+	motion.Submit( { 1, 1, 30, 30, true } );
+	Check( Near( motion.Take().yaw, 0 ), "menu handoff blocks the held gesture" );
+	motion.Submit( {} );
+	motion.Submit( { 1, 0, 1, 0, true } );
+	Check( Near( motion.Take().yaw, 1 ), "fresh gesture works after neutral" );
+	motion.Submit( { 0, 0, 10, 0, false } );
+	Check( Near( motion.Take().yaw, 10 ), "last release delta is retained" );
+	motion.Submit( { 0, 0, 0, 0, true, 1 } );
+	motion.Submit( {} );
+	Check( motion.Take().buttons == 1 && motion.Take().buttons == 0, "quick button edge survives slower usercmd sampling once" );
+	motion.Submit( { 0, 0, 0, 0, true, 1 } );
+	motion.Submit( { 0, 0, 0, 0, false, 0, 1 } );
+	Check( motion.Take().buttons == 0, "system cancellation drops unsampled button edges" );
+	motion.Submit( { 0, 0, 0, 0, false, 0, 0, 2, 1 } );
+	Check( motion.Take().impulse == 14 && motion.Take().impulse == 14 && motion.Take().impulse == 13
+		&& motion.Take().impulse == -1, "rapid taps each get a separate usercmd impulse sequence" );
+	for ( const float density : { 1.0f, 1.5f, 3.0f } ) {
+		for ( const float scale : { 0.75f, 1.0f, 1.5f } ) {
+			for ( const auto &size : { std::pair<float,float>( 640.0f, 360.0f ), { 720.0f, 360.0f }, { 745.667f, 360.0f },
+					{ 360.0f, 745.667f }, { 720.0f, 1280.0f }, { 1280.0f, 800.0f } } ) {
+				for ( int preset : { PRESET_DEFAULT, PRESET_COMPACT, PRESET_LEFT_HANDED } ) {
+					CheckLayout( size.first, size.second, density, scale, preset );
+				}
+			}
+		}
+	}
+	const auto inf = std::numeric_limits<float>::infinity();
+	const auto nan = std::numeric_limits<float>::quiet_NaN();
+	for ( float invalid : { inf, -inf, nan, -1.0f, 0.0f } ) {
+		const Layout fallback = ComputeLayout( 720, 360, invalid, invalid );
+		Check( fallback.available && std::isfinite( fallback.dp ), "invalid density/scale has finite defaults" );
+		const Layout badSize = ComputeLayout( invalid, 360, 1, 1 );
+		Check( !badSize.available, "invalid viewport rejected" );
+	}
+	Check( !ComputeLayout( 32, 32, 1, 1 ).available, "too-small viewport is explicit" );
+	const Layout right = ComputeLayout( 720, 360, 1, 1 );
+	const Layout left = ComputeLayout( 720, 360, 1, 1, PRESET_LEFT_HANDED );
+	Check( left.leftHanded && Near( left.stickHome.x, 720 - right.stickHome.x ), "left-handed movement home mirrored" );
+	for ( int i = 0; i < BUTTON_COUNT; ++i ) {
+		Check( Near( left.buttons[i].x, 720 - right.buttons[i].x ) && Near( left.buttons[i].y, right.buttons[i].y ),
+			"left-handed buttons mirror the fitted layout" );
+	}
+	Check( ComputeLayout( 720, 360, 1, 1, PRESET_COMPACT ).dp < right.dp, "compact preset reduces control artwork" );
+	Check( Near( ComputeLayout( 720, 360, 1, 1, 99 ).dp, right.dp ), "unknown preset falls back to default" );
+	Controls handed;
+	handed.SetLayout( left );
+	const float hx = left.stickHome.x, hy = left.stickHome.y;
+	handed.FingerDown( {1, 1}, hx, hy, 0 );
+	handed.FingerMove( {1, 1}, hx + 32, hy - 32, 10 );
+	auto handedOut = handed.TakeOutput();
+	Check( handedOut.moveSide > 0 && handedOut.moveForward > 0 && Near( handedOut.lookX, 0 ),
+		"left-handed right thumb moves in physical drag direction" );
+	handed.FingerDown( {1, 2}, 80, 120, 10 );
+	handed.FingerMove( {1, 2}, 90, 126, 20 );
+	handedOut = handed.TakeOutput();
+	Check( Near( handedOut.lookX, 10 ) && Near( handedOut.lookY, 6 ), "left thumb looks without axis inversion" );
+	handed.SetLayout( right );
+	Check( !handed.HasFingers(), "preset change releases existing contacts" );
+	handedOut = handed.TakeOutput();
+	Check( Near( handedOut.moveSide, 0 ) && Near( handedOut.lookX, 0 ) && !handedOut.attack,
+		"preset change clears queued movement and look" );
+
+	Controls controls;
+	const Layout layout = ComputeLayout( 720, 360, 1, 1 );
+	controls.SetLayout( layout );
+	controls.SetVisibleButtons( kAllButtons );
+	const auto down = [&]( FingerId id, int button, int64_t time = 0 ) {
+		const Circle &at = controls.GetLayout().buttons[button];
+		Check( controls.FingerDown( id, at.x, at.y, time ), "control down accepted" );
+	};
+	const auto up = [&]( FingerId id, int button, int64_t time = 100 ) {
+		const Circle &at = controls.GetLayout().buttons[button];
+		Check( controls.FingerUp( id, at.x, at.y, time ), "control up accepted" );
+	};
+	down( {1, 7}, BUTTON_FIRE );
+	down( {2, 7}, BUTTON_FIRE );
+	up( {1, 7}, BUTTON_FIRE );
+	Check( controls.TakeOutput().attack, "device-scoped finger identity retains second owner" );
+	controls.FingerCancel( {2, 7} );
+	Check( !controls.TakeOutput().attack, "last owner releases fire" );
+	down( 1, BUTTON_FIRE );
+	up( 1, BUTTON_FIRE );
+	Check( controls.TakeOutput().attack && !controls.TakeOutput().attack, "quick tap within one pump produces one attack edge" );
+	down( 1, BUTTON_FIRE );
+	controls.FingerCancel( 1 );
+	Check( !controls.TakeOutput().attack, "cancel before a pump produces no attack edge" );
+
+	down( 1, BUTTON_PAUSE );
+	const Circle pause = layout.buttons[BUTTON_PAUSE];
+	controls.FingerMove( 1, pause.x + 9, pause.y, 10 );
+	up( 1, BUTTON_PAUSE );
+	Check( controls.TakeOutput().pause == 0, "dragging away and back never re-arms a tap" );
+	down( 1, BUTTON_RELOAD );
+	Check( controls.TakeOutput().reload == 0, "reload waits for release" );
+	up( 1, BUTTON_RELOAD );
+	Check( controls.TakeOutput().reload == 1 && controls.TakeOutput().reload == 0, "reload tap delivered once" );
+	down( 1, BUTTON_CHAT );
+	controls.FingerCancel( 1 );
+	Check( controls.TakeOutput().chat == 0, "system cancellation never opens chat" );
+
+	down( 1, BUTTON_WEAPON );
+	down( 2, BUTTON_WEAPON, 100 );
+	controls.Update( 301 );
+	Check( controls.TakeOutput().weaponWheel, "weapon hold opens wheel" );
+	controls.FingerCancel( 1 );
+	Check( controls.TakeOutput().weaponWheel, "cancel preserves second weapon owner" );
+	controls.FingerCancel( 2 );
+	auto output = controls.TakeOutput();
+	Check( !output.weaponWheel && output.cancelWeaponWheel && !output.nextWeapon, "last owner cancels without selecting" );
+	Check( !controls.TakeOutput().cancelWeaponWheel, "wheel cancellation delivered once" );
+	down( 1, BUTTON_WEAPON );
+	controls.Update( 301 );
+	controls.Reset();
+	controls.Reset();
+	Check( controls.TakeOutput().cancelWeaponWheel, "repeated resets preserve pending cancellation" );
+	down( 1, BUTTON_WEAPON, 500 );
+	up( 1, BUTTON_WEAPON, 600 );
+	Check( controls.TakeOutput().nextWeapon == 1, "weapon tap advances once" );
+
+	Check( controls.FingerDown( 3, 2, 280, 0 ), "edge stick accepted" );
+	output = controls.TakeOutput();
+	Check( Near( output.moveSide, 0 ) && Near( output.moveForward, 0 ), "edge touchdown is neutral" );
+	controls.FingerMove( 3, 130, 280, 10 );
+	Check( Near( controls.TakeOutput().moveSide, 1 ), "full stick deflection" );
+	down( 4, BUTTON_FIRE );
+	const Circle fire = layout.buttons[BUTTON_FIRE];
+	controls.FingerMove( 4, fire.x + 12, fire.y - 6, 20 );
+	output = controls.TakeOutput();
+	Check( output.attack && Near( output.moveSide, 1 ) && Near( output.lookX, 12 ) && Near( output.lookY, -6 ),
+		"independent move, fire and drag-to-look" );
+	Check( Near( controls.TakeOutput().lookX, 0 ), "look consumed once, held movement persists" );
+	controls.SetLayout( ComputeLayout( 360, 745.667f, 1, 1 ) );
+	output = controls.TakeOutput();
+	Check( !controls.HasFingers() && !output.attack && Near( output.moveSide, 0 ), "rotation releases every owner" );
+	Check( !controls.FingerMove( 4, 200, 200, 30 ), "old owner cannot reappear after rotation" );
+	Check( controls.FingerDown( 5, 90, 200, 40 ), "portrait upper view touch" );
+	controls.FingerMove( 5, 100, 210, 50 );
+	output = controls.TakeOutput();
+	Check( Near( output.moveSide, 0 ) && Near( output.lookX, 10 ), "portrait view above deck looks, never moves" );
+	controls.Reset();
+	controls.SetLayout( layout );
+	controls.SetGesturesAllowed( false );
+	controls.SetVisibleButtons( 1u << BUTTON_PAUSE );
+	down( 6, BUTTON_FIRE );
+	controls.FingerMove( 6, 200, 200, 50 );
+	output = controls.TakeOutput();
+	Check( !output.attack && Near( output.moveSide, 0 ) && Near( output.lookX, 0 ), "cinematic hides and disables gameplay controls" );
+	controls.Reset();
+	controls.SetGesturesAllowed( true );
+	controls.SetVisibleButtons( kAllButtons );
+	for ( int i = 0; i < kMaxFingers; ++i ) down( { 3, i }, BUTTON_FIRE );
+	Check( !controls.FingerDown( { 4, 99 }, 200, 200, 0 ), "overflow is explicit for the routing owner" );
+	controls.FingerMove( { 3, 0 }, nan, inf, 10 );
+	Check( controls.TakeOutput().attack, "malformed owner released without cancelling other owners" );
+	controls.SetVisibleButtons( 1u << BUTTON_PAUSE );
+	Check( !controls.HasFingers() && !controls.TakeOutput().attack, "capability change clears held controls" );
+
+	Mesh mesh;
+	BuildOverlay( controls, mesh, true );
+	Check( !mesh.vertices.empty() && mesh.indexes.size() % 3 == 0, "cinematic pause mesh exists" );
+	for ( const auto index : mesh.indexes ) Check( index < mesh.vertices.size(), "mesh indices valid" );
+	for ( const auto &v : mesh.vertices ) Check( std::isfinite( v.x ) && std::isfinite( v.y ), "mesh finite" );
+	controls.SetLayout( ComputeLayout( 16, 16, 1, 1 ) );
+	BuildOverlay( controls, mesh );
+	Check( mesh.vertices.empty(), "unsupported viewport never draws invalid geometry" );
+	std::puts( "PASS: physical-dp layouts, independent fingers, taps, wheel cancellation, rotation, portrait, cinematics and mesh" );
+}

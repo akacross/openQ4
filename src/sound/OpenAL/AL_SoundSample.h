@@ -36,6 +36,25 @@ idSoundSample_OpenAL
 */
 class idSampleInfo;
 struct idSoundSampleDecode;
+class SoundVorbisStream;
+class idSoundOggStream {
+public:
+	idSoundOggStream();
+	~idSoundOggStream();
+	bool Open( const char* filename );
+	bool Seek( unsigned int frame );
+	int Read( short* pcm, int frames );
+	int Channels() const;
+	int Rate() const;
+	unsigned int Frames() const;
+	static void PrintMemoryInfo();
+private:
+	idSoundOggStream( const idSoundOggStream& ) = delete;
+	idSoundOggStream& operator=( const idSoundOggStream& ) = delete;
+	void Close();
+	idFile* file;
+	SoundVorbisStream* decoder;
+};
 class idSoundSample_OpenAL
 {
 public:
@@ -53,6 +72,7 @@ public:
 	}
 	// a worker has finished the outstanding decode; FinishDecode will not wait
 	bool			IsDecodeComplete() const;
+	static void		PrintDecodeMemoryInfo();
 
 	void			SetName( const char* n )
 	{
@@ -98,8 +118,9 @@ public:
 	// be conflated: listSounds reports both so the saving is visible.
 	int				ResidentBufferSize() const
 	{
-		return payloadReleased ? 0 : totalBufferSize;
+		return payloadReleased || IsStreamed() ? 0 : totalBufferSize;
 	}
+	bool IsStreamed() const { return streamName.Length() > 0; }
 	bool			PayloadReleased() const
 	{
 		return payloadReleased;
@@ -123,7 +144,7 @@ public:
 
 	bool			IsCompressed() const
 	{
-		return ( format.basic.formatTag != idWaveFile::FORMAT_PCM );
+		return IsStreamed() || ( format.basic.formatTag != idWaveFile::FORMAT_PCM );
 	}
 
 	bool			IsDefault() const
@@ -199,6 +220,7 @@ protected:
 	bool			BeginOggLoad( const idStr& name, idSoundSampleDecode** asyncDecode );
 	bool			FinishOggDecode( const idStr& name, unsigned int decodedFrames );
 	bool			FinishOggLoad( int channels, int sampleRate, unsigned int frames );
+	bool			LoadOggStream( const idStr& filename );
 	void			CancelDecode();
 	bool			LoadRoQ( const idStr& name );
 	bool			LoadAmplitude( const idStr& name );
@@ -228,6 +250,7 @@ protected:
 	};
 
 	idStr			name;
+	idStr			streamName;
 
 	ID_TIME_T		timestamp;
 	bool			loaded;
@@ -256,6 +279,7 @@ protected:
 	// OpenAL buffer that contains all buffers
 	ALuint			openalBuffer;
 	bool			openalBufferUploadFailed;
+	uint64			openalReserved;
 
 	int				playBegin;
 	int				playLength;
@@ -263,6 +287,7 @@ protected:
 	idWaveFile::waveFmt_t	format;
 
 	idList<byte> amplitude;
+	uint64			amplitudeReserved;
 
 	// An Ogg decoding on a job worker into buffers[0] (LoadResourceAsync), and its file
 	idSoundSampleDecode*	pendingDecode;

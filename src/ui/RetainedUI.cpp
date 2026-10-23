@@ -10,6 +10,7 @@ extern idUserInterfaceManagerLocal uiManagerLocal;
 #include "UserInterfaceManaged.h"
 #include "retained/Runtime.h"
 #include "retained/CoverageRaster.h"
+#include "retained/GeneratedImagePool.h"
 #include "retained/Input.h"
 #include "../renderer/RendererModule.h"
 #include <algorithm>
@@ -96,6 +97,7 @@ public:
 	// Within that submission an unchanged target needs no GUI flush or render
 	// pass boundary; icons and cached panels can remain in the same batch.
 	void BeginRoot() {
+		CollectGeneratedImages();
 		renderSystem->BeginGuiRoot(); boundTarget=nullptr;
 		rasterDraws=rasterSavedVertices=0;
 	}
@@ -189,6 +191,74 @@ public:
 			if (width <= 0 || height <= 0) return 0;
 		}
 		return reinterpret_cast<std::uintptr_t>(material);
+	}
+	std::uintptr_t GenerateTexture(std::span<const std::uint8_t> pixels, int width, int height) override {
+		if (!renderSystem || !pixels.data()) return 0;
+		const int maximum=renderSystem->GetGLConfig().maxTextureSize;
+		if (maximum<=0 || width>maximum || height>maximum) return 0;
+		CollectGeneratedImages();
+		const unsigned slot=generatedImages.Reserve(width,height,pixels.size());
+		if (!slot) return 0;
+		idImageOpts options; options.width=width; options.height=height;
+		options.format=FMT_RGBA8; options.numLevels=1; options.isPersistant=true;
+		const idStr imageName=va("_retainedGeneratedImage%u",slot);
+		const idMaterial* material=nullptr;
+		if (renderSystem->CreateImage(imageName.c_str(),&options,TF_LINEAR) &&
+			renderSystem->UploadImage(imageName.c_str(),pixels.data(),width,height)) {
+			material=declManager->FindMaterial(va("_retainedGenerated/%u",slot));
+		}
+		if (!material || material->GetState()==DS_DEFAULTED) {
+			// A failed upload may already own storage. Count it until the next
+			// safe frame shrinks it, just like a successfully submitted image.
+			generatedImages.Retire(slot,RenderFrame()); return 0;
+		}
+		generatedMaterials[slot-1]=material;
+		generatedImages.Publish(slot);
+		return reinterpret_cast<std::uintptr_t>(material);
+	}
+	void ReleaseGeneratedTexture(std::uintptr_t texture) override {
+		for (unsigned i=0;i<generatedMaterials.size();++i) {
+			if (reinterpret_cast<std::uintptr_t>(generatedMaterials[i])==texture && generatedImages.IsLive(i+1)) {
+				generatedImages.Retire(i+1,RenderFrame()); return;
+			}
+		}
+	}
+	void SetGeneratedImageProbe(bool enabled) {
+		if (generatedProbe) ReleaseGeneratedTexture(generatedProbe);
+		generatedProbe=0; generatedProbeEnabled=enabled;
+	}
+	bool DrawGeneratedImageProbe() {
+		if (!generatedProbeEnabled) return false;
+		if (!generatedProbe) {
+			// A deliberately tall 1:6 RGBA8 image exercises the old cinematic
+			// cube heuristic. Quadrants cover half-alpha, opaque, quarter-alpha
+			// and transparent pixels. This is engine-generated diagnostic art.
+			std::array<byte,2*12*4> pixels{};
+			for (int y=0;y<12;++y) for (int x=0;x<2;++x) {
+				byte* p=pixels.data()+(y*2+x)*4;
+				if (y<6 && x==0) { p[0]=128; p[3]=128; }
+				if (y<6 && x==1) { p[1]=255; p[3]=255; }
+				if (y>=6 && x==0) { p[2]=64; p[3]=64; }
+			}
+			generatedProbe=GenerateTexture(pixels,2,12);
+			if (!generatedProbe) { generatedProbeEnabled=false; common->Warning("Retained generated-image probe allocation failed"); return false; }
+			common->Printf("Retained generated-image probe ready: 2x12 premultiplied RGBA8\n");
+		}
+		const int oldWidth=viewportWidth,oldHeight=viewportHeight;
+		const bool oldViewport=renderSystem->GetUseUIViewportFor2D();
+		viewportWidth=renderSystem->GetScreenWidth(); viewportHeight=renderSystem->GetScreenHeight();
+		BeginRoot(); renderSystem->SetUseUIViewportFor2D(false);
+		const auto quad=[this](float x,float tint,std::uintptr_t material) {
+			Draw({{x,16,0,0,tint,tint,tint,material ? tint : 1.f},
+				{x+128,16,1,0,tint,tint,tint,material ? tint : 1.f},
+				{x+128,208,1,1,tint,tint,tint,material ? tint : 1.f},
+				{x,208,0,1,tint,tint,tint,material ? tint : 1.f}}, {0,1,2,0,2,3},material);
+		};
+		quad(16,.25f,0); quad(160,.25f,0);
+		quad(16,1.f,generatedProbe); quad(160,.5f,generatedProbe);
+		EndRoot(); renderSystem->SetUseUIViewportFor2D(oldViewport); renderSystem->SetColor4(1,1,1,1);
+		viewportWidth=oldWidth; viewportHeight=oldHeight;
+		return true;
 	}
 	std::uintptr_t MultiplyMaterial() override {
 		const idMaterial* material = declManager->FindMaterial("_retainedMultiply");
@@ -568,6 +638,9 @@ public:
 	// gone with it, and only the handles are dropped.
 	void Reset() {
 		meshes.clear();
+		generatedImages.Reset([this](unsigned slot){ return ShrinkGeneratedImage(slot); });
+		generatedMaterials.fill(nullptr);
+		generatedProbe=0;
 		if (renderSystem) for (size_t i=0;i<atlasPages.size();i+=AtlasGroup) {
 			idImageOpts options; options.width=options.height=1; options.format=FMT_RGBA8;
 			options.numLevels=1; options.isPersistant=true;
@@ -601,6 +674,19 @@ public:
 	int captureWidth = 0, captureHeight = 0;
 	bool softFocus = false;
 private:
+	openq4::ui::GeneratedImagePool generatedImages;
+	std::array<const idMaterial*,openq4::ui::GeneratedImagePool::Capacity> generatedMaterials{};
+	std::uintptr_t generatedProbe=0;
+	bool generatedProbeEnabled=false;
+	bool ShrinkGeneratedImage(unsigned slot) {
+		if (!renderSystem) return true; // Renderer/module teardown already owns the images.
+		idImageOpts options; options.width=options.height=1; options.format=FMT_RGBA8;
+		options.numLevels=1; options.isPersistant=true;
+		return renderSystem->CreateImage(va("_retainedGeneratedImage%u",slot),&options,TF_LINEAR)!=nullptr;
+	}
+	void CollectGeneratedImages() {
+		generatedImages.Collect(RenderFrame(),[this](unsigned slot){ return ShrinkGeneratedImage(slot); });
+	}
 	// Engine vertices and the chunks that submit them, for one mesh.
 	struct HostMesh {
 		struct Chunk { int first, count; size_t index, indices; };
@@ -749,6 +835,7 @@ private:
 		// composite the picture's whole rectangle as an opaque box.
 		const bool additiveImage = handle && idStr::Icmpn(material->GetName(),"_retainedAdd/",13) == 0;
 		const bool straightImage = handle && idStr::Icmpn(material->GetName(),"_retainedLayer/",15) != 0 &&
+			idStr::Icmpn(material->GetName(),"_retainedGenerated/",19) != 0 &&
 			idStr::Icmp(material->GetName(),"_retainedMultiply") != 0 && !additiveImage;
 		const float sx = 640.f / viewportWidth, sy = 480.f / viewportHeight;
 		mesh.vertices.resize(vertices.size());
@@ -930,7 +1017,7 @@ int rootProfileFrames = 0;
 // Counts the frames submitted since startup, one per EndFrame, so a profile
 // groups its views' draws by the frame that presented them.
 std::uint64_t submittedFrames = 0;
-const std::thread::id editThread=std::this_thread::get_id();
+std::thread::id editThread=std::this_thread::get_id();
 unsigned editWorkDepth=0,editCallDepth=0;
 bool editDraining=false,editShutdownPending=false;
 retainedUIPreparedEdit_t* editPrepared=nullptr;
@@ -1653,6 +1740,9 @@ bool RetainedUI_DrawViewRoot(retainedUIView_t* view, const openq4::ui::Viewport&
 }
 
 void RetainedUI_Init() {
+	// Android loads native libraries on the Java thread, then initializes the
+	// engine on SDLThread. Bind the view owner at engine startup, not dlopen.
+	editThread = std::this_thread::get_id();
 	cmdSystem->AddCommand("ui_retainedCheckpoint",Checkpoint_f,CMD_FL_SYSTEM,"save or restore one bounded canonical instance checkpoint in memory");
 	cmdSystem->AddCommand("ui_retainedData",Data_f,CMD_FL_SYSTEM,"apply a validated retained state batch from VFS JSON");
 	cmdSystem->AddCommand("ui_retainedValue",Value_f,CMD_FL_SYSTEM,"inspect a retained bound or animated presentation value");
@@ -1664,6 +1754,12 @@ void RetainedUI_Init() {
 	cmdSystem->AddCommand("ui_retainedPlay",Play_f,CMD_FL_SYSTEM,"play a canonical retained UI timeline");
 	cmdSystem->AddCommand("ui_retainedProfile",Profile_f,CMD_FL_SYSTEM,"measure retained UI CPU submission over bounded rendered frames");
 	cmdSystem->AddCommand("ui_retainedGeometry",[](const idCmdArgs&){host.DumpGeometry();},CMD_FL_SYSTEM,"inspect active retained meshes and coverage-cache residency");
+	cmdSystem->AddCommand("ui_retainedImageProbe",[](const idCmdArgs& args){
+		if (args.Argc()!=2 || (idStr::Cmp(args.Argv(1),"0") && idStr::Cmp(args.Argv(1),"1"))) {
+			common->Printf("usage: ui_retainedImageProbe <0|1>\n"); return;
+		}
+		host.SetGeneratedImageProbe(args.Argv(1)[0]=='1');
+	},CMD_FL_SYSTEM,"draw generated RGBA8 alpha and lifetime diagnostics for engine screenshots");
 	cmdSystem->AddCommand("ui_retainedFocus",Focus_f,CMD_FL_SYSTEM,"focus a semantic retained control without reading or moving a device");
 	cmdSystem->AddCommand("ui_retainedMenu",Menu_f,CMD_FL_SYSTEM,"submit a semantic menu action to the retained preview");
 	cmdSystem->AddCommand("ui_retainedEnabled",Enabled_f,CMD_FL_SYSTEM,"set a retained control's instance enabled state");
@@ -1679,6 +1775,7 @@ void RetainedUI_Shutdown() {
     }
     editShutdownPending=false;
     RetainedUI_EndInitialization();
+	host.SetGeneratedImageProbe(false);
     TouchEditResources();
 	Close();
 	// The manager normally destroys its owners first. Explicitly release any
@@ -1706,6 +1803,7 @@ void RetainedUI_Shutdown() {
 	cmdSystem->RemoveCommand("ui_retainedPlay");
 	cmdSystem->RemoveCommand("ui_retainedProfile");
 	cmdSystem->RemoveCommand("ui_retainedGeometry");
+	cmdSystem->RemoveCommand("ui_retainedImageProbe");
 	cmdSystem->RemoveCommand("ui_retainedFocus");
 	cmdSystem->RemoveCommand("ui_retainedMenu");
 	cmdSystem->RemoveCommand("ui_retainedEnabled");
@@ -1714,7 +1812,9 @@ void RetainedUI_Shutdown() {
 	cmdSystem->RemoveCommand("ui_retainedEvents");
 }
 void RetainedUI_Draw() {
-	if (!runtime || !runtime->IsLoaded() || !renderSystem || !renderSystem->IsOpenGLRunning()) return;
+	if (!renderSystem || !renderSystem->IsOpenGLRunning()) return;
+	if (host.DrawGeneratedImageProbe()) { rootSubmissionPending=true; rootSubmissionFrame=host.RenderFrame(); }
+	if (!runtime || !runtime->IsLoaded()) return;
 	openq4::ui::Viewport viewport;
 	if (!RetainedUI_DefaultViewport(viewport)) return;
 	const auto profileStart = std::chrono::steady_clock::now();

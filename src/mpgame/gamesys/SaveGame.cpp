@@ -193,8 +193,9 @@ private:
 
 static void SaveGame_DeleteUnrestoredObjects( idList<idClass *> &objectList ) {
 	for ( int i = 1; i < objectList.Num(); i++ ) {
-		delete objectList[ i ];
+		idClass *object = objectList[ i ];
 		objectList[ i ] = NULL;
+		delete object;
 	}
 	objectList.Clear();
 }
@@ -1285,8 +1286,12 @@ void idSaveGame::WriteSaveGameFooter( int numObjects ) {
 idRestoreGame::RestoreGame
 ================
 */
+thread_local idRestoreGame *idRestoreGame::activeRestore = NULL;
+
 idRestoreGame::idRestoreGame( idFile *savefile ) {
 	file = savefile;
+	ownsObjects = false;
+	previousRestore = NULL;
 	buildNumber = 0;
 	openQ4SaveGameLayoutBuild = 0;
 	openQ4SaveGameCompatibilityVersion = 0;
@@ -1305,6 +1310,80 @@ idRestoreGame::~idRestoreGame()
 ================
 */
 idRestoreGame::~idRestoreGame() {
+	if ( ownsObjects ) {
+		// An exception can leave objects outside the master tables. Shut the map
+		// down while their renderer/script dependencies are still available.
+		gameLocal.MapShutdown();
+	}
+	ReleaseObjects();
+}
+
+void idRestoreGame::BeginObjectOwnership( void ) {
+	if ( ownsObjects ) {
+		Error( "idRestoreGame: object ownership already active" );
+	}
+	objectHash.Clear();
+	ownsObjects = true;
+	previousRestore = activeRestore;
+	activeRestore = this;
+}
+
+void idRestoreGame::TrackObject( int index ) {
+	objectHash.Add( SaveGame_ObjectHashKey( objects[index] ), index );
+}
+
+void idRestoreGame::ObjectDestroyed( const idClass *object ) {
+	if ( activeRestore == NULL ) {
+		return;
+	}
+	// Entity attachments and map shutdown may delete objects independently of
+	// the restore list. Retire every such pointer before cleanup can visit it.
+	const int key = SaveGame_ObjectHashKey( object );
+	for ( idRestoreGame *restore = activeRestore; restore != NULL; restore = restore->previousRestore ) {
+		for ( int index = restore->objectHash.First( key ); index >= 0; index = restore->objectHash.Next( index ) ) {
+			if ( index < restore->objects.Num() && restore->objects[index] == object ) {
+				restore->objects[index] = NULL;
+				restore->objectHash.Remove( key, index );
+				break;
+			}
+		}
+	}
+}
+
+void idRestoreGame::ReleaseObjects( void ) {
+	idRestoreGame **link = &activeRestore;
+	while ( *link != NULL && *link != this ) {
+		link = &( *link )->previousRestore;
+	}
+	if ( *link == this ) {
+		*link = previousRestore;
+	}
+	previousRestore = NULL;
+	ownsObjects = false;
+	objectHash.Clear();
+	objects.Clear();
+}
+
+void idRestoreGame::PrepareMapShutdown( void ) {
+	for ( idRestoreGame *restore = activeRestore; restore != NULL; restore = restore->previousRestore ) {
+		for ( int i = 1; i < restore->objects.Num(); i++ ) {
+			idClass *object = restore->objects[i];
+			if ( object != NULL && object == gameLocal.frameCommandThread ) {
+				gameLocal.frameCommandThread = NULL;
+			}
+			if ( object != NULL && object->IsType( idEntity::GetClassType() ) ) {
+				static_cast<idEntity *>( object )->PrepareFailedRestoreShutdown();
+			}
+		}
+	}
+}
+
+void idRestoreGame::DeleteOrphanedObjects( void ) {
+	// MapClear has already released registered entities. Delete the remaining
+	// factory objects before the script program, render world and clips go away.
+	while ( activeRestore != NULL ) {
+		activeRestore->DeleteObjects();
+	}
 }
 
 /*
@@ -1360,9 +1439,18 @@ void idRestoreGame::CreateObjects( void ) {
 		if ( !type ) {
 			Error( "idRestoreGame::CreateObjects: Unknown class '%s'", classname.c_str() );
 		}
+		// GameLocal saves only these three object families. Other registered
+		// classes (weapons, physics, etc.) need an initialized owner or embedded
+		// state; a factory-created instance is not a valid standalone save object.
+		if ( !type->IsType( idEntity::GetClassType() ) &&
+			 !type->IsType( idThread::GetClassType() ) &&
+			 !type->IsType( rvClientEntity::GetClassType() ) ) {
+			Error( "idRestoreGame::CreateObjects: unsupported object-table class '%s' for object %d", classname.c_str(), i );
+		}
 		objectTypes[ i ] = type;
 	}
 
+	BeginObjectOwnership();
 	objects.SetNum( num + 1 );
 	memset( objects.Ptr(), 0, sizeof( objects[ 0 ] ) * objects.Num() );
 	idScopedUnrestoredObjectCleanup cleanup( objects );
@@ -1372,6 +1460,7 @@ void idRestoreGame::CreateObjects( void ) {
 		if ( objects[ i ] == NULL ) {
 			Error( "idRestoreGame::CreateObjects: failed to create class '%s'", objectTypes[ i ]->classname );
 		}
+		TrackObject( i );
 	}
 	cleanup.Release();
 }
@@ -1397,6 +1486,17 @@ void idRestoreGame::RestoreObjects( void ) {
 
 	ReadSaveGameFooter();
 
+	// All forward references are now populated. Validate the complete binding
+	// teams before any visual refresh or gameplay can traverse them.
+	for ( i = 1; i < objects.Num(); i++ ) {
+		if ( objects[i]->IsType( idEntity::GetClassType() ) ) {
+			static_cast<idEntity *>( objects[i] )->ValidateRestoredBindings( this );
+		}
+		if ( objects[i]->IsType( idThread::GetClassType() ) ) {
+			static_cast<idThread *>( objects[i] )->ValidateRestoreOwnership( this );
+		}
+	}
+
 	// regenerate render entities and render lights because are not saved
 	for( i = 1; i < objects.Num(); i++ ) {
 		if ( objects[ i ]->IsType( idEntity::GetClassType() ) ) {
@@ -1414,7 +1514,9 @@ void idRestoreGame::DeleteObjects
 ====================
 */
 void idRestoreGame::DeleteObjects( void ) {
+	PrepareMapShutdown();
 	SaveGame_DeleteUnrestoredObjects( objects );
+	ReleaseObjects();
 }
 
 /*
@@ -1431,12 +1533,9 @@ void idRestoreGame::Error( const char *fmt, ... ) {
 	va_end( argptr );
 	text[ sizeof( text ) - 1 ] = '\0';
 
-// RAVEN BEGIN
-	// FIXME: this crashes. It now leaks, but that's better than crashing.
-	// The problem is that some entities delete attached ents that are also in this list. When this call gets to them
-	// it tries to delete an already deleted object
-//	objects.DeleteContents( true );
-// RAVEN END
+	// During a load, Common throws before closing the file or freeing the world.
+	// The restore owner unwinds the partial map; ObjectDestroyed retires deleted
+	// pointers and DeleteOrphanedObjects releases the remainder.
 
 	gameLocal.Error( "%s", text );
 }
@@ -2006,6 +2105,12 @@ void idRestoreGame::ReadUserInterface( idUserInterface *&ui, const idDict *args 
 		bool unique;
 		ReadBool( unique );
 		ui = uiManager->FindGui( name, true, unique );
+		if ( ui == NULL ) {
+			// This record owns an unframed GUI state payload. Reject it here;
+			// optional menu loads during map preparation may still fall back.
+			Error( "idRestoreGame::ReadUserInterface: could not load serialized GUI '%s'; aborting before its positional state payload can desynchronize the stream",
+				name.c_str() );
+		}
 		const openQ4SaveGameGuiRevision_t *revision = OpenQ4_FindSaveGameGuiRevision( name, openQ4SaveGameLayoutBuild );
 		if ( ui && revision != NULL && !GuiRecordNamesWindow( revision->currentWindow ) ) {
 			ReadUserInterfaceRevision( ui, *revision );

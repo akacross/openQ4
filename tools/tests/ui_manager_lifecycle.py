@@ -498,9 +498,21 @@ int main() {
     assert(manager.FindGui("missing.gui",true)==nullptr);
     sessionObject.saving=true;
     bool rejected=false;
-    try { manager.FindGui("missing.gui",true); } catch(const std::runtime_error&) { rejected=true; }
+    // Optional menu precaching also runs during a save load. The manager must
+    // leave its ordinary fallback available; the serialized reader owns the
+    // fatal check when a missing GUI would strand an unframed state payload.
+    try {
+        assert(manager.FindGui("missing.gui",true)==nullptr);
+        assert(manager.FindGui("missing.q4ui",true)==nullptr);
+    } catch(const std::runtime_error&) { rejected=true; }
     sessionObject.saving=false;
-    assert(rejected && destroyed==beforeFailure+3); Empty();
+    assert(!rejected);
+#ifdef ID_DEDICATED
+    assert(destroyed==beforeFailure+3); // no retained backend is allocated
+#else
+    assert(destroyed==beforeFailure+4);
+#endif
+    Empty();
 
     // Direct legacy/editor deletion removes all non-owning registries once.
     auto editor=new idUserInterfaceLocal;

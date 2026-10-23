@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "../snd_local.h"
+#include "../VoiceChat.h"
 #include "../SoundSettings.h"
 #if defined(USE_DOOMCLASSIC)
 	#include "../../../doomclassic/doom/i_sound.h"
@@ -1378,6 +1379,44 @@ float idSoundHardware_OpenAL::GetAirAbsorptionGainHF() const
 
 /*
 ========================
+idSoundHardware_OpenAL::HasCenterChannelOutput
+
+True when the context renders a 5.1/6.1/7.1 layout and can play 5.1 buffers
+through direct channels, the only case in which centre routing is used.
+========================
+*/
+bool idSoundHardware_OpenAL::HasCenterChannelOutput() const
+{
+#if defined( ALC_OUTPUT_MODE_SOFT ) && defined( AL_FORMAT_51CHN16 ) && defined( AL_DIRECT_CHANNELS_SOFT )
+	if( openalDevice == NULL || !directChannelsAvailable ||
+		alIsExtensionPresent( "AL_EXT_MCFORMATS" ) != AL_TRUE ||
+		alcIsExtensionPresent( openalDevice, "ALC_SOFT_output_mode" ) != ALC_TRUE ) return false;
+	ALCint mode = 0;
+	alcGetError( openalDevice );
+	alcGetIntegerv( openalDevice, ALC_OUTPUT_MODE_SOFT, 1, &mode );
+	if( alcGetError( openalDevice ) != ALC_NO_ERROR ) return false;
+	return mode == ALC_SURROUND_5_1_SOFT || mode == ALC_SURROUND_6_1_SOFT || mode == ALC_SURROUND_7_1_SOFT;
+#else
+	return false;
+#endif
+}
+
+uint64 idSoundHardware_OpenAL::QueuedBufferBytes() const {
+	uint64 total = 0;
+	for (int i = 0; i < voices.Num(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			const ALuint buffer = voices[i].openalStreamingBuffer[j];
+			if (buffer == 0) continue;
+			ALint bytes = 0;
+			alGetBufferi(buffer, AL_SIZE, &bytes);
+			if (CheckALErrors() == AL_NO_ERROR && bytes > 0) total += bytes;
+		}
+	}
+	return total;
+}
+
+/*
+========================
 idSoundHardware_OpenAL::DetectVoiceFeatures
 
 What every voice can use on this context. Called with the context current.
@@ -1551,6 +1590,8 @@ void idSoundHardware_OpenAL::Init()
 		return;
 	}
 
+	// A restart or a device retry must retain an outstanding app suspension.
+	SetDevicePaused( devicePauseRequested );
 	if( !quietRetry )
 	{
 		common->Printf( "Done.\n" );
@@ -1795,6 +1836,45 @@ void idSoundHardware_OpenAL::Init()
 	}
 }
 
+// SDL can park the engine loop while OpenAL keeps mixing. Silence the owned
+// context immediately and, when both extension functions exist, stop the device.
+// Keep the resume function for this exact device so partial extension support
+// cannot leave it paused. The requested state survives device replacement.
+void idSoundHardware_OpenAL::SetDevicePaused( bool paused )
+{
+	devicePauseRequested = paused;
+	if( openalContext != NULL && alcGetCurrentContext() == openalContext )
+	{
+		alListenerf( AL_GAIN, ( paused || soundSystem->IsMuted() ) ? 0.0f : 1.0f );
+		EndDeferredUpdates();
+	}
+	if( openalDevice == NULL )
+	{
+		return;
+	}
+	if( !paused )
+	{
+		if( deviceResume != NULL )
+		{
+			deviceResume( openalDevice );
+			deviceResume = NULL;
+		}
+		return;
+	}
+	if( deviceResume == NULL && alcIsExtensionPresent( openalDevice, "ALC_SOFT_pause_device" ) == ALC_TRUE )
+	{
+		const devicePauseFunction_t pauseDevice = reinterpret_cast<devicePauseFunction_t>(
+			alcGetProcAddress( openalDevice, "alcDevicePauseSOFT" ) );
+		const devicePauseFunction_t resumeDevice = reinterpret_cast<devicePauseFunction_t>(
+			alcGetProcAddress( openalDevice, "alcDeviceResumeSOFT" ) );
+		if( pauseDevice != NULL && resumeDevice != NULL )
+		{
+			pauseDevice( openalDevice );
+			deviceResume = resumeDevice;
+		}
+	}
+}
+
 /*
 ========================
 idSoundHardware_OpenAL::Shutdown
@@ -1802,6 +1882,9 @@ idSoundHardware_OpenAL::Shutdown
 */
 void idSoundHardware_OpenAL::Shutdown()
 {
+	// Closing a paused device releases it; never reuse its extension pointer.
+	deviceResume = NULL;
+	SoundVoiceChat_Shutdown();
 	SoundSettings_DeviceDestroyed();
 	EndDeferredUpdates();
 	DisableDeviceEventMonitoring();
@@ -2006,6 +2089,46 @@ static void OpenQ4_DiagnosticSampleName( const idSoundSample_OpenAL* sample, idS
 
 /*
 ========================
+idSoundHardware_OpenAL::PrintDistanceInfo
+========================
+*/
+void idSoundHardware_OpenAL::PrintDistanceInfo( const idSoundVoice* voice ) const
+{
+	if( openalDevice == NULL || voice == NULL )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0\n" );
+		return;
+	}
+	const idSoundVoice_OpenAL* source = static_cast<const idSoundVoice_OpenAL*>( voice );
+	if( !alIsSource( source->openalSource ) )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0\n" );
+		return;
+	}
+	ALfloat position[3] = {}, gain = 0, listenerGain = 0, rolloff = 0, reference = 0, radius = -1;
+	ALint state = AL_INITIAL;
+	alGetSourcefv( source->openalSource, AL_POSITION, position );
+	alGetSourcef( source->openalSource, AL_GAIN, &gain );
+	alGetSourcef( source->openalSource, AL_ROLLOFF_FACTOR, &rolloff );
+	alGetSourcef( source->openalSource, AL_REFERENCE_DISTANCE, &reference );
+	alGetSourcei( source->openalSource, AL_SOURCE_STATE, &state );
+	alGetListenerf( AL_GAIN, &listenerGain );
+#if defined( AL_SOURCE_RADIUS )
+	if( HasSourceRadius() ) alGetSourcef( source->openalSource, AL_SOURCE_RADIUS, &radius );
+#endif
+	if( CheckALErrors() != AL_NO_ERROR )
+	{
+		idLib::Printf( "SOUND_DISTANCE_BACKEND available=0 error=1\n" );
+		return;
+	}
+	idLib::Printf( "SOUND_DISTANCE_BACKEND available=1 source=%u playing=%d gain=%.7f listenerGain=%.7f "
+		"position=%.4f,%.4f,%.4f rolloff=%.4f reference=%.4f innerRadius=%.4f sourceRadius=%.4f\n",
+		source->openalSource, state == AL_PLAYING ? 1 : 0, gain, listenerGain,
+		position[0], position[1], position[2], rolloff, reference, source->innerRadius, radius );
+}
+
+/*
+========================
 idSoundHardware_OpenAL::ListPlayingVoices
 ========================
 */
@@ -2192,7 +2315,7 @@ void idSoundHardware_OpenAL::Update()
 		return;
 	}
 
-	if( soundSystem->IsMuted() )
+	if( devicePauseRequested || soundSystem->IsMuted() )
 	{
 		alListenerf( AL_GAIN, 0.0f );
 	}

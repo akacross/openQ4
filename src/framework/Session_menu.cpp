@@ -44,12 +44,31 @@ If you have questions concerning this license or the applicable additional terms
 #include <SDL3/SDL.h>
 #endif
 
+static bool Session_AndroidSetupAvailable() {
+#if defined( __ANDROID__ ) && !defined( OPENQ4_SIGMATOUCH )
+	return true;
+#else
+	return false;
+#endif
+}
+
+static void Session_OpenAndroidSetup() {
+#if defined( __ANDROID__ ) && !defined( OPENQ4_SIGMATOUCH )
+	// SDL posts to OpenQ4Activity's main-thread handler. The existing Android
+	// lifecycle owns input release, audio suspension and the paused SP return.
+	// Keep the engine and its storage lease alive while setup is in front.
+	if ( !SDL_SendAndroidMessage( 0x8000, 0 ) ) {
+		common->Warning( "Could not open Android setup: %s", SDL_GetError() );
+	}
+#endif
+}
+
 extern idCVar com_skipLogoVideos;
 extern glconfig_t glConfig;
 
 idCVar	idSessionLocal::gui_configServerRate( "gui_configServerRate", "0", CVAR_GUI | CVAR_ARCHIVE | CVAR_ROM | CVAR_INTEGER, "" );
 idCVar gui_set_sys_scroll( "gui_set_sys_scroll", "0", CVAR_GUI | CVAR_INTEGER, "display menu scroll step", 0, 28 );
-idCVar gui_set_audio_scroll( "gui_set_audio_scroll", "0", CVAR_GUI | CVAR_INTEGER, "audio menu scroll step", 0.0f, 0.0f );
+idCVar gui_set_audio_scroll( "gui_set_audio_scroll", "0", CVAR_GUI | CVAR_INTEGER, "audio menu scroll step", 0, 6 );
 idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER, "game menu scroll step", 0, 73 );
 // The opt-ins are unarchived, so each lasts until the player quits, and
 // CVAR_NOCHEAT, because the engine counts any other unarchived CVar as a
@@ -1923,6 +1942,9 @@ idSessionLocal::SetGUI
 void idSessionLocal::SetGUI( idUserInterface *gui, HandleGuiCommand_t handle ) {
 	if ( RetainedUI_IsOpen() ) RetainedUI_Close();
 	const char	*cmd;
+	const bool arenaSoundRoute =
+		( guiActive != NULL && idStr::Icmp( guiActive->Name(), "guis/arena_pause.gui" ) == 0 ) ||
+		( gui != NULL && idStr::Icmp( gui->Name(), "guis/arena_pause.gui" ) == 0 );
 	const bool resumeSystemParent = guiSystem != NULL && gui == guiSystemParent;
 	if ( guiSystem != NULL && gui != guiSystem ) {
 		// Explicit replacement/stop is forced teardown. Ordinary Back uses the
@@ -1943,6 +1965,9 @@ void idSessionLocal::SetGUI( idUserInterface *gui, HandleGuiCommand_t handle ) {
 	if ( guiMsgRestore ) {
 		common->DPrintf( "idSessionLocal::SetGUI: cleared an active message box\n" );
 		guiMsgRestore = NULL;
+	}
+	if ( arenaSoundRoute ) {
+		SetPlayingSoundWorld();
 	}
 	if ( !guiActive ) {
 		return;
@@ -1985,6 +2010,7 @@ void idSessionLocal::ExitMenu( void ) {
 		return;
 	}
 	idUserInterface *previous = guiActive;
+	const bool arenaPause = previous != NULL && idStr::Icmp( previous->Name(), "guis/arena_pause.gui" ) == 0;
 	openq4::NativeInputBeforeSessionChange();
 	guiActive = NULL;
 	if ( previous ) {
@@ -1996,8 +2022,9 @@ void idSessionLocal::ExitMenu( void ) {
 	// go back to the game sounds
 	SetPlayingSoundWorld( sw );
 
-	// unpause the game sound world
-	if ( sw != NULL && sw->IsPaused() ) {
+	// Arena releases only its own pause on the next game frame. The ordinary
+	// session menu owns the SP pause; it must not release a borrowed Arena pause.
+	if ( !arenaPause && sw != NULL && sw->IsPaused() ) {
 		sw->UnPause();
 	}
 }
@@ -2733,6 +2760,7 @@ idSessionLocal::SetMainMenuGuiVars
 */
 void idSessionLocal::SetMainMenuGuiVars( bool refreshCatalogs ) {
 	guiMainMenu->SetStateBool( "retainedSystem", RetainedSystemAvailable() );
+	guiMainMenu->SetStateBool( "androidSetupAvailable", Session_AndroidSetupAvailable() );
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
 	guiMainMenu->SetStateString( "serverlist_selid_0", "-1" ); 
@@ -3166,6 +3194,11 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Cmp( cmd, ";" ) ) {
 			continue;
+		}
+
+		if ( !idStr::Icmp( cmd, "openAndroidSetup" ) ) {
+			Session_OpenAndroidSetup();
+			return;
 		}
 
 		if ( !idStr::Icmp( cmd, "openRetainedSystem" ) ) {
@@ -4381,11 +4414,11 @@ static const mainMenuSettingsScrollPage_t MAINMENU_SETTINGS_SCROLL_PAGES[] = {
 		NULL,
 		36,
 		0,
-		0,
+		6,
 		-24,
 		-84,
-		330,
-		0.0f
+		474,
+		24.0f
 	},
 	{
 		"game",
@@ -6143,16 +6176,40 @@ bool idSessionLocal::RetainedSubpageEvent( const sysEvent_t *event ) {
 }
 
 #ifndef ID_DEDICATED
-// Why a save could not be loaded, as LoadGame found it before it left the
-// current game.
+// Why a save could not be loaded, including restore failure after map teardown.
 static const char *Session_LoadFailureText( int failure ) {
 	switch ( failure ) {
 		case idSessionLocal::LOADGAME_FAILURE_MAP:		return "#str_231102";
 		case idSessionLocal::LOADGAME_FAILURE_DAMAGED:	return "#str_231103";
+		case idSessionLocal::LOADGAME_FAILURE_RESTORE:	return "#str_231190";
 		default:										return "#str_231104";
 	}
 }
 #endif
+
+void idSessionLocal::ShowSaveRestoreFailure( const char *saveName ) {
+#ifndef ID_DEDICATED
+	StartMenu();
+	// StartMenu activates the stock host. Refresh the retained home now, before
+	// choosing the load-page route, rather than waiting for the next frame.
+	UpdateRetainedHome();
+	const char *notice = Session_LoadFailureText( LOADGAME_FAILURE_RESTORE );
+	if ( guiRetainedHome != NULL && BeginRetainedPage( "loadGame" ) && retainedPagePending != NULL ) {
+		idStr slot = saveName;
+		ScrubSaveGameFileName( slot );
+		slot.StripFileExtension();
+		const int selected = retainedLoadSlots.FindIndex( slot );
+		if ( selected >= 0 ) {
+			retainedLoadSelected = selected;
+			retainedLoadFirst = selected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS;
+			PublishRetainedLoadRows( retainedPagePending );
+		}
+		PublishRetainedLoadSave( retainedPagePending, notice );
+	} else {
+		MessageBox( MSG_OK, common->GetLocalizedString( notice ), common->GetLocalizedString( "#str_231191" ), false );
+	}
+#endif
+}
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
@@ -6299,9 +6356,8 @@ void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const c
 		if ( fileTimes.Num() > 0 ) {
 			HandleMainMenuCommands( "play main_menu_selection" );
 			const idStr slot = fileList[ fileTimes[0].index ];
-			// LoadGame refuses a save it cannot use before it leaves the
-			// title: the Load Game page opens on that save and says why, as
-			// its own LOAD GAME would, rather than nothing happening.
+			// Preflight refusals keep the title; deeper failures rebuild it.
+			// Both routes open the Load Game page with the reason.
 			if ( !LoadGame( slot.c_str() ) && guiRetainedHome != NULL && guiActive == guiMainMenu && BeginRetainedPage( "loadGame" ) &&
 					retainedPagePending != NULL ) {
 				PublishRetainedLoadSave( retainedPagePending, Session_LoadFailureText( loadGameFailure ) );
@@ -6689,8 +6745,8 @@ void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char
 		}
 		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
 		HandleMainMenuCommands( "play main_menu_selection" );
-		// LoadGame refuses a save it cannot use before it leaves the current
-		// game, so the page is still here to say why.
+		// A preflight refusal preserves this page. A deeper restore failure
+		// builds a fresh menu and publishes its notice there instead.
 		if ( !LoadGame( slot.c_str() ) && guiActive == gui ) {
 			PublishRetainedLoadSave( gui, Session_LoadFailureText( loadGameFailure ) );
 		}
@@ -8866,6 +8922,7 @@ over 250 ms, as the pause screen does.
 ===============
 */
 void idSessionLocal::RetireRetainedMultiplayer( bool release ) {
+	cvarSystem->SetCVarBool( "s_voiceChatTest", false );
 #ifndef ID_DEDICATED
 	idUserInterface *card = guiRetainedMultiplayer;
 	if ( card == NULL ) {
@@ -8905,8 +8962,12 @@ void idSessionLocal::RetainedMultiplayerFrameEvent() {
 
 void idSessionLocal::HandleGameMenuReturn( const char *cmd ) {
 	if ( !cmd ) {
-		openq4::NativeInputBeforeSessionChange();
-		guiActive = NULL;
+		if ( Session_IsArenaPause( guiActive ) ) {
+			ExitMenu();
+		} else {
+			openq4::NativeInputBeforeSessionChange();
+			guiActive = NULL;
+		}
 	} else if ( idStr::Icmp( cmd, "main" ) == 0 ) {
 		StartMenu();
 	} else if ( idStr::Icmpn( cmd, "main ", 5 ) == 0 ) {

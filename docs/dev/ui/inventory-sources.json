@@ -66,27 +66,27 @@
       "summary": {
         "gui_files": 324,
         "resources_with_includes": 324,
-        "window_declarations": 17166,
+        "window_declarations": 17185,
         "window_types": {
           "bindDef": 97,
-          "choiceDef": 172,
-          "editDef": 94,
+          "choiceDef": 174,
+          "editDef": 97,
           "editorViewDef": 3,
           "listDef": 69,
           "renderDef": 2,
-          "sliderDef": 41,
-          "windowDef": 16688
+          "sliderDef": 44,
+          "windowDef": 16699
         },
-        "event_declarations": 9177,
+        "event_declarations": 9186,
         "event_types": {
           "OnAction": 9,
-          "onAction": 892,
+          "onAction": 898,
           "onActionRelease": 82,
           "onActivate": 40,
           "onBackAction": 4,
           "onDeactivate": 1,
           "onESC": 22,
-          "onEnter": 78,
+          "onEnter": 81,
           "onEnterRelease": 3,
           "onEvent": 17,
           "onGainFocus": 47,
@@ -108,14 +108,14 @@
           "noninteractive": 44,
           "resettime": 1505,
           "resetvideo": 3,
-          "set": 15039,
-          "setfocus": 148,
+          "set": 15045,
+          "setfocus": 151,
           "setlightcolor": 11,
           "showcursor": 3,
           "stoptransitions": 599,
           "transition": 11986
         },
-        "unique_localization_keys": 1289,
+        "unique_localization_keys": 1294,
         "unique_asset_references": 1321,
         "asset_resolution_counts": {
           "declared_material": 262,
@@ -2030,11 +2030,11 @@
         {
           "path": "guis/menu/settings/audio.gui",
           "source": "openq4-pak0/loose",
-          "sha256": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b",
-          "text_sha256": "43278178ca8930958e0ee6b3b7b803bc3b5752683a7567a30c7afc5bb0d01b19",
+          "sha256": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+          "text_sha256": "b1e2c270c894dce5977cca5aebeffd5e2d620e56ec565139977aeda4b7e13206",
           "line_ending_sha256": [
-            "43278178ca8930958e0ee6b3b7b803bc3b5752683a7567a30c7afc5bb0d01b19",
-            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+            "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+            "b1e2c270c894dce5977cca5aebeffd5e2d620e56ec565139977aeda4b7e13206"
           ],
           "includes": [],
           "window_types": [
@@ -2044,7 +2044,7 @@
             "windowDef"
           ],
           "source_diagnostics": [],
-          "closure_sha256": "43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09"
+          "closure_sha256": "977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5"
         },
         {
           "path": "guis/menu/settings/controls.gui",
@@ -5432,33 +5432,33 @@
       "summary": {
         "gui_files": 276,
         "resources_with_includes": 276,
-        "window_declarations": 15339,
+        "window_declarations": 15364,
         "window_types": {
           "bindDef": 49,
-          "choiceDef": 172,
-          "editDef": 97,
+          "choiceDef": 176,
+          "editDef": 100,
           "editorViewDef": 3,
           "listDef": 69,
           "renderDef": 2,
-          "sliderDef": 37,
-          "windowDef": 14910
+          "sliderDef": 40,
+          "windowDef": 14925
         },
-        "event_declarations": 8434,
+        "event_declarations": 8448,
         "event_types": {
           "OnAction": 9,
-          "onAction": 789,
+          "onAction": 798,
           "onActionRelease": 86,
           "onActivate": 14,
           "onBackAction": 1,
           "onDeactivate": 1,
           "onESC": 22,
-          "onEnter": 80,
+          "onEnter": 83,
           "onEnterRelease": 3,
           "onEvent": 11,
           "onGainFocus": 47,
           "onInit": 35,
-          "onMouseEnter": 601,
-          "onMouseExit": 555,
+          "onMouseEnter": 602,
+          "onMouseExit": 556,
           "onNamedEvent": 620,
           "onSelChange": 2,
           "onTabRelease": 1,
@@ -5473,15 +5473,15 @@
           "noninteractive": 42,
           "resettime": 1328,
           "resetvideo": 3,
-          "set": 15272,
-          "setfocus": 153,
+          "set": 15285,
+          "setfocus": 156,
           "setlightcolor": 11,
           "showcursor": 2,
           "stoptransitions": 672,
           "transition": 11487,
           "videocompleteevent": 3
         },
-        "unique_localization_keys": 1333,
+        "unique_localization_keys": 1341,
         "unique_asset_references": 1224,
         "asset_resolution_counts": {
           "declared_material": 201,
@@ -6145,11 +6145,11 @@
         {
           "path": "guis/mainmenu.gui",
           "source": "openq4-pak0/loose",
-          "sha256": "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
-          "text_sha256": "b93bfe3074ba0476adc1f3a1153f1661a547ce8245d768fd1258cadfc4e470db",
+          "sha256": "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646",
+          "text_sha256": "80d5ea3fc9199f410f97feac812a507d84fa731962c265704e76883e2d400164",
           "line_ending_sha256": [
-            "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
-            "b93bfe3074ba0476adc1f3a1153f1661a547ce8245d768fd1258cadfc4e470db"
+            "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646",
+            "80d5ea3fc9199f410f97feac812a507d84fa731962c265704e76883e2d400164"
           ],
           "includes": [
             "guis/menu/settings/controls.gui",
@@ -6166,7 +6166,7 @@
             "windowDef"
           ],
           "source_diagnostics": [],
-          "closure_sha256": "ccc340bacb3ce181b7ed39cfc4cfa00f3ba6e053886329c6fd86679725ee8030"
+          "closure_sha256": "a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a"
         },
         {
           "path": "guis/maps/airdefense/gun_monitor.gui",
@@ -7144,11 +7144,11 @@
         {
           "path": "guis/menu/settings/audio.gui",
           "source": "openq4-pak0/loose",
-          "sha256": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b",
-          "text_sha256": "43278178ca8930958e0ee6b3b7b803bc3b5752683a7567a30c7afc5bb0d01b19",
+          "sha256": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+          "text_sha256": "b1e2c270c894dce5977cca5aebeffd5e2d620e56ec565139977aeda4b7e13206",
           "line_ending_sha256": [
-            "43278178ca8930958e0ee6b3b7b803bc3b5752683a7567a30c7afc5bb0d01b19",
-            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+            "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+            "b1e2c270c894dce5977cca5aebeffd5e2d620e56ec565139977aeda4b7e13206"
           ],
           "includes": [],
           "window_types": [
@@ -7158,7 +7158,7 @@
             "windowDef"
           ],
           "source_diagnostics": [],
-          "closure_sha256": "43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09"
+          "closure_sha256": "977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5"
         },
         {
           "path": "guis/menu/settings/controls.gui",
@@ -9418,11 +9418,11 @@
         {
           "path": "guis/mpmain.gui",
           "source": "openq4-pak0/loose",
-          "sha256": "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154",
-          "text_sha256": "000348b0395ae7dcf9d7f9656b55489ae2234ce7db0e72e5f138504e761e50e9",
+          "sha256": "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab",
+          "text_sha256": "8f71a63540bc48f2b7a14a8a107b14c5c98a6d16ff1008570bda9a9890b294d5",
           "line_ending_sha256": [
-            "000348b0395ae7dcf9d7f9656b55489ae2234ce7db0e72e5f138504e761e50e9",
-            "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154"
+            "8f71a63540bc48f2b7a14a8a107b14c5c98a6d16ff1008570bda9a9890b294d5",
+            "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab"
           ],
           "includes": [
             "guis/matchcontrol.gui"
@@ -9436,7 +9436,7 @@
             "windowDef"
           ],
           "source_diagnostics": [],
-          "closure_sha256": "fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1"
+          "closure_sha256": "64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51"
         },
         {
           "path": "guis/mpmsgmode.gui",

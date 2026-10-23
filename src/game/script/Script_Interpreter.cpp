@@ -164,12 +164,25 @@ void idInterpreter::Restore( idRestoreGame *savefile ) {
 	}
 
 	savefile->ReadObject( eventEntity );
-	savefile->ReadObject( thread );
+	RestoreThread( savefile );
 
 	savefile->ReadBool( doneProcessing );
 	savefile->ReadBool( threadDying );
 	savefile->ReadBool( terminateOnExit );
 	savefile->ReadBool( debug );
+}
+
+/*
+================
+idInterpreter::RestoreThread
+================
+*/
+void idInterpreter::RestoreThread( idRestoreGame *savefile ) {
+	idThread *restoredThread = NULL;
+	savefile->ReadObject( restoredThread );
+	if ( restoredThread != thread ) {
+		savefile->Error( "idInterpreter::Restore: saved thread does not match interpreter owner" );
+	}
 }
 
 /*

@@ -282,6 +282,7 @@ const PlayerSetting* FindPlayerSetting(const std::string& cvar) {
 		{"cl_player_brightskin_enemy_color",{2,0,0,false,bright}},{"cl_player_brightskin_team_color",{2,0,0,false,bright}},
 		{"cl_player_outline_width",{2,0,0,false,{"1.0","1.5","2.0","3.0","4.0","6.0"}}},
 		{"s_voiceChatSend",{1}},{"s_voiceChatReceive",{1}},{"s_voiceChatEcho",{1}},
+		{"s_voiceChatCapture",{1}},{"s_voiceChatTest",{1}},
 		{"s_voiceVolume",{0,0,1}},{"s_micInputLevel",{0,0,10}}};
 	const auto found = settings.find(cvar);
 	return found == settings.end() ? nullptr : &found->second;

@@ -1,6 +1,6 @@
 # openQ4 development roadmap
 
-Updated 18 October 2026. Stage-one implementation and tested source:
+Updated 21 October 2026. Stage-one implementation and tested source:
 `7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
 [baseline evidence record](baseline-evidence.md) binds current native tests,
 windowed gameplay and original-content controls to their exact source, binaries
@@ -85,7 +85,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | Temporal rendering | Automatic TAAU supports subnative bilinear/bicubic scaling and dynamic resolution on eligible desktop GL/Vulkan paths; crop/nearest modes and VR are excluded. Rigid, skinned and first-person weapon motion vectors and reactive effect coverage exist. Dynamic resolution and GPU skinning remain opt-in. GLES has no temporal resolve. |
 | VR | The active source implements OpenGL PC OpenXR, stereo, tracked input, room scale, crouch, two-handed aiming, haptics, comfort controls and vehicle views. Vulkan/EGL/Quest work is recoverable from archived history, not active implementation. Real-headset qualification remains open. |
 | Android | Experimental ARM64/API 24+ GLES3 client, SDLActivity host, in-tree game modules, signed APK/release verification and dependency licensing are implemented. Device qualification and integration of archived onboarding/touch/lifecycle work remain open. |
-| UI | Many retained screens and HUDs now run by default. The register preserves 347 rows, 310 active requirements and 37 superseded rows. UI-10 reconciled retail/base/Awakening mounts to 358 source/include-bound variants; all remain unaccepted for migration. Historical hashes and invalidated inventory acceptance are preserved. |
+| UI | Many retained screens and HUDs now run by default. The register preserves 349 rows, 310 active requirements and 39 superseded rows. UI-10 reconciled retail/base/Awakening mounts to 358 source/include-bound variants; all remain unaccepted for migration. Historical hashes and invalidated inventory acceptance are preserved. |
 | Retail and Awakening | Canonical SP/MP sources and BSE are in-tree. Awakening is additive SP content under `q4xbase`, not a separate multiplayer module. Retail decl and BSE audits have already resolved extensive earlier gaps. |
 | Multiplayer | Dual-stack networking, pure asset checks and bounded rcon2 exist. Actual MP defaults are `net_mpLagCompensation 0` and `net_mpPredictMode 0`; the player networking guide now agrees. `RemoteExtrapolationMS()` is still a zero placeholder because the server cannot observe the client's prediction choice. Retail 2.85 interoperability is outside the current openQ4 2.41 protocol contract. |
 | Platforms | Windows x64 and Linux x64/Steam Deck are first-class platform targets; macOS arm64 and Linux ARM64 are previews; Windows ARM64 and Android are experimental. Renderer tiers are separate from platform tiers. |
@@ -96,7 +96,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | Stage | Work to conduct | Exit condition |
 | --- | --- | --- |
 | 1. Establish the current baseline — complete | GOV-01 through GOV-03, HF-01/HF-02, Q4-01, UI-10; scope/recovery review for VR-01/VR-06 and AND-01 | Current-source ownership, clocks, compatibility inventory, tests and evidence identities agree. [Closure evidence](baseline-evidence.md) retains reproduced failures and later-stage qualification limits. |
-| 2. Close product gaps | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
+| 2. Close product gaps — in progress | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
 | 3. Improve motion and rendering | HF-03 through HF-07, VK-01 through VK-07, REN-01 through REN-08 | Visible gameplay meets declared correctness, latency and frame-time budgets with rollback paths intact. |
 | 4. Complete tools and broader quality | Remaining UI-06 scope, CORE-01 through CORE-06, remaining P2 items; TOOL-01 through TOOL-04 only when the paused map-editor work resumes | Authoring and runtime workloads meet their stated completion gates; optimizations are justified by measurements. |
 | 5. Qualify packages and promote scope | PLAT-01 through PLAT-05, REL-01 through REL-04, UI-07/UI-08/UI-11, VR-02, AND-02 and selected AND-05 scope | Exact release packages pass the selected platform, device, gameplay, visual and human acceptance matrix. |
@@ -403,7 +403,7 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   motion vectors, resets and scale control before enablement. Hand presence and
   physical-object interaction require separate gameplay/comfort designs. Quest
   distribution and device qualification also depend on AND-01 through AND-05.
-- [ ] **VR-06 — P1, implementation and qualification: fault-safe XR ownership.**
+- [x] **VR-06 — P1, implementation and qualification: fault-safe XR ownership.**
   Reproduce the current `Check` → `DestroySession` → `ReleaseImages` teardown
   re-entry risk in `OpenXRSystem.cpp`: session loss can be reported before
   `frameOpen`/acquired flags are cleared. Make destruction idempotent and stop
@@ -413,9 +413,14 @@ Sources: [OpenXR implementation history](archive/2026-10-18/plans/2026-10-02-ope
   creation/resize and tracking invalidation. Require bounded cleanup, no recursion
   or stale-handle calls, balanced image/frame ownership and a recoverable desktop
   path. Ordinary call-order tests and headset happy paths do not close this item.
-  Stage-one review confirmed the source-derived risk and required fault matrix
-  in the [recovery review](platform-recovery-review.md); runtime reproduction and
-  lifecycle repair remain open.
+  Complete for the active desktop OpenGL scope: deferred retirement, bounded
+  image validation, idempotent teardown and input cancellation pass 19 native
+  production-method cases on Windows/Linux and 28 simulated-runtime SP/MP
+  gameplay cases. Original failures, exact package identities, visual captures
+  and the 207-test native suite are bound in the
+  [recovery evidence](platform-recovery-review.md#opengl-xr-lifecycle-closure-18-october-2026).
+  VR-01 carries these guarantees into other backends; VR-02 retains physical
+  headset/controller qualification.
 
 ## Android and mobile rendering
 
@@ -431,14 +436,63 @@ Sources: [Android build and packaging](android-build.md),
   verification, notices, existing usable assets during failed extraction and the
   retained UI. Accept each integrated feature independently with recovery tests.
   Select an explicit ABI/API/device/flavor matrix before integration. Current
-  Meson/Gradle admit ARM64 and `verify_android_apk.py` expects an exact library and
-  asset set; emulator/Quest additions need coordinated metadata, staging and
-  variant-specific allowlists. Preserve matching SDL/native versions, 16 KiB
+  Meson/Gradle admit ARM64 phones and a separate debug-only x86_64 emulator
+  package. Both use exact library/asset allowlists and coordinated native
+  metadata; Quest still needs its own staging and variant checks.
+  The [diagnostic emulator recovery](platform-recovery-review.md#android-diagnostic-emulator-recovery-20-october-2026)
+  passes native/package builds, phone regression checks and silent SP save/load
+  and MP movement/release on a current GLES3, 16 KiB x86_64 image. The API 24
+  image tested exposes only GLES2 and is rejected before installation. Engine
+  captures exposed touch/HUD overlap and corner-hit issues; the recorded follow-up
+  APK fixes them for the default landscape layout and passes fresh SP/MP probes.
+  Full editable/portrait layouts retain their separate acceptance.
+  Preserve matching SDL/native versions, 16 KiB
   alignment, certificate identity and licensing. Reject test-runtime/debug payloads
   from published APKs; toolchain/API bumps require their own qualification.
   Stage-one archived-change review and explicit phone/emulator/Quest scope matrix
   are complete in the [recovery review](platform-recovery-review.md). Feature
   integration, flavor verification and physical-device qualification remain open.
+  The [single-window startup/fatal handoff](platform-recovery-review.md#android-window-ownership-19-october-2026)
+  is repaired and passes Windows/Linux production-method checks and the matching
+  ARM64/API 24 cross-build. The [S25 check](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)
+  reaches Storage 1, captures the opening scene and writes a save; restoration
+  exposes a retained-UI thread-binding failure. The
+  [engine-thread binding repair](platform-recovery-review.md#android-ui-engine-thread-binding-19-october-2026)
+  passes native Windows/Linux checks. The subsequent
+  [S25 restore round trip](platform-recovery-review.md#s25-original-save-restore-round-trip-20-october-2026)
+  loads the original Storage 1 save, writes/reloads another save and exits
+  cleanly on the recorded timer/GUI-repair APK. The later export APK also
+  [restores a copy from its backup ZIP](platform-recovery-review.md#s25-exported-save-restore-20-october-2026),
+  saves/reloads again and exits normally. Broader campaign/lifecycle behavior
+  retains its own device gates.
+  [Background audio/input and SP resume](platform-recovery-review.md#android-background-audio-and-single-player-resume-19-october-2026)
+  now run before SDL blocks and return live SP behind the pause menu. Native
+  Windows/Linux recovery controls and both builds pass. The S25 touch check
+  below also passes audible background/resume and paused SP return; sustained
+  suspension, process death and resumed network sessions remain unqualified.
+  [Background timer recovery](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)
+  adds 100 ms background waits and bounded catch-up at every Android timescale;
+  production Windows/Linux cadence, freeze and shutdown checks pass. Physical
+  power/suspension and resumed network sessions remain unqualified.
+  [Back and fatal-console controls](platform-recovery-review.md#android-back-and-fatal-console-controls-19-october-2026)
+  now route Android Back through menu/pause navigation, accept a single touch
+  owner with release/cancellation rules and use density-scaled error controls.
+  Native/JVM recovery checks and both platform builds pass; physical touch,
+  gesture, readability and cutout qualification remain required.
+  [Cutout/configuration recovery](platform-recovery-review.md#android-cutout-and-configuration-recovery-19-october-2026)
+  now keeps the actual SDL surface clear of camera cutouts and retains the
+  remaining child system/IME insets. Windows/Linux host checks and exact debug
+  package verification pass; real rotation/density/input and portrait work remain.
+  [Gameplay touch recovery](platform-recovery-review.md#android-gameplay-touch-recovery-20-october-2026)
+  now integrates the standalone vector controls with independent usercmd motion,
+  preserved quick taps, touch-driven weapon selection and contact cancellation.
+  Windows/Linux behavioral checks, both native builds and exact APK checks pass;
+  the debug S25 updates preserve all six existing save files. Scripted
+  gameplay/save round trips and physical move/look/fire, tap/hold weapon
+  selection and background/resume audio pass on the recorded S25 builds.
+  The full editable layout/portrait contract and setup integration remain open.
+  Broader device startup and the remaining host/input/lifecycle recovery are
+  still open.
 - [ ] **AND-02 — P1, qualification: real Adreno/Mali gameplay.** Cover the API floor
   and current Android, ES3 capability differences, stock SP/MP, saves, map/campaign
   transitions, materials/shadows/ETC2/EAC, cold/warm caches, audio and touch/gamepad/
@@ -453,12 +507,71 @@ Sources: [Android build and packaging](android-build.md),
   interrupted onboarding, APK upgrades and signing-certificate continuity. Keep
   proprietary retail data outside the APK. Optional SigmaTouch/host dependencies
   require a compatible distribution licence, not merely an available licence.
-  Repair missing/truncated/mismatched extracted files behind an existing `.ready`
-  marker: `OpenQ4Activity.extractPackage()` currently trusts that marker and has
-  no repair flow. Use a validated readiness record or an engine-validation failure
-  handoff, with bounded repair/retry and low-space/interruption coverage; retain
-  full engine PK4 checks and usable saves/configuration. Make diagnostics and
-  save export reachable in a signed, non-debuggable release with private storage.
+  The [extracted-package repair](platform-recovery-review.md#android-extracted-package-repair-18-october-2026)
+  now verifies a bounded per-file manifest on every launch and atomically repairs
+  missing/truncated/mismatched files behind `.ready`. Windows/Linux production-
+  Java tests cover interruption, replacement failure, low-space preflight and
+  save preservation; a real 810 MB package passes selective repair. Full engine
+  PK4 checks remain enabled. Broader provider acceptance and release-signed
+  device-upgrade evidence keep AND-03 open. Android now preserves the host's
+  data directory when retail
+  packs are absent, with production Android/desktop selection tests. An S25
+  debug APK update preserves save bytes, and the original Storage 1 save now
+  passes a device restore/resave/reload round trip on the recorded timer/GUI
+  package. The current export APK also passes an exported-save restore/resave/
+  reload check; release certificate-continuity qualification remains required.
+  [Early native diagnostics](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)
+  now share the host's save/log directory, with production native/JVM recovery
+  checks on Windows/Linux and both platform builds. The S25 now records a
+  successful installed-data check and exports its earlier native logs through
+  the system picker; broader device diagnostics remain open.
+  The [retail verifier backend](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
+  now checks the complete required set, engine-compatible checksums and every
+  entry's payload, with optional/language findings, bounded progress and
+  cancellation. The local retail set passes; the setup entry point below now
+  invokes it for imports and installed-data checks.
+  The [document import backend](platform-recovery-review.md#android-document-import-backend-19-october-2026)
+  now copies granted provider streams through verified temporary files, preserves
+  existing destinations on failure and resumes from completed archives. Host
+  recovery and provider-adapter checks pass. The setup entry point below connects
+  picker/grant ownership and localized recovery; physical provider acceptance
+  remains open.
+  The [localized setup entry point](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
+  now connects language selection, the system folder picker, read-only persisted
+  grants, verified import/check, bundled-file preparation and explicit SP/MP
+  launch. Progress/cancellation and retry preserve completed archives; native
+  storage ownership blocks setup until the game actually exits. Four resource
+  sets and Windows/Linux pipeline checks cover this increment. Release signing
+  continuity and
+  physical provider/lifecycle/accessibility/visual acceptance remain open.
+  [Settings re-entry](platform-recovery-review.md#android-settings-return-21-october-2026)
+  now opens setup without ending the native game and returns to the same session.
+  Two emulator handoffs preserve map/save state; desktop visibility and
+  native/JVM recovery controls pass. Physical navigation on the new APK remains
+  unqualified, and storage operations still require the game to finish closing.
+  [Touch controls setup](platform-recovery-review.md#android-controls-setup-21-october-2026)
+  adds Default/Compact/Left-handed presets, size/sensitivity controls, a live
+  look-speed test and detected-controller information. Drafts stay separate
+  from applied settings, which reach the engine at startup/foreground entry.
+  Native/JVM, negative controls and two emulator handoffs pass. Physical setup
+  interaction, controller behavior and full editor/portrait acceptance remain.
+  [Interface setup](platform-recovery-review.md#android-interface-setup-21-october-2026)
+  previews the section 13.2 viewing profiles with independent UI and text size.
+  Each Apply reaches `ui_retainedScale`/`ui_retainedTextScale` once at
+  foreground entry, so later in-game size changes survive a return. JVM/JNI,
+  native parser and mutation checks pass, and the emulator drives the page from
+  Apply to the engine. Physical S25 interaction and the in-game Interface
+  settings page remain open.
+  The [save and log export flow](platform-recovery-review.md#android-save-and-log-export-20-october-2026)
+  now prepares bounded ZIPs with per-file integrity records and copies them to
+  new documents chosen through the system picker. It preserves original saves,
+  includes release setup diagnostics and holds native storage ownership until
+  provider cleanup completes. Localized cancellation/retry, Windows/Linux
+  production-Java tests and exact APK packaging cover this increment. S25
+  picker exports to Downloads pass independent ZIP/manifest checks with all six
+  original save files unchanged; a copy from the ZIP restores on that same
+  package. Cloud/removable providers, interrupted-process recovery and release
+  signing continuity remain open.
 - [ ] **AND-04 — P2, implementation and qualification: mobile UI and defaults.**
   Qualify touch targets, keyboard entry, safe areas, HUD/menu scaling, bindings and
   overlay configuration. Select mobile presets from device results; explicitly
@@ -491,6 +604,9 @@ archived provenance; new scheduling belongs here.
   scope. Demonstrate real effect/readback, persistence, cancel/revert, failed Apply,
   interrupted writes, restart, device/capability changes and stale-owner rejection
   in SP/MP. Localize every display string and preserve current working pages.
+  The 22 October preset/restart captures also show a stale selection on an
+  already-open SYSTEM page after console `applyPerformancePreset`; include
+  external-setting refresh in the readback/ownership qualification.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual
@@ -521,9 +637,15 @@ archived provenance; new scheduling belongs here.
   other recorded deviations before acceptance. Preserve editable vector framing,
   controls, symbols, 45-degree geometry and continuous motion; use bitmaps only for
   approved complex imagery. Keep stock references without adding proprietary art.
-  Resolve `FLOW-054`/`WID-034` clauses still requiring Awakening multiplayer through
-  a register revision preserving their history and applicable SP/ordinary-MP
-  obligations. Do not build expansion MP to satisfy stale acceptance clauses.
+  Progress, 21 October: [register revision 19](ui/product-requirements.md#revision-19-awakening-single-player-scope)
+  preserves `FLOW-054`/`WID-034` as history and replaces their active scope with
+  `FLOW-066`/`WID-038`. Awakening single-player and ordinary Quake 4 multiplayer
+  obligations remain; an expansion multiplayer module is explicitly excluded.
+  This resolves the stale scope clauses without accepting a GUI. The
+  [hit-feedback default correction](ui/remastered-hud.md#hit-feedback-defaults-21-october-2026)
+  restores stock feedback for fresh SP/MP profiles and preserves archived opt-ins;
+  four actual-map default/write/restore/reset runs pass. Optional marker artwork,
+  timing and the remaining visual-policy qualification stay open.
 - [ ] **UI-06 — P1, implementation: finish the visual authoring editor.** Build on
   DocumentEdit/history/prepared-view foundations: shell, hierarchy, property/layout/
   anchor tools, reusable components, pen/path/gradient/mask editing, timelines/state
@@ -543,6 +665,13 @@ archived provenance; new scheduling belongs here.
   bounded-resource checks. Keep whole-frame and isolated UI measurements separate.
   Begin with the SYSTEM/editor vertical slice; do not defer architecture/cost
   decisions until all screens have been converted.
+  Progress, 22 October: [current-build measurements](ui/runtime-performance.md#current-build-measurements-and-presetscale-reproduction-22-october-2026)
+  record five 1,000-frame Vulkan samples each for title, System and SP pause.
+  Title/System exceed the proposed 60 Hz CPU budget; GPU and resource-cycle
+  qualification remain open. Four GL/Vulkan stock/retained title/pause runs
+  retain readable text through scene scaling and preset/restart cycles, without
+  reproducing #168/#169. The System route is retained in all four; its stale
+  selection after an external console preset change is a separate UI-01 gap.
 - [ ] **UI-08 — P1, qualification and decision: final cutover.** Complete all seven
   final gates with current source-bound behavior, visual/editor/performance and
   Windows/Linux/macOS/Android-GLES evidence, including dedicated packaging. Decide
@@ -555,13 +684,18 @@ archived provenance; new scheduling belongs here.
   not just individual pages: general controls/components, public GUI adapter
   methods, material/movie/model/generated-image operations, world-surface output
   and input, gameplay timers, independent instances and save/restart continuity.
-  Current code has six canonical control roles, four node kinds, an unimplemented
-  generated-texture callback, partial material-image operations, empty binding-name
+  Current code has six canonical control roles, four node kinds,
+  partial material-image operations, empty binding-name
   updates/text-wrap queries and an explicit world-output rejection. Map each
   limitation to required semantics and extend existing working facilities rather
   than rebuilding them. Test actual SP/MP engine callers, simultaneous HUD/menu/
   world/editor contexts, failed recreation, timer/presentation-clock separation,
   restored state and exactly-once actions before bulk UI-03/UI-04 acceptance.
+  Progress, 18 October: generated RGBA8 upload/release now uses bounded shared
+  storage and frame-safe retirement. Actual Rml callback/engine-adapter tests,
+  1,000-cycle checks and GL/Vulkan gameplay alpha/reopen/restart captures pass;
+  [implementation and evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)
+  do not close the wider toolkit or resource requirements.
 - [x] **UI-10 — P0, investigation and implementation: refresh effective scope and
   source inventory.** Completed [retail/base/Awakening inventory](ui/inventory-report.md):
   264/276/324 effective paths, 358 distinct source/include-bound variants, 18
@@ -636,6 +770,42 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   restart at saved level with header loadout rather than guessing the payload;
   recognized build-1 releases already have compatibility readers. Require
   interruption/corruption fixtures and no destruction of valid existing saves.
+  Current partial repair preserves live entity identities when rejecting invalid
+  saved numbers, duplicate master-table entries and interrupted registrations;
+  see [restore identity evidence](savegame-reliability.md#restore-identity-and-partial-registration).
+  [Factory-object lifetime tracking](savegame-reliability.md#ownership-during-an-interrupted-restore)
+  now releases remaining objects after map cleanup and retires attached objects
+  already deleted by another owner. Native lifecycle/failure controls and a real
+  script-incompatibility/reload probe pass. The subsequent
+  [semantic-failure recovery flow](savegame-reliability.md#recovery-after-semantic-restore-failure)
+  unwinds before session teardown, opens the retained Load Game page or classic
+  dialog and leaves save files intact. Unknown unstamped formats still fail
+  preflight; automatic header-only restart is intentionally excluded.
+  [Saved render handles](savegame-reliability.md#renderer-ownership-during-interrupted-field-reads)
+  also stay temporary until the renderer returns a current definition, preventing
+  an interrupted read from giving cleanup a foreign handle.
+  [Binding/team validation and failed-load teardown](savegame-reliability.md#binding-graphs-during-failed-restores)
+  reject cyclic links, check complete team ordering and discard partial links
+  before cleanup. [Typed spawn references](savegame-reliability.md#typed-spawn-references-during-restore)
+  also validate live referenced classes before publishing a saved ID, while
+  preserving expired-reference behavior.
+  [Mover activation chains](savegame-reliability.md#mover-activation-chains-during-restore)
+  receive equivalent cycle/membership checks and failed-load detachment without
+  changing their saved layout. [Throwing factories](savegame-reliability.md#throwing-object-factories)
+  also recover through the staged GL/Vulkan load page and healthy reload.
+  [Script-thread ownership](savegame-reliability.md#script-thread-ownership-during-restore)
+  rejects duplicate owners, interpreter mismatches and owned threads that would
+  delete themselves; failed-load cleanup detaches temporary owners. Native and
+  GL/Vulkan recovery fixtures pass. The
+  [weapon-owner investigation and class admission](savegame-reliability.md#standalone-object-class-admission)
+  now reject standalone weapon/physics/helper classes outside the writer's three
+  object families before construction. Current GL/Vulkan recovery, 252 native
+  checks and v2/v3/v4 historical-reader controls pass. The
+  [serialized-GUI boundary](savegame-reliability.md#serialized-gui-admission-and-optional-menu-fallback)
+  now preserves optional menu fallback during loading while rejecting a missing
+  GUI required by the save. Windows/Linux native, 259-test Windows suite and
+  GL/Vulkan recovery/reload checks pass. Other owning-graph and
+  partial-constructor qualification remains open.
 - [ ] **Q4-06 — P3, decision: portable saves.** `raw1` native aggregates are not
   cross-platform saves. Inventory and normalize game plus GUI/interpolator raw
   blocks before introducing a versioned portable format and ABI/architecture
@@ -647,6 +817,16 @@ Sources: [retail decl audit](retail-q4-decl-parity-audit.md),
   other target ABIs, identifying source executable, architecture and save layout.
   Keep synthetic corruption/layout tests separately labelled; they cannot prove
   compatibility with saves generated by the original binaries.
+  Progress, 21 October: the [published-writer corpus](savegame-reliability.md#original-release-writers-21-october-2026)
+  passes current restore/resave/reload for five maps from each requested release
+  on Windows x64. Four releases commit their original saves; v0.13.0 rejects its
+  own build stamp, so its five completed staged payloads were captured without
+  changing the writer or bytes. That original transaction failure remains explicit.
+  The exact [#123 retest](savegame-reliability.md#issue-123) still fails safely:
+  the supplied rebuilt map lacks a saved prelight model, and the retail-map
+  control reaches a GUI child-identity mismatch. Its writer is fingerprinted
+  0.10.0; historical reporter confirmation and corrections to prior assumptions
+  are preserved. This current failure and the other target ABIs keep Q4-07 open.
 - [ ] **Q4-08 — P2, investigation and qualification: save cost and durability.**
   Measure large-save CRC/sync time and fault behavior across target filesystems.
   Directory metadata is not synced and full power-loss atomicity is not established.
@@ -668,12 +848,78 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   invalidated follow targets, journal/MVD interruption/capacity and all live roles'
   localized keyboard/controller workflows. Keep captain spectator invitations
   fail-closed and record remaining exact runtime scenarios from the current audit.
+  Progress, 18 October: current staged GL role/follow and roster/reconnect runs
+  pass, including replacement identity isolation. The [audit evidence](competitive-match-reference-audit.md#stage-two-current-runtime-rerun-2026-10-18)
+  retains their precise scope; the remaining release checks are still open.
 - [ ] **MP-02 — P1, qualification and targeted fixes: bot traversal safety.** Rerun
   staged q4dm8/q4ctf3/q4ctf5/q4dz3 after the exact-state jump/unroutable-pad fixes,
-  then the complete 32-map sweep including warmup. Separate enemy impulses from
+  then the complete declared-map sweep including warmup (currently 33 variants).
+  Separate enemy impulses from
   navigation/control failures and retain strict world-death gates. Qualify route
   generation/think budgets, objectives and real combat; source tests do not close
   the previously failing runtime safety sweep.
+  Progress, 18 October: [four-map rerun](mp-bots.md#current-four-map-rerun-18-october-2026)
+  passes CTF3/DZ3 but retains DM8/CTF5 world-death failures following logged combat
+  impulses. The subsequent [33-map sweep](mp-bots.md#current-complete-catalog-sweep-18-october-2026)
+  passes 32 maps but retains a DM8 world death following an enemy impulse. The
+  gate stays open, including recovery steering and controlled timing evidence.
+  Progress, 21 October: a [sloped-floor support correction](mp-bots.md#sloped-floor-support-correction-21-october-2026)
+  fixes false edge braking caused by the support box/full-player height difference.
+  Windows/Linux fixtures, isolated failing controls and original CTF6 geometry
+  checks pass. A 60-second CTF6 bot run has no world deaths or traversal timeouts;
+  remaining stalls and the renewed four-map sweep's DM8/CTF5 world deaths keep
+  the wider gate open. A subsequent [live-origin correction](mp-bots.md#live-jump-origin-correction-21-october-2026)
+  resolves the isolated DM8 air-step false approval: the proof had started one
+  unit above the actual player and incorrectly removed horizontal momentum.
+  Native regression controls and the original-map replay pass; the broader DM8
+  rerun still has a world death, so its remaining cause and the full gate stay open.
+  The ensuing [pad-flight investigation](mp-bots.md#jump-pad-impulse-recovery-21-october-2026)
+  reproduces that separate post-hit overshoot. Supported touchdown/runout checks
+  and immediate braking at an exhausted route now pass the isolated replay and
+  Windows/Linux regression controls. The wider map/catalog and timing gates remain
+  open; the failed intermediate touchdown-only fix is retained as evidence.
+  The [renewed 33-variant sweep](mp-bots.md#renewed-catalog-sweep-21-october-2026)
+  passes 31 variants and retains CTF5/q4xdm13 failures. The isolated
+  [q4xdm13 dodge repair](mp-bots.md#dodge-landing-runout-21-october-2026)
+  now reserves supported ground for touchdown momentum; Windows/Linux native
+  controls and the original-map replay pass. CTF5 impact diagnosis, current
+  match/catalog reruns and the broader acceptance gates remain open.
+  The [CTF5 pad reservation correction](mp-bots.md#early-pad-reservation-21-october-2026)
+  brakes before multiple nearby walking corners can carry a bot into a busy
+  pad. Windows/Linux regression controls pass. A full-duration repeat retains
+  two separate world deaths (low-health landing and post-rocket fall), so the
+  strict map/catalog safety gate remains open.
+  The [repeated-contact correction](mp-bots.md#repeated-pad-contact-and-landing-health-21-october-2026)
+  models successive force-brush pushes and rechecks low-health approaches before
+  the final walking corner. Native controls and the isolated landing-damage
+  replay pass. The next full-duration match retains four deaths after unintended
+  pad entries or combat impulses; recovery and strict catalog gates stay open.
+  Progress, 22 October: the [pad corridor, unplanned-pad and knocked-fall work](mp-bots.md#pad-corridors-unplanned-pads-and-knocked-falls-22-october-2026)
+  reserves shared pad corridors between bots, keeps momentum off pads a route
+  did not choose, checks whole pad chains against landing health and brakes or
+  steers falls a strong knock caused. The user's impulse-exclusion policy is now
+  `mp_bot_audit.py --classify-impulses`: a death counts unless an enemy impulse
+  precedes it, its replay falls under every fixed air input, and the moment
+  without the impulse lands; 22 asset-free controls pin the rule. Windows/Linux
+  native regressions and 21 single-reversal controls pass. The final build's
+  q4ctf3 and q4dz3 and four catalog reruns have no deaths, but q4ctf5 keeps one
+  and q4dm8 three navigation deaths (a recoverable rail fall the air choice
+  missed, a tap on an already-falling bot, a fail-closed replay, an unexplained
+  jump-down), and the 33-variant catalog passed 29 variants on the previous
+  build with peers saturating the CPU. Remaining: those navigation causes,
+  team-mate splash knockback, replay-bot replacement, one uncontended
+  33-variant sweep on one build, and controlled think/route budgets.
+  Follow-through: [air recovery and replay isolation](mp-bots.md#air-recovery-and-replay-isolation-22-october-2026)
+  repair the missed CTF5 heading and bot replacement. The controller and both
+  known recoverable headings land alive with fresh pickups per trial; all 21
+  DM8 Sledge trials arm, and its surviving controller keeps that death classified
+  as navigation. Independent DM8 jump-down and team-knockback causes remain open.
+  The subsequent [single-build 33-variant sweep](mp-bots.md#single-build-complete-catalog-22-october-2026)
+  passes every map with 215 combat kills, zero world deaths including warmup,
+  zero traversal timeouts and no exclusions. Every map exceeds 40 simulated
+  seconds. This closes the outstanding catalog rerun; 17 stuck events, 12 goal
+  give-ups, earlier long-match failures and unratified timing tails keep the
+  wider MP-02/MP-03 gates open.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
@@ -683,6 +929,12 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   pause navigation. Capture victory/defeat/draw ledgers, progression and ceremony
   through save/reload and failure paths; an aborted-launch ledger is not completion
   evidence. Coordinate with UI-03, HF-01 and AUD-02.
+  Progress, 18 October: [Arena sound ownership and result evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+  closes the continuing game-audio clock gap. Native ownership tests and final
+  GL/Vulkan gameplay runs pass pause/resume, victory/defeat/draw and persisted
+  best-result ordering. The [19 October headphone check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
+  also passes two audible pause/resume cycles. Restart/navigation cost, physical
+  controls, endpoint loss/return and remaining failure-path coverage keep MP-04 open.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery
@@ -720,6 +972,25 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   do not enable direct asset downloading. Document clear rejection of unsupported
   protocols: retail 2.85 interoperability is a separate future scope decision,
   not a version-number change to openQ4 2.41 or a prerequisite for retail assets.
+  Progress, 18 October: fixed command-argument ownership during list growth and
+  reload replay, which dropped the baseline client's `connect` command. The
+  [retail ledger](retail-baseline-ledger.md#stage-two-connection-regression)
+  records a passing four-role stock baseline, 185 native checks and a failing
+  shallow-copy control. The broader peer/architecture/interoperability gate
+  remains open. The player [networking guide](../user/multiplayer-networking.md#ipv6-connections)
+  now explicitly documents single-address DNS selection and the numeric-address
+  workaround when the chosen endpoint is unreachable.
+  October 22: published 0.13.0 and the voice-enabled candidate explicitly refuse
+  each other in both directions: missing packages with pure checking, declaration
+  checksum mismatch without it. The four scenarios produce no unknown voice
+  messages, but no mixed-release peer joins or transmits; they do not qualify
+  mixed-release voice. Capability-gating regression checks pass separately.
+  [Exact compatibility scope](audio-voice-evidence.md#mixed-release-voice-check-22-october-2026).
+  The [cross-platform peer evidence](retail-baseline-ledger.md#cross-platform-pure-peers-18-october-2026)
+  adds passing Windows-client/Linux-server IPv4 and scoped IPv6 pure joins and
+  successive reconnects. Canonical ZIP metadata fixes otherwise identical
+  host-built PK4s failing package identity. WAN impairment, concurrent load,
+  discovery, other architectures and the remaining content cases stay open.
 
 ## Audio and voice
 
@@ -734,10 +1005,25 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   defect. Reconcile that report with measured source/listener behavior rather than
   applying a speculative 39.37 conversion. Preserve the authored mix and already
   implemented spatial/HRTF/EFX/reverb behavior.
+  Progress, 20 October: the [current distance audit](audio-modernization.md#current-distance-audit-20-october-2026)
+  passes 54 actual emitter/OpenAL measurements across three original shaders,
+  with default linear and optional quadratic curves. Source/listener coordinates
+  and radii remain in map units; OpenAL rolloff is zero and does not double the
+  engine curve. The failed initial harness calibration is preserved. Defaults
+  remain unchanged; physical audibility is still pending.
+  October 21: the mod wet-path reference-distance defect is isolated and measured
+  under AUD-04; no change was made to dry attenuation or either unit macro.
+  October 22 audit: the remaining gate is human listening on real speakers or
+  headphones against retail. The measured distance-curve audit is complete;
+  keep this item open until that listening pass is recorded.
 - [ ] **AUD-02 — P1, qualification: physical device and timing lifecycle.** Test
   default/selected endpoint loss and return, hotplug, pause/resume/slow motion,
   cinematics, map/restart and long sessions on target OSes. Verify audible output,
-  not just backend initialization; include Arena's unpaused sound-world gap.
+  not just backend initialization; include physical Arena pause/resume after its
+  game-audio clock ownership correction.
+  October 22 audit: the remaining gates require physical devices and target-OS
+  audible-output checks. Counted API recovery tests and the long local voice
+  session support those checks but do not replace them.
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -747,17 +1033,65 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   pause/time scale and underrun behavior. Existing queued PCM and decode jobs do
   not by themselves establish compressed streaming. Android's required memory
   bound can ship before optional streaming completion; keep those exits separate.
+  October 21: compressed input, fixed decoder arenas and pending Vorbis PCM
+  have a 64 MiB admission budget with backpressure and cancellation accounting.
+  Ogg tracks above 512 KiB decoded size now stream from the VFS/PK4 through
+  fixed input/decoder buffers and bounded PCM queues, with a separate
+  32 MiB active-stream reservation limit. PCM/seek/overlap/loop tests and stock/
+  Awakening gameplay at a 16 MiB decode budget pass pause, time scale, restart,
+  save/load and gain checks without rejected tracks. `listSounds` reports sample,
+  envelope, pending decoder and stream costs. A joint 256 MiB managed-payload
+  budget now admits CPU/OpenAL data, envelopes, decoder arenas and conservative
+  queues together, including WAV/ADPCM and bounded two-pass RoQ loading.
+  Stock/Awakening tests pass at 192 MiB; deliberate exhaustion retains active
+  audio, refuses new data without caching beeps, retries after budget recovery
+  and survives repeated restart without reservation growth. Metadata/provider
+  process memory, lengthless streaming, loading-performance, Android low-memory
+  callbacks and device breadth remain open.
+  [Implementation and evidence](audio-voice-evidence.md#aggregate-payload-admission).
+  The October 22 queue correction retains about one second of audio within the
+  same reserved bytes. This item still includes automated and implementation
+  work as well as physical/mobile qualification; it is not a listening-only gate.
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
+  October 21: mod rolloff is repaired and measured using OpenAL loopback audio;
+  stock zero rolloff and the dry mix are unchanged. Mono global/radio dialogue
+  and explicit `SSF_CENTER` sounds now use bounded direct 5.1 buffers on a
+  centre-capable output. Positional NPC speech retains its direction. Loopback
+  tests (26 checks) measure exclusive centre placement, the configured VO
+  fraction and silent LFE on 5.1, 6.1 and 7.1 outputs, plus identical stereo,
+  quad and HRTF fallback PCM; stock compressed and Awakening PCM
+  gameplay pass pause, time scale, restart and restore. Physical surround
+  devices, output-layout transitions and positional mod wet sends remain open.
+  [Centre evidence](audio-voice-evidence.md#centre-channel-placement).
 - [ ] **AUD-05 — P1, implementation: functional multiplayer voice.** Capture,
-  codec, transport and playback remain disabled/incomplete despite UI controls.
-  Implement the full bounded path, consent/activation controls, mute identity,
-  moderation/rate limits, reconnect and device recovery, then qualify real peers.
-  Preserve existing recipient policy; decide bounded latency, late-packet dropping
-  and backpressure before connecting voice to the current reliable client-message
-  path, whose head-of-line blocking needs measurement under loss/congestion.
-  Until then expose honest unavailable controls and do not advertise working voice.
+  codec, transport and playback are implemented with explicit microphone consent,
+  push-to-talk, local-only testing, connection-scoped mute, server moderation and
+  existing recipient policy. The versioned 8 kHz mu-law path uses independent
+  unreliable 20 ms frames, 80 ms capture/playback rings, late/duplicate/rate
+  rejection and a server mailbox flushed after snapshots without retry backlog.
+  October 21: Windows listen and dedicated servers with three real client
+  processes pass bidirectional rendered-tone playback, volume, real-time pitch,
+  mute/receive/moderation, restart, reconnect/slot reuse, loss/reorder, delayed
+  frame rejection and congestion recovery. At 2,000 B/s voice yields while
+  snapshots continue. Capture fault/lifecycle tests execute production code
+  without a microphone. The real settings adapter and SDL dummy callback path
+  also pass local-only testing, tab-exit closure and consent revocation, with
+  inspected retained and Classic engine screenshots. Voice admission now tracks
+  sender clock drift with a bounded slew (at most 2 ms per second of accepted
+  traffic), and a simulated 24-hour drift/jitter/loss test passes. Physical
+  capture, endpoint hotplug, independent-machine clock drift and OS/device
+  breadth remain open; retain these qualification gates.
+  October 22: the saved dedicated-server/two-client session reports 7,168.9 s
+  (1:59:29), with all 120 intervals passing, continued admission after reconnect,
+  bounded queues and rejected delayed backlog. Its old duration check allowed
+  one missing interval, so this is long-session evidence, not a full two-hour
+  pass. The harness now measures through the requested endpoint and excludes
+  shutdown time. The requested two-hour rerun was cancelled at the user's
+  direction; it is not required to record the useful existing evidence honestly.
+  [Session evidence and limits](audio-voice-evidence.md#long-session-voice-evidence-22-october-2026).
+  [Implementation and evidence](audio-voice-evidence.md#multiplayer-voice).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
   persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
@@ -766,6 +1100,11 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   Keep master/effects/music controls and authored distance/reverb behavior coherent.
   Qualify overlapping speech, mute, pause, save/restore, locale fallback and device
   changes, including proving that the control does not mute unrelated weapon audio.
+  October 21: the localized archived control and central playback routing are
+  implemented. Stock/Awakening gameplay tests cover overlapping speech/effect
+  fixtures, mute, pause, time scale, restart, save/load and Turkish text with
+  English audio fallback. Complete authored NPC/script/BSE/cinematic scene and
+  physical device coverage remains open. [Evidence](audio-voice-evidence.md).
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -776,6 +1115,17 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   where available and persistent controls. Qualify SP/Awakening scenes and stereo
   HUD placement; distinguish subtitles from optional full sound-effect captions.
   Missing transcript coverage must remain explicit rather than counted as complete.
+  October 21: installed-asset inventories identify 2,268 same-name lip-sync/text
+  mappings among 3,672 stock speech candidates, and 1,512 among 1,584 Awakening
+  candidates. Reports retain identifiers and localization keys, not transcripts.
+  The playback-driven overlay now uses verified single-variant shader or full
+  sample-path lip-sync text. Localized, archived enable/size/background/speaker
+  controls work in both UI modes. Stock and Awakening runtime tests pass muted
+  audio, interruption/overlap, pause/time scale, restart, save/restore and English
+  text fallback under Turkish. Pagination and native layout checks pass; missing
+  transcripts are skipped. Portrait Awakening title-card collisions, the full
+  scene/locale corpus and physical stereo-HUD qualification remain open.
+  [Subtitle evidence and mapping policy](audio-voice-evidence.md#dialogue-subtitles).
 
 ## Desktop platforms and packaging
 
