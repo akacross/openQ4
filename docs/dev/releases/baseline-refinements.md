@@ -42,6 +42,12 @@
 
 ## Change log
 
+- Continue on the title screen and the Load Game page now show each save's
+  difficulty and total play time, and the pause menu adds your total play time
+  beside the time in the current mission. Objectives you completed on a map
+  stay listed after loading a save. Saves made with earlier versions show no
+  difficulty or play time; play time starts counting with a new game.
+
 - Menu prompt bars now say what Enter or the confirm button will do: LOAD on
   the save you have chosen, DELETE, SAVE, PLAY or JOIN, in every supported
   language. The prompt disappears when nothing you have selected can be used.

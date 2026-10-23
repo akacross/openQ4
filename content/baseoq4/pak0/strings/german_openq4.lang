@@ -1397,4 +1397,6 @@
 	"#str_231521"	"LÖSCHEN"
 	"#str_231522"	"SPEICHERN"
 	"#str_231523"	"ABSPIELEN"
+	"#str_231524"	"%s insgesamt"
+	"#str_231525"	"%s gespielt"
 }

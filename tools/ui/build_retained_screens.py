@@ -2052,6 +2052,24 @@ def campaign_document(campaigns: bool) -> dict:
 # ------------------------------------------------------------------- the pause
 
 OBJECTIVE_ROWS = 3   # the stock objective screen's three slots
+LEVEL_SHOT = 110.0   # u: the level block's levelshot, short enough to leave its foot two time lines
+LEVEL_FOOT = 29.0    # u: the time lines' rule above the card's foot
+
+
+def level_time_lines(doc: Document, pw: float, h: float, tint: list[float]) -> list:
+    """The level block's foot (section 13.7): the time in the mission and the
+    run's total on one line, how long ago the newest save was written on the
+    next, under a faint rule while either has text."""
+    rule = vector("level-stats-rule", {**absolute(left=15, top=h - U * LEVEL_FOOT, width=pw, height=1), "display": keyword("none")},
+                  [path("rule", [(0, 0.5), (pw, 0.5)], closed=False, stroke=stroke(solid([1, 1, 1, 0.1]), 1))])
+    lines = []
+    for index, (ident, state) in enumerate((("level-stats", "pause_stats"), ("level-saved", "pause_saved"))):
+        lines.append(label(ident, "#str_230030", {**absolute(left=15, top=h - U * (27 - 10 * index), width=pw, height=U * 10),
+            **typeface("lowpixel", 11, U * 10, tint), "white-space": keyword("nowrap")}))
+        doc.bind(f"{ident}.text", ident, "text", {"state": state})
+    empty = {"op": "&&", "args": [{"op": "==", "args": [{"state": "pause_stats"}, ""]}, {"op": "==", "args": [{"state": "pause_saved"}, ""]}]}
+    doc.bind("level-stats-rule.display", "level-stats-rule", "display", {"op": "select", "args": [empty, "none", "block"]})
+    return [rule, *lines]
 
 
 def level_row_bindings(doc: Document, ident: str, index: int, text_nodes: tuple) -> dict:
@@ -2085,9 +2103,10 @@ def level_block(doc: Document) -> dict:
     """The current level block in the emblem's place (section 13.7): a card
     (section 6: black 0.94 in a marine.rail.card rail, 12 and 3 dp cuts, a
     40 dp header) with the levelshot in a picture frame, the level, the
-    difficulty, the objectives the player holds and the time in the mission.
-    The game publishes the objectives, newest first; a map's own objectives
-    summary stands in while it publishes none."""
+    difficulty, the objectives the player holds and, at its foot, the time in
+    the mission with the run's total and the last save. The game publishes
+    the objectives, newest first; a map's own objectives summary stands in
+    while it publishes none."""
     x, y, w, h = U * 374, U * 118, U * 262, U * 270
     major, minor = 12.0, 3.0
     card = [(minor, 0), (w - major, 0), (w, major), (w, h - minor), (w - minor, h), (major, h), (0, h - major), (0, minor)]
@@ -2100,7 +2119,7 @@ def level_block(doc: Document) -> dict:
         path("rail", card, stroke=stroke(solid(rgb(RAIL_CARD)), 1.5)),
         marker_path("mark", 14, 16, 8, rgb(MARKER)),
     ])
-    pw, ph = w - 30, U * 118
+    pw, ph = w - 30, U * LEVEL_SHOT
     shot = picture("level-shot", "", {**absolute(left=15, top=header + 12, width=pw, height=ph)})
     shot_frame = vector("level-shot-frame", absolute(left=15, top=header + 12, width=pw, height=ph), [
         path("frame", [(0.5, 0.5), ({"fraction": 1, "dp": -0.5}, 0.5), ({"fraction": 1, "dp": -0.5}, {"fraction": 1, "dp": -0.5}), (0.5, {"fraction": 1, "dp": -0.5})],
@@ -2114,7 +2133,7 @@ def level_block(doc: Document) -> dict:
         **typeface("lowpixel", 17, 20, [1, 1, 1, 0.6]), "white-space": keyword("nowrap")})
     objectives_head = label("level-objectives-head", "#str_200291", {**absolute(left=15, top=below + 54, width=pw, height=18),
         **typeface("marine", 14, 18, rgb(OBJECTIVE_HEAD)), "white-space": keyword("nowrap"), "display": keyword("block")})
-    rows_top, row_h, stats_rule = below + 76, U * 12.5, h - U * 22
+    rows_top, row_h, stats_rule = below + 76, U * 12.5, h - U * LEVEL_FOOT
     objectives = label("level-objectives", "#str_230030", {**absolute(left=15, top=rows_top, width=pw, height=stats_rule - rows_top - 3),
         **typeface("lowpixel", 14, 18, [0.82, 0.87, 0.71, 1]), "overflow": keyword("hidden"), "display": keyword("block")})
     # Each objective with its state: an open one behind the atlas marker,
@@ -2130,14 +2149,7 @@ def level_block(doc: Document) -> dict:
                           [mark, level_check(ident, rgb("#B5C784")), title]))
         completed = level_row_bindings(doc, ident, index, (f"{ident}-text",))
         doc.bind(f"{ident}-text.color", f"{ident}-text", "color", [1, 1, 1, {"op": "select", "args": [completed, 0.5, 0.9]}])
-    # The time in the mission under a faint rule at the foot of the card.
-    rule = vector("level-stats-rule", {**absolute(left=15, top=stats_rule, width=pw, height=1), "display": keyword("none")},
-                  [path("rule", [(0, 0.5), (pw, 0.5)], closed=False, stroke=stroke(solid([1, 1, 1, 0.1]), 1))])
-    stats = label("level-stats", "#str_230030", {**absolute(left=15, top=h - U * 20, width=pw, height=U * 14),
-        **typeface("lowpixel", 11, U * 14, rgb(LEVEL_STATS)), "white-space": keyword("nowrap")})
-    doc.bind("level-stats.text", "level-stats", "text", {"state": "pause_stats"})
-    doc.bind("level-stats-rule.display", "level-stats-rule", "display",
-             {"op": "select", "args": [{"op": "==", "args": [{"state": "pause_stats"}, ""]}, "none", "block"]})
+    foot = level_time_lines(doc, pw, h, rgb(LEVEL_STATS))
     doc.bind("level-shot.image", "level-shot", "image", {"state": "pause_shot"})
     doc.bind("level-name.text", "level-name", "text", {"state": "pause_level"})
     doc.bind("level-detail.text", "level-detail", "text", {"state": "pause_detail"})
@@ -2149,7 +2161,7 @@ def level_block(doc: Document) -> dict:
              {"op": "select", "args": [{"op": "||", "args": [published, {"op": "!=", "args": [{"state": "pause_objectives"}, ""]}]},
                                        "block", "none"]})
     return group("level-block", absolute(left=x, top=y, width=w, height=h),
-                 [frame, shot, shot_frame, heading, name, detail, objectives_head, objectives, *rows, rule, stats])
+                 [frame, shot, shot_frame, heading, name, detail, objectives_head, objectives, *rows, *foot])
 
 
 # ----------------------------------------------------------- the Strogg pause
@@ -2633,7 +2645,7 @@ def strogg_level_block(doc: Document, translation: Translation, start: float) ->
                                   "image-blend": keyword("additive"), "image-color": colour([1, 0.75, 0.4, 0.14])}, fit="fill"))
     grain = group("level-grain", {**absolute(left=inset, top=inset, width=w - 2 * inset, height=h - 2 * inset),
                                   "overflow": keyword("hidden"), "pointer-events": keyword("none")}, tiles)
-    pw, ph = w - 30, U * 118
+    pw, ph = w - 30, U * LEVEL_SHOT
     px, py, chamfer = 15, header + 12, U * 6
     shot = picture("level-shot", "", {**absolute(left=px, top=py, width=pw, height=ph)})
     corners = vector("level-shot-frame", absolute(left=px, top=py, width=pw, height=ph), [
@@ -2655,7 +2667,7 @@ def strogg_level_block(doc: Document, translation: Translation, start: float) ->
     line("level-detail", "#str_230030", absolute(left=15, top=below + 26, width=pw), 17, 20, rgb(ST_SELECT), 140, 200)
     line("level-objectives-head", "#str_200291", absolute(left=15, top=below + 54, width=pw), 14.5, 18, rgb(ST_SELECT), 180, 200,
          display=keyword("block"))
-    rows_top, row_h, stats_rule = below + 76, U * 12.5, h - U * 22
+    rows_top, row_h, stats_rule = below + 76, U * 12.5, h - U * LEVEL_FOOT
     # A map's own objectives summary wraps, so it fades in with its heading
     # rather than translating.
     objectives = label("level-objectives", "#str_230030", {**absolute(left=15, top=rows_top, width=pw, height=stats_rule - rows_top - 3),
@@ -2675,13 +2687,7 @@ def strogg_level_block(doc: Document, translation: Translation, start: float) ->
                                   "opacity": number(1)}, [mark, level_check(ident, rgb(ST_SELECT)), *text_parts]))
         completed = level_row_bindings(doc, ident, index, (f"{ident}-text", f"{ident}-text-rune"))
         doc.bind(f"{ident}.opacity", ident, "opacity", {"op": "select", "args": [completed, 0.55, 1]})
-    rule = vector("level-stats-rule", {**absolute(left=15, top=stats_rule, width=pw, height=1), "display": keyword("none")},
-                  [path("rule", [(0, 0.5), (pw, 0.5)], closed=False, stroke=stroke(solid([1, 1, 1, 0.1]), 1))])
-    stats = label("level-stats", "#str_230030", {**absolute(left=15, top=h - U * 20, width=pw, height=U * 14),
-        **typeface("lowpixel", 11, U * 14, rgb(ST_STATS)), "white-space": keyword("nowrap")})
-    doc.bind("level-stats.text", "level-stats", "text", {"state": "pause_stats"})
-    doc.bind("level-stats-rule.display", "level-stats-rule", "display",
-             {"op": "select", "args": [{"op": "==", "args": [{"state": "pause_stats"}, ""]}, "none", "block"]})
+    foot = level_time_lines(doc, pw, h, rgb(ST_STATS))
     doc.bind("level-shot.image", "level-shot", "image", {"state": "pause_shot"})
     for ident, value in (("level-name", "pause_level"), ("level-detail", "pause_detail")):
         doc.bind(f"{ident}.text", ident, "text", {"state": value})
@@ -2694,7 +2700,7 @@ def strogg_level_block(doc: Document, translation: Translation, start: float) ->
     doc.bind("level-objectives-head.display", "level-objectives-head", "display", shown)
     doc.bind("level-objectives-head-rune.display", "level-objectives-head-rune", "display", shown)
     return group("level-block", absolute(left=x, top=y, width=w, height=h),
-                 [frame, grain, shot, corners, *lines, objectives, *rows, rule, stats])
+                 [frame, grain, shot, corners, *lines, objectives, *rows, *foot])
 
 
 def strogg_title(translation: Translation) -> dict:
@@ -2949,6 +2955,7 @@ def pause_document(strogg: bool = False) -> dict:
         "pause_objective_count": {"type": "number", "initial": 0},
         **{f"pause_objective_{index}": {"type": "string", "initial": ""} for index in range(OBJECTIVE_ROWS)},
         "pause_stats": {"type": "string", "initial": ""},
+        "pause_saved": {"type": "string", "initial": ""},
     })
     doc.session("resume", "resume")
     doc.session("saveGame", "saveGame")

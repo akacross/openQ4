@@ -1397,4 +1397,6 @@
 	"#str_231521"	"DELETE"
 	"#str_231522"	"SAVE"
 	"#str_231523"	"PLAY"
+	"#str_231524"	"%s total"
+	"#str_231525"	"%s played"
 }

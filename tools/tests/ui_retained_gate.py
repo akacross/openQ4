@@ -215,11 +215,17 @@ static bool Session_FileExistsInSearchPaths(const char* path) { return fileSyste
 struct LanguageDict {
     const char* GetString(const char* key) const {
         return !std::strcmp(key, "#str_230046") ? "in mission" : !std::strcmp(key, "#str_230048") ? "saved %d min ago" :
-               !std::strcmp(key, "#str_230049") ? "saved %d h ago" : !std::strcmp(key, "#str_230050") ? "saved just now" : key;
+               !std::strcmp(key, "#str_230049") ? "saved %d h ago" : !std::strcmp(key, "#str_230050") ? "saved just now" :
+               !std::strcmp(key, "#str_231524") ? "%s total" : !std::strcmp(key, "#str_231525") ? "%s played" : key;
     }
 } languageObject;
 const LanguageDict* Common::GetLanguageDict() const { return &languageObject; }
 static const char* Session_GetSkillName() { return "Corporal"; }
+// A difficulty's name, and the play time (Session.cpp, extracted below).
+static const char* Session_SkillName(int skill) {
+    static const char* names[] = {"Private", "Corporal", "Lieutenant", "General", "Warlord"};
+    return names[skill < 0 ? 0 : skill > 4 ? 4 : skill];
+}
 struct idUserInterface;
 struct Game {
     std::vector<std::string> commands; std::function<void(idUserInterface*)> publish;
@@ -423,6 +429,14 @@ static int Sys_GetDriveFreeSpace(const char*) { return driveSpace; }
 enum saveType_t { ST_REGULAR, ST_QUICK, ST_AUTO, ST_CHECKPOINT };
 struct sessionMenuSaveDescription_t { idStr saveName, description, screenshot; bool noOverwrite = false; };
 static std::map<std::string, sessionMenuSaveDescription_t> saveDescriptions;
+// The difficulty and play time each save's header records; none for a save
+// from an earlier build.
+struct sessionMenuSaveDetails_t { int skill = -1, playSeconds = -1; };
+static std::map<std::string, sessionMenuSaveDetails_t> saveDetails;
+static bool Session_MenuReadSaveDetails(const idStr& slot, sessionMenuSaveDetails_t& out) {
+    out = saveDetails.count(slot) ? saveDetails.at(slot) : sessionMenuSaveDetails_t{}; return true;
+}
+idStr Session_RetainedPlayTime(int seconds);
 static std::string describedShot; // an autosave names its loadscreen; other saves name none
 // Each save's menu label as SaveGame writes it: "^:name\t^0level".
 static bool Session_MenuReadSaveDescription(const idStr& slot, sessionMenuSaveDescription_t& out) {
@@ -839,9 +853,11 @@ int main() {
         CHECK(s.guiRetainedHome && std::string(s.guiRetainedHome->Name()) == "guis/menu/title.q4ui");
         CHECK(managerObject.loads.size() == 1 && managerObject.flags[0].autoLoad && managerObject.flags[0].unique && !managerObject.flags[0].shared);
         CHECK(s.guiRetainedHome->active && s.guiRetainedHome->named.back() == "open");
-        // The save's name, then its level and when it was written; color codes removed.
+        // The save's name, then its level and, for a save from an earlier build,
+        // which records no difficulty or play time, when it was written; color
+        // codes removed.
         CHECK(s.guiRetainedHome->state["menu_continue"] == "1" && s.guiRetainedHome->state["menu_continue_title"] == "quick");
-        CHECK(s.guiRetainedHome->state["menu_continue_detail"] == "Air Defense Bunker - 09/29/2026 12:40pm");
+        CHECK(s.guiRetainedHome->state["menu_continue_detail"] == "Air Defense Bunker \xc2\xb7 09/29/2026 12:40pm");
         CHECK(s.guiRetainedHome->state["menu_continue_shot"] == "savegames/quick.tga");
         s.UpdateRetainedHome(); CHECK(managerObject.loads.size() == 1 && s.guiRetainedHome->activations == 1);
         auto* title = s.guiRetainedHome;
@@ -923,6 +939,7 @@ int main() {
               page->state["load.row2.name"] == "medic" && page->state["load.row3.name"].empty());
         CHECK(page->state["load.date"] == "09/29/2026" && page->state["load.time"] == "12:40pm" && page->state["load.error"].empty());
         CHECK(page->state["load.shot"] == "savegames/quick.tga");
+        CHECK(page->state["load.skill"].empty() && page->state["load.played"].empty());  // a save from an earlier build
         s.HandleRetainedSessionRequest(title, "loadGame"); CHECK(legacyActions.empty());  // one hand-off at a time
         commonObject.time += 549; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         CHECK(s.guiActive == s.guiMainMenu && s.guiRetainedHome == title);
@@ -2260,6 +2277,24 @@ int main() {
         auto autosave = Session(true); autosave.saves = {"autosave"}; describedShot = "gfx/guis/loadscreens/airdefense";
         autosave.UpdateRetainedHome(); CHECK(autosave.guiRetainedHome->state["menu_continue_shot"] == "gfx/guis/loadscreens/airdefense");
     }
+    {   // A save that records them names the difficulty and the run's play time
+        // (section 13.7) in CONTINUE's detail and under the Load Game picture.
+        saveDetails["quick"] = {1, 3725};
+        auto s = Session(true); s.saves = {"quick", "older"}; s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+        CHECK(s.guiRetainedHome->state["menu_continue_detail"] == "Air Defense Bunker \xc2\xb7 Corporal \xc2\xb7 1:02:05 played");
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "loadGame");
+        auto* page = s.guiRetainedLoad;
+        CHECK(page->state["load.skill"] == "Corporal" && page->state["load.played"] == "1:02:05 played");
+        // Each detail stands alone when a save records only one; selecting
+        // another save replaces both.
+        saveDetails["older"] = {4, -1}; commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        page->state["load.pick"] = "1"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str());
+        CHECK(page->state["load.skill"] == "Warlord" && page->state["load.played"].empty());
+        saveDetails["quick"] = {-1, 59};
+        auto timed = Session(true); timed.saves = {"quick"}; timed.UpdateRetainedHome();
+        CHECK(timed.guiRetainedHome->state["menu_continue_detail"] == "Air Defense Bunker \xc2\xb7 0:00:59 played");
+        saveDetails.clear();
+    }
     {   // The level block's levelshot follows the loading screen's choice and falls through missing pictures.
         auto s = Session(true, true);
         mapDecls["game/airdefense2"] = idDict{{{"loadimage", "gfx/guis/loadscreens/airdefense"}}};
@@ -2279,20 +2314,23 @@ int main() {
         gameObject.publish = [](idUserInterface* gui) {
             gui->SetStateInt("pause_objective_count", 2); gui->SetStateString("pause_objective_0", "Destroy the battery");
             gui->SetStateString("pause_objective_1", "Reach the bunker"); gui->SetStateInt("pause_mission_seconds", 2530);
+            gui->SetStateInt("pause_total_seconds", 11106);
         };
         s.UpdateRetainedHome(); auto* pause = s.guiRetainedHome;
         CHECK(pause && (gameObject.commands == std::vector<std::string>{"retainedPauseFamily", "retainedPauseState"}));
         CHECK(pause->state["pause_level"] == "Air Defense Bunker" && pause->state["pause_detail"] == "Corporal");
         CHECK(pause->state["pause_objective_count"] == "2" && pause->state["pause_objective_0"] == "Destroy the battery");
-        CHECK(pause->state["pause_stats"] == "0:42:10 in mission");
-        // With a save, the time line adds how long ago the newest one was written:
-        // read once inside the level load, so opening the pause lists no files.
+        CHECK(pause->state["pause_stats"] == "0:42:10 in mission \xc2\xb7 3:05:06 total" && pause->state["pause_saved"].empty());
+        // With a save, the next line says how long ago the newest one was written:
+        // read once inside the level load, so opening the pause lists no files. A
+        // run begun from a save of an earlier build has no total.
         auto saved = Session(true, true); saved.saves = {"quick", "older"}; mapDecls["game/airdefense1"] = idDict{};
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("pause_mission_seconds", 2530); };
         saved.PrepareRetainedLevel("game/airdefense1", false);
         CHECK(saved.saveLists == 1 && saved.retainedNewestSave == 100);
         saved.UpdateRetainedHome();
-        CHECK(saved.guiRetainedHome->state["pause_stats"].rfind("0:42:10 in mission \xc2\xb7 saved ", 0) == 0);
+        CHECK(saved.guiRetainedHome->state["pause_stats"] == "0:42:10 in mission");
+        CHECK(saved.guiRetainedHome->state["pause_saved"].rfind("saved ", 0) == 0);
         saved.ExitMenu(); saved.UpdateRetainedHome(); saved.guiActive = saved.guiMainMenu; saved.UpdateRetainedHome();
         CHECK(saved.saveLists == 1);
         // A level without saves, or a load with the gate off, shows no save age.
@@ -2300,6 +2338,7 @@ int main() {
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateInt("pause_mission_seconds", 2530); };
         unsaved.UpdateRetainedHome();
         CHECK(unsaved.retainedNewestSave == 0 && unsaved.guiRetainedHome->state["pause_stats"] == "0:42:10 in mission");
+        CHECK(unsaved.guiRetainedHome->state["pause_saved"].empty());
         auto gateOff = Session(false, true); gateOff.saves = {"quick"}; gateOff.PrepareRetainedLevel("game/airdefense1", false);
         CHECK(gateOff.saveLists == 0 && gateOff.retainedNewestSave == 0);
         CHECK(std::string(Session_RetainedSaveAge(1000, 1030).c_str()) == "saved just now");
@@ -2310,6 +2349,7 @@ int main() {
         auto quiet = Session(true, true); mapDecls["game/airdefense1"] = idDict{{{"objectives", "Reach the bunker."}}};
         quiet.UpdateRetainedHome();
         CHECK(quiet.guiRetainedHome->state["pause_objective_count"] == "0" && quiet.guiRetainedHome->state["pause_stats"].empty());
+        CHECK(quiet.guiRetainedHome->state["pause_saved"].empty());
         CHECK(quiet.guiRetainedHome->state["pause_objectives"] == "Reach the bunker.");
     }
     {   // After Kane's stroggification the pause takes the Strogg family. The game
@@ -4963,7 +5003,7 @@ def main() -> int:
         'static bool Session_RetainedHomePopup(', 'static const char *Session_RetainedHomeMissingPage(',
         'static bool Session_RetainedMultiplayerRoutes(',
         'static void Session_RetainedSaveLabel(', 'static idStr Session_RetainedSaveShot(', 'static void Session_RetainedSaveStamp(',
-        'static void Session_PublishRetainedTitleState(', 'idUserInterface *idSessionLocal::FindRetainedGui(',
+        'static void Session_RetainedSaveDetails(', 'static void Session_PublishRetainedTitleState(', 'idUserInterface *idSessionLocal::FindRetainedGui(',
         'bool idSessionLocal::RetainedSystemAvailable(', 'void idSessionLocal::OpenCampaignSelector(',
         'bool idSessionLocal::OpenRetainedCampaignSkill(', 'void idSessionLocal::BeginRetainedCampaignSkill(',
         'bool idSessionLocal::RetainedHomeInputBlocked(',
@@ -5012,7 +5052,7 @@ def main() -> int:
     bodies.append(tips_table)
     bodies += [function_body(session, signature) for signature in (
         'static bool Session_ImageInstalled(', 'idStr idSessionLocal::RetainedPauseShot(',
-        'void idSessionLocal::PrecacheRetainedLevelImages(', 'static idStr Session_RetainedSaveAge(',
+        'void idSessionLocal::PrecacheRetainedLevelImages(', 'static idStr Session_RetainedSaveAge(', 'idStr Session_RetainedPlayTime(',
         'void idSessionLocal::PublishRetainedLoadingTip(',
         'void idSessionLocal::PublishRetainedPauseState(')]
     compiler = next((found for name in ('clang++', 'g++', 'c++') if (found := shutil.which(name))), None)

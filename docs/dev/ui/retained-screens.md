@@ -356,7 +356,8 @@ after editing the script; `--check` fails when an output is stale.
   place, or a held look stick's deflection while it leads (menu focus moves
   with the other stick), and reduced motion holds the layers still.
   CONTINUE leads the navigation when a save exists and its
-  message line shows the save's levelshot, name and time; the same line explains
+  message line shows the save's levelshot and name, then its mission,
+  difficulty and the run's play time ([save details](#save-details)); the same line explains
   whichever item has focus. SINGLE PLAYER, LOAD GAME, MULTIPLAYER and SETTINGS
   follow, and the secondary links and EXIT stay on the plinth. EXIT asks before
   leaving. Opening the menu focuses its primary action (section 13.4),
@@ -375,12 +376,13 @@ after editing the script; `--check` fails when an output is stale.
   with the `retainedPauseState` menu command when the screen opens. Three
   rows list the open objectives, newest first as the stock objective screen
   stacks them, each behind the atlas marker, and then the ones completed on
-  this map, newest first, behind a check at 0.5. The time line under a faint
-  rule gives the mission's game time (it restarts with each map and is saved
-  with it) and how long ago the newest save was written: "0:42:10 in mission
-  · saved 4 min ago". A game module that publishes neither leaves the map's
-  own objective summary and no time line, and the heading hides when there
-  is nothing to list. The paused view
+  this map, newest first, behind a check at 0.5; the completed ones survive
+  a save load ([save details](#save-details)). Two time lines under a faint
+  rule give the mission's game time (it restarts with each map and is saved
+  with it) with the run's play time, then how long ago the newest save was
+  written: "0:42:10 in mission · 3:05:06 total" over "saved 4 min ago". A
+  game module that publishes neither leaves the map's own objective summary
+  and no time lines, and the heading hides when there is nothing to list. The paused view
   stays behind the screen, softened and never
   dimmed: the specification gives scene softening no values of its own, so
   it takes `modal.softfocus` (a 7.5 dp blur at 0.80 saturation), ramping in
@@ -806,7 +808,9 @@ The Strogg pause opens the same page in the Strogg family
   switched on later, it loads at the first click.
 - **Composition** (section 9). The selected save's picture, 183x137 u at
   25,78 u, fitted inside a 1 u #414624 frame on black 0.60, with its date and
-  time at 37,215 and 37,230 u (Lowpixel 18 dp). LOAD GAME and DELETE GAME are
+  time on one line at 37,215 and 128,215 u, then the difficulty at 37,230 u and
+  the run's play time at 37,245 u, the Demos page's three detail lines
+  (Lowpixel 18 dp; [save details](#save-details)). LOAD GAME and DELETE GAME are
   section navigation plates: `b2_dark` at 21,256 and 20,293 u (Appendix B.1),
   208x52 u, with the band rows 13-37.4 u, the lower-leading cut from row 32,
   the #CCCC51 rail and the fill opaque to 57 %, half at 72 % and clear by
@@ -846,9 +850,11 @@ The Strogg pause opens the same page in the Strogg family
   SAVED GAMES, one sentence saying where saves come from and, at the title,
   NEW GAME, which opens the Single Player page. The plates rest disabled.
 - **CONTINUE.** The title's CONTINUE line showed the save's raw label, color
-  codes and tab included. It now shows the save's name, then its level and
-  when it was written. A newest save that LoadGame refuses opens this page on
-  it with the reason, as LOAD GAME on it would, instead of nothing.
+  codes and tab included. It now shows the save's name, then its level, the
+  difficulty and the run's play time, or when a save from an earlier build
+  was written ([save details](#save-details)). A newest save that LoadGame
+  refuses opens this page on it with the reason, as LOAD GAME on it would,
+  instead of nothing.
 - **Text.** The page adds `#str_231100` to `#str_231107` to all twelve tables.
   The generator measures every language's text in its box and fails
   otherwise: the plates, headings and pager rows on one line, the empty
@@ -864,6 +870,52 @@ command. Hyphenated ids such as `row-1` must be quoted there, since the
 console tokenizer splits an unquoted `-`. On a shared machine,
 `--set win_allowMultipleInstances=1` lets a capture start beside another
 openQ4 client; without it, a second client exits at once, leaving no log.
+
+## Save details
+
+A save names its difficulty and the run's play time (UI-03; FLOW-024 and
+FLOW-048), and the objectives completed on its map survive loading it. None
+of this changes the save format.
+
+- **Recording.** `idPlayer::SavePersistantInfo` adds `openq4_playSeconds` and
+  `openq4_skill` to the persistent player info, which carries the inventory
+  from one map to the next and which every save header already holds for
+  each client. The play time is the time the persistent info carried into
+  the map plus the map's game time, so pauses and menus never count. A new
+  game (empty persistent info) starts it at zero; a player who re-enters the map (`playerModel`) keeps the value it
+  arrived with. A run that a save from an earlier build began has no play
+  time, and keeps none until a new game: the menus show nothing rather than
+  a partial total. Loading an earlier save, or restarting the level from its
+  start autosave, rewinds the play time with the rest of the run.
+- **Showing.** The menus read the first client's persistent info from the
+  save's header (`Session_MenuReadSaveGameHeader`), as the list already
+  parses each header to accept a save. The title's CONTINUE detail is the
+  mission, the difficulty and "1:02:05 played" (`#str_231525`, a format
+  each table orders), joined by middle dots; a save that records neither
+  says when it was written instead, which also drops the old unlocalized
+  hyphen. The Load Game page puts the date and time on one line under the
+  picture, then the difficulty and the play time; both stay empty for a save
+  from an earlier build. The pause's level block gives the mission time and
+  the total (`#str_231524`, "3:05:06 total") on one line and the newest
+  save's age on the next; the levelshot gives up 12 dp so the third
+  objective row keeps its place.
+- **Objectives.** `idPlayer::CompleteObjective` records each completed
+  objective's title among the player's spawn arguments
+  (`openq4_objectiveDone<n>`), which every save writes, and `idPlayer::Restore`
+  lists them again. The inventory still does not save them, so older saves
+  restore none.
+- **Checks.** The generator measures the difficulty names and the played
+  phrase with a 999-hour time in every language, and the date and time in
+  their shared line. The session gate covers CONTINUE, the Load Game page
+  and the pause with and without the details; the screens test lays out the
+  Load Game page's detail lines clear of LOAD GAME's band and the pause's
+  two time lines under the third objective row. The `save-details` capture
+  completes airdefense1's first objective, saves, loads that save and opens
+  the pause, takes the level change to airdefense2 and pauses again, saves
+  there, and shows the title and the Load Game page on both saves. On a
+  machine busy with other builds the waits can run out before the title
+  and the page arrive; the German Vulkan run took those two screenshots
+  early, and the English OpenGL run covers them.
 
 ## Save Game page
 
@@ -2239,21 +2291,23 @@ SHA-256 `eaa963119faf7b24401189911309b07e78a456e2433ea2afeb433663b56a1b50`.
 Focus-following prompt verbs: `.tmp/ui/prompt-verbs/validation-evidence.json`,
 SHA-256 `71816710d9c56e5637f37b311deddf278eaf32122fe0710fbf49418a408720e2`.
 
+Save details: `.tmp/ui/save-details/validation-evidence.json`,
+SHA-256 `f5e59281e2543d90a21a79da6582413744761e0ceb79c26db0249514888e40a7`.
+
 ## Known limitations
 
 The [menu audit](menu-audit.md) of 8 October 2026 records what it fixed and
 what remains across every retained menu.
 
-- The Load Game page lists the saves newest first only. It has none of
-  section 13.7's list sorting, filter tags or refresh, and it pages by 64 rows
-  rather than virtualizing. A save's own screenshot loads when first shown,
-  outside a level load, as on the stock page. The title's CONTINUE detail
-  joins the level and the date with an unlocalized hyphen.
+- The Load Game page pages by 64 rows rather than virtualizing; its sorting,
+  filters and refresh are the [save browser controls](save-browser.md). A
+  save's own screenshot loads when first shown, outside a level load, as on
+  the stock page. A save from an earlier build shows no difficulty or play
+  time, and a run it began keeps none until a new game.
 
-- The completed objectives are kept per map and not saved, so after loading a
-  save the page and the level block list only those completed since. The
-  time line has no total time: nothing tracks play time across missions. A
-  failed objective is not marked (failure ends the mission at once). The
+- The completed objectives are kept per map, so a new map lists none, and a
+  save from an earlier build restores none. A failed objective is not
+  marked (failure ends the mission at once). The
   objectives display held on the scores button in play, its hold or toggle
   setting, the notices and the failure banner are the Remastered HUD's
   ([Remastered HUD](remastered-hud.md)), not this page's.

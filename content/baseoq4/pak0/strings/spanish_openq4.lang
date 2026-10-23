@@ -1397,4 +1397,6 @@
 	"#str_231521"	"BORRAR"
 	"#str_231522"	"GUARDAR"
 	"#str_231523"	"REPRODUCIR"
+	"#str_231524"	"%s en total"
+	"#str_231525"	"%s de juego"
 }

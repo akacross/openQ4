@@ -1397,4 +1397,6 @@
 	"#str_231521"	"SİL"
 	"#str_231522"	"KAYDET"
 	"#str_231523"	"OYNAT"
+	"#str_231524"	"toplam %s"
+	"#str_231525"	"%s oynandı"
 }

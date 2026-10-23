@@ -24,6 +24,20 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Save details, 23 October 2026
+
+- [x] CONTINUE and the Load Game page name a save's difficulty and the run's
+  play time; the pause's level block adds the run's total time under the
+  mission time and keeps the last save's age on its own line. Objectives
+  completed on a map survive loading a save. The play time and difficulty
+  travel in the persistent player info every save header already holds, so
+  the save format is unchanged; saves from earlier builds show neither. Two
+  play-time phrases are in all twelve language tables.
+- [Behavior, checks and limits](ui/retained-screens.md#save-details): session
+  gate, native page checks, the generator's fit checks, and an in-game
+  capture run across two maps. Candidate player wording is in
+  [baseline refinements](releases/baseline-refinements.md).
+
 ## High-refresh presentation owners, 23 October 2026
 
 - [x] HF-03: add opt-in late look (`in_presentationView`) through an absolute-angle

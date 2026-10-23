@@ -518,6 +518,7 @@ public:
 
 	void					SavePersistantInfo( void );
 	void					RestorePersistantInfo( void );
+	int						PlaySeconds( void ) const;	// openQ4: the run's play time, -1 when unknown
 	void					SetLevelTrigger( const char *levelName, const char *triggerName );
 
  	bool					UserInfoChanged( void );

@@ -217,6 +217,28 @@ SCENARIOS = {
         'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 800', 'ui_retainedStatus', 'screenshot "screenshots/prompt-resumed.tga"',
     ]),
+    # A save names the run's difficulty and play time: a new game on
+    # airdefense1 completes its first objective, saves and loads that save
+    # (the completed objective survives), then leaves for airdefense2, whose
+    # pause adds the run's total to the mission time; a save there names both
+    # in CONTINUE's detail and on the Load Game page. The scenario runs on
+    # through the load and the level change, so it clears its own re-run.
+    'save-details': ('game/airdefense1', [
+        'set g_autoExecAfterMapLoad ""',
+        'trigger objectiveIntro', 'waitMsec 500', 'trigger objectiveMedic', 'waitMsec 500', 'trigger completeObjectiveIntro',
+        'waitMsec 4000', 'saveGame "Bunker"', 'waitMsec 1500', 'loadGame "Bunker"', 'waitMsec 4000',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1500', 'ui_retainedStatus', 'screenshot "screenshots/details-pause-loaded.tga"',
+        'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 800',
+        'trigger target_endlevel_2', 'waitMsec 25000',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1500', 'ui_retainedStatus', 'screenshot "screenshots/details-pause-next.tga"',
+        'openq4_retainedGui focus nav_resume', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 800',
+        'saveGame "Trenches"', 'waitMsec 1500', 'disconnect', 'waitMsec 4000', 'ui_retainedStatus', 'openq4_retainedGui report',
+        'screenshot "screenshots/details-title.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/details-load.tga"',
+        'openq4_retainedGui focus "row-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui report', 'screenshot "screenshots/details-load-older.tga"',
+    ]),
     # The Strogg pause's confirmations ask in its family: each label arrives
     # in runes as the dialog's contents show and translates. QUIT TO MENU is
     # taken mid-translation and settled, with YES focused, then EXIT, and SAVE

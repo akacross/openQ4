@@ -1877,7 +1877,8 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	};
 	// Three saves, newest first, the second selected.
 	StateValues values{{"load.count",3.0},{"load.first",0.0},{"load.selected",1.0},{"load.shot",std::string("savegames/bunker_door")},
-		{"load.date",std::string("10/05/2026")},{"load.time",std::string("06:40pm")},{"load.error",std::string()}};
+		{"load.date",std::string("10/05/2026")},{"load.time",std::string("06:40pm")},{"load.error",std::string()},
+		{"load.skill",std::string("Lieutenant")},{"load.played",std::string("2:13:05 played")}};
 	const char* names[] = {"Medic","Bunker door","Trench entry"};
 	for (int row = 0; row < 3; ++row) {
 		values["load.row"+std::to_string(row)+".name"] = std::string(names[row]);
@@ -1905,6 +1906,15 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(text("row-1-selected","display") == "block" && text("row-0-selected","display") == "none","the selected save is lit");
 	Check(text("row-0-name","text") == "Medic" && text("row-2-location","text") == "Air Defense Trenches","each row names its save and its level");
 	Check(text("load-date","text") == "10/05/2026" && text("load-time","text") == "06:40pm","the date and time stand under the picture");
+	// The date and time share the line under the picture; the difficulty and
+	// the run's play time follow on the Demos page's detail lines, clear of
+	// LOAD GAME's band (13 u into its plate).
+	const auto date = bounds("load-date"), time = bounds("load-time"), skill = bounds("load-skill"), played = bounds("load-played");
+	Check(Near(date.x,x0+37*u) && Near(date.y,215*u) && Near(time.y,date.y) && time.x >= date.x+date.width,
+		"the time follows the date on its line");
+	Check(Near(skill.x,date.x) && Near(skill.y,230*u) && Near(played.x,date.x) && Near(played.y,245*u) &&
+		played.y+played.height <= load.y+13*u,"the difficulty and play time stand under them, clear of LOAD GAME's band");
+	Check(text("load-skill","text") == "Lieutenant" && text("load-played","text") == "2:13:05 played","the save's difficulty and play time show");
 	Check(text("load-error","display") == "none" && text("load-empty","display") == "none","no failure and no empty state");
 	Check(text("page-newer","display") == "none" && text("page-older","display") == "none","one page holds three saves");
 	Check(std::find(host.materials.begin(),host.materials.end(),"savegames/bunker_door") != host.materials.end(),"the selected save's picture shows");
@@ -4174,6 +4184,20 @@ int main(int argc, char** argv) {
 		const auto stats = runtime.PresentedValue("level-stats","text");
 		const auto rule = runtime.PresentedValue("level-stats-rule","display");
 		Check(stats && stats->text == "0:42:10 in mission" && rule && rule->text == "block","the time in the mission shows under a rule");
+		// The newest save's age takes the next line; the rule stays while
+		// either line has text.
+		Check(runtime.SetState({{"pause_stats",std::string()},{"pause_saved",std::string("saved 4 min ago")}},error,1.61),
+			"publish only the save's age");
+		runtime.Frame(viewport,1.62);
+		const auto saved = runtime.PresentedValue("level-saved","text");
+		const auto kept = runtime.PresentedValue("level-stats-rule","display");
+		Check(saved && saved->text == "saved 4 min ago" && kept && kept->text == "block","the save's age shows under the rule");
+		Bounds statsBox, savedBox, ruleBox, firstRow;
+		Check(runtime.GetBounds("level-stats",statsBox) && runtime.GetBounds("level-saved",savedBox) &&
+			runtime.GetBounds("level-stats-rule",ruleBox) && runtime.GetBounds("level-objective-0",firstRow),"the level block's foot is laid out");
+		Check(savedBox.y >= statsBox.y+statsBox.height-.01f && statsBox.y >= ruleBox.y && firstRow.y+3*firstRow.height <= ruleBox.y,
+			"the two time lines stack under the rule, below the third objective row");
+		Check(runtime.SetState({{"pause_stats",std::string("0:42:10 in mission")}},error,1.63),"restore the time line");
 		ActionInvocation invocation;
 		Check(runtime.ResolveAction("resume",invocation,error) && std::get<std::string>(invocation.arguments.at("command")) == "resume","RESUME returns to the game");
 		// SAVE GAME's label carries from its row at 212.2 u into the title slot.
@@ -4448,6 +4472,10 @@ int main(int argc, char** argv) {
 		const auto face = runtime.PresentedValue("nav_resume-label","font-family");
 		const auto runeFace = runtime.PresentedValue("nav_resume-rune","font-family");
 		Check(face && face->text == "r_strogg" && runeFace && runeFace->text == "strogg","labels are R_Strogg over a rune copy");
+		const auto strogStats = runtime.PresentedValue("level-stats","text");
+		const auto strogSaved = runtime.PresentedValue("level-saved","text");
+		Check(strogStats && strogStats->text == "0:18:40 in mission" && strogSaved && strogSaved->text.empty(),
+			"the Strogg level block keeps the Marine block's two time lines");
 		const auto rowRunes = runtime.PresentedValue("level-objective-0-text-rune","text");
 		const auto nameRunes = runtime.PresentedValue("level-name-rune","text");
 		Check(rowRunes && rowRunes->text == "Escape the medical facility" && nameRunes && nameRunes->text == "Strogg Medical Facilities",

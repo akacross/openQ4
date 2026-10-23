@@ -5794,9 +5794,9 @@ void idGameLocal::HandleMainMenuCommands( const char *menuCommand, idUserInterfa
 		// openQ4: the retained pause screen's level block and Objectives
 		// page. The objectives the local player holds, newest first as the
 		// objective screen stacks them, each with its description and
-		// screenshot; the ones completed on this map, newest first; and the
-		// time spent in this mission (game time restarts with each map and is
-		// saved with it).
+		// screenshot; the ones completed on this map, newest first; the time
+		// spent in this mission (game time restarts with each map and is saved
+		// with it); and the run's play time, -1 when it is unknown.
 		idPlayer *player = GetLocalPlayer();
 		const int count = player != NULL ? player->inventory.objectiveNames.Num() : 0;
 		gui->SetStateInt( "pause_objective_count", count );
@@ -5812,6 +5812,7 @@ void idGameLocal::HandleMainMenuCommands( const char *menuCommand, idUserInterfa
 			gui->SetStateString( va( "pause_completed_%d", i ), player->inventory.completedObjectives[ completed - 1 - i ].title.c_str() );
 		}
 		gui->SetStateInt( "pause_mission_seconds", time / 1000 );
+		gui->SetStateInt( "pause_total_seconds", player != NULL ? player->PlaySeconds() : -1 );
 	} else if ( !idStr::Icmp( menuCommand, "retainedLevelImages" ) ) {
 		// openQ4: every objective screenshot this level can show on the
 		// retained pause screen's Objectives page, so the session resolves

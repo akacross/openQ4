@@ -15,6 +15,8 @@
   "load.shot": {"type": "string", "initial": ""},
   "load.date": {"type": "string", "initial": ""},
   "load.time": {"type": "string", "initial": ""},
+  "load.skill": {"type": "string", "initial": ""},
+  "load.played": {"type": "string", "initial": ""},
   "load.error": {"type": "string", "initial": ""},
   "load.context": {"type": "string", "initial": ""},
   "load.deleteIndex": {"type": "number", "initial": -1},
@@ -887,6 +889,8 @@
   },
   {"id": "load-date.text", "node": "load-date", "property": "text", "value": {"state": "load.date"}},
   {"id": "load-time.text", "node": "load-time", "property": "text", "value": {"state": "load.time"}},
+  {"id": "load-skill.text", "node": "load-skill", "property": "text", "value": {"state": "load.skill"}},
+  {"id": "load-played.text", "node": "load-played", "property": "text", "value": {"state": "load.played"}},
   {
    "id": "load_go.enabled",
    "node": "load_go",
@@ -18204,10 +18208,10 @@
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 55.5, "unit": "dp"},
          "top": {"type": "length", "value": 322.5, "unit": "dp"},
-         "width": {"type": "length", "value": 247.5, "unit": "dp"},
+         "width": {"type": "length", "value": 136.5, "unit": "dp"},
          "height": {"type": "length", "value": 24.0, "unit": "dp"},
          "font-family": {"type": "font", "value": "lowpixel"},
-         "font-size": {"type": "length", "value": 18, "unit": "dp"},
+         "font-size": {"type": "length", "value": 18.0, "unit": "dp"},
          "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
          "color": {"type": "color", "value": [1, 1, 1, 0.8]},
          "white-space": {"type": "keyword", "value": "nowrap"},
@@ -18220,14 +18224,50 @@
         "properties": {
          "text": {"type": "text", "value": "#str_230030"},
          "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 192.0, "unit": "dp"},
+         "top": {"type": "length", "value": 322.5, "unit": "dp"},
+         "width": {"type": "length", "value": 111.0, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "font-family": {"type": "font", "value": "lowpixel"},
+         "font-size": {"type": "length", "value": 18.0, "unit": "dp"},
+         "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "color": {"type": "color", "value": [1, 1, 1, 0.8]},
+         "white-space": {"type": "keyword", "value": "nowrap"},
+         "overflow": {"type": "keyword", "value": "hidden"}
+        }
+       },
+       {
+        "id": "load-skill",
+        "type": "text",
+        "properties": {
+         "text": {"type": "text", "value": "#str_230030"},
+         "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 55.5, "unit": "dp"},
          "top": {"type": "length", "value": 345.0, "unit": "dp"},
          "width": {"type": "length", "value": 247.5, "unit": "dp"},
          "height": {"type": "length", "value": 24.0, "unit": "dp"},
          "font-family": {"type": "font", "value": "lowpixel"},
-         "font-size": {"type": "length", "value": 18, "unit": "dp"},
+         "font-size": {"type": "length", "value": 18.0, "unit": "dp"},
          "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
          "color": {"type": "color", "value": [1, 1, 1, 0.8]},
+         "white-space": {"type": "keyword", "value": "nowrap"},
+         "overflow": {"type": "keyword", "value": "hidden"}
+        }
+       },
+       {
+        "id": "load-played",
+        "type": "text",
+        "properties": {
+         "text": {"type": "text", "value": "#str_230030"},
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 55.5, "unit": "dp"},
+         "top": {"type": "length", "value": 367.5, "unit": "dp"},
+         "width": {"type": "length", "value": 247.5, "unit": "dp"},
+         "height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "font-family": {"type": "font", "value": "lowpixel"},
+         "font-size": {"type": "length", "value": 18.0, "unit": "dp"},
+         "line-height": {"type": "length", "value": 24.0, "unit": "dp"},
+         "color": {"type": "color", "value": [1, 1, 1, 0.6]},
          "white-space": {"type": "keyword", "value": "nowrap"},
          "overflow": {"type": "keyword", "value": "hidden"}
         }

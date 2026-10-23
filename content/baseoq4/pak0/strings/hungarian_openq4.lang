@@ -1397,4 +1397,6 @@
 	"#str_231521"	"TÖRLÉS"
 	"#str_231522"	"MENTÉS"
 	"#str_231523"	"LEJÁTSZÁS"
+	"#str_231524"	"összesen %s"
+	"#str_231525"	"%s játékidő"
 }

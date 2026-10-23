@@ -1402,4 +1402,6 @@
 	"#str_231521"	"SUPPRIMER"
 	"#str_231522"	"SAUVEGARDER"
 	"#str_231523"	"LIRE"
+	"#str_231524"	"%s au total"
+	"#str_231525"	"%s de jeu"
 }

@@ -2759,6 +2759,17 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 	}
 
 	inventory.Restore( savefile );
+	// openQ4: the objectives completed on this map, which the inventory does
+	// not save: CompleteObjective keeps their titles among spawnArgs.
+	for ( int done = 0; ; done++ ) {
+		const idKeyValue *title = spawnArgs.FindKey( va( "openq4_objectiveDone%d", done ) );
+		if ( title == NULL ) {
+			break;
+		}
+		idObjectiveInfo completed;
+		completed.title = title->GetValue();
+		inventory.completedObjectives.Append( completed );
+	}
 
 	assert( !weapon );
 
@@ -3399,6 +3410,13 @@ void idPlayer::SavePersistantInfo( void ) {
 	inventory.GetPersistantData( playerInfo );
 	playerInfo.SetInt( "health", health );
 	playerInfo.SetInt( "current_weapon", currentWeapon );
+	// openQ4: the run's play time and difficulty, which every save header
+	// carries to the menus. A run whose play time is unknown stays unknown.
+	const int played = PlaySeconds();
+	if ( played >= 0 ) {
+		playerInfo.SetInt( "openq4_playSeconds", played );
+	}
+	playerInfo.SetInt( "openq4_skill", g_skill.GetInteger() );
 }
 
 /*
@@ -3412,14 +3430,41 @@ void idPlayer::RestorePersistantInfo( void ) {
  	if ( gameLocal.isMultiplayer ) {
  		gameLocal.persistentPlayerInfo[entityNumber].Clear();
  	}
- 
-	spawnArgs.Copy( gameLocal.persistentPlayerInfo[entityNumber] );
+
+	// openQ4: the run's play time as the player first entered this map. A
+	// player who enters again (playerModel) keeps it, since the persistent
+	// info may hold a later save's snapshot by then; a new game starts at zero.
+	const idDict &persistent = gameLocal.persistentPlayerInfo[entityNumber];
+	const idStr arrived = spawnArgs.GetString( "openq4_playSeconds" );
+	spawnArgs.Copy( persistent );
+	if ( arrived.Length() > 0 ) {
+		spawnArgs.Set( "openq4_playSeconds", arrived );
+	} else if ( !gameLocal.isMultiplayer && persistent.GetNumKeyVals() == 0 ) {
+		spawnArgs.SetInt( "openq4_playSeconds", 0 );
+	}
 
 	inventory.RestoreInventory( this, spawnArgs );
  	health = spawnArgs.GetInt( "health", "100" );
  	if ( !gameLocal.isClient ) {
  		idealWeapon = spawnArgs.GetInt( "current_weapon", "0" );
  	}
+}
+
+/*
+===============
+idPlayer::PlaySeconds
+
+openQ4: the run's play time in seconds, from the first map of a new game:
+the time the persistent info carried into this map plus the time in it.
+-1 when a save from an earlier build began the run, as it records none.
+===============
+*/
+int idPlayer::PlaySeconds( void ) const {
+	const idKeyValue *carried = spawnArgs.FindKey( "openq4_playSeconds" );
+	if ( carried == NULL ) {
+		return -1;
+	}
+	return Max( 0, atoi( carried->GetValue() ) ) + gameLocal.time / 1000;
 }
 
 /*
@@ -6023,7 +6068,9 @@ void idPlayer::CompleteObjective( const char *title ) {
 	int c = inventory.objectiveNames.Num();
 	for ( int i = 0;  i < c; i++ ) {
 		if ( idStr::Icmp(inventory.objectiveNames[i].title, title) == 0 ) {
-			// openQ4: the retained pause screen lists it as completed.
+			// openQ4: the retained pause screen lists it as completed, and a
+			// save keeps its title among spawnArgs (idPlayer::Restore).
+			spawnArgs.Set( va( "openq4_objectiveDone%d", inventory.completedObjectives.Num() ), inventory.objectiveNames[i].title );
 			inventory.completedObjectives.Append( inventory.objectiveNames[i] );
 			inventory.objectiveNames.RemoveIndex( i );
 			break;

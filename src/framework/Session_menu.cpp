@@ -2209,6 +2209,11 @@ typedef struct sessionMenuSaveDescription_s {
 	bool	noOverwrite;
 } sessionMenuSaveDescription_t;
 
+typedef struct sessionMenuSaveDetails_s {
+	int		skill;			// g_skill, -1 unknown
+	int		playSeconds;	// the run's play time, -1 unknown
+} sessionMenuSaveDetails_t;
+
 static idRectangle Session_MenuFitSaveGamePreviewRect( int imageWidth, int imageHeight ) {
 	float imageAspect = SESSION_MENU_GUI_ASPECT;
 	if ( imageWidth > 0 && imageHeight > 0 ) {
@@ -2377,7 +2382,11 @@ static bool Session_MenuReadSaveGameCString( idFile *file, idStr &string, int ma
 	return false;
 }
 
-static bool Session_MenuSkipSaveGameDict( idFile *file, const char *fieldName, const char *savePath ) {
+// A header dictionary, kept in `dict` when there is one.
+static bool Session_MenuReadSaveGameDict( idFile *file, idDict *dict, const char *fieldName, const char *savePath ) {
+	if ( dict != NULL ) {
+		dict->Clear();
+	}
 	int count = 0;
 	if ( !Session_MenuReadSaveGameInt( file, count, fieldName, savePath ) ) {
 		return false;
@@ -2398,9 +2407,16 @@ static bool Session_MenuSkipSaveGameDict( idFile *file, const char *fieldName, c
 			 !Session_MenuReadSaveGameCString( file, value, MAX_STRING_CHARS, va( "%s value %d", fieldName ? fieldName : "dictionary", i ), savePath ) ) {
 			return false;
 		}
+		if ( dict != NULL ) {
+			dict->Set( key, value );
+		}
 	}
 
 	return true;
+}
+
+static bool Session_MenuSkipSaveGameDict( idFile *file, const char *fieldName, const char *savePath ) {
+	return Session_MenuReadSaveGameDict( file, NULL, fieldName, savePath );
 }
 
 static bool Session_MenuIsSupportedSaveGameName( const idStr &gameName ) {
@@ -2418,7 +2434,10 @@ static bool Session_MenuIsCompatibleSaveGameVersion( const int version ) {
 		version == LEGACY_OPENQ4_SAVEGAME_VERSION_ALT;
 }
 
-static bool Session_MenuIsLoadableSaveGameSlot( const idStr &slotName ) {
+// A save's header: its game name, version, map, entity filter and each
+// client's persistent player info. Whether this build loads the save; with
+// `player`, the first client's persistent info.
+static bool Session_MenuReadSaveGameHeader( const idStr &slotName, idDict *player ) {
 	if ( !Session_MenuIsSafeSaveSlotName( slotName ) ) {
 		common->Warning( "Ignoring savegame slot with unsafe filename '%s'", slotName.c_str() );
 		return false;
@@ -2445,7 +2464,9 @@ static bool Session_MenuIsLoadableSaveGameSlot( const idStr &slotName ) {
 		valid = Session_MenuReadSaveGameString( file, entityFilter, MAX_STRING_CHARS, "entity filter", savePath.c_str() );
 	}
 	for ( int i = 0; valid && i < MAX_ASYNC_CLIENTS; i++ ) {
-		valid = Session_MenuSkipSaveGameDict( file, va( "persistent player info %d", i ), savePath.c_str() );
+		valid = i == 0 && player != NULL ?
+			Session_MenuReadSaveGameDict( file, player, va( "persistent player info %d", i ), savePath.c_str() ) :
+			Session_MenuSkipSaveGameDict( file, va( "persistent player info %d", i ), savePath.c_str() );
 	}
 	if ( valid && saveMap.IsEmpty() ) {
 		common->Warning( "Savegame '%s' has an empty map name", savePath.c_str() );
@@ -2455,6 +2476,29 @@ static bool Session_MenuIsLoadableSaveGameSlot( const idStr &slotName ) {
 	fileSystem->CloseFile( file );
 	return valid;
 }
+
+static bool Session_MenuIsLoadableSaveGameSlot( const idStr &slotName ) {
+	return Session_MenuReadSaveGameHeader( slotName, NULL );
+}
+
+#ifndef ID_DEDICATED
+// What the menus show of a save beyond its description: the difficulty and
+// the run's play time its player carried (idPlayer::SavePersistantInfo),
+// each -1 for a save from an earlier build, which records neither.
+static bool Session_MenuReadSaveDetails( const idStr &slotName, sessionMenuSaveDetails_t &details ) {
+	details.skill = -1;
+	details.playSeconds = -1;
+	idDict player;
+	if ( !Session_MenuReadSaveGameHeader( slotName, &player ) ) {
+		return false;
+	}
+	const idKeyValue *skill = player.FindKey( "openq4_skill" );
+	const idKeyValue *played = player.FindKey( "openq4_playSeconds" );
+	details.skill = skill != NULL ? idMath::ClampInt( 0, 4, atoi( skill->GetValue() ) ) : -1;
+	details.playSeconds = played != NULL ? Max( 0, atoi( played->GetValue() ) ) : -1;
+	return true;
+}
+#endif
 
 static bool Session_MenuReadSaveDescription( const idStr &slotName, sessionMenuSaveDescription_t &description ) {
 	description.saveName.Clear();
@@ -5632,8 +5676,20 @@ static void Session_RetainedSaveStamp( ID_TIME_T timeStamp, idStr &date, idStr &
 	time = tab >= 0 ? stamp.Right( stamp.Length() - tab - 1 ) : idStr();
 }
 
+// A save's difficulty and the run's play time as the retained screens name
+// them, each empty when the save records none.
+static void Session_RetainedSaveDetails( const idStr &slot, idStr &skill, idStr &played ) {
+	sessionMenuSaveDetails_t details;
+	Session_MenuReadSaveDetails( slot, details );
+	skill = details.skill >= 0 ? Session_SkillName( details.skill ) : "";
+	played = details.playSeconds >= 0 ?
+		va( common->GetLanguageDict()->GetString( "#str_231525" ), Session_RetainedPlayTime( details.playSeconds ).c_str() ) : "";
+}
+
 // The title screen's CONTINUE resumes the newest save and describes it: its
-// name, then its level and when it was written. Without a picture, none shows.
+// name, then its level, the difficulty and the run's play time (section
+// 13.7). A save from an earlier build records neither and says when it was
+// written instead. Without a picture, none shows.
 static void Session_PublishRetainedTitleState( idUserInterface *gui, idSessionLocal *session ) {
 	idStrList fileList;
 	idList<fileTIME_T> fileTimes;
@@ -5647,8 +5703,21 @@ static void Session_PublishRetainedTitleState( idUserInterface *gui, idSessionLo
 		Session_RetainedSaveLabel( slot, description, described, name, location );
 		Session_RetainedSaveStamp( fileTimes[0].timeStamp, date, time );
 		shot = Session_RetainedSaveShot( slot, description, described, "" );
-		detail = location.Length() > 0 ? va( "%s - %s %s", location.c_str(), date.c_str(), time.c_str() ) :
-			va( "%s %s", date.c_str(), time.c_str() );
+		idStr skill, played;
+		Session_RetainedSaveDetails( slot, skill, played );
+		idStrList parts;
+		parts.Append( location );
+		parts.Append( skill );
+		parts.Append( played );
+		if ( skill.IsEmpty() && played.IsEmpty() ) {
+			parts.Append( va( "%s %s", date.c_str(), time.c_str() ) );
+		}
+		for ( int i = 0; i < parts.Num(); i++ ) {
+			if ( parts[i].Length() > 0 ) {
+				detail += detail.Length() > 0 ? " \xc2\xb7 " : "";
+				detail += parts[i];
+			}
+		}
 	}
 	gui->SetStateBool( "menu_continue", hasSave );
 	gui->SetStateString( "menu_continue_title", name.c_str() );
@@ -6797,10 +6866,11 @@ void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
 #endif
 }
 
-// The selected save: its picture, its date and time, and why it failed.
+// The selected save: its picture, its date and time, the difficulty and the
+// run's play time, and why it failed.
 void idSessionLocal::PublishRetainedLoadSave( idUserInterface *gui, const char *error ) {
 #ifndef ID_DEDICATED
-	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time, context;
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time, context, skill, played;
 	if ( retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() ) {
 		const idStr &slot = retainedLoadSlots[ retainedLoadSelected ];
 		context = va( "%d:%s", retainedSaveGeneration, slot.c_str() );
@@ -6808,12 +6878,15 @@ void idSessionLocal::PublishRetainedLoadSave( idUserInterface *gui, const char *
 		const bool described = Session_MenuReadSaveDescription( slot, description );
 		shot = Session_RetainedSaveShot( slot, description, described, RETAINED_LOAD_GENERIC_SHOT );
 		Session_RetainedSaveStamp( retainedLoadTimes[ retainedLoadSelected ], date, time );
+		Session_RetainedSaveDetails( slot, skill, played );
 	}
 	gui->SetStateInt( "load.selected", retainedLoadSelected );
 	gui->SetStateString( "load.context", context.c_str() );
 	gui->SetStateString( "load.shot", shot.c_str() );
 	gui->SetStateString( "load.date", date.c_str() );
 	gui->SetStateString( "load.time", time.c_str() );
+	gui->SetStateString( "load.skill", skill.c_str() );
+	gui->SetStateString( "load.played", played.c_str() );
 	gui->SetStateString( "load.error", error != NULL ? error : "" );
 	gui->StateChanged( common->GetPresentationTime() );
 #endif

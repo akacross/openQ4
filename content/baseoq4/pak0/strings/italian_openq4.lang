@@ -1402,4 +1402,6 @@
 	"#str_231521"	"ELIMINA"
 	"#str_231522"	"SALVA"
 	"#str_231523"	"RIPRODUCI"
+	"#str_231524"	"%s in totale"
+	"#str_231525"	"%s di gioco"
 }

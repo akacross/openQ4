@@ -1,5 +1,13 @@
 # UI product requirement register
 
+23 October 2026: [save details](retained-screens.md#save-details) add bounded
+UI-03 evidence to `FLOW-024`, `FLOW-048` and `FLOW-004`. Saves record the
+run's play time and difficulty in their existing headers; CONTINUE and the
+Load Game page name them, the pause's level block adds the run's total, and
+completed objectives survive a save load. The increment is audited against
+`8d821202d70ca746d58a2608b1aab3c69bcbf56f`. No requirement status, migration
+acceptance or final gate changes.
+
 23 October 2026: [focus-following prompt verbs](retained-screens.md#page-prompt-bars)
 add bounded UI-02 evidence to `WID-019`, `FLOW-004` and `FLOW-013`. The pages'
 Accept names the focused control's verb in the focus frame and leaves the bar

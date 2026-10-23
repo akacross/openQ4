@@ -7,7 +7,9 @@ into the title slot, and at 550 ms, when the stock page would appear, the
 session presents this document in the page state (idSessionLocal::
 BeginRetainedPage). The page keeps the stock composition of section 9: the
 selected save's preview, 183x137 u at 25,78 u in a 1 u #414624 border, with
-its date and time below it on the leading side; LOAD GAME and DELETE GAME as
+its date and time below it on the leading side, then the difficulty and the
+run's play time the save records (none for a save from an earlier build, in
+the Demos page's three detail lines); LOAD GAME and DELETE GAME as
 section navigation plates under them; the saves on the trailing side under
 Lowpixel SAVE NAME and LOCATION headings and an olive rule; the prompt bar in
 the bottom band, its BACK where the stock BACK plate stood at 532,441 u.
@@ -59,7 +61,13 @@ ROW_LIGHT = "#FF9C00"          # bg_line, bg_hover and bg_focus (Appendix B.1)
 PREVIEW = (25.0, 78.0, 183.0, 137.0)       # the picture, its 1 u border included
 ERROR_STRIP = (26.0, 177.0, 181.0, 37.0)   # load_mapshotbtm: the foot of the picture
 ERROR_LINE = 17.0                          # dp: three lines of the reason fit the strip
-DATE_TOP, TIME_TOP, DETAIL_LEFT, DETAIL_W = 215.0, 230.0, 37.0, 165.0
+DATE_TOP, SKILL_TOP, PLAYED_TOP, DETAIL_LEFT, DETAIL_W = 215.0, 230.0, 245.0, 37.0, 165.0
+TIME_LEFT = 91.0                           # u into the detail: the date's tabular digits, then a space
+DETAIL_TEXT = 18.0                         # dp: the detail lines' Lowpixel
+STAMPS = ("00/00/0000", "00:00pm")         # Sys_TimeStampToStr's widest date and time (digits are tabular)
+LONGEST_PLAY = "999:59:59"                 # the play time a detail line holds
+SKILLS = ("#str_200014", "#str_200015", "#str_200016", "#str_200017", "#str_41117")  # Session_SkillName's difficulties
+PLAYED = "#str_231525"                     # "%s played": a save's play time (Session_RetainedSaveDetails)
 PLATES = (("load_go", "#str_200001", 21.0, 256.0, "save"), ("load_delete", "#str_200021", 20.0, 293.0, None))
 LIST_LEFT, LIST_TOP, LIST_W, LIST_H = 217.0, 78.0, 410.0, 325.0
 ROW_W, ROW_H = 394.0, 20.0                 # tabstops 0, 180 and 394: the scrollbar takes the last 16 u
@@ -402,9 +410,18 @@ def empty_heading_tint(family: Family) -> list[float]:
 def check_text_fits(family: Family = MARINE) -> None:
     """Every shipped language's text fits its box: the plates, headings and
     pager labels on one line, the empty state's sentence on two and a reason
-    on the three lines of the strip over the picture. Generation fails
+    on the three lines of the strip over the picture, and under the picture
+    the date beside the time, a difficulty and a play time. Generation fails
     otherwise."""
     face, head = family.face, heading_face(family)[0]
+    stamp_widths = [text_width("lowpixel", stamp, DETAIL_TEXT) for stamp in STAMPS]
+    if stamp_widths[0] > U * TIME_LEFT - text_width("lowpixel", " ", DETAIL_TEXT) or stamp_widths[1] > U * (DETAIL_W - TIME_LEFT):
+        raise SystemExit(f"a save's date and time ({stamp_widths}) do not share the line under the picture")
+    for key in SKILLS + (PLAYED,):
+        for language, text in table_text(key).items():
+            text = text.replace("%s", LONGEST_PLAY)
+            if text_width("lowpixel", text, DETAIL_TEXT) > U * DETAIL_W:
+                raise SystemExit(f"{key} in {language} ({text!r}) does not fit a detail line under the picture")
     one_line = (("#str_200001", face, 22.3, U * 186), ("#str_200021", face, 22.3, U * 186),
                 ("#str_200925", head, 13, U * (LOCATION_X - 4)), ("#str_200926", head, 13, U * (ROW_W - LOCATION_X)),
                 ("#str_231100", face, 20, U * ROW_W), ("#str_231425", face, 16, U * (ROW_W - 18)),
@@ -525,6 +542,8 @@ def load_game_document(family: Family = MARINE) -> dict:
         "load.shot": {"type": "string", "initial": ""},
         "load.date": {"type": "string", "initial": ""},
         "load.time": {"type": "string", "initial": ""},
+        "load.skill": {"type": "string", "initial": ""},
+        "load.played": {"type": "string", "initial": ""},
         "load.error": {"type": "string", "initial": ""},
         "load.context": {"type": "string", "initial": ""},
         "load.deleteIndex": {"type": "number", "initial": -1},
@@ -536,8 +555,8 @@ def load_game_document(family: Family = MARINE) -> dict:
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
     chosen = {"op": ">=", "args": [{"state": "load.selected"}, 0]}
 
-    # The leading side: the selected save's picture, its date and time, and
-    # the section plates.
+    # The leading side: the selected save's picture, its date and time, its
+    # difficulty and play time, and the section plates.
     shot_parts = picture_frame("load-shot", *PREVIEW, frame=family.frame)
     doc.bind("load-shot.image", "load-shot", "image", {"state": "load.shot"})
     error_box = absolute(left=U * ERROR_STRIP[0], top=U * ERROR_STRIP[1], width=U * ERROR_STRIP[2], height=U * ERROR_STRIP[3])
@@ -548,12 +567,14 @@ def load_game_document(family: Family = MARINE) -> dict:
              {"op": "select", "args": [{"op": "!=", "args": [{"state": "load.error"}, ""]}, "block", "none"]})
     doc.bind("load-error-text.text", "load-error-text", "text", {"state": "load.error"})
     stamp = {"white-space": keyword("nowrap"), "overflow": keyword("hidden")}
-    date = label("load-date", PLACEHOLDER, {**absolute(left=U * DETAIL_LEFT, top=U * DATE_TOP, width=U * DETAIL_W, height=U * 16),
-                 **typeface("lowpixel", 18, U * 16, family.tint(0.8)), **stamp})
-    time_node = label("load-time", PLACEHOLDER, {**absolute(left=U * DETAIL_LEFT, top=U * TIME_TOP, width=U * DETAIL_W, height=U * 16),
-                      **typeface("lowpixel", 18, U * 16, family.tint(0.8)), **stamp})
-    doc.bind("load-date.text", "load-date", "text", {"state": "load.date"})
-    doc.bind("load-time.text", "load-time", "text", {"state": "load.time"})
+    def detail_line(ident: str, state: str, left: float, top: float, width: float, alpha: float) -> dict:
+        doc.bind(f"{ident}.text", ident, "text", {"state": state})
+        return label(ident, PLACEHOLDER, {**absolute(left=U * left, top=U * top, width=U * width, height=U * 16),
+                     **typeface("lowpixel", DETAIL_TEXT, U * 16, family.tint(alpha)), **stamp})
+    date = detail_line("load-date", "load.date", DETAIL_LEFT, DATE_TOP, TIME_LEFT, 0.8)
+    time_node = detail_line("load-time", "load.time", DETAIL_LEFT + TIME_LEFT, DATE_TOP, DETAIL_W - TIME_LEFT, 0.8)
+    skill = detail_line("load-skill", "load.skill", DETAIL_LEFT, SKILL_TOP, DETAIL_W, 0.8)
+    played = detail_line("load-played", "load.played", DETAIL_LEFT, PLAYED_TOP, DETAIL_W, 0.6)
     plates = []
     for ident, key, left, top, action in PLATES:
         plates.append(section_plate(doc, ident, key, left, top, action=action, event=None if action else "deleteRequested",
@@ -607,7 +628,7 @@ def load_game_document(family: Family = MARINE) -> dict:
     # The plates show at once, under the title the home carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     # The plates follow the panel, whose full-size box would take their hits.
-    panel = group("load-panel", {**FULL, "opacity": number(1)}, [*shot_parts, error, date, time_node, *headings, viewport, scrollbar,
+    panel = group("load-panel", {**FULL, "opacity": number(1)}, [*shot_parts, error, date, time_node, skill, played, *headings, viewport, scrollbar,
                                                                   empty, back, *toolbar])
     stage = group("load-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
                   [panel, *plates])

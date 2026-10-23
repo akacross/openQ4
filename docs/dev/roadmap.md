@@ -737,6 +737,13 @@ archived provenance; new scheduling belongs here.
   translating from runes as they open. Ids, focus, soft focus and timing stay
   the stock dialog's. The construction derives from section 13.7's family rules
   and awaits art review under UI-05.
+  Progress, 23 October: [save details](ui/retained-screens.md#save-details)
+  record each run's play time and difficulty in the persistent player info
+  that every save header carries, without a save format change. CONTINUE and
+  the Load Game page name them, the pause adds the run's total time, and
+  objectives completed on a map survive loading its saves. Saves from earlier
+  builds show neither. Chapter numbers on saves are not shown: the list names
+  each save's mission.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder
