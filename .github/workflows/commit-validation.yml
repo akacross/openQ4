@@ -474,6 +474,7 @@ jobs:
             tools/tests/ui_retained_gate.py \
             tools/tests/ui_player_identity.py \
             tools/ui/capture_player_identity.py \
+            tools/ui/capture_save_browser.py \
             tools/tests/ui_stock_level_load.py \
             tools/ui/build_retained_screens.py \
             tools/ui/capture_retained_screens.py \

@@ -24,6 +24,17 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Save browser controls, 23 October 2026
+
+- [x] Add date/name/location sorting, manual/autosave filter tags and explicit
+  refresh to the Marine and Strogg Save/Load pages. Preserve selection and row
+  focus by filename and keep typed names intact. Freeze catalog operands and
+  reject stale queued actions; keep deletion tied to its confirmation target.
+- [Save browser evidence and limits](ui/save-browser.md) record native,
+  adapter/session and real save/restore qualification. The broader UI-03 scope,
+  physical input and other-platform acceptance remain open. Candidate player
+  wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Multiplayer player identity, 23 October 2026
 
 - [x] Bind Players selections and local friend/mute marks to a connection's

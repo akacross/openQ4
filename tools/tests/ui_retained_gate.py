@@ -53,6 +53,7 @@ SUPPORT = r'''
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 static int checks = 0;
@@ -91,6 +92,7 @@ struct idStr : std::string {
         assign(out);
     }
     void StripTrailingWhitespace() { while (!empty() && std::isspace(static_cast<unsigned char>(back()))) pop_back(); }
+    void StripFileExtension() { const auto dot=find_last_of('.'); if(dot!=npos) erase(dot); }
     void CapLength(int length) { if (length < Length()) resize(length); }
     void Append(const char* text, int length) { append(text, length); }
     int Icmp(const char* other) const { return Icmp(c_str(), other); }
@@ -98,6 +100,7 @@ struct idStr : std::string {
 };
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
 template<typename T> struct idList : std::vector<T> {
+    using std::vector<T>::vector;
     int Num() const { return static_cast<int>(this->size()); }
     void Append(const T& v) { this->push_back(v); }
     int FindIndex(const T& v) const { for (size_t i = 0; i < this->size(); ++i) if ((*this)[i] == v) return static_cast<int>(i); return -1; }
@@ -255,7 +258,7 @@ int idKeyInput::MenuControllerKey(int key) { return swapped && (key == K_JOY3 ||
 struct sysEvent_t { int evType = SE_NONE, evValue = 0, evValue2 = 0; };
 struct idKeyValue { idStr value; const idStr& GetValue() const { return value; } };
 struct idUserInterface {
-    std::string source; bool active = false, failed = false; int activations = 0, deactivations = 0;
+    std::string source, focused; bool active = false, failed = false; int activations = 0, deactivations = 0;
     std::vector<std::string> named; std::map<std::string, std::string> state;
     explicit idUserInterface(const char* name) : source(name) {}
     // A legacy GUI's window values, as presentation queries read them.
@@ -326,7 +329,14 @@ struct Manager {
         storage.push_back(std::make_unique<idUserInterface>(path)); return storage.back().get();
     }
 } managerObject, *uiManager = &managerObject;
-struct idCmdArgs { std::vector<std::string> args; void AppendArg(const char* arg) { args.push_back(arg); } };
+struct idCmdArgs {
+    std::vector<std::string> args;
+    idCmdArgs() = default;
+    idCmdArgs(const char* text, bool) { std::istringstream in(text); std::string word; while(in>>word) args.push_back(word); }
+    int Argc() const { return static_cast<int>(args.size()); }
+    const char* Argv(int index) const { return index>=0 && index<Argc() ? args[index].c_str() : ""; }
+    void AppendArg(const char* arg) { args.push_back(arg); }
+};
 struct CommandSystem {
     std::vector<std::string> buffered;
     void BufferCommandText(int, const char* text) { buffered.push_back(text); }
@@ -388,6 +398,7 @@ static void UI_RetainedPrefetchDocuments(const char* const* paths, int count) {
 static std::set<std::string> legacyMissing, legacyEventsMissing;
 static bool UI_LegacyWindowExists(idUserInterface*, const char* window) { return !legacyMissing.count(window); }
 static bool UI_LegacyNamedEventExists(idUserInterface* gui, const char* event) { return gui && !legacyEventsMissing.count(event); }
+static std::string UI_RetainedFocusedControl(idUserInterface* gui) { return gui->focused; }
 static bool UI_RetainedViewFailed(idUserInterface* gui) { return gui->failed; }
 // The legacy menu's timelines run to a time (each GUI, in order).
 static std::vector<std::string> timeRuns;
@@ -411,9 +422,11 @@ static int driveSpace = 1000;
 static int Sys_GetDriveFreeSpace(const char*) { return driveSpace; }
 enum saveType_t { ST_REGULAR, ST_QUICK, ST_AUTO, ST_CHECKPOINT };
 struct sessionMenuSaveDescription_t { idStr saveName, description, screenshot; bool noOverwrite = false; };
+static std::map<std::string, sessionMenuSaveDescription_t> saveDescriptions;
 static std::string describedShot; // an autosave names its loadscreen; other saves name none
 // Each save's menu label as SaveGame writes it: "^:name\t^0level".
 static bool Session_MenuReadSaveDescription(const idStr& slot, sessionMenuSaveDescription_t& out) {
+    if (saveDescriptions.count(slot)) { out=saveDescriptions.at(slot); return true; }
     out.saveName = slot; out.description = "^:" + slot + "\t^0Air Defense Bunker"; out.screenshot = describedShot; return true;
 }
 static const char* va(const char* fmt, ...) {
@@ -566,8 +579,10 @@ public:
     // The Load Game page.
     idUserInterface *guiRetainedLoad = nullptr, *retainedPageHome = nullptr, *retainedPagePending = nullptr;
     int retainedPageAt = 0; bool retainedPageReturn = false;
-    idStrList retainedLoadSlots; idList<ID_TIME_T> retainedLoadTimes; int retainedLoadFirst = 0, retainedLoadSelected = -1;
+    idStrList retainedLoadSlots, retainedLoadNames, retainedLoadLocations; int retainedSaveGeneration=0; idList<ID_TIME_T> retainedLoadTimes; int retainedLoadFirst = 0, retainedLoadSelected = -1;
     bool BeginRetainedPage(const char*); void UpdateRetainedPage(); void ReturnRetainedPage(); void ReturnRetainedSinglePlayerHome();
+    void BuildRetainedSaveList(idUserInterface*, int); bool RefreshRetainedSaveList(idUserInterface*, const char*);
+    void ScrubSaveGameFileName(idStr& name) { name.RemoveColors(); for(char& c:name) if(c==' ') c='_'; }
     void PublishRetainedLoadPage(idUserInterface*, int, const char*); void PublishRetainedLoadRows(idUserInterface*);
     void PublishRetainedLoadSave(idUserInterface*, const char*); void HandleRetainedLoadRequest(idUserInterface*, const char*);
     // The Save Game page, which shares the list. SaveGame saves under a name,
@@ -578,7 +593,10 @@ public:
     std::vector<std::string> savedGames; bool saveRefuses = false, objectiveFailed = false;
     bool SaveGame(const char* name, saveType_t) {
         savedGames.push_back(name); if (saveRefuses) return false;
-        saves.insert(saves.begin(), name); return true;
+        idStr slot=name; ScrubSaveGameFileName(slot); slot.StripFileExtension();
+        saves.erase(std::remove(saves.begin(),saves.end(),slot),saves.end());
+        saves.insert(saves.begin(), slot);
+        saveDescriptions[slot]={name,std::string("^:")+name+"\t^0Air Defense Bunker","",false}; return true;
     }
     // The Restart Level page; the difficulties a level restarted at.
     idUserInterface* guiRetainedRestart = nullptr; void HandleRetainedRestartRequest(idUserInterface*, const char*);
@@ -720,7 +738,78 @@ static idSessionLocal Session(bool gate, bool inGame = false) {
     legacy["desktop::curr"] = 0; legacy["desktop::active"] = 0; legacy["desktop::dest"] = 0;
     return session;
 }
+static std::string SaveRequest(idSessionLocal& s, idUserInterface* gui, const char* verb) {
+    const int index = std::string(verb)=="loadSelect" || std::string(verb)=="saveSelect" ?
+        s.retainedLoadFirst+gui->State().GetInt(verb[0]=='l' ? "load.pick":"save.pick","-1") : s.retainedLoadSelected;
+    return std::string(verb)+" "+std::to_string(index)+" "+std::to_string(s.retainedSaveGeneration);
+}
+
+static void CheckSaveBrowser() {
+    auto s=Session(true); s.saves={"zeta","alpha","beta","auto"};
+    saveDescriptions["auto"]={"auto","^:Checkpoint\t^0Storage","gfx/guis/loadscreens/generic",true};
+    saveDescriptions["zeta"]={"zeta","^1Zeta\t^0Bunker","",false};
+    saveDescriptions["alpha"]={"alpha","^2Alpha\t^0Trenches","",false};
+    saveDescriptions["beta"]={"beta","^3Beta\t^0Bunker","",false};
+    s.PreloadRetainedScreens(); s.UpdateRetainedHome();
+    s.HandleRetainedSessionRequest(s.guiRetainedHome,"loadGame"); commonObject.time+=550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+    auto* page=s.guiActive;
+    page->state["load.pick"]="2"; s.HandleRetainedSessionRequest(page,SaveRequest(s,page,"loadSelect").c_str());
+    const std::string stale=SaveRequest(s,page,"loadDelete");
+    page->focused="row-2";
+    s.HandleRetainedSessionRequest(page,"saveListSort");
+    CHECK(s.retainedLoadSlots[0]=="auto" && s.retainedLoadSlots[3]=="zeta");
+    CHECK(s.retainedLoadSlots[s.retainedLoadSelected]=="beta" && page->named.back()=="browserFocus1");
+    s.HandleRetainedSessionRequest(page,stale.c_str()); CHECK(s.deleted.empty());
+    s.HandleRetainedSessionRequest(page,"saveListSort"); // name ascending, ignoring colors
+    CHECK((s.retainedLoadSlots==idStrList{"alpha","beta","auto","zeta"}));
+    s.HandleRetainedSessionRequest(page,"saveListSort");
+    CHECK((s.retainedLoadSlots==idStrList{"zeta","auto","beta","alpha"}));
+    s.HandleRetainedSessionRequest(page,"saveListSort"); // location, deterministic filename tie
+    CHECK((s.retainedLoadSlots==idStrList{"beta","zeta","auto","alpha"}));
+    s.HandleRetainedSessionRequest(page,"saveListSort");
+    CHECK((s.retainedLoadSlots==idStrList{"alpha","auto","beta","zeta"}));
+    s.HandleRetainedSessionRequest(page,"saveListSort"); CHECK(page->state["browser.sort"]=="0");
+    page->focused="browser-manual";
+    s.HandleRetainedSessionRequest(page,"saveListFilterManual");
+    CHECK(page->state["load.count"]=="3" && page->state["browser.total"]=="4" && s.retainedLoadSlots.FindIndex("auto")==-1);
+    s.HandleRetainedSessionRequest(page,"saveListFilterAuto");
+    CHECK(page->state["load.count"]=="1" && s.retainedLoadSelected==-1 && s.retainedLoadSlots[0]=="auto");
+    s.HandleRetainedSessionRequest(page,"saveListFilterAuto"); CHECK(page->state["load.count"]=="4" && page->state["browser.filter"]=="0");
+    page->state["load.pick"]="2"; s.HandleRetainedSessionRequest(page,SaveRequest(s,page,"loadSelect").c_str());
+    page->focused="row-2";
+    s.saves.insert(s.saves.begin(),"new");
+    s.HandleRetainedSessionRequest(page,"saveListRefresh");
+    CHECK(s.retainedLoadSelected==3 && page->named.back()=="browserFocus3");
+    s.saves.erase(std::remove(s.saves.begin(),s.saves.end(),"beta"),s.saves.end());
+    page->focused="row-3";
+    s.HandleRetainedSessionRequest(page,"saveListRefresh");
+    CHECK(s.retainedLoadSelected==-1 && page->named.back()=="browserFocusRefresh");
+    int index=-1;
+    for(const auto* bad:{"loadDelete", "loadDelete 1", "loadDelete -1 1", "loadDelete 0 2147483648", "loadDelete 4294967296 1", "loadDelete 1 1 trailing"})
+        CHECK(!Session_RetainedSaveOperand(bad,"loadDelete",1,4,index));
+    CHECK(Session_RetainedSaveOperand("loadDelete 3 1","loadDelete",1,4,index) && index==3);
+    CHECK(!Session_RetainedSaveOperand("loadDelete 4 1","loadDelete",1,4,index));
+    // Focus and selected save survive crossing the catalog's page boundary.
+    s.saves.clear(); for(int i=0;i<70;++i) s.saves.push_back("entry"+std::to_string(i));
+    page->state["browser.sort"]="0"; page->state["browser.filter"]="0";
+    s.PublishRetainedLoadPage(page,63,nullptr); page->focused="row-63";
+    s.saves.insert(s.saves.begin(),"newest"); s.HandleRetainedSessionRequest(page,"saveListRefresh");
+    CHECK(s.retainedLoadSelected==64 && s.retainedLoadFirst==64 && page->named.back()=="browserFocus0");
+    // Save refresh preserves a draft and selects a newly written file under a name sort.
+    auto t=Session(true,true); t.saves={"alpha","zeta"}; t.PreloadRetainedScreens(); t.PrepareRetainedLevel("game/airdefense1",false); t.UpdateRetainedHome();
+    t.HandleRetainedSessionRequest(t.guiRetainedHome,"saveGame"); commonObject.time+=550; t.UpdateRetainedHome(); t.UpdateRetainedPage();
+    auto* save=t.guiActive; save->state["save.name"]="typed name"; save->state["ui.numberDraftsPending"]="1";
+    t.HandleRetainedSessionRequest(save,"saveListRefresh"); CHECK(save->state["save.name"]=="typed name");
+    save->state["ui.numberDraftsPending"]="0"; save->state["browser.sort"]="2";
+    save->state["browser.filter"]="2"; save->state["save.name"]="Middle name";
+    t.HandleRetainedSessionRequest(save,"saveSave");
+    CHECK(save->state["browser.sort"]=="2" && save->state["browser.filter"]=="0");
+    CHECK(t.retainedLoadSelected==1 && t.retainedLoadSlots[1]=="Middle_name" && save->state["save.name"]=="Middle name");
+    saveDescriptions.clear();
+}
+
 int main() {
+    CheckSaveBrowser();
     {   // Gate off: the stock interface presents everything and nothing retained loads.
         auto s = Session(false);
         for (int frame = 0; frame < 4; ++frame) s.UpdateRetainedHome();
@@ -841,35 +930,35 @@ int main() {
         CHECK(s.guiActive == page && s.retainedPageHome == title && s.guiRetainedHome == nullptr && !title->active);
         CHECK(page->state["load.ingame"] == "0" && s.retainedPagePending == nullptr);
         // A row reports itself; the session checks it against the saves it shows.
-        page->state["load.pick"] = "2"; s.HandleRetainedSessionRequest(page, "loadSelect");
+        page->state["load.pick"] = "2"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str());
         CHECK(s.retainedLoadSelected == 2 && page->state["load.selected"] == "2");
-        page->state["load.pick"] = "7"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 2);
+        page->state["load.pick"] = "7"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str()); CHECK(s.retainedLoadSelected == 2);
         // A refused load says why over the picture, and the page stays.
-        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_MAP; s.HandleRetainedSessionRequest(page, "loadSave");
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_MAP; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSave").c_str());
         CHECK(s.loadedGames.back() == "medic" && page->state["load.error"] == "#str_231102" && s.guiActive == page);
-        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_DAMAGED; s.HandleRetainedSessionRequest(page, "loadSave");
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_DAMAGED; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSave").c_str());
         CHECK(page->state["load.error"] == "#str_231103");
-        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_UNREADABLE; s.HandleRetainedSessionRequest(page, "loadSave");
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_UNREADABLE; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSave").c_str());
         CHECK(page->state["load.error"] == "#str_231104");
-        page->state["load.pick"] = "1"; s.HandleRetainedSessionRequest(page, "loadSelect");
+        page->state["load.pick"] = "1"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str());
         CHECK(s.retainedLoadSelected == 1 && page->state["load.error"].empty());  // another choice clears the reason
         // DELETE GAME (the page asks first): the next save takes the deleted one's place.
-        s.HandleRetainedSessionRequest(page, "loadDelete");
+        s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str());
         CHECK(s.deleted.back() == "autosave" && page->state["load.count"] == "2" && page->state["load.selected"] == "1" &&
               page->state["load.row1.name"] == "medic" && page->state["load.row2.name"].empty());
         // A save that is still there stays selected and says so.
-        s.deleteFails = true; s.HandleRetainedSessionRequest(page, "loadDelete");
+        s.deleteFails = true; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str());
         CHECK(s.deleted.back() == "medic" && page->state["load.count"] == "2" && page->state["load.selected"] == "1" &&
               page->state["load.error"] == "#str_231105");
         s.deleteFails = false;
-        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_NONE; s.HandleRetainedSessionRequest(page, "loadSave");
+        s.loadRefusal = idSessionLocal::LOADGAME_FAILURE_NONE; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSave").c_str());
         CHECK(s.loadedGames.back() == "medic");
         // Deleting the last save selects the one before it; deleting every save leaves none selected.
-        s.HandleRetainedSessionRequest(page, "loadDelete"); CHECK(page->state["load.selected"] == "0" && page->state["load.count"] == "1");
-        s.HandleRetainedSessionRequest(page, "loadDelete");
+        s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str()); CHECK(page->state["load.selected"] == "0" && page->state["load.count"] == "1");
+        s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str());
         CHECK(page->state["load.count"] == "0" && page->state["load.selected"] == "-1" && page->state["load.shot"] == "gfx/guis/loadscreens/generic");
         const size_t deletes = s.deleted.size(), attempts = s.loadedGames.size();
-        s.HandleRetainedSessionRequest(page, "loadDelete"); s.HandleRetainedSessionRequest(page, "loadSave");
+        s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str()); s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSave").c_str());
         CHECK(s.deleted.size() == deletes && s.loadedGames.size() == attempts);  // nothing selected, nothing to do
         // Back returns home with the bands, at once.
         s.HandleRetainedSessionRequest(page, "loadBack");
@@ -896,10 +985,10 @@ int main() {
         CHECK(page->state["load.first"] == "64" && page->state["load.selected"] == "64" && page->state["load.row0.name"] == "save64" &&
               page->state["load.row5.name"] == "save69" && page->state["load.row6.name"].empty() && page->named.back() == "pagedOlder");
         s.HandleRetainedSessionRequest(page, "loadOlder"); CHECK(page->state["load.first"] == "64");  // the last page
-        page->state["load.pick"] = "5"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 69);
-        page->state["load.pick"] = "6"; s.HandleRetainedSessionRequest(page, "loadSelect"); CHECK(s.retainedLoadSelected == 69);
+        page->state["load.pick"] = "5"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str()); CHECK(s.retainedLoadSelected == 69);
+        page->state["load.pick"] = "6"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadSelect").c_str()); CHECK(s.retainedLoadSelected == 69);
         // Deleting on the second page keeps its window around the selection.
-        s.HandleRetainedSessionRequest(page, "loadDelete");
+        s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "loadDelete").c_str());
         CHECK(page->state["load.first"] == "64" && page->state["load.selected"] == "68" && page->state["load.count"] == "69");
         s.HandleRetainedSessionRequest(page, "loadNewer");
         CHECK(page->state["load.first"] == "0" && page->state["load.selected"] == "63" && page->named.back() == "pagedNewer");
@@ -974,12 +1063,12 @@ int main() {
         commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
         CHECK(s.guiActive == page && s.retainedPageHome == pause && s.RetainedPageActive() && !page->state.count("load.ingame"));
         // A row fills the name, unless a name is being typed there.
-        page->state["save.pick"] = "1"; s.HandleRetainedSessionRequest(page, "saveSelect");
+        page->state["save.pick"] = "1"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "saveSelect").c_str());
         CHECK(s.retainedLoadSelected == 1 && page->state["save.selected"] == "1" && page->state["save.name"] == "medic");
-        page->state["ui.numberDraftsPending"] = "1"; page->state["save.pick"] = "0"; s.HandleRetainedSessionRequest(page, "saveSelect");
+        page->state["ui.numberDraftsPending"] = "1"; page->state["save.pick"] = "0"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "saveSelect").c_str());
         CHECK(page->state["save.selected"] == "0" && page->state["save.name"] == "medic");
         page->state["ui.numberDraftsPending"] = "0";
-        page->state["save.pick"] = "5"; s.HandleRetainedSessionRequest(page, "saveSelect"); CHECK(s.retainedLoadSelected == 0);
+        page->state["save.pick"] = "5"; s.HandleRetainedSessionRequest(page, SaveRequest(s, page, "saveSelect").c_str()); CHECK(s.retainedLoadSelected == 0);
         // A new name saves at once; the save is the newest, selected, and the name stays.
         page->state["save.name"] = "Bunker door"; s.HandleRetainedSessionRequest(page, "saveSave");
         CHECK(s.savedGames.back() == "Bunker door" && page->state["save.count"] == "3" && page->state["save.selected"] == "0" &&
@@ -4808,6 +4897,7 @@ def main() -> int:
     player_settings = player_setting_rules(adapter)
     handled = set(re.findall(r'\{ "([A-Za-z][A-Za-z0-9]*)",\s+"main_b_', menu)) | set(re.findall(r'!idStr::Icmp\( request, "([A-Za-z][A-Za-z0-9]*)" \)', menu))
     assert 'for ( int i = 0; i < 5; ++i ) {\n            if ( !idStr::Icmp( request, va( "campaignSkill%d", i ) ) ) {' in menu.replace('\r\n', '\n')
+    handled |= set(re.findall(r'!idStr::Icmpn\( request, \"(loadSelect|saveSelect|loadSave|loadDelete)\",', menu))
     handled.update(f'campaignSkill{i}' for i in range(5))
     # The Arena page's verbs, each mapped to the campaign's own command.
     arena_verbs = menu[menu.index('RETAINED_ARENA_VERBS[][2] = {'):menu.index('RETAINED_ARENA_VERB_COUNT')]
@@ -4886,7 +4976,8 @@ def main() -> int:
         'bool idSessionLocal::RetainedSubpageEvent(',
         'bool idSessionLocal::BeginRetainedPage(', 'void idSessionLocal::UpdateRetainedPage(', 'void idSessionLocal::ReturnRetainedPage(',
         'void idSessionLocal::ReturnRetainedSinglePlayerHome(',
-        'void idSessionLocal::PublishRetainedLoadPage(',
+        'static bool Session_RetainedSaveOperand(', 'void idSessionLocal::BuildRetainedSaveList(',
+        'bool idSessionLocal::RefreshRetainedSaveList(', 'void idSessionLocal::PublishRetainedLoadPage(',
         'void idSessionLocal::PublishRetainedLoadRows(', 'void idSessionLocal::PublishRetainedLoadSave(',
         'void idSessionLocal::HandleRetainedLoadRequest(', 'bool idSessionLocal::RetainedPageActive(',
         'void idSessionLocal::PublishRetainedSavePage(', 'void idSessionLocal::PublishRetainedSaveSelection(',

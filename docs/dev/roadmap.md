@@ -627,7 +627,7 @@ archived provenance; new scheduling belongs here.
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled
   reasons and role-specific vote operations. Finish identity protection for
   delayed remote mute packets and kick/admin targets across slot reuse.
-  Complete save sorting/filter/refresh, chapter and
+  Complete save chapter and
   objective/play-time details, Strogg confirmations, loading handoffs, remote-load
   arsenal and MVD rosters. Qualify real task completion and failure/cancellation.
   Progress, 23 October: [full roster scrolling](ui/multiplayer-menus.md#full-roster-scrolling-23-october-2026)
@@ -640,6 +640,11 @@ archived provenance; new scheduling belongs here.
   generations. Held and queued controls cannot follow a replacement occupant;
   stale selections return to the local player. Remote voice transport and other
   player-targeted flows remain open.
+  Progress, 23 October: [save browser controls](ui/save-browser.md) add date/name/
+  location sorting, manual/autosave filters and explicit refresh to both page
+  families. Selection and row focus follow filenames, typed names survive refresh,
+  and catalog generations reject stale actions. The remaining save details and
+  wider device/platform acceptance stay open.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder

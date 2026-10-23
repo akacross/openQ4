@@ -1,5 +1,11 @@
 # UI product requirement register
 
+23 October 2026: [save browser controls](save-browser.md) add bounded UI-03
+evidence to `WID-009`, `FLOW-004` and `FLOW-026`: sorting, filter tags, explicit
+refresh, filename-based selection/focus and stale catalog rejection in both
+page families. The increment is audited against `c302254b865833786be9f1fd02041aef85f80b22`.
+No requirement status, migration acceptance or final gate changes.
+
 23 October 2026: [full multiplayer roster scrolling](multiplayer-menus.md#full-roster-scrolling-23-october-2026)
 adds bounded UI-03 evidence to `WID-009`, `WID-010`, `FLOW-039` and `FLOW-046`.
 Four production views keep fixed headings and readable rows, reach all 32

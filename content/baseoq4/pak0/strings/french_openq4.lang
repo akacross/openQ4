@@ -1391,4 +1391,11 @@
 	"#str_231311"	"Noms des interlocuteurs"
 	"#str_231312"	"Radio"
 	"#str_231400"	"Configuration Android"
+	"#str_231420"	"MANUELLES"
+	"#str_231421"	"AUTOMATIQUES"
+	"#str_231422"	"EFFACER LES FILTRES"
+	"#str_231423"	"AUCUNE SAUVEGARDE"
+	"#str_231424"	"Effacez le filtre pour voir toutes les sauvegardes."
+	"#str_231425"	"SAUVEGARDES PRÉCÉDENTES"
+	"#str_231426"	"SAUVEGARDES SUIVANTES"
 }

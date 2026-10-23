@@ -186,6 +186,7 @@ static void CheckSchema() {
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
 	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
+	"saveListRefresh","saveListSort","saveListFilterManual","saveListFilterAuto","saveListClear",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
 	"demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter","demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
 	"arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1","arenaMatch2","arenaMatch3",
@@ -252,7 +253,9 @@ static void CheckSessionActions(const Document& document) {
 		Check(command != action.arguments.end(),"session operation names a command");
 		const auto& verb = std::get<std::string>(command->second.literal);
 		const bool player = verb == "mpSelectPlayer" || verb == "mpMute" || verb == "mpFriend";
-		Check(action.arguments.size() == (player ? 3u : value ? 2u : 1u),"command carries exactly its typed operands");
+		const bool save = verb == "loadSelect" || verb == "saveSelect" || verb == "loadSave" || verb == "loadDelete";
+		Check(!save || (action.arguments.at("index").type == 0 && action.arguments.at("generation").type == 0),"save command carries catalog operands");
+		Check(action.arguments.size() == (player || save ? 3u : value ? 2u : 1u),"command carries exactly its typed operands");
 		Check(!player || (action.arguments.at("client").type == 0 && action.arguments.at("identity").type == 2),"player command carries client and connection identity");
 		Check((value ? SessionValueCommands : SessionCommands).contains(std::get<std::string>(command->second.literal)),
 			"every command is in the session allowlist");
@@ -1922,7 +1925,7 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 		"Accept on the selected save loads it");
 	// The plates need a selection; DELETE GAME asks first.
 	Check(runtime.CanActivateControl("load_go",3.2) && runtime.CanActivateControl("load_delete",3.2),"a selection enables the plates");
-	Check(runtime.RunEvent("deleteModalShow",3.3,effects,error) && effects.actions.empty(),"DELETE GAME asks first");
+	Check(runtime.RunEvent("deleteRequested",3.3,effects,error) && effects.actions.empty(),"DELETE GAME asks first");
 	runtime.Frame(viewport,3.6);
 	Check(text("deleteModal","display") == "block" && runtime.FocusedControl() == "deleteModal_no","the confirmation opens on NO");
 	Check(runtime.RunEvent("deleteConfirmed",3.7,effects,error) && requested("delete"),"YES deletes and closes the confirmation");
@@ -1978,6 +1981,39 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	for (double t = 12.3; t < 15; t += 1.0/60) runtime.Frame(viewport,t);
 	runtime.Frame(viewport,15);
 	Check(runtime.Statistics().motionInputsScanned == 0,"and the page settles once more");
+	// Catalog controls work independently of the list, and a filtered empty
+	// state explains how to recover without offering an unrelated New Game.
+	Check(runtime.SetState({{"browser.filter",2.0}},error,16),"filter the catalog");
+	runtime.Frame(viewport,16.1);
+	Check(text("browser-automatic-cross","display") == "block" && text("browser-manual-cross","display") == "none" &&
+		text("browser-clear","display") == "block" && text("load_newgame","display") == "none" &&
+		text("load-empty-heading","text") == "#str_231423", "filtered empty state and clear action");
+	Check(runtime.RunEvent("onSecondary",16.2,effects,error) && requested("refresh"),"controller secondary refreshes");
+	Check(runtime.RunEvent("onTertiary",16.3,effects,error) && requested("sort"),"controller tertiary sorts");
+	for (int sort=0; sort<6; ++sort) {
+		const double t=17+sort;
+		Check(runtime.SetState({{"browser.sort",double(sort)}},error,t),"set each sort"); runtime.Frame(viewport,t+.1);
+		Check(text("browser-sort-label","text") == (sort<2 ? "#str_41557" : sort<4 ? "#str_200925" : "#str_200926"),"sort names its key");
+		const bool up=sort==1 || sort==2 || sort==4;
+		Check(text("browser-sort-up","display") == (up ? "block":"none") && text("browser-sort-down","display") == (up ? "none":"block"),"sort marker shows direction");
+	}
+	Check(runtime.SetState({{"load.first",64.0},{"load.selected",65.0},{"browser.generation",7.0},
+		{"load.count",67.0},{"load.row0.context",std::string("7:first")},{"load.context",std::string("7:selected")}},error,24),"publish paged identities");
+	runtime.Frame(viewport,24.1);
+	Check(runtime.RunEvent("loadRow0",24.2,effects,error) && requested("select") &&
+		std::get<double>(effects.actions[0].arguments.at("index"))==64 && std::get<double>(effects.actions[0].arguments.at("generation"))==7,
+		"row request freezes absolute index and catalog generation");
+	Check(runtime.RunEvent("deleteRequested",24.3,effects,error),"capture delete target"); runtime.Frame(viewport,24.6);
+	Check(runtime.SetState({{"load.selected",66.0},{"browser.generation",8.0}},error,24.7),"selection changes after confirmation opens");
+	Check(runtime.RunEvent("deleteConfirmed",24.8,effects,error) && requested("delete") &&
+		std::get<double>(effects.actions[0].arguments.at("index"))==65 && std::get<double>(effects.actions[0].arguments.at("generation"))==7,
+		"confirmation retains the save it asked about");
+	runtime.Frame(viewport,25.5);
+	Check(runtime.FocusControl("row-0",25.6),"focus save before refresh");
+	runtime.TakeActions(); runtime.MenuAction(MenuInput::Accept,true,25.7);
+	Check(runtime.SetState({{"load.row0.context",std::string("8:replacement")}},error,25.8),"refresh while held");
+	runtime.MenuAction(MenuInput::Accept,false,25.9);
+	Check(runtime.TakeActions().empty(),"refresh cancels the held row");
 }
 
 // The Save Game page: the saves under SAVE NAME and LOCATION, the name in a

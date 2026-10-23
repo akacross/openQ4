@@ -3867,6 +3867,9 @@ void idSessionLocal::Clear() {
 	retainedPageReturn = false;
 	retainedLoadSlots.Clear();
 	retainedLoadTimes.Clear();
+	retainedLoadNames.Clear();
+	retainedLoadLocations.Clear();
+	retainedSaveGeneration = 0;
 	retainedLoadFirst = 0;
 	retainedLoadSelected = -1;
 	guiRetainedSave = NULL;

@@ -1442,4 +1442,11 @@
 	"#str_231311"	"Imiona rozmówców"
 	"#str_231312"	"Radio"
 	"#str_231400"	"Konfiguracja Androida"
+	"#str_231420"	"RĘCZNE"
+	"#str_231421"	"AUTOMATYCZNE"
+	"#str_231422"	"WYCZYŚĆ FILTRY"
+	"#str_231423"	"BRAK PASUJĄCYCH ZAPISÓW"
+	"#str_231424"	"Wyczyść filtr, aby wyświetlić wszystkie zapisy gry."
+	"#str_231425"	"POPRZEDNIE ZAPISY"
+	"#str_231426"	"NASTĘPNE ZAPISY"
 }

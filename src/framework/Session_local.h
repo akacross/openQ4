@@ -361,6 +361,8 @@ public:
 	void				ReturnRetainedSinglePlayerHome();
 	void				DrawRetainedPageHome( int presentationTime );
 	void				PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error );
+	void				BuildRetainedSaveList( idUserInterface *gui, int select );
+	bool				RefreshRetainedSaveList( idUserInterface *gui, const char *request );
 	void				PublishRetainedLoadRows( idUserInterface *gui );
 	void				PublishRetainedLoadSave( idUserInterface *gui, const char *error );
 	void				HandleRetainedLoadRequest( idUserInterface *gui, const char *request );
@@ -660,6 +662,9 @@ public:
 	bool				retainedPageReturn;
 	idStrList			retainedLoadSlots;
 	idList<ID_TIME_T>	retainedLoadTimes;
+	idStrList			retainedLoadNames;
+	idStrList			retainedLoadLocations;
+	int					retainedSaveGeneration;
 	int					retainedLoadFirst;
 	int					retainedLoadSelected;
 	// The Save Game page (NULL until it first loads), which shares the list

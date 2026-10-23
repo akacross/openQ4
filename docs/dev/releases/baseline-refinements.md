@@ -26,6 +26,10 @@
 
 ## Change log
 
+- Save and Load Game now offer date, name and location sorting, manual-save and
+  autosave filters, and Refresh List. Your selection follows the same save as the
+  list changes, and refreshing preserves a name you are typing.
+
 - Multiplayer friend and mute marks now clear when another player takes over
   a vacated slot. The Players menu returns to your statistics if the selected
   player leaves, and pending menu actions cannot follow their replacement.

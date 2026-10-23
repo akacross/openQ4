@@ -1211,6 +1211,38 @@ static void CheckEventBridge() {
     assert(!ValidInvocation({"x","settings.brightness.set",{{"value",true}}},error));
     assert(!ValidInvocation({"x","ui.dismiss",{{"value",1.0}}},error));
     assert(!ValidInvocation({"x","exec",{}},error));
+    const auto save=[](const char* command,StateValue index,StateValue generation) {
+        return ActionInvocation{"save","session.menu",{{"command",std::string(command)},{"index",index},{"generation",generation}}};
+    };
+    for (const auto* command : {"loadSelect","saveSelect","loadSave","loadDelete"}) {
+        assert(ValidInvocation(save(command,0.0,1.0),error));
+        assert(ValidInvocation(save(command,2147483647.0,2147483647.0),error));
+        for (StateValue bad : {StateValue(-1.0),StateValue(2147483648.0),StateValue(2.5),StateValue(true),
+                              StateValue(std::string("1")),StateValue(std::numeric_limits<double>::infinity())}) {
+            assert(!ValidInvocation(save(command,bad,1.0),error));
+            assert(!ValidInvocation(save(command,1.0,bad),error));
+        }
+        assert(!ValidInvocation(save(command,1.0,0.0),error));
+        assert(!ValidInvocation({"save","session.menu",{{"command",std::string(command)}}},error));
+        Action action; action.operation="session.menu";
+        Expression verb; verb.type=2; verb.literal=std::string(command);
+        Expression index; index.type=0; index.state="row";
+        Expression generation=index; generation.state="generation";
+        action.arguments={{"command",verb},{"index",index},{"generation",generation}};
+        assert(ValidOperation(action));
+        action.arguments.erase("generation"); assert(!ValidOperation(action));
+    }
+    {
+        idUserInterfaceRetained gui; assert(gui.InitFromFile("test.q4ui")); gui.Activate(true,0);
+        eventPlans["savecatalog"]={{},{save("loadSelect",65.0,7.0),save("loadDelete",12.0,7.0)}};
+        gui.HandleNamedEvent("savecatalog");
+        gui.SetStateInt("load.pick",3); gui.SetStateInt("browser.generation",8);
+        bool close=false; assert(gui.DispatchApplicationActions(gui.PendingApplicationCommand(),close) && !close);
+        for (const auto* expected : {"loadSelect 65 7","loadDelete 12 7"}) {
+            idStr request; assert(gui.TakeSessionRequest(ActionMarker,request) && request==expected);
+        }
+        eventPlans.clear();
+    }
     const auto player=[](const char* command,StateValue client,StateValue identity) {
         return ActionInvocation{"player","session.menu",{{"command",std::string(command)},{"client",client},{"identity",identity}}};
     };

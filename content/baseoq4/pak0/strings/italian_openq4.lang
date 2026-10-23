@@ -1391,4 +1391,11 @@
 	"#str_231311"	"Nomi di chi parla"
 	"#str_231312"	"Radio"
 	"#str_231400"	"Configurazione Android"
+	"#str_231420"	"MANUALI"
+	"#str_231421"	"AUTOMATICI"
+	"#str_231422"	"AZZERA FILTRI"
+	"#str_231423"	"NESSUN SALVATAGGIO"
+	"#str_231424"	"Azzera il filtro per mostrare tutti i salvataggi."
+	"#str_231425"	"SALVATAGGI PRECEDENTI"
+	"#str_231426"	"SALVATAGGI SUCCESSIVI"
 }

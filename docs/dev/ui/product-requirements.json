@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "1d0cbb86c0495ff0eee4836621ee554e96ae0a3d",
+    "engine_revision": "c302254b865833786be9f1fd02041aef85f80b22",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -1132,6 +1132,15 @@
       "sha256": "e434223fd86af05c9f019682548c61292f677095081ba50d9edca0b9f40c36d9",
       "local_capture_summary": ".tmp/ui-player-identity/validation-evidence.json",
       "local_capture_summary_sha256": "f963524f7143f8270cde3ad285d7a30d3e7058c29ffad83e2802fd986156968c"
+    },
+    "save-browser-controls": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/save-browser.md",
+      "baseline_engine_revision": "c302254b865833786be9f1fd02041aef85f80b22",
+      "scope": "UI-03 bounded save-browser increment: six date/name/location orders, manual/autosave filters, explicit refresh preserving filename selection/focus and typed names, generation-bound queued operands and frozen delete confirmation targets. Three native page suites, two value suites, 851 session checks with companion suites, the production adapter and 20 existing mutation checks pass. Sixteen reviewed OpenGL Marine/English and Vulkan Strogg/Russian captures include real save/restore. Remaining save details, physical devices, other languages/scales/platforms and full product acceptance remain open.",
+      "sha256": "f92df79daed88dd20161f2dd9594e9fc3f43831199e1fb4cafbc59518fa1c6f8",
+      "local_capture_summary": ".tmp/ui-save-browser/validation-evidence.json",
+      "local_capture_summary_sha256": "7b0eccec78182221391439fa8dd9a2103123bd66dcc38e51d74a7bd9907c9f38"
     }
   },
   "groups": {
@@ -4618,10 +4627,11 @@
         "retained-savegame-evidence",
         "retained-demos-evidence",
         "retained-joingame-filters",
-        "multiplayer-roster-scrolling"
+        "multiplayer-roster-scrolling",
+        "save-browser-controls"
       ],
       "acceptance_evidence": [],
-      "remaining": "The Load and Save Game lists keep Lowpixel headers over an olive rule, rows on the stock 20 u pitch with the selected save lit apart from the focused row, a designed empty state, the selection kept when a save is deleted or written, and pages of 64 rows instead of an unbounded document. The Demos list adds filter tags (small header-band plates at 0.28, the set one at 0.60 with its close cross, Accept setting or clearing it) and an empty state that tells a filtered list apart; the server browser's list adds the same tags (NOT FULL, NOT EMPTY, NO PASSWORD) beside a game type spinner, and its empty state tells a filtered list apart too. Sorting with its marker, loading rows, virtualization, the server browser's list, touch and acceptance remain."
+      "remaining": "The Load and Save Game lists keep Lowpixel headers over an olive rule, rows on the stock 20 u pitch with the selected save lit apart from the focused row, a designed empty state, the selection kept when a save is deleted or written, and pages of 64 rows instead of an unbounded document. The Demos list adds filter tags (small header-band plates at 0.28, the set one at 0.60 with its close cross, Accept setting or clearing it) and an empty state that tells a filtered list apart; the server browser's list adds the same tags (NOT FULL, NOT EMPTY, NO PASSWORD) beside a game type spinner, and its empty state tells a filtered list apart too. The Marine and Strogg save lists now add six date/name/location orders with direction markers, manual/autosave tags and explicit refresh. Selection and row focus follow filenames across insertion, deletion and page boundaries; generation-bound requests cannot target a newer catalog. Other list sorting/loading states, virtualization where required, touch and full acceptance remain."
     },
     {
       "id": "WID-010",
@@ -6244,10 +6254,11 @@
       "current_evidence": [
         "retained-loadgame-evidence",
         "retained-savegame-evidence",
-        "retained-strogg-pages-evidence"
+        "retained-strogg-pages-evidence",
+        "save-browser-controls"
       ],
       "acceptance_evidence": [],
-      "remaining": "Behind ui_retained, LOAD GAME on the title and the Marine pause opens guis/menu/loadgame.q4ui over the home that handed off to it, which keeps drawing behind the page as its departure left it (the title's montage, or the pause over the softened game), with the stock page's backing: the saves newest first with their names and levels, the selected save's screenshot or loadscreen with its date and time, a row's first Accept selecting and a second (or LOAD GAME) loading, DELETE GAME behind the stock confirmation with the next save selected after it, a load or delete the session refuses saying why over the picture while the page stays, the empty state offering NEW GAME at the title, and pages of 64 saves; saves written in the same second keep one order. SAVE GAME on the Marine pause opens guis/menu/savegame.q4ui the same way: the saves newest first, the name in a text field that typing opens, a row's first Accept selecting its save and naming it in the field unless a name is being typed there, Enter or SAVE GAME saving under the name, the stock overwrite confirmation naming the save it saves over, the stock autosave refusal, and the session's reasons (the player dead, no drive space, a failed mission, anything else) in a notice instead of the stock message box. The Strogg pause's SAVE GAME and LOAD GAME open the same pages in the Strogg family (savegame_strogg.q4ui and loadgame_strogg.q4ui). Sorting and filters, independently reviewed captures at every scale and language, touch, the GLES fallback and acceptance remain."
+      "remaining": "Behind ui_retained, LOAD GAME on the title and the Marine pause opens guis/menu/loadgame.q4ui over the home that handed off to it, which keeps drawing behind the page as its departure left it (the title's montage, or the pause over the softened game), with the stock page's backing: the saves newest first with their names and levels, the selected save's screenshot or loadscreen with its date and time, a row's first Accept selecting and a second (or LOAD GAME) loading, DELETE GAME behind the stock confirmation with the next save selected after it, a load or delete the session refuses saying why over the picture while the page stays, the empty state offering NEW GAME at the title, and pages of 64 saves; saves written in the same second keep one order. SAVE GAME on the Marine pause opens guis/menu/savegame.q4ui the same way: the saves newest first, the name in a text field that typing opens, a row's first Accept selecting its save and naming it in the field unless a name is being typed there, Enter or SAVE GAME saving under the name, the stock overwrite confirmation naming the save it saves over, the stock autosave refusal, and the session's reasons (the player dead, no drive space, a failed mission, anything else) in a notice instead of the stock message box. The Strogg pause's SAVE GAME and LOAD GAME open the same pages in the Strogg family (savegame_strogg.q4ui and loadgame_strogg.q4ui). Both save page families now add date/name/location sorting, manual/autosave filters and explicit refresh while retaining filename selection/focus and typed names. Queued selection/load/delete operands bind to a catalog generation and delete confirmation retains its original target. Reviewed Windows OpenGL Marine/English and Vulkan Strogg/Russian captures exercise real save/restore; every scale/language, physical input, GLES, other platforms and full acceptance remain."
     },
     {
       "id": "FLOW-005",
@@ -9988,10 +9999,11 @@
       "current_evidence": [
         "retained-mp-match",
         "retained-arena-evidence",
-        "retained-joingame-filters"
+        "retained-joingame-filters",
+        "save-browser-controls"
       ],
       "acceptance_evidence": [],
-      "remaining": "On the retained Escape card, Match Control shows each action's refusal reason beside its row and moves between its six sections with the triggers (decision D3: section 14.18's bumpers keep the card's main strip), Left and Right along its inner strip. The Arena page shows the tier ladder in the section navigation: locked tiers dimmed with the lock, the boss match on a larger plate, and the bumpers (with Q and E) switching tier. The server and demo lists have header-band filter tags and the server list header and north sorting. The detail-area presentation, the rest of the list patterns (the save list's tags and sorting, the detail column and prompt-bar actions with west refresh) and demo playback's controls, and their controller, touch and pointer cases, remain.",
+      "remaining": "On the retained Escape card, Match Control shows each action's refusal reason beside its row and moves between its six sections with the triggers (decision D3: section 14.18's bumpers keep the card's main strip), Left and Right along its inner strip. The Arena page shows the tier ladder in the section navigation: locked tiers dimmed with the lock, the boss match on a larger plate, and the bumpers (with Q and E) switching tier. The server and demo lists have header-band filter tags and the server list header and north sorting. The Marine and Strogg save lists now have manual/autosave filter tags, header/north sorting, and explicit west refresh with filename-stable selection/focus and typed-name preservation. The remaining detail-area/list presentation and demo playback controls, and full physical controller, touch and pointer qualification, remain.",
       "constraints": {
         "demo_controls_hide_ms": 3000,
         "demo_skip_s": [

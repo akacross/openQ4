@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 
 
 
+#include <algorithm>
+#include <vector>
+
 #include "NativeInputDispatch.h"
 #include "Session_local.h"
 #include "NativeInputPublications.h"
@@ -6471,6 +6474,10 @@ bool idSessionLocal::BeginRetainedPage( const char *request ) {
 		return false;
 	}
 	loaded = page;
+	if ( saving || ( !restarting && !credits && !multiplayer && !demos ) ) {
+		page->SetStateInt( "browser.sort", 0 );
+		page->SetStateInt( "browser.filter", 0 );
+	}
 	// The saves, read while the home hands off: the newest selected to load,
 	// none to save over. Each arrival to save starts with no name, as the
 	// stock page's field did; a restart starts at the level's difficulty.
@@ -6639,20 +6646,125 @@ picture (NULL: none). The rows hold the RETAINED_LOAD_ROWS saves around the
 selection.
 ===============
 */
-void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error ) {
+// Six orders: date descending/ascending, name ascending/descending,
+// location ascending/descending. Equal keys use the slot name in either direction.
+void idSessionLocal::BuildRetainedSaveList( idUserInterface *gui, int select ) {
 #ifndef ID_DEDICATED
+	const int sort = idMath::ClampInt( 0, 5, gui->State().GetInt( "browser.sort" ) );
+	const int filter = idMath::ClampInt( 0, 2, gui->State().GetInt( "browser.filter" ) );
 	idStrList files;
 	idList<fileTIME_T> times;
 	GetSaveGameList( files, times );
+	struct entry_t { idStr slot, name, location; ID_TIME_T stamp; };
+	std::vector<entry_t> entries;
+	for ( int i = 0; i < times.Num(); ++i ) {
+		entry_t entry;
+		entry.slot = files[ times[i].index ];
+		entry.stamp = times[i].timeStamp;
+		sessionMenuSaveDescription_t description;
+		const bool described = Session_MenuReadSaveDescription( entry.slot, description );
+		const bool automatic = described && ( description.noOverwrite || description.screenshot.Length() > 0 );
+		if ( ( filter == 1 && automatic ) || ( filter == 2 && !automatic ) ) continue;
+		Session_RetainedSaveLabel( entry.slot, description, described, entry.name, entry.location );
+		entries.push_back( entry );
+	}
+	std::stable_sort( entries.begin(), entries.end(), [sort]( const entry_t &a, const entry_t &b ) {
+		int order = sort < 2 ? ( a.stamp > b.stamp ? -1 : a.stamp < b.stamp ? 1 : 0 ) :
+			sort < 4 ? a.name.Icmp( b.name ) : a.location.Icmp( b.location );
+		if ( order != 0 ) return sort % 2 ? order > 0 : order < 0;
+		order = a.slot.Icmp( b.slot );
+		return order != 0 ? order < 0 : a.slot.Cmp( b.slot ) < 0;
+	} );
 	retainedLoadSlots.Clear();
 	retainedLoadTimes.Clear();
-	for ( int i = 0; i < times.Num(); ++i ) {
-		retainedLoadSlots.Append( files[ times[i].index ] );
-		retainedLoadTimes.Append( times[i].timeStamp );
+	retainedLoadNames.Clear();
+	retainedLoadLocations.Clear();
+	for ( const auto &entry : entries ) {
+		retainedLoadSlots.Append( entry.slot );
+		retainedLoadTimes.Append( entry.stamp );
+		retainedLoadNames.Append( entry.name );
+		retainedLoadLocations.Append( entry.location );
 	}
 	const int count = retainedLoadSlots.Num();
 	retainedLoadSelected = count > 0 && select >= 0 ? idMath::ClampInt( 0, count - 1, select ) : -1;
 	retainedLoadFirst = retainedLoadSelected > 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	retainedSaveGeneration = retainedSaveGeneration == 2147483647 ? 1 : retainedSaveGeneration + 1;
+	gui->SetStateInt( "browser.generation", retainedSaveGeneration );
+	gui->SetStateString( "browser.context", va( "%d", retainedSaveGeneration ) );
+	gui->SetStateInt( "browser.total", times.Num() );
+	gui->SetStateInt( "browser.sort", sort );
+	gui->SetStateInt( "browser.filter", filter );
+#endif
+}
+
+// Refresh explicitly, never scan the filesystem every presented frame. Both
+// selection and row focus follow filenames, including across a 64-row boundary.
+bool idSessionLocal::RefreshRetainedSaveList( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	const bool refresh = !idStr::Icmp( request, "saveListRefresh" );
+	const bool sort = !idStr::Icmp( request, "saveListSort" );
+	const bool manual = !idStr::Icmp( request, "saveListFilterManual" );
+	const bool automatic = !idStr::Icmp( request, "saveListFilterAuto" );
+	const bool clear = !idStr::Icmp( request, "saveListClear" );
+	if ( !refresh && !sort && !manual && !automatic && !clear ) return false;
+	const idStr selected = retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() ?
+		retainedLoadSlots[ retainedLoadSelected ] : idStr();
+	const std::string focus = UI_RetainedFocusedControl( gui );
+	idStr focused;
+	for ( int row = 0; row < RETAINED_LOAD_ROWS; ++row ) {
+		if ( focus == va( "row-%d", row ) && retainedLoadFirst + row < retainedLoadSlots.Num() ) {
+			focused = retainedLoadSlots[ retainedLoadFirst + row ];
+			break;
+		}
+	}
+	if ( sort ) gui->SetStateInt( "browser.sort", ( idMath::ClampInt( 0, 5, gui->State().GetInt( "browser.sort" ) ) + 1 ) % 6 );
+	if ( manual || automatic || clear ) {
+		const int filter = manual ? 1 : automatic ? 2 : 0;
+		gui->SetStateInt( "browser.filter", gui->State().GetInt( "browser.filter" ) == filter ? 0 : filter );
+	}
+	BuildRetainedSaveList( gui, -1 );
+	retainedLoadSelected = retainedLoadSlots.FindIndex( selected );
+	const int focusIndex = retainedLoadSlots.FindIndex( focused );
+	const int anchor = focusIndex >= 0 ? focusIndex : retainedLoadSelected;
+	retainedLoadFirst = anchor >= 0 ? anchor / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	PublishRetainedLoadRows( gui );
+	if ( IsRetainedSavePage( gui ) ) PublishRetainedSaveSelection( gui, false );
+	else PublishRetainedLoadSave( gui, NULL );
+	if ( !focused.IsEmpty() ) {
+		gui->HandleNamedEvent( focusIndex >= 0 ? va( "browserFocus%d", focusIndex - retainedLoadFirst ) : "browserFocusRefresh" );
+	}
+	return true;
+#else
+	return false;
+#endif
+}
+
+#ifndef ID_DEDICATED
+// Reject stale catalog operands and malformed integers, including overflow.
+static bool Session_RetainedSaveOperand( const char *request, const char *verb, int generation, int count, int &index ) {
+	idCmdArgs args( request, false );
+	if ( args.Argc() != 3 || idStr::Icmp( args.Argv( 0 ), verb ) ) return false;
+	int values[2];
+	for ( int i = 0; i < 2; ++i ) {
+		const char *text = args.Argv( i + 1 );
+		if ( !*text || strlen( text ) > 10 ) return false;
+		unsigned long long value = 0;
+		for ( const char *c = text; *c; ++c ) {
+			if ( *c < '0' || *c > '9' ) return false;
+			value = value * 10 + ( *c - '0' );
+		}
+		if ( value > 2147483647 ) return false;
+		values[i] = static_cast<int>( value );
+	}
+	if ( values[1] != generation || generation < 1 || values[0] >= count ) return false;
+	index = values[0];
+	return true;
+}
+#endif
+
+void idSessionLocal::PublishRetainedLoadPage( idUserInterface *gui, int select, const char *error ) {
+#ifndef ID_DEDICATED
+	BuildRetainedSaveList( gui, select );
 	PublishRetainedLoadRows( gui );
 	PublishRetainedLoadSave( gui, error );
 #endif
@@ -6666,30 +6778,39 @@ void idSessionLocal::PublishRetainedLoadRows( idUserInterface *gui ) {
 		const int index = retainedLoadFirst + row;
 		idStr name, location;
 		if ( index < retainedLoadSlots.Num() ) {
-			sessionMenuSaveDescription_t description;
-			const bool described = Session_MenuReadSaveDescription( retainedLoadSlots[ index ], description );
-			Session_RetainedSaveLabel( retainedLoadSlots[ index ], description, described, name, location );
+			name = retainedLoadNames[ index ];
+			location = retainedLoadLocations[ index ];
 		}
+		const idStr context = index < retainedLoadSlots.Num() ? va( "%d:%s", retainedSaveGeneration, retainedLoadSlots[ index ].c_str() ) : "";
+		gui->SetStateString( va( "%s.row%d.context", list, row ), context.c_str() );
 		gui->SetStateString( va( "%s.row%d.name", list, row ), name.c_str() );
 		gui->SetStateString( va( "%s.row%d.location", list, row ), location.c_str() );
 	}
 	gui->SetStateInt( va( "%s.count", list ), retainedLoadSlots.Num() );
 	gui->SetStateInt( va( "%s.first", list ), retainedLoadFirst );
+	if ( cvarSystem->GetCVarBool( "ui_retainedTrace" ) ) {
+		common->Printf( "RETAINED_SAVE_CATALOG page=%s generation=%d sort=%d filter=%d count=%d first=%d selected=%d slot=%s\n",
+			list, retainedSaveGeneration, gui->State().GetInt( "browser.sort" ), gui->State().GetInt( "browser.filter" ),
+			retainedLoadSlots.Num(), retainedLoadFirst, retainedLoadSelected,
+			retainedLoadSelected >= 0 ? retainedLoadSlots[ retainedLoadSelected ].c_str() : "<none>" );
+	}
 #endif
 }
 
 // The selected save: its picture, its date and time, and why it failed.
 void idSessionLocal::PublishRetainedLoadSave( idUserInterface *gui, const char *error ) {
 #ifndef ID_DEDICATED
-	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time;
+	idStr shot = RETAINED_LOAD_GENERIC_SHOT, date, time, context;
 	if ( retainedLoadSelected >= 0 && retainedLoadSelected < retainedLoadSlots.Num() ) {
 		const idStr &slot = retainedLoadSlots[ retainedLoadSelected ];
+		context = va( "%d:%s", retainedSaveGeneration, slot.c_str() );
 		sessionMenuSaveDescription_t description;
 		const bool described = Session_MenuReadSaveDescription( slot, description );
 		shot = Session_RetainedSaveShot( slot, description, described, RETAINED_LOAD_GENERIC_SHOT );
 		Session_RetainedSaveStamp( retainedLoadTimes[ retainedLoadSelected ], date, time );
 	}
 	gui->SetStateInt( "load.selected", retainedLoadSelected );
+	gui->SetStateString( "load.context", context.c_str() );
 	gui->SetStateString( "load.shot", shot.c_str() );
 	gui->SetStateString( "load.date", date.c_str() );
 	gui->SetStateString( "load.time", time.c_str() );
@@ -6709,15 +6830,15 @@ save. A save that cannot be loaded or deleted stays selected and says why.
 */
 void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
+	if ( RefreshRetainedSaveList( gui, request ) ) return;
 	const int count = retainedLoadSlots.Num();
 	if ( !idStr::Icmp( request, "loadBack" ) ) {
 		ReturnRetainedPage();
 		return;
 	}
-	if ( !idStr::Icmp( request, "loadSelect" ) ) {
-		const int row = gui->State().GetInt( "load.pick", "-1" );
-		const int index = retainedLoadFirst + row;
-		if ( row >= 0 && row < RETAINED_LOAD_ROWS && index < count ) {
+	if ( !idStr::Icmpn( request, "loadSelect", 10 ) ) {
+		int index = -1;
+		if ( Session_RetainedSaveOperand( request, "loadSelect", retainedSaveGeneration, count, index ) ) {
 			retainedLoadSelected = index;
 			PublishRetainedLoadSave( gui, NULL );
 		}
@@ -6738,11 +6859,10 @@ void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char
 		gui->HandleNamedEvent( older ? "pagedOlder" : "pagedNewer" );
 		return;
 	}
-	const bool chosen = retainedLoadSelected >= 0 && retainedLoadSelected < count;
-	if ( !idStr::Icmp( request, "loadSave" ) ) {
-		if ( !chosen ) {
-			return;
-		}
+	if ( !idStr::Icmpn( request, "loadSave", 8 ) ) {
+		int target = -1;
+		if ( !Session_RetainedSaveOperand( request, "loadSave", retainedSaveGeneration, count, target ) ) return;
+		retainedLoadSelected = target;
 		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
 		HandleMainMenuCommands( "play main_menu_selection" );
 		// A preflight refusal preserves this page. A deeper restore failure
@@ -6752,10 +6872,10 @@ void idSessionLocal::HandleRetainedLoadRequest( idUserInterface *gui, const char
 		}
 		return;
 	}
-	if ( !idStr::Icmp( request, "loadDelete" ) ) {
-		if ( !chosen ) {
-			return;
-		}
+	if ( !idStr::Icmpn( request, "loadDelete", 10 ) ) {
+		int target = -1;
+		if ( !Session_RetainedSaveOperand( request, "loadDelete", retainedSaveGeneration, count, target ) ) return;
+		retainedLoadSelected = target;
 		// The page asked first. The save that takes the deleted one's place is
 		// selected; one that is still there stays selected and says so.
 		const idStr slot = retainedLoadSlots[ retainedLoadSelected ];
@@ -6790,18 +6910,7 @@ with `select` selected (-1: none).
 */
 void idSessionLocal::PublishRetainedSavePage( idUserInterface *gui, int select ) {
 #ifndef ID_DEDICATED
-	idStrList files;
-	idList<fileTIME_T> times;
-	GetSaveGameList( files, times );
-	retainedLoadSlots.Clear();
-	retainedLoadTimes.Clear();
-	for ( int i = 0; i < times.Num(); ++i ) {
-		retainedLoadSlots.Append( files[ times[i].index ] );
-		retainedLoadTimes.Append( times[i].timeStamp );
-	}
-	const int count = retainedLoadSlots.Num();
-	retainedLoadSelected = count > 0 && select >= 0 ? idMath::ClampInt( 0, count - 1, select ) : -1;
-	retainedLoadFirst = retainedLoadSelected > 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	BuildRetainedSaveList( gui, select );
 	PublishRetainedLoadRows( gui );
 	PublishRetainedSaveSelection( gui, false );
 #endif
@@ -6856,8 +6965,17 @@ bool idSessionLocal::RetainedSaveGame( idUserInterface *gui, const char *name ) 
 		gui->HandleNamedEvent( "noticeModalShow" );
 		return false;
 	}
-	// The save is now the newest. The name stays, ready to save again.
-	PublishRetainedSavePage( gui, 0 );
+	// Reveal the saved file even while viewing autosaves. Keep the sort and
+	// typed name; the new file need not occupy the first row in this order.
+	if ( gui->State().GetInt( "browser.filter" ) == 2 ) gui->SetStateInt( "browser.filter", 0 );
+	idStr slot = name;
+	ScrubSaveGameFileName( slot );
+	slot.StripFileExtension();
+	BuildRetainedSaveList( gui, -1 );
+	retainedLoadSelected = retainedLoadSlots.FindIndex( slot );
+	retainedLoadFirst = retainedLoadSelected >= 0 ? retainedLoadSelected / RETAINED_LOAD_ROWS * RETAINED_LOAD_ROWS : 0;
+	PublishRetainedLoadRows( gui );
+	PublishRetainedSaveSelection( gui, false );
 	return true;
 #else
 	return false;
@@ -6875,15 +6993,15 @@ asking first over an existing save and refusing to save over an autosave.
 */
 void idSessionLocal::HandleRetainedSaveRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
+	if ( RefreshRetainedSaveList( gui, request ) ) return;
 	const int count = retainedLoadSlots.Num();
 	if ( !idStr::Icmp( request, "saveBack" ) ) {
 		ReturnRetainedPage();
 		return;
 	}
-	if ( !idStr::Icmp( request, "saveSelect" ) ) {
-		const int row = gui->State().GetInt( "save.pick", "-1" );
-		const int index = retainedLoadFirst + row;
-		if ( row >= 0 && row < RETAINED_LOAD_ROWS && index < count ) {
+	if ( !idStr::Icmpn( request, "saveSelect", 10 ) ) {
+		int index = -1;
+		if ( Session_RetainedSaveOperand( request, "saveSelect", retainedSaveGeneration, count, index ) ) {
 			retainedLoadSelected = index;
 			PublishRetainedSaveSelection( gui, true );
 		}

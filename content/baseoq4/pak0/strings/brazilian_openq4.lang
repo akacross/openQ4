@@ -1386,4 +1386,11 @@
 	"#str_231311"	"Nomes dos falantes"
 	"#str_231312"	"Rádio"
 	"#str_231400"	"Configuração do Android"
+	"#str_231420"	"MANUAIS"
+	"#str_231421"	"AUTOMÁTICOS"
+	"#str_231422"	"LIMPAR FILTROS"
+	"#str_231423"	"NENHUM JOGO CORRESPONDENTE"
+	"#str_231424"	"Limpe o filtro para mostrar todos os jogos salvos."
+	"#str_231425"	"JOGOS ANTERIORES"
+	"#str_231426"	"PRÓXIMOS JOGOS"
 }

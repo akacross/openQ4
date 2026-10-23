@@ -218,6 +218,7 @@ bool SessionMenuCommand(const std::string& command) {
         "campaignSkillTurbo","campaignSkillStart","campaignSkillBack","campaignChapterSelect","campaignChapterStart",
         "loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
         "saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
+        "saveListRefresh","saveListSort","saveListFilterManual","saveListFilterAuto","saveListClear",
         "demosBack","demosSelect","demosPlay","demosDelete","demosRefresh","demosFilter",
         "demosNewer","demosOlder","modsSelect","modsLoad","deathRestart","deathLoad","deathMenu","creditsBack",
         "arenaBack","arenaTier0","arenaTier1","arenaTier2","arenaTier3","arenaTier4","arenaMatch0","arenaMatch1",
@@ -242,6 +243,25 @@ bool SessionMenuCommand(const std::string& command) {
 
 bool SessionMenuPlayerCommand(const std::string& command) {
 	return command == "mpSelectPlayer" || command == "mpMute" || command == "mpFriend";
+}
+
+bool SessionMenuSaveCommand(const std::string& command) {
+	return command == "loadSelect" || command == "saveSelect" || command == "loadSave" || command == "loadDelete";
+}
+
+// Catalog indices only mean something in the generation that published them.
+// Freeze both before the session drains requests (including an earlier refresh).
+std::optional<std::string> SessionMenuSaveRequest(const ActionInvocation& invocation) {
+	const auto command = invocation.arguments.find("command"), index = invocation.arguments.find("index"),
+		generation = invocation.arguments.find("generation");
+	if (invocation.arguments.size() != 3 || command == invocation.arguments.end() || index == invocation.arguments.end() ||
+		generation == invocation.arguments.end() || !std::holds_alternative<std::string>(command->second) ||
+		!SessionMenuSaveCommand(std::get<std::string>(command->second)) || !std::holds_alternative<double>(index->second) ||
+		!std::holds_alternative<double>(generation->second)) return {};
+	const double row = std::get<double>(index->second), serial = std::get<double>(generation->second);
+	if (!std::isfinite(row) || row < 0 || row > 2147483647.0 || std::floor(row) != row ||
+		!std::isfinite(serial) || serial < 1 || serial > 2147483647.0 || std::floor(serial) != serial) return {};
+	return std::get<std::string>(command->second)+" "+std::to_string(static_cast<int>(row))+" "+std::to_string(static_cast<int>(serial));
 }
 
 // Freeze a player operand in the typed queue. Reading card.client when Session
@@ -354,6 +374,11 @@ bool ValidOperation(const Action& action) {
 		if (command == action.arguments.end() || command->second.type != 2) return false;
 		const auto& expression = command->second;
 		const bool literal = expression.op.empty() && expression.state.empty() && expression.presentation.empty() && !expression.inputValue;
+		if (literal && SessionMenuSaveCommand(std::get<std::string>(expression.literal))) {
+			const auto index = action.arguments.find("index"), generation = action.arguments.find("generation");
+			return action.arguments.size() == 3 && index != action.arguments.end() && index->second.type == 0 &&
+				generation != action.arguments.end() && generation->second.type == 0;
+		}
 		if (literal && SessionMenuPlayerCommand(std::get<std::string>(expression.literal))) {
 			const auto client = action.arguments.find("client"), identity = action.arguments.find("identity");
 			return action.arguments.size() == 3 && client != action.arguments.end() && client->second.type == 0 &&
@@ -400,6 +425,11 @@ bool ValidInvocation(const ActionInvocation& invocation, std::string& error) {
 	}
 	if (invocation.operation == "session.menu") {
 		const auto command = invocation.arguments.find("command");
+		if (command != invocation.arguments.end() && std::holds_alternative<std::string>(command->second) &&
+			SessionMenuSaveCommand(std::get<std::string>(command->second))) {
+			if (SessionMenuSaveRequest(invocation)) return true;
+			error = "Invalid save catalog identity: "+invocation.action; return false;
+		}
 		if (command != invocation.arguments.end() && std::holds_alternative<std::string>(command->second) &&
 			SessionMenuPlayerCommand(std::get<std::string>(command->second))) {
 			if (SessionMenuPlayerRequest(invocation)) return true;
@@ -1488,10 +1518,11 @@ bool idUserInterfaceRetained::DispatchApplicationActions(const char* command, bo
 		if (invocation.operation == "session.menu") {
 			// Validated again at resolution; the session maps the verb itself.
 			const auto& command = std::get<std::string>(invocation.arguments.at("command"));
-			const auto request = SessionMenuPlayerCommand(command) ? SessionMenuPlayerRequest(invocation) : std::optional<std::string>(command);
+			const auto request = SessionMenuPlayerCommand(command) ? SessionMenuPlayerRequest(invocation) :
+				SessionMenuSaveCommand(command) ? SessionMenuSaveRequest(invocation) : std::optional<std::string>(command);
 			const bool accepted = request && impl->sessionRequests.size() < 64;
 			if (accepted) impl->sessionRequests.push_back(*request);
-			else impl->Error(request ? "Session menu request queue exceeded 64 requests" : "Invalid multiplayer player identity");
+			else impl->Error(request ? "Session menu request queue exceeded 64 requests" : "Invalid session target identity");
 			if (pending.proposalToken) impl->RuntimeView()->AcknowledgeControlProposal(pending.control,pending.proposalToken,accepted);
 			if (cvarSystem->GetCVarBool("ui_retainedTrace")) common->Printf("RETAINED_GUI_SESSION path=%s command=%s accepted=%d\n",
 				Name(),command.c_str(),accepted ? 1 : 0);
@@ -2027,6 +2058,13 @@ bool UI_RetainedViewFailed(idUserInterface* gui) {
 const openq4::ui::DocumentModel* UI_RetainedDocumentModel(idUserInterface* gui) {
 	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
 	return found == diagnosticViews.end() || (*found)->impl->document.Source().empty() ? nullptr : &(*found)->impl->document.Model();
+}
+
+std::string UI_RetainedFocusedControl(idUserInterface* gui) {
+	const auto found = std::find(diagnosticViews.begin(),diagnosticViews.end(),gui);
+	if (found == diagnosticViews.end()) return {};
+	const auto* runtime = (*found)->impl->RuntimeView();
+	return runtime ? runtime->FocusedControl() : std::string();
 }
 
 int UI_RetainedStateNames(idUserInterface* gui, const char* prefix, std::vector<std::string>& names) {

@@ -256,7 +256,7 @@ NAME_TINT, LOCATION_TINT = [1, 1, 1, 0.9], [1, 1, 1, 0.65]
 
 
 def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW_W,
-             chosen: list | None = None, location_x: float = LOCATION_X, family: Family = MARINE) -> dict:
+             chosen: list | None = None, location_x: float = LOCATION_X, family: Family = MARINE, guarded: bool = False) -> dict:
     """One of the list's rows: the save's name in the SAVE NAME column and its
     level in the LOCATION column (tabstops 0 and 180 u), Lowpixel at the stock
     list's textscale 0.22 (15.8 dp) on its 20 u pitch. Its first Accept selects
@@ -264,6 +264,8 @@ def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW
     it). `prefix` names the page's list state, `row_w` its row width and
     `location_x` where its second column starts."""
     ident, key = f"row-{index}", f"{prefix}.row{index}"
+    if guarded:
+        doc.state[f"{key}.context"] = {"type": "string", "initial": ""}
     doc.state[f"{key}.name"] = {"type": "string", "initial": ""}
     doc.state[f"{key}.location"] = {"type": "string", "initial": ""}
     width, height = U * row_w, U * ROW_H
@@ -288,7 +290,8 @@ def save_row(doc: Document, index: int, prefix: str = "load", row_w: float = ROW
     return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
                          "flex-shrink": number(0)},
                  [*row_plates(ident, width, height, family), name, location],
-                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids})
+                 control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids,
+                          **({"context": {"state": f"{key}.context"}} if guarded else {})})
 
 
 def pager_row(doc: Document, ident: str, key: str, action: str, shown: dict, row_w: float = ROW_W,
@@ -400,8 +403,8 @@ def check_text_fits(family: Family = MARINE) -> None:
     face, head = family.face, heading_face(family)[0]
     one_line = (("#str_200001", face, 22.3, U * 186), ("#str_200021", face, 22.3, U * 186),
                 ("#str_200925", head, 13, U * (LOCATION_X - 4)), ("#str_200926", head, 13, U * (ROW_W - LOCATION_X)),
-                ("#str_231100", face, 20, U * ROW_W), ("#str_231106", face, 16, U * (ROW_W - 18)),
-                ("#str_231107", face, 16, U * (ROW_W - 18)), ("#str_200000", "marine", 20, newgame_width() - 30))
+                ("#str_231100", face, 20, U * ROW_W), ("#str_231425", face, 16, U * (ROW_W - 18)),
+                ("#str_231426", face, 16, U * (ROW_W - 18)), ("#str_200000", "marine", 20, newgame_width() - 30))
     wrapped = (("#str_231101", "lowpixel", 17, U * ROW_W, 2),) + tuple(
         (key, "lowpixel", 15, U * (ERROR_STRIP[2] - 8), 3) for key in ("#str_231102", "#str_231103", "#str_231104", "#str_231105"))
     for key, face, size, width in one_line:
@@ -420,6 +423,91 @@ def check_text_fits(family: Family = MARINE) -> None:
                 raise SystemExit(f"{key} in {language} needs {lines_needed(face, text, size, width)} lines of {allowed}")
 
 
+def browser_button(doc: Document, ident: str, key: str, action: str, left: float, top: float,
+                   width: float, family: Family, selected: dict | None = None, sort: bool = False) -> dict:
+    """Header-band filter/action plate; family colors, cut, focus and editable symbols."""
+    w, h = width * U, 22 * U
+    cut = 5 * U
+    shape = [(0, 0), (w, 0), (w, h), (cut, h), (0, h - cut)]
+    whole = absolute(left=0, top=0, width=w, height=h)
+    plate = vector(f"{ident}-plate", {**whole, "opacity": number(0.28)}, [
+        path("fill", shape, fill=solid([0, 0, 0, 1])),
+        path("rail", [(0.75, 0), (0.75, h-cut), (cut, h-0.75), (w, h-0.75)], closed=False,
+             stroke=stroke(solid(rgb(family.rule)), 1.2))])
+    hot = vector(f"{ident}-hot", {**whole, "opacity": number(0)}, [path("fill", shape, fill=solid(rgb(family.rule, 0.35)))])
+    text = label(f"{ident}-label", key, {**absolute(left=8*U, top=0, width=w-24*U, height=h),
+                 **typeface("lowpixel", 14, h, family.tint(0.8)), "white-space": keyword("nowrap")})
+    parts = [plate, hot, text]
+    if selected is not None:
+        doc.bind(f"{ident}.selected", f"{ident}-plate", "opacity", {"op": "select", "args": [selected, 0.60, 0.28]})
+        cross = vector(f"{ident}-cross", {**whole, "display": keyword("none")}, [
+            path("a", [(w-12*U, h/2-3), (w-8*U, h/2+3)], closed=False, stroke=stroke(solid(family.tint(0.8)), 1.2)),
+            path("b", [(w-12*U, h/2+3), (w-8*U, h/2-3)], closed=False, stroke=stroke(solid(family.tint(0.8)), 1.2))])
+        doc.bind(f"{ident}.cross", f"{ident}-cross", "display", {"op": "select", "args": [selected, "block", "none"]})
+        parts.append(cross)
+    if sort:
+        mode = {"state": "browser.sort"}
+        doc.bind(f"{ident}.label", f"{ident}-label", "text", {"op": "select", "args": [
+            {"op": "<", "args": [mode, 2]}, "#str_41557", {"op": "select", "args": [
+                {"op": "<", "args": [mode, 4]}, "#str_200925", "#str_200926"]}]})
+        ascending = {"op": "||", "args": [{"op": "==", "args": [mode, 1]}, {"op": "||", "args": [
+            {"op": "==", "args": [mode, 2]}, {"op": "==", "args": [mode, 4]}]}]}
+        for name, points, condition in (
+            ("up", [(w-13*U, h/2+4), (w-8*U, h/2-4), (w-8*U, h/2+4)], ascending),
+            ("down", [(w-13*U, h/2-4), (w-8*U, h/2+4), (w-8*U, h/2-4)], {"op":"!", "args":[ascending]})):
+            symbol=vector(f"{ident}-{name}", {**whole, "display": keyword("block")}, [path("marker", points, fill=solid(rgb(family.hot)))])
+            doc.bind(f"{ident}.{name}", f"{ident}-{name}", "display", {"op":"select", "args":[condition, "block", "none"]})
+            parts.append(symbol)
+    ids=doc.states(ident, {state: [(f"{ident}-hot", "opacity", number(0 if state in ("default", "disabled") else 1)),
+                                (f"{ident}-label", "color", colour(family.tint(0.8 if state == "default" else 0.3) if state in ("default","disabled") else rgb(family.hot)))]
+                           for state in ("default", "hover", "focus", "pressed", "disabled")})
+    art=group(f"{ident}-art", {**whole, "pointer-events": keyword("none")}, parts)
+    return group(ident, absolute(left=U*left, top=U*top, width=w, height=h), [art],
+                 control={"role":"button", "label":key, "action":action, "states":ids})
+
+
+def save_browser(doc: Document, prefix: str, left: float, width: float, family: Family) -> list:
+    doc.state.update({"browser.sort":{"type":"number","initial":0}, "browser.filter":{"type":"number","initial":0},
+                      "browser.total":{"type":"number","initial":0}, "browser.generation":{"type":"number","initial":0},
+                      "browser.context":{"type":"string","initial":""}})
+    for action, command in (("refresh","saveListRefresh"), ("sort","saveListSort"), ("manual","saveListFilterManual"),
+                            ("automatic","saveListFilterAuto"), ("clearFilters","saveListClear")):
+        doc.session(action,command)
+    doc.events["onSecondary"]=[{"op":"action","action":"refresh"}]
+    doc.events["onTertiary"]=[{"op":"action","action":"sort"}]
+    for row in range(ROWS):
+        doc.events[f"browserFocus{row}"]=[{"op":"focus","control":f"row-{row}"}]
+    doc.events["browserFocusRefresh"]=[{"op":"focus","control":"browser-refresh"}]
+    for action, state in (("select", {"op":"+", "args":[{"state":f"{prefix}.first"},{"state":f"{prefix}.pick"}]}),
+                          *(([("save", {"state":"load.selected"}), ("delete", {"state":"load.deleteIndex"})]) if prefix == "load" else [])):
+        doc.actions[action]["arguments"].update({"index":state, "generation":{"state":"load.deleteGeneration" if action == "delete" else "browser.generation"}})
+    filtered={"op":"!=", "args":[{"state":"browser.filter"},0]}
+    for node, ordinary, filtered_key in ((f"{prefix}-empty-heading","#str_231100","#str_231423"),
+                                          (f"{prefix}-empty-text","#str_231101","#str_231424")):
+        doc.bind(f"{node}.text",node,"text",{"op":"select","args":[filtered,filtered_key,ordinary]})
+    nodes=[]
+    x=left
+    for ident,key,action,index in (("manual","#str_231420","manual",1),("automatic","#str_231421","automatic",2)):
+        w=24+max(text_width("lowpixel",text,14) for text in table_text(key).values())/U
+        nodes.append(browser_button(doc,f"browser-{ident}",key,action,x,37,w,family,{"op":"==","args":[{"state":"browser.filter"},index]}))
+        x+=w+4
+    w=24+max(text_width("lowpixel",text,14) for key in ("#str_41557","#str_200925","#str_200926") for text in table_text(key).values())/U
+    if x+w > left+width: raise SystemExit("save browser toolbar exceeds its list")
+    nodes.append(browser_button(doc,"browser-sort","#str_41557","sort",x,37,w,family,sort=True))
+    x=35
+    for ident,key,action in (("refresh","#str_200028","refresh"),("clear","#str_231422","clearFilters")):
+        w=24+max(text_width("lowpixel",text,14) for text in table_text(key).values())/U
+        node=browser_button(doc,f"browser-{ident}",key,action,x,435,w,family)
+        if ident == "clear":
+            node["properties"]["display"] = keyword("none")
+            doc.bind("browser-clear.display","browser-clear","display",{"op":"select","args":[filtered,"block","none"]})
+        nodes.append(node)
+        x+=w+8
+    # Keep the prompt bar's Select and Back clear even in the longest locale.
+    if x > 395: raise SystemExit("save browser prompts overlap Select")
+    return nodes
+
+
 def load_game_document(family: Family = MARINE) -> dict:
     check_text_fits(family)
     doc = Document(f"openq4.loadgame{family.suffix}")
@@ -433,6 +521,9 @@ def load_game_document(family: Family = MARINE) -> dict:
         "load.date": {"type": "string", "initial": ""},
         "load.time": {"type": "string", "initial": ""},
         "load.error": {"type": "string", "initial": ""},
+        "load.context": {"type": "string", "initial": ""},
+        "load.deleteIndex": {"type": "number", "initial": -1},
+        "load.deleteGeneration": {"type": "number", "initial": 0},
     })
     for action, command in (("back", "loadBack"), ("select", "loadSelect"), ("save", "loadSave"), ("delete", "loadDelete"),
                             ("newer", "loadNewer"), ("older", "loadOlder"), ("newGame", "loadNewGame")):
@@ -460,8 +551,9 @@ def load_game_document(family: Family = MARINE) -> dict:
     doc.bind("load-time.text", "load-time", "text", {"state": "load.time"})
     plates = []
     for ident, key, left, top, action in PLATES:
-        plates.append(section_plate(doc, ident, key, left, top, action=action, event=None if action else "deleteModalShow",
+        plates.append(section_plate(doc, ident, key, left, top, action=action, event=None if action else "deleteRequested",
                                     family=family))
+        plates[-1]["control"]["context"] = {"state": "load.context"}
         doc.bind(f"{ident}.enabled", ident, "enabled", chosen)
 
     # The trailing side: headings over an olive rule, then the list.
@@ -474,9 +566,9 @@ def load_game_document(family: Family = MARINE) -> dict:
         vector("load-rule", absolute(left=U * LIST_LEFT, top=U * RULE_Y - 0.6, width=U * LIST_W, height=1.2), [
             path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(family.rule, 0.26)), 1.2))]),
     ]
-    rows = [save_row(doc, index, family=family) for index in range(ROWS)]
-    newer = pager_row(doc, "page-newer", "#str_231106", "newer", {"op": ">", "args": [{"state": "load.first"}, 0]}, family=family)
-    older = pager_row(doc, "page-older", "#str_231107", "older",
+    rows = [save_row(doc, index, family=family, guarded=True) for index in range(ROWS)]
+    newer = pager_row(doc, "page-newer", "#str_231425", "newer", {"op": ">", "args": [{"state": "load.first"}, 0]}, family=family)
+    older = pager_row(doc, "page-older", "#str_231426", "older",
                       {"op": "<", "args": [{"op": "+", "args": [{"state": "load.first"}, ROWS]}, {"state": "load.count"}]},
                       family=family)
     column = group("load-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")},
@@ -501,18 +593,23 @@ def load_game_document(family: Family = MARINE) -> dict:
     ])
     doc.bind("load-empty.display", "load-empty", "display",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "load.count"}, 0]}, "block", "none"]})
-    doc.bind("load_newgame.display", "load_newgame", "display", {"op": "select", "args": [{"state": "load.ingame"}, "none", "block"]})
+    doc.bind("load_newgame.display", "load_newgame", "display", {"op": "select", "args": [
+        {"op":"||", "args":[{"state":"load.ingame"},{"op":"!=", "args":[{"state":"browser.filter"},0]}]}, "none", "block"]})
 
+    toolbar = save_browser(doc, "load", LIST_LEFT, ROW_W, family)
     back = page_prompts(doc, "load_back", action="back", **family.prompts())
     # The plates show at once, under the title the home carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.
     # The plates follow the panel, whose full-size box would take their hits.
     panel = group("load-panel", {**FULL, "opacity": number(1)}, [*shot_parts, error, date, time_node, *headings, viewport, scrollbar,
-                                                                  empty, back])
+                                                                  empty, back, *toolbar])
     stage = group("load-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
                   [panel, *plates])
 
     modal = confirmation(doc, "deleteModal", "#str_200021", "#str_200245", None, yes_event="deleteConfirmed")
+    doc.events["deleteRequested"] = [{"op":"setState", "values":{"load.deleteIndex":{"state":"load.selected"},
+                                                                  "load.deleteGeneration":{"state":"browser.generation"}}},
+                                      {"op":"call", "event":"deleteModalShow"}]
     doc.events["deleteConfirmed"] = [{"op": "call", "event": "deleteModalHide"}, {"op": "action", "action": "delete"}]
 
     doc.timelines.add("arrive", 150, [track(node, "opacity", [(0, number(0)), (1, number(0)), (150, number(1))])
@@ -634,7 +731,7 @@ def check_save_text_fits(family: Family = MARINE) -> None:
     face, head = family.face, heading_face(family)[0]
     one_line = (("#str_200003", face, 22.3, U * SAVE_LABEL_W), ("#str_200925", head, 13, U * (LOCATION_X - 4)),
                 ("#str_200926", head, 13, U * (SAVE_ROW_W - LOCATION_X)), ("#str_231100", face, 20, U * SAVE_ROW_W),
-                ("#str_231106", face, 16, U * (SAVE_ROW_W - 18)), ("#str_231107", face, 16, U * (SAVE_ROW_W - 18)),
+                ("#str_231425", face, 16, U * (SAVE_ROW_W - 18)), ("#str_231426", face, 16, U * (SAVE_ROW_W - 18)),
                 ("#str_200923", "marine", 20, CLOSE_W - 30),
                 ("#str_231108", "lowpixel", 14, U * NAME_FIELD[2]), ("#str_231109", "lowpixel", NAME_TEXT, U * NAME_FIELD[2]),
                 ("#str_200252", "marine", 20, WIDE_TITLE_W), ("#str_200266", "marine", 20, TITLE_W))
@@ -702,10 +799,10 @@ def save_game_document(family: Family = MARINE) -> dict:
             path("rule", [(0, 0.6), ({"fraction": 1}, 0.6)], closed=False, stroke=stroke(solid(rgb(family.rule, 0.26)), 1.2))]),
     ]
     chosen = [{"op": "call", "event": "saveRequested"}]
-    rows = [save_row(doc, index, "save", SAVE_ROW_W, chosen, family=family) for index in range(ROWS)]
-    newer = pager_row(doc, "page-newer", "#str_231106", "newer", {"op": ">", "args": [{"state": "save.first"}, 0]}, SAVE_ROW_W,
+    rows = [save_row(doc, index, "save", SAVE_ROW_W, chosen, family=family, guarded=True) for index in range(ROWS)]
+    newer = pager_row(doc, "page-newer", "#str_231425", "newer", {"op": ">", "args": [{"state": "save.first"}, 0]}, SAVE_ROW_W,
                       family=family)
-    older = pager_row(doc, "page-older", "#str_231107", "older",
+    older = pager_row(doc, "page-older", "#str_231426", "older",
                       {"op": "<", "args": [{"op": "+", "args": [{"state": "save.first"}, ROWS]}, {"state": "save.count"}]}, SAVE_ROW_W,
                       family=family)
     column = group("save-column", {"position": keyword("relative"), "display": keyword("flex"), "flex-direction": keyword("column")},
@@ -731,9 +828,10 @@ def save_game_document(family: Family = MARINE) -> dict:
     doc.bind("save_go.enabled", "save_go", "enabled",
              {"op": "||", "args": [{"op": "!=", "args": [{"state": "save.name"}, ""]}, {"state": "ui.numberDraftsPending"}]})
     field = name_field(doc, family)
+    toolbar = save_browser(doc, "save", SAVE_LIST_LEFT, SAVE_ROW_W, family)
     back = page_prompts(doc, "save_back", action="back", **family.prompts())
     # SAVE GAME follows the panel, whose full-size box would take its hits.
-    panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(family), field, back])
+    panel = group("save-panel", {**FULL, "opacity": number(1)}, [*headings, viewport, scrollbar, empty, name_plate(family), field, back, *toolbar])
     stage = group("save-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
                   [panel, save_plate])
 
