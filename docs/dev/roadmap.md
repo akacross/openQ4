@@ -254,11 +254,22 @@ Sources: [Vulkan gap history](archive/2026-10-18/plans/2026-09-20-vulkan-gap-clo
   the declared budget, or a reviewed support-scope limitation tied to retained
   reproduction evidence. Merely recording an exception does not qualify a failing
   configuration as supported.
-- [ ] **VK-03 — P1, implementation: finish bounded device admission and recovery.**
+- [x] **VK-03 — P1, implementation: finish bounded device admission and recovery.**
   Audit fixed-size instance/extension enumeration, optional extension truncation,
   the explicit-device index limit and retry after later resource/device creation
   failure. Preserve explicit adapter selection. Exercise incomplete/error/capacity
   driver responses, automatic fallback, repeated restart and resource cleanup.
+  Completed, 23 October: [complete inventories and adapter retry](vulkan-device-selection.md#complete-inventories-and-adapter-retry-23-october-2026-vk-03)
+  replace every fixed-size or truncating list (probe layers/extensions, renderer
+  instance and window extensions, the optional device-extension lookup, present
+  modes, an eight-image swapchain cap) with complete, fail-closed inventories.
+  Automatic starts resume on the next compatible adapter after a logical-device,
+  swapchain or resource failure (bounded to four); explicit `r_vkDevice` choices
+  never substitute and accept indices to 255. 107 native fake-driver cases, the
+  production startup route against adapter doubles and hardware drills
+  (`r_vkStartupFailureDevice`) on NVIDIA/Dozen/Intel cover it; three repeated
+  `vid_restart`s in airdefense1 held Vulkan memory at the same blocks and
+  allocations. Physical AMD, Linux and MoltenVK qualification stays under VK-01.
 - [ ] **VK-04 — P1, qualification and targeted implementation: authored material
   parity.** Expand executable GLSL/ARB and VFS-override coverage across mixed and
   custom lighting, alpha/translucent receivers, animated models, texgen, decals,
@@ -270,12 +281,28 @@ Sources: [Vulkan gap history](archive/2026-10-18/plans/2026-09-20-vulkan-gap-clo
   native path. Specify the supported subset and missing-stage/material/frame
   fallback policy; test appearance, diagnostics and recovery after reload. Existing
   per-program compile/allocation diagnostics should be retained, not recreated.
+  Progress, 23 October: the [rejection, capacity and fallback policy](vulkan-material-programs.md#rejection-capacity-and-fallback-policy-23-october-2026-vk-04)
+  is specified and implemented. Skips are per stage and reported once per program
+  and reason; `reportShaderPrograms` lists state, diagnostics, draws, skips and
+  stale versions. The 256-version table evicts frame-safe stale versions instead
+  of filling for good, a full ARB table no longer ends the session, the
+  per-frame draw and program-pipeline limits are raised, and capacity warnings no
+  longer repeat every frame. Shader parameters with no Vulkan value follow GL
+  (registers or default) instead of skipping the stage, and authored pipelines
+  honour alpha-to-coverage. Paired GL/Vulkan reload, mixed-lighting and mod
+  qualification on this build remain open.
 - [ ] **VK-05 — P1, implementation and qualification: internal HDR and complex
   view composition.** Extend complete-scene admission for remaining baked/material,
   portal, capture, nested and authored-post combinations. Verify radiance, alpha,
   image orientation, exposure, reset and whole-view fallback. Current production
   PBR is display-referred; internal linear HDR and HDR monitor output are separate
   capabilities. Share temporal/shadow acceptance with REN-03/REN-04 and HF-06.
+  Progress, 23 October: [domain changes and late failures](vulkan-hdr.md#domain-changes-settling-and-admission-counts-23-october-2026-vk-05)
+  now keep per-domain exposure, invalidate temporal history on a flip, settle a
+  linear view that missed its output, and release the accumulation after a failed
+  combine. `rendererVulkanHDRInfo` reports the main view's outcome and per-map
+  admission counts. The GPU self-tests pass under validation. No declined
+  combination was admitted; classic ambient blends were shown unsafe to admit.
 - [ ] **VK-06 — P2, measured optimization: submission and resource lifetime.**
   Profile descriptor/pipeline churn, barriers, command recording, uploads and
   attachment reuse before changing them. Preserve GUI/transparency/post order,
@@ -286,6 +313,14 @@ Sources: [Vulkan gap history](archive/2026-10-18/plans/2026-09-20-vulkan-gap-clo
   graphics queue; the timeline-semaphore bring-up test does not prove asynchronous
   production overlap. A measured decision to defer a mechanism is valid; adding
   it without a workload and correctness/benefit gate is not required modernization.
+  Decision, 23 October (pipeline warm-up): deferred. The 6 October Intel Xe
+  measurement of airdefense1 plus a full camera sweep created 33 pipelines in
+  49 ms total (slowest 11 ms) from an empty cache and 4 ms (slowest 0.5 ms) from
+  the persisted cache, which is written at shutdown and before each level load
+  (`VulkanDevice.cpp`). Revisit only with a stock or mod workload whose
+  first-encounter hitch exceeds that. The cache keeps one blob for the last
+  device; switching adapters (including the new automatic retry) discards it.
+  Indirect/Hi-Z, parallel recording and upload overlap still need their profile.
 - [ ] **VK-07 — P2, qualification: capture and developer diagnostics.** Compare
   Vulkan debug views and engine captures with their GL contracts for color/depth/
   stencil interpretation, cubemap faces, nested targets, clipping/depth hacks,
@@ -293,6 +328,13 @@ Sources: [Vulkan gap history](archive/2026-10-18/plans/2026-09-20-vulkan-gap-clo
   and intentional asynchronous diagnostic readbacks. Require labelled frame
   identity, bounded deferred resources and no accidental current-frame wait or
   stale result presented as current. Use engine-generated captures throughout.
+  Progress, 23 October: the [capture inventory](vulkan-captures.md) records every
+  readback's timing and identity. `glReadPixels` no longer returns a cleared
+  frame or a skewed, resized rectangle as success, failed captures are not saved
+  as screenshots, hidden-window frames are readable whatever the surface allows,
+  and stencil readbacks print their frame, age, view and target and are dropped
+  after a failed submission. GL-contract comparisons for cubemaps, nested
+  targets, MSAA and capture-time resize/restart remain open.
 
 ## Modern rendering engine
 

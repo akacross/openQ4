@@ -48,6 +48,27 @@ completed release material here and publish curated notes in `releases/`.
   developer tooling with no player-visible change; nothing has been accepted
   with it yet.
 
+## Vulkan roadmap round, 23 October 2026
+
+- [x] VK-03: complete, fail-closed device and instance inventories; automatic
+  starts resume on the next compatible GPU after a device, swapchain or resource
+  failure, bounded to four adapters, while explicit `r_vkDevice` choices never
+  substitute. 107 native fake-driver cases, the production startup route
+  against adapter doubles, and NVIDIA/Dozen/Intel hardware drills pass.
+- [x] VK-04: authored GLSL/ARB stages follow a specified per-stage fallback
+  policy with once-per-reason reports and a fuller `reportShaderPrograms`. The
+  version table evicts stale versions, a full ARB table no longer ends the
+  session, and shader parameters with no Vulkan value follow OpenGL.
+- [x] VK-05: per-domain exposure, temporal-history invalidation and settling of
+  late linear-HDR failures; `rendererVulkanHDRInfo` reports admission counts.
+- [x] VK-07: Vulkan captures fail closed instead of saving cleared, skewed or
+  unread images, and stencil diagnostics carry frame and view identity.
+- Evidence and limits: [device admission](vulkan-device-selection.md),
+  [material programs](vulkan-material-programs.md), [HDR](vulkan-hdr.md) and
+  [captures](vulkan-captures.md). AMD, physical Linux and MoltenVK hardware
+  (VK-01), presentation pacing (VK-02) and the measured VK-06 work remain open.
+  Candidate player wording is in [unreleased notes](releases/unreleased.md).
+
 ## Save browser controls, 23 October 2026
 
 - [x] Add date/name/location sorting, manual/autosave filter tags and explicit

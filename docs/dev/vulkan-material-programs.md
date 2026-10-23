@@ -44,7 +44,7 @@ runtime draw interface is:
 
 | Resource | Binding | Layout |
 |---|---|---|
-| Per-draw data | Set 0, binding 0 | 1,312-byte std140 block |
+| Per-draw data | Set 0, binding 0 | 1,328-byte std140 block |
 | Authored textures | Set 1, bindings 0–7 | Separate combined image samplers |
 | Vertex inputs | Locations 0–5 | Position, color, normal, tangent, bitangent, UV |
 
@@ -328,6 +328,59 @@ Remaining work includes:
 The broader HDR/PBR/shadow, filtering, performance, CI, hardware and release
 requirements in the [gap-closure plan](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md)
 remain in force.
+
+## Rejection, capacity and fallback policy (23 October 2026, VK-04)
+
+**What draws.** A stock GLSL or ARB pair whose sources match a recorded
+signature draws through its native Vulkan family. Every other program stage is
+authored: GLSL compiles in process, ARB is translated first, and a valid
+version draws through the generic executor. `r_vkARBTranslation 2` also
+translates stock pairs as a diagnostic; when that translation fails, the native
+family still draws and the log says so once per material.
+
+**What is skipped, and how you see it.** The unit of fallback is the stage.
+An authored stage that cannot draw is skipped, and the rest of the material and
+frame draw normally. Nothing substitutes another program or a flat colour. Each
+skip is reported once per program and reason until the next reload: compile or
+translation failure, missing or mismatched texture, unavailable `fragmentMap`,
+pipeline, uniform-ring or descriptor exhaustion, or no open rendering scope.
+These lines replace the earlier single warning per program, which hid every
+later reason. An authored ARB material that cannot draw at all is named once
+per material, not once per session. The set of reported pairs is bounded at
+512; later pairs are counted as suppressed. `reportShaderPrograms` now lists
+every version as compiled or invalid, current or stale, with its draws and skips
+since the last reload, the last skip reason and the compiler diagnostic.
+
+**GL parity for shader parameters.** OpenGL's `RB_BindGLSLShaderParm` declines a
+binding it has no value for, such as a per-light vector on an ambient stage or a
+sample array, and still draws the stage: the parameter takes its registers or
+keeps its default. Vulkan now does the same instead of skipping the stage.
+Per-light bindings outside an interaction stay quiet, as on GL; any other
+binding with no Vulkan value is reported once. Authored pipelines also honour
+the stage's alpha-to-coverage bit, as GL's `GL_State` and the native families do.
+
+**Bounded resources.**
+
+| Resource | Limit | At the limit |
+|---|---|---|
+| Registered ARB program names | 1,024 (GL: 200, with 48 built-ins) | Warns once per name; the declaring stage is skipped. It no longer ends the session. |
+| Authored program versions | 256 | A new version evicts the least recently drawn version that no current key names and that no frame in flight can still use. Its shader modules and pipelines are released. If every version is current or in flight, the stage is skipped and retried once the frames have retired; its sources are not re-read on every draw. |
+| Compiler storage | 32 MiB | The version is invalid ("storage exhausted"); evictions return their bytes. |
+| Authored draws per frame | 8,192 (four chained pools of 2,048) | The draw is skipped and reported. |
+| Program pipelines (native and authored) | 512 (was 128) | Reported once; later program stages are skipped. |
+| Per-frame vertex, index and uniform rings | 4 MiB uniform | Reported at the first overflowing frame and at each power of two, naming the ring. The old message called every ring "geometry". |
+
+**Reload.** `reloadGLSLprograms` and `reloadARBprograms` clear the lookup state,
+the skip counts and the reported pairs. Each version is re-validated on its next
+use, and an unchanged source reuses its version, including an invalid one,
+which reports its diagnostic again once. Repeated edits no longer exhaust the
+table: stale versions are evicted as above.
+
+Evidence is limited to the implementation: the Vulkan module builds cleanly,
+the related source contracts pass, and stock gameplay (airdefense1, two
+registered ARB programs, no authored versions) reports through the new lines.
+Live-edit, capacity and eviction behaviour still needs the material reload
+laboratory on the current build, and a mod-content corpus.
 
 ## Dependency provenance
 
