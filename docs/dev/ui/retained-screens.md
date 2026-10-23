@@ -234,7 +234,7 @@ characters; this revision preserves those descriptions as the register requires.
 ## One gate (session screens)
 
 `ui_retained` is the only switch for these screens. It defaults to 1 in the
-current source ([CVar declaration](../../../src/framework/Session_menu.cpp))
+current source ([CVar declaration](https://github.com/themuffinator/openQ4/blob/main/src/framework/Session_menu.cpp))
 and is archived, so an existing player preference is preserved.
 `seta ui_retained 0` selects the stock screens; `seta ui_retained 1` selects
 the retained interface. The 0.14.000 release shipped with a default of 0;
