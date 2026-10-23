@@ -24,6 +24,24 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Multiplayer roster reachability, 23 October 2026
+
+- [x] Keep multiplayer player lists and summary scoreboards readable with fixed
+  headings, 24 dp rows and scrolling through all 32 connection slots. Late
+  players and spectators remain reachable; refresh and view restoration retain
+  the scroll, while a smaller roster clears obsolete offsets. The kick chooser
+  also includes every other connection. This leaves the configured server limit
+  of 16 unchanged.
+- [x] Pass the full Windows build/stage, six native suites, the session gate,
+  four capture-oracle tests and generated-document checks. Review 30 engine
+  screenshots from OpenGL at 1280×720 and Vulkan at 1920×1080, using live
+  three-player gameplay plus explicit 32-slot production-document fixtures.
+  This does not qualify a 32-client network session. Existing stock/bot precache
+  warnings remain; there are no retained-UI warnings or errors in either run.
+  [Evidence and remaining scope](ui/multiplayer-menus.md#full-roster-scrolling-23-october-2026)
+  keep the broader UI-03, device, layout and performance gates open.
+- Candidate player wording is included in [baseline refinements](releases/baseline-refinements.md).
+
 ## UI settings and control follow-through, 23 October 2026
 
 - [x] Refresh an open, clean SYSTEM page after external settings and performance

@@ -624,11 +624,16 @@ archived provenance; new scheduling belongs here.
   held-source handling and a working fallback before claiming live IME support.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
-  lists beyond sixteen players/48 maps, stable refresh focus, contextual disabled
+  map catalogs beyond 48 entries, stable refresh focus, contextual disabled
   reasons and role-specific vote operations. Bind mute/friend state to the right
   occupant across slot reuse. Complete save sorting/filter/refresh, chapter and
   objective/play-time details, Strogg confirmations, loading handoffs, remote-load
   arsenal and MVD rosters. Qualify real task completion and failure/cancellation.
+  Progress, 23 October: [full roster scrolling](ui/multiplayer-menus.md#full-roster-scrolling-23-october-2026)
+  removes the 16-row publication/document limit from Welcome, Players and the
+  summary's Statistics/Scoreboard pages. Rows keep a 24 dp pitch beneath fixed
+  headings; kick choices cover the engine's connection table. This bounded
+  implementation does not change server capacity or accept the full UI-03 scope.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder

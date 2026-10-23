@@ -1326,6 +1326,9 @@ if build_engine or get_option('build_native_tests')
     # The match summary card (ui-visual-design.md 14.14).
     test('openq4-ui-retained-summary', openq4_ui_retained_screens_test,
       args: ['--summary', meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_summary.q4ui'], timeout: 240)
+    test('openq4-ui-retained-rosters', openq4_ui_retained_screens_test,
+      args: ['--rosters', retained_screens_documents[6], retained_screens_documents[7],
+        meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/mp_summary.q4ui'], timeout: 120)
     # The multiplayer quick-chat wheel (ui-visual-design.md 14.6).
     test('openq4-ui-quick-chat', openq4_ui_retained_screens_test,
       args: ['--quick-chat', meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/quick_chat.q4ui'], timeout: 120)

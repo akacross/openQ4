@@ -563,16 +563,17 @@ def team_page(doc: Document, index: int, ident: str, width: float, height: float
 
 # The lists: the player's own team (or Marines while spectating, or everyone
 # outside team modes), the other team, then the spectators, each as many rows
-# as a server can hold (si_maxPlayers is at most 16). The game fills them in
+# as the engine's connection table can hold (MAX_CLIENTS is 32). The game fills them in
 # this order (RETAINED_PLAYER_LISTS and RETAINED_PLAYER_ROWS in the game) and
 # says which band color each list takes: Marine, Strogg, spectators or the
 # deathmatch olive.
 PLAYER_LISTS = (("a", (0, 1, 3)), ("b", (0, 1)), ("s", (2,)))
-PLAYER_ROWS = 16
+PLAYER_ROWS = 32
 BAND_TINTS = (MP_MARINE, MP_STROGG, MP_SPECTATOR, MP_NEUTRAL)
 LIST_W = 380.0                 # the lists' column; the statistics take the rest
 LIST_HEAD_H, LIST_BAND_H, LIST_GAP = 16.0, 22.0, 6.0
-ROW_MIN, ROW_MAX = 14.0, 24.0  # a row's pitch, shrinking with the entries (section 14.14)
+ROW_MAX = 24.0                # fixed readable pitch; long rosters scroll (section 14.14)
+ROSTER_GUTTER = 36.0          # the shared authored scrollbar's target, outside the rows
 ROW_FACE = 14.0
 NAME_KEY, SCORE_KEY, PING_KEY = "#str_200242", "#str_200198", "#str_200037"
 KILLS_KEY, DEATHS_KEY, ACCURACY_KEY, AWARDS_KEY = "#str_200201", "#str_200202", "#str_200203", "#str_200204"
@@ -707,7 +708,7 @@ def player_row(doc: Document, prefix: str, kind: str, row: int, width: float, co
                                          "flex-direction": keyword("row"), "align-items": keyword("center"), "pointer-events": keyword("none")},
                     [marker, spacer, speaker, friend, name, score, ping])
     props = {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(ROW_MAX),
-             "min-height": length(ROW_MIN), "flex-shrink": number(1)}
+             "flex-shrink": number(0)}
     if interactive:
         ids = doc.states(ident, {
             "default": [(f"{ident}-focus", "opacity", number(0)), (f"{ident}-name", "color", colour([1, 1, 1, 0.85]))],
@@ -728,16 +729,49 @@ def player_row(doc: Document, prefix: str, kind: str, row: int, width: float, co
     return node, ident
 
 
+def roster_frame(doc: Document, prefix: str, width: float, height: float, headings: dict, children: list,
+                 key: str = "#str_231002") -> tuple[dict, str]:
+    """Fixed column headings above a bounded roster viewport. The scrollbar
+    reuses the production list artwork and semantic navigation, including
+    focus reveal, Home/End, paging and view-state restoration."""
+    body_top = LIST_HEAD_H
+    body_height = height - body_top
+    column = group(f"{prefix}-column", {"position": keyword("relative"), "display": keyword("flex"),
+                                      "flex-direction": keyword("column")}, children)
+    viewport = group(f"{prefix}-viewport", {**absolute(left=0, top=body_top, width=width - ROSTER_GUTTER, height=body_height),
+                                           "overflow": keyword("auto")}, [column])
+    bar = f"{prefix}-scroll"
+    scrollbar = b.objectives_scrollbar(doc, bar, f"{prefix}-viewport", OLIVE, ORANGE,
+                                      width - ROSTER_GUTTER, body_top, body_height, line_step=ROW_MAX, key=key)
+    return group(f"{prefix}-lists", absolute(left=0, top=0, width=width, height=height),
+                 [headings, viewport, scrollbar]), bar
+
+
+def roster_focus(prefix: str, height: float, tab: str) -> list:
+    """Read-only lists focus their bar only when the authored rows overflow.
+    A short roster leaves navigation on the tab instead of an inactive bar."""
+    total = 0
+    for kind, _tints in PLAYER_LISTS:
+        count = {"state": f"mp.players.{kind}.count"}
+        shown = {"op": ">", "args": [count, 0]} if kind == "s" else {"state": f"mp.players.{kind}.shown"}
+        band = {"op": "select", "args": [shown, LIST_BAND_H + (0 if kind == "a" else LIST_GAP), 0]}
+        rows = {"op": "*", "args": [count, ROW_MAX]}
+        total = {"op": "+", "args": [total, {"op": "+", "args": [band, rows]}]}
+    return [{"op": "focus", "control": f"tab-{tab}"},
+            {"op": "if", "condition": {"op": ">", "args": [total, height - LIST_HEAD_H]},
+             "then": [{"op": "focus", "control": f"{prefix}-scroll"}]}]
+
+
 def player_lists(doc: Document, prefix: str, width: float, height: float, interactive: bool = True) -> tuple[dict, list, list]:
     """The team lists (section 14.18 with the scoreboard's rows, section
     14.14): headings once above them, then each list's band in its team's
     color with its title and score over its rows; the spectators' band shows
-    only while there are spectators. The lists are one flex column: each row
-    is 24 dp and shrinks with the others, down to 14 dp, to share what the
-    bands leave, so sixteen players and three bands fit; rows past that are
-    clipped. Returns the lists, their controls and the steps that focus the
+    only while there are spectators. Rows keep their 24 dp pitch in a scrolling
+    column under fixed headings. Returns the lists, their controls and the steps that focus the
     player whose statistics show (or the first row). Without `interactive`
-    the rows are not controls and the page's tab keeps the focus."""
+    the rows are not controls and the scrollbar takes focus when it can scroll."""
+    outer_width = width
+    width -= ROSTER_GUTTER
     if interactive:
         doc.state.update({"card.client": {"type": "number", "initial": -1}, "mp.stat.client": {"type": "number", "initial": -1}})
     columns = list_columns(width)
@@ -756,10 +790,7 @@ def player_lists(doc: Document, prefix: str, width: float, height: float, intera
     ])
     shown = {kind: ({"state": f"mp.players.{kind}.shown"} if kind != "s" else {"op": ">", "args": [{"state": "mp.players.s.count"}, 0]})
              for kind, _tints in PLAYER_LISTS}
-    full = LIST_HEAD_H + len(PLAYER_LISTS) * LIST_BAND_H + (len(PLAYER_LISTS) - 1) * LIST_GAP + PLAYER_ROWS * ROW_MIN
-    if full > height:
-        raise SystemExit(f"sixteen players and three bands need {full:g} dp, past the lists' {height:g} dp")
-    children, controls = [headings], []
+    children, controls = [], []
     for kind, tints in PLAYER_LISTS:
         doc.state.update({
             f"mp.players.{kind}.shown": {"type": "boolean", "initial": False}, f"mp.players.{kind}.title": {"type": "string", "initial": ""},
@@ -789,13 +820,13 @@ def player_lists(doc: Document, prefix: str, width: float, height: float, intera
             children.append(node)
             if interactive:
                 controls.append(control)
-    lists = group(f"{prefix}-lists", {**absolute(left=0, top=0, width=width, height=height), "display": keyword("flex"),
-                                      "flex-direction": keyword("column"), "overflow": keyword("hidden")}, children)
+    lists, bar = roster_frame(doc, prefix, outer_width, height, headings, children)
+    controls.append(bar)
     # The first row of the first list with players, unless the player whose
     # statistics show has a row: a later focus step overrides an earlier one.
     focus = [{"op": "focus", "control": f"tab-{prefix}"}]
     if not interactive:
-        return lists, controls, focus
+        return lists, controls, roster_focus(prefix, height, prefix)
     for kind, _tints in reversed(PLAYER_LISTS):
         focus.append({"op": "if", "condition": {"op": ">", "args": [{"state": f"mp.players.{kind}.count"}, 0]},
                       "then": [{"op": "focus", "control": f"{prefix}-{kind}-0"}]})
@@ -812,12 +843,12 @@ def player_lists(doc: Document, prefix: str, width: float, height: float, intera
 
 def welcome_players_page(doc: Document, index: int, ident: str, width: float, height: float) -> tuple[dict, list]:
     """The Welcome card's Players page (section 14.18): the team lists with
-    the speaker and friend symbols, score and ping, spectators below; nothing
-    to choose, so its tab keeps the focus."""
+    the speaker and friend symbols, score and ping, spectators below; its
+    scrollbar takes navigation when the roster exceeds the viewport."""
     page_width = width - 2 * INSET
     page_height = height - PAGE_TOP - PROMPT_BOTTOM - PROMPT_H - 16
-    lists, _rows, focus = player_lists(doc, ident, page_width, page_height, interactive=False)
-    return page_group(doc, index, ident, width, height, [lists], []), focus
+    lists, controls, focus = player_lists(doc, ident, page_width, page_height, interactive=False)
+    return page_group(doc, index, ident, width, height, [lists], controls), focus
 
 
 def check_stat_labels(width: float) -> None:
@@ -1199,7 +1230,7 @@ VOTE_ROWS = (
     ("shuffle", "mpVoteShuffle", "#str_201044", ("toggle",)),
     ("restart", "mpVoteRestart", "#str_200208", ("toggle",)),
     ("buying", "mpVoteBuying", "#str_222000", ("toggle",)),
-    ("kick", "mpVoteKick", "#str_200207", ("choice", 16)),
+    ("kick", "mpVoteKick", "#str_200207", ("choice", PLAYER_ROWS)),
 )
 VOTE_RUNNING, VOTE_CALL, VOTE_NONE_RUNNING = "#str_231043", "#str_231044", "#str_231047"
 VOTE_LOCKED, VOTE_NO_ONE = "#str_231052", "#str_231053"

@@ -493,7 +493,7 @@ static void CheckEscape(ScreenHost& host, const char* path) {
 		std::get<double>(runtime.GetState().at("card.client")) == 4,"Friend asks for the selected player");
 	Check(runtime.RunEvent("players_mute",3.7,effects,error) && effects.actions.size() == 1 &&
 		std::get<std::string>(effects.actions[0].arguments.at("command")) == "mpMute","and so does Mute");
-	// Sixteen entries take the narrowest pitch and still fit the page.
+	// A full roster keeps readable rows and scrolls under fixed headings.
 	StateValues full;
 	for (const auto& [list,count] : std::vector<std::pair<std::string,int>>{{"a",8},{"b",7},{"s",1}}) {
 		full["mp.players."+list+".count"] = static_cast<double>(count);
@@ -501,17 +501,16 @@ static void CheckEscape(ScreenHost& host, const char* path) {
 	}
 	Check(runtime.SetState(full,error,3.75),"sixteen players");
 	runtime.Frame(viewport,3.8);
-	const auto last = bounds("players-s-0"), page = bounds("page-players");
-	// 325 dp less the headings and three bands leaves 231 dp for sixteen rows.
-	Check(Near(bounds("players-a-0").height,231/16.f,.02f) && last.y+last.height <= page.y+page.height+.5f,
-		"sixteen players share what the bands leave and fit");
-	// Past sixteen clients the rows keep 14 dp and the last ones are clipped.
+	const auto fullScroll = runtime.GetWidgetState("players-scroll");
+	Check(Near(bounds("players-a-0").height,24,.02f) && fullScroll && fullScroll->scroll && fullScroll->scroll->geometry.usable,
+		"sixteen players retain their pitch with scrolling available");
+	// More connections extend the scrollable list without shrinking text.
 	StateValues over = full;
 	over["mp.players.a.count"] = 16.0;
 	for (int row = 8; row < 16; ++row) over["mp.players.a"+std::to_string(row)+".client"] = static_cast<double>(row+30);
 	Check(runtime.SetState(over,error,3.8),"twenty-four clients");
 	runtime.Frame(viewport,3.82);
-	Check(Near(bounds("players-a-0").height,14,.02f),"rows never shrink below 14 dp");
+	Check(Near(bounds("players-a-0").height,24,.02f),"long rosters preserve their row pitch");
 	Check(runtime.SetState(lists,error,3.85),"back to six players");
 	// The strip wraps both ways; choosing the current tab changes nothing.
 	Check(runtime.RunEvent("tab_admin",4,effects,error) && runtime.RunEvent("onTabNext",4.01,effects,error),"E past the last tab");
@@ -3705,7 +3704,17 @@ static void CheckSubtitles(ScreenHost& host, const char* path) {
 	Check(host.errors==0,"subtitle rendering has no diagnostics");
 }
 
+#include "UiRetainedRosterChecks.inl"
+
 int main(int argc, char** argv) {
+ if (argc == 5 && std::string(argv[1]) == "--rosters") {
+     ScreenHost host;
+     CheckRosterCapacity(host,argv[2],"players","players",true);
+     CheckRosterCapacity(host,argv[3],"players","players",false);
+     CheckRosterCapacity(host,argv[4],"statistics","statistics",true);
+     CheckRosterCapacity(host,argv[4],"scoreboard","board",false);
+     std::printf("retained rosters: %d checks passed\n",checks); return 0;
+ }
  if (argc == 3 && std::string(argv[1]) == "--subtitles") {
      ScreenHost host; CheckSubtitles(host,argv[2]);
      std::printf("subtitles: %d checks passed\n",checks); return 0;

@@ -1252,7 +1252,8 @@ private:
 	// opens or the list's players change. The page shows the statistics of
 	// retainedStatClient.
 	static const int RETAINED_PLAYER_LISTS = 3;
-	static const int RETAINED_PLAYER_ROWS = 16;
+	static const int RETAINED_PLAYER_ROWS = 32;
+	static_assert( RETAINED_PLAYER_ROWS == MAX_CLIENTS, "retained rosters cover every client slot" );
 	idList<int>		retainedPlayerOrder[ RETAINED_PLAYER_LISTS ];
 	int				retainedStatClient;
 	void			RetainedPlayerLists( idList<int> lists[ RETAINED_PLAYER_LISTS ], int colors[ RETAINED_PLAYER_LISTS ] );

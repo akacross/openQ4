@@ -26,6 +26,10 @@
 
 ## Change log
 
+- Multiplayer player lists now scroll at a readable row height, with column
+  headings kept in view. Crowded rosters remain reachable in Welcome, Players
+  and the match summary, and kick-vote choices no longer stop after 16 entries.
+
 - The opt-in SYSTEM page now follows performance presets and settings changed
   from the console while it is open. Unfinished edits are preserved with a
   conflict message, and queued controls cannot overwrite newly changed values

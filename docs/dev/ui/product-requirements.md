@@ -1,5 +1,17 @@
 # UI product requirement register
 
+23 October 2026: [full multiplayer roster scrolling](multiplayer-menus.md#full-roster-scrolling-23-october-2026)
+adds bounded UI-03 evidence to `WID-009`, `WID-010`, `FLOW-039` and `FLOW-046`.
+Four production views keep fixed headings and readable rows, reach all 32
+connection slots and preserve or clamp their scroll as appropriate; the kick
+chooser includes every other client. Six native suites, the session gate,
+four capture-oracle tests and 30 reviewed OpenGL/Vulkan engine screenshots pass.
+The gameplay runs use three live players plus explicit 32-slot document fixtures;
+the configured server limit remains 16. This increment is checked against
+immutable Git baseline `f5bd60838ae25961fb9392ba71a9ab6c6a9c1437`. Existing evidence
+bindings to the extended multiplayer document are refreshed without changing
+their historical scope. No requirement status, migration or final gate changes.
+
 23 October 2026: the [external settings refresh and queued value ownership
 increment](external-settings-refresh.md) contributes bounded evidence to
 `BEH-002`, `FLOW-002`, `WID-005`, `WID-017` and `WID-018`. Clean SYSTEM pages now
