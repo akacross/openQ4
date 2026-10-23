@@ -1,5 +1,7 @@
 # openQ4 development roadmap
 
+> **Development status:** This document describes the current source tree and its evidence, not the contents of the latest available 0.13.2 package. The 0.14.0 release was withdrawn. See [release status](../user/release-status.md).
+
 Updated 21 October 2026. Stage-one implementation and tested source:
 `7674acef91c2653e8c6153ae11e7b158c05e52ff`. The
 [baseline evidence record](baseline-evidence.md) binds current native tests,
@@ -1278,7 +1280,12 @@ workstream with scope, dependencies and acceptance before implementation.
   slow motion, background/suspend, shutdown and renderer/module recovery. Verify
   bounded resources, fallback and user-visible error behavior without lowering
   gates to turn historical failures green.
-- [ ] **REL-04 — P1, documentation and promotion: close only proven scope.** Update
+- [ ] **REL-04 — P1, documentation and promotion: close only proven scope.** Keep
+  published downloads distinct from current-source features. Record withdrawals
+  in the shared release-status policy, player status page and historical notes;
+  exclude them from version/changelog baselines without deleting evidence.
+  Reconciliation on 23 October 2026 restores 0.13.2 as latest and marks 0.14.0
+  withdrawn. Update
   this roadmap, UI acceptance registers, support/capability matrices and curated
   release notes together. State hardware/backend exclusions, upgrade/reinstall
   requirements and opt-in defaults. Use the existing renderer promotion token,

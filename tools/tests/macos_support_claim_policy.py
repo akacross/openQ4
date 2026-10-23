@@ -22,7 +22,9 @@ HISTORICAL_ISSUE_98_RELEASES = {
     "v0.13.0.md",
     "v0.13.1.md",
 }
-HISTORICAL_EXPERIMENTAL_MACOS_RELEASES = HISTORICAL_ISSUE_73_RELEASES | HISTORICAL_ISSUE_98_RELEASES
+HISTORICAL_EXPERIMENTAL_MACOS_RELEASES = (
+    HISTORICAL_ISSUE_73_RELEASES | HISTORICAL_ISSUE_98_RELEASES | {"v0.13.2.md"}
+)
 
 
 def read(relative_path: str) -> str:
@@ -52,7 +54,7 @@ def release_files() -> list[Path]:
 def validate_release_facing_docs() -> None:
     expected_tokens = {
         "README.md": (
-            "preview Apple Silicon/arm64 macOS",
+            "experimental Apple Silicon/arm64 macOS",
             "OpenGL/Metal bridge packages",
             "players have run them only on current macOS",
         ),

@@ -1,5 +1,7 @@
 # Gameplay Settings and Runtime Toggles
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 This guide covers a small set of gameplay and audio cvars that are useful for testing, accessibility, and personal preference.
 
 The auto-skip cinematics, corpse cleanup, and corpse sink controls are also available in the in-game menu at `Settings -> Game Options`.

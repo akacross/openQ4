@@ -1,5 +1,7 @@
 # Client Settings Guide
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 This guide helps players find the most useful openQ4 settings without digging through every advanced option.
 
 ## Best Places to Start

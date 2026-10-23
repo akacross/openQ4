@@ -1,5 +1,7 @@
 # Getting Started with openQ4
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 This guide is for players who want to install openQ4 and start playing as quickly as possible.
 
 ## What You Need

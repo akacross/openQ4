@@ -1,4 +1,6 @@
-# Baseline refinements after 0.14.000
+# Baseline refinements (unreleased)
+
+> **Unreleased development notes.** 0.13.2 is the latest available release; 0.14.0 was withdrawn. These changes are not a new download. See [release status](../../user/release-status.md).
 
 ## Highlights
 
