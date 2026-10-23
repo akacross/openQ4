@@ -79,6 +79,7 @@ completed release material here and publish curated notes in `releases/`.
 - [The transition's rules, tests and limits](ui/acceptance-transition.md) are
   developer tooling with no player-visible change; nothing has been accepted
   with it yet.
+
 ## Multiplayer and bots round, 23 October 2026
 
 - [x] MP-08: hostname connections try up to eight resolved addresses, the
