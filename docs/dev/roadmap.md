@@ -329,8 +329,11 @@ Sources: [Vulkan gap history](archive/2026-10-18/plans/2026-09-20-vulkan-gap-clo
   per-frame draw and program-pipeline limits are raised, and capacity warnings no
   longer repeat every frame. Shader parameters with no Vulkan value follow GL
   (registers or default) instead of skipping the stage, and authored pipelines
-  honour alpha-to-coverage. Paired GL/Vulkan reload, mixed-lighting and mod
-  qualification on this build remain open.
+  honour alpha-to-coverage. The [paired laboratories](vulkan-material-programs.md#laboratory-results-on-the-committed-build-23-october-2026)
+  pass on a clean build of that commit: authored GLSL (20 controls), live reload
+  and repair (16) and translated ARB (15), each within one display level of
+  OpenGL with exact recovery images and no validation messages. Capacity and
+  eviction limits, the authored-lighting laboratory and mod content remain open.
 - [ ] **VK-05 — P1, implementation and qualification: internal HDR and complex
   view composition.** Extend complete-scene admission for remaining baked/material,
   portal, capture, nested and authored-post combinations. Verify radiance, alpha,

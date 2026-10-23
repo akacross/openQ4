@@ -376,11 +376,38 @@ use, and an unchanged source reuses its version, including an invalid one,
 which reports its diagnostic again once. Repeated edits no longer exhaust the
 table: stale versions are evicted as above.
 
-Evidence is limited to the implementation: the Vulkan module builds cleanly,
-the related source contracts pass, and stock gameplay (airdefense1, two
-registered ARB programs, no authored versions) reports through the new lines.
-Live-edit, capacity and eviction behaviour still needs the material reload
-laboratory on the current build, and a mod-content corpus.
+### Laboratory results on the committed build (23 October 2026)
+
+The three authored-program laboratories ran against a clean build of
+`fef4b5875` (`0.13.2-dev+gfef4b587`, `dirty 0`): a detached worktree built and
+staged as one debugoptimized runtime, then a lean laboratory copy with the
+laboratory map compiled by its client. Each suite captured an OpenGL reference
+and a Vulkan candidate with validation enabled, then ran its own comparison.
+
+| Suite | Controls | GL | Vulkan | GL/Vulkan comparison |
+|---|---:|---|---|---|
+| `renderer_vulkan_material_programs.py` (authored GLSL, 32-parameter/8-texture capacity program, image/shader reload, partial/full restart) | 20 | pass | pass | pass: maximum one display level, 11 exact |
+| `renderer_vulkan_material_reload.py` (source selection, live vertex/fragment edits, syntax failure and repair, partial pair, both reload commands, restarts) | 16 | pass | pass | pass: maximum one display level, 5 exact |
+| `renderer_vulkan_arb_programs.py` (translated ARB programs, reload and restarts) | 15 | pass | pass | pass: maximum one display level, 5 exact |
+
+The comparison limit is two display levels. Within each backend, the recovery
+and deliberate-failure images matched their references exactly; the reload
+suite's two deliberate failures each produced exactly one primary diagnostic.
+The Vulkan logs contain no validation messages and none of the new skip or
+approximation reports, so the bounded version table's reuse, repair and
+new-version paths all drew correctly.
+
+The first OpenGL capture of the GLSL suite was killed by the harness's 600 s
+default after 19 of 20 captures, during the final full restart, while another
+session's native tests loaded the machine. It is retained as
+`gl-timeout-600s`; the rerun with a longer limit took 123 s. One reload capture
+was interrupted when the runner paused for another session and was repeated.
+Evidence: `.tmp/vkrm/labs/` in the main checkout.
+
+Not covered: eviction at 256 versions and the other capacity limits, which
+these suites do not reach; the authored-lighting laboratory
+(`renderer_vulkan_material_lighting.py`), whose strict full-frame gate still
+fails on three point-stencil background pixels; and a mod-content corpus.
 
 ## Dependency provenance
 
