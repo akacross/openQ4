@@ -410,10 +410,12 @@ static void SoundWorlds_f( const idCmdArgs& args ) {
 		for ( int e = 0; e < world->emitters.Num(); ++e ) {
 			channels += world->emitters[e]->channels.Num();
 		}
-		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d stamp=%d now=%d\n",
+		// underwater reports the listener muffle the game sets when the view is
+		// in a liquid, so a liquid check can read it from the log.
+		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d stamp=%d now=%d underwater=%d\n",
 			id, world->IsPaused() ? 1 : 0, world->GetSoundTime(),
 			soundSystemLocal.GetPlayingSoundWorld() == world ? 1 : 0, channels,
-			soundSystemLocal.SoundTime(), Sys_Milliseconds() );
+			soundSystemLocal.SoundTime(), Sys_Milliseconds(), world->underwaterActive ? 1 : 0 );
 	}
 }
 

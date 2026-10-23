@@ -327,7 +327,7 @@ def validate_windows_networking() -> None:
     ):
         require(source, token, "Windows global socket sentinels")
 
-    resolver = function_body(source, "static bool Net_StringToSockaddr", "Windows IPv4 resolver")
+    resolver = function_body(source, "static int Net_ResolveSockaddrs", "Windows IPv4 resolver")
     for token in (
         "idNetworkEndpoint::Split",
         "getaddrinfo",
@@ -339,18 +339,21 @@ def validate_windows_networking() -> None:
         require(resolver, token, "Windows IPv4 resolver")
     # An explicit family must still take the first usable record, and AF_UNSPEC
     # must keep preferring an A record so the legacy IPv4 transports behave
-    # exactly as before for a dual-stack hostname.
+    # exactly as before for a dual-stack hostname. The shared ordering does both;
+    # CoreSafetyTest proves its table.
     require(
         resolver,
-        "if ( selected == NULL || ( family == AF_UNSPEC && selected->ai_family != AF_INET && result->ai_family == AF_INET ) )",
+        "idNetworkEndpoint::OrderCandidates( families, usableCount, family == AF_UNSPEC, order, maxOrder )",
         "Windows IPv4 A-record preference",
     )
+    require(resolver, "result->ai_addrlen > sizeof( *addresses )", "Windows resolver copy bound")
+    require(resolver, "usableCount < idNetworkEndpoint::MAX_RESOLVER_RESULTS", "Windows resolver record bound")
+    single = function_body(source, "static bool Net_StringToSockaddr", "Windows single-address resolver")
     require(
-        resolver,
-        "if ( family != AF_UNSPEC || result->ai_family == AF_INET )",
-        "Windows IPv4 resolver selection break",
+        single,
+        "return Net_ResolveSockaddrs( text, address, addressLen, 1, doDNSResolve, family, defaultPort, socketType ) == 1;",
+        "Windows single-address resolver keeps the first candidate",
     )
-    require(resolver, "result->ai_addrlen > sizeof( *address )", "Windows resolver copy bound")
     require(
         resolver,
         "endpoint.hasPort ? endpoint.port : defaultPort",
@@ -365,7 +368,7 @@ def validate_windows_networking() -> None:
         "if ( effectivePort < 0 || effectivePort > 65535 )",
         "Windows resolver port guard",
     )
-    require(resolver_port_guard, "return false;", "Windows resolver invalid-port result")
+    require(resolver_port_guard, "return 0;", "Windows resolver invalid-port result")
 
     socket_body = function_body(source, "SOCKET NET_IPSocket", "Windows UDP bind")
     socket_port_guard = function_body(
@@ -789,12 +792,18 @@ def validate_posix_networking() -> None:
     require(linux_storage, "netint[ num_interfaces ].ip = ip;", "Linux valid-netmask storage")
     require(linux_storage, "netint[ num_interfaces ].mask = mask;", "Linux valid-netmask storage")
 
-    resolver = function_body(source, "static bool Sys_ResolveSockaddr", "POSIX address resolver")
+    resolver = function_body(source, "static int Sys_ResolveSockaddrs", "POSIX address resolver")
     require(
         resolver,
         "endpoint.hasPort ? endpoint.port : defaultPort",
         "POSIX explicit TCP endpoint port precedence",
     )
+    require(
+        resolver,
+        "idNetworkEndpoint::OrderCandidates( families, usableCount, family == AF_UNSPEC, order, maxOrder )",
+        "POSIX A-record preference",
+    )
+    require(resolver, "result->ai_addrlen > sizeof( *sadrs )", "POSIX resolver copy bound")
     require(resolver, "effectivePort < 0 || effectivePort > 65535", "POSIX TCP default port validation")
 
     socket_helper = function_body(source, "static int IPSocketForFamily", "POSIX UDP family bind")

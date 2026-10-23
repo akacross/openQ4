@@ -942,6 +942,15 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   Progress, 18 October: current staged GL role/follow and roster/reconnect runs
   pass, including replacement identity isolation. The [audit evidence](competitive-match-reference-audit.md#stage-two-current-runtime-rerun-2026-10-18)
   retains their precise scope; the remaining release checks are still open.
+  Progress, 23 October: a review fixed three pipeline defects. Passed
+  ballots kept the session revision their proposer saw, so any ready change
+  or connection during the vote voided them; execution now revalidates
+  against the current session, with once-only acknowledgement owned by the
+  adapter. Veto turns are held to the series side the view shows, and a
+  spectator's follow latches the target's spawn identity. Extended asset-free
+  contracts fail against each reverted fix; all 52 asset-free `mp_match_*`
+  contracts pass. [Details](competitive-match-reference-audit.md#proposal-revalidation-veto-side-and-follow-identity-2026-10-23).
+  The live runtime scenarios above remain open.
 - [ ] **MP-02 — P1, qualification and targeted fixes: bot traversal safety.** Rerun
   staged q4dm8/q4ctf3/q4ctf5/q4dz3 after the exact-state jump/unroutable-pad fixes,
   then the complete declared-map sweep including warmup (currently 33 variants).
@@ -1011,10 +1020,33 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   seconds. This closes the outstanding catalog rerun; 17 stuck events, 12 goal
   give-ups, earlier long-match failures and unratified timing tails keep the
   wider MP-02/MP-03 gates open.
+  Progress, 23 October: the team-knockback cause is addressed. A bot now
+  refuses a splash shot whose predicted push (RadiusDamage falloff, the
+  multiplayer push direction, `knockback_team` and `g_knockback`) would
+  throw a team-mate onto ground that does not hold them, with team damage on
+  or off; source pins tie the prediction to the game's own formulas.
+  Seven 90-second six-bot audits on this build (q4ctf5 to q4ctf8, q4dz3,
+  q4xtourney1 and the liquid lab) pass the world-death gate; q4ctf5's one
+  death was an enemy rocket push, which the audit classifies and excludes. The
+  audits also caught a railgun hit on a team-mate standing behind an enemy:
+  the multiplayer railgun penetrates players, so bots now trace its whole line
+  and hold fire when a team-mate is on it ([audit results](mp-bots.md#team-knock-guard-and-trench-rims-23-october-2026)).
+  The DM8 jump-down cause, controlled timing and the strict long-match gate
+  remain open.
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
   only demonstrated gaps; bots and personality/chat/roster systems already exist.
+  Progress, 23 October: [audit results](mp-bots.md#known-limits). Multiplayer
+  player physics has no ladders (retail behaviour), so no ladder link is
+  needed; lifts remain unmodelled and no stock map routes through one. The
+  gap-jump scan now also links a trench's far rim (`GapJumpClear` still
+  proves the arc). All 33 catalog variants still build; 24 gain 271
+  trench-rim jumps (q4ctf7 75), and audits on the three most affected maps
+  record no world deaths. The listen-server `bot_debugNav` line pool
+  no longer fills, because the server frame clears debug lines as single
+  player does. Graph limits are unchanged and documented; caching remains a
+  non-goal while generation stays lazy.
 - [ ] **MP-04 — P1, implementation and qualification: Arena completion.** Resolve
   world-pause versus continuing sound, restart/map-navigation cost and physical
   pause navigation. Capture victory/defeat/draw ledgers, progression and ceremony
@@ -1034,12 +1066,41 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   formats and explicit retail-stream rejection. Test partial writes, repeated
   seeking, pause/restart/round changes and transient geometry; reuse competition's
   existing auto-record lifecycle rather than duplicating it.
+  Progress, 23 October: `mvdRecover` salvages an interrupted `.mvd.part`
+  into a new demo, never modifying the source. An executable fixture runs the
+  production reader, writer and recovery at all 2,032 cut points of a
+  synthetic recording, plus corrupt-record, stale-index and damaged-header
+  cases, with failing controls. Demo follow gains previous, slot and name
+  targets, the overlay names the followed player, and `mvdStatus` reports an
+  active recording and the last result. The runtime probe also found that
+  every MVD recorded with two or more players since 27 September was refused
+  at playback: The Awakening's powerups widened the start-state powerup mask
+  to 18 bits while the engine validator assumed 16. Both readers now detect
+  the recorded width (16 or 18). A start-state fixture covers one to six
+  players at both widths with failing controls. A runtime probe killed a
+  three-bot recording mid-write; `mvdRecover` kept 201 snapshots, stopping at
+  a truncated record. The recovered demo played to its clean end, and next,
+  previous, name and free follow all selected the expected players
+  (`.tmp/mp-round/runtime/mvd/`). Retention,
+  markers, keyframes, reverse scrub, AVI, thumbnails and the original Red Rover
+  reproduction remain open.
 - [ ] **MP-06 — P2, implementation and qualification: liquid extensions.** Verify
   splash/bubble/wade effects, underwater view/muffle, projectiles, buoyancy and bot
   behavior. The current AAS compiler already emits water/swim/waterjump data;
   validate its end-to-end consumers before proposing new generation. AI swimming,
   authored swim animation, moving volumes and air-HUD replication need explicit
   content/gameplay scope. Preserve mapper guidance against duplicate hurt damage.
+  Progress, 23 October: a client drained its local air reservoir once per
+  prediction replay pass, N+1 times the server's rate under an N-frame lead;
+  it now steps once per game frame. `s_soundWorlds` reports the underwater
+  muffle. The audit found the AAS compiler never emits waterjump data
+  (`AREA_LIQUID` is never set) and no consumer routes water. A six-bot audit
+  of the liquid lab had no deaths but 20 stuck reports: bots surfaced whenever
+  their eyes were under water, so a route onto a pool floor left them treading
+  water above it. Swimming bots now dive for an underwater route corner while
+  they have more than half their air; the rerun records no stuck reports and
+  28 completed traversals instead of 8 ([details](mp-bots.md#team-knock-guard-and-trench-rims-23-october-2026)).
+  Bot swimming, ragdoll buoyancy and an air HUD remain scope decisions.
 - [ ] **MP-07 — P1, implementation and qualification: coupled prediction and
   rewind.** In `src/mpgame/gamesys/SysCvar.cpp` both enhanced prediction and lag
   compensation default off; `src/mpgame/Game_local.cpp` bounds rewind using RTT
@@ -1052,6 +1113,41 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   melee plus same-fire-frame presentation; restore present-world state before
   damage/effects and preserve authoritative replay. Extend existing lag-compensation
   contracts with executable state/peer tests and correct the networking guide.
+  Progress, 23 October: the coupled contract is implemented. Each client
+  advertises its remote extrapolation in user info
+  (`net_mpRemoteExtrapolation`, read-only and derived every frame, so a
+  server echo cannot change what the client simulates). The server rewinds by
+  the displayed pose age: min(lead + one frame, round trip + slack), less
+  min(lead, the advertised tics). Client claims can only shorten a rewind.
+  `lagCompStatus` and the client's `net_mpPredictDebug` pose age expose both
+  sides. An executable fixture covers the estimate, advertisement, history
+  across teleport/respawn/slot reuse/map reset/pause and the rewind/restore
+  bracket, with five failing controls. The networking guide now replaces the
+  presets that enabled both corrections. A two-process loopback probe with
+  `net_forceLatency 60` (`.tmp/mp-round/runtime/lagcomp/`) shows the
+  advertisement switching 0, 16, 0 and 4 as the client changed modes. Rewinds
+  were 0 enhanced, 198 legacy (the round-trip ceiling) and 134 with a 4-tic
+  cap, and client pose ages were 0, 48 and 0 ms. The same probe found the
+  client's reported prediction target rising about 1 ms per snapshot to its
+  1000 ms cap, on plain loopback too, while its realized replay chain stayed
+  at 0-3 tics. `net_verbose 2` now logs the controller's state per snapshot,
+  and GL and Vulkan reruns traced it to a client regression from 19 August
+  (42e765882): the catch-up step `( 1 - ( INTSIGNBITSET( delta ) << 1 ) )` is
+  unsigned, and once the sum was widened to 64 bits a client behind its target
+  was slammed to full slowdown instead of speeding up. It then ran one frame
+  behind every snapshot, resyncing each time, and the server duplicated its
+  late commands (45 ms late on loopback, 109 ms with 60 ms of forced latency).
+  The steps are now signed. A fixture runs the production snapshot-timing
+  block in a closed client/server loop at 0, 30 and 75 ms one way: it settles
+  with no resyncs or late commands, and four controls, including the
+  regression, fail. The GL rerun with the fix (`.tmp/mp-round/runtime/gl3/`)
+  has no resyncs. On plain loopback the client leads by 48 ms, its commands
+  arrive about 15 ms early and the target holds at 41 ms. With 60 ms of forced
+  latency it settles near 170 ms (round trip 150), and duplicated commands
+  appear only while it adapts to the sudden change. The server's estimates
+  now follow the real lead: legacy rewinds 56 and 182-185 ms, enhanced 16 ms,
+  and 120-124 ms with a 4-tic cap. Defaults stay off; real peers under
+  jitter, loss and reordering remain open.
 - [ ] **MP-08 — P1, qualification and decision: network and content interoperability.**
   Qualify real cross-platform/architecture peers over IPv4 and IPv6, fragmentation/
   MTU/rate limits, congestion, high player counts, discovery and reconnect. Address
@@ -1082,6 +1178,14 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   successive reconnects. Canonical ZIP metadata fixes otherwise identical
   host-built PK4s failing package identity. WAN impairment, concurrent load,
   discovery, other architectures and the remaining content cases stay open.
+  October 23: hostname connections now try up to eight resolved addresses:
+  the historical first choice, then alternating families, with three
+  unanswered challenges each. A runtime probe joined an IPv6-only loopback
+  server through `localhost`: after three unanswered challenges to
+  127.0.0.1 the client moved to `[::1]` and entered the game. Native ordering
+  and failover tests cover the shared helper. The networking guide documents
+  the sequence. Real multi-record DNS, WAN impairment and concurrent load
+  remain open.
 
 ## Audio and voice
 

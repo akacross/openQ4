@@ -1594,6 +1594,8 @@ idPlayer::idPlayer() {
 	lastDamageLocation		= 0;
 
 	predictedFrame			= 0;
+	remotePredictedTics		= 0;
+	remoteChainResimulatedTics = 0;
 	predictedOrigin			= vec3_zero;
 	predictedAngles			= ang_zero;
 	predictedUpdated		= false;
@@ -1621,6 +1623,8 @@ idPlayer::idPlayer() {
 	readyUserInfo			= false;
  	leader					= false;
  	lastSpectateChange		= 0;
+	spectatorFollowSlot		= -1;
+	spectatorFollowSpawnId	= 0;
 	lastArenaChange			= 0;
  	lastTeleFX				= -9999;
 
@@ -2147,6 +2151,8 @@ void idPlayer::Init( void ) {
 	privateCameraView	= NULL;
 
 	lastSpectateChange	= 0;
+	spectatorFollowSlot	= -1;
+	spectatorFollowSpawnId = 0;
 	lastArenaChange		= 0;
  	lastTeleFX			= -9999;
 
@@ -7782,6 +7788,21 @@ void idPlayer::UpdateSpectating( void ) {
 		return;
 	}
 	player = gameLocal.GetClientByNum( spectator );
+	// Latch the followed entity the first frame a slot is followed. A different
+	// entity in the same slot later is a disconnect and a new connection, even
+	// if no frame ever saw the slot empty.
+	if ( player != NULL && player != this ) {
+		const int spawnId = gameLocal.GetSpawnId( player );
+		if ( spectatorFollowSlot != spectator ) {
+			spectatorFollowSlot = spectator;
+			spectatorFollowSpawnId = spawnId;
+		} else if ( spectatorFollowSpawnId != spawnId ) {
+			player = NULL;
+		}
+	} else {
+		spectatorFollowSlot = -1;
+		spectatorFollowSpawnId = 0;
+	}
 	if ( !player || ( player->spectating && player != this ) ) {
 		SpectateFreeFly( true );
 	} else if ( player != this && !gameLocal.mpGame.CanSpectatorFollow(
@@ -14431,7 +14452,12 @@ void idPlayer::LocalClientPredictionThink( void ) {
 	// air bar sits at full while the server quietly drowns you. The damage and the gurp inside
 	// UpdateAir are server-guarded, so this only drives the local readout and its cues, from the
 	// same water level the server derives.
-	UpdateAir();
+	// The reservoir is not part of the snapshot, so it must step once per game frame: every
+	// replay pass re-runs this function, and a lead of N frames drained it N+1 times as fast as
+	// the server's.
+	if ( gameLocal.isNewFrame ) {
+		UpdateAir();
+	}
 // openQ4 END
 
 	UpdateHud();
@@ -14638,6 +14664,7 @@ void idPlayer::NonLocalClientPredictionThink( void ) {
  			Move();
 		} else if ( AllowsFullRemotePrediction() ) {
 			remotePredictedTics++;
+			remoteChainResimulatedTics++;
 			Move();
 		} else {
 			PredictionErrorDecay();
@@ -15055,9 +15082,16 @@ void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	if ( net_mpPredictDebug.GetInteger() > 0 && gameLocal.isClient &&
 		 entityNumber != gameLocal.localClientNum && !spectating && health > 0 ) {
 		const float predictionError = ( physicsObj.GetOrigin() - decodedPhysics.origin ).Length();
-		gameLocal.Printf( "MPPredict: client=%d mode=%d tics=%d errorUnits=%.2f\n",
-			entityNumber, net_mpPredictMode.GetInteger(), remotePredictedTics, predictionError );
+		// The chain replayed lastChainReplayTics frames; every one this remote was not
+		// re-simulated for left it a frame behind this client's predicted present.
+		// errorUnits compares this client's state with the snapshot's older frame, so in mode 1
+		// it includes the distance the remote was deliberately drawn ahead.
+		const int poseAgeMS = Max( 0, gameLocal.lastChainReplayTics - remoteChainResimulatedTics ) * gameLocal.GetMSec();
+		gameLocal.Printf( "MPPredict: client=%d mode=%d tics=%d chain=%d ageMS=%d errorUnits=%.2f\n",
+			entityNumber, net_mpPredictMode.GetInteger(), remoteChainResimulatedTics, gameLocal.lastChainReplayTics,
+			poseAgeMS, predictionError );
 	}
+	remoteChainResimulatedTics = 0;
 	physicsObj.ApplySnapshotState( decodedPhysics );
 	remotePredictedTics = 0;
 	ApplyBindSnapshotInfo( decodedBindInfo );

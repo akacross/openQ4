@@ -619,6 +619,10 @@ private:
 				// NOTE: DNS resolve is a slow/blocking call, think before you use
 				// ( could be exploited for server DoS )
 bool			Sys_StringToNetAdr( const char *s, netadr_t *a, bool doDNSResolve );
+				// every distinct address s names, up to maxCandidates, in the order a
+				// connection should try them; the first is what Sys_StringToNetAdr
+				// returns. Returns how many were written.
+int				Sys_StringToNetAdrCandidates( const char *s, netadr_t *candidates, int maxCandidates, bool doDNSResolve );
 const char *	Sys_NetAdrToString( const netadr_t a );
 bool			Sys_IsLANAddress( const netadr_t a );
 				// this machine's first non-loopback IPv4 address (no port)

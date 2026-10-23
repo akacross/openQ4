@@ -903,6 +903,9 @@ public:
 	bool					IsSpectatedClient( void ) const;
 	bool					IsWaitingForPredictAck( void ) const;
 
+	// openQ4: the air reservoir, out of pm_airTics; a bot reads it before it dives.
+	int						GetAirTics( void ) const { return airTics; }
+
 protected:
 	void					SetupHead( const char* modelKeyName = "", idVec3 headOffset = idVec3(0, 0, 0) );
 
@@ -1053,6 +1056,10 @@ private:
 	// Extra replay tics this remote has already been re-simulated for in the current
 	// chain.  Client-only transient state; deliberately not saved.
 	int						remotePredictedTics;
+	// The same re-simulated tics counted for net_mpPredictDebug from one snapshot to the
+	// next. remotePredictedTics is reset by PredictionErrorDecay on every presented frame,
+	// so it no longer holds the chain's count when the next snapshot arrives.
+	int						remoteChainResimulatedTics;
 	idVec3					predictedOrigin;
 	idAngles				predictedAngles;
 	bool					predictedUpdated;
@@ -1074,6 +1081,11 @@ private:
 	bool					isTelefragged;			// proper obituaries
 	
 	int						lastSpectateChange;
+	// openQ4: the entity a followed slot held when this spectator started
+	// following it.  UpdateSpectating releases the camera when the slot's entity
+	// changes, so a reused slot never inherits a follow by number alone.
+	int						spectatorFollowSlot;
+	int						spectatorFollowSpawnId;
  	int						lastTeleFX;
  	unsigned int			lastSnapshotSequence;	// track state hitches on clients
  	

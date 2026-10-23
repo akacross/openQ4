@@ -49,6 +49,7 @@ enum demoState_t {
 
 // Negative targets accepted by SetDemoFollowClient during offline playback.
 enum demoFollowTarget_t {
+	DEMO_FOLLOW_PREV = -3,
 	DEMO_FOLLOW_NEXT = -2,
 	DEMO_FOLLOW_FREE = -1
 };
@@ -381,7 +382,8 @@ public:
 	// Get the currently followed client in demo playback
 	virtual int					GetDemoFollowClient( void ) = 0;
 	// A numbered client restores a saved camera, including during world reset.
-	// DEMO_FOLLOW_NEXT selects a currently eligible player; DEMO_FOLLOW_FREE exits follow.
+	// DEMO_FOLLOW_NEXT and DEMO_FOLLOW_PREV select the next or previous currently
+	// eligible player; DEMO_FOLLOW_FREE exits follow.
 	virtual bool				SetDemoFollowClient( int clientNum ) = 0;
 
 	// Build a bot's userCmd

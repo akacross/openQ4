@@ -79,6 +79,44 @@ completed release material here and publish curated notes in `releases/`.
 - [The transition's rules, tests and limits](ui/acceptance-transition.md) are
   developer tooling with no player-visible change; nothing has been accepted
   with it yet.
+## Multiplayer and bots round, 23 October 2026
+
+- [x] MP-08: hostname connections try up to eight resolved addresses, the
+  historical first choice then alternating families, three unanswered challenges
+  each. Native ordering/failover cases pass, and a two-process probe joined an
+  IPv6-only loopback server through `localhost` after three unanswered IPv4
+  challenges. The guide documents the sequence.
+- [x] MP-07: clients advertise their remote extrapolation
+  (`net_mpRemoteExtrapolation`). The server rewinds by the displayed pose age and
+  never lets a client claim lengthen it. `lagCompStatus` and the
+  `net_mpPredictDebug` pose age expose both sides. An executable state fixture
+  passes with five failing controls; the runtime probe shows the advertisement
+  and rewinds following the client's mode. The guide no longer recommends
+  enabling both corrections. Defaults are unchanged. The probe's rising
+  reported lead was a client regression since 0.13.0 (42e765882): the
+  widened prediction adjustment turned the unsigned catch-up step into full
+  slowdown, leaving clients a frame behind with late commands. The steps are
+  signed again; a closed-loop fixture with four failing controls covers it.
+- [x] MP-01: passed ballots revalidate against the current session (adapter-owned
+  once-only acknowledgement); veto turns use the series side; spectator follow
+  latches spawn identity. Extended contracts fail against each reverted fix.
+- [x] MP-05: `mvdRecover`, previous/slot/name follow, a named follow overlay and
+  recording status in `mvdStatus`. MVDs with two or more players recorded since
+  27 September failed playback validation because the start-state powerup mask
+  grew to 18 bits; both readers now detect 16 or 18. Recovery (2,032 cut points)
+  and start-state fixtures pass with failing controls; the runtime probe
+  recovered a killed recording and played it to its clean end.
+- [x] MP-02/MP-03: bots refuse splash shots whose predicted push would throw a
+  team-mate into the void, and penetrating rails with a team-mate anywhere on
+  the line; trench far rims are linked; a listen server clears debug lines
+  each frame. MP physics has no ladders; lifts stay unmodelled. A headless
+  build of all 33 catalog variants and seven bot audits pass.
+- [x] MP-06: client air drains once per game frame, not per prediction replay;
+  `s_soundWorlds` reports the underwater muffle; swimming bots dive for an
+  underwater route corner while they have air to spare.
+- Candidate player wording: [multiplayer refinements](releases/multiplayer-refinements.md)
+  and [bot refinements](releases/mp-bot-refinements.md). Evidence and remaining
+  scope are recorded under MP-01 to MP-08 in the [roadmap](roadmap.md).
 
 ## Vulkan roadmap round, 23 October 2026
 

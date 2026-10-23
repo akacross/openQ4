@@ -308,11 +308,15 @@ jobs:
             tools/tests/mp_client_combat_effects.py \
             tools/tests/bse_retail_parity.py \
             tools/tests/mp_lag_compensation_contract.py \
+            tools/tests/mp_lag_compensation_state.py \
+            tools/tests/mp_client_prediction_state.py \
             tools/tests/mp_runtime_freshness.py \
             tools/tests/mp_weapon_switch_contract.py \
             tools/tests/multiview_demo.py \
             tools/tests/mvd_server_api_contract.py \
             tools/tests/mvd_recording_failure_contract.py \
+            tools/tests/mvd_recovery_contract.py \
+            tools/tests/mvd_start_state_contract.py \
             tools/tests/native_glx_shutdown.py \
             tools/tests/network_ipv4_support.py \
             tools/tests/network_ipv6_support.py \
@@ -759,11 +763,15 @@ jobs:
           python tools/tests/mp_client_combat_effects.py
           python tools/tests/bse_retail_parity.py
           python tools/tests/mp_lag_compensation_contract.py
+          python tools/tests/mp_lag_compensation_state.py
+          python tools/tests/mp_client_prediction_state.py
           python tools/tests/mp_runtime_freshness.py
           python tools/tests/mp_weapon_switch_contract.py
           python tools/tests/multiview_demo.py
           python tools/tests/mvd_server_api_contract.py
           python tools/tests/mvd_recording_failure_contract.py
+          python tools/tests/mvd_recovery_contract.py
+          python tools/tests/mvd_start_state_contract.py
           python tools/tests/native_glx_shutdown.py
           python tools/tests/network_ipv4_support.py
           python tools/tests/network_ipv6_support.py

@@ -173,31 +173,31 @@ static bool Sys_IsAnyInterfaceName( const char *net_interface ) {
 
 /*
 =============
-Net_StringToSockaddr
+Net_ResolveSockaddrs
 
-Resolves an endpoint into a sockaddr of the requested family. AF_UNSPEC keeps
-the caller's grammar intact while preferring an A record so the legacy IPv4
-transports keep their historical behaviour for dual-stack hostnames.
+Resolves an endpoint into every usable sockaddr of the requested family, in
+the order a connection should try them (idNetworkEndpoint::OrderCandidates).
+AF_UNSPEC keeps the caller's grammar intact while putting an A record first so
+the legacy IPv4 transports keep their historical behaviour for dual-stack
+hostnames. Returns how many addresses were written.
 =============
 */
-static bool Net_StringToSockaddr( const char *text, struct sockaddr_storage *address, int *addressLen, bool doDNSResolve, int family = AF_UNSPEC, int defaultPort = 0, int socketType = SOCK_DGRAM ) {
-	if ( address == NULL || addressLen == NULL ) {
-		return false;
+static int Net_ResolveSockaddrs( const char *text, struct sockaddr_storage *addresses, int *addressLens, int maxAddresses, bool doDNSResolve, int family = AF_UNSPEC, int defaultPort = 0, int socketType = SOCK_DGRAM ) {
+	if ( addresses == NULL || addressLens == NULL || maxAddresses <= 0 ) {
+		return 0;
 	}
-	memset( address, 0, sizeof( *address ) );
-	*addressLen = 0;
 
 	char host[NI_MAXHOST];
 	idNetworkEndpoint::endpointParts_t endpoint;
 	if ( !idNetworkEndpoint::Split( text, host, sizeof( host ), endpoint ) ) {
-		return false;
+		return 0;
 	}
 
 	// An explicit endpoint port owns the result. Validate the default only when
 	// it is actually used so host:port can safely override an unused sentinel.
 	const int effectivePort = endpoint.hasPort ? endpoint.port : defaultPort;
 	if ( effectivePort < 0 || effectivePort > 65535 ) {
-		return false;
+		return 0;
 	}
 	char service[NI_MAXSERV];
 	idStr::snPrintf( service, sizeof( service ), "%d", effectivePort );
@@ -228,40 +228,67 @@ static bool Net_StringToSockaddr( const char *text, struct sockaddr_storage *add
 	struct addrinfo *results = NULL;
 	const int error = getaddrinfo( host, service, &hints, &results );
 	if ( error != 0 ) {
-		return false;
+		return 0;
 	}
 
-	const struct addrinfo *selected = NULL;
-	for ( const struct addrinfo *result = results; result != NULL; result = result->ai_next ) {
+	const struct addrinfo *usable[idNetworkEndpoint::MAX_RESOLVER_RESULTS];
+	int families[idNetworkEndpoint::MAX_RESOLVER_RESULTS];
+	int usableCount = 0;
+	for ( const struct addrinfo *result = results; result != NULL && usableCount < idNetworkEndpoint::MAX_RESOLVER_RESULTS; result = result->ai_next ) {
 		if ( result->ai_addr == NULL ) {
 			continue;
 		}
 		if ( result->ai_family != AF_INET && result->ai_family != AF_INET6 ) {
 			continue;
 		}
-		if ( result->ai_addrlen > sizeof( *address ) ) {
+		if ( result->ai_addrlen > sizeof( *addresses ) ) {
 			continue;
 		}
-
-		if ( selected == NULL || ( family == AF_UNSPEC && selected->ai_family != AF_INET && result->ai_family == AF_INET ) ) {
-			selected = result;
+		// A hosts file can list one address twice; trying it twice only
+		// spends another candidate's turn.
+		bool duplicate = false;
+		for ( int i = 0; i < usableCount && !duplicate; i++ ) {
+			duplicate = usable[i]->ai_addrlen == result->ai_addrlen && memcmp( usable[i]->ai_addr, result->ai_addr, result->ai_addrlen ) == 0;
 		}
-		// An explicit family takes the first usable record. AF_UNSPEC keeps
-		// looking only while it is still holding an AAAA record it could trade
-		// for an A record.
-		if ( family != AF_UNSPEC || result->ai_family == AF_INET ) {
-			break;
+		if ( duplicate ) {
+			continue;
 		}
+		usable[usableCount] = result;
+		families[usableCount] = result->ai_family == AF_INET ? idNetworkEndpoint::ADDRESS_FAMILY_IPV4 : idNetworkEndpoint::ADDRESS_FAMILY_IPV6;
+		usableCount++;
 	}
 
-	if ( selected != NULL ) {
-		memcpy( address, selected->ai_addr, selected->ai_addrlen );
-		*addressLen = static_cast<int>( selected->ai_addrlen );
+	// An explicit family takes its records in resolver order; AF_UNSPEC puts
+	// the first A record ahead of any AAAA record.
+	int order[idNetworkEndpoint::MAX_RESOLVER_RESULTS];
+	const int maxOrder = maxAddresses < idNetworkEndpoint::MAX_RESOLVER_RESULTS ? maxAddresses : idNetworkEndpoint::MAX_RESOLVER_RESULTS;
+	const int ordered = idNetworkEndpoint::OrderCandidates( families, usableCount, family == AF_UNSPEC, order, maxOrder );
+	for ( int i = 0; i < ordered; i++ ) {
+		const struct addrinfo *selected = usable[order[i]];
+		memset( &addresses[i], 0, sizeof( addresses[i] ) );
+		memcpy( &addresses[i], selected->ai_addr, selected->ai_addrlen );
+		addressLens[i] = static_cast<int>( selected->ai_addrlen );
 	}
-	const bool resolved = selected != NULL;
 
 	freeaddrinfo( results );
-	return resolved;
+	return ordered;
+}
+
+/*
+=============
+Net_StringToSockaddr
+
+Resolves an endpoint into the one sockaddr a single-address caller uses: the
+first of Net_ResolveSockaddrs' candidates.
+=============
+*/
+static bool Net_StringToSockaddr( const char *text, struct sockaddr_storage *address, int *addressLen, bool doDNSResolve, int family = AF_UNSPEC, int defaultPort = 0, int socketType = SOCK_DGRAM ) {
+	if ( address == NULL || addressLen == NULL ) {
+		return false;
+	}
+	memset( address, 0, sizeof( *address ) );
+	*addressLen = 0;
+	return Net_ResolveSockaddrs( text, address, addressLen, 1, doDNSResolve, family, defaultPort, socketType ) == 1;
 }
 
 /*
@@ -1387,6 +1414,44 @@ bool Sys_StringToNetAdr( const char *s, netadr_t *a, bool doDNSResolve ) {
 	}
 
 	return Net_SockadrToNetadr( reinterpret_cast<const struct sockaddr *>( &sadr ), a );
+}
+
+/*
+=============
+Sys_StringToNetAdrCandidates
+=============
+*/
+int Sys_StringToNetAdrCandidates( const char *s, netadr_t *candidates, int maxCandidates, bool doDNSResolve ) {
+	if ( candidates == NULL || maxCandidates <= 0 ) {
+		return 0;
+	}
+	if ( maxCandidates > idNetworkEndpoint::MAX_RESOLVED_CANDIDATES ) {
+		maxCandidates = idNetworkEndpoint::MAX_RESOLVED_CANDIDATES;
+	}
+
+	struct sockaddr_storage addresses[idNetworkEndpoint::MAX_RESOLVED_CANDIDATES];
+	int addressLens[idNetworkEndpoint::MAX_RESOLVED_CANDIDATES];
+	const int resolved = Net_ResolveSockaddrs( s, addresses, addressLens, maxCandidates, doDNSResolve );
+
+	int count = 0;
+	for ( int i = 0; i < resolved; i++ ) {
+		netadr_t &candidate = candidates[count];
+		memset( &candidate, 0, sizeof( candidate ) );
+		candidate.type = NA_BAD;
+		if ( !Net_SockadrToNetadr( reinterpret_cast<const struct sockaddr *>( &addresses[i] ), &candidate ) ) {
+			continue;
+		}
+		// Distinct sockaddrs can still name one endpoint, an IPv4-mapped AAAA
+		// record beside its A record for instance.
+		bool duplicate = false;
+		for ( int j = 0; j < count && !duplicate; j++ ) {
+			duplicate = Sys_CompareNetAdrBase( candidates[j], candidate ) && candidates[j].port == candidate.port;
+		}
+		if ( !duplicate ) {
+			count++;
+		}
+	}
+	return count;
 }
 
 /*

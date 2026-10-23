@@ -3,6 +3,7 @@
 
 #include "Game_local.h"
 
+#include "../idlib/NumericString.h"
 #include "../sys/AutoVersion.h"
 
 struct game_name_s {
@@ -431,6 +432,8 @@ void idGameLocal::Clear( void ) {
 	isTVClient = false;
 	realClientTime = 0;
 	isNewFrame = true;
+	clientReplayTics = 0;
+	lastChainReplayTics = 0;
 	entityDefBits = 0;
 
 	nextGibTime = 0;
@@ -569,6 +572,10 @@ void idGameLocal::Init( void ) {
 	// openQ4: fail loudly if the gametype table, the enum and the si_gameType
 	// completion list have drifted apart
 	MPValidateGameTypeTable();
+
+	// openQ4: the first user info a connection sends must already say what this client
+	// extrapolates, before ClientRun keeps it current.
+	UpdateAdvertisedRemoteExtrapolation();
 
 // RAVEN BEGIN
 // rjohnson: new help system for cvar ui
@@ -4302,6 +4309,15 @@ gameReturn_t idGameLocal::RunFrame( const usercmd_t *clientCmds, int activeEdito
 	assert( !isClient );
 
 	player = GetLocalPlayer();
+
+	// openQ4: clear the debug lines each server frame, as single player does.
+	// A remote client clears them on every snapshot (ClientReadSnapshot), but a
+	// listen server reads none, so bot_debugNav and every other server-side
+	// draw piled up until the renderer's fixed line pool was full and new lines
+	// were silently dropped.
+	if ( gameRenderWorld != NULL ) {
+		gameRenderWorld->DebugClear( time );
+	}
 
 	do {
 
@@ -9491,24 +9507,17 @@ bool idGameLocal::SelectMPLagCompensationFrame( int clientNum, int targetTime, m
 
 /*
 ================
-idGameLocal::ComputeMPLagCompensationRewind
+idGameLocal::EstimateMPLagCompensation
+
+How old the remote players on one client's screen are, from numbers the server bounds itself.
+Valid for any slot whether or not lag compensation is on, so lagCompStatus can show what a
+rewind would be before anybody turns it on.
 ================
 */
-bool idGameLocal::ComputeMPLagCompensationRewind( const idPlayer *shooter, int &rewindMS ) const {
-	rewindMS = 0;
-
-	if ( !isServer || !isMultiplayer || !shooter || !net_mpLagCompensation.GetBool() ) {
-		return false;
-	}
-
-	const int maxRewindMS = idMath::ClampInt( 0, 1000, net_mpLagCompMaxMS.GetInteger() );
-	if ( maxRewindMS <= 0 ) {
-		return false;
-	}
-
-	const int clientNum = shooter->entityNumber;
+void idGameLocal::EstimateMPLagCompensation( int clientNum, mpLagCompEstimate_t &estimate ) const {
+	memset( &estimate, 0, sizeof( estimate ) );
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return false;
+		return;
 	}
 
 	// This used to start from time - shooter->usercmd.gameTime, which cannot measure anything:
@@ -9538,31 +9547,108 @@ bool idGameLocal::ComputeMPLagCompensationRewind( const idPlayer *shooter, int &
 	const int claim = ( reported > 0 ) ? reported + GetMSec() : 0;
 	const int ceiling = ( measured > 0 ) ? measured + net_mpLagCompSlackMS.GetInteger() : 0;
 
+	estimate.leadMS = reported;
+	estimate.measuredMS = measured;
+	estimate.advertisedTics = AdvertisedRemoteExtrapolationTics( clientNum );
+	estimate.extrapolationMS = RemoteExtrapolationMS( clientNum, reported );
+
 	// A listen server's own player and a bot both leave these at zero and rewind nothing, which
 	// is right: neither has a wire between it and the world it aimed at.
-	int rewindEstimateMS = Min( claim, ceiling ) - RemoteExtrapolationMS();
+	estimate.poseAgeMS = Max( 0, Min( claim, ceiling ) - estimate.extrapolationMS );
+}
 
-	rewindEstimateMS += net_mpLagCompBiasMS.GetInteger();
+/*
+================
+idGameLocal::ComputeMPLagCompensationRewind
+================
+*/
+bool idGameLocal::ComputeMPLagCompensationRewind( const idPlayer *shooter, int &rewindMS, mpLagCompEstimate_t *estimate ) const {
+	rewindMS = 0;
+
+	if ( !isServer || !isMultiplayer || !shooter || !net_mpLagCompensation.GetBool() ) {
+		return false;
+	}
+
+	const int maxRewindMS = idMath::ClampInt( 0, 1000, net_mpLagCompMaxMS.GetInteger() );
+	if ( maxRewindMS <= 0 ) {
+		return false;
+	}
+
+	const int clientNum = shooter->entityNumber;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return false;
+	}
+
+	mpLagCompEstimate_t local;
+	mpLagCompEstimate_t &used = ( estimate != NULL ) ? *estimate : local;
+	EstimateMPLagCompensation( clientNum, used );
+
+	// The rewind is the displayed pose age: the lead the shooter draws the world behind by, less
+	// what it extrapolates remote players forward for itself.
+	const int rewindEstimateMS = used.poseAgeMS + net_mpLagCompBiasMS.GetInteger();
 	rewindMS = idMath::ClampInt( 0, maxRewindMS, rewindEstimateMS );
 	return rewindMS > 0;
 }
 
 /*
 ================
+idGameLocal::AdvertisedRemoteExtrapolationTics
+
+The net_mpRemoteExtrapolation a client put in its user info.  The text is client-authored, so
+only a plain decimal inside net_mpPredictMaxFrames' own range counts; anything else - an older
+client without the key included - is read as legacy prediction, which extrapolates nothing.
+================
+*/
+int idGameLocal::AdvertisedRemoteExtrapolationTics( int clientNum ) const {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return 0;
+	}
+	int tics = 0;
+	if ( !idNumericString::ParseUnsignedBounded( userInfo[ clientNum ].GetString( "net_mpRemoteExtrapolation", "0" ), 64, tics ) ) {
+		return 0;
+	}
+	return tics;
+}
+
+/*
+================
 idGameLocal::RemoteExtrapolationMS
 
-How far ahead of the last snapshot a client already draws remote players for itself.
+How far ahead of its last snapshot a client already draws remote players for itself.
 
 Lag compensation and client-side remote extrapolation are two corrections to the same error,
 and applying both at full strength does not halve it - it inverts it, and the shooter has to
-lead backwards.  So whatever a client extrapolates forward has to come off the rewind.  While
-net_mpPredictMode is a client-local choice the server cannot observe, the honest answer is
-that the server does not know, and the two features must not both be on: that is why
-net_mpLagCompensation ships at 0.
+lead backwards.  So whatever a client extrapolates forward has to come off the rewind.
+
+In mode 1 a client re-simulates each remote player across the replay passes from the snapshot
+up to its own predicted frame, at most net_mpPredictMaxFrames tics a chain
+(idPlayer::AllowsFullRemotePrediction), so it draws remotes min( lead, those tics ) ahead of
+the snapshot.  In legacy mode a remote moves once per client frame and sits a whole lead
+behind.  The client advertises the tic budget (net_mpRemoteExtrapolation); the server bounds
+it by the lead it already trusts, so the advertisement can only ever shorten the rewind.
 ================
 */
-int idGameLocal::RemoteExtrapolationMS( void ) const {
-	return 0;
+int idGameLocal::RemoteExtrapolationMS( int clientNum, int leadMS ) const {
+	if ( leadMS <= 0 ) {
+		return 0;
+	}
+	return Min( leadMS, AdvertisedRemoteExtrapolationTics( clientNum ) * GetMSec() );
+}
+
+/*
+================
+idGameLocal::UpdateAdvertisedRemoteExtrapolation
+
+Keep net_mpRemoteExtrapolation equal to what this client actually simulates.  Called every
+client frame: a change to either prediction cvar, or a server echoing a different value back in
+the user info, is corrected on the next frame, and the engine sends the user info again.
+================
+*/
+void idGameLocal::UpdateAdvertisedRemoteExtrapolation( void ) {
+	const int advertised = net_mpPredictMode.GetBool() ? idMath::ClampInt( 1, 64, net_mpPredictMaxFrames.GetInteger() ) : 0;
+	if ( net_mpRemoteExtrapolation.GetInteger() != advertised ) {
+		net_mpRemoteExtrapolation.SetInteger( advertised );
+	}
 }
 
 
@@ -9575,7 +9661,8 @@ bool idGameLocal::BeginMPLagCompensation( const idPlayer *shooter, mpLagCompRest
 	restoreCount = 0;
 
 	int rewindMS = 0;
-	if ( !ComputeMPLagCompensationRewind( shooter, rewindMS ) ) {
+	mpLagCompEstimate_t estimate;
+	if ( !ComputeMPLagCompensationRewind( shooter, rewindMS, &estimate ) ) {
 		return false;
 	}
 
@@ -9616,8 +9703,9 @@ bool idGameLocal::BeginMPLagCompensation( const idPlayer *shooter, mpLagCompRest
 	}
 
 	if ( net_mpLagCompDebug.GetInteger() > 0 ) {
-		common->DPrintf( "MPLagComp: shooter=%d rewind=%dms targetTime=%d rewound=%d\n",
-			shooter->entityNumber, rewindMS, targetTime, restoreCount );
+		common->DPrintf( "MPLagComp: shooter=%d lead=%dms rtt=%dms extrap=%dms (tics %d) age=%dms rewind=%dms targetTime=%d rewound=%d\n",
+			shooter->entityNumber, estimate.leadMS, estimate.measuredMS, estimate.extrapolationMS, estimate.advertisedTics,
+			estimate.poseAgeMS, rewindMS, targetTime, restoreCount );
 	}
 
 	return restoreCount > 0;
