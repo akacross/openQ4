@@ -57,6 +57,10 @@ struct idSoundOggStream {
 		return reader.Open(ReadAt, this, static_cast<unsigned int>(data.size()));
 	}
 	bool Seek(unsigned int frame) { return reader.Seek(frame); }
+	bool SetCountedLength(unsigned int frames, unsigned int start, unsigned int end, unsigned int granule) {
+		const stb_vorbis_openq4_granule_page page = {start, end, granule};
+		return reader.SetCountedLength(frames, page);
+	}
 	int Read(short* output, int frames) { return reader.Read(output, frames); }
 	int Channels() const { return reader.Channels(); }
 	int Rate() const { return reader.Rate(); }
@@ -71,6 +75,8 @@ struct idSoundSample_OpenAL {
 	int playLength = 0, playBegin = 0, channels = 0, rate = 0;
 	bool streamed = true;
 	std::string streamName;
+	bool streamCountedLength = false;
+	unsigned int streamPageStart = 0, streamPageEnd = 0, streamPageGranule = 0;
 	std::vector<short> pcm;
 	bool IsStreamed() const { return streamed; }
 	bool EnsureCpuPayload() { return !streamed; }
@@ -85,6 +91,13 @@ struct idSoundSample_OpenAL {
 		playLength = stb_vorbis_decode_memory(probe.data.data(), static_cast<int>(probe.data.size()), &channels, &rate, &full);
 		Check(playLength > 0, "reference PCM");
 		pcm.assign(full, full + playLength * channels); std::free(full);
+		// As LoadOggStream records a stream without length metadata.
+		if (probe.Frames() == 0) {
+			stb_vorbis_openq4_granule_page page{};
+			Check(probe.reader.FindLastGranulePage(page), "lengthless fixture has a positioned page");
+			streamCountedLength = true;
+			streamPageStart = page.page_start; streamPageEnd = page.page_end; streamPageGranule = page.granule;
+		}
 		totalBufferSize = playLength * channels * sizeof(short);
 		format.basic.blockSize = channels * sizeof(short);
 		buffers.push_back({playLength, pcm.data(), totalBufferSize});
@@ -131,7 +144,12 @@ public:
 	bool UsesStreamingBuffers() const { return true; }
 	bool UsesBoundedQueue() const;
 	bool Update();
+	// Output changes are qualified by SoundOutputRecoveryTest; here they only gate Update.
+	bool outputUnchanged = true, outputRecovery = false;
+	bool CheckOutput() { return outputUnchanged; }
 };
+static bool outputConnected = true;
+struct { struct { bool IsOutputConnected() const { return outputConnected; } } hardware; } soundSystemLocal;
 
 // Production statics of AL_SoundVoice.cpp that the extracted bodies use.
 static int soundDeepRoutedQueueVoices = 0;
@@ -195,6 +213,21 @@ int main(int argc, char** argv) {
 	Check(!voice.Update() && queued.size() == oldQueueSize, "underrun requests logical-time recovery without replaying stale PCM");
 	voice.ResetQueuedBufferState();
 	Check(alive == 0, "underrun teardown releases decoder");
+	{
+		// A static source stopped by a lost endpoint recovers at the scene clock;
+		// one that stopped with its output present finished. A changed output is
+		// handed back before any queue work.
+		idSoundVoice_OpenAL still;
+		still.leadinSample = &lead; still.paused = false; sourceState = AL_STOPPED;
+		outputConnected = false;
+		Check(!still.Update() && still.outputRecovery, "a stop by a lost endpoint recovers at the clock");
+		still.outputRecovery = false; outputConnected = true;
+		Check(!still.Update() && !still.outputRecovery, "a stop with the output present is the end of the sound");
+		sourceState = AL_PLAYING;
+		Check(still.Update(), "a playing static voice carries on");
+		still.outputUnchanged = false;
+		Check(!still.Update(), "an output change is checked first");
+	}
 	Check(uploadedMax <= SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES, "bounded queued PCM including centre routing");
 	Check(soundDeepRoutedQueueVoices == 0, "finished voices return their deep routed slots");
 	// The queue is refilled once per main-thread frame. Three buffers must ride

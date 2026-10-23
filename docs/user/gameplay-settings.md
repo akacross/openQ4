@@ -222,7 +222,12 @@ Notes:
 - `s_openALHRTF` chooses headphone HRTF: `0` automatic (default), `1` off, `2` on. Earlier builds
   could not turn it off on headphones; `1` now does.
 - Unplugging a headset or switching the default device keeps the sound going, including music
-  and looping ambience, and keeps your speaker and HRTF choices.
+  and looping ambience, and keeps your speaker and HRTF choices. Dialogue and other sounds that
+  were playing pick up where the scene is when audio returns, instead of being cut off, and a
+  line paused in a menu continues from where it stopped.
+- Changing `s_numberOfSpeakers`, `s_openALHRTF` or `s_outputLimiter` applies to the open device
+  in place: sounds keep playing without reloading, and a line that is playing moves to or from
+  the centre speaker at its current point.
 
 ## Audio Quality
 
@@ -375,7 +380,9 @@ caption at the current point in the line.
 | `ui_subtitleSpeakers` | `1` | `0`–`1` | Show an available speaker name or the radio label |
 
 All four settings are saved. Text comes from your installed game's lip-sync
-declarations, with the normal language fallback. Coverage is incomplete: a
+declarations, with the normal language fallback. The Steam release installs
+these transcripts in English only, and The Awakening's are written in English,
+so other menu languages show English captions. Coverage is incomplete: a
 missing transcript stays blank, and a scene description is never substituted.
 Player voice chat and sound effects are not transcribed. Large captions can
 overlap Awakening title cards in portrait windows.

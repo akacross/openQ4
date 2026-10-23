@@ -24,6 +24,26 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Audio output recovery, layout changes and memory, 23 October 2026
+
+- [x] AUD-02: restart one-shot sounds that a lost or reopened output stopped at the
+  scene clock, as loops and bounded queues already were; allocate no voices
+  while the endpoint is gone; resume a line paused across the change in place.
+  `s_testDeviceInterruption` and `listSoundVoices` support no-device checks.
+- [x] AUD-04: apply speaker-layout, HRTF and limiter changes with an in-place
+  device reset instead of a full sound restart, and re-route playing voices at
+  their scene clock when the centre speaker comes or goes.
+- [x] AUD-03: trim reclaimable audio on an operating-system low-memory notice
+  (`s_trimIdleSeconds`, `s_trimAudioMemory`); stream Ogg files without usable
+  length metadata through a small stb_vorbis seek extension; drop the one-hour
+  streamed-track limit; build streamed envelopes on job workers during loads.
+- [x] AUD-06/AUD-07: installed-asset dialogue routing audit (no unclassified
+  speech in either campaign) and per-language transcript coverage.
+- Stock-map gameplay, native, compiled-production and static checks pass; see
+  the [evidence and limits](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
+  Physical endpoints, real low-memory notices and other operating systems remain
+  open. Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
 ## Focus-following prompt verbs, 23 October 2026
 
 - [x] The pages' prompt bars name what Accept does for the focused control:

@@ -951,7 +951,7 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Start( startOffset, parms.soundShaderFlags | ( parms.shakes == 0.0f ? SSF_NO_FLICKER : 0 ) ) )
 		{
-			const bool recoverAtClock = hardwareVoice->UsesBoundedQueue();
+			const bool recoverAtClock = hardwareVoice->RecoversAtClock();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
 			if( !IsLooping() && !recoverAtClock )
@@ -964,7 +964,7 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Update() )
 		{
-			const bool recoverAtClock = hardwareVoice->UsesBoundedQueue();
+			const bool recoverAtClock = hardwareVoice->RecoversAtClock();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
 			if( !IsLooping() && !recoverAtClock )
@@ -1559,7 +1559,8 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	// explicit playback request; never substitute a permanently cached beep.
 	if( !leadinSample->IsLoaded() ) leadinSample->LoadResource();
 	if( !leadinSample->IsLoaded() ) return 0;
-	leadinSample->SetLastPlayedTime( soundWorld->GetSoundTime() );
+	// Wall-clock, like the low-memory trim that reads it: worlds keep their own clocks.
+	leadinSample->SetLastPlayedTime( Max( 1, Sys_Milliseconds() ) );
 
 	if( chanParms.soundShaderFlags & SSF_LOOPING )
 	{

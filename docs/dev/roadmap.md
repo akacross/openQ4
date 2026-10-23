@@ -1115,6 +1115,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   October 22 audit: the remaining gates require physical devices and target-OS
   audible-output checks. Counted API recovery tests and the long local voice
   session support those checks but do not replace them.
+  October 23: a lost or reopened output no longer ends the one-shot sounds it
+  stopped. Dialogue and effects restart at the scene clock with loops and queues,
+  no voices are allocated while the endpoint is gone, and a line paused across
+  the change resumes in place instead of from its first sample. A simulated
+  outage (`s_testDeviceInterruption`) qualifies this path in stock gameplay;
+  physical endpoint loss, hotplug and OS breadth remain the gate.
+  [Output recovery evidence](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -1143,6 +1150,15 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   The October 22 queue correction retains about one second of audio within the
   same reserved bytes. This item still includes automated and implementation
   work as well as physical/mobile qualification; it is not a listening-only gate.
+  October 23: an operating-system low-memory notice (`SDL_EVENT_LOW_MEMORY`)
+  now frees earlier levels' samples, CPU copies OpenAL also holds and this
+  level's samples idle for `s_trimIdleSeconds`, never anything a channel uses;
+  freed samples reload when played. Ogg files without usable length metadata
+  now stream, counted by their envelope pass and seeking sample-exactly through
+  a small stb_vorbis extension; the one-hour streamed-track limit is gone, and
+  the envelope pass runs on job workers during level loads. A notice from a real
+  Android/iOS device, provider/process memory and device breadth remain open.
+  [Memory and streaming evidence](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1156,6 +1172,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   gameplay pass pause, time scale, restart and restore. Physical surround
   devices, output-layout transitions and positional mod wet sends remain open.
   [Centre evidence](audio-voice-evidence.md#centre-channel-placement).
+  October 23: speaker-layout, HRTF and limiter changes reset the open device in
+  place instead of reloading every sample, and playing voices re-route at their
+  scene clock when the output gains or loses a centre speaker, including after
+  a reopen onto another endpoint. Stock gameplay qualifies live 5.1, stereo and
+  HRTF transitions on rendered output. Physical surround devices and positional
+  mod wet sends remain open; stock content has no centred positional sound.
 - [ ] **AUD-05 — P1, implementation: functional multiplayer voice.** Capture,
   codec, transport and playback are implemented with explicit microphone consent,
   push-to-talk, local-only testing, connection-scoped mute, server moderation and
@@ -1196,6 +1218,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   fixtures, mute, pause, time scale, restart, save/load and Turkish text with
   English audio fallback. Complete authored NPC/script/BSE/cinematic scene and
   physical device coverage remains open. [Evidence](audio-voice-evidence.md).
+  October 23: an installed-asset routing audit classifies every reference to a
+  speech shader with the production classifier. All 3,672 stock and 5,153
+  Awakening-layer speech shaders are dialogue by sample path. Their 3,495 and
+  4,912 references in NPC lip-sync keys, definitions, maps and scripts all
+  follow the control, and no effect or GUI references one. Audible scene and
+  device coverage remains open.
+  [Routing audit](audio-voice-evidence.md#dialogue-routing-audit).
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -1217,6 +1246,11 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   transcripts are skipped. Portrait Awakening title-card collisions, the full
   scene/locale corpus and physical stereo-HUD qualification remain open.
   [Subtitle evidence and mapping policy](audio-voice-evidence.md#dialogue-subtitles).
+  October 23: the inventory reports per-language transcript coverage. The Steam
+  install's 2,268 mapped lines exist only in English tables; its French,
+  Italian and Spanish tables carry no lip-sync text. Awakening's 1,512 lines are
+  literal English declarations. Other menu languages therefore show English
+  captions, which the player guide now states.
 
 ## Desktop platforms and packaging
 

@@ -10,6 +10,9 @@ Vorbis admission and compressed streaming, the mod reverb reference-distance rep
 and bounded multiplayer voice capture/codec/transport/playback with explicit consent. See
 [audio and voice evidence](audio-voice-evidence.md) for its measured scope and
 remaining roadmap gates; this page's October 6 measurements remain historical.
+The [23 October round](#output-changes-and-memory-pressure-october-23) makes playback
+survive output loss and layout changes, adds the low-memory response and streams Ogg
+files without usable length metadata.
 
 ## Where openQ4 starts from
 
@@ -240,11 +243,11 @@ VFS and scratch reservations. Stop, cancellation and sample purge release them.
 Sample-exact seek supports virtualized sounds, restart and save restore. Queues
 preserve leadin/loop transitions and pitch; an underrun discards stale playback
 and recreates the voice at the channel's current sound time. A bounded initial
-decode builds the existing 60 Hz amplitude envelope without retaining full PCM.
-This pass is synchronous, so long-track loading cost still needs profiling.
-Lengthless files retain the bounded full-decode fallback; streamed metadata
-currently supports tracks up to one hour. Whole-track `GetNonCacheData` access
-returns null for streamed samples instead of defeating the memory limit.
+decode builds the existing 60 Hz amplitude envelope without retaining full PCM;
+since October 23 it runs on a job worker during level loads, and files without
+usable length metadata stream too (see [below](#output-changes-and-memory-pressure-october-23)).
+Whole-track `GetNonCacheData` access returns null for streamed samples instead of
+defeating the memory limit.
 
 The repository's MIT/public-domain stb_vorbis has a small read/seek/tell callback
 extension; both checked-in copies match, and Meson pins this bundled variant.
@@ -264,6 +267,68 @@ rendering preserves stock zero rolloff and dry gain and gives the expected half
 wet gain at twice the minimum distance with room rolloff 1. Centre-channel
 routing and its physical-device qualification are described below.
 
+### Output changes and memory pressure (October 23)
+
+**Output recovery.** The hardware counts every event that can stop, move or re-lay-out
+the sources (`GetOutputSerial`): a reopen, an in-place reset, a centre speaker
+appearing or going away, a simulated outage ending. Each voice keeps the serial it
+started on and checks it every update (`SoundOutputRecovery.h`). A source stopped
+by a lost endpoint, or stopped across a reopen, hands itself back and its channel
+restarts it at the scene clock, exactly as after a bounded-queue underrun
+(`RecoversAtClock`). Before, only loops and bounded queues came back: a static
+non-looping voice that OpenAL Soft stopped on disconnect ended, cutting off the line
+of dialogue that was playing. While the endpoint is gone (`ALC_CONNECTED` false)
+`AllocateVoice` refuses voices, so channels keep their clocks without churning
+sources. A paused voice keeps its serial; `UnPause` does not resume one whose output
+changed, because OpenAL Soft replays a paused source that lost its voice from its
+first sample. The channel restarts it at the paused scene time instead.
+
+**Layout changes.** `s_numberOfSpeakers`, `s_openALHRTF` and `s_outputLimiter`
+changes reset the open device in place with the same attribute list as creation
+(`TryResetDevice`, `alcResetDeviceSOFT`); a full restart, which freed and decoded
+every sample again, is now only the fallback. The output check also runs every
+frame for the centre speaker (`HasCenterChannelOutput`, now from extension flags
+cached per context): a voice whose centre routing no longer matches the output,
+after a reset or a reopen onto another endpoint, re-routes at its scene clock.
+
+**Test hooks.** `s_testDeviceInterruption [msec]` (cheat) does to the context what a
+disconnect does, without hardware: every source stops and no voice is allocated
+until the outage ends, which then raises the serial as a reopen would.
+`listSoundVoices` prints `SOUND_OUTPUT` (serial, connected, centre, interrupted) and
+one `SOUND_VOICE` line per voice in use (state, routing, queue, serial, position).
+
+**Low-memory response.** `S_TrimMemory`, called from SDL's `SDL_EVENT_LOW_MEMORY`
+on the main thread (Android and iOS deliver it), frees what a scene can do without
+(`SoundMemoryTrim.h`): earlier levels' samples, CPU copies of samples OpenAL also
+holds (even ones restored for a reader), and this level's samples no sound has
+started for `s_trimIdleSeconds` (30; -1 keeps them). Nothing a channel references
+in any world is touched, nor menu/HUD samples or streamed tracks, and nothing during
+a level load. A freed sample keeps its shader references and reloads when a sound
+next starts it; `StartSound` already retried unloaded samples. Last-played times are
+now wall-clock. `s_trimAudioMemory [seconds]` runs the same response on demand and
+prints `AUDIO_TRIM`.
+
+**Ogg files without usable length metadata.** The strict header peek needs a final
+end-of-stream page that ends the file. When it fails (a truncated file, trailing
+bytes, a final page without a position) the stream selection now asks stb_vorbis
+itself, over the VFS with the fixed arena, and with no length at all judges by four
+times the compressed size, so a long track never decodes whole. A stream with no
+length is counted by its envelope pass; `stb_vorbis_openq4_find_last_granule` then
+finds the last page that carries a position and `stb_vorbis_openq4_set_length`
+gives each voice's decoder that page and the count, so seeking bisects up to it and
+decodes forward (sample-exact in `audio_streaming.py`). A stream with no positioned
+page at all keeps the bounded full decode. The one-hour limit on streamed tracks is
+gone; the bound is the int-sized PCM bookkeeping, about three hours of 48 kHz
+stereo.
+
+**Envelope pass off the main thread.** During a level load a streamed track's
+compressed bytes go to a job worker, which fills the 60 Hz envelope sized before
+submission (`BeginOggStreamEnvelope`); the full pass had cost the main thread a tenth
+to a third of a second per music track. Voices can stream the track before the
+envelope is complete; until `FinishDecode` joins the job the envelope reads silent.
+Outside level loads, with jobs synchronous, or for a stream without length metadata
+the pass stays synchronous.
+
 ### Presets
 
 Every performance preset keeps room reverb on (`s_useEAXReverb 1`); see
@@ -281,22 +346,29 @@ restores it on profiles still on the minimum, lowpower or performance preset.
   qualifications; camera shake already has its separate game-unit path.
 - **Whole-process/mobile audio memory.** A 256 MiB managed-payload budget now
   jointly admits retained CPU/OpenAL data, WAV/ADPCM/RoQ loading, decoder arenas,
-  envelopes and conservative queues. Provider internals, metadata, all-map
-  residency, Android low-memory callbacks and loading-performance qualification
-  remain under AUD-03/CORE-03. Lowering the limit preserves active allocations
-  while stopping new admissions until usage fits.
+  envelopes and conservative queues, and an operating-system low-memory notice
+  trims what the scene can do without. Provider internals, metadata, all-map
+  residency, a notice delivered by a real Android/iOS device and device
+  loading-time budgets remain under AUD-03/CORE-03. Lowering the limit preserves
+  active allocations while stopping new admissions until usage fits.
 - **Surround device qualification.** Mono global/radio dialogue now honours
   `s_centerFractionVO`, and `SSF_CENTER` uses the physical centre on a detected
   surround output through direct 5.1 buffers. Positional NPC speech retains its
-  direction; stereo and active HRTF keep the mono path. Automated loopback and
-  stock/Awakening gameplay pass. Physical devices, live layout transitions and
-  explicit positional centre sounds' mod wet sends still need qualification.
+  direction; stereo and active HRTF keep the mono path, and playing voices re-route
+  when a reset or reopen changes the layout. Automated loopback and stock/Awakening
+  gameplay pass. Physical devices and explicit positional centre sounds' mod wet
+  sends still need qualification: stock content uses no `center` shader or
+  `s_center` speaker.
 - **HDR audio, ducking, geometric obstruction.** These change the authored mix or need new
   per-sound data; they are not defaults for stock content.
 - **Voice budget.** 48 voices stay (retail mixed 24 channels).
 
 ## Verifying
 
+- The native `openq4-sound-output-recovery` and `openq4-sound-memory-trim` tests (every
+  output-change and trim decision), `tools/tests/audio_streaming.py` (streams without length
+  metadata) and the gameplay run `tools/tests/audio_output_recovery_runtime.py` (output loss,
+  paused resume, live layout re-routing, the trim and replay after it).
 - `tools/tests/sound_settings.py` and `tools/tests/sound_recovery.py` (the device-layout and
   limiter paths), `tools/tests/sound_retail_reverb_contract.py`,
   `tools/tests/sound_distance.py` (distance-harness failure controls),

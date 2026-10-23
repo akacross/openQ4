@@ -25,6 +25,18 @@
   controls. Microphone access starts off; enable it on the match's Voice page
   and bind Voice Chat in Settings > Controls > Other. The local microphone test
   stays private to your machine.
+- Unplugging headphones or switching audio devices no longer cuts off the line
+  of dialogue that was playing: speech and effects pick up where the scene is
+  when audio returns, and a line paused in a menu continues from where it
+  stopped instead of starting over.
+- Changing the speaker layout, headphone 3D audio or the output limiter now
+  applies instantly without reloading the game's sounds, and dialogue that is
+  playing moves to or from the centre speaker at its current point.
+- On phones and tablets, a low-memory warning from the system now frees audio
+  the current scene is not using; those sounds reload when they next play.
+- Music and dialogue files whose length information is missing or damaged now
+  stream like any other long track instead of being decoded whole, and level
+  loads spend less time preparing long music tracks.
 
 ## Upgrade notes
 
@@ -54,3 +66,9 @@
   large RoQ videos no longer require a full encoded-video copy for sound.
 - Added decode backpressure and bounded handling of Ogg files without length
   metadata, with memory accounting for diagnostics.
+- Streamed tracks are no longer limited to one hour.
+- Subtitles in other menu languages use the English transcripts: the Steam
+  release installs them in English only, and The Awakening writes them in English.
+- New developer commands: `listSoundVoices` reports each sound's output routing
+  and position, `s_trimAudioMemory` runs the low-memory response on demand, and
+  `s_testDeviceInterruption` simulates a lost audio device for testing.
