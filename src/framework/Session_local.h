@@ -266,9 +266,9 @@ public:
 	void				ReportSystemSettings();
 	void				CloseSystemSettings();
 
-	// Opt-in retained (RmlUi) screens, gated by ui_retained. The title and the
-	// single-player pause screens cover the legacy main menu while it rests at
-	// its home state; its pages stay legacy and are reached by hand-off.
+	// Retained (RmlUi) screens, enabled by default and gated by ui_retained.
+	// The title and single-player pause screens cover the legacy main menu
+	// while it rests at its home state; remaining legacy pages use hand-off.
 	void				UpdateRetainedHome();
 	bool				RetainedHomePresenting() const { return guiRetainedHome != NULL; }
 	// Whether menu input reaches a retained view: the home screen over the

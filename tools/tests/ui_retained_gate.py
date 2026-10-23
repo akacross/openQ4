@@ -4564,7 +4564,7 @@ def main() -> int:
     session = (ROOT / 'src/framework/Session.cpp').read_text(encoding='utf-8')
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8')
 
-    # The gate itself: off by default while performance work remains open;
+    # The gate itself: enabled by default in current source builds;
     # archive an explicit player preference for either interface.
     assert 'idCVar ui_retained( "ui_retained", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, ' in menu, 'ui_retained must default to 1 and be archived'
     assert 'ui_retainedSystem( "ui_retainedSystem", "0", CVAR_GUI | CVAR_BOOL' in menu

@@ -44,6 +44,18 @@ completed release material here and publish curated notes in `releases/`.
 
 ## Post-0.14.000 corrections
 
+- [x] Clarify UI defaults against the source and release tag: current
+  `Session_menu.cpp` declares archived `ui_retained 1`; tag `v0.14.000`
+  declared 0 before commit `1aa2332d9` restored 1. Align current player and
+  developer guides, retain the release's historical default, and explain
+  saved preferences and explicit launch overrides. Correct stale gate comments
+  and the player guide's in-match multiplayer menu coverage.
+
+- [x] Link Schnapple's [signed and notarized macOS builds at Mac Source Ports](https://www.macsourceports.com/game/quake4)
+  from the README, macOS setup guide and 0.14.000 release notes, with contributor
+  credit. Distinguish its Apple Silicon/Intel Universal 2 download from our
+  unsigned Apple Silicon preview packages on GitHub.
+
 - [x] Add one managed audio-payload budget across CPU/OpenAL data, decoder arenas,
   streams and envelopes. Bound ordinary PCM fallback queues, decode RoQ through
   fixed input scratch and keep pressure-refused samples retryable. Stock and
@@ -1002,6 +1014,10 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
 
 ## 0.14.000 release
 
+This section records the tagged release, whose default was `ui_retained 0`.
+Later source builds restored `ui_retained 1` in commit `1aa2332d9`; see the
+[current interface guide](../user/client-settings.md#modern-and-classic-screens).
+
 - [x] Restore the shipping `ui_retained 0` default because retained gameplay
   overhead is still not negligible. Preserve archived player preferences and
   document `seta ui_retained 0` for existing profiles that opted in.
@@ -1019,7 +1035,7 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   as the latest stable release through [Manual Releases](https://github.com/themuffinator/openQ4/actions/runs/38297252865).
   All seven platform jobs and publication passed. All 16 download assets are
   present with verified stored hashes, including the signed Android APK and
-  corresponding dependency sources. Legacy UI remains the shipping default.
+  corresponding dependency sources. Legacy UI was the default in this release.
 
 ## 0.13.2 release candidate
 
