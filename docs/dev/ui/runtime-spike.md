@@ -142,7 +142,8 @@ warning; ordinary or explicitly authored materials keep that diagnostic.
   The first-party evaluator now implements those presentation operations for
   canonical documents; raw RML CSS animations retain the upstream behavior.
 - Shader-based linear/radial/conic gradients, clip masks, layers, filters and
-  generated RGBA textures are not implemented by this adapter. Horizontal/
+  generated RGBA textures were not implemented at this checkpoint. Generated
+  images are superseded by the October integration below. Horizontal/
   vertical geometry gradients are supported. Unsupported features remain
   qualification failures, not silent claims of approximate equivalence.
 - Native curved paths, holes, stroke joins/caps, editable path sources and
@@ -168,3 +169,77 @@ preserves an old output timestamp, so newer input timestamps can trigger the
 same expensive packing step on subsequent builds. The content was verified by
 the normal pack build; only the ignored build-output timestamps were refreshed
 locally for this investigation. No packaging implementation change is included.
+
+## Generated-image integration, 18 October 2026
+
+The RmlUi `GenerateTexture` callback now accepts bounded RGBA8 pixels and asks
+the engine host to upload an immutable image. Both pixels and vertex tint remain
+premultiplied through the generated material's source-over blend. File-backed
+images retain their existing straight-alpha path; generated image release cannot
+release those materials or another context's lease. This is UI-09/RES-004
+implementation evidence, not acceptance of the whole resource/toolkit contract.
+
+`GeneratedImagePool` shares 64 slots and a 64 MiB active/retired pixel budget
+across all views of one host. Dimensions are positive, at most 4096 per axis and
+within the active renderer's limit; byte length must exactly match RGBA8.
+Invalid input or unavailable resources returns failure before publishing a
+handle. Failed allocation/upload/material admission remains charged until safe
+cleanup, including a failed shrink. Image/decl names are reused within those
+64 slots, so repeated document closure cannot grow those registries indefinitely.
+
+Releasing an image invalidates its context's recorded frame and cached plates.
+The host retires the slot without changing queued draws' pixels, then shrinks its
+allocation on a later submission frame. Each idle named image retains only a
+1x1 placeholder, at most 256 additional pixel bytes across the pool. Resource
+generation teardown releases all contexts before resetting the host. Generated
+images are reproducible from the calling operation's pixels; this callback does
+not add serialized image data to GUI save snapshots or implement the remaining
+movie/model/world-surface operations.
+
+The renderer's named upload path now sends explicitly allocated, matching-size,
+single-level RGBA8 2D images directly to their existing storage. In particular,
+a 1:6 image keeps its specified 2D type instead of taking the cinematic uploader's
+cube-map heuristic. Other legacy uploads retain their sampler-preserving path.
+
+Verification uses production methods and the staged Windows x64 runtime based
+on `cbe967f2b61935da283a873a731fe975926cf214` plus the command-copy and generated-
+image changes. Runtime reports record actual executable/module hashes. Native
+and rendered checks have separate scopes:
+
+- `openq4-ui-generated-texture` drives the actual Rml callback/render manager:
+  exact pixels, invalid input, upload failure/recovery, independent views,
+  replacement, shutdown and 1,000 close/reopen cycles.
+- `openq4-ui-generated-adapter` compiles the real engine host and named-upload
+  methods with counted renderer/decl boundaries: renderer limits, 1:6 uploads,
+  create/upload/material failure, frame retirement and bounded registries over
+  1,000 cycles. The existing layer/draw fixture verifies generated tint remains
+  premultiplied. Adapter/layer checks also pass under Linux in WSL.
+- The full Windows native suite passes 187/187. After adding the engine probe,
+  the three affected native tests and retained-view lifecycle contract pass
+  again; full compilation and staging pass.
+- `ui_generated_image_runtime.py` runs Storage1 with hidden 640x480 windows and
+  input disabled. `ui_retainedImageProbe` draws two alpha test panels through the
+  production engine host. Initial, reopened and post-`vid_restart` engine
+  screenshots on GL and Vulkan each pass eight predetermined RGB samples with
+  a tolerance of three byte values. Both processes exit cleanly, and inspected
+  captures include the in-game world and weapon. The Vulkan log identifies an
+  RTX 4060 Laptop GPU and NVIDIA 591.74; the GL log records its 4.6 context.
+- The same probe with `--mode MP` passes GL and Vulkan on Q4DM1, with the local
+  player reported in gameplay before and after the sequence. Inspected engine
+  captures show the world, weapon and HUD behind the generated panels. These
+  runs reuse the same staged binary hashes and do not qualify physical input.
+
+| Retained evidence | SHA-256 |
+| --- | --- |
+| `.tmp/stage-two/generated-image-source.json` (runtime source-file hashes) | `9eb637cdf3734d4e48c902c2d1a4b3d8baefc378cb8032ee29fea8973a5833e3` |
+| `.tmp/s2image-gl/report.json` | `50e53cb5e4cc40d7c62eb0e45928ce50b4e146f6756a6857044e68c36a4b86bd` |
+| `.tmp/s2image-vk/report.json` | `37140dfe4e18484083522b08c6a0a2918197b10f4255b9f3cdd8f7eff5459b62` |
+| `.tmp/s2image-mp-gl/report.json` | `d199cd3a9bfb32dd2c0f28cfa1bce3dc4ecf41f2696158d84ee329848015abcc` |
+| `.tmp/s2image-mp-vk/report.json` | `c0677d51d62dd48c142b4dd6d5085a6c215e9a638b692d1e109708cd14553ba6` |
+| `.tmp/stage-two/generated-texture-native-testlog.json` | `9735dcb238604fc0ec0ffc2716fdc9d597af5b1036ad60de35d063e705caaf62` |
+
+The logs and engine-written TGAs are under each run's `save/baseoq4/`; decoded
+PNGs are alongside the reports. This does not establish generated font shaping,
+all backend/device support, MP multi-context GPU behavior, end-to-end editor
+authoring, or a performance budget. Those remain in the roadmap and requirement
+register, whose acceptance states are unchanged.

@@ -1100,6 +1100,11 @@ def main() -> None:
         "s_numberOfSpeakers",
         "s_openALHRTF",
         "s_musicVolume",
+        "s_dialogueVolume",
+        "ui_subtitles",
+        "ui_subtitleScale",
+        "ui_subtitleBackground",
+        "ui_subtitleSpeakers",
     ]
     for cvar in audio_cvars:
         require(audio_gui, cvar, "Audio settings include")
@@ -1113,9 +1118,9 @@ def main() -> None:
         "#str_229962",
         "#str_229963",
         "rect\t0,104,640,250",
-        "rect\t-24,-84,640,330",
+        "rect\t-24,-84,640,474",
         "rect\t245,142,361,20",
-        "rect\t245,294,361,20",
+        "rect\t245,318,361,20",
     ):
         require(audio_surface, token, "Audio grouped layout")
 
@@ -1123,6 +1128,7 @@ def main() -> None:
         "windowDef set_audio_cat_levels",
         "windowDef set_audio_vol",
         "windowDef set_audio_music",
+        "windowDef set_audio_dialogue",
         "windowDef set_audio_cat_backend",
         "windowDef set_audio_backend",
         "windowDef set_audio_device",

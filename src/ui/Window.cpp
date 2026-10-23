@@ -5518,8 +5518,9 @@ void idWindow::ReadFromSaveGame( idFile *savefile ) {
 		return;
 	}
 	if ( savedChildID != childID ) {
-		common->Error( "idWindow::ReadFromSaveGame: saved child id %d for window '%s' does not match parsed id %d in gui '%s'",
-			savedChildID, savedName.c_str(), childID, gui->GetSourceFile() );
+		common->Error( "idWindow::ReadFromSaveGame: saved child id %d for window '%s' does not match parsed window '%s' (id %d, parent '%s') in gui '%s'",
+			savedChildID, savedName.c_str(), name.c_str(), childID,
+			parent ? parent->name.c_str() : "<root>", gui->GetSourceFile() );
 		return;
 	}
 	const unsigned int structuralFlagMask = WIN_CHILD | WIN_DESKTOP;

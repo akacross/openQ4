@@ -58,6 +58,7 @@ struct idPlayerView {
  int deathFxStart=-1,recoveryFxUntil=0,crashFxStart=-1,crashFxDuration=0;
  bool recoverySequence=false,crashFxClosing=false;
  ~idPlayerView();void ResetRetainedViewEffects();void RetainedRecoveryFade(const idVec4&,int);
+ void ResetSubtitles(){} // subtitle state is covered by audio_subtitles.py
  void DrawRetainedViewEffects(bool wheelOnly=false);
  float value(const char*k){return presentationFx?presentationFx->state[k]:0;}
 };

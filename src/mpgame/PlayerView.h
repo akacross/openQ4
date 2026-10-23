@@ -5,6 +5,7 @@
 
 #ifndef __GAME_PLAYERVIEW_H__
 #define __GAME_PLAYERVIEW_H__
+#include "../game/gamesys/SubtitlePaging.h"
 
 /*
 ===============================================================================
@@ -80,6 +81,7 @@ public:
 // RAVEN END
 
 private:
+#include "../game/gamesys/SubtitleState.h"
 	void ResetRetainedViewEffects();
 	void RetainedRecoveryFade( const idVec4 &color, int duration );
 	void DrawRetainedViewEffects( bool wheelOnly = false );

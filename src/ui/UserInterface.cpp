@@ -830,6 +830,7 @@ bool idUserInterfaceLocal::GetTextInputState( idRectangle &area, float &cursorOf
 */
 
 void idUserInterfaceManagerLocal::Init() {
+	nativePresenceThread = std::this_thread::get_id();
 	RetainedUI_Init();
 	cmdSystem->AddCommand("ui_hudTest",[](const idCmdArgs& args) { uiManagerLocal.HudTest(args); },CMD_FL_SYSTEM|CMD_FL_CHEAT,"inspect or drive HUD GUI state without device input");
 	cmdSystem->AddCommand("ui_observeLegacy",UI_ObserveLegacy,CMD_FL_SYSTEM,"observe exact legacy parse/fixup/alpha decisions without activation");
@@ -1054,10 +1055,6 @@ idUserInterface *idUserInterfaceManagerLocal::FindGui( const char *qpath, bool a
 			return gui;
 		} else {
 			delete gui;
-			if ( session != NULL && session->IsLoadingSaveGame() ) {
-				common->Error( "Savegame restore could not load serialized GUI '%s'; aborting before its positional state payload can desynchronize the stream",
-					qpath ? qpath : "<null>" );
-			}
 		}
 	}
 	return NULL;

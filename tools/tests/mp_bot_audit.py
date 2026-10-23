@@ -105,11 +105,17 @@ def main() -> int:
     parser.add_argument("--map", dest="map_name", default="mp/q4dm1")
     parser.add_argument("--bots", type=int, default=8)
     parser.add_argument("--skill", type=int, choices=range(1, 6), default=4)
-    parser.add_argument("--debug", type=int, choices=range(1, 3), default=1,
-                        help="2 includes bot status, damage and movement diagnostics")
+    parser.add_argument("--debug", type=int, choices=range(1, 5), default=1,
+                        help="2 includes bot status/damage, 3 adds edge/traversal traces, 4 adds jump predictions")
     parser.add_argument("--max-world-deaths", type=int, default=None,
                         help="fail the audit if deaths to the map exceed this limit")
+    parser.add_argument("--classify-impulses", action="store_true",
+                        help="apply the MP-02 policy (mp_bot_impulse_replay.py): replay each death that follows "
+                             "a logged enemy impulse and apply --max-world-deaths to navigation deaths only; "
+                             "excluded deaths are still reported with their evidence (needs --debug 2 or more)")
     parser.add_argument("--seconds", type=int, default=120)
+    parser.add_argument("--min-sim-seconds", type=int, default=None,
+                        help="require this much observed server time, independent of wall-clock waits")
     parser.add_argument("--port", type=int, default=28972)
     parser.add_argument("--timeout", type=int, default=0, help="defaults to seconds + 150")
     parser.add_argument("--profile-period", type=int, default=10)
@@ -122,6 +128,10 @@ def main() -> int:
     args = parser.parse_args()
     if not 2 <= args.bots <= len(NAMES):
         parser.error(f"use 2 to {len(NAMES)} bots")
+    if args.min_sim_seconds is not None and args.min_sim_seconds < 1:
+        parser.error("--min-sim-seconds must be positive")
+    if args.classify_impulses and (args.debug < 2 or args.max_world_deaths is None):
+        parser.error("--classify-impulses needs --debug 2 (BOT_IMPULSE traces) and --max-world-deaths")
     timeout = args.timeout or args.seconds + 150
     runtime, output = args.runtime_dir.resolve(), args.output_dir.resolve()
     exe = runtime / args.executable_name
@@ -243,7 +253,19 @@ def main() -> int:
     all_died = world_deaths(clean, bot_names)
     # Rates remain tied to the measured window. Safety qualification includes
     # startup too: a lethal route is no safer because a bot took it before BEGIN.
-    if args.max_world_deaths is not None and len(all_died) > args.max_world_deaths:
+    classification = None
+    if args.classify_impulses and all_died:
+        # Only deaths after a logged enemy impulse whose isolated replay falls
+        # with every fixed air input are excluded; everything else counts.
+        from mp_bot_impulse_replay import classify_log
+        classification = classify_log(clean, bot_names, args.gametype, args.map_name, runtime, args.executable_name,
+                                      args.basepath.resolve(), output / "impulse-replays", args.port + 1)
+        counted = classification["navigation_world_deaths"]
+        if counted > args.max_world_deaths:
+            failures.append(f"{counted} complete-run navigation/control world deaths "
+                            f"({len(all_died)} world deaths, {classification['excluded_impulse_deaths']} "
+                            f"excluded as unrecoverable enemy impulses) exceed the limit of {args.max_world_deaths}")
+    elif args.max_world_deaths is not None and len(all_died) > args.max_world_deaths:
         failures.append(f"{len(all_died)} complete-run world deaths "
                         f"({len(warmup_died)} during warmup, {len(died)} measured) "
                         f"exceed the limit of {args.max_world_deaths}")
@@ -294,12 +316,24 @@ def main() -> int:
 
     navmesh = re.search(r"^rvNavMesh: (\d+) nodes, (\d+) links[^\n]*in (\d+) ms", clean, re.M)
 
+    # Objectives and combat: the last report's team scores (CTF captures,
+    # DeadZone/One Flag points) and the bots' own scores.
+    team_scores = re.findall(r"^MP_STATE time=\d+ .*? marine=(-?\d+) strogg=(-?\d+)", sample, re.M)
+    last_report = sample.split("MP_STATE time=")[-1] if "MP_STATE time=" in sample else ""
+    bot_scores = {slot: int(score) for slot, score in
+                  re.findall(r"^MP_PLAYER slot=(\d+) bot=1 .*? score=(-?\d+) ", last_report, re.M)}
+
     # The server's own clock against the real-time report interval: below 1
     # the simulation could not keep up with real time.
     game_times = [int(v) for v in re.findall(r"^MP_STATE time=(\d+) ", sample, re.M)]
     sim_speed = None
+    simulation_seconds = None
     if len(game_times) >= 2:
-        sim_speed = round((game_times[-1] - game_times[0]) / (5000.0 * (len(game_times) - 1)), 3)
+        simulation_seconds = (game_times[-1] - game_times[0]) / 1000.0
+        sim_speed = round(simulation_seconds / (5.0 * (len(game_times) - 1)), 3)
+    if args.min_sim_seconds is not None and (simulation_seconds is None or simulation_seconds < args.min_sim_seconds):
+        failures.append(f"observed simulation duration {simulation_seconds} seconds "
+                        f"is below the required {args.min_sim_seconds} seconds")
 
     # CPU over the audit window: the last `seconds` before the run ended.
     window_cpu = None
@@ -320,9 +354,17 @@ def main() -> int:
                     "build_ms": int(navmesh.group(3))} if navmesh else None,
         "navmesh_line": next(iter(re.findall(r"^rvNavMesh: [^\n]*nodes[^\n]*$", clean, re.M)), ""),
         "kills": len(kills),
+        "team_scores": ({"marine": int(team_scores[-1][0]), "strogg": int(team_scores[-1][1])}
+                        if team_scores else None),
+        "bot_scores": bot_scores,
         "world_deaths": len(died), "suicides": len(suicides),
         "warmup_world_deaths": len(warmup_died),
         "complete_run_world_deaths": len(all_died),
+        "navigation_world_deaths": (classification["navigation_world_deaths"] if classification else
+                                    (len(all_died) if args.classify_impulses else None)),
+        "excluded_impulse_deaths": (classification["excluded_impulse_deaths"] if classification else
+                                    (0 if args.classify_impulses else None)),
+        "death_classification": classification["deaths"] if classification else [],
         "world_deaths_per_bot_minute": round(len(died) / bot_minutes, 3),
         "suicides_per_bot_minute": round(len(suicides) / bot_minutes, 3),
         "kills_per_bot_minute": round(len(kills) / bot_minutes, 3),
@@ -330,6 +372,8 @@ def main() -> int:
         "nav_failures_per_bot_minute": round((nav["no_route"] + nav["stuck"] + nav["traversal_timeout"] +
                                               nav["goal_give_up"]) / bot_minutes, 3),
         "sim_speed": sim_speed,
+        "simulation_seconds": simulation_seconds,
+        "min_sim_seconds": args.min_sim_seconds,
         "cpu_cores_busy": window_cpu,
         "main_loop_frame_ms": {"frames": len(loop_frames),
                                "mean": round(statistics.fmean(loop_frames), 2) if loop_frames else None,
@@ -345,8 +389,9 @@ def main() -> int:
         "log": str(log_path),
     }
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    summary = {key: report[key] for key in ("map", "gametype", "bots", "navmesh_line", "kills",
+    summary = {key: report[key] for key in ("map", "gametype", "bots", "navmesh_line", "kills", "team_scores",
                                              "world_deaths", "warmup_world_deaths", "complete_run_world_deaths",
+                                             "navigation_world_deaths", "excluded_impulse_deaths",
                                              "suicides", "nav_events",
                                              "nav_failures_per_bot_minute", "sim_speed", "cpu_cores_busy",
                                              "main_loop_frame_ms", "failures")}

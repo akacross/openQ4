@@ -3,6 +3,9 @@
 Date: 2026-08-03  
 Qualification review: 2026-09-07
 
+Current rerun: 2026-10-18. The stage-two evidence below uses the in-tree game
+sources; the earlier companion-repository links retain investigation provenance.
+
 Status: Implemented; scoped live qualification recorded, remaining release checks below
 
 This document records the behavioural comparison behind openQ4's competitive
@@ -1072,3 +1075,31 @@ three clean exits, native visibility readings of 1 and inspected engine captures
 of both the active captain/operator and neutral spectator Status panels. This
 is a diagnostic routing correction; no product GUI or input-control change was
 needed. Earlier OpenGL/Vulkan role-menu captures remain separate visual evidence.
+
+## Stage-two current-runtime rerun (2026-10-18)
+
+The staged Windows x64/OpenGL runtime with the command-argument ownership fix
+passes `mp_control_smoke.py --role-matrix` and `mp_roster_smoke.py`. This is the
+same binary set used by the [passing stock baseline](retail-baseline-ledger.md#stage-two-connection-regression),
+based on `cbe967f2b61935da283a873a731fe975926cf214` plus the recorded `CmdArgs`
+source changes. Subsequent generated-image source/build work did not replace
+the staged runtime during these tests.
+
+The control run retains 17 follow-target observations, role-filtered accepted
+wire views, menu activation within the unchanged 3,000 ms budget, and three
+clean exits. The roster run passes 32 accepted-state checkpoints in 453.2 seconds
+and five clean client lifetimes, including coach invitation, revocation, review
+denial, proposal reuse and captain/referee slot replacement without inherited
+authority. Both runs use hidden 960x540 windows, loopback peers, original assets
+and engine diagnostic commands; no operating-system input was controlled.
+
+| Retained report | SHA-256 |
+| --- | --- |
+| `.tmp/s2control/report.json` | `a26840b9e52b655eb6082be510ad13f401bf1e9b4d25b4616ef22f1428d42f5d` |
+| `.tmp/s2roster/report.json` | `8d1d3f42cf790741ce4939e8df67ee9119495af17778cfcf7b699482cc2334c8` |
+
+Reports name the engine logs and render-target captures in their respective
+directories. These checks do not close MP-01: the remaining scenarios above,
+physical localized keyboard/controller workflows, other renderer/platform
+qualification and newly authored UI workflows remain open. The roster duration
+is operational evidence, not a controlled performance comparison.

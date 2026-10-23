@@ -146,6 +146,9 @@ private:
 	void					UpdateMovement( idPlayer *self, usercmd_t &cmd );
 	bool					HoldForPad( idPlayer *self, idVec3 &moveDir );
 	void					AdoptPadLaunch( idPlayer *self );
+	// Diagnostic only: the fixed full air input bot_probeAir replays, then braking once grounded.
+	void					ProbeAirControl( idPlayer *self, usercmd_t &cmd );
+	void					ReportProbeGrounding( idPlayer *self );
 	void					TryDodgeJump( idPlayer *self, const idVec3 &direction, usercmd_t &cmd );
 	bool					HoldDodgeJump( idPlayer *self, usercmd_t &cmd );
 	void					ResetDodgeJump( void );
@@ -234,6 +237,7 @@ private:
 	bool					AlignJumpDropApproach( idPlayer *self, usercmd_t &cmd );
 	bool					HandleJumpTakeoff( idPlayer *self, usercmd_t &cmd );
 	bool					GuardLandingContinuation( idPlayer *self, usercmd_t &cmd );
+	bool					RecoverInAir( idPlayer *self, usercmd_t &cmd );
 
 	void					ApplyMove( const idVec3 &moveDir, usercmd_t &cmd ) const;
 	void					PressJump( usercmd_t &cmd ) const;
@@ -341,6 +345,31 @@ private:
 	idVec3					climbCheckTarget;	// the corner above it, or the volume it is stepping into
 	float					climbCheckDistance;	// how far off that target was then
 	int						padHoldSince;		// since when the bot has waited at a pad for its corridor to clear
+	// The pad this bot is about to enter - its route's next action, within
+	// hold reach - published for the other bots' corridor priority: two bots
+	// released from opposite pads in the same frame met over q4ctf5's void.
+	int						padApproachEntity;	// entity number, -1 for none
+	int						padApproachSince;	// when the bot came within reach of it
+	int						padApproachTime;	// last frame the approach was confirmed
+	idVec3					padApproachLaunch;	// the final walking corner before the pad
+	idVec3					padApproachLanding;	// the pad corner's landing
+	// Set only by the local-cheat traversal probes; cleared by OnSpawn.
+	bool					probeWatch;			// report the probed bot's first grounding
+	bool					probeAirActive;		// bot_probeAir owns the input instead of the controller
+	idVec3					probeAirDirection;	// its fixed horizontal input, zero for none
+	int						probeStartTime;
+	bool					probeAirborneSeen;	// the probed bot has left the ground since the probe
+	int						airRecoverReported;	// last airborne-recovery start logged, so one line per fall
+	bool					airRecovering;		// braking a knocked fall until it has stopped on the ground
+	int						knockbackTime;		// last applied knockback, which alone can start that brake
+	int						knockbackFrameTime;	// the frame knockbackFrameKick sums
+	idVec3					knockbackFrameKick;	// every kick of that frame, a shotgun's pellets together
+	int						airborneSince;		// when the current flight left the ground, 0 on the ground
+	bool					airborneVoluntary;	// that flight began with the bot's own jump press
+	int						jumpPressTime;		// last grounded frame the bot pressed jump
+	idVec3					airRecoverWish;		// the air input that brake holds, zero for none
+	int						airRecoverPlanTime;	// when it was last chosen
+	int						airRecoverLanded;	// when that fall touched down, 0 while still airborne
 
 	// -- combat --
 	idEntityPtr<idPlayer>	enemy;
@@ -478,6 +507,13 @@ public:
 	bool					RemoveBot( const char *name );
 	void					RemoveAll( void );
 	void					ListBots( void ) const;
+	// Local cheat diagnostic, restricted to one bot and the local observer.
+	bool					ProbeTraversal( int clientNum, const idVec3 &origin, const idVec3 &velocity,
+											const idVec3 &landing, navTravelType_t travel, idEntity *pad = NULL, bool dodge = false,
+											const idVec3 *airDirection = NULL );
+	// The health, and knockback time, the next traversal probe gives its bot;
+	// 0 for unchanged.
+	bool					SetProbeHealth( int clientNum, int health, int knockbackMsec = 0 );
 
 	// Re-bind every live bot after the character roster has been reparsed.
 	// botreload must call this before the next frame runs, or every bot is
@@ -508,6 +544,9 @@ public:
 	// already expired: reactions forgiven, goals abandoned, stuck checks fired.
 	void					ShiftMatchTime( int deltaMsec );
 	void					OnPlayerDamaged( idPlayer *victim, idEntity *attacker, int damage, const idVec3 &dir );
+	// Called from idPlayer::Damage whenever knockback is applied to a bot,
+	// including impulses that friendly fire or armour leave without damage.
+	void					OnPlayerKnockback( idPlayer *victim, const idVec3 &kick );
 
 	// Called once for an accepted typed-chat line on the server.  It chooses at
 	// most one visible bot to answer and lets that bot's character content,
@@ -524,6 +563,10 @@ public:
 	int						ClientNavNode( int clientNum ) const;
 
 	bool					IsBot( int clientNum ) const;
+	// The pad a bot is about to enter, with when it came within reach and the
+	// flight it will make, or false when it is approaching none this frame.
+	bool					PadApproachOf( int clientNum, int &padEntityNum, int &since,
+										   idVec3 &launch, idVec3 &landing ) const;
 	int						NumBots( void ) const;
 	int						GoalClaimCount( const rvBot *requester, const idEntity *goal ) const;
 	// The objective role a bot is executing right now, BOTOBJ_NONE for anything
@@ -594,6 +637,8 @@ private:
 
 	idList<idItem *>		items;
 
+	int						probeHealth;			// pending bot_probeHealth value
+	int						probeKnockback;		// and its knockback milliseconds
 	int						decisionFrame;			// gameLocal.framenum the count belongs to
 	int						decisionsThisFrame;
 

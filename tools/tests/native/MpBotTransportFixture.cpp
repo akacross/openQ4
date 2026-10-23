@@ -59,15 +59,21 @@ struct Game {
 } gameLocal;
 struct Debug { bool GetBool() const { return false; } } bot_debug;
 struct idClipModel {
+    idBounds bounds{{{-32,-32,-128},{32,32,-116}}};
+    const idBounds& GetAbsBounds() const { return bounds; }
     const void* GetCollisionModel() const { return nullptr; }
     idVec3 GetOrigin() const { return {}; }
     int GetAxis() const { return 0; }
 };
-struct Collision { template<class... T> bool Contents(T...) { return true; } } collision;
+struct Collision {
+    int calls=0; bool hit=true;
+    template<class... T> bool Contents(T...) { ++calls; return hit; }
+} collision;
 Collision* collisionModelManager=&collision;
 int navAgentTrace=0,mat3_identity=0;
 bool NavTravelVolumeBounds(idEntity* e,idBounds& b) { b=e->bounds; return e->validBounds; }
-const idClipModel* NavTravelVolumeClip(idEntity*) { return nullptr; }
+static const idClipModel* contactVolume=nullptr;
+const idClipModel* NavTravelVolumeClip(idEntity*) { return contactVolume; }
 class rvNavMesh {
 public:
     struct Node { idVec3 origin; int gx=0,gy=0,flags=0,firstLink=0; };
@@ -99,6 +105,14 @@ public:
 // PRODUCTION_FUNCTIONS
 int main() {
     idEntity pad,target; pad.type=rvJumpPad::GetClassType(); pad.entityNumber=2;
+    idClipModel volume;
+    CHECK(!NavPadVolumeTouches(&pad,{0,0,-128}));
+    contactVolume=&volume; collision.hit=false;
+    CHECK(!NavPadVolumeTouches(&pad,{0,0,-128}) && collision.calls==1);
+    collision.hit=true;
+    CHECK(NavPadVolumeTouches(&pad,{0,0,-128}) && collision.calls==2);
+    CHECK(!NavPadVolumeTouches(&pad,{200,0,-128}) && collision.calls==2);
+    contactVolume=nullptr;
     target.physics.origin={0,0,512}; pad.targets.Append({&target});
     gameLocal.spawnedEntities.next=&pad; gameLocal.entities[2]=&pad;
     auto mesh=[]() { rvNavMesh n; n.nodes.Append({{0,0,-128},0,0,0,7}); n.nodes.Append({{240,0,0},10,0,0,7}); return n; };

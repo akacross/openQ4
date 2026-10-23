@@ -102,7 +102,16 @@ void AL_APIENTRY alGetSourcef( ALuint, ALenum, ALfloat* value ) AL_API_NOEXCEPT 
 	ZeroValues( value, 1 );
 }
 
+void AL_APIENTRY alGetSourcefv( ALuint, const ALenum param, ALfloat* values ) AL_API_NOEXCEPT {
+	const bool vector = param == AL_POSITION || param == AL_VELOCITY || param == AL_DIRECTION;
+	ZeroValues( values, vector ? 3 : 1 );
+}
+
 void AL_APIENTRY alGetSourcei( ALuint, ALenum, ALint* value ) AL_API_NOEXCEPT {
+	ZeroValues( value, 1 );
+}
+
+void AL_APIENTRY alGetBufferi( ALuint, ALenum, ALint* value ) AL_API_NOEXCEPT {
 	ZeroValues( value, 1 );
 }
 

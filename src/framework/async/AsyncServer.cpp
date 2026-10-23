@@ -843,6 +843,7 @@ idAsyncServer::ClearClient
 */
 void idAsyncServer::ClearClient( int clientNum ) {
 	serverClient_t &client = clients[clientNum];
+	client.voiceMailbox.Clear();
 	client.clientId = 0;
 	client.clientState = SCS_FREE;
 	client.clientPrediction = 0;
@@ -881,6 +882,7 @@ void idAsyncServer::InitClient( int clientNum, int clientId, int clientRate ) {
 
 	// clear the server client
 	serverClient_t &client = clients[clientNum];
+	client.voiceMailbox.Clear();
 	client.clientId = clientId;
 	client.clientState = SCS_CONNECTED;
 	client.clientPrediction = 0;
@@ -1335,6 +1337,44 @@ bool idAsyncServer::SendEmptyToClient( int clientNum, bool force ) {
 	return true;
 }
 
+bool idAsyncServer::LocalClientSendVoiceMessage( const idBitMsg &msg ) {
+	if ( localClientNum < 0 || localClientNum >= MAX_ASYNC_CLIENTS ||
+		clients[localClientNum].clientState != SCS_INGAME || msg.GetSize() <= 0 || msg.GetSize() > 384 ) return false;
+	msg.BeginReading();
+	game->ServerReceiveVoice( localClientNum, msg );
+	return true;
+}
+
+bool idAsyncServer::SendVoiceMessage( int clientNum, const idBitMsg &payload ) {
+	if ( clientNum < 0 || clientNum >= MAX_ASYNC_CLIENTS || payload.GetSize() <= 0 || payload.GetSize() > 384 ) return false;
+	serverClient_t& client = clients[clientNum];
+	if ( client.clientState != SCS_INGAME ) return false;
+	if ( clientNum == localClientNum ) {
+		payload.BeginReading();
+		game->ClientReceiveVoice( payload );
+		return true;
+	}
+	return client.voiceMailbox.Push( payload.GetData(), payload.GetSize(), uint32_t( Sys_Milliseconds() ) );
+}
+
+void idAsyncServer::FlushVoiceMessages() {
+	for ( int i = 0; i < MAX_ASYNC_CLIENTS; ++i ) {
+		serverClient_t& client = clients[i];
+		if ( client.clientState != SCS_INGAME ) { client.voiceMailbox.Clear(); continue; }
+		byte frames[oq4voice::MaxBatch], buffer[oq4voice::MaxBatch + 5];
+		const int length = client.voiceMailbox.Take( frames, uint32_t( Sys_Milliseconds() ) );
+		// Snapshots have already had their turn. A maximum 20 ms rate burst
+		// permits media beside this frame's snapshot, never ahead of it.
+		if ( !length || !client.channel.CanSendUnfragmented( serverTime, length + 5, 20 ) ) continue;
+		idBitMsg msg;
+		msg.Init( buffer, sizeof( buffer ) );
+		msg.WriteLong( gameInitId );
+		msg.WriteByte( SERVER_UNRELIABLE_MESSAGE_VOICE );
+		msg.WriteData( frames, length );
+		client.channel.SendMessage( serverPort, serverTime, msg );
+	}
+}
+
 /*
 ==================
 idAsyncServer::SendPingToClient
@@ -1619,6 +1659,12 @@ void idAsyncServer::ProcessUnreliableClientMessage( int clientNum, const idBitMs
 	// process the unreliable message
 	id = msg.ReadByte();
 	switch( id ) {
+		case CLIENT_UNRELIABLE_MESSAGE_VOICE: {
+			if ( client.clientState == SCS_INGAME && msg.GetRemainingData() > 0 && msg.GetRemainingData() <= 384 ) {
+				game->ServerReceiveVoice( clientNum, msg );
+			}
+			break;
+		}
 		case CLIENT_UNRELIABLE_MESSAGE_EMPTY: {
 			if ( idAsyncNetwork::verbose.GetInteger() ) {
 				common->Printf( "received empty message for client %d\n", clientNum );
@@ -3443,6 +3489,7 @@ void idAsyncServer::RunFrame( bool allowBlocking ) {
 		}
 	}
 
+	FlushVoiceMessages();
 	if ( com_showAsyncStats.GetBool() ) {
 
 		UpdateAsyncStatsAvg();

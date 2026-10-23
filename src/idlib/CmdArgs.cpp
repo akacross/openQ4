@@ -9,6 +9,9 @@ idCmdArgs::operator=
 */
 void idCmdArgs::operator=( const idCmdArgs &args ) {
 	int i;
+	if ( this == &args ) {
+		return;
+	}
 
 	argc = args.argc;
 	memcpy( tokenized, args.tokenized, MAX_COMMAND_STRING );

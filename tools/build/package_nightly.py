@@ -97,6 +97,7 @@ MACOS_EXPECTED_PLIST_VALUES = {
     "LSMinimumSystemVersion": "11.0",
     "LSApplicationCategoryType": "public.app-category.games",
     "NSPrincipalClass": "NSApplication",
+    "NSMicrophoneUsageDescription": "Use push-to-talk voice chat or test your microphone after enabling microphone access in Voice settings.",
     MACOS_RUNTIME_LAYOUT_KEY: MACOS_RUNTIME_LAYOUT_VALUE,
 }
 MACOS_ALLOWED_RUNTIME_DEPENDENCY_PREFIXES = (
@@ -2229,9 +2230,11 @@ def write_macos_localized_info_strings(app_contents: Path, version: str) -> None
     ]
 
     for locale in ("English", "French"):
+        microphone_usage = ("Utilisez le chat vocal ou testez votre microphone après avoir autorisé son accès dans les paramètres de voix."
+                            if locale == "French" else MACOS_EXPECTED_PLIST_VALUES["NSMicrophoneUsageDescription"])
         write_text_file(
             app_contents / "Resources" / f"{locale}.lproj" / "InfoPlist.strings",
-            localized_info_lines,
+            localized_info_lines + [f'NSMicrophoneUsageDescription = "{microphone_usage}";'],
         )
 
 
@@ -3896,6 +3899,8 @@ def create_macos_app_bundle(
             "<string>public.app-category.games</string>",
             "<key>NSPrincipalClass</key>",
             "<string>NSApplication</string>",
+            "<key>NSMicrophoneUsageDescription</key>",
+            f"<string>{MACOS_EXPECTED_PLIST_VALUES['NSMicrophoneUsageDescription']}</string>",
             "<key>NSHighResolutionCapable</key>",
             "<true/>",
             "<key>NSSupportsAutomaticGraphicsSwitching</key>",

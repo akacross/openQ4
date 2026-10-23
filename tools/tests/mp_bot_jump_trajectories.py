@@ -38,9 +38,17 @@ def main() -> None:
         "bool rvNavMesh::DodgeJumpClear(",
         "bool rvNavMesh::PadLanding(",
         "bool rvNavMesh::LandingSurvivable(",
+        "bool rvNavMesh::AirInputLandingSafe(",
     ))
     header = (ROOT / "src/mpgame/bots/NavMesh.h").read_text(encoding="utf-8")
     bodies = function(header, "ID_INLINE bool NavAirSteer(").replace("ID_INLINE ", "") + "\n" + bodies
+    bot = (ROOT / "src/mpgame/bots/Bot.cpp").read_text(encoding="utf-8")
+    bodies += "\n" + function(bot, "static bool BotRidesPadArc(")
+    item = (ROOT / "src/mpgame/Item.cpp").read_text(encoding="utf-8")
+    bodies += "\n" + function(item, "bool idItem::TouchesPickup(")
+    bodies += "\n" + function(bot, "static int BotRecoveryHealthAt(")
+    bodies += "\n" + function(bot, "static void BotChooseAirInput(")
+    constants += "\n" + re.search(r"^static const float\s+BOT_EDGE_LOOKAHEAD[^\n]+", bot, re.M).group()
     constants += "\n" + re.search(r"^static const float\s+NAV_AIR_STEER_DEADBAND[^\n]+", header, re.M).group()
     hull = function(nav, "static idTraceModel NavCreateAgentTrace(")
     trace_model = (ROOT / "src/idlib/geometry/TraceModel.cpp").read_text(encoding="utf-8")
@@ -65,12 +73,20 @@ def main() -> None:
         subprocess.run([str(exe)], cwd=path, check=True)
         registry = (ROOT / "tools/tests/native/MpBotTransportFixture.cpp").read_text(encoding="utf-8")
         registry_bodies = "\n".join(function(nav, signature) for signature in (
+            "static bool NavPadVolumeTouches(",
             "void rvNavMesh::AddOffMeshLinks(",
             "void rvNavMesh::SealTransportVolumes(",
             "int rvNavMesh::TransportAt(",
             "bool rvNavMesh::NaturalPadLanding(",
             "bool rvNavMesh::IsSteeredPadLanding(",
         ))
+        # Keep the second native fixture separate: Windows can briefly retain
+        # the just-executed image even after its process has exited.
+        transport_cpp = path / "transports.cpp"
+        transport_exe = path / ("transports.exe" if os.name == "nt" else "transports")
+        command[command.index(str(cpp))] = str(transport_cpp)
+        command[command.index(str(exe))] = str(transport_exe)
+        cpp, exe = transport_cpp, transport_exe
         cpp.write_text(registry.replace("// PRODUCTION_FUNCTIONS", registry_bodies), encoding="utf-8")
         subprocess.run(command, cwd=path, check=True)
         subprocess.run([str(exe)], cwd=path, check=True)

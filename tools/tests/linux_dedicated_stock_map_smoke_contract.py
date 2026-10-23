@@ -215,7 +215,9 @@ def main() -> None:
     )
     require(
         posix_console,
-        "void Sys_ShowSplash( void ) {\n#if defined( USE_SDL3 ) && !defined( ID_DEDICATED )",
+        # Android also excludes the splash: its Activity owns the launch screen.
+        "#if defined( USE_SDL3 ) && !defined( ID_DEDICATED ) && !defined( __ANDROID__ )\n"
+        "\tif ( s_splashWindow.window != NULL || s_splashWindow.createFailed ) {",
         "dedicated splash implementation exclusion",
     )
 

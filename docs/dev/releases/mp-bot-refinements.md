@@ -2,6 +2,11 @@
 
 ## Highlights
 
+- **Bots find more recoverable landings after a hit.** Air steering checks finer
+  directions and keeps a safe heading. A critically hurt bot with no safe impact
+  can aim for a reachable health pickup instead of braking into the void.
+- **Scripted bot replacement works reliably.** Removing a bot frees its slot
+  before the next buffered command tries to add the same character.
 - **Bots fire more sensibly around cover.** A rocket into the wall beside you is
   no longer "useful" when you are behind cover, and a bot behind a pillar no
   longer refuses a safe shot because it believed its own blast would reach it

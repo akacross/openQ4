@@ -13,7 +13,7 @@ bool resourcesRefreshing=false,rootSubmissionPending=false;std::uint64_t rootSub
 retainedUIView_t* initializationView=nullptr;
 int restartGeneration=-1,languageGeneration=-1;std::uint64_t languageRevision=0,loadedLanguageRevision=0;
 '''
-    helpers = source[source.index('const std::thread::id editThread='):source.index('\nvoid RecordProfile(')]
+    helpers = source[source.index('std::thread::id editThread='):source.index('\nvoid RecordProfile(')]
     signatures = [
         'bool RegisteredView(', 'bool LoadViewDocument(', 'void ReportViewDiagnostics(', 'bool RefreshResources(',
         'retainedUIView_t* RetainedUI_CreateView(', 'void RetainedUI_DestroyView(',

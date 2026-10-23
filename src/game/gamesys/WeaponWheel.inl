@@ -320,6 +320,7 @@ bool idPlayer::IsWeaponWheelSlotLowAmmo( int slot ) {
 
 static float WeaponWheelDeadzoneRadius() {
 	if ( !cvarSystem->GetCVarBool( "ui_retained" ) ) return WEAPON_WHEEL_DEADZONE_RADIUS;
+	if ( cvarSystem->GetCVarBool( "ui_radialTouchActive" ) ) return 32.0f;
 	return cvarSystem->GetCVarBool( "ui_radialStickActive" ) ? WEAPON_WHEEL_CURSOR_RADIUS * 0.35f : 32.0f;
 }
 
@@ -342,7 +343,10 @@ static void WeaponWheelAdvanceCursor( const usercmd_t &cmd, idVec2 &cursor, int 
 
 	cursor.x += mouseDx * WEAPON_WHEEL_MOUSE_SENSITIVITY;
 	cursor.y += mouseDy * WEAPON_WHEEL_MOUSE_SENSITIVITY;
-	if ( mouseDx == 0 && mouseDy == 0 && cvarSystem->GetCVarBool( "ui_retained" ) && cvarSystem->GetCVarBool( "ui_radialStickActive" ) ) {
+	if ( cvarSystem->GetCVarBool( "ui_radialTouchActive" ) ) {
+		cursor.x = cvarSystem->GetCVarFloat( "ui_radialTouchX" ) * WEAPON_WHEEL_CURSOR_RADIUS;
+		cursor.y = cvarSystem->GetCVarFloat( "ui_radialTouchY" ) * WEAPON_WHEEL_CURSOR_RADIUS;
+	} else if ( mouseDx == 0 && mouseDy == 0 && cvarSystem->GetCVarBool( "ui_retained" ) && cvarSystem->GetCVarBool( "ui_radialStickActive" ) ) {
 		cursor.x = cvarSystem->GetCVarFloat( "ui_radialStickX" ) * WEAPON_WHEEL_CURSOR_RADIUS;
 		cursor.y = cvarSystem->GetCVarFloat( "ui_radialStickY" ) * WEAPON_WHEEL_CURSOR_RADIUS;
 	} else if ( mouseDx == 0 && mouseDy == 0 && !cvarSystem->GetCVarBool( "ui_retained" ) ) {
@@ -435,7 +439,9 @@ void idPlayer::UpdateWeaponWheel( void ) {
 
 	if ( held && !weaponWheelActive ) {
 		weaponWheelActive = true;
-		weaponWheelOpenedTime = now;
+		// Touch already qualified the hold before posting BUTTON_WEAPONWHEEL;
+		// do not delay it again or misinterpret its release as a previous-weapon tap.
+		weaponWheelOpenedTime = now - ( cvarSystem->GetCVarBool( "ui_radialTouchActive" ) ? 180 : 0 );
 		if ( !weaponWheelGui ) weaponWheelGuiSlot = -1;
 		weaponWheelCursor.Zero();
 		weaponWheelLastMouseX = usercmd.mx;

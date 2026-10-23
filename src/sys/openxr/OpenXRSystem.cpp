@@ -69,6 +69,8 @@ static const int VR_SCREEN_WIDTH = 1920;
 static const int VR_SCREEN_HEIGHT = 1080;
 static const int VR_SYSTEM_RETRY_MSEC = 3000;
 static const int VR_INPUT_CRITICAL_SECTION = CRITICAL_SECTION_TWO;
+static const uint32_t VR_MAX_SWAPCHAIN_IMAGES = 64;
+static const XrDuration VR_IMAGE_WAIT_NSEC = 100000000; // 100 ms, then recover on the desktop
 
 enum vrActionId_t {
 	VR_ACTION_AIM_POSE,
@@ -240,7 +242,10 @@ private:
 	};
 
 	// lifecycle
+	enum recovery_t { RECOVERY_NONE, RECOVERY_SESSION, RECOVERY_INSTANCE };
 	bool					Check( XrResult result, const char *what );
+	bool					CheckFrame( XrResult result, const char *what );
+	bool					RecoverIfNeeded( void );
 	bool					CreateInstance( void );
 	void					DestroyInstance( void );
 	bool					AcquireSystem( void );
@@ -290,7 +295,9 @@ private:
 	bool					systemUnavailableLogged;
 	bool					startFailureLogged;	// "no runtime" style warnings print once per start
 	bool					runtimeStopped;		// the runtime ended VR: wait for vr_restart
+	recovery_t				recovery;			// consumed only at a frame boundary
 	int						nextSystemRetryTime;
+	int						nextSessionRetryTime;
 	idStr					runtimeName;
 	idStr					systemName;
 	idStr					interactionProfile;
@@ -436,7 +443,9 @@ idVRSystemOpenXR::idVRSystemOpenXR( void ) {
 	systemUnavailableLogged = false;
 	startFailureLogged = false;
 	runtimeStopped = false;
+	recovery = RECOVERY_NONE;
 	nextSystemRetryTime = 0;
+	nextSessionRetryTime = 0;
 	swapchain_t *chains[3] = { &eyeSwapchains[0], &eyeSwapchains[1], &screenSwapchain };
 	for ( int i = 0; i < 3; i++ ) {
 		chains[i]->handle = XR_NULL_HANDLE;
@@ -542,11 +551,11 @@ void idVRSystemOpenXR::RendererStopping( void ) {
 }
 
 bool idVRSystemOpenXR::IsPacing( void ) const {
-	return sessionRunning;
+	return sessionRunning && recovery == RECOVERY_NONE;
 }
 
 bool idVRSystemOpenXR::IsActive( void ) const {
-	return sessionRunning && frame.active;
+	return sessionRunning && recovery == RECOVERY_NONE && frame.active;
 }
 
 void idVRSystemOpenXR::PrintStatus( void ) const {
@@ -574,12 +583,13 @@ void idVRSystemOpenXR::PrintStatus( void ) const {
 ====================
 idVRSystemOpenXR::Check
 
-Logs a failure. Losing the instance or the session tears down what depends
-on it; the next frame starts over if VR is still enabled.
+Record loss without destroying resources underneath the caller. A temporary
+swapchain, an acquired image or a partially created action set must unwind
+before RecoverIfNeeded consumes the request at a frame boundary.
 ====================
 */
 bool idVRSystemOpenXR::Check( XrResult result, const char *what ) {
-	if ( XR_SUCCEEDED( result ) ) {
+	if ( XR_SUCCEEDED( result ) && result != XR_SESSION_LOSS_PENDING && result != XR_TIMEOUT_EXPIRED ) {
 		return true;
 	}
 	char name[XR_MAX_RESULT_STRING_SIZE];
@@ -588,19 +598,58 @@ bool idVRSystemOpenXR::Check( XrResult result, const char *what ) {
 		idStr::snPrintf( name, sizeof( name ), "%d", static_cast<int>( result ) );
 	}
 	common->Warning( "OpenXR: %s failed: %s", what, name );
-	if ( result == XR_ERROR_SESSION_LOST ) {
-		DestroySession();
+	if ( result == XR_ERROR_SESSION_LOST || result == XR_SESSION_LOSS_PENDING ) {
+		if ( recovery == RECOVERY_NONE ) {
+			recovery = RECOVERY_SESSION;
+		}
 	} else if ( result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE ) {
-		DestroySession();
-		DestroyInstance();
+		recovery = RECOVERY_INSTANCE;
 		runtimeStopped = true;
+	}
+	if ( recovery != RECOVERY_NONE ) {
+		Sys_EnterCriticalSection( VR_INPUT_CRITICAL_SECTION );
+		inputValid = false;
+		frame.active = frame.stereo = false;
+		Sys_LeaveCriticalSection( VR_INPUT_CRITICAL_SECTION );
 	}
 	return false;
 }
 
+bool idVRSystemOpenXR::CheckFrame( XrResult result, const char *what ) {
+	if ( Check( result, what ) ) {
+		return true;
+	}
+	// A frame call that failed cannot establish valid image, pose or input
+	// ownership. Retire the session even for a non-loss error, preserving a
+	// stronger instance-loss request from Check.
+	if ( recovery == RECOVERY_NONE ) {
+		recovery = RECOVERY_SESSION;
+	}
+	Sys_EnterCriticalSection( VR_INPUT_CRITICAL_SECTION );
+	inputValid = false;
+	frame.active = frame.stereo = false;
+	Sys_LeaveCriticalSection( VR_INPUT_CRITICAL_SECTION );
+	return false;
+}
+
+bool idVRSystemOpenXR::RecoverIfNeeded( void ) {
+	if ( recovery == RECOVERY_NONE ) {
+		return false;
+	}
+	const recovery_t requested = recovery;
+	recovery = RECOVERY_NONE;
+	DestroySession();
+	if ( requested == RECOVERY_INSTANCE ) {
+		DestroyInstance();
+	}
+	// A persistent runtime fault must not create/destroy a session every frame.
+	nextSessionRetryTime = Sys_Milliseconds() + VR_SYSTEM_RETRY_MSEC;
+	return true;
+}
+
 XrPath idVRSystemOpenXR::Path( const char *text ) {
 	XrPath path = XR_NULL_PATH;
-	if ( xrStringToPath( instance, text, &path ) != XR_SUCCESS ) {
+	if ( recovery != RECOVERY_NONE || !Check( xrStringToPath( instance, text, &path ), "xrStringToPath" ) ) {
 		return XR_NULL_PATH;
 	}
 	return path;
@@ -614,7 +663,7 @@ idVRSystemOpenXR::CreateInstance
 bool idVRSystemOpenXR::CreateInstance( void ) {
 	uint32_t extensionCount = 0;
 	XrResult result = xrEnumerateInstanceExtensionProperties( NULL, 0, &extensionCount, NULL );
-	if ( XR_FAILED( result ) ) {
+	if ( XR_FAILED( result ) || extensionCount == 0 || extensionCount > 4096 ) {
 		if ( !startFailureLogged ) {
 			common->Warning( "OpenXR: no runtime is available (%d); install and activate one (SteamVR, Meta Quest Link, Monado...)", static_cast<int>( result ) );
 			startFailureLogged = true;
@@ -628,6 +677,9 @@ bool idVRSystemOpenXR::CreateInstance( void ) {
 		extensions[i].next = NULL;
 	}
 	result = xrEnumerateInstanceExtensionProperties( NULL, extensionCount, &extensionCount, extensions.Ptr() );
+	if ( XR_FAILED( result ) || extensionCount != static_cast<uint32_t>( extensions.Num() ) ) {
+		return false;
+	}
 	bool haveOpenGL = false;
 	for ( int i = 0; XR_SUCCEEDED( result ) && i < extensions.Num(); i++ ) {
 		if ( idStr::Cmp( extensions[i].extensionName, XR_KHR_OPENGL_ENABLE_EXTENSION_NAME ) == 0 ) {
@@ -661,13 +713,16 @@ bool idVRSystemOpenXR::CreateInstance( void ) {
 	XrInstanceProperties properties;
 	memset( &properties, 0, sizeof( properties ) );
 	properties.type = XR_TYPE_INSTANCE_PROPERTIES;
-	if ( xrGetInstanceProperties( instance, &properties ) == XR_SUCCESS ) {
+	if ( Check( xrGetInstanceProperties( instance, &properties ), "xrGetInstanceProperties" ) ) {
 		runtimeName = va( "%s %u.%u.%u", properties.runtimeName,
 			static_cast<unsigned>( XR_VERSION_MAJOR( properties.runtimeVersion ) ),
 			static_cast<unsigned>( XR_VERSION_MINOR( properties.runtimeVersion ) ),
 			static_cast<unsigned>( XR_VERSION_PATCH( properties.runtimeVersion ) ) );
 	} else {
 		runtimeName = "unknown";
+		if ( recovery != RECOVERY_NONE ) {
+			return false;
+		}
 	}
 
 	PFN_xrVoidFunction function = NULL;
@@ -684,9 +739,10 @@ bool idVRSystemOpenXR::CreateInstance( void ) {
 
 void idVRSystemOpenXR::DestroyInstance( void ) {
 	DestroySession();
-	if ( instance != XR_NULL_HANDLE ) {
-		xrDestroyInstance( instance );
-		instance = XR_NULL_HANDLE;
+	const XrInstance oldInstance = instance;
+	instance = XR_NULL_HANDLE;
+	if ( oldInstance != XR_NULL_HANDLE ) {
+		xrDestroyInstance( oldInstance );
 	}
 	systemId = XR_NULL_SYSTEM_ID;
 	getGLRequirements = NULL;
@@ -733,8 +789,11 @@ bool idVRSystemOpenXR::AcquireSystem( void ) {
 	XrSystemProperties properties;
 	memset( &properties, 0, sizeof( properties ) );
 	properties.type = XR_TYPE_SYSTEM_PROPERTIES;
-	if ( xrGetSystemProperties( instance, systemId, &properties ) == XR_SUCCESS ) {
+	if ( Check( xrGetSystemProperties( instance, systemId, &properties ), "xrGetSystemProperties" ) ) {
 		systemName = properties.systemName;
+	}
+	if ( recovery != RECOVERY_NONE ) {
+		return false;
 	}
 	common->Printf( "OpenXR: headset %s\n", systemName.c_str() );
 	return true;
@@ -834,9 +893,19 @@ bool idVRSystemOpenXR::CreateSession( void ) {
 		memset( &configViews[i], 0, sizeof( configViews[i] ) );
 		configViews[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW;
 	}
-	if ( !Check( xrEnumerateViewConfigurationViews( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, VR_NUM_EYES, &viewCount, configViews ), "xrEnumerateViewConfigurationViews" ) ) {
+	if ( !Check( xrEnumerateViewConfigurationViews( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, VR_NUM_EYES, &viewCount, configViews ), "xrEnumerateViewConfigurationViews" ) || viewCount != VR_NUM_EYES ) {
 		DestroySession();
 		return false;
+	}
+	for ( int i = 0; i < VR_NUM_EYES; i++ ) {
+		if ( configViews[i].recommendedImageRectWidth == 0 || configViews[i].recommendedImageRectHeight == 0
+				|| configViews[i].recommendedImageRectWidth > configViews[i].maxImageRectWidth
+				|| configViews[i].recommendedImageRectHeight > configViews[i].maxImageRectHeight
+				|| configViews[i].maxImageRectWidth > 16384 || configViews[i].maxImageRectHeight > 16384 ) {
+			common->Warning( "OpenXR: invalid or unsupported eye image dimensions" );
+			DestroySession();
+			return false;
+		}
 	}
 	recommendedEyeWidth = static_cast<int>( configViews[0].recommendedImageRectWidth );
 	recommendedEyeHeight = static_cast<int>( configViews[0].recommendedImageRectHeight );
@@ -849,10 +918,10 @@ bool idVRSystemOpenXR::CreateSession( void ) {
 	// blend mode: an opaque display; anything else blends with the real world
 	uint32_t blendCount = 0;
 	blendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-	if ( xrEnumerateEnvironmentBlendModes( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &blendCount, NULL ) == XR_SUCCESS && blendCount > 0 ) {
+	if ( Check( xrEnumerateEnvironmentBlendModes( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &blendCount, NULL ), "xrEnumerateEnvironmentBlendModes" ) && blendCount > 0 && blendCount <= 16 ) {
 		idList<XrEnvironmentBlendMode> modes;
 		modes.SetNum( static_cast<int>( blendCount ) );
-		if ( xrEnumerateEnvironmentBlendModes( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, blendCount, &blendCount, modes.Ptr() ) == XR_SUCCESS ) {
+		if ( Check( xrEnumerateEnvironmentBlendModes( instance, systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, blendCount, &blendCount, modes.Ptr() ), "xrEnumerateEnvironmentBlendModes" ) && blendCount == static_cast<uint32_t>( modes.Num() ) ) {
 			blendMode = modes[0];
 			for ( int i = 0; i < modes.Num(); i++ ) {
 				if ( modes[i] == XR_ENVIRONMENT_BLEND_MODE_OPAQUE ) {
@@ -861,14 +930,17 @@ bool idVRSystemOpenXR::CreateSession( void ) {
 			}
 		}
 	}
+	if ( recovery != RECOVERY_NONE ) {
+		return false;
+	}
 
 	// swapchain format: sRGB so the compositor reads the engine's gamma-encoded pixels as they are
 	uint32_t formatCount = 0;
 	swapchainFormat = 0;
-	if ( Check( xrEnumerateSwapchainFormats( session, 0, &formatCount, NULL ), "xrEnumerateSwapchainFormats" ) && formatCount > 0 ) {
+	if ( Check( xrEnumerateSwapchainFormats( session, 0, &formatCount, NULL ), "xrEnumerateSwapchainFormats" ) && formatCount > 0 && formatCount <= 256 ) {
 		idList<int64_t> formats;
 		formats.SetNum( static_cast<int>( formatCount ) );
-		if ( xrEnumerateSwapchainFormats( session, formatCount, &formatCount, formats.Ptr() ) == XR_SUCCESS ) {
+		if ( Check( xrEnumerateSwapchainFormats( session, formatCount, &formatCount, formats.Ptr() ), "xrEnumerateSwapchainFormats" ) && formatCount == static_cast<uint32_t>( formats.Num() ) ) {
 			for ( int i = 0; i < formats.Num() && swapchainFormat == 0; i++ ) {
 				if ( formats[i] == GL_SRGB8_ALPHA8 ) {
 					swapchainFormat = formats[i];
@@ -905,6 +977,10 @@ bool idVRSystemOpenXR::CreateSession( void ) {
 	if ( !CreateActions() ) {
 		// tracking and presentation still work without controllers
 		common->Warning( "OpenXR: controller input is unavailable" );
+		DestroyActions();
+		if ( recovery != RECOVERY_NONE ) {
+			return false;
+		}
 	}
 
 	recenterRequested = true;
@@ -916,10 +992,25 @@ bool idVRSystemOpenXR::CreateSession( void ) {
 }
 
 void idVRSystemOpenXR::DestroySession( void ) {
-	if ( frameOpen && session != XR_NULL_HANDLE ) {
-		// an unfinished frame is abandoned with the session
-		ReleaseImages();
-		frameOpen = false;
+	// Session destruction abandons any outstanding frame and images. Do not
+	// release here: a failed wait never granted permission to release, and a
+	// release failure must not recursively enter teardown.
+	frameOpen = false;
+	frameShouldRender = false;
+	Sys_EnterCriticalSection( VR_INPUT_CRITICAL_SECTION );
+	inputValid = false;
+	bodyYawValid = false;
+	moveForward = moveRight = 0.0f;
+	physicalCrouch = false;
+	roomScaleWalking = false;
+	roomScaleStickIdle = true;
+	memset( hands, 0, sizeof( hands ) );
+	memset( &frame, 0, sizeof( frame ) );
+	Sys_LeaveCriticalSection( VR_INPUT_CRITICAL_SECTION );
+	memset( aimLocalValid, 0, sizeof( aimLocalValid ) );
+	if ( pointerOnScreen ) {
+		pointerOnScreen = false;
+		Sys_PostVRPointer( false, 0.0f, 0.0f );
 	}
 	if ( rendererReady && renderSystem != NULL ) {
 		renderSystem->SetVRFrame( NULL );
@@ -937,12 +1028,10 @@ void idVRSystemOpenXR::DestroySession( void ) {
 		xrDestroySpace( viewSpace );
 		viewSpace = XR_NULL_HANDLE;
 	}
-	if ( session != XR_NULL_HANDLE ) {
-		if ( sessionRunning && sessionState == XR_SESSION_STATE_STOPPING ) {
-			xrEndSession( session );
-		}
-		xrDestroySession( session );
-		session = XR_NULL_HANDLE;
+	const XrSession oldSession = session;
+	session = XR_NULL_HANDLE;
+	if ( oldSession != XR_NULL_HANDLE ) {
+		xrDestroySession( oldSession );
 		common->Printf( "OpenXR: session closed\n" );
 	}
 	sessionRunning = false;
@@ -951,11 +1040,6 @@ void idVRSystemOpenXR::DestroySession( void ) {
 	viewsValid = false;
 	interactionProfile.Clear();
 
-	Sys_EnterCriticalSection( VR_INPUT_CRITICAL_SECTION );
-	inputValid = false;
-	bodyYawValid = false;
-	Sys_LeaveCriticalSection( VR_INPUT_CRITICAL_SECTION );
-	memset( &frame, 0, sizeof( frame ) );
 	for ( int i = 0; i < 16; i++ ) {
 		UpdateKey( i, heldKeys[i], false );
 	}
@@ -976,16 +1060,19 @@ bool idVRSystemOpenXR::CreateSwapchain( swapchain_t &swapchain, int width, int h
 	createInfo.mipCount = 1;
 	swapchain.handle = XR_NULL_HANDLE;
 	swapchain.acquired = false;
+	swapchain.acquiredIndex = 0;
 	swapchain.images.Clear();
 	if ( !Check( xrCreateSwapchain( session, &createInfo, &swapchain.handle ), "xrCreateSwapchain" ) ) {
 		swapchain.handle = XR_NULL_HANDLE;
 		return false;
 	}
 	uint32_t imageCount = 0;
-	if ( !Check( xrEnumerateSwapchainImages( swapchain.handle, 0, &imageCount, NULL ), "xrEnumerateSwapchainImages" ) || imageCount == 0 ) {
+	if ( !Check( xrEnumerateSwapchainImages( swapchain.handle, 0, &imageCount, NULL ), "xrEnumerateSwapchainImages" )
+			|| imageCount == 0 || imageCount > VR_MAX_SWAPCHAIN_IMAGES ) {
 		DestroySwapchain( swapchain );
 		return false;
 	}
+	const uint32_t capacity = imageCount;
 	idList<XrSwapchainImageOpenGLKHR> images;
 	images.SetNum( static_cast<int>( imageCount ) );
 	for ( int i = 0; i < images.Num(); i++ ) {
@@ -993,12 +1080,16 @@ bool idVRSystemOpenXR::CreateSwapchain( swapchain_t &swapchain, int width, int h
 		images[i].next = NULL;
 		images[i].image = 0;
 	}
-	if ( !Check( xrEnumerateSwapchainImages( swapchain.handle, imageCount, &imageCount,
-			reinterpret_cast<XrSwapchainImageBaseHeader *>( images.Ptr() ) ), "xrEnumerateSwapchainImages" ) ) {
+	if ( !Check( xrEnumerateSwapchainImages( swapchain.handle, capacity, &imageCount,
+			reinterpret_cast<XrSwapchainImageBaseHeader *>( images.Ptr() ) ), "xrEnumerateSwapchainImages" ) || imageCount != capacity ) {
 		DestroySwapchain( swapchain );
 		return false;
 	}
 	for ( int i = 0; i < images.Num(); i++ ) {
+		if ( images[i].image == 0 ) {
+			DestroySwapchain( swapchain );
+			return false;
+		}
 		swapchain.images.Append( images[i].image );
 	}
 	swapchain.width = width;
@@ -1007,13 +1098,15 @@ bool idVRSystemOpenXR::CreateSwapchain( swapchain_t &swapchain, int width, int h
 }
 
 void idVRSystemOpenXR::DestroySwapchain( swapchain_t &swapchain ) {
-	if ( swapchain.handle != XR_NULL_HANDLE ) {
-		xrDestroySwapchain( swapchain.handle );
-	}
+	const XrSwapchain handle = swapchain.handle;
 	swapchain.handle = XR_NULL_HANDLE;
 	swapchain.images.Clear();
 	swapchain.acquired = false;
+	swapchain.acquiredIndex = 0;
 	swapchain.width = swapchain.height = 0;
+	if ( handle != XR_NULL_HANDLE ) {
+		xrDestroySwapchain( handle );
+	}
 }
 
 /*
@@ -1072,9 +1165,16 @@ bool idVRSystemOpenXR::CreateActions( void ) {
 		memset( &suggestion, 0, sizeof( suggestion ) );
 		suggestion.type = XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING;
 		suggestion.interactionProfile = Path( profile.path );
+		if ( recovery != RECOVERY_NONE ) {
+			return false;
+		}
 		suggestion.countSuggestedBindings = static_cast<uint32_t>( suggested.Num() );
 		suggestion.suggestedBindings = suggested.Ptr();
 		const XrResult result = xrSuggestInteractionProfileBindings( instance, &suggestion );
+		if ( result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE ) {
+			Check( result, "xrSuggestInteractionProfileBindings" );
+			return false;
+		}
 		if ( XR_FAILED( result ) && vr_debug.GetInteger() > 0 ) {
 			common->Printf( "OpenXR: runtime declined bindings for %s (%d)\n", profile.path, static_cast<int>( result ) );
 		}
@@ -1088,11 +1188,11 @@ bool idVRSystemOpenXR::CreateActions( void ) {
 		spaceInfo.poseInActionSpace = VR_IdentityPose();
 		spaceInfo.action = actions[VR_ACTION_AIM_POSE];
 		if ( !Check( xrCreateActionSpace( session, &spaceInfo, &aimSpaces[hand] ), "xrCreateActionSpace( aim )" ) ) {
-			aimSpaces[hand] = XR_NULL_HANDLE;
+			return false;
 		}
 		spaceInfo.action = actions[VR_ACTION_GRIP_POSE];
 		if ( !Check( xrCreateActionSpace( session, &spaceInfo, &gripSpaces[hand] ), "xrCreateActionSpace( grip )" ) ) {
-			gripSpaces[hand] = XR_NULL_HANDLE;
+			return false;
 		}
 	}
 
@@ -1144,6 +1244,7 @@ void idVRSystemOpenXR::StartIfRequested( void ) {
 		}
 		runtimeStopped = false;
 		startFailureLogged = false;
+		nextSessionRetryTime = 0;
 	}
 	// Once the runtime has ended VR, creating an instance could relaunch it
 	// (SteamVR starts with its first client), so only vr_restart resumes.
@@ -1165,12 +1266,11 @@ void idVRSystemOpenXR::StartIfRequested( void ) {
 		return;
 	}
 	if ( session == XR_NULL_HANDLE ) {
-		static int nextAttempt = 0;
-		if ( Sys_Milliseconds() < nextAttempt ) {
+		if ( Sys_Milliseconds() < nextSessionRetryTime ) {
 			return;
 		}
 		if ( !CreateSession() ) {
-			nextAttempt = Sys_Milliseconds() + VR_SYSTEM_RETRY_MSEC;
+			nextSessionRetryTime = Sys_Milliseconds() + VR_SYSTEM_RETRY_MSEC;
 		}
 	}
 }
@@ -1181,7 +1281,7 @@ idVRSystemOpenXR::PollEvents
 ====================
 */
 void idVRSystemOpenXR::PollEvents( void ) {
-	for ( int guard = 0; guard < 64 && instance != XR_NULL_HANDLE; guard++ ) {
+	for ( int guard = 0; guard < 64 && instance != XR_NULL_HANDLE && recovery == RECOVERY_NONE; guard++ ) {
 		XrEventDataBuffer event;
 		memset( &event, 0, sizeof( event ) );
 		event.type = XR_TYPE_EVENT_DATA_BUFFER;
@@ -1202,8 +1302,7 @@ void idVRSystemOpenXR::PollEvents( void ) {
 			}
 			case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
 				common->Warning( "OpenXR: the runtime is going away; vr_restart starts VR again once it is back" );
-				DestroySession();
-				DestroyInstance();
+				recovery = RECOVERY_INSTANCE;
 				runtimeStopped = true;
 				return;
 			case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED: {
@@ -1212,11 +1311,11 @@ void idVRSystemOpenXR::PollEvents( void ) {
 				memset( &state, 0, sizeof( state ) );
 				state.type = XR_TYPE_INTERACTION_PROFILE_STATE;
 				const XrPath hand = vr_leftHanded.GetBool() ? handPaths[VR_HAND_LEFT] : handPaths[VR_HAND_RIGHT];
-				if ( session != XR_NULL_HANDLE && hand != XR_NULL_PATH && xrGetCurrentInteractionProfile( session, hand, &state ) == XR_SUCCESS
+				if ( session != XR_NULL_HANDLE && hand != XR_NULL_PATH && Check( xrGetCurrentInteractionProfile( session, hand, &state ), "xrGetCurrentInteractionProfile" )
 						&& state.interactionProfile != XR_NULL_PATH ) {
 					char path[XR_MAX_PATH_LENGTH];
 					uint32_t length = 0;
-					if ( xrPathToString( instance, state.interactionProfile, sizeof( path ), &length, path ) == XR_SUCCESS ) {
+					if ( Check( xrPathToString( instance, state.interactionProfile, sizeof( path ), &length, path ), "xrPathToString" ) ) {
 						interactionProfile = path;
 					}
 				}
@@ -1261,21 +1360,20 @@ void idVRSystemOpenXR::HandleSessionState( XrSessionState state ) {
 		case XR_SESSION_STATE_STOPPING:
 			sessionFocused = false;
 			if ( sessionRunning ) {
-				xrEndSession( session );
+				Check( xrEndSession( session ), "xrEndSession" );
 				sessionRunning = false;
 				common->Printf( "OpenXR: stopped presenting to the headset\n" );
 			}
 			break;
 		case XR_SESSION_STATE_LOSS_PENDING:
 			common->Warning( "OpenXR: the headset session was lost; it reopens when the headset returns" );
-			DestroySession();
+			recovery = RECOVERY_SESSION;
 			break;
 		case XR_SESSION_STATE_EXITING:
 			// the runtime asked us to leave VR; the game keeps running on the
 			// desktop and vr_enable keeps the player's choice for the next launch
 			common->Printf( "OpenXR: the runtime ended the VR session; vr_restart starts it again\n" );
-			DestroySession();
-			DestroyInstance();
+			recovery = RECOVERY_INSTANCE;
 			runtimeStopped = true;
 			break;
 		default:
@@ -1340,8 +1438,10 @@ void idVRSystemOpenXR::LocateFrame( XrTime time ) {
 		views[i].pose = VR_IdentityPose();
 	}
 	uint32_t viewCount = 0;
-	if ( Check( xrLocateViews( session, &locateInfo, &viewState, VR_NUM_EYES, &viewCount, views ), "xrLocateViews" )
-			&& viewCount == VR_NUM_EYES && ( viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT ) != 0 ) {
+	if ( !CheckFrame( xrLocateViews( session, &locateInfo, &viewState, VR_NUM_EYES, &viewCount, views ), "xrLocateViews" ) ) {
+		return;
+	}
+	if ( viewCount == VR_NUM_EYES && ( viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT ) != 0 ) {
 		viewsValid = true;
 		if ( ( viewState.viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT ) == 0 ) {
 			// orientation-only tracking: keep the eyes on a fixed head position
@@ -1356,8 +1456,10 @@ void idVRSystemOpenXR::LocateFrame( XrTime time ) {
 	XrSpaceLocation head;
 	memset( &head, 0, sizeof( head ) );
 	head.type = XR_TYPE_SPACE_LOCATION;
-	const bool headValid = xrLocateSpace( viewSpace, localSpace, time, &head ) == XR_SUCCESS
-		&& ( head.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT ) != 0;
+	if ( !CheckFrame( xrLocateSpace( viewSpace, localSpace, time, &head ), "xrLocateSpace( head )" ) ) {
+		return;
+	}
+	const bool headValid = ( head.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT ) != 0;
 	if ( headValid && ( head.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT ) == 0 ) {
 		head.pose.position.x = head.pose.position.y = head.pose.position.z = 0.0f;
 	}
@@ -1393,15 +1495,19 @@ void idVRSystemOpenXR::LocateFrame( XrTime time ) {
 		memset( &location, 0, sizeof( location ) );
 		location.type = XR_TYPE_SPACE_LOCATION;
 		const XrSpaceLocationFlags required = XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
-		bool valid = aimSpaces[hand] != XR_NULL_HANDLE && xrLocateSpace( aimSpaces[hand], localSpace, time, &location ) == XR_SUCCESS
-			&& ( location.locationFlags & required ) == required;
+		if ( aimSpaces[hand] != XR_NULL_HANDLE && !CheckFrame( xrLocateSpace( aimSpaces[hand], localSpace, time, &location ), "xrLocateSpace( aim )" ) ) {
+			return;
+		}
+		bool valid = aimSpaces[hand] != XR_NULL_HANDLE && ( location.locationFlags & required ) == required;
 		frame.aim[hand] = ToEnginePose( location.pose, valid );
 		aimLocalPoses[hand] = valid ? location.pose : VR_IdentityPose();
 		aimLocalValid[hand] = valid;
 		memset( &location, 0, sizeof( location ) );
 		location.type = XR_TYPE_SPACE_LOCATION;
-		valid = gripSpaces[hand] != XR_NULL_HANDLE && xrLocateSpace( gripSpaces[hand], localSpace, time, &location ) == XR_SUCCESS
-			&& ( location.locationFlags & required ) == required;
+		if ( gripSpaces[hand] != XR_NULL_HANDLE && !CheckFrame( xrLocateSpace( gripSpaces[hand], localSpace, time, &location ), "xrLocateSpace( grip )" ) ) {
+			return;
+		}
+		valid = gripSpaces[hand] != XR_NULL_HANDLE && ( location.locationFlags & required ) == required;
 		frame.grip[hand] = ToEnginePose( location.pose, valid );
 	}
 }
@@ -1512,9 +1618,12 @@ void idVRSystemOpenXR::SyncInput( float frameSeconds ) {
 		syncInfo.activeActionSets = &active;
 		const XrResult result = xrSyncActions( session, &syncInfo );
 		synced = result == XR_SUCCESS;
-		if ( XR_FAILED( result ) ) {
-			Check( result, "xrSyncActions" );
+		if ( result != XR_SUCCESS && result != XR_SESSION_NOT_FOCUSED ) {
+			CheckFrame( result, "xrSyncActions" );
 		}
+	}
+	if ( recovery != RECOVERY_NONE ) {
+		return;
 	}
 
 	memset( hands, 0, sizeof( hands ) );
@@ -1529,11 +1638,17 @@ void idVRSystemOpenXR::SyncInput( float frameSeconds ) {
 			memset( &floatState, 0, sizeof( floatState ) );
 			floatState.type = XR_TYPE_ACTION_STATE_FLOAT;
 			getInfo.action = actions[VR_ACTION_TRIGGER];
-			if ( xrGetActionStateFloat( session, &getInfo, &floatState ) == XR_SUCCESS && floatState.isActive ) {
+			if ( !CheckFrame( xrGetActionStateFloat( session, &getInfo, &floatState ), "xrGetActionStateFloat( trigger )" ) ) {
+				return;
+			}
+			if ( floatState.isActive ) {
 				hands[hand].trigger = floatState.currentState;
 			}
 			getInfo.action = actions[VR_ACTION_SQUEEZE];
-			if ( xrGetActionStateFloat( session, &getInfo, &floatState ) == XR_SUCCESS && floatState.isActive ) {
+			if ( !CheckFrame( xrGetActionStateFloat( session, &getInfo, &floatState ), "xrGetActionStateFloat( squeeze )" ) ) {
+				return;
+			}
+			if ( floatState.isActive ) {
 				hands[hand].squeeze = floatState.currentState;
 			}
 
@@ -1541,7 +1656,10 @@ void idVRSystemOpenXR::SyncInput( float frameSeconds ) {
 			memset( &vectorState, 0, sizeof( vectorState ) );
 			vectorState.type = XR_TYPE_ACTION_STATE_VECTOR2F;
 			getInfo.action = actions[VR_ACTION_THUMBSTICK];
-			if ( xrGetActionStateVector2f( session, &getInfo, &vectorState ) == XR_SUCCESS && vectorState.isActive ) {
+			if ( !CheckFrame( xrGetActionStateVector2f( session, &getInfo, &vectorState ), "xrGetActionStateVector2f" ) ) {
+				return;
+			}
+			if ( vectorState.isActive ) {
 				hands[hand].stickX = vectorState.currentState.x;
 				hands[hand].stickY = vectorState.currentState.y;
 			}
@@ -1550,21 +1668,25 @@ void idVRSystemOpenXR::SyncInput( float frameSeconds ) {
 			memset( &boolState, 0, sizeof( boolState ) );
 			boolState.type = XR_TYPE_ACTION_STATE_BOOLEAN;
 			getInfo.action = actions[VR_ACTION_THUMBSTICK_CLICK];
-			if ( xrGetActionStateBoolean( session, &getInfo, &boolState ) == XR_SUCCESS ) {
-				hands[hand].stickClick = boolState.isActive && boolState.currentState;
+			if ( !CheckFrame( xrGetActionStateBoolean( session, &getInfo, &boolState ), "xrGetActionStateBoolean( stick )" ) ) {
+				return;
 			}
+			hands[hand].stickClick = boolState.isActive && boolState.currentState;
 			getInfo.action = actions[VR_ACTION_PRIMARY];
-			if ( xrGetActionStateBoolean( session, &getInfo, &boolState ) == XR_SUCCESS ) {
-				hands[hand].primary = boolState.isActive && boolState.currentState;
+			if ( !CheckFrame( xrGetActionStateBoolean( session, &getInfo, &boolState ), "xrGetActionStateBoolean( primary )" ) ) {
+				return;
 			}
+			hands[hand].primary = boolState.isActive && boolState.currentState;
 			getInfo.action = actions[VR_ACTION_SECONDARY];
-			if ( xrGetActionStateBoolean( session, &getInfo, &boolState ) == XR_SUCCESS ) {
-				hands[hand].secondary = boolState.isActive && boolState.currentState;
+			if ( !CheckFrame( xrGetActionStateBoolean( session, &getInfo, &boolState ), "xrGetActionStateBoolean( secondary )" ) ) {
+				return;
 			}
+			hands[hand].secondary = boolState.isActive && boolState.currentState;
 			getInfo.action = actions[VR_ACTION_MENU];
-			if ( xrGetActionStateBoolean( session, &getInfo, &boolState ) == XR_SUCCESS ) {
-				hands[hand].menu = boolState.isActive && boolState.currentState;
+			if ( !CheckFrame( xrGetActionStateBoolean( session, &getInfo, &boolState ), "xrGetActionStateBoolean( menu )" ) ) {
+				return;
 			}
+			hands[hand].menu = boolState.isActive && boolState.currentState;
 		}
 	}
 
@@ -1600,6 +1722,9 @@ void idVRSystemOpenXR::SyncInput( float frameSeconds ) {
 			&& vr_aimMode.GetInteger() == VR_AIM_HAND && OffHandOnForegrip( weaponHand ) ) {
 		twoHanded = true;
 		Vibrate( offHand, 0.35f, 20 );
+		if ( recovery != RECOVERY_NONE ) {
+			return;
+		}
 		if ( vr_debug.GetInteger() > 0 ) {
 			common->Printf( "OpenXR: two-handed aim held\n" );
 		}
@@ -1753,47 +1878,49 @@ Frame loop
 */
 bool idVRSystemOpenXR::AcquireImages( void ) {
 	swapchain_t *chains[3] = { &screenSwapchain, &eyeSwapchains[0], &eyeSwapchains[1] };
-	bool ok = true;
 	for ( int i = 0; i < 3; i++ ) {
 		swapchain_t &chain = *chains[i];
-		chain.acquired = false;
-		if ( chain.handle == XR_NULL_HANDLE ) {
-			ok = false;
-			continue;
+		if ( recovery != RECOVERY_NONE ) {
+			return false;
+		}
+		if ( chain.handle == XR_NULL_HANDLE || chain.acquired ) {
+			recovery = RECOVERY_SESSION;
+			return false;
 		}
 		XrSwapchainImageAcquireInfo acquireInfo;
 		memset( &acquireInfo, 0, sizeof( acquireInfo ) );
 		acquireInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO;
 		uint32_t index = 0;
-		if ( !Check( xrAcquireSwapchainImage( chain.handle, &acquireInfo, &index ), "xrAcquireSwapchainImage" ) ) {
-			ok = false;
-			continue;
+		if ( !CheckFrame( xrAcquireSwapchainImage( chain.handle, &acquireInfo, &index ), "xrAcquireSwapchainImage" ) ) {
+			return false;
+		}
+		if ( index >= static_cast<uint32_t>( chain.images.Num() ) ) {
+			common->Warning( "OpenXR: acquired image index %u exceeds %d images", index, chain.images.Num() );
+			recovery = RECOVERY_SESSION;
+			return false;
 		}
 		XrSwapchainImageWaitInfo waitInfo;
 		memset( &waitInfo, 0, sizeof( waitInfo ) );
 		waitInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO;
-		waitInfo.timeout = XR_INFINITE_DURATION;
-		if ( !Check( xrWaitSwapchainImage( chain.handle, &waitInfo ), "xrWaitSwapchainImage" ) ) {
-			// an acquired image must still be released
-			XrSwapchainImageReleaseInfo releaseInfo;
-			memset( &releaseInfo, 0, sizeof( releaseInfo ) );
-			releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
-			xrReleaseSwapchainImage( chain.handle, &releaseInfo );
-			ok = false;
-			continue;
-		}
-		if ( static_cast<int>( index ) >= chain.images.Num() ) {
-			ok = false;
+		waitInfo.timeout = VR_IMAGE_WAIT_NSEC;
+		if ( !CheckFrame( xrWaitSwapchainImage( chain.handle, &waitInfo ), "xrWaitSwapchainImage" ) ) {
+			// A timeout is a positive OpenXR status, but never grants image
+			// access. Cancel through session destruction instead of releasing
+			// an image that has not successfully completed its wait.
+			return false;
 		}
 		chain.acquiredIndex = index;
 		chain.acquired = true;
 	}
-	return ok;
+	return true;
 }
 
 void idVRSystemOpenXR::ReleaseImages( void ) {
 	swapchain_t *chains[3] = { &screenSwapchain, &eyeSwapchains[0], &eyeSwapchains[1] };
 	for ( int i = 0; i < 3; i++ ) {
+		if ( recovery != RECOVERY_NONE ) {
+			return;
+		}
 		swapchain_t &chain = *chains[i];
 		if ( !chain.acquired || chain.handle == XR_NULL_HANDLE ) {
 			chain.acquired = false;
@@ -1802,8 +1929,10 @@ void idVRSystemOpenXR::ReleaseImages( void ) {
 		XrSwapchainImageReleaseInfo releaseInfo;
 		memset( &releaseInfo, 0, sizeof( releaseInfo ) );
 		releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
-		Check( xrReleaseSwapchainImage( chain.handle, &releaseInfo ), "xrReleaseSwapchainImage" );
 		chain.acquired = false;
+		if ( !CheckFrame( xrReleaseSwapchainImage( chain.handle, &releaseInfo ), "xrReleaseSwapchainImage" ) ) {
+			return;
+		}
 	}
 }
 
@@ -1844,7 +1973,7 @@ bool idVRSystemOpenXR::ResizeScreenSwapchain( void ) {
 	if ( !CreateSwapchain( resized, width, height ) ) {
 		screenResizeFailedWidth = width;
 		screenResizeFailedHeight = height;
-		return screenSwapchain.handle != XR_NULL_HANDLE;
+		return recovery == RECOVERY_NONE && screenSwapchain.handle != XR_NULL_HANDLE;
 	}
 	DestroySwapchain( screenSwapchain );
 	screenSwapchain.handle = resized.handle;
@@ -1951,7 +2080,7 @@ idVRSystemOpenXR::Vibrate
 ====================
 */
 void idVRSystemOpenXR::Vibrate( int hand, float amplitude, int durationMsec ) {
-	if ( !sessionRunning || !sessionFocused || !actionsAttached || hand < 0 || hand >= VR_NUM_HANDS || durationMsec <= 0 ) {
+	if ( recovery != RECOVERY_NONE || !sessionRunning || !sessionFocused || !actionsAttached || hand < 0 || hand >= VR_NUM_HANDS || durationMsec <= 0 ) {
 		return;
 	}
 	const float strength = idMath::ClampFloat( 0.0f, 1.0f, amplitude ) * idMath::ClampFloat( 0.0f, 1.0f, vr_hapticStrength.GetFloat() );
@@ -2006,8 +2135,10 @@ void idVRSystemOpenXR::AnchorScreen( void ) {
 	memset( &head, 0, sizeof( head ) );
 	head.type = XR_TYPE_SPACE_LOCATION;
 	XrPosef base = recenterPose;
-	if ( frameDisplayTime > 0 && xrLocateSpace( viewSpace, localSpace, frameDisplayTime, &head ) == XR_SUCCESS
-			&& ( head.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT ) != 0 ) {
+	if ( frameDisplayTime > 0 && !CheckFrame( xrLocateSpace( viewSpace, localSpace, frameDisplayTime, &head ), "xrLocateSpace( screen )" ) ) {
+		return;
+	}
+	if ( ( head.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT ) != 0 ) {
 		base.orientation = VR_YawOnly( head.pose.orientation );
 		if ( ( head.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT ) != 0 ) {
 			base.position = head.pose.position;
@@ -2024,11 +2155,17 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 	frame.active = false;
 	frame.stereo = false;
 
+	if ( RecoverIfNeeded() ) {
+		return;
+	}
 	StartIfRequested();
+	if ( RecoverIfNeeded() ) {
+		return;
+	}
 	if ( instance != XR_NULL_HANDLE ) {
 		PollEvents();
 	}
-	if ( session == XR_NULL_HANDLE || !sessionRunning ) {
+	if ( RecoverIfNeeded() || session == XR_NULL_HANDLE || !sessionRunning ) {
 		return;
 	}
 
@@ -2038,13 +2175,15 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 	XrFrameState frameState;
 	memset( &frameState, 0, sizeof( frameState ) );
 	frameState.type = XR_TYPE_FRAME_STATE;
-	if ( !Check( xrWaitFrame( session, &waitInfo, &frameState ), "xrWaitFrame" ) ) {
+	if ( !CheckFrame( xrWaitFrame( session, &waitInfo, &frameState ), "xrWaitFrame" ) ) {
+		RecoverIfNeeded();
 		return;
 	}
 	XrFrameBeginInfo beginInfo;
 	memset( &beginInfo, 0, sizeof( beginInfo ) );
 	beginInfo.type = XR_TYPE_FRAME_BEGIN_INFO;
-	if ( !Check( xrBeginFrame( session, &beginInfo ), "xrBeginFrame" ) ) {
+	if ( !CheckFrame( xrBeginFrame( session, &beginInfo ), "xrBeginFrame" ) ) {
+		RecoverIfNeeded();
 		return;
 	}
 	frameOpen = true;
@@ -2054,7 +2193,13 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 	const float frameSeconds = frameDelta.Sample( Sys_GetClockTicks(), Sys_ClockTicksPerSecond() );
 
 	LocateFrame( frameDisplayTime );
+	if ( RecoverIfNeeded() ) {
+		return;
+	}
 	SyncInput( frameSeconds );
+	if ( RecoverIfNeeded() ) {
+		return;
+	}
 
 	frame.frameNumber++;
 	frame.focused = sessionFocused;
@@ -2068,6 +2213,7 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 	frame.roomScale = vr_roomScale.GetBool();
 
 	if ( !frameShouldRender || !ResizeScreenSwapchain() || !AcquireImages() ) {
+		RecoverIfNeeded();
 		return;
 	}
 
@@ -2091,12 +2237,15 @@ void idVRSystemOpenXR::BeginFrame( void ) {
 }
 
 void idVRSystemOpenXR::EndFrame( void ) {
-	if ( !frameOpen ) {
+	if ( RecoverIfNeeded() || !frameOpen ) {
 		return;
 	}
 	frameOpen = false;
 	ReleaseImages();
 	renderSystem->SetVRFrame( NULL );
+	if ( RecoverIfNeeded() ) {
+		return;
+	}
 
 	renderVRFrameResult_t result;
 	memset( &result, 0, sizeof( result ) );
@@ -2156,6 +2305,9 @@ void idVRSystemOpenXR::EndFrame( void ) {
 		} else {
 			if ( !screenAnchored || lastFrameHud ) {
 				AnchorScreen();
+				if ( RecoverIfNeeded() ) {
+					return;
+				}
 			}
 			quad.space = localSpace;
 			quad.pose = screenAnchor;
@@ -2173,7 +2325,10 @@ void idVRSystemOpenXR::EndFrame( void ) {
 	endInfo.environmentBlendMode = blendMode;
 	endInfo.layerCount = layerCount;
 	endInfo.layers = layerCount > 0 ? layers : NULL;
-	Check( xrEndFrame( session, &endInfo ), "xrEndFrame" );
+	if ( !CheckFrame( xrEndFrame( session, &endInfo ), "xrEndFrame" ) ) {
+		RecoverIfNeeded();
+		return;
+	}
 	if ( vr_debug.GetInteger() > 1 ) {
 		common->Printf( "OpenXR: frame %d submitted %u layers (stereo %d)\n", frame.frameNumber, layerCount, stereo ? 1 : 0 );
 	}

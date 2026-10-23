@@ -8,6 +8,7 @@
 
 #include "Game_local.h"
 #include "gamesys/RetainedViewEffects.inl"
+#include "gamesys/Subtitles.inl"
 
 #if defined(_XENON) && (defined(_PROFILE) || defined(_DEBUG))
 #include "../sys/xenon/ProfilingSupport.h"
@@ -686,6 +687,9 @@ void idPlayerView::SingleView( idUserInterface *hud, const renderView_t *view, i
 		// RAVEN END
 	}
 
+	// Dialogue subtitles sit above the HUD and below debug post-process tests.
+	DrawSubtitles();
+
 	// test a single material drawn over everything
 	if ( g_testPostProcess.GetString()[0] ) {
 		renderSystem->SetUseUIViewportFor2D( false );
@@ -1034,6 +1038,11 @@ void idPlayerView::VRView( idUserInterface *hud, const renderView_t *view, const
 
 	for ( int eye = 0; eye < VR_NUM_EYES; eye++ ) {
 		if ( !renderSystem->SetVRRenderTarget( eye ) ) {
+			// Tiled screenshots deliberately render to the desktop. The XR
+			// pose can still be valid, but no eye target belongs to this draw.
+			if ( eye == 0 ) {
+				SingleView( hud, view, RF_NO_GUI | RF_PRIMARY_VIEW );
+			}
 			break;
 		}
 		renderView_t eyeView = *view;

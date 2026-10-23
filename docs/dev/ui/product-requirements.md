@@ -8,9 +8,9 @@ remain the detailed acceptance records: consolidation does not change any
 requirement ID, dependency, status, evidence or migration acceptance. The
 [visual specification](../ui-visual-design.md) remains normative.
 
-9 September 2026, revised 26, 27, 28 and 29 September and 1, 7 and 9 October 2026. The
-[machine-readable register](product-requirements.json) contains **347
-requirements** for the complete UI product: 310 that define acceptance and 37
+9 September 2026, revised through 21 October 2026. The
+[machine-readable register](product-requirements.json) contains **349
+requirements** for the complete UI product: 310 that define acceptance and 39
 superseded rows kept for history. It expands
 the [archived completion scope](../archive/2026-10-18/plans/ui-product-completion.md), the
 [archived original delivery scope](../archive/2026-10-18/plans/idtech5-ui.md) and the normative
@@ -621,8 +621,8 @@ held in play, its toggle, the notices, single-player loading tips and the
 multiplayer Escape card. Each row keeps its unbuilt parts and qualification
 matrices as remaining.
 
-There are **118 partial, 229 pending and 0 verified requirements**, counting the
-37 superseded rows at their recorded states. `BEH-002`
+There are **120 partial, 229 pending and 0 verified requirements**, counting the
+39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
 sounds and the complete device/modal/widget behavior still require implementation
@@ -899,3 +899,31 @@ supersession is changed. The new row remains pending. There are 347 requirements
 The recovered HUD work now has bounded evidence for the Classic gauges and canvas, individual ammo gains, notice separation, MP edge states and the Marine/Strogg wheels. `ART-026`, `FLOW-031`, `FLOW-051`, `LAY-020`, `FLOW-056`, `WID-034` and `WID-036` move from pending to partial; `MOT-015` gains wheel-motion evidence. All normative requirements, constraints, dependencies, historical rows and acceptance gates remain unchanged. There are 102 partial, 244 pending and one verified requirement.
 
 The source-bound local record is `.tmp/claude-continuation/hud/validation-summary.json`; [HUD](remastered-hud.md) and [wheel](weapon-wheels.md) notes retain the open work. This checkout already contained register revisions 14 through 18 beyond its committed schema-13 baseline. The continuation therefore records a structural/source-binding check against its preserved working checkpoint, not a successful immutable-Git increment audit or product acceptance.
+
+## Revision 19: Awakening single-player scope
+
+Visual specification 1.24 applies the project guide's existing single-player
+expansion policy. `FLOW-066` supersedes `FLOW-054` while preserving the thirteen
+weapons, both HUD families, scopes/displays/crosshairs and Falcon squad line in
+`q4xbase` single player. `WID-038` supersedes `WID-034` while preserving the complete
+eleven-slot ordinary Quake 4 multiplayer wheel, team treatments, reserve-only
+readout and equip/timing behavior. The historical rows are unchanged. Expansion
+multiplayer powerup/ammunition/accuracy/summary and wheel clauses no longer define
+acceptance; the artwork catalogue remains required without adding a game mode.
+
+Both successors remain partial and carry their predecessors' bounded evidence.
+No requirement, migration variant, artwork or platform is accepted. There are
+349 rows, 310 active requirements and 39 historical superseded rows; the current
+358 migration variants and seven final gates remain unaccepted.
+
+This revision follows the already validated Android inventory update in this
+uncommitted checkpoint. Its audit compares a frozen working-register snapshot,
+checks preserved historical rows/evidence, supersession/dependency structure,
+source hashes and unchanged migration bytes. It is a structural/source-binding
+check, not an immutable-Git increment audit or implementation acceptance.
+
+The scoped audit is `.tmp/stage-two/ui-awakening-scope/scope-audit-r3.json`, SHA-256
+`7a8cf674e111a7efa515e730fa4c1e854d4595b49e261e8d21e0ba52be9e6960`.
+Current document bindings pass. Historical local capture references remain
+unchanged and are explicitly not requalified; the unavailable older inventory
+capture is not treated as new evidence.

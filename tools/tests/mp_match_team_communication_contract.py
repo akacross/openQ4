@@ -223,7 +223,6 @@ def live_adapter_contracts(
         "managedTeamCommunicationRequested",
         "BuildManagedTeamCommunicationBinding( clientNum, managedSender )",
         "BuildManagedTeamCommunicationBinding( i,",
-        "BuildManagedTeamCommunicationBinding(\n\t\t\t\t\tgameLocal.localClientNum",
         "ManagedVoiceTransportAllows",
         "to->IsPlayerMuted( from )",
         "CanTalk( from, to",
@@ -232,12 +231,12 @@ def live_adapter_contracts(
     ):
         target = voice_source if token == "to->IsPlayerMuted( from )" else voice
         require(target, token, "managed voice adapter and transport safeguards")
-    if voice.count("MPMatchMayReceiveManagedTeamVoice(") != 3:
+    if voice.count("MPMatchMayReceiveManagedTeamVoice(") != 2:
         raise AssertionError(
-            "managed voice must authorize sender/self, network recipients, and the listen-server recipient"
+            "managed voice must authorize sender/self and every exact recipient, including the listen host"
         )
-    if voice.count("to->AllowedVoiceDest( from->entityNumber )") != 2:
-        raise AssertionError("voice destination limiting must remain on both delivery paths")
+    if voice.count("to->AllowedVoiceDest( from->entityNumber )") != 1:
+        raise AssertionError("voice destination limiting must remain on the unified exact-recipient path")
     require_before(
         voice,
         "BuildManagedTeamCommunicationBinding( clientNum, managedSender )",
@@ -247,7 +246,7 @@ def live_adapter_contracts(
     first_voice_policy = voice.find(
         "MPMatchMayReceiveManagedTeamVoice( matchSession, managedSender"
     )
-    first_voice_delivery = voice.find("gameLocal.SendUnreliableMessage(")
+    first_voice_delivery = voice.find("networkSystem->ServerSendVoice(")
     if (
         first_voice_policy < 0
         or first_voice_delivery < 0

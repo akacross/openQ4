@@ -1287,6 +1287,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	mapWeaponMaskValid = false;
 	arenaHudPresentation = -1;
 	arenaMenuWasPaused = false;
+	arenaSoundPauseOwned = false;
 
 	memset( lights, 0, sizeof( lights ) );
 	memset( lightHandles, -1, sizeof( lightHandles ) );
@@ -9846,8 +9847,10 @@ idMultiplayerGame::Clear
 ================
 */
 void idMultiplayerGame::Clear() {
+	ResetVoiceState();
 	
 	int		i;
+	UpdateArenaSoundPause( false );
 
 	// Clear can be reached directly by reset/shutdown paths.  Do this before
 	// resetting our ownership bit so an interrupted Arena handoff cannot leave
@@ -10015,6 +10018,8 @@ idMultiplayerGame::ClearMap
 void idMultiplayerGame::ClearMap( void ) {
 	// MapClear runs after client entities may already have been deleted, so only
 	// touch renderer-owned presentation state here; GUI cleanup is not safe.
+	ResetVoiceState();
+	UpdateArenaSoundPause( false );
 	SetArenaCampaignDepthOfField( false );
 	SetJoinScreenSoftFocus( false );
 	joinScreenPending = false;
@@ -13542,73 +13547,8 @@ void idMultiplayerGame::CommonRun( void ) {
 			iconManager->UpdateIcons();
 		}
 
-#ifdef _USE_VOICECHAT
-		float	micLevel;
-		bool	sending, testing;
-
-		// jscott: enable the voice recording
-		testing = cvarSystem->GetCVarBool( "s_voiceChatTest" );
-// jmarshall - voice recording is not available through the engine sound interface.
-		//sending = soundSystem->EnableRecording( !!( player->usercmd.buttons & BUTTON_VOICECHAT ), testing, micLevel );
-		sending = false;
-		micLevel = 0.0f;
-// jmarshall end
-
-		if( mainGui ) {
-			mainGui->SetStateFloat( "s_micLevel", micLevel );
-			mainGui->SetStateFloat( "s_micInputLevel", cvarSystem->GetCVarFloat( "s_micInputLevel" ) );
-		}
-
-// RAVEN BEGIN
-// shouchard:  let the UI know about voicechat states
-		// openQ4: the transmit displays follow changes; repeating the same event
-		// every frame made the HUD run an event program per frame.
-		const int transmitSelf = ( !testing && sending ) ? 1 : 0;
-		if ( transmitSelf != hudTransmitSelf ) {
-			player->mphud->HandleNamedEvent( transmitSelf ? "show_transmit_self" : "hide_transmit_self" );
-			hudTransmitSelf = transmitSelf;
-		}
-
-		if( player->GetUserInfo() && player->GetUserInfo()->GetBool( "s_voiceChatReceive" ) ) {
-// jmarshall - voice channels are not available through the engine sound interface.
-			//int maxChannels = soundSystem->GetNumVoiceChannels();
-			int clientNum = -1;
-			//for (int channels = 0; channels < maxChannels; channels++ ) {
-			//	clientNum = soundSystem->GetCommClientNum( channels );
-			//	if ( -1 != clientNum ) {
-			//		break;
-			//	}
-			//}
-// jmarshall end
-
-			// Sanity check for network errors
-			assert( clientNum > -2 && clientNum < MAX_CLIENTS );
-
-			if ( clientNum > -1 && clientNum < MAX_CLIENTS ) {
-				idPlayer *from = ( idPlayer * )gameLocal.entities[clientNum];
-				if( from && hudTransmitOther != clientNum ) {
-					player->mphud->SetStateString( "audio_name", from->GetUserInfo()->GetString( "ui_name" ) );
-					// openQ4: the Remastered talker plate's trace takes the talker's team color
-					player->mphud->SetStateInt( "oq4_audio_team", gameLocal.IsTeamGame() ? from->team : -1 );
-					player->mphud->HandleNamedEvent( "show_transmit" );
-					hudTransmitOther = clientNum;
-				}
-			} else if ( hudTransmitOther != -1 ) {
-				player->mphud->HandleNamedEvent( "hide_transmit" );
-				hudTransmitOther = -1;
-			}
-		}
-		else if ( hudTransmitOther != -1 ) {
-			player->mphud->HandleNamedEvent( "hide_transmit" );
-			hudTransmitOther = -1;
-		}
-#endif // _USE_VOICECHAT
-// RAVEN END
 	}
-#ifdef _USE_VOICECHAT
-	// jscott: Send any new voice data
 	XmitVoiceData();
-#endif
 
 	int oldRank = -1;
 	int oldLeadingTeam = -1;
@@ -14222,6 +14162,35 @@ bool idMultiplayerGame::ArenaCampaignPausesWorld( void ) const {
 	// The campaign publishes whether a menu covers the match: the main menu
 	// opened over it belongs to the engine, which the game cannot see.
 	return cvarSystem->GetCVarBool( "ui_arenaMenuOpen" );
+}
+
+/*
+================
+idMultiplayerGame::UpdateArenaSoundPause
+
+Own only the pause acquired by the local Arena menu. The sound world keeps its
+playback clock and resumable voices, while the separate menu world stays live.
+Clear/ClearMap release this ownership before a restart, abandon or module swap.
+================
+*/
+void idMultiplayerGame::UpdateArenaSoundPause( bool pause ) {
+	if ( !pause && !arenaSoundPauseOwned ) {
+		return;
+	}
+	idSoundWorld *world = soundSystem != NULL ? soundSystem->GetSoundWorldFromId( SOUNDWORLD_GAME ) : NULL;
+	if ( world == NULL ) {
+		arenaSoundPauseOwned = false;
+		return;
+	}
+	if ( pause ) {
+		if ( !world->IsPaused() ) {
+			world->Pause();
+			arenaSoundPauseOwned = true;
+		}
+	} else if ( arenaSoundPauseOwned ) {
+		world->UnPause();
+		arenaSoundPauseOwned = false;
+	}
 }
 
 /*
@@ -16116,6 +16085,7 @@ void idMultiplayerGame::Run( void ) {
 	// the rules must not run either, or the clock, the respawns and the rounds
 	// would advance underneath the menu.
 	const bool arenaPaused = ArenaCampaignPausesWorld();
+	UpdateArenaSoundPause( arenaPaused );
 	if ( arenaPaused != arenaMenuWasPaused ) {
 		arenaMenuWasPaused = arenaPaused;
 		gameLocal.Printf( "arena campaign: match %s\n", arenaPaused ? "paused" : "resumed" );
@@ -19734,7 +19704,7 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 					channel	= atoi(	snd	);
 					snd	= args.Argv( icmd++	);
 				}
-				soundSystem->PlayShaderDirectly( SOUNDWORLD_GAME, snd, channel );
+				soundSystem->PlayShaderDirectly( IsArenaPauseMenuOpen() ? SOUNDWORLD_MENU : SOUNDWORLD_GAME, snd, channel );
 			}
 			continue;
 		} else if (	!idStr::Icmp( cmd, "callVote" )	) {

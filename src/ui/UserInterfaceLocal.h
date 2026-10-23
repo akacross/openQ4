@@ -246,7 +246,8 @@ private:
 	idList<idUserInterfaceManaged*> allocations;
 	unsigned long long nextAllocationId = 0;
 	bool textBoundaryActive = false, textBoundaryFailed = false;
-	const std::thread::id nativePresenceThread = std::this_thread::get_id();
+	// Init rebinds the global manager when the engine starts on another thread.
+	std::thread::id nativePresenceThread = std::this_thread::get_id();
 	bool nativeBoundaryActive = false, nativeBoundaryFailed = false;
 	bool clipboardBoundaryActive = false, clipboardBoundaryFailed = false;
 	int applicationPumpDepth = 0;
