@@ -1,5 +1,7 @@
 # Input Settings and Controls Guide
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 This guide covers the main ways to configure keyboard, mouse, and controller input in openQ4, including the in-game menu, console commands, default binds, config files, and common troubleshooting.
 
 ## Quick Start

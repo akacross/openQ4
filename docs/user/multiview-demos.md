@@ -1,5 +1,7 @@
 # Demo Library, Playback, and Multi-View Demos
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 Multi-view demos are server-side multiplayer recordings. One `.mvd` file
 contains the full match state across every active multiplayer instance instead
 of only the camera seen by the person who started recording, so playback can

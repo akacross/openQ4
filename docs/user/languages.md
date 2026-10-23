@@ -1,5 +1,7 @@
 # Languages
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 openQ4 can show its menus and game text in twelve languages. Choose one in
 **Settings > Game Options > Language**. The menus switch at once; there is no
 need to restart.

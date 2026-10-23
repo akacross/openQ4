@@ -1,5 +1,21 @@
 # openQ4 release completion and evidence record
 
+**Release status, 23 October 2026:** 0.13.2 is the latest available release.
+0.14.0 (`v0.14.000`) was published and then withdrawn because it was broken.
+Later implementation and validation entries below are unreleased development
+work. Historical CI/publication success does not restore the withdrawn release.
+See [player release status](../user/release-status.md).
+
+## Release-status reconciliation, 23 October 2026
+
+- [x] Verify GitHub's latest release and public release list identify 0.13.2;
+  preserve the withdrawn 0.14.000 tag and evidence without advertising a download.
+- [x] Correct README/player documentation and the mislabeled 0.13.2 notes;
+  preserve later changes in [unreleased notes](releases/unreleased.md).
+- [x] Exclude withdrawn numeric versions from build/release baselines and
+  changelog ranges; reject explicit republication and skip the withdrawn number
+  when selecting a future version. The Meson/source-archive floor is 0.13.2.
+
 **Planning authority, 18 October 2026:** the [development roadmap](roadmap.md)
 is the single active plan for outstanding work. This document retains candidate
 release wording and implementation/validation history. Its older unchecked boxes
@@ -42,7 +58,7 @@ completed release material here and publish curated notes in `releases/`.
   still fail, and the open System page's external-preset binding remains stale.
   See [current UI evidence](ui/runtime-performance.md#current-build-measurements-and-presetscale-reproduction-22-october-2026).
 
-## Post-0.14.000 corrections
+## Unreleased corrections after the withdrawn 0.14.000 build
 
 - [x] Clarify UI defaults against the source and release tag: current
   `Session_menu.cpp` declares archived `ui_retained 1`; tag `v0.14.000`
@@ -1012,7 +1028,10 @@ on wide and tall displays. The optional new UI keeps its scope and dialog effect
   Addresses the documentation gap in [#185](https://github.com/themuffinator/openQ4/issues/185);
   the reporter's installation confirmation remains open under PLAT-04/REL-01.
 
-## 0.14.000 release
+## 0.14.000 release — withdrawn
+
+The completed steps below record the original attempt. The release was later
+withdrawn because it was broken; 0.13.2 remains the latest available download.
 
 This section records the tagged release, whose default was `ui_retained 0`.
 Later source builds restored `ui_retained 1` in commit `1aa2332d9`; see the
@@ -1031,13 +1050,17 @@ Later source builds restored `ui_retained 1` in commit `1aa2332d9`; see the
   matching pinned dependencies, corresponding source downloads and signature,
   manifest, native-library and overlay verification. Keep Android's device
   qualification limits explicit even when the overall release is stable.
-- [x] Publish and verify [0.14.000](https://github.com/themuffinator/openQ4/releases/tag/v0.14.000)
-  as the latest stable release through [Manual Releases](https://github.com/themuffinator/openQ4/actions/runs/38297252865).
-  All seven platform jobs and publication passed. All 16 download assets are
-  present with verified stored hashes, including the signed Android APK and
-  corresponding dependency sources. Legacy UI was the default in this release.
+- [x] Originally publish 0.14.000 through [Manual Releases](https://github.com/themuffinator/openQ4/actions/runs/38297252865).
+  All seven platform jobs and publication passed at the time, and the 16 assets
+  were verified. The broken release was subsequently removed. Its APK, legacy
+  UI default and other changes are not claims about the available 0.13.2 package.
 
-## 0.13.2 release candidate
+## Unreleased candidate work previously grouped under 0.13.2
+
+This section accumulated later development changes under an old candidate
+heading. It is not the contents of the 14 September 2026 release. See the
+[corrected 0.13.2 notes](releases/v0.13.2.md) for that package and
+[unreleased notes](releases/unreleased.md) for the later candidate material.
 
 - [x] Restore the actual legacy HUD audiograph and reduce repeated UI work. Radio and
   voice use the installed legacy waveform with its complete height table;
@@ -2410,10 +2433,10 @@ Later source builds restored `ui_retained 1` in commit `1aa2332d9`; see the
 - [ ] Linux x64/ARM64 push and ARM64 pull-request jobs now select mandatory lavapipe Vulkan startup/render-target and fallback checks. Hosted results, full Vulkan feature parity, physical GPU/platform qualification, repeated comparisons and promotion sign-off remain pending. See [Vulkan gap closure](archive/2026-10-18/plans/2026-09-20-vulkan-gap-closure.md).
 - [x] Bot-only effect/feedback queues no longer fill in busy multiplayer combat, and bot recipients skip network visibility work. Native delivery checks preserve human spectators, demo/repeater recording and the documented unreliable broadcast destination. This resolves queue-overflow warnings found during the bot audit.
 - [x] Multiplayer bots retain valid routes when a replacement is blocked, release stalled and no-longer-useful goals, and stop using unseen enemy positions for combat movement/weapon range. Explosion-aware threat filtering catches nearby resting explosives. Visibility and pickup shortlists avoid redundant collision queries; the native fixture reduces 80-item snap queries from 81 to 11 and checks 240 perception cases. Windows x64 build/staging, eight existing bot contracts, native regressions and live stock DM/CTF gameplay passed. CTF exercised fetch, defend, escort and capture goals. Details and reproduction: [Multiplayer bots](mp-bots.md).
-- [x] German is selectable as **Deutsch** in Game Options, with complete bundled menu, objective, terminal and gameplay-message translations. Retail German campaign dialogue remains supported; English-only installations retain English dialogue. Coverage, format arguments, choice ordering and German glyphs are checked alongside the existing localization contracts. Language changes force a deferred GUI reload so cached labels use the selected language. Player notes: [0.13.2](releases/v0.13.2.md).
+- [x] German is selectable as **Deutsch** in Game Options, with complete bundled menu, objective, terminal and gameplay-message translations. Retail German campaign dialogue remains supported; English-only installations retain English dialogue. Coverage, format arguments, choice ordering and German glyphs are checked alongside the existing localization contracts. Language changes force a deferred GUI reload so cached labels use the selected language. Player notes: [unreleased](releases/unreleased.md).
 - [x] Windows x64 build/staging and German SP/OpenGL and MP/Vulkan gameplay checks passed. The runtime regression checks live language switching, visible menus and the translated Match Control view using engine screenshots. German retail voice playback still requires qualification with the complete retail pack; the available English dialogue fallback was exercised.
 - [x] The TrueType faces were audited glyph by glyph against the retail atlases they are traced from, and repaired. The 17 Latin-1 symbols every face lacked and Chain's `!` are built from each face's own glyphs, and the bullet is no longer a missing-glyph box. Accented letters compose on the face's own letters (breve and ogonek from the weight-matched donor) instead of arriving whole from Noto, stacked accents no longer overlap, and ProFont's and the console sheet's squeezed capital accents are recomposed. The console face no longer draws `ß` as `á` (a retail cell slip), maps no C1 codes, keeps every glyph inside the cell the console clips to, and traces without stepped bevels. `tools/assets/fonts/audit_fonts.py` scores a build against the atlases, and `tools/tests/ttf_font_integrity.py` guards the shipped files in CI. Details: [TrueType font system](ttf-font-system.md).
-- [x] Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian are selectable as **Português (Brasil)**, **Čeština**, **Magyar**, **Türkçe** and **Українська**, with complete bundled code, menu, map, map-pack and openQ4 tables; dialogue stays English. Turkish uses Windows-1254, Hungarian Windows-1250 and Ukrainian Windows-1251 for the console and legacy paths, first launch follows the OS language, and Czech, Hungarian, Turkish and Ukrainian always use the scalable fonts. Each translated table is checked against English for keys, order, format arguments, escapes, choice lists, endonyms and drawable signature letters; the retained gate fits every loading tip and server card, and the SYSTEM page native fit tests pass for all five, run locally with their 1.4x glyph-width margin (CI samples seven other locales). Player notes: [0.13.2](releases/v0.13.2.md).
+- [x] Brazilian Portuguese, Czech, Hungarian, Turkish and Ukrainian are selectable as **Português (Brasil)**, **Čeština**, **Magyar**, **Türkçe** and **Українська**, with complete bundled code, menu, map, map-pack and openQ4 tables; dialogue stays English. Turkish uses Windows-1254, Hungarian Windows-1250 and Ukrainian Windows-1251 for the console and legacy paths, first launch follows the OS language, and Czech, Hungarian, Turkish and Ukrainian always use the scalable fonts. Each translated table is checked against English for keys, order, format arguments, escapes, choice lists, endonyms and drawable signature letters; the retained gate fits every loading tip and server card, and the SYSTEM page native fit tests pass for all five, run locally with their 1.4x glyph-width margin (CI samples seven other locales). Player notes: [unreleased](releases/unreleased.md).
 - [x] Windows x64 build/staging passed. Each new language passed the SP/OpenGL localization smoke on airdefense1 (gameplay, live switching to English and back, Settings and the language chooser) and the MP smoke on q4dm1 (translated Match Control; Turkish on Vulkan), checked with engine screenshots.
 - [x] Restaging openQ4-game sources is incremental. The stage is now synced in place, so
   staged files whose bytes are unchanged keep their timestamps and ninja no longer
