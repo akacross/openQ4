@@ -702,6 +702,15 @@ builds/binaries where applicable, host/backend, logs/images, outcome, review and
 limitations. Relevant changes require revalidation; a stale hash or unrelated
 green test cannot close a requirement.
 
+Only the [acceptance transition](acceptance-transition.md) records acceptance.
+It names each requirement and resource it accepts and audits their committed
+acceptance records: every conjunct, constraint and dependency, a gate's bounded
+milestone scope, and per-resource behavior and artwork proof. All of it must be
+current against the present files and reviewed by someone other than the
+author. The checkpoint audit keeps earlier acceptance only while its records
+stay current. Otherwise the acceptance must be withdrawn, keeping its records
+as history.
+
 The [migration manifest](migration-manifest.json) remains the per-resource source
 of replacement, behavior and visual acceptance. This register covers shared
 capabilities and product gates; it neither duplicates nor overwrites acceptance

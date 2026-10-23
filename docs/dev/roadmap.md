@@ -748,6 +748,14 @@ archived provenance; new scheduling belongs here.
   shared requirements remain partial, as specified by `GATE-003`/`GATE-004`.
   Final product acceptance still requires complete applicable requirements; check
   dependency evidence against the particular milestone being accepted.
+  Progress, 23 October: the [acceptance transition](ui/acceptance-transition.md)
+  (`--acceptance`) accepts only the requirements and resources it names. Each
+  one needs committed, reviewed records that prove every conjunct, constraint
+  and dependency, a gate's bounded milestone scope, and per-resource behavior and
+  artwork, with all of it current against the present files. Checkpoints keep
+  earlier acceptance only while it is current, or withdraw it explicitly. Its 19
+  fixture tests cover the failure cases above. The transition awaits its
+  separate review, and nothing has been accepted with it.
 
 Detailed current evidence: [menu audit](ui/menu-audit.md),
 [retained screens](ui/retained-screens.md), [multiplayer menus](ui/multiplayer-menus.md),

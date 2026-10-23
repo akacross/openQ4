@@ -24,6 +24,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## UI acceptance transition, 23 October 2026
+
+- [x] Add the register's separate acceptance audit (UI-11). It accepts only
+  named requirements and resources from committed, reviewed records that are
+  current and prove each conjunct, constraint, dependency and per-resource
+  behavior/artwork claim. Checkpoints withdraw stale acceptance explicitly.
+- [x] Register three UI checks that earlier increments added without wiring them
+  into CI and local validation.
+- [The transition's rules, tests and limits](ui/acceptance-transition.md) are
+  developer tooling with no player-visible change; nothing has been accepted
+  with it yet.
+
 ## Save browser controls, 23 October 2026
 
 - [x] Add date/name/location sorting, manual/autosave filter tags and explicit

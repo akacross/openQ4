@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "c302254b865833786be9f1fd02041aef85f80b22",
+    "engine_revision": "f74b48edb4b5cb3153749241f0b087df17e3eb0d",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -1141,6 +1141,15 @@
       "sha256": "f92df79daed88dd20161f2dd9594e9fc3f43831199e1fb4cafbc59518fa1c6f8",
       "local_capture_summary": ".tmp/ui-save-browser/validation-evidence.json",
       "local_capture_summary_sha256": "7b0eccec78182221391439fa8dd9a2103123bd66dcc38e51d74a7bd9907c9f38"
+    },
+    "acceptance-transition": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/acceptance-transition.md",
+      "baseline_engine_revision": "f74b48edb4b5cb3153749241f0b087df17e3eb0d",
+      "scope": "UI-11 acceptance transition: --acceptance accepts only named requirements/resources from committed, separately reviewed records proving every conjunct, constraint, dependency (or a gate's bounded milestone scope) and per-resource behavior/artwork, all current against the present files; checkpoints withdraw stale acceptance explicitly. Nineteen fixture tests cover the roadmap's failure cases; archive, inventory and hardening suites pass. Tooling only: no requirement, gate or resource is accepted and the transition awaits review.",
+      "sha256": "7f823997a97d3b8df900cfb63109ee16d5f1b0447e8a4e5870f743c6e1b258bf",
+      "local_capture_summary": ".tmp/ui/acceptance-transition/validation-evidence.json",
+      "local_capture_summary_sha256": "5c5785560269dc1463dbc4f5aa0910eaf845391fcc6b643f9381ab3fc106a358"
     }
   },
   "groups": {
@@ -2017,9 +2026,11 @@
         "Peer review against every normative section/table and all seven final gates; machine validation of IDs, references, dependency cycles and evidence shape."
       ],
       "status": "partial",
-      "current_evidence": [],
+      "current_evidence": [
+        "acceptance-transition"
+      ],
       "acceptance_evidence": [],
-      "remaining": "Register authored in this change; independent review and ongoing requirement updates remain necessary."
+      "remaining": "Register authored in this change; independent review of the register and of the acceptance transition, and ongoing requirement updates, remain necessary."
     },
     {
       "id": "GOV-003",
@@ -7872,7 +7883,8 @@
       ],
       "status": "partial",
       "current_evidence": [
-        "audit-baseline"
+        "audit-baseline",
+        "acceptance-transition"
       ],
       "acceptance_evidence": [],
       "remaining": "The cited foundation is limited; complete and qualify the entire stated requirement before acceptance."
