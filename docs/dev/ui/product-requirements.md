@@ -990,3 +990,18 @@ The scoped audit is `.tmp/stage-two/ui-awakening-scope/scope-audit-r3.json`, SHA
 Current document bindings pass. Historical local capture references remain
 unchanged and are explicitly not requalified; the unavailable older inventory
 capture is not treated as new evidence.
+
+## 23 October 2026: portrait cinematic subtitles
+
+Visual specification 1.25 lets cinematic subtitles hang 12 u below the 640x480
+cinematic artwork on screens narrower than 4:3 where two lines fit there. The
+picture is too short there for enlarged captions, which covered title text that
+cinematics draw in it, such as the Awakening introduction's. The active subtitle
+clause of `FLOW-052`, which superseded `FLOW-034` through `FLOW-040`, reads "at most
+two lines, never over the crosshair" and already admits this placement. No
+requirement, status or supersession changes; the increment re-binds the visual
+specification and the audio evidence document. The
+[portrait caption captures](../audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026)
+record the implementation, not acceptance. The increment audit
+(`validate_product_requirements.py`) passes against baseline `c12d36cda`; its report
+is `.tmp/audio/round2/register-increment.json` in the audio worktree.

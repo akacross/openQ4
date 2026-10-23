@@ -667,6 +667,7 @@ def validate_validation_wiring() -> None:
         "audio_memory_runtime.py",
         "audio_output_recovery_runtime.py",
         "audio_mod_reverb.py",
+        "audio_scene_audit.py",
         "audio_streaming.py",
         "audio_subtitles_runtime.py",
         "voice_chat_runtime.py",

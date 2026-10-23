@@ -750,6 +750,115 @@ no lip-sync text). Awakening's 1,512 mapped lines are literal English in their
 declarations. Other menu languages therefore show English captions; the player
 guide states this.
 
+## Authored scenes, centred reverb and portrait captions, 23 October 2026
+
+Implementation: [audio modernization](audio-modernization.md#authored-scenes-centred-reverb-and-portrait-captions-october-23).
+Windows x64, MSVC debugoptimized, built from a detached worktree of `8cb58aa4a`
+plus this round's changes and staged into that worktree's own `.install`. Client
+SHA-256 `347e6e15b9f15e48a49d2c176a61cef1bfd54c464b9763c4efd0f2389e68a50d`;
+each report records the modules, paks and harness hashes. Runs use the installed
+Steam 1.4.2 PK4s (Awakening from its separate content root), isolated save paths
+and OpenAL Soft's wave writer. No physical device, microphone or host input is
+used, and no report contains transcript text.
+
+### Centred sounds in mod reverbs
+
+`tools/tests/audio_mod_reverb.py` now also renders a centre-routed source, its
+noise in FC of a 5.1 buffer through direct channels, on a 5.1 loopback context.
+With room rolloff 1, OpenAL alone leaves its reverb send at the near-distance level
+at two and four times the minimum distance (ratio 1.0000), where a mono source
+falls to 0.5000 and 0.2500. With the engine's send gain the centre-routed source
+falls to 0.5000 and 0.2500 too, and to 0.1667 at room rolloff 2.5 and three times
+the minimum, matching the mono source to four places. The same holds with EAX
+reverb, and a stock preset (no room rolloff) keeps the centre send unchanged.
+All 20 checks pass, including the production source pins; the native reverb-core
+test checks the gain function's values and edge cases.
+
+### Streams on recycled voices
+
+The first gameplay run of this round found that a streamed track started on a
+voice whose source had played before never played. The stereo output run's second
+simulated outage left all four streams it was playing (two fixtures and two
+airdefense1 ambience loops) starting and stopping 39 times in 1.5 s. Its first
+outage had recovered only because those streams restarted on voices that had never
+played. An OpenAL loopback probe confirms the cause: a source that has played and
+been flushed reports `AL_STOPPED` with every newly queued buffer already processed,
+while a rewound one reports `AL_INITIAL` with none processed and then plays. The
+production queue test now models that state (a voice is played, flushed, and a
+stream queued on it must be playable). It fails without the rewind and passes with
+it.
+
+### Output recovery and Dialogue Volume
+
+The rerun of `tools/tests/audio_output_recovery_runtime.py` on this build passes all
+19 stereo and 12 surround checks. At Dialogue Volume 0.25 the line keeps that gain
+through a 600 ms outage and restarts on the new output serial, and both stream
+fixtures play again on the new serial. In the surround run Dialogue Volume 0.5
+holds through both in-place resets that follow it: HRTF on, then HRTF off, where
+the line moves back to the centre speaker (gain 1.0 before, then 0.5 and 0.5). The dialogue moved 2,645 ms over 2,633 ms of scene time across
+the first outage. The paused line moved 704 ms over 699 ms after its resume. The
+trim freed 1,128 samples and kept 95, and the only stream underruns (12) are the
+four streams' queues inside the three outages.
+
+### Portrait captions
+
+`tools/tests/audio_subtitles_runtime.py` (Awakening `game/m01_stranarus_trench1`,
+Turkish menus with English transcripts, 720×1280) passes all 16 checks on this
+build. Its captures were inspected. Default and enlarged two-line captions hang
+below the intro's lower letterbox band, clear of the "Planet Stroggos" title text
+the cinematic draws in its picture; before this change, enlarged captions covered
+it. The harness now waits up to 600 s by default, because the map took 110 s to
+load on the busy machine in a first attempt. The native placement test checks the
+rule at 9:16, 10:16 and 3:4 for four text sizes, and the unchanged placement at
+4:3, widescreen, in gameplay and for an unusable pitch.
+
+### Speech in authored scenes
+
+`tools/tests/audio_scene_audit.py` plays the first 30 s of each campaign map after it
+loads, chaining maps in one hidden client, with cinematics, AI and scripts running and
+god mode so the player survives. There is no other input, so scripted lines that wait
+for the player to move are not reached. `s_logSpeech` reports each start that may be
+speech. Every 3 s the harness lists the audible voices and subtitle cues, mutes
+Dialogue Volume for 150 ms, lists the voices again and restores it. After each opening
+it records the audio residency and the voices playing on bounded stream queues.
+
+All 29 stock maps run in three chains and all 13 Awakening maps in one, and every
+check passes in each:
+
+| Measure | Stock (29 maps) | Awakening (13 maps) |
+| --- | ---: | ---: |
+| Starts that may be speech | 256 | 633 |
+| Dialogue starts (distinct shaders) | 93 (62) | 55 (45) |
+| Declared or flagged speech not following Dialogue Volume | 0 | 0 |
+| Probe pairs; muted probes with a dialogue voice audible | 261; 0 | 117; 0 |
+| Dialogue starts with a transcript; without one | 26; 67 | 39; 16 |
+| Probes catching a transcribed line: cue shown; cue missing with a free slot | 24; 0 | 34; 0 |
+| Maps with streams playing after the opening | 27 | 12 |
+| Reserved audio after an opening: smallest, median, largest | 65.0, 124.6, 193.8 MiB | 71.7, 151.1, 242.1 MiB |
+| Process peak (admission budget 256 MiB); refusals | 255.4 MiB; 0 | 255.7 MiB; 0 |
+
+The largest openings are `mcc_landing`, `building_b` and `mcc_1`, and Awakening's
+`m09_valkaryne`. The process peak includes level changes, where the admission
+reclaims the previous level's samples as it approaches the budget. The only
+radio-channel starts that are not speech are two stock effect shaders. The
+voice-over-flagged starts that are not speech are radio static and interface
+clicks, 506 of them an NPC typing at a console in `m06_mcc_invasion`. None of them
+carries a lipSync declaration. The Strogg sentry's chatter counts as dialogue: it
+plays through the actor lipSync path, which flags its sound as voice-over.
+
+The first Awakening attempt did not complete. The machine was saturated that hour:
+the first map took 340 s to load where the rerun took 18 s, and OpenAL
+Soft's wave writer reported failed writes to its output file. The engine reopened
+the device after each one, as it would for a lost endpoint. The chain stalled on the
+second map waiting for a first gameplay frame and reached its 45-minute limit. The
+rerun on an idle machine, identical except for its output folder, passed in 552 s
+with no device loss.
+
+These are openings sampled without player input, not complete playthroughs. They
+show that the authored speech they reach routes as dialogue, mutes with Dialogue
+Volume and captions only from transcripts, but not that every line in both
+campaigns is audible or captioned.
+
 ## Other verification and limitations
 
 - `sound_settings.py --no-mutations`: 35,807 checks pass.

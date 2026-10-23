@@ -329,6 +329,53 @@ envelope is complete; until `FinishDecode` joins the job the envelope reads sile
 Outside level loads, with jobs synchronous, or for a stream without length metadata
 the pass stays synchronous.
 
+### Authored scenes, centred reverb and portrait captions (October 23)
+
+**Centred sounds in mod reverbs.** A voice routed to the centre speaker plays its
+mono sample in FC of a 5.1 buffer through direct channels. OpenAL spatializes no
+multichannel buffer, so it applies no distance attenuation to it, and that includes
+a reverb's room rolloff on the sends, which a mono voice gets from OpenAL itself. With
+a mod preset's `room rolloff factor` above zero, an explicitly centred positional
+sound therefore kept its full reverb at any distance. `ApplyWetDryRouting` now gives
+such a voice the attenuation OpenAL computes for a mono source
+(`SoundReverb_RoomRolloffGain`: the reference distance over the reference plus the
+rolloff times the distance beyond it), from the reverb in the slot each send feeds
+(`GetReverbSlotRoomRolloff`). Stock presets have no room rolloff, so stock content is
+unchanged.
+
+**Speech audit.** `s_logSpeech 1` prints a `SOUND_SPEECH` line for every start that
+may be speech: classified dialogue, flagged voice-over, the radio channel, or a sample
+or shader a lipSync declares. Each line carries the routing the mixer gives it and the
+subtitle transcript status (`text`, `undeclared`, `notext`, `unresolved` or `variant`),
+identifiers only. The overlay and the audit share one transcript lookup
+(`SoundTranscriptText`), so the status is the one the overlay acts on.
+`tools/tests/audio_scene_audit.py` plays the opening of every campaign map in one hidden
+client, cinematics included, and probes the audible voices and subtitle cues at full
+and muted Dialogue Volume. After each opening it records the map's audio residency.
+
+**Streams on recycled voices.** The voice pool hands out its least recently used
+voice, so after the first minute or so of play every new sound reuses a source that
+has played. OpenAL keeps such a source `AL_STOPPED` and counts every buffer queued on
+a stopped source as processed. A streamed track (music, a long line, a late ambience
+loop) started there therefore had its first blocks unqueued as fast as they were
+queued, found nothing to play, and was stopped and retried every frame. Bounded
+streaming shipped in this cycle, so no release is affected. Earlier checks started
+their streams early, on voices that had never played. `FlushSourceBuffers` now
+rewinds the source to `AL_INITIAL`, the state a new source starts in.
+
+**Made-up lipSync declarations.** Looking up a lipSync that no content declares (actor
+speech and map precache do) makes the declaration manager create an empty implicit
+default. The subtitle lookup took that default as the shader's declaration, found no
+text and stopped, so a transcript declared for the full sample path never showed.
+Implicit declarations are now ignored there and by the speech audit, whose first sweep
+had counted one robot's chatter as declared speech for that reason.
+
+**Portrait captions.** On screens narrower than 4:3 a cinematic's picture is a short
+band, and enlarged captions at its bottom covered the title text Awakening's intro
+draws in it. When two lines fit under the 640x480 artwork, captions now hang from just
+below it; otherwise, and on wider screens, they keep their place
+(`OpenQ4Subtitles::CanvasBottom`).
+
 ### Presets
 
 Every performance preset keeps room reverb on (`s_useEAXReverb 1`); see
@@ -356,9 +403,9 @@ restores it on profiles still on the minimum, lowpower or performance preset.
   surround output through direct 5.1 buffers. Positional NPC speech retains its
   direction; stereo and active HRTF keep the mono path, and playing voices re-route
   when a reset or reopen changes the layout. Automated loopback and stock/Awakening
-  gameplay pass. Physical devices and explicit positional centre sounds' mod wet
-  sends still need qualification: stock content uses no `center` shader or
-  `s_center` speaker.
+  gameplay pass, and explicitly centred positional sounds now take a mod reverb's
+  room rolloff on their sends (loopback-qualified). Physical devices still need
+  qualification; stock content uses no `center` shader or `s_center` speaker.
 - **HDR audio, ducking, geometric obstruction.** These change the authored mix or need new
   per-sound data; they are not defaults for stock content.
 - **Voice budget.** 48 voices stay (retail mixed 24 channels).
@@ -369,6 +416,11 @@ restores it on profiles still on the minimum, lowpower or performance preset.
   output-change and trim decision), `tools/tests/audio_streaming.py` (streams without length
   metadata) and the gameplay run `tools/tests/audio_output_recovery_runtime.py` (output loss,
   paused resume, live layout re-routing, the trim and replay after it).
+- `tools/tests/audio_mod_reverb.py` (room rolloff for mono and centre-routed sources on
+  OpenAL loopback), `tools/tests/audio_subtitles.py` (transcript status and cinematic
+  caption placement) and the gameplay sweep `tools/tests/audio_scene_audit.py` (authored
+  speech routing, Dialogue Volume and subtitle cues in every campaign map's opening, and
+  its audio residency).
 - `tools/tests/sound_settings.py` and `tools/tests/sound_recovery.py` (the device-layout and
   limiter paths), `tools/tests/sound_retail_reverb_contract.py`,
   `tools/tests/sound_distance.py` (distance-harness failure controls),

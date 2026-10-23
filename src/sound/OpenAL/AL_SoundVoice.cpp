@@ -1514,6 +1514,11 @@ void idSoundVoice_OpenAL::FlushSourceBuffers()
 
 	alSourcei( openalSource, AL_BUFFER, 0 );
 	alSourcei( openalSource, AL_LOOPING, AL_FALSE );
+	// A source that has played stays AL_STOPPED, and OpenAL counts every buffer
+	// queued on a stopped source as processed. A stream started on a recycled
+	// voice was unqueued as fast as it was queued and never played, once the
+	// voice pool had cycled. Back to AL_INITIAL, as a new source starts.
+	alSourceRewind( openalSource );
 	CheckALErrors();
 
 	paused = true;
@@ -2021,12 +2026,24 @@ void idSoundVoice_OpenAL::ApplyWetDryRouting()
 			airGainHF = idMath::ClampFloat( 0.0f, 1.0f, idMath::Pow( perMeter, meters ) );
 		}
 	}
+	// A mod reverb's room rolloff: OpenAL attenuates a mono voice's sends with distance
+	// itself, but does not spatialize the direct 5.1 channels of a centre-routed voice,
+	// so that voice kept its full reverb however far away it was.
+	float primaryRolloffGain = 1.0f;
+	float areaRolloffGain = 1.0f;
+	if( centerRouting )
+	{
+		const idSoundHardware_OpenAL& hardware = soundSystemLocal.hardware;
+		const float reference = Max( innerRadius, 0.001f );
+		primaryRolloffGain = SoundReverb_RoomRolloffGain( position.Length(), reference, hardware.GetReverbSlotRoomRolloff( hardware.GetPrimaryReverbSlot() ) );
+		areaRolloffGain = SoundReverb_RoomRolloffGain( position.Length(), reference, hardware.GetReverbSlotRoomRolloff( reverbAreaSlot ) );
+	}
 	// openQ4's liquid and suit muffling, then retail's EAX source occlusion and room level
 	const float directFilterGain = effectiveDry * occlusionFilter.directGain * eaxDirectGain;
 	const float directFilterGainHF = occlusionFilter.directGainHF * eaxDirectGainHF * airGainHF;
-	const float wetFilterGain = effectiveWet * occlusionFilter.wetGain * eaxPrimaryGain;
+	const float wetFilterGain = effectiveWet * occlusionFilter.wetGain * eaxPrimaryGain * primaryRolloffGain;
 	const float wetFilterGainHF = occlusionFilter.wetGainHF * eaxPrimaryGainHF * airGainHF;
-	const float areaFilterGain = effectiveWet * occlusionFilter.wetGain * eaxAreaGain;
+	const float areaFilterGain = effectiveWet * occlusionFilter.wetGain * eaxAreaGain * areaRolloffGain;
 	const float areaFilterGainHF = occlusionFilter.wetGainHF * eaxAreaGainHF * airGainHF;
 
 #if OPENQ4_OPENAL_EFX_SUPPORTED

@@ -1313,6 +1313,16 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   the envelope pass runs on job workers during level loads. A notice from a real
   Android/iOS device, provider/process memory and device breadth remain open.
   [Memory and streaming evidence](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
+  October 23, second round: a streamed track started on a recycled voice never
+  played, because OpenAL counts buffers queued on a stopped source as already
+  processed. Once the voice pool had cycled, music, long lines and late ambience
+  loops started and stopped every frame. Flushed sources now rewind, and a
+  production queue test covers the case. A sweep of every stock and Awakening map's
+  opening finds streams playing on recycled voices and records each level's
+  residency: at most 193.8 and 242.1 MiB after an opening, with a process peak of
+  255.7 MiB under the 256 MiB budget and no refusals. Device and mobile budgets
+  remain open.
+  [Scene and residency evidence](audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026).
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1332,6 +1342,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   a reopen onto another endpoint. Stock gameplay qualifies live 5.1, stereo and
   HRTF transitions on rendered output. Physical surround devices and positional
   mod wet sends remain open; stock content has no centred positional sound.
+  October 23, second round: OpenAL applies no distance attenuation to the direct
+  5.1 channels of a centre-routed voice, so a mod reverb's room rolloff never
+  reached its sends. The engine now applies it. On OpenAL loopback, those sends
+  now fall off exactly as a mono source's do (half at twice the minimum
+  distance, a quarter at four times) with standard and EAX reverb, and stock
+  presets are unchanged. Physical surround devices remain open.
 - [ ] **AUD-05 — P1, implementation: functional multiplayer voice.** Capture,
   codec, transport and playback are implemented with explicit microphone consent,
   push-to-talk, local-only testing, connection-scoped mute, server moderation and
@@ -1379,6 +1395,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   follow the control, and no effect or GUI references one. Audible scene and
   device coverage remains open.
   [Routing audit](audio-voice-evidence.md#dialogue-routing-audit).
+  October 23, second round: `s_logSpeech` and `audio_scene_audit.py` check speech
+  as it plays. The first 30 s of all 29 stock and 13 Awakening maps, cinematics
+  included, start 148 dialogue lines. No declared or flagged speech misses the
+  control, and muting it silenced every dialogue voice in 378 probes while effects
+  continued. Dialogue Volume also holds through a simulated output loss and in-place
+  HRTF resets. Scenes past each opening, which need player input, and physical
+  devices remain open.
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -1405,6 +1428,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   Italian and Spanish tables carry no lip-sync text. Awakening's 1,512 lines are
   literal English declarations. Other menu languages therefore show English
   captions, which the player guide now states.
+  October 23, second round: on screens narrower than 4:3, cinematic captions now
+  hang below the cinematic artwork when two lines fit there, clear of Awakening's
+  title text (visual specification 1.25; captures inspected). A lipSync default the
+  game makes up for an undeclared name no longer hides a sample-path transcript.
+  In the map-opening sweep 65 of 148 dialogue starts have a transcript. Every cue
+  shown had one, and no transcribed line lacked a cue while a slot was free. The
+  full scene/locale corpus and physical stereo-HUD qualification remain open.
 
 ## Desktop platforms and packaging
 

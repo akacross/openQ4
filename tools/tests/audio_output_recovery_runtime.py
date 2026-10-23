@@ -167,6 +167,9 @@ def check_stereo(args, root):
     # fixture) and the world's direct-play channel.
     steps += ['testRadioChatter distract sound/audio_test/noeos.ogg', 'testSound sound/audio_test/nogranule.ogg', 'waitMsec 2000']
     steps += probe('STREAMS') + ['s_testDeviceInterruption 700', 'waitMsec 1600'] + probe('STREAMS_AFTER')
+    # Dialogue Volume holds through an outage: the restarted line keeps the user's level.
+    steps += ['set s_dialogueVolume 0.25', 'waitMsec 300'] + probe('QUARTER') + \
+             ['s_testDeviceInterruption 600', 'waitMsec 1500'] + probe('QUARTER_AFTER') + ['set s_dialogueVolume 1']
     steps += ['echo AUDIO_OUTPUT_TRIM_BEFORE', 'listSounds weapons/blaster', 's_trimAudioMemory 0',
               'echo AUDIO_OUTPUT_TRIM_AFTER', 'listSounds weapons/blaster', 'listPlayingSounds',
               'testSound sound/weapons/blaster/fire01', 'waitMsec 100',
@@ -198,6 +201,10 @@ def check_stereo(args, root):
         bool(re.search(r'nogranule\.ogg, \d+ Hz, 1 channels, \d+ frames \(counted; no length metadata\)', log))
     checks['streams_playing'] = {'noeos', 'nogranule'} <= set(playing(s.get('STREAMS', '')))
     checks['streams_resume_after_interruption'] = {'noeos', 'nogranule', 'dialogue'} <= set(playing(s.get('STREAMS_AFTER', '')))
+    quarter, quarter_after = playing(s.get('QUARTER', '')), playing(s.get('QUARTER_AFTER', ''))
+    checks['dialogue_volume_kept_across_outage'] = all(
+        abs(phase.get('dialogue', 0) - 0.25) < 0.02 and phase.get('noeos', 0) > 0.9 for phase in (quarter, quarter_after)) and \
+        voices(s.get('QUARTER_AFTER', '')).get('dialogue', {}).get('serial', 0) > voices(s.get('QUARTER', '')).get('dialogue', {}).get('serial', 0)
     trim = re.search(r'AUDIO_TRIM reason=console idle=0 freed=(\d+) freedKiB=(\d+) copies=(\d+) copyKiB=(\d+) active=(\d+)', log)
     checks['trim_freed_idle_level_samples'] = bool(trim and int(trim[1]) > 0 and int(trim[2]) > 0)
     checks['trim_kept_active_samples'] = bool(trim and int(trim[5]) >= 4) and \
@@ -231,7 +238,8 @@ def check_surround(args, root):
              'testRadioChatter fixture sound/vo/audio_test/dialogue.wav', 'waitMsec 2000']
     steps += probe('SURROUND') + ['set s_numberOfSpeakers 2', 'waitMsec 1600'] + probe('STEREO')
     steps += ['set s_numberOfSpeakers 6', 'waitMsec 1600'] + probe('SURROUND_AGAIN')
-    steps += ['set s_openALHRTF 2', 'waitMsec 1600'] + probe('HRTF')
+    # Dialogue Volume at half from here: it must survive both in-place resets that follow.
+    steps += ['set s_dialogueVolume 0.5', 'set s_openALHRTF 2', 'waitMsec 1600'] + probe('HRTF')
     steps += ['set s_openALHRTF 0', 'waitMsec 1600'] + probe('LAYOUT') + ['waitMsec 3000', 'echo AUDIO_OUTPUT_COMPLETE', 'quit']
     code, log, command = run(args, root, 6, steps)
     s = sections(log)
@@ -250,6 +258,9 @@ def check_surround(args, root):
         after_load.count('HRTF mode changed; device reset in place') == 2
     checks['no_restart_or_reload'] = 'Sound System Restart' not in after_load and 'sound samples reloaded' not in after_load
     checks['hrtf_enabled_then_disabled'] = 'OpenAL HRTF status: enabled' in after_load
+    gains = {phase: playing(s.get(phase, '')).get('dialogue', 0) for phase in ('SURROUND_AGAIN', 'HRTF', 'LAYOUT')}
+    checks['dialogue_volume_kept_across_reset'] = abs(gains['SURROUND_AGAIN'] - 1) < 0.02 and \
+        abs(gains['HRTF'] - 0.5) < 0.02 and abs(gains['LAYOUT'] - 0.5) < 0.02
     checks['rerouted_at_scene_clock'] = all(t is not None for t in times) and \
         bool(re.findall(r'Output change recovery: sound/vo/audio_test/dialogue', after_load))
     windows = []

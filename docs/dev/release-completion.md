@@ -24,6 +24,25 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Audio scenes, centred reverb and portrait captions, 23 October 2026
+
+- [x] AUD-03: start a streamed track on a recycled voice reliably. A source that
+  had played stayed `AL_STOPPED`, so OpenAL counted its queued blocks as already
+  played and the track never started once the voice pool had cycled. The flush
+  now rewinds the source. This is a regression in this cycle's unreleased
+  streaming.
+- [x] AUD-04: give a centre-routed positional sound a mod reverb's room rolloff on
+  its sends, which OpenAL never applies to direct 5.1 channels.
+- [x] AUD-06/AUD-07: `s_logSpeech` speech audit and `audio_scene_audit.py`, every
+  campaign map's opening with cinematics, probing routing, muted Dialogue Volume,
+  subtitle cues, streams and audio residency. Engine-made lipSync defaults no
+  longer hide sample-path transcripts. Dialogue Volume holds through simulated
+  output loss and in-place resets.
+- [x] AUD-07: portrait cinematic captions hang below the artwork when two lines fit
+  (visual specification 1.25, register increment re-binding).
+- Evidence and limits: [authored scenes, centred reverb and portrait captions](audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
 ## Save details, 23 October 2026
 
 - [x] CONTINUE and the Load Game page name a save's difficulty and the run's

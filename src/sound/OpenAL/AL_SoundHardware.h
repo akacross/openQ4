@@ -159,6 +159,9 @@ public:
 	// high-frequency gain per metre from the listener's reverb preset (0.994, -5 mB, in
 	// every stock preset); 1 while no EFX reverb is playing
 	float			GetAirAbsorptionGainHF() const;
+	// the room rolloff factor of the reverb a slot holds (efxs "room rolloff factor"),
+	// 0 while the slot holds none; every stock preset has 0
+	float			GetReverbSlotRoomRolloff( int slot ) const;
 	int				GetMaxAuxiliarySends() const
 	{
 		return maxAuxiliarySends;

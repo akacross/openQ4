@@ -17,7 +17,9 @@
   of audio queued, so a brief stall such as a mid-level load no longer cuts
   them out. The audio memory budget is unchanged.
 - Mods using distance-dependent room reverb retain the intended wet sound level
-  instead of losing it too quickly. Stock room reverb keeps its existing mix.
+  instead of losing it too quickly, and sounds a mod plays from the centre
+  speaker now lose reverb with distance like every other sound. Stock room
+  reverb keeps its existing mix.
 - Surround output now places mono radio and global dialogue toward the centre
   speaker. Nearby NPC voices keep their direction, and stereo/headphone output
   keeps its existing mix.
@@ -42,8 +44,9 @@
 
 - Subtitles start off and cover lines with usable text in your installed assets.
   Coverage is incomplete in both campaigns; lines without a verified transcript
-  stay uncaptioned. Large captions can overlap Awakening title cards in portrait
-  windows. This feature does not transcribe player voice chat or caption effects.
+  stay uncaptioned. In portrait windows, cinematic captions sit just below the
+  picture, clear of title cards, except at the very largest text sizes. This
+  feature does not transcribe player voice chat or caption effects.
 - Replace the engine and matching game modules together. Dialogue Volume starts
   at full authored volume; existing saves do not need conversion for this setting.
 - Voice requires matching support on the server and clients. It uses narrowband
@@ -72,3 +75,7 @@
 - New developer commands: `listSoundVoices` reports each sound's output routing
   and position, `s_trimAudioMemory` runs the low-memory response on demand, and
   `s_testDeviceInterruption` simulates a lost audio device for testing.
+  `s_logSpeech 1` lists every line of speech as it starts, with whether Dialogue
+  Volume and subtitles reach it.
+- Lines whose transcript is declared for the voice file, rather than for the
+  sound's name, now show their subtitle when a character speaks them.

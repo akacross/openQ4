@@ -25,17 +25,29 @@ using ALsizei = int;
 constexpr int AL_NO_ERROR = 0;
 enum { AL_INITIAL, AL_PLAYING, AL_STOPPED, AL_SOURCE_STATE, AL_BUFFERS_PROCESSED, AL_BUFFERS_QUEUED };
 enum { AL_SAMPLE_OFFSET, AL_FORMAT_51CHN16 };
+enum { AL_BUFFER = 100, AL_LOOPING, AL_SOURCE_TYPE, AL_STREAMING, AL_STATIC, AL_UNDETERMINED };
+constexpr int AL_FALSE = 0;
 #define OPENQ4_OPENAL_CENTER_ROUTING_SUPPORTED 1
-void alSourcei(ALuint,int,int) {}
+static int sourceState = AL_PLAYING;
+static int sourceQueued = 0;
+// Detaching the buffer empties the queue; other source properties are not modelled.
+void alSourcei(ALuint,int property,int value) { if (property == AL_BUFFER && value == 0) sourceQueued = 0; }
 struct idWaveFile { static const int FORMAT_PCM = 1; };
 constexpr int MAX_QUEUED_BUFFERS = 3;
 struct Debug { bool GetBool() const { return false; } } s_debugHardware;
 struct idLib { static void Printf(const char*,...) {} };
 int alIsSource(ALuint source) { return source != 0; }
-static int sourceState = AL_PLAYING;
-void alGetSourcei(ALuint,int property,int* value) { *value = property == AL_SOURCE_STATE ? sourceState : 0; }
-void alSourceUnqueueBuffers(ALuint,int,ALuint*) {}
+// As OpenAL Soft: a source that has left AL_INITIAL and is not playing reports
+// every queued buffer as processed. Stopping keeps an idle source initial.
+void alGetSourcei(ALuint,int property,int* value) {
+	*value = property == AL_SOURCE_STATE ? sourceState : property == AL_BUFFERS_QUEUED ? sourceQueued :
+		property == AL_BUFFERS_PROCESSED ? ( sourceState == AL_STOPPED ? sourceQueued : 0 ) :
+		property == AL_SOURCE_TYPE ? ( sourceQueued ? AL_STREAMING : AL_UNDETERMINED ) : 0;
+}
+void alSourceUnqueueBuffers(ALuint,int count,ALuint*) { sourceQueued = Max(0, sourceQueued - count); }
 void alSourcePlay(ALuint) { sourceState = AL_PLAYING; }
+void alSourceStop(ALuint) { if (sourceState != AL_INITIAL) sourceState = AL_STOPPED; }
+void alSourceRewind(ALuint) { sourceState = AL_INITIAL; }
 void alDeleteBuffers(ALsizei, const ALuint*) {}
 template<class T> struct List : std::vector<T> { int Num() const { return static_cast<int>(this->size()); } const T* Ptr() const { return this->data(); } };
 static int alive = 0;
@@ -112,7 +124,7 @@ void alBufferData(ALuint id, int, const void* data, int bytes, int) {
 	const short* samples = static_cast<const short*>(data);
 	buffers[id].assign(samples, samples + bytes / sizeof(short));
 }
-void alSourceQueueBuffers(ALuint, int, const ALuint* id) { queued.insert(queued.end(), buffers[*id].begin(), buffers[*id].end()); }
+void alSourceQueueBuffers(ALuint, int, const ALuint* id) { queued.insert(queued.end(), buffers[*id].begin(), buffers[*id].end()); ++sourceQueued; }
 int CheckALErrors() { return failUpload ? 1 : 0; }
 class idSoundVoice_OpenAL {
 public:
@@ -140,6 +152,9 @@ public:
 	bool QueueNextBuffer(ALuint buffer);
 	int RoutedQueueFrames(int sampleRate);
 	void DeleteStreamingBuffers();
+	void FlushSourceBuffers();
+	void ResetStreamingBufferQueueState();
+	bool SourceHasPlayableBuffer() const;
 	bool HasQueuedBufferState() const { return queuedBufferPlaybackActive || nextQueuedSample; }
 	bool UsesStreamingBuffers() const { return true; }
 	bool UsesBoundedQueue() const;
@@ -228,6 +243,29 @@ int main(int argc, char** argv) {
 		still.outputUnchanged = false;
 		Check(!still.Update(), "an output change is checked first");
 	}
+	{
+		// A voice recycled from a sound that played and stopped. Its source stays
+		// AL_STOPPED unless the flush starts it over, and then every buffer queued
+		// on it counts as processed: the stream is unqueued as it is queued and
+		// never plays once the voice pool has cycled.
+		idSoundVoice_OpenAL recycled;
+		lead.streamed = true; lead.openalBuffer = 0;
+		lead.buffers.clear(); lead.buffers.push_back({lead.playLength,lead.pcm.data(),lead.totalBufferSize});
+		sourceState = AL_PLAYING;
+		recycled.FlushSourceBuffers();
+		Check(sourceState == AL_INITIAL && sourceQueued == 0 && recycled.paused, "a flushed voice's source starts over");
+		recycled.leadinSample = &lead;
+		Check(recycled.SetNextQueuedSampleStart(&lead), "recycled queue start");
+		for (ALuint buffer = 1; buffer <= 3; ++buffer) Check(recycled.QueueNextBuffer(buffer), "recycled queue block");
+		Check(recycled.SourceHasPlayableBuffer(), "a stream queued on a recycled voice can play");
+		recycled.ResetQueuedBufferState();
+		Check(alive == 0, "recycled check releases decoder");
+		// An output loss stops idle sources too; one already flushed stays initial.
+		recycled.FlushSourceBuffers();
+		alSourceStop(1);
+		Check(sourceState == AL_INITIAL && !recycled.SourceHasPlayableBuffer(), "an idle source stopped by an outage stays ready");
+		sourceState = AL_PLAYING;
+	}
 	Check(uploadedMax <= SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES, "bounded queued PCM including centre routing");
 	Check(soundDeepRoutedQueueVoices == 0, "finished voices return their deep routed slots");
 	// The queue is refilled once per main-thread frame. Three buffers must ride
@@ -286,5 +324,5 @@ int main(int argc, char** argv) {
 		Check(routed.back().RoutedQueueFrames(22050) == 7680 && routed.back().deepRoutedQueue, "freed slot is reused");
 	}
 	Check(soundDeepRoutedQueueVoices == 0, "destroyed voices return every deep slot");
-	std::puts("PASS production queue: leadin/loop, mixed static/streamed, offset, three scratch buffers, one-second depth, cancellation and release");
+	std::puts("PASS production queue: leadin/loop, mixed static/streamed, offset, three scratch buffers, one-second depth, recycled voices, cancellation and release");
 }

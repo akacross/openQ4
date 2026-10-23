@@ -1546,6 +1546,16 @@ float idSoundHardware_OpenAL::GetAirAbsorptionGainHF() const
 	return ( FLOAT_IS_NAN( gain ) || gain <= 0.0f || gain > 1.0f ) ? 1.0f : gain;
 }
 
+float idSoundHardware_OpenAL::GetReverbSlotRoomRolloff( int slot ) const
+{
+	if( !efxEnabled || slot < 0 || slot >= SOUND_REVERB_SLOTS || appliedReverbSlot[slot] == 0 )
+	{
+		return 0.0f;
+	}
+	const float rolloff = appliedReverb[slot].roomRolloffFactor;
+	return ( FLOAT_IS_NAN( rolloff ) || rolloff <= 0.0f ) ? 0.0f : rolloff;
+}
+
 /*
 ========================
 idSoundHardware_OpenAL::HasCenterChannelOutput
