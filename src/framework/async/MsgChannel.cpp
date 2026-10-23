@@ -321,6 +321,15 @@ int idMsgChannel::GetMaxSendMessageSize( void ) const {
 	return Max( 0, MAX_MESSAGE_SIZE - overhead );
 }
 
+bool idMsgChannel::CanSendUnfragmented( int time, int payloadBytes, int burstMsec ) const {
+	const int64 bytes = 8 + int64( reliableSend.GetTotalSize() ) + payloadBytes;
+	if ( payloadBytes < 0 || unsentFragments || bytes >= Net_FragmentSize( remoteAddress ) ) return false;
+	if ( burstMsec <= 0 || !maxRate ) return ReadyToSend( time );
+	const int elapsed = idMath::ClampInt( 0, 1000, time - lastSendTime );
+	const int64 debt = Max<int64>( 0, int64( lastDataBytes ) - int64( elapsed ) * maxRate / 1000 );
+	return debt + bytes <= int64( maxRate ) * idMath::ClampInt( 0, 20, burstMsec ) / 1000;
+}
+
 /*
 ===============
 idMsgChannel::SendMessage

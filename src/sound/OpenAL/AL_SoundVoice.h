@@ -77,6 +77,12 @@ public:
 	void		SetInnerRadius( float r ) override
 	{
 		idSoundVoice_Base::SetInnerRadius( r );
+		if( alIsSource( openalSource ) )
+		{
+			// Sources and authored minDistance share map units. EFX room rolloff
+			// uses this even though the engine applies dry attenuation itself.
+			alSourcef( openalSource, AL_REFERENCE_DISTANCE, Max( innerRadius, 0.001f ) );
+		}
 		ApplySourceRadius();
 	}
 
@@ -135,6 +141,7 @@ public:
 
 	// Sends new position/volume/pitch information to the hardware
 	bool					Update();
+	bool					UsesBoundedQueue() const;
 
 	// returns the RMS levels of the most recently processed block of audio, SSF_FLICKER must have been passed to Start
 	float					GetAmplitude();
@@ -172,6 +179,8 @@ private:
 	// Helper function to submit a buffer
 	int						SubmitBuffer( idSoundSample_OpenAL* sample, int bufferNumber, int offset, ALuint streamBuffer );
 	bool					QueueNextBuffer( ALuint streamBuffer );
+	// Frames per buffer for a centre-routed queue; claims a deep-queue slot while one is free.
+	int						RoutedQueueFrames( int sampleRate );
 	void					AdvanceQueuedBuffer();
 	bool					SetNextQueuedSampleStart( idSoundSample_OpenAL* sample );
 	static bool				GetPlayableBufferRange( const idSoundSample_OpenAL* sample, int bufferNumber, int& bufferStart, int& bufferSamples, int& playableOffset, int& playableSamples );
@@ -205,6 +214,9 @@ private:
 	ALuint					openalAuxFilter;		// send 0: the listener's (primary) reverb slot
 	ALuint					openalAreaAuxFilter;	// send 1: the sound's own area slot
 	idSoundSample_OpenAL*	nextQueuedSample;
+	idSoundOggStream*		oggStream;
+	idSoundSample_OpenAL*	oggStreamSample;
+	int						oggStreamOffset;
 	int						nextQueuedBuffer;
 	int						nextQueuedOffset;
 	bool					queuedBufferPlaybackActive;
@@ -221,6 +233,8 @@ private:
 
 	bool					hasVUMeter;
 	bool					paused;
+	bool					centerRouting;
+	bool					deepRoutedQueue;		// holds one of SOUND_QUEUE_DEEP_ROUTED_VOICES until its buffers are deleted
 	float					appliedSourceRadius;	// last AL_SOURCE_RADIUS sent, -1 = none yet
 };
 

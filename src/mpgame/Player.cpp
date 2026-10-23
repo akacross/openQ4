@@ -4716,6 +4716,12 @@ idPlayer::DrawHUD
 ===============
 */
 void idPlayer::DrawHUD( idUserInterface *_hud ) {
+#ifdef __ANDROID__
+	if ( this == gameLocal.GetLocalPlayer() ) {
+		cvarSystem->SetCVarBool( "ui_touchCanReload", weapon && !spectating && weapon->ClipSize() > 0 );
+		cvarSystem->SetCVarBool( "ui_touchCanZoom", weapon && !spectating && weapon->GetZoomFov() > 0 );
+	}
+#endif
 	idUserInterface * cursor = idPlayer::cursor;
 	if ( _hud ) {
 		_hud->SetStateInt( "radio_audio_emitter", GetSoundEmitter() );
@@ -12092,6 +12098,21 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
  			kick *= g_knockback.GetFloat() * knockback * attackerPushScale / 200.0f;
 			
 			physicsObj.SetLinearVelocity( physicsObj.GetLinearVelocity() + kick );
+			if ( gameLocal.isMultiplayer && botManager.IsBot( entityNumber ) ) {
+				// A thrown bot may need to fight its fall; see rvBot::RecoverInAir.
+				botManager.OnPlayerKnockback( this, kick );
+			}
+			if ( gameLocal.isMultiplayer && bot_debug.GetInteger() >= 2 && botManager.IsBot( entityNumber ) ) {
+				// Friendly fire and armour can suppress health damage while the
+				// impulse still moves a bot. Keep that cause visible to fall audits.
+				// health is what this hit leaves, which an impulse replay restores.
+				// knock is the friction-free, air-control-only time SetKnockBack
+				// starts below; a replay must restore it with the velocity.
+				gameLocal.Printf( "BOT_IMPULSE client=%d time=%d attacker=%d damage=%d origin=%s kick=%s velocity=%s def=%s health=%d knock=%d\n",
+					entityNumber, gameLocal.time, attacker->entityNumber, damage, physicsObj.GetOrigin().ToString( 3 ),
+					kick.ToString( 3 ), physicsObj.GetLinearVelocity().ToString( 3 ), damageDefName, health - damage,
+					idMath::ClampInt( 50, 200, knockback * 2 ) );
+			}
 
 			// set the timer so that the player can't cancel out the movement immediately
  			physicsObj.SetKnockBack( idMath::ClampInt( 50, 200, knockback * 2 ) );

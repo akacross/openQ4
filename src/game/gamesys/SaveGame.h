@@ -119,6 +119,10 @@ public:
 	void					CreateObjects( void );
 	void					RestoreObjects( void );
 	void					DeleteObjects( void );
+	void					ReleaseObjects( void );
+	static void				ObjectDestroyed( const idClass *object );
+	static void				PrepareMapShutdown( void );
+	static void				DeleteOrphanedObjects( void );
 
 	void					Error( const char *fmt, ... );
 
@@ -224,6 +228,14 @@ private:
 	idFile *				file;
 
 	idList<idClass *>		objects;
+	idHashIndex				objectHash;
+	bool					ownsObjects;
+	idRestoreGame *			previousRestore;
+	static thread_local idRestoreGame *activeRestore;
+	void					BeginObjectOwnership( void );
+	void					TrackObject( int index );
+	idRestoreGame( const idRestoreGame & );
+	idRestoreGame &operator=( const idRestoreGame & );
 
 	void					ReadChecked( void *buffer, int len, const char *detail );
 	void					CallRestore_r( const idTypeInfo *cls, idClass *obj );

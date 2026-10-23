@@ -34,6 +34,13 @@ If you have questions concerning this license or the applicable additional terms
 #include <cstdlib>
 #include <memory>
 #include <stdint.h>
+#include "../SoundVorbisStream.h"
+#include "../SoundMemoryBudget.h"
+#include "../SoundQueue.h"
+static_assert( SoundVorbisStream::ChunkFrames == SOUND_QUEUE_DECODE_FRAMES,
+	"voice queues fill a buffer in decoder-sized reads" );
+static_assert( SoundVorbisStream::ChunkFrames * 6 * sizeof( short ) == SOUND_QUEUE_BUFFER_BYTES,
+	"stream reservations count three SOUND_QUEUE_BUFFER_BYTES queue buffers" );
 
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
@@ -62,6 +69,113 @@ static std::atomic<bool> openQ4_openALBufferAllocationWarningIssued( false );
 
 extern idCVar sys_lang;
 
+idCVar s_audioMemoryMB( "s_audioMemoryMB", "256", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
+	"MiB cap for managed audio payloads, decoders and conservative queue/scratch reservations; excludes provider internals and metadata", 32, 2048 );
+static SoundMemoryBudget soundMemory;
+// All 96 hardware voices can retain three queue buffers of one 4096-frame 5.1
+// block each (SOUND_QUEUE_BUFFER_BYTES; mono and stereo fit more frames), and the
+// deep centre-routed slots their larger buffers plus routing scratch (asserted
+// below). The rest covers voice-chat rings, decode/probe scratch and headers.
+static const uint64 SOUND_MEMORY_FIXED_BYTES = 20 * 1024 * 1024;
+static_assert( MAX_HARDWARE_VOICES * 2ULL * MAX_QUEUED_BUFFERS * 4096 * 6 * sizeof( short ) + 2 * 1024 * 1024 <= SOUND_MEMORY_FIXED_BYTES,
+	"Update the fixed audio reservation when voice queue capacity changes" );
+static uint64 soundMemoryRejected = 0;
+static bool soundMemoryReclaiming = false;
+static void SoundMemoryReclaim();
+static bool SoundMemoryAcquire( uint64 bytes ) {
+	const uint64 limit = static_cast<uint64>( idMath::ClampInt( 32, 2048, s_audioMemoryMB.GetInteger() ) ) * 1024 * 1024 - SOUND_MEMORY_FIXED_BYTES;
+	if( soundMemory.Acquire( bytes, limit ) ) return true;
+	if( !soundMemoryReclaiming ) {
+		soundMemoryReclaiming = true;
+		SoundMemoryReclaim();
+		soundMemoryReclaiming = false;
+		if( soundMemory.Acquire( bytes, limit ) ) return true;
+	}
+	if( soundMemoryRejected++ == 0 ) idLib::Warning( "Audio payload budget exhausted (s_audioMemoryMB=%d); retaining active audio and refusing new allocations. Further refusals are counted by listSounds.", s_audioMemoryMB.GetInteger() );
+	return false;
+}
+static void SoundMemoryRelease( uint64 bytes ) { soundMemory.Release( bytes ); }
+
+class SoundMemoryReservation {
+public:
+	SoundMemoryReservation() = default;
+	SoundMemoryReservation( const SoundMemoryReservation& ) = delete;
+	SoundMemoryReservation& operator=( const SoundMemoryReservation& ) = delete;
+	~SoundMemoryReservation() { SoundMemoryRelease( bytes ); }
+	bool Reserve( uint64 count ) {
+		if( count <= bytes ) return true;
+		if( !SoundMemoryAcquire( count - bytes ) ) return false;
+		bytes = count; return true;
+	}
+	uint64 Transfer() { const uint64 result = bytes; bytes = 0; return result; }
+private:
+	uint64 bytes = 0;
+};
+
+idCVar s_streamThresholdKB( "s_streamThresholdKB", "512", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
+	"stream Ogg samples whose decoded PCM exceeds this many KiB (0 disables streaming; applies on load)", 0, 16384 );
+static_assert( MAX_HARDWARE_VOICES * 2ULL * MAX_QUEUED_BUFFERS * SOUND_QUEUE_BUFFER_BYTES +
+	SOUND_QUEUE_DEEP_ROUTED_VOICES * static_cast<uint64>( MAX_QUEUED_BUFFERS ) * ( SOUND_QUEUE_DEEP_ROUTED_BUFFER_BYTES - SOUND_QUEUE_BUFFER_BYTES ) +
+	SOUND_QUEUE_MAX_FRAMES * 7ULL * sizeof( short ) + 2 * 1024 * 1024 <= SOUND_MEMORY_FIXED_BYTES,
+	"the fixed audio reservation must cover every voice queue, the deep routed slots and their scratch" );
+idCVar s_streamMemoryMB( "s_streamMemoryMB", "32", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
+	"MiB reserved for active Vorbis decoders, input caches and three PCM queue buffers per voice", 8, 256 );
+static uint64 soundStreamBytes = 0, soundStreamPeakBytes = 0;
+static unsigned int soundStreamRejected = 0;
+// Includes the decode/routing scratch, the three OpenAL queue buffers (each at
+// most one 4096-frame 5.1 block, SOUND_QUEUE_BUFFER_BYTES) and conservative VFS
+// zip/inflate bookkeeping. OpenAL implementation-private overhead is separate.
+static const uint64 SOUND_STREAM_BYTES = SoundVorbisStream::ArenaBytes + sizeof( SoundVorbisStream ) +
+	SoundVorbisStream::ChunkFrames * ( 2 + 4 * 6 ) * sizeof( short ) + 128 * 1024;
+
+static int SoundStream_ReadAt( void* user, unsigned int offset, void* data, int bytes ) {
+	idFile* file = static_cast<idFile*>( user );
+	if( offset > static_cast<unsigned int>( idMath::INT_MAX ) ||
+		( file->Tell() != static_cast<int>( offset ) && file->Seek( offset, FS_SEEK_SET ) != 0 ) ) return 0;
+	return file->Read( data, bytes );
+}
+
+idSoundOggStream::idSoundOggStream() : file( NULL ), decoder( NULL ) {}
+idSoundOggStream::~idSoundOggStream() { Close(); }
+void idSoundOggStream::Close() {
+	if( decoder != NULL ) {
+		delete decoder;
+		decoder = NULL;
+		soundStreamBytes -= SOUND_STREAM_BYTES;
+		SoundMemoryRelease( SOUND_STREAM_BYTES );
+	}
+	if( file != NULL ) { fileSystem->CloseFile( file ); file = NULL; }
+}
+bool idSoundOggStream::Open( const char* filename ) {
+	Close();
+	const uint64 budget = static_cast<uint64>( idMath::ClampInt( 8, 256, s_streamMemoryMB.GetInteger() ) ) * 1024 * 1024;
+	if( soundStreamBytes > budget || SOUND_STREAM_BYTES > budget - soundStreamBytes ) {
+		++soundStreamRejected;
+		return false;
+	}
+	file = fileSystem->OpenFileRead( filename );
+	if( file == NULL || file->Length() <= 0 ) { Close(); return false; }
+	if( !SoundMemoryAcquire( SOUND_STREAM_BYTES ) ) { Close(); ++soundStreamRejected; return false; }
+	decoder = new SoundVorbisStream;
+	soundStreamBytes += SOUND_STREAM_BYTES;
+	soundStreamPeakBytes = Max( soundStreamPeakBytes, soundStreamBytes );
+	if( !decoder->Open( SoundStream_ReadAt, file, file->Length() ) ) {
+		idLib::Warning( "Vorbis stream '%s' cannot open within its fixed decoder arena (error %d)", filename, decoder->Error() );
+		Close(); return false;
+	}
+	return true;
+}
+bool idSoundOggStream::Seek( unsigned int frame ) { return decoder != NULL && decoder->Seek( frame ); }
+int idSoundOggStream::Read( short* pcm, int frames ) { return decoder != NULL ? decoder->Read( pcm, frames ) : 0; }
+int idSoundOggStream::Channels() const { return decoder != NULL ? decoder->Channels() : 0; }
+int idSoundOggStream::Rate() const { return decoder != NULL ? decoder->Rate() : 0; }
+unsigned int idSoundOggStream::Frames() const { return decoder != NULL ? decoder->Frames() : 0; }
+void idSoundOggStream::PrintMemoryInfo() {
+	idLib::Printf( "Vorbis streaming: reserved=%llu KiB peak=%llu KiB budget=%d MiB rejected=%u decode=%d frames\n",
+		static_cast<unsigned long long>( soundStreamBytes / 1024 ), static_cast<unsigned long long>( soundStreamPeakBytes / 1024 ),
+		s_streamMemoryMB.GetInteger(), soundStreamRejected, SoundVorbisStream::ChunkFrames );
+}
+
 /*
 ========================
 RoQAudioDelta
@@ -79,9 +193,17 @@ static ID_INLINE int RoQAudioDelta( byte sampleCode )
 AllocBuffer
 ========================
 */
+struct alignas(16) SoundAllocationHeader { uint64 bytes; uint64 padding; };
 static void* AllocBuffer( int size, const char* name )
 {
-	return Mem_Alloc( size );
+	(void)name;
+	if( size <= 0 || size > idMath::INT_MAX - static_cast<int>( sizeof( SoundAllocationHeader ) ) ) return NULL;
+	const uint64 bytes = static_cast<uint64>( size ) + sizeof( SoundAllocationHeader );
+	if( !SoundMemoryAcquire( bytes ) ) return NULL;
+	auto* allocation = static_cast<SoundAllocationHeader*>( Mem_Alloc( static_cast<int>( bytes ) ) );
+	if( allocation == NULL ) { SoundMemoryRelease( bytes ); return NULL; }
+	allocation->bytes = bytes;
+	return allocation + 1;
 }
 
 /*
@@ -91,7 +213,23 @@ FreeBuffer
 */
 static void FreeBuffer( void* p )
 {
-	return Mem_Free( p );
+	if( p == NULL ) return;
+	auto* allocation = static_cast<SoundAllocationHeader*>( p ) - 1;
+	const uint64 bytes = allocation->bytes;
+	Mem_Free( allocation );
+	SoundMemoryRelease( bytes );
+}
+
+static bool SoundResizeAmplitude( idList<byte>& out, uint64& reserved, int count ) {
+	out.Clear();
+	SoundMemoryRelease( reserved ); reserved = 0;
+	if( count <= 0 ) return count == 0;
+	const uint64 bytes = ( static_cast<uint64>( count ) + 15 ) / 16 * 16;
+	if( !SoundMemoryAcquire( bytes ) ) return false;
+	reserved = bytes;
+	out.SetGranularity( 16 );
+	out.SetNum( count );
+	return true;
 }
 
 template<class type>
@@ -283,6 +421,8 @@ idSoundSample_OpenAL::idSoundSample_OpenAL()
 	keepPayload = false;
 	openalBuffer = 0;
 	openalBufferUploadFailed = false;
+	openalReserved = 0;
+	amplitudeReserved = 0;
 }
 
 /*
@@ -388,18 +528,17 @@ bool idSoundSample_OpenAL::LoadGeneratedSample( const idStr& filename )
 		{
 			return false;
 		}
-		amplitude.Clear();
-		amplitude.SetNum( num );
+		if( !SoundResizeAmplitude( amplitude, amplitudeReserved, num ) ) return false;
 		if( !openQ4_ReadExact( fileIn, amplitude.Ptr(), amplitude.Num() ) )
 		{
-			amplitude.Clear();
+			SoundResizeAmplitude( amplitude, amplitudeReserved, 0 );
 			return false;
 		}
 		if( !openQ4_ReadBigExact( fileIn, totalBufferSize ) || totalBufferSize <= 0 )
 		{
 			return false;
 		}
-		if( !openQ4_ReadBigExact( fileIn, num ) || num <= 0 || num > totalBufferSize )
+		if( !openQ4_ReadBigExact( fileIn, num ) || num <= 0 || num > totalBufferSize || num > 16384 )
 		{
 			return false;
 		}
@@ -484,6 +623,7 @@ idSoundSample_OpenAL::LoadResource
 void idSoundSample_OpenAL::LoadResource()
 {
 	FreeData();
+	const uint64 refusedAtStart = soundMemoryRejected;
 
 	if( idStr::Icmpn( GetName(), "_default", 8 ) == 0 )
 	{
@@ -582,6 +722,9 @@ void idSoundSample_OpenAL::LoadResource()
 
 	if( !loaded )
 	{
+		// Memory pressure is retryable, unlike a missing asset. Never cache a
+		// replacement beep for a real file refused by the aggregate budget.
+		if( soundMemoryRejected != refusedAtStart ) { FreeData(); return; }
 		// Retail warns unconditionally here (idSoundSample::Load). Without it a
 		// sample that resolves to nothing is completely invisible in the log,
 		// which is how "no character audio at all" reports end up undiagnosable.
@@ -614,9 +757,9 @@ shakes, controller rumble and sound-driven lights follow it. Retail measured the
 samples for this; the .amp files the BFG path expected never shipped with Quake 4.
 ========================
 */
-static void SoundSample_BuildAmplitudeEnvelope( const int16* pcm, const uint32 bytes, const int channels, const int rate, idList<byte>& out )
+static void SoundSample_BuildAmplitudeEnvelope( const int16* pcm, const uint32 bytes, const int channels, const int rate, idList<byte>& out, uint64& reserved )
 {
-	out.Clear();
+	SoundResizeAmplitude( out, reserved, 0 );
 	if( pcm == NULL || channels <= 0 || rate <= 0 )
 	{
 		return;
@@ -627,7 +770,7 @@ static void SoundSample_BuildAmplitudeEnvelope( const int16* pcm, const uint32 b
 	{
 		return;
 	}
-	out.SetNum( static_cast<int>( entries ) );
+	if( !SoundResizeAmplitude( out, reserved, static_cast<int>( entries ) ) ) return;
 	for( int64 entry = 0; entry < entries; entry++ )
 	{
 		const int64 first = ( entry * rate / 60 ) * channels;
@@ -644,6 +787,7 @@ static void SoundSample_BuildAmplitudeEnvelope( const int16* pcm, const uint32 b
 
 void idSoundSample_OpenAL::CreateOpenALBuffer()
 {
+	if( IsStreamed() ) return;
 	if( pendingDecode != NULL )
 	{
 		// uploads once the PCM is in
@@ -706,13 +850,17 @@ void idSoundSample_OpenAL::CreateOpenALBuffer()
 			buffer = buffers[0].buffer;
 			bufferSize = buffers[0].bufferSize;
 
+			const uint64 refusedBeforeDecode = soundMemoryRejected;
 			if( MS_ADPCM_decode( ( uint8** ) &buffer, &bufferSize ) < 0 )
 			{
-				idLib::Warning( "idSoundSample_OpenAL::CreateOpenALBuffer: could not decode ADPCM '%s' to 16 bit format", GetName() );
+				if( soundMemoryRejected == refusedBeforeDecode ) idLib::Warning( "idSoundSample_OpenAL::CreateOpenALBuffer: could not decode ADPCM '%s' to 16 bit format", GetName() );
 				alDeleteBuffers( 1, &openalBuffer );
 				CheckALErrors();
 				openalBuffer = 0;
 				openalBufferUploadFailed = true;
+				// A decode refused under pressure must be retried as a load,
+				// not retained forever as unplayable encoded PCM-fallback data.
+				FreeData();
 				return;
 			}
 
@@ -761,14 +909,22 @@ void idSoundSample_OpenAL::CreateOpenALBuffer()
 		{
 			if( amplitude.Num() == 0 && !IsDefault() )
 			{
-				SoundSample_BuildAmplitudeEnvelope( static_cast<const int16*>( buffer ), bufferSize, NumChannels(), format.basic.samplesPerSec, amplitude );
+				SoundSample_BuildAmplitudeEnvelope( static_cast<const int16*>( buffer ), bufferSize, NumChannels(), format.basic.samplesPerSec, amplitude, amplitudeReserved );
 			}
+			if( !SoundMemoryAcquire( bufferSize ) ) {
+				alDeleteBuffers( 1, &openalBuffer );
+				openalBuffer = 0;
+				openalBufferUploadFailed = true;
+				return; // CPU bytes remain available to the bounded queue fallback.
+			}
+			openalReserved = bufferSize;
 			alBufferData( openalBuffer, GetOpenALBufferFormat(), buffer, bufferSize, format.basic.samplesPerSec );
 		}
 
 		const ALenum uploadError = CheckALErrors();
 		if( uploadError != AL_NO_ERROR )
 		{
+			SoundMemoryRelease( openalReserved ); openalReserved = 0;
 			const ALuint failedBuffer = openalBuffer;
 			openalBuffer = 0;
 			if( alIsBuffer( failedBuffer ) )
@@ -831,6 +987,9 @@ OpenAL handle.
 */
 bool idSoundSample_OpenAL::EnsureCpuPayload()
 {
+	// Whole-track access is unavailable for compressed streams; callers must
+	// use the per-voice decoder instead of silently defeating the memory bound.
+	if( IsStreamed() ) return false;
 	FinishDecode();
 	if( !payloadReleased )
 	{
@@ -942,7 +1101,8 @@ bool idSoundSample_OpenAL::LoadWav( const idStr& filename )
 		buffers[0].numSamples = playLength;
 		buffers[0].buffer = AllocBuffer( totalBufferSize, GetName() );
 
-		if( buffers[0].buffer == NULL || !openQ4_ReadWaveExact( wave, buffers[0].buffer, totalBufferSize ) )
+		if( buffers[0].buffer == NULL ) { FreeData(); return false; }
+		if( !openQ4_ReadWaveExact( wave, buffers[0].buffer, totalBufferSize ) )
 		{
 			idLib::Warning( "LoadWav( %s ) : could not read PCM data", filename.c_str() );
 			FreeData();
@@ -978,7 +1138,8 @@ bool idSoundSample_OpenAL::LoadWav( const idStr& filename )
 		buffers[0].numSamples = playLength;
 		buffers[0].buffer  = AllocBuffer( totalBufferSize, GetName() );
 
-		if( buffers[0].buffer == NULL || !openQ4_ReadWaveExact( wave, buffers[0].buffer, totalBufferSize ) )
+		if( buffers[0].buffer == NULL ) { FreeData(); return false; }
+		if( !openQ4_ReadWaveExact( wave, buffers[0].buffer, totalBufferSize ) )
 		{
 			idLib::Warning( "LoadWav( %s ) : could not read ADPCM data", filename.c_str() );
 			FreeData();
@@ -1045,6 +1206,7 @@ owns the rest again.
 struct idSoundSampleDecode
 {
 	stb_vorbis*					vorbis = NULL;		// opened on the main thread, or NULL for the job to open
+	std::unique_ptr<char[]>	arena;
 	byte*						fileData = NULL;
 	int							fileLen = 0;
 	short*						pcm = NULL;
@@ -1053,16 +1215,114 @@ struct idSoundSampleDecode
 	int							sampleRate = 0;
 	unsigned int				decodedFrames = 0;
 	bool						headerMismatch = false;	// the job's open disagreed with SoundSample_PeekOggInfo
+	uint64					reservedBytes = 0;	// main-thread admission, held until joined/cancelled
 	std::unique_ptr<idJobList>	list;
 };
 
 idCVar s_asyncSampleDecode( "s_asyncSampleDecode", "1", CVAR_BOOL, "decode the Ogg samples a level load references on job workers, while the rest of the level loads" );
+// The largest installed retail/Awakening input+PCM pair is below 48 MiB.
+// A lower mobile default must wait for compressed streaming of those tracks.
+idCVar s_decodeMemoryMB( "s_decodeMemoryMB", "64", CVAR_SOUND | CVAR_ARCHIVE | CVAR_INTEGER,
+	"maximum MiB of compressed input, pending Vorbis PCM and fixed decoder arenas; excludes resident/OpenAL data", 16, 1024 );
 
 // Decodes this many samples at once at most; beyond it LoadSample decodes on the
 // main thread, which keeps the job queue open for the rest of the level load. A
 // finished decode stops counting once LoadSample uploads it (FinishSampleDecodes).
 static const int SOUND_SAMPLE_MAX_PENDING_DECODES = 48;
 static int soundSamplePendingDecodes = 0;
+static uint64 soundSamplePendingDecodeBytes = 0;
+static uint64 soundSampleDecodePeakBytes = 0;
+static uint64 soundSampleDecodeWaits = 0;
+
+// All admission and release happens on the main thread. Worker completion alone
+// cannot release the reservation: its PCM still belongs to an unjoined sample.
+static bool SoundSample_AdmitDecode( const uint64 bytes )
+{
+	const uint64 budget = static_cast<uint64>( idMath::ClampInt( 16, 1024, s_decodeMemoryMB.GetInteger() ) ) * 1024 * 1024;
+	if( bytes > budget )
+	{
+		return false;
+	}
+	if( soundSamplePendingDecodeBytes > budget - bytes )
+	{
+		++soundSampleDecodeWaits;
+		// Do not mutate decodingSamples here. A failed decode can synchronously
+		// probe another format while FinishSampleDecodes is already iterating it.
+		for( int i = 0; i < soundSystemLocal.samples.Num() && soundSamplePendingDecodeBytes > budget - bytes; ++i )
+		{
+			soundSystemLocal.samples[i]->FinishDecode();
+		}
+	}
+	if( soundSamplePendingDecodeBytes > budget - bytes )
+	{
+		return false;
+	}
+	soundSampleDecodePeakBytes = Max( soundSampleDecodePeakBytes, soundSamplePendingDecodeBytes + bytes );
+	return true;
+}
+
+class SoundSampleDecodeReservation
+{
+public:
+	SoundSampleDecodeReservation() = default;
+	SoundSampleDecodeReservation( const SoundSampleDecodeReservation& ) = delete;
+	SoundSampleDecodeReservation& operator=( const SoundSampleDecodeReservation& ) = delete;
+	~SoundSampleDecodeReservation() { soundSamplePendingDecodeBytes -= bytes; }
+	bool Grow( uint64 requested ) {
+		if( requested <= bytes ) return true;
+		if( !SoundSample_AdmitDecode( requested - bytes ) ) return false;
+		if( !arena.Reserve( SoundVorbisStream::ArenaBytes ) ) return false;
+		soundSamplePendingDecodeBytes += requested - bytes;
+		bytes = requested;
+		return true;
+	}
+	uint64 Transfer() { arena.Transfer(); const uint64 result = bytes; bytes = 0; return result; }
+private:
+	uint64 bytes = 0;
+	SoundMemoryReservation arena;
+};
+
+void idSoundSample_OpenAL::PrintDecodeMemoryInfo()
+{
+	idLib::Printf( "Audio admission: reserved=%llu KiB peak=%llu KiB budget=%d MiB refused=%llu fixed=%llu KiB (managed payloads; excludes provider internals and metadata)\n",
+		static_cast<unsigned long long>( ( soundMemory.Used() + SOUND_MEMORY_FIXED_BYTES ) / 1024 ),
+		static_cast<unsigned long long>( ( soundMemory.Peak() + SOUND_MEMORY_FIXED_BYTES ) / 1024 ), s_audioMemoryMB.GetInteger(),
+		static_cast<unsigned long long>( soundMemoryRejected ), static_cast<unsigned long long>( SOUND_MEMORY_FIXED_BYTES / 1024 ) );
+	uint64 cpu = 0, uploaded = 0, compressedPending = 0, envelopes = 0, decoderArenas = 0;
+	for( int i = 0; i < soundSystemLocal.samples.Num(); ++i )
+	{
+		const idSoundSample_OpenAL* sample = soundSystemLocal.samples[i];
+		cpu += sample->ResidentBufferSize();
+		envelopes += sample->amplitude.Allocated();
+		if( sample->openalBuffer != 0 )
+		{
+			ALint bytes = 0;
+			alGetBufferi( sample->openalBuffer, AL_SIZE, &bytes );
+			if( CheckALErrors() == AL_NO_ERROR && bytes > 0 ) uploaded += bytes;
+		}
+		if( sample->pendingDecode != NULL ) {
+			compressedPending += sample->pendingDecode->fileLen;
+			decoderArenas += SoundVorbisStream::ArenaBytes;
+		}
+	}
+	const uint64 queued = soundSystemLocal.hardware.QueuedBufferBytes();
+	// Pending reservations include input, decoder arenas AND not-yet-published
+	// PCM. Stream queues may be counted again here: this is a conservative sum
+	// of owned payloads/reservations, not an estimate of provider process memory.
+	idLib::Printf( "Audio memory: CPU=%llu KiB OpenAL=%llu KiB pending-input<=%llu KiB aggregate<=%llu KiB\n",
+		static_cast<unsigned long long>( cpu / 1024 ), static_cast<unsigned long long>( uploaded / 1024 ),
+		static_cast<unsigned long long>( compressedPending / 1024 ),
+		static_cast<unsigned long long>( ( cpu + uploaded + soundSamplePendingDecodeBytes + soundStreamBytes + envelopes + queued ) / 1024 ) );
+	idLib::Printf( "Audio queues: %llu KiB (included conservatively; stream reservations also include their queues)\n",
+		static_cast<unsigned long long>( queued / 1024 ) );
+	idLib::Printf( "Audio auxiliary: envelopes=%llu KiB pending-arenas<=%llu KiB stream-reserved=%llu KiB (included above)\n",
+		static_cast<unsigned long long>( envelopes / 1024 ), static_cast<unsigned long long>( decoderArenas / 1024 ),
+		static_cast<unsigned long long>( soundStreamBytes / 1024 ) );
+	idLib::Printf( "Vorbis admission: pending=%llu KiB peak=%llu KiB budget=%d MiB waits=%llu (includes decoder arenas; excludes OpenAL internals)\n",
+		static_cast<unsigned long long>( soundSamplePendingDecodeBytes / 1024 ), static_cast<unsigned long long>( soundSampleDecodePeakBytes / 1024 ),
+		s_decodeMemoryMB.GetInteger(), static_cast<unsigned long long>( soundSampleDecodeWaits ) );
+	idSoundOggStream::PrintMemoryInfo();
+}
 
 // One Vorbis frame per call, straight into place: what stb_vorbis_decode_memory loops
 // on. Thread-safe: it touches only the stream and the output it is given.
@@ -1144,6 +1404,49 @@ static bool SoundSample_PeekOggInfo( const byte* data, const int length, int& ch
 	return false;
 }
 
+bool idSoundSample_OpenAL::LoadOggStream( const idStr& filename )
+{
+	// Loading metadata/envelopes must not consume the live-voice pool: a newly
+	// requested line can be loaded while every playback decoder is occupied.
+	SoundSampleDecodeReservation reservation;
+	if( !reservation.Grow( SOUND_STREAM_BYTES ) ) return false;
+	idFileLocal input( fileSystem->OpenFileRead( filename ) );
+	SoundVorbisStream stream;
+	if( input == NULL || input->Length() <= 0 || !stream.Open( SoundStream_ReadAt, input, input->Length() ) ) return false;
+	const int channels = stream.Channels(), rate = stream.Rate();
+	const unsigned int frames = stream.Frames();
+	if( frames == 0 || static_cast<uint64>( frames ) * channels * sizeof( short ) > idMath::INT_MAX ||
+		static_cast<uint64>( frames ) > static_cast<uint64>( rate ) * 60 * 60 ) return false;
+
+	// Build the same 60 Hz envelope as resident PCM, with one bounded block.
+	// Virtualized speech, shaking and flicker can query any offset afterwards.
+	const int entries = static_cast<int>( ( static_cast<uint64>( frames ) * 60 + rate - 1 ) / rate );
+	if( !SoundResizeAmplitude( amplitude, amplitudeReserved, entries ) ) return false;
+	memset( amplitude.Ptr(), 0, entries );
+	short pcm[SoundVorbisStream::ChunkFrames * 2];
+	unsigned int decoded = 0;
+	while( decoded < frames ) {
+		const int count = stream.Read( pcm, Min( SoundVorbisStream::ChunkFrames, static_cast<int>( frames - decoded ) ) );
+		if( count <= 0 ) { SoundResizeAmplitude( amplitude, amplitudeReserved, 0 ); return false; }
+		for( int frame = 0; frame < count; ++frame ) {
+			int peak = 0;
+			for( int channel = 0; channel < channels; ++channel ) {
+				const int sample = pcm[frame * channels + channel];
+				peak = Max( peak, sample < 0 ? -sample : sample );
+			}
+			const int entry = static_cast<int>( ( ( static_cast<uint64>( decoded ) + frame + 1 ) * 60 - 1 ) / rate );
+			if( entry < entries ) amplitude[entry] = Max( amplitude[entry], static_cast<byte>( Min( 255, ( peak * 255 + 16383 ) / 32767 ) ) );
+		}
+		decoded += count;
+	}
+	buffers.SetNum( 1 );
+	buffers[0].buffer = NULL;
+	FinishOggLoad( channels, rate, frames );
+	streamName = filename;
+	if( s_debugHardware.GetBool() ) idLib::Printf( "Compressed stream: %s, %d Hz, %d channels, %u frames\n", filename.c_str(), rate, channels, frames );
+	return true;
+}
+
 // Opens the stream if the main thread did not, decodes it and releases the stream and
 // the file bytes. Runs on a worker, or inline.
 static void SoundSample_RunDecode( idSoundSampleDecode& decode )
@@ -1151,7 +1454,9 @@ static void SoundSample_RunDecode( idSoundSampleDecode& decode )
 	if( decode.vorbis == NULL && decode.fileData != NULL && !decode.headerMismatch )
 	{
 		int vorbisError = 0;
-		decode.vorbis = stb_vorbis_open_memory( decode.fileData, decode.fileLen, &vorbisError, NULL );
+		decode.arena.reset( new (std::nothrow) char[SoundVorbisStream::ArenaBytes] );
+		stb_vorbis_alloc alloc = { decode.arena.get(), SoundVorbisStream::ArenaBytes };
+		if( decode.arena ) decode.vorbis = stb_vorbis_open_memory( decode.fileData, decode.fileLen, &vorbisError, &alloc );
 		if( decode.vorbis != NULL )
 		{
 			const stb_vorbis_info info = stb_vorbis_get_info( decode.vorbis );
@@ -1176,7 +1481,7 @@ static void SoundSample_RunDecode( idSoundSampleDecode& decode )
 	}
 	if( decode.fileData != NULL )
 	{
-		Mem_Free( decode.fileData );
+		FreeBuffer( decode.fileData );
 		decode.fileData = NULL;
 	}
 }
@@ -1212,8 +1517,32 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 	{
 		return false;
 	}
+	// Probe only the identification and final granule pages. Large compressed
+	// files never enter the complete-input/complete-PCM allocation path.
+	if( !keepPayload && s_streamThresholdKB.GetInteger() > 0 ) {
+		byte peek[512 + 65563];
+		const int prefix = Min( fileLen, 512 );
+		const int tail = Min( fileLen - prefix, 65563 );
+		int channels = 0, rate = 0;
+		unsigned int frames = 0;
+		const bool read = fileIn->Read( peek, prefix ) == prefix &&
+			fileIn->Seek( fileLen - tail, FS_SEEK_SET ) == 0 && fileIn->Read( peek + prefix, tail ) == tail;
+		fileIn->Rewind();
+		if( read && SoundSample_PeekOggInfo( peek, prefix + tail, channels, rate, frames ) &&
+			channels >= 1 && channels <= 2 && rate >= 8000 && rate <= 192000 &&
+			static_cast<uint64>( frames ) * channels * sizeof( short ) > static_cast<uint64>( s_streamThresholdKB.GetInteger() ) * 1024 ) {
+			timestamp = fileIn->Timestamp();
+			return LoadOggStream( filename );
+		}
+	}
+	SoundSampleDecodeReservation reservation;
+	if( !reservation.Grow( static_cast<uint64>( fileLen ) + SoundVorbisStream::ArenaBytes ) )
+	{
+		idLib::Warning( "LoadOgg( %s ) : compressed input exceeds s_decodeMemoryMB", filename.c_str() );
+		return false;
+	}
 
-	byte* fileData = ( byte* )Mem_Alloc( fileLen );
+	byte* fileData = ( byte* )AllocBuffer( fileLen, filename.c_str() );
 	if( fileData == NULL )
 	{
 		return false;
@@ -1222,7 +1551,7 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 	const int bytesRead = fileIn->Read( fileData, fileLen );
 	if( bytesRead != fileLen )
 	{
-		Mem_Free( fileData );
+		FreeBuffer( fileData );
 		return false;
 	}
 
@@ -1243,6 +1572,12 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 			( uint64 )peekFrames * peekChannels * sizeof( int16 ) <= ( uint64 )idMath::INT_MAX )
 	{
 		const int peekBytes = static_cast<int>( ( uint64 )peekFrames * peekChannels * sizeof( int16 ) );
+		if( !reservation.Grow( static_cast<uint64>( fileLen ) + peekBytes + SoundVorbisStream::ArenaBytes ) )
+		{
+			FreeBuffer( fileData );
+			idLib::Warning( "LoadOgg( %s ) : input and PCM exceed s_decodeMemoryMB", filename.c_str() );
+			return false;
+		}
 		buffers.SetNum( 1 );
 		buffers[0].buffer = AllocBuffer( peekBytes, GetName() );
 		if( buffers[0].buffer != NULL )
@@ -1260,6 +1595,7 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 					decode->list->Submit() == idJobSubmitResult::ACCEPTED )
 			{
 				soundSamplePendingDecodes++;
+				decode->reservedBytes = reservation.Transfer();
 				*asyncDecode = decode;
 				return true;
 			}
@@ -1285,10 +1621,12 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 	// stb_vorbis_decode_memory grew a scratch buffer by doubling and then copied it: two
 	// to three times a sound's PCM at peak, and a full copy of every sound loaded.
 	int vorbisError = 0;
-	stb_vorbis* vorbis = stb_vorbis_open_memory( fileData, fileLen, &vorbisError, NULL );
+	std::unique_ptr<char[]> arena( new (std::nothrow) char[SoundVorbisStream::ArenaBytes] );
+	stb_vorbis_alloc alloc = { arena.get(), SoundVorbisStream::ArenaBytes };
+	stb_vorbis* vorbis = arena ? stb_vorbis_open_memory( fileData, fileLen, &vorbisError, &alloc ) : NULL;
 	if( vorbis == NULL )
 	{
-		Mem_Free( fileData );
+		FreeBuffer( fileData );
 		idLib::Warning( "LoadOgg( %s ) : failed to open Ogg Vorbis (stb_vorbis error %d)", filename.c_str(), vorbisError );
 		FreeData();
 		return false;
@@ -1299,53 +1637,54 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 	unsigned int streamFrames = stb_vorbis_stream_length_in_samples( vorbis );
 	if( streamFrames == 0 && channels >= 1 && channels <= 2 && sampleRate > 0 )
 	{
-		// No length in the last page: decode the old way, growing a scratch buffer.
-		stb_vorbis_close( vorbis );
-		int scratchChannels = 0;
-		int scratchRate = 0;
-		short* scratch = NULL;
-		const int scratchFrames = stb_vorbis_decode_memory( fileData, fileLen, &scratchChannels, &scratchRate, &scratch );
-		Mem_Free( fileData );
-		if( scratchFrames <= 0 || scratch == NULL || scratchChannels != channels ||
-				( uint64 )scratchFrames * channels * sizeof( int16 ) > ( uint64 )idMath::INT_MAX )
+		// Missing granule length: count with fixed scratch, then rewind and decode
+		// once into the final allocation. Never use stb's unbounded doubling helper.
+		short scratch[8192];
+		const uint64 budget = static_cast<uint64>( idMath::ClampInt( 16, 1024, s_decodeMemoryMB.GetInteger() ) ) * 1024 * 1024;
+		uint64 frames = 0;
+		bool valid = reservation.Grow( static_cast<uint64>( fileLen ) + sizeof( scratch ) + SoundVorbisStream::ArenaBytes );
+		while( valid )
 		{
-			free( scratch );
-			idLib::Warning( "LoadOgg( %s ) : failed to decode Ogg Vorbis", filename.c_str() );
+			const int count = stb_vorbis_get_samples_short_interleaved( vorbis, channels, scratch, 8192 );
+			if( count <= 0 ) break;
+			frames += count;
+			valid = frames * channels * sizeof( short ) <= budget - fileLen - SoundVorbisStream::ArenaBytes;
+		}
+		if( !valid || !stb_vorbis_seek_start( vorbis ) )
+		{
+			stb_vorbis_close( vorbis );
+			FreeBuffer( fileData );
+			idLib::Warning( "LoadOgg( %s ) : unlengthened stream exceeds s_decodeMemoryMB or cannot rewind", filename.c_str() );
 			FreeData();
 			return false;
 		}
-		streamFrames = static_cast<unsigned int>( scratchFrames );
-		const int scratchBytes = static_cast<int>( ( uint64 )streamFrames * channels * sizeof( int16 ) );
-		buffers.SetNum( 1 );
-		buffers[0].buffer = AllocBuffer( scratchBytes, GetName() );
-		if( buffers[0].buffer == NULL )
-		{
-			free( scratch );
-			idLib::Warning( "LoadOgg( %s ) : could not allocate decoded audio", filename.c_str() );
-			FreeData();
-			return false;
-		}
-		memcpy( buffers[0].buffer, scratch, scratchBytes );
-		free( scratch );
-		return FinishOggLoad( channels, sampleRate, streamFrames );
+		streamFrames = static_cast<unsigned int>( frames );
 	}
 	if( channels < 1 || channels > 2 || sampleRate <= 0 || streamFrames == 0 ||
 			( uint64 )streamFrames * channels * sizeof( int16 ) > ( uint64 )idMath::INT_MAX )
 	{
 		stb_vorbis_close( vorbis );
-		Mem_Free( fileData );
+		FreeBuffer( fileData );
 		idLib::Warning( "LoadOgg( %s ) : unsupported stream (%d channels, %d Hz, %u frames)", filename.c_str(), channels, sampleRate, streamFrames );
 		FreeData();
 		return false;
 	}
 
 	const int capacityBytes = static_cast<int>( ( uint64 )streamFrames * channels * sizeof( int16 ) );
+	if( !reservation.Grow( static_cast<uint64>( fileLen ) + capacityBytes + SoundVorbisStream::ArenaBytes ) )
+	{
+		stb_vorbis_close( vorbis );
+		FreeBuffer( fileData );
+		idLib::Warning( "LoadOgg( %s ) : input and PCM exceed s_decodeMemoryMB", filename.c_str() );
+		FreeData();
+		return false;
+	}
 	buffers.SetNum( 1 );
 	buffers[0].buffer = AllocBuffer( capacityBytes, GetName() );
 	if( buffers[0].buffer == NULL )
 	{
 		stb_vorbis_close( vorbis );
-		Mem_Free( fileData );
+		FreeBuffer( fileData );
 		idLib::Warning( "LoadOgg( %s ) : could not allocate decoded audio", filename.c_str() );
 		FreeData();
 		return false;
@@ -1355,6 +1694,7 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 
 	idSoundSampleDecode* decode = new idSoundSampleDecode;
 	decode->vorbis = vorbis;
+	decode->arena = std::move( arena );
 	decode->fileData = fileData;
 	decode->fileLen = fileLen;
 	decode->sampleRate = sampleRate;
@@ -1370,6 +1710,7 @@ bool idSoundSample_OpenAL::BeginOggLoad( const idStr& filename, idSoundSampleDec
 				decode->list->Submit() == idJobSubmitResult::ACCEPTED )
 		{
 			soundSamplePendingDecodes++;
+			decode->reservedBytes = reservation.Transfer();
 			*asyncDecode = decode;
 			return true;
 		}
@@ -1494,7 +1835,9 @@ void idSoundSample_OpenAL::FinishDecode()
 	SoundSample_RunDecode( *decode );
 	const bool mismatch = decode->headerMismatch;
 	const unsigned int decodedFrames = decode->decodedFrames;
+	soundSamplePendingDecodeBytes -= decode->reservedBytes;
 	delete decode;
+	SoundMemoryRelease( SoundVorbisStream::ArenaBytes );
 
 	if( mismatch )
 	{
@@ -1549,10 +1892,12 @@ void idSoundSample_OpenAL::CancelDecode()
 	}
 	if( decode->fileData != NULL )
 	{
-		Mem_Free( decode->fileData );
+		FreeBuffer( decode->fileData );
 		decode->fileData = NULL;
 	}
+	soundSamplePendingDecodeBytes -= decode->reservedBytes;
 	delete decode;
+	SoundMemoryRelease( SoundVorbisStream::ArenaBytes );
 }
 
 /*
@@ -1590,180 +1935,78 @@ idSoundSample_OpenAL::LoadRoQ
 bool idSoundSample_OpenAL::LoadRoQ( const idStr& filename )
 {
 	idFileLocal fileIn( fileSystem->OpenFileRead( filename ) );
-	if( fileIn == NULL )
-	{
-		return false;
-	}
-
+	if( fileIn == NULL || fileIn->Length() < 16 ) return false;
 	const int fileLen = fileIn->Length();
-	if( fileLen < 16 )
-	{
-		return false;
-	}
+	byte header[8];
+	if( !openQ4_ReadExact( fileIn, header, 8 ) || ( header[0] | ( header[1] << 8 ) ) != ROQ_FILE_MAGIC ) return false;
 
-	byte* fileData = ( byte* )Mem_Alloc( fileLen );
-	if( fileData == NULL )
-	{
-		return false;
-	}
-
-	const int bytesRead = fileIn->Read( fileData, fileLen );
-	if( bytesRead != fileLen )
-	{
-		Mem_Free( fileData );
-		return false;
-	}
-
-	const int roqMagic = fileData[0] | ( fileData[1] << 8 );
-	if( roqMagic != ROQ_FILE_MAGIC )
-	{
-		Mem_Free( fileData );
-		return false;
-	}
+	// Count audio values from chunk headers, then decode directly into the one
+	// admitted PCM allocation. Video payloads and complete encoded RoQ files
+	// never enter memory; the second pass uses a fixed 4096-byte input block.
+	auto scan = [&]( int16* output, int capacity, int& channels, int& values ) {
+		channels = values = 0;
+		int offset = 8;
+		while( offset <= fileLen - 8 ) {
+			if( fileIn->Seek( offset, FS_SEEK_SET ) != 0 || !openQ4_ReadExact( fileIn, header, 8 ) ) return false;
+			const int chunkId = header[0] | ( header[1] << 8 );
+			const int chunkSize = header[2] | ( header[3] << 8 ) | ( header[4] << 16 );
+			const int argument = header[6] | ( header[7] << 8 );
+			offset += 8;
+			if( chunkSize > fileLen - offset ) return false;
+			const int chunkChannels = chunkId == ROQ_SOUND_MONO ? 1 : chunkId == ROQ_SOUND_STEREO ? 2 : 0;
+			if( chunkChannels != 0 ) {
+				if( ( channels && channels != chunkChannels ) || chunkSize % chunkChannels != 0 ||
+					chunkSize > idMath::INT_MAX / static_cast<int>( sizeof( int16 ) ) - values ) return false;
+				channels = chunkChannels;
+				if( output != NULL ) {
+					if( chunkSize > capacity - values ) return false;
+					int32 left = static_cast<int16>( channels == 1 ? argument : argument & 0xff00 );
+					int32 right = static_cast<int16>( ( argument & 0xff ) << 8 );
+					byte input[4096];
+					for( int done = 0; done < chunkSize; ) {
+						const int count = Min( static_cast<int>( sizeof( input ) ), chunkSize - done );
+						if( !openQ4_ReadExact( fileIn, input, count ) ) return false;
+						for( int i = 0; i < count; ++i ) {
+							int32& predictor = channels == 2 && ( i & 1 ) ? right : left;
+							predictor = idMath::ClampInt( ROQ_AUDIO_MIN_SAMPLE, ROQ_AUDIO_MAX_SAMPLE, predictor + RoQAudioDelta( input[i] ) );
+							output[values + done + i] = static_cast<int16>( predictor );
+						}
+						done += count;
+					}
+				}
+				values += chunkSize;
+			}
+			offset += chunkSize;
+		}
+		return channels != 0 && values != 0;
+	};
+	int channels = 0, values = 0;
+	if( !scan( NULL, 0, channels, values ) ) return false;
+	const int bytes = values * sizeof( int16 );
+	std::unique_ptr<void, decltype( &FreeBuffer )> pcm( AllocBuffer( bytes, GetName() ), &FreeBuffer );
+	if( !pcm ) return false;
+	int decodedChannels = 0, decodedValues = 0;
+	if( !scan( static_cast<int16*>( pcm.get() ), values, decodedChannels, decodedValues ) ||
+		decodedChannels != channels || decodedValues != values ) return false;
 
 	timestamp = fileIn->Timestamp();
-
 	idStr ampName = filename;
 	ampName.SetFileExtension( "amp" );
 	LoadAmplitude( ampName );
-
-	int channels = 0;
-	idList<int16> pcmSamples;
-	pcmSamples.SetGranularity( 4096 );
-
-	int offset = 8;
-	while( offset + 8 <= fileLen )
-	{
-		const int chunkId = fileData[offset + 0] | ( fileData[offset + 1] << 8 );
-		const int chunkSize = fileData[offset + 2] | ( fileData[offset + 3] << 8 ) | ( fileData[offset + 4] << 16 );
-		const int chunkArg = fileData[offset + 6] | ( fileData[offset + 7] << 8 );
-
-		offset += 8;
-
-		if( chunkSize > fileLen - offset )
-		{
-			Mem_Free( fileData );
-			idLib::Warning( "LoadRoQ( %s ) : truncated audio chunk", filename.c_str() );
-			return false;
-		}
-
-		const byte* chunkData = fileData + offset;
-
-		if( chunkId == ROQ_SOUND_MONO )
-		{
-			if( channels == 0 )
-			{
-				channels = 1;
-			}
-			else if( channels != 1 )
-			{
-				Mem_Free( fileData );
-				idLib::Warning( "LoadRoQ( %s ) : mixed mono/stereo RoQ audio chunks", filename.c_str() );
-				return false;
-			}
-
-			const int oldSamples = pcmSamples.Num();
-			if( chunkSize > idMath::INT_MAX - oldSamples )
-			{
-				Mem_Free( fileData );
-				idLib::Warning( "LoadRoQ( %s ) : decoded audio is too large", filename.c_str() );
-				return false;
-			}
-			pcmSamples.SetNum( oldSamples + chunkSize );
-
-			int32 predictor = static_cast<int16>( chunkArg );
-			for( int i = 0; i < chunkSize; ++i )
-			{
-				predictor += RoQAudioDelta( chunkData[i] );
-				predictor = idMath::ClampInt( ROQ_AUDIO_MIN_SAMPLE, ROQ_AUDIO_MAX_SAMPLE, predictor );
-				pcmSamples[ oldSamples + i ] = static_cast<int16>( predictor );
-			}
-		}
-		else if( chunkId == ROQ_SOUND_STEREO )
-		{
-			if( ( chunkSize & 1 ) != 0 )
-			{
-				Mem_Free( fileData );
-				idLib::Warning( "LoadRoQ( %s ) : malformed stereo audio chunk", filename.c_str() );
-				return false;
-			}
-			if( channels == 0 )
-			{
-				channels = 2;
-			}
-			else if( channels != 2 )
-			{
-				Mem_Free( fileData );
-				idLib::Warning( "LoadRoQ( %s ) : mixed mono/stereo RoQ audio chunks", filename.c_str() );
-				return false;
-			}
-
-			const int stereoBytes = chunkSize & ~1;
-			const int samplePairs = stereoBytes >> 1;
-			const int oldSamples = pcmSamples.Num();
-			if( stereoBytes > idMath::INT_MAX - oldSamples )
-			{
-				Mem_Free( fileData );
-				idLib::Warning( "LoadRoQ( %s ) : decoded audio is too large", filename.c_str() );
-				return false;
-			}
-			pcmSamples.SetNum( oldSamples + samplePairs * 2 );
-
-			int32 leftPredictor = static_cast<int16>( chunkArg & 0xFF00 );
-			int32 rightPredictor = static_cast<int16>( ( chunkArg & 0x00FF ) << 8 );
-			int outIndex = oldSamples;
-
-			for( int i = 0; i < stereoBytes; i += 2 )
-			{
-				leftPredictor += RoQAudioDelta( chunkData[i + 0] );
-				rightPredictor += RoQAudioDelta( chunkData[i + 1] );
-				leftPredictor = idMath::ClampInt( ROQ_AUDIO_MIN_SAMPLE, ROQ_AUDIO_MAX_SAMPLE, leftPredictor );
-				rightPredictor = idMath::ClampInt( ROQ_AUDIO_MIN_SAMPLE, ROQ_AUDIO_MAX_SAMPLE, rightPredictor );
-
-				pcmSamples[ outIndex++ ] = static_cast<int16>( leftPredictor );
-				pcmSamples[ outIndex++ ] = static_cast<int16>( rightPredictor );
-			}
-		}
-
-		offset += chunkSize;
-	}
-
-	Mem_Free( fileData );
-
-	if( channels == 0 || pcmSamples.Num() == 0 )
-	{
-		return false;
-	}
-
 	memset( &format, 0, sizeof( format ) );
 	format.basic.formatTag = idWaveFile::FORMAT_PCM;
 	format.basic.numChannels = static_cast<uint16>( channels );
 	format.basic.samplesPerSec = ROQ_AUDIO_SAMPLE_RATE;
 	format.basic.bitsPerSample = 16;
-	format.basic.blockSize = static_cast<uint16>( format.basic.numChannels * format.basic.bitsPerSample / 8 );
+	format.basic.blockSize = static_cast<uint16>( channels * sizeof( int16 ) );
 	format.basic.avgBytesPerSec = format.basic.samplesPerSec * format.basic.blockSize;
-
 	playBegin = 0;
-	playLength = pcmSamples.Num() / channels;
-	if( pcmSamples.Num() > idMath::INT_MAX / ( int )sizeof( int16 ) )
-	{
-		idLib::Warning( "LoadRoQ( %s ) : decoded audio is too large", filename.c_str() );
-		return false;
-	}
-	totalBufferSize = pcmSamples.Num() * sizeof( int16 );
-
+	playLength = values / channels;
+	totalBufferSize = bytes;
 	buffers.SetNum( 1 );
-	buffers[0].bufferSize = totalBufferSize;
+	buffers[0].bufferSize = bytes;
 	buffers[0].numSamples = playLength;
-	buffers[0].buffer = AllocBuffer( totalBufferSize, GetName() );
-	if( buffers[0].buffer == NULL )
-	{
-		idLib::Warning( "LoadRoQ( %s ) : could not allocate decoded audio", filename.c_str() );
-		return false;
-	}
-	memcpy( buffers[0].buffer, pcmSamples.Ptr(), totalBufferSize );
-	buffers[0].buffer = GPU_CONVERT_CPU_TO_CPU_CACHED_READONLY_ADDRESS( buffers[0].buffer );
-
+	buffers[0].buffer = pcm.release();
 	return true;
 }
 
@@ -1795,6 +2038,7 @@ void idSoundSample_OpenAL::MakeDefault()
 	totalBufferSize = DEFAULT_NUM_SAMPLES * 2;// * sizeof( short );
 
 	short* defaultBuffer = ( short* )AllocBuffer( totalBufferSize, GetName() );
+	if( defaultBuffer == NULL ) { totalBufferSize = 0; return; }
 	for( int i = 0; i < DEFAULT_NUM_SAMPLES; i += 2 )
 	{
 		float v = sin( idMath::PI * 2 * i / 64 );
@@ -1825,6 +2069,32 @@ idSoundSample_OpenAL::FreeData
 Called before deleting the object and at the start of LoadResource()
 ========================
 */
+static void SoundMemoryReclaim() {
+	// Join pending work before refusing a payload. Do not edit decodingSamples:
+	// this can run while its owner is iterating it. Workers only release bytes.
+	for( int i = 0; i < soundSystemLocal.samples.Num(); ++i ) soundSystemLocal.samples[i]->FinishDecode();
+	// Only old-map cache entries may be reclaimed. Keep every current-map,
+	// never-purge and active-channel reference, including inaudible/paused ones.
+	for( int i = 0; i < soundSystemLocal.samples.Num(); ++i ) {
+		idSoundSample* sample = soundSystemLocal.samples[i];
+		if( !sample->IsLoaded() || sample->GetNeverPurge() || sample->GetLevelLoadReferenced() ) continue;
+		bool active = false;
+		for( int w = 0; w < soundSystemLocal.soundWorlds.Num() && !active; ++w ) {
+			const idSoundWorldLocal* world = soundSystemLocal.soundWorlds[w];
+			if( world == NULL ) continue;
+			for( int e = 0; e < world->emitters.Num() && !active; ++e ) {
+				const idSoundEmitterLocal* emitter = world->emitters[e];
+				if( emitter == NULL ) continue;
+				for( int c = 0; c < emitter->channels.Num(); ++c ) {
+					const idSoundChannel* channel = emitter->channels[c];
+					if( channel != NULL && ( channel->leadinSample == sample || channel->loopingSample == sample ) ) { active = true; break; }
+				}
+			}
+		}
+		if( !active ) sample->FreeData();
+	}
+}
+
 void idSoundSample_OpenAL::FreeData()
 {
 	// a worker may still be writing into buffers[0]
@@ -1841,7 +2111,9 @@ void idSoundSample_OpenAL::FreeData()
 		}
 		buffers.Clear();
 	}
-	amplitude.Clear();
+	SoundResizeAmplitude( amplitude, amplitudeReserved, 0 );
+	streamName.Clear();
+	SoundMemoryRelease( openalReserved ); openalReserved = 0;
 
 	timestamp = FILE_NOT_FOUND_TIMESTAMP;
 	memset( &format, 0, sizeof( format ) );
@@ -1881,7 +2153,7 @@ idSoundSample_OpenAL::LoadAmplitude
 */
 bool idSoundSample_OpenAL::LoadAmplitude( const idStr& name )
 {
-	amplitude.Clear();
+	SoundResizeAmplitude( amplitude, amplitudeReserved, 0 );
 	idFileLocal f( fileSystem->OpenFileRead( name ) );
 	if( f == NULL )
 	{
@@ -1892,10 +2164,10 @@ bool idSoundSample_OpenAL::LoadAmplitude( const idStr& name )
 	{
 		return false;
 	}
-	amplitude.SetNum( fileLength );
+	if( !SoundResizeAmplitude( amplitude, amplitudeReserved, fileLength ) ) return false;
 	if( !openQ4_ReadExact( f, amplitude.Ptr(), amplitude.Num() ) )
 	{
-		amplitude.Clear();
+		SoundResizeAmplitude( amplitude, amplitudeReserved, 0 );
 		return false;
 	}
 	return true;
@@ -2472,7 +2744,7 @@ int idSoundSample_OpenAL::MS_ADPCM_decode( uint8** audio_buf, uint32* audio_len 
 		}
 	}
 
-	uint8* const decodedBuffer = static_cast<uint8*>( Mem_Alloc( decodedBytes ) );
+	uint8* const decodedBuffer = static_cast<uint8*>( AllocBuffer( static_cast<int>( decodedBytes ), GetName() ) );
 	if( decodedBuffer == NULL )
 	{
 		//SDL_Error( SDL_ENOMEM );
@@ -2584,11 +2856,11 @@ int idSoundSample_OpenAL::MS_ADPCM_decode( uint8** audio_buf, uint32* audio_len 
 
 	if( encoded_len != 0 || static_cast<size_t>( decoded - decodedBuffer ) != decodedBytes )
 	{
-		Mem_Free( decodedBuffer );
+		FreeBuffer( decodedBuffer );
 		return -1;
 	}
 
-	Mem_Free( originalBuffer );
+	FreeBuffer( originalBuffer );
 	*audio_buf = decodedBuffer;
 	*audio_len = static_cast<uint32_t>( decodedBytes );
 

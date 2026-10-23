@@ -8,6 +8,28 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Outstanding-session follow-through, 22 October 2026
+
+- [x] Repair airborne recovery's missing narrow headings and low-health fallback,
+  using actual live pickup triggers. The recorded CTF5 controller and both
+  recoverable fixed headings land alive when each trial starts with fresh map
+  items. Native extracted-code fixtures and five failing mutation controls cover
+  heading choice, retained steering, supported fallback and pickup eligibility.
+- [x] Complete buffered bot removal before replacement; keep impulse replays in
+  playable warmup and restore the map before each trial. Trials no longer forfeit
+  the match, reuse an occupied bot slot or consume the next trial's health pickup.
+- [x] Finish one complete 33-variant catalog on an unchanged staged build:
+  33/33 pass, 215 combat kills, zero world deaths including warmup, zero traversal
+  timeouts and no impulse exclusions. All maps exceed 40 simulated seconds.
+  The [catalog evidence](mp-bots.md#single-build-complete-catalog-22-october-2026)
+  retains route stalls/give-ups and timing peaks; wider MP-02/MP-03 gates remain
+  open. Thirteen focused bot checks and the freshness regression pass.
+- [x] Record five 1,000-frame Vulkan UI samples per title/System/SP-pause view and
+  four GL/Vulkan stock/retained preset/scale capture runs. The intermittent menu
+  failures were not reproduced in this bounded matrix; title/System CPU budgets
+  still fail, and the open System page's external-preset binding remains stale.
+  See [current UI evidence](ui/runtime-performance.md#current-build-measurements-and-presetscale-reproduction-22-october-2026).
+
 ## Post-0.14.000 corrections
 
 - [ ] Keep saves loadable after long stretches with the blaster, gauntlet,
@@ -25,6 +47,432 @@ Candidate save release wording: Saves made after firing or switching between
 weapons without an ammo display many times no longer fail to load with an
 "invalid pending GUI event count" error, and saves that already fail this way
 load again.
+
+- [x] Add one managed audio-payload budget across CPU/OpenAL data, decoder arenas,
+  streams and envelopes. Bound ordinary PCM fallback queues, decode RoQ through
+  fixed input scratch and keep pressure-refused samples retryable. Stock and
+  Awakening pass at 192 MiB; forced exhaustion and two restarts retain active
+  playback without reservation growth. Provider/process metadata, Android
+  low-memory callbacks and broader performance/device qualification remain AUD-03.
+  [Memory evidence](audio-voice-evidence.md#aggregate-payload-admission).
+
+- [x] Add playback-driven dialogue subtitles using text in installed lip-sync
+  declarations, with localized persistent size, background and speaker controls.
+  Stock/Awakening runtime, missing-text, overlap, pause, time-scale, restart,
+  save/restore and locale-fallback tests pass. The caption panel works in Classic
+  and retained UI. Missing transcripts, portrait title-card collisions and full
+  scene/headset coverage remain AUD-07/UI-02/UI-04 qualification work.
+  [Subtitle evidence](audio-voice-evidence.md#dialogue-subtitles).
+
+- [x] Route mono global/radio dialogue and explicitly centred sounds to the
+  physical centre on supported surround outputs, with bounded buffers and
+  unchanged stereo/HRTF fallback. Production queue tests, real OpenAL loopback
+  PCM on 5.1/6.1/7.1 and quad layouts, and stock compressed/Awakening PCM
+  gameplay pass; physical speaker and
+  output-layout-transition qualification remains open under AUD-04.
+
+- [x] Add independent archived dialogue volume with twelve localized Audio-menu
+  labels, bound transient Vorbis input/PCM admission and restore authored
+  minimum distance for mod room rolloff.
+  Windows stock/Awakening gameplay and Turkish-to-English audio fallback checks
+  cover gain isolation, mute, pause, time scale, restart and save/load. OpenAL
+  loopback confirms the mod wet-gain correction without changing stock zero
+  rolloff or dry gain. [Audio evidence and explicit limits](audio-voice-evidence.md)
+  distinguish these repairs from open AUD-01–AUD-07 qualification. Curated
+  candidate notes: [audio refinements](releases/audio-refinements.md).
+
+- [x] Implement bounded multiplayer voice with separate opt-in microphone access,
+  push-to-talk, local-only testing, receive volume, connection-scoped mute and
+  server moderation. Windows listen and dedicated peer tests cover rendered
+  audio, loss, reorder, latency, congestion, restart and slot reuse. Gameplay
+  snapshots retain priority over voice. Admission follows slow sender clock
+  drift within a bounded slew, verified by a simulated 24-hour drift/jitter/loss
+  test. This closes the implementation slice, not AUD-05's physical-device,
+  independent-machine clock-drift or target-OS qualification. The saved October
+  22 local session reports 1:59:29 with 120 passing intervals; the old harness's
+  one-interval duration tolerance prevents claiming a full two-hour pass.
+  The endpoint check is corrected without repeating the long test.
+  Engine/game API 53 requires matching modules. See
+  [voice evidence](audio-voice-evidence.md#multiplayer-voice).
+
+- [x] Record explicit two-way refusal between published 0.13.0 and the current
+  candidate, with pure checking both enabled and disabled. This is rejection
+  evidence, not a successful mixed-version voice session. The networking guide
+  recommends matching releases and content; protocol-capability checks remain
+  covered by regression tests. [Compatibility evidence](audio-voice-evidence.md#mixed-release-voice-check-22-october-2026).
+
+- [x] Stream long Ogg dialogue/music and effects through bounded VFS input,
+  decoder and playback buffers. Retain exact seek, leadin/loop, pause, pitch,
+  restart and save/restore behavior; recover underruns at the channel clock.
+  Windows stock/Awakening tests pass at a 16 MiB decode budget, reducing uploaded
+  PCM in the measured scenes. The aggregate/non-Vorbis implementation is recorded
+  above; performance and Android/device qualification remain AUD-03 work.
+  [Streaming evidence](audio-voice-evidence.md#compressed-streaming).
+  On 22 October the bounded queues were deepened from three 4,096-frame buffers
+  to about one second within the same reserved bytes. Centre-routed dialogue
+  uses a fixed pool of deep slots. A 450 ms hitch had been enough to interrupt
+  them. [Queue depth evidence](audio-voice-evidence.md#queue-depth-across-long-frames-22-october-2026).
+
+- [x] Add an Android setup Interface page with Desk, Couch, Handheld, Phone and
+  Tablet viewing profiles, UI size (75–200%) and text size (100–200%, following
+  the Android font size on phones and tablets). Each Apply sets the game's
+  retained UI and text scale once, at the next launch or return, so later
+  in-game changes are kept. The [interface setup check](platform-recovery-review.md#android-interface-setup-21-october-2026)
+  passes JVM/JNI, native, mutation and emulator Apply-and-return checks.
+  Physical S25 qualification remains open under AND-03.
+
+- [x] Keep stock crosshair hit feedback for fresh SP/MP profiles by default.
+  Saved marker opt-ins remain intact. Four
+  [actual-map default/persistence/reset checks](ui/remastered-hud.md#hit-feedback-defaults-21-october-2026)
+  and diagnostic engine captures pass. Optional marker artwork/timing and wider
+  UI-05 qualification remain open.
+
+- [x] Reconcile the UI register with the existing Awakening single-player scope.
+  [Revision 19](ui/product-requirements.md#revision-19-awakening-single-player-scope)
+  preserves historical rows and applicable SP/ordinary-MP obligations, without
+  requiring an expansion MP module or accepting any GUI/artwork.
+
+- [x] Stop multiplayer bots launching into each other from opposite jump pads,
+  keep them from sliding onto pads their route did not choose, check chained
+  pads against their health, and let a bot thrown by a rocket or rail fight
+  its fall with air control. The [bot evidence](mp-bots.md#pad-corridors-unplanned-pads-and-knocked-falls-22-october-2026)
+  covers native Windows/Linux regressions, isolated replays and full matches.
+  World deaths after enemy impulses are now classified by replay under the
+  MP-02 policy; the remaining navigation deaths keep MP-02 open.
+
+- [x] Account for repeated force-brush contact when predicting jump-pad landing
+  damage, and recheck low-health approaches before their final walking corner.
+  [Original-map and native evidence](mp-bots.md#repeated-pad-contact-and-landing-health-21-october-2026)
+  covers the underpredicted impact and late health check. Unintended entries,
+  combat impulses and the failing strict map/catalog gate keep MP-02 open.
+
+- [x] Reserve occupied jump-pad corridors before the final approach corner,
+  giving bots time to brake across nearby walking corners. The
+  [CTF5 diagnosis](mp-bots.md#early-pad-reservation-21-october-2026) and native
+  Windows/Linux regression checks cover the late reservation. Full-duration
+  gameplay retains separate landing/rocket-fall failures; MP-02 stays open.
+
+- [x] Add Android touch setup with Default, Compact and Left-handed presets,
+  button size, look sensitivity and a live drag test. Applied preferences reach
+  the engine at startup/return; drafts and failed writes preserve the previous
+  settings. The [bounded controls check](platform-recovery-review.md#android-controls-setup-21-october-2026)
+  passes Windows/Linux native tests, JVM recovery and emulator returns. Physical
+  setup/controller qualification and the full layout editor remain open.
+
+- [x] Reopen Android setup from the game's Settings and return to the same
+  running session. Return to game is also available on the language page.
+  The [setup return check](platform-recovery-review.md#android-settings-return-21-october-2026)
+  passes two emulator handoffs, a desktop visibility control and native/JVM
+  recovery tests. Physical navigation and broader onboarding remain open.
+
+- [x] Add genuine published-Windows-writer evidence for the historical readers.
+  Twenty original committed slots from 0.6.95/0.8.0/0.10.0/0.11.0 and five
+  completed v0.13.0 staged payloads pass current restore/resave/reload across
+  five maps. The [corpus record](savegame-reliability.md#original-release-writers-21-october-2026)
+  retains v0.13.0's self-rejected transactions, exact identities and failed
+  harness assessments. Current #123 GUI/map compatibility and other-ABI
+  qualification remain open; no save-format or support policy changed.
+
+- [x] Reject voluntary bot hops that touch a platform but carry too much momentum
+  to remain on it. The [q4xdm13 replay](mp-bots.md#dodge-landing-runout-21-october-2026)
+  now slows before taking a supported hop. Windows/Linux fixtures preserve safe
+  wider landings; negative controls and the isolated original-map replay pass.
+  The renewed catalog's remaining failures and wider MP-02 gates stay open.
+
+- [x] Scope Windows installation shutdown to the current checkout's staged
+  runtime. Installing one worktree previously stopped matching games in other
+  worktrees or installations. Six production-function cases and three failing
+  regression controls cover process/path ownership and shutdown races; normal
+  Windows staging validation executes them. The
+  [interference evidence](mp-bots.md#installation-interference-21-october-2026)
+  preserves the interrupted gameplay runs and their remaining safety failures.
+
+- [x] Check both the predicted jump-pad touchdown and room to slow down, and
+  brake unsafe momentum before an exhausted route's idle wait. The recorded
+  [DM8 post-hit flight](mp-bots.md#jump-pad-impulse-recovery-21-october-2026)
+  now lands and survives on the isolated replay. Native Windows/Linux cases and
+  negative controls cover unsupported touchdown and insufficient runout. The
+  intermediate failed fix and remaining MP-02 qualification are preserved.
+
+- [x] Start live bot jump predictions at the actual collision origin. The old
+  one-unit lift could miss a valid air step and approve an overshooting jump.
+  The [isolated DM8 replay](mp-bots.md#live-jump-origin-correction-21-october-2026)
+  now completes safely; Windows/Linux fixtures preserve broad landings and fail
+  when the old offset is restored. Wider MP-02 safety qualification remains open.
+
+- [x] Correct the support-box/full-player height mismatch that made bot edge
+  braking reject valid slopes. Windows/Linux production-function fixtures cover
+  box and cylindrical hulls, low ceilings and hazards; isolated regressions reject
+  either old implementation. Original CTF6 surface checks and a 60-second bot run
+  pass their scoped checks. The [bot evidence](mp-bots.md#sloped-floor-support-correction-21-october-2026)
+  preserves remaining route stalls and failing DM8/CTF5 safety reruns. MP-02 and
+  controlled performance qualification remain open.
+
+- [x] Add read-only authored-distance/OpenAL diagnostics and measure three stock
+  looping sounds through real Hangar 1 emitters. All 54 linear/quadratic samples
+  pass on the recorded Windows build, preserving map-unit ranges, source radii
+  and the existing mix. The [distance audit](audio-modernization.md#current-distance-audit-20-october-2026)
+  retains exact evidence, the failed initial harness calibration and eight
+  failure-detection tests. Human audibility remains pending under AUD-01;
+  no audio defaults or support claims changed.
+
+- [x] Recover a separate x86_64 Android diagnostic app with coordinated native
+  metadata, exact package verification and disabled release variants. The ARM64
+  phone packaging regression remains passing. A current 16 KiB Android emulator
+  passes silent Hangar 1 touch/save/load and Q4DM1 movement/release checks,
+  restores settings and exits normally. The
+  [recovery record](platform-recovery-review.md#android-diagnostic-emulator-recovery-20-october-2026)
+  retains exact identities, failed older-image attempts and the observed touch
+  layout defects; software-rendered results do not promote physical-device support.
+
+- [x] Recover the standalone Android gameplay controls against current input
+  ownership. Touch movement/look bypass physical mouse/controller preferences,
+  short taps survive game-tick boundaries, wheel steering preserves the view,
+  and menu/focus/device changes release held actions. Fixed enlarged-control
+  placement, physical target spacing and invalid-density handling.
+  [Recovery evidence](platform-recovery-review.md#android-gameplay-touch-recovery-20-october-2026)
+  records Windows/Linux behavior checks, both native builds, exact APK checks
+  and same-debug-certificate S25 updates preserving all six original save files.
+  Scripted movement, weapon selection and save round trips pass; the final
+  engine capture confirms an unobscured weapon wheel. Physical move/look/fire,
+  release, tap/hold selection and audible background/pause/resume pass on the
+  recorded S25 build. Layout editing/portrait presentation, other devices and
+  guided controls setup remain AND-01/AND-03 acceptance work.
+  A later emulator-qualified increment keeps the visible button corners inside
+  their hit targets, clears Pause from the MP rank display and lifts default
+  Reload above the status readouts. Native Windows/Linux tests and fresh SP/MP
+  captures pass; it has not replaced the physically checked S25 build.
+
+- [x] Qualify the previously blocked original-save restore on the S25's recorded
+  timer/GUI-repair APK. Storage 1 loads, creates another save, reloads it and
+  exits cleanly, with both views captured by the engine and the original bytes
+  preserved through the following update. The
+  [device record](platform-recovery-review.md#s25-original-save-restore-round-trip-20-october-2026)
+  limits this result to that opening sequence and package. The later export
+  APK also passes the [exported-save round trip](platform-recovery-review.md#s25-exported-save-restore-20-october-2026);
+  broader campaign and audio/lifecycle gates remain open.
+
+- [x] Add Android saved-game backup and diagnostic-log export to setup. The
+  system picker creates a new ZIP destination; bounded private snapshots keep
+  saves, descriptions and previews intact and include an integrity inventory.
+  Setup failures are recorded in the exported log folder. Cancellation/retry
+  preserves the originals and warns that a failed destination may be partial.
+  [Export evidence](platform-recovery-review.md#android-save-and-log-export-20-october-2026)
+  records production-Java snapshot/provider checks on Windows/Linux, four
+  localized resource sets and verified APK packaging. Actual S25 exports to
+  Downloads pass independent ZIP/manifest checks, preserve the six original
+  save files and supply a save that restores, saves and reloads on the same
+  package. Other providers and release-upgrade acceptance remain open under
+  AND-03.
+
+- [x] Connect Android language/data setup before game startup. The system folder
+  picker supplies read-only source access; verified imports, bundled-file
+  preparation, cancellation and retry report progress and recovery guidance in
+  English, German, Spanish and French. Play remains explicit after completion.
+  Native storage ownership excludes setup during active or closing gameplay.
+  [Setup evidence](platform-recovery-review.md#android-language-and-data-setup-19-october-2026)
+  retains host pipeline/ownership checks, exact packaging and the separate SDL
+  lint findings. Controls/interface steps, Settings re-entry and
+  physical qualification remain open under AND-01/AND-03.
+
+- [x] Prepare resumable Android retail import behind the setup flow. Verified
+  temporary files replace destinations only after complete validation; failed
+  or interrupted operations preserve installed data and private saves. A bounded
+  document-provider adapter reads the selected tree and closes active resources
+  on cancellation. [Import evidence](platform-recovery-review.md#android-document-import-backend-19-october-2026)
+  records Windows/Linux recovery fixtures and SDK compilation. The launcher,
+  persisted grants and localized setup still need integration; no player-facing
+  import entry point is enabled by this checkpoint.
+
+- [x] Prepare a read-only Android retail-data verifier for guided setup. It
+  checks all required archives against the engine catalogue, verifies entry
+  payloads and distinguishes optional/language warnings from blocking errors.
+  The [backend evidence](platform-recovery-review.md#android-retail-verifier-backend-19-october-2026)
+  covers native/Java checksum agreement, corruption, limits, cancellation/retry
+  and the local retail set. Original checksum notices are included and required
+  by package verification. This is implementation groundwork: the Activity does
+  not invoke it yet, and AND-03's player-facing setup remains open.
+
+- [x] Keep Android's game surface clear of camera cutouts and retain the correct
+  remaining system/keyboard insets. Density and current SDL configuration changes
+  keep the native Activity session. The
+  [recovery evidence](platform-recovery-review.md#android-cutout-and-configuration-recovery-19-october-2026)
+  records Windows/Linux production Activity tests, three failing regression
+  controls and verified debug packaging. Real rotation, density, visual and
+  input acceptance remains open; portrait play is still pending.
+
+- [x] Restore three existing native-input SDK tests to Meson registration. An
+  obsolete SDL 3.4.10 source path omitted them from builds using the current
+  pinned dependency. Registration now follows the SDL wrap; the Windows setup
+  lists 270 tests and all three restored tests pass with MSVC, separately from
+  the preceding 267-test suite. No native-input feature is enabled by this fix.
+  Evidence: `.tmp/stage-two/native-input-registration-evidence.json`, SHA-256
+  `e7ffacfe85eef190d4c3fb7e82e8823eafef9901a4906f6552c4647fd64294d5`.
+
+- [x] Route Android Back through the current menu/pause action and make the
+  fatal-error console usable with density-scaled touch targets. Press ownership,
+  release activation, cancellation and duplicate-event filtering prevent stale
+  touches from activating buttons; fatal presentation leaves the keyboard shut.
+  The [input evidence](platform-recovery-review.md#android-back-and-fatal-console-controls-19-october-2026)
+  records production native/JVM checks on Windows/Linux, failing old-code
+  controls, both platform builds and 267 passing native tests. Physical Android
+  gesture/touch and visual qualification remains open.
+
+- [x] Keep Android's early fatal reports beside its regular game log by sharing
+  the standalone host's save directory with native startup. The
+  [path evidence](platform-recovery-review.md#android-early-diagnostic-path-19-october-2026)
+  records Windows/Linux production native and Java checks, preserved legacy
+  fallbacks, both builds, five focused native regressions and debug-APK
+  verification. Device diagnostics and release log export remain unqualified.
+
+- [x] Reduce Android background timer wakes and bound catch-up after long process
+  freezes, including accelerated time, while retaining foreground cadence and
+  the desktop timing policy. The [timer evidence](platform-recovery-review.md#android-background-timer-recovery-19-october-2026)
+  records Windows/Linux production scheduler/worker checks, failing old-code
+  controls, both platform builds, 264 passing native tests and verified debug
+  packaging. Physical power, suspension and network-resume checks remain open.
+
+- [x] Suspend Android audio and release held input before SDL parks the game
+  loop. Resume live single player behind the pause menu before audio/gameplay;
+  preserve existing menu, load and network flows. The
+  [lifecycle evidence](platform-recovery-review.md#android-background-audio-and-single-player-resume-19-october-2026)
+  covers paired/fallback audio suspension, device retry, repeated events,
+  foreign-thread deferral and inactive-key teardown in Windows/Linux production
+  fixtures, both platform builds and 262 passing native tests. Physical Android
+  suspend, input and listening qualification remains required.
+
+- [x] Preserve optional menu fallback during a save load and reject missing
+  serialized GUI definitions at their actual reader. The previous session-wide
+  check misidentified an optional Android pause menu as saved state.
+  [GUI boundary evidence](savegame-reliability.md#serialized-gui-admission-and-optional-menu-fallback)
+  records Windows/Linux production checks, 259 passing native tests, both
+  platform builds and GL/Vulkan fallback, rejection and healthy reload.
+  Physical Android restore and broader Q4-05/Q4-07 gates remain open.
+
+- [x] Bind retained views and GUI allocation queries to the engine thread at
+  startup. Android loads native libraries on a different thread, which had
+  prevented the optional UI from loading and interrupted save-load preparation.
+  [Thread-binding evidence](platform-recovery-review.md#android-ui-engine-thread-binding-19-october-2026)
+  includes the reproduced failure, Windows/Linux production-method checks,
+  both platform builds and 257 passing Windows tests. Device restore/UI
+  qualification remains pending.
+
+- [x] Keep Android's selected game-data folder when retail files are missing,
+  so startup diagnostics retain the correct copy destination. The
+  [S25 and path-selection evidence](platform-recovery-review.md#s25-startup-data-path-and-upgrade-check-19-october-2026)
+  records the reproduced bug, Windows/Linux production checks and 256 passing
+  Windows tests. The separate device restore failure remains open.
+
+- [x] Leave Android's single SDL window available for the game at startup and
+  release a surviving game window before creating the fatal-error console.
+  [Window ownership evidence](platform-recovery-review.md#android-window-ownership-19-october-2026)
+  covers Windows/Linux production-method checks, the ARM64/API 24 cross-build
+  and 254 passing Windows tests. Subsequent APK/S25 startup evidence is recorded
+  separately; touch/back handling and broader AND-01 acceptance remain open.
+
+- [x] Reject standalone weapon, physics and helper classes that cannot occur in
+  a valid saved object table, before any object factory runs. View weapons and
+  embedded physics retain their supported paths. The
+  [class-admission evidence](savegame-reliability.md#standalone-object-class-admission)
+  covers Windows/Linux native checks, 252 passing Windows tests, GL/Vulkan
+  recovery and existing v2/v3/v4 save regression. Broader Q4-05/Q4-07 gates remain.
+
+- [x] Reject invalid script-thread ownership during saved-state restoration and
+  detach partial owners before failed-load cleanup. The save representation is
+  unchanged. [Ownership and recovery evidence](savegame-reliability.md#script-thread-ownership-during-restore)
+  covers Windows/Linux native failure controls, the 250-test Windows suite and
+  six actual CRC-valid failure/reload cases on each of GL and Vulkan. Broader
+  Q4-05 qualification remains open.
+
+- [x] Validate saved door/platform activation chains and detach partial links
+  before failed-load teardown. Standalone roots and forward references retain
+  their behavior. [Mover-chain evidence](savegame-reliability.md#mover-activation-chains-during-restore)
+  covers actual teardown methods and CRC-valid Storage1 door fixtures; broader
+  Q4-05 ownership/factory qualification remains open.
+
+- [x] Validate live saved spawn references against their declared entity/client
+  class before publishing them. Interrupted reads preserve the previous pointer;
+  expired weak references retain their existing behavior. The
+  [template and runtime evidence](savegame-reliability.md#typed-spawn-references-during-restore)
+  identifies the previous acceptance failure and the tested scope.
+
+- [x] Reject invalid saved binding/team relationships and detach partial links
+  before failed-load cleanup. Valid forward references retain their saved order.
+  [Graph validation and teardown evidence](savegame-reliability.md#binding-graphs-during-failed-restores)
+  preserves the previous staged cleanup failure and the focused qualification
+  scope. Other owning graphs remain open under Q4-05.
+
+- [x] Keep saved model/light indices separate from current renderer ownership
+  during restore. Interrupted fields cannot leave an invalid or foreign handle
+  for entity/effect cleanup to free. The
+  [production-reader fault tests](savegame-reliability.md#renderer-ownership-during-interrupted-field-reads)
+  cover nine paths in both game modules while retaining the save format.
+
+- [x] Recover from semantic save-load errors through the Load Game page or classic
+  dialog, after unwinding temporary restore objects and closing the failed map.
+  Localized guidance lets players choose another save or start again. Client
+  entity allocation also refuses a full table without reading past its end.
+  [Recovery behavior and qualification limits](savegame-reliability.md#recovery-after-semantic-restore-failure)
+  retain the initial UI-routing failure and distinguish native policy tests from
+  actual CRC-valid corrupted-save runs. Broader Q4-05/Q4-07 work remains open.
+
+- [x] Track temporary restore ownership through map teardown, release remaining
+  objects while their dependencies are alive and avoid revisiting attachments
+  deleted by another owner. [Lifetime and gameplay evidence](savegame-reliability.md#ownership-during-an-interrupted-restore)
+  covers SP/MP native cycles and a current save's valid/rejected/valid sequence
+  without modifying either file. The subsequent recovery UI is recorded above;
+  deeper corrupted graphs remain open under Q4-05.
+
+- [x] Preserve live entity identities when rejecting invalid or duplicate saved
+  registrations, including interrupted master-table entries. Constructor-created
+  client effects still restore correctly. [Production-reader and gameplay evidence](savegame-reliability.md#restore-identity-and-partial-registration)
+  includes Windows/Linux corruption cases, the retained failed candidate and a
+  corrected four-role stock gameplay baseline. Subsequent ownership and recovery
+  changes are recorded above; broader Q4-05 qualification remains open.
+
+- [x] Verify Android's extracted APK content on every launch and repair damaged
+  copies before starting the engine. Only verified replacements are committed;
+  failed repairs preserve saves and the previous package. The signed-APK verifier
+  checks the new content manifest. [Production-Java and package evidence](platform-recovery-review.md#android-extracted-package-repair-18-october-2026)
+  covers Windows/Linux fault cases and selective repair of the actual staged
+  package. Onboarding UI and device upgrade qualification remain open.
+
+- [x] Recover safely from OpenXR frame/session failures, retire controller state
+  and stop using lost images. Session failures retry after a short desktop
+  fallback; runtime loss waits for `vr_restart`. VR screenshots now include the
+  world in both game modes. [Current OpenGL evidence](platform-recovery-review.md#opengl-xr-lifecycle-closure-18-october-2026)
+  records failing controls, 19 Windows/Linux ownership cases, 28 simulated XR
+  gameplay runs and 207 passing native tests. Physical headset qualification
+  and integration of other backends remain separate.
+
+- [x] Produce identical bundled content packages on Windows and Linux, preventing
+  host ZIP metadata from invalidating an otherwise identical package. The real
+  writer regression passes on both hosts and rejects the old behavior.
+  [Windows/Linux IPv4 and IPv6 pure-peer gameplay](retail-baseline-ledger.md#cross-platform-pure-peers-18-october-2026)
+  passes with matching packages; broader MP-08 qualification remains open.
+
+- [x] Freeze Arena's game audio clock with its paused match while retaining menu
+  audio, and resume only the pause it owns. Direct voice-over channels now pause
+  with the world too. [Production-method and gameplay evidence](arena-campaign-ceremony.md#current-pause-and-result-evidence-18-october-2026)
+  covers repeated GL/Vulkan pause/resume, victory/defeat/draw, restart persistence
+  and preservation of a better result. A subsequent
+  [headphone listening check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
+  confirms audible pause/resume twice. Physical controls, endpoint loss/return
+  and the rest of MP-04 remain open.
+
+- [x] Implement retained generated RGBA8 images with premultiplied blending,
+  bounded shared storage and deferred release. Explicit 2D images keep their
+  type even at 1:6 aspect ratios. The [runtime evidence](ui/runtime-spike.md#generated-image-integration-18-october-2026)
+  records native ownership/failure/cycle tests and passing GL/Vulkan gameplay
+  alpha/reopen/renderer-restart captures. UI-09 and broader product acceptance
+  remain open.
+
+- [x] Preserve queued commands and module-reload requests when command lists
+  grow. This fixes a command-line multiplayer connection that silently stayed
+  at the main menu. Production copy/list tests reject the previous ownership
+  error, all 185 native tests pass, and the complete stock SP/demo/listen/pure-
+  client baseline passes. [Evidence and limits](retail-baseline-ledger.md#stage-two-connection-regression)
+  belong to the ongoing MP-08/Q4-02 work; Stage 2 remains in progress.
 
 - [x] Complete the stage-one baseline implementation and audit: use a shared
   high-resolution presentation phase for each SP/MP draw and precise OpenXR

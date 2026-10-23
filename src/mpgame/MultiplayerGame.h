@@ -362,11 +362,12 @@ public:
 	bool			CanTalk( idPlayer *from, idPlayer *to, bool echo );
 	void			ReceiveAndForwardVoiceData( int clientNum, const idBitMsg &inMsg, int messageType );
 
-#ifdef _USE_VOICECHAT
 // jscott: game side voice comms
 	void			XmitVoiceData( void );
 	void			ReceiveAndPlayVoiceData( const idBitMsg &inMsg );
-#endif
+	void			ResetVoiceState( int client = -1 );
+	static void		ServerVoiceMute_f( const idCmdArgs& args );
+	static void		ServerVoiceStats_f( const idCmdArgs& args );
 
 // jshepard: selects a map at random that will run with the current game type
 	bool			PickMap( idStr gameType, bool checkOnly = false );
@@ -806,6 +807,7 @@ public:
 	// over it) is open, the way a story level does. Host-local, like the rest
 	// of the ceremony: the paused frames rebase every match deadline.
 	bool			ArenaCampaignPausesWorld( void ) const;
+	void			UpdateArenaSoundPause( bool pause );
 	void			RebaseArenaCampaignPauseFrame( int deltaMsec );
 	// Escape during the end-of-match ceremony skips ahead to the match report
 	// instead of opening a menu whose Disconnect would forfeit the result.
@@ -1187,6 +1189,7 @@ private:
 	bool			arenaCeremonySkipping;
 	bool			arenaSkipButtonHeld;
 	bool			arenaMenuWasPaused;
+	bool			arenaSoundPauseOwned;
 	// The introduction order, latched when it arms: teammates first, then the
 	// opposition, each in slot order.
 	int				arenaIntroOrder[ MAX_CLIENTS ];

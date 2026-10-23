@@ -287,8 +287,27 @@ def validate_game_wiring() -> None:
     require(movement, "bounds.GetCenter() - origin", "rvBot::UpdateMovement volume entry steering")
     # Grounded movement never walks off into the void or a kill volume.
     require(movement, "BotBrakeAtEdge( self, moveDir )", "rvBot::UpdateMovement void-edge guard")
+    require_order(movement, "BotBrakeAtEdge( self, brakeDir )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
     require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
+    # A knock's slide toward an edge is braked even on an action's approach.
+    require(movement, "( !leavesOnPurpose || knockSliding )", "rvBot::UpdateMovement knocked edge guard")
+    # A held pad approach guards its momentum at the edge, input or none.
+    require(movement, "if ( holdForPad && self->pfl.onGround ) {", "rvBot::UpdateMovement held approach edge guard")
+    require(movement, "( hasMoveDir || transportBrake || heldEdgeBrake )", "rvBot::UpdateMovement applies the held edge brake")
+    # A shotgun's pellets are one throw: a frame's kicks are summed.
+    require(bot, "bot.knockbackFrameKick += kick;", "rvBotManager::OnPlayerKnockback pellet sum")
+    # Momentum never carries a grounded bot into a pad or teleporter its route
+    # did not choose, on a route or off one (q4ctf5's unplanned pad entries).
+    require(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+            "rvBot::UpdateMovement unplanned transport guard")
+    require(movement, "BotBrakeForTransport( self, brakeDir, -1 )",
+            "rvBot::UpdateMovement unrouted transport guard")
+    require_order(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+                  "ApplyMove( moveDir, cmd );", "rvBot::UpdateMovement guards transports before it moves")
+    require_order(movement, "BotBrakeForTransport( self, brakeDir, -1 )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum short of a pad before idle/item holds")
     # A bot waits short of a pad while someone flies its corridor the other way.
     require(movement, "HoldForPad( self, moveDir )", "rvBot::UpdateMovement pad hold owns movement")
     require(movement, "hasMoveDir && !holdForPad && self->pfl.onGround",

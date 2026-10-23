@@ -554,7 +554,7 @@ public:
     }
     void HandleMainMenuCommands(const char* command) { played.push_back(command); }
     // LoadGame refuses a save with loadRefusal's reason, or loads it.
-    enum loadGameFailure_t { LOADGAME_FAILURE_NONE, LOADGAME_FAILURE_UNREADABLE, LOADGAME_FAILURE_DAMAGED, LOADGAME_FAILURE_MAP };
+    enum loadGameFailure_t { LOADGAME_FAILURE_NONE, LOADGAME_FAILURE_UNREADABLE, LOADGAME_FAILURE_DAMAGED, LOADGAME_FAILURE_MAP, LOADGAME_FAILURE_RESTORE };
     loadGameFailure_t loadGameFailure = LOADGAME_FAILURE_NONE, loadRefusal = LOADGAME_FAILURE_NONE;
     bool LoadGame(const char* slot) { loadedGames.push_back(slot); loadGameFailure = loadRefusal; return loadRefusal == LOADGAME_FAILURE_NONE; }
     std::vector<std::string> deleted; bool deleteFails = false;
@@ -4835,7 +4835,11 @@ def main() -> int:
             assert layers.index('objectives-bar') < layers.index('band-top') < layers.index('objectives'), relative
         for action in document.get('actions', {}).values():
             if action['operation'] == 'settings.player.set':
-                assert action['arguments']['cvar'] in player_settings and action['arguments']['value'] == {'input': 'value'}, relative
+                # Only the Voice page's tab-exit stop may write a literal: it
+                # switches the local microphone test off, never on.
+                stop_test = action['arguments']['cvar'] == 's_voiceChatTest' and action['arguments']['value'] is False
+                assert action['arguments']['cvar'] in player_settings and (
+                    action['arguments']['value'] == {'input': 'value'} or stop_test), relative
             elif action['operation'] == 'session.menuValue':
                 assert action['arguments']['command'] in value_allowlist and action['arguments']['value'] == {'input': 'value'}, relative
             elif action['operation'] == 'ui.state.set':

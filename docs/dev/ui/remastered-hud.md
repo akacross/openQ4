@@ -491,6 +491,29 @@ and the red death afterimage is dropped, as under reduced motion.
   `in_promptStyle`), and the `mp-pace`/`sp-pace` profiles. `--gate 0` runs a scenario with the stock GUIs
   for comparison.
 
+## Hit-feedback defaults, 21 October 2026
+
+Fresh SP and MP profiles now default `hud_hitMarker` to zero, preserving the
+stock crosshair feedback required by visual section 14.7. The setting remains
+archived: an existing explicit opt-in is retained, and Reset returns to zero.
+The Game settings description now states the same default. No saved preference
+migration or hit-feedback transport changed.
+
+Four silent, windowed OpenGL runs enter SP Hangar 1 and MP q4dm1. In each mode,
+the fresh value is zero, an explicit opt-in is written, a separate launch loads
+that saved value over a disabled startup configuration, and Reset returns to
+zero. Engine captures show no diagnostic marker when disabled and the existing
+marker when enabled. They do not qualify real-hit timing, the retained settings
+workflow or the full artwork specification. The first harness attempt used an
+unquoted configuration filename, failed its explicit-write check and is retained.
+
+Evidence: `.tmp/stage-two/hit-feedback-default-runtime-r2/report.json`, SHA-256
+`f31e99427af160c78a9e44ae3fb106ad1ce35c3e122241833cdf9cb4d1b3e0b7`.
+Source/runtime identities and all four engine logs are bound in that report;
+`hit-marker-review.png` contains the inspected engine-capture crops. The optional
+marker's color, duration and geometry still differ from section 14.7 and remain
+under UI-05; this default correction does not accept `FLOW-043`.
+
 ## Open work
 
 - The chat input's prompts name the keyboard's keys; controller and touch

@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "snd_local.h"
 #include "SoundSettings.h"
+#include "VoiceChat.h"
 
 // NOCHEAT as in retail Quake4.exe 1.4.2: a multiplayer spawn or join without
 // cheats resets every other unarchived CVar, which switched a dedicated server's
@@ -36,6 +37,11 @@ If you have questions concerning this license or the applicable additional terms
 idCVar s_noSound( "s_noSound", "0", CVAR_SOUND | CVAR_BOOL | CVAR_NOCHEAT, "returns NULL for all sounds loaded and does not update the sound rendering" );
 idCVar s_volume( "s_volume", "0.5", CVAR_ARCHIVE | CVAR_FLOAT, "master volume (0-1)", 0.0f, 1.0f );
 idCVar s_musicVolume( "s_musicVolume", "0.5", CVAR_ARCHIVE | CVAR_FLOAT, "music volume (0-1)", 0.0f, 1.0f );
+idCVar s_dialogueVolume( "s_dialogueVolume", "1", CVAR_ARCHIVE | CVAR_FLOAT, "spoken dialogue volume (0-1), independent of music and multiplayer voice chat", 0.0f, 1.0f );
+idCVar ui_subtitles( "ui_subtitles", "0", CVAR_GUI | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NOCHEAT, "show installed dialogue transcripts during playback" );
+idCVar ui_subtitleScale( "ui_subtitleScale", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_FLOAT | CVAR_NOCHEAT, "subtitle text size", 1.0f, 2.0f );
+idCVar ui_subtitleBackground( "ui_subtitleBackground", "0.6", CVAR_GUI | CVAR_ARCHIVE | CVAR_FLOAT | CVAR_NOCHEAT, "subtitle backing opacity", 0.0f, 1.0f );
+idCVar ui_subtitleSpeakers( "ui_subtitleSpeakers", "1", CVAR_GUI | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NOCHEAT, "show available subtitle speaker names" );
 idCVar s_speakerFraction( "s_speakerFraction", "0.65", CVAR_ARCHIVE | CVAR_FLOAT, "speaker attenuation fraction" );
 idCVar s_radioChatterFraction( "s_radioChatterFraction", "0.9", CVAR_ARCHIVE | CVAR_FLOAT, "radio chatter attenuation fraction" );
 idCVar s_frequencyShift( "s_frequencyShift", "1", CVAR_BOOL, "enable sound shader frequency shift playback" );
@@ -70,6 +76,12 @@ idCVar preLoad_Samples( "preLoad_Samples", "1", CVAR_SYSTEM | CVAR_BOOL, "preloa
 
 idSoundSystemLocal soundSystemLocal;
 idSoundSystem* soundSystem = &soundSystemLocal;
+
+// Engine/platform lifecycle hook; no change to the game-facing sound ABI.
+void S_SetDevicePaused( bool paused )
+{
+	soundSystemLocal.hardware.SetDevicePaused( paused );
+}
 
 static const int SOUND_RUMBLE_DURATION_MSEC = 120;
 static const float SOUND_RUMBLE_STOP_THRESHOLD = 0.01f;
@@ -154,10 +166,11 @@ void ListSounds_f( const idCmdArgs& args )
 	const char* filter = args.Argc() > 1 ? args.Argv( 1 ) : NULL;
 	int totalSounds = 0;
 	int totalLoaded = 0;
-	int totalMemory = 0;
-	int totalCompressedMemory = 0;
-	int totalPCMMemory = 0;
-	int totalResidentMemory = 0;
+	int64 totalMemory = 0;
+	int64 totalCompressedMemory = 0;
+	int64 totalPCMMemory = 0;
+	int64 totalResidentMemory = 0;
+	int64 totalStreamedMemory = 0;
 
 	idLib::Printf( "Sound samples\n-------------\n" );
 	for( int i = 0; i < soundSystemLocal.samples.Num(); i++ )
@@ -174,7 +187,7 @@ void ListSounds_f( const idCmdArgs& args )
 		const bool compressed = loaded && sample->IsCompressed();
 		const char* channels = sample->NumChannels() == 2 ? "ST" : "  ";
 		const char* format = compressed ? "OGG" : "WAV";
-		const char* state = !loaded ? "(PURGED)" : ( sample->IsDefault() ? "(DEFAULTED)" : "" );
+		const char* state = !loaded ? "(PURGED)" : ( sample->IsDefault() ? "(DEFAULTED)" : ( sample->IsStreamed() ? "(STREAMED)" : "" ) );
 		const int sampleRateKHz = sample->SampleRate() > 0 ? sample->SampleRate() / 1000 : 0;
 		const int sampleBytes = sample->BufferSize();
 
@@ -193,6 +206,7 @@ void ListSounds_f( const idCmdArgs& args )
 			totalLoaded++;
 			totalMemory += sampleBytes;
 			totalResidentMemory += sample->ResidentBufferSize();
+			if( sample->IsStreamed() ) totalStreamedMemory += sampleBytes;
 			if( compressed )
 			{
 				totalCompressedMemory += sampleBytes;
@@ -206,14 +220,18 @@ void ListSounds_f( const idCmdArgs& args )
 
 	idLib::Printf( "%8d total sounds\n", totalSounds );
 	idLib::Printf( "%8d total samples loaded\n", totalLoaded );
-	idLib::Printf( "%8d kB OGG samples loaded\n", totalCompressedMemory / 1024 );
-	idLib::Printf( "%8d kB PCM samples loaded\n", totalPCMMemory / 1024 );
-	idLib::Printf( "%8d kB total sample data\n", totalMemory / 1024 );
+	idLib::Printf( "%8lld kB OGG samples loaded\n", static_cast<long long>( totalCompressedMemory / 1024 ) );
+	idLib::Printf( "%8lld kB PCM samples loaded\n", static_cast<long long>( totalPCMMemory / 1024 ) );
+	idLib::Printf( "%8lld kB total sample data\n", static_cast<long long>( totalMemory / 1024 ) );
 	// Sample data is not the same as memory held. OpenAL keeps its own copy of
 	// everything uploaded to it, so ours is released; report what is actually
 	// still resident rather than letting the decoded size stand in for it.
-	idLib::Printf( "%8d kB held in CPU memory (%d kB released to OpenAL)\n",
-				   totalResidentMemory / 1024, ( totalMemory - totalResidentMemory ) / 1024 );
+	idLib::Printf( "%8lld kB held in CPU memory (%lld kB released to OpenAL)\n",
+				   static_cast<long long>( totalResidentMemory / 1024 ), static_cast<long long>( ( totalMemory - totalResidentMemory - totalStreamedMemory ) / 1024 ) );
+	idLib::Printf( "%8lld kB decoded track size streamed without full PCM residency\n", static_cast<long long>( totalStreamedMemory / 1024 ) );
+#if defined(USE_OPENAL)
+	idSoundSample_OpenAL::PrintDecodeMemoryInfo();
+#endif
 }
 
 /*
@@ -309,6 +327,86 @@ void ListPlayingSounds_f( const idCmdArgs& args )
 	soundSystemLocal.hardware.ListPlayingVoices();
 }
 
+static void ListSubtitles_f( const idCmdArgs& args ) {
+	(void)args;
+	idSoundWorld* world = soundSystemLocal.GetSoundWorldFromId(SOUNDWORLD_GAME);
+	soundSubtitle_t cues[2];
+	const int count = world ? world->GetSubtitles(cues, 2) : 0;
+	idLib::Printf("Subtitles: %d\n", count);
+	for (int i = 0; i < count; ++i) {
+		idLib::Printf("Subtitle shader=%s emitter=%d speaker=%d time=%d duration=%d radio=%d textBytes=%d\n",
+			cues[i].shader, cues[i].emitterIndex, cues[i].speakerId, cues[i].timeMsec,
+			cues[i].durationMsec, cues[i].radio ? 1 : 0, idStr::Length(cues[i].text));
+	}
+}
+
+// Read the last completed mix and the corresponding OpenAL state. This does
+// not update a voice, move the listener or substitute diagnostic attenuation.
+static void SoundDistances_f( const idCmdArgs& args )
+{
+	if( args.Argc() > 2 )
+	{
+		idLib::Printf( "Usage: s_soundDistances [exact shader name]\n" );
+		return;
+	}
+	const idSoundWorldLocal* world = soundSystemLocal.currentSoundWorld;
+	if( world == NULL )
+	{
+		idLib::Printf( "SOUND_DISTANCE_WORLD available=0\n" );
+		return;
+	}
+	idLib::Printf( "SOUND_DISTANCE_WORLD available=1 listener=%d area=%d origin=%.4f,%.4f,%.4f\n",
+		world->listener.id, world->listener.area, world->listener.pos.x, world->listener.pos.y, world->listener.pos.z );
+	int count = 0;
+	for( int i = 0; i < world->emitters.Num(); ++i )
+	{
+		const idSoundEmitterLocal* emitter = world->emitters[i];
+		if( emitter == NULL ) continue;
+		for( int c = 0; c < emitter->channels.Num(); ++c )
+		{
+			const idSoundChannel* channel = emitter->channels[c];
+			if( channel == NULL || channel->soundShader == NULL ) continue;
+			const char* name = channel->soundShader->GetName();
+			if( args.Argc() == 2 && idStr::Icmp( name, args.Argv( 1 ) ) ) continue;
+			idLib::Printf( "SOUND_DISTANCE emitter=%d channel=%d shader=\"%s\" flags=%d "
+				"origin=%.4f,%.4f,%.4f direct=%.4f spatial=%.4f min=%.4f max=%.4f "
+				"authoredGain=%.7f volumeDB=%.4f portals=%d\n",
+				i, channel->logicalChannel, name, channel->parms.soundShaderFlags,
+				emitter->origin.x, emitter->origin.y, emitter->origin.z,
+				emitter->directDistance, emitter->spatializedDistance,
+				channel->parms.minDistance, channel->parms.maxDistance, channel->parms.volume,
+				channel->volumeDB, emitter->occludingPortalCount );
+			soundSystemLocal.hardware.PrintDistanceInfo( channel->hardwareVoice );
+			++count;
+		}
+	}
+	idLib::Printf( "SOUND_DISTANCE_END channels=%d\n", count );
+}
+
+// Report the production sound clocks without changing focus, routing or playback.
+// Together with listPlayingSounds this distinguishes a frozen world from a
+// world that merely became inaudible when another world acquired the output.
+// Both clocks derive from one stamp taken once per frame in Render(); stamp and
+// now let a caller compare them with wall-clock waits across long frames.
+static void SoundWorlds_f( const idCmdArgs& args ) {
+	(void)args;
+	const int worldIds[] = { SOUNDWORLD_MENU, SOUNDWORLD_GAME };
+	for ( int id : worldIds ) {
+		idSoundWorldLocal *world = static_cast<idSoundWorldLocal *>( soundSystemLocal.GetSoundWorldFromId( id ) );
+		if ( world == NULL ) {
+			continue;
+		}
+		int channels = 0;
+		for ( int e = 0; e < world->emitters.Num(); ++e ) {
+			channels += world->emitters[e]->channels.Num();
+		}
+		idLib::Printf( "SOUND_WORLD id=%d paused=%d time=%d active=%d channels=%d stamp=%d now=%d\n",
+			id, world->IsPaused() ? 1 : 0, world->GetSoundTime(),
+			soundSystemLocal.GetPlayingSoundWorld() == world ? 1 : 0, channels,
+			soundSystemLocal.SoundTime(), Sys_Milliseconds() );
+	}
+}
+
 /*
 ========================
 idSoundSystemLocal::Restart
@@ -401,8 +499,13 @@ void idSoundSystemLocal::Init()
 	}
 
 	cmdSystem->AddCommand( "testSound", TestSound_f, CMD_FL_SOUND, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
+	SoundVoiceChat_InitCommands();
 	cmdSystem->AddCommand( "listSounds", ListSounds_f, CMD_FL_SOUND, "lists all sounds" );
 	cmdSystem->AddCommand( "listPlayingSounds", ListPlayingSounds_f, CMD_FL_SOUND, "lists currently playing sounds" );
+	cmdSystem->AddCommand( "listSubtitles", ListSubtitles_f, CMD_FL_SOUND, "lists active subtitle identifiers and sample times without printing transcripts" );
+	cmdSystem->AddCommand( "s_soundDistances", SoundDistances_f, CMD_FL_SOUND,
+		"reports authored ranges, mixed distances and OpenAL spatial state", idCmdSystem::ArgCompletion_SoundName );
+	cmdSystem->AddCommand( "s_soundWorlds", SoundWorlds_f, CMD_FL_SOUND, "reports game/menu sound clocks and pause state" );
 	cmdSystem->AddCommand( "listSoundDecoders", ListSoundDecoders_f, CMD_FL_SOUND, "list active sound decoders" );
 	cmdSystem->AddCommand( "reloadSounds", ReloadSounds_f, CMD_FL_SOUND | CMD_FL_CHEAT, "reloads all sounds" );
 	cmdSystem->AddCommand( "s_restart", RestartSound_f, CMD_FL_SOUND, "restarts the sound system" );
@@ -633,6 +736,7 @@ idSoundSystemLocal::Render
 */
 void idSoundSystemLocal::Render()
 {
+	SoundVoiceChat_Render();
 
 	if( s_noSound.GetBool() )
 	{
@@ -860,6 +964,7 @@ idSoundSample* idSoundSystemLocal::LoadSample( const char* name )
 	}
 	idSoundSample* sample = new idSoundSample;
 	sample->SetName( canonical );
+	sample->SetLevelLoadReferenced();
 	sampleHash.Add( hashKey, samples.Append( sample ) );
 	// Doom 3's sound cache: a sample first referenced outside a level load (the menus,
 	// the HUD, a sound a script reaches for mid-level) is never purged; one a level
@@ -881,8 +986,6 @@ idSoundSample* idSoundSystemLocal::LoadSample( const char* name )
 			decodingSamples.Append( sample );
 		}
 	}
-	sample->SetLevelLoadReferenced();
-
 	if( cvarSystem->GetCVarBool( "fs_buildgame" ) )
 	{
 //		fileSystem->AddSamplePreload( canonical );

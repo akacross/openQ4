@@ -82,6 +82,11 @@ idCVar	s_muteUnfocused( "s_muteUnfocused", "1", CVAR_ARCHIVE | CVAR_BOOL, "mute 
 
 #if defined( USE_SDL3 )
 bool Sys_SDL_IsGameWindowFocused( void );
+#if defined( __ANDROID__ )
+#include "../sys/android/android_public.h"
+bool Sys_SDL_ConsumeAppSuspension( void );
+void S_SetDevicePaused( bool paused );
+#endif
 #elif defined( _WIN32 )
 bool Sys_IsGameWindowFocused( void );
 #endif
@@ -6985,7 +6990,7 @@ bool idSessionLocal::StartCampaignChapter( int chapter ) {
 	}
 	if ( saves[chapter].Length() ) {
 		common->Printf( "CAMPAIGN_CHAPTER start %d from %s\n", chapter + 1, saves[chapter].c_str() );
-		// LoadGame refuses a save it cannot use before it leaves the menu.
+		// Preflight refusals preserve the menu; deeper failures rebuild it.
 		if ( LoadGame( saves[chapter].c_str() ) ) {
 			return true;
 		}
@@ -7536,6 +7541,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 
 	// don't bother spinning over all the tics we spent loading
 	lastGameTic = latchedTicNumber = com_ticNumber;
+	HandleAppResume( true );
 
 	// remove any prints from the notify lines
 	console->ClearNotifyLines();
@@ -8085,10 +8091,32 @@ bool idSessionLocal::SaveGame( const char *saveName, saveType_t saveType ) {
 
 /*
 ===============
+idSessionLocal::ExecuteSaveGameMapChange
+===============
+*/
+bool idSessionLocal::ExecuteSaveGameMapChange( const char *saveName ) {
+	try {
+		ExecuteMapChange();
+	} catch ( const idException &error ) {
+		// GameLib has unwound its owned restore objects. Stop the session with
+		// normal error policy again, close its file and present a fresh menu.
+		openQ4_saveGameRestore.file = NULL;
+		openQ4_saveGameRestore.layoutBuild = 0;
+		common->Warning( "LoadGame '%s': could not restore saved state: %s", saveName, error.error );
+		Stop();
+		loadGameFailure = LOADGAME_FAILURE_RESTORE;
+		ShowSaveRestoreFailure( saveName );
+		return false;
+	}
+	return true;
+}
+
+/*
+===============
 idSessionLocal::LoadGame
 ===============
 */
-bool idSessionLocal::LoadGame( const char *saveName ) { 
+bool idSessionLocal::LoadGame( const char *saveName ) {
 #ifdef	ID_DEDICATED
 	common->Printf( "Dedicated servers cannot load games.\n" );
 	return false;
@@ -8270,7 +8298,9 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		// make sure no buttons are pressed
 		mapSpawnData.mapSpawnUsercmd[0].buttons = 0;
 
-		ExecuteMapChange();
+		if ( !ExecuteSaveGameMapChange( requestedSaveName.c_str() ) ) {
+			return false;
+		}
 
 		SetGUI( NULL, NULL );
 	}
@@ -9042,6 +9072,9 @@ void idSessionLocal::Draw() {
 	if ( mapSpawned && !insideExecuteMapChange && !guiActive && !readDemo ) {
 		DrawIAmTheDukeOverlay();
 		Session_DrawLevelshotBounds();
+#ifdef __ANDROID__
+		AndroidTouchControls_Draw();
+#endif
 	}
 
 	if ( guiActive == NULL && demoOverlayVisible && IsDemoPlaybackActive() &&
@@ -9133,7 +9166,23 @@ void idSessionLocal::UpdateScreen( bool outOfSequence ) {
 idSessionLocal::Frame
 ===============
 */
+void idSessionLocal::HandleAppResume( bool afterMapLoad ) {
+#if defined( USE_SDL3 ) && defined( __ANDROID__ )
+	if ( !Sys_SDL_ConsumeAppSuspension() ) return;
+	// Do this outside SDL's event watch: the renderer is current again, and
+	// opening the menu switches off the gameplay sound world before unmuting.
+	if ( !afterMapLoad && mapSpawned && !insideExecuteMapChange && !IsGUIActive() &&
+		 !readDemo && !com_editorActive && !idAsyncNetwork::IsActive() ) {
+		StartMenu();
+	}
+	S_SetDevicePaused( false );
+#else
+	(void)afterMapLoad;
+#endif
+}
+
 void idSessionLocal::Frame() {
+	HandleAppResume( false );
 	// Re-derive the playing sound world from the current focus state before the
 	// mix runs, so s_muteUnfocused can never leave audio switched off once the
 	// window is back.
@@ -9798,10 +9847,12 @@ void idSessionLocal::UpdateSoundWorldFocus() {
 void idSessionLocal::SetPlayingSoundWorld() {
 	const bool systemMenuActive = guiSystem != NULL &&
 		( guiActive == guiSystem || ( guiActive == guiMsg && guiMsgRestore == guiSystem ) );
+	const bool arenaPauseMenuActive = guiActive != NULL &&
+		idStr::Icmp( guiActive->Name(), "guis/arena_pause.gui" ) == 0;
 	// A retained page stands in for a main-menu page, and so does every
 	// retained front-end screen presented without a level: Single Player and
 	// its sub-pages, the Multiplayer page and its sub-pages.
-	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
+	if ( guiActive && ( guiActive == guiMainMenu || systemMenuActive || arenaPauseMenuActive || guiActive == guiIntro || guiActive == guiLoading ||
 			RetainedPageActive() || ( guiActive == guiMsg && !mapSpawned ) ||
 			( !mapSpawned && UI_IsRetainedPath( guiActive->Name() ) ) ) ) {
 		SetPlayingSoundWorld( menuSoundWorld );

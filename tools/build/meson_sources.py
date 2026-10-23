@@ -266,6 +266,7 @@ SDL3_ANDROID_SOURCES = (
     "sys/android/android_log.cpp",
     "sys/android/android_main.cpp",
     "sys/android/android_sdl3.cpp",
+    "sys/android/android_touch_controls.cpp",
 )
 
 DARWIN_PLATFORM_SOURCES = (

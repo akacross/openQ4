@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import re
+import sys
 from pathlib import Path
 
 
@@ -103,6 +105,26 @@ def validate_auto_exec_capture_boundary() -> None:
             )
 
 
+def generate_native(output: Path) -> None:
+    """Compile the real argument ownership methods with the real list container."""
+    implementation = ROOT / "src/idlib/CmdArgs.cpp"
+    source = implementation.read_text(encoding="utf-8")
+    lib = (ROOT / "src/idlib/Lib.h").read_text(encoding="utf-8")
+    capacity = re.search(r"#define\s+MAX_STRING_CHARS\s+(\d+)", lib)
+    if capacity is None:
+        raise AssertionError("production command string capacity is missing")
+    result = f'#define MAX_STRING_CHARS {capacity[1]}\n#include "src/idlib/CmdArgs.h"\n'
+    for signature in (
+        "void idCmdArgs::operator=( const idCmdArgs &args )",
+        "void idCmdArgs::AppendArg( const char *text )",
+        "void idCmdArgs::ClearSensitive( void )",
+    ):
+        line = source.count("\n", 0, source.index(signature)) + 1
+        result += f'\n#line {line} "{implementation.as_posix()}"\n'
+        result += signature + " {\n" + function_body(source, signature, "native command arguments") + "\n}\n"
+    output.write_text(result, encoding="utf-8")
+
+
 def main() -> None:
     validate_tree(ROOT, "engine idCmdArgs")
     validate_tree(GAME_LIBS_ROOT, "GameLibs idCmdArgs")
@@ -136,4 +158,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--generate-native":
+        generate_native(Path(sys.argv[2]))
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        raise SystemExit("usage: cmdargs_append_contract.py [--generate-native OUTPUT]")

@@ -2199,9 +2199,20 @@ idRenderSystemLocal::UploadImage
 ===============
 */
 bool idRenderSystemLocal::UploadImage( const char *imageName, const byte *data, int width, int height  ) {
+	if ( data == NULL || width <= 0 || height <= 0 ) return false;
 	idImage *image = globalImages->GetImage( imageName );
 	if ( !image ) {
 		return false;
+	}
+	// Explicitly allocated RGBA8 targets already specify their type and size.
+	// UploadScratch's cinematic heuristic interprets a 1:6 image as a cube;
+	// a generated UI image with that aspect ratio must remain an ordinary 2D
+	// texture. Preserve the target's allocation and sampler for all rectangles.
+	const idImageOpts& options = image->GetOpts();
+	if ( image->IsScratchImage() && options.textureType == TT_2D && options.format == FMT_RGBA8 &&
+		options.numLevels == 1 && options.width == width && options.height == height ) {
+		image->SubImageUpload( 0, 0, 0, 0, width, height, data );
+		return true;
 	}
 	// UploadScratch also serves cinematics and selects linear/repeat sampling.
 	// Updating an existing named image must retain its authored sampler (in

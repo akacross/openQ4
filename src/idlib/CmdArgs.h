@@ -13,6 +13,8 @@
 class idCmdArgs {
 public:
 							idCmdArgs( void ) { argc = 0; }
+							// Copies must own their argv pointers, including container growth and reload replay.
+							idCmdArgs( const idCmdArgs &args ) { *this = args; }
 							idCmdArgs( const char *text, bool keepAsStrings ) { TokenizeString( text, keepAsStrings ); }
 
 	void					operator=( const idCmdArgs &args );

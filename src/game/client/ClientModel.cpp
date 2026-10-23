@@ -200,12 +200,14 @@ rvClientModel::Restore
 */
 void rvClientModel::Restore( idRestoreGame *savefile ) {
 	savefile->ReadRenderEntity( renderEntity, NULL );
-	savefile->ReadInt( entityDefHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedEntityDefHandle;
+	savefile->ReadInt( savedEntityDefHandle );
 
 	savefile->ReadString ( classname );		// cnicholson: Added unrestored var
 
 	// restore must retrieve entityDefHandle from the renderer
- 	if ( entityDefHandle != -1 ) {
+	if ( savedEntityDefHandle != -1 ) {
  		entityDefHandle = gameRenderWorld->AddEntityDef( &renderEntity );
  	}
 }

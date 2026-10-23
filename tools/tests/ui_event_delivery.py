@@ -50,6 +50,7 @@ struct idSessionLocal {
     void SetSaveGameGuiVars() {}
     void SetMainMenuGuiVars(bool) {}
     void SetPlayingSoundWorld(SoundWorld*) { ++soundSelections; }
+    void SetPlayingSoundWorld() { ++soundSelections; }
     void HandleMainMenuCommands(const char*) { ++legacyDispatches; }
     void HandleDemoMenuCommand(const char*) { ++legacyDispatches; }
     void HandleIntroMenuCommands(const char*) { ++legacyDispatches; }

@@ -70,6 +70,7 @@ public:
 	void				Restore( idRestoreGame *savefile );				// unarchives object from save game file
 
 	void				SetThread( idThread *pThread );
+	void				RestoreThread( idRestoreGame *savefile );
 
 	void				StackTrace( void ) const;
 

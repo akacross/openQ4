@@ -4,7 +4,8 @@ plugins {
 }
 
 // Keep compiler/package intermediates under the repository's standard build root.
-layout.buildDirectory.set(file('../../builddir/android-apk'))
+def emulator = providers.gradleProperty('openq4Abi').getOrElse('arm64-v8a') == 'x86_64'
+layout.buildDirectory.set(file(emulator ? '../../builddir/android-apk-emulator' : '../../builddir/android-apk'))
 subprojects {
     layout.buildDirectory.set(new File(rootProject.layout.buildDirectory.get().asFile, name))
 }

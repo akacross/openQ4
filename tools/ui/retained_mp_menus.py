@@ -1804,16 +1804,17 @@ def settings_page(doc: Document, index: int, ident: str, width: float, height: f
 
 
 def voice_page(doc: Document, index: int, ident: str, width: float, height: float) -> tuple[dict, str]:
-    """The Voice page (section 14.18): sending and receiving voice, their
-    volumes and voice echo; the key that pushes to talk, which Controls
-    rebinds; and the microphone's level and test, unavailable while voice
-    chat is not."""
+    """Explicit microphone consent, push-to-talk, receive mix and a local test.
+    The status and level come from the running backend, including failures."""
     page_width = width - 2 * INSET
     left_w = 420.0
     right_x = left_w + 24
     right_w = page_width - right_x
-    value_x = label_column(("#str_201017", "#str_201018", "#str_201019", "#str_201030", "#str_201020"))
+    value_x = label_column(("#str_231301", "#str_201017", "#str_201018", "#str_201019", "#str_201030", "#str_201020"))
+    consent = cvar_state(doc, "s_voiceChatCapture", "boolean")
     rows = [
+        value_row(doc, "voice-capture", "#str_231301", "toggle", left_w, value_x, value=consent,
+                  action=setting_action(doc, "s_voiceChatCapture", "boolean"), wrap=True),
         value_row(doc, "voice-send", "#str_201017", "toggle", left_w, value_x, value=cvar_state(doc, "s_voiceChatSend", "boolean"),
                   action=setting_action(doc, "s_voiceChatSend", "boolean"), wrap=True),
         value_row(doc, "voice-receive", "#str_201018", "toggle", left_w, value_x, value=cvar_state(doc, "s_voiceChatReceive", "boolean"),
@@ -1828,7 +1829,7 @@ def voice_page(doc: Document, index: int, ident: str, width: float, height: floa
     left = [heading_text("voice-heading", "#str_231006", 0, 0, left_w),
             group("voice-rows", {**absolute(left=0, top=VOTE_HEAD_H, width=left_w, height=len(rows) * VOTE_ROW_H),
                                  "display": keyword("flex"), "flex-direction": keyword("column")}, rows)]
-    controls = ["voice-send", "voice-receive", "voice-volume", "voice-mic", "voice-echo"]
+    controls = ["voice-capture", "voice-send", "voice-receive", "voice-volume", "voice-mic", "voice-echo"]
     # The push-to-talk key, as the session names it, and Controls to rebind it.
     doc.state.update({"mp.keys.voice_chat": {"type": "string", "initial": ""}, "mp.keys.voice_chat_bound": {"type": "boolean", "initial": False}})
     bound = {"state": "mp.keys.voice_chat_bound"}
@@ -1842,21 +1843,31 @@ def voice_page(doc: Document, index: int, ident: str, width: float, height: floa
     rebind = in_game_plate(doc, "voice-controls", "#str_200083", right_x, VOTE_HEAD_H + VOTE_ROW_H + 6, width=min(right_w, 320),
                            action="mpSettingsControls")
     controls.append("voice-controls")
-    # The microphone: its level and the test wait for voice chat.
+    # A real peak meter, with no decorative signal while capture is off.
     meter_top = VOTE_HEAD_H + VOTE_ROW_H + 64
     meter_label = label("voice-meter-label", "#str_201027", {**absolute(left=right_x, top=meter_top, width=right_w, height=20),
                         **typeface("lowpixel", 14, 20, HEADING), "white-space": keyword("nowrap")})
     meter = vector("voice-meter", {**absolute(left=right_x, top=meter_top + 22, width=min(right_w, 320), height=10), "opacity": number(0.38)}, [
         path("trough", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, 10), (0, 10)], stroke=stroke(solid(rgb(OLIVE, 0.6)), 1))])
-    test = action_plate(doc, "voice-test", "card.voicetest", min(right_w, SLOT_W), meter_top + 44, "voice_test", [])
-    # The test is the document's own action, unavailable for now.
-    doc.state.update({"card.voicetest.shown": {"type": "boolean", "initial": True},
-                      "card.voicetest.label": {"type": "string", "initial": "#str_231056"},
-                      "card.voicetest.reason": {"type": "string", "initial": "#str_231057"}})
-    test["properties"]["left"] = length(right_x)
-    controls.append("voice-test")
-    right = [heading_text("voice-heading-talk", "#str_231054", right_x, 0, right_w), key, unbound, rebind, meter_label, meter, test]
-    return page_group(doc, index, ident, width, height, [*left, *right], controls), "voice-send"
+    fill = vector("voice-meter-fill", {**absolute(left=right_x, top=meter_top + 22, width=0, height=10)}, [
+        path("level", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, 10), (0, 10)], fill=solid(rgb(ORANGE)))])
+    doc.bind("voice-meter-fill.width", "voice-meter-fill", "width",
+             {"op": "*", "args": [cvar_state(doc, "s_voiceChatLevel", "number"), min(right_w, 320)]})
+    test = value_row(doc, "voice-test", "#str_231307", "toggle", right_w, label_column(("#str_231307",)),
+                     value=cvar_state(doc, "s_voiceChatTest", "boolean"),
+                     action=setting_action(doc, "s_voiceChatTest", "boolean"), allowed=consent, wrap=True)
+    test["properties"].update(absolute(left=right_x, top=meter_top + 44))
+    doc.bind("voice-test.enabled", "voice-test", "enabled",
+             {"op": "&&", "args": [consent, {"op": "==", "args": [{"state": "card.tab"}, index]}]})
+    status = label("voice-status", "#str_231306", {**absolute(left=right_x, top=meter_top + 82, width=right_w, height=70),
+                   **typeface("lowpixel", 14, 18, [1, 1, 1, 0.85]), "white-space": keyword("normal")})
+    state = cvar_state(doc, "s_voiceChatStatus", "number")
+    message = "#str_231306"
+    for value, status_key in ((1, "#str_231302"), (2, "#str_231303"), (3, "#str_231304"), (4, "#str_231305")):
+        message = {"op": "select", "args": [{"op": "==", "args": [state, value]}, status_key, message]}
+    doc.bind("voice-status.text", "voice-status", "text", message)
+    right = [heading_text("voice-heading-talk", "#str_231054", right_x, 0, right_w), key, unbound, rebind, meter_label, meter, fill, test, status]
+    return page_group(doc, index, ident, width, height, [*left, *right], controls), "voice-capture"
 
 
 def welcome_settings_page(doc: Document, index: int, ident: str, width: float, height: float) -> tuple[dict, str]:
@@ -2830,6 +2841,12 @@ def card_motion(doc: Document, tabs: list, focus: list) -> None:
         track("card", "opacity", [(0, number(1)), (OPEN_MS, number(1))]),
     ])
     count = len(tabs)
+    stop_voice = []
+    if any(ident == "voice" for ident, _key, _window in tabs):
+        doc.actions["voiceTestStop"] = {"operation": "settings.player.set",
+            "arguments": {"cvar": "s_voiceChatTest", "value": False}}
+        stop_voice = [{"op": "if", "condition": {"state": "cvar.s_voiceChatTest"},
+                       "then": [{"op": "action", "action": "voiceTestStop"}]}]
 
     def focus_current() -> dict:
         steps: list = []
@@ -2848,7 +2865,7 @@ def card_motion(doc: Document, tabs: list, focus: list) -> None:
         ], complete="pageShown")
         doc.events[f"tab_{ident}"] = [
             {"op": "if", "condition": {"op": "!=", "args": [{"state": "card.tab"}, index]},
-             "then": [{"op": "setState", "values": {"card.leaving": {"state": "card.tab"}, "card.tab": index}},
+             "then": [*stop_voice, {"op": "setState", "values": {"card.leaving": {"state": "card.tab"}, "card.tab": index}},
                       {"op": "playTimeline", "timeline": f"show-{ident}"}, *focus[index]]},
         ]
     doc.events["pageShown"] = [{"op": "setState", "values": {"card.leaving": -1}}]
@@ -2860,12 +2877,13 @@ def card_motion(doc: Document, tabs: list, focus: list) -> None:
                       "then": [{"op": "call", "event": f"tab_{target}"}], **({"else": steps} if steps else {})}]
         doc.events[name] = steps
     doc.events["open"] = [
+        *stop_voice,
         {"op": "setState", "values": {"card.released": False, "card.leaving": -1}},
         {"op": "if", "condition": {"state": "reduced_motion"},
          "then": [{"op": "playTimeline", "timeline": "open-reduced"}], "else": [{"op": "playTimeline", "timeline": "open"}]},
         focus_current(),
     ]
-    doc.events["release"] = [{"op": "setState", "values": {"card.released": True}}, {"op": "playTimeline", "timeline": "release"}]
+    doc.events["release"] = [*stop_voice, {"op": "setState", "values": {"card.released": True}}, {"op": "playTimeline", "timeline": "release"}]
     doc.events["onActivate"] = [{"op": "if", "condition": {"state": "card.released"},
                                  "then": [{"op": "setState", "values": {"card.released": False}},
                                           {"op": "playTimeline", "timeline": "unrelease"}]}]

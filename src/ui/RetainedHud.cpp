@@ -11,6 +11,9 @@ extern idUserInterfaceManagerLocal uiManagerLocal;
 extern idCVar r_skipGuiShaders;
 #ifndef ID_DEDICATED
 #include "../framework/KeyInput.h"
+#if defined(__ANDROID__)
+#include "../sys/android/android_public.h"
+#endif
 #include "retained/Runtime.h"
 #include <json/json.h>
 #include <cmath>
@@ -508,11 +511,19 @@ bool idRemasteredHud::Draw(const idUserInterfaceLocal& legacy,int time) {
 	const float inset=idMath::ClampFloat(0,10,cvarSystem->GetCVarFloat("ui_hudSafeInset"))*.01f;
 	const float scale=idMath::ClampFloat(.5f,2.f,cvarSystem->GetCVarFloat("ui_hudScale"));
 	const float span=width-2*(side+inset*width);
+	float top=inset*height;
+#if defined(__ANDROID__)
+	// Touch plates span the SDL window; the HUD may occupy an inset, scaled
+	// drawable viewport. Keep top readouts below the active targets without
+	// changing the player's saved safe-area preference.
+	const float touchTop=AndroidTouchControls_HudTop()*viewport.pixelDensityY;
+	top=Max(top,Max(0.f,touchTop-viewport.originY)/ratio);
+#endif
 	impl->gui->SetStateFloat("hud.width",width);
 	impl->gui->SetStateFloat("hud.height",height);
 	impl->gui->SetStateFloat("hud.left",side+inset*width);
 	impl->gui->SetStateFloat("hud.right",side+inset*width);
-	impl->gui->SetStateFloat("hud.top",inset*height);
+	impl->gui->SetStateFloat("hud.top",top);
 	impl->gui->SetStateFloat("hud.bottom",inset*height);
 	impl->gui->SetStateFloat("hud.scale",scale);
 	// Narrow views fit the center column (the 438 u status bar and its strip)

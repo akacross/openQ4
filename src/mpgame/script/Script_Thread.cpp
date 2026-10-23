@@ -424,6 +424,31 @@ void idThread::Save( idSaveGame *savefile ) const {
 
 /*
 ================
+idThread::RestoreOwnedThread
+================
+*/
+void idThread::RestoreOwnedThread( idRestoreGame *savefile, idThread *&owner ) {
+	idThread *restoredThread = NULL;
+	savefile->ReadObject( restoredThread );
+	if ( restoredThread != NULL ) {
+		if ( restoredThread->restoreOwnerClaimed ) {
+			savefile->Error( "idThread::Restore: duplicate owning reference to script thread" );
+		}
+		restoredThread->restoreOwnerClaimed = true;
+	}
+	owner = restoredThread;
+}
+
+void idThread::ValidateRestoreOwnership( idRestoreGame *savefile ) const {
+	// Owned threads are explicitly ManualDelete at creation. A saved automatic
+	// delete policy would leave their entity or frame-command owner dangling.
+	if ( restoreOwnerClaimed && interpreter.terminateOnExit ) {
+		savefile->Error( "idThread::Restore: owned script thread '%s' would delete itself", threadName.c_str() );
+	}
+}
+
+/*
+================
 idThread::Restore
 ================
 */
@@ -468,6 +493,7 @@ void idThread::Init( void ) {
 	creationTime = gameLocal.time;
 	lastExecuteTime = 0;
 	manualControl = false;
+	restoreOwnerClaimed = false;
 
 	ClearWaitFor();
 

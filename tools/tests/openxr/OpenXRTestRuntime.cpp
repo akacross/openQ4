@@ -17,6 +17,10 @@
 //   OPENQ4_XR_TEST_LOG      path of a JSON-lines event log
 //   OPENQ4_XR_TEST_EYE_SIZE "WIDTHxHEIGHT" recommended per-eye size (default 1440x1600)
 //   OPENQ4_XR_TEST_RATE     display refresh in Hz (default 90); 0 runs unpaced
+//   OPENQ4_XR_TEST_NO_INPUT 1 keeps every controller action inactive
+//   OPENQ4_XR_TEST_FAULT    "call:occurrence:value" (e.g. xrWaitSwapchainImage:2:timeout)
+//   OPENQ4_XR_TEST_FAULT_AFTER optional existing-file marker before counting calls
+//   OPENQ4_XR_TEST_FAULT_ONCE optional receipt prevents reinjection after loader restart
 //
 // Script lines are "<frame> <command> [arguments]", where frame counts
 // completed xrEndFrame calls and a command takes effect when that many frames
@@ -441,6 +445,13 @@ struct RuntimeGlobals {
 	Pose					head = { QIdentity(), { 0.0f, 1.6f, 0.0f } };
 	HandInput				hands[2];
 	bool					initialized = false;
+	std::map<const void *, uint32_t> liveHandles;
+	bool					noInput = false;
+	bool					sessionLost = false, instanceLost = false;
+	std::string				faultCall, faultValue, faultAfter, faultOnce;
+	int						faultOccurrence = 1, faultCalls = 0;
+	bool					faultFired = false;
+	int						trackingInvalidFrames = 0;
 };
 
 RuntimeGlobals &G() {
@@ -460,6 +471,40 @@ void Log( const char *fmt, ... ) {
 	va_end( args );
 	std::fprintf( g.log, "%s\n", buffer );
 	std::fflush( g.log );
+}
+
+bool FileExists( const std::string &path );
+
+bool Fault( const char *call ) {
+	RuntimeGlobals &g = G();
+	if ( g.sessionLost || g.instanceLost ) {
+		Log( "{\"event\":\"call_after_loss\",\"call\":\"%s\"}", call );
+	}
+	if ( g.faultFired || g.faultCall != call || ( !g.faultAfter.empty() && !FileExists( g.faultAfter ) ) || FileExists( g.faultOnce ) ) {
+		return false;
+	}
+	if ( ++g.faultCalls != g.faultOccurrence ) {
+		return false;
+	}
+	g.faultFired = true;
+	Log( "{\"event\":\"injected_fault\",\"call\":\"%s\",\"occurrence\":%d,\"value\":\"%s\"}", call, g.faultCalls, g.faultValue.c_str() );
+	if ( !g.faultOnce.empty() ) {
+		std::ofstream( g.faultOnce ) << call << ':' << g.faultValue;
+	}
+	g.instanceLost = g.faultValue == "instance" || g.faultValue == "runtime";
+	g.sessionLost = g.instanceLost || g.faultValue == "session" || g.faultValue == "pending";
+	return true;
+}
+
+XrResult FaultResult() {
+	const std::string &value = G().faultValue;
+	if ( value == "session" ) return XR_ERROR_SESSION_LOST;
+	if ( value == "instance" ) return XR_ERROR_INSTANCE_LOST;
+	if ( value == "runtime" ) return XR_ERROR_RUNTIME_FAILURE;
+	if ( value == "pending" ) return XR_SESSION_LOSS_PENDING;
+	if ( value == "timeout" ) return XR_TIMEOUT_EXPIRED;
+	if ( value == "limit" ) return XR_ERROR_LIMIT_REACHED;
+	return XR_ERROR_CALL_ORDER_INVALID;
 }
 
 void ResetHands() {
@@ -548,12 +593,25 @@ void InitGlobals() {
 	if ( const char *script = std::getenv( "OPENQ4_XR_TEST_SCRIPT" ) ) {
 		ParseScript( script );
 	}
+	g.noInput = std::getenv( "OPENQ4_XR_TEST_NO_INPUT" ) != nullptr;
+	if ( const char *fault = std::getenv( "OPENQ4_XR_TEST_FAULT" ) ) {
+		std::istringstream input( fault );
+		std::string occurrence;
+		std::getline( input, g.faultCall, ':' );
+		std::getline( input, occurrence, ':' );
+		std::getline( input, g.faultValue );
+		g.faultOccurrence = std::max( 1, std::atoi( occurrence.c_str() ) );
+	}
+	if ( const char *path = std::getenv( "OPENQ4_XR_TEST_FAULT_AFTER" ) ) g.faultAfter = path;
+	if ( const char *path = std::getenv( "OPENQ4_XR_TEST_FAULT_ONCE" ) ) g.faultOnce = path;
 	Log( "{\"event\":\"runtime_loaded\",\"eye_width\":%d,\"eye_height\":%d,\"rate\":%.1f}", g.eyeWidth, g.eyeHeight, g.refreshRate );
 }
 
 template<typename T>
 T *Check( T *handle, uint32_t magic ) {
-	if ( handle == nullptr || handle->magic != magic ) {
+	const auto found = G().liveHandles.find( handle );
+	if ( handle == nullptr || found == G().liveHandles.end() || found->second != magic ) {
+		Log( "{\"event\":\"invalid_handle\",\"kind\":%u}", magic );
 		return nullptr;
 	}
 	return handle;
@@ -1136,6 +1194,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateInstance( const XrInstanceCreateInfo *
 	}
 	created->applicationName = createInfo->applicationInfo.applicationName;
 	G().instance = created.release();
+	G().liveHandles[ G().instance ] = MAGIC_INSTANCE;
 	*instance = reinterpret_cast<XrInstance>( G().instance );
 	Log( "{\"event\":\"create_instance\",\"application\":\"%s\",\"engine\":\"%s\",\"extensions\":[%s]}",
 		JsonEscape( createInfo->applicationInfo.applicationName ).c_str(), JsonEscape( createInfo->applicationInfo.engineName ).c_str(), extensions.c_str() );
@@ -1159,16 +1218,20 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrDestroyInstance( XrInstance handle ) {
 	}
 	for ( TRActionSet *set : instance->actionSets ) {
 		for ( TRAction *action : set->actions ) {
+			G().liveHandles.erase( action );
 			action->magic = 0;
 			delete action;
 		}
+		G().liveHandles.erase( set );
 		set->magic = 0;
 		delete set;
 	}
+	G().liveHandles.erase( instance );
 	instance->magic = 0;
 	delete instance;
 	G().instance = nullptr;
-	Log( "{\"event\":\"destroy_instance\"}" );
+	G().instanceLost = G().sessionLost = false;
+	Log( "{\"event\":\"destroy_instance\",\"live_handles\":%u}", static_cast<unsigned>( G().liveHandles.size() ) );
 	return XR_SUCCESS;
 }
 
@@ -1463,6 +1526,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateSession( XrInstance handle, const XrSe
 
 	TRSession *created = new TRSession();
 	created->magic = MAGIC_SESSION;
+	G().liveHandles[ created ] = MAGIC_SESSION;
 	created->instance = instance;
 	created->state = XR_SESSION_STATE_UNKNOWN;
 	created->running = false;
@@ -1486,19 +1550,25 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateSession( XrInstance handle, const XrSe
 }
 
 void DestroySpaceLocked( TRSpace *space ) {
+	G().liveHandles.erase( space );
 	space->magic = 0;
 	delete space;
 }
 
 void DestroySwapchainLocked( TRSwapchain *swapchain ) {
+	Log( "{\"event\":\"destroy_swapchain\",\"cancelled_images\":%u,\"waited\":%s}",
+		static_cast<unsigned>( swapchain->acquired.size() ), swapchain->waited ? "true" : "false" );
 	if ( !swapchain->textures.empty() ) {
 		glDeleteTextures( static_cast<GLsizei>( swapchain->textures.size() ), swapchain->textures.data() );
 	}
+	G().liveHandles.erase( swapchain );
 	swapchain->magic = 0;
 	delete swapchain;
 }
 
 void DestroySessionLocked( TRSession *session ) {
+	Log( "{\"event\":\"session_ownership\",\"frames\":%llu,\"abandoned_frame\":%s,\"waited_frame\":%s}",
+		static_cast<unsigned long long>( session->framesSubmitted ), session->frameBegun ? "true" : "false", session->frameWaited ? "true" : "false" );
 	for ( TRSpace *space : session->spaces ) {
 		DestroySpaceLocked( space );
 	}
@@ -1507,8 +1577,10 @@ void DestroySessionLocked( TRSession *session ) {
 	}
 	session->instance->session = nullptr;
 	// drop queued events that name this session
+	G().liveHandles.erase( session );
 	session->magic = 0;
 	delete session;
+	G().sessionLost = false;
 	Log( "{\"event\":\"destroy_session\"}" );
 }
 
@@ -1634,6 +1706,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateReferenceSpace( XrSession handle, cons
 	}
 	TRSpace *created = new TRSpace();
 	created->magic = MAGIC_SPACE;
+	G().liveHandles[ created ] = MAGIC_SPACE;
 	created->session = session;
 	created->isAction = false;
 	created->referenceType = createInfo->referenceSpaceType;
@@ -1664,6 +1737,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetReferenceSpaceBoundsRect( XrSession handl
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateActionSpace( XrSession handle, const XrActionSpaceCreateInfo *createInfo, XrSpace *space ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrCreateActionSpace" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -1687,6 +1761,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateActionSpace( XrSession handle, const X
 	}
 	TRSpace *created = new TRSpace();
 	created->magic = MAGIC_SPACE;
+	G().liveHandles[ created ] = MAGIC_SPACE;
 	created->session = session;
 	created->isAction = true;
 	created->referenceType = XR_REFERENCE_SPACE_TYPE_STAGE;
@@ -1700,6 +1775,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateActionSpace( XrSession handle, const X
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrLocateSpace( XrSpace spaceHandle, XrSpace baseHandle, XrTime time, XrSpaceLocation *location ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrLocateSpace" ) ) return FaultResult();
 	TRSpace *space = Check( reinterpret_cast<TRSpace *>( spaceHandle ), MAGIC_SPACE );
 	TRSpace *base = Check( reinterpret_cast<TRSpace *>( baseHandle ), MAGIC_SPACE );
 	if ( space == nullptr || base == nullptr ) {
@@ -1773,6 +1849,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrEnumerateSwapchainFormats( XrSession handle,
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateSwapchain( XrSession handle, const XrSwapchainCreateInfo *createInfo, XrSwapchain *swapchain ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrCreateSwapchain" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -1796,6 +1873,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateSwapchain( XrSession handle, const XrS
 
 	TRSwapchain *created = new TRSwapchain();
 	created->magic = MAGIC_SWAPCHAIN;
+	G().liveHandles[ created ] = MAGIC_SWAPCHAIN;
 	created->session = session;
 	created->info = *createInfo;
 	created->info.next = nullptr;
@@ -1862,6 +1940,13 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrEnumerateSwapchainImages( XrSwapchain handle
 	if ( countOutput == nullptr ) {
 		return XR_ERROR_VALIDATION_FAILURE;
 	}
+	if ( Fault( capacity == 0 ? "imageCount" : "imageFill" ) ) {
+		if ( G().faultValue == "zero" || G().faultValue == "large" || G().faultValue == "changed" ) {
+			*countOutput = G().faultValue == "zero" ? 0 : G().faultValue == "large" ? UINT32_MAX : capacity + 1;
+			return XR_SUCCESS;
+		}
+		return FaultResult();
+	}
 	*countOutput = static_cast<uint32_t>( swapchain->textures.size() );
 	if ( capacity == 0 ) {
 		return XR_SUCCESS;
@@ -1881,6 +1966,8 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrEnumerateSwapchainImages( XrSwapchain handle
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrAcquireSwapchainImage( XrSwapchain handle, const XrSwapchainImageAcquireInfo *acquireInfo, uint32_t *index ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	const bool inject = Fault( "xrAcquireSwapchainImage" );
+	if ( inject && G().faultValue != "large" && G().faultValue != "end" ) return FaultResult();
 	TRSwapchain *swapchain = Check( reinterpret_cast<TRSwapchain *>( handle ), MAGIC_SWAPCHAIN );
 	if ( swapchain == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -1894,11 +1981,13 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrAcquireSwapchainImage( XrSwapchain handle, c
 	*index = swapchain->nextAcquire;
 	swapchain->acquired.push_back( swapchain->nextAcquire );
 	swapchain->nextAcquire = ( swapchain->nextAcquire + 1 ) % static_cast<uint32_t>( swapchain->textures.size() );
+	if ( inject ) *index = G().faultValue == "large" ? UINT32_MAX : static_cast<uint32_t>( swapchain->textures.size() );
 	return XR_SUCCESS;
 }
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrWaitSwapchainImage( XrSwapchain handle, const XrSwapchainImageWaitInfo *waitInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrWaitSwapchainImage" ) ) return FaultResult();
 	TRSwapchain *swapchain = Check( reinterpret_cast<TRSwapchain *>( handle ), MAGIC_SWAPCHAIN );
 	if ( swapchain == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -1915,6 +2004,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrWaitSwapchainImage( XrSwapchain handle, cons
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrReleaseSwapchainImage( XrSwapchain handle, const XrSwapchainImageReleaseInfo *releaseInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrReleaseSwapchainImage" ) ) return FaultResult();
 	TRSwapchain *swapchain = Check( reinterpret_cast<TRSwapchain *>( handle ), MAGIC_SWAPCHAIN );
 	if ( swapchain == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -1943,6 +2033,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrWaitFrame( XrSession handle, const XrFrameWa
 	int64_t sleepUntil = 0;
 	{
 		std::lock_guard<std::recursive_mutex> guard( G().lock );
+		if ( Fault( "xrWaitFrame" ) ) return FaultResult();
 		TRSession *session = GetSession( handle );
 		if ( session == nullptr ) {
 			return XR_ERROR_HANDLE_INVALID;
@@ -1981,6 +2072,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrWaitFrame( XrSession handle, const XrFrameWa
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrBeginFrame( XrSession handle, const XrFrameBeginInfo *beginInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrBeginFrame" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2034,6 +2126,7 @@ bool FovValid( const XrFovf &fov ) {
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrEndFrame( XrSession handle, const XrFrameEndInfo *endInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrEndFrame" ) ) return FaultResult();
 	RuntimeGlobals &g = G();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
@@ -2179,6 +2272,10 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrEndFrame( XrSession handle, const XrFrameEnd
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrLocateViews( XrSession handle, const XrViewLocateInfo *locateInfo, XrViewState *viewState,
 		uint32_t capacity, uint32_t *countOutput, XrView *views ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrLocateViews" ) ) {
+		if ( G().faultValue != "tracking" ) return FaultResult();
+		G().trackingInvalidFrames = 90;
+	}
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2222,6 +2319,10 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrLocateViews( XrSession handle, const XrViewL
 	}
 	viewState->viewStateFlags = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT
 		| XR_VIEW_STATE_ORIENTATION_TRACKED_BIT | XR_VIEW_STATE_POSITION_TRACKED_BIT;
+	if ( G().trackingInvalidFrames > 0 ) {
+		--G().trackingInvalidFrames;
+		viewState->viewStateFlags = 0;
+	}
 	return XR_SUCCESS;
 }
 
@@ -2280,6 +2381,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateActionSet( XrInstance handle, const Xr
 	}
 	TRActionSet *created = new TRActionSet();
 	created->magic = MAGIC_ACTIONSET;
+	G().liveHandles[ created ] = MAGIC_ACTIONSET;
 	created->instance = instance;
 	created->name = createInfo->actionSetName;
 	created->attached = false;
@@ -2299,9 +2401,11 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrDestroyActionSet( XrActionSet handle ) {
 	std::vector<TRActionSet *> &sets = set->instance->actionSets;
 	sets.erase( std::remove( sets.begin(), sets.end(), set ), sets.end() );
 	for ( TRAction *action : set->actions ) {
+		G().liveHandles.erase( action );
 		action->magic = 0;
 		delete action;
 	}
+	G().liveHandles.erase( set );
 	set->magic = 0;
 	delete set;
 	return XR_SUCCESS;
@@ -2329,6 +2433,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrCreateAction( XrActionSet handle, const XrAc
 	}
 	TRAction *created = new TRAction();
 	created->magic = MAGIC_ACTION;
+	G().liveHandles[ created ] = MAGIC_ACTION;
 	created->set = set;
 	created->name = createInfo->actionName;
 	created->type = createInfo->actionType;
@@ -2350,6 +2455,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrDestroyAction( XrAction handle ) {
 	}
 	std::vector<TRAction *> &actions = action->set->actions;
 	actions.erase( std::remove( actions.begin(), actions.end(), action ), actions.end() );
+	G().liveHandles.erase( action );
 	action->magic = 0;
 	delete action;
 	return XR_SUCCESS;
@@ -2401,6 +2507,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrSuggestInteractionProfileBindings( XrInstanc
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrAttachSessionActionSets( XrSession handle, const XrSessionActionSetsAttachInfo *attachInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrAttachSessionActionSets" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2445,6 +2552,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetCurrentInteractionProfile( XrSession hand
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrSyncActions( XrSession handle, const XrActionsSyncInfo *syncInfo ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrSyncActions" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2470,7 +2578,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrSyncActions( XrSession handle, const XrActio
 			for ( XrPath key : keys ) {
 				TRAction::SyncedState next = {};
 				next.active = false;
-				if ( focused && bound != action->suggested.end() ) {
+				if ( focused && !G().noInput && bound != action->suggested.end() ) {
 					for ( XrPath binding : bound->second ) {
 						const std::string bindingString = PathString( instance, binding );
 						if ( key != XR_NULL_PATH && bindingString.rfind( PathString( instance, key ), 0 ) != 0 ) {
@@ -2538,6 +2646,7 @@ const TRAction::SyncedState *ActionState( TRSession *session, const XrActionStat
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetActionStateBoolean( XrSession handle, const XrActionStateGetInfo *getInfo, XrActionStateBoolean *state ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrGetActionStateBoolean" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2559,6 +2668,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetActionStateBoolean( XrSession handle, con
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetActionStateFloat( XrSession handle, const XrActionStateGetInfo *getInfo, XrActionStateFloat *state ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrGetActionStateFloat" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;
@@ -2580,6 +2690,7 @@ XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetActionStateFloat( XrSession handle, const
 
 XRAPI_ATTR XrResult XRAPI_CALL TR_xrGetActionStateVector2f( XrSession handle, const XrActionStateGetInfo *getInfo, XrActionStateVector2f *state ) {
 	std::lock_guard<std::recursive_mutex> guard( G().lock );
+	if ( Fault( "xrGetActionStateVector2f" ) ) return FaultResult();
 	TRSession *session = GetSession( handle );
 	if ( session == nullptr ) {
 		return XR_ERROR_HANDLE_INVALID;

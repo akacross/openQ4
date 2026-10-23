@@ -16,7 +16,7 @@ def body(text, signature):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--compiler',default='clang++');ap.add_argument('--repository',type=Path);ap.add_argument('--no-mutations',action='store_true');ap.add_argument('--sanitize',action='store_true');a=ap.parse_args()
     repo=(a.repository or (ROOT if (ROOT/'subprojects').exists() else ROOT.parents[1])).resolve();scratch=Path(tempfile.mkdtemp(prefix='sound-settings-',dir=ROOT/'.tmp'))
-    paths=[ROOT/'src/sound/SoundSettings.cpp',ROOT/'src/sound/SoundSettings.h',ROOT/'src/sound/OpenAL/AL_SoundVoice.cpp',ROOT/'src/sound/OpenAL/AL_SoundVoice.h',ROOT/'src/sound/OpenAL/AL_SoundHardware.cpp',ROOT/'src/sound/OpenAL/AL_SoundHardware.h',ROOT/'src/sound/snd_system.cpp',Path(__file__),ROOT/'tools/tests/native/SoundSettingsTest.cpp']
+    paths=[ROOT/'src/sound/SoundSettings.cpp',ROOT/'src/sound/SoundSettings.h',ROOT/'src/sound/OpenAL/AL_SoundVoice.cpp',ROOT/'src/sound/OpenAL/AL_SoundVoice.h',ROOT/'src/sound/OpenAL/AL_SoundHardware.cpp',ROOT/'src/sound/OpenAL/AL_SoundHardware.h',ROOT/'src/sound/snd_system.cpp',Path(__file__).resolve(),ROOT/'tools/tests/native/SoundSettingsTest.cpp']
     text=paths[0].read_text(); voice=paths[2].read_text(); hardware=paths[4].read_text(); system=paths[6].read_text()
     assert '#include "SoundSettings.h"' in system
     for signature, token in [('void idSoundHardware_OpenAL::Init()', 'if (SoundSettings_BlockAutomaticRestart()) return;'),('void idSoundHardware_OpenAL::Shutdown()', 'SoundSettings_DeviceDestroyed();'),('bool idSoundHardware_OpenAL::UpdateDeviceMonitoring()', 'if (SoundSettings_BlockAutomaticRestart()) return false;')]:

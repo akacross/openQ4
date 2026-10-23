@@ -72,6 +72,7 @@ private:
 	int							creationTime;
 
 	bool						manualControl;
+	bool						restoreOwnerClaimed;	// transient; not serialized
 
 	static int					threadIndex;
 	static idList<idThread *>	threadList;
@@ -218,6 +219,8 @@ public:
 	void						ManualDelete( void );
 
 	// save games
+	static void				RestoreOwnedThread( idRestoreGame *savefile, idThread *&owner );
+	void						ValidateRestoreOwnership( idRestoreGame *savefile ) const;
 	void						Save( idSaveGame *savefile ) const;				// archives object for save game file
 	void						Restore( idRestoreGame *savefile );				// unarchives object from save game file
 

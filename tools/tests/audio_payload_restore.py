@@ -41,7 +41,8 @@ public:
     using sampleBuffer_t = Buffer;
     struct Format { int rate = 44100; } format;
     bool payloadReleased = true, keepPayload = false, loaded = true;
-    bool original = false;
+    bool original = false, streamed = false;
+    bool IsStreamed() const { return streamed; }
     unsigned openalBuffer = 42;
     int playBegin = 0, playLength = 16, totalBufferSize = 32;
     List<Buffer> buffers;
@@ -84,6 +85,7 @@ public:
     int nextQueuedBuffer = 0, nextQueuedOffset = 0;
     unsigned openalSource = 1;
     int streamingAllocations = 0;
+    bool centerRouting = false;
     void ResetQueuedBufferState() { nextQueuedSample = nullptr; }
     void FlushSourceBuffers() {}
     bool EnsureStreamingBuffers() { ++streamingAllocations; return true; }
@@ -135,6 +137,14 @@ int main() {
     if (intro.payloadReleased || !intro.buffers[0].buffer || intro.openalBuffer != 0) return 15;
     intro.FreeData();
     assert(liveBytes == 0);
+    // Compressed streaming must never restore the entire PCM payload.
+    idSoundSample_OpenAL compressed;
+    compressed.streamed = true; compressed.openalBuffer = 0;
+    priorLoads = loads;
+    assert(!compressed.EnsureCpuPayload() && loads == priorLoads);
+    voice.leadinSample = &compressed;
+    assert(voice.RestartAt(0) == 1 && voice.nextQueuedSample == &compressed);
+    assert(loads == priorLoads && compressed.buffers[0].buffer == nullptr);
 }
 '''
     (ROOT / ".tmp").mkdir(exist_ok=True)

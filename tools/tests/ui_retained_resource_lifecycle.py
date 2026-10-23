@@ -62,6 +62,7 @@ public:
     std::uint64_t frame=1;
     std::uint64_t RenderFrame() const { return frame; }
     void Reset();
+    void SetGeneratedImageProbe(bool){}
 };
 namespace openq4::ui {
 class Runtime {

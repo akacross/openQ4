@@ -49,6 +49,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "InitializationPresentation.h"
 #include <chrono>
 #include "FileSystemPathValidation.h"
+#include "SaveGameReleases.h"
 #include "../sys/NetworkEndpoint.h"
 
 #if defined( USE_SDL3 )
@@ -1503,6 +1504,18 @@ void idCommonLocal::Error( const char *fmt, ... ) {
 			Sys_Error( "%s (secondary error while shutting down: %s)", errorMessage, secondary );
 		}
 		code = ERP_FATAL;
+	}
+
+	// A save restore owns its partial object graph. Let it unwind before the
+	// session closes the save or releases the map's renderer/script resources.
+	// The load transaction reports this failure through the ordinary save UI.
+	if ( code == ERP_DROP && openQ4_saveGameRestore.file != NULL ) {
+		char restoreError[ sizeof( errorMessage ) ];
+		va_start( argptr, fmt );
+		idStr::vsnPrintf( restoreError, sizeof( restoreError ), fmt, argptr );
+		va_end( argptr );
+		restoreError[ sizeof( restoreError ) - 1 ] = '\0';
+		throw idException( restoreError );
 	}
 
 	// if we are getting a solid stream of ERP_DROP, do an ERP_FATAL
@@ -6276,11 +6289,18 @@ void idCommonLocal::Async( void ) {
 	}
 
 	// don't skip too many
-	if ( smoothSlowTime || timescale == 1.0f ) {
-		const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
-		if ( lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
-			lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
-		}
+#if defined( __ANDROID__ )
+	// Android may freeze the entire process between timer wakes. Bound every
+	// timescale to ten current tics, including the first call after foreground,
+	// rather than replaying minutes of accelerated input in the async worker.
+	const bool boundCatchup = true;
+	const double clampedCatchupMsec = 10.0 * ticMsec;
+#else
+	const bool boundCatchup = smoothSlowTime || timescale == 1.0f;
+	const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
+#endif
+	if ( boundCatchup && lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
+		lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
 	}
 
 	while ( lastTicMsec + ticMsec <= static_cast<double>( msec ) ) {

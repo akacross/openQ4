@@ -1615,7 +1615,18 @@ ID_INLINE void idEntityPtr<type>::Save( idSaveGame *savefile ) const {
 
 template< class type >
 ID_INLINE void idEntityPtr<type>::Restore( idRestoreGame *savefile ) {
-	savefile->ReadInt( spawnId );
+	idEntityPtr<type> restored;
+	savefile->ReadInt( restored.spawnId );
+	// Keep stale generations as weak references, but never publish a live
+	// reference that would make GetEntity downcast to the wrong class.
+	if ( restored.IsValid() ) {
+		const idEntity *entity = gameLocal.entities[restored.GetEntityNum()];
+		if ( entity != NULL && !entity->IsType( type::GetClassType() ) ) {
+			savefile->Error( "idEntityPtr::Restore: entity %d has type '%s', expected '%s'",
+				restored.GetEntityNum(), entity->GetClassname(), type::GetClassType().classname );
+		}
+	}
+	spawnId = restored.spawnId;
 }
 
 template< class type >
