@@ -2,6 +2,7 @@
 #define	__GAME_LOCAL_H__
 
 #include "../framework/PresentationClock.h"
+#include "../framework/PresentationLook.h"
 
 // RAVEN BEGIN
 // jsinger: attempt to eliminate cross-DLL allocation issues
@@ -551,6 +552,7 @@ public:
 	idLinkList<idEntity>	spawnedEntities;		// all spawned entities
 	idLinkList<idEntity>	activeEntities;			// all thinking entities (idEntity::thinkFlags != 0)
 	idLinkList<idEntity>	presentationEntities;	// entities re-anchored on presentation frames (render-only)
+	idLinkList<rvClientEntity>	presentationClientEntities;	// unbound client debris drawn between tics (render-only)
 	int						numEntitiesToDeactivate;// number of entities that became inactive in current frame
 	bool					sortPushers;			// true if active lists needs to be reordered to place pushers at the front
 	bool					sortTeamMasters;		// true if active lists needs to be reordered to place physics team masters before their slaves
@@ -885,6 +887,7 @@ public:
 	void					RecordPresentationClockSample( void );
 	int						GetPresentationTimeMsec( void ) const;
 	int						GetPresentationAnimationTimeMsec( void ) const { return presentationAnimationTime; }
+	bool					IsPresentationSceneActive( void ) const { return presentationClockSample >= 0.0f; }
 	void					EndPresentationSceneForRender( void );
 	float					GetPresentationInterpolationFraction( void ) const;
 	idMat3					InterpolatePresentationAxis( const idMat3 &from, const idMat3 &to, float fraction ) const;

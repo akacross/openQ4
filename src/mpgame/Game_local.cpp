@@ -48,6 +48,7 @@ idCollisionModelManager *	collisionModelManager = NULL;
 rvBSEManager *				bse = NULL;
 // RAVEN END
 idVRSystem *				vrSystem = NULL;
+idUsercmdGen *				usercmdGen = NULL;
 
 idCVar *					idCVar::staticVars = NULL;
 
@@ -174,6 +175,7 @@ extern "C" gameExport_t *GetGameAPI( gameImport_t *import ) {
 		bse							= import->bse;
 // RAVEN END
 		vrSystem					= import->vrSystem;
+		usercmdGen					= import->usercmdGen;
 
 // RAVEN BEGIN
 // dluetscher: import the memory system variables
@@ -342,6 +344,7 @@ void idGameLocal::Clear( void ) {
 	spawnedEntities.Clear();
 	activeEntities.Clear();
 	presentationEntities.Clear();
+	presentationClientEntities.Clear();
 	numEntitiesToDeactivate = 0;
 	sortPushers = false;
 	sortTeamMasters = false;
@@ -1764,6 +1767,7 @@ void idGameLocal::LoadMap( const char *mapName, int randseed ) {
 	spawnedEntities.Clear();
 	activeEntities.Clear();
 	presentationEntities.Clear();
+	presentationClientEntities.Clear();
 	numEntitiesToDeactivate = 0;
 	sortTeamMasters = false;
 	sortPushers = false;
@@ -2867,6 +2871,7 @@ void idGameLocal::MapClear( bool clearClients, int instance ) {
 	}
 // RAVEN END
 	presentationEntities.Clear();
+	presentationClientEntities.Clear();
 
 	if ( !clearClients ) {
 		// add back the hashes of the clients/stuff in other instances
@@ -4799,6 +4804,21 @@ void idGameLocal::CalcFov( float base_fov, float &fov_x, float &fov_y ) const {
 void ClearClipProfile( void );
 void DisplayClipProfile( void );
 
+// What the frozen scene's camera shows against the authoritative view, for the
+// late-look latency analysis (tools/tests/presentation_look_probe.py). Noted
+// once per prepared draw, before the capture records it.
+static struct {
+	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
+	int		look;
+} presentationLookDiagnostic;
+
+static void NotePresentationLookDiagnostic( idPlayer *player ) {
+	presentationLookDiagnostic.drawnYaw = player->GetRenderView() != NULL ? player->GetRenderView()->viewaxis.ToAngles().yaw : 0.0f;
+	presentationLookDiagnostic.authoritativeYaw = player->viewAngles.yaw;
+	presentationLookDiagnostic.look = player->GetPresentationLookDiagnostic( presentationLookDiagnostic.inputYaw, presentationLookDiagnostic.lookYaw ) ? 1 : 0;
+}
+
+
 /*
 ================
 idGameLocal::PreparePlayerSceneForRender
@@ -4832,6 +4852,7 @@ void idGameLocal::PreparePlayerSceneForRender( idPlayer *player ) {
 		presentationAnimationTime = time;
 	}
 	player->CalculateRenderView();
+	NotePresentationLookDiagnostic( player );
 	// The weapon's scope GUI is an in-world surface drawn with the 3D scene, so
 	// its yaw has to be current before that scene is rendered.  Updating it from
 	// DrawHUD set it during the 2D overlay, after R_RenderGuiSurf had already
@@ -8489,6 +8510,9 @@ static const int MAX_PRESENTATION_CLOCK_SAMPLES = 8192;
 struct presentationClockSample_t {
 	double	realTimeHighRes;
 	int		gameStep, rate;
+	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
+	int		look;
+	int		clientDebris, afBlends, listed, afFrames;
 	float	clockFraction;
 	int		realTime;
 	int		gameTime;
@@ -8524,6 +8548,17 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	sample.realTime = Sys_Milliseconds();
 	sample.gameTime = time;
 	sample.fraction = presentationSceneFraction;
+	sample.drawnYaw = presentationLookDiagnostic.drawnYaw;
+	sample.authoritativeYaw = presentationLookDiagnostic.authoritativeYaw;
+	sample.lookYaw = presentationLookDiagnostic.lookYaw;
+	sample.inputYaw = presentationLookDiagnostic.inputYaw;
+	sample.look = presentationLookDiagnostic.look;
+	sample.clientDebris = presentationClientEntities.Num();
+	sample.afBlends = idAnimator::presentationAFBlendCount;
+	idAnimator::presentationAFBlendCount = 0;
+	sample.listed = presentationEntities.Num();
+	sample.afFrames = idAnimator::presentationAFFrameCount;
+	idAnimator::presentationAFFrameCount = 0;
 	if ( presentationClockCaptureCount < wanted ) {
 		return;
 	}
@@ -8531,14 +8566,23 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	presentationClockCaptureDumped = true;
 	Printf( "presentationClock: %d samples\n", presentationClockCaptureCount );
 	for ( int i = 0; i < presentationClockCaptureCount; i++ ) {
-		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f\n",
+		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f drawYaw=%.4f authYaw=%.4f look=%d lookYaw=%.4f inYaw=%.4f debris=%d afBlends=%d listed=%d afFrames=%d\n",
 			presentationClockCaptureSamples[ i ].realTime,
 			presentationClockCaptureSamples[ i ].gameTime,
 			presentationClockCaptureSamples[ i ].fraction,
 			presentationClockCaptureSamples[ i ].realTimeHighRes,
 			presentationClockCaptureSamples[ i ].gameStep,
 			presentationClockCaptureSamples[ i ].rate,
-			presentationClockCaptureSamples[ i ].clockFraction );
+			presentationClockCaptureSamples[ i ].clockFraction,
+			presentationClockCaptureSamples[ i ].drawnYaw,
+			presentationClockCaptureSamples[ i ].authoritativeYaw,
+			presentationClockCaptureSamples[ i ].look,
+			presentationClockCaptureSamples[ i ].lookYaw,
+			presentationClockCaptureSamples[ i ].inputYaw,
+			presentationClockCaptureSamples[ i ].clientDebris,
+			presentationClockCaptureSamples[ i ].afBlends,
+			presentationClockCaptureSamples[ i ].listed,
+			presentationClockCaptureSamples[ i ].afFrames );
 	}
 	presentationClockCaptureCount = 0;
 }
@@ -8630,6 +8674,14 @@ void idGameLocal::ClearPresentationEntityPoses( void ) {
 		ent->RestoreAuthoritativePresentationPose();
 		ent->presentationNode.Remove();
 	}
+
+	rvClientEntity *cent;
+	rvClientEntity *nextCent;
+	for ( cent = presentationClientEntities.Next(); cent != NULL; cent = nextCent ) {
+		nextCent = cent->presentationNode.Next();
+		cent->RestoreAuthoritativePresentationPose();
+		cent->presentationNode.Remove();
+	}
 }
 
 /*
@@ -8706,6 +8758,15 @@ void idGameLocal::UpdatePresentationEntityPoses( void ) {
 		next = ent->presentationNode.Next();
 		ent->UpdatePresentationPose();
 		updated++;
+	}
+
+	// Unbound client debris, brass and gibs, which run their own physics. They
+	// list themselves from Think() while they move; see rvClientMoveable.
+	rvClientEntity *cent;
+	rvClientEntity *nextCent;
+	for ( cent = presentationClientEntities.Next(); cent != NULL; cent = nextCent ) {
+		nextCent = cent->presentationNode.Next();
+		cent->UpdatePresentationPose();
 	}
 
 	// Whether the local player's own body reached the presentation clock is not

@@ -24,6 +24,26 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## High-refresh presentation owners, 23 October 2026
+
+- [x] HF-03: add opt-in late look (`in_presentationView`) through an absolute-angle
+  engine sampler and a frozen per-draw SP/MP correction of the drawn eye and what
+  it holds. Game API 54 passes the usercmd generator to the game modules; engine
+  and game modules must be replaced together.
+- [x] HF-04: re-place the live view muzzle-flash light and flashlight from the drawn
+  gun; draw unbound client debris, brass and gibs, their trails and active AF
+  (ragdoll) poses between tick samples; record the remaining exclusions.
+- [x] HF-05 (alternate views): sample cinematic and private cameras, third person
+  and the death camera per tick and draw them on the scene clock with cut,
+  identity, cadence, jump and carrier rules. Remote actors stay with MP-07.
+- [x] HF-06/HF-07 definitions: cross-system rules, 240 Hz budgets and the
+  measurement procedure in the [presentation owners contract](presentation-owners.md);
+  physical qualification and live MP late look remain open under HF-07/HF-08.
+- Evidence: `openq4-presentation-look`, `presentation_hf_contract.py --mutations`,
+  the updated interpolation contract and live SP probes recorded in the
+  contract. Candidate player wording is in
+  [baseline refinements](releases/baseline-refinements.md).
+
 ## Audio output recovery, layout changes and memory, 23 October 2026
 
 - [x] AUD-02: restart one-shot sounds that a lost or reopened output stopped at the

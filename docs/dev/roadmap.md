@@ -80,7 +80,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 
 | Area | Current implementation and boundary |
 | --- | --- |
-| High refresh | Rendering is decoupled from exact 60 Hz scheduling. Camera, view weapon, eligible world transforms and skeletons interpolate; local multiplayer body presentation, ordinary joint modifiers, clock-phase correction and weapon GUI-light alignment are implemented. Remote actors and several bespoke visual owners remain separate work. |
+| High refresh | Rendering is decoupled from exact 60 Hz scheduling. Camera, view weapon, eligible world transforms and skeletons interpolate; local multiplayer body presentation, ordinary joint modifiers, clock-phase correction and weapon GUI, muzzle-flash and flashlight lights are aligned. Alternate views, client debris and active ragdoll poses share the clock, and opt-in late look turns the drawn view toward unapplied input. Remote actors and the recorded exclusions in the [presentation owners contract](presentation-owners.md) remain separate work. |
 | Game time | Ordinary game code advances in 16 ms steps. Network game timestamps deliberately use that same clock while scheduling uses the exact 60 Hz ladder. Do not apply a global 16-to-16.667 ms conversion as a presentation fix. |
 | Vulkan | Stable supported opt-in on Windows x64 following the October NVIDIA/Intel qualification; experimental on Linux and macOS. OpenGL remains the desktop default and `best` selection. Historical failed runs remain evidence for their specific builds and conditions. |
 | Modern rendering | Native GL/Vulkan PBR is default-on for authored PBR materials; stock materials stay classic. Shared classic rendering domains exist but remain default-off. Aggregate modern-visible lighting still has `MODERN_LIGHTING_PARITY_PROVEN_DOMAINS=0`; these are different promotion decisions. |
@@ -99,7 +99,7 @@ release. GitHub remains the source for subsequent discussion and PR/check state.
 | --- | --- | --- |
 | 1. Establish the current baseline — complete | GOV-01 through GOV-03, HF-01/HF-02, Q4-01, UI-10; scope/recovery review for VR-01/VR-06 and AND-01 | Current-source ownership, clocks, compatibility inventory, tests and evidence identities agree. [Closure evidence](baseline-evidence.md) retains reproduced failures and later-stage qualification limits. |
 | 2. Close product gaps — in progress | UI-01/UI-02 plus the first UI-06 editor round trip, UI-07 measurements and UI-09 toolkit work, then UI-03/UI-04 at accepted scope; Q4-02 through Q4-05/Q4-07, MP-01 through MP-08, AUD-01; selected VR-01/VR-06 and AND-01/AND-03 scope | Required player flows work through the intended UI and runtime; remaining unsupported cases are explicit and fail safely. |
-| 3. Improve motion and rendering | HF-03 through HF-07, VK-01 through VK-07, REN-01 through REN-08 | Visible gameplay meets declared correctness, latency and frame-time budgets with rollback paths intact. |
+| 3. Improve motion and rendering | HF-03 through HF-08, VK-01 through VK-07, REN-01 through REN-08 | Visible gameplay meets declared correctness, latency and frame-time budgets with rollback paths intact. |
 | 4. Complete tools and broader quality | Remaining UI-06 scope, CORE-01 through CORE-06, remaining P2 items; TOOL-01 through TOOL-04 only when the paused map-editor work resumes | Authoring and runtime workloads meet their stated completion gates; optimizations are justified by measurements. |
 | 5. Qualify packages and promote scope | PLAT-01 through PLAT-05, REL-01 through REL-04, UI-07/UI-08/UI-11, VR-02, AND-02 and selected AND-05 scope | Exact release packages pass the selected platform, device, gameplay, visual and human acceptance matrix. |
 
@@ -188,8 +188,8 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   one frozen phase per scene, unchanged integer API boundaries and high-resolution
   XR host deltas. Native/pause tests and 256 live samples each in SP and MP pass;
   see the [clock contract](presentation-clock.md) and [evidence](baseline-evidence.md).
-- [ ] **HF-03 — P1, implementation: finish low-latency look presentation.** The
-  optional `GetPresentationViewDelta()` sampler has no game-side consumer.
+- [x] **HF-03 — P1, implementation: finish low-latency look presentation.** The
+  optional `GetPresentationViewDelta()` sampler had no game-side consumer.
   Integrate a defined presentation-only path for mouse and applicable controller/
   gyro input, respecting sensitivity, zoom, filtering, recoil and UI ownership.
   Define displayed aim versus authoritative firing, prevent double consumption and
@@ -200,14 +200,30 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   for stock and `launchFromBarrel` weapons before enablement. Cosmetic correction
   must not alter authoritative traces, damage, projectile spawns, network events
   or RNG. Test rapid turns, zoom, movers and prediction recovery with identical
-  authoritative command/event replay.
-- [ ] **HF-04 — P1, implementation and qualification: close remaining visual
+  authoritative command/event replay. Completed, opt-in (`in_presentationView 0`
+  default): an absolute-angle engine sampler (game API 54) covering mouse, gyro,
+  look keys and sticks without consuming input, and one frozen per-draw SP/MP
+  correction that turns only the drawn eye and what it holds. Filtered input keeps
+  the authoritative view; aim, firing alignment and exclusions are defined in the
+  [presentation owners contract](presentation-owners.md). The native pipeline
+  test, mutation-checked contract and live SP probe show input consumed once
+  (turn rate within 0.03% in both modes), the drawn view equal to the sampled input
+  within 0.007° and about 16 ms of delay removed. Live MP, zoom, mover and
+  prediction-recovery runs and physical latency moved to HF-08.
+- [x] **HF-04 — P1, implementation and qualification: close remaining visual
   ownership gaps.** Inventory muzzle-flash lights, independent weapon effects,
   unbound client models, world BSE, trails, debris, fractures, active articulated
   figures and stateful joint modifiers. Reuse completed GUI-light, bound-effect and
   projectile fixes. Implement bounded draw-only owners with spawn/age/sound events
   executed once, or record a precise release exclusion. Test moving/rotating
   carriers, attachments, terminal projectile states and restore/reconciliation.
+  Completed: draw-only owners for the view muzzle-flash light and flashlight,
+  unbound client debris, brass and gibs with their trails, and active AF
+  (ragdoll) poses blended between their two authoritative samples; every other
+  category has a recorded disposition in the
+  [presentation owners contract](presentation-owners.md). Live SP counters show
+  99% of ragdoll draws blended and thrown barrel debris interpolated, with no
+  errors; all new state is transient. A by-eye review moved to HF-08.
 - [ ] **HF-05 — P2, decision and implementation: alternate views and remote
   actors.** Define cinematic, private/security, third-person, spectator and nested
   camera smoothing with cut/discontinuity rules. Keep remote-player interpolation
@@ -215,6 +231,12 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   and visible aim agree. Local-body admission is already implemented and needs
   regression coverage, not reintroduction. Qualify vehicles and joint-bound cameras.
   Depend on MP-07's prediction/rewind contract before changing remote poses.
+  Progress: cinematic and private cameras, third person (on foot and in vehicles)
+  and the death camera are sampled once per tick and drawn on the scene clock,
+  restarting on authored cuts, camera or kind changes, skipped ticks, jumps and
+  non-interpolable carriers; free-fly spectators already used the first-person
+  path. Remote actors and followed players stay authoritative pending MP-07;
+  vehicle cockpit/joint-bound eyes and cut-heavy cinematics still need review.
 - [ ] **HF-06 — P1, qualification: preserve cross-system presentation.** Exercise
   TAA history/motion vectors, shadow caches, BSE multi-view servicing, retained UI,
   demo/AVI clocks, audio, VR and save/map resets together. Verify repeated draws and
@@ -225,12 +247,30 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   noninterpolated cameras return the scene to authoritative time. Define game/
   network-demo, render-demo and timedemo behavior separately; preserve deterministic
   playback/benchmark meaning before extending smooth presentation to those paths.
+  Progress: per-system behavior, including the separate game/network-demo,
+  render-demo, command-demo and timedemo rules, is defined in the
+  [presentation owners contract](presentation-owners.md); new owners are transient
+  and contract-tested against Think, physics, sound and effect creation. VR
+  stereo/subview repeats, TAA by eye under late look and long mixed-capture
+  sessions remain.
 - [ ] **HF-07 — P1, qualification: establish supported frame-rate behavior.** Declare
   target hardware/scenes/settings and latency/p95/p99 budgets for 240 Hz (4.17 ms
   frame interval); retain 360 Hz (2.78 ms) as experimental until qualified. Include
   30/60/120/144/165/240/360 and uncapped, VSync/VRR where available, low-FPS catch-up,
   menu/loading/background policy and preset/Steam Deck overrides. Verify physical
   motion and pacing; a cap, average FPS or hidden capture alone cannot close it.
+  Progress: targets, budgets and the measurement procedure are declared in the
+  [presentation owners contract](presentation-owners.md), with
+  `presentation_look_runtime.py` for engine-side latency and smoothness. An
+  occluded window on a loaded machine presented 57 Hz (GL) and 15 Hz (Vulkan) at a
+  240 cap, so physical runs on the reference hardware remain.
+- [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
+  Run late look in live MP (listen host and remote client, prediction recovery),
+  zoomed, on lifts and trams and through rapid turns, and measure physical
+  input-to-display latency on the HF-07 reference before any change to the
+  `in_presentationView 0` default. Review cinematic, security-camera, third-person
+  and death-camera smoothing and cuts, ragdolls, debris and the view lights by
+  eye. Engine-side evidence alone cannot close it.
 
 ## Vulkan rendering
 

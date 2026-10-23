@@ -18,6 +18,17 @@ PRESENTATION_STATE = (
     "presentationCurViewOrigin",
     "presentationCurViewAxis",
     "presentationCurFov",
+    "presentationPrevLookAngles",
+    "presentationCurLookAngles",
+    "presentationPrevCmdAngles",
+    "presentationCurCmdAngles",
+    "presentationLookCoupled",
+    "presentationLookActive",
+    "presentationLookCorrection",
+    "presentationAltViewTime",
+    "presentationAltViewCanInterpolate",
+    "presentationPrevAltOrigin",
+    "presentationCurAltOrigin",
 )
 PRESENTATION_WEAPON_STATE = (
     "presentationViewModelTime",
@@ -32,6 +43,7 @@ PRESENTATION_WEAPON_STATE = (
     "presentationCurViewModelAxis",
     "presentationRestoreViewModelOrigin",
     "presentationRestoreViewModelAxis",
+    "presentationFlashlightBackoff",
 )
 PRESENTATION_ENTITY_STATE = (
     "presentationPoseTime",
@@ -488,7 +500,16 @@ def check_source_root(source_root: str) -> dict[str, str]:
     require(render_view, "GetPresentationViewPos", f"{context} first-person presentation pose")
     require(render_view, "GetPresentationFov()", f"{context} FOV interpolation")
     require(render_view, "renderView->time =", f"{context} presentation shader clock")
-    reject(player_cpp, "GetPresentationViewDelta", f"{context} engine-only input sampling boundary")
+    # Late look (HF-03) samples the engine generator once per prepared draw and
+    # only there; presentation_hf_contract.py pins the rest of that boundary.
+    reject(player_cpp, "GetPresentationViewDelta", f"{context} retired pending-delta sampler")
+    if player_cpp.count("usercmdGen->GetPresentationViewAngles") != 1:
+        raise AssertionError(f"Expected one late-look input sample site in {context}")
+    require(
+        function(player_cpp, "void idPlayer::UpdatePresentationLook( void )", context),
+        "usercmdGen->GetPresentationViewAngles",
+        f"{context} input sampled only while freezing the draw's look",
+    )
 
     require(weapon_h, "UpdatePresentationWeapon", f"{context} viewmodel presentation API")
     for field in PRESENTATION_WEAPON_STATE:

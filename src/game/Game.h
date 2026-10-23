@@ -721,7 +721,9 @@ extern rvGameLog *				gameLog;
 // 52: idGame::Draw receives the single-player menu pause state so an unchanged
 //     scene can be reused while HUD and menu presentation continue.
 // 53: bounded unreliable voice and engine-owned capture/playback interfaces.
-const int GAME_API_VERSION		= 53;
+// 54: gameImport_t carries the engine's idUsercmdGen so the draw pass can
+//     sample late-look input (in_presentationView).
+const int GAME_API_VERSION		= 54;
 
 struct gameImport_t {
 
@@ -754,6 +756,7 @@ struct gameImport_t {
 // RAVEN END
 
 	idVRSystem *				vrSystem;				// tracked head/controller poses (never NULL)
+	idUsercmdGen *				usercmdGen;				// late-look input sampling (draw pass only)
 };
 
 struct gameExport_t {

@@ -4,6 +4,17 @@
 
 ## Highlights
 
+- **Smoother cutscenes, cameras and third person on high-refresh screens.**
+  Cutscene and security cameras, third person and the death camera now move
+  between the game's 60 Hz ticks together with the world they show. Authored
+  camera cuts still cut cleanly.
+- **Ragdolls and flying debris stay smooth.** Falling bodies, shell casings,
+  barrel fragments and their smoke trails move smoothly above 60 FPS, and your
+  weapon's muzzle-flash light and flashlight stay on the gun while you turn.
+- **Optional low-latency look.** Set `in_presentationView 1` to turn the view
+  with your mouse, gyro, look keys or stick on every drawn frame instead of up
+  to a tick later. Aiming, hit detection and the network are unchanged.
+
 - Command-line multiplayer connections now reach the server reliably when a
   long launch command requires the game to switch from single player.
 
@@ -17,6 +28,11 @@
 
 ## Upgrade notes
 
+- The engine and the SP/MP game modules must come from the same build (game
+  API 54); a mismatched module refuses to load.
+- Low-latency look is off by default. It steps aside, leaving the view exactly as
+  before, while mouse smoothing or filtering is on, in menus and wheels,
+  vehicles, cutscenes, third person, VR and demo playback.
 - Replace the complete package, including the engine, matching SP/MP modules,
   renderers and bundled openQ4 data. Save formats, network timestamps,
   authoritative gameplay timing and existing controls are unchanged.

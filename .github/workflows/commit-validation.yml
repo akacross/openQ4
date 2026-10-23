@@ -536,6 +536,8 @@ jobs:
             tools/tests/ui_legacy_inventory.py \
             tools/tests/game_regression_suite.py \
             tools/tests/presentation_clock_ownership.py \
+            tools/tests/presentation_hf_contract.py \
+            tools/tests/presentation_look_runtime.py \
             tools/tests/ui_inventory_revision.py \
             tools/tests/ui_requirement_archive.py \
             tools/tests/ui_requirement_acceptance.py \
@@ -952,6 +954,7 @@ jobs:
           python tools/tests/ui_legacy_inventory.py
           python tools/tests/game_regression_suite.py --check-discovery
           python tools/tests/presentation_clock_ownership.py
+          python tools/tests/presentation_hf_contract.py --mutations
           python tools/tests/ui_inventory_revision.py
           python tools/tests/ui_requirement_archive.py
           python tools/tests/ui_requirement_acceptance.py
