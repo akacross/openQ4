@@ -4994,8 +4994,16 @@ def main() -> int:
                      'content/baseoq4/pak0/guis/menu/mp_summary.q4ui', 'content/baseoq4/pak0/guis/menu/loadgame.q4ui'):
         text = (ROOT / relative).read_text(encoding='utf-8')
         document = json.loads(re.sub(r'^\s*//.*$', '', text, flags=re.M))
-        centered = '/loading/' in relative or any(name in relative for name in ('singleplayer.q4ui','campaigns.q4ui','campaign_skill.q4ui'))
-        assert document.get('canvas') == ({'height': 720, 'minWidth': 960} if centered else {'height': 720}), relative
+        # The 4:3 canvas shrinks to a narrower view's width where a document
+        # fits narrow views (fit_page, fit_narrow); a card fits its own width
+        # and side margins (fit_card); the pages with in-canvas bars do not.
+        centered = '/loading/' in relative or any(name in relative for name in (
+            'singleplayer.q4ui', 'campaigns.q4ui', 'campaign_skill.q4ui', 'title.q4ui', 'pause.q4ui', 'pause_strogg.q4ui'))
+        canvas = document.get('canvas')
+        if 'mp_escape' in relative or 'mp_summary' in relative:
+            assert canvas.get('height') == 720 and 900 <= canvas.get('minWidth', 0) <= 1000, relative
+        else:
+            assert canvas == ({'height': 720, 'minWidth': 960} if centered else {'height': 720}), relative
         if 'pause' in relative or 'mp_escape' in relative or 'mp_summary' in relative:
             assert [child['id'] for child in document['root']['children']] == ['scene-softfocus', 'scrim', 'chrome'], relative
         if 'pause' in relative:

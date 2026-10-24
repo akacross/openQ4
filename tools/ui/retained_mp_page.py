@@ -21,7 +21,7 @@ pages as PLAYER SETUP does where it does not. BACK returns the title.
 """
 from __future__ import annotations
 
-from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SPAN, FULL, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W,
+from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SPAN, FULL, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W, fit_narrow,
                                     SUBPAGE_REVERSE_MS, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_PAGE, TOP_TO_SUBPAGE, U, Document, absolute,
                                     by_language, colour, crumb_fits, crumb_transform, framing_bands, group, keyword, label, length,
                                     lit_field, navigation_plate, number, page_prompts, rgb, OLIVE, track, transform, typeface, wrap_menu)
@@ -191,8 +191,8 @@ def multiplayer_document() -> dict:
     for _ident, _row, _key, timeline in DEEPER:
         doc.events[timeline] = [{"op": "playTimeline", "timeline": timeline}, *by_language(doc, "crumbEnter", fits)]
     doc.events["subpageReturn"] = [{"op": "playTimeline", "timeline": "subpageReturn"}]
-    return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
+    return fit_narrow(doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, content, titles,
         # The pages' prompt bar, as legends: the page's own BACK is its button.
         page_prompts(doc, in_canvas=False),
-    ]))
+    ])))

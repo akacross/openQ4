@@ -5,7 +5,7 @@
  "format": "openq4-ui",
  "version": 1,
  "id": "openq4.mp_summary",
- "canvas": {"height": 720},
+ "canvas": {"height": 720, "minWidth": 939.0},
  "state": {
   "card.tab": {"type": "number", "initial": 0},
   "card.leaving": {"type": "number", "initial": -1},

@@ -172,4 +172,4 @@ def arena_pause_document() -> dict:
     doc.events["onActivate"] = [{"op": "if", "condition": {"state": "pause.released"},
                                  "then": [{"op": "setState", "values": {"pause.released": False}},
                                           {"op": "playTimeline", "timeline": "unrelease"}]}]
-    return doc.build(root)
+    return b.fit_narrow(doc.build(root))

@@ -17,7 +17,7 @@ screen's own command (HandleRestartMenuCommands).
 """
 from __future__ import annotations
 
-from build_retained_screens import (CANVAS_W, FULL, GLOW_MODAL, U, Document, colour, confirmation, font, group, keyword, label,
+from build_retained_screens import (CANVAS_W, FULL, GLOW_MODAL, U, Document, colour, confirmation, fit_narrow, font, group, keyword, label,
                                     length, linear, modal_silhouette, number, path, picture, rgb, typeface, vector, absolute,
                                     track)
 from retained_difficulty import check_fits, primary_plate
@@ -91,4 +91,4 @@ def restart_menu_document() -> dict:
     doc.events["onBack"] = [{"op": "focus", "control": "death_restart"}]
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 0.94]), "font-family": font("marine"), "font-size": length(16),
                             "color": colour([1, 1, 1, 0.8])}, [stage, exit_modal])
-    return doc.build(root)
+    return fit_narrow(doc.build(root))

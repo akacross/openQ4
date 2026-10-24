@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [narrow views](retained-screens.md#narrow-views-24-october-2026)
+add bounded UI-02 evidence to `LAY-021`. The home screens, the Multiplayer page,
+the death screen and the multiplayer cards fit views narrower than 4:3 instead of
+clipping. The increment is audited against `f8d3b30a153d12939457dd2ba07c101eec446535`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [map catalogs](multiplayer-menus.md#map-catalogs-24-october-2026)
 add bounded UI-03 evidence to `FLOW-046` and `WID-005`. The Vote and Admin pages'
 map choices hold 128 maps a game type, the game's cap read by the generators. The

@@ -16,7 +16,7 @@ from build_retained_screens import (FULL, ORANGE, VALUE, Document, absolute, col
                                     path, picture, rgb, solid, stroke, track, transform, typeface, vector)
 from remastered_hud_base import AND, NOT, OR, S, op, sel
 import retained_mp_menus as mp
-from retained_mp_menus import (BAND_TINTS, ESCAPE_H, ESCAPE_TABS, INSET, KEY_ENTER, KEY_ESCAPE, KEY_NEXT, KEY_PREVIOUS, MAIN_MENU,
+from retained_mp_menus import (BAND_TINTS, ESCAPE_H, ESCAPE_TABS, INSET, KEY_ENTER, KEY_ESCAPE, KEY_NEXT, KEY_PREVIOUS, MAIN_MENU, fit_card,
                                DISCONNECT, PAGE_TOP, PLACEHOLDER, PROMPT_BOTTOM, PROMPT_H, VERB_RESUME, VERB_SELECT, VERB_TABS, WEAPONS,
                                any_text, backdrop, bound_text, card_frame, card_header, card_motion, fitted_card_width, keycap,
                                page_group, player_lists, player_stats, tab_strip, team_band)
@@ -729,4 +729,4 @@ def summary_document() -> dict:
     root = group("screen", {**FULL, "font-family": b.font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [*backdrop(doc), chrome])
     card_motion(doc, SUMMARY_TABS, focus)
-    return doc.build(root)
+    return fit_card(doc.build(root), width)

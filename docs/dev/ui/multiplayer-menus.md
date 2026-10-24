@@ -1223,8 +1223,9 @@ The card's acceptance continues under `FLOW-046`.
 - The Vote page's Vote Yes and Vote No keys and the Voice page's push-to-talk
   key show the keyboard bindings the session publishes, not a controller's
   (`INP-011`).
-- Narrower views than 4:3 (5:4, portrait) do not scale the card down yet
-  (`LAY-021`).
+- In views narrower than the card (5:4, portrait) the card now shrinks to
+  fit with its side margins ([narrow views](retained-screens.md#narrow-views-24-october-2026));
+  the portrait layouts of `LAY-021` beyond that remain.
 - The multiplayer smokes join with `ui_autoJoin 1`, so they never see the
   Welcome card, and the ones that drive and capture the stock in-match menu
   pin `ui_retained 0`, since the Escape card now covers it by default.

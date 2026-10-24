@@ -5,7 +5,7 @@
  "format": "openq4-ui",
  "version": 1,
  "id": "openq4.restartmenu",
- "canvas": {"height": 720},
+ "canvas": {"height": 720, "minWidth": 960},
  "state": {
   "exitModal.visible": {"type": "boolean", "initial": false},
   "exitModal.contents": {"type": "boolean", "initial": false},
@@ -2027,11 +2027,12 @@
     "type": "group",
     "properties": {
      "position": {"type": "keyword", "value": "absolute"},
-     "top": {"type": "length", "value": 0, "unit": "dp"},
+     "top": {"type": "length", "value": 50, "unit": "%"},
      "width": {"type": "length", "value": 960.0, "unit": "dp"},
      "height": {"type": "length", "value": 720, "unit": "dp"},
      "left": {"type": "length", "value": 50, "unit": "%"},
-     "margin-left": {"type": "length", "value": -480.0, "unit": "dp"}
+     "margin-left": {"type": "length", "value": -480.0, "unit": "dp"},
+     "margin-top": {"type": "length", "value": -360, "unit": "dp"}
     },
     "children": [
      {
@@ -2990,11 +2991,12 @@
       "type": "group",
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
-       "top": {"type": "length", "value": 0, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 960.0, "unit": "dp"},
        "height": {"type": "length", "value": 720, "unit": "dp"},
        "left": {"type": "length", "value": 50, "unit": "%"},
-       "margin-left": {"type": "length", "value": -480.0, "unit": "dp"}
+       "margin-left": {"type": "length", "value": -480.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": -360, "unit": "dp"}
       },
       "children": [
        {

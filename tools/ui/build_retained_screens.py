@@ -531,6 +531,43 @@ def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> d
     return widths
 
 
+def fit_narrow(result: dict) -> dict:
+    """Section 9's 4:3 composition in a view narrower than 4:3 (5:4,
+    portrait), as the campaign pages fit it (retained_menu_levels.fit_page):
+    the canvas shrinks to the view's width (canvas.minWidth 960), each canvas
+    group (centred on the view at 960x720 dp) but the title slot's centres
+    vertically, and the bottom band and a prompt bar outside the canvas groups
+    keep the view's bottom edge. In a
+    view of 4:3 or wider every one of these is unchanged."""
+    def value(props: dict, key: str):
+        found = props.get(key)
+        return (found.get("value"), found.get("unit")) if isinstance(found, dict) else None
+
+    def walk(node: dict, in_canvas: bool = False) -> None:
+        props = node.get("properties", {})
+        canvas = (value(props, "left") == (50, "%") and value(props, "margin-left") == (-CANVAS_W / 2, "dp") and
+                  value(props, "top") == (0, "dp") and value(props, "height") == (720, "dp"))
+        # The page titles and the label carried into the title slot belong to
+        # the top band, which keeps the view's top edge: they stay with it.
+        if canvas and node.get("id") not in ("titles", "carry"):
+            props["top"] = length(50, "%")
+            props["margin-top"] = length(-360)
+        if node.get("id") == "prompts" and not in_canvas and "top" in props and "bottom" not in props:
+            top = props.pop("top")["value"]
+            props["bottom"] = length(round(720 - top - props["height"]["value"], 4))
+        if node.get("id", "").endswith("band-bottom"):
+            for drawn in node.get("paths", []):
+                for command in drawn["commands"]:
+                    for point in command.get("points", []):
+                        if isinstance(point[1], (int, float)):
+                            point[1] = {"fraction": 1, "dp": round(point[1] - 720, 4)}
+        for child in node.get("children", []):
+            walk(child, in_canvas or canvas)
+    walk(result["root"])
+    result["canvas"]["minWidth"] = 960
+    return result
+
+
 def wrap_menu(column: list, row: list = ()) -> None:
     """Section 13.4: a menu of up to seven items wraps. Up and Down step
     through `column` (its controls top to bottom) and on to the plinth's
@@ -1820,7 +1857,7 @@ def title_document() -> dict:
                           {"op": "if", "condition": {"state": "menu_continue"},
                            "then": [{"op": "focus", "control": "nav_continue"}],
                            "else": [{"op": "focus", "control": "nav_singleplayer"}]}]
-    return doc.build(root)
+    return fit_narrow(doc.build(root))
 
 
 SUBPAGE_STEP = 97.0                                   # one notch pitch (frame.step, section 8)
@@ -3228,7 +3265,7 @@ def pause_document(strogg: bool = False) -> dict:
     doc.events["onActivate"] = [{"op": "if", "condition": {"state": "pause.released"},
                                  "then": [{"op": "setState", "values": {"pause.released": False}},
                                           {"op": "playTimeline", "timeline": "unrelease"}, resume]}]
-    return doc.build(root)
+    return fit_narrow(doc.build(root))
 
 
 # ----------------------------------------------------------------- the loading

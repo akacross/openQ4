@@ -1692,6 +1692,31 @@ like every prompt ([prompt glyphs](#prompt-glyphs)). The wait for continue
 redraws the screen each frame, so touching a controller or the mouse switches
 it. The session no longer publishes its own `loading_controller`.
 
+## Narrow views (24 October 2026)
+
+The retained menus compose a 4:3 canvas that fills the view's height and
+widens with the aspect. A view narrower than 4:3 (5:4, or a portrait window)
+cut that canvas at both sides: the title's menu lost its left edge and the
+pause its level block. The title, both pauses, the Arena pause, the
+Multiplayer page and the death screen now fit as the campaign pages already
+did (`fit_narrow`, after `retained_menu_levels.fit_page`): `canvas.minWidth`
+960 shrinks the canvas to the view's width, each canvas group centres
+vertically, and the bottom band and the prompt bar keep the view's bottom
+edge while the top band, the page titles and the carried title label keep
+its top. The multiplayer cards (Welcome, Escape, summary) shrink so the card
+and its 16 dp side margins fit (`fit_card`) and stay centred. In a view of
+4:3 or wider nothing changes.
+
+Captured at 9:16 (540x960), 5:4 (1280x1024) and 16:9 for the title, pause,
+Multiplayer page, Escape card, death screen and Arena pause. The pages that
+set their prompt bar inside their canvas group (Load and Save Game, Restart
+Level, Demos, Credits, Create Server, Join Game, Arena) do not fit yet: their
+bar would leave the bottom band if the canvas centred, so they need the bar
+moved out first.
+
+Evidence: `.tmp/ui/narrow-fit/validation-evidence.json`, SHA-256
+`8a2f2b92b83fe012a7649d4a5882b865d3eae801d6997c3f9ebd4db4f664411a`.
+
 ## Joined lines and capitals (24 October 2026)
 
 The session no longer joins text in C++ where a language may join it

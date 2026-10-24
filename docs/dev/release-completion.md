@@ -74,6 +74,14 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Narrow views, 24 October 2026
+
+- [x] The title, pauses, Arena pause, Multiplayer page, death screen and the
+  multiplayer cards fit views narrower than 4:3 (5:4, portrait) instead of
+  clipping; wider views are unchanged.
+- [Behavior and checks](ui/retained-screens.md#narrow-views-24-october-2026):
+  native suites unchanged at 16:9 and captures at 9:16, 5:4 and 16:9.
+
 ## Map catalogs, 24 October 2026
 
 - [x] The Vote and Admin pages' map choices hold 128 maps a game type

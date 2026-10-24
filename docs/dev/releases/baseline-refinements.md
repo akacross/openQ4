@@ -71,6 +71,9 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- On 5:4 screens and in portrait windows, the main menu, pause menus, the
+  Multiplayer page, the death screen and the in-match menu now fit the screen
+  instead of being cut off at the sides.
 - A server with a long map rotation now offers up to 128 maps per game type
   in the multiplayer menu's Vote and Admin pages, up from 48.
 - The controller's View button now shows the scores (or your objectives)

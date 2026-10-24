@@ -2835,6 +2835,14 @@ PAGE_BUILDERS = {"team": team_page, "players": players_page, "vote": vote_page, 
                  "voice": voice_page, "server": server_page}
 
 
+def fit_card(result: dict, width: float) -> dict:
+    """A card in a view narrower than itself (5:4, portrait): the canvas
+    shrinks so the card and its side margins fit the view's width; it stays
+    centred. Wider views are unchanged."""
+    result["canvas"]["minWidth"] = float(int(width + 2 * SIDE_MARGIN + 0.999))
+    return result
+
+
 def prompt_row(doc: Document, width: float, height: float, back_verb: str, trailing: list) -> dict:
     """The prompt bar inside the card (section 14.18): Resume or Spectate on
     the back key, Tabs on Q and E, Select on Enter, then the trailing
@@ -3030,7 +3038,7 @@ def welcome_document() -> dict:
     root = group("screen", {**FULL, "font-family": b.font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [*backdrop(doc), chrome])
     card_motion(doc, WELCOME_TABS, focus)
-    return doc.build(root)
+    return fit_card(doc.build(root), width)
 
 
 def escape_document() -> dict:
@@ -3079,4 +3087,4 @@ def escape_document() -> dict:
     root = group("screen", {**FULL, "font-family": b.font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [*backdrop(doc), chrome])
     card_motion(doc, ESCAPE_TABS, focus)
-    return doc.build(root)
+    return fit_card(doc.build(root), width)
