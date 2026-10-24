@@ -66,8 +66,18 @@ public:
 	// opponents left or the match was forfeited; nothing is recorded).
 	bool					QueueCompletion( const idCmdArgs &args );
 	void					AbortMatch();
+	// A match left during its end-of-match ceremony keeps the result game_mp
+	// already decided. FinishDecidedResult records it and reports it in the
+	// browser (false when there is none, so the caller abandons the match as
+	// before); RecordDecidedResult only records it, for a quit or an error drop
+	// that tears the session down next. Both run before AbortMatch.
+	bool					FinishDecidedResult();
+	void					RecordDecidedResult();
 
 private:
+	void					AcceptCompletion( int token, int outcome, int playerScore, int opponentScore, int awards );
+	bool					TakeDecidedResult();
+	bool					RecordPendingCompletion();
 	void					FinishPendingCompletion();
 	bool					LoadCampaign();
 	void					UpdateGui();

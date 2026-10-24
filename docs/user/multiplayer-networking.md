@@ -122,6 +122,8 @@ IPv6 guarantees only a 1280-byte path MTU and forbids routers from splitting a d
 | `net_enableIPv6` | `1` | `0..1` | Client and server | Opens the IPv6 socket. Set `net_enableIPv4 0` for an IPv6-only host. |
 | `net_mcast6addr` | `ff02::1` | address | Client and server | IPv6 multicast group used by the LAN server scan. |
 | `net_mcast6iface` | `0` | index | Client and server | IPv6 interface index for the LAN scan. `0` scans every attached link. |
+| `net_clientMaxRate` | `128000` | bytes/s | Client | The most a server may send you each second, sent when you connect. Lower it below your connection's real download speed if matches stutter on a slow or shared line. |
+| `net_serverMaxClientRate` | `128000` | bytes/s | Server | The most the server sends any one player each second, whatever they ask for. |
 | `net_mpLagCompensation` | `0` | `0..1` | Server gameplay | Enables server-side lag compensation for multiplayer hitscan traces. |
 | `net_mpLagCompMaxMS` | `200` | `0..1000` | Server gameplay | Caps rewind window in milliseconds used by lag compensation. |
 | `net_mpLagCompBiasMS` | `0` | `-200..200` | Server gameplay | Adds/subtracts additional rewind bias in milliseconds. |
@@ -207,6 +209,9 @@ directions of each connection:
 | `net_forceJitter` | Up to this many further milliseconds, chosen at random per packet. Packets sent closer together than this can arrive out of order, as they do on real links. |
 | `net_forceDrop` | Percentage of packets lost. |
 | `net_forceDuplicate` | Percentage of packets delivered twice. |
+| `net_forceDropBurst` | Loses packets in runs of about this many instead of one at a time, keeping the `net_forceDrop` rate. |
+| `net_forceRate` | Limits the connection to this many bytes a second each way, like a slow line. Packets queue behind each other and are dropped when the queue is full. `0` for no limit. |
+| `net_forceQueue` | How many milliseconds of packets that slow line holds before it drops them (default `250`). |
 | `net_forceSeed` | Makes the random choices repeat exactly when a connection opens; `0` picks new ones each time. |
 
 For example, on the client:
@@ -218,8 +223,12 @@ set net_forceDrop 5
 ```
 
 `netImpairment` prints the settings and, for each open connection, how many
-packets were delayed, lost, duplicated and delivered out of order. These
-settings count as cheats: hosting or joining a server that does not allow
+packets were delayed, lost, duplicated and delivered out of order, the bytes
+sent through it, and how many packets the slow line dropped. A match with three
+bots needs about 6 KB a second downstream. On a line slower than that the game
+stutters and falls behind, and setting `net_clientMaxRate` a little below the
+line's speed before connecting keeps it smooth, with fewer updates a second.
+These settings count as cheats: hosting or joining a server that does not allow
 cheats (`net_allowCheats 1` or `sv_cheats 1`) resets them to `0`, and they
 cannot be changed during such a match. They are for testing only.
 

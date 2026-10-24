@@ -146,7 +146,9 @@ end-of-match ceremony to the match report instead.
 
 A match has to be played out to count. Quitting to the menu any other way, for
 example with the `disconnect` console command, also leaves the match with a
-**Match abandoned** report. A match whose opponents all leave (for example when
+**Match abandoned** report. Once the match has ended, though, its result is
+decided: leaving or quitting the game during the end-of-match ceremony still
+records it, as skipping the ceremony would. A match whose opponents all leave (for example when
 its bots are removed from the console) ends as **Match aborted**, with nothing
 recorded and **Retry** offered.
 

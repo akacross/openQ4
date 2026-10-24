@@ -6,7 +6,9 @@ This checks the wiring the native test cannot see: both win_net.cpp and
 posix_net.cpp define the same net_force* CVars, open one pair of delay lines per
 bound port and release it on close, queue every received datagram and every
 unicast send while conditions are set or a line is still draining, flush due
-sends while polling for packets, and report through netImpairment.
+sends while polling for packets, and report through netImpairment, including
+the bottleneck (net_forceRate, net_forceQueue) and burst loss
+(net_forceDropBurst).
 
 Single-reversal controls then mutate the platform sources and require each
 check to fail.
@@ -19,7 +21,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-CVARS = ("net_forceLatency", "net_forceDrop", "net_forceJitter", "net_forceDuplicate", "net_forceSeed")
+CVARS = ("net_forceLatency", "net_forceDrop", "net_forceJitter", "net_forceDuplicate", "net_forceSeed",
+         "net_forceRate", "net_forceQueue", "net_forceDropBurst")
 
 
 def read(rel: str) -> str:
@@ -65,7 +68,8 @@ def validate_platform(source: str, platform: str) -> None:
     require(source, '#include "../NetworkImpairment.h"', f"{platform} delay-line header")
     require(source, "typedef idNetworkImpairment::port_t<netadr_t> netImpairmentPort_t;", f"{platform} delay-line type")
     settings = body(source, "static idNetworkImpairment::settings_t Net_ImpairmentSettings(", f"{platform} settings")
-    for name in ("net_forceLatency", "net_forceJitter", "net_forceDrop", "net_forceDuplicate"):
+    for name in ("net_forceLatency", "net_forceJitter", "net_forceDrop", "net_forceDuplicate", "net_forceRate",
+                 "net_forceQueue", "net_forceDropBurst"):
         require(settings, f"{name}.GetInteger()", f"{platform} settings")
     require(settings, "idNetworkImpairment::Sanitize(", f"{platform} settings clamp")
     opening = body(source, "static netImpairmentPort_t *Net_OpenImpairment(", f"{platform} delay-line open")
@@ -93,6 +97,14 @@ def validate_platform(source: str, platform: str) -> None:
 
     report = body(source, "void Sys_NetImpairmentReport(", f"{platform} report")
     require(report, "NET_IMPAIR_SETTINGS", f"{platform} report")
+    for field in ("settings.rateBytes", "settings.queueMsec", "settings.burstLength"):
+        require(report, field, f"{platform} reports the bottleneck and burst settings")
+    line = body(source, "static void Net_PrintImpairmentLine(", f"{platform} report line")
+    for field in ("stats.offeredBytes", "stats.bursts", "stats.congested", "stats.maxWaitMsec"):
+        require(line, field, f"{platform} reports bursts, congestion and the longest wait")
+    # Harnesses parse the line by its leading fields, so the new ones come last.
+    require(line, '"NET_IMPAIR port=%d dir=%s offered=%llu dropped=%llu duplicated=%llu released=%llu reordered=%llu "',
+            f"{platform} keeps the report's leading fields")
     require(report, '"receive"', f"{platform} report")
     require(report, '"send"', f"{platform} report")
 
@@ -147,6 +159,14 @@ def main() -> int:
              "Net_CloseImpairment( static_cast<netImpairmentPort_t *>( platformData ) );", ""),
             ("platforms disagree on a CVar", "posix",
              '"percentage of packets delivered twice"', '"percentage of duplicated packets"'),
+            ("Windows ignores the bottleneck rate", "windows",
+             "net_forceDuplicate.GetInteger(), net_forceRate.GetInteger(),", "net_forceDuplicate.GetInteger(), 0,"),
+            ("POSIX drops the congestion count from its report", "posix",
+             "static_cast<unsigned long long>( stats.bursts ), static_cast<unsigned long long>( stats.congested ), stats.maxWaitMsec );",
+             "static_cast<unsigned long long>( stats.bursts ), 0ull, stats.maxWaitMsec );"),
+            ("Windows reorders the report's leading fields", "windows",
+             '"NET_IMPAIR port=%d dir=%s offered=%llu dropped=%llu duplicated=%llu released=%llu reordered=%llu "',
+             '"NET_IMPAIR port=%d dir=%s offered=%llu dropped=%llu bursts=%llu duplicated=%llu released=%llu "'),
         )
         for label, platform, original, mutated in controls:
             source = posix if platform == "posix" else windows

@@ -24,6 +24,26 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Multiplayer round three, 24 October 2026
+
+- [x] MP-04: leaving the match or quitting the game during the Arena
+  end-of-match ceremony keeps the decided result (it was lost). game_mp
+  publishes `ui_arenaDecidedResult` while the handoff waits; a disconnect
+  records and reports it, a quit or error drop records it.
+  `arena_decided_result.py` carries nine failing controls.
+- [x] MP-05: demo seeks no longer leave gibs and debris frozen where they
+  spawned (the Red Rover seek/debris finding, reproduced on a new recording);
+  `mvd_seeking` and `mvd_seek_debris_contract.py` with five controls.
+  `listClientEntities` names real classes and positions.
+- [x] MP-07/MP-08: simulated bottleneck and burst loss (`net_forceRate`,
+  `net_forceQueue`, `net_forceDropBurst`) with 14 header and 8 wiring controls;
+  congestion, rate-control and burst-loss qualification.
+- Evidence: [Arena](arena-campaign-ceremony.md#leaving-during-the-ceremony-24-october-2026),
+  [demos](multiview-demos.md#red-rover-seek-debris-24-october-2026),
+  [network](mp-network-qualification.md#congestion-rate-control-and-burst-loss-24-october-2026).
+  Candidate player wording: [Arena](releases/arena-refinements.md) and
+  [multiplayer](releases/multiplayer-refinements.md) refinements.
+
 ## Arena Restart match in place, 24 October 2026
 
 - [x] MP-04: Restart match resets the live Arena match on its own server

@@ -1211,6 +1211,14 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   ([in-place restart](arena-campaign-ceremony.md#in-place-restart-24-october-2026)).
   Physical controls, endpoint loss/return and remaining failure-path coverage
   keep MP-04 open.
+  Later on 24 October: a failure path lost decided results. Leaving the match
+  or quitting the game during the end-of-match ceremony recorded nothing, since
+  the result is handed over only after the ceremony. game_mp now publishes the
+  decided result while the handoff waits, and a disconnect, quit or error drop
+  records it; a disconnect also reports it. Two no-input runs keep a win's
+  progress and best result through a disconnect and through a quit
+  ([evidence](arena-campaign-ceremony.md#leaving-during-the-ceremony-24-october-2026)).
+  Physical controls and endpoint loss/return remain.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery
@@ -1243,6 +1251,14 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   decisions first: automatic recordings are linked from competitive series
   evidence, so pruning them would break those links, and structured markers need
   a new MVD record type and a game-to-engine event interface.
+  Later on 24 October: a new Red Rover recording reproduces the seek/debris
+  finding. A seek replays records without running frames, so gibs and debris
+  spawned during it stayed frozen where they spawned, often at the death camera.
+  Seeks now drop them (the engine publishes `mvd_seeking`). On a fixed grid of
+  14 seeks, six left 9 to 18 frozen chunks before the fix and none after
+  ([evidence](multiview-demos.md#red-rover-seek-debris-24-october-2026)). The
+  missing first-person weapon after a paused seek, keyframes, reverse scrub,
+  AVI, thumbnails, retention and markers remain open.
 - [ ] **MP-06 — P2, implementation and qualification: liquid extensions.** Verify
   splash/bubble/wade effects, underwater view/muffle, projectiles, buoyancy and bot
   behavior. The current AAS compiler already emits water/swim/waterjump data;
@@ -1321,6 +1337,11 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   the 200 ms cap, enhanced 0-16 ms). A client connecting with 80 ms, jitter,
   10% loss and 5% duplication already set joins on its first challenge. Real
   WAN peers and the defaults decision remain open.
+  Later on 24 October: the simulation adds a bottleneck (`net_forceRate`,
+  `net_forceQueue`) and burst loss (`net_forceDropBurst`), and `netImpairment`
+  reports the data rate. Bursts of about five losses at 10% held with no
+  resyncs, at a 32 ms higher lead than single losses
+  ([congestion evidence](mp-network-qualification.md#congestion-rate-control-and-burst-loss-24-october-2026)).
 - [ ] **MP-08 — P1, qualification and decision: network and content interoperability.**
   Qualify real cross-platform/architecture peers over IPv4 and IPv6, fragmentation/
   MTU/rate limits, congestion, high player counts, discovery and reconnect. Address
@@ -1367,6 +1388,15 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   shared machine; a client that cannot hold 60 Hz still falls behind toward the
   1 s cap ([evidence](mp-network-qualification.md#high-player-count-24-october-2026)).
   Real WAN peers, load across machines and discovery remain open.
+  Later on 24 October: congestion and rate limits on a simulated bottleneck. A
+  three-bot match needs about 6 KB/s downstream; links with spare capacity add
+  only queueing. A 6 KB/s link congests and feeds itself: the server offers
+  1.7 times the demand, snapshots fall 28% and the lead reaches 224 ms. A
+  client connecting with `net_clientMaxRate 5000` removes the congestion (no
+  drops, 160 ms lead) at the cost of snapshot rate
+  ([evidence](mp-network-qualification.md#congestion-rate-control-and-burst-loss-24-october-2026)).
+  Whether the server should adapt its rate on its own is a design decision;
+  the networking guide tells players to lower `net_clientMaxRate`.
 
 ## Audio and voice
 

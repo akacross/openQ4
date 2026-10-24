@@ -48,6 +48,37 @@ static std::vector<int> DrainImpairment( impairmentQueue_t &queue, const idNetwo
 	return released;
 }
 
+// Offers each datagram of sizes[] (payload byte = its index) at offerTimes[i], drains
+// a millisecond at a time from start, and returns each delivered index with the time
+// it was released.
+struct impairmentRelease_t {
+	int		index;
+	int		time;
+};
+
+static std::vector<impairmentRelease_t> PaceImpairment( impairmentQueue_t &queue, const idNetworkImpairment::settings_t &settings,
+		const std::vector<int> &sizes, const std::vector<int> &offerTimes, const int start, const int durationMsec ) {
+	std::vector<impairmentRelease_t> released;
+	std::vector<unsigned char> payload( 4096 );
+	std::vector<unsigned char> buffer( 4096 );
+	size_t offered = 0;
+	for ( int step = 0; step <= durationMsec; step++ ) {
+		const int now = static_cast<int>( static_cast<unsigned int>( start ) + static_cast<unsigned int>( step ) );
+		while ( offered < sizes.size() && offerTimes[offered] <= step ) {
+			payload[0] = static_cast<unsigned char>( offered );
+			queue.Offer( settings, now, static_cast<int>( offered ), payload.data(), sizes[offered] );
+			offered++;
+		}
+		int address = -1;
+		int size = 0;
+		while ( queue.Pop( now, address, buffer.data(), static_cast<int>( buffer.size() ), size ) ) {
+			impairmentRelease_t release = { buffer[0], step };
+			released.push_back( release );
+		}
+	}
+	return released;
+}
+
 // Returns how many cases failed.
 static int ExerciseNetworkImpairment() {
 	using namespace idNetworkImpairment;
@@ -55,9 +86,106 @@ static int ExerciseNetworkImpairment() {
 
 	ExpectImpairment( !Active( Sanitize( 0, 0, 0, 0 ) ), "zero settings are inactive" );
 	ExpectImpairment( Active( Sanitize( 0, 0, 1, 0 ) ), "loss alone is active" );
+	ExpectImpairment( Active( Sanitize( 0, 0, 0, 0, 5000 ) ), "a rate alone is active" );
+	ExpectImpairment( !Active( Sanitize( 0, 0, 0, 0, 0, 100, 8 ) ), "a queue or burst length alone is inactive" );
 	const settings_t clamped = Sanitize( -5, 99999, 250, -1 );
 	ExpectImpairment( clamped.latencyMsec == 0 && clamped.jitterMsec == MAX_JITTER_MSEC &&
-		clamped.dropPercent == 100 && clamped.duplicatePercent == 0, "settings are clamped" );
+		clamped.dropPercent == 100 && clamped.duplicatePercent == 0 && clamped.rateBytes == 0 &&
+		clamped.queueMsec == DEFAULT_QUEUE_MSEC && clamped.burstLength == 0, "settings are clamped" );
+	const settings_t link = Sanitize( 0, 0, 0, 0, 1, 0, 999 );
+	ExpectImpairment( link.rateBytes == MIN_RATE_BYTES && link.queueMsec == 1 && link.burstLength == MAX_BURST_LENGTH,
+		"bottleneck and burst settings are clamped" );
+
+	// A bottleneck paces a burst: 72 bytes plus 28 of headers take 10 ms at 10 KB/s, so the
+	// i-th datagram offered at once leaves at ( i + 1 ) * 10 ms, in order, with no loss.
+	{
+		impairmentQueue_t queue;
+		const std::vector<int> sizes( 50, 72 );
+		const std::vector<int> times( 50, 0 );
+		const std::vector<impairmentRelease_t> out = PaceImpairment( queue, Sanitize( 0, 0, 0, 0, 10000, 1000 ), sizes, times, 0, 1000 );
+		bool paced = out.size() == 50;
+		for ( size_t i = 0; paced && i < out.size(); i++ ) {
+			paced = out[i].index == static_cast<int>( i ) && out[i].time == static_cast<int>( i + 1 ) * 10;
+		}
+		ExpectImpairment( paced, "the bottleneck sends one datagram after another at its rate" );
+		ExpectImpairment( queue.stats.congested == 0 && queue.stats.maxWaitMsec == 490, "a deep enough queue holds the burst" );
+		ExpectImpairment( queue.stats.offeredBytes == 50 * 72, "the line counts the payload bytes offered to it" );
+	}
+
+	// A full queue drops the tail: with 100 ms of queue only the first ten fit.
+	{
+		impairmentQueue_t queue;
+		const std::vector<int> sizes( 50, 72 );
+		const std::vector<int> times( 50, 0 );
+		const std::vector<impairmentRelease_t> out = PaceImpairment( queue, Sanitize( 0, 0, 0, 0, 10000, 100 ), sizes, times, 0, 1000 );
+		ExpectImpairment( out.size() == 10 && queue.stats.congested == 40 && out.back().index == 9 && out.back().time == 100,
+			"a full bottleneck drops what its queue cannot hold" );
+	}
+
+	// An idle link takes a datagram bigger than its queue rather than starving it.
+	{
+		impairmentQueue_t queue;
+		const std::vector<int> sizes( 1, 2000 );
+		const std::vector<int> times( 1, 0 );
+		const std::vector<impairmentRelease_t> out = PaceImpairment( queue, Sanitize( 0, 0, 0, 0, 1000, 10 ), sizes, times, 0, 3000 );
+		ExpectImpairment( out.size() == 1 && out[0].time == 2028 && queue.stats.congested == 0,
+			"an idle bottleneck carries a datagram larger than its queue" );
+	}
+
+	// Once the link has drained, a datagram waits for nothing; latency follows the
+	// bottleneck rather than the offer.
+	{
+		impairmentQueue_t queue;
+		std::vector<int> sizes;
+		sizes.push_back( 72 );
+		sizes.push_back( 72 );
+		std::vector<int> times;
+		times.push_back( 0 );
+		times.push_back( 500 );
+		const std::vector<impairmentRelease_t> out = PaceImpairment( queue, Sanitize( 40, 0, 0, 0, 10000, 250 ), sizes, times, 0, 1000 );
+		ExpectImpairment( out.size() == 2 && out[0].time == 50 && out[1].time == 550 && queue.stats.maxWaitMsec == 0,
+			"a drained bottleneck adds only the datagram's own time, then the latency" );
+	}
+
+	// The bottleneck keeps pacing across the millisecond clock wrapping.
+	{
+		impairmentQueue_t queue;
+		const std::vector<int> sizes( 8, 72 );
+		const std::vector<int> times( 8, 0 );
+		const std::vector<impairmentRelease_t> out = PaceImpairment( queue, Sanitize( 0, 0, 0, 0, 10000, 1000 ), sizes, times, INT_MAX - 30, 200 );
+		bool paced = out.size() == 8;
+		for ( size_t i = 0; paced && i < out.size(); i++ ) {
+			paced = out[i].index == static_cast<int>( i ) && out[i].time == static_cast<int>( i + 1 ) * 10;
+		}
+		ExpectImpairment( paced, "the bottleneck survives the clock wrapping" );
+	}
+
+	// Burst loss keeps its rate but loses datagrams in runs of about burstLength;
+	// independent loss at the same rate rarely loses two in a row.
+	{
+		impairmentQueue_t bursty, independent;
+		bursty.random.Seed( 99 );
+		independent.random.Seed( 99 );
+		DrainImpairment( bursty, Sanitize( 0, 0, 20, 0, 0, 250, 4 ), 20000, 1, 0 );
+		DrainImpairment( independent, Sanitize( 0, 0, 20, 0 ), 20000, 1, 0 );
+		const double burstyRate = static_cast<double>( bursty.stats.dropped ) / 20000.0;
+		const double burstyRun = bursty.stats.bursts ? static_cast<double>( bursty.stats.dropped ) / bursty.stats.bursts : 0.0;
+		const double independentRun = independent.stats.bursts ?
+			static_cast<double>( independent.stats.dropped ) / independent.stats.bursts : 0.0;
+		ExpectImpairment( burstyRate > 0.17 && burstyRate < 0.23, "burst loss keeps the loss rate" );
+		ExpectImpairment( burstyRun > 3.2 && burstyRun < 4.8, "burst loss loses about burstLength datagrams in a row" );
+		ExpectImpairment( independentRun > 1.0 && independentRun < 1.5, "independent loss loses about one at a time" );
+	}
+
+	// With no rate and a burst length of 1 the line behaves exactly as without them.
+	{
+		impairmentQueue_t plain, extended;
+		plain.random.Seed( 2024 );
+		extended.random.Seed( 2024 );
+		const std::vector<int> a = DrainImpairment( plain, Sanitize( 20, 60, 10, 10 ), 300, 3, 0 );
+		const std::vector<int> b = DrainImpairment( extended, Sanitize( 20, 60, 10, 10, 0, 40, 1 ), 300, 3, 0 );
+		ExpectImpairment( a == b, "the new settings change nothing while they are off" );
+	}
 
 	// Latency alone: every datagram leaves exactly latency later, in order.
 	{

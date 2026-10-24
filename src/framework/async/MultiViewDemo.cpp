@@ -155,6 +155,14 @@ idCVar mvd_seekBudgetMS(
 	"maximum work per frame while replay-seeking an MVD",
 	1, 100 );
 
+// Published to the game while a seek replays records without presenting them.
+// Client-only debris spawned then would never move or expire before the seek
+// lands, so the game drops it rather than showing it frozen where it spawned.
+idCVar mvd_seeking(
+	"mvd_seeking", "0",
+	CVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT | CVAR_ROM,
+	"true while an MVD seek replays records" );
+
 static bool MVD_WriteExact( idFile *file, const void *data, int length ) {
 	return file != NULL && length >= 0 && file->Write( data, length ) == length;
 }
@@ -560,6 +568,7 @@ void idMultiViewDemo::Clear() {
 	sawCleanEnd = false;
 	resettingPlayback = false;
 	seekInProgress = false;
+	mvd_seeking.SetBool( false );
 	forcePresentationFrame = false;
 	seekTargetGameTime = 0;
 	preferredFollowClient = DEMO_FOLLOW_FREE;
@@ -2297,6 +2306,7 @@ bool idMultiViewDemo::SeekToMS( int relativeTimeMS ) {
 	const int target = header.startGameTime + clampedRelative;
 	seekTargetGameTime = target;
 	seekInProgress = true;
+	mvd_seeking.SetBool( true );
 	if ( target < static_cast<int>( playbackGameTime ) ) {
 		if ( !ResetPlaybackStream() ) {
 			const idStr failure = lastError;
@@ -2352,6 +2362,7 @@ bool idMultiViewDemo::ProcessSeekBudget() {
 		if ( RecordTimestamp( pendingRecord, recordGameTime ) &&
 			 recordGameTime > seekTargetGameTime ) {
 			seekInProgress = false;
+			mvd_seeking.SetBool( false );
 			playbackGameTime = seekTargetGameTime;
 			playbackLastRealTime = Sys_Milliseconds();
 			if ( sessLocal.sw != NULL && !mvd_paused.GetBool() ) {
@@ -2380,6 +2391,7 @@ bool idMultiViewDemo::ProcessSeekBudget() {
 
 	if ( state == MVD_PLAYING && static_cast<int>( playbackGameTime ) >= seekTargetGameTime ) {
 		seekInProgress = false;
+		mvd_seeking.SetBool( false );
 		playbackGameTime = seekTargetGameTime;
 		playbackLastRealTime = Sys_Milliseconds();
 		if ( sessLocal.sw != NULL && !mvd_paused.GetBool() ) {

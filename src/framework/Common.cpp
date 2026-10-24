@@ -1591,8 +1591,10 @@ void idCommonLocal::Error( const char *fmt, ... ) {
 	if ( !( com_editors & ( EDITOR_GUI | EDITOR_DEBUGGER ) ) ) {
 #ifndef ID_DEDICATED
 		// A recoverable drop can bypass the ordinary disconnect command. Restore
-		// Arena's temporary server rules before the session tears its server down.
+		// Arena's temporary server rules before the session tears its server down,
+		// recording a result the match had already decided.
 		if ( arenaCampaign.NeedsCleanup() ) {
+			arenaCampaign.RecordDecidedResult();
 			arenaCampaign.AbortMatch();
 		}
 #endif
@@ -1713,8 +1715,9 @@ void idCommonLocal::Quit( void ) {
 		// Arena temporarily overrides archived multiplayer and user settings.
 		// Restore and flush them while the session and filesystem are still
 		// alive; session shutdown is too late to repair a config written during
-		// the active match.
+		// the active match. A result already decided is recorded first.
 		if ( arenaCampaign.NeedsCleanup() ) {
+			arenaCampaign.RecordDecidedResult();
 			arenaCampaign.AbortMatch();
 			WriteConfiguration();
 		}

@@ -3,8 +3,9 @@
 
 tools/tests/native/NetworkImpairmentCases.h holds the cases (fixed delay and
 order, jitter bounds and reordering, loss and duplication rates, seed
-repeatability, oversize discards, a 9000-byte datagram, clock wrap and
-capacity). CoreSafetyTest.cpp runs them in the native suite; this driver also
+repeatability, oversize discards, a 9000-byte datagram, clock wrap,
+capacity, bottleneck pacing and drop-tail, burst loss, and the new settings
+changing nothing while off). CoreSafetyTest.cpp runs them in the native suite; this driver also
 compiles them against single-reversal copies of the header and requires each
 copy to fail, so the cases cannot quietly stop checking what they claim.
 """
@@ -30,12 +31,27 @@ int main() {
 CONTROLS = (
     ("release ignores the due time", "if ( !AtOrBefore( entries[i].due, now ) ) {\n\t\t\t\t\tcontinue;\n\t\t\t\t}", ""),
     ("no duplication", "const int copies = random.Chance( settings.duplicatePercent ) ? 2 : 1;", "const int copies = 1;"),
-    ("no jitter", "entry.due = now + settings.latencyMsec + random.UpTo( settings.jitterMsec );",
-     "entry.due = now + settings.latencyMsec;"),
+    ("no jitter", "entry.due = departure + settings.latencyMsec + random.UpTo( settings.jitterMsec );",
+     "entry.due = departure + settings.latencyMsec;"),
     ("clock wrap compared directly",
      "return static_cast<int32_t>( static_cast<uint32_t>( a ) - static_cast<uint32_t>( b ) ) <= 0;", "return a <= b;"),
     ("an oversize datagram stops the drain", "stats.discarded++;\n\t\t\t\tcontinue;", "stats.discarded++;\n\t\t\t\treturn false;"),
     ("no capacity limit", "if ( static_cast<int>( entries.size() ) >= MAX_QUEUED_DATAGRAMS ||", "if ( false &&"),
+    ("a rate leaves the line inactive", "settings.duplicatePercent > 0 || settings.rateBytes > 0;", "settings.duplicatePercent > 0;"),
+    ("the bottleneck never queues",
+     "waitUsec = static_cast<int64_t>( aheadMsec ) * 1000 + linkFreeUsec;", "waitUsec = 0;"),
+    ("a full bottleneck never drops",
+     "if ( waitUsec > 0 && finishUsec > static_cast<int64_t>( settings.queueMsec ) * 1000 ) {", "if ( false ) {"),
+    ("an idle bottleneck refuses a large datagram",
+     "if ( waitUsec > 0 && finishUsec > static_cast<int64_t>( settings.queueMsec ) * 1000 ) {",
+     "if ( finishUsec > static_cast<int64_t>( settings.queueMsec ) * 1000 ) {"),
+    ("headers cross the bottleneck free",
+     "( static_cast<int64_t>( size ) + LINK_OVERHEAD_BYTES ) * 1000000", "static_cast<int64_t>( size ) * 1000000"),
+    ("a loss burst never ends", "lossBurst = !random.ChancePpm( leave );", "lossBurst = true;"),
+    ("offered bytes are not counted", "stats.offeredBytes += static_cast<uint64_t>( size );", ""),
+    ("burst length ignored",
+     "if ( settings.burstLength <= 1 || settings.dropPercent <= 0 || settings.dropPercent >= 100 ) {",
+     "if ( true ) {"),
 )
 
 

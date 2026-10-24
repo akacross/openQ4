@@ -185,12 +185,21 @@ static idCVar ui_arenaRestartMatch(
 	"ui_arenaRestartMatch", "0", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NOCHEAT | CVAR_ROM,
 	"arena campaign match token authorized to restart in place" );
 
+// game_mp's decided, contested result while its ceremony holds the handoff
+// back: the arenaComplete arguments ("token outcome player opponent awards"),
+// or empty. Kept if the match is left or the game quits before the handoff.
+static idCVar ui_arenaDecidedResult(
+	"ui_arenaDecidedResult", "", CVAR_SYSTEM | CVAR_NOCHEAT | CVAR_ROM,
+	"the live arena campaign match's decided result while its ceremony plays" );
+
+// Match-scoped values published to and by game_mp, cleared with the match.
 static void ArenaClearMatchPresentation() {
 	ui_arenaMatchTitle.SetString( "" );
 	ui_arenaMatchTier.SetString( "" );
 	ui_arenaMatchRole.SetString( "" );
 	ui_arenaMatchGameType.SetString( "" );
 	ui_arenaMenuOpen.SetBool( false );
+	ui_arenaDecidedResult.SetString( "" );
 }
 
 #ifndef ID_DEDICATED
@@ -2961,15 +2970,19 @@ void idArenaCampaign::QueueFailedCompletionCleanup() {
 
 /*
 ================
-idArenaCampaign::QueueCompletion
+ArenaParseCompletion
+
+The arenaComplete arguments, strictly parsed: token, outcome, both scores and
+the optional award mask.
 ================
 */
-bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
-	int token = 0;
-	int outcome = ARENA_OUTCOME_LOSS;
-	int playerScore = 0;
-	int opponentScore = 0;
-	int awards = 0;
+static bool ArenaParseCompletion( const idCmdArgs &args, int &token, int &outcome, int &playerScore,
+								  int &opponentScore, int &awards ) {
+	token = 0;
+	outcome = ARENA_OUTCOME_LOSS;
+	playerScore = 0;
+	opponentScore = 0;
+	awards = 0;
 	// The optional sixth argument is a bit mask of the end-game awards the player
 	// earned.  It is accepted as optional on purpose: a game_mp built before the
 	// framework learned about awards must keep working, and more importantly a
@@ -2977,29 +2990,20 @@ bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
 	// below, which fails closed by fabricating a token-0 loss and destroying a
 	// legitimate result.  Absent means "no awards", never "reject".
 	const bool arity = args.Argc() == 5 || args.Argc() == 6;
-	if ( !arity || idStr::Icmp( args.Argv( 0 ), "arenaComplete" ) != 0 ||
-		 !ArenaParseBoundedInteger( args.Argv( 1 ), 1, ARENA_TOTAL_MATCHES, token ) ||
-		 !ArenaParseBoundedInteger( args.Argv( 2 ), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_ABORTED, outcome ) ||
-		 !ArenaParseBoundedInteger( args.Argv( 3 ), -9999, 9999, playerScore ) ||
-		 !ArenaParseBoundedInteger( args.Argv( 4 ), -9999, 9999, opponentScore ) ||
-		 ( args.Argc() == 6 &&
-		   !ArenaParseBoundedInteger( args.Argv( 5 ), 0, ARENA_AWARD_MASK, awards ) ) ) {
-		common->Warning( "arena campaign: rejected malformed completion command" );
-		QueueFailedCompletionCleanup();
-		return false;
-	}
+	return arity && idStr::Icmp( args.Argv( 0 ), "arenaComplete" ) == 0 &&
+		ArenaParseBoundedInteger( args.Argv( 1 ), 1, ARENA_TOTAL_MATCHES, token ) &&
+		ArenaParseBoundedInteger( args.Argv( 2 ), ARENA_OUTCOME_LOSS, ARENA_OUTCOME_ABORTED, outcome ) &&
+		ArenaParseBoundedInteger( args.Argv( 3 ), -9999, 9999, playerScore ) &&
+		ArenaParseBoundedInteger( args.Argv( 4 ), -9999, 9999, opponentScore ) &&
+		( args.Argc() == 5 || ArenaParseBoundedInteger( args.Argv( 5 ), 0, ARENA_AWARD_MASK, awards ) );
+}
 
-	if ( state == NULL || !IsActive() || state->completionPending ) {
-		common->DPrintf( "arena campaign: ignored completion token %d outside its active match\n", token );
-		return false;
-	}
-	if ( !state->botsPopulated || token != ui_arenaActiveMatch.GetInteger() ||
-		 ArenaMatchForToken( state, token ) == NULL ) {
-		common->Warning( "arena campaign: result token %d did not match its active transaction", token );
-		QueueFailedCompletionCleanup();
-		return false;
-	}
-
+/*
+================
+idArenaCampaign::AcceptCompletion
+================
+*/
+void idArenaCampaign::AcceptCompletion( int token, int outcome, int playerScore, int opponentScore, int awards ) {
 	state->completionPending = true;
 	state->pendingToken = token;
 	state->pendingOutcome = outcome;
@@ -3016,6 +3020,37 @@ bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
 		outcomeName,
 		state->pendingPlayerScore,
 		state->pendingOpponentScore );
+}
+
+/*
+================
+idArenaCampaign::QueueCompletion
+================
+*/
+bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
+	int token = 0;
+	int outcome = ARENA_OUTCOME_LOSS;
+	int playerScore = 0;
+	int opponentScore = 0;
+	int awards = 0;
+	if ( !ArenaParseCompletion( args, token, outcome, playerScore, opponentScore, awards ) ) {
+		common->Warning( "arena campaign: rejected malformed completion command" );
+		QueueFailedCompletionCleanup();
+		return false;
+	}
+
+	if ( state == NULL || !IsActive() || state->completionPending ) {
+		common->DPrintf( "arena campaign: ignored completion token %d outside its active match\n", token );
+		return false;
+	}
+	if ( !state->botsPopulated || token != ui_arenaActiveMatch.GetInteger() ||
+		 ArenaMatchForToken( state, token ) == NULL ) {
+		common->Warning( "arena campaign: result token %d did not match its active transaction", token );
+		QueueFailedCompletionCleanup();
+		return false;
+	}
+
+	AcceptCompletion( token, outcome, playerScore, opponentScore, awards );
 
 	// Finish outside the game-frame callback, but ahead of older buffered work.
 	// Appending here can leave an accepted result behind a long wait/script (or
@@ -3026,17 +3061,88 @@ bool idArenaCampaign::QueueCompletion( const idCmdArgs &args ) {
 
 /*
 ================
-idArenaCampaign::FinishPendingCompletion
+idArenaCampaign::TakeDecidedResult
+
+The end-of-match ceremony presents a result the match has already decided; it
+is not part of the contest. When the match is left or the game quits during
+it, the result game_mp published (ui_arenaDecidedResult) is accepted as the
+handoff would have been. True when a result is pending completion, accepted
+here or by the handoff already.
 ================
 */
-void idArenaCampaign::FinishPendingCompletion() {
-	if ( state == NULL || !state->completionPending ) {
-		return;
+bool idArenaCampaign::TakeDecidedResult() {
+	if ( state == NULL || !IsActive() ) {
+		return false;
 	}
+	if ( state->completionPending ) {
+		return true;
+	}
+	const idStr decided = ui_arenaDecidedResult.GetString();
+	if ( decided.IsEmpty() ) {
+		return false;
+	}
+	const idCmdArgs args( va( "arenaComplete %s", decided.c_str() ), false );
+	int token = 0;
+	int outcome = ARENA_OUTCOME_LOSS;
+	int playerScore = 0;
+	int opponentScore = 0;
+	int awards = 0;
+	if ( !ArenaParseCompletion( args, token, outcome, playerScore, opponentScore, awards ) ||
+		 outcome == ARENA_OUTCOME_ABORTED || !state->botsPopulated ||
+		 token != ui_arenaActiveMatch.GetInteger() || ArenaMatchForToken( state, token ) == NULL ) {
+		common->Warning( "arena campaign: ignored decided result '%s'", decided.c_str() );
+		return false;
+	}
+	common->Printf( "arena campaign: match %d left during its ceremony; keeping its decided result\n", token );
+	AcceptCompletion( token, outcome, playerScore, opponentScore, awards );
+	return true;
+}
+
+/*
+================
+idArenaCampaign::FinishDecidedResult
+
+Leaving during the ceremony: the decided result is recorded and reported in
+the browser, as skipping the ceremony would have done. False when there is
+none, and the match is abandoned as before.
+================
+*/
+bool idArenaCampaign::FinishDecidedResult() {
+	if ( !TakeDecidedResult() ) {
+		return false;
+	}
+	FinishPendingCompletion();
+	return true;
+}
+
+/*
+================
+idArenaCampaign::RecordDecidedResult
+
+Quitting, or an error dropping the session, during the ceremony: the decided
+result is recorded so the configuration written next keeps it. Nothing is
+presented; AbortMatch then restores the match's temporary settings.
+================
+*/
+void idArenaCampaign::RecordDecidedResult() {
+	if ( TakeDecidedResult() && RecordPendingCompletion() ) {
+		state->completionPending = false;
+	}
+}
+
+/*
+================
+idArenaCampaign::RecordPendingCompletion
+
+Records the accepted result: progression, the match's best result and the
+report's fields. False, with nothing recorded, when it no longer matches the
+live match.
+================
+*/
+bool idArenaCampaign::RecordPendingCompletion() {
 	if ( !IsActive() || state->pendingToken != ui_arenaActiveMatch.GetInteger() ) {
 		common->Warning( "arena campaign: discarded a completion with inconsistent match state" );
-		ReturnToBrowserAfterStartFailure( ARENA_FAILURE_RESULT );
-		return;
+		return false;
 	}
 
 	int tier = 0;
@@ -3044,8 +3150,7 @@ void idArenaCampaign::FinishPendingCompletion() {
 	const arenaMatch_t *completedMatch = ArenaMatchForToken( state, state->pendingToken, &tier, &match );
 	if ( completedMatch == NULL ) {
 		common->Warning( "arena campaign: completed match token no longer exists" );
-		ReturnToBrowserAfterStartFailure( ARENA_FAILURE_RESULT );
-		return;
+		return false;
 	}
 
 	ArenaRepairPersistedProgress();
@@ -3135,6 +3240,22 @@ void idArenaCampaign::FinishPendingCompletion() {
 	}
 	ui_arenaSelectedTier.SetInteger( tier );
 	ui_arenaSelectedMatch.SetInteger( match );
+	return true;
+}
+
+/*
+================
+idArenaCampaign::FinishPendingCompletion
+================
+*/
+void idArenaCampaign::FinishPendingCompletion() {
+	if ( state == NULL || !state->completionPending ) {
+		return;
+	}
+	if ( !RecordPendingCompletion() ) {
+		ReturnToBrowserAfterStartFailure( ARENA_FAILURE_RESULT );
+		return;
+	}
 
 	state->completionPending = false;
 	state->pendingToken = 0;

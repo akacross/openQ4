@@ -105,22 +105,24 @@ void Cmd_ClientEntityList_f( const idCmdArgs &args ) {
 
 	count = 0;
 
-	gameLocal.Printf( "%-4s  %-20s\n", " Num", "Classname" );
+	gameLocal.Printf( "%-4s  %-24s %s\n", " Num", "Classname", "Origin" );
 	gameLocal.Printf( "--------------------------------------------------------------------\n" );
 	for( e = 0; e < MAX_CENTITIES; e++ ) {
 		check = gameLocal.clientEntities[ e ];
 
-		idStr name( check->GetClassType().classname );
-
+		// openQ4: an empty slot was dereferenced before this check, and the static
+		// GetClassType named every entry rvClientEntity whatever its real class.
 		if ( !check ) {
 			continue;
 		}
 
+		idStr name( check->GetType()->classname );
+
 		if ( !name.Filter( match ) ) {
 			continue;
 		}
-				
-		gameLocal.Printf( "%4i: %-20s\n", e, name.c_str() );
+
+		gameLocal.Printf( "%4i: %-24s %s\n", e, name.c_str(), check->GetOrigin().ToString( 0 ) );
 
 		count++;
 	}

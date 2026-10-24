@@ -4982,6 +4982,11 @@ Session_Disconnect_f
 ================
 */
 static void Session_Disconnect_f( const idCmdArgs &args ) {
+	// An Arena match left during its end-of-match ceremony was already decided:
+	// record and report that result, as skipping the ceremony would.
+	if ( arenaCampaign.FinishDecidedResult() ) {
+		return;
+	}
 	// An Arena match left part way through returns to its own browser with a
 	// report, not to the title screen. Read the token before AbortMatch clears it.
 	const int arenaToken = arenaCampaign.ActiveMatchToken();

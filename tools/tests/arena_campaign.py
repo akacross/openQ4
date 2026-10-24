@@ -1509,6 +1509,20 @@ def validate_engine_hooks() -> None:
     queue_body = function_body(
         arena, "bool idArenaCampaign::QueueCompletion( const idCmdArgs &args )"
     )
+    # The parse and the acceptance are shared with a result kept when the match
+    # is left during its ceremony (arena_decided_result.py).
+    require(
+        queue_body,
+        "ArenaParseCompletion( args, token, outcome, playerScore, opponentScore, awards )",
+        "the handoff uses the shared strict parser",
+    )
+    require(
+        queue_body,
+        "AcceptCompletion( token, outcome, playerScore, opponentScore, awards );",
+        "the handoff uses the shared acceptance",
+    )
+    queue_body += function_body(arena, "static bool ArenaParseCompletion(")
+    queue_body += function_body(arena, "void idArenaCampaign::AcceptCompletion(")
     for token in (
         # The awards argument is optional on purpose: a game_mp that sends it
         # against a framework that did not expect it would otherwise take the
@@ -1597,6 +1611,11 @@ def validate_engine_hooks() -> None:
     finish_completion = function_body(
         arena, "void idArenaCampaign::FinishPendingCompletion()"
     )
+    # The recording is its own step, shared with a result kept on quit.
+    record_completion = function_body(
+        arena, "bool idArenaCampaign::RecordPendingCompletion()"
+    )
+    require(finish_completion, "if ( !RecordPendingCompletion() ) {", "the result is recorded before the return")
     for token in (
         "state->resultPreviousProgress = previousProgress;",
         "state->resultTier = tier;",
@@ -1604,6 +1623,9 @@ def validate_engine_hooks() -> None:
         "state->resultNewlyCompleted = newlyCompleted;",
         "state->resultTierName = state->tiers[tier].name;",
         "state->resultMatchName = completedMatch->name;",
+    ):
+        require(record_completion, token, "Arena cinematic result return")
+    for token in (
         "state->transitionPhase = ARENA_TRANSITION_RESULT;",
         'sessLocal.StartWipe( "gfx/wipes/fade", true );',
         "sessLocal.CompleteWipe();",
@@ -2496,13 +2518,14 @@ def validate_failure_reporting() -> None:
     if "ReturnToBrowserAfterStartFailure( true )" in arena:
         raise AssertionError("Arena start failures must use a named arenaFailure_t reason")
     # Three PopulateBots launch failures and the spawnServer relay report a
-    # server failure, partial bot population reports a bot failure, and both
-    # FinishPendingCompletion discards report a lost result.
+    # server failure, partial bot population reports a bot failure, and
+    # FinishPendingCompletion reports a lost result when RecordPendingCompletion
+    # discards it (either of its two refusals).
     reasons = re.findall(r"ReturnToBrowserAfterStartFailure\(\s*(ARENA_FAILURE_\w+)\s*\)", arena)
     expected_reasons = {
         "ARENA_FAILURE_SERVER": 4,
         "ARENA_FAILURE_BOTS": 1,
-        "ARENA_FAILURE_RESULT": 2,
+        "ARENA_FAILURE_RESULT": 1,
     }
     actual_reasons = {name: reasons.count(name) for name in set(reasons)}
     if actual_reasons != expected_reasons:
@@ -2870,7 +2893,7 @@ def validate_best_results() -> None:
             "best results alone make Reset Progress available",
         )
 
-    finish_body = function_body(arena, "void idArenaCampaign::FinishPendingCompletion()")
+    finish_body = function_body(arena, "bool idArenaCampaign::RecordPendingCompletion()")
     for token in (
         "if ( state->pendingOutcome != ARENA_OUTCOME_ABORTED ) {",
         "ArenaReadBestResults( ui_arenaBest.GetString(), previousProgress, bestResults );",

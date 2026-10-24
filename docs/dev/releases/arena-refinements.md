@@ -29,7 +29,8 @@
 - **Skip the ceremony.** Press Escape — or fire, once the beat has had a moment
   on screen — to skip the remaining introductions or the end-of-match tableau,
   scoreboard and stats. Your result is already decided and is recorded as
-  normal.
+  normal, and now it is also kept if you leave the match or quit the game
+  during the ceremony.
 - **Clearer cinematic framing.** The crosshair and status bar no longer sit on
   top of the introductions, countdown, spawn-in and victory shots. The match
   card now shows the tier and the match's place in it ("BOOT CAMP / QUALIFIER 1"),

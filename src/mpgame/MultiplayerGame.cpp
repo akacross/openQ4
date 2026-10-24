@@ -16074,6 +16074,37 @@ void idMultiplayerGame::UpdateArenaCampaignResult( void ) {
 
 /*
 ================
+idMultiplayerGame::PublishArenaCampaignDecidedResult
+
+The result is decided when the match ends, but the handoff waits for the
+ceremony. Leaving the match or quitting the game during the ceremony used to
+lose a decided win. The same arguments the handoff will carry are published
+here every frame while it waits (the awards settle on the review edge), and
+cleared once it is reported or discarded; the campaign records them if the
+match is torn down first. An aborted match has nothing to record.
+================
+*/
+void idMultiplayerGame::PublishArenaCampaignDecidedResult( void ) {
+	if ( !IsArenaCampaignMatch() ) {
+		return;
+	}
+	idStr decided;
+	if ( arenaResultPending && !arenaResultReported && arenaResultOutcome != ARENA_RESULT_ABORTED ) {
+		idPlayer *resultHost = gameLocal.GetLocalPlayer();
+		decided = va( "%d %d %d %d %d",
+			arenaResultToken,
+			arenaResultOutcome,
+			arenaResultPlayerScore,
+			arenaResultOpponentScore,
+			ArenaCampaignAwardMask( resultHost != NULL ? resultHost->entityNumber : -1 ) );
+	}
+	if ( decided.Cmp( cvarSystem->GetCVarString( "ui_arenaDecidedResult" ) ) != 0 ) {
+		cvarSystem->SetCVarString( "ui_arenaDecidedResult", decided.c_str() );
+	}
+}
+
+/*
+================
 idMultiplayerGame::Run
 ================
 */
@@ -16106,6 +16137,7 @@ void idMultiplayerGame::Run( void ) {
 	AdvanceArenaCampaignCeremony();
 
 	UpdateArenaCampaignResult();
+	PublishArenaCampaignDecidedResult();
 
 	// The single-player Arena holds still while its menu is open. RunFrame has
 	// already rebased every deadline for this frame and frozen the entities;

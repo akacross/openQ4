@@ -1169,6 +1169,9 @@ public:
 
 	demoState_t				GetDemoState( void ) const { return demoState; }
 	bool					IsServerDemoPlaying( void ) const { return (demoState == DEMO_PLAYING && serverDemo) || serverIsRepeater; }
+	// openQ4: an MVD seek is replaying records without running frames (the
+	// engine's read-only mvd_seeking).
+	bool					IsServerDemoSeeking( void ) const { return IsServerDemoPlaying() && cvarSystem->GetCVarBool( "mvd_seeking" ); }
 	bool					IsServerDemoRecording( void ) const { return demoState == DEMO_RECORDING && serverDemo; }
 	bool					IsRepeaterDemoPlaying( void ) const { return (demoState == DEMO_PLAYING && !serverDemo) && serverIsRepeater; }
 	bool					IsTimeDemo( void ) const { return timeDemo; }

@@ -171,7 +171,10 @@ does not remove the seek artifact, and servicing posted events during snapshot
 reads did not correct it; that candidate change was reverted. The fresh
 current-format recording's selected view is clear at its own 70-second
 checkpoint, but uses a different spawn position and does not close the older
-replay's transient-geometry finding.
+replay's transient-geometry finding. On 24 October a new Red Rover recording
+reproduced it: gibs spawned during a seek's replay stayed frozen where they
+spawned. Seeks now drop them
+([evidence](multiview-demos.md#red-rover-seek-debris-24-october-2026)).
 
 An earlier `mvd-operator-stop-before-result` run using v41 failed during client
 admission, before any recording operation, with a null collision-model fatal

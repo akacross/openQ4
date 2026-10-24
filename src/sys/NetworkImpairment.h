@@ -4,11 +4,15 @@
 openQ4 simulated network impairment.
 
 A delay line for UDP datagrams that both platform socket layers use when
-net_forceLatency, net_forceJitter, net_forceDrop or net_forceDuplicate is set,
-so multiplayer can be measured on one machine under the delay, jitter,
-reordering, loss and duplication a real link adds. Datagrams leave in the order
-they fall due, so jitter larger than their spacing reorders them. Every random
-choice comes from a seeded generator, so a run can be repeated exactly.
+net_forceLatency, net_forceJitter, net_forceDrop, net_forceDuplicate or
+net_forceRate is set, so multiplayer can be measured on one machine under the
+delay, jitter, reordering, loss, duplication and congestion a real link adds.
+Datagrams leave in the order they fall due, so jitter larger than their spacing
+reorders them. A rate turns the line into a bottleneck: datagrams queue behind
+each other at that many bytes a second, and one that would wait longer than the
+queue holds is dropped, as a full router buffer drops it. Losses can come in
+bursts (a two-state Gilbert-Elliott model) instead of one at a time. Every
+random choice comes from a seeded generator, so a run can be repeated exactly.
 
 It has no engine dependencies, so the native tests drive it directly.
 
@@ -31,30 +35,45 @@ const int MAX_QUEUED_DATAGRAMS = 8192;
 const size_t MAX_QUEUED_BYTES = 32u * 1024u * 1024u;
 // A UDP payload can never exceed this, so any datagram a socket hands over fits.
 const int MAX_DATAGRAM_BYTES = 65535;
+// A bottleneck from 1 KB/s to 100 MB/s, holding 1 ms to 5 s of traffic.
+const int MIN_RATE_BYTES = 1000;
+const int MAX_RATE_BYTES = 100000000;
+const int MAX_QUEUE_MSEC = 5000;
+const int DEFAULT_QUEUE_MSEC = 250;
+const int MAX_BURST_LENGTH = 64;
+// The IPv4 and UDP headers a datagram also carries across the bottleneck.
+const int LINK_OVERHEAD_BYTES = 28;
 
 struct settings_t {
 	int latencyMsec;		// fixed one-way delay added to every datagram
 	int jitterMsec;			// further delay drawn uniformly from 0..jitterMsec per copy
 	int dropPercent;		// chance a datagram is lost
 	int duplicatePercent;	// chance a datagram arrives twice, each copy delayed on its own
+	int rateBytes;			// bottleneck capacity in bytes a second, 0 for none
+	int queueMsec;			// longest a datagram waits at the bottleneck before it is dropped
+	int burstLength;		// mean datagrams lost in a row; 0 or 1 loses them independently
 };
 
 inline int ClampInt( int value, int low, int high ) {
 	return value < low ? low : ( value > high ? high : value );
 }
 
-inline settings_t Sanitize( int latencyMsec, int jitterMsec, int dropPercent, int duplicatePercent ) {
+inline settings_t Sanitize( int latencyMsec, int jitterMsec, int dropPercent, int duplicatePercent,
+							int rateBytes = 0, int queueMsec = DEFAULT_QUEUE_MSEC, int burstLength = 0 ) {
 	settings_t settings;
 	settings.latencyMsec = ClampInt( latencyMsec, 0, MAX_LATENCY_MSEC );
 	settings.jitterMsec = ClampInt( jitterMsec, 0, MAX_JITTER_MSEC );
 	settings.dropPercent = ClampInt( dropPercent, 0, 100 );
 	settings.duplicatePercent = ClampInt( duplicatePercent, 0, 100 );
+	settings.rateBytes = rateBytes > 0 ? ClampInt( rateBytes, MIN_RATE_BYTES, MAX_RATE_BYTES ) : 0;
+	settings.queueMsec = ClampInt( queueMsec, 1, MAX_QUEUE_MSEC );
+	settings.burstLength = ClampInt( burstLength, 0, MAX_BURST_LENGTH );
 	return settings;
 }
 
 inline bool Active( const settings_t &settings ) {
 	return settings.latencyMsec > 0 || settings.jitterMsec > 0 || settings.dropPercent > 0 ||
-		settings.duplicatePercent > 0;
+		settings.duplicatePercent > 0 || settings.rateBytes > 0;
 }
 
 // Whether time a is at or before time b on a millisecond clock that may wrap.
@@ -86,6 +105,10 @@ public:
 		}
 		return percent >= 100 || static_cast<int>( Next() % 100u ) < percent;
 	}
+	// True with probability ppm in a million.
+	bool		ChancePpm( uint32_t ppm ) {
+		return ppm >= 1000000u || Next() % 1000000u < ppm;
+	}
 
 private:
 	uint32_t	state;
@@ -93,19 +116,24 @@ private:
 
 struct stats_t {
 	uint64_t	offered;		// datagrams handed to the delay line
+	uint64_t	offeredBytes;	// and their payload bytes, for measuring a data rate
 	uint64_t	dropped;		// lost on purpose
+	uint64_t	bursts;			// runs of consecutive losses (dropped / bursts is the mean run)
+	uint64_t	congested;		// dropped because the bottleneck's queue was full
 	uint64_t	duplicated;		// datagrams queued twice
 	uint64_t	released;		// copies delivered
 	uint64_t	reordered;		// copies delivered after a later-offered datagram
 	uint64_t	overflowed;		// refused: queue full, or not a valid datagram
 	uint64_t	discarded;		// due, but larger than the caller's buffer
 	int			maxDepth;		// most copies queued at once
+	int			maxWaitMsec;	// longest a datagram waited at the bottleneck
 };
 
 template <typename Address>
 class queue_t {
 public:
-				queue_t() : nextOffer( 0 ), nextArrival( 0 ), highestReleasedOffer( 0 ), anyReleased( false ), queuedBytes( 0 ) {
+				queue_t() : nextOffer( 0 ), nextArrival( 0 ), highestReleasedOffer( 0 ), anyReleased( false ), queuedBytes( 0 ),
+					linkBusy( false ), linkFreeMsec( 0 ), linkFreeUsec( 0 ), lossBurst( false ), lastLost( false ) {
 					memset( &stats, 0, sizeof( stats ) );
 				}
 
@@ -118,7 +146,15 @@ public:
 			stats.overflowed++;
 			return 0;
 		}
-		if ( random.Chance( settings.dropPercent ) ) {
+		stats.offeredBytes += static_cast<uint64_t>( size );
+		// The bottleneck comes first: a datagram lost further along the path still
+		// took its turn on the link.
+		int departure = now;
+		if ( settings.rateBytes > 0 && !Reserve( settings, now, size, departure ) ) {
+			stats.congested++;
+			return 0;
+		}
+		if ( Lost( settings ) ) {
 			stats.dropped++;
 			return 0;
 		}
@@ -133,7 +169,7 @@ public:
 			}
 			entries.push_back( entry_t() );
 			entry_t &entry = entries.back();
-			entry.due = now + settings.latencyMsec + random.UpTo( settings.jitterMsec );
+			entry.due = departure + settings.latencyMsec + random.UpTo( settings.jitterMsec );
 			entry.offer = offer;
 			entry.arrival = nextArrival++;
 			entry.address = address;
@@ -205,12 +241,71 @@ public:
 	void		Clear() {
 		entries.clear();
 		queuedBytes = 0;
+		linkBusy = false;
+		lossBurst = false;
+		lastLost = false;
 	}
 
 	random_t	random;
 	stats_t		stats;
 
 private:
+	// Queues the datagram behind whatever the bottleneck is still sending and sets
+	// departure to when its last byte leaves. An idle link always takes it, so a
+	// datagram bigger than the queue still passes; otherwise one that would finish
+	// later than the queue holds is refused, and the link keeps its state.
+	bool		Reserve( const settings_t &settings, int now, int size, int &departure ) {
+		int64_t waitUsec = 0;
+		if ( linkBusy ) {
+			const int32_t aheadMsec = static_cast<int32_t>( static_cast<uint32_t>( linkFreeMsec ) - static_cast<uint32_t>( now ) );
+			waitUsec = static_cast<int64_t>( aheadMsec ) * 1000 + linkFreeUsec;
+			if ( waitUsec < 0 ) {
+				waitUsec = 0;
+			}
+		}
+		const int64_t sendUsec = ( static_cast<int64_t>( size ) + LINK_OVERHEAD_BYTES ) * 1000000 / settings.rateBytes;
+		const int64_t finishUsec = waitUsec + sendUsec;
+		if ( waitUsec > 0 && finishUsec > static_cast<int64_t>( settings.queueMsec ) * 1000 ) {
+			return false;
+		}
+		linkBusy = true;
+		linkFreeMsec = now + static_cast<int>( finishUsec / 1000 );
+		linkFreeUsec = static_cast<int>( finishUsec % 1000 );
+		departure = now + static_cast<int>( ( finishUsec + 999 ) / 1000 );
+		const int waitMsec = static_cast<int>( waitUsec / 1000 );
+		if ( waitMsec > stats.maxWaitMsec ) {
+			stats.maxWaitMsec = waitMsec;
+		}
+		return true;
+	}
+
+	// Whether the next datagram is lost. Independent unless burstLength is above 1:
+	// then a two-state chain stays in its losing state for burstLength datagrams on
+	// average and spends dropPercent of the time there. A loss rate above
+	// burstLength / ( burstLength + 1 ) cannot be reached and settles at that.
+	bool		Lost( const settings_t &settings ) {
+		bool lost;
+		if ( settings.burstLength <= 1 || settings.dropPercent <= 0 || settings.dropPercent >= 100 ) {
+			lossBurst = false;
+			lost = random.Chance( settings.dropPercent );
+		} else {
+			const uint32_t leave = 1000000u / static_cast<uint32_t>( settings.burstLength );
+			const uint64_t enter = static_cast<uint64_t>( settings.dropPercent ) * leave /
+				static_cast<uint64_t>( 100 - settings.dropPercent );
+			if ( lossBurst ) {
+				lossBurst = !random.ChancePpm( leave );
+			} else {
+				lossBurst = random.ChancePpm( enter > 1000000u ? 1000000u : static_cast<uint32_t>( enter ) );
+			}
+			lost = lossBurst;
+		}
+		if ( lost && !lastLost ) {
+			stats.bursts++;
+		}
+		lastLost = lost;
+		return lost;
+	}
+
 	struct entry_t {
 		int							due;
 		uint64_t					offer;
@@ -242,6 +337,11 @@ private:
 	uint64_t				highestReleasedOffer;
 	bool					anyReleased;
 	size_t					queuedBytes;
+	bool					linkBusy;		// the bottleneck is still sending until linkFree
+	int						linkFreeMsec;
+	int						linkFreeUsec;	// and this many microseconds
+	bool					lossBurst;		// the loss chain is in its losing state
+	bool					lastLost;		// the previous datagram was lost
 };
 
 // One socket's two delay lines, as the platform layers use them: received datagrams

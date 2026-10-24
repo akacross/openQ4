@@ -96,9 +96,25 @@ sends a clear while `arenaHudPresentation` says a card is visible.
   match again. These used to be recorded as wins, so removing the bots cleared
   the ladder. `RejectManagedLegacyMutation` also refuses the multiplayer menu's
   Admin actions during an Arena match.
+- **Decided result.** The result is decided when the match ends, but the
+  handoff waits for the ceremony. While it waits, the game publishes the same
+  arguments in the read-only `ui_arenaDecidedResult` every frame
+  (`PublishArenaCampaignDecidedResult`; the awards settle on the review edge)
+  and clears it once the result is reported or discarded. An aborted match
+  publishes nothing. If the match is torn down first, `TakeDecidedResult`
+  parses it with the handoff's own parser and refuses an aborted outcome, a
+  stale token or an unpopulated match. `Session_Disconnect_f` then calls
+  `FinishDecidedResult`, which records the result and reports it in the browser
+  as skipping the ceremony would. A quit, or an error that drops the session,
+  calls `RecordDecidedResult` before `AbortMatch`; that only records, and the
+  quit's configuration write comes after it. Recording is
+  `RecordPendingCompletion`, which the normal return shares and which tears
+  nothing down. `tools/tests/arena_decided_result.py` carries nine failing
+  controls.
 - **Abandoned.** `Session_Disconnect_f` reads `ActiveMatchToken()` before
   `AbortMatch` and then calls `ReportAbandoned`, which reopens the browser on a
-  "Match abandoned" ledger with Retry.
+  "Match abandoned" ledger with Retry. This is the path for a match left before
+  it was decided.
 - **Start failures.** `ReturnToBrowserAfterStartFailure` also reads the token
   before `AbortMatch`, so the "Match aborted" ledger names the match it could
   not start. A launch lost to a game-module reload (`Com_ReloadGameModule_f`)
@@ -428,6 +444,22 @@ whose replayed warmup still showed the abandoned match's clock (5:53);
 runs show. One earlier `restartwarmup` run took 85 s of wall time for the same
 17 s of game time while another session's GPU-heavy client ran; the rerun
 matched game time.
+
+## Leaving during the ceremony, 24 October 2026
+
+Two no-input runs (`.tmp/arena-audit/scenarios.py`, scenarios `leaveceremony`
+and `quitceremony`) on the candidate build, GL, hidden window, each with a fresh
+save path. Match 1 (Duel, q4dm1) is won with `openq4_arenaCeremony win`; 1.5 s
+into the tableau the published `ui_arenaDecidedResult` reads `1 1 1 0 1088`
+(match 1, win, 1-0, two awards).
+
+| Run | Action during the tableau | Result |
+| --- | --- | --- |
+| `decided-leave` | `disconnect` | "left during its ceremony; keeping its decided result", accepted win 1-0, first best result `0:1:1:0:3`, progress 1; the browser shows the VICTORY report with its awards |
+| `decided-quit` | `quit` | The same record before shutdown; the saved configuration holds `ui_arenaBest "0:1:1:0:3"` and `ui_arenaProgress "1"` |
+
+Before this change both runs recorded nothing: the disconnect reported the
+match abandoned and the quit wrote the progress the match started with.
 
 ## Known gaps
 

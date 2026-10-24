@@ -50,7 +50,7 @@ struct CVars { int copy=0; bool fullscreen=false;
 } cvars, *cvarSystem=&cvars;
 struct Renderer { bool running=true; bool IsOpenGLRunning() { return running; } } renderer,*renderSystem=&renderer;
 struct Commands { int restarts=0; void BufferCommandText(int,const char*) { ++restarts; } } commands,*cmdSystem=&commands;
-struct Arena { bool cleanup=false; int aborts=0; bool NeedsCleanup() { return cleanup; } void AbortMatch() { ++aborts; } } arenaCampaign;
+struct Arena { bool cleanup=false; int aborts=0; int recorded=0; bool NeedsCleanup() { return cleanup; } void RecordDecidedResult() { ++recorded; } void AbortMatch() { assert(recorded==aborts+1); ++aborts; } } arenaCampaign;
 bool com_refreshOnPrint=true;
 int com_errorEntered=0,com_editors=0,ticks=1000,clipboardWrites=0,flushes=0,shutdowns=0;
 bool liveRestore=false,restoredObjectsUnwound=false;
@@ -163,7 +163,7 @@ void errorPolicy() {
     reset(); arenaCampaign.cleanup=true;
     try { common->Error("ordinary %d",23); assert(false); }
     catch(const idException& error) { assert(std::string(error.error)=="ordinary 23"); }
-    assert(clipboardWrites==1 && session->stops==1 && arenaCampaign.aborts==1 && com_errorEntered==0);
+    assert(clipboardWrites==1 && session->stops==1 && arenaCampaign.recorded==1 && arenaCampaign.aborts==1 && com_errorEntered==0);
     // A live save context cannot downgrade startup, automated-copy or recursive errors.
     for(int cause=0;cause<5;++cause) {
         reset(); arm();

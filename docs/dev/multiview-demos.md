@@ -193,6 +193,19 @@ replay-from-start path is also the compatibility fallback for 1.0 recordings.
 A future direct-jump implementation must add independently restorable
 keyframes; it must not treat an arbitrary delta snapshot as one.
 
+A seek replays records without running game frames, so client-only debris
+spawned during it (gibs, brass and BSE debris, all `rvClientMoveable`) never
+moves or reaches its fade-out before the seek lands. It used to stay frozen
+where it spawned: clusters of gibs inside a body, often at the death camera,
+which was the distorted foreground debris of the Red Rover seek finding. The
+engine now publishes the read-only `mvd_seeking` while a seek replays, and a
+client moveable spawned then removes itself on the first event service. The
+presentation frame that ends the seek runs that service before anything is
+drawn. After a seek, debris from deaths just before the target is therefore
+missing rather than frozen. `tools/tests/mvd_seek_debris_contract.py` guards
+the flag and the hook with five failing controls; the
+[24 October probe](#red-rover-seek-debris-24-october-2026) measured it.
+
 The index remains optional even for a clean 1.2 recording. In particular, a
 recording stopped before its first scheduled snapshot has no index, may report
 zero snapshots, and is still a valid completed stream when its initialization
@@ -453,6 +466,37 @@ Remaining competitive playback work:
 - Optional chunk compression as a new feature/record version with strict
   decompressed-size limits.
 - Metadata export for tournament tools without requiring full game playback.
+
+## Red Rover seek debris, 24 October 2026
+
+The original Red Rover recording behind the seek/debris finding no longer
+exists, so `.tmp/mp-round3/rr_seek_probe.py` makes a new one. A listen server
+hosts Red Rover on q4dm1 with five bots; the host plays without god mode, so it
+dies and gibs too. The recording is 95.5 s (363 KB) and has two live rounds.
+Playback follows the host. The probe compares continuous playback, paused at
+four checkpoints, with the same times reached by seeking. `listClientEntities`
+lists the client-side entities at each stop; it now names each entry's real
+class and origin (it used to print `rvClientEntity` for everything and
+dereferenced empty slots).
+
+- Before the fix, the seek frames matched continuous play except where a death
+  fell shortly before the target. There the seek left nine `rvClientMoveable`
+  gib chunks per gibbed player in a cluster about 20 units across, where
+  continuous play had already thrown them and faded them out. In the first run,
+  a rewind to the first checkpoint followed by a jump to the third showed one
+  such cluster at the followed player's death camera: a large, distorted gib
+  filling the foreground, the shape of the original finding.
+- Fixed-time grid, 14 forward seeks every 6 s from 12 to 90 s, on the same
+  recording. Without the removal hook, six seeks left 9 to 18 frozen client
+  moveables, still there at the next seek because their fade-out never fired.
+  With it, no seek left any. Reports: `.tmp/mp-round3/runtime/rr1/report.json`
+  (`grid_before`, `grid_after`).
+
+Still open: after a paused seek the followed player's first-person weapon model
+is not drawn until playback runs. In the first run, both seek frames at the
+first checkpoint also lacked one nearby player that continuous play showed.
+The rewind frame also lacked the map's light-shaft effects, because no frames
+had run since the map reload.
 
 ## Update policy
 

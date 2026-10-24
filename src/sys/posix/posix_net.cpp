@@ -67,6 +67,9 @@ idCVar net_forceDrop( "net_forceDrop", "0", CVAR_SYSTEM | CVAR_INTEGER, "percent
 idCVar net_forceJitter( "net_forceJitter", "0", CVAR_SYSTEM | CVAR_INTEGER, "random extra milliseconds of latency per packet; packets closer together than this arrive out of order" );
 idCVar net_forceDuplicate( "net_forceDuplicate", "0", CVAR_SYSTEM | CVAR_INTEGER, "percentage of packets delivered twice" );
 idCVar net_forceSeed( "net_forceSeed", "0", CVAR_SYSTEM | CVAR_INTEGER, "seed for simulated loss, jitter and duplication when a port opens, 0 picks a new one" );
+idCVar net_forceRate( "net_forceRate", "0", CVAR_SYSTEM | CVAR_INTEGER, "simulated bottleneck in bytes per second, each way, shared by everything on the port; 0 for none" );
+idCVar net_forceQueue( "net_forceQueue", "250", CVAR_SYSTEM | CVAR_INTEGER, "milliseconds of traffic the simulated bottleneck holds before it drops packets" );
+idCVar net_forceDropBurst( "net_forceDropBurst", "0", CVAR_SYSTEM | CVAR_INTEGER, "mean number of packets lost in a row; 0 or 1 loses packets independently" );
 
 typedef struct {
 	uint32_t ip;
@@ -1144,7 +1147,8 @@ static netImpairmentPort_t *net_impairedPorts[NET_MAX_IMPAIRED_PORTS];
 
 static idNetworkImpairment::settings_t Net_ImpairmentSettings( void ) {
 	return idNetworkImpairment::Sanitize( net_forceLatency.GetInteger(), net_forceJitter.GetInteger(),
-		net_forceDrop.GetInteger(), net_forceDuplicate.GetInteger() );
+		net_forceDrop.GetInteger(), net_forceDuplicate.GetInteger(), net_forceRate.GetInteger(),
+		net_forceQueue.GetInteger(), net_forceDropBurst.GetInteger() );
 }
 
 static netImpairmentPort_t *Net_OpenImpairment( int port ) {
@@ -1173,12 +1177,15 @@ static void Net_CloseImpairment( netImpairmentPort_t *impairment ) {
 
 static void Net_PrintImpairmentLine( int port, const char *direction, const idNetworkImpairment::queue_t<netadr_t> &queue ) {
 	const idNetworkImpairment::stats_t &stats = queue.stats;
+	// New fields go at the end: harnesses parse the line by its leading fields.
 	common->Printf( "NET_IMPAIR port=%d dir=%s offered=%llu dropped=%llu duplicated=%llu released=%llu reordered=%llu "
-		"overflowed=%llu discarded=%llu queued=%d maxQueued=%d\n", port, direction,
-		static_cast<unsigned long long>( stats.offered ), static_cast<unsigned long long>( stats.dropped ),
+		"overflowed=%llu discarded=%llu queued=%d maxQueued=%d bytes=%llu bursts=%llu congested=%llu maxWait=%d\n", port,
+		direction, static_cast<unsigned long long>( stats.offered ), static_cast<unsigned long long>( stats.dropped ),
 		static_cast<unsigned long long>( stats.duplicated ), static_cast<unsigned long long>( stats.released ),
 		static_cast<unsigned long long>( stats.reordered ), static_cast<unsigned long long>( stats.overflowed ),
-		static_cast<unsigned long long>( stats.discarded ), queue.Depth(), stats.maxDepth );
+		static_cast<unsigned long long>( stats.discarded ), queue.Depth(), stats.maxDepth,
+		static_cast<unsigned long long>( stats.offeredBytes ),
+		static_cast<unsigned long long>( stats.bursts ), static_cast<unsigned long long>( stats.congested ), stats.maxWaitMsec );
 }
 
 /*
@@ -1188,8 +1195,9 @@ Sys_NetImpairmentReport
 */
 void Sys_NetImpairmentReport( void ) {
 	const idNetworkImpairment::settings_t settings = Net_ImpairmentSettings();
-	common->Printf( "NET_IMPAIR_SETTINGS latency=%d jitter=%d drop=%d duplicate=%d active=%d\n", settings.latencyMsec,
-		settings.jitterMsec, settings.dropPercent, settings.duplicatePercent, idNetworkImpairment::Active( settings ) ? 1 : 0 );
+	common->Printf( "NET_IMPAIR_SETTINGS latency=%d jitter=%d drop=%d burst=%d duplicate=%d rate=%d queue=%d active=%d\n",
+		settings.latencyMsec, settings.jitterMsec, settings.dropPercent, settings.burstLength, settings.duplicatePercent,
+		settings.rateBytes, settings.queueMsec, idNetworkImpairment::Active( settings ) ? 1 : 0 );
 	for ( int i = 0; i < NET_MAX_IMPAIRED_PORTS; i++ ) {
 		if ( net_impairedPorts[i] != NULL ) {
 			Net_PrintImpairmentLine( net_impairedPorts[i]->port, "receive", net_impairedPorts[i]->receive );

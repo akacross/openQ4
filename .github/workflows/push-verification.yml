@@ -117,6 +117,8 @@ jobs:
             tools/tests/server_browser_contract.py \
             tools/tests/arena_campaign.py \
             tools/tests/arena_restart_in_place.py \
+            tools/tests/arena_decided_result.py \
+            tools/tests/mvd_seek_debris_contract.py \
             tools/tests/campaign_chapters.py \
             tools/tests/in_game_difficulty_restart.py \
             tools/tests/async_drop_client_contract.py \
@@ -600,6 +602,8 @@ jobs:
           python tools/tests/server_browser_contract.py
           python tools/tests/arena_campaign.py
           python tools/tests/arena_restart_in_place.py
+          python tools/tests/arena_decided_result.py
+          python tools/tests/mvd_seek_debris_contract.py
           python tools/tests/campaign_chapters.py
           python tools/tests/in_game_difficulty_restart.py
           python tools/tests/async_drop_client_contract.py

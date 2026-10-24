@@ -1162,6 +1162,10 @@ private:
 						roundState_t to ) const;
 	void			BeginArenaCampaignResult( void );
 	void			UpdateArenaCampaignResult( void );
+	// Publishes a decided, contested result (ui_arenaDecidedResult) for as long
+	// as the ceremony holds it back, so the campaign keeps it if the player
+	// leaves or quits before the handoff.
+	void			PublishArenaCampaignDecidedResult( void );
 	// Resets every ceremony, camera and introduction field. No HUD events and
 	// no renderer calls, so the constructor and ClearMap can share it.
 	void			ResetArenaCampaignCeremonyState( void );

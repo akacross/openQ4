@@ -29,6 +29,10 @@
 - **Follow any player in a demo.** Step back to the previous player, or follow
   one by name or slot, with `demoFollow prev`, `demoFollow <name>` or
   `demoFollow <slot>`. The playback overlay names the player you follow.
+- **No more frozen gibs after seeking in a demo.** Jumping forward or back in a
+  multi-view demo could leave gibs and debris hanging where they spawned, often
+  as a large distorted chunk right in front of the camera after a death. Seeks
+  now leave them out.
 - **Competitive votes survive the match moving on.** A passed vote no longer
   fails because someone readied up, joined or left while it was open. Map veto
   turns follow each team's series side, and a spectator's camera is released
@@ -54,7 +58,12 @@
   repeatable with `net_forceSeed`) as well as latency and loss, on Linux and
   macOS too, and `netImpairment` reports what was simulated. With
   `net_forceLatency` set, a client can connect again: larger packets were
-  silently dropped before.
+  silently dropped before. A simulated bottleneck (`net_forceRate` bytes a
+  second, with `net_forceQueue` milliseconds of buffer) and losses in bursts
+  (`net_forceDropBurst`) test congested and unsteady connections, and
+  `netImpairment` also reports the data rate, congestion drops and loss runs.
+- `listClientEntities` names each client-side entity's real class and position;
+  it used to print `rvClientEntity` for every entry.
 - Hostname connections try up to eight resolved addresses. The first is the
   address openQ4 always chose (the IPv4 one when there is one); after three
   unanswered connection attempts a second apart it moves to the next, and it
