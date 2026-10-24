@@ -211,8 +211,9 @@ not installed, is skipped rather than stopping the move; a chain that ends
 or loops falls back to the spatial or tab-order move as before. Tab strips
 already wrap (the cards' shoulders), screens already restore the focus of
 the item that led to a page (`returnHome`), and closing a dialog returns
-focus to the control that opened it. The campaign difficulty page's mixed
-list of difficulties, Turbo and chapters remains unwrapped.
+focus to the control that opened it. The campaign difficulty page holds nine
+items (five difficulties, Turbo, Start, Chapters and Back), beyond the seven
+section 13.4 wraps, and does not wrap.
 
 **List focus memory.** Each scrolling list (the viewport a scrollbar
 scrolls) remembers the control last focused in it. A directional move that

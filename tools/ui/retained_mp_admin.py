@@ -36,7 +36,7 @@ from build_retained_screens import FULL, OLIVE, ORANGE, VALUE, group, keyword, l
 from retained_create_server import ban_list_modal, text_row
 from retained_mp_menus import (ERROR, HEADING, INSET, MATCH_LIST_ROW_H, MATCH_STRIP_GAP, MATCH_STRIP_H, PAGE_TOP, PLACEHOLDER, PROMPT_BOTTOM,
                                PROMPT_H, SLOT_PITCH, VOTE_ROW_H, Document, action_plate, any_text, colour, heading_text, in_game_plate,
-                               link, page_group, row_face, section_triggers, value_row, wrapped_width)
+                               MAP_CATALOG, link, page_group, row_face, section_triggers, value_row, wrapped_width)
 
 # The page's sections, in the stock sub-pages' order, with their stock names.
 SECTIONS = ("players", "server", "console")
@@ -58,7 +58,7 @@ APPLY = ("apply", "mpAdminApply")
 # and the control, as the Vote page's VOTE_ROWS give them. The left column
 # takes the lists and limits, the right the yes or no settings.
 ROWS = (
-    ("map", "mpAdminMap", "#str_200209", ("choice", 48)),
+    ("map", "mpAdminMap", "#str_200209", ("choice", MAP_CATALOG)),
     ("gametype", "mpAdminGameType", "#str_200210", ("choice", 16)),
     ("timelimit", "mpAdminTimeLimit", "#str_200236", ("slider", 0, 60, 1)),
     ("fraglimit", "mpAdminFragLimit", "#str_200060", ("slider", 0, 100, 1)),

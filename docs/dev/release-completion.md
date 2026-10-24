@@ -74,6 +74,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Map catalogs, 24 October 2026
+
+- [x] The Vote and Admin pages' map choices hold 128 maps a game type
+  (`RETAINED_VOTE_MAPS`, read by the generators), up from 48.
+- [Behavior and checks](ui/multiplayer-menus.md#map-catalogs-24-october-2026):
+  native option-count check and the game module build.
+
 ## View button, 24 October 2026
 
 - [x] The View button runs a retained document's `onViewButton` (Back

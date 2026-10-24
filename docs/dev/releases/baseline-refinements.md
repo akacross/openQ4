@@ -71,6 +71,8 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- A server with a long map rotation now offers up to 128 maps per game type
+  in the multiplayer menu's Vote and Admin pages, up from 48.
 - The controller's View button now shows the scores (or your objectives)
   while held, instead of opening the menu; Start still opens it. In Join Game
   it hides or shows the server details. If you rebound the button yourself,

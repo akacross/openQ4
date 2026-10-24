@@ -782,7 +782,7 @@ archived provenance; new scheduling belongs here.
   while held in play.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
-  map catalogs beyond 48 entries, stable refresh focus, contextual disabled
+  map catalogs beyond 128 entries, stable refresh focus, contextual disabled
   reasons and role-specific vote operations. Finish identity protection for
   delayed remote mute packets and kick/admin targets across slot reuse.
   Complete save chapter and
@@ -808,6 +808,8 @@ archived provenance; new scheduling belongs here.
   translating from runes as they open. Ids, focus, soft focus and timing stay
   the stock dialog's. The construction derives from section 13.7's family rules
   and awaits art review under UI-05.
+  Progress, 24 October: the Vote and Admin pages' [map catalogs](ui/multiplayer-menus.md#map-catalogs-24-october-2026)
+  hold 128 maps a game type instead of 48.
   Progress, 24 October: Join Game's [row focus follows its server](ui/retained-screens.md#join-game-sub-page)
   through new orders, refreshes and filters, onto its page, as the choice
   already did; a server that leaves the list leaves the focus in place.

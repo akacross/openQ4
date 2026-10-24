@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [map catalogs](multiplayer-menus.md#map-catalogs-24-october-2026)
+add bounded UI-03 evidence to `FLOW-046` and `WID-005`. The Vote and Admin pages'
+map choices hold 128 maps a game type, the game's cap read by the generators. The
+increment is audited against `3132fa3be309a5c6f8af71207caedee0fc027366`. No requirement status, migration
+acceptance or final gate changes.
+
 24 October 2026: [the View button](input-routing.md#view-button-24-october-2026)
 adds bounded UI-02 evidence to `INP-011`. View runs a document's `onViewButton`
 (Back elsewhere and in dialogs or open lists), hides or shows Join Game's server

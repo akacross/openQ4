@@ -594,6 +594,17 @@ static void CheckVote(ScreenHost& host, const char* path) {
 	Runtime runtime(host);
 	std::vector<Diagnostic> diagnostics;
 	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/mp_escape.q4ui",diagnostics),"the Escape card loads for its Vote page");
+	{
+		// The Vote and Admin pages' map choices hold the game's catalog of
+		// 128 maps a game type (RETAINED_VOTE_MAPS).
+		Document document; std::vector<Diagnostic> parsed;
+		Check(document.Load(source,parsed),"the Escape card validates for its map choices");
+		for (const char* id : {"vote-row-map","admin-row-map"}) {
+			const auto* node = document.Model().FindNode(id);
+			Check(node && node->control && std::get<ChoiceSpec>(node->control->widget).options.size() == 128,
+				"each map choice holds 128 maps");
+		}
+	}
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
 	std::string error;
 	Runtime::EventEffects effects;

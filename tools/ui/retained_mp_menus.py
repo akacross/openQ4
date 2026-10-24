@@ -31,6 +31,10 @@ from build_retained_screens import (EASE_OUT, FULL, MARKER, OLIVE, ORANGE, RAIL_
 
 ROOT = Path(__file__).resolve().parents[2]
 STRINGS = ROOT / "content" / "baseoq4" / "pak0" / "strings"
+# The maps a game type offers the Vote and Admin pages' map choices: the
+# game's own cap (idMultiplayerGame::RETAINED_VOTE_MAPS), so the two agree.
+MAP_CATALOG = int(re.search(r"static const int RETAINED_VOTE_MAPS = (\d+);",
+                            (ROOT / "src" / "mpgame" / "MultiplayerGame.h").read_text(encoding="utf-8")).group(1))
 
 TAB_GREEN = "#5A652A"          # the active tab's fill (Appendix B.1, ctrls_tab2-4)
 BODY = [0, 0, 0, 0.94]         # the card's body (section 6, panel anatomy)
@@ -1242,7 +1246,7 @@ def server_page(doc: Document, index: int, ident: str, width: float, height: flo
 # maximum, step). A list's rows are mp.vote.<key><row> with their count in
 # mp.vote.<key>_count; the kick choice leads with no one (-1).
 VOTE_ROWS = (
-    ("map", "mpVoteMap", "#str_200209", ("choice", 48)),
+    ("map", "mpVoteMap", "#str_200209", ("choice", MAP_CATALOG)),
     ("gametype", "mpVoteGameType", "#str_200210", ("choice", 16)),
     ("timelimit", "mpVoteTimeLimit", "#str_200211", ("slider", 0, 60, 1)),
     ("fraglimit", "mpVoteFragLimit", "#str_200060", ("slider", 0, 100, 1)),

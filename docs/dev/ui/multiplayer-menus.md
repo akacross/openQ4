@@ -844,9 +844,25 @@ optimized performance evidence.
 
 This is bounded menu coverage. The server's current `si_maxPlayers` CVar still
 caps configured matches at 16; the 32-slot fixtures do not qualify a 32-client
-network session. Full slot-identity safety, map catalogs beyond 48, physical
+network session. Full slot-identity safety, map catalogs beyond 128, physical
 devices, portrait/long-language layouts and optimized performance remain with
 UI-03/UI-02/UI-07. No requirement, resource or final gate is accepted here.
+
+## Map catalogs, 24 October 2026
+
+The Vote and Admin pages' map choices held 48 maps a game type, so a server
+with a larger rotation offered only its first 48. The game's cap
+(`idMultiplayerGame::RETAINED_VOTE_MAPS`) is now 128, and the generators read
+it from the header for both choices' option slots, so the document and the
+game cannot drift. The choice's popup still shows eight rows and scrolls
+through the rest. The cap only bounds the host's local lists and their
+publication; nothing on the wire depends on it. The Escape card grows by
+about 0.8 MB (11.1 to 11.9 MB of source). A native check confirms both
+choices hold 128 options; stock content has fewer maps than the old cap, so
+no capture shows a list past it.
+
+Evidence: `.tmp/ui/map-catalogs/validation-evidence.json`, SHA-256
+`0739e6a2c678b065b424e8653d28ba5265f4f726807452b5fa5c7865ef31fe45`.
 
 ## Validation
 
@@ -1197,8 +1213,9 @@ The card's acceptance continues under `FLOW-046`.
 - The kick list names its rows, and the game reads the row at the moment of
   the choice: a player leaving in that instant can shift the rows. The row
   then shows whom the call would kick before Call Vote sends it.
-- The map list holds 48 maps; a server with more for one game type lists the
-  first 48.
+- The Vote and Admin pages' map lists hold 128 maps a game type
+  ([map catalogs](#map-catalogs-24-october-2026)); a server with more lists
+  the first 128.
 - Check boxes take Left and Right as focus moves and change only on accept;
   sliders and closed lists step with them, as section 13.5 asks of cycling
   values. A list's value shows one frame after the game accepts it.
