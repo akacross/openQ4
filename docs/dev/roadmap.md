@@ -288,7 +288,8 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   engine-side matrix held 30/60/120/144/165 and reached 189–204 Hz at 240 (p95
   7.2–8.5 ms). On that laptop (hybrid graphics, 240 Hz panel) preparing a draw
   costs 0.35 ms of a 5 ms frame, and vsync settles at 138 Hz. The declared
-  frame-rate policy (hidden-window, loading and preset caps) is contract-pinned.
+  frame-rate policy (hidden-window, loading and preset caps) is contract-pinned,
+  and a hidden window capped at 240 measured 60.0 Hz.
   Physical runs on the desktop reference remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),

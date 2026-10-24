@@ -223,7 +223,8 @@ windows, and the preset caps. The declared policy, pinned by
 `presentation_hf_contract.py`, is as follows. Loading screens redraw at the
 lower of `com_maxfps` and 60 Hz, never faster, and back off when a redraw is
 slow. Uncapped, they redraw at most once per tick. Hidden windows are capped at
-60 and a headset paces itself. The presets set `minimum`/`lowpower` 30,
+60 (the `hidden` runtime case: a hidden window capped at 240 presented 60.0 Hz,
+p95 17.4 ms) and a headset paces itself. The presets set `minimum`/`lowpower` 30,
 `performance` 60, `balanced` 120, `quality` 144 and `ultra` 240, and a detected
 Steam Deck starts on `performance`. Use
 [`presentation_look_runtime.py`](https://github.com/themuffinator/openQ4/blob/master/tools/tests/presentation_look_runtime.py)

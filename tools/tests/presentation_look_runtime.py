@@ -45,6 +45,8 @@ sample and owner counters. Scenarios:
 - spectate: a loopback listen host with two bots, playing, spectating free and
   following a bot; remote bodies join the presentation pass only while the
   local player spectates (listed= counts the pass);
+- hidden (HF-07): the same turn in a hidden window (r_hiddenWindow 1), which
+  must present at about 60 Hz whatever the cap;
 - pacing (HF-07): late look on at each --fps cap, judged against the declared
   240 Hz budget. Only --reference runs (a visible foreground window on the
   reference machine) qualify; every other run reports engine-side pacing.
@@ -79,7 +81,7 @@ SAMPLE = re.compile(
     r"presentationClockSample rt=(-?\d+) t=(-?\d+) f=([-\d.]+) hrt=([-\d.]+) step=(\d+) hz=(\d+) phase=([-\d.]+)"
     r" drawYaw=([-\d.]+) authYaw=([-\d.]+) look=(\d) lookYaw=([-\d.]+) inYaw=([-\d.]+)"
     r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?(?: prepMs=([-\d.]+))?")
-TURNING = ("look", "thirdperson", "flick", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+TURNING = ("look", "thirdperson", "flick", "hidden", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
@@ -287,6 +289,9 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
             # a carrier moved the eye: the same split for its height, in units
             case["eyeHeightRange"] = [min(heights), max(heights)]
             case["tickLinearityHeight"] = tick_linearity(samples, "drawZ")
+    if len(samples) >= 64 and scenario == "hidden":
+        # the background policy: a hidden window is capped at 60 whatever the cap
+        case["pacing"] = pacing(samples, 60, text, False)
     if len(samples) >= 64 and scenario == "pacing":
         case["pacing"] = pacing(samples, fps, text, reference)
         budget = BUDGETS.get(fps)
@@ -383,7 +388,7 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "flick", "flash", "combined", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
+                        choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--reference", action="store_true",
@@ -502,6 +507,9 @@ def main() -> int:
                      for kind, extra in (("play", []),
                                          ("free", ["ui_spectate Spectate", "waitMsec 2000"]),
                                          ("follow", ["ui_spectate Spectate", "waitMsec 2000", "follow next", "waitMsec 1500"]))],
+        # HF-07: the background policy, a hidden window presents at about 60 Hz
+        "hidden": [("hidden", ["in_presentationView", "1", "r_hiddenWindow", "1", "com_showFramePacing", "2"],
+                    turn_sp + ["framePacingReset"], "sp")],
         # HF-07: the draw cadence at this cap while turning with late look
         "pacing": [("pacing", ["in_presentationView", "1", "com_showFramePacing", "2", "r_rendererMetrics", "1"],
                     turn_sp + ["framePacingReset"], "sp")],
@@ -542,7 +550,7 @@ def main() -> int:
                 if not any(line.startswith("g_presentationClockCapture") for line in lines):
                     body.append(f"g_presentationClockCapture {args.samples}")
                 body.append(capture_wait(fps))
-                if scenario == "pacing":
+                if scenario in ("pacing", "hidden"):
                     body.append("framePacingSnapshot hfpacing")
                 body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "in_presentationViewProbeZoom 0"]
                 if scenario == "mploss":
@@ -608,6 +616,7 @@ def main() -> int:
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
                 (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
+                (c["scenario"] == "hidden" and not 50.0 <= (c.get("pacing", {}).get("presentedHz") or 0.0) <= 63.0) or
                 (c["scenario"] == "combined" and (len(c.get("segments") or []) != 4 or
                                                   any(s["samples"] < 64 or s["gameplay"] for s in c["segments"]))) or
                 (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
