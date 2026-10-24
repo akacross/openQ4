@@ -7879,6 +7879,9 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 			focusedAddress = retainedJoinRowAddresses[ row ];
 		}
 	}
+	// The list's loading rows show while a scan has listed nothing yet
+	// (section 13.13); the first servers replace them with row.reveal.
+	const bool wasLoading = gui->State().GetBool( "join.scanning" ) && gui->State().GetInt( "join.count" ) == 0;
 	retainedJoinRevision = servers.GetRevision();
 	servers.VisibleServers( retainedJoinServers );
 	const int count = retainedJoinServers.Num();
@@ -7981,6 +7984,9 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	// The rows may now hold other servers: the details card's again.
 	PublishRetainedJoinDetail( gui );
 	gui->StateChanged( common->GetPresentationTime() );
+	if ( wasLoading && count > 0 ) {
+		gui->HandleNamedEvent( "joinRowsReveal" );
+	}
 	if ( focusIndex >= 0 && focus != va( "server-%d", focusIndex - retainedJoinFirst ) ) {
 		gui->HandleNamedEvent( va( "joinFocus%d", focusIndex - retainedJoinFirst ) );
 	}

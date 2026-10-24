@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [loading rows](retained-screens.md#loading-rows-24-october-2026)
+add bounded UI-03 evidence to `WID-030` and `MOT-009`. Join Game shows its rows at
+rest while a scan has found nothing, and the first servers replace them with
+`row.reveal`. The increment is audited against `d8649f29d839060f27c27cc8f4ecd224bf006204`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [empty states](retained-screens.md#empty-states-24-october-2026)
 add bounded UI-03 evidence to `WID-030`. Load and Save Game, Demos and Join Game
 offer CLEAR FILTERS while a filter hides everything, and Join Game GET NEW LIST

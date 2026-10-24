@@ -71,6 +71,8 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- While Join Game is still looking for servers, its list shows empty rows
+  instead of a blank space, and the servers it finds fade in.
 - When a filter hides every save, demo or server, the empty list now offers
   CLEAR FILTERS right there, and Join Game offers GET NEW LIST when it found
   no servers. One CLEAR FILTERS in Join Game clears the tags, game type, mod

@@ -929,7 +929,7 @@ SCENARIOS = {
         'waitMsec 175', 'screenshot "screenshots/joingame-change.tga"', 'waitMsec 2500', 'ui_retainedStatus',
         'openq4_retainedGui report', 'openq4_retainedGui inspect "join-empty"', 'screenshot "screenshots/joingame-empty.tga"',
         'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 300', 'screenshot "screenshots/joingame-scanning.tga"', 'waitMsec 4500', 'openq4_retainedGui report',
+        'waitMsec 300', 'openq4_retainedGui inspect "join-loading"', 'screenshot "screenshots/joingame-scanning.tga"', 'waitMsec 4500', 'openq4_retainedGui report',
         'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "server-1"', 'openq4_retainedGui inspect "join-empty"',
         'openq4_retainedGui inspect "join-load-track"', 'openq4_retainedGui inspect "join-load-fill"',
         'openq4_retainedGui inspect "server-0-bar-1"', 'openq4_retainedGui inspect "server-0-bar-4"', 'openq4_retainedGui inspect "server-0-ping"',

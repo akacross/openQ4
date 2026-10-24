@@ -101,6 +101,9 @@ completed release material here and publish curated notes in `releases/`.
   LIST when Join Game found no server.
 - [Behavior and checks](ui/retained-screens.md#empty-states-24-october-2026):
   native page and session checks, captures in English and Russian.
+- [x] Join Game shows loading rows while a scan has found nothing, and its
+  first servers fade in with `row.reveal`
+  ([loading rows](ui/retained-screens.md#loading-rows-24-october-2026)).
 
 ## Narrow views, 24 October 2026
 

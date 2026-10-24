@@ -3445,6 +3445,27 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,3.2);
 	Check(text("findModal","display") == "none" && runtime.FocusedControl() == "join_find","and the dialog closes onto FIND PLAYER/CLAN");
 	Check(runtime.RunEvent("onBack",3.3,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back","Back asks to climb out");
+	// Loading rows (section 13.13): a scan that has listed nothing yet shows
+	// the visible rows at rest without labels, in the list's place, and no
+	// empty state; the first servers replace them with row.reveal, each row
+	// fading in over 120 ms, 15 ms after the one above, capped at 90 ms.
+	Check(runtime.SetState({{"join.count",0.0},{"join.listed",0.0},{"join.scanning",true}},error,3.4),"a new scan finds nothing yet");
+	runtime.Frame(viewport,3.41);
+	const auto loadingRow0 = bounds("join-loading-0"), loadingRow9 = bounds("join-loading-9"), listBox = bounds("servers-list");
+	Check(text("join-loading","display") == "block" && text("join-empty","display") == "none" && text("join-empty-heading","display") == "none" &&
+		Near(loadingRow0.y,listBox.y,1) && Near(loadingRow0.height,18*u,1) && Near(loadingRow9.y,listBox.y+9*18*u,1) &&
+		!document.Model().FindNode("join-loading-10"),"ten rows rest in the list's place, without labels");
+	Check(runtime.SetState({{"join.count",3.0},{"join.listed",3.0},{"join.scanning",false}},error,3.5) &&
+		runtime.RunEvent("joinRowsReveal",3.5,effects,error),"the scan's first servers arrive");
+	runtime.Frame(viewport,3.501);
+	Check(text("join-loading","display") == "none" && value("server-0","opacity") < .1f && value("server-2","opacity") < .1f,
+		"they replace the loading rows from nothing");
+	runtime.Frame(viewport,3.56);
+	const float revealTop = value("server-0","opacity"), revealThird = value("server-2","opacity");
+	Check(revealTop > .3f && revealTop < .7f && revealThird > .05f && revealThird < revealTop,"each row a little after the one above");
+	runtime.Frame(viewport,3.75);
+	Check(Near(value("server-0","opacity"),1,.001f) && Near(value("server-1","opacity"),1,.001f) && Near(value("server-2","opacity"),1,.001f),
+		"all in by 210 ms");
 }
 
 // The Create Server sub-page (FLOW-050): the stock Create Server page's

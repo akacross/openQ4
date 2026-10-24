@@ -39,7 +39,7 @@ import math
 from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, VERB_JOIN, Document, absolute, action_plate,
                                     colour, confirmation, device_glyphs, group, keyword, label, length, linear, number,
                                     objectives_scrollbar,
-                                    page_prompts, path, rgb, solid, stroke, text_width, typeface, vector)
+                                    page_prompts, path, rgb, solid, stroke, text_width, track, typeface, vector)
 from retained_create_server import header_band, text_row
 from retained_difficulty import check_fits, primary_plate
 from retained_saves import ERROR, HEADING, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
@@ -50,6 +50,9 @@ JOIN_ROWS = 64                             # RETAINED_JOIN_ROWS in the session
 # little) so the filter row stands under it
 LIST = (23.0, 83.0, 604.0, 180.0)
 ROW_H = 18.0                               # u: its itemheight
+REVEAL_MS = 120                            # row.reveal (section 8): each row's fade
+REVEAL_STAGGER_MS = 15                     # one row after another, capped at 90 ms in all
+REVEAL_STAGGER_CAP_MS = 90
 HEADER = (22.0, 54.0, 587.0, 37.0)         # u: mp_browse_header
 HEADING_TOP = 70.0                         # u: the headings' row
 # The columns: the session's sort for each (serverSort_t), its heading (a
@@ -253,8 +256,9 @@ def server_row(doc: Document, index: int, row_w: float) -> dict:
                           "then": [{"op": "focus", "control": "join_server"}],
                           "else": [{"op": "setState", "values": {"join.pick": index}}, {"op": "action", "action": "joinPick"}]}]
     ids = row_states(doc, ident, tuple(texts), tuple(tint for _ in texts))
+    # The row's opacity rests at 1; row.reveal fades it in (rowReveal).
     return group(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width), "height": length(height),
-                         "flex-shrink": number(0)}, [*row_plates(ident, width, height), *cells],
+                         "flex-shrink": number(0), "opacity": number(1)}, [*row_plates(ident, width, height), *cells],
                  control={"role": "button", "label": PLACEHOLDER, "event": event, "states": ids, "detail": index})
 
 
@@ -741,6 +745,27 @@ def join_game_document() -> dict:
                                         "overflow": keyword("auto")}, [servers]))
     parts.append(objectives_scrollbar(doc, "servers_scroll", "servers-list", OLIVE, ORANGE, U * (left + list_w) - 16, U * top, U * list_h,
                                       line_step=U * ROW_H, key="#str_200187"))
+    # While a scan has listed nothing yet the list shows its rows at rest,
+    # without labels (section 13.13's loading rows; no shimmer, no spinner),
+    # and the first servers replace them with row.reveal: each visible row
+    # fades in over 120 ms, one 15 ms after another, capped at 90 ms in all
+    # (a track runs from the property's present value, so each holds 0 from
+    # its first millisecond).
+    # The session asks for the reveal (joinRowsReveal) only when servers
+    # replace the loading rows, not when the page opens on a list.
+    visible = int(list_h // ROW_H)
+    loading = group("join-loading", {**absolute(left=U * left, top=U * top, width=U * (list_w - 16), height=U * visible * ROW_H),
+                                     "display": keyword("none"), "pointer-events": keyword("none")},
+                    [group(f"join-loading-{row}", absolute(left=0, top=U * ROW_H * row, width=U * (list_w - 16), height=U * ROW_H),
+                           row_plates(f"join-loading-{row}", U * (list_w - 16), U * ROW_H)[:1]) for row in range(visible)])
+    doc.bind("join-loading.display", "join-loading", "display", {"op": "select", "args": [
+        {"op": "&&", "args": [{"op": "==", "args": [{"state": "join.count"}, 0]}, {"state": "join.scanning"}]}, "block", "none"]})
+    delays = [min(REVEAL_STAGGER_MS * row, REVEAL_STAGGER_CAP_MS) for row in range(visible)]
+    doc.timelines.add("rowReveal", max(delays) + REVEAL_MS, [
+        track(f"server-{row}", "opacity", [(0, number(0)), (1, number(0)), *([(delay, number(0))] if delay > 1 else []),
+                                           (delay + REVEAL_MS, number(1))])
+        for row, delay in enumerate(delays)])
+    doc.events["joinRowsReveal"] = [{"op": "playTimeline", "timeline": "rowReveal"}]
     # An empty list is the empty state of section 13.13, unless the scan is
     # still running: a heading, the sentence that says how to fill it and
     # the action that does. When the scan holds servers that the filters or a
@@ -774,7 +799,7 @@ def join_game_document() -> dict:
                                                  **typeface("lowpixel", 14, U * 16, [1, 1, 1, 0.7]), "white-space": keyword("nowrap"),
                                                  "overflow": keyword("hidden")})
     doc.bind("join-status.text", "join-status", "text", {"state": "join.status"})
-    parts += [empty_heading, empty, *fixes, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
+    parts += [loading, empty_heading, empty, *fixes, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
                                           action="joinClearSort", width=U * clear_w)]
     parts += load_progress(doc)
     action_w = list_action_width()

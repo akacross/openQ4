@@ -1346,6 +1346,7 @@
     "else": [{"op": "setState", "values": {"join.pick": 63}}, {"op": "action", "action": "joinPick"}]
    }
   ],
+  "joinRowsReveal": [{"op": "playTimeline", "timeline": "rowReveal"}],
   "onViewButton": [{"op": "setState", "values": {"join.detail.hidden": {"op": "!", "args": [{"state": "join.detail.hidden"}]}}}],
   "joinAddressEntered": [{"op": "action", "action": "joinConnect"}],
   "joinIpConnect": [
@@ -24201,6 +24202,19 @@
    }
   },
   {
+   "id": "join-loading.display",
+   "node": "join-loading",
+   "property": "display",
+   "value": {
+    "op": "select",
+    "args": [
+     {"op": "&&", "args": [{"op": "==", "args": [{"state": "join.count"}, 0]}, {"state": "join.scanning"}]},
+     "block",
+     "none"
+    ]
+   }
+  },
+  {
    "id": "join-empty-heading.display",
    "node": "join-empty-heading",
    "property": "display",
@@ -45996,6 +46010,111 @@
    ]
   },
   {
+   "id": "rowReveal",
+   "durationMs": 210,
+   "tracks": [
+    {
+     "node": "server-0",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 120, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-1",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 15, "value": {"type": "number", "value": 0}},
+      {"atMs": 135, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-2",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 30, "value": {"type": "number", "value": 0}},
+      {"atMs": 150, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-3",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 45, "value": {"type": "number", "value": 0}},
+      {"atMs": 165, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-4",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 60, "value": {"type": "number", "value": 0}},
+      {"atMs": 180, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-5",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 75, "value": {"type": "number", "value": 0}},
+      {"atMs": 195, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-6",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 90, "value": {"type": "number", "value": 0}},
+      {"atMs": 210, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-7",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 90, "value": {"type": "number", "value": 0}},
+      {"atMs": 210, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-8",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 90, "value": {"type": "number", "value": 0}},
+      {"atMs": 210, "value": {"type": "number", "value": 1}}
+     ]
+    },
+    {
+     "node": "server-9",
+     "property": "opacity",
+     "keys": [
+      {"atMs": 0, "value": {"type": "number", "value": 0}},
+      {"atMs": 1, "value": {"type": "number", "value": 0}},
+      {"atMs": 90, "value": {"type": "number", "value": 0}},
+      {"atMs": 210, "value": {"type": "number", "value": 1}}
+     ]
+    }
+   ]
+  },
+  {
    "id": "join_emptyclear.default",
    "durationMs": 300,
    "tracks": [
@@ -57002,7 +57121,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -57676,7 +57796,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -58350,7 +58471,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -59024,7 +59146,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -59698,7 +59821,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -60372,7 +60496,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -61046,7 +61171,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -61720,7 +61846,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -62394,7 +62521,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -63068,7 +63196,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -63742,7 +63871,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -64416,7 +64546,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -65090,7 +65221,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -65764,7 +65896,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -66438,7 +66571,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -67112,7 +67246,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -67786,7 +67921,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -68460,7 +68596,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -69134,7 +69271,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -69808,7 +69946,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -70482,7 +70621,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -71156,7 +71296,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -71830,7 +71971,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -72504,7 +72646,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -73178,7 +73321,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -73852,7 +73996,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -74526,7 +74671,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -75200,7 +75346,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -75874,7 +76021,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -76548,7 +76696,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -77222,7 +77371,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -77896,7 +78046,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -78570,7 +78721,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -79244,7 +79396,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -79918,7 +80071,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -80592,7 +80746,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -81266,7 +81421,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -81940,7 +82096,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -82614,7 +82771,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -83288,7 +83446,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -83962,7 +84121,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -84636,7 +84796,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -85310,7 +85471,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -85984,7 +86146,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -86658,7 +86821,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -87332,7 +87496,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -88006,7 +88171,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -88680,7 +88846,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -89354,7 +89521,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -90028,7 +90196,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -90702,7 +90871,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -91376,7 +91546,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -92050,7 +92221,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -92724,7 +92896,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -93398,7 +93571,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -94072,7 +94246,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -94746,7 +94921,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -95420,7 +95596,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -96094,7 +96271,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -96768,7 +96946,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -97442,7 +97621,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -98116,7 +98296,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -98790,7 +98971,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -99464,7 +99646,8 @@
              "display": {"type": "keyword", "value": "none"},
              "width": {"type": "length", "value": 882.0, "unit": "dp"},
              "height": {"type": "length", "value": 27.0, "unit": "dp"},
-             "flex-shrink": {"type": "number", "value": 0}
+             "flex-shrink": {"type": "number", "value": 0},
+             "opacity": {"type": "number", "value": 1}
             },
             "children": [
              {
@@ -100496,6 +100679,742 @@
           "disabled": "servers_scroll.disabled"
          }
         }
+       },
+       {
+        "id": "join-loading",
+        "type": "group",
+        "properties": {
+         "position": {"type": "keyword", "value": "absolute"},
+         "left": {"type": "length", "value": 34.5, "unit": "dp"},
+         "top": {"type": "length", "value": 50, "unit": "%"},
+         "width": {"type": "length", "value": 882.0, "unit": "dp"},
+         "height": {"type": "length", "value": 270.0, "unit": "dp"},
+         "display": {"type": "keyword", "value": "none"},
+         "pointer-events": {"type": "keyword", "value": "none"},
+         "margin-top": {"type": "length", "value": -235.5, "unit": "dp"}
+        },
+        "children": [
+         {
+          "id": "join-loading-0",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 0.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-0-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-1",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 27.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-1-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-2",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 54.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-2-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-3",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 81.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-3-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-4",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 108.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-4-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-5",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 135.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-5-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-6",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 162.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-6-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-7",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 189.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-7-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-8",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 216.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-8-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "id": "join-loading-9",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 0, "unit": "dp"},
+           "top": {"type": "length", "value": 243.0, "unit": "dp"},
+           "width": {"type": "length", "value": 882.0, "unit": "dp"},
+           "height": {"type": "length", "value": 27.0, "unit": "dp"}
+          },
+          "children": [
+           {
+            "id": "join-loading-9-line",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "absolute"},
+             "left": {"type": "length", "value": 0, "unit": "dp"},
+             "top": {"type": "length", "value": 0, "unit": "dp"},
+             "width": {"type": "length", "value": 882.0, "unit": "dp"},
+             "height": {"type": "length", "value": 27.0, "unit": "dp"},
+             "pointer-events": {"type": "keyword", "value": "none"}
+            },
+            "paths": [
+             {
+              "id": "fill",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 1.266]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 1.266]]},
+               {"id": "p2", "op": "line", "points": [[{"fraction": 1}, 25.734]]},
+               {"id": "p3", "op": "line", "points": [[0, 25.734]]},
+               {"id": "close", "op": "close"}
+              ],
+              "fill": {
+               "type": "linear",
+               "from": [0, 0],
+               "to": [{"fraction": 1}, 0],
+               "stops": [
+                {"at": 0, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}},
+                {"at": 0.05, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 0.87, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0.01]}},
+                {"at": 1, "color": {"type": "color", "value": [1.0, 0.6118, 0.0, 0]}}
+               ]
+              }
+             },
+             {
+              "id": "rule",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[0, 26.367]]},
+               {"id": "p1", "op": "line", "points": [[{"fraction": 1}, 26.367]]}
+              ],
+              "stroke": {
+               "paint": {
+                "type": "linear",
+                "from": [0, 0],
+                "to": [{"fraction": 1}, 0],
+                "stops": [
+                 {"at": 0, "color": {"type": "color", "value": [1, 1, 1, 0]}},
+                 {"at": 0.05, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 0.87, "color": {"type": "color", "value": [1, 1, 1, 0.5]}},
+                 {"at": 1, "color": {"type": "color", "value": [1, 1, 1, 0]}}
+                ]
+               },
+               "widthDp": 1,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
+         }
+        ]
        },
        {
         "id": "join-empty-heading",

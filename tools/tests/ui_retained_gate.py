@@ -1818,7 +1818,19 @@ int main() {
         // Filters or a search that hide every server: none shown, three held.
         scan.visible.clear(); ++scan.revision; s.UpdateRetainedJoinGame();
         CHECK(join->state["join.count"] == "0" && join->state["join.listed"] == "3");
+        join->named.clear();
         scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
+        // An idle list a filter emptied comes back without the reveal...
+        CHECK(std::count(join->named.begin(), join->named.end(), std::string("joinRowsReveal")) == 0);
+        // ...which plays once when a scan's first servers replace its loading
+        // rows, and not again as more arrive.
+        scan.state = idServerScan::NET_SCAN; scan.visible.clear(); ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.count"] == "0" && join->state["join.scanning"] == "1");
+        scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->state["join.count"] == "1" && std::count(join->named.begin(), join->named.end(), std::string("joinRowsReveal")) == 1);
+        scan.visible = {2, 0}; ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(std::count(join->named.begin(), join->named.end(), std::string("joinRowsReveal")) == 1);
+        scan.state = idServerScan::IDLE; scan.visible = {2}; ++scan.revision; s.UpdateRetainedJoinGame();
         // The LAN, which the legacy menu's scans read too: both ask the LAN.
         s.HandleRetainedSessionRequest(join, "joinSourceLan");
         CHECK(s.guiMainMenu->state["lanSet"] == "1" && join->state["join.lan"] == "1" && commands.buffered.back() == "LANScan" &&

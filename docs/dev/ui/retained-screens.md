@@ -1722,6 +1722,28 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## Loading rows (24 October 2026)
+
+Section 13.13's loading rows: while a scan has listed no server yet, Join
+Game's list shows its ten visible rows at rest without labels, each the
+row's own light and rule (`join-loading`), with no shimmer and no spinner,
+and neither the empty state nor its actions. The first servers replace them
+with `row.reveal` (section 8): each visible row fades in over 120 ms, one
+15 ms after the row above, the stagger capped at 90 ms, so all ten are in
+by 210 ms (`rowReveal`). The session asks for it (`joinRowsReveal`) only
+when servers replace the loading rows: a list a filter emptied and refilled,
+more servers arriving, and a page opening on a list show the rows at once. A
+track runs from the property's present value, so each row holds 0 from its
+first millisecond, and each row's opacity rests at 1.
+
+The mp-pages native test checks the loading rows' place, count and labels,
+and the reveal's start, stagger and end; the gate's session harness checks
+the request fires once per scan and not for a refilled idle list. A capture
+shows the rows during a real scan.
+
+Evidence: `.tmp/ui/loading-rows/validation-evidence.json`, SHA-256
+`79800becfa36187923d93fc025c5577a7305bce83bbd7a04f66ab7349c6de10f`.
+
 ## Narrow views (24 October 2026)
 
 The retained menus compose a 4:3 canvas that fills the view's height and

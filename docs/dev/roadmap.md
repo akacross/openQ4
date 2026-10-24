@@ -825,6 +825,8 @@ archived provenance; new scheduling belongs here.
   offer the action that fixes them: CLEAR FILTERS on Load and Save Game,
   Demos and Join Game while a filter hides everything, and GET NEW LIST when
   Join Game's scan found no server, under a heading in every language.
+  While a scan has found nothing yet, Join Game shows [loading rows](ui/retained-screens.md#loading-rows-24-october-2026)
+  at rest, and its first servers replace them with `row.reveal`.
   Progress, 23 October: [save details](ui/retained-screens.md#save-details)
   record each run's play time and difficulty in the persistent player info
   that every save header carries, without a save format change. CONTINUE and
