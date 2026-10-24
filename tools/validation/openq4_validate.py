@@ -588,6 +588,8 @@ def run_python_tests(args: argparse.Namespace, root: Path, env: dict[str, str]) 
         root / "tools" / "tests" / "native_glx_shutdown.py",
         root / "tools" / "tests" / "network_ipv4_support.py",
         root / "tools" / "tests" / "network_ipv6_support.py",
+        root / "tools" / "tests" / "network_impairment_contract.py",
+        root / "tools" / "tests" / "network_impairment_state.py",
         root / "tools" / "tests" / "network_security.py",
         root / "tools" / "tests" / "openurl_security.py",
         root / "tools" / "tests" / "openq4_pure_pack.py",

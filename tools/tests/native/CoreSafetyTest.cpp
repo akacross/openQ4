@@ -7,6 +7,7 @@
 #include "src/framework/async/Rcon2Protocol.h"
 #include "src/sys/NetworkEndpoint.h"
 #include "src/sys/URLPolicy.h"
+#include "tools/tests/native/NetworkImpairmentCases.h"
 
 #include <climits>
 #include <cstdint>
@@ -444,6 +445,7 @@ static void ExerciseConnectFailover() {
 int main() {
 	ExerciseCryptoVectors();
 	ExerciseConnectFailover();
+	failures += ExerciseNetworkImpairment();
 	const int remoteUserInfo = 1 << 0;
 	const int remoteServerInfo = 1 << 1;
 	const int remoteNetworkSync = 1 << 2;

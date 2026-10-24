@@ -194,6 +194,35 @@ On a LAN, a smaller `net_mpLagCompMaxMS` such as `80` keeps the rewind short.
 Clients may use either prediction mode on a lag-compensated server; the rewind
 follows each client's own setting.
 
+## Testing under simulated network conditions
+
+openQ4 can add the delay, jitter, loss and duplication of a real connection to
+its own packets, so a server and client on one computer behave like players on
+the internet. Every setting applies to the computer that sets it, in both
+directions of each connection:
+
+| CVar | Effect |
+| --- | --- |
+| `net_forceLatency` | Milliseconds added to every packet, each way. |
+| `net_forceJitter` | Up to this many further milliseconds, chosen at random per packet. Packets sent closer together than this can arrive out of order, as they do on real links. |
+| `net_forceDrop` | Percentage of packets lost. |
+| `net_forceDuplicate` | Percentage of packets delivered twice. |
+| `net_forceSeed` | Makes the random choices repeat exactly when a connection opens; `0` picks new ones each time. |
+
+For example, on the client:
+
+```cfg
+set net_forceLatency 50
+set net_forceJitter 30
+set net_forceDrop 5
+```
+
+`netImpairment` prints the settings and, for each open connection, how many
+packets were delayed, lost, duplicated and delivered out of order. These
+settings count as cheats: hosting or joining a server that does not allow
+cheats (`net_allowCheats 1` or `sv_cheats 1`) resets them to `0`, and they
+cannot be changed during such a match. They are for testing only.
+
 ## Notes
 
 - Lag compensation applies to authoritative multiplayer hitscan, lightning gun and gauntlet traces on the server.

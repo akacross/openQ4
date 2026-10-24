@@ -2411,6 +2411,24 @@ run is kept in `.tmp/mp-round/runtime/audits/mp_liquid_lab-DM-before-dive/`.
 The railgun change has no runtime capture: it needs a rail through an enemy
 into a team-mate, which no audit reproduces on demand.
 
+### q4dm8 recurrence audits, 24 October 2026
+
+Three 140-second q4dm8 audits on the network-qualification build
+(`.tmp/mp-round2/run_dm8_audits.py`, six skill-4 bots, `bot_debug 3` so jump
+takeoffs and frames are logged) looked for the unexplained jump-down death:
+
+| Run | Simulation s | Kills | World deaths | Excluded (enemy push) | Navigation deaths |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 139.8 | 30 | 6 | 6 | 0 |
+| 2 | 139.7 | 21 | 1 | 1 | 0 |
+| 3 | 139.8 | 32 | 1 | 1 | 0 |
+
+Every death followed an enemy push whose replay fell under every fixed air input
+while the same moment without the push landed. The jump-down did not recur in
+419 simulated seconds, so its suspected cause, a collision with another player
+in the drop, is still unestablished; no speculative guard was added. Reports
+are under `.tmp/mp-round2/runtime/dm8/`.
+
 For a live look, run a listen server with `bot_debug 2` and read the status
 lines: each carries the bot's position, health, armour, goal, path progress,
 current enemy and whether it is firing. Damage and voluntary-jump lines include

@@ -23,6 +23,22 @@ record findings when written; they are not an authoritative current backlog.
 Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
+## Multiplayer network qualification, 24 October 2026
+
+- [x] MP-07/MP-08: simulated network conditions on Windows and POSIX
+  (`src/sys/NetworkImpairment.h`): latency, jitter with the reordering it
+  causes, loss and duplication, seeded for repeatable runs, reported by
+  `netImpairment`. The old Windows-only lag queue dropped datagrams over 1,400
+  bytes, so a client could not connect with `net_forceLatency` set. Native
+  cases and a wiring contract carry eleven failing controls.
+- [x] Loopback qualification with three bots in both prediction modes: no
+  resyncs under 50 ms, jitter, 10% loss, 20% duplication or combined
+  conditions; the lead follows the round trip and rewinds follow the lead; an
+  impaired client connects on its first challenge. A 20-bot dedicated server
+  holds its remote client steady under the same conditions. Three q4dm8 bot
+  audits record no navigation deaths; the jump-down did not recur.
+- Evidence: [network qualification](mp-network-qualification.md). Candidate
+  player wording: [multiplayer refinements](releases/multiplayer-refinements.md).
 
 ## Menu button resumes from the pause's pages, 24 October 2026
 

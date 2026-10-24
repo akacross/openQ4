@@ -1137,6 +1137,11 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   and hold fire when a team-mate is on it ([audit results](mp-bots.md#team-knock-guard-and-trench-rims-23-october-2026)).
   The DM8 jump-down cause, controlled timing and the strict long-match gate
   remain open.
+  Progress, 24 October: three 140-second q4dm8 audits on this build
+  (`bot_debug 3`) record 83 kills and eight world deaths, every one an enemy
+  push the replay classifies and excludes, with no navigation deaths. The
+  jump-down did not recur in 419 simulated seconds, so its cause stays
+  unestablished ([audit results](mp-bots.md#q4dm8-recurrence-audits-24-october-2026)).
 - [ ] **MP-03 — P2, implementation and qualification: broader bot navigation.**
   Audit custom-map ladders/lifts, shallow trenches, route-cost approximations,
   pad/player collisions, graph limits, optional caching and debug growth. Extend
@@ -1162,6 +1167,13 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   best-result ordering. The [19 October headphone check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
   also passes two audible pause/resume cycles. Restart/navigation cost, physical
   controls, endpoint loss/return and remaining failure-path coverage keep MP-04 open.
+  Progress, 24 October: the restart cost follows from a deliberate guarantee.
+  Arena matches always start from a fresh listen server
+  (`idArenaCampaign::StartSelectedMatch`), so no stale match state carries over
+  and bot population cannot race queued bot removals; Restart reuses that
+  path. An in-place restart through `serverMapRestart` would skip the map and
+  navigation load but give up that guarantee, so it needs a product decision
+  before implementation.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery
@@ -1188,6 +1200,12 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   (`.tmp/mp-round/runtime/mvd/`). Retention,
   markers, keyframes, reverse scrub, AVI, thumbnails and the original Red Rover
   reproduction remain open.
+  Progress, 24 October: the original Red Rover recording behind the seek/debris
+  finding (`rr-managed-isolated/host/baseoq4/demos/q4dm1.mvd`) no longer exists,
+  so that reproduction needs a new recording. Retention and markers need design
+  decisions first: automatic recordings are linked from competitive series
+  evidence, so pruning them would break those links, and structured markers need
+  a new MVD record type and a game-to-engine event interface.
 - [ ] **MP-06 — P2, implementation and qualification: liquid extensions.** Verify
   splash/bubble/wade effects, underwater view/muffle, projectiles, buoyancy and bot
   behavior. The current AAS compiler already emits water/swim/waterjump data;
@@ -1252,6 +1270,20 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   now follow the real lead: legacy rewinds 56 and 182-185 ms, enhanced 16 ms,
   and 120-124 ms with a 4-tic cap. Defaults stay off; real peers under
   jitter, loss and reordering remain open.
+  Progress, 24 October: [simulated network conditions](mp-network-qualification.md)
+  now cover delay, jitter (with the reordering it causes), loss and duplication on
+  Windows and POSIX, seeded for repeatable runs (`net_forceJitter`,
+  `net_forceDuplicate`, `net_forceSeed`, `netImpairment`). They replace a
+  Windows-only lag queue that dropped datagrams over 1,400 bytes, so a client
+  could not connect with `net_forceLatency` set. Native cases and a wiring
+  contract carry eleven failing controls. Loopback probes with three bots in
+  both prediction modes step through clean, 50 ms, 50 ms with 0-40 ms jitter,
+  10% loss, 20% duplication and combined conditions: no resyncs in any phase,
+  the client's lead follows the round trip, the server duplicates a command in
+  at most six snapshots a phase, and rewinds follow the real lead (legacy up to
+  the 200 ms cap, enhanced 0-16 ms). A client connecting with 80 ms, jitter,
+  10% loss and 5% duplication already set joins on its first challenge. Real
+  WAN peers and the defaults decision remain open.
 - [ ] **MP-08 — P1, qualification and decision: network and content interoperability.**
   Qualify real cross-platform/architecture peers over IPv4 and IPv6, fragmentation/
   MTU/rate limits, congestion, high player counts, discovery and reconnect. Address
@@ -1290,6 +1322,14 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   and failover tests cover the shared helper. The networking guide documents
   the sequence. Real multi-record DNS, WAN impairment and concurrent load
   remain open.
+  Progress, 24 October: simulated WAN conditions now exist on every platform
+  (see MP-07). With 20 bots on a dedicated server, one remote client holds
+  16-17 ms frames and a steady 140-148 ms prediction target under 50 ms
+  latency, 10% loss and 20% duplication, with no deferred snapshots or
+  overflowing messages. Earlier resync bursts traced to CPU starvation on the
+  shared machine; a client that cannot hold 60 Hz still falls behind toward the
+  1 s cap ([evidence](mp-network-qualification.md#high-player-count-24-october-2026)).
+  Real WAN peers, load across machines and discovery remain open.
 
 ## Audio and voice
 

@@ -631,6 +631,9 @@ bool			Sys_CompareNetAdrBase( const netadr_t a, const netadr_t b );
 
 void			Sys_InitNetworking( void );
 void			Sys_ShutdownNetworking( void );
+				// simulated network conditions (net_force*) and what each open port's
+				// delay lines have done with them
+void			Sys_NetImpairmentReport( void );
 
 
 /*

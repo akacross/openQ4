@@ -49,6 +49,12 @@
   target. Since 0.13.0 it slowed down instead, so a client ran one frame behind
   every server update and its commands arrived late. `net_verbose 2` now also
   logs the controller's state for each server update.
+- Testing under simulated network conditions now covers jitter, out-of-order
+  delivery and duplicated packets (`net_forceJitter`, `net_forceDuplicate`,
+  repeatable with `net_forceSeed`) as well as latency and loss, on Linux and
+  macOS too, and `netImpairment` reports what was simulated. With
+  `net_forceLatency` set, a client can connect again: larger packets were
+  silently dropped before.
 - Hostname connections try up to eight resolved addresses. The first is the
   address openQ4 always chose (the IPv4 one when there is one); after three
   unanswered connection attempts a second apart it moves to the next, and it

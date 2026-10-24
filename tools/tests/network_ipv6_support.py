@@ -376,11 +376,11 @@ def validate_windows_ipv6_specifics() -> None:
         require(routing, token, "Windows address family routing")
 
     # A queued datagram is routed by its own family, which may differ from the
-    # datagram that filled the latency queue.
+    # datagram that filled the delay line.
     send = function_body(source, "void idPort::SendPacket", "Windows delayed send routing")
     require(
         send,
-        "Net_SendUDPPacket( Net_SocketForAddress( netSocket, netSocket6, msg->address ), msg->size, msg->data, msg->address );",
+        "Net_SendUDPPacket( Net_SocketForAddress( ipv4Socket, ipv6Socket, address ), length, bytes, address );",
         "Windows delayed send routing",
     )
     require(
@@ -455,9 +455,11 @@ def validate_posix_ipv6_specifics() -> None:
     require_before(
         send,
         "if ( to.type == NA_MULTICAST6 )",
-        "if ( !NetadrToSockadr( &to, &addr, &addrLen ) )",
+        "Net_SendDatagram( netSocket, netSocket6, to, packetData, size )",
         "POSIX multicast send precedes single-destination conversion",
     )
+    datagram = function_body(source, "static bool Net_SendDatagram(", "POSIX single-destination send")
+    require(datagram, "if ( !NetadrToSockadr( &to, &addr, &addrLen ) )", "POSIX single-destination conversion")
 
     # SO_REUSEADDR on a UDP socket would let a second instance bind a port the
     # first already holds, which silently breaks the caller's port scan.
