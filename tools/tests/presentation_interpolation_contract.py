@@ -383,6 +383,9 @@ def check_source_root(source_root: str) -> dict[str, str]:
     # on the 60 Hz tic staggered that shadow under an interpolated eye.
     require(actor_policy, "gameLocal.GetLocalPlayer()", f"{context} the local player is exempt from the multiplayer exclusion")
     require(actor_policy, "return false;", f"{context} multiplayer actor root/skeleton exclusion")
+    # A spectator fires no shots, so MP-07 never rewinds against what it draws;
+    # remote bodies may share its camera's clock only then.
+    require(actor_policy, "!localPlayer->spectating", f"{context} remote bodies interpolate only for spectators")
     require(actor_policy, "idAFEntity_Gibbable::AllowsPresentationInterpolation()", f"{context} single-player actor eligibility retained")
 
     sample_sweep = function(

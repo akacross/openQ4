@@ -89,6 +89,29 @@ completed release material here and publish curated notes in `releases/`.
   contract. Candidate player wording is in
   [baseline refinements](releases/baseline-refinements.md).
 
+## High-refresh presentation, second round, 24 October 2026
+
+- [x] HF-05: decide remote actors. While the local client plays, remote bodies
+  stay on the tick because MP-07 rewinds by the displayed pose age. A spectating
+  client draws them, the followed player's third person and the death camera
+  on its camera's clock. Vehicle cockpit eyes are bounded against their
+  interpolated cockpit, and nested monitor views are recorded.
+- [x] HF-06: a diagnostic guard counts event dispatch, script threads, entity
+  physics and effect spawns that start inside a prepared draw;
+  `g_presentationClockCapture` reports it per draw and the runtime harness
+  fails any case that records one. Effects BSE starts while the renderer
+  services it (particle impacts, nested segments) are counted apart.
+- [x] HF-07: the runtime harness gains a `pacing` case for the cap matrix,
+  judged against the 240 Hz budget; only operator-declared `--reference` runs
+  in a visible foreground window qualify.
+- [x] HF-08 (engine-side part): loopback listen-host and remote-client
+  late-look cases consume input once and remove about 16 ms; spectator and
+  walker-cockpit cases.
+- Evidence: `presentation_hf_contract.py --mutations`, the interpolation
+  contract and live captures recorded in the
+  [presentation owners contract](presentation-owners.md). Physical pacing,
+  physical latency and by-eye review remain open under HF-07/HF-08.
+
 ## Audio output recovery, layout changes and memory, 23 October 2026
 
 - [x] AUD-02: restart one-shot sounds that a lost or reopened output stopped at the

@@ -224,19 +224,26 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   [presentation owners contract](presentation-owners.md). Live SP counters show
   99% of ragdoll draws blended and thrown barrel debris interpolated, with no
   errors; all new state is transient. A by-eye review moved to HF-08.
-- [ ] **HF-05 — P2, decision and implementation: alternate views and remote
+- [x] **HF-05 — P2, decision and implementation: alternate views and remote
   actors.** Define cinematic, private/security, third-person, spectator and nested
   camera smoothing with cut/discontinuity rules. Keep remote-player interpolation
   separate from the generic entity pass until snapshot smoothing, server rewind
   and visible aim agree. Local-body admission is already implemented and needs
   regression coverage, not reintroduction. Qualify vehicles and joint-bound cameras.
   Depend on MP-07's prediction/rewind contract before changing remote poses.
-  Progress: cinematic and private cameras, third person (on foot and in vehicles)
-  and the death camera are sampled once per tick and drawn on the scene clock,
-  restarting on authored cuts, camera or kind changes, skipped ticks, jumps and
-  non-interpolable carriers; free-fly spectators already used the first-person
-  path. Remote actors and followed players stay authoritative pending MP-07;
-  vehicle cockpit/joint-bound eyes and cut-heavy cinematics still need review.
+  Completed: cinematic and private cameras, third person (on foot and in
+  vehicles) and the death camera are sampled once per tick and drawn on the scene
+  clock. They restart on authored cuts, camera or kind changes, skipped ticks,
+  jumps and non-interpolable carriers. Decision: while the local client plays,
+  remote bodies stay on the tick, because MP-07 rewinds by the displayed pose age
+  and a draw-phase delay would need a protocol change. A spectating client,
+  which fires nothing, draws remote bodies, the followed player's third person
+  and the death camera on its camera's clock. Both rules are contract-pinned
+  beside the local-body admission. Vehicle cockpit eyes are bounded to under
+  0.05 units against their interpolated cockpit, and nested monitor views keep
+  their static cameras; see the
+  [presentation owners contract](presentation-owners.md). By-eye review of
+  cut-heavy cinematics and cockpits is HF-08.
 - [ ] **HF-06 — P1, qualification: preserve cross-system presentation.** Exercise
   TAA history/motion vectors, shadow caches, BSE multi-view servicing, retained UI,
   demo/AVI clocks, audio, VR and save/map resets together. Verify repeated draws and
@@ -250,9 +257,13 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   Progress: per-system behavior, including the separate game/network-demo,
   render-demo, command-demo and timedemo rules, is defined in the
   [presentation owners contract](presentation-owners.md); new owners are transient
-  and contract-tested against Think, physics, sound and effect creation. VR
-  stereo/subview repeats, TAA by eye under late look and long mixed-capture
-  sessions remain.
+  and contract-tested against Think, physics, sound and effect creation. A
+  diagnostic guard now counts event dispatch, script threads, entity physics and
+  effect spawns that start inside a prepared draw, and the runtime harness fails
+  on any. Effects BSE starts while the renderer services it (particle impacts,
+  nested segments; once per particle or effect step) are counted apart. Every
+  SP and MP case on 24 October counted none. VR stereo/subview repeats, TAA by
+  eye under late look and long mixed-capture sessions remain.
 - [ ] **HF-07 — P1, qualification: establish supported frame-rate behavior.** Declare
   target hardware/scenes/settings and latency/p95/p99 budgets for 240 Hz (4.17 ms
   frame interval); retain 360 Hz (2.78 ms) as experimental until qualified. Include
@@ -261,9 +272,12 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   motion and pacing; a cap, average FPS or hidden capture alone cannot close it.
   Progress: targets, budgets and the measurement procedure are declared in the
   [presentation owners contract](presentation-owners.md), with
-  `presentation_look_runtime.py` for engine-side latency and smoothness. An
-  occluded window on a loaded machine presented 57 Hz (GL) and 15 Hz (Vulkan) at a
-  240 cap, so physical runs on the reference hardware remain.
+  `presentation_look_runtime.py` for engine-side latency and smoothness; its
+  `pacing` case runs the cap matrix and judges 240 Hz against the budget, but
+  only operator-declared `--reference` runs qualify. An occluded window on a
+  loaded machine presented 57 Hz (GL) and 15 Hz (Vulkan) at a 240 cap. A later
+  engine-side matrix held 30/60/120/144/165 and reached 189–204 Hz at 240 (p95
+  7.2–8.5 ms), so physical runs on the reference hardware remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),
   zoomed, on lifts and trams and through rapid turns, and measure physical
@@ -271,6 +285,15 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   `in_presentationView 0` default. Review cinematic, security-camera, third-person
   and death-camera smoothing and cuts, ragdolls, debris and the view lights by
   eye. Engine-side evidence alone cannot close it.
+  Progress, 24 October: loopback listen-host and remote-client runs consumed
+  input once with late look off and on (−220.00 ±0.01°/s) and drew the input
+  sampled for each draw (p95 0.0001°), removing about 16 ms in both. The
+  frame-to-frame residual fell from 0.26° (host) and 1.17° (client) to 0.08°.
+  Spectating and a walker cockpit entered by script were also exercised (the
+  cockpit is linear within each tick to 0.0001°); see the
+  [presentation owners contract](presentation-owners.md). Prediction recovery
+  under loss, zoom, movers, physical latency and the by-eye review remain, as
+  does a decision on late look in vehicle cockpits.
 
 ## Vulkan rendering
 

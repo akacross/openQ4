@@ -615,6 +615,9 @@ public:
 	int						mHz;					// hertz
 	mutable openq4::PresentationClock presentationClock;
 	float					presentationClockSample;	// one high-resolution phase for every draw consumer
+	int						presentationGameplayCount;	// gameplay entry points reached inside a prepared draw (diagnostic)
+	int						presentationRendererDepth;	// inside the renderer's scene work for a draw
+	int						presentationRendererEffectCount;	// effects BSE started there (diagnostic)
 	float					presentationSceneFraction;	// frozen camera/root fraction for the active Draw
 	int					presentationAnimationTime;	// previous-to-current skeletal sample held only during Draw
 	int						autoExecAfterMapLoadStartTime;
@@ -888,6 +891,8 @@ public:
 	int						GetPresentationTimeMsec( void ) const;
 	int						GetPresentationAnimationTimeMsec( void ) const { return presentationAnimationTime; }
 	bool					IsPresentationSceneActive( void ) const { return presentationClockSample >= 0.0f; }
+	void					NotePresentationGameplay( const char *what );
+	void					NotePresentationEffect( void );
 	void					EndPresentationSceneForRender( void );
 	float					GetPresentationInterpolationFraction( void ) const;
 	idMat3					InterpolatePresentationAxis( const idMat3 &from, const idMat3 &to, float fraction ) const;
@@ -1470,6 +1475,14 @@ private:
 //============================================================================
 
 extern idGameLocal			gameLocal;
+
+// The renderer's own scene work inside a prepared draw (RenderScene), where BSE
+// services its effects; see idGameLocal::NotePresentationEffect.
+class idPresentationRendererScope {
+public:
+							idPresentationRendererScope( void ) { gameLocal.presentationRendererDepth++; }
+							~idPresentationRendererScope( void ) { gameLocal.presentationRendererDepth--; }
+};
 // RAVEN BEGIN
 // jsinger: animationLib changed to a pointer to prevent it from allocating memory
 //          before the unified allocator is initialized

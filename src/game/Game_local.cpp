@@ -664,6 +664,9 @@ void idGameLocal::Clear( void ) {
 	previousTime = 0;
 	time = 0;
 	presentationClock.Reset();
+	presentationGameplayCount = 0;
+	presentationRendererDepth = 0;
+	presentationRendererEffectCount = 0;
 	presentationClockSample = -1.0f;
 	presentationSceneFraction = -1.0f;
 	presentationAnimationTime = -1;
@@ -5170,7 +5173,7 @@ void ClearClipProfile( void );
 void DisplayClipProfile( void );
 
 // What the frozen scene's camera shows against the authoritative view, for the
-// late-look latency analysis (tools/tests/presentation_look_probe.py). Noted
+// late-look latency analysis (tools/tests/presentation_look_runtime.py). Noted
 // once per prepared draw, before the capture records it.
 static struct {
 	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
@@ -9237,7 +9240,7 @@ struct presentationClockSample_t {
 	int		gameStep, rate;
 	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
 	int		look;
-	int		clientDebris, afBlends, listed, afFrames;
+	int		clientDebris, afBlends, listed, afFrames, gameplay, bse;
 	float	clockFraction;
 	int		realTime;
 	int		gameTime;
@@ -9246,6 +9249,51 @@ struct presentationClockSample_t {
 static presentationClockSample_t presentationClockCaptureSamples[ MAX_PRESENTATION_CLOCK_SAMPLES ];
 static int presentationClockCaptureCount = 0;
 static bool presentationClockCaptureDumped = false;
+
+/*
+================
+idGameLocal::NotePresentationGameplay
+
+A prepared draw (PreparePlayerSceneForRender to EndPresentationSceneForRender)
+may move what is drawn but must never dispatch events, run scripts, step
+physics or start effects: repeated draws, stereo eyes and subviews would run
+them again. Entry points call this; inside a scene it counts the breach for
+g_presentationClockCapture and names the first few.
+================
+*/
+void idGameLocal::NotePresentationGameplay( const char *what ) {
+	if ( presentationClockSample < 0.0f ) {
+		return;
+	}
+	presentationGameplayCount++;
+	static int reported = 0;
+	if ( reported < 8 ) {
+		reported++;
+		Printf( "presentationGameplay: %s ran inside a prepared draw\n", what );
+	}
+}
+
+/*
+================
+idGameLocal::NotePresentationEffect
+
+PlayEffect's guard. The renderer services BSE inside RenderScene, and a particle
+impact or nested segment may start an effect through idGame::PlayEffect there,
+once per particle or authoritative effect step rather than once per draw. Those
+are counted apart (bse=); any other effect started inside a prepared draw is
+gameplay.
+================
+*/
+void idGameLocal::NotePresentationEffect( void ) {
+	if ( presentationClockSample < 0.0f ) {
+		return;
+	}
+	if ( presentationRendererDepth > 0 ) {
+		presentationRendererEffectCount++;
+		return;
+	}
+	NotePresentationGameplay( "idGameLocal::PlayEffect" );
+}
 
 /*
 ================
@@ -9284,6 +9332,10 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	sample.listed = presentationEntities.Num();
 	sample.afFrames = idAnimator::presentationAFFrameCount;
 	idAnimator::presentationAFFrameCount = 0;
+	sample.gameplay = presentationGameplayCount;
+	presentationGameplayCount = 0;
+	sample.bse = presentationRendererEffectCount;
+	presentationRendererEffectCount = 0;
 	if ( presentationClockCaptureCount < wanted ) {
 		return;
 	}
@@ -9291,7 +9343,7 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	presentationClockCaptureDumped = true;
 	Printf( "presentationClock: %d samples\n", presentationClockCaptureCount );
 	for ( int i = 0; i < presentationClockCaptureCount; i++ ) {
-		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f drawYaw=%.4f authYaw=%.4f look=%d lookYaw=%.4f inYaw=%.4f debris=%d afBlends=%d listed=%d afFrames=%d\n",
+		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f drawYaw=%.4f authYaw=%.4f look=%d lookYaw=%.4f inYaw=%.4f debris=%d afBlends=%d listed=%d afFrames=%d gameplay=%d bse=%d\n",
 			presentationClockCaptureSamples[ i ].realTime,
 			presentationClockCaptureSamples[ i ].gameTime,
 			presentationClockCaptureSamples[ i ].fraction,
@@ -9307,7 +9359,9 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 			presentationClockCaptureSamples[ i ].clientDebris,
 			presentationClockCaptureSamples[ i ].afBlends,
 			presentationClockCaptureSamples[ i ].listed,
-			presentationClockCaptureSamples[ i ].afFrames );
+			presentationClockCaptureSamples[ i ].afFrames,
+			presentationClockCaptureSamples[ i ].gameplay,
+			presentationClockCaptureSamples[ i ].bse );
 	}
 	presentationClockCaptureCount = 0;
 }
@@ -10008,6 +10062,7 @@ rvClientEffect* idGameLocal::PlayEffect(
 	effectCategory_t		category,
 	const idVec4&			effectTint ) {
 
+	gameLocal.NotePresentationEffect();
 	if ( !effect ) {
 		return NULL;
 	}

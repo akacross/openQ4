@@ -2,7 +2,8 @@
 
 > **Development status:** This document describes the current source tree and its evidence, not the contents of the latest available 0.13.2 package. The 0.14.0 release was withdrawn. See [release status](../user/release-status.md).
 
-Contract for HF-03 through HF-07 in the [roadmap](roadmap.md), 23 October 2026.
+Contract for HF-03 through HF-08 in the [roadmap](roadmap.md), 23 October 2026,
+extended 24 October 2026.
 It extends the [clock ownership contract](presentation-clock.md) (HF-01/HF-02),
 which still owns the clocks themselves. Nothing here changes authoritative
 simulation, usercmds, save formats, network timestamps or demo timing. Every
@@ -126,13 +127,39 @@ interpolated, or when third person or the death camera follows a body held on
 the tick (a remote player followed in multiplayer). A static private camera samples the same pose twice, so it costs
 nothing and lets the world it shows move smoothly.
 
-Not changed: a free-flying MP spectator already uses the first-person path; a
-followed player is a remote actor, and remote-player poses stay authoritative
-until MP-07 defines prediction, rewind and displayed aim together. The local
-body's admission to the entity pass (SP actor, MP local player) keeps its
-contract coverage (`actor_policy`). The MP Arena tableau camera is unchanged.
-Vehicle cockpit eyes interpolate as before; their joint-composed eye against the
-presentation-evaluated cockpit skeleton still needs human qualification.
+Remote actors (decision, 24 October 2026). While the local client plays, every
+remote body stays on the authoritative tick, outside the presentation pass.
+MP-07's server rewinds a target by the age of the pose the shooter saw (the
+prediction row of the [clock contract](presentation-clock.md)). Drawing remote
+bodies a further fraction of a tick behind would make that pose older than the
+rewind allows for. Telling the server each command's draw phase would change the
+network protocol. So remote bodies stay off the presentation clock while the
+local client plays; this is a decision, not a pending item. A spectating client
+fires nothing, so nothing it draws is ever rewound against. While the local
+player spectates, remote bodies therefore join the presentation pass: a followed
+player's body, third person behind it and the death camera draw on the camera's
+clock instead of stepping at 60 Hz. A free-flying spectator already used the
+first-person path. The local body's admission to the entity pass (SP actor, MP
+local player) keeps its contract coverage (`actor_policy`), and the spectator
+rule is pinned beside it. The MP Arena tableau camera is unchanged.
+
+Vehicle cockpits and joint-bound eyes. The driver's eye is sampled from the
+seat's eye joint each tick and drawn between its two samples. The cockpit around
+it is drawn from its interpolated root and a skeleton evaluated at the draw's
+time. The vehicle is the eye's carrier, so if the vehicle cannot be drawn
+interpolated, the eye goes back to the tick with it. The two paths differ only by
+curvature within one tick. For an eye r from the root turning θ per tick, a
+lerped eye and an eye carried by a slerped root differ by at most r·θ²/8. For an
+animated joint with acceleration a, the difference is a·Δt²/8. A walker eye 100
+units from its root turning 90°/s (1.5° per tick) gives under 0.01 units. A
+torso bob of 5 units at 2 Hz adds under 0.03 units. Both are below a pixel at
+any field of view. The `vehicle` runtime case (below) drives a walker cockpit:
+within each tick its drawn view is linear in the draw's phase to 0.0001°.
+
+Nested views. Remote camera views shown on GUI surfaces (`cameraTarget`, such
+as security monitors) render from the camera entity's authoritative view. Stock
+monitor cameras are static, and the world they show is drawn by the same
+presentation pass as the main view, so they need no owner of their own.
 
 ## Cross-system behaviour (HF-06)
 
@@ -147,7 +174,23 @@ presentation-evaluated cockpit skeleton still needs human qualification.
 | Audio | Not advanced by presentation; AUD-02 owns audible lifecycle. |
 | VR | Late look refuses; alternate views play flat as before. |
 | Save, restore, map reset | All new state is transient and reseeded: player look/alternate-view samples, debris samples, the animator's AF history; none is serialized. |
-| Repeated draws, subviews | Draw owners run no Think, physics, scripts, sound or effect creation (contract tests). Input is consumed once: live authoritative turn rates match the configured input in both late-look modes (below). |
+| Repeated draws, subviews | Draw owners run no Think, physics, scripts, sound or effect creation (contract tests and the gameplay guard below). Input is consumed once: live authoritative turn rates match the configured input in both late-look modes (below). |
+
+Gameplay guard. `idEvent::ServiceEvents`, `idThread::Execute` and
+`idEntity::RunPhysics` first call `idGameLocal::NotePresentationGameplay`.
+Outside a prepared draw it returns at once. Inside one, between
+`PreparePlayerSceneForRender` and `EndPresentationSceneForRender`, it counts the
+call and prints the first eight by name. `idGameLocal::PlayEffect` first calls
+`NotePresentationEffect`, which treats an effect started inside the renderer's
+scene work (`idPresentationRendererScope` around the game's `RenderScene`
+calls) as BSE's own. Such effects are particle impacts and nested segments,
+started once per particle or authoritative effect step. They are counted apart.
+Any other effect started in a draw is gameplay. The counts ride each
+`g_presentationClockCapture` line as `gameplay=` and `bse=`, and
+`presentation_look_runtime.py` fails any case that records gameplay. The guard
+only reports and never changes what runs. The contract requires the call to come
+first in each entry point, the renderer scopes around scene submission and
+identical SP/MP bodies, and a mutation that removes a guard must fail.
 
 Remaining HF-06 qualification: repeated stereo/subview draws in VR, TAA
 appearance under late look by eye, and long sessions with mixed demo/capture use.
@@ -170,6 +213,23 @@ for engine-side latency and smoothness, `com_showFramePacing 2` for p50/p95/p99
 intervals and the gameplay benchmark for frame times, all in a visible
 foreground window. Physical display latency (scan-out, compositor, panel)
 needs external measurement and is not claimed by these tools.
+
+The cap matrix runs as one command:
+
+```
+presentation_look_runtime.py --basepath <Quake 4> --output-dir <new dir>
+  --scenario pacing --fps 30 60 120 144 165 240 360 0 [--renderer vulkan] [--reference]
+```
+
+Each cap turns the view at 220°/s with late look on. Each case reports the
+prepared-draw interval p50/p95/p99 at sub-millisecond resolution, the presented
+rate, ticks no draw showed, whether the rate fell below 90% of the cap, the
+late-look sample-to-draw time and the engine's `framePacingSnapshot` summary.
+The 240 cap is judged against the budget above. Other caps are reported only.
+`--reference` is the operator's statement that the window was visible, in the
+foreground, on the reference machine. Without it every verdict reads "not
+qualifying", whatever the numbers. With it, a 240 case over budget fails the
+run.
 
 An occluded window on Windows does not qualify: on 23 October 2026 the same
 client capped at 240 presented at 57 Hz on OpenGL (p99 232 ms) and 15 Hz on
@@ -222,3 +282,78 @@ No run logged an error. These runs measure engine-side behaviour on one Windows
 machine; they are not physical input or display qualification, nor a visual
 review of the drawn motion, and the occluded window did not reach the requested
 rate.
+
+### Second round, 24 October 2026
+
+The same harness ran on the guard build with OpenGL, 512 draws per case and a
+240 cap unless stated. Output is retained under `.tmp/hf/r2-run1` and
+`.tmp/hf/r2-pacing1`. After the BSE split below, the spectator, walker,
+late-look and 240 pacing cases were run again (`.tmp/hf/r2-run2`). All seven
+passed, with no gameplay and no BSE starts in any draw and no errors.
+
+Gameplay inside draws. No SP case (late look, third person, death camera,
+ragdoll, barrel debris, walker cockpit) and no MP case (listen host, remote
+client) counted any. One spectator run counted three `PlayEffect` calls in the
+draw where a bot was gibbed. The MP gib effect's splat particles carry an impact
+effect, and BSE starts it when a particle hits geometry while the renderer
+services effects inside `RenderScene`, once per particle. That is BSE's retail
+design, not game work repeating per draw. The guard now counts effects started
+inside the renderer's scene work apart (`bse=`); any other `PlayEffect` inside a
+draw is still gameplay.
+
+Late look in multiplayer (loopback, 127.0.0.1):
+
+| Case | Late look | Turn rate (expected −220.00°/s) | Delay behind the input | Drawn vs sampled input, p95 | Residual p95 | Draw interval p50/p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Listen host | off | −220.01°/s | about 16 ms | — | 0.26° | 4.3/5.6 ms |
+| Listen host | on | −220.00°/s | about 0 ms | 0.0001° | 0.08° | 4.4/5.7 ms |
+| Remote client | off | −220.00°/s | about 16 ms | — | 1.17° | 4.5/19.3 ms |
+| Remote client | on | −220.01°/s | about 0 ms | 0.0001° | 0.08° | 4.6/18.0 ms |
+
+Input reached the game exactly once through client prediction as well as on the
+host. The client's slower p95 interval is two clients sharing one machine. Single
+player on the same build gave −220.01/−220.00°/s and a residual p95 of 1.37°
+without late look against 0.08° with it.
+
+Spectating. A listen host with two bots listed up to 68 entities in the
+presentation pass while playing, 71 while spectating free and 70 while
+following a bot. That fits the bots joining the pass only while the host
+spectates. In the free case,
+a killed bot's ragdoll was blended on 183 of 184 AF draws, which happens only to
+bodies on the presentation clock. Following a bot gave 512 interpolated draws of
+its view, with a step deviation p95 of 0.04°, linear within each tick to
+0.0001° in the rerun.
+
+Walker cockpit. The `vehicle` case spawns a walker and enters it by script.
+In a rerun (`.tmp/hf/r2-run2`, draws about every 5.5 ms, walker turning at
+196°/s), all 512 cockpit draws were interpolated, with no errors and no gameplay
+in a draw. Within each tick the drawn cockpit yaw is linear in the draw's phase
+to 0.0001° (p95, `tickLinearityDeg`), so the joint-bound eye adds no
+presentation error. The view's
+step deviation (`drawnStepJitterDeg` p95 1.7°, against 0.5° for first person
+without late look and 0.15° with it) comes entirely from per-tick changes in the
+walker's simulated turn (p95 2.2° per tick). That is input reaching the view
+once per tick plus the walker's own turning. Late look removes the input part
+for first person and is excluded in vehicles.
+
+Cap matrix (`--scenario pacing`, late look on). This is engine-side and not
+qualifying: the run was not declared `--reference`.
+
+| Cap | Presented | Draw interval p50/p95/p99 | Ticks no draw showed | Engine snapshot: bound, p95/p99 |
+| --- | --- | --- | --- | --- |
+| 30 | 30.0 Hz | 33.3/34.5/35.5 ms | 483 of 511 (expected below 60) | presentation cap, 34/35 ms |
+| 60 | 60.0 Hz | 16.7/17.2/17.6 ms | 1 of 510 | simulation, 18/18 ms |
+| 120 | 118.7 Hz | 8.4/10.7/11.1 ms | 0 | uncapped, 10/10 ms |
+| 144 | 143.8 Hz | 7.0/9.6/13.3 ms | 0 | uncapped, 9/10 ms |
+| 165 | 164.6 Hz | 6.1/8.8/10.9 ms | 0 | uncapped, 8/11 ms |
+| 240 | 188.6 Hz, below the cap | 5.3/8.5/12.3 ms | 0 | uncapped, 8/11 ms |
+| 360 | 178.1 Hz, below the cap | 5.6/8.0/10.2 ms, one 921 ms stall | 1 | uncapped, 11/13 ms |
+| Uncapped | 186.8 Hz | 5.4/8.1/9.7 ms | 0 | uncapped, 8/10 ms |
+
+At every cap the late-look view matched the input sampled for its draw (p95
+0.0001°, 0.002° at 30). The 240 case misses the budget (p95 8.48 ms against
+4.6, p99 12.27 ms against 6.3) because this machine did not reach the cap: the
+engine classified those frames as not cap-bound. The rerun at 240 reached
+204 Hz (p95 7.2 ms, p99 8.4 ms) and is still over budget. The 921 ms stall was a
+single frame the engine classified as simulation-bound. Physical qualification
+on the reference machine remains HF-07.

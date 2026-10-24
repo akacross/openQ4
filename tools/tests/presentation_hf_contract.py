@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # Quake 4 SDK EULA applies to the game sources this inspects; see docs/dev/game-test-coverage.md.
-"""Static contract for the HF-03/HF-04/HF-05 presentation owners.
+"""Static contract for the HF-03 to HF-06 presentation owners.
 
 Late look (in_presentationView), weapon view lights, unbound client debris and
 alternate views are draw-only. These checks pin the read-only engine sampler,
 the frozen per-draw correction, the identical SP/MP bodies and the gameplay
-state each owner must never write. Behaviour of the look policy itself is
+state each owner must never write, and the HF-06 guard that makes event
+dispatch, scripts, physics and effect spawns report themselves when they run
+inside a prepared draw. Behaviour of the look policy itself is
 executed by openq4-presentation-look (tools/tests/native/PresentationLookTest.cpp).
 Run with --mutations to prove a representative check of each owner fails when
 its production body regresses.
@@ -123,6 +125,13 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
     require(game_h, "const int GAME_API_VERSION\t\t= 54;", "game ABI v54")
     require(game_h, "idUsercmdGen *\t\t\t\tusercmdGen;", "gameImport_t carries the generator")
     require(common_cpp, "gameImport.usercmdGen\t\t\t\t= ::usercmdGen;", "engine hands the generator to the game")
+
+
+def check_guard(source: str, signature: str, expected: str, context: str) -> str:
+    first = function(source, signature, context).strip().splitlines()[0].strip()
+    if first != expected:
+        raise AssertionError(f"{context}: {signature} must report itself before any work (first line {first!r})")
+    return first
 
 
 def check_tree(tree: str) -> dict[str, str]:
@@ -290,6 +299,42 @@ def check_tree(tree: str) -> dict[str, str]:
     interpolated = function(player, "bool idPlayer::IsPresentationViewInterpolated( void ) const", context)
     require_before(interpolated, "if ( presentationAltViewDrawn ) {", "if ( !CanInterpolatePresentationView() ) {", f"{context} interpolated alternate views admit the scene")
 
+    # ---- HF-06 gameplay never runs inside a prepared draw ----
+    note = function(game_local, "void idGameLocal::NotePresentationGameplay( const char *what )", context)
+    require(note.strip().splitlines()[0], "if ( presentationClockSample < 0.0f ) {", f"{context} guard counts only inside a prepared draw")
+    require(note, "presentationGameplayCount++;", f"{context} guard feeds g_presentationClockCapture")
+    for token in ("Error(", "assert(", "CancelEvents", "PostEvent"):
+        reject(note, token, f"{context} guard only reports")
+    record = function(game_local, "void idGameLocal::RecordPresentationClockSample( void )", context)
+    require_before(record, "sample.gameplay = presentationGameplayCount;", "presentationGameplayCount = 0;", f"{context} each sample reports its own breaches")
+    require_before(record, "sample.bse = presentationRendererEffectCount;", "presentationRendererEffectCount = 0;", f"{context} each sample reports its own BSE starts")
+    require(record, "gameplay=%d bse=%d", f"{context} capture prints both counts")
+    guarded = (
+        (read(f"{tree}/gamesys/Event.cpp"), "void idEvent::ServiceEvents( void )", 'gameLocal.NotePresentationGameplay( "idEvent::ServiceEvents" );'),
+        (read(f"{tree}/script/Script_Thread.cpp"), "bool idThread::Execute( void )", 'gameLocal.NotePresentationGameplay( "idThread::Execute" );'),
+        (read(f"{tree}/Entity.cpp"), "bool idEntity::RunPhysics( void )", 'gameLocal.NotePresentationGameplay( "idEntity::RunPhysics" );'),
+        (game_local, "rvClientEffect* idGameLocal::PlayEffect", "gameLocal.NotePresentationEffect();"),
+    )
+    guards = [check_guard(source, signature, first, context) for source, signature, first in guarded]
+    # BSE services effects inside RenderScene; a particle impact or nested
+    # segment starts its effect there once per particle or effect step. Only
+    # those are counted apart, and only inside the renderer's scene work.
+    effect = function(game_local, "void idGameLocal::NotePresentationEffect( void )", context)
+    require(effect.strip().splitlines()[0], "if ( presentationClockSample < 0.0f ) {", f"{context} effect guard only inside a prepared draw")
+    require_before(effect, "if ( presentationRendererDepth > 0 ) {", "presentationRendererEffectCount++;", f"{context} BSE starts counted apart")
+    require(effect.strip().splitlines()[-1].strip(), 'NotePresentationGameplay( "idGameLocal::PlayEffect" );', f"{context} any other effect start is gameplay")
+    require(game_local_h, "idPresentationRendererScope( void ) { gameLocal.presentationRendererDepth++; }", f"{context} renderer scope")
+    require(game_local_h, "~idPresentationRendererScope( void ) { gameLocal.presentationRendererDepth--; }", f"{context} renderer scope unwinds")
+    if tree == "src/game":
+        render = read(f"{tree}/Game_render.cpp")
+        for signature in ("static void openQ4_RenderSceneDirect( const renderView_t *view, idRenderWorld *renderWorld, idCamera *portalSky, int renderFlags )",
+                          "static void openQ4_RenderSceneWorld( const renderView_t *view, idRenderWorld *renderWorld, idCamera *portalSky, int renderFlags )"):
+            body = function(render, signature, context)
+            require_before(body, "idPresentationRendererScope rendererScope;", "RenderScene(", f"{context} scene work scoped")
+    else:
+        single = function(read(f"{tree}/PlayerView.cpp"), "void idPlayerView::SingleView( idUserInterface *hud, const renderView_t *view, int renderFlags )", context)
+        require_before(single, "idPresentationRendererScope rendererScope;", "RenderScene(", f"{context} scene work scoped")
+
     return {
         "look": normalized(look),
         "apply_view": normalized(apply_view),
@@ -307,6 +352,9 @@ def check_tree(tree: str) -> dict[str, str]:
         "alt": normalized(alt),
         "af_branch": normalized(af_branch),
         "interpolated": normalized(interpolated),
+        "note": normalized(note),
+        "effect": normalized(effect),
+        "guards": " ".join(guards),
     }
 
 
@@ -349,7 +397,17 @@ def mutations() -> None:
         pass
     else:
         raise AssertionError("mutation survived: late look writes the view")
-    print("presentation_hf_contract mutations: 4 rejected")
+    event = read("src/game/gamesys/Event.cpp")
+    unguarded = event.replace('\tgameLocal.NotePresentationGameplay( "idEvent::ServiceEvents" );\n', "", 1)
+    if unguarded == event:
+        raise AssertionError("mutation did not apply: event dispatch loses its guard")
+    try:
+        check_guard(unguarded, "void idEvent::ServiceEvents( void )", 'gameLocal.NotePresentationGameplay( "idEvent::ServiceEvents" );', "mutation")
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("mutation survived: event dispatch loses its guard")
+    print("presentation_hf_contract mutations: 5 rejected")
 
 
 def main() -> None:

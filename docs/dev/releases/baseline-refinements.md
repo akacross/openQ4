@@ -11,6 +11,9 @@
 - **Ragdolls and flying debris stay smooth.** Falling bodies, shell casings,
   barrel fragments and their smoke trails move smoothly above 60 FPS, and your
   weapon's muzzle-flash light and flashlight stay on the gun while you turn.
+- **Smoother spectating.** While you spectate a multiplayer match, the players
+  you watch move smoothly above 60 FPS, including in third person and the death
+  camera. While you play, other players keep the timing that hit detection uses.
 - **Optional low-latency look.** Set `in_presentationView 1` to turn the view
   with your mouse, gyro, look keys or stick on every drawn frame instead of up
   to a tick later. Aiming, hit detection and the network are unchanged.
