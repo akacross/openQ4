@@ -12,9 +12,18 @@ sample and owner counters. Scenarios:
 - death, ragdoll, debris: the death camera, AF ragdoll blending and client debris;
 - vehicle: a spawned walker entered by script, its joint-bound cockpit eye
   turning under the probe;
+- flick: rapid turns, the probe at ten times its rate (2200 deg/s), late look
+  off and on;
 - zoom: a railgun held zoomed by the cheat-gated in_presentationViewProbeZoom,
   late look off and on (zoomed look turns at pm_zoomedSlow, 50%);
 - lift: riding airdefense2's func_elevator_3 up a floor, late look off and on;
+- subview (HF-06): views rendered inside each draw besides the main one, with
+  late look on: tram1's bigScreen monitor (a cameraTarget remote view) and
+  airdefense1's portal sky. r_rendererMetrics 2 runs for a moment so the case
+  reports how many views and subview/remote packets each frame drew;
+- vr (HF-06): stereo frames through the in-tree OpenXR test runtime (selected
+  for that process only by XR_RUNTIME_JSON), so both eyes of every draw pass the
+  gameplay guard; the runtime's log counts the frames it received;
 - demo (HF-06): a render demo recorded while late look turns and the capture
   runs, then played back by timeDemoQuit through the demo bypass in the same
   session;
@@ -49,6 +58,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import time
@@ -60,8 +70,10 @@ ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = re.compile(
     r"presentationClockSample rt=(-?\d+) t=(-?\d+) f=([-\d.]+) hrt=([-\d.]+) step=(\d+) hz=(\d+) phase=([-\d.]+)"
     r" drawYaw=([-\d.]+) authYaw=([-\d.]+) look=(\d) lookYaw=([-\d.]+) inYaw=([-\d.]+)"
-    r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?")
-TURNING = ("look", "thirdperson", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+    r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?(?: prepMs=([-\d.]+))?")
+TURNING = ("look", "thirdperson", "flick", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
+VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
 # HF-07 budgets (presentation-owners.md): draw interval p95/p99 and late-look sample-to-draw, in ms
 BUDGETS = {240: {"intervalP95": 4.6, "intervalP99": 6.3, "lookSampleToDrawP95": 1.0}}
@@ -238,7 +250,8 @@ def parse(text):
              "look": int(m[9]), "lookYaw": float(m[10]), "inYaw": float(m[11]),
              "debris": int(m[12] or 0), "afBlends": int(m[13] or 0),
              "listed": int(m[14] or 0), "afFrames": int(m[15] or 0), "gameplay": int(m[16] or 0),
-             "bse": int(m[17] or 0), "drawZ": float(m[18] or 0.0)}
+             "bse": int(m[17] or 0), "drawZ": float(m[18] or 0.0),
+             "prepMs": float(m[19]) if m[19] else None}
             for m in SAMPLE.findall(text)]
 
 
@@ -275,6 +288,19 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
     case["errors"] = [line for line in text.splitlines()
                       if re.search(r"\b(ERROR|FATAL)\b|Assertion failed", line)][:20]
     case["gameplayReports"] = [line for line in text.splitlines() if line.startswith("presentationGameplay:")][:8]
+    prep = [s["prepMs"] for s in samples if s["prepMs"] is not None]
+    if prep:
+        # preparing the draw: camera, late look, entity poses and client debris
+        case["prepareMs"] = {"p50": percentile(prep, 0.5), "p95": percentile(prep, 0.95), "max": max(prep)}
+    summaries = RENDERER.findall(text)
+    if summaries:
+        fe, be, present, gpu, views_ = summaries[-1]
+        case["rendererSummary"] = {"frontEndMs": int(fe), "backEndMs": int(be), "presentMs": int(present), "gpu": gpu, "views": int(views_)}
+    views = VIEWS.findall(text)
+    if views:
+        case["rendererViews"] = {"frames": len(views), "maxViews": max(int(v[0]) for v in views),
+                                 "maxSubviewPackets": max(int(v[2]) for v in views),
+                                 "maxRemotePackets": max(int(v[3]) for v in views)}
     if scenario == "demo":
         played = TIMEDEMO.search(text)
         case["timeDemo"] = {"frames": int(played[1]), "seconds": float(played[2]), "fps": float(played[3])} if played else None
@@ -287,7 +313,8 @@ def reanalyse(output: Path, probe_rate: float) -> int:
         log = output / case["case"] / "baseoq4/logs/openq4.log"
         samples = parse(log.read_text(encoding="utf-8", errors="replace"))
         if len(samples) >= 64 and case.get("scenario") in TURNING:
-            case.update(analyse(samples, -probe_rate * 5.0 * 0.022 * (0.5 if case.get("scenario") == "zoom" else 1.0)))
+            scale = {"zoom": 0.5, "flick": 10.0}.get(case.get("scenario"), 1.0)
+            case.update(analyse(samples, -probe_rate * 5.0 * 0.022 * scale))
         if len(samples) >= 64:
             case["drawnStepJitterDeg"] = step_jitter(samples)
             case["tickLinearityDeg"] = tick_linearity(samples)
@@ -317,6 +344,9 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=28995, help="loopback MP server port")
     parser.add_argument("--renderer", choices=("gl", "vulkan"), default="gl")
     parser.add_argument("--fps", type=int, nargs="+", default=[240])
+    parser.add_argument("--swap-interval", type=int, default=0, help="r_swapInterval: 0 tears, 1 waits for vsync")
+    parser.add_argument("--xr-runtime-json", type=Path, default=ROOT / "builddir" / "openq4_xr_test_runtime.json",
+                        help="the in-tree OpenXR test runtime manifest, for the vr case")
     parser.add_argument("--probe-rate", type=float, default=2000.0, help="synthetic mouse counts per second")
     parser.add_argument("--samples", type=int, default=512)
     parser.add_argument("--min-fps", type=float, default=30.0,
@@ -325,7 +355,7 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo",
+                        choices=("look", "thirdperson", "flick", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--reference", action="store_true",
@@ -342,7 +372,7 @@ def main() -> int:
     # sensitivity 5 x m_yaw 0.022 with no acceleration: degrees per count
     expected_rate = -args.probe_rate * 5.0 * 0.022
     report = {"runtime": str(runtime), "map": args.map, "mpMap": args.mp_map, "renderer": args.renderer,
-              "probeRate": args.probe_rate, "reference": args.reference,
+              "probeRate": args.probe_rate, "reference": args.reference, "swapInterval": args.swap_interval,
               "binaries": {name: sha256(runtime / name) for name in
                            ("openQ4-client_x64.exe", "baseoq4/game-sp_x64.dll", "baseoq4/game-mp_x64.dll",
                             f"renderer-{args.renderer}_x64.dll")
@@ -385,6 +415,11 @@ def main() -> int:
                      ["god", "notarget", f"setviewpos {args.viewpos}", "waitMsec 500",
                       "spawn vehicle_walker name hf_walker", "waitMsec 1500",
                       'script "$player1.enterVehicle( $hf_walker );"', "waitMsec 2000", probe, "waitMsec 1500"], "sp")],
+        # HF-08: rapid turns
+        "flick": [(f"flick-look{late}", ["in_presentationView", str(late)],
+                   ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "waitMsec 500",
+                    f"in_presentationViewProbe {args.probe_rate * 10:g}", "waitMsec 1500"], "sp")
+                  for late in (0, 1)],
         # HF-08: zoomed look; railgun because airdefense1 may already hold the machinegun
         "zoom": [(f"zoom-look{late}", ["in_presentationView", str(late), "ui_autoSwitch", "1", "pm_zoomedSlow", "50"],
                   ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "give weapon_railgun", "waitMsec 2000",
@@ -395,6 +430,15 @@ def main() -> int:
                   ["god", "notarget", "setviewpos -480 1472 100 0 0 0", "waitMsec 2000", probe, "waitMsec 1000",
                    'script "$func_elevator_3.gotoFloor( 2 );"', "waitMsec 300"], "sp:game/airdefense2")
                  for late in (0, 1)],
+        # HF-06: a remote camera view rendered as a subview of every draw
+        "subview": [(f"subview-{place}", ["in_presentationView", "1"],
+                     ["god", "notarget", "noclip", f"setviewpos {viewpos}", "waitMsec 2500", "screenshot",
+                      "r_rendererMetrics 2", "waitMsec 300", "r_rendererMetrics 0"], mode)
+                    for place, viewpos, mode in (("monitor", "15915 -1201 169 16 -40 0", "sp:game/tram1"),
+                                                 ("portalsky", args.viewpos, "sp"))],
+        # HF-06: stereo frames from the OpenXR test runtime; late look stands down in VR
+        "vr": [("vr", ["vr_enable", "1", "vr_debug", "0", "in_presentationView", "1"],
+                ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "waitMsec 2000"], "sp")],
         # HF-06: record a render demo under late look, then play it back in the same session
         "demo": [("demo", ["in_presentationView", "1"], turn_sp + ["recordDemo hf_presentation"], "sp")],
         # HF-08: a loopback listen host's own player
@@ -414,7 +458,7 @@ def main() -> int:
                                          ("free", ["ui_spectate Spectate", "waitMsec 2000"]),
                                          ("follow", ["ui_spectate Spectate", "waitMsec 2000", "follow next", "waitMsec 1500"]))],
         # HF-07: the draw cadence at this cap while turning with late look
-        "pacing": [("pacing", ["in_presentationView", "1", "com_showFramePacing", "2"],
+        "pacing": [("pacing", ["in_presentationView", "1", "com_showFramePacing", "2", "r_rendererMetrics", "1"],
                     turn_sp + ["framePacingReset"], "sp")],
     }
 
@@ -429,7 +473,7 @@ def main() -> int:
             "+set", "r_renderApi", args.renderer, "+set", "ui_retained", "1",
             "+set", "sv_cheats", "1", "+set", "developer", "1",
             "+set", "logFile", "2", "+set", "logFileName", "logs/openq4.log",
-            "+set", "com_maxfps", str(fps), "+set", "r_swapInterval", "0",
+            "+set", "com_maxfps", str(fps), "+set", "r_swapInterval", str(args.swap_interval),
             "+set", "r_fullscreen", "0", "+set", "r_mode", "-1",
             "+set", "r_customWidth", "960", "+set", "r_customHeight", "540",
             "+set", "r_windowWidth", "960", "+set", "r_windowHeight", "540",
@@ -478,11 +522,19 @@ def main() -> int:
                     time.sleep(25)
                     launch = ["+set", "net_port", str(args.port + 1), "+connect", f"127.0.0.1:{args.port}"]
                 command = command_for(home, fps, cvars, launch, "look_probe.cfg")
+                environment = None
+                if scenario == "vr":
+                    (home / "xr_script.txt").write_text("", encoding="utf-8")
+                    environment = dict(os.environ)
+                    environment.update({"XR_RUNTIME_JSON": str(args.xr_runtime_json.resolve()),
+                                        "OPENQ4_XR_TEST_LOG": str(home / "xr_log.jsonl"),
+                                        "OPENQ4_XR_TEST_SCRIPT": str(home / "xr_script.txt"),
+                                        "OPENQ4_XR_TEST_EYE_SIZE": "800x880", "OPENQ4_XR_TEST_RATE": "90"})
                 (home / "launch.json").write_text(json.dumps({"cwd": str(runtime), "args": command}, indent=1), encoding="utf-8")
                 started = time.monotonic()
                 try:
                     exit_code = subprocess.run(command, cwd=runtime, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                               stderr=subprocess.DEVNULL, timeout=args.timeout).returncode
+                                               stderr=subprocess.DEVNULL, timeout=args.timeout, env=environment).returncode
                 except subprocess.TimeoutExpired:
                     exit_code = "timeout"
                 finally:
@@ -495,13 +547,19 @@ def main() -> int:
                 log = game / "logs/openq4.log"
                 text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
                 case = summarise(name, scenario, fps, exit_code, started, text,
-                                 expected_rate * ( 0.5 if scenario == "zoom" else 1.0 ), args.reference)
+                                 expected_rate * {"zoom": 0.5, "flick": 10.0}.get(scenario, 1.0), args.reference)
+                if scenario == "vr":
+                    xr_log = home / "xr_log.jsonl"
+                    frames = [int(f) for f in re.findall(r'"event":"end_frame","frame":(\d+)',
+                                                         xr_log.read_text(encoding="utf-8", errors="replace"))] if xr_log.is_file() else []
+                    case["xrFramesSubmitted"] = max(frames, default=0)
                 report["cases"].append(case)
                 print(json.dumps({k: case[k] for k in case if k not in ("errors", "gameplayReports")}), flush=True)
     (output / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
     # Scenes drawn on the authoritative clock record no samples by design (thirdperson-interp0).
     failures = [c["case"] for c in report["cases"] if c["exit"] != 0 or c["errors"] or c["gameplayInDraws"] or
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
+                (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
                 (c["samples"] < 64 and not c["case"].endswith("interp0")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")

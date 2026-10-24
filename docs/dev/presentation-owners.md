@@ -68,6 +68,16 @@ matched its usercmds' yaw step (`PresentationLookCoupled`); a held, scripted or
 teleported view fails it, and late look stays off for that sample. More than
 90° of unapplied input is a discontinuity (angle reset, map change), not motion.
 
+Vehicles stay excluded (decision, 24 October 2026). In a vehicle, input steers
+a turret, torso or body with its own turn-rate limits, and the eye rides a joint
+of that vehicle. Unapplied input therefore does not tell where the next drawn
+eye will point: a walker driven at 220°/s turned at 196°/s. A correction would
+draw orientations the vehicle never reaches and snap back on the next tick, the
+case the coupling check exists to refuse. Cockpit views stay interpolated and
+exact within each tick (see the `vehicle` evidence below). Late look in vehicles
+would need each vehicle's turn model evaluated on the draw, so it is not
+planned.
+
 **Displayed aim versus authoritative firing.** A shot uses the usercmd that
 carries the input up to its build. Late look draws the input up to the draw,
 so the drawn aim never leads the input that the next usercmd will carry.
@@ -206,9 +216,14 @@ Declared targets, pending physical qualification:
 | 360 Hz, experimental | 2.78 ms | Reported only; not a release promise |
 
 Cases to qualify: caps 30/60/120/144/165/240/360 and `0`, vsync and VRR where
-available, low-FPS catch-up (fewer draws than ticks), menus and loading (the
-loading pacifier follows `com_maxfps`), hidden windows (capped at 60), and the
-`performance` (60), `ultra` (240) and Steam Deck automatic caps. Use
+available, low-FPS catch-up (fewer draws than ticks), menus and loading, hidden
+windows, and the preset caps. The declared policy, pinned by
+`presentation_hf_contract.py`, is as follows. Loading screens redraw at the
+lower of `com_maxfps` and 60 Hz, never faster, and back off when a redraw is
+slow. Uncapped, they redraw at most once per tick. Hidden windows are capped at
+60 and a headset paces itself. The presets set `minimum`/`lowpower` 30,
+`performance` 60, `balanced` 120, `quality` 144 and `ultra` 240, and a detected
+Steam Deck starts on `performance`. Use
 [`presentation_look_runtime.py`](https://github.com/themuffinator/openQ4/blob/master/tools/tests/presentation_look_runtime.py)
 for engine-side latency and smoothness, `com_showFramePacing 2` for p50/p95/p99
 intervals and the gameplay benchmark for frame times, all in a visible
@@ -219,13 +234,17 @@ The cap matrix runs as one command:
 
 ```
 presentation_look_runtime.py --basepath <Quake 4> --output-dir <new dir>
-  --scenario pacing --fps 30 60 120 144 165 240 360 0 [--renderer vulkan] [--reference]
+  --scenario pacing --fps 30 60 120 144 165 240 360 0 [--renderer vulkan]
+  [--swap-interval 1] [--reference]
 ```
 
 Each cap turns the view at 220°/s with late look on. Each case reports the
 prepared-draw interval p50/p95/p99 at sub-millisecond resolution, the presented
 rate, ticks no draw showed, whether the rate fell below 90% of the cap, the
 late-look sample-to-draw time and the engine's `framePacingSnapshot` summary.
+Every case also reports `prepareMs`, the cost of preparing each draw (camera,
+late look, entity poses, client debris). The pacing case adds the renderer's
+front-end, back-end and GPU summary, so a slow run shows where the frame went.
 The 240 cap is judged against the budget above. Other caps are reported only.
 `--reference` is the operator's statement that the window was visible, in the
 foreground, on the reference machine. Without it every verdict reads "not
@@ -395,3 +414,35 @@ were interpolated with late look active. The view matched the input sampled for
 each draw (p95 0.002°) and no draw counted gameplay. Playback then took the demo
 bypass and rendered the recorded 569 frames in 2.9 s before the client exited
 cleanly (`.tmp/hf/r3-run3`).
+
+### Rapid turns, VR, subviews, Vulkan and vsync, 24 October 2026
+
+Output is retained under `.tmp/hf/r4-run2`, `.tmp/hf/r4-vk` and
+`.tmp/hf/r4-vsync`. No case counted gameplay or BSE starts inside a draw, and
+none logged an error.
+
+- **Rapid turns** (`flick`, 2200°/s). Input was consumed once in both modes
+  (−2200.29 and −2200.06°/s against −2200.00). With late look the drawn view
+  matched the input sampled for each draw (p95 0.0001°), the delay of about
+  15 ms disappeared and the frame-to-frame residual fell from 4.67° to 0.09°.
+- **VR** (`vr`). The in-tree OpenXR test runtime at 90 Hz received 2,340 stereo
+  frames. All 512 captured draws were interpolated, late look stood down on
+  every one, and no gameplay ran in either eye's draw.
+- **Remote-camera subview** (`subview-monitor`, tram1's `bigScreen`). The
+  renderer drew a remote-camera view in every metrics frame (18 views per frame,
+  against 9 at the airdefense1 position) and nothing ran gameplay.
+- **Where a 240-capped frame goes** (OpenGL, 196 Hz). Preparing each draw
+  (camera, late look, entity poses, debris) took 0.35 ms at p50 and 0.52 ms at
+  p95. The renderer reported about 1 ms front end, 1 ms back end and 2 ms GPU.
+  Presentation work is about 7% of the frame and is not what keeps this machine
+  under the cap.
+- **Vsync** (`--swap-interval 1`). This machine's 2560×1440 panel runs at
+  240 Hz through hybrid graphics. With vsync, the 240 cap presented at 138 Hz
+  (p50 7.3 ms) and uncapped at 130 Hz, with no tick left undrawn: frames that
+  miss a 4.17 ms refresh wait for the next.
+- **Vulkan cap matrix**, on a window behind others. 60 held (59.9 Hz). 144
+  presented 80 Hz (p95 54 ms), 240 presented 120 Hz (p95 24 ms, 29 ticks
+  undrawn), and uncapped 164 Hz with one 754 ms stall. Draw preparation spiked
+  to 52 ms, so the process was being descheduled. This matches the earlier
+  finding that an occluded Vulkan window is throttled; it is not qualifying
+  evidence either way.

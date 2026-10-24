@@ -264,8 +264,9 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   nested segments; once per particle or effect step) are counted apart. Every
   SP and MP case on 24 October counted none. A session that records a render
   demo under late look, then plays it back with `timeDemoQuit`, captured and
-  played back cleanly. VR stereo/subview repeats and TAA appearance under late
-  look by eye remain.
+  played back cleanly. Stereo draws from the in-tree OpenXR test runtime (2,340
+  frames) and a remote-camera monitor drawn in every frame also counted none.
+  Headset hardware and TAA appearance under late look by eye remain.
 - [ ] **HF-07 — P1, qualification: establish supported frame-rate behavior.** Declare
   target hardware/scenes/settings and latency/p95/p99 budgets for 240 Hz (4.17 ms
   frame interval); retain 360 Hz (2.78 ms) as experimental until qualified. Include
@@ -279,7 +280,10 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   only operator-declared `--reference` runs qualify. An occluded window on a
   loaded machine presented 57 Hz (GL) and 15 Hz (Vulkan) at a 240 cap. A later
   engine-side matrix held 30/60/120/144/165 and reached 189–204 Hz at 240 (p95
-  7.2–8.5 ms), so physical runs on the reference hardware remain.
+  7.2–8.5 ms). On that laptop (hybrid graphics, 240 Hz panel) preparing a draw
+  costs 0.35 ms of a 5 ms frame, and vsync settles at 138 Hz. The declared
+  frame-rate policy (hidden-window, loading and preset caps) is contract-pinned.
+  Physical runs on the desktop reference remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),
   zoomed, on lifts and trams and through rapid turns, and measure physical
@@ -298,8 +302,10 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   showed the same: input consumed once, the drawn view equal to the input
   sampled for the draw, and about 16 ms removed. Forced latency waits for the
   network impairment rework, because the committed latency queue drops packets
-  over 1400 bytes. Physical latency, the by-eye review and a decision on late
-  look in vehicle cockpits remain.
+  over 1400 bytes. Rapid turns at 2200°/s consumed input once and cut the
+  frame-to-frame residual from 4.67° to 0.09°. Late look stays excluded in vehicles by decision, because
+  vehicles turn under their own rate limits (a walker turned 196°/s for a
+  220°/s input). Physical latency and the by-eye review remain.
 
 ## Vulkan rendering
 

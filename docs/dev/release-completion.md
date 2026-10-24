@@ -143,6 +143,12 @@ completed release material here and publish curated notes in `releases/`.
   input. Forced latency waits for the network impairment rework.
 - [x] HF-06 demos: a session records a render demo under late look while the
   capture runs, then plays it back with `timeDemoQuit`; both stay clean.
+- [x] HF-06/HF-07/HF-08 further cases: stereo frames from the OpenXR test
+  runtime and a remote-camera monitor pass the gameplay guard. The capture
+  reports each draw's preparation cost (0.35 ms of a 5 ms frame). Vsync and
+  Vulkan pacing runs are recorded, and the declared frame-rate policy is
+  contract-pinned. Rapid turns at 2200°/s consume input once. Late look stays
+  excluded in vehicles by decision.
 - Evidence: `presentation_hf_contract.py --mutations`, the interpolation
   contract and live captures recorded in the
   [presentation owners contract](presentation-owners.md). Physical pacing,

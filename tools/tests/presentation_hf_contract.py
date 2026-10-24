@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # Quake 4 SDK EULA applies to the game sources this inspects; see docs/dev/game-test-coverage.md.
-"""Static contract for the HF-03 to HF-06 presentation owners.
+"""Static contract for the HF-03 to HF-07 presentation owners.
 
 Late look (in_presentationView), weapon view lights, unbound client debris and
 alternate views are draw-only. These checks pin the read-only engine sampler,
 the frozen per-draw correction, the identical SP/MP bodies and the gameplay
 state each owner must never write, and the HF-06 guard that makes event
 dispatch, scripts, physics and effect spawns report themselves when they run
-inside a prepared draw. Behaviour of the look policy itself is
+inside a prepared draw, and HF-07's declared frame-rate policy (hidden-window,
+loading-screen and preset caps). Behaviour of the look policy itself is
 executed by openq4-presentation-look (tools/tests/native/PresentationLookTest.cpp).
 Run with --mutations to prove a representative check of each owner fails when
 its production body regresses.
@@ -125,9 +126,34 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
     require(normalized(buttons), "if ( in_presentationViewProbeZoom.GetBool() ) { cmd.buttons |= BUTTON_ZOOM; }", "zoom probe only holds the zoom button")
     require(usercmd_cpp, 'in_presentationView( "in_presentationView", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL', "late look stays opt-in")
 
+    check_frame_rate_policy()
+
     require(game_h, "const int GAME_API_VERSION\t\t= 54;", "game ABI v54")
     require(game_h, "idUsercmdGen *\t\t\t\tusercmdGen;", "gameImport_t carries the generator")
     require(common_cpp, "gameImport.usercmdGen\t\t\t\t= ::usercmdGen;", "engine hands the generator to the game")
+
+
+def check_frame_rate_policy() -> None:
+    """HF-07's declared frame-rate policy (presentation-owners.md)."""
+    common = read("src/framework/Common.cpp")
+    context = "HF-07 frame-rate policy"
+    cap = function(common, "static int Common_GetRequestedPresentationCap( void )", context)
+    require(cap, "vrSystem->IsPacing()", f"{context}: a headset paces itself")
+    require(cap, "!Sys_IsWindowVisible() && ( cap == 0 || cap > 60 )", f"{context}: hidden windows capped at 60")
+    require(common, 'com_maxfps( "com_maxfps", "240"', f"{context}: 240 default cap")
+    session = read("src/framework/Session.cpp")
+    require(session, "static const float SESSION_MAX_BLOCKING_LOAD_REDRAW_HZ = 60.0f;", f"{context}: loading redraw ceiling")
+    load = function(session, "static float Session_GetBlockingLoadFrameIntervalMsec( void )", context)
+    require(load, "return Max( ceilingMsec, 1000.0f / static_cast<float>( presentationCap ) );", f"{context}: loading honours a lower cap only")
+    require(load, "return Max( ceilingMsec, common->GetUserCmdMsecFloat() );", f"{context}: uncapped loading at most once per tick")
+    presets = read("src/framework/PerformancePreset.cpp")
+    caps = {}
+    for name, fps in re.findall(r'\{ "(\w+)", \d+, "[\w-]+",\s*\d+, \d+, \d+, (\d+),', presets):
+        caps[name] = int(fps)
+    expected = {"minimum": 30, "lowpower": 30, "performance": 60, "balanced": 120, "quality": 144, "ultra": 240}
+    if caps != expected:
+        raise AssertionError(f"{context}: preset caps {caps} differ from the declared {expected}")
+    require(presets, 'else if(signals.steamDeck){name="performance";', f"{context}: Steam Deck starts on performance")
 
 
 def check_guard(source: str, signature: str, expected: str, context: str) -> str:

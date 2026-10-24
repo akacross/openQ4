@@ -618,6 +618,7 @@ public:
 	int						presentationGameplayCount;	// gameplay entry points reached inside a prepared draw (diagnostic)
 	int						presentationRendererDepth;	// inside the renderer's scene work for a draw
 	int						presentationRendererEffectCount;	// effects BSE started there (diagnostic)
+	double					presentationPrepStartTicks;	// when this draw's preparation began (diagnostic)
 	float					presentationSceneFraction;	// frozen camera/root fraction for the active Draw
 	int					presentationAnimationTime;	// previous-to-current skeletal sample held only during Draw
 	int						autoExecAfterMapLoadStartTime;
