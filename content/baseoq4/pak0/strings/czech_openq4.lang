@@ -1399,4 +1399,8 @@
 	"#str_231523"	"PŘEHRÁT"
 	"#str_231524"	"celkem %s"
 	"#str_231525"	"%s hraní"
+	"#str_231526"	"Styl tlačítek"
+	"#str_231527"	"Automaticky;Xbox;PlayStation;Nintendo;Steam Deck;Obecný"
+	"#str_231528"	"Prohodit Potvrdit/Zpět"
+	"#str_231529"	"Automaticky;Vyp.;Zap."
 }

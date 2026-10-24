@@ -735,6 +735,13 @@ archived provenance; new scheduling belongs here.
   LOAD, DELETE, SAVE, PLAY and JOIN, from a button's new `prompt`, in every
   shipped language. Accept leaves the bar while no focused control can act.
   Contextual west/north prompts and the home screens' bars remain open.
+  Progress, 24 October: [Prompt Style and Swap Confirm and Back](ui/input-routing.md#settings-rows-24-october-2026)
+  are rows in Game Options > Controller, bound to `in_promptStyle` and
+  `in_swapConfirmBack` in every shipped language (`INP-011`). The triggers now
+  [page lists](ui/input-routing.md#list-paging-24-october-2026) a visible page at
+  a time (PageUp/PageDown, Home/End) where a document declares no section events,
+  and step a focused slider coarsely. Prompt glyphs for the triggers and remaining
+  buttons, the right stick's detail scrolling and per-family controller runs remain.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled
@@ -763,6 +770,9 @@ archived provenance; new scheduling belongs here.
   translating from runes as they open. Ids, focus, soft focus and timing stay
   the stock dialog's. The construction derives from section 13.7's family rules
   and awaits art review under UI-05.
+  Progress, 24 October: Join Game's [row focus follows its server](ui/retained-screens.md#join-game-sub-page)
+  through new orders, refreshes and filters, onto its page, as the choice
+  already did; a server that leaves the list leaves the focus in place.
   Progress, 23 October: [save details](ui/retained-screens.md#save-details)
   record each run's play time and difficulty in the persistent player info
   that every save header carries, without a save format change. CONTINUE and

@@ -1404,4 +1404,8 @@
 	"#str_231523"	"RIPRODUCI"
 	"#str_231524"	"%s in totale"
 	"#str_231525"	"%s di gioco"
+	"#str_231526"	"Stile pulsanti"
+	"#str_231527"	"Automatico;Xbox;PlayStation;Nintendo;Steam Deck;Generico"
+	"#str_231528"	"Inverti Conferma/Indietro"
+	"#str_231529"	"Automatico;No;Sì"
 }

@@ -24,6 +24,23 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Controller prompt settings and list paging, 24 October 2026
+
+- [x] Game Options > Controller gains Prompt Style (`in_promptStyle`) and Swap
+  Confirm and Back (`in_swapConfirmBack`), both console-only before, in all
+  twelve language tables. Later rows, hovers, section anchors and the scroll
+  extent move two rows; the settings registry and coverage test follow.
+- [x] PageUp/PageDown and Home/End move focus a visible page through a retained
+  list, or to its ends; the triggers send them where a document declares no
+  section events, and step a focused slider coarsely.
+- [x] Join Game's row focus follows its server through new orders, refreshes
+  and filters onto its page (UI-03 stable refresh focus), checked by the
+  session gate.
+- [Behavior and checks](ui/input-routing.md#settings-rows-24-october-2026):
+  settings coverage, GUI value/clipping/navigation contracts, the focus reveal
+  and adapter harnesses, and in-game Settings and Load Game captures. Candidate
+  player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Audio on Linux, voice output loss and long sessions, 24 October 2026
 
 - [x] AUD-02/03/04/06/07: the output-recovery, subtitle and scene harnesses pass on

@@ -1399,4 +1399,8 @@
 	"#str_231523"	"OYNAT"
 	"#str_231524"	"toplam %s"
 	"#str_231525"	"%s oynandı"
+	"#str_231526"	"Düğme simgeleri"
+	"#str_231527"	"Otomatik;Xbox;PlayStation;Nintendo;Steam Deck;Genel"
+	"#str_231528"	"Onay/Geri değiştir"
+	"#str_231529"	"Otomatik;Kapalı;Açık"
 }

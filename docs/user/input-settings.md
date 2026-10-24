@@ -132,7 +132,10 @@ On a Nintendo-layout controller, menus confirm with A (the right button) and
 go back with B (the bottom button), as Switch games do. Nintendo prompts
 chosen with `in_promptStyle 3` (see [Button Prompts](#button-prompts)) count
 as a Nintendo layout. Other controllers confirm with the bottom button. To
-choose for any controller, use the console:
+choose for any controller, set **Swap Confirm and Back** in **Settings > Game
+Options > Controller**: **Off** confirms with the bottom button, **On** with the
+right button, and **Automatic** follows the controller. The console setting is
+the same choice:
 
 ```cfg
 seta in_swapConfirmBack 2
@@ -162,8 +165,8 @@ shoulder buttons: LB and RB, L1 and R1, or L and R. The keyboard or mouse
 switches the prompts back to keys.
 
 If Steam Input or another remapper hides your real controller, choose the
-controller prompts yourself from the console. The setting covers the menus
-and the HUD:
+controller prompts yourself with **Prompt Style** in **Settings > Game Options >
+Controller**, or from the console. The setting covers the menus and the HUD:
 
 ```cfg
 seta in_promptStyle 2

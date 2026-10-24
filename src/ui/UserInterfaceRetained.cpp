@@ -1381,6 +1381,17 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 				case K_END: action = MenuInput::End; break;
 				case K_PGUP: action = MenuInput::PageUp; break;
 				case K_PGDN: action = MenuInput::PageDown; break;
+				// The triggers page lists and step a slider coarsely (section
+				// 13.5) in a document that declares no section events for them;
+				// on a slider the right trigger raises the value, as Right does.
+				case K_JOY16: case K_JOY15: {
+					auto* runtime = impl->RuntimeView();
+					const auto widget = runtime ? runtime->GetWidgetState(runtime->FocusedControl()) : std::nullopt;
+					const bool forward = (key == K_JOY15) != (widget && widget->role == ControlRole::Slider);
+					action = forward ? MenuInput::PageDown : MenuInput::PageUp;
+					mapped = !runtime || !runtime->HasEvent(key == K_JOY16 ? "onSectionPrevious" : "onSectionNext");
+					break;
+				}
 				case K_ENTER: case K_KP_ENTER: case K_SPACE: case K_JOY3: action = MenuInput::Accept; break;
 				case K_ESCAPE: case K_JOY4: case K_JOY7: case K_JOY8: action = MenuInput::Back; break;
 				default: mapped = false; break;

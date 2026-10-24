@@ -42,7 +42,7 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
-| Gamepad triggers | The document's previous / next section (`onSectionPrevious`, `onSectionNext`), on the same terms |
+| Gamepad triggers | The document's previous / next section (`onSectionPrevious`, `onSectionNext`), on the same terms; where it declares neither, PageUp / PageDown ([list paging](#list-paging-24-october-2026)) |
 | Gamepad West / North | The document's secondary / tertiary action (`onSecondary`, `onTertiary`), on the same terms |
 
 SDL's gamepad South/East buttons map to engine `K_JOY3`/`K_JOY4` and West/North
@@ -106,6 +106,54 @@ releases the action captured at key-down, including when Shift changes first.
 
 Evidence for prompt glyphs: `.tmp/ui/retained-prompt-glyphs-evidence/validation-evidence.json`,
 SHA-256 `8246e1584cd199da491094441ac48f320d14fe796122ecb7a7e2991214ff004c`.
+
+### List paging (24 October 2026)
+
+Section 13.5 pages lists with the triggers. PageUp and PageDown, from the
+keyboard or a trigger, move focus a visible page through the scrolling list
+that holds the focused button or toggle (`Runtime::Impl::PageList`): to the
+farthest row that fits on the list's client height with the focused one, or
+the next row when even that one does not fit. Home and End move to the list's
+first and last row. Rows in the focused row's column are preferred, a
+disabled or hidden row is skipped, focus is revealed as any focus change is,
+and nothing activates. Focus outside a scrolling list, a list with nowhere to
+go and a focused slider, scrollbar or choice keep their existing meaning.
+
+The adapter sends the triggers as PageUp (left) and PageDown (right) to a
+document that declares no `onSectionPrevious`/`onSectionNext` of its own; on
+a focused slider the right trigger raises the value, as Right does, by the
+interaction's ten-step coarse step. Documents with section events keep them.
+`tools/tests/native/UiFocusRevealTest.cpp` covers the paging at 1x and 2x
+density, and the `list-paging` capture pages the Load Game list.
+
+### Settings rows (24 October 2026)
+
+Settings > Game Options > Controller offers both choices as rows, after Low
+Battery Rumble Cap (section 13.5, `INP-011`):
+
+| Row | Cvar | Choices (values) |
+| --- | --- | --- |
+| Prompt Style | `in_promptStyle` | Automatic (0), Xbox (1), PlayStation (2), Nintendo (3), Steam Deck (4), Generic (5) |
+| Swap Confirm and Back | `in_swapConfirmBack` | Automatic (0), Off (1, south confirms), On (2, east confirms) |
+
+They are ordinary stock `choiceDef` rows bound to the archived cvars, so a
+change applies at once: the next frame's prompts take the family, and the next
+menu key takes the swap. Brand names stay as printed; the other words are in
+all twelve tables (`#str_231526`-`#str_231529`). Every later Game Options row,
+its hover and the section anchors moved two rows (48 px) down; the page's
+scroll extent, its last step (75) and the section thresholds in
+`MainMenuSettingsSectionChoiceForScroll` follow, and
+`tools/tests/settings_menu_coverage.py` pins them with the registry entries
+`game.controller.prompt_style` and `game.controller.swap_confirm`.
+
+The `settings-controller` capture (with the retained screens off) scrolls
+Game Options to the rows, sets both cvars from the console and reads them back
+in the rows, then shows the page's last step.
+
+Evidence for the settings rows, list paging and Join Game's row focus
+([retained screens](retained-screens.md#join-game-sub-page)):
+`.tmp/ui/controller-settings-paging/validation-evidence.json`, SHA-256
+`4ee88d83dbf0f98347f95fa70529aeb463fc20bb7725aaad1f905b6a5a82831c`.
 
 The device-independent `Input` adapter owns navigation repeat: immediate first
 navigation, 320 ms initial delay, then 110 ms between repeats. The newest held

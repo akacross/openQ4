@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [controller settings, list paging and Join Game focus](input-routing.md#settings-rows-24-october-2026)
+add bounded UI-02/UI-03 evidence to `INP-011` and `WID-009`. Prompt Style and Swap
+Confirm and Back are Settings rows, the triggers page retained lists and step a
+focused slider coarsely, and Join Game's row focus follows its server. The increment
+is audited against `35a1e919c828b8fd5326f46e1dda9a975c8549aa`. No requirement status,
+migration acceptance or final gate changes.
+
 23 October 2026: [save details](retained-screens.md#save-details) add bounded
 UI-03 evidence to `FLOW-024`, `FLOW-048` and `FLOW-004`. Saves record the
 run's play time and difficulty in their existing headers; CONTINUE and the

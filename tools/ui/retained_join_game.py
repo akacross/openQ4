@@ -687,6 +687,10 @@ def join_game_document() -> dict:
     quiet = {"op": "!", "args": [{"op": "||", "args": [{"state": "joinIpModal.visible"}, {"state": "findModal.visible"}]}]}
     doc.events["onSecondary"] = [{"op": "if", "condition": quiet, "then": [{"op": "action", "action": "joinRefresh"}]}]
     doc.events["onTertiary"] = [{"op": "if", "condition": quiet, "then": [{"op": "action", "action": "joinSortNext"}]}]
+    # A focused row's server keeps the focus through a new order: the session
+    # names the row that now shows it (idSessionLocal::PublishRetainedJoinGame).
+    for row in range(JOIN_ROWS):
+        doc.events[f"joinFocus{row}"] = [{"op": "focus", "control": f"server-{row}"}]
     doc.state.update({
         "join.count": {"type": "number", "initial": 0},
         "join.listed": {"type": "number", "initial": 0},

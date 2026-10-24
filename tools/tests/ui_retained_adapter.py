@@ -2444,7 +2444,9 @@ static void CheckNumberDiagnosticBoundary() {
 // where it declares them, the triggers its onSectionPrevious and
 // onSectionNext, and the west and north face buttons its onSecondary and
 // onTertiary: once per press, never on a repeat, never with Ctrl or Alt,
-// and never while a Number field is being edited.
+// and never while a Number field is being edited. Without section events
+// the triggers are PageUp and PageDown, which page a list; on a focused
+// slider the right trigger raises the value (PageUp).
 static void CheckTabKeys() {
     assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;
     eventPlans={};eventHistory.clear();
@@ -2475,6 +2477,12 @@ static void CheckTabKeys() {
         if(name=="onsectionprevious" || name=="onsectionnext")found.push_back(name);return found;};
     pulse(K_JOY16);pulse(K_JOY15);
     assert(sections().empty() && tabs().size()==6);
+    using Pulses=std::vector<std::pair<MenuInput,bool>>;
+    assert((runtime.menu==Pulses{{MenuInput::PageUp,true},{MenuInput::PageUp,false},{MenuInput::PageDown,true},{MenuInput::PageDown,false}}));
+    runtime.widgets.at("root").role=ControlRole::Slider;runtime.menu.clear();
+    pulse(K_JOY15);pulse(K_JOY16);
+    assert((runtime.menu==Pulses{{MenuInput::PageUp,true},{MenuInput::PageUp,false},{MenuInput::PageDown,true},{MenuInput::PageDown,false}}));
+    runtime.widgets.at("root").role=ControlRole::Number;runtime.menu.clear();
     eventPlans["onsectionprevious"]={};eventPlans["onsectionnext"]={};
     pulse(K_JOY16);pulse(K_JOY15);
     assert(sections()==std::vector<std::string>({"onsectionprevious","onsectionnext"}) && tabs().size()==6);

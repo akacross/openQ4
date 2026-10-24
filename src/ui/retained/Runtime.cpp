@@ -2285,6 +2285,55 @@ struct Runtime::Impl {
 		}
 		return true;
 	}
+	// PageUp and PageDown move focus a visible page through the scrolling list
+	// that holds the focused button or toggle, Home and End to its first and
+	// last row (section 13.5: the triggers page lists). Rows in the focused
+	// row's column are preferred. Any other focus, or a list with nowhere to
+	// go, leaves the input to the interaction.
+	bool PageList(MenuInput input) {
+		if (input != MenuInput::PageUp && input != MenuInput::PageDown && input != MenuInput::Home && input != MenuInput::End) return false;
+		const auto focused = interaction.Focused();
+		const auto role = interaction.Role(focused);
+		if (!document || !context || !role || (*role != ControlRole::Button && *role != ControlRole::Toggle)) return false;
+		auto* element = CanonicalElement(focused);
+		Rml::Element* list = nullptr;
+		for (auto* parent = element ? element->GetParentNode() : nullptr; parent && parent != document; parent = parent->GetParentNode()) {
+			const auto overflow = parent->GetComputedValues().overflow_y();
+			if (overflow == Rml::Style::Overflow::Auto || overflow == Rml::Style::Overflow::Scroll) { list = parent; break; }
+		}
+		Rml::Vector2f low, high;
+		if (!list || !ProjectedBounds(element,list,low,high)) return false;
+		struct Row { std::string id; float top, left, right; };
+		std::vector<Row> rows;
+		std::function<void(Rml::Element*)> collect = [&](Rml::Element* node) {
+			for (int i = 0; i < node->GetNumChildren(); ++i) {
+				auto* child = node->GetChild(i);
+				const auto& id = child->GetId();
+				const auto row = id.empty() ? std::nullopt : interaction.Role(id);
+				Rml::Vector2f top, bottom;
+				if (row && (*row == ControlRole::Button || *row == ControlRole::Toggle) && interaction.CanActivate(id) &&
+					interaction.AllowsNode(id) && ProjectedBounds(child,list,top,bottom)) rows.push_back({id,top.y,top.x,bottom.x});
+				collect(child);
+			}
+		};
+		collect(list);
+		const auto column = [&](const Row& row) { return row.left < high.x && row.right > low.x; };
+		if (std::any_of(rows.begin(),rows.end(),column)) rows.erase(std::remove_if(rows.begin(),rows.end(),[&](const Row& row) { return !column(row); }),rows.end());
+		// A page is the rows that fit with the focused one: the farthest row
+		// within it, or the next row when even that one does not fit.
+		const float page = std::max(0.f,list->GetClientHeight()-(high.y-low.y)), slack = .5f;
+		const bool down = input == MenuInput::PageDown || input == MenuInput::End;
+		const Row* farthest = nullptr; const Row* nearest = nullptr;
+		for (const auto& row : rows) {
+			const float distance = down ? row.top-low.y : low.y-row.top;
+			if (distance <= slack) continue;
+			const bool paged = input == MenuInput::Home || input == MenuInput::End || distance <= page+slack;
+			if (paged && (!farthest || (down ? row.top > farthest->top : row.top < farthest->top))) farthest = &row;
+			if (!nearest || (down ? row.top < nearest->top : row.top > nearest->top)) nearest = &row;
+		}
+		const Row* target = farthest ? farthest : nearest;
+		return target && interaction.Focus(target->id);
+	}
 	std::vector<Rml::Vector2f> FocusLayout() const {
 		std::vector<Rml::Vector2f> result;
 		if (!document || interaction.Focused().empty()) return result;
@@ -3724,7 +3773,9 @@ void Runtime::MenuAction(MenuInput input, bool down, double seconds) {
 	if (down && input != MenuInput::Back && !impl->interaction.CapturedPointerControl().empty()) impl->interaction.Cancel();
 	if (down) impl->pendingFocus.clear();
 	const auto before = impl->interaction.Focused();
-	impl->SetPointerNavigation(false); if(!impl->UpdateInteraction(seconds,false,true))return; impl->interaction.Input(input,down); impl->ApplyScrollCommands(); impl->Feedback(seconds);
+	impl->SetPointerNavigation(false); if(!impl->UpdateInteraction(seconds,false,true))return;
+	if (!down || !impl->PageList(input)) impl->interaction.Input(input,down);
+	impl->ApplyScrollCommands(); impl->Feedback(seconds);
 	if (impl->interaction.Focused() != before) impl->RevealFocus();
 }
 void Runtime::CancelInput(double seconds) {

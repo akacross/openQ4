@@ -106,6 +106,7 @@ template<typename T> struct idList : std::vector<T> {
     int FindIndex(const T& v) const { for (size_t i = 0; i < this->size(); ++i) if ((*this)[i] == v) return static_cast<int>(i); return -1; }
     int AddUnique(const T& v) { const int i = FindIndex(v); if (i >= 0) return i; Append(v); return Num() - 1; }
     void Clear() { this->clear(); }
+    void SetNum(int count) { this->resize(count); }
     bool RemoveIndex(int index) {
         if (index < 0 || index >= Num()) return false;
         this->erase(this->begin() + index); return true;
@@ -669,7 +670,7 @@ public:
     idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
     // Its Join Game sub-page and the servers it lists.
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
-    idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot;
+    idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot; idStrList retainedJoinRowAddresses;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
     void PublishRetainedJoinDetail(idUserInterface*); int retainedJoinDetailRow = -1;
     void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
@@ -1803,6 +1804,16 @@ int main() {
         s.HandleRetainedSessionRequest(join, "joinNewer"); CHECK(s.retainedJoinFirst == 0);
         s.HandleRetainedSessionRequest(join, "joinOlder");
         CHECK(s.retainedJoinFirst == 64 && join->state["join.first"] == "64" && join->state["join.row5.name"] == "Server 69" && join->state["join.row6.name"] == "");
+        s.HandleRetainedSessionRequest(join, "joinOlder"); CHECK(s.retainedJoinFirst == 64);
+        // Row focus follows its server through a new order onto its page, and
+        // stays where it is when its server leaves the list.
+        join->focused = "server-5"; std::swap(scan.visible[0], scan.visible[69]); ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(s.retainedJoinFirst == 0 && join->named.back() == "joinFocus0" && join->state["join.row0.name"] == "Server 69");
+        join->focused = "server-0"; const size_t focusEvents = join->named.size();
+        const int moved = scan.visible[0]; scan.visible.erase(scan.visible.begin()); ++scan.revision; s.UpdateRetainedJoinGame();
+        CHECK(join->named.size() == focusEvents && s.retainedJoinFirst == 0 && join->state["join.row0.name"] == "Server 1");
+        scan.visible.insert(scan.visible.begin(), moved); std::swap(scan.visible[0], scan.visible[69]); join->focused.clear();
+        ++scan.revision; s.UpdateRetainedJoinGame(); CHECK(join->state["join.row0.name"] == "Server 0");
         s.HandleRetainedSessionRequest(join, "joinOlder"); CHECK(s.retainedJoinFirst == 64);
         join->state["join.pick"] = "5"; s.HandleRetainedSessionRequest(join, "joinPick"); CHECK(join->state["join.selected"] == "69");
         // JOIN SERVER connects to the chosen server by the address the session

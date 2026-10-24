@@ -239,6 +239,34 @@ SCENARIOS = {
         'openq4_retainedGui focus "row-2"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
         'openq4_retainedGui report', 'screenshot "screenshots/details-load-older.tga"',
     ]),
+    # The triggers page lists (section 13.5): twenty saves, then Load Game from
+    # the title, focus paging a visible page down twice, to the list's end and
+    # back to its start, as PageDown, End and Home (the triggers' inputs) do.
+    'list-paging': ('game/airdefense1', ['waitMsec 1000'] + [command for index in range(20) for command in (
+        f'saveGame page{index:02d}', 'waitMsec 150')] + [
+        'disconnect', 'waitMsec 6000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 2500', 'openq4_retainedGui focus "row-0"', 'waitMsec 400',
+        'screenshot "screenshots/paging-start.tga"',
+        'openq4_retainedGui menu pageDown 1', 'openq4_retainedGui menu pageDown 0', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/paging-down.tga"',
+        'openq4_retainedGui menu pageDown 1', 'openq4_retainedGui menu pageDown 0', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/paging-down2.tga"',
+        'openq4_retainedGui menu end 1', 'openq4_retainedGui menu end 0', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/paging-end.tga"',
+        'openq4_retainedGui menu home 1', 'openq4_retainedGui menu home 0', 'waitMsec 500', 'openq4_retainedGui report',
+        'screenshot "screenshots/paging-home.tga"',
+    ]),
+    # Settings > Game Options > Controller's Prompt Style and Swap Confirm and
+    # Back rows in the classic in-game menu (SCENARIO_CVARS turns the retained
+    # screens off): scrolled to them, their values driven from the console,
+    # then the page's last step, which the two rows lengthened.
+    'settings-controller': ('game/airdefense1', [
+        'openq4_assertMenuActivation 10000', 'waitMsec 1500', 'GuiEvent fromMp_toGameoptions', 'waitMsec 2000',
+        'openq4_guiSet gui::gui_set_game_scroll 33', 'waitMsec 1000', 'screenshot "screenshots/settings-controller.tga"',
+        'set in_promptStyle 2', 'set in_swapConfirmBack 2', 'waitMsec 800', 'in_promptStyle', 'in_swapConfirmBack',
+        'screenshot "screenshots/settings-controller-set.tga"', 'set in_promptStyle 0', 'set in_swapConfirmBack 0',
+        'openq4_guiSet gui::gui_set_game_scroll 75', 'waitMsec 1000', 'screenshot "screenshots/settings-controller-end.tga"',
+    ]),
     # The Strogg pause's confirmations ask in its family: each label arrives
     # in runes as the dialog's contents show and translates. QUIT TO MENU is
     # taken mid-translation and settled, with YES focused, then EXIT, and SAVE
@@ -1045,7 +1073,7 @@ SCENARIO_FILES = {'arenafail': {
         'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
-SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'},
+SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'settings-controller': {'ui_retained': '0'},
                   'mpadmin': {'bot_minPlayers': '3'}, 'mpadminremote': {'net_ip': '127.0.0.1', 'ui_autoJoin': '1', 'ui_spectate': 'Play'},
                   # An Arena match is a local multiplayer game, where the menu probe is a cheat.
                   'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},

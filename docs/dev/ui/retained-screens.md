@@ -1528,7 +1528,12 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   kept. The favorite toggle adds the chosen server to the favorites or takes
   it off (`idServerScan::ToggleFavoriteServer`, the stock toggle's work for a
   server the page names). The choice follows its server through new orders
-  and stays while a scan may list it again.
+  and stays while a scan may list it again. So does a focused row: the
+  session keeps the address each page row last showed
+  (`retainedJoinRowAddresses`) and, when a new order, a refresh or a filter
+  moves that server, turns to its page and focuses the row that now shows it
+  (the document's `joinFocus<row>` events). A server that leaves the list
+  leaves the focus where it was.
 - **Progress.** The bar is the stock `load_bar3` tube in `marine.progress`:
   its alpha profile down the 14 u tube (a bright top edge, dim under the
   notice, a lighter foot), the track at 0.30 and the fill at 0.50, the fill's

@@ -45,6 +45,16 @@
 
 ## Change log
 
+- Settings > Game Options > Controller now offers **Prompt Style**, to pick the
+  button symbols menus and the HUD show when a remapper hides your controller,
+  and **Swap Confirm and Back**, to choose which face button confirms in menus.
+  Both were console-only before; existing choices are kept.
+- The controller triggers, and Page Up, Page Down, Home and End on the keyboard,
+  now move through long menu lists such as Load Game a page at a time, and the
+  triggers adjust a selected slider in larger steps.
+- In Join Game, the server you have highlighted stays highlighted while the list
+  re-sorts or refreshes, instead of the highlight landing on another server.
+
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time
   beside the time in the current mission. Objectives you completed on a map

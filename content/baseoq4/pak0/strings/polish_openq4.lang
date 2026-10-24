@@ -1455,4 +1455,8 @@
 	"#str_231523"	"ODTWÓRZ"
 	"#str_231524"	"%s łącznie"
 	"#str_231525"	"%s gry"
+	"#str_231526"	"Styl przycisków"
+	"#str_231527"	"Automatycznie;Xbox;PlayStation;Nintendo;Steam Deck;Ogólny"
+	"#str_231528"	"Zamień Zatwierdź/Wstecz"
+	"#str_231529"	"Automatycznie;Wył.;Wł."
 }

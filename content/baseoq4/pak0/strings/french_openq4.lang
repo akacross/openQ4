@@ -1404,4 +1404,8 @@
 	"#str_231523"	"LIRE"
 	"#str_231524"	"%s au total"
 	"#str_231525"	"%s de jeu"
+	"#str_231526"	"Style des invites"
+	"#str_231527"	"Automatique;Xbox;PlayStation;Nintendo;Steam Deck;Générique"
+	"#str_231528"	"Inverser Valider/Retour"
+	"#str_231529"	"Automatique;Non;Oui"
 }

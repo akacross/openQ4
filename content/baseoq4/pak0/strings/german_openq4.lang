@@ -1399,4 +1399,8 @@
 	"#str_231523"	"ABSPIELEN"
 	"#str_231524"	"%s insgesamt"
 	"#str_231525"	"%s gespielt"
+	"#str_231526"	"Tastensymbole"
+	"#str_231527"	"Automatisch;Xbox;PlayStation;Nintendo;Steam Deck;Generisch"
+	"#str_231528"	"Bestätigen/Zurück tauschen"
+	"#str_231529"	"Automatisch;Aus;Ein"
 }

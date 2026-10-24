@@ -767,6 +767,7 @@ public:
 	idList<int>			retainedJoinServers;	// the scan's servers the list shows, in list order
 	int					retainedJoinFirst;		// the first of them the list holds
 	idStr				retainedJoinAddress;	// the chosen server's address (empty: none)
+	idStrList			retainedJoinRowAddresses;	// each page row's server address as last published
 	int					retainedJoinRevision;	// the scan's revision the page shows (-1: none yet)
 	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
 	idStr				retainedJoinShot;		// that levelshot

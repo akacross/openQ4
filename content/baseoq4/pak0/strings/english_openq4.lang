@@ -1399,4 +1399,8 @@
 	"#str_231523"	"PLAY"
 	"#str_231524"	"%s total"
 	"#str_231525"	"%s played"
+	"#str_231526"	"Prompt Style"
+	"#str_231527"	"Automatic;Xbox;PlayStation;Nintendo;Steam Deck;Generic"
+	"#str_231528"	"Swap Confirm and Back"
+	"#str_231529"	"Automatic;Off;On"
 }

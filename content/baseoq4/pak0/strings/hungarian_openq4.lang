@@ -1399,4 +1399,8 @@
 	"#str_231523"	"LEJÁTSZÁS"
 	"#str_231524"	"összesen %s"
 	"#str_231525"	"%s játékidő"
+	"#str_231526"	"Gombjelölések"
+	"#str_231527"	"Automatikus;Xbox;PlayStation;Nintendo;Steam Deck;Általános"
+	"#str_231528"	"Megerősítés/Vissza csere"
+	"#str_231529"	"Automatikus;Ki;Be"
 }

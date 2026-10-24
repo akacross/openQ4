@@ -72,7 +72,7 @@ extern glconfig_t glConfig;
 idCVar	idSessionLocal::gui_configServerRate( "gui_configServerRate", "0", CVAR_GUI | CVAR_ARCHIVE | CVAR_ROM | CVAR_INTEGER, "" );
 idCVar gui_set_sys_scroll( "gui_set_sys_scroll", "0", CVAR_GUI | CVAR_INTEGER, "display menu scroll step", 0, 28 );
 idCVar gui_set_audio_scroll( "gui_set_audio_scroll", "0", CVAR_GUI | CVAR_INTEGER, "audio menu scroll step", 0, 6 );
-idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER, "game menu scroll step", 0, 73 );
+idCVar gui_set_game_scroll( "gui_set_game_scroll", "0", CVAR_GUI | CVAR_INTEGER, "game menu scroll step", 0, 75 );
 // The opt-ins are unarchived, so each lasts until the player quits, and
 // CVAR_NOCHEAT, because the engine counts any other unarchived CVar as a
 // cheat: joining or hosting a server without cheats resets it to its default,
@@ -4478,10 +4478,10 @@ static const mainMenuSettingsScrollPage_t MAINMENU_SETTINGS_SCROLL_PAGES[] = {
 		"game_section_choice",
 		21,
 		0,
-		73,
+		75,
 		-24,
 		-41,
-		2066,
+		2114,
 		24.0f
 	}
 };
@@ -4512,19 +4512,19 @@ static int MainMenuSettingsSectionChoiceForScroll( const mainMenuSettingsScrollP
 		if ( scrollValue < 21 ) {
 			return 1;
 		}
-		if ( scrollValue < 39 ) {
+		if ( scrollValue < 41 ) {
 			return 2;
 		}
-		if ( scrollValue < 46 ) {
+		if ( scrollValue < 48 ) {
 			return 3;
 		}
-		if ( scrollValue < 57 ) {
+		if ( scrollValue < 59 ) {
 			return 4;
 		}
-		if ( scrollValue < 62 ) {
+		if ( scrollValue < 64 ) {
 			return 5;
 		}
-		if ( scrollValue < 69 ) {
+		if ( scrollValue < 71 ) {
 			return 6;
 		}
 		return 7;
@@ -7860,6 +7860,16 @@ static int Session_NetworkQualityBars( int ping, float lossPercent ) {
 void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 #ifndef ID_DEDICATED
 	idServerScan &servers = idAsyncNetwork::client.serverList;
+	// A focused row's server, by the address its row last showed: the focus
+	// follows it through a new order, a refresh or a filter, onto its page.
+	const std::string focus = UI_RetainedFocusedControl( gui );
+	idStr focusedAddress;
+	if ( focus.rfind( "server-", 0 ) == 0 ) {
+		const int row = atoi( focus.c_str() + 7 );
+		if ( row >= 0 && row < retainedJoinRowAddresses.Num() ) {
+			focusedAddress = retainedJoinRowAddresses[ row ];
+		}
+	}
 	retainedJoinRevision = servers.GetRevision();
 	servers.VisibleServers( retainedJoinServers );
 	const int count = retainedJoinServers.Num();
@@ -7884,10 +7894,21 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	if ( retainedJoinFirst < 0 ) {
 		retainedJoinFirst = selected > 0 ? selected / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS : 0;
 	}
+	int focusIndex = -1;
+	for ( int i = 0; i < count && focusedAddress.Length() > 0 && focusIndex < 0; ++i ) {
+		if ( !focusedAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
+			focusIndex = i;
+		}
+	}
+	if ( focusIndex >= 0 ) {
+		retainedJoinFirst = focusIndex / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS;
+	}
 	retainedJoinFirst = idMath::ClampInt( 0, Max( 0, count - 1 ) / RETAINED_JOIN_ROWS * RETAINED_JOIN_ROWS, retainedJoinFirst );
+	retainedJoinRowAddresses.SetNum( RETAINED_JOIN_ROWS );
 	for ( int row = 0; row < RETAINED_JOIN_ROWS; ++row ) {
 		const int index = retainedJoinFirst + row;
 		const networkServer_t *server = index < count ? &servers[ retainedJoinServers[ index ] ] : NULL;
+		retainedJoinRowAddresses[ row ] = server != NULL ? Sys_NetAdrToString( server->adr ) : "";
 		idStr name, ping, players, type, map;
 		if ( server != NULL ) {
 			name = Session_RetainedPlayerText( server->serverInfo.GetString( "si_name" ), 96, 1 );
@@ -7951,6 +7972,9 @@ void idSessionLocal::PublishRetainedJoinGame( idUserInterface *gui ) {
 	// The rows may now hold other servers: the details card's again.
 	PublishRetainedJoinDetail( gui );
 	gui->StateChanged( common->GetPresentationTime() );
+	if ( focusIndex >= 0 && focus != va( "server-%d", focusIndex - retainedJoinFirst ) ) {
+		gui->HandleNamedEvent( va( "joinFocus%d", focusIndex - retainedJoinFirst ) );
+	}
 #endif
 }
 

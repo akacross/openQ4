@@ -1399,4 +1399,8 @@
 	"#str_231523"	"REPRODUCIR"
 	"#str_231524"	"%s en total"
 	"#str_231525"	"%s de juego"
+	"#str_231526"	"Estilo de botones"
+	"#str_231527"	"Automático;Xbox;PlayStation;Nintendo;Steam Deck;Genérico"
+	"#str_231528"	"Cambiar Confirmar/Atrás"
+	"#str_231529"	"Automático;No;Sí"
 }
