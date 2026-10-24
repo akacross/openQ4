@@ -980,6 +980,13 @@ SHOULDER_LABELS = {
     "nintendo": {"left": "L", "right": "R"},
     "steamdeck": {"left": "L1", "right": "R1"},
 }
+# The label each family prints on its triggers.
+TRIGGER_LABELS = {
+    "xbox": {"left": "LT", "right": "RT"},
+    "playstation": {"left": "L2", "right": "R2"},
+    "nintendo": {"left": "ZL", "right": "ZR"},
+    "steamdeck": {"left": "L2", "right": "R2"},
+}
 # A prompt's key and the button that does the same in menus: Enter is
 # Accept (south), Escape is Back (east), and the cards' Q and E are the
 # previous and next tab (the shoulders).
@@ -1070,7 +1077,7 @@ def face_glyph(ident: str, family: str, position: str, tint: list, size: float =
 
 
 def small_letters(prefix: str, text: str, left: float, top: float, height: float, ink: list, width: float) -> list:
-    """Shoulder labels (L, R, B and 1) drawn as strokes, `height` dp tall from
+    """Shoulder and trigger labels (L, R, B, T, Z, 1 and 2) drawn as strokes, `height` dp tall from
     (`left`, `top`), each glyph 0.55 of its height wide and 0.25 apart."""
     line = stroke(solid(ink), width, minimum=1)
     glyph_w, gap = height * 0.55, height * 0.25
@@ -1084,6 +1091,18 @@ def small_letters(prefix: str, text: str, left: float, top: float, height: float
         elif char == "1":
             paths.append(path(name, [(x + glyph_w * 0.2, top + height * 0.22), (x + glyph_w * 0.6, top),
                                      (x + glyph_w * 0.6, bottom)], closed=False, stroke=line))
+        elif char == "2":
+            paths.append({"id": name, "commands": [
+                {"id": "m", "op": "move", "points": [point(x, top + height * 0.25)]},
+                {"id": "a", "op": "cubic", "points": [point(x, top - height * 0.05), point(right, top - height * 0.05),
+                                                       point(right, top + height * 0.3)]},
+                {"id": "b", "op": "line", "points": [point(x, bottom)]},
+                {"id": "c", "op": "line", "points": [point(right, bottom)]}], "stroke": line})
+        elif char == "T":
+            paths.append(path(f"{name}-bar", [(x, top), (right, top)], closed=False, stroke=line))
+            paths.append(path(name, [(x + glyph_w * 0.5, top), (x + glyph_w * 0.5, bottom)], closed=False, stroke=line))
+        elif char == "Z":
+            paths.append(path(name, [(x, top), (right, top), (x, bottom), (right, bottom)], closed=False, stroke=line))
         elif char in "BR":
             bowl = right - glyph_w * 0.15
             commands = [{"id": "m", "op": "move", "points": [point(x, bottom)]},
@@ -1144,11 +1163,51 @@ def shoulder_glyph(ident: str, family: str, side: str, tint: list, width: float 
                           "height": length(height)}, paths)
 
 
+def trigger_glyph(ident: str, family: str, side: str, tint: list, width: float = 22, height: float = 22) -> dict:
+    """One controller family's trigger (`side` "left" or "right"), taller
+    than a bumper: an 18 dp plate whose top corners round by 7 dp, the label
+    in its lower half. Xbox, PlayStation and Nintendo print their label on
+    the plate, Steam Deck in an outlined plate, and a generic controller
+    shows an outlined plate with a chevron pointing to its side."""
+    top, bottom, radius = (height - 18) / 2, (height + 18) / 2, 7.0
+    inset = max(1.0, (width - 18) / 2)
+    k = 0.5523 * radius
+    right = width - inset
+    plate = [{"id": "m", "op": "move", "points": [point(inset, bottom)]},
+             {"id": "a", "op": "line", "points": [point(inset, top + radius)]},
+             {"id": "b", "op": "cubic", "points": [point(inset, top + radius - k), point(inset + radius - k, top), point(inset + radius, top)]},
+             {"id": "c", "op": "line", "points": [point(right - radius, top)]},
+             {"id": "d", "op": "cubic", "points": [point(right - radius + k, top), point(right, top + radius - k), point(right, top + radius)]},
+             {"id": "e", "op": "line", "points": [point(right, bottom)]},
+             {"id": "z", "op": "close"}]
+    letters_h = 6.6
+    letters_top = bottom - 3 - letters_h
+    if family == "generic":
+        paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+        mid, tip, back = letters_top + letters_h / 2, (width / 2 - 2.6 if side == "left" else width / 2 + 2.6), \
+            (width / 2 + 1.4 if side == "left" else width / 2 - 1.4)
+        paths.append(path("chevron", [(back, mid - 3.2), (tip, mid), (back, mid + 3.2)], closed=False,
+                          stroke=stroke(solid(tint), 1.5, minimum=1)))
+    else:
+        text = TRIGGER_LABELS[family][side]
+        text_w = len(text) * letters_h * 0.55 + (len(text) - 1) * letters_h * 0.25
+        left = (width - text_w) / 2
+        if family == "steamdeck":
+            paths = [{"id": "plate", "commands": plate, "stroke": stroke(solid(tint), 1.3, minimum=1)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, tint, 1.4)
+        else:
+            paths = [{"id": "plate", "commands": plate, "fill": solid(tint)}]
+            paths += small_letters("label", text, left, letters_top, letters_h, GLYPH_INK, 1.4)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(width),
+                          "height": length(height)}, paths)
+
+
 def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22,
                   width: float | None = None) -> list:
-    """Each controller family's button at `position` (a face position, or
-    the "left" or "right" shoulder), each shown only while prompt.glyphs
-    names its family. A shoulder is `width` dp wide (default `size`). An
+    """Each controller family's button at `position` (a face position, the
+    "left" or "right" shoulder, or the "left-trigger" or "right-trigger"),
+    each shown only while prompt.glyphs names its family. A shoulder or a
+    trigger is `width` dp wide (default `size`). An
     Accept or Back prompt (south or east) also carries each family's button
     at the other of the two, shown while prompt.swapped says confirm has
     moved east (`<ident>-<family>-swapped`)."""
@@ -1166,6 +1225,8 @@ def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: fl
         for node_id, spot, condition in variants:
             if spot in ("left", "right"):
                 node = shoulder_glyph(node_id, family, spot, tint, width or size, size)
+            elif spot in ("left-trigger", "right-trigger"):
+                node = trigger_glyph(node_id, family, spot.split("-")[0], tint, width or size, size)
             else:
                 node = face_glyph(node_id, family, spot, tint, size)
             doc.bind(f"{node_id}.display", node_id, "display", {"op": "select", "args": [condition, "block", "none"]})

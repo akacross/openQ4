@@ -37,6 +37,14 @@ completed release material here and publish curated notes in `releases/`.
   an open list holds the input: adapter harness, native SYSTEM and Escape card
   checks and in-game captures ([Apply](ui/input-routing.md#menu-button-24-october-2026)).
 
+## Trigger glyphs on the section strips, 24 October 2026
+
+- [x] The Escape card's Match and Admin section strips end with each
+  controller family's trigger glyphs, a legend for a controller only.
+- [Behavior and checks](ui/input-routing.md#trigger-glyphs-24-october-2026):
+  generation width checks, native strip checks and a capture of every family.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Controller prompt settings and list paging, 24 October 2026
 
 - [x] Game Options > Controller gains Prompt Style (`in_promptStyle`) and Swap

@@ -853,6 +853,12 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 	Check(text("admin-section-console","display") == "block" && text("admin-console-1","text") == "map: mp/q4dm1","the console shows them");
 	Check(runtime.RunEvent("admin_command_entered",5.6,effects,error) && asked("mpAdminConsole"),"Enter runs the command");
 	Check(runtime.RunEvent("onMenuButton",5.61,effects,error) && asked("mpClose"),"away from the Server section Menu closes the card");
+	Check(runtime.SetState({{"prompt.glyphs",2.0}},error,5.62),"a PlayStation controller");
+	runtime.Frame(viewport,5.65);
+	const auto adminStrip = bounds("admin-strip"), adminTriggers = bounds("admin-triggers"), console = bounds("admin-tab-console");
+	Check(text("admin-triggers-lt-playstation","display") == "block" && adminTriggers.x+adminTriggers.width <= adminStrip.x+adminStrip.width+.5f &&
+		console.x+console.width <= adminTriggers.x,"the Admin strip ends with the PlayStation triggers");
+	Check(runtime.SetState({{"prompt.glyphs",0.0}},error,5.66),"the keyboard again");
 	// The triggers step the sections, wrapping.
 	Check(runtime.RunEvent("onSectionNext",5.7,effects,error) && std::get<double>(runtime.GetState().at("card.admin_section")) == 0,
 		"the next trigger wraps to Players");
@@ -899,6 +905,22 @@ static void CheckMatch(ScreenHost& host, const char* path) {
 	Check(text("match-waiting","display") == "block" && text("match-status-live","display") == "none","with no view the page waits");
 	Check(runtime.FocusedControl() == "match-tab-status" && text("match-section-status","display") == "block" &&
 		text("match-section-teams","display") == "none","the page opens on its Status section");
+	// The triggers' glyphs end the strip, for a controller only (section 13.5).
+	for (const char* family : {"xbox","playstation","nintendo","steamdeck","generic"})
+		Check(text(std::string("match-triggers-lt-")+family,"display") == "none" &&
+			text(std::string("match-triggers-rt-")+family,"display") == "none","no trigger glyphs for the keyboard");
+	Check(runtime.SetState({{"prompt.glyphs",1.0}},error,1.45),"an Xbox controller");
+	runtime.Frame(viewport,1.5);
+	Check(text("match-triggers-lt-xbox","display") == "block" && text("match-triggers-rt-xbox","display") == "block" &&
+		text("match-triggers-lt-playstation","display") == "none","the Xbox triggers");
+	const auto strip = bounds("match-strip"), triggers = bounds("match-triggers"), last = bounds("match-tab-evidence");
+	Check(triggers.x+triggers.width <= strip.x+strip.width+.5f && last.x+last.width <= triggers.x,
+		"the glyphs end the strip, after its last section");
+	Check(runtime.SetState({{"prompt.glyphs",5.0}},error,1.55),"a generic controller");
+	runtime.Frame(viewport,1.6);
+	Check(text("match-triggers-rt-generic","display") == "block" && text("match-triggers-rt-xbox","display") == "none","generic triggers");
+	Check(runtime.SetState({{"prompt.glyphs",0.0}},error,1.65),"the keyboard again");
+	runtime.Frame(viewport,1.7);
 	// A warm-up a referee steers: Set ready and Abort unavailable, the rest not.
 	StateValues page = {{"mp.match.available",true},{"mp.match.phase",std::string("Warm-up | Round 1")},
 		{"mp.match.status0",std::string("Live | Round inactive")},{"mp.match.status1",std::string("Running | No pause")},

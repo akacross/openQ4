@@ -98,8 +98,8 @@ it, followed by the face layout.
 `RetainedUI_PromptGlyphs` combines the device and the family. The adapter publishes the
 result as `prompt.glyphs` to every document that declares it, before the
 frame that shows the change draws. The value is 0 for the keyboard's keycaps
-and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face and
-shoulder buttons. The adapter also publishes `prompt.swapped`
+and 1–5 for the Xbox, PlayStation, Nintendo, Steam Deck and generic face,
+shoulder and trigger buttons. The adapter also publishes `prompt.swapped`
 (`RetainedUI_PromptSwapped`, the swap above) to documents that declare it. Keyboard scancodes, controller buttons and pointer buttons have
 separate source IDs. Multiple sources mapped to Accept hold one logical press;
 releasing the first source cannot activate while another remains down. Key-up
@@ -168,6 +168,23 @@ as Back.
 
 Evidence for Apply: `.tmp/ui/menu-button-apply/validation-evidence.json`,
 SHA-256 `f8fea2394b50fc49215af334f825208e7b17f9fe35970f45b7adb3e9945665c6`.
+
+### Trigger glyphs (24 October 2026)
+
+The triggers step the Escape card's Match and Admin sections, and their inner
+strips now end with the triggers' glyphs (section 13.5), so the strip shows
+which buttons step it. The glyphs are a legend for a controller only: no key
+steps the sections, so the keyboard shows none, and the slot stays empty.
+Each family's trigger is taller than its bumper, an 18 dp plate whose top
+corners round by 7 dp, labelled as SDL reports it: LT and RT (Xbox), L2 and
+R2 (PlayStation and Steam Deck, the latter outlined), ZL and ZR (Nintendo),
+and for a generic controller an outlined plate with a chevron pointing to its
+side. Generation fails if a strip's sections in any shipped language would
+reach the glyphs. Glyphs for the Menu and View buttons and the sticks remain;
+no prompt names them yet.
+
+Evidence for trigger glyphs: `.tmp/ui/trigger-glyphs/validation-evidence.json`,
+SHA-256 `1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59`.
 
 ### Settings rows (24 October 2026)
 

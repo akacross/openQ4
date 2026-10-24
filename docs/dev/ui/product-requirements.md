@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [trigger glyphs](input-routing.md#trigger-glyphs-24-october-2026)
+add bounded UI-02 evidence to `INP-011`. The Escape card's Match and Admin section
+strips end with each controller family's trigger glyphs, a legend for a controller
+only. The art derives from section 13.5 and awaits review under UI-05. The increment
+is audited against `55ed6f210da77490d2389849e04d46faad92e9c0`. No requirement status, migration acceptance or
+final gate changes.
+
 24 October 2026: [the Menu button's Apply](input-routing.md#menu-button-24-october-2026)
 adds bounded UI-02 evidence to `INP-011`. The opt-in SYSTEM page and the Escape
 card's Admin page apply pending changes with the Menu button, and the adapter keeps

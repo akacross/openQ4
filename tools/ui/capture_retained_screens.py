@@ -99,6 +99,23 @@ SCENARIOS = {
             f'screenshot "screenshots/mpcard-prompts-{name}.tga"')],
         'set in_swapConfirmBack 0', *prompt_style(0),
     ]),
+    # The triggers' glyphs at the trailing end of the Match and Admin pages'
+    # section strips: none for the keyboard, then each controller family's,
+    # and the triggers stepping the Match page's sections.
+    'mpcard-triggers': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_match', 'waitMsec 800',
+        *[step for style, name in PROMPT_STYLES for step in (
+            *prompt_style(style), 'waitMsec 500',
+            'openq4_retainedGui inspect "match-triggers"',
+            *([] if name == 'keyboard' else [f'openq4_retainedGui inspect "match-triggers-lt-{name}"',
+                                             f'openq4_retainedGui inspect "match-triggers-rt-{name}"']),
+            f'screenshot "screenshots/mpcard-triggers-{name}.tga"')],
+        *prompt_style(1), 'openq4_retainedGui event onSectionNext', 'waitMsec 500',
+        'screenshot "screenshots/mpcard-triggers-next.tga"',
+        'openq4_retainedGui event tab_admin', 'waitMsec 800', 'openq4_retainedGui inspect "admin-triggers-rt-xbox"',
+        'screenshot "screenshots/mpcard-triggers-admin.tga"', *prompt_style(0),
+    ]),
     # The Escape card's Admin page on a listen server, whose host is the
     # admin: the players (two bots), a bot chosen and kicked, View ban list,
     # the Server section with a frag limit drafted and applied, and the
@@ -1118,7 +1135,8 @@ SCENARIO_FILES = {'arenafail': {
         'openq4_retainedGui menu accept 0', 'waitMsec 900', 'ui_arenaProgress', 'openq4_retainedGui report',
         'screenshot "screenshots/arenafail-browser.tga"'],
 }}
-SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'settings-controller': {'ui_retained': '0'},
+SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'mpcard-triggers': {'ui_retainedMultiplayer': '1'},
+                  'settings-controller': {'ui_retained': '0'},
                   'mpadmin': {'bot_minPlayers': '3'}, 'mpadminremote': {'net_ip': '127.0.0.1', 'ui_autoJoin': '1', 'ui_spectate': 'Play'},
                   # An Arena match is a local multiplayer game, where the menu probe is a cheat.
                   'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},

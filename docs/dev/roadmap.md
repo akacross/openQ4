@@ -758,7 +758,9 @@ archived provenance; new scheduling belongs here.
   closes the menus and resumes play from the pause's Save, Load and Restart Level
   pages. Later that day it [applies pending changes](ui/input-routing.md#menu-button-24-october-2026)
   on the SYSTEM page and the Escape card's Admin page, and stays Back while a
-  dialog or an open list holds the input.
+  dialog or an open list holds the input. The Escape card's Match and Admin
+  section strips end with [trigger glyphs](ui/input-routing.md#trigger-glyphs-24-october-2026)
+  for each controller family.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled

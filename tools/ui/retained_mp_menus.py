@@ -2185,6 +2185,30 @@ def match_action_row(doc: Document, name: str, accessible: str, width: float, va
     return row, ident
 
 
+# The triggers' glyphs at the trailing end of an inner strip (section 13.5):
+# the triggers step its sections, and the strip shows which buttons do, for
+# a controller only, since no key steps them.
+TRIGGER_W, TRIGGER_GAP = 22.0, 4.0
+
+
+def section_triggers(doc: Document, ident: str, keys: tuple, page_width: float) -> dict:
+    """The left and right triggers' glyphs at the strip's trailing end, a
+    legend shown only while prompt.glyphs names a controller family. The
+    strip's sections (`keys`, each in a 10 dp padded slot 4 dp apart) must
+    end before them in every shipped language; generation fails otherwise."""
+    room = page_width - 2 * TRIGGER_W - TRIGGER_GAP - 8
+    for language in b.LANGUAGES:
+        used = sum(20 + 4 + b.text_width("lowpixel", b.engine_text(key)[language], 16) for key in keys)
+        if used > room:
+            raise SystemExit(f"{ident}'s sections in {language} take {used:.0f} dp, past the triggers at {room:.0f} dp")
+    glyphs = [group(f"{ident}-{side}", {"position": keyword("relative"), "display": keyword("block"), "width": length(TRIGGER_W),
+                                       "height": length(PROMPT_H), **({"margin-left": length(TRIGGER_GAP)} if side == "rt" else {})},
+                    b.device_glyphs(doc, f"{ident}-{side}", position, [1, 1, 1, 0.85], PROMPT_H, TRIGGER_W))
+              for side, position in (("lt", "left-trigger"), ("rt", "right-trigger"))]
+    return group(ident, {**absolute(right=0, top=(MATCH_STRIP_H - PROMPT_H) / 2, height=PROMPT_H), "display": keyword("flex"),
+                         "flex-direction": keyword("row"), "pointer-events": keyword("none")}, glyphs)
+
+
 def match_tab(doc: Document, position: int, section: str, key: str) -> tuple[dict, str]:
     """One of the inner strip's sections: its name, orange with focus, over a
     bar while it is the section shown."""
@@ -2651,7 +2675,8 @@ def match_page(doc: Document, index: int, ident: str, width: float, height: floa
         tabs.append(tab_node)
         controls.append(tab_id)
     strip = group("match-strip", {**absolute(left=0, top=0, width=page_width, height=MATCH_STRIP_H), "display": keyword("flex"),
-                                  "flex-direction": keyword("row"), "align-items": keyword("center")}, tabs)
+                                  "flex-direction": keyword("row"), "align-items": keyword("center")},
+                  [*tabs, section_triggers(doc, "match-triggers", MATCH_SECTION_KEYS, page_width)])
     rule = vector("match-strip-rule", absolute(left=0, top=MATCH_STRIP_H, width=page_width, height=1), [
         path("rule", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, 1), (0, 1)], fill=solid(rgb(OLIVE, 0.5)))])
     section_top = MATCH_STRIP_H + MATCH_STRIP_GAP

@@ -58,6 +58,8 @@
   menu's Save, Load and Restart Level pages.
 - On a multiplayer server's Admin page, the Menu button applies your server
   changes; with a dialog or list open, it closes that first.
+- With a controller, the Match and Admin pages of the multiplayer menu show
+  your triggers beside their sections, which the triggers step through.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

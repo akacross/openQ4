@@ -168,8 +168,10 @@ keyboard keys:
 - Other pads show a diamond with the button to press filled in.
 
 In a multiplayer match's menu, the keys that switch tabs show your
-shoulder buttons: LB and RB, L1 and R1, or L and R. The keyboard or mouse
-switches the prompts back to keys.
+shoulder buttons: LB and RB, L1 and R1, or L and R. On the Match and Admin
+pages, the row of sections ends with your triggers (LT and RT, L2 and R2, or
+ZL and ZR), which step through the sections. The keyboard or mouse switches
+the prompts back to keys.
 
 If Steam Input or another remapper hides your real controller, choose the
 controller prompts yourself with **Prompt Style** in **Settings > Game Options >

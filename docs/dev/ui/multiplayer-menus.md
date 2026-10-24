@@ -746,7 +746,9 @@ owner's review:
 - **Width (D8).** As above: the card grows past 648 dp to fit the strip.
 - **Match sections (D3).** The triggers page Match Control's sections, as
   Left and Right do along the inner strip; section 14.18's bumpers keep the
-  main strip.
+  main strip. The inner strip ends with the triggers' glyphs for a
+  controller ([trigger glyphs](input-routing.md#trigger-glyphs-24-october-2026)),
+  as the Admin page's does.
 - **Match actions.** Rows with their reasons beside them rather than the
   stock page's buttons and shared Action line: the labels run too long for
   plates in French and German, and a reason beside its action needs no
