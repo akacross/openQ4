@@ -24,6 +24,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Arena Restart match in place, 24 October 2026
+
+- [x] MP-04: Restart match resets the live Arena match on its own server
+  through an authorized `serverMapRestart` instead of relaunching it. The bots
+  keep their client slots, so nothing is removed and added again; the
+  introductions replay within 0.3 s, with scores and clock at zero. A short
+  roster, a missing server or a due result falls back to the relaunch.
+  `arena_restart_in_place.py` carries eleven failing controls.
+- Evidence: [in-place restart](arena-campaign-ceremony.md#in-place-restart-24-october-2026),
+  six no-input runs. Candidate player wording:
+  [Arena refinements](releases/arena-refinements.md).
+
 ## Multiplayer network qualification, 24 October 2026
 
 - [x] MP-07/MP-08: simulated network conditions on Windows and POSIX

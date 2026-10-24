@@ -1178,13 +1178,16 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   best-result ordering. The [19 October headphone check](arena-campaign-ceremony.md#headphone-pause-and-resume-19-october-2026)
   also passes two audible pause/resume cycles. Restart/navigation cost, physical
   controls, endpoint loss/return and remaining failure-path coverage keep MP-04 open.
-  Progress, 24 October: the restart cost follows from a deliberate guarantee.
-  Arena matches always start from a fresh listen server
-  (`idArenaCampaign::StartSelectedMatch`), so no stale match state carries over
-  and bot population cannot race queued bot removals; Restart reuses that
-  path. An in-place restart through `serverMapRestart` would skip the map and
-  navigation load but give up that guarantee, so it needs a product decision
-  before implementation.
+  Progress, 24 October: Restart match now resets the live match in place
+  through an authorized `serverMapRestart`. The bots keep their client slots,
+  so nothing is removed and added again, and the introductions start within
+  0.3 s instead of after a map and navigation reload. A short roster, a missing
+  server or a due result falls back to the fresh-server relaunch. Six no-input
+  runs cover the card and the stock menu, warmup, Team DM, Clan Arena, the
+  fallback and a recorded result after a restart
+  ([in-place restart](arena-campaign-ceremony.md#in-place-restart-24-october-2026)).
+  Physical controls, endpoint loss/return and remaining failure-path coverage
+  keep MP-04 open.
 - [ ] **MP-05 — P1, investigation and implementation: demo reliability and
   operator workflow.** Reproduce the recorded Red Rover seek/debris distortion
   using the original recording. Define retention/quota/download/partial recovery

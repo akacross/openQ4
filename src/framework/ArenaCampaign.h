@@ -55,8 +55,10 @@ public:
 	// a "match abandoned" report that names the match and offers it again,
 	// instead of dropping them on the title screen with nothing said.
 	void					ReportAbandoned( int token );
-	// The pause menu's Restart match: leaves the live match, recording
-	// nothing, and starts the same token again from its entrance.
+	// The pause menu's Restart match: the live match again, recording nothing.
+	// It restarts in place on the running server when the authored roster is
+	// intact; otherwise it leaves the match and starts the same token again
+	// from its entrance.
 	void					RestartMatch();
 
 	// Queues the narrow, strictly parsed game_mp -> framework result handoff.
@@ -75,6 +77,7 @@ private:
 	void					CommitPendingMatch();
 	void					QueueFailedCompletionCleanup();
 	void					RetryResult();
+	bool					RestartMatchInPlace( int token );
 	void					RequestResetProgress();
 	void					CancelResetProgress();
 	void					ResetProgress();

@@ -1164,6 +1164,7 @@ idMultiplayerGame::idMultiplayerGame
 ================
 */
 idMultiplayerGame::idMultiplayerGame() {
+	mapRestartCount = 0;
 	nextMatchSessionId = 0;
 	matchSeriesId = 0;
 	matchSeriesLinkedSessionId = 0;
@@ -18784,9 +18785,10 @@ idMultiplayerGame::HandleArenaPauseCommand
 The Arena pause menu's actions. Resume closes it. Settings closes it for the
 main menu's settings page, which the campaign hands back to this menu when
 the player backs out of it. Restart match and Leave match go to the
-framework, which owns the campaign: arenaCampaignRestart starts the same
-match again from its entrance, and disconnect reports it abandoned. The menu
-stays up until the framework tears the match down, so the world stays paused.
+framework, which owns the campaign: arenaCampaignRestart resets the match in
+place and closes this menu (or, when it cannot, starts the match again from
+its entrance), and disconnect reports it abandoned. The menu stays up until
+the framework acts, so the world stays paused.
 ================
 */
 const char *idMultiplayerGame::HandleArenaPauseCommand( const char *action ) {
@@ -18804,6 +18806,70 @@ const char *idMultiplayerGame::HandleArenaPauseCommand( const char *action ) {
 	}
 	DisableMenu();
 	return NULL;
+}
+
+/*
+================
+idMultiplayerGame::ArenaCampaignRestartAuthorized
+================
+*/
+bool idMultiplayerGame::ArenaCampaignRestartAuthorized( void ) const {
+	if ( !IsArenaCampaignMatch() ) {
+		return false;
+	}
+	const int token = gameLocal.serverInfo.GetInt( "si_arenaCampaign" );
+	return token > 0 && cvarSystem->GetCVarInteger( "ui_arenaRestartMatch" ) == token;
+}
+
+/*
+================
+idMultiplayerGame::RestartArenaCampaignMatch
+
+Restart match in place. serverMapRestart respawns every combatant, resets
+the map and returns the match to warmup, which replays the introductions and
+the countdown. The bots keep their client slots through it, as they do
+through the map restart that starts every match and every round, so the
+roster is never removed and added again. Only a live match restarts: once a
+result is due the ceremony owns the match, and the campaign relaunches its
+server instead.
+================
+*/
+void idMultiplayerGame::RestartArenaCampaignMatch( void ) {
+	const mpGameState_t state = gameState->GetMPGameState();
+	if ( ( state != WARMUP && state != COUNTDOWN && state != GAMEON && state != SUDDENDEATH ) ||
+		 arenaResultPending || arenaResultReported ) {
+		gameLocal.Printf( "arena campaign: no live match to restart in place\n" );
+		return;
+	}
+
+	const int restarts = mapRestartCount;
+	const idStr sessionCommand = gameLocal.sessionCommand;
+	gameLocal.MapRestart( -1 );
+	if ( mapRestartCount == restarts ) {
+		// MapRestart refused the map, or asked the session to reload it for a
+		// changed si_map, si_pure, si_gameType or si_fps. The campaign
+		// relaunches its own server rather than change maps under the match.
+		gameLocal.sessionCommand = sessionCommand;
+		gameLocal.Printf( "arena campaign: the map did not restart in place\n" );
+		return;
+	}
+
+	// Warmup keeps the scores and the clock until the match goes live; the
+	// restarted match shows nothing scored and its full length, as a fresh
+	// warmup does.
+	matchStartedTime = gameLocal.time;
+	for ( int i = 0; i < gameLocal.numClients; i++ ) {
+		idEntity *ent = gameLocal.entities[ i ];
+		if ( ent == NULL || !ent->IsType( idPlayer::GetClassType() ) ) {
+			continue;
+		}
+		idPlayer *player = static_cast<idPlayer *>( ent );
+		SetPlayerScore( player, 0 );
+		SetPlayerTeamScore( player, 0 );
+	}
+
+	cvarSystem->SetCVarInteger( "ui_arenaRestartMatch", 0 );
+	gameLocal.Printf( "arena campaign: match restarted in place\n" );
 }
 
 /*
@@ -24129,6 +24195,8 @@ void idMultiplayerGame::MapRestart( void ) {
 			/*cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "updateUI %d\n", clientNum ) );*/
 		}
 	}
+
+	mapRestartCount++;
 }
 
 /*

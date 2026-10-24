@@ -128,20 +128,42 @@ The stock menu is `guis/arena_pause.gui`, loaded beside `mpmain.gui`;
 | Action | GUI command | What happens |
 | --- | --- | --- |
 | Resume | `arenaPause resume` | `DisableMenu`; the match resumes |
-| Restart match | `arenaPause restart` (after a question) | buffers `arenaCampaignRestart`; the menu stays up until the framework tears the match down |
+| Restart match | `arenaPause restart` (after a question) | buffers `arenaCampaignRestart`; the menu stays up until the framework restarts the match (and closes it) or tears the match down |
 | Settings | `arenaPause settings` | `DisableMenu`, then `main fromMp_toControls`: the main menu's settings page |
 | Leave match | `arenaPause leave` (after a question) | buffers `disconnect`: `Session_Disconnect_f` → `ReportAbandoned` |
 
 - **Pause.** The menu is a session GUI other than the chat box, so
   `ArenaMenuCoversMatch` and `ui_arenaMenuOpen` keep the world paused, as they
   do under the main menu and its settings pages.
-- **Restart.** `idArenaCampaign::RestartMatch` reads `ActiveMatchToken()`,
-  stops the server, restores the transaction (`AbortMatch`) and opens the
-  browser, then builds the abandoned ledger for that token and takes its own
-  `RetryResult()`: the entrance curtain, `PrepareServer` and a fresh listen
-  server, the one path every match launch takes. Nothing is recorded. A match
-  that can no longer start (content changed) shows the **Match abandoned**
-  report instead.
+- **Restart.** `idArenaCampaign::RestartMatch` reads `ActiveMatchToken()` and
+  first resets the match in place (`RestartMatchInPlace`). That needs the bots
+  populated, game_mp running on the campaign's active listen server, and
+  exactly the host plus the authored roster connected. It then sets the
+  read-only `ui_arenaRestartMatch` to the token and runs `serverMapRestart`.
+  `idGameLocal::MapRestart_f` takes that authorized restart ahead of
+  `RejectManagedLegacyMutation`, which still refuses every other restart of an
+  Arena match. `RestartArenaCampaignMatch` refuses a match whose result is due,
+  runs `MapRestart`, and checks `mapRestartCount` to confirm the map really
+  restarted: MapRestart can refuse the map, or turn the restart into a reload
+  when `si_map`, `si_pure`, `si_gameType` or `si_fps` changed. It then zeroes
+  the players' scores and clears the CVar. The framework reads the CVar back
+  and closes the pause menu with the menu's own `arenaPause resume`, then
+  publishes `ui_arenaMenuOpen` at once.
+  Everyone respawns, the map's items reset, warmup replays the introductions
+  and the countdown, and the match goes live from 0:00. Nothing is recorded.
+  The bots keep their client slots, characters, skills and the navmesh, as they
+  do through the map restart that starts every match and every round; their
+  respawn resets each bot's route, enemy and aim. Nothing is removed and added
+  again, so population cannot race a queued removal, and `PopulateBots` stays
+  done. When any condition fails (a bot has left, the server is gone, the
+  result is due), Restart falls back to the relaunch. That relaunch stops the
+  server, restores the transaction (`AbortMatch`), opens the browser, builds the
+  abandoned ledger for the token and takes its own `RetryResult()`: the
+  entrance curtain, `PrepareServer` and a fresh listen server with the authored
+  roster added again, the one path every match launch takes. A match that can
+  no longer start (content changed) shows the **Match abandoned** report
+  instead. `tools/tests/arena_restart_in_place.py` guards both paths with
+  eleven single-reversal controls.
 - **Settings.** Backing out of the settings page lands the main menu on its
   multiplayer home. `idArenaCampaign::Frame` sees the main menu come to rest
   there over a live match (`ArenaMainMenuAtHome`) and gives the screen back to
@@ -178,6 +200,8 @@ the Arena pause menu; `openq4_guiAction <window>` presses a stock button
 `openq4_retainedGui focus <control>` followed by `menu accept 1` / `menu accept 0`
 activates a control; `event onBack` resumes from the pause card. Session command
 names such as `arenaStart` are not accepted by its `menu` verb.
+`arenaCampaignRestart` restarts the live match from the console as Restart match
+does, and `botlist` shows the roster's client slots and the navmesh build.
 
 ## 2026-10 audit
 
@@ -379,11 +403,35 @@ read stamps 456-459 ms stale while the unpause itself took 25-31 ms. Reports:
 `.tmp/mrt/arena-gl-fix-*`, `arena-gl-fixb-*` and `arena-vk-fix-1` in the
 `1388` worktree.
 
+## In-place restart, 24 October 2026
+
+No-input runs (`.tmp/arena-audit/scenarios.py`, scenarios `restart`,
+`restartwarmup` and `restartfallback`) on a debugoptimized candidate build
+(`.tmp/runtime/candidate`), GL, hidden window. `botlist` before and after each
+restart prints every bot's client slot, character and skill, and when the
+navmesh was built.
+
+| Run | Match | Path | Result |
+| --- | --- | --- | --- |
+| `restart-inplace-card` | 1, Duel, q4dm1 | pause card's Restart | In place; Bagby keeps slot 1 and skill 1.0; navmesh built once (263 ms); unpaused at once |
+| `restart-inplace-tdm-stock` | 3, Team DM, q4dm3 | stock pause menu's Restart | In place; five bots keep slots 1-5 and skills; "5 combatants (2 teammates)" introduced again; warmup clock 7:59; live again at 0-0 |
+| `restart-warmup-2` | 3, Team DM | `arenaCampaignRestart` 2.1 s into the introductions | In place from warmup; all five introduced again; control back 16.7 s later |
+| `restart-inplace-ca` | 7, Clan Arena, q4dm7 | pause card, round 1 live | In place; round state back to inactive; ROUND 1 at 0/4 - 0/4 with the full loadout |
+| `restart-fallback` | 2, DM, q4dm2 | Restart after `removebot Anderson` | "has 3 of its 4 combatants; relaunching it"; entrance, fresh server, all three bots added again, navmesh rebuilt |
+| `restart-then-win` | 1, Duel | Restart, then `openq4_arenaCeremony win` | The restarted match reports and records: win 1-0, first best result, progress 1 |
+
+In place, the introductions start within 0.3 s of the confirmation. The
+fallback's relaunch took 4.4 s to its introductions on a warm cache, and it
+loads the map and rebuilds the navmesh again. The first card run used a build
+whose replayed warmup still showed the abandoned match's clock (5:53);
+`RestartArenaCampaignMatch` now restarts the warmup clock as well, as the later
+runs show. One earlier `restartwarmup` run took 85 s of wall time for the same
+17 s of game time while another session's GPU-heavy client ran; the rerun
+matched game time.
+
 ## Known gaps
 
 - Endpoint loss/return and other audio devices remain unqualified. The headphone
   result above covers audible pause/resume on its stated endpoint only.
-- Restart match relaunches the listen server through the browser's entrance,
-  so it takes as long as starting the match from the browser (the map and its
-  navigation load again). Keyboard, mouse and controller navigation of the
-  pause menu are code-verified only; the runtime checks drive it by command.
+- Keyboard, mouse and controller navigation of the pause menu are code-verified
+  only; the runtime checks drive it by command.

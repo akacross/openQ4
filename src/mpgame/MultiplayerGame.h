@@ -816,6 +816,12 @@ public:
 	// menu during a live Arena match: Resume, Restart match, Settings and
 	// Leave match. The retained card covers it like the menu's own card.
 	bool			IsArenaPauseMenuOpen( void ) const { return currentMenu == MP_MENU_ARENA_PAUSE; }
+	// Restart match resets the live match in place. The campaign authorizes
+	// one restart by setting ui_arenaRestartMatch to the match's token and
+	// running serverMapRestart, which then comes here instead of the
+	// administration guard; clearing the CVar tells the campaign it happened.
+	bool			ArenaCampaignRestartAuthorized( void ) const;
+	void			RestartArenaCampaignMatch( void );
 	// openq4_arenaCeremony: drives a local Arena match without device input.
 	void			DebugArenaCampaignCeremony( const idCmdArgs &args );
 	void			AdvanceArenaCampaignCeremony( void );
@@ -1215,6 +1221,9 @@ private:
 	int				arenaPresentationVictor;
 	int				arenaPresentationFocus;
 	bool			arenaPresentationBlurEnabled;
+	// Completed serverMapRestart resets, so the Arena's Restart match can tell
+	// a restart from one MapRestart refused or turned into a map reload.
+	int				mapRestartCount;
 	// The connect-time join screen is a compact panel drawn over a live view of
 	// the map, so it borrows the same Raven special-effect blur the arena
 	// presentation uses and holds it for as long as that panel is up.

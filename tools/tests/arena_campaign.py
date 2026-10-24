@@ -3379,8 +3379,10 @@ def validate_pause_menu() -> None:
     Escape during a live Arena match opens Resume, Restart match, Settings and
     Leave match - in the stock GUI and under its retained card - instead of the
     multiplayer menu's Join Team, Server Info, Admin and Match Control. The
-    world keeps pausing behind it, Restart takes the campaign's own launch path,
-    and Leave takes the existing disconnect to the abandoned report.
+    world keeps pausing behind it, Restart resets the match in place or falls
+    back to the campaign's own launch path (arena_restart_in_place.py guards
+    the in-place restart), and Leave takes the existing disconnect to the
+    abandoned report.
     """
 
     import json
@@ -3440,7 +3442,7 @@ def validate_pause_menu() -> None:
     for verb in ("arenaRestart", "arenaLeave"):
         require(adapter, f'"{verb}"', "the retained adapter allows the Arena pause verbs")
 
-    # Restart is the abandoned report's Retry: same token, nothing recorded.
+    # Restart's fallback is the abandoned report's Retry: same token, nothing recorded.
     require(arena_header, "void\t\t\t\t\tRestartMatch();", "the campaign restarts its own matches")
     require(arena, '"arenaCampaignRestart", ArenaCampaign_Restart_f, CMD_FL_SYSTEM,', "the restart command is registered")
     require(arena, 'cmdSystem->RemoveCommand( "arenaCampaignRestart" );', "the restart command is removed with the campaign")

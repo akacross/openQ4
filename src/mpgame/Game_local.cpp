@@ -2084,6 +2084,12 @@ idGameLocal::MapRestart_f
 ===================
 */
 void idGameLocal::MapRestart_f( const idCmdArgs &args ) {
+	// openQ4: the Arena campaign's own Restart match, authorized for its live
+	// match token; every other restart of an Arena match is administration.
+	if ( args.Argc() == 1 && gameLocal.mpGame.ArenaCampaignRestartAuthorized() ) {
+		gameLocal.mpGame.RestartArenaCampaignMatch();
+		return;
+	}
 	if ( gameLocal.mpGame.RejectManagedLegacyMutation( "server map restart" ) ) {
 		return;
 	}

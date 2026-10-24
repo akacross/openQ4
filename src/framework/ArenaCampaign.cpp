@@ -178,6 +178,13 @@ static idCVar ui_arenaMenuOpen(
 	"ui_arenaMenuOpen", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT | CVAR_ROM,
 	"true while a menu covers the live arena campaign match, which pauses it" );
 
+// Restart match's authorization for game_mp: the live match's token for the
+// length of one serverMapRestart, which game_mp clears once the match has
+// restarted in place. Read-only, so the console cannot authorize a restart.
+static idCVar ui_arenaRestartMatch(
+	"ui_arenaRestartMatch", "0", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NOCHEAT | CVAR_ROM,
+	"arena campaign match token authorized to restart in place" );
+
 static void ArenaClearMatchPresentation() {
 	ui_arenaMatchTitle.SetString( "" );
 	ui_arenaMatchTier.SetString( "" );
@@ -2461,7 +2468,9 @@ void idArenaCampaign::StartSelectedMatch() {
 
 	// Arena matches always start from a fresh listen server.  Besides avoiding
 	// stale match state, this guarantees that bot population cannot race queued
-	// bot removals from an active multiplayer session.
+	// bot removals from an active multiplayer session.  Restart match resets a
+	// live match on its own server instead (RestartMatchInPlace), where the
+	// roster this populated is still connected and nothing is added again.
 	if ( NeedsCleanup() || idAsyncNetwork::server.IsActive() || idAsyncNetwork::client.IsActive() ) {
 		AbortMatch();
 		sessLocal.Stop();
@@ -2750,14 +2759,68 @@ void idArenaCampaign::ReportAbandoned( int token ) {
 
 /*
 ================
+idArenaCampaign::RestartMatchInPlace
+
+Restart match on the running server: serverMapRestart respawns everyone,
+resets the map, the scores and the clock, and warmup replays the
+introductions. The bots keep their client slots, so nothing is removed and
+added again and the roster cannot race a queued bot removal. It is refused
+unless this is still the match's own listen server with exactly the
+authored roster connected, and game_mp refuses a match whose result is
+already due. True when the match restarted.
+================
+*/
+bool idArenaCampaign::RestartMatchInPlace( int token ) {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	const arenaMatch_t *match = ArenaMatchForToken( state, token );
+	if ( match == NULL || !state->botsPopulated || game == NULL || !sessLocal.IsMapSpawned() ||
+		 idStr::Icmp( cvarSystem->GetCVarString( "com_activeGameModule" ), "game_mp" ) != 0 ||
+		 !idAsyncNetwork::server.IsActive() ) {
+		common->Printf( "arena campaign: match %d has no running server to restart\n", token );
+		return false;
+	}
+	const int clients = idAsyncNetwork::server.GetNumClients();
+	if ( clients != 1 + match->bots.Num() ) {
+		common->Printf( "arena campaign: match %d has %d of its %d combatants; relaunching it\n",
+			token, clients, 1 + match->bots.Num() );
+		return false;
+	}
+
+	ui_arenaRestartMatch.SetInteger( token );
+	cmdSystem->BufferCommandText( CMD_EXEC_NOW, "serverMapRestart\n" );
+	const bool restarted = ui_arenaRestartMatch.GetInteger() == 0;
+	ui_arenaRestartMatch.SetInteger( 0 );
+	if ( !restarted ) {
+		return false;
+	}
+
+	// The pause menu asked for this. It closes as Resume closes it, and the
+	// restarted warmup runs; any other menu over the match stays up and keeps
+	// the restarted match paused behind it.
+	idUserInterface *gui = sessLocal.GetActiveGUI();
+	if ( gui != NULL && idStr::Icmp( gui->Name(), "guis/arena_pause.gui" ) == 0 ) {
+		sessLocal.HandleGameMenuReturn( game->HandleGuiCommands( "arenaPause resume" ) );
+	}
+	// Publish it now rather than on the next Frame, which may come after the
+	// first game frame of the restarted warmup.
+	ui_arenaMenuOpen.SetBool( ArenaMenuCoversMatch() );
+	return true;
+#endif
+}
+
+/*
+================
 idArenaCampaign::RestartMatch
 
-The pause menu's Restart match: the live match again from its entrance and
-introductions. It leaves the match as Leave match does, so nothing is
-recorded, and then takes the abandoned report's own Retry, so the restart
-follows the one launch path every match takes: the browser's entrance
-curtain, PrepareServer and a fresh listen server. A match that can no longer
-start shows the abandoned report instead.
+The pause menu's Restart match: the live match again from its introductions,
+with nothing recorded. It restarts in place when it can. Otherwise it leaves
+the match as Leave match does and takes the abandoned report's own Retry, so
+the restart follows the one launch path every match takes: the browser's
+entrance curtain, PrepareServer and a fresh listen server, which adds the
+authored roster again. A match that can no longer start shows the abandoned
+report instead.
 ================
 */
 void idArenaCampaign::RestartMatch() {
@@ -2770,6 +2833,11 @@ void idArenaCampaign::RestartMatch() {
 		return;
 	}
 	common->Printf( "arena campaign: restarting match %d; nothing recorded\n", token );
+	if ( RestartMatchInPlace( token ) ) {
+		common->Printf( "arena campaign: match %d restarted in place\n", token );
+		return;
+	}
+	common->Printf( "arena campaign: relaunching match %d\n", token );
 	// As ReturnToBrowserAfterStartFailure: the server goes before its
 	// archived serverInfo values come back.
 	sessLocal.Stop();

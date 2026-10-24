@@ -18,9 +18,10 @@
   **Leave match**, beside the match, its tier, game type, map, clock and score,
   instead of the multiplayer menu's team, server and admin pages. The match
   pauses while it is open: bots, the match clock, projectiles and respawns all
-  stop, including while you change settings. Restart match plays the same
-  match again from its introductions; both it and Leave match ask first, and
-  neither records anything. The classic and modern interfaces both have it.
+  stop, including while you change settings. Restart match resets the same
+  match on the spot, without reloading the map, and plays its introductions
+  again; both it and Leave match ask first, and neither records anything. The
+  classic and modern interfaces both have it.
 - **Leaving returns you to the Arena.** Quitting a match part way through
   brings you back to the Arena browser with a "Match abandoned" report and a
   Retry button, instead of the title screen. Nothing is recorded and your

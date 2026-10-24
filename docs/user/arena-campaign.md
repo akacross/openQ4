@@ -129,8 +129,10 @@ menu button) during a match for the **MATCH PAUSED** menu, which shows the
 match, its tier, game type and map, the paused clock and the score:
 
 - **Resume** returns to the match. Escape or the back button does the same.
-- **Restart match** asks first, then starts the same match again from its
-  introductions. Nothing is recorded.
+- **Restart match** asks first, then resets the same match on the spot: no
+  reload, everyone respawns, the score and clock go back to zero and the
+  introductions play again. Nothing is recorded. If an opponent has left the
+  match, the match reloads instead, so the full line-up returns.
 - **Settings** opens the normal settings screens. The match stays paused, and
   backing out returns you to the pause menu.
 - **Leave match** asks first, then returns you to the Arena browser with a
