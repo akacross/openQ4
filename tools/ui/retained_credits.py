@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 
+from build_retained_screens import fit_narrow
 from build_retained_screens import (ACCEL, CANVAS_W, FULL, ORANGE, ROOT, TITLE_SLOT, U, Document, absolute, colour, font, group,
                                     keyword, label, length, linear, number, page_prompts, path, picture, rgb, track, transform,
                                     typeface, vector)
@@ -305,4 +306,4 @@ def credits_document() -> dict:
     panel = group("credits-panel", {**FULL, "opacity": number(0)}, [
         backing, group("credits-stage", canvas, [logo, *screens]), group("credits-chrome", canvas, [title, back])])
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])}, [panel])
-    return doc.build(root)
+    return fit_narrow(doc.build(root), pages=True)

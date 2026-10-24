@@ -7,6 +7,7 @@ timelines.
 """
 from __future__ import annotations
 
+from build_retained_screens import fit_narrow
 from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SLOT, CRUMB_SPAN, FULL, PAGE_TITLE_H,
                                     PAGE_TITLE_W, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_PAGE, TOP_TO_SUBPAGE, U, Document, absolute,
                                     by_language, colour, crumb_fits, crumb_transform, framing_bands, group, keyword, label, length,
@@ -83,6 +84,6 @@ def subpage_document(doc: Document, prefix: str, crumb_key: str, title_key: str,
                                 {"op": "focus", "control": focus}]
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}, *by_language(doc, "crumbRest", fits)]
     doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
-    return doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
+    return fit_narrow(doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, backing(backing_id), content, titles, *overlays,
-    ]))
+    ])), pages=True)

@@ -52,6 +52,7 @@ the authoritative result and the progress.
 """
 from __future__ import annotations
 
+from build_retained_screens import fit_narrow
 from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SLOT, CRUMB_SPAN, EASE_OUT, FULL,
                                     MARKER, OLIVE, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W, RAIL_DARK, SUBPAGE_SLOT, TITLE_SLOT,
                                     TOP_TO_PAGE, TOP_TO_SUBPAGE, U, VALUE, Document, absolute, action_plate, by_language,
@@ -783,4 +784,4 @@ def arena_document() -> dict:
     root = group("screen", {**FULL, "background-color": colour([0, 0, 0, 1]), "font-family": font("marine"), "font-size": length(16),
                             "color": colour([1, 1, 1, 0.8])},
                  [*lit_field("field", 0.7), *bands, backing_node, content, titles, launch, result, reset, curtain])
-    return doc.build(root)
+    return fit_narrow(doc.build(root), pages=True)

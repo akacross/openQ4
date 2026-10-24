@@ -1708,14 +1708,28 @@ and its 16 dp side margins fit (`fit_card`) and stay centred. In a view of
 4:3 or wider nothing changes.
 
 Captured at 9:16 (540x960), 5:4 (1280x1024) and 16:9 for the title, pause,
-Multiplayer page, Escape card, death screen and Arena pause. The pages that
-set their prompt bar inside their canvas group (Load and Save Game, Restart
-Level, Demos, Credits, Create Server, Join Game, Arena) do not fit yet: their
-bar would leave the bottom band if the canvas centred, so they need the bar
-moved out first.
+Multiplayer page, Escape card, death screen and Arena pause.
 
 Evidence: `.tmp/ui/narrow-fit/validation-evidence.json`, SHA-256
 `8a2f2b92b83fe012a7649d4a5882b865d3eae801d6997c3f9ebd4db4f664411a`.
+
+The pages that set their prompt bar and bottom-band controls inside their
+canvas group (Load and Save Game, Restart Level, Demos, Credits, Create
+Server, Join Game, Arena) fit too, through `fit_narrow`'s page mode: their
+canvas groups run the view's full height, and each part they place, directly
+or through full-size groups, centres by its own offset from the canvas's
+middle. A part that lies in the top band (Demos' title) keeps the view's top
+edge, and one that starts in the bottom band (the prompt bar, Refresh List)
+keeps its distance from the view's bottom, so in a portrait window the bar
+stays on the bottom band under a centred page. Join Game's details card
+keeps its place: the runtime sets it under the focused row. The gate pins
+every menu's `canvas.minWidth` and the Load page's bottom-anchored bar.
+
+Captured at 9:16 for each of those pages, and at 5:4 and 16:9 for Load
+Game, Demos and Join Game.
+
+Evidence for the pages: `.tmp/ui/pages-fit/validation-evidence.json`, SHA-256
+`cc5f11fad8fa0b33f019b57dc33c4d6e07db99cd2046ffeb89becb308e7629db`.
 
 ## Joined lines and capitals (24 October 2026)
 

@@ -779,9 +779,9 @@ archived provenance; new scheduling belongs here.
   Confirmations and Restart Level wrap too, and scrolling lists remember their
   focus when a move comes back into them. The [View button](ui/input-routing.md#view-button-24-october-2026)
   hides or shows Join Game's server details and, by default, shows the scores
-  while held in play. The home screens and multiplayer cards
+  while held in play. The home screens, menu pages and multiplayer cards
   [fit views narrower than 4:3](ui/retained-screens.md#narrow-views-24-october-2026)
-  (5:4, portrait); the pages with in-canvas prompt bars remain.
+  (5:4, portrait).
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 128 entries, stable refresh focus, contextual disabled

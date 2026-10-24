@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: the [menu pages](retained-screens.md#narrow-views-24-october-2026)
+add bounded UI-02 evidence to `LAY-021`. Load and Save Game, Restart Level, Demos,
+Credits, Create Server, Join Game and the Arena fit views narrower than 4:3 with
+their prompt bars on the bottom band. The increment is audited against `e22da3be9914c88c36f7c18829f0cb96c1427f47`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [narrow views](retained-screens.md#narrow-views-24-october-2026)
 add bounded UI-02 evidence to `LAY-021`. The home screens, the Multiplayer page,
 the death screen and the multiplayer cards fit views narrower than 4:3 instead of

@@ -45,6 +45,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from build_retained_screens import fit_narrow
 from build_retained_screens import (CANVAS_W, CLOSE_W, FULL, LANGUAGES, MARKER, OLIVE, ORANGE, PICTURE, RAIL_DARK, ST_FILL, ST_LINE,
                                     ST_OBJ_FRAME, PAGE_BAR_LEFT, ST_READ, ST_SELECT, STRINGS, U, VERB_DELETE, VERB_LOAD, VERB_SAVE,
                                     Document, absolute, action_plate, colour, confirmation, font, group, keyword, label, length,
@@ -661,7 +662,7 @@ def load_game_document(family: Family = MARINE) -> dict:
     doc.events["pagedNewer"] = [{"op": "focus", "control": f"row-{ROWS - 1}"}]
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing(), stage, modal])
-    return doc.build(root)
+    return fit_narrow(doc.build(root), pages=True)
 
 
 # The Save Game page: the stock p_savegame (section 9 "Save and load"). The
@@ -898,7 +899,7 @@ def save_game_document(family: Family = MARINE) -> dict:
     doc.events["pagedNewer"] = [{"op": "focus", "control": f"row-{ROWS - 1}"}]
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing("save-backing"), stage, overwrite, notice])
-    return doc.build(root)
+    return fit_narrow(doc.build(root), pages=True)
 
 
 def walk(node: dict):

@@ -21,6 +21,7 @@ page in the Strogg family (restartlevel_strogg.q4ui, see retained_saves.py).
 """
 from __future__ import annotations
 
+from build_retained_screens import fit_narrow
 from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, U, Document, absolute, colour, font,
                                     group, keyword, label, length, linear, number, page_prompts, path, rgb,
                                     solid, stroke, text_width, track, transform, typeface, vector, wrap_menu)
@@ -199,5 +200,5 @@ def restart_level_document(family: Family = MARINE) -> dict:
     doc.events["onDeactivate"] = [{"op": "playTimeline", "timeline": "rest"}]
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing("restart-backing"), stage])
-    return doc.build(root)
+    return fit_narrow(doc.build(root), pages=True)
 

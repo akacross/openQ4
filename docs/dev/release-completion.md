@@ -79,6 +79,9 @@ completed release material here and publish curated notes in `releases/`.
 - [x] The title, pauses, Arena pause, Multiplayer page, death screen and the
   multiplayer cards fit views narrower than 4:3 (5:4, portrait) instead of
   clipping; wider views are unchanged.
+- [x] The Load, Save, Restart Level, Demos, Credits, Create Server, Join Game
+  and Arena pages fit too: the page centres and its prompt bar stays on the
+  bottom band.
 - [Behavior and checks](ui/retained-screens.md#narrow-views-24-october-2026):
   native suites unchanged at 16:9 and captures at 9:16, 5:4 and 16:9.
 

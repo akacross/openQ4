@@ -531,17 +531,50 @@ def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> d
     return widths
 
 
-def fit_narrow(result: dict) -> dict:
+def fit_narrow(result: dict, pages: bool = False) -> dict:
     """Section 9's 4:3 composition in a view narrower than 4:3 (5:4,
     portrait), as the campaign pages fit it (retained_menu_levels.fit_page):
     the canvas shrinks to the view's width (canvas.minWidth 960), each canvas
     group (centred on the view at 960x720 dp) but the title slot's centres
     vertically, and the bottom band and a prompt bar outside the canvas groups
     keep the view's bottom edge. In a
-    view of 4:3 or wider every one of these is unchanged."""
+    view of 4:3 or wider every one of these is unchanged.
+
+    With `pages` (a page whose prompt bar and bottom-band controls sit in its
+    canvas group) the canvas groups instead run the view's full height: each
+    control or part they place directly, or through full-size groups, centres
+    by its own offset from the canvas's middle; one that lies in the top band
+    (above 80 dp, as Demos' title) keeps the view's top edge and one that
+    starts in the bottom band (from 640 dp) keeps its distance from the
+    view's bottom, so the bar stays on the bottom band. A detail card keeps
+    its place: the runtime sets it beside its subject."""
     def value(props: dict, key: str):
         found = props.get(key)
         return (found.get("value"), found.get("unit")) if isinstance(found, dict) else None
+
+    detail = (result.get("detail") or {}).get("card")
+
+    def place(node: dict) -> None:
+        props = node.get("properties", {})
+        if detail and node.get("id") == detail:
+            return
+        if (value(props, "left") == (0, "dp") and value(props, "top") == (0, "dp") and value(props, "width") == (100, "%") and
+                value(props, "height") == (100, "%")):
+            for child in node.get("children", []):
+                place(child)
+            return
+        top = value(props, "top")
+        if top is None or top[1] != "dp" or "bottom" in props:
+            return
+        height = value(props, "height")
+        if height is not None and height[1] == "dp" and top[0] + height[0] <= 80:
+            return
+        if top[0] >= 640 and value(props, "height") is not None:
+            props.pop("top")
+            props["bottom"] = length(round(720 - top[0] - props["height"]["value"], 4))
+        else:
+            props["top"] = length(50, "%")
+            props["margin-top"] = length(round(top[0] - 360, 4))
 
     def walk(node: dict, in_canvas: bool = False) -> None:
         props = node.get("properties", {})
@@ -549,6 +582,11 @@ def fit_narrow(result: dict) -> dict:
                   value(props, "top") == (0, "dp") and value(props, "height") == (720, "dp"))
         # The page titles and the label carried into the title slot belong to
         # the top band, which keeps the view's top edge: they stay with it.
+        if canvas and pages and node.get("id") not in ("titles", "carry"):
+            props["height"] = length(100, "%")
+            for child in node.get("children", []):
+                place(child)
+            return
         if canvas and node.get("id") not in ("titles", "carry"):
             props["top"] = length(50, "%")
             props["margin-top"] = length(-360)

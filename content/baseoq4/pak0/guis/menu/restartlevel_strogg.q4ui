@@ -5,7 +5,7 @@
  "format": "openq4-ui",
  "version": 1,
  "id": "openq4.restartlevel_strogg",
- "canvas": {"height": 720},
+ "canvas": {"height": 720, "minWidth": 960},
  "state": {
   "restart.skill": {"type": "number", "initial": 1},
   "prompt.glyphs": {"type": "number", "initial": 0},
@@ -2805,7 +2805,7 @@
      "position": {"type": "keyword", "value": "absolute"},
      "top": {"type": "length", "value": 0, "unit": "dp"},
      "width": {"type": "length", "value": 960.0, "unit": "dp"},
-     "height": {"type": "length", "value": 720, "unit": "dp"},
+     "height": {"type": "length", "value": 100, "unit": "%"},
      "left": {"type": "length", "value": 50, "unit": "%"},
      "margin-left": {"type": "length", "value": -480.0, "unit": "dp"}
     },
@@ -2829,7 +2829,7 @@
          "text": {"type": "text", "value": "#str_200019"},
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 358.5, "unit": "dp"},
-         "top": {"type": "length", "value": 271.5, "unit": "dp"},
+         "top": {"type": "length", "value": 50, "unit": "%"},
          "width": {"type": "length", "value": 517.5, "unit": "dp"},
          "height": {"type": "length", "value": 208.5, "unit": "dp"},
          "font-family": {"type": "font", "value": "lowpixel"},
@@ -2837,7 +2837,8 @@
          "line-height": {"type": "length", "value": 23.0, "unit": "dp"},
          "color": {"type": "color", "value": [0.9882, 1.0, 0.7843, 0.6]},
          "white-space": {"type": "keyword", "value": "normal"},
-         "overflow": {"type": "keyword", "value": "hidden"}
+         "overflow": {"type": "keyword", "value": "hidden"},
+         "margin-top": {"type": "length", "value": -88.5, "unit": "dp"}
         }
        },
        {
@@ -2846,9 +2847,10 @@
         "properties": {
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 355.5, "unit": "dp"},
-         "top": {"type": "length", "value": 333.0, "unit": "dp"},
+         "top": {"type": "length", "value": 50, "unit": "%"},
          "width": {"type": "length", "value": 534.0, "unit": "dp"},
-         "height": {"type": "length", "value": 64.5, "unit": "dp"}
+         "height": {"type": "length", "value": 64.5, "unit": "dp"},
+         "margin-top": {"type": "length", "value": -27.0, "unit": "dp"}
         },
         "children": [
          {
@@ -3033,10 +3035,10 @@
         "properties": {
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 570.0, "unit": "dp"},
-         "top": {"type": "length", "value": 661.5, "unit": "dp"},
          "width": {"type": "length", "value": 390.0, "unit": "dp"},
          "height": {"type": "length", "value": 45.0, "unit": "dp"},
-         "opacity": {"type": "number", "value": 1}
+         "opacity": {"type": "number", "value": 1},
+         "bottom": {"type": "length", "value": 13.5, "unit": "dp"}
         },
         "children": [
          {
@@ -4415,9 +4417,10 @@
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
        "left": {"type": "length", "value": 31.5, "unit": "dp"},
-       "top": {"type": "length", "value": 273.3, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 293.28, "unit": "dp"},
-       "height": {"type": "length", "value": 45.0, "unit": "dp"}
+       "height": {"type": "length", "value": 45.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": -86.7, "unit": "dp"}
       },
       "children": [
        {
@@ -4701,9 +4704,10 @@
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
        "left": {"type": "length", "value": 30.0, "unit": "dp"},
-       "top": {"type": "length", "value": 318.3, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 293.28, "unit": "dp"},
-       "height": {"type": "length", "value": 45.0, "unit": "dp"}
+       "height": {"type": "length", "value": 45.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": -41.7, "unit": "dp"}
       },
       "children": [
        {
@@ -4987,9 +4991,10 @@
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
        "left": {"type": "length", "value": 30.0, "unit": "dp"},
-       "top": {"type": "length", "value": 363.3, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 293.28, "unit": "dp"},
-       "height": {"type": "length", "value": 45.0, "unit": "dp"}
+       "height": {"type": "length", "value": 45.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": 3.3, "unit": "dp"}
       },
       "children": [
        {
@@ -5273,9 +5278,10 @@
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
        "left": {"type": "length", "value": 30.0, "unit": "dp"},
-       "top": {"type": "length", "value": 408.3, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 293.28, "unit": "dp"},
-       "height": {"type": "length", "value": 45.0, "unit": "dp"}
+       "height": {"type": "length", "value": 45.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": 48.3, "unit": "dp"}
       },
       "children": [
        {
@@ -5559,9 +5565,10 @@
       "properties": {
        "position": {"type": "keyword", "value": "absolute"},
        "left": {"type": "length", "value": 30.0, "unit": "dp"},
-       "top": {"type": "length", "value": 453.3, "unit": "dp"},
+       "top": {"type": "length", "value": 50, "unit": "%"},
        "width": {"type": "length", "value": 301.678, "unit": "dp"},
-       "height": {"type": "length", "value": 45.0, "unit": "dp"}
+       "height": {"type": "length", "value": 45.0, "unit": "dp"},
+       "margin-top": {"type": "length", "value": 93.3, "unit": "dp"}
       },
       "children": [
        {
