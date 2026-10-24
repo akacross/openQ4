@@ -13,7 +13,8 @@ from pinned_archive_headers import pinned_include
 
 ROOT=Path(__file__).resolve().parents[2]
 SUPPORT=r'''
-// Use host SDL declarations for a host executable, then select the engine branch.
+// Use host SDL and standard library declarations for a host executable, then
+// select the engine branch. Apple's libc++ reads Android headers under __ANDROID__.
 #if defined(__ANDROID__)
 #undef __ANDROID__
 #define TEST_ANDROID 1
@@ -21,13 +22,14 @@ SUPPORT=r'''
 #define SDL_MAIN_HANDLED 1
 #define SDL_STATIC_LIB 1
 #include <SDL3/SDL.h>
+#include <cmath>
+#include <cstdio>
+#include <initializer_list>
+#include <limits>
+#include <stdexcept>
 #if defined(TEST_ANDROID)
 #define __ANDROID__ 1
 #endif
-#include <cmath>
-#include <cstdio>
-#include <limits>
-#include <stdexcept>
 #include "sys/sys_console_theme.h"
 #define USE_SDL3 1
 #undef INT_MAX
