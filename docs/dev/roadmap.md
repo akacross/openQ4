@@ -289,8 +289,11 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   7.2–8.5 ms). On that laptop (hybrid graphics, 240 Hz panel) preparing a draw
   costs 0.35 ms of a 5 ms frame, and vsync settles at 138 Hz. The declared
   frame-rate policy (hidden-window, loading and preset caps) is contract-pinned,
-  and a hidden window capped at 240 measured 60.0 Hz.
-  Physical runs on the desktop reference remain.
+  and a hidden window capped at 240 measured 60.0 Hz. Through 100 ms stalls
+  (`com_presentationStallProbe`) the drawn view never stepped backwards and late
+  look still matched its sampled input. The main menu follows the cap. Variable
+  refresh and adaptive vsync are reference-run cases. Physical runs on the
+  desktop reference remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),
   zoomed, on lifts and trams and through rapid turns, and measure physical
@@ -314,7 +317,9 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   `com_latencyFlash` paints the first frame after a fire press for click-to-photon
   sensors (procedure in the owners contract). Late look stays excluded in vehicles by decision, because
   vehicles turn under their own rate limits (a walker turned 196°/s for a
-  220°/s input). Physical latency and the by-eye review remain.
+  220°/s input). Q4's trams are vehicles (the ridden `player_tram` is a
+  marine-driven tramcar), so the same decision covers them. Physical latency and
+  the by-eye review remain.
 
 ## Vulkan rendering
 

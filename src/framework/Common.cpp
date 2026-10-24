@@ -137,6 +137,7 @@ idCVar con_allowConsole( "con_allowConsole", "1", CVAR_BOOL | CVAR_SYSTEM | CVAR
 idCVar com_speeds( "com_speeds", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show engine timings" );
 idCVar com_showFPS( "com_showFPS", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_NOCHEAT, "show frames rendered per second: 1 = in-game only, 2 = legacy always on", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_maxfps( "com_maxfps", "240", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_NOCHEAT, "presentation frame cap, 0 = uncapped", 0, 1000, idCmdSystem::ArgCompletion_Integer<0,1000> );
+static idCVar com_presentationStallProbe( "com_presentationStallProbe", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_CHEAT, "development probe: once a second, stall one frame this many milliseconds, so hitch catch-up can be measured without a real hitch; requires cheats", 0, 1000 );
 idCVar com_showFramePacing( "com_showFramePacing", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_NOCHEAT, "show frame pacing diagnostics: 1 = HUD overlay, 2 = overlay plus console logging", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_showMemoryUsage( "com_showMemoryUsage", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show total and per frame memory usage" );
 idCVar com_showAsyncStats( "com_showAsyncStats", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show async network stats" );
@@ -6014,6 +6015,30 @@ void idCommonLocal::InitSIMD( void ) {
 
 /*
 =================
+Common_PresentationStallProbe
+
+com_presentationStallProbe: a development stand-in for a hitch, such as a slow
+read or a driver stall. Once a second one frame sleeps this many milliseconds,
+so the catch-up that follows, and what is drawn across it, can be measured
+without waiting for a real hitch.
+=================
+*/
+static void Common_PresentationStallProbe( void ) {
+	static int lastStallMsec = 0;
+	const int stallMsec = com_presentationStallProbe.GetInteger();
+	if ( stallMsec <= 0 ) {
+		return;
+	}
+	const int now = Sys_Milliseconds();
+	if ( now - lastStallMsec < 1000 ) {
+		return;
+	}
+	lastStallMsec = now;
+	Sys_Sleep( stallMsec );
+}
+
+/*
+=================
 idCommonLocal::Frame
 =================
 */
@@ -6021,6 +6046,7 @@ void idCommonLocal::Frame( void ) {
 	try {
 		openQ4_BeginPresentationFrame();
 		const int frameStartMsec = com_frameRealTime;
+		Common_PresentationStallProbe();
 
 		// pump all the events
 		Sys_GenerateEvents();

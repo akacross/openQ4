@@ -78,6 +78,11 @@ exact within each tick (see the `vehicle` evidence below). Late look in vehicles
 would need each vehicle's turn model evaluated on the draw, so it is not
 planned.
 
+Trams are vehicles too. In `game/tram1b` the ridden tram, `player_tram`, is a
+`vehicle_tramcar_marine` driven along its track by a marine, with the player on
+its rear gun. So the vehicle decision and the cockpit evidence cover trams, and
+lifts carry the late-look case for movers (`lift` evidence below).
+
 **Displayed aim versus authoritative firing.** A shot uses the usercmd that
 carries the input up to its build. Late look draws the input up to the draw,
 so the drawn aim never leads the input that the next usercmd will carry.
@@ -264,6 +269,11 @@ late look, entity poses, client debris). The pacing case adds the renderer's
 front-end, back-end and GPU summary, so a slow run shows where the frame went.
 The 240 cap is judged against the budget above. Other caps are reported only.
 `--fullscreen` uses the native desktop mode instead of a 960×540 window.
+For variable refresh, add a run with `--swap-interval 1 --fps <refresh − 3>`
+with VRR (G-Sync, FreeSync) on in the driver. With VRR the presented rate
+follows the cap; without it, vsync rounds it down to a divisor of the refresh.
+`--swap-interval -1` is adaptive vsync (SDL's adaptive interval on OpenGL,
+`FIFO_RELAXED` on Vulkan).
 `--reference` is the operator's statement that the window was visible, in the
 foreground, on the reference machine. Without it every verdict reads "not
 qualifying", whatever the numbers. With it, a 240 case over budget fails the
@@ -483,3 +493,14 @@ error. The inherited AVI path has its frame writes commented out, so this
 exercises its clock, not its output. Screenshots taken mid-turn at 220°/s under
 TAA and late look show no ghosting or double edges on the weapon or the
 geometry.
+
+Hitch catch-up and menus (HF-07, `.tmp/hf/r10-hitch`, `.tmp/hf/r10-menu`). The
+cheat-gated `com_presentationStallProbe 100` stalls one frame for 100 ms once a
+second, so the game then catches up several ticks in one frame. Over 10–11
+stalls per run, the drawn view never stepped against the turn in either mode,
+input was consumed once (−220.02 and −220.03°/s), and with late look the view
+still matched the input sampled for each draw (p95 0.003°). The view jumps
+forward by the turn made during the stall (about 31–34°), as it should. The
+residual against the input line stayed at p95 0.09° with late look, against
+2.2° without. The main menu follows `com_maxfps` like gameplay: it held 58 Hz at
+a 60 cap and reached 164 Hz at a 240 cap on this machine, never above the cap.

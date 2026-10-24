@@ -45,6 +45,11 @@ sample and owner counters. Scenarios:
 - spectate: a loopback listen host with two bots, playing, spectating free and
   following a bot; remote bodies join the presentation pass only while the
   local player spectates (listed= counts the pass);
+- hitch (HF-07): once a second one frame stalls 100 ms
+  (com_presentationStallProbe), so the game catches up several ticks; the drawn
+  view must keep turning one way through it, late look off and on;
+- menu (HF-07): the main menu, no map, at each --fps cap; menus follow
+  com_maxfps like gameplay;
 - hidden (HF-07): the same turn in a hidden window (r_hiddenWindow 1), which
   must present at about 60 Hz whatever the cap;
 - pacing (HF-07): late look on at each --fps cap, judged against the declared
@@ -81,7 +86,7 @@ SAMPLE = re.compile(
     r"presentationClockSample rt=(-?\d+) t=(-?\d+) f=([-\d.]+) hrt=([-\d.]+) step=(\d+) hz=(\d+) phase=([-\d.]+)"
     r" drawYaw=([-\d.]+) authYaw=([-\d.]+) look=(\d) lookYaw=([-\d.]+) inYaw=([-\d.]+)"
     r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?(?: prepMs=([-\d.]+))?")
-TURNING = ("look", "thirdperson", "flick", "hidden", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+TURNING = ("look", "thirdperson", "flick", "hidden", "hitch", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
@@ -289,6 +294,17 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
             # a carrier moved the eye: the same split for its height, in units
             case["eyeHeightRange"] = [min(heights), max(heights)]
             case["tickLinearityHeight"] = tick_linearity(samples, "drawZ")
+    if len(samples) >= 64 and scenario == "hitch":
+        # catch-up: several ticks run in one frame after a stall; the drawn view
+        # keeps turning the way the input does (no step backwards) and the
+        # stalls show as long draw intervals
+        yaw = unwrap([s["drawYaw"] for s in samples])
+        steps = [yaw[i] - yaw[i - 1] for i in range(1, len(yaw))]
+        sign = -1.0 if expected_rate < 0 else 1.0
+        intervals = [samples[i]["hrt"] - samples[i - 1]["hrt"] for i in range(1, len(samples))]
+        case["hitch"] = {"stalls": sum(1 for d in intervals if d > 80.0),
+                         "backsteps": sum(1 for d in steps if d * sign < -0.001),
+                         "largestStepDeg": max(abs(d) for d in steps)}
     if len(samples) >= 64 and scenario == "hidden":
         # the background policy: a hidden window is capped at 60 whatever the cap
         case["pacing"] = pacing(samples, 60, text, False)
@@ -332,6 +348,10 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
             segments.append({"samples": len(part), "gameplay": sum(s["gameplay"] for s in part),
                              "lookActive": sum(s["look"] for s in part)})
         case["segments"] = segments
+    if scenario == "menu":
+        snapshot = SNAPSHOT.search(text)
+        case["menuPacing"] = {"bound": snapshot[2], "samples": int(snapshot[3]), "hz": float(snapshot[5]),
+                              "p50": int(snapshot[6]), "p95": int(snapshot[7]), "p99": int(snapshot[8])} if snapshot else None
     if scenario == "flash":
         case["latencyFlashes"] = text.count("latencyFlash: drawn at ")
     if scenario == "demo":
@@ -377,7 +397,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=28995, help="loopback MP server port")
     parser.add_argument("--renderer", choices=("gl", "vulkan"), default="gl")
     parser.add_argument("--fps", type=int, nargs="+", default=[240])
-    parser.add_argument("--swap-interval", type=int, default=0, help="r_swapInterval: 0 tears, 1 waits for vsync")
+    parser.add_argument("--swap-interval", type=int, default=0, help="r_swapInterval: 0 tears, 1 waits for vsync (with VRR, cap a few Hz under the refresh), -1 adaptive vsync")
     parser.add_argument("--xr-runtime-json", type=Path, default=ROOT / "builddir" / "openq4_xr_test_runtime.json",
                         help="the in-tree OpenXR test runtime manifest, for the vr case")
     parser.add_argument("--probe-rate", type=float, default=2000.0, help="synthetic mouse counts per second")
@@ -388,7 +408,7 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
+                        choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "hitch", "menu", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--fullscreen", action="store_true",
@@ -509,6 +529,12 @@ def main() -> int:
                      for kind, extra in (("play", []),
                                          ("free", ["ui_spectate Spectate", "waitMsec 2000"]),
                                          ("follow", ["ui_spectate Spectate", "waitMsec 2000", "follow next", "waitMsec 1500"]))],
+        # HF-07: low-FPS catch-up after a 100 ms stall once a second
+        "hitch": [(f"hitch-look{late}", ["in_presentationView", str(late)],
+                   turn_sp + ["com_presentationStallProbe 100"], "sp") for late in (0, 1)],
+        # HF-07: the main menu follows com_maxfps
+        "menu": [("menu", ["com_showFramePacing", "2"],
+                  ["waitMsec 5000", "framePacingReset", "waitMsec 4000", "framePacingSnapshot hfpacing", "quit"], "menu")],
         # HF-07: the background policy, a hidden window presents at about 60 Hz
         "hidden": [("hidden", ["in_presentationView", "1", "r_hiddenWindow", "1", "com_showFramePacing", "2"],
                     turn_sp + ["framePacingReset"], "sp")],
@@ -559,9 +585,14 @@ def main() -> int:
                 if scenario == "mploss":
                     body.append("netImpairment")
                 body += ["stopRecording", "waitMsec 500", "timeDemoQuit hf_presentation"] if scenario == "demo" else ["quit"]
+                if mode == "menu":
+                    # no map: the script runs from the command line at the main menu
+                    body = lines
                 write_script(game / "look_probe.cfg", body)
                 host = None
-                if mode == "sp" or mode.startswith("sp:"):
+                if mode == "menu":
+                    launch = ["+exec", "look_probe.cfg"]
+                elif mode == "sp" or mode.startswith("sp:"):
                     launch = ["+set", "si_gameType", "singleplayer", "+map", mode[3:] if mode.startswith("sp:") else args.map]
                 elif mode == "mphost":
                     launch = ["+set", "si_gameType", "DM", "+set", "net_serverDedicated", "0",
@@ -619,11 +650,13 @@ def main() -> int:
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
                 (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
+                (c["scenario"] == "hitch" and (not c.get("hitch") or c["hitch"]["backsteps"] or c["hitch"]["stalls"] < 2)) or
+                (c["scenario"] == "menu" and not c.get("menuPacing")) or
                 (c["scenario"] == "hidden" and not 50.0 <= (c.get("pacing", {}).get("presentedHz") or 0.0) <= 63.0) or
                 (c["scenario"] == "combined" and (len(c.get("segments") or []) != 4 or
                                                   any(s["samples"] < 64 or s["gameplay"] for s in c["segments"]))) or
                 (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
-                (c["samples"] < 64 and not c["case"].endswith("interp0")) or
+                (c["samples"] < 64 and not c["case"].endswith("interp0") and c["scenario"] != "menu") or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")
     return 1 if failures else 0

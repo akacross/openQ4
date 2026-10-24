@@ -255,6 +255,10 @@ completed release material here and publish curated notes in `releases/`.
 - [x] HF-06 closed: one session with temporal AA, shadow maps, late look,
   retained UI and audio survives a save and load, `vid_restart` and an AVI
   capture, with every capture interpolated and no gameplay in any draw.
+- [x] HF-07 catch-up and menus: the cheat-gated `com_presentationStallProbe`
+  stalls a frame; through repeated 100 ms stalls the drawn view never steps
+  backwards. Menus follow `com_maxfps`, and the harness has `--fullscreen` and
+  variable-refresh reference cases.
 - Evidence: `presentation_hf_contract.py --mutations`, the interpolation
   contract and live captures recorded in the
   [presentation owners contract](presentation-owners.md). Physical pacing,
