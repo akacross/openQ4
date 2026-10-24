@@ -391,6 +391,8 @@ def main() -> int:
                         choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
+    parser.add_argument("--fullscreen", action="store_true",
+                        help="full screen at the native desktop resolution instead of a 960x540 window (reference runs)")
     parser.add_argument("--reference", action="store_true",
                         help="operator statement: a visible foreground window on the HF-07 reference machine; only then does pacing qualify")
     parser.add_argument("--reanalyse", action="store_true", help="recompute report.json from an existing output directory")
@@ -405,7 +407,7 @@ def main() -> int:
     # sensitivity 5 x m_yaw 0.022 with no acceleration: degrees per count
     expected_rate = -args.probe_rate * 5.0 * 0.022
     report = {"runtime": str(runtime), "map": args.map, "mpMap": args.mp_map, "renderer": args.renderer,
-              "probeRate": args.probe_rate, "reference": args.reference, "swapInterval": args.swap_interval,
+              "probeRate": args.probe_rate, "reference": args.reference, "fullscreen": args.fullscreen, "swapInterval": args.swap_interval,
               "binaries": {name: sha256(runtime / name) for name in
                            ("openQ4-client_x64.exe", "baseoq4/game-sp_x64.dll", "baseoq4/game-mp_x64.dll",
                             f"renderer-{args.renderer}_x64.dll")
@@ -527,7 +529,8 @@ def main() -> int:
             "+set", "sv_cheats", "1", "+set", "developer", "1",
             "+set", "logFile", "2", "+set", "logFileName", "logs/openq4.log",
             "+set", "com_maxfps", str(fps), "+set", "r_swapInterval", str(args.swap_interval),
-            "+set", "r_fullscreen", "0", "+set", "r_mode", "-1",
+            # --fullscreen: the native desktop mode, in front of everything else
+            "+set", "r_fullscreen", "1" if args.fullscreen else "0", "+set", "r_mode", "-2" if args.fullscreen else "-1",
             "+set", "r_customWidth", "960", "+set", "r_customHeight", "540",
             "+set", "r_windowWidth", "960", "+set", "r_windowHeight", "540",
             "+set", "r_borderlessDefaultMigrated", "1", "+set", "r_borderless", "0",

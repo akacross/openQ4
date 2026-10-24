@@ -239,10 +239,12 @@ Each press of the attack button arms the flash as the event arrives. The first
 frame drawn afterwards paints a white bar over the left tenth of the screen, and
 the sensor reads the time from click to light. That frame samples input as late
 as late look does, so the reading is the engine, swap chain, compositor and
-panel latency a late-look view has. Measure in a visible foreground window on the
-reference machine, at the HF-07 caps, with `in_presentationView` off and on.
-Shots still land on the next tick, so muzzle-flash latency is longer by up to a
-tick. `latencyFlashTest` (cheat) arms the flash without a device, and the
+panel latency a late-look view has. The flash does not depend on
+`in_presentationView`. A late-look view reaches the screen on the flash's frame.
+The classic view trails it by the engine-side delay measured above, about one
+tick (16 ms). Measure full screen on the reference machine at the HF-07 caps,
+with vsync off and on. Shots still land on the next tick, so muzzle-flash
+latency is longer by up to a tick. `latencyFlashTest` (cheat) arms the flash without a device, and the
 `flash` runtime case checks that each arming draws exactly one frame.
 
 The cap matrix runs as one command:
@@ -250,7 +252,7 @@ The cap matrix runs as one command:
 ```
 presentation_look_runtime.py --basepath <Quake 4> --output-dir <new dir>
   --scenario pacing --fps 30 60 120 144 165 240 360 0 [--renderer vulkan]
-  [--swap-interval 1] [--reference]
+  [--swap-interval 1] [--fullscreen] [--reference]
 ```
 
 Each cap turns the view at 220°/s with late look on. Each case reports the
@@ -261,6 +263,7 @@ Every case also reports `prepareMs`, the cost of preparing each draw (camera,
 late look, entity poses, client debris). The pacing case adds the renderer's
 front-end, back-end and GPU summary, so a slow run shows where the frame went.
 The 240 cap is judged against the budget above. Other caps are reported only.
+`--fullscreen` uses the native desktop mode instead of a 960×540 window.
 `--reference` is the operator's statement that the window was visible, in the
 foreground, on the reference machine. Without it every verdict reads "not
 qualifying", whatever the numbers. With it, a 240 case over budget fails the
