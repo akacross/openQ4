@@ -244,7 +244,7 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   their static cameras; see the
   [presentation owners contract](presentation-owners.md). By-eye review of
   cut-heavy cinematics and cockpits is HF-08.
-- [ ] **HF-06 — P1, qualification: preserve cross-system presentation.** Exercise
+- [x] **HF-06 — P1, qualification: preserve cross-system presentation.** Exercise
   TAA history/motion vectors, shadow caches, BSE multi-view servicing, retained UI,
   demo/AVI clocks, audio, VR and save/map resets together. Verify repeated draws and
   stereo/subviews do not rerun Think, prediction, scripts or effect events and that
@@ -266,7 +266,13 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   demo under late look, then plays it back with `timeDemoQuit`, captured and
   played back cleanly. Stereo draws from the in-tree OpenXR test runtime (2,340
   frames) and a remote-camera monitor drawn in every frame also counted none.
-  Headset hardware and TAA appearance under late look by eye remain.
+  Completed: one session ran temporal AA, shadow maps, late look, retained UI
+  and audio together, through a save and load, a `vid_restart` and an AVI
+  capture. All four captures recorded 256 interpolated late-look draws, with no
+  gameplay in any draw and no errors, so presentation state reseeds across map
+  resets and renderer restarts. Frames taken mid-turn under TAA and late look
+  show no ghosting. Viewing in motion on the reference display and a physical
+  headset run move to HF-08 and the VR track.
 - [ ] **HF-07 — P1, qualification: establish supported frame-rate behavior.** Declare
   target hardware/scenes/settings and latency/p95/p99 budgets for 240 Hz (4.17 ms
   frame interval); retain 360 Hz (2.78 ms) as experimental until qualified. Include
@@ -289,8 +295,8 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   zoomed, on lifts and trams and through rapid turns, and measure physical
   input-to-display latency on the HF-07 reference before any change to the
   `in_presentationView 0` default. Review cinematic, security-camera, third-person
-  and death-camera smoothing and cuts, ragdolls, debris and the view lights by
-  eye. Engine-side evidence alone cannot close it.
+  and death-camera smoothing and cuts, ragdolls, debris, the view lights and
+  temporal AA under late look by eye. Engine-side evidence alone cannot close it.
   Progress, 24 October: loopback listen-host and remote-client runs consumed
   input once with late look off and on (−220.00 ±0.01°/s) and drew the input
   sampled for each draw (p95 0.0001°), removing about 16 ms in both. The

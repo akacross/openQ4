@@ -202,9 +202,11 @@ only reports and never changes what runs. The contract requires the call to come
 first in each entry point, the renderer scopes around scene submission and
 identical SP/MP bodies, and a mutation that removes a guard must fail.
 
-Remaining HF-06 qualification: repeated stereo/subview draws in VR and TAA
-appearance under late look by eye. Demo recording and playback mixed with
-capture in one session is covered by the `demo` runtime case (Evidence).
+HF-06 is qualified engine-side by the runtime cases in Evidence. Every case
+passes the gameplay guard, including stereo draws (`vr`), a remote-camera
+subview (`subview`), demo recording and playback (`demo`) and the `combined`
+cross-system session. Viewing temporal AA in motion on the reference display,
+and a physical headset run, belong to HF-08's by-eye review and the VR track.
 
 ## Supported frame-rate behaviour (HF-07)
 
@@ -465,3 +467,15 @@ none logged an error.
   to 52 ms, so the process was being descheduled. This matches the earlier
   finding that an occluded Vulkan window is throttled; it is not qualifying
   evidence either way.
+
+Cross-system session (HF-06, `combined`, `.tmp/hf/r7-combined`). One session ran
+`r_temporalAA 1`, `r_useShadowMap 1`, late look, the retained UI and audio
+together while the probe turned the view. It captured 256 draws live, then the
+same after `saveGame`/`loadGame` (a map reset), after `vid_restart` (the game
+re-created its render targets) and after an `aviGame` capture had run the
+fixed-tic AVI path for a second. All four captures were interpolated with late
+look active on every draw, no gameplay ran inside any draw and nothing logged an
+error. The inherited AVI path has its frame writes commented out, so this
+exercises its clock, not its output. Screenshots taken mid-turn at 220°/s under
+TAA and late look show no ghosting or double edges on the weapon or the
+geometry.

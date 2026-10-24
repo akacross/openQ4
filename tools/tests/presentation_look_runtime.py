@@ -24,6 +24,11 @@ sample and owner counters. Scenarios:
   late look on: tram1's bigScreen monitor (a cameraTarget remote view) and
   airdefense1's portal sky. r_rendererMetrics 2 runs for a moment so the case
   reports how many views and subview/remote packets each frame drew;
+- combined (HF-06): one session with temporal AA, shadow maps, late look,
+  retained UI and audio all on, captured live, after a save and load (a map
+  reset), after vid_restart (new renderer resources) and after an AVI capture
+  (the fixed-tic path); every capture must record draws and no gameplay, and
+  screenshots under late look and TAA are kept for review;
 - vr (HF-06): stereo frames through the in-tree OpenXR test runtime (selected
   for that process only by XR_RUNTIME_JSON), so both eyes of every draw pass the
   gameplay guard; the runtime's log counts the frames it received;
@@ -78,6 +83,7 @@ TURNING = ("look", "thirdperson", "flick", "zoom", "lift", "demo", "mphost", "mp
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
+DUMP = re.compile(r"^presentationClock: (\d+) samples$", re.M)
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
 # HF-07 budgets (presentation-owners.md): draw interval p95/p99 and late-look sample-to-draw, in ms
 BUDGETS = {240: {"intervalP95": 4.6, "intervalP99": 6.3, "lookSampleToDrawP95": 1.0}}
@@ -310,6 +316,17 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
         lines = IMPAIR.findall(text)
         case["netImpairment"] = {direction: {"offered": int(o), "dropped": int(d), "reordered": int(r)}
                                  for _, direction, o, d, _, _, r in lines} if lines else None
+    if scenario == "combined":
+        # each g_presentationClockCapture dump in order: live, after load, after
+        # vid_restart, after the AVI capture
+        starts = [m.end() for m in DUMP.finditer(text)]
+        segments = []
+        for index, start in enumerate(starts):
+            end = starts[index + 1] if index + 1 < len(starts) else len(text)
+            part = parse(text[start:end])
+            segments.append({"samples": len(part), "gameplay": sum(s["gameplay"] for s in part),
+                             "lookActive": sum(s["look"] for s in part)})
+        case["segments"] = segments
     if scenario == "flash":
         case["latencyFlashes"] = text.count("latencyFlash: drawn at ")
     if scenario == "demo":
@@ -366,7 +383,7 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "flick", "flash", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
+                        choices=("look", "thirdperson", "flick", "flash", "combined", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--reference", action="store_true",
@@ -451,6 +468,19 @@ def main() -> int:
                       "r_rendererMetrics 2", "waitMsec 300", "r_rendererMetrics 0"], mode)
                     for place, viewpos, mode in (("monitor", "15915 -1201 169 16 -40 0", "sp:game/tram1"),
                                                  ("portalsky", args.viewpos, "sp"))],
+        # HF-06: the cross-system run: one session through a map reset, a renderer
+        # restart and an AVI capture with TAA, shadow maps and late look on
+        "combined": [("combined", ["in_presentationView", "1", "r_temporalAA", "1", "r_useShadowMap", "1"],
+                      turn_sp + [
+                          "g_presentationClockCapture 0", f"g_presentationClockCapture {args.samples // 2}", "waitMsec 4000",
+                          "screenshot", "g_presentationClockCapture 0", "saveGame hf_combined", "waitMsec 1500",
+                          # the load must not run this script again
+                          'g_autoExecAfterMapLoad ""', "loadGame hf_combined", "waitMsec 4000",
+                          f"g_presentationClockCapture {args.samples // 2}", "waitMsec 4000", "screenshot",
+                          "g_presentationClockCapture 0", "vid_restart", "waitMsec 5000",
+                          f"g_presentationClockCapture {args.samples // 2}", "waitMsec 4000", "g_presentationClockCapture 0",
+                          "aviGame hf_combined", "waitMsec 1000", "aviGame", "waitMsec 1000",
+                          f"g_presentationClockCapture {args.samples // 2}", "waitMsec 4000"], "sp")],
         # HF-06: stereo frames from the OpenXR test runtime; late look stands down in VR
         "vr": [("vr", ["vr_enable", "1", "vr_debug", "0", "in_presentationView", "1"],
                 ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "waitMsec 2000"], "sp")],
@@ -578,6 +608,8 @@ def main() -> int:
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
                 (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
+                (c["scenario"] == "combined" and (len(c.get("segments") or []) != 4 or
+                                                  any(s["samples"] < 64 or s["gameplay"] for s in c["segments"]))) or
                 (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
                 (c["samples"] < 64 and not c["case"].endswith("interp0")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
