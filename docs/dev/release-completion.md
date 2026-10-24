@@ -74,6 +74,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## List focus memory, 24 October 2026
+
+- [x] Scrolling lists remember their last focused control; a directional
+  move back into a list returns there (section 13.4).
+- [Behavior and checks](ui/input-routing.md#wrapping-menus-24-october-2026):
+  a native Load Game check and an engine capture.
+
 ## Wrapping menus, 24 October 2026
 
 - [x] The title, both pauses, the Arena pause and the Single Player,

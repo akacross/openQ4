@@ -371,6 +371,12 @@ private:
 	// passes the move on along its own authored target, so a wrapping menu
 	// skips an entry that is hidden or disabled. Empty when the chain ends.
 	std::string Authored(const std::string& from, const char* name) const;
+	// The scrolling list (a scrollbar's viewport) that holds `id`, or empty.
+	std::string Container(const std::string& id) const;
+	// Section 13.4: a directional move that enters a scrolling list from
+	// outside it returns to the control last focused there, while that one
+	// can still take focus; otherwise `next`.
+	std::string Remembered(const std::string& next) const;
 	std::string Toward(const ControlBounds& bounds, const std::string& from, MenuInput input) const;
 	void Activate(const std::string& id);
 	bool Propose(const std::string& id, const StateValue& value);
@@ -435,6 +441,9 @@ private:
 	// first control, since focus never stays on such a control (section 13.4).
 	std::string lostFocus;
 	ControlBounds focusBounds;
+	// Each scrolling list's viewport, and the control last focused in it.
+	std::set<std::string> scrollViewports;
+	std::map<std::string,std::string> containerFocus;
 	std::set<MenuInput> heldNavigation, blockedNavigation;
 	std::vector<ControlFeedback> feedback;
 	std::vector<ControlAction> actions;

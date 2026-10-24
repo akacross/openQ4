@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [list focus memory](input-routing.md#wrapping-menus-24-october-2026)
+adds bounded UI-02 evidence to `INP-010`. Scrolling lists remember their last
+focused control, and a directional move back into one returns there. The
+increment is audited against `623165435f858b70cfc2a0053fa8d240cc6696c9`. No requirement status, migration
+acceptance or final gate changes.
+
 24 October 2026: [dialog and Restart Level wraps](input-routing.md#wrapping-menus-24-october-2026)
 add bounded UI-02 evidence to `INP-010`. Every retained confirmation's two actions
 wrap Left and Right, and Restart Level's difficulties loop through RESTART LEVEL.

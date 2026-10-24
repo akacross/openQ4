@@ -140,7 +140,7 @@ bool NativeUnsettled(const NativeTextEditorView& view) {
 	X(pendingFocus) X(heldNavigation) X(blockedNavigation) X(feedback) X(actions) X(dragging) X(popup) X(highlight) \
 	X(pointerOption) X(armedOption) X(pointerFraction) X(dragPreview) X(popupAcceptArm) X(nativeControl) \
     X(pointerScrollThumb) X(scrollGrabFraction) X(scrollSource) X(scrollCommands) X(pointerChoiceTrack) X(choiceScrollArm) X(popupToken) \
-    X(popupMeasured) X(lostFocus) X(focusBounds)
+    X(popupMeasured) X(lostFocus) X(focusBounds) X(scrollViewports) X(containerFocus)
 Interaction::Interaction() : authority(ProposalToken()) {}
 Interaction::~Interaction() = default;
 Interaction::Interaction(const Interaction& other) : authority(other.authority), candidate(true) {
@@ -210,12 +210,17 @@ void Interaction::Reset(const DocumentModel& model) {
 	CancelGesture(); pointerOption.clear(); pointerFraction.reset();
 	items.clear(); order.clear(); parents.clear(); modals.clear(); feedback.clear(); actions.clear(); overflowed = false;
 	authoredModals.clear(); modalBlocked = focusPending = pointerPresentation = false; pendingFocus.clear();
-	lostFocus.clear(); focusBounds = {};
+	lostFocus.clear(); focusBounds = {}; scrollViewports.clear(); containerFocus.clear();
 	modalToken = ProposalToken(); numberEpoch = ProposalToken(); blockedNavigation = heldNavigation;
 	std::vector<std::pair<const Node*,std::string>> pending{{&model.root,{}}};
 	while (!pending.empty()) {
 		const auto [node,parent] = pending.back(); pending.pop_back(); parents[node->id] = parent;
-		if (node->control) { items[node->id].control = *node->control; order.push_back(node->id); }
+		if (node->control) {
+			items[node->id].control = *node->control; order.push_back(node->id);
+			if (node->control->role == ControlRole::Scrollbar)
+				if (const auto* scroll = std::get_if<ScrollSpec>(&node->control->widget); scroll && !scroll->viewport.empty())
+					scrollViewports.insert(scroll->viewport);
+		}
 		if (node->modal) authoredModals.emplace(node->id,*node->modal);
 		for (auto it = node->children.rbegin(); it != node->children.rend(); ++it) pending.push_back({&*it,node->id});
 	}
@@ -1534,8 +1539,20 @@ void Interaction::Navigate(MenuInput input) {
 	}
 	const auto& item = items.at(focused);
 	if (const auto authored = Authored(focused,name); !authored.empty()) { Focus(authored); return; }
-	const auto next = ordered ? Following(focused,input) : Toward(item.bounds,focused,input);
+	const auto next = ordered ? Following(focused,input) : Remembered(Toward(item.bounds,focused,input));
 	if (!next.empty()) Focus(next);
+}
+std::string Interaction::Container(const std::string& id) const {
+	if (scrollViewports.empty()) return {};
+	for (auto parent = parents.find(id); parent != parents.end() && !parent->second.empty(); parent = parents.find(parent->second))
+		if (scrollViewports.contains(parent->second)) return parent->second;
+	return {};
+}
+std::string Interaction::Remembered(const std::string& next) const {
+	const auto container = next.empty() ? std::string{} : Container(next);
+	if (container.empty() || container == Container(focused)) return next;
+	const auto found = containerFocus.find(container);
+	return found != containerFocus.end() && found->second != next && Eligible(found->second) ? found->second : next;
 }
 std::string Interaction::Authored(const std::string& from, const char* name) const {
 	std::set<std::string> visited{from};
@@ -1577,7 +1594,10 @@ void Interaction::Refresh() {
 		// one a restore holds back for layout is not lost.
 		if (!focusPending && !focused.empty()) lostFocus = focused;
 		focused.clear();
-	} else { lostFocus.clear(); focusBounds = items.at(focused).bounds; }
+	} else {
+		lostFocus.clear(); focusBounds = items.at(focused).bounds;
+		if (const auto container = Container(focused); !container.empty()) containerFocus[container] = focused;
+	}
 	if (!Eligible(hovered)) hovered.clear();
 	if (!Eligible(armed)) armed.clear();
 	for (auto& [id,item] : items) {

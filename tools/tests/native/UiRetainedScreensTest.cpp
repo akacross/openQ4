@@ -2063,6 +2063,14 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(runtime.FocusControl("row-0",2.34) && runtime.AcceptPrompt(select,2.34) == select,"Accept selects another save");
 	Check(runtime.FocusControl("load_go",2.35) && runtime.AcceptPrompt(select,2.35) == "#str_231520" &&
 		runtime.FocusControl("load_delete",2.36) && runtime.AcceptPrompt(select,2.36) == "#str_231521","the plates name their verbs");
+	// The list remembers its focus (section 13.4): from LOAD GAME, Right
+	// returns to the save last focused, not the row nearest the plate.
+	Check(runtime.FocusControl("row-0",2.361) && runtime.FocusControl("load_go",2.362),"leave the list from its first save");
+	runtime.Frame(viewport,2.363);
+	runtime.MenuAction(MenuInput::Right,true,2.364); runtime.MenuAction(MenuInput::Right,false,2.365);
+	runtime.Frame(viewport,2.366);
+	Check(runtime.FocusedControl() == "row-0","Right into the list returns to the save last focused");
+	Check(runtime.FocusControl("load_delete",2.367),"back on DELETE GAME");
 	Check(runtime.SetState({{"prompt.accept",std::string("#str_231521")}},error,2.37),"the adapter publishes DELETE");
 	runtime.Frame(viewport,2.38);
 	Check(text("prompt-231042-verb","text") == "#str_231521" && text("prompts-lead","display") == "flex","the bar shows the published verb");

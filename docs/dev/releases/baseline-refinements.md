@@ -69,6 +69,8 @@
 - The main menu, pause menus and Single Player and Multiplayer pages wrap:
   pressing up at the top moves to the links at the bottom, and down from
   them returns to the top.
+- Moving back into a list, such as the saves on the Load Game page, returns
+  you to the entry you left instead of the one nearest the button.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

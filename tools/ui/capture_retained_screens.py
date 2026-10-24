@@ -495,6 +495,19 @@ SCENARIOS = {
         'waitMsec 1300', 'openq4_retainedGui report',
         *menu_step('up'), *menu_step('up'), 'screenshot "screenshots/menu-wrap-restart-up.tga"',
     ]),
+    # Section 13.4's list focus memory on the pause's Load Game page with
+    # three saves and the start autosave: the newest save has focus as the
+    # page arrives; from LOAD GAME, Right returns to it rather than to the
+    # row nearest the plate.
+    'list-memory': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "First"', 'waitMsec 1200', 'saveGame "Second"', 'waitMsec 1200', 'saveGame "Third"',
+        'waitMsec 1200', 'openq4_assertMenuActivation 10000', 'waitMsec 1800',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'openq4_retainedGui report', 'screenshot "screenshots/list-memory-arrived.tga"',
+        'openq4_retainedGui focus load_go', 'waitMsec 400', 'openq4_retainedGui report',
+        'screenshot "screenshots/list-memory-plate.tga"',
+        *menu_step('right'), 'screenshot "screenshots/list-memory-returned.tga"',
+    ]),
     # The retained SYSTEM page lacks some stock settings, so by default the
     # SYSTEM button opens the stock page.
     'system-default': (None, [

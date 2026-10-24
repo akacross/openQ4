@@ -210,9 +210,22 @@ not installed, is skipped rather than stopping the move; a chain that ends
 or loops falls back to the spatial or tab-order move as before. Tab strips
 already wrap (the cards' shoulders), screens already restore the focus of
 the item that led to a page (`returnHome`), and closing a dialog returns
-focus to the control that opened it. Containers that remember their own
-last focus within a page, and the campaign difficulty page's mixed list of
-difficulties, Turbo and chapters, remain.
+focus to the control that opened it. The campaign difficulty page's mixed
+list of difficulties, Turbo and chapters remains unwrapped.
+
+**List focus memory.** Each scrolling list (the viewport a scrollbar
+scrolls) remembers the control last focused in it. A directional move that
+enters the list from outside it, from a plate, a heading button or the
+scrollbar, returns to that control while it can still take focus, rather
+than to the row nearest where the move started (`Interaction::Container`,
+`Interaction::Remembered`); an authored move still wins. On the Load Game
+page, Right from LOAD GAME returns to the save last focused, not the bottom
+row beside the plate. The memory is per document and transient: a document
+load clears it, and a remembered row that a list's refresh hides or
+disables is passed over for the nearest row.
+
+Evidence for list focus memory: `.tmp/ui/list-memory/validation-evidence.json`,
+SHA-256 `9c98d8f5eb69eefe7cff9d0178b72b6d6793ee74ac3e62fc9688e289ab72b090`.
 
 Evidence for wrapping menus: `.tmp/ui/menu-wrap/validation-evidence.json`,
 SHA-256 `c6e0cce45e07d6b112980a2399eb413fc22ad7d596deacc620a976f7b545739f`.
