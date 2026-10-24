@@ -279,6 +279,19 @@ foreground, on the reference machine. Without it every verdict reads "not
 qualifying", whatever the numbers. With it, a 240 case over budget fails the
 run.
 
+Limiter precision. The frame cap sleeps most of each period, then busy-waits the
+last eighth of the frame (at least 0.5 ms, at most 1.5 ms) against a fixed
+cadence, with `timeBeginPeriod(1)` on Windows. `framePacingSnapshot` also prints
+how late each wait woke against its target (`Presentation throttle …: waits=…
+late p50/p95/p99/max`), and the harness reports it as `throttleLateMs`. In a
+visible window a p95 above about 0.3 ms would be a limiter defect worth fixing.
+SDL 3.4's `SDL_DelayPrecise` is the portable replacement if one appears.
+Windows 11 honours `timeBeginPeriod` only while a process has a visible window.
+A fully occluded or minimised window falls back to the default timer
+resolution, so its waits wake late by up to a scheduler tick. That is why the
+occluded runs below presented far under their caps, and why only a visible
+foreground run qualifies.
+
 An occluded window on Windows does not qualify: on 23 October 2026 the same
 client capped at 240 presented at 57 Hz on OpenGL (p99 232 ms) and 15 Hz on
 Vulkan (p99 725 ms) behind other windows on a loaded machine. HF-07 remains open

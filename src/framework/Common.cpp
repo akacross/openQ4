@@ -29,6 +29,8 @@ If you have questions concerning this license or the applicable additional terms
 
 
 
+#include <algorithm>
+
 #include "NativeInputDispatch.h"
 //#include "../renderer/Image.h"
 #include "../bse/BSE_API.h"
@@ -353,6 +355,13 @@ static int commonLastPresentationCap = -1;
 static double commonNextPresentationFrameClock = 0.0;
 static bool commonNextPresentationFrameValid = false;
 
+// How late each throttled wake came against its target, the limiter's own
+// precision apart from the work a frame does (framePacingSnapshot, HF-07).
+static const int COMMON_THROTTLE_LATENESS_HISTORY = 2048;
+static float commonThrottleLatenessMsec[ COMMON_THROTTLE_LATENESS_HISTORY ];
+static int commonThrottleLatenessCount = 0;
+static int commonThrottleLatenessNext = 0;
+
 static void Common_ResetPresentationThrottle( void ) {
 	commonNextPresentationFrameClock = 0.0;
 	commonNextPresentationFrameValid = false;
@@ -384,6 +393,37 @@ static int Common_GetRequestedPresentationCap( void ) {
 #endif
 
 	return cap;
+}
+
+/*
+=================
+openQ4_PrintPresentationThrottleStats
+
+The limiter's wake lateness since the last framePacingReset: a frame that
+had to wait wakes this long after its target. Frames that arrive already
+late (the work took longer than the cap) never wait and are not counted.
+=================
+*/
+void openQ4_PrintPresentationThrottleStats( const char *reason ) {
+	const int count = commonThrottleLatenessCount;
+	if ( count <= 0 ) {
+		common->Printf( "Presentation throttle%s: no waits\n", reason );
+		return;
+	}
+	idList<float> sorted;
+	sorted.SetNum( count );
+	for ( int i = 0; i < count; i++ ) {
+		sorted[ i ] = commonThrottleLatenessMsec[ i ];
+	}
+	std::sort( sorted.Ptr(), sorted.Ptr() + count );
+	const auto at = [&]( float fraction ) { return sorted[ Min( count - 1, static_cast<int>( fraction * ( count - 1 ) + 0.5f ) ) ]; };
+	common->Printf( "Presentation throttle%s: waits=%d late p50=%.3f p95=%.3f p99=%.3f max=%.3f ms\n",
+		reason, count, at( 0.5f ), at( 0.95f ), at( 0.99f ), sorted[ count - 1 ] );
+}
+
+void openQ4_ResetPresentationThrottleStats( void ) {
+	commonThrottleLatenessCount = 0;
+	commonThrottleLatenessNext = 0;
 }
 
 int openQ4_GetRequestedPresentationCap( void ) {
@@ -435,6 +475,10 @@ static void Common_ThrottlePresentationFrame( void ) {
 		const double spinNowClock = Common_GetPresentationClockNow();
 		const double remainingClockUnits = commonNextPresentationFrameClock - spinNowClock;
 		if ( remainingClockUnits <= 0.0 ) {
+			commonThrottleLatenessMsec[ commonThrottleLatenessNext ] =
+				static_cast<float>( ( -remainingClockUnits * 1000.0 ) / clockUnitsPerSecond );
+			commonThrottleLatenessNext = ( commonThrottleLatenessNext + 1 ) % COMMON_THROTTLE_LATENESS_HISTORY;
+			commonThrottleLatenessCount = Min( commonThrottleLatenessCount + 1, COMMON_THROTTLE_LATENESS_HISTORY );
 			break;
 		}
 

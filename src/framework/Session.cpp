@@ -206,6 +206,9 @@ static void Session_PrintFramePacingSummary( const openq4FramePacingStats_t &sta
 }
 
 #ifndef ID_DEDICATED
+void openQ4_PrintPresentationThrottleStats( const char *reason );
+void openQ4_ResetPresentationThrottleStats( void );
+
 static void Session_FramePacingSnapshot_f( const idCmdArgs &args ) {
 	const char *reason = NULL;
 	idStr reasonText;
@@ -215,10 +218,12 @@ static void Session_FramePacingSnapshot_f( const idCmdArgs &args ) {
 	}
 
 	sessLocal.PrintFramePacingSnapshot( reason );
+	openQ4_PrintPresentationThrottleStats( reasonText.Length() ? va( " snapshot %s", reasonText.c_str() ) : " snapshot" );
 }
 
 static void Session_FramePacingReset_f( const idCmdArgs &args ) {
 	sessLocal.ResetFramePacingStats();
+	openQ4_ResetPresentationThrottleStats();
 	common->Printf( "Frame pacing stats reset\n" );
 }
 

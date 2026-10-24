@@ -89,6 +89,7 @@ SAMPLE = re.compile(
 TURNING = ("look", "thirdperson", "flick", "hidden", "hitch", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
+THROTTLE = re.compile(r"Presentation throttle snapshot hf(?: - )?pacing: waits=(\d+) late p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
 DUMP = re.compile(r"^presentationClock: (\d+) samples$", re.M)
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
@@ -242,6 +243,11 @@ def pacing(samples, fps, text, reference):
         result["framePacingSnapshot"] = {"bound": snapshot[2], "samples": int(snapshot[3]), "presentMs": float(snapshot[4]),
                                          "hz": float(snapshot[5]), "p50": int(snapshot[6]), "p95": int(snapshot[7]),
                                          "p99": int(snapshot[8]), "max": int(snapshot[9])}
+    throttle = THROTTLE.search(text)
+    if throttle:
+        # the limiter's own precision: how late each wait woke against its target
+        result["throttleLateMs"] = {"waits": int(throttle[1]), "p50": float(throttle[2]), "p95": float(throttle[3]),
+                                    "p99": float(throttle[4]), "max": float(throttle[5])}
     budget = BUDGETS.get(fps)
     if budget is None:
         result["verdict"] = "reported only"
