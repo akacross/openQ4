@@ -195,7 +195,9 @@ title, both pauses, the Arena pause and the Single Player, Campaign and
 Multiplayer pages author their wrap (`wrap_menu`): Up and Down step through
 the column and on to the plinth's links, and from the links back to the
 top, so the column and the plinth form one loop that a controller can go
-round either way; Left and Right wrap along the plinth. At the title, Up
+round either way; Left and Right wrap along the plinth. A confirmation's
+two actions wrap too (Left from YES reaches NO, Right from NO reaches YES),
+and Restart Level's five difficulties loop through RESTART LEVEL. At the title, Up
 from SINGLE PLAYER (or CONTINUE) reaches MODS, Left from MODS reaches EXIT,
 and Down from any link returns to the top. On the pauses Up from RESUME
 reaches EXIT and Down from EXIT returns to RESUME.
@@ -209,10 +211,14 @@ or loops falls back to the spatial or tab-order move as before. Tab strips
 already wrap (the cards' shoulders), screens already restore the focus of
 the item that led to a page (`returnHome`), and closing a dialog returns
 focus to the control that opened it. Containers that remember their own
-last focus within a page remain.
+last focus within a page, and the campaign difficulty page's mixed list of
+difficulties, Turbo and chapters, remain.
 
 Evidence for wrapping menus: `.tmp/ui/menu-wrap/validation-evidence.json`,
 SHA-256 `c6e0cce45e07d6b112980a2399eb413fc22ad7d596deacc620a976f7b545739f`.
+Evidence for the dialog and Restart Level wraps:
+`.tmp/ui/menu-wrap-dialogs/validation-evidence.json`, SHA-256
+`950ee588fc31835335cb205174b5607db8e11dca821498d2d75cd8c66dfc91ff`.
 
 ### Menu glyphs (24 October 2026)
 

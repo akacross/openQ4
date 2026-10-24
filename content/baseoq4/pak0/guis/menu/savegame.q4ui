@@ -36851,7 +36851,8 @@
               "pressed": "overwriteModal_yes.pressed",
               "disabled": "overwriteModal_yes.disabled"
              },
-             "event": "overwriteConfirmed"
+             "event": "overwriteConfirmed",
+             "navigation": {"left": "overwriteModal_no"}
             }
            },
            {
@@ -37032,7 +37033,8 @@
               "pressed": "overwriteModal_no.pressed",
               "disabled": "overwriteModal_no.disabled"
              },
-             "event": "overwriteModalHide"
+             "event": "overwriteModalHide",
+             "navigation": {"right": "overwriteModal_yes"}
             }
            },
            {

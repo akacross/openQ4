@@ -51478,7 +51478,8 @@
                 "pressed": "leaveModal_yes.pressed",
                 "disabled": "leaveModal_yes.disabled"
                },
-               "action": "mpDisconnect"
+               "action": "mpDisconnect",
+               "navigation": {"left": "leaveModal_no"}
               }
              },
              {
@@ -51659,7 +51660,8 @@
                 "pressed": "leaveModal_no.pressed",
                 "disabled": "leaveModal_no.disabled"
                },
-               "event": "leaveModalHide"
+               "event": "leaveModalHide",
+               "navigation": {"right": "leaveModal_yes"}
               }
              }
             ]

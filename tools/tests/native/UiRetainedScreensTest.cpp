@@ -882,7 +882,7 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 // Section 13.4: the home menus wrap. Up from the top runs on to the
 // plinth's links and Down from them back to the top, Left and Right wrap
 // along the plinth, and CONTINUE without a save passes the move on.
-static void CheckMenuWrap(ScreenHost& host, const char* titlePath, const char* pausePath) {
+static void CheckMenuWrap(ScreenHost& host, const char* titlePath, const char* pausePath, const char* restartPath = nullptr) {
 	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
 	std::string error; double t = 1;
 	const auto press = [&](Runtime& runtime, MenuInput input) {
@@ -927,6 +927,33 @@ static void CheckMenuWrap(ScreenHost& host, const char* titlePath, const char* p
 		Check(runtime.FocusedControl() == "link_exit","the last action steps down to EXIT");
 		press(runtime,MenuInput::Up);
 		Check(runtime.FocusedControl() == "nav_quit","and EXIT back up to it");
+		// A dialog's two actions wrap: Left from YES reaches NO, Right from NO YES.
+		Runtime::EventEffects effects;
+		Check(runtime.RunEvent("quitModalShow",t+=.05,effects,error) && runtime.RunEvent("quitModalShown",t+=.05,effects,error),
+			"open QUIT TO MENU's dialog");
+		runtime.Frame(viewport,t+=.05);
+		Check(runtime.FocusControl("quitModal_yes",t+=.05),"focus YES");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Left);
+		Check(runtime.FocusedControl() == "quitModal_no","Left from YES wraps to NO");
+		press(runtime,MenuInput::Right);
+		Check(runtime.FocusedControl() == "quitModal_yes","Right from NO wraps to YES");
+	}
+	if (restartPath != nullptr) {
+		Runtime runtime(host); std::vector<Diagnostic> diagnostics;
+		Check(runtime.Initialize() && runtime.LoadDocument(Read(restartPath),"guis/menu/restartlevel.q4ui",diagnostics),
+			"Restart Level loads for its wrap");
+		runtime.Frame(viewport,t+=.05);
+		Check(runtime.FocusControl("skill-0",t+=.05),"focus the first difficulty");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "restart_go","Up from the first difficulty wraps to RESTART LEVEL");
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "skill-0","Down from RESTART LEVEL returns to the first difficulty");
+		Check(runtime.FocusControl("skill-4",t+=.05),"focus the last difficulty");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "restart_go","the last difficulty steps down to RESTART LEVEL");
 	}
 	Check(host.errors == 0,"no runtime diagnostics across the menu wraps");
 }
@@ -3988,7 +4015,7 @@ int main(int argc, char** argv) {
 	for (const auto& [page,name] : {std::pair{5,"guis/menu/singleplayer.q4ui"},std::pair{6,"guis/menu/campaigns.q4ui"},
 		std::pair{13,"guis/menu/campaign_skill.q4ui"},std::pair{26,"guis/menu/multiplayer.q4ui"}})
 		if (runs(page == 26 ? "mp-pages" : "pages")) CheckPagePrompts(host,argv[page],name,"",nullptr,nullptr,true);
-	if (runs("menus")) CheckMenuWrap(host,argv[1],argv[2]);
+	if (runs("menus")) CheckMenuWrap(host,argv[1],argv[2],argv[21]);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	if (runs("menus")) {
 		const auto source = Read(argv[1]);

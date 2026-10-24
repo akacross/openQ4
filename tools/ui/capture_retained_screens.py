@@ -483,6 +483,18 @@ SCENARIOS = {
         *menu_step('up'), 'screenshot "screenshots/menu-wrap-pause-up.tga"',
         *menu_step('down'), 'screenshot "screenshots/menu-wrap-pause-down.tga"',
     ]),
+    # The pause's QUIT TO MENU dialog wraps Left from YES to NO, and Restart
+    # Level's difficulties, arriving on the level's own (Corporal), wrap Up
+    # past the first to RESTART LEVEL.
+    'menu-wrap-dialogs': ('game/airdefense1', [
+        'openq4_assertMenuActivation 10000', 'waitMsec 1500', 'openq4_retainedGui event quitModalShow', 'waitMsec 900',
+        'openq4_retainedGui focus quitModal_yes', 'waitMsec 300', 'openq4_retainedGui report',
+        *menu_step('left'), 'screenshot "screenshots/menu-wrap-dialog-left.tga"',
+        'openq4_retainedGui event quitModalHide', 'waitMsec 900',
+        'openq4_retainedGui focus nav_restart', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'openq4_retainedGui report',
+        *menu_step('up'), *menu_step('up'), 'screenshot "screenshots/menu-wrap-restart-up.tga"',
+    ]),
     # The retained SYSTEM page lacks some stock settings, so by default the
     # SYSTEM button opens the stock page.
     'system-default': (None, [

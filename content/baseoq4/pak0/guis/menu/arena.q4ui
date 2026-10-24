@@ -17762,7 +17762,8 @@
                 "pressed": "resultModal_yes.pressed",
                 "disabled": "resultModal_yes.disabled"
                },
-               "event": "resultRetry"
+               "event": "resultRetry",
+               "navigation": {"left": "resultModal_no"}
               }
              },
              {
@@ -17944,7 +17945,8 @@
                 "pressed": "resultModal_no.pressed",
                 "disabled": "resultModal_no.disabled"
                },
-               "event": "resultDismiss"
+               "event": "resultDismiss",
+               "navigation": {"right": "resultModal_yes"}
               }
              }
             ]
@@ -18536,7 +18538,8 @@
               "pressed": "resetModal_yes.pressed",
               "disabled": "resetModal_yes.disabled"
              },
-             "event": "resetConfirmed"
+             "event": "resetConfirmed",
+             "navigation": {"left": "resetModal_no"}
             }
            },
            {
@@ -18717,7 +18720,8 @@
               "pressed": "resetModal_no.pressed",
               "disabled": "resetModal_no.disabled"
              },
-             "event": "resetCancelled"
+             "event": "resetCancelled",
+             "navigation": {"right": "resetModal_yes"}
             }
            }
           ]

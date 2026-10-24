@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, U, Document, absolute, colour, font,
                                     group, keyword, label, length, linear, number, page_prompts, path, rgb,
-                                    solid, stroke, text_width, track, transform, typeface, vector)
+                                    solid, stroke, text_width, track, transform, typeface, vector, wrap_menu)
 from retained_saves import MARINE, STROGG_SHOULDER, Family, backing, lines_needed, section_plate, table_text
 
 # The stock difficulties, easiest first (g_skill 0-4), with their descriptions.
@@ -181,6 +181,8 @@ def restart_level_document(family: Family = MARINE) -> dict:
     plates = difficulty_plates(doc, "restart.skill", family)
     description = difficulty_description(doc, "restart-description", "restart.skill", family)
     go = primary_plate(doc, "restart_go", "#str_229983", *PRIMARY, action="go", family=family)
+    # The five difficulties wrap through RESTART LEVEL (section 13.4).
+    wrap_menu(plates, [go])
     back = page_prompts(doc, "restart_back", action="back", **family.prompts())
     # The plates show at once, under the title the pause carried; the panel
     # and the backing fade in over 150 ms (content.in), as a stock page's do.

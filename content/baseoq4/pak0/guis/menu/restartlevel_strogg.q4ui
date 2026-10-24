@@ -3023,7 +3023,8 @@
           "pressed": "restart_go.pressed",
           "disabled": "restart_go.disabled"
          },
-         "action": "go"
+         "action": "go",
+         "navigation": {"up": "skill-4", "down": "skill-0", "left": "restart_go", "right": "restart_go"}
         }
        },
        {
@@ -4690,7 +4691,8 @@
         "pressed": "skill-0.pressed",
         "disabled": "skill-0.disabled"
        },
-       "event": "chooseSkill0"
+       "event": "chooseSkill0",
+       "navigation": {"up": "restart_go", "down": "skill-1"}
       }
      },
      {
@@ -4975,7 +4977,8 @@
         "pressed": "skill-1.pressed",
         "disabled": "skill-1.disabled"
        },
-       "event": "chooseSkill1"
+       "event": "chooseSkill1",
+       "navigation": {"up": "skill-0", "down": "skill-2"}
       }
      },
      {
@@ -5260,7 +5263,8 @@
         "pressed": "skill-2.pressed",
         "disabled": "skill-2.disabled"
        },
-       "event": "chooseSkill2"
+       "event": "chooseSkill2",
+       "navigation": {"up": "skill-1", "down": "skill-3"}
       }
      },
      {
@@ -5545,7 +5549,8 @@
         "pressed": "skill-3.pressed",
         "disabled": "skill-3.disabled"
        },
-       "event": "chooseSkill3"
+       "event": "chooseSkill3",
+       "navigation": {"up": "skill-2", "down": "skill-4"}
       }
      },
      {
@@ -5830,7 +5835,8 @@
         "pressed": "skill-4.pressed",
         "disabled": "skill-4.disabled"
        },
-       "event": "chooseSkill4"
+       "event": "chooseSkill4",
+       "navigation": {"up": "skill-3", "down": "restart_go"}
       }
      }
     ]

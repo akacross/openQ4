@@ -233168,7 +233168,8 @@
                 "pressed": "disconnectModal_yes.pressed",
                 "disabled": "disconnectModal_yes.disabled"
                },
-               "action": "mpDisconnect"
+               "action": "mpDisconnect",
+               "navigation": {"left": "disconnectModal_no"}
               }
              },
              {
@@ -233349,7 +233350,8 @@
                 "pressed": "disconnectModal_no.pressed",
                 "disabled": "disconnectModal_no.disabled"
                },
-               "event": "disconnectModalHide"
+               "event": "disconnectModalHide",
+               "navigation": {"right": "disconnectModal_yes"}
               }
              }
             ]
@@ -233939,7 +233941,8 @@
                 "pressed": "matchForceReadyModal_yes.pressed",
                 "disabled": "matchForceReadyModal_yes.disabled"
                },
-               "event": "matchForceReadyModalYes"
+               "event": "matchForceReadyModalYes",
+               "navigation": {"left": "matchForceReadyModal_no"}
               }
              },
              {
@@ -234120,7 +234123,8 @@
                 "pressed": "matchForceReadyModal_no.pressed",
                 "disabled": "matchForceReadyModal_no.disabled"
                },
-               "event": "matchForceReadyModalNo"
+               "event": "matchForceReadyModalNo",
+               "navigation": {"right": "matchForceReadyModal_yes"}
               }
              }
             ]
@@ -234710,7 +234714,8 @@
                 "pressed": "matchForfeitModal_yes.pressed",
                 "disabled": "matchForfeitModal_yes.disabled"
                },
-               "event": "matchForfeitModalYes"
+               "event": "matchForfeitModalYes",
+               "navigation": {"left": "matchForfeitModal_no"}
               }
              },
              {
@@ -234891,7 +234896,8 @@
                 "pressed": "matchForfeitModal_no.pressed",
                 "disabled": "matchForfeitModal_no.disabled"
                },
-               "event": "matchForfeitModalNo"
+               "event": "matchForfeitModalNo",
+               "navigation": {"right": "matchForfeitModal_yes"}
               }
              }
             ]
@@ -235481,7 +235487,8 @@
                 "pressed": "matchAbortModal_yes.pressed",
                 "disabled": "matchAbortModal_yes.disabled"
                },
-               "event": "matchAbortModalYes"
+               "event": "matchAbortModalYes",
+               "navigation": {"left": "matchAbortModal_no"}
               }
              },
              {
@@ -235662,7 +235669,8 @@
                 "pressed": "matchAbortModal_no.pressed",
                 "disabled": "matchAbortModal_no.disabled"
                },
-               "event": "matchAbortModalNo"
+               "event": "matchAbortModalNo",
+               "navigation": {"right": "matchAbortModal_yes"}
               }
              }
             ]
@@ -236252,7 +236260,8 @@
                 "pressed": "matchRosterRemoveModal_yes.pressed",
                 "disabled": "matchRosterRemoveModal_yes.disabled"
                },
-               "event": "matchRosterRemoveModalYes"
+               "event": "matchRosterRemoveModalYes",
+               "navigation": {"left": "matchRosterRemoveModal_no"}
               }
              },
              {
@@ -236433,7 +236442,8 @@
                 "pressed": "matchRosterRemoveModal_no.pressed",
                 "disabled": "matchRosterRemoveModal_no.disabled"
                },
-               "event": "matchRosterRemoveModalNo"
+               "event": "matchRosterRemoveModalNo",
+               "navigation": {"right": "matchRosterRemoveModal_yes"}
               }
              }
             ]
@@ -237023,7 +237033,8 @@
                 "pressed": "matchRosterSubstituteModal_yes.pressed",
                 "disabled": "matchRosterSubstituteModal_yes.disabled"
                },
-               "event": "matchRosterSubstituteModalYes"
+               "event": "matchRosterSubstituteModalYes",
+               "navigation": {"left": "matchRosterSubstituteModal_no"}
               }
              },
              {
@@ -237204,7 +237215,8 @@
                 "pressed": "matchRosterSubstituteModal_no.pressed",
                 "disabled": "matchRosterSubstituteModal_no.disabled"
                },
-               "event": "matchRosterSubstituteModalNo"
+               "event": "matchRosterSubstituteModalNo",
+               "navigation": {"right": "matchRosterSubstituteModal_yes"}
               }
              }
             ]
@@ -237794,7 +237806,8 @@
                 "pressed": "matchParticipantRemoveModal_yes.pressed",
                 "disabled": "matchParticipantRemoveModal_yes.disabled"
                },
-               "event": "matchParticipantRemoveModalYes"
+               "event": "matchParticipantRemoveModalYes",
+               "navigation": {"left": "matchParticipantRemoveModal_no"}
               }
              },
              {
@@ -237975,7 +237988,8 @@
                 "pressed": "matchParticipantRemoveModal_no.pressed",
                 "disabled": "matchParticipantRemoveModal_no.disabled"
                },
-               "event": "matchParticipantRemoveModalNo"
+               "event": "matchParticipantRemoveModalNo",
+               "navigation": {"right": "matchParticipantRemoveModal_yes"}
               }
              }
             ]
@@ -238565,7 +238579,8 @@
                 "pressed": "matchRulesCommitModal_yes.pressed",
                 "disabled": "matchRulesCommitModal_yes.disabled"
                },
-               "event": "matchRulesCommitModalYes"
+               "event": "matchRulesCommitModalYes",
+               "navigation": {"left": "matchRulesCommitModal_no"}
               }
              },
              {
@@ -238746,7 +238761,8 @@
                 "pressed": "matchRulesCommitModal_no.pressed",
                 "disabled": "matchRulesCommitModal_no.disabled"
                },
-               "event": "matchRulesCommitModalNo"
+               "event": "matchRulesCommitModalNo",
+               "navigation": {"right": "matchRulesCommitModal_yes"}
               }
              }
             ]
@@ -239336,7 +239352,8 @@
                 "pressed": "matchSeriesStartModal_yes.pressed",
                 "disabled": "matchSeriesStartModal_yes.disabled"
                },
-               "event": "matchSeriesStartModalYes"
+               "event": "matchSeriesStartModalYes",
+               "navigation": {"left": "matchSeriesStartModal_no"}
               }
              },
              {
@@ -239517,7 +239534,8 @@
                 "pressed": "matchSeriesStartModal_no.pressed",
                 "disabled": "matchSeriesStartModal_no.disabled"
                },
-               "event": "matchSeriesStartModalNo"
+               "event": "matchSeriesStartModalNo",
+               "navigation": {"right": "matchSeriesStartModal_yes"}
               }
              }
             ]
@@ -240107,7 +240125,8 @@
                 "pressed": "matchSeriesCancelModal_yes.pressed",
                 "disabled": "matchSeriesCancelModal_yes.disabled"
                },
-               "event": "matchSeriesCancelModalYes"
+               "event": "matchSeriesCancelModalYes",
+               "navigation": {"left": "matchSeriesCancelModal_no"}
               }
              },
              {
@@ -240288,7 +240307,8 @@
                 "pressed": "matchSeriesCancelModal_no.pressed",
                 "disabled": "matchSeriesCancelModal_no.disabled"
                },
-               "event": "matchSeriesCancelModalNo"
+               "event": "matchSeriesCancelModalNo",
+               "navigation": {"right": "matchSeriesCancelModal_yes"}
               }
              }
             ]
@@ -240878,7 +240898,8 @@
                 "pressed": "matchSeriesAdvanceModal_yes.pressed",
                 "disabled": "matchSeriesAdvanceModal_yes.disabled"
                },
-               "event": "matchSeriesAdvanceModalYes"
+               "event": "matchSeriesAdvanceModalYes",
+               "navigation": {"left": "matchSeriesAdvanceModal_no"}
               }
              },
              {
@@ -241059,7 +241080,8 @@
                 "pressed": "matchSeriesAdvanceModal_no.pressed",
                 "disabled": "matchSeriesAdvanceModal_no.disabled"
                },
-               "event": "matchSeriesAdvanceModalNo"
+               "event": "matchSeriesAdvanceModalNo",
+               "navigation": {"right": "matchSeriesAdvanceModal_yes"}
               }
              }
             ]
@@ -241649,7 +241671,8 @@
                 "pressed": "matchVetoBanModal_yes.pressed",
                 "disabled": "matchVetoBanModal_yes.disabled"
                },
-               "event": "matchVetoBanModalYes"
+               "event": "matchVetoBanModalYes",
+               "navigation": {"left": "matchVetoBanModal_no"}
               }
              },
              {
@@ -241830,7 +241853,8 @@
                 "pressed": "matchVetoBanModal_no.pressed",
                 "disabled": "matchVetoBanModal_no.disabled"
                },
-               "event": "matchVetoBanModalNo"
+               "event": "matchVetoBanModalNo",
+               "navigation": {"right": "matchVetoBanModal_yes"}
               }
              }
             ]
@@ -242420,7 +242444,8 @@
                 "pressed": "matchVetoPickModal_yes.pressed",
                 "disabled": "matchVetoPickModal_yes.disabled"
                },
-               "event": "matchVetoPickModalYes"
+               "event": "matchVetoPickModalYes",
+               "navigation": {"left": "matchVetoPickModal_no"}
               }
              },
              {
@@ -242601,7 +242626,8 @@
                 "pressed": "matchVetoPickModal_no.pressed",
                 "disabled": "matchVetoPickModal_no.disabled"
                },
-               "event": "matchVetoPickModalNo"
+               "event": "matchVetoPickModalNo",
+               "navigation": {"right": "matchVetoPickModal_yes"}
               }
              }
             ]
@@ -243191,7 +243217,8 @@
                 "pressed": "matchVetoDeciderModal_yes.pressed",
                 "disabled": "matchVetoDeciderModal_yes.disabled"
                },
-               "event": "matchVetoDeciderModalYes"
+               "event": "matchVetoDeciderModalYes",
+               "navigation": {"left": "matchVetoDeciderModal_no"}
               }
              },
              {
@@ -243372,7 +243399,8 @@
                 "pressed": "matchVetoDeciderModal_no.pressed",
                 "disabled": "matchVetoDeciderModal_no.disabled"
                },
-               "event": "matchVetoDeciderModalNo"
+               "event": "matchVetoDeciderModalNo",
+               "navigation": {"right": "matchVetoDeciderModal_yes"}
               }
              }
             ]
@@ -243962,7 +243990,8 @@
                 "pressed": "matchVetoSideMarineModal_yes.pressed",
                 "disabled": "matchVetoSideMarineModal_yes.disabled"
                },
-               "event": "matchVetoSideMarineModalYes"
+               "event": "matchVetoSideMarineModalYes",
+               "navigation": {"left": "matchVetoSideMarineModal_no"}
               }
              },
              {
@@ -244143,7 +244172,8 @@
                 "pressed": "matchVetoSideMarineModal_no.pressed",
                 "disabled": "matchVetoSideMarineModal_no.disabled"
                },
-               "event": "matchVetoSideMarineModalNo"
+               "event": "matchVetoSideMarineModalNo",
+               "navigation": {"right": "matchVetoSideMarineModal_yes"}
               }
              }
             ]
@@ -244733,7 +244763,8 @@
                 "pressed": "matchVetoSideStroggModal_yes.pressed",
                 "disabled": "matchVetoSideStroggModal_yes.disabled"
                },
-               "event": "matchVetoSideStroggModalYes"
+               "event": "matchVetoSideStroggModalYes",
+               "navigation": {"left": "matchVetoSideStroggModal_no"}
               }
              },
              {
@@ -244914,7 +244945,8 @@
                 "pressed": "matchVetoSideStroggModal_no.pressed",
                 "disabled": "matchVetoSideStroggModal_no.disabled"
                },
-               "event": "matchVetoSideStroggModalNo"
+               "event": "matchVetoSideStroggModalNo",
+               "navigation": {"right": "matchVetoSideStroggModal_yes"}
               }
              }
             ]
@@ -252896,7 +252928,8 @@
                 "pressed": "banModal_yes.pressed",
                 "disabled": "banModal_yes.disabled"
                },
-               "event": "banRemoveConfirmed"
+               "event": "banRemoveConfirmed",
+               "navigation": {"left": "banModal_no"}
               }
              },
              {
@@ -253077,7 +253110,8 @@
                 "pressed": "banModal_no.pressed",
                 "disabled": "banModal_no.disabled"
                },
-               "event": "banModalHide"
+               "event": "banModalHide",
+               "navigation": {"right": "banModal_yes"}
               }
              }
             ]

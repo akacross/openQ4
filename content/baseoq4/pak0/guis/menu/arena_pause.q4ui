@@ -9389,7 +9389,8 @@
                 "pressed": "restartModal_yes.pressed",
                 "disabled": "restartModal_yes.disabled"
                },
-               "action": "arenaRestart"
+               "action": "arenaRestart",
+               "navigation": {"left": "restartModal_no"}
               }
              },
              {
@@ -9570,7 +9571,8 @@
                 "pressed": "restartModal_no.pressed",
                 "disabled": "restartModal_no.disabled"
                },
-               "event": "restartModalHide"
+               "event": "restartModalHide",
+               "navigation": {"right": "restartModal_yes"}
               }
              }
             ]
@@ -10160,7 +10162,8 @@
                 "pressed": "leaveModal_yes.pressed",
                 "disabled": "leaveModal_yes.disabled"
                },
-               "action": "arenaLeave"
+               "action": "arenaLeave",
+               "navigation": {"left": "leaveModal_no"}
               }
              },
              {
@@ -10341,7 +10344,8 @@
                 "pressed": "leaveModal_no.pressed",
                 "disabled": "leaveModal_no.disabled"
                },
-               "event": "leaveModalHide"
+               "event": "leaveModalHide",
+               "navigation": {"right": "leaveModal_yes"}
               }
              }
             ]

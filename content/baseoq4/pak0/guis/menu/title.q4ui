@@ -19748,7 +19748,8 @@
               "pressed": "exitModal_yes.pressed",
               "disabled": "exitModal_yes.disabled"
              },
-             "action": "quit"
+             "action": "quit",
+             "navigation": {"left": "exitModal_no"}
             }
            },
            {
@@ -19929,7 +19930,8 @@
               "pressed": "exitModal_no.pressed",
               "disabled": "exitModal_no.disabled"
              },
-             "event": "exitModalHide"
+             "event": "exitModalHide",
+             "navigation": {"right": "exitModal_yes"}
             }
            }
           ]
@@ -28036,7 +28038,8 @@
               "pressed": "modsModal_yes.pressed",
               "disabled": "modsModal_yes.disabled"
              },
-             "event": "modsLoadConfirmed"
+             "event": "modsLoadConfirmed",
+             "navigation": {"left": "modsModal_no"}
             }
            },
            {
@@ -28217,7 +28220,8 @@
               "pressed": "modsModal_no.pressed",
               "disabled": "modsModal_no.disabled"
              },
-             "event": "modsModalHide"
+             "event": "modsModalHide",
+             "navigation": {"right": "modsModal_yes"}
             }
            }
           ]

@@ -814,6 +814,10 @@ def confirmation(doc: Document, ident: str, title_key: str, body_key: str, yes_a
                          width=action_w)
         no = plate_kind(doc, f"{ident}_no", no_key, width - 33 - action_w, U * actions_u, event=no_event or hide, width=action_w)
         actions, initial = [yes, no], initial or f"{ident}_no"
+        # Section 13.4: the two actions wrap, Left from YES to NO and Right
+        # from NO to YES.
+        yes["control"].setdefault("navigation", {})["left"] = f"{ident}_no"
+        no["control"].setdefault("navigation", {})["right"] = f"{ident}_yes"
         if action_text != 20:
             for plate in actions:
                 plate_label = next(node for node in walk_nodes(plate) if node.get("id", "").endswith("-label"))

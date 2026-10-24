@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [dialog and Restart Level wraps](input-routing.md#wrapping-menus-24-october-2026)
+add bounded UI-02 evidence to `INP-010`. Every retained confirmation's two actions
+wrap Left and Right, and Restart Level's difficulties loop through RESTART LEVEL.
+The increment is audited against `fb6547f03d0f2c8b70fa4c120cad8943253be23a`. No requirement status, migration
+acceptance or final gate changes.
+
 24 October 2026: [wrapping menus](input-routing.md#wrapping-menus-24-october-2026)
 add bounded UI-02 evidence to `INP-010`. The home screens and menu pages wrap Up
 and Down through their menus and plinth links, and authored navigation passes a

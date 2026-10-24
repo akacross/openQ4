@@ -45143,7 +45143,8 @@
               "pressed": "deleteModal_yes.pressed",
               "disabled": "deleteModal_yes.disabled"
              },
-             "event": "deleteConfirmed"
+             "event": "deleteConfirmed",
+             "navigation": {"left": "deleteModal_no"}
             }
            },
            {
@@ -45324,7 +45325,8 @@
               "pressed": "deleteModal_no.pressed",
               "disabled": "deleteModal_no.disabled"
              },
-             "event": "deleteModalHide"
+             "event": "deleteModalHide",
+             "navigation": {"right": "deleteModal_yes"}
             }
            }
           ]

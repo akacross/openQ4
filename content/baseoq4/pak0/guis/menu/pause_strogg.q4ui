@@ -20491,7 +20491,8 @@
                 "pressed": "quitModal_yes.pressed",
                 "disabled": "quitModal_yes.disabled"
                },
-               "action": "quitToMenu"
+               "action": "quitToMenu",
+               "navigation": {"left": "quitModal_no"}
               }
              },
              {
@@ -20709,7 +20710,8 @@
                 "pressed": "quitModal_no.pressed",
                 "disabled": "quitModal_no.disabled"
                },
-               "event": "quitModalHide"
+               "event": "quitModalHide",
+               "navigation": {"right": "quitModal_yes"}
               }
              }
             ]
@@ -21393,7 +21395,8 @@
                 "pressed": "exitModal_yes.pressed",
                 "disabled": "exitModal_yes.disabled"
                },
-               "action": "quit"
+               "action": "quit",
+               "navigation": {"left": "exitModal_no"}
               }
              },
              {
@@ -21611,7 +21614,8 @@
                 "pressed": "exitModal_no.pressed",
                 "disabled": "exitModal_no.disabled"
                },
-               "event": "exitModalHide"
+               "event": "exitModalHide",
+               "navigation": {"right": "exitModal_yes"}
               }
              }
             ]

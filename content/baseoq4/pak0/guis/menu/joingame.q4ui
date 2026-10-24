@@ -104231,7 +104231,8 @@
               "pressed": "joinIpModal_yes.pressed",
               "disabled": "joinIpModal_yes.disabled"
              },
-             "event": "joinIpConnect"
+             "event": "joinIpConnect",
+             "navigation": {"left": "joinIpModal_no"}
             }
            },
            {
@@ -104412,7 +104413,8 @@
               "pressed": "joinIpModal_no.pressed",
               "disabled": "joinIpModal_no.disabled"
              },
-             "event": "joinIpModalHide"
+             "event": "joinIpModalHide",
+             "navigation": {"right": "joinIpModal_yes"}
             }
            }
           ]
@@ -105327,7 +105329,8 @@
               "pressed": "findModal_yes.pressed",
               "disabled": "findModal_yes.disabled"
              },
-             "event": "findSearch"
+             "event": "findSearch",
+             "navigation": {"left": "findModal_no"}
             }
            },
            {
@@ -105508,7 +105511,8 @@
               "pressed": "findModal_no.pressed",
               "disabled": "findModal_no.disabled"
              },
-             "event": "findModalHide"
+             "event": "findModalHide",
+             "navigation": {"right": "findModal_yes"}
             }
            }
           ]

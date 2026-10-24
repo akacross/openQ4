@@ -66928,7 +66928,8 @@
                 "pressed": "banModal_yes.pressed",
                 "disabled": "banModal_yes.disabled"
                },
-               "event": "banRemoveConfirmed"
+               "event": "banRemoveConfirmed",
+               "navigation": {"left": "banModal_no"}
               }
              },
              {
@@ -67109,7 +67110,8 @@
                 "pressed": "banModal_no.pressed",
                 "disabled": "banModal_no.disabled"
                },
-               "event": "banModalHide"
+               "event": "banModalHide",
+               "navigation": {"right": "banModal_yes"}
               }
              }
             ]
