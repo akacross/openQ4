@@ -30,7 +30,8 @@
 - Unplugging headphones or switching audio devices no longer cuts off the line
   of dialogue that was playing: speech and effects pick up where the scene is
   when audio returns, and a line paused in a menu continues from where it
-  stopped instead of starting over.
+  stopped instead of starting over. Voice chat from other players picks up
+  again too, without a backlog of late speech.
 - Changing the speaker layout, headphone 3D audio or the output limiter now
   applies instantly without reloading the game's sounds, and dialogue that is
   playing moves to or from the centre speaker at its current point.

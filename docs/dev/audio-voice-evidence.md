@@ -859,6 +859,61 @@ show that the authored speech they reach routes as dialogue, mutes with Dialogue
 Volume and captions only from transcripts, but not that every line in both
 campaigns is audible or captioned.
 
+## Linux, voice output loss and long sessions, 24 October 2026
+
+### Linux x64
+
+The audio round's harnesses ran on Linux for the first time. That covers output
+recovery, live layout changes, the trim, both stream fixtures, subtitles and the
+scene audit. Ubuntu 24.04 ran under WSL2 (kernel 6.6.87.2), with the client built
+there from the same commit (debugoptimized, without native tests, the multiplayer
+module, Vulkan, OpenXR or GLES, and with a minimal `pak1`). It ran hidden under Xvfb
+on Mesa llvmpipe (OpenGL 4.5 compatibility). The system OpenAL Soft 1.23.1, not the
+1.25.1 the Windows package bundles, rendered through its wave writer. Retail paks were
+copied into RAM first. The two Ogg stream fixtures came from the Windows encoder
+(`--write-fixtures`), since that host has no ffmpeg; the fixtures are deterministic.
+Client SHA-256 `78fcaf93f69b6a636228f1c29ac414de4ae686bcdcb02c370dac768649cd7744`.
+
+| Harness | Checks | Notes |
+| --- | ---: | --- |
+| `audio_output_recovery_runtime.py`, stereo | 19 of 19 | dialogue moved 2,636 ms over 2,597 ms of scene time after an outage; the paused line 707 ms over 719 ms; trim freed 1,127 samples and kept 96 |
+| `audio_output_recovery_runtime.py`, surround | 12 of 12 | in-place layout and HRTF resets, centre re-routing, Dialogue Volume held; 5.1 centre ratio 2.10 |
+| `audio_subtitles_runtime.py`, stock 1280×720 English | 16 of 16 | |
+| `audio_scene_audit.py`, `airdefense1`, `hangar2`, `medlabs`, `dispersal` | 10 of 10 | 10 dialogue starts, streams playing in all four, residency 107.7–150.6 MiB |
+
+Building it found a Linux-only break: the dedicated server links the OpenAL sound
+code against `src/sys/stub/stub_openal.cpp`, which lacked the `alSourceRewind` that
+the recycled-voice fix added on 23 October. Windows links the real library and never
+showed it. The stub now provides the call, and the Linux dedicated server links.
+These are automated Linux runs on one virtual machine with software rendering, not
+physical Linux audio devices or distributions other than Ubuntu.
+
+### Voice chat across output loss
+
+Windows x64, MSVC debugoptimized, built from `35a1e919c` plus this round's changes;
+client SHA-256 `de29bfd2fa9b48d94cc2d14da76a356d449957dc9097b6e88d732c4f25e3fcbc`.
+`tools/ui/capture_voice_settings.py` now simulates an output loss during the local
+microphone test, with SDL's dummy input and an OpenAL wave writer. All 13 checks
+pass. Before the outage, 58 frames had played and none were dropped. Halfway through
+the 1,000 ms outage, 58 had still played and 26 were dropped. After it, playback
+continued: 105 played in all, while capture never stopped. Neither the dummy input,
+which delivers frames in bursts, nor any source state is the signal: the harness
+reads the frame counters. The first run of the new checks also required a source
+in the playing state, which this bursty input rarely shows even without an outage;
+that criterion was dropped. Physical capture and playback devices remain
+unqualified.
+
+### Long sessions
+
+`audio_scene_audit.py --repeat 3` played `airdefense1`, `hangar2`, `medlabs`,
+`dispersal`, `storage1` and `core1` three times each in one client, 18 openings in
+671 s. All 11 checks pass. Reserved audio after each opening is flat across the
+passes: at most 83 KiB more on the second pass than the first, and identical on the
+third. Voices in use and stream reservations do not grow. The process peak is
+205.7 MiB. A first attempt labelled the passes with `#`, which the console's `echo`
+splits into separate words, so no opening could be told apart. The labels are now
+`passN/<map>`.
+
 ## Other verification and limitations
 
 - `sound_settings.py --no-mutations`: 35,807 checks pass.

@@ -24,6 +24,18 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Audio on Linux, voice output loss and long sessions, 24 October 2026
+
+- [x] AUD-02/03/04/06/07: the output-recovery, subtitle and scene harnesses pass on
+  Linux x64 (Ubuntu 24.04, WSL2, Mesa llvmpipe, system OpenAL Soft 1.23.1). The
+  Linux dedicated server links again: its OpenAL stub gains `alSourceRewind`.
+- [x] AUD-05: voice playback drops frames while the output is gone and restarts with
+  the next one after it returns; the simulated outage stops voice sources too.
+- [x] AUD-02/03: `audio_scene_audit.py --repeat` long sessions; six maps' openings
+  replayed three times keep flat residency, voices and stream reservations.
+- Evidence and limits: [Linux, voice output loss and long sessions](audio-voice-evidence.md#linux-voice-output-loss-and-long-sessions-24-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
 ## Audio scenes, centred reverb and portrait captions, 23 October 2026
 
 - [x] AUD-03: start a streamed track on a recycled voice reliably. A source that

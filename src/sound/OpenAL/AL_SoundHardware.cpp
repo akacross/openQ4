@@ -1165,6 +1165,7 @@ void idSoundHardware_OpenAL::SimulateOutputInterruption( int msec )
 			alSourceStop( voices[i].openalSource );
 		}
 	}
+	SoundVoiceChat_OutputInterrupted();
 	CheckALErrors();
 	msec = idMath::ClampInt( 1, 60000, msec );
 	simulatedInterruptionEnd = Sys_Milliseconds() + msec;

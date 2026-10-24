@@ -370,6 +370,23 @@ text and stopped, so a transcript declared for the full sample path never showed
 Implicit declarations are now ignored there and by the speech audit, whose first sweep
 had counted one robot's chatter as declared speech for that reason.
 
+**Voice chat across output loss (October 24).** Multiplayer voice plays on its own
+OpenAL sources, which a lost endpoint stops like every other. `Play` now drops a
+frame while the output is gone (`IsOutputConnected`, counted as a playback drop)
+rather than queuing speech that would be late when it returns, and the next frame
+afterwards restarts the stopped source. `s_testDeviceInterruption` stops these
+sources too (`SoundVoiceChat_OutputInterrupted`), as a real disconnect does.
+
+**Linux dedicated server (October 24).** The dedicated server links the OpenAL sound
+code against `src/sys/stub/stub_openal.cpp` on Linux, which lacked the
+`alSourceRewind` the recycled-voice fix calls, so that build failed to link. The stub
+now provides it.
+
+**Long sessions.** `audio_scene_audit.py --repeat N` plays its map list N times in one
+client and checks that an opening played again holds no more audio, voices or stream
+reservations than its first pass. A first attempt found that the console's `echo`
+splits `#` into separate words, so pass labels are `passN/<map>`.
+
 **Portrait captions.** On screens narrower than 4:3 a cinematic's picture is a short
 band, and enlarged captions at its bottom covered the title text Awakening's intro
 draws in it. When two lines fit under the 640x480 artwork, captions now hang from just

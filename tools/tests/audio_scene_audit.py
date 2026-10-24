@@ -56,10 +56,17 @@ def sample_key(name):
     return stem if dot and '/' not in extension else name
 
 
-def scene_cfgs(maps, seconds, interval):
+def scene_entries(maps, repeat):
+    """(label, map) per opening; a repeated sweep labels each pass's openings passN/map.
+    The console's echo splits punctuation such as '#' into separate words, so labels
+    keep to letters, digits and slashes, as map names do."""
+    return [(f'pass{run}/{name}' if repeat > 1 else name, name) for run in range(1, repeat + 1) for name in maps]
+
+
+def scene_cfgs(entries, seconds, interval):
     probes = max(1, (seconds * 1000) // (interval + 150))
     files = []
-    for index, name in enumerate(maps):
+    for index, (name, _) in enumerate(entries):
         steps = ['god', f'echo SCENE_BEGIN {name}']
         for probe in range(probes):
             steps += [f'waitMsec {interval}', f'echo SCENE_PROBE {name} {probe} full', 'listPlayingSounds', 'listSubtitles',
@@ -69,20 +76,20 @@ def scene_cfgs(maps, seconds, interval):
         # The voice report shows which streamed tracks are playing on bounded queues.
         steps += [f'echo SCENE_MEMORY {name}', 'listSounds openq4_residency_totals_only', 'listSoundVoices',
                   f'echo SCENE_END {name}']
-        if index + 1 < len(maps):
+        if index + 1 < len(entries):
             # Re-armed in the same command pass as the load, so it fires on the next map only.
-            steps += [f'set g_autoExecAfterMapLoad "scene-{index + 1}.cfg"', f'map {maps[index + 1]}']
+            steps += [f'set g_autoExecAfterMapLoad "scene-{index + 1}.cfg"', f'map {entries[index + 1][1]}']
         else:
             steps += ['set g_autoExecAfterMapLoad ""', 'echo SCENE_COMPLETE', 'quit']
         files.append('\n'.join(steps) + '\n')
     return files
 
 
-def launch(args, root, maps):
+def launch(args, root, entries):
     game_dir = 'q4xbase' if args.awakening else 'baseoq4'
     game = root / 'save' / game_dir
     game.mkdir(parents=True, exist_ok=True)
-    for index, text in enumerate(scene_cfgs(maps, args.seconds, args.interval)):
+    for index, text in enumerate(scene_cfgs(entries, args.seconds, args.interval)):
         (game / f'scene-{index}.cfg').write_text(text, encoding='utf-8')
     config = root / 'alsoft.conf'
     config.write_text('[general]\ndrivers=wave\nchannels=stereo\nhrtf=false\n[wave]\nfile=' + str(root / 'mix.wav') + '\n',
@@ -105,14 +112,14 @@ def launch(args, root, maps):
     command = [str(exe)]
     for key, value in cvars.items():
         command += ['+set', key, value]
-    command += ['+map', maps[0]]
+    command += ['+map', entries[0][1]]
     options = {'env': {**os.environ, 'ALSOFT_CONF': str(config), 'ALSOFT_DRIVERS': 'wave'}}
     if os.name == 'nt':
         startup = subprocess.STARTUPINFO()
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
         options.update(startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
-    timeout = args.timeout or 90 + len(maps) * (args.seconds + 60)
+    timeout = args.timeout or 90 + len(entries) * (args.seconds + 60)
     started = time.monotonic()
     with (root / 'process.log').open('w') as out:
         try:
@@ -125,11 +132,11 @@ def launch(args, root, maps):
     return code, log, command, round(time.monotonic() - started, 1)
 
 
-def audit(log, maps):
-    """Per map: its speech starts and probes, from the log segment ending at its SCENE_END."""
+def audit(log, labels):
+    """Per opening: its speech starts and probes, from the log segment ending at its SCENE_END."""
     scenes = {}
     begin = 0
-    for name in maps:
+    for name in labels:
         marker = re.search(rf'^SCENE_END {re.escape(name)}\s*$', log[begin:], re.M)
         segment = log[begin:begin + marker.end()] if marker else log[begin:]
         if marker:
@@ -176,6 +183,7 @@ def audit(log, maps):
                           'budget_mib': int(admission[3]), 'refused_total': int(admission[4]),
                           'cpu_kib': int(totals[1]), 'openal_kib': int(totals[2]), 'aggregate_kib': int(totals[4]),
                           'stream_reserved_kib': int(streaming[1]) if streaming else None,
+                          'voices_in_use': len(queued),
                           'streams_playing': sorted(sample_key(v[2]) for v in queued if v[1] == '1' and v[0] == 'playing'),
                           'streams_not_playing': sorted(sample_key(v[2]) for v in queued if v[1] == '1' and v[0] != 'playing')}
         scenes[name] = {
@@ -209,16 +217,20 @@ def main():
     parser.add_argument('--maps', help='Comma-separated maps (default: every campaign map of the game)')
     parser.add_argument('--seconds', type=int, default=30, help='Seconds of each opening to audit')
     parser.add_argument('--interval', type=int, default=3000, help='Milliseconds between probes')
+    parser.add_argument('--repeat', type=int, default=1, help='Play the maps this many times in one client (a long session)')
     parser.add_argument('--timeout', type=int, default=0)
     args = parser.parse_args()
+    args.repeat = max(1, args.repeat)
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to((ROOT / '.tmp').resolve()):
         parser.error('choose a new output directory under the project .tmp')
     verify_runtime_is_current(ROOT / '.install')
     maps = [m.strip() for m in args.maps.split(',')] if args.maps else (AWAKENING_MAPS if args.awakening else STOCK_MAPS)
+    entries = scene_entries(maps, args.repeat)
+    labels = [label for label, _ in entries]
     output.mkdir(parents=True)
-    code, log, command, seconds = launch(args, output, maps)
-    scenes = audit(log, maps)
+    code, log, command, seconds = launch(args, output, entries)
+    scenes = audit(log, labels)
     loaded = [name for name, scene in scenes.items() if scene['loaded']]
     total = Counter()
     for scene in scenes.values():
@@ -227,7 +239,7 @@ def main():
                       'mapped_lines_shown': scene['mapped_lines_shown']})
         total.update({'transcript_' + key: value for key, value in scene['transcripts'].items()})
     checks = {
-        'complete': code == 0 and 'SCENE_COMPLETE' in log and len(loaded) == len(maps),
+        'complete': code == 0 and 'SCENE_COMPLETE' in log and len(loaded) == len(entries),
         'speech_heard': total['dialogue_starts'] > 0,
         'declared_speech_is_dialogue': all(not s['misrouted_speech'] for s in scenes.values()),
         'muted_dialogue_silent': all(not s['mute_leaks'] for s in scenes.values()),
@@ -240,9 +252,28 @@ def main():
         # Every map after the first starts its streams on recycled voices, whose
         # sources must start over to play (streams_not_playing is reported only:
         # an underrun on a loaded machine can catch one between restarts).
-        'streams_play_on_recycled_voices': len(maps) < 2 or
+        'streams_play_on_recycled_voices': len(entries) < 2 or
             any(s['memory'].get('streams_playing') for s in list(scenes.values())[1:]),
     }
+    if args.repeat > 1:
+        # A long session: an opening played again holds no more audio, voices or
+        # stream reservations than its first pass, beyond what one opening varies by.
+        growth = {}
+        for name in maps:
+            passes = [scenes[f'pass{run}/{name}']['memory'] for run in range(1, args.repeat + 1)]
+            if not all(passes):
+                continue
+            first = passes[0]
+            growth[name] = {
+                'reserved_kib': [m['reserved_kib'] for m in passes],
+                'voices_in_use': [m['voices_in_use'] for m in passes],
+                'stream_reserved_kib': [m['stream_reserved_kib'] for m in passes],
+                'stable': all(m['reserved_kib'] <= first['reserved_kib'] + max(8192, first['reserved_kib'] // 10) and
+                              m['voices_in_use'] <= first['voices_in_use'] + 8 and
+                              (m['stream_reserved_kib'] or 0) <= (first['stream_reserved_kib'] or 0) + 8192 for m in passes[1:]),
+            }
+        checks['repeat_holds_steady'] = len(growth) == len(maps) and all(g['stable'] for g in growth.values())
+        total['repeat_growth'] = growth
     residency = [s['memory'] for s in scenes.values() if s['memory']]
     if residency:
         largest = max(scenes, key=lambda name: scenes[name]['memory'].get('reserved_kib', -1))
@@ -253,7 +284,7 @@ def main():
     exe = ROOT / '.install' / ('openQ4-client_x64.exe' if os.name == 'nt' else 'openQ4-client_x64')
     report = {
         'passed': all(checks.values()), 'checks': checks, 'totals': dict(total), 'scenes': scenes,
-        'maps': maps, 'seconds_per_map': args.seconds, 'probe_interval_ms': args.interval, 'run_seconds': seconds,
+        'maps': maps, 'repeat': args.repeat, 'seconds_per_map': args.seconds, 'probe_interval_ms': args.interval, 'run_seconds': seconds,
         'game': 'q4xbase' if args.awakening else 'baseoq4', 'returncode': code, 'command': command,
         'microphone': False, 'host_input': False, 'output': 'OpenAL wave writer', 'transcripts_recorded': False,
         'executable_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(),
@@ -263,7 +294,7 @@ def main():
         'harness_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
     (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    print(json.dumps({'checks': checks, 'totals': dict(total), 'loaded': len(loaded), 'maps': len(maps)}, indent=2))
+    print(json.dumps({'checks': checks, 'totals': dict(total), 'loaded': len(loaded), 'openings': len(entries)}, indent=2))
     print(json.dumps({'result': str(output / 'result.json'), 'passed': report['passed']}))
     return 0 if report['passed'] else 1
 

@@ -81,15 +81,24 @@ def noisy_tone(path, frequency):
         output.writeframes(pcm.tobytes())
 
 
-def fixtures(game):
-    tone(game / 'sound/vo_english/audio_test/dialogue.wav', 440)
-    tone(game / 'sound/audio_test/effect.wav', 880)
+def encoded_fixtures(target):
+    """The two Ogg stream fixtures; they are deterministic, so a host without ffmpeg can reuse them."""
     for name, frequency in (('noeos', 660), ('nogranule', 550)):
-        wav = game / f'sound/audio_test/{name}.wav'
+        wav = target / f'{name}.wav'
         noisy_tone(wav, frequency)
         ogg = wav.with_suffix('.ogg')
         encode(wav, ogg)
         strip_length(ogg, name)
+
+
+def fixtures(game, encoded=None):
+    tone(game / 'sound/vo_english/audio_test/dialogue.wav', 440)
+    tone(game / 'sound/audio_test/effect.wav', 880)
+    if encoded is None:
+        encoded_fixtures(game / 'sound/audio_test')
+    else:
+        for name in ('noeos', 'nogranule'):
+            shutil.copyfile(encoded / f'{name}.ogg', game / f'sound/audio_test/{name}.ogg')
 
 
 def sections(log):
@@ -118,7 +127,7 @@ def world_time(section):
 def run(args, root, speakers, steps):
     game = root / 'save' / 'baseoq4'
     game.mkdir(parents=True, exist_ok=True)
-    fixtures(game)
+    fixtures(game, args.fixtures)
     (game / 'audio-output.cfg').write_text('\n'.join(steps) + '\n', encoding='utf-8')
     config = root / 'alsoft.conf'
     config.write_text('[general]\ndrivers=wave\nchannels=' + ('surround51' if speakers == 6 else 'stereo') +
@@ -279,12 +288,23 @@ def check_surround(args, root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--assets', type=Path, required=True, help='Read-only Quake 4 install root (the folder holding q4base)')
-    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--assets', type=Path, help='Read-only Quake 4 install root (the folder holding q4base)')
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--map', default='game/airdefense1')
     parser.add_argument('--renderer', default='gl', choices=['gl', 'vk'])
     parser.add_argument('--timeout', type=int, default=600)
+    parser.add_argument('--fixtures', type=Path, help='Use the Ogg stream fixtures --write-fixtures made (for a host without ffmpeg)')
+    parser.add_argument('--write-fixtures', type=Path, help='Only encode the Ogg stream fixtures into this directory')
     args = parser.parse_args()
+    if args.write_fixtures:
+        args.write_fixtures.mkdir(parents=True, exist_ok=True)
+        encoded_fixtures(args.write_fixtures.resolve())
+        print(json.dumps({'fixtures': str(args.write_fixtures.resolve())}))
+        return 0
+    if args.assets is None or args.output is None:
+        parser.error('--assets and --output are required')
+    if args.fixtures is not None:
+        args.fixtures = args.fixtures.resolve(strict=True)
     verify_runtime_is_current(ROOT / '.install')
     output_root = args.output.resolve()
     report = {'microphone': False, 'host_input': False, 'output': 'OpenAL wave writer', 'runs': {}}

@@ -1276,6 +1276,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   outage (`s_testDeviceInterruption`) qualifies this path in stock gameplay;
   physical endpoint loss, hotplug and OS breadth remain the gate.
   [Output recovery evidence](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
+  October 24: the output-recovery, subtitle and scene harnesses pass on Linux x64.
+  That is Ubuntu 24.04 under WSL2 with Mesa llvmpipe and the system OpenAL Soft 1.23.1,
+  covering output loss, paused resume, live layout and HRTF resets and both stream
+  fixtures. A long session replays six maps' openings three times in one client
+  with flat audio residency, voices and stream reservations. Physical devices,
+  hotplug, macOS and other distributions remain the gate.
+  [Linux and long-session evidence](audio-voice-evidence.md#linux-voice-output-loss-and-long-sessions-24-october-2026).
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -1323,6 +1330,10 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   255.7 MiB under the 256 MiB budget and no refusals. Device and mobile budgets
   remain open.
   [Scene and residency evidence](audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026).
+  October 24: replaying six maps' openings three times in one client leaves each
+  map's residency flat, within 83 KiB of its first pass, with voices and stream
+  reservations unchanged. On Linux the trim, both stream fixtures and recycled-voice
+  streams pass as on Windows.
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1375,6 +1386,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   direction; it is not required to record the useful existing evidence honestly.
   [Session evidence and limits](audio-voice-evidence.md#long-session-voice-evidence-22-october-2026).
   [Implementation and evidence](audio-voice-evidence.md#multiplayer-voice).
+  October 24: voice playback follows an output loss like every other source.
+  Frames are dropped while the endpoint is gone instead of being queued late, and
+  playback starts again with the next frame after it returns. A simulated outage
+  during the local test qualifies this with the real settings adapter. Physical
+  capture and playback endpoints remain open.
+  [Voice output-loss evidence](audio-voice-evidence.md#voice-chat-across-output-loss).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
   persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
@@ -1435,6 +1452,8 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   In the map-opening sweep 65 of 148 dialogue starts have a transcript. Every cue
   shown had one, and no transcribed line lacked a cue while a slot was free. The
   full scene/locale corpus and physical stereo-HUD qualification remain open.
+  October 24: the stock subtitle runtime harness (16 checks) and a four-map speech
+  sweep also pass on Linux x64.
 
 ## Desktop platforms and packaging
 
