@@ -982,6 +982,10 @@ private:
 	uint32_t		nextClientMatchRequestId;
 	uint32_t		nextTrustedLocalMatchRequestId;
 	mpProposalId_t	nextMatchProposalId;
+	// The newest passed proposal executed in each scope.  Proposal ids only grow
+	// within a session, so a record at or below it ran already and only its
+	// acknowledgement is retried: a ballot never executes twice.
+	mpProposalId_t	lastExecutedMatchProposalId[ MP_PROPOSAL_SCOPE_COUNT ];
 	uint64_t		nextMatchSessionId;
 	bool			matchRefereeCredentialInitialized;
 	bool			matchRefereeCredentialIsReal;

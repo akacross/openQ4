@@ -24,6 +24,312 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Multiplayer network qualification, 24 October 2026
+
+- [x] MP-07/MP-08: simulated network conditions on Windows and POSIX
+  (`src/sys/NetworkImpairment.h`): latency, jitter with the reordering it
+  causes, loss and duplication, seeded for repeatable runs, reported by
+  `netImpairment`. The old Windows-only lag queue dropped datagrams over 1,400
+  bytes, so a client could not connect with `net_forceLatency` set. Native
+  cases and a wiring contract carry eleven failing controls.
+- [x] Loopback qualification with three bots in both prediction modes: no
+  resyncs under 50 ms, jitter, 10% loss, 20% duplication or combined
+  conditions; the lead follows the round trip and rewinds follow the lead; an
+  impaired client connects on its first challenge. A 20-bot dedicated server
+  holds its remote client steady under the same conditions. Three q4dm8 bot
+  audits record no navigation deaths; the jump-down did not recur.
+- Evidence: [network qualification](mp-network-qualification.md). Candidate
+  player wording: [multiplayer refinements](releases/multiplayer-refinements.md).
+
+## Menu button resumes from the pause's pages, 24 October 2026
+
+- [x] The controller's Menu button runs a retained document's `onMenuButton`
+  where declared (Back elsewhere); Save Game, Restart Level and in-game Load
+  Game ask for `menuResume`, which returns the pause and resumes play.
+- [Behavior and checks](ui/input-routing.md#menu-button-24-october-2026):
+  adapter and session gate harnesses, native page checks and an in-game capture.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+- [x] Later the same day the Menu button applies pending changes on the opt-in
+  SYSTEM page and the Escape card's Admin page, and is Back while a dialog or
+  an open list holds the input: adapter harness, native SYSTEM and Escape card
+  checks and in-game captures ([Apply](ui/input-routing.md#menu-button-24-october-2026)).
+
+## Trigger glyphs on the section strips, 24 October 2026
+
+- [x] The Escape card's Match and Admin section strips end with each
+  controller family's trigger glyphs, a legend for a controller only.
+- [Behavior and checks](ui/input-routing.md#trigger-glyphs-24-october-2026):
+  generation width checks, native strip checks and a capture of every family.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
+## Menu button glyphs, 24 October 2026
+
+- [x] Each controller family's Menu button glyph ends the Escape card's
+  Admin Apply changes plate, which the button presses, for a controller only.
+- [Behavior and checks](ui/input-routing.md#menu-glyphs-24-october-2026):
+  native plate checks and a capture of every family.
+
+## Joined lines and Demos capitals, 24 October 2026
+
+- [x] List separators, the time in the mission, a save's date and time and
+  the load time's decimal mark and unit come from each language's table
+  (`#str_231532`-`#str_231535`); the Demos page's headings and plates are
+  capitals in every language (`#str_231530`, `#str_231531`, `#str_231536`).
+- [Behavior and checks](ui/retained-screens.md#joined-lines-and-capitals-24-october-2026):
+  gate harness fixtures, a format check over every table and captures in
+  three languages. Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
+## Controller prompt settings and list paging, 24 October 2026
+
+- [x] Game Options > Controller gains Prompt Style (`in_promptStyle`) and Swap
+  Confirm and Back (`in_swapConfirmBack`), both console-only before, in all
+  twelve language tables. Later rows, hovers, section anchors and the scroll
+  extent move two rows; the settings registry and coverage test follow.
+- [x] PageUp/PageDown and Home/End move focus a visible page through a retained
+  list, or to its ends; the triggers send them where a document declares no
+  section events, and step a focused slider coarsely.
+- [x] Join Game's row focus follows its server through new orders, refreshes
+  and filters onto its page (UI-03 stable refresh focus), checked by the
+  session gate.
+- [Behavior and checks](ui/input-routing.md#settings-rows-24-october-2026):
+  settings coverage, GUI value/clipping/navigation contracts, the focus reveal
+  and adapter harnesses, and in-game Settings and Load Game captures. Candidate
+  player wording is in [baseline refinements](releases/baseline-refinements.md).
+
+## Audio on Linux, voice output loss and long sessions, 24 October 2026
+
+- [x] AUD-02/03/04/06/07: the output-recovery, subtitle and scene harnesses pass on
+  Linux x64 (Ubuntu 24.04, WSL2, Mesa llvmpipe, system OpenAL Soft 1.23.1). The
+  Linux dedicated server links again: its OpenAL stub gains `alSourceRewind`.
+- [x] AUD-05: voice playback drops frames while the output is gone and restarts with
+  the next one after it returns; the simulated outage stops voice sources too.
+- [x] AUD-02/03: `audio_scene_audit.py --repeat` long sessions; six maps' openings
+  replayed three times keep flat residency, voices and stream reservations.
+- Evidence and limits: [Linux, voice output loss and long sessions](audio-voice-evidence.md#linux-voice-output-loss-and-long-sessions-24-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
+## Audio scenes, centred reverb and portrait captions, 23 October 2026
+
+- [x] AUD-03: start a streamed track on a recycled voice reliably. A source that
+  had played stayed `AL_STOPPED`, so OpenAL counted its queued blocks as already
+  played and the track never started once the voice pool had cycled. The flush
+  now rewinds the source. This is a regression in this cycle's unreleased
+  streaming.
+- [x] AUD-04: give a centre-routed positional sound a mod reverb's room rolloff on
+  its sends, which OpenAL never applies to direct 5.1 channels.
+- [x] AUD-06/AUD-07: `s_logSpeech` speech audit and `audio_scene_audit.py`, every
+  campaign map's opening with cinematics, probing routing, muted Dialogue Volume,
+  subtitle cues, streams and audio residency. Engine-made lipSync defaults no
+  longer hide sample-path transcripts. Dialogue Volume holds through simulated
+  output loss and in-place resets.
+- [x] AUD-07: portrait cinematic captions hang below the artwork when two lines fit
+  (visual specification 1.25, register increment re-binding).
+- Evidence and limits: [authored scenes, centred reverb and portrait captions](audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
+## Save details, 23 October 2026
+
+- [x] CONTINUE and the Load Game page name a save's difficulty and the run's
+  play time; the pause's level block adds the run's total time under the
+  mission time and keeps the last save's age on its own line. Objectives
+  completed on a map survive loading a save. The play time and difficulty
+  travel in the persistent player info every save header already holds, so
+  the save format is unchanged; saves from earlier builds show neither. Two
+  play-time phrases are in all twelve language tables.
+- [Behavior, checks and limits](ui/retained-screens.md#save-details): session
+  gate, native page checks, the generator's fit checks, and an in-game
+  capture run across two maps. Candidate player wording is in
+  [baseline refinements](releases/baseline-refinements.md).
+
+## High-refresh presentation owners, 23 October 2026
+
+- [x] HF-03: add opt-in late look (`in_presentationView`) through an absolute-angle
+  engine sampler and a frozen per-draw SP/MP correction of the drawn eye and what
+  it holds. Game API 54 passes the usercmd generator to the game modules; engine
+  and game modules must be replaced together.
+- [x] HF-04: re-place the live view muzzle-flash light and flashlight from the drawn
+  gun; draw unbound client debris, brass and gibs, their trails and active AF
+  (ragdoll) poses between tick samples; record the remaining exclusions.
+- [x] HF-05 (alternate views): sample cinematic and private cameras, third person
+  and the death camera per tick and draw them on the scene clock with cut,
+  identity, cadence, jump and carrier rules. Remote actors stay with MP-07.
+- [x] HF-06/HF-07 definitions: cross-system rules, 240 Hz budgets and the
+  measurement procedure in the [presentation owners contract](presentation-owners.md);
+  physical qualification and live MP late look remain open under HF-07/HF-08.
+- Evidence: `openq4-presentation-look`, `presentation_hf_contract.py --mutations`,
+  the updated interpolation contract and live SP probes recorded in the
+  contract. Candidate player wording is in
+  [baseline refinements](releases/baseline-refinements.md).
+
+## High-refresh presentation, second round, 24 October 2026
+
+- [x] HF-05: decide remote actors. While the local client plays, remote bodies
+  stay on the tick because MP-07 rewinds by the displayed pose age. A spectating
+  client draws them, the followed player's third person and the death camera
+  on its camera's clock. Vehicle cockpit eyes are bounded against their
+  interpolated cockpit, and nested monitor views are recorded.
+- [x] HF-06: a diagnostic guard counts event dispatch, script threads, entity
+  physics and effect spawns that start inside a prepared draw;
+  `g_presentationClockCapture` reports it per draw and the runtime harness
+  fails any case that records one. Effects BSE starts while the renderer
+  services it (particle impacts, nested segments) are counted apart.
+- [x] HF-07: the runtime harness gains a `pacing` case for the cap matrix,
+  judged against the 240 Hz budget; only operator-declared `--reference` runs
+  in a visible foreground window qualify.
+- [x] HF-08 (engine-side part): loopback listen-host and remote-client
+  late-look cases consume input once and remove about 16 ms; spectator and
+  walker-cockpit cases.
+- [x] HF-08 zoom, lifts and loss: the cheat-gated `in_presentationViewProbeZoom`
+  holds zoom without device input. Zoomed look, riding a lift and a remote
+  client losing 5% of its packets all consume input once and draw the sampled
+  input. With the network impairment rework, a client under 40 ms latency,
+  10 ms jitter and 5% loss each way does too.
+- [x] HF-06 demos: a session records a render demo under late look while the
+  capture runs, then plays it back with `timeDemoQuit`; both stay clean.
+- [x] HF-06/HF-07/HF-08 further cases: stereo frames from the OpenXR test
+  runtime and a remote-camera monitor pass the gameplay guard. The capture
+  reports each draw's preparation cost (0.35 ms of a 5 ms frame). Vsync and
+  Vulkan pacing runs are recorded, and the declared frame-rate policy is
+  contract-pinned. Rapid turns at 2200°/s consume input once. Late look stays
+  excluded in vehicles by decision.
+- [x] HF-08 physical latency instrument: `com_latencyFlash` draws a white bar on
+  the first frame after a fire press for LDAT/OSLTT-style sensors; the `flash`
+  runtime case checks one drawn frame per press.
+- [x] HF-06 closed: one session with temporal AA, shadow maps, late look,
+  retained UI and audio survives a save and load, `vid_restart` and an AVI
+  capture, with every capture interpolated and no gameplay in any draw.
+- Evidence: `presentation_hf_contract.py --mutations`, the interpolation
+  contract and live captures recorded in the
+  [presentation owners contract](presentation-owners.md). Physical pacing,
+  physical latency and by-eye review remain open under HF-07/HF-08.
+
+## Audio output recovery, layout changes and memory, 23 October 2026
+
+- [x] AUD-02: restart one-shot sounds that a lost or reopened output stopped at the
+  scene clock, as loops and bounded queues already were; allocate no voices
+  while the endpoint is gone; resume a line paused across the change in place.
+  `s_testDeviceInterruption` and `listSoundVoices` support no-device checks.
+- [x] AUD-04: apply speaker-layout, HRTF and limiter changes with an in-place
+  device reset instead of a full sound restart, and re-route playing voices at
+  their scene clock when the centre speaker comes or goes.
+- [x] AUD-03: trim reclaimable audio on an operating-system low-memory notice
+  (`s_trimIdleSeconds`, `s_trimAudioMemory`); stream Ogg files without usable
+  length metadata through a small stb_vorbis seek extension; drop the one-hour
+  streamed-track limit; build streamed envelopes on job workers during loads.
+- [x] AUD-06/AUD-07: installed-asset dialogue routing audit (no unclassified
+  speech in either campaign) and per-language transcript coverage.
+- Stock-map gameplay, native, compiled-production and static checks pass; see
+  the [evidence and limits](audio-voice-evidence.md#output-recovery-layout-changes-and-memory-pressure-23-october-2026).
+  Physical endpoints, real low-memory notices and other operating systems remain
+  open. Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
+## Focus-following prompt verbs, 23 October 2026
+
+- [x] The pages' prompt bars name what Accept does for the focused control:
+  LOAD on LOAD GAME and the chosen save, DELETE, SAVE on SAVE GAME and the
+  chosen save, PLAY and JOIN, and SELECT elsewhere. Accept leaves the bar
+  while nothing focused can act. Buttons gain an optional `prompt`; five
+  capitals verbs are in all twelve language tables.
+- [Behavior, checks and limits](ui/retained-screens.md#page-prompt-bars):
+  runtime, adapter and native page checks, and OpenGL (English) and Vulkan
+  (French) captures. Contextual west/north prompts remain open (UI-02).
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
+## Strogg confirmations, 23 October 2026
+
+- [x] Give the Strogg pause's QUIT TO MENU and EXIT questions, and the Strogg
+  Save/Load pages' delete, overwrite and notice dialogs, the Strogg family:
+  30-degree shoulders, #F59512 rails, R_Strogg text and Strogg action plates,
+  with every label translating from runes as the dialog opens. Behavior,
+  focus and timing stay the stock dialog's; Marine dialogs are unchanged.
+- [The construction and its evidence](ui/retained-screens.md#strogg-confirmations)
+  cover native checks and OpenGL/Vulkan captures in English, French and
+  Russian. The art derives from section 13.7 and awaits review under UI-05.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
+## UI acceptance transition, 23 October 2026
+
+- [x] Add the register's separate acceptance audit (UI-11). It accepts only
+  named requirements and resources from committed, reviewed records that are
+  current and prove each conjunct, constraint, dependency and per-resource
+  behavior/artwork claim. Checkpoints withdraw stale acceptance explicitly.
+- [x] Register three UI checks that earlier increments added without wiring them
+  into CI and local validation.
+- [The transition's rules, tests and limits](ui/acceptance-transition.md) are
+  developer tooling with no player-visible change; nothing has been accepted
+  with it yet.
+
+## Multiplayer and bots round, 23 October 2026
+
+- [x] MP-08: hostname connections try up to eight resolved addresses, the
+  historical first choice then alternating families, three unanswered challenges
+  each. Native ordering/failover cases pass, and a two-process probe joined an
+  IPv6-only loopback server through `localhost` after three unanswered IPv4
+  challenges. The guide documents the sequence.
+- [x] MP-07: clients advertise their remote extrapolation
+  (`net_mpRemoteExtrapolation`). The server rewinds by the displayed pose age and
+  never lets a client claim lengthen it. `lagCompStatus` and the
+  `net_mpPredictDebug` pose age expose both sides. An executable state fixture
+  passes with five failing controls; the runtime probe shows the advertisement
+  and rewinds following the client's mode. The guide no longer recommends
+  enabling both corrections. Defaults are unchanged. The probe's rising
+  reported lead was a client regression since 0.13.0 (42e765882): the
+  widened prediction adjustment turned the unsigned catch-up step into full
+  slowdown, leaving clients a frame behind with late commands. The steps are
+  signed again; a closed-loop fixture with four failing controls covers it.
+- [x] MP-01: passed ballots revalidate against the current session (adapter-owned
+  once-only acknowledgement); veto turns use the series side; spectator follow
+  latches spawn identity. Extended contracts fail against each reverted fix.
+- [x] MP-05: `mvdRecover`, previous/slot/name follow, a named follow overlay and
+  recording status in `mvdStatus`. MVDs with two or more players recorded since
+  27 September failed playback validation because the start-state powerup mask
+  grew to 18 bits; both readers now detect 16 or 18. Recovery (2,032 cut points)
+  and start-state fixtures pass with failing controls; the runtime probe
+  recovered a killed recording and played it to its clean end.
+- [x] MP-02/MP-03: bots refuse splash shots whose predicted push would throw a
+  team-mate into the void, and penetrating rails with a team-mate anywhere on
+  the line; trench far rims are linked; a listen server clears debug lines
+  each frame. MP physics has no ladders; lifts stay unmodelled. A headless
+  build of all 33 catalog variants and seven bot audits pass.
+- [x] MP-06: client air drains once per game frame, not per prediction replay;
+  `s_soundWorlds` reports the underwater muffle; swimming bots dive for an
+  underwater route corner while they have air to spare.
+- Candidate player wording: [multiplayer refinements](releases/multiplayer-refinements.md)
+  and [bot refinements](releases/mp-bot-refinements.md). Evidence and remaining
+  scope are recorded under MP-01 to MP-08 in the [roadmap](roadmap.md).
+
+## Vulkan roadmap round, 23 October 2026
+
+- [x] VK-03: complete, fail-closed device and instance inventories; automatic
+  starts resume on the next compatible GPU after a device, swapchain or resource
+  failure, bounded to four adapters, while explicit `r_vkDevice` choices never
+  substitute. 107 native fake-driver cases, the production startup route
+  against adapter doubles, and NVIDIA/Dozen/Intel hardware drills pass.
+- [x] VK-04: authored GLSL/ARB stages follow a specified per-stage fallback
+  policy with once-per-reason reports and a fuller `reportShaderPrograms`. The
+  version table evicts stale versions, a full ARB table no longer ends the
+  session, and shader parameters with no Vulkan value follow OpenGL.
+- [x] VK-05: per-domain exposure, temporal-history invalidation and settling of
+  late linear-HDR failures; `rendererVulkanHDRInfo` reports admission counts.
+- [x] VK-07: Vulkan captures fail closed instead of saving cleared, skewed or
+  unread images, and stencil diagnostics carry frame and view identity.
+- Evidence and limits: [device admission](vulkan-device-selection.md),
+  [material programs](vulkan-material-programs.md), [HDR](vulkan-hdr.md) and
+  [captures](vulkan-captures.md). AMD, physical Linux and MoltenVK hardware
+  (VK-01), presentation pacing (VK-02) and the measured VK-06 work remain open.
+  Candidate player wording is in [unreleased notes](releases/unreleased.md).
+
+## Save browser controls, 23 October 2026
+
+- [x] Add date/name/location sorting, manual/autosave filter tags and explicit
+  refresh to the Marine and Strogg Save/Load pages. Preserve selection and row
+  focus by filename and keep typed names intact. Freeze catalog operands and
+  reject stale queued actions; keep deletion tied to its confirmation target.
+- [Save browser evidence and limits](ui/save-browser.md) record native,
+  adapter/session and real save/restore qualification. The broader UI-03 scope,
+  physical input and other-platform acceptance remain open. Candidate player
+  wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Multiplayer player identity, 23 October 2026
 
 - [x] Bind Players selections and local friend/mute marks to a connection's

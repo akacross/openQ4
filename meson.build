@@ -565,6 +565,13 @@ if get_option('build_native_tests')
     include_directories: root_include_dir, install: false,
   )
   test('openq4-presentation-clock', presentation_clock_test, timeout: 30)
+  presentation_look_test = executable(
+    'openq4-presentation-look-test', files('tools/tests/native/PresentationLookTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-presentation-look', presentation_look_test, timeout: 30)
+  test('openq4-presentation-hf-contract', py,
+    args: [files('tools/tests/presentation_hf_contract.py'), '--mutations'], timeout: 90)
   test('openq4-clock-ownership', py,
     args: [files('tools/tests/presentation_clock_ownership.py')], timeout: 90)
 
@@ -814,6 +821,22 @@ if get_option('build_native_tests')
     install: false,
   )
   test('openq4-sound-dialogue', openq4_sound_dialogue_test, timeout: 30)
+
+  openq4_sound_output_recovery_test = executable(
+    'openq4-sound-output-recovery-test',
+    files('tools/tests/native/SoundOutputRecoveryTest.cpp'),
+    include_directories: root_include_dir,
+    install: false,
+  )
+  test('openq4-sound-output-recovery', openq4_sound_output_recovery_test, timeout: 30)
+
+  openq4_sound_memory_trim_test = executable(
+    'openq4-sound-memory-trim-test',
+    files('tools/tests/native/SoundMemoryTrimTest.cpp'),
+    include_directories: root_include_dir,
+    install: false,
+  )
+  test('openq4-sound-memory-trim', openq4_sound_memory_trim_test, timeout: 30)
 
   openq4_voice_packet_test = executable(
     'openq4-voice-packet-test',

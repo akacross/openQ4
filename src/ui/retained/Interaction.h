@@ -237,6 +237,10 @@ public:
 	InteractionSnapshot Capture() const;
 	bool Restore(const InteractionSnapshot& snapshot, std::string& error);
 	std::optional<WidgetViewState> Widget(const std::string& id) const;
+	// Any control's role, buttons included (Widget describes value controls).
+	std::optional<ControlRole> Role(const std::string& id) const {
+		const auto found = items.find(id); return found == items.end() ? std::nullopt : std::optional(found->second.control.role);
+	}
 	bool AcknowledgeProposal(const std::string& id, std::uint64_t token, bool accepted);
 	// Explicit local editing. Begin requires focused eligibility; repeated Begin
 	// preserves an existing non-conflicted buffer. No method writes accepted state.

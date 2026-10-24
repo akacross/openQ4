@@ -1234,6 +1234,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	nextClientMatchRequestId = 0;
 	nextTrustedLocalMatchRequestId = 0;
 	nextMatchProposalId = 0;
+	memset( lastExecutedMatchProposalId, 0, sizeof( lastExecutedMatchProposalId ) );
 	memset( matchViewSentRevision, 0, sizeof( matchViewSentRevision ) );
 	memset( lastMatchRequestId, 0, sizeof( lastMatchRequestId ) );
 	memset( lastMatchRequestResultValid, 0, sizeof( lastMatchRequestResultValid ) );
@@ -4661,6 +4662,9 @@ void idMultiplayerGame::BuildMatchOperationContext( int clientNum,
 			competitionSide >= 0 && competitionSide < MP_SERIES_SIDE_COUNT;
 		context.actorCompetitionSide = context.actorCompetitionContestant ?
 			competitionSide : MP_SERIES_SIDE_NONE;
+		// The view's veto decision (PublishMatchView) asks the same resolver.
+		context.actorSeriesSide = competitionSide >= 0 &&
+			competitionSide < MP_SERIES_SIDE_COUNT ? competitionSide : MP_SERIES_SIDE_NONE;
 	}
 	const mpMatchOperationDescriptor_t *descriptor =
 		MPMatchOperationDescriptor( opcode );
@@ -4721,6 +4725,25 @@ void idMultiplayerGame::ProcessPassedMatchProposals( void ) {
 		const mpProposalId_t proposalId = record->proposalId;
 		mpMatchOperationRequest_t request = record->operation;
 		const int actorSlot = request.actorSlot;
+		// The executor revalidates a passed ballot against the current session, so
+		// the session revision no longer stops a second run.  A ballot that already
+		// executed and whose acknowledgement failed only retries the acknowledgement.
+		if ( proposalId <= lastExecutedMatchProposalId[ index ] ) {
+			mpOperationAdapterContext_t retryContext;
+			BuildMatchOperationContext( actorSlot, request.opcode, false, retryContext );
+			retryContext.expectedProposalRevision = matchProposals.GetRevision();
+			const mpOperationExecutionResult_t retried =
+				matchOperationExecutor.AcknowledgePassedProposal( scopes[ index ],
+					proposalId, retryContext, matchSession, matchRules,
+					matchProposals, matchSeries );
+			if ( retried.outcome == MP_OPERATION_REJECTED ) {
+				gameLocal.Warning( "could not consume executed proposal %llu (reason %d)",
+					static_cast<unsigned long long>( proposalId ), retried.reason );
+			}
+			ClearMatchOperationSensitiveArguments( request );
+			continue;
+		}
+		lastExecutedMatchProposalId[ index ] = proposalId;
 		mpParticipantId evidenceActor = mpParticipantId::Invalid();
 		matchSession.ResolveSlotBinding( actorSlot,
 			request.actorBindingGeneration, evidenceActor );
@@ -8830,6 +8853,7 @@ bool idMultiplayerGame::BeginMatchSession( void ) {
 	matchViewObservedTeamsRevision = matchTeams.GetRevision();
 	matchViewNextClockUpdateTime = Max( 0, gameLocal.time ) + 1000;
 	nextMatchProposalId = 0;
+	memset( lastExecutedMatchProposalId, 0, sizeof( lastExecutedMatchProposalId ) );
 	memset( matchViewSentRevision, 0, sizeof( matchViewSentRevision ) );
 	memset( lastMatchRequestId, 0, sizeof( lastMatchRequestId ) );
 	memset( lastMatchRequestResultValid, 0, sizeof( lastMatchRequestResultValid ) );
@@ -25212,10 +25236,56 @@ void idMultiplayerGame::ServerWriteInitialReliableMessages( const idMessageSende
 idMultiplayerGame::ClientReadStartState
 ================
 */
+/*
+================
+MP_StartStatePowerupBits
+
+openQ4: the width of each client record's powerup mask in a start state.  The writer
+uses POWERUP_MAX, which grew from 16 to 18 when The Awakening's powerups were added, so
+multi-view demos recorded before that carry 16.  Probe a copy of the message with each
+width and take the one that reads as valid client records ending exactly in the
+MAX_CLIENTS sentinel; a live start state always parses at POWERUP_MAX.
+================
+*/
+static int MP_StartStatePowerupBits( const idBitMsg &msg ) {
+	static const int widths[ 2 ] = { POWERUP_MAX, 16 };
+	for ( int w = 0; w < 2; w++ ) {
+		idBitMsg probe = msg;
+		probe.ReadLong();
+		int previous = -1;
+		for ( int i = 0; i <= MAX_CLIENTS; i++ ) {
+			if ( probe.GetRemainingReadBits() < 16 ) {
+				break;
+			}
+			const int client = probe.ReadShort();
+			if ( client == MAX_CLIENTS ) {
+				if ( probe.GetRemainingReadBits() < 8 ) {
+					return widths[ w ];
+				}
+				break;
+			}
+			if ( client <= previous || client >= MAX_CLIENTS ||
+				 probe.GetRemainingReadBits() < widths[ w ] + ASYNC_PLAYER_INSTANCE_BITS + 1 ) {
+				break;
+			}
+			probe.ReadBits( widths[ w ] );
+			const int instance = probe.ReadBits( ASYNC_PLAYER_INSTANCE_BITS );
+			if ( instance < 0 || instance >= MAX_INSTANCES ) {
+				break;
+			}
+			probe.ReadBits( 1 );
+			previous = client;
+		}
+	}
+	return POWERUP_MAX;
+}
+
 void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 	int i, client, powerup;
 
 	assert( gameLocal.isClient );
+
+	const int powerupBits = MP_StartStatePowerupBits( msg );
 
 	// read the state in preparation for reading snapshot updates
 	matchStartedTime = msg.ReadLong( );
@@ -25223,7 +25293,7 @@ void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 		if ( client < 0 || client >= MAX_CLIENTS ||
 			 !gameLocal.entities[ client ] ||
 			 !gameLocal.entities[ client ]->IsType( idPlayer::GetClassType() ) ||
-			 msg.GetRemainingReadBits() < ASYNC_PLAYER_INSTANCE_BITS + 17 ) {
+			 msg.GetRemainingReadBits() < powerupBits + ASYNC_PLAYER_INSTANCE_BITS + 1 ) {
 			common->Warning( "Ignoring invalid multiplayer start-state client %d", client );
 			return;
 		}
@@ -25231,7 +25301,7 @@ void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 // jnewquist: Use accessor for static class type 
 		assert( gameLocal.entities[ client ] && gameLocal.entities[ client ]->IsType( idPlayer::GetClassType() ) );
 // RAVEN END
-		powerup = msg.ReadBits( POWERUP_MAX );
+		powerup = msg.ReadBits( powerupBits );
 
 		int instance = ( msg.ReadBits( ASYNC_PLAYER_INSTANCE_BITS ) );
 		if ( instance < 0 || instance >= MAX_INSTANCES ) {

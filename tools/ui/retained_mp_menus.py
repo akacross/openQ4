@@ -441,14 +441,15 @@ def padlock(ident: str, tint: list) -> dict:
 
 
 def action_plate(doc: Document, ident: str, key: str, width: float, top: float, event: str, steps: list, *,
-                 primary: bool = False) -> dict:
+                 primary: bool = False, menu_button: bool = False) -> dict:
     """An action the game offers: an in-game plate whose label, availability
     and reason the game publishes (`key`.shown, .available, .label, .reason
     and .detail). An unavailable action stays in place, dimmed, with a lock
     after its label and its reason in the error color on the plate; choosing
     it shakes the plate for 300 ms and pulses the reason, and nothing else
     happens. An available one runs `steps`, which ask the game, and the game
-    checks the action again."""
+    checks the action again. With `menu_button` the row ends with the
+    controller's Menu button, which runs the action too (section 13.5)."""
     for name, kind in (("shown", "boolean"), ("available", "boolean"), ("label", "string"), ("reason", "string"), ("detail", "string")):
         doc.state[f"{key}.{name}"] = {"type": kind, "initial": False if kind == "boolean" else ""}
     plate = in_game_plate(doc, ident, PLACEHOLDER, 0, 0, width=width, primary=primary, event=event)
@@ -463,9 +464,18 @@ def action_plate(doc: Document, ident: str, key: str, width: float, top: float, 
     lock = padlock(f"{ident}-lock", rgb(ERROR))
     unavailable = {"op": "!", "args": [{"state": f"{key}.available"}]}
     doc.bind(f"{ident}-lock.display", f"{ident}-lock", "display", {"op": "select", "args": [unavailable, "block", "none"]})
+    row_children = [label_node, lock]
+    if menu_button:
+        # The glyph keeps the row's end for a controller; the keyboard has no
+        # key for it, so it shows none there.
+        row_children += [group(f"{ident}-menu-gap", {"position": keyword("relative"), "display": keyword("block"),
+                                                     "flex-grow": number(1), "height": length(1)}),
+                         group(f"{ident}-menu", {"position": keyword("relative"), "display": keyword("block"), "width": length(PROMPT_H),
+                                                 "height": length(PROMPT_H), "flex-shrink": number(0), "margin-left": length(8)},
+                               b.device_glyphs(doc, f"{ident}-menu", "menu", [1, 1, 1, 0.85], PROMPT_H))]
     row = group(f"{ident}-row", {**absolute(left=26, top=0, width=width - 46, height=45), "display": keyword("flex"),
                                  "flex-direction": keyword("row"), "align-items": keyword("center"), "pointer-events": keyword("none")},
-                [label_node, lock])
+                row_children)
     plate["children"].append(row)
     # The plate dims with its label; the reason beside it keeps its color.
     plate["properties"]["opacity"] = number(1)
@@ -2185,6 +2195,30 @@ def match_action_row(doc: Document, name: str, accessible: str, width: float, va
     return row, ident
 
 
+# The triggers' glyphs at the trailing end of an inner strip (section 13.5):
+# the triggers step its sections, and the strip shows which buttons do, for
+# a controller only, since no key steps them.
+TRIGGER_W, TRIGGER_GAP = 22.0, 4.0
+
+
+def section_triggers(doc: Document, ident: str, keys: tuple, page_width: float) -> dict:
+    """The left and right triggers' glyphs at the strip's trailing end, a
+    legend shown only while prompt.glyphs names a controller family. The
+    strip's sections (`keys`, each in a 10 dp padded slot 4 dp apart) must
+    end before them in every shipped language; generation fails otherwise."""
+    room = page_width - 2 * TRIGGER_W - TRIGGER_GAP - 8
+    for language in b.LANGUAGES:
+        used = sum(20 + 4 + b.text_width("lowpixel", b.engine_text(key)[language], 16) for key in keys)
+        if used > room:
+            raise SystemExit(f"{ident}'s sections in {language} take {used:.0f} dp, past the triggers at {room:.0f} dp")
+    glyphs = [group(f"{ident}-{side}", {"position": keyword("relative"), "display": keyword("block"), "width": length(TRIGGER_W),
+                                       "height": length(PROMPT_H), **({"margin-left": length(TRIGGER_GAP)} if side == "rt" else {})},
+                    b.device_glyphs(doc, f"{ident}-{side}", position, [1, 1, 1, 0.85], PROMPT_H, TRIGGER_W))
+              for side, position in (("lt", "left-trigger"), ("rt", "right-trigger"))]
+    return group(ident, {**absolute(right=0, top=(MATCH_STRIP_H - PROMPT_H) / 2, height=PROMPT_H), "display": keyword("flex"),
+                         "flex-direction": keyword("row"), "pointer-events": keyword("none")}, glyphs)
+
+
 def match_tab(doc: Document, position: int, section: str, key: str) -> tuple[dict, str]:
     """One of the inner strip's sections: its name, orange with focus, over a
     bar while it is the section shown."""
@@ -2651,7 +2685,8 @@ def match_page(doc: Document, index: int, ident: str, width: float, height: floa
         tabs.append(tab_node)
         controls.append(tab_id)
     strip = group("match-strip", {**absolute(left=0, top=0, width=page_width, height=MATCH_STRIP_H), "display": keyword("flex"),
-                                  "flex-direction": keyword("row"), "align-items": keyword("center")}, tabs)
+                                  "flex-direction": keyword("row"), "align-items": keyword("center")},
+                  [*tabs, section_triggers(doc, "match-triggers", MATCH_SECTION_KEYS, page_width)])
     rule = vector("match-strip-rule", absolute(left=0, top=MATCH_STRIP_H, width=page_width, height=1), [
         path("rule", [(0, 0), ({"fraction": 1}, 0), ({"fraction": 1}, 1), (0, 1)], fill=solid(rgb(OLIVE, 0.5)))])
     section_top = MATCH_STRIP_H + MATCH_STRIP_GAP
@@ -2932,6 +2967,17 @@ def card_motion(doc: Document, tabs: list, focus: list) -> None:
                                  "then": [{"op": "setState", "values": {"card.released": False}},
                                           {"op": "playTimeline", "timeline": "unrelease"}]}]
     doc.events["onBack"] = [{"op": "action", "action": "mpClose"}]
+    # The Menu button (section 13.5) presses the Admin page's Apply while its
+    # Server section has changes to apply; otherwise it closes the card, as
+    # Back does. Cards without an Admin page leave the button Back.
+    admin = next((index for index, (ident, _key, _window) in enumerate(tabs) if ident == "admin"), None)
+    if admin is not None:
+        from retained_mp_admin import APPLY, SECTIONS
+        doc.events["onMenuButton"] = [{"op": "if", "condition": {"op": "&&", "args": [
+            {"op": "==", "args": [{"state": "card.tab"}, admin]},
+            {"op": "&&", "args": [{"op": "==", "args": [{"state": "card.admin_section"}, SECTIONS.index("server")]},
+                                  {"state": f"mp.admin.{APPLY[0]}.available"}]}]},
+            "then": [{"op": "call", "event": "admin_apply"}], "else": [{"op": "action", "action": "mpClose"}]}]
 
 
 WELCOME_BUILDERS = {"join": join_page, "server": server_page, "players": welcome_players_page, "settings": welcome_settings_page}

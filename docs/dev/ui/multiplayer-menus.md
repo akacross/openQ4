@@ -508,7 +508,10 @@ then offered Players, Server and Console. The card's page
   them, each value checked by the game against its setting's range. Apply
   changes, unavailable until something would change, sends the draft as the
   stock page's Apply did (`HandleServerAdminCommands`) and closes the menu;
-  the server restarts the map for a new map, game type or buying.
+  the server restarts the map for a new map, game type or buying. The
+  controller's Menu button presses Apply changes while there is something
+  to apply, and otherwise closes the card ([Menu button](input-routing.md#menu-button-24-october-2026));
+  for a controller the plate ends with the Menu button's glyph.
 - **Console.** The remote console's twelve newest lines in the stock
   console's frame, and a field whose Enter runs the command through the
   stock console's own input (`admin command`): on a listen server, the
@@ -744,7 +747,9 @@ owner's review:
 - **Width (D8).** As above: the card grows past 648 dp to fit the strip.
 - **Match sections (D3).** The triggers page Match Control's sections, as
   Left and Right do along the inner strip; section 14.18's bumpers keep the
-  main strip.
+  main strip. The inner strip ends with the triggers' glyphs for a
+  controller ([trigger glyphs](input-routing.md#trigger-glyphs-24-october-2026)),
+  as the Admin page's does.
 - **Match actions.** Rows with their reasons beside them rather than the
   stock page's buttons and shared Action line: the labels run too long for
   plates in French and German, and a reason beside its action needs no

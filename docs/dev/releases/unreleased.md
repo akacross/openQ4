@@ -394,6 +394,16 @@ See [release status](../../user/release-status.md) and the
   selection now skips adapters missing required rendering or presentation
   capabilities. The preliminary startup check handles changing device lists
   and preserves explicit GPU choices when the chosen adapter is unavailable.
+- Vulkan now starts on your next compatible GPU when the first one fails to
+  create its device or resources, instead of dropping back to OpenGL. A GPU you
+  chose with `r_vkDevice` is still never swapped for another one.
+- Vulkan screenshots and environment captures no longer save a blank, cleared
+  or garbled image when a capture fails or the window changes size mid-capture;
+  the game reports the failure and writes nothing.
+- Mods with many ARB material programs no longer stop the game on Vulkan
+  when the program table fills; the extra effects are skipped with a warning.
+  Custom shader effects that cannot run are now reported once with the reason,
+  and live shader editing no longer runs out of room after many edits.
 - Vulkan timing traces now help distinguish rendering work from waits when
   diagnosing stutters. Performance qualification remains in progress.
 - Storage1 performance tests now distinguish the opening sequence from a

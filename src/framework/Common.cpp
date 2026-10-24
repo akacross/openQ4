@@ -6663,6 +6663,7 @@ void idCommonLocal::LoadGameDLL( void ) {
 	gameImport.collisionModelManager	= ::collisionModelManager;
 	gameImport.bse						= ::bse;
 	gameImport.vrSystem					= ::vrSystem;
+	gameImport.usercmdGen				= ::usercmdGen;
 
 	Com_SetGameModuleLoadPhase( GAME_MODULE_PHASE_CALL_GET_GAME_API );
 	const gameExport_t *gameExportPtr = GetGameAPI( &gameImport );
