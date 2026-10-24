@@ -165,7 +165,8 @@ completed release material here and publish curated notes in `releases/`.
 - [x] HF-08 zoom, lifts and loss: the cheat-gated `in_presentationViewProbeZoom`
   holds zoom without device input. Zoomed look, riding a lift and a remote
   client losing 5% of its packets all consume input once and draw the sampled
-  input. Forced latency waits for the network impairment rework.
+  input. With the network impairment rework, a client under 40 ms latency,
+  10 ms jitter and 5% loss each way does too.
 - [x] HF-06 demos: a session records a render demo under late look while the
   capture runs, then plays it back with `timeDemoQuit`; both stay clean.
 - [x] HF-06/HF-07/HF-08 further cases: stereo frames from the OpenXR test

@@ -33,10 +33,10 @@ sample and owner counters. Scenarios:
 - mphost: a loopback listen host's own player, late look off and on;
 - mpclient: a remote client of a loopback listen host (client prediction), late
   look off and on;
-- mploss: the remote client again with net_forceDrop 5 on the client, so lost
-  snapshots and commands make prediction replay and recover, late look off and on
-  (the committed net_forceLatency queue drops packets over 1400 bytes, so a
-  delayed client cannot connect until the network impairment rework lands);
+- mploss: the remote client again with net_forceLatency 40, net_forceJitter 10
+  and net_forceDrop 5 on the client (each way), so delayed, reordered and lost
+  snapshots and commands make prediction replay and recover, late look off and
+  on;
 - spectate: a loopback listen host with two bots, playing, spectating free and
   following a bot; remote bodies join the presentation pass only while the
   local player spectates (listed= counts the pass);
@@ -77,6 +77,7 @@ SAMPLE = re.compile(
 TURNING = ("look", "thirdperson", "flick", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
+IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
 # HF-07 budgets (presentation-owners.md): draw interval p95/p99 and late-look sample-to-draw, in ms
 BUDGETS = {240: {"intervalP95": 4.6, "intervalP99": 6.3, "lookSampleToDrawP95": 1.0}}
@@ -304,6 +305,11 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
         case["rendererViews"] = {"frames": len(views), "maxViews": max(int(v[0]) for v in views),
                                  "maxSubviewPackets": max(int(v[2]) for v in views),
                                  "maxRemotePackets": max(int(v[3]) for v in views)}
+    if scenario == "mploss":
+        # the cheat-gated conditions survived the join only if the port shows them
+        lines = IMPAIR.findall(text)
+        case["netImpairment"] = {direction: {"offered": int(o), "dropped": int(d), "reordered": int(r)}
+                                 for _, direction, o, d, _, _, r in lines} if lines else None
     if scenario == "flash":
         case["latencyFlashes"] = text.count("latencyFlash: drawn at ")
     if scenario == "demo":
@@ -456,9 +462,9 @@ def main() -> int:
         # HF-08: a remote client of a loopback listen host, through client prediction
         "mpclient": [(f"mpclient-look{late}", loopback + ["in_presentationView", str(late)], turn_mp, "mpclient")
                      for late in (0, 1)],
-        # HF-08: prediction replay and recovery under client-side loss
+        # HF-08: prediction replay and recovery under client-side delay, jitter and loss
         "mploss": [(f"mploss-look{late}", loopback + ["in_presentationView", str(late),
-                                                       "net_forceDrop", "5"], turn_mp, "mpclient")
+                                                       "net_forceLatency", "40", "net_forceJitter", "10", "net_forceDrop", "5"], turn_mp, "mpclient")
                    for late in (0, 1)],
         # HF-05: remote bodies (two bots) while the host plays, spectates free and follows
         "spectate": [(f"spectate-{kind}", loopback + ["in_presentationView", "0"],
@@ -509,6 +515,8 @@ def main() -> int:
                 if scenario == "pacing":
                     body.append("framePacingSnapshot hfpacing")
                 body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "in_presentationViewProbeZoom 0"]
+                if scenario == "mploss":
+                    body.append("netImpairment")
                 body += ["stopRecording", "waitMsec 500", "timeDemoQuit hf_presentation"] if scenario == "demo" else ["quit"]
                 write_script(game / "look_probe.cfg", body)
                 host = None
@@ -570,6 +578,7 @@ def main() -> int:
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
                 (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
+                (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
                 (c["samples"] < 64 and not c["case"].endswith("interp0")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")

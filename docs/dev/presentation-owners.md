@@ -414,10 +414,17 @@ the late-look correction turned it. Under loss, input still reached the game
 exactly once and the drawn view still equalled the input sampled for the draw.
 No case counted gameplay or BSE starts inside a draw, and none logged an error.
 
-`net_forceLatency` could not be exercised. The committed latency queue drops
-datagrams over 1400 bytes, so a delayed client never completes the connect
-handshake. The network impairment rework in progress replaces that queue; the
-`mploss` case can add latency once it lands.
+Delay, jitter and loss together. Once the network impairment rework landed
+(the old latency queue dropped datagrams over 1400 bytes, so a delayed client
+could not connect), `mploss` set `net_forceLatency 40`, `net_forceJitter 10`
+and `net_forceDrop 5` on the client. That is at least 80 ms round trip, with
+reordering, and `netImpairment` confirmed the conditions held after the join:
+4–5% of datagrams dropped and about 50 reordered each run
+(`.tmp/hf/r6-loss2`). Input was still consumed once (−219.99 and −220.00°/s).
+With late look the drawn view matched the input sampled for each draw (p95
+0.0001°), about 16 ms of delay disappeared, and the frame-to-frame residual fell
+from 0.84° to 0.08°. Late look is a local view correction, so network delay
+does not reach it; prediction recovery keeps its MP-07 behaviour.
 
 Demo recording and playback (HF-06). The `demo` case records a render demo
 (`recordDemo`) while late look turns the view and the capture runs, then plays

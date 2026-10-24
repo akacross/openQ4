@@ -300,9 +300,9 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   [presentation owners contract](presentation-owners.md). Zoomed (railgun,
   50% sensitivity), riding a lift and a remote client losing 5% of its packets
   showed the same: input consumed once, the drawn view equal to the input
-  sampled for the draw, and about 16 ms removed. Forced latency waits for the
-  network impairment rework, because the committed latency queue drops packets
-  over 1400 bytes. Rapid turns at 2200°/s consumed input once and cut the
+  sampled for the draw, and about 16 ms removed. So did a remote client under
+  40 ms latency, 10 ms jitter and 5% loss each way, confirmed by `netImpairment`
+  after the join. Rapid turns at 2200°/s consumed input once and cut the
   frame-to-frame residual from 4.67° to 0.09°. Physical latency now has its instrument:
   `com_latencyFlash` paints the first frame after a fire press for click-to-photon
   sensors (procedure in the owners contract). Late look stays excluded in vehicles by decision, because
