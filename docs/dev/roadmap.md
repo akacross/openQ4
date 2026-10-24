@@ -824,6 +824,9 @@ archived provenance; new scheduling belongs here.
   per-entity instances, projected density
   and input, saves/checkpoints and exactly-once commands. Require accepted behavior
   and artwork for every resource; conversion counts do not close migration.
+  Progress, 24 October: the Medical Labs implant overlay has
+  [engine captures](ui/remastered-hud.md#medical-labs-implant-captures-24-october-2026)
+  through the level's own script at 4:3, 16:9, 21:9, 32:9 and 9:16 (`FLOW-062`).
 - [ ] **UI-05 — P1, decision and qualification: resolve visual policy conflicts.**
   Reconcile SP/MP hit-marker defaults with visual specification section 14.7 and
   other recorded deviations before acceptance. Preserve editable vector framing,

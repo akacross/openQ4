@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [Medical Labs implant captures](remastered-hud.md#medical-labs-implant-captures-24-october-2026)
+add bounded UI-04 evidence to `FLOW-062`. The retained overlay is driven through the
+level's own script and a real save at five aspects and in German. The increment is
+audited against `53e31d1e90b2284dc6fe6b16472caf81bad16714`. No requirement status, migration acceptance or final
+gate changes.
+
 24 October 2026: [list focus memory](input-routing.md#wrapping-menus-24-october-2026)
 adds bounded UI-02 evidence to `INP-010`. Scrolling lists remember their last
 focused control, and a directional move back into one returns there. The

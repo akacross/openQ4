@@ -1388,7 +1388,8 @@ def run(args, scenario: str) -> dict:
     }
     if args.gate != 'default':
         overrides['ui_retained'] = args.gate
-    for item in args.set:
+    # The harnesses that reuse run() with their own parsers may not offer --set.
+    for item in getattr(args, 'set', None) or []:
         key, _, value = item.partition('=')
         overrides[key] = value
     overrides.update(SCENARIO_CVARS.get(scenario, {}))

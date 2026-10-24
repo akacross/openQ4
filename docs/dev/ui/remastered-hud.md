@@ -491,6 +491,33 @@ and the red death afterimage is dropped, as under reduced motion.
   `in_promptStyle`), and the `mp-pace`/`sp-pace` profiles. `--gate 0` runs a scenario with the stock GUIs
   for comparison.
 
+## Medical Labs implant captures, 24 October 2026
+
+`capture_remastered_hud.py --scenario medchange-script` drives the implant
+overlay (section 14.19) through the Medical Labs script itself rather than
+the HUD test command: with Kane on the medbed at the level's start,
+`script map_medlabs::playersTurn = 1` and `script map_medlabs::nanocyteFade()`
+run the level's own function, whose white flash and `sendNamedEvent`
+activate the overlay as the stroggification does; `determineScream()` sends
+`hurt` with the player's scream, and a real save sends the game's
+`saveMessage`. The level's own threads clear `playersTurn` as its sequence
+moves on, so each call sets it first. The scenario captures the flash at
+550 ms, the field at 1600 ms, the fade at 4250 ms, the hide by about
+4850 ms (hidden at 4650 ms), the hurt pulse while hidden, the save notice,
+a second activation 2 s into a first restarting from the beginning, and
+reduced motion's steady cells. Captured at 4:3 (1024x768), 16:9 (1280x720),
+21:9 (1260x540), 32:9 (1920x540) and 9:16 (540x960), and in German at 16:9:
+the lattice continues through the side, top and bottom bands, the corner
+pieces stand at the view's corners, the readouts keep their trailing-top and
+leading-bottom anchors, and the notice reads "Spiel gespeichert..." from the
+table. The harness gained `--language`, and `capture_retained_screens.run`
+no longer requires `--set` from the harnesses that reuse it (the HUD, scope,
+status bar, wheel, continuity and legacy harnesses had failed before
+starting).
+
+Evidence: `.tmp/ui/implant-overlay/validation-evidence.json`, SHA-256
+`1c1e411486a484bbee29a4fde2c2d27ee482cc6bd75aef5b0db8d5800a1a9980`.
+
 ## Hit-feedback defaults, 21 October 2026
 
 Fresh SP and MP profiles now default `hud_hitMarker` to zero, preserving the
@@ -528,8 +555,11 @@ under UI-05; this default correction does not accept `FLOW-043`.
   (`src/mpgame/HitMarker.cpp`) are tiered, red for a hit and white for a kill,
   over 180-420 ms. One of the two needs a decision.
 - Subtitles (section 14.8) do not exist yet.
-- The implant overlay (`FLOW-062`) awaits engine captures of the real
-  Medical Labs sequence at each aspect.
+- The implant overlay (`FLOW-062`) has engine captures through the level's
+  own script functions at each aspect
+  ([captures](#medical-labs-implant-captures-24-october-2026)); a run of the
+  whole stroggification from the level start, other renderers and platforms
+  and art review remain.
 - Competitive flag warnings, the connection-warning plate and the Dead
   Zone holding sub-label still need the reviewed visual treatment. The
   current chat and kill-feed fades advance in 50 ms steps.

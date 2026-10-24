@@ -206,6 +206,29 @@ def medchange():
     ]
 
 
+def medchange_script():
+    """The implant activation through the Medical Labs script itself: the
+    level starts with Kane on the medbed; `script` marks it the player's
+    turn (the level's own threads clear the flag as its sequence moves on,
+    so each call sets it first) and runs nanocyteFade(), whose white flash
+    and sendNamedEvent activate the overlay as the stroggification does,
+    determineScream() its hurt pulse with the player's scream, and a real
+    save the game's saveMessage. A second activation mid-sequence restarts
+    the clocks; then reduced motion."""
+    turn = 'script map_medlabs::playersTurn = 1'
+    fade = [turn, 'script map_medlabs::nanocyteFade()']
+    return [
+        'set g_autoExecAfterMapLoad ""', 'waitMsec 5000', shot('implant-rest'),
+        *fade, 'waitMsec 550', shot('implant-0550'),
+        'waitMsec 1050', shot('implant-1600'), 'waitMsec 2650', shot('implant-4250'), 'waitMsec 600', shot('implant-hidden'),
+        turn, 'script map_medlabs::determineScream()', 'waitMsec 300', shot('implant-hurt'),
+        'saveGame "implant"', 'waitMsec 600', shot('implant-saved'), 'waitMsec 2500',
+        *fade, 'waitMsec 2000', *fade, 'waitMsec 550', shot('implant-restart-0550'),
+        'waitMsec 4300', shot('implant-restart-hidden'),
+        'set ui_retainedReducedMotion 1', *fade, 'waitMsec 1500', shot('implant-reduced'), 'waitMsec 3500',
+        'set ui_retainedReducedMotion 0',
+    ]
+
 def objectives(gui):
     """The objectives display through the held scores button (the game
     publishes the list), then the notices and a failure through the stock
@@ -337,6 +360,7 @@ SCENARIOS = {
     'speeder': ('game/m07_race1', speeder()),
     'gev': ('game/m09_valkaryne', gev()),
     'medchange': ('game/medlabs', medchange()),
+    'medchange-script': ('game/medlabs', medchange_script()),
     'strogg': ('game/recomp', on_foot('guis/hud_strogg.gui')),
     'mp': ('mp:mp/q4dm1', [
         'set g_autoExecAfterMapLoad ""', 'waitMsec 2500', shot('mp-base'),
@@ -472,11 +496,11 @@ def main() -> int:
     parser.add_argument('--timeout', type=int, default=240)
     parser.add_argument('--awakening', type=Path, help="content root holding The Awakening's q4xbase (expansion scenarios)")
     parser.add_argument('--gate', choices=('0', '1'), default='1', help='ui_retained (0 draws the stock GUIs, for comparison)')
+    parser.add_argument('--language', default='english', help='sys_lang for every run (the notices come from its tables)')
     args = parser.parse_args()
     args.output = args.output.resolve()
     if args.output.exists() or not args.output.is_relative_to((ROOT / '.tmp').resolve()):
         parser.error('use a fresh output directory below .tmp')
-    args.language = 'english'
     results = []
     for scenario in args.scenario or ['marine']:
         capture.SCENARIOS[scenario] = SCENARIOS[scenario]
