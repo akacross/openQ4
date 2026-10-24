@@ -12,9 +12,19 @@ sample and owner counters. Scenarios:
 - death, ragdoll, debris: the death camera, AF ragdoll blending and client debris;
 - vehicle: a spawned walker entered by script, its joint-bound cockpit eye
   turning under the probe;
+- zoom: a railgun held zoomed by the cheat-gated in_presentationViewProbeZoom,
+  late look off and on (zoomed look turns at pm_zoomedSlow, 50%);
+- lift: riding airdefense2's func_elevator_3 up a floor, late look off and on;
+- demo (HF-06): a render demo recorded while late look turns and the capture
+  runs, then played back by timeDemoQuit through the demo bypass in the same
+  session;
 - mphost: a loopback listen host's own player, late look off and on;
 - mpclient: a remote client of a loopback listen host (client prediction), late
   look off and on;
+- mploss: the remote client again with net_forceDrop 5 on the client, so lost
+  snapshots and commands make prediction replay and recover, late look off and on
+  (the committed net_forceLatency queue drops packets over 1400 bytes, so a
+  delayed client cannot connect until the network impairment rework lands);
 - spectate: a loopback listen host with two bots, playing, spectating free and
   following a bot; remote bodies join the presentation pass only while the
   local player spectates (listed= counts the pass);
@@ -50,8 +60,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = re.compile(
     r"presentationClockSample rt=(-?\d+) t=(-?\d+) f=([-\d.]+) hrt=([-\d.]+) step=(\d+) hz=(\d+) phase=([-\d.]+)"
     r" drawYaw=([-\d.]+) authYaw=([-\d.]+) look=(\d) lookYaw=([-\d.]+) inYaw=([-\d.]+)"
-    r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?")
-TURNING = ("look", "thirdperson", "mphost", "mpclient", "pacing")
+    r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?")
+TURNING = ("look", "thirdperson", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
 # HF-07 budgets (presentation-owners.md): draw interval p95/p99 and late-look sample-to-draw, in ms
 BUDGETS = {240: {"intervalP95": 4.6, "intervalP99": 6.3, "lookSampleToDrawP95": 1.0}}
 SNAPSHOT = re.compile(r"Frame pacing snapshot hf(?: - )?pacing \((SP|MP)\): bound=([\w-]+), samples=(\d+), present=([\d.]+) ms \(([\d.]+) Hz\)"
@@ -105,7 +116,7 @@ def step_jitter(samples):
     return {"p50": percentile(out, 0.5), "p95": percentile(out, 0.95), "max": max(out)} if out else None
 
 
-def tick_linearity(samples):
+def tick_linearity(samples, key="drawYaw"):
     """Separate presentation error from the simulated motion (degrees).
 
     Draws inside one tick interpolate between the same two samples, so without
@@ -113,7 +124,7 @@ def tick_linearity(samples):
     per-tick line is presentation error. The change of that line from tick to
     tick is the simulated motion itself (input arriving per tick, vehicle turns).
     """
-    yaw = unwrap([s["drawYaw"] for s in samples])
+    yaw = unwrap([s[key] for s in samples]) if key == "drawYaw" else [s[key] for s in samples]
     ticks = {}
     for i, s in enumerate(samples):
         ticks.setdefault(s["t"], []).append(i)
@@ -227,7 +238,7 @@ def parse(text):
              "look": int(m[9]), "lookYaw": float(m[10]), "inYaw": float(m[11]),
              "debris": int(m[12] or 0), "afBlends": int(m[13] or 0),
              "listed": int(m[14] or 0), "afFrames": int(m[15] or 0), "gameplay": int(m[16] or 0),
-             "bse": int(m[17] or 0)}
+             "bse": int(m[17] or 0), "drawZ": float(m[18] or 0.0)}
             for m in SAMPLE.findall(text)]
 
 
@@ -248,6 +259,11 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
     if len(samples) >= 64:
         case["drawnStepJitterDeg"] = step_jitter(samples)
         case["tickLinearityDeg"] = tick_linearity(samples)
+        heights = [s["drawZ"] for s in samples]
+        if max(heights) - min(heights) > 1.0:
+            # a carrier moved the eye: the same split for its height, in units
+            case["eyeHeightRange"] = [min(heights), max(heights)]
+            case["tickLinearityHeight"] = tick_linearity(samples, "drawZ")
     if len(samples) >= 64 and scenario == "pacing":
         case["pacing"] = pacing(samples, fps, text, reference)
         budget = BUDGETS.get(fps)
@@ -259,6 +275,9 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
     case["errors"] = [line for line in text.splitlines()
                       if re.search(r"\b(ERROR|FATAL)\b|Assertion failed", line)][:20]
     case["gameplayReports"] = [line for line in text.splitlines() if line.startswith("presentationGameplay:")][:8]
+    if scenario == "demo":
+        played = TIMEDEMO.search(text)
+        case["timeDemo"] = {"frames": int(played[1]), "seconds": float(played[2]), "fps": float(played[3])} if played else None
     return case
 
 
@@ -268,10 +287,14 @@ def reanalyse(output: Path, probe_rate: float) -> int:
         log = output / case["case"] / "baseoq4/logs/openq4.log"
         samples = parse(log.read_text(encoding="utf-8", errors="replace"))
         if len(samples) >= 64 and case.get("scenario") in TURNING:
-            case.update(analyse(samples, -probe_rate * 5.0 * 0.022))
+            case.update(analyse(samples, -probe_rate * 5.0 * 0.022 * (0.5 if case.get("scenario") == "zoom" else 1.0)))
         if len(samples) >= 64:
             case["drawnStepJitterDeg"] = step_jitter(samples)
             case["tickLinearityDeg"] = tick_linearity(samples)
+            heights = [s["drawZ"] for s in samples]
+            if max(heights) - min(heights) > 1.0:
+                case["eyeHeightRange"] = [min(heights), max(heights)]
+                case["tickLinearityHeight"] = tick_linearity(samples, "drawZ")
         if len(samples) >= 64 and case.get("scenario") == "pacing":
             case["pacing"] = pacing(samples, case["fps"], log.read_text(encoding="utf-8", errors="replace"),
                                     report.get("reference", False))
@@ -302,8 +325,8 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "death", "ragdoll", "debris", "vehicle", "mphost", "mpclient",
-                                 "spectate", "pacing"),
+                        choices=("look", "thirdperson", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo",
+                                 "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--reference", action="store_true",
                         help="operator statement: a visible foreground window on the HF-07 reference machine; only then does pacing qualify")
@@ -362,12 +385,28 @@ def main() -> int:
                      ["god", "notarget", f"setviewpos {args.viewpos}", "waitMsec 500",
                       "spawn vehicle_walker name hf_walker", "waitMsec 1500",
                       'script "$player1.enterVehicle( $hf_walker );"', "waitMsec 2000", probe, "waitMsec 1500"], "sp")],
+        # HF-08: zoomed look; railgun because airdefense1 may already hold the machinegun
+        "zoom": [(f"zoom-look{late}", ["in_presentationView", str(late), "ui_autoSwitch", "1", "pm_zoomedSlow", "50"],
+                  ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "give weapon_railgun", "waitMsec 2000",
+                   "in_presentationViewProbeZoom 1", "waitMsec 1500", probe, "waitMsec 1500"], "sp")
+                 for late in (0, 1)],
+        # HF-08: late look while a lift carries the eye
+        "lift": [(f"lift-look{late}", ["in_presentationView", str(late)],
+                  ["god", "notarget", "setviewpos -480 1472 100 0 0 0", "waitMsec 2000", probe, "waitMsec 1000",
+                   'script "$func_elevator_3.gotoFloor( 2 );"', "waitMsec 300"], "sp:game/airdefense2")
+                 for late in (0, 1)],
+        # HF-06: record a render demo under late look, then play it back in the same session
+        "demo": [("demo", ["in_presentationView", "1"], turn_sp + ["recordDemo hf_presentation"], "sp")],
         # HF-08: a loopback listen host's own player
         "mphost": [(f"mphost-look{late}", loopback + ["in_presentationView", str(late)], turn_mp, "mphost")
                    for late in (0, 1)],
         # HF-08: a remote client of a loopback listen host, through client prediction
         "mpclient": [(f"mpclient-look{late}", loopback + ["in_presentationView", str(late)], turn_mp, "mpclient")
                      for late in (0, 1)],
+        # HF-08: prediction replay and recovery under client-side loss
+        "mploss": [(f"mploss-look{late}", loopback + ["in_presentationView", str(late),
+                                                       "net_forceDrop", "5"], turn_mp, "mpclient")
+                   for late in (0, 1)],
         # HF-05: remote bodies (two bots) while the host plays, spectates free and follows
         "spectate": [(f"spectate-{kind}", loopback + ["in_presentationView", "0"],
                       ["waitMsec 2000", "addbot", "addbot", "waitMsec 5000"] + extra, "mphost")
@@ -416,11 +455,12 @@ def main() -> int:
                 body.append(capture_wait(fps))
                 if scenario == "pacing":
                     body.append("framePacingSnapshot hfpacing")
-                body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "quit"]
+                body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "in_presentationViewProbeZoom 0"]
+                body += ["stopRecording", "waitMsec 500", "timeDemoQuit hf_presentation"] if scenario == "demo" else ["quit"]
                 write_script(game / "look_probe.cfg", body)
                 host = None
-                if mode == "sp":
-                    launch = ["+set", "si_gameType", "singleplayer", "+map", args.map]
+                if mode == "sp" or mode.startswith("sp:"):
+                    launch = ["+set", "si_gameType", "singleplayer", "+map", mode[3:] if mode.startswith("sp:") else args.map]
                 elif mode == "mphost":
                     launch = ["+set", "si_gameType", "DM", "+set", "net_serverDedicated", "0",
                               "+set", "net_port", str(args.port), "+spawnServer", args.mp_map]
@@ -454,12 +494,14 @@ def main() -> int:
                             host.kill()
                 log = game / "logs/openq4.log"
                 text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
-                case = summarise(name, scenario, fps, exit_code, started, text, expected_rate, args.reference)
+                case = summarise(name, scenario, fps, exit_code, started, text,
+                                 expected_rate * ( 0.5 if scenario == "zoom" else 1.0 ), args.reference)
                 report["cases"].append(case)
                 print(json.dumps({k: case[k] for k in case if k not in ("errors", "gameplayReports")}), flush=True)
     (output / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
     # Scenes drawn on the authoritative clock record no samples by design (thirdperson-interp0).
     failures = [c["case"] for c in report["cases"] if c["exit"] != 0 or c["errors"] or c["gameplayInDraws"] or
+                (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["samples"] < 64 and not c["case"].endswith("interp0")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")

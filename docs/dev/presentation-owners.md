@@ -192,8 +192,9 @@ only reports and never changes what runs. The contract requires the call to come
 first in each entry point, the renderer scopes around scene submission and
 identical SP/MP bodies, and a mutation that removes a guard must fail.
 
-Remaining HF-06 qualification: repeated stereo/subview draws in VR, TAA
-appearance under late look by eye, and long sessions with mixed demo/capture use.
+Remaining HF-06 qualification: repeated stereo/subview draws in VR and TAA
+appearance under late look by eye. Demo recording and playback mixed with
+capture in one session is covered by the `demo` runtime case (Evidence).
 
 ## Supported frame-rate behaviour (HF-07)
 
@@ -357,3 +358,40 @@ engine classified those frames as not cap-bound. The rerun at 240 reached
 204 Hz (p95 7.2 ms, p99 8.4 ms) and is still over budget. The 921 ms stall was a
 single frame the engine classified as simulation-bound. Physical qualification
 on the reference machine remains HF-07.
+
+### Zoom, lifts and packet loss, 24 October 2026
+
+Two cheat-gated development cvars drive these cases without device input.
+`in_presentationViewProbe` feeds synthetic mouse counts through the ordinary
+mouse path. `in_presentationViewProbeZoom` holds the zoom button in the usercmd,
+exactly as a held key would. Output is retained under `.tmp/hf/r3-run1` and
+`.tmp/hf/r3-run2`.
+
+| Case | Late look | Turn rate (expected) | Delay behind the input | Drawn vs sampled input, p95 | Residual p95 |
+| --- | --- | --- | --- | --- | --- |
+| Railgun zoomed (`pm_zoomedSlow 50`) | off | −110.02°/s (−110.00) | about 15 ms | — | 0.46° |
+| Railgun zoomed | on | −110.01°/s (−110.00) | about 0 ms | 0.0001° | 0.04° |
+| Riding airdefense2's `func_elevator_3` up 193 units | off | −220.01°/s (−220.00) | about 16 ms | — | 0.22° |
+| Riding the lift | on | −220.01°/s (−220.00) | about 0 ms | 0.0007° | 0.09° |
+| Remote client, 5% of packets dropped at the client | off | −220.00°/s (−220.00) | about 16 ms | — | 1.07° |
+| Remote client, 5% dropped | on | −220.00°/s (−220.00) | about 0 ms | 0.0001° | 0.08° |
+
+Zoomed look follows the scaled sensitivity in both modes, so the late-look
+sampler applies the same zoom scale as the usercmd. On the lift, the drawn eye
+height was linear within each tick to 0.0004 units (`tickLinearityHeight`) while
+the late-look correction turned it. Under loss, input still reached the game
+exactly once and the drawn view still equalled the input sampled for the draw.
+No case counted gameplay or BSE starts inside a draw, and none logged an error.
+
+`net_forceLatency` could not be exercised. The committed latency queue drops
+datagrams over 1400 bytes, so a delayed client never completes the connect
+handshake. The network impairment rework in progress replaces that queue; the
+`mploss` case can add latency once it lands.
+
+Demo recording and playback (HF-06). The `demo` case records a render demo
+(`recordDemo`) while late look turns the view and the capture runs, then plays
+it back with `timeDemoQuit` in the same session. All 512 draws during recording
+were interpolated with late look active. The view matched the input sampled for
+each draw (p95 0.002°) and no draw counted gameplay. Playback then took the demo
+bypass and rendered the recorded 569 frames in 2.9 s before the client exited
+cleanly (`.tmp/hf/r3-run3`).

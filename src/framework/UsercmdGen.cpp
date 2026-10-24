@@ -525,6 +525,7 @@ private:
 	static idCVar	cl_mouseSensCap;
 	static idCVar	in_presentationView;
 	static idCVar	in_presentationViewProbe;
+	static idCVar	in_presentationViewProbeZoom;
 };
 
 idCVar idUsercmdGenLocal::in_yawSpeed( "in_yawspeed", "140", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "yaw change speed when holding down _left or _right button" );
@@ -553,6 +554,7 @@ idCVar idUsercmdGenLocal::cl_mouseAccelPower( "cl_mouseAccelPower", "2", CVAR_SY
 idCVar idUsercmdGenLocal::cl_mouseSensCap( "cl_mouseSensCap", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "maximum accelerated mouse sensitivity; 0 disables the cap", 0, 100000 );
 idCVar idUsercmdGenLocal::in_presentationView( "in_presentationView", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "late look: turn the drawn view with mouse, gyro, look-key and stick input on every presented frame instead of up to a 60 Hz tick later; aiming, firing and the network still use the authoritative usercmd" );
 idCVar idUsercmdGenLocal::in_presentationViewProbe( "in_presentationViewProbe", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_FLOAT, "development probe: synthetic horizontal mouse counts per second, delivered through the ordinary mouse path for no-input latency measurements; requires cheats" );
+idCVar idUsercmdGenLocal::in_presentationViewProbeZoom( "in_presentationViewProbeZoom", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_BOOL, "development probe: hold the zoom button, for no-input zoomed late-look measurements; requires cheats" );
 
 static idUsercmdGenLocal localUsercmdGen;
 idUsercmdGen	*usercmdGen = &localUsercmdGen;
@@ -1232,6 +1234,10 @@ void idUsercmdGenLocal::CmdButtons( void ) {
 	// check the zoom button; while the quick-chat wheel is held, zoom switches
 	// its channel, so the press passes through as it is
 	if ( ButtonState( UB_QUICKCHAT ) ? ButtonState( UB_ZOOM ) != 0 : toggled_zoom.on ) {
+		cmd.buttons |= BUTTON_ZOOM;
+	}
+	// in_presentationViewProbeZoom holds zoom the way a held button would
+	if ( in_presentationViewProbeZoom.GetBool() ) {
 		cmd.buttons |= BUTTON_ZOOM;
 	}
 

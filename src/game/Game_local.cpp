@@ -5176,12 +5176,13 @@ void DisplayClipProfile( void );
 // late-look latency analysis (tools/tests/presentation_look_runtime.py). Noted
 // once per prepared draw, before the capture records it.
 static struct {
-	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
+	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw, drawnZ;
 	int		look;
 } presentationLookDiagnostic;
 
 static void NotePresentationLookDiagnostic( idPlayer *player ) {
 	presentationLookDiagnostic.drawnYaw = player->GetRenderView() != NULL ? player->GetRenderView()->viewaxis.ToAngles().yaw : 0.0f;
+	presentationLookDiagnostic.drawnZ = player->GetRenderView() != NULL ? player->GetRenderView()->vieworg.z : 0.0f;
 	presentationLookDiagnostic.authoritativeYaw = player->viewAngles.yaw;
 	presentationLookDiagnostic.look = player->GetPresentationLookDiagnostic( presentationLookDiagnostic.inputYaw, presentationLookDiagnostic.lookYaw ) ? 1 : 0;
 }
@@ -9238,7 +9239,7 @@ static const int MAX_PRESENTATION_CLOCK_SAMPLES = 8192;
 struct presentationClockSample_t {
 	double	realTimeHighRes;
 	int		gameStep, rate;
-	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw;
+	float	drawnYaw, authoritativeYaw, lookYaw, inputYaw, drawnZ;
 	int		look;
 	int		clientDebris, afBlends, listed, afFrames, gameplay, bse;
 	float	clockFraction;
@@ -9322,6 +9323,7 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	sample.gameTime = time;
 	sample.fraction = presentationSceneFraction;
 	sample.drawnYaw = presentationLookDiagnostic.drawnYaw;
+	sample.drawnZ = presentationLookDiagnostic.drawnZ;
 	sample.authoritativeYaw = presentationLookDiagnostic.authoritativeYaw;
 	sample.lookYaw = presentationLookDiagnostic.lookYaw;
 	sample.inputYaw = presentationLookDiagnostic.inputYaw;
@@ -9343,7 +9345,7 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 	presentationClockCaptureDumped = true;
 	Printf( "presentationClock: %d samples\n", presentationClockCaptureCount );
 	for ( int i = 0; i < presentationClockCaptureCount; i++ ) {
-		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f drawYaw=%.4f authYaw=%.4f look=%d lookYaw=%.4f inYaw=%.4f debris=%d afBlends=%d listed=%d afFrames=%d gameplay=%d bse=%d\n",
+		Printf( "presentationClockSample rt=%d t=%d f=%.4f hrt=%.6f step=%d hz=%d phase=%.9f drawYaw=%.4f authYaw=%.4f look=%d lookYaw=%.4f inYaw=%.4f debris=%d afBlends=%d listed=%d afFrames=%d gameplay=%d bse=%d drawZ=%.3f\n",
 			presentationClockCaptureSamples[ i ].realTime,
 			presentationClockCaptureSamples[ i ].gameTime,
 			presentationClockCaptureSamples[ i ].fraction,
@@ -9361,7 +9363,8 @@ void idGameLocal::RecordPresentationClockSample( void ) {
 			presentationClockCaptureSamples[ i ].listed,
 			presentationClockCaptureSamples[ i ].afFrames,
 			presentationClockCaptureSamples[ i ].gameplay,
-			presentationClockCaptureSamples[ i ].bse );
+			presentationClockCaptureSamples[ i ].bse,
+			presentationClockCaptureSamples[ i ].drawnZ );
 	}
 	presentationClockCaptureCount = 0;
 }

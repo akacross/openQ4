@@ -124,6 +124,12 @@ completed release material here and publish curated notes in `releases/`.
 - [x] HF-08 (engine-side part): loopback listen-host and remote-client
   late-look cases consume input once and remove about 16 ms; spectator and
   walker-cockpit cases.
+- [x] HF-08 zoom, lifts and loss: the cheat-gated `in_presentationViewProbeZoom`
+  holds zoom without device input. Zoomed look, riding a lift and a remote
+  client losing 5% of its packets all consume input once and draw the sampled
+  input. Forced latency waits for the network impairment rework.
+- [x] HF-06 demos: a session records a render demo under late look while the
+  capture runs, then plays it back with `timeDemoQuit`; both stay clean.
 - Evidence: `presentation_hf_contract.py --mutations`, the interpolation
   contract and live captures recorded in the
   [presentation owners contract](presentation-owners.md). Physical pacing,

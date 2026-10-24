@@ -262,8 +262,10 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   effect spawns that start inside a prepared draw, and the runtime harness fails
   on any. Effects BSE starts while the renderer services it (particle impacts,
   nested segments; once per particle or effect step) are counted apart. Every
-  SP and MP case on 24 October counted none. VR stereo/subview repeats, TAA by
-  eye under late look and long mixed-capture sessions remain.
+  SP and MP case on 24 October counted none. A session that records a render
+  demo under late look, then plays it back with `timeDemoQuit`, captured and
+  played back cleanly. VR stereo/subview repeats and TAA appearance under late
+  look by eye remain.
 - [ ] **HF-07 — P1, qualification: establish supported frame-rate behavior.** Declare
   target hardware/scenes/settings and latency/p95/p99 budgets for 240 Hz (4.17 ms
   frame interval); retain 360 Hz (2.78 ms) as experimental until qualified. Include
@@ -291,9 +293,13 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   frame-to-frame residual fell from 0.26° (host) and 1.17° (client) to 0.08°.
   Spectating and a walker cockpit entered by script were also exercised (the
   cockpit is linear within each tick to 0.0001°); see the
-  [presentation owners contract](presentation-owners.md). Prediction recovery
-  under loss, zoom, movers, physical latency and the by-eye review remain, as
-  does a decision on late look in vehicle cockpits.
+  [presentation owners contract](presentation-owners.md). Zoomed (railgun,
+  50% sensitivity), riding a lift and a remote client losing 5% of its packets
+  showed the same: input consumed once, the drawn view equal to the input
+  sampled for the draw, and about 16 ms removed. Forced latency waits for the
+  network impairment rework, because the committed latency queue drops packets
+  over 1400 bytes. Physical latency, the by-eye review and a decision on late
+  look in vehicle cockpits remain.
 
 ## Vulkan rendering
 
