@@ -5473,7 +5473,8 @@
           "pressed": "campaign.pressed",
           "disabled": "campaign.disabled"
          },
-         "action": "campaigns"
+         "action": "campaigns",
+         "navigation": {"up": "back", "down": "arena"}
         }
        },
        {
@@ -5668,7 +5669,8 @@
           "pressed": "arena.pressed",
           "disabled": "arena.disabled"
          },
-         "action": "campaignArena"
+         "action": "campaignArena",
+         "navigation": {"up": "campaign", "down": "back"}
         }
        },
        {
@@ -5863,7 +5865,8 @@
           "pressed": "back.pressed",
           "disabled": "back.disabled"
          },
-         "action": "back"
+         "action": "back",
+         "navigation": {"up": "arena", "down": "campaign"}
         }
        }
       ]

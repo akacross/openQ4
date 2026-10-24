@@ -16424,7 +16424,8 @@
             "pressed": "nav_continue.pressed",
             "disabled": "nav_continue.disabled"
            },
-           "action": "continue"
+           "action": "continue",
+           "navigation": {"up": "link_mods", "down": "nav_singleplayer"}
           }
          },
          {
@@ -16650,7 +16651,8 @@
             "pressed": "nav_singleplayer.pressed",
             "disabled": "nav_singleplayer.disabled"
            },
-           "action": "singlePlayer"
+           "action": "singlePlayer",
+           "navigation": {"up": "nav_continue", "down": "nav_loadgame"}
           }
          },
          {
@@ -16876,7 +16878,8 @@
             "pressed": "nav_loadgame.pressed",
             "disabled": "nav_loadgame.disabled"
            },
-           "action": "loadGame"
+           "action": "loadGame",
+           "navigation": {"up": "nav_singleplayer", "down": "nav_multiplayer"}
           }
          },
          {
@@ -17102,7 +17105,8 @@
             "pressed": "nav_multiplayer.pressed",
             "disabled": "nav_multiplayer.disabled"
            },
-           "action": "multiplayer"
+           "action": "multiplayer",
+           "navigation": {"up": "nav_loadgame", "down": "nav_settings"}
           }
          },
          {
@@ -17328,7 +17332,8 @@
             "pressed": "nav_settings.pressed",
             "disabled": "nav_settings.disabled"
            },
-           "action": "settings"
+           "action": "settings",
+           "navigation": {"up": "nav_multiplayer", "down": "link_mods"}
           }
          }
         ]
@@ -17456,7 +17461,8 @@
               "pressed": "link_mods.pressed",
               "disabled": "link_mods.disabled"
              },
-             "action": "mods"
+             "action": "mods",
+             "navigation": {"up": "nav_settings", "down": "nav_continue", "left": "link_exit", "right": "link_demos"}
             }
            },
            {
@@ -17543,7 +17549,8 @@
               "pressed": "link_demos.pressed",
               "disabled": "link_demos.disabled"
              },
-             "action": "demos"
+             "action": "demos",
+             "navigation": {"up": "nav_settings", "down": "nav_continue", "left": "link_mods", "right": "link_updates"}
             }
            },
            {
@@ -17630,7 +17637,8 @@
               "pressed": "link_updates.pressed",
               "disabled": "link_updates.disabled"
              },
-             "action": "updates"
+             "action": "updates",
+             "navigation": {"up": "nav_settings", "down": "nav_continue", "left": "link_demos", "right": "link_credits"}
             }
            },
            {
@@ -17717,7 +17725,8 @@
               "pressed": "link_credits.pressed",
               "disabled": "link_credits.disabled"
              },
-             "action": "credits"
+             "action": "credits",
+             "navigation": {"up": "nav_settings", "down": "nav_continue", "left": "link_updates", "right": "link_exit"}
             }
            },
            {
@@ -17804,7 +17813,8 @@
               "pressed": "link_exit.pressed",
               "disabled": "link_exit.disabled"
              },
-             "event": "exitModalShow"
+             "event": "exitModalShow",
+             "navigation": {"up": "nav_settings", "down": "nav_continue", "left": "link_credits", "right": "link_mods"}
             }
            }
           ]

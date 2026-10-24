@@ -6106,7 +6106,8 @@
           "pressed": "quake4.pressed",
           "disabled": "quake4.disabled"
          },
-         "action": "campaignQuake4"
+         "action": "campaignQuake4",
+         "navigation": {"up": "back", "down": "awakening"}
         }
        },
        {
@@ -6301,7 +6302,8 @@
           "pressed": "awakening.pressed",
           "disabled": "awakening.disabled"
          },
-         "action": "campaignAwakening"
+         "action": "campaignAwakening",
+         "navigation": {"up": "quake4", "down": "back"}
         }
        },
        {
@@ -6496,7 +6498,8 @@
           "pressed": "back.pressed",
           "disabled": "back.disabled"
          },
-         "action": "back"
+         "action": "back",
+         "navigation": {"up": "awakening", "down": "quake4"}
         }
        }
       ]

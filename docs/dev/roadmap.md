@@ -774,6 +774,8 @@ archived provenance; new scheduling belongs here.
   and time, the load time's decimal mark and unit) and the Demos page's
   capitals come from every language's table. The Admin page's Apply changes
   plate ends with the [Menu button's glyph](ui/input-routing.md#menu-glyphs-24-october-2026).
+  The home screens and menu pages [wrap](ui/input-routing.md#wrapping-menus-24-october-2026):
+  Up and Down loop through each menu and its plinth links, skipping hidden entries.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled

@@ -5827,7 +5827,8 @@
           "pressed": "join.pressed",
           "disabled": "join.disabled"
          },
-         "action": "multiplayerJoin"
+         "action": "multiplayerJoin",
+         "navigation": {"up": "back", "down": "create"}
         }
        },
        {
@@ -6022,7 +6023,8 @@
           "pressed": "create.pressed",
           "disabled": "create.disabled"
          },
-         "action": "multiplayerCreate"
+         "action": "multiplayerCreate",
+         "navigation": {"up": "join", "down": "setup"}
         }
        },
        {
@@ -6217,7 +6219,8 @@
           "pressed": "setup.pressed",
           "disabled": "setup.disabled"
          },
-         "action": "multiplayerSetup"
+         "action": "multiplayerSetup",
+         "navigation": {"up": "create", "down": "back"}
         }
        },
        {
@@ -6412,7 +6415,8 @@
           "pressed": "back.pressed",
           "disabled": "back.disabled"
          },
-         "action": "back"
+         "action": "back",
+         "navigation": {"up": "setup", "down": "join"}
         }
        }
       ]

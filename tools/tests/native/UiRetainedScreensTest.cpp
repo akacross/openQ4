@@ -879,6 +879,58 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 	Check(host.errors == 0,"no runtime diagnostics across the Admin page");
 }
 
+// Section 13.4: the home menus wrap. Up from the top runs on to the
+// plinth's links and Down from them back to the top, Left and Right wrap
+// along the plinth, and CONTINUE without a save passes the move on.
+static void CheckMenuWrap(ScreenHost& host, const char* titlePath, const char* pausePath) {
+	Viewport viewport; viewport.canvasHeight = 720; viewport.width = 1280; viewport.height = 720;
+	std::string error; double t = 1;
+	const auto press = [&](Runtime& runtime, MenuInput input) {
+		runtime.MenuAction(input,true,t); runtime.MenuAction(input,false,t+.01); t += .05; runtime.Frame(viewport,t);
+	};
+	{
+		Runtime runtime(host); std::vector<Diagnostic> diagnostics;
+		Check(runtime.Initialize() && runtime.LoadDocument(Read(titlePath),"guis/menu/title.q4ui",diagnostics),"the title loads for its wrap");
+		runtime.Frame(viewport,t);
+		Check(runtime.FocusControl("nav_singleplayer",t+=.05),"focus SINGLE PLAYER without a save");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "link_mods","Up from the top, CONTINUE hidden, wraps to the plinth's first link");
+		press(runtime,MenuInput::Left);
+		Check(runtime.FocusedControl() == "link_exit","Left wraps along the plinth");
+		press(runtime,MenuInput::Right);
+		Check(runtime.FocusedControl() == "link_mods","Right wraps back");
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "nav_singleplayer","Down from the plinth returns to the top, past the hidden CONTINUE");
+		Check(runtime.SetState({{"menu_continue",true}},error,t),"a save to continue");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "nav_continue","with a save Up reaches CONTINUE");
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "link_mods","and wraps on from it");
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "nav_continue","Down from the plinth reaches CONTINUE");
+	}
+	{
+		Runtime runtime(host); std::vector<Diagnostic> diagnostics;
+		Check(runtime.Initialize() && runtime.LoadDocument(Read(pausePath),"guis/menu/pause.q4ui",diagnostics),"the pause loads for its wrap");
+		runtime.Frame(viewport,t+=.05);
+		Check(runtime.FocusControl("nav_resume",t+=.05),"focus RESUME");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "link_exit","Up from RESUME wraps to EXIT");
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "nav_resume","Down from EXIT wraps to RESUME");
+		Check(runtime.FocusControl("nav_quit",t+=.05),"focus QUIT TO MENU");
+		runtime.Frame(viewport,t+=.05);
+		press(runtime,MenuInput::Down);
+		Check(runtime.FocusedControl() == "link_exit","the last action steps down to EXIT");
+		press(runtime,MenuInput::Up);
+		Check(runtime.FocusedControl() == "nav_quit","and EXIT back up to it");
+	}
+	Check(host.errors == 0,"no runtime diagnostics across the menu wraps");
+}
+
 static void CheckMatch(ScreenHost& host, const char* path) {
 	const auto source = Read(path);
 	Runtime runtime(host);
@@ -3936,6 +3988,7 @@ int main(int argc, char** argv) {
 	for (const auto& [page,name] : {std::pair{5,"guis/menu/singleplayer.q4ui"},std::pair{6,"guis/menu/campaigns.q4ui"},
 		std::pair{13,"guis/menu/campaign_skill.q4ui"},std::pair{26,"guis/menu/multiplayer.q4ui"}})
 		if (runs(page == 26 ? "mp-pages" : "pages")) CheckPagePrompts(host,argv[page],name,"",nullptr,nullptr,true);
+	if (runs("menus")) CheckMenuWrap(host,argv[1],argv[2]);
 	// Title: canvas scaling, the lit field, the multiplied emblem and CONTINUE.
 	if (runs("menus")) {
 		const auto source = Read(argv[1]);

@@ -74,6 +74,16 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Wrapping menus, 24 October 2026
+
+- [x] The title, both pauses, the Arena pause and the Single Player,
+  Campaign and Multiplayer pages wrap Up and Down through their menu and
+  plinth links (section 13.4); an authored move passes through an entry that
+  cannot take focus.
+- [Behavior and checks](ui/input-routing.md#wrapping-menus-24-october-2026):
+  native wrap checks on the real title and pause and engine captures.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Menu button glyphs, 24 October 2026
 
 - [x] Each controller family's Menu button glyph ends the Escape card's

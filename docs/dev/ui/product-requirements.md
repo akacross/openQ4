@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [wrapping menus](input-routing.md#wrapping-menus-24-october-2026)
+add bounded UI-02 evidence to `INP-010`. The home screens and menu pages wrap Up
+and Down through their menus and plinth links, and authored navigation passes a
+move through a target that cannot take focus. The increment is audited against
+`d376ec693290957f26728185cdf287e81d3c5147`. No requirement status, migration acceptance or final gate changes.
+
 24 October 2026: [Menu glyphs](input-routing.md#menu-glyphs-24-october-2026)
 add bounded UI-02 evidence to `INP-011`. Each controller family's Menu button
 glyph ends the Escape card's Admin Apply changes plate, which the button presses,

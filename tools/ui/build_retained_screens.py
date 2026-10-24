@@ -531,6 +531,26 @@ def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> d
     return widths
 
 
+def wrap_menu(column: list, row: list = ()) -> None:
+    """Section 13.4: a menu of up to seven items wraps. Up and Down step
+    through `column` (its controls top to bottom) and on to the plinth's
+    links in `row`, and from there back to the top, so the column and the
+    plinth form one loop; Left and Right wrap along the row. Each move is
+    authored, and a control that cannot take focus (CONTINUE without a save,
+    a disabled entry) passes it on along its own (Interaction::Authored)."""
+    if not 1 <= len(column) <= 7 or len(row) > 7:
+        raise SystemExit(f"a wrapping menu holds up to seven items and links: {len(column)} and {len(row)}")
+    ids = [node["id"] for node in column]
+    links = [node["id"] for node in row]
+    for index, node in enumerate(column):
+        up = ids[index - 1] if index > 0 else (links[0] if links else ids[-1])
+        down = ids[index + 1] if index + 1 < len(ids) else (links[0] if links else ids[0])
+        node["control"].setdefault("navigation", {}).update({"up": up, "down": down})
+    for index, node in enumerate(row):
+        node["control"].setdefault("navigation", {}).update({
+            "up": ids[-1], "down": ids[0], "left": links[index - 1], "right": links[(index + 1) % len(links)]})
+
+
 def plinth(doc: Document, links: list, keys: tuple = ()) -> dict:
     """The link plinth (bg2, Appendix B.1): 24-361 u by 403-422 u, a 45-degree
     lower-leading cut and a parallel trailing cut, marine.plinth at 0.30.
@@ -1756,6 +1776,7 @@ def title_document() -> dict:
     links = [link(doc, "link_mods", "#str_200010", action="mods"), link(doc, "link_demos", "#str_41500", action="demos"),
              link(doc, "link_updates", "#str_200011", action="updates"), link(doc, "link_credits", "#str_200012", action="credits"),
              link(doc, "link_exit", "#str_200013", event="exitModalShow")]
+    wrap_menu(buttons, links)
     stage = group("home-stage", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2),
                                  "opacity": number(1)}, [
         emblem(doc),
@@ -1975,6 +1996,7 @@ def campaign_document(campaigns: bool) -> dict:
     if campaigns:
         doc.bind("awakening.enabled", "awakening", "enabled", {"state": "awakening_ready"})
     buttons.append(navigation_plate(doc, "back", "#str_230045", action="back"))
+    wrap_menu(buttons)
     details = []
     if campaigns:
         for ident, key in [("available", "#str_230041"), ("partial", "#str_230042"), ("absent", "#str_230043")]:
@@ -3093,12 +3115,15 @@ def pause_document(strogg: bool = False) -> dict:
         # The actions translate 45 ms apart, EXIT after them, and the level
         # block's lines follow.
         exit_link = strogg_link(doc, "link_exit", "#str_200013", translation, 120 + 45 * len(items), event="exitModalShow")
+        wrap_menu(plates, [exit_link])
         home_parts = [strogg_title(translation), nav, strogg_level_block(doc, translation, 120 + 45 * (len(items) + 1)),
                       strogg_plinth([exit_link])]
     else:
+        exit_link = link(doc, "link_exit", "#str_200013", event="exitModalShow")
+        wrap_menu(plates, [exit_link])
         home_parts = [label("paused-title", "#str_230031", {**absolute(left=U * 44, top=U * 134, width=U * 330, height=U * 24),
                             **typeface("marine", 18, U * 24, [1, 1, 1, 0.5]), "white-space": keyword("nowrap")}),
-                      nav, level_block(doc), plinth(doc, [link(doc, "link_exit", "#str_200013", event="exitModalShow")])]
+                      nav, level_block(doc), plinth(doc, [exit_link])]
     content = group("home", {**FULL, "transform": transform(), "opacity": number(1)}, [
         group("home-content", {**absolute(top=0, width=CANVAS_W, height=720), "left": length(50, "%"), "margin-left": length(-CANVAS_W / 2)},
               home_parts),

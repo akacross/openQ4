@@ -188,6 +188,32 @@ no prompt names them yet.
 Evidence for trigger glyphs: `.tmp/ui/trigger-glyphs/validation-evidence.json`,
 SHA-256 `1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59`.
 
+### Wrapping menus (24 October 2026)
+
+Section 13.4's menus of up to seven items wrap; scrolling lists do not. The
+title, both pauses, the Arena pause and the Single Player, Campaign and
+Multiplayer pages author their wrap (`wrap_menu`): Up and Down step through
+the column and on to the plinth's links, and from the links back to the
+top, so the column and the plinth form one loop that a controller can go
+round either way; Left and Right wrap along the plinth. At the title, Up
+from SINGLE PLAYER (or CONTINUE) reaches MODS, Left from MODS reaches EXIT,
+and Down from any link returns to the top. On the pauses Up from RESUME
+reaches EXIT and Down from EXIT returns to RESUME.
+
+Each move is an authored navigation target. The runtime now passes a move
+on through a target that cannot take focus along that target's own
+authored move in the same direction (`Interaction::Authored`), so CONTINUE
+without a save, or a disabled entry such as an Awakening campaign that is
+not installed, is skipped rather than stopping the move; a chain that ends
+or loops falls back to the spatial or tab-order move as before. Tab strips
+already wrap (the cards' shoulders), screens already restore the focus of
+the item that led to a page (`returnHome`), and closing a dialog returns
+focus to the control that opened it. Containers that remember their own
+last focus within a page remain.
+
+Evidence for wrapping menus: `.tmp/ui/menu-wrap/validation-evidence.json`,
+SHA-256 `c6e0cce45e07d6b112980a2399eb413fc22ad7d596deacc620a976f7b545739f`.
+
 ### Menu glyphs (24 October 2026)
 
 Section 13.5's glyph families gain the Menu button, drawn in the family text

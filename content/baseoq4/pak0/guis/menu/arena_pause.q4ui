@@ -6603,7 +6603,8 @@
               "pressed": "nav_resume.pressed",
               "disabled": "nav_resume.disabled"
              },
-             "action": "resume"
+             "action": "resume",
+             "navigation": {"up": "nav_leave", "down": "nav_restart"}
             }
            },
            {
@@ -6798,7 +6799,8 @@
               "pressed": "nav_restart.pressed",
               "disabled": "nav_restart.disabled"
              },
-             "event": "restartModalShow"
+             "event": "restartModalShow",
+             "navigation": {"up": "nav_resume", "down": "nav_settings"}
             }
            },
            {
@@ -6993,7 +6995,8 @@
               "pressed": "nav_settings.pressed",
               "disabled": "nav_settings.disabled"
              },
-             "action": "settings"
+             "action": "settings",
+             "navigation": {"up": "nav_restart", "down": "nav_leave"}
             }
            },
            {
@@ -7188,7 +7191,8 @@
               "pressed": "nav_leave.pressed",
               "disabled": "nav_leave.disabled"
              },
-             "event": "leaveModalShow"
+             "event": "leaveModalShow",
+             "navigation": {"up": "nav_settings", "down": "nav_resume"}
             }
            }
           ]

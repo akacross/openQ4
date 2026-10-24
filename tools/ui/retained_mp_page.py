@@ -24,7 +24,7 @@ from __future__ import annotations
 from build_retained_screens import (ACCEL, BOTTOM_TO_PAGE, CANVAS_W, CRUMB_SCALE, CRUMB_SPAN, FULL, ORANGE, PAGE_TITLE_H, PAGE_TITLE_W,
                                     SUBPAGE_REVERSE_MS, SUBPAGE_SLOT, TITLE_SLOT, TOP_TO_PAGE, TOP_TO_SUBPAGE, U, Document, absolute,
                                     by_language, colour, crumb_fits, crumb_transform, framing_bands, group, keyword, label, length,
-                                    lit_field, navigation_plate, number, page_prompts, rgb, OLIVE, track, transform, typeface)
+                                    lit_field, navigation_plate, number, page_prompts, rgb, OLIVE, track, transform, typeface, wrap_menu)
 from retained_difficulty import check_fits
 
 NAV_TOP = 181.0    # the stock Multiplayer page's first button (mp_b1)
@@ -83,6 +83,7 @@ def multiplayer_document() -> dict:
         doc.session(action, action)
         buttons.append(navigation_plate(doc, ident, key, action=action))
     buttons.append(navigation_plate(doc, "back", "#str_230045", action="back"))
+    wrap_menu(buttons)
     description = label("description", "#str_231121", {**absolute(left=0, top=0, width=U * DETAILS[0], height=U * DETAILS[1]),
                                                        **typeface("lowpixel", DETAIL_TEXT, DETAIL_LINE, rgb(OLIVE))})
     bands = framing_bands("band")

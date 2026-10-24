@@ -66,6 +66,9 @@
 - The loading screen's load time uses your language's decimal mark and unit,
   and the Demos page's headings and buttons are in capitals like the other
   pages'.
+- The main menu, pause menus and Single Player and Multiplayer pages wrap:
+  pressing up at the top moves to the links at the bottom, and down from
+  them returns to the top.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

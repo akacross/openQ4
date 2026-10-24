@@ -54,6 +54,13 @@ def prompt_style(style: int) -> list[str]:
     return [f'set in_promptStyle {style}', f'testPromptDevice {"controller" if style else "desktop"}']
 
 
+def menu_step(direction: str) -> list[str]:
+    """Steps that press one semantic menu direction (no device input) and
+    report where the focus went."""
+    return [f'openq4_retainedGui menu {direction} 1', f'openq4_retainedGui menu {direction} 0', 'waitMsec 400',
+            'openq4_retainedGui report']
+
+
 SCENARIOS = {
     'title': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/title.tga"',
@@ -459,6 +466,22 @@ SCENARIOS = {
     # presents its own home screen, and the pause screen does not cover it either.
     'fallback-menu': (None, [
         'waitMsec 4000', 'ui_retainedStatus', 'screenshot "screenshots/fallback-menu.tga"',
+    ]),
+    # Section 13.4's wrapping menus at the title, without a save to continue:
+    # Up from SINGLE PLAYER runs on to the plinth's MODS, Left wraps to EXIT
+    # and Down returns to the top past the hidden CONTINUE.
+    'menu-wrap-title': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_singleplayer', 'waitMsec 400', 'openq4_retainedGui report',
+        'screenshot "screenshots/menu-wrap-title.tga"',
+        *menu_step('up'), 'screenshot "screenshots/menu-wrap-title-up.tga"',
+        *menu_step('left'), 'screenshot "screenshots/menu-wrap-title-left.tga"',
+        *menu_step('down'), 'screenshot "screenshots/menu-wrap-title-down.tga"',
+    ]),
+    # The pause: Up from RESUME wraps to EXIT and Down from EXIT to RESUME.
+    'menu-wrap-pause': ('game/airdefense1', [
+        'openq4_assertMenuActivation 10000', 'waitMsec 1500', 'openq4_retainedGui focus nav_resume', 'waitMsec 400',
+        *menu_step('up'), 'screenshot "screenshots/menu-wrap-pause-up.tga"',
+        *menu_step('down'), 'screenshot "screenshots/menu-wrap-pause-down.tga"',
     ]),
     # The retained SYSTEM page lacks some stock settings, so by default the
     # SYSTEM button opens the stock page.

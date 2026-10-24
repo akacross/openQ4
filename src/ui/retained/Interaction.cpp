@@ -1525,19 +1525,27 @@ void Interaction::Navigate(MenuInput input) {
 		if (const auto lost = items.find(lostFocus); lost != items.end()) {
 			// A copy: Focus forgets the lost control as it takes the focus.
 			if (Eligible(lostFocus)) { Focus(std::string(lostFocus)); return; }
-			const auto explicitTarget = lost->second.control.navigation.find(name);
-			auto next = explicitTarget != lost->second.control.navigation.end() && Eligible(explicitTarget->second) ? explicitTarget->second :
-				ordered ? Following(lostFocus,input) : focusBounds.visible ? Toward(focusBounds,lostFocus,input) : std::string{};
+			auto next = Authored(lostFocus,name);
+			if (next.empty()) next = ordered ? Following(lostFocus,input) : focusBounds.visible ? Toward(focusBounds,lostFocus,input) : std::string{};
 			if (!next.empty()) { Focus(next); return; }
 		}
 		if (input == MenuInput::Previous) { for (auto it = order.rbegin(); it != order.rend(); ++it) if (Eligible(*it)) { Focus(*it); return; } }
 		Focus(First()); return;
 	}
 	const auto& item = items.at(focused);
-	const auto explicitTarget = item.control.navigation.find(name);
-	if (explicitTarget != item.control.navigation.end() && Eligible(explicitTarget->second)) { Focus(explicitTarget->second); return; }
+	if (const auto authored = Authored(focused,name); !authored.empty()) { Focus(authored); return; }
 	const auto next = ordered ? Following(focused,input) : Toward(item.bounds,focused,input);
 	if (!next.empty()) Focus(next);
+}
+std::string Interaction::Authored(const std::string& from, const char* name) const {
+	std::set<std::string> visited{from};
+	for (auto found = items.find(from); found != items.end();) {
+		const auto target = found->second.control.navigation.find(name);
+		if (target == found->second.control.navigation.end() || !visited.insert(target->second).second) return {};
+		if (Eligible(target->second)) return target->second;
+		found = items.find(target->second);
+	}
+	return {};
 }
 std::string Interaction::Following(const std::string& from, MenuInput input) const {
 	const auto current = std::find(order.begin(),order.end(),from)-order.begin();

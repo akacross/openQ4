@@ -107,6 +107,7 @@ def arena_pause_document() -> dict:
     items = [("nav_resume", RESUME_KEY, "resume", None), ("nav_restart", RESTART_KEY, None, "restartModalShow"),
              ("nav_settings", SETTINGS_KEY, "settings", None), ("nav_leave", LEAVE_KEY, None, "leaveModalShow")]
     plates = [b.navigation_plate(doc, ident, key, action=action, event=event) for ident, key, action, event in items]
+    b.wrap_menu(plates)
     nav = group("nav", {**absolute(left=0, top=U * NAV_TOP_U, width=U * 413), "display": keyword("flex"),
                         "flex-direction": keyword("column")}, plates)
     title = label("paused-title", TITLE_KEY, {**absolute(left=U * 44, top=U * TITLE_TOP_U, width=U * 330, height=U * 24),

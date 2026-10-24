@@ -367,6 +367,10 @@ private:
 	// The eligible control after `from` in tab order (Next or Previous), and
 	// the nearest one from `bounds` in a direction; empty when there is none.
 	std::string Following(const std::string& from, MenuInput input) const;
+	// The authored target of a move from `from`; one that cannot take focus
+	// passes the move on along its own authored target, so a wrapping menu
+	// skips an entry that is hidden or disabled. Empty when the chain ends.
+	std::string Authored(const std::string& from, const char* name) const;
 	std::string Toward(const ControlBounds& bounds, const std::string& from, MenuInput input) const;
 	void Activate(const std::string& id);
 	bool Propose(const std::string& id, const StateValue& value);

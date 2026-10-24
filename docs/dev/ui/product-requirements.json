@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
+    "engine_revision": "d376ec693290957f26728185cdf287e81d3c5147",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -120,7 +120,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Semantic button/device ownership fixtures; no full widget, text, touch or platform acceptance.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a"
     },
     "interaction-foundation": {
       "kind": "implementation_checkpoint",
@@ -832,7 +832,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "The controller menu pump pairs each navigation step with its release on every retained input target, so a stick push no longer leaves focus moving on the Single Player, Campaign and SYSTEM pages. Qualified by a compiled pump test, a mutation pass and the session tests.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a"
     },
     "event-focus-tabs": {
       "kind": "implementation_checkpoint",
@@ -1040,7 +1040,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Prompts follow the active device: the SDL family, the Prompt Style override, the adapter's prompt.glyphs and the vector glyphs of the prompt bars and the loading prompt, qualified by the gate, the adapter harness, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a"
     },
     "retained-card-glyphs-evidence": {
       "kind": "implementation_checkpoint",
@@ -1052,7 +1052,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Swap Confirm and Back: the setting, the translation in every menu input path and the prompts that follow it, qualified by the adapter harness, the input test, the gate, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a"
     },
     "retained-network-quality-evidence": {
       "kind": "implementation_checkpoint",
@@ -1187,7 +1187,7 @@
       "baseline_engine_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "companion_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "scope": "UI-02/UI-03 controller settings, list paging and Join Game focus: Prompt Style (in_promptStyle) and Swap Confirm and Back (in_swapConfirmBack) as stock choice rows in Game Options > Controller in every shipped language, the later rows, hovers, anchors and scroll extent moved; PageUp/PageDown and Home/End moving focus a visible page through the scrolling list that holds a focused button or toggle (Runtime::Impl::PageList), the triggers sending them where a document declares no section events and stepping a focused slider coarsely; Join Game's row focus following its server through new orders, refreshes and filters onto its page. Settings coverage and GUI contracts, the focus reveal test at two densities with button and toggle rows, the adapter and session gate harnesses and an OpenGL English Settings and Load Game capture pass. Trigger and other button glyphs, right-stick detail scrolling and physical controller runs remain.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
       "local_capture_summary": ".tmp/ui/controller-settings-paging/validation-evidence.json",
       "local_capture_summary_sha256": "4ee88d83dbf0f98347f95fa70529aeb463fc20bb7725aaad1f905b6a5a82831c"
     },
@@ -1197,7 +1197,7 @@
       "baseline_engine_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
       "companion_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
       "scope": "UI-02/INP-011: the gamepad Menu button runs a retained document's onMenuButton, once per press, where declared (Back elsewhere); Save Game, Restart Level and in-game Load Game ask the session for menuResume, which returns the pause and runs its RESUME during a single-player game.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
       "local_capture_summary": ".tmp/ui/menu-button-resume/validation-evidence.json",
       "local_capture_summary_sha256": "7d791a2d806b2f192709d210e04b984d5ba59b3a49860c5564c28448e1af3782"
     },
@@ -1207,7 +1207,7 @@
       "baseline_engine_revision": "2bfcb60cc42b51d700b36386d065c104c0d9daf5",
       "companion_revision": "2bfcb60cc42b51d700b36386d065c104c0d9daf5",
       "scope": "UI-02/INP-011: the Menu button applies pending changes on the opt-in SYSTEM page (update_system_menu_button.py) and the Escape card's Admin page, and the adapter keeps it Back while a dialog or an open list holds the input (Runtime::ModalOpen, the focused widget's popupOpen).",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
       "local_capture_summary": ".tmp/ui/menu-button-apply/validation-evidence.json",
       "local_capture_summary_sha256": "f8fea2394b50fc49215af334f825208e7b17f9fe35970f45b7adb3e9945665c6"
     },
@@ -1217,7 +1217,7 @@
       "baseline_engine_revision": "55ed6f210da77490d2389849e04d46faad92e9c0",
       "companion_revision": "55ed6f210da77490d2389849e04d46faad92e9c0",
       "scope": "UI-02/INP-011: section 13.5's trigger glyphs (LT/RT, L2/R2, ZL/ZR, Steam Deck's outlined L2/R2, generic chevrons) end the Escape card's Match and Admin section strips, a legend for a controller only.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
       "local_capture_summary": ".tmp/ui/trigger-glyphs/validation-evidence.json",
       "local_capture_summary_sha256": "1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59"
     },
@@ -1237,9 +1237,19 @@
       "baseline_engine_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
       "companion_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
       "scope": "UI-02/INP-011: section 13.5's Menu button glyphs (Xbox disc, PlayStation Options pill, Nintendo plus, Steam Deck ring, generic outlined pill) end the Escape card's Admin Apply changes plate, which the button presses, for a controller only.",
-      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
       "local_capture_summary": ".tmp/ui/menu-glyphs/validation-evidence.json",
       "local_capture_summary_sha256": "c2bc17f9841b34b99304af21faa4c2f65104a3c8dad2af5a484488d67fa2a4cf"
+    },
+    "menu-wrap": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/input-routing.md",
+      "baseline_engine_revision": "d376ec693290957f26728185cdf287e81d3c5147",
+      "companion_revision": "d376ec693290957f26728185cdf287e81d3c5147",
+      "scope": "UI-02/INP-010: section 13.4's wrapping menus in the title, both pauses, the Arena pause and the Single Player, Campaign and Multiplayer pages (wrap_menu), and authored navigation that passes a move through a target that cannot take focus (Interaction::Authored).",
+      "sha256": "c34287615bf2e0c58bc11213f6d8849641c93a726b8fc9e399e8c22fc767392a",
+      "local_capture_summary": ".tmp/ui/menu-wrap/validation-evidence.json",
+      "local_capture_summary_sha256": "c6e0cce45e07d6b112980a2399eb413fc22ad7d596deacc620a976f7b545739f"
     }
   },
   "groups": {
@@ -8976,10 +8986,11 @@
       ],
       "status": "partial",
       "current_evidence": [
-        "event-focus-tabs"
+        "event-focus-tabs",
+        "menu-wrap"
       ],
       "acceptance_evidence": [],
-      "remaining": "Event programs can now focus a control, so a page can open with its primary action focused (the focus instruction). Containers remembering their focus, modals returning focus to the invoker, authored navigation overrides, wrapping menus and tab strips, and documents that use them remain.",
+      "remaining": "Event programs can now focus a control, so a page can open with its primary action focused (the focus instruction). Authored navigation overrides now pass a move on through a target that cannot take focus, and the title, both pauses, the Arena pause and the Single Player, Campaign and Multiplayer pages wrap Up and Down through their menu and plinth links; the cards' tab strips wrap, pages restore the focus of the item that led to them, and dialogs return focus to their invoker. Containers remembering their own last focus within a page, wrapping for the remaining short menus (dialog button rows, difficulty lists) and physical-device qualification remain.",
       "constraints": {
         "wrap_max_items": 7
       }
