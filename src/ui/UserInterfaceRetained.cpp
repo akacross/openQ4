@@ -1395,12 +1395,17 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 				}
 				case K_ENTER: case K_KP_ENTER: case K_SPACE: case K_JOY3: action = MenuInput::Accept; break;
 				case K_ESCAPE: case K_JOY4: case K_JOY8: action = MenuInput::Back; break;
-				// The Menu button closes the menus and resumes play (section 13.5)
-				// where the document declares it; elsewhere it is Back.
-				case K_JOY7:
+				// The Menu button applies pending changes or closes the menus and
+				// resumes play (section 13.5) where the document declares it;
+				// elsewhere, and while a dialog or an open list holds the input,
+				// it is Back, which closes them.
+				case K_JOY7: {
+					auto* runtime = impl->RuntimeView();
+					const auto widget = runtime ? runtime->GetWidgetState(runtime->FocusedControl()) : std::nullopt;
 					action = MenuInput::Back;
-					mapped = !impl->RuntimeView() || !impl->RuntimeView()->HasEvent("onMenuButton");
+					mapped = !runtime || !runtime->HasEvent("onMenuButton") || runtime->ModalOpen() || (widget && widget->popupOpen);
 					break;
+				}
 				default: mapped = false; break;
 			}
 			if (mapped) { impl->pointerVisible = false; impl->input.Menu(key,action,down,repeated,RetainedUI_PresentationTime()); }

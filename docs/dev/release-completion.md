@@ -32,6 +32,10 @@ completed release material here and publish curated notes in `releases/`.
 - [Behavior and checks](ui/input-routing.md#menu-button-24-october-2026):
   adapter and session gate harnesses, native page checks and an in-game capture.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+- [x] Later the same day the Menu button applies pending changes on the opt-in
+  SYSTEM page and the Escape card's Admin page, and is Back while a dialog or
+  an open list holds the input: adapter harness, native SYSTEM and Escape card
+  checks and in-game captures ([Apply](ui/input-routing.md#menu-button-24-october-2026)).
 
 ## Controller prompt settings and list paging, 24 October 2026
 

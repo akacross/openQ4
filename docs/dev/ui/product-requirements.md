@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [the Menu button's Apply](input-routing.md#menu-button-24-october-2026)
+adds bounded UI-02 evidence to `INP-011`. The opt-in SYSTEM page and the Escape
+card's Admin page apply pending changes with the Menu button, and the adapter keeps
+the button Back while a dialog or an open list holds the input. The increment is
+audited against `2bfcb60cc42b51d700b36386d065c104c0d9daf5`. No requirement status, migration acceptance or final
+gate changes.
+
 24 October 2026: [the Menu button](input-routing.md#menu-button-24-october-2026)
 adds bounded UI-02 evidence to `INP-011`. A document's `onMenuButton` runs once
 per press where declared and the button is Back elsewhere; the pause's Save, Load

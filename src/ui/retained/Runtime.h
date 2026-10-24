@@ -328,6 +328,9 @@ public:
 	bool SetControlEnabled(const std::string& id, bool enabled, double monotonicSeconds);
 	bool PushModal(const std::string& root, double monotonicSeconds);
 	bool PopModal(double monotonicSeconds);
+	// Whether a modal scope, an authored dialog or a pushed one, holds the
+	// input, so that Back closes it rather than the document.
+	bool ModalOpen() const;
 	std::string FocusedControl() const;
 	// The verb a prompt bar shows for Accept (section 13.4): the focused
 	// button's prompt, `fallback` for a control that names none, or empty

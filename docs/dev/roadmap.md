@@ -750,7 +750,9 @@ archived provenance; new scheduling belongs here.
   buttons, the right stick's detail scrolling and per-family controller runs remain.
   Progress, 24 October: the [Menu button](ui/input-routing.md#menu-button-24-october-2026)
   closes the menus and resumes play from the pause's Save, Load and Restart Level
-  pages. Its Apply on screens with pending changes remains.
+  pages. Later that day it [applies pending changes](ui/input-routing.md#menu-button-24-october-2026)
+  on the SYSTEM page and the Escape card's Admin page, and stays Back while a
+  dialog or an open list holds the input.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled

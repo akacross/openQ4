@@ -7683,7 +7683,24 @@
     "then": [{"op": "setState", "values": {"card.released": false}}, {"op": "playTimeline", "timeline": "unrelease"}]
    }
   ],
-  "onBack": [{"op": "action", "action": "mpClose"}]
+  "onBack": [{"op": "action", "action": "mpClose"}],
+  "onMenuButton": [
+   {
+    "op": "if",
+    "condition": {
+     "op": "&&",
+     "args": [
+      {"op": "==", "args": [{"state": "card.tab"}, 7]},
+      {
+       "op": "&&",
+       "args": [{"op": "==", "args": [{"state": "card.admin_section"}, 1]}, {"state": "mp.admin.apply.available"}]
+      }
+     ]
+    },
+    "then": [{"op": "call", "event": "admin_apply"}],
+    "else": [{"op": "action", "action": "mpClose"}]
+   }
+  ]
  },
  "bindings": [
   {"id": "header-mode.text", "node": "header-mode", "property": "text", "value": {"state": "mp.mode"}},

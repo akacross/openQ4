@@ -56,6 +56,8 @@
   re-sorts or refreshes, instead of the highlight landing on another server.
 - The controller's Menu button now returns straight to the game from the pause
   menu's Save, Load and Restart Level pages.
+- On a multiplayer server's Admin page, the Menu button applies your server
+  changes; with a dialog or list open, it closes that first.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

@@ -458,6 +458,8 @@ public:
     std::string modalRoot="dialog",modalBack="modalback";
     std::uint64_t modalIdentity=1;
     bool authoredModal=false;
+    bool modalOpen=false;
+    bool ModalOpen() const {return modalOpen;}
     std::vector<ControlAction> modalBackQueries;
     std::vector<ControlAction> controlActionQueries;
     std::map<std::string,std::pair<std::string,std::string>> expectedControlDescriptors;
@@ -2447,7 +2449,8 @@ static void CheckNumberDiagnosticBoundary() {
 // and never while a Number field is being edited. Without section events
 // the triggers are PageUp and PageDown, which page a list; on a focused
 // slider the right trigger raises the value (PageUp). The Menu button runs
-// onMenuButton where it is declared and is Back elsewhere.
+// onMenuButton where it is declared and is Back elsewhere and while a dialog
+// or an open list holds the input.
 static void CheckTabKeys() {
     assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;
     eventPlans={};eventHistory.clear();
@@ -2510,6 +2513,11 @@ static void CheckTabKeys() {
     eventPlans["onmenubutton"]={};runtime.menu.clear();
     pulse(K_JOY7);Key(gui,K_JOY7,true);Key(gui,K_JOY7,true);Key(gui,K_JOY7,false);
     assert(runtime.menu.empty() && std::count(eventHistory.begin(),eventHistory.end(),std::string("onmenubutton"))==2);
+    // A dialog or an open list keeps it Back, which closes them.
+    runtime.modalOpen=true;pulse(K_JOY7);runtime.modalOpen=false;
+    runtime.widgets.at("root").popupOpen=true;pulse(K_JOY7);runtime.widgets.at("root").popupOpen=false;
+    assert((runtime.menu==Pulses{{MenuInput::Back,true},{MenuInput::Back,false},{MenuInput::Back,true},{MenuInput::Back,false}}));
+    assert(std::count(eventHistory.begin(),eventHistory.end(),std::string("onmenubutton"))==2);
 }
 // A document that declares prompt.glyphs gets RetainedUI_PromptGlyphs as
 // each frame draws, once per change, and the session's state pushes carry

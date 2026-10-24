@@ -39,7 +39,7 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Arrow keys / D-pad | Spatial navigation |
 | Enter, keypad Enter, Space / gamepad South (East while swapped) | Accept on paired release |
 | Escape / gamepad East (South while swapped), Start, Back | Pop the current modal scope, then close the root menu |
-| Gamepad Menu (Start) | The document's `onMenuButton` where it declares it ([Menu button](#menu-button-24-october-2026)), once per press; otherwise as Back |
+| Gamepad Menu (Start) | The document's `onMenuButton` where it declares it ([Menu button](#menu-button-24-october-2026)), once per press; otherwise, and while a dialog or an open list holds the input, as Back |
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
@@ -137,12 +137,37 @@ session for `menuResume`, which returns the pause and runs its RESUME, so the
 softened view releases as it does from the pause. At the title, Load Game's
 Menu goes back as Back does. The pause itself already resumes on Back.
 `menuResume` acts only while a single-player game runs; a field being edited
-keeps the button. Apply on a screen with pending changes (the SYSTEM page)
-remains open.
+keeps the button.
 
 Evidence for the Menu button:
 `.tmp/ui/menu-button-resume/validation-evidence.json`, SHA-256
 `7d791a2d806b2f192709d210e04b984d5ba59b3a49860c5564c28448e1af3782`.
+
+**Apply.** On a screen with pending changes the Menu button applies them.
+While a dialog (an authored modal scope) or the focused control's open list
+holds the input, the adapter keeps the button Back, which closes them
+(`Runtime::ModalOpen`, the widget's `popupOpen`), so Menu never acts behind
+a dialog. The two screens with an Apply declare it:
+
+- The opt-in SYSTEM page (`tools/ui/update_system_menu_button.py`) runs its
+  own programs. With pending changes Menu runs `apply`, whose condition
+  still decides whether Apply can run; with a typed number not yet
+  committed it moves the focus to that number, as Continue Editing does,
+  since Apply waits for it; on a clean page it runs `onBack`, which closes
+  the page. In the display confirmation and the discard dialog it does what
+  Back does there (`confirmationBack`, `continueEditing`), so Menu never
+  keeps a display change unseen; the adapter already routes those dialogs
+  to Back.
+- The Escape card's [Admin page](multiplayer-menus.md#the-admin-page)
+  presses Apply changes while its Server section has something to apply
+  (`mp.admin.apply.available`); otherwise Menu closes the card, as Back
+  does. The Welcome and summary cards keep the button Back.
+
+Match Control's staged rules commit through a confirmation and keep Menu
+as Back.
+
+Evidence for Apply: `.tmp/ui/menu-button-apply/validation-evidence.json`,
+SHA-256 `f8fea2394b50fc49215af334f825208e7b17f9fe35970f45b7adb3e9945665c6`.
 
 ### Settings rows (24 October 2026)
 

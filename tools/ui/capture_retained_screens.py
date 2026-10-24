@@ -128,6 +128,22 @@ SCENARIOS = {
         'openq4_retainedGui number commit "admin-command"', 'waitMsec 1000', 'openq4_retainedGui inspect "admin-console-0"',
         'openq4_retainedGui inspect "admin-console-11"', 'screenshot "screenshots/mpadmin-console.tga"',
     ]),
+    # The Menu button on the Admin page (section 13.5): with a frag limit
+    # drafted on the Server section it presses Apply changes, which applies it
+    # and closes the card; reopened on the Players section it closes the card.
+    'mpadmin-menu': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'si_fragLimit', 'ui_retainedStatus',
+        'openq4_retainedGui event tab_admin', 'waitMsec 600',
+        'openq4_retainedGui event admin_section_server', 'waitMsec 400', 'openq4_retainedGui focus "admin-row-fraglimit"',
+        *[step for _ in range(3) for step in ('openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 150')],
+        'waitMsec 400', 'openq4_retainedGui inspect "admin-row-fraglimit-value"', 'openq4_retainedGui inspect "admin-apply"',
+        'screenshot "screenshots/mpadmin-menu-pending.tga"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 2000', 'si_fragLimit', 'ui_retainedStatus',
+        'screenshot "screenshots/mpadmin-menu-applied.tga"',
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'openq4_retainedGui event tab_admin', 'waitMsec 400',
+        'openq4_retainedGui event admin_section_players', 'waitMsec 400', 'openq4_retainedGui inspect "admin-apply"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/mpadmin-menu-closed.tga"',
+    ]),
     # The Admin page from a client of a dedicated server (SCENARIO_SERVERS):
     # the password first; a wrong one is refused, the server's own makes the
     # player an admin, and the console sends a command. (A client's console
@@ -428,6 +444,22 @@ SCENARIOS = {
         'waitMsec 1500', 'openq4_system report', 'openq4_retainedGui report', 'ui_retainedStatus',
         'screenshot "screenshots/system-optin.tga"',
         'openq4_system back', 'waitMsec 1000', 'openq4_system report',
+    ]),
+    # Opted into, the Menu button on the SYSTEM page (section 13.5): with the
+    # brightness drafted it applies the change; with another drafted, Back asks
+    # to discard and Menu there continues editing, as Back does.
+    'system-menu-apply': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_system',
+        'waitMsec 1500', 'openq4_system report', 'r_brightness',
+        'openq4_retainedGui focus settings_brightness', 'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/system-menu-pending.tga"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 1500', 'openq4_retainedGui report', 'r_brightness',
+        'screenshot "screenshots/system-menu-applied.tga"',
+        'openq4_retainedGui focus settings_brightness', 'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0',
+        'waitMsec 600', 'openq4_system back', 'waitMsec 1000', 'openq4_retainedGui report',
+        'screenshot "screenshots/system-menu-discard.tga"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 1000', 'openq4_retainedGui report', 'openq4_system report',
+        'screenshot "screenshots/system-menu-editing.tga"',
     ]),
     # Opted into, the multiplayer menu's SYSTEM route (the event the game sends
     # through "main fromMp_toSystem") opens the retained page over the main
@@ -1091,7 +1123,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'settings-c
                   # An Arena match is a local multiplayer game, where the menu probe is a cheat.
                   'arenapause': {'net_allowCheats': '1'}, 'system-optin': {'ui_retainedSystem': '1'}, 'fallback-system': {'ui_retainedSystem': '1'},
                   'system-mp-route': {'ui_retainedSystem': '1'}, 'fallback-system-mp': {'ui_retainedSystem': '1'},
-                  'system-mp-game': {'ui_retainedSystem': '1'},
+                  'system-mp-game': {'ui_retainedSystem': '1'}, 'system-menu-apply': {'ui_retainedSystem': '1'},
                   'fallback-loading': {'developer': '1'}, 'subpage-reduced': {'ui_retainedReducedMotion': '1'},
                   'arenafail': {'net_port': str(SCENARIO_PORTS['arenafail']), 'net_ip': '127.0.0.1'},
                   'multiplayer': {'net_allowCheats': '1'},

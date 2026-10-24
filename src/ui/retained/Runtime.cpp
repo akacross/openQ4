@@ -3802,6 +3802,7 @@ bool Runtime::SetControlEnabled(const std::string& id, bool enabled, double seco
 bool Runtime::PushModal(const std::string& id, double seconds) {
     if(!Mutate())return false;
  if(!impl->UpdateInteraction(seconds,false,true))return false; const bool result = impl->interaction.PushModal(id); impl->Feedback(seconds); return result; }
+bool Runtime::ModalOpen() const { return !impl->interaction.Modal().empty(); }
 bool Runtime::PopModal(double seconds) {
     if(!Mutate())return false;
  if(!impl->UpdateInteraction(seconds,false,true))return false; const bool result = impl->interaction.PopModal(); impl->Feedback(seconds); return result; }

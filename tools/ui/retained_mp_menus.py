@@ -2932,6 +2932,17 @@ def card_motion(doc: Document, tabs: list, focus: list) -> None:
                                  "then": [{"op": "setState", "values": {"card.released": False}},
                                           {"op": "playTimeline", "timeline": "unrelease"}]}]
     doc.events["onBack"] = [{"op": "action", "action": "mpClose"}]
+    # The Menu button (section 13.5) presses the Admin page's Apply while its
+    # Server section has changes to apply; otherwise it closes the card, as
+    # Back does. Cards without an Admin page leave the button Back.
+    admin = next((index for index, (ident, _key, _window) in enumerate(tabs) if ident == "admin"), None)
+    if admin is not None:
+        from retained_mp_admin import APPLY, SECTIONS
+        doc.events["onMenuButton"] = [{"op": "if", "condition": {"op": "&&", "args": [
+            {"op": "==", "args": [{"state": "card.tab"}, admin]},
+            {"op": "&&", "args": [{"op": "==", "args": [{"state": "card.admin_section"}, SECTIONS.index("server")]},
+                                  {"state": f"mp.admin.{APPLY[0]}.available"}]}]},
+            "then": [{"op": "call", "event": "admin_apply"}], "else": [{"op": "action", "action": "mpClose"}]}]
 
 
 WELCOME_BUILDERS = {"join": join_page, "server": server_page, "players": welcome_players_page, "settings": welcome_settings_page}

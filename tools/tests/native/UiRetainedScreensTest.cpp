@@ -837,6 +837,12 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 	Check(runtime.RunEvent("admin_apply",4.9,effects,error) && effects.actions.empty(),"Apply changes asks nothing while nothing changes");
 	Check(runtime.SetState({{"mp.admin.apply.available",true}},error,5) && runtime.RunEvent("admin_apply",5.05,effects,error) &&
 		asked("mpAdminApply"),"Apply changes sends the draft");
+	// The Menu button presses Apply while the Server section has changes, and
+	// otherwise closes the card as Back does (section 13.5).
+	Check(runtime.RunEvent("onMenuButton",5.06,effects,error) && asked("mpAdminApply"),"Menu applies the server's changes");
+	Check(runtime.SetState({{"mp.admin.apply.available",false}},error,5.07) && runtime.RunEvent("onMenuButton",5.08,effects,error) &&
+		asked("mpClose"),"with nothing to apply Menu closes the card");
+	Check(runtime.SetState({{"mp.admin.apply.available",true}},error,5.09),"changes to apply again");
 	const auto apply = bounds("admin-apply"), page = bounds("page-admin");
 	Check(apply.y+apply.height <= page.y+page.height+.5f,"Apply changes stands inside the page");
 	// Console: the newest lines and the command field.
@@ -846,6 +852,7 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,5.5);
 	Check(text("admin-section-console","display") == "block" && text("admin-console-1","text") == "map: mp/q4dm1","the console shows them");
 	Check(runtime.RunEvent("admin_command_entered",5.6,effects,error) && asked("mpAdminConsole"),"Enter runs the command");
+	Check(runtime.RunEvent("onMenuButton",5.61,effects,error) && asked("mpClose"),"away from the Server section Menu closes the card");
 	// The triggers step the sections, wrapping.
 	Check(runtime.RunEvent("onSectionNext",5.7,effects,error) && std::get<double>(runtime.GetState().at("card.admin_section")) == 0,
 		"the next trigger wraps to Players");
