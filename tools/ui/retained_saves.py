@@ -553,6 +553,12 @@ def load_game_document(family: Family = MARINE) -> dict:
                             ("newer", "loadNewer"), ("older", "loadOlder"), ("newGame", "loadNewGame")):
         doc.session(action, command)
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
+    # The Menu button closes the menus and resumes play (section 13.5): the
+    # session returns the pause, whose RESUME closes it.
+    doc.session("menuResume", "menuResume")
+    # At the title, with no game to resume, it goes back as Back does.
+    doc.events["onMenuButton"] = [{"op": "if", "condition": {"state": "load.ingame"},
+                                   "then": [{"op": "action", "action": "menuResume"}], "else": [{"op": "action", "action": "back"}]}]
     chosen = {"op": ">=", "args": [{"state": "load.selected"}, 0]}
 
     # The leading side: the selected save's picture, its date and time, its
@@ -812,6 +818,10 @@ def save_game_document(family: Family = MARINE) -> dict:
     doc.events["saveRequested"] = [{"op": "if", "condition": {"state": "ui.numberDraftsPending"},
                                     "then": [{"op": "action", "action": "editName"}], "else": [{"op": "action", "action": "save"}]}]
     doc.events["onBack"] = [{"op": "action", "action": "back"}]
+    # The Menu button closes the menus and resumes play (section 13.5): the
+    # session returns the pause, whose RESUME closes it.
+    doc.session("menuResume", "menuResume")
+    doc.events["onMenuButton"] = [{"op": "action", "action": "menuResume"}]
 
     # The list: headings over an olive rule, the saves, newest first, and the
     # pages either side of them. A row's first Accept selects its save, whose

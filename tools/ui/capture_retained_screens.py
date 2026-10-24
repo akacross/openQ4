@@ -256,6 +256,19 @@ SCENARIOS = {
         'openq4_retainedGui menu home 1', 'openq4_retainedGui menu home 0', 'waitMsec 500', 'openq4_retainedGui report',
         'screenshot "screenshots/paging-home.tga"',
     ]),
+    # The Menu button closes the menus and resumes play from the pause's pages
+    # (section 13.5): the Load and then the Save Game page, each left by their
+    # onMenuButton, which the controller's Menu button runs.
+    'menu-resume': ('game/airdefense1', [
+        'waitMsec 1000', 'saveGame "Menu"', 'waitMsec 1500', 'openq4_assertMenuActivation 10000', 'waitMsec 1800',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/menu-load.tga"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/menu-load-resumed.tga"',
+        'openq4_assertMenuActivation 10000', 'waitMsec 1800',
+        'openq4_retainedGui focus nav_savegame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1300', 'ui_retainedStatus', 'screenshot "screenshots/menu-save.tga"',
+        'openq4_retainedGui event onMenuButton', 'waitMsec 900', 'ui_retainedStatus', 'screenshot "screenshots/menu-save-resumed.tga"',
+    ]),
     # Settings > Game Options > Controller's Prompt Style and Swap Confirm and
     # Back rows in the classic in-game menu (SCENARIO_CVARS turns the retained
     # screens off): scrolled to them, their values driven from the console,

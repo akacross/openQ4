@@ -14,10 +14,12 @@
  },
  "actions": {
   "back": {"operation": "session.menu", "arguments": {"command": "restartBack"}},
-  "go": {"operation": "session.menu", "arguments": {"command": "restartGo"}}
+  "go": {"operation": "session.menu", "arguments": {"command": "restartGo"}},
+  "menuResume": {"operation": "session.menu", "arguments": {"command": "menuResume"}}
  },
  "events": {
   "onBack": [{"op": "action", "action": "back"}],
+  "onMenuButton": [{"op": "action", "action": "menuResume"}],
   "chooseSkill0": [{"op": "setState", "values": {"restart.skill": 0}}],
   "chooseSkill1": [{"op": "setState", "values": {"restart.skill": 1}}],
   "chooseSkill2": [{"op": "setState", "values": {"restart.skill": 2}}],

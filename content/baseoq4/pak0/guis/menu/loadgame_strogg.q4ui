@@ -250,6 +250,7 @@
   "newer": {"operation": "session.menu", "arguments": {"command": "loadNewer"}},
   "older": {"operation": "session.menu", "arguments": {"command": "loadOlder"}},
   "newGame": {"operation": "session.menu", "arguments": {"command": "loadNewGame"}},
+  "menuResume": {"operation": "session.menu", "arguments": {"command": "menuResume"}},
   "refresh": {"operation": "session.menu", "arguments": {"command": "saveListRefresh"}},
   "sort": {"operation": "session.menu", "arguments": {"command": "saveListSort"}},
   "manual": {"operation": "session.menu", "arguments": {"command": "saveListFilterManual"}},
@@ -258,6 +259,14 @@
  },
  "events": {
   "onBack": [{"op": "action", "action": "back"}],
+  "onMenuButton": [
+   {
+    "op": "if",
+    "condition": {"state": "load.ingame"},
+    "then": [{"op": "action", "action": "menuResume"}],
+    "else": [{"op": "action", "action": "back"}]
+   }
+  ],
   "loadRow0": [
    {
     "op": "if",

@@ -24,6 +24,15 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Menu button resumes from the pause's pages, 24 October 2026
+
+- [x] The controller's Menu button runs a retained document's `onMenuButton`
+  where declared (Back elsewhere); Save Game, Restart Level and in-game Load
+  Game ask for `menuResume`, which returns the pause and resumes play.
+- [Behavior and checks](ui/input-routing.md#menu-button-24-october-2026):
+  adapter and session gate harnesses, native page checks and an in-game capture.
+  Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Controller prompt settings and list paging, 24 October 2026
 
 - [x] Game Options > Controller gains Prompt Style (`in_promptStyle`) and Swap

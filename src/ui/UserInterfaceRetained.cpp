@@ -212,7 +212,7 @@ bool ApplicationState(const DocumentModel& model, const idDict& dictionary, Stat
 // operations, never console commands; the session maps each one explicitly.
 bool SessionMenuCommand(const std::string& command) {
 	static const std::set<std::string> commands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
-		"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
+		"mods","demos","updates","credits","quit","resume","menuResume","restartLevel","quitToMenu",
         "campaigns","campaignQuake4","campaignAwakening","campaignArena","campaignBack","campaignHome",
         "campaignSkill0","campaignSkill1","campaignSkill2","campaignSkill3","campaignSkill4",
         "campaignSkillTurbo","campaignSkillStart","campaignSkillBack","campaignChapterSelect","campaignChapterStart",
@@ -1002,12 +1002,13 @@ struct idUserInterfaceRetained::Impl {
 	// a page where it declares onSectionPrevious and onSectionNext; the west
 	// face button runs its secondary action (reset, remove, refresh) where it
 	// declares onSecondary, and north its tertiary one (details, search, sort,
-	// filters) where it declares onTertiary (section 13.5). A field being
+	// filters) where it declares onTertiary, and the Menu button its
+	// onMenuButton (section 13.5). A field being
 	// edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
 	bool TabKey(int key, const openq4::KeyEventMetadata* metadata) {
 		const char* name = key == 'q' || key == K_JOY1 ? "onTabPrevious" : key == 'e' || key == K_JOY2 ? "onTabNext" :
 			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" :
-			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : nullptr;
+			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : key == K_JOY7 ? "onMenuButton" : nullptr;
 		if (!name || !RuntimeView()->HasEvent(name)) return false;
 		const bool control = metadata ? metadata->control : held.contains(K_CTRL) || idKeyInput::IsDown(K_CTRL);
 		const bool alt = metadata ? metadata->alt : held.contains(K_ALT) || held.contains(K_RIGHT_ALT) || idKeyInput::IsDown(K_ALT) || idKeyInput::IsDown(K_RIGHT_ALT);
@@ -1393,7 +1394,13 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 					break;
 				}
 				case K_ENTER: case K_KP_ENTER: case K_SPACE: case K_JOY3: action = MenuInput::Accept; break;
-				case K_ESCAPE: case K_JOY4: case K_JOY7: case K_JOY8: action = MenuInput::Back; break;
+				case K_ESCAPE: case K_JOY4: case K_JOY8: action = MenuInput::Back; break;
+				// The Menu button closes the menus and resumes play (section 13.5)
+				// where the document declares it; elsewhere it is Back.
+				case K_JOY7:
+					action = MenuInput::Back;
+					mapped = !impl->RuntimeView() || !impl->RuntimeView()->HasEvent("onMenuButton");
+					break;
 				default: mapped = false; break;
 			}
 			if (mapped) { impl->pointerVisible = false; impl->input.Menu(key,action,down,repeated,RetainedUI_PresentationTime()); }

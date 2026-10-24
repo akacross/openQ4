@@ -6285,6 +6285,18 @@ void idSessionLocal::ShowSaveRestoreFailure( const char *saveName ) {
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
+	if ( request != NULL && !idStr::Icmp( request, "menuResume" ) ) {
+		// The Menu button on one of the pause's pages closes the menus and
+		// resumes a single-player game (section 13.5): the page returns the
+		// pause, whose RESUME closes it.
+		if ( gui != NULL && gui == guiActive && RetainedPageActive() && mapSpawned && !IsMultiplayer() ) {
+			ReturnRetainedPage();
+			if ( guiRetainedHome != NULL ) {
+				HandleRetainedSessionRequest( guiRetainedHome, "resume" );
+			}
+		}
+		return;
+	}
 	if ( gui && request && gui == guiActive && !idStr::Icmp( gui->Name(), RETAINED_SKILL_GUI ) ) {
 		if ( retainedSubpageFrom ) return;
 		Session_HandleCampaignPageRequest( *this, gui, request, true );

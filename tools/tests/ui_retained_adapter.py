@@ -2446,7 +2446,8 @@ static void CheckNumberDiagnosticBoundary() {
 // onTertiary: once per press, never on a repeat, never with Ctrl or Alt,
 // and never while a Number field is being edited. Without section events
 // the triggers are PageUp and PageDown, which page a list; on a focused
-// slider the right trigger raises the value (PageUp).
+// slider the right trigger raises the value (PageUp). The Menu button runs
+// onMenuButton where it is declared and is Back elsewhere.
 static void CheckTabKeys() {
     assert(views.empty());cvars=CVars{};consoleObject.open=false;windowFocused=true;
     eventPlans={};eventHistory.clear();
@@ -2502,6 +2503,13 @@ static void CheckTabKeys() {
     pulse(K_JOY6);
     runtime.widgets.at("root").number->active=false;
     assert(faces().size()==3 && runtime.menu.empty());
+    // The Menu button is Back unless the document declares onMenuButton,
+    // which it then runs once per press.
+    pulse(K_JOY7);
+    assert((runtime.menu==Pulses{{MenuInput::Back,true},{MenuInput::Back,false}}));
+    eventPlans["onmenubutton"]={};runtime.menu.clear();
+    pulse(K_JOY7);Key(gui,K_JOY7,true);Key(gui,K_JOY7,true);Key(gui,K_JOY7,false);
+    assert(runtime.menu.empty() && std::count(eventHistory.begin(),eventHistory.end(),std::string("onmenubutton"))==2);
 }
 // A document that declares prompt.glyphs gets RetainedUI_PromptGlyphs as
 // each frame draws, once per change, and the session's state pushes carry

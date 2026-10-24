@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [the Menu button](input-routing.md#menu-button-24-october-2026)
+adds bounded UI-02 evidence to `INP-011`. A document's `onMenuButton` runs once
+per press where declared and the button is Back elsewhere; the pause's Save, Load
+and Restart Level pages resume play through `menuResume`. The increment is audited
+against `1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [controller settings, list paging and Join Game focus](input-routing.md#settings-rows-24-october-2026)
 add bounded UI-02/UI-03 evidence to `INP-011` and `WID-009`. Prompt Style and Swap
 Confirm and Back are Settings rows, the triggers page retained lists and step a

@@ -1024,6 +1024,19 @@ int main() {
         s.HandleRetainedSessionRequest(page, "loadNewGame"); CHECK(s.guiActive == page);
         s.HandleRetainedSessionRequest(page, "loadBack");
         CHECK(s.guiRetainedHome == pause && pause->named.back() == "returnHome" && s.guiReleasingNone());
+        // The Menu button on the page closes the menus and resumes play: the
+        // page returns the pause, whose RESUME closes it (section 13.5).
+        s.HandleRetainedSessionRequest(pause, "loadGame"); commonObject.time += 550; s.UpdateRetainedHome(); s.UpdateRetainedPage();
+        CHECK(s.guiActive == page && s.RetainedPageActive());
+        const int exits = s.exits; s.HandleRetainedSessionRequest(page, "menuResume");
+        CHECK(s.exits == exits + 1 && !s.RetainedPageActive() && s.retainedPageHome == nullptr);
+        // At the title there is no game to resume: nothing happens there.
+        auto title = Session(true); title.saves = {"quick"}; title.PreloadRetainedScreens(); title.UpdateRetainedHome();
+        title.HandleRetainedSessionRequest(title.guiRetainedHome, "loadGame"); commonObject.time += 550;
+        title.UpdateRetainedHome(); title.UpdateRetainedPage();
+        auto* titlePage = title.guiActive; CHECK(titlePage == title.guiRetainedLoad && titlePage->state["load.ingame"] == "0");
+        title.HandleRetainedSessionRequest(titlePage, "menuResume");
+        CHECK(title.exits == 0 && title.guiActive == titlePage && title.RetainedPageActive());
         auto strogg = Session(true, true); strogg.PreloadRetainedScreens();
         gameObject.publish = [](idUserInterface* gui) { gui->SetStateBool("pause_strogg", true); };
         strogg.UpdateRetainedHome(); CHECK(std::string(strogg.guiRetainedHome->Name()) == "guis/menu/pause_strogg.q4ui");

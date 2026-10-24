@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
+    "engine_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -120,7 +120,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Semantic button/device ownership fixtures; no full widget, text, touch or platform acceptance.",
-      "sha256": "ece4a964d46c6f62e982690e46532e4dc0f8ced1626b8b72e836eec5bcdb5fa1"
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7"
     },
     "interaction-foundation": {
       "kind": "implementation_checkpoint",
@@ -832,7 +832,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "The controller menu pump pairs each navigation step with its release on every retained input target, so a stick push no longer leaves focus moving on the Single Player, Campaign and SYSTEM pages. Qualified by a compiled pump test, a mutation pass and the session tests.",
-      "sha256": "ece4a964d46c6f62e982690e46532e4dc0f8ced1626b8b72e836eec5bcdb5fa1"
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7"
     },
     "event-focus-tabs": {
       "kind": "implementation_checkpoint",
@@ -1040,7 +1040,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Prompts follow the active device: the SDL family, the Prompt Style override, the adapter's prompt.glyphs and the vector glyphs of the prompt bars and the loading prompt, qualified by the gate, the adapter harness, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "ece4a964d46c6f62e982690e46532e4dc0f8ced1626b8b72e836eec5bcdb5fa1"
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7"
     },
     "retained-card-glyphs-evidence": {
       "kind": "implementation_checkpoint",
@@ -1052,7 +1052,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Swap Confirm and Back: the setting, the translation in every menu input path and the prompts that follow it, qualified by the adapter harness, the input test, the gate, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "ece4a964d46c6f62e982690e46532e4dc0f8ced1626b8b72e836eec5bcdb5fa1"
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7"
     },
     "retained-network-quality-evidence": {
       "kind": "implementation_checkpoint",
@@ -1187,9 +1187,19 @@
       "baseline_engine_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "companion_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "scope": "UI-02/UI-03 controller settings, list paging and Join Game focus: Prompt Style (in_promptStyle) and Swap Confirm and Back (in_swapConfirmBack) as stock choice rows in Game Options > Controller in every shipped language, the later rows, hovers, anchors and scroll extent moved; PageUp/PageDown and Home/End moving focus a visible page through the scrolling list that holds a focused button or toggle (Runtime::Impl::PageList), the triggers sending them where a document declares no section events and stepping a focused slider coarsely; Join Game's row focus following its server through new orders, refreshes and filters onto its page. Settings coverage and GUI contracts, the focus reveal test at two densities with button and toggle rows, the adapter and session gate harnesses and an OpenGL English Settings and Load Game capture pass. Trigger and other button glyphs, right-stick detail scrolling and physical controller runs remain.",
-      "sha256": "ece4a964d46c6f62e982690e46532e4dc0f8ced1626b8b72e836eec5bcdb5fa1",
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7",
       "local_capture_summary": ".tmp/ui/controller-settings-paging/validation-evidence.json",
       "local_capture_summary_sha256": "4ee88d83dbf0f98347f95fa70529aeb463fc20bb7725aaad1f905b6a5a82831c"
+    },
+    "menu-button-resume": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/input-routing.md",
+      "baseline_engine_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
+      "companion_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
+      "scope": "UI-02/INP-011: the gamepad Menu button runs a retained document's onMenuButton, once per press, where declared (Back elsewhere); Save Game, Restart Level and in-game Load Game ask the session for menuResume, which returns the pause and runs its RESUME during a single-player game.",
+      "sha256": "8cd3d86edd03eb2cebcc111d2b9a6b60623eca51589d30cc71d07fc21f0189d7",
+      "local_capture_summary": ".tmp/ui/menu-button-resume/validation-evidence.json",
+      "local_capture_summary_sha256": "7d791a2d806b2f192709d210e04b984d5ba59b3a49860c5564c28448e1af3782"
     }
   },
   "groups": {
@@ -8961,10 +8971,11 @@
         "retained-prompt-glyphs-evidence",
         "retained-card-glyphs-evidence",
         "retained-confirm-swap-evidence",
-        "controller-settings-paging"
+        "controller-settings-paging",
+        "menu-button-resume"
       ],
       "acceptance_evidence": [],
-      "remaining": "The shoulders (with Q and E) run a document's previous and next tab events, the triggers its previous and next section events, and the west and north face buttons its secondary and tertiary events, each once per press, never with Ctrl or Alt or while a field is being edited; without section events the triggers page the focused list a visible page at a time and step a focused slider coarsely (Join Game refreshes the list on west and sorts it by the next column on north). Prompts draw the active controller's family, the one the HUD's prompts use (from the gamepad type SDL reports: Xbox, PlayStation, Nintendo, Steam Deck under the steamdeck profile, or generic), as vector glyphs for the face buttons and the shoulders (LB and RB, L1 and R1, L and R), and the HUD's in_promptStyle overrides it for both. Nintendo layouts, a forced Nintendo style among them, confirm on the east button and go back on the south one, and in_swapConfirmBack forces either convention (both are rows in Game Options > Controller), in every menu input path (the stock windows, the retained adapter and runtime, and the sub-page change's Back), with the Accept and Back prompts following. The right stick's detail scrolling, Menu's pause, Apply or resume and View's scoreboard or details (both are Back in menus now), Prompt Style and Swap Confirm and Back rows in Settings, glyphs for the triggers and the remaining buttons, and the per-family controller runs remain.",
+      "remaining": "The shoulders (with Q and E) run a document's previous and next tab events, the triggers its previous and next section events, and the west and north face buttons its secondary and tertiary events, each once per press, never with Ctrl or Alt or while a field is being edited; without section events the triggers page the focused list a visible page at a time and step a focused slider coarsely (Join Game refreshes the list on west and sorts it by the next column on north). Prompts draw the active controller's family, the one the HUD's prompts use (from the gamepad type SDL reports: Xbox, PlayStation, Nintendo, Steam Deck under the steamdeck profile, or generic), as vector glyphs for the face buttons and the shoulders (LB and RB, L1 and R1, L and R), and the HUD's in_promptStyle overrides it for both. Nintendo layouts, a forced Nintendo style among them, confirm on the east button and go back on the south one, and in_swapConfirmBack forces either convention (both are rows in Game Options > Controller), in every menu input path (the stock windows, the retained adapter and runtime, and the sub-page change's Back), with the Accept and Back prompts following. The right stick's detail scrolling, Menu's Apply on a screen with pending changes and View's scoreboard or details (View is Back in menus now; Menu resumes play from the pause's pages), glyphs for the triggers and the remaining buttons, and the per-family controller runs remain.",
       "constraints": {
         "south": "accept",
         "east": "back",

@@ -241,6 +241,7 @@
    "arguments": {"key": "save.name", "value": {"input": "value"}, "event": "nameEntered"}
   },
   "editName": {"operation": "ui.numberDrafts.focus", "arguments": {}},
+  "menuResume": {"operation": "session.menu", "arguments": {"command": "menuResume"}},
   "refresh": {"operation": "session.menu", "arguments": {"command": "saveListRefresh"}},
   "sort": {"operation": "session.menu", "arguments": {"command": "saveListSort"}},
   "manual": {"operation": "session.menu", "arguments": {"command": "saveListFilterManual"}},
@@ -258,6 +259,7 @@
    }
   ],
   "onBack": [{"op": "action", "action": "back"}],
+  "onMenuButton": [{"op": "action", "action": "menuResume"}],
   "saveRow0": [
    {
     "op": "if",

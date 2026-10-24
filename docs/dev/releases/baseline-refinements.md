@@ -54,6 +54,8 @@
   triggers adjust a selected slider in larger steps.
 - In Join Game, the server you have highlighted stays highlighted while the list
   re-sorts or refreshes, instead of the highlight landing on another server.
+- The controller's Menu button now returns straight to the game from the pause
+  menu's Save, Load and Restart Level pages.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

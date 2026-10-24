@@ -39,6 +39,7 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Arrow keys / D-pad | Spatial navigation |
 | Enter, keypad Enter, Space / gamepad South (East while swapped) | Accept on paired release |
 | Escape / gamepad East (South while swapped), Start, Back | Pop the current modal scope, then close the root menu |
+| Gamepad Menu (Start) | The document's `onMenuButton` where it declares it ([Menu button](#menu-button-24-october-2026)), once per press; otherwise as Back |
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
@@ -125,6 +126,23 @@ a focused slider the right trigger raises the value, as Right does, by the
 interaction's ten-step coarse step. Documents with section events keep them.
 `tools/tests/native/UiFocusRevealTest.cpp` covers the paging at 1x and 2x
 density, and the `list-paging` capture pages the Load Game list.
+
+### Menu button (24 October 2026)
+
+Section 13.5's Menu button closes the menus and resumes play. The adapter
+runs a document's `onMenuButton`, once per press, where the document declares
+it, and treats the button as Back elsewhere, as before. The pause's pages
+declare it: Save Game, Restart Level and, during a game, Load Game ask the
+session for `menuResume`, which returns the pause and runs its RESUME, so the
+softened view releases as it does from the pause. At the title, Load Game's
+Menu goes back as Back does. The pause itself already resumes on Back.
+`menuResume` acts only while a single-player game runs; a field being edited
+keeps the button. Apply on a screen with pending changes (the SYSTEM page)
+remains open.
+
+Evidence for the Menu button:
+`.tmp/ui/menu-button-resume/validation-evidence.json`, SHA-256
+`7d791a2d806b2f192709d210e04b984d5ba59b3a49860c5564c28448e1af3782`.
 
 ### Settings rows (24 October 2026)
 

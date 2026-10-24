@@ -184,7 +184,7 @@ static void CheckSchema() {
 }
 
 static const std::set<std::string> SessionCommands = {"continue","singlePlayer","loadGame","saveGame","multiplayer","settings",
-	"mods","demos","updates","credits","quit","resume","restartLevel","quitToMenu",
+	"mods","demos","updates","credits","quit","resume","menuResume","restartLevel","quitToMenu",
 	"loadBack","loadSelect","loadSave","loadDelete","loadNewer","loadOlder","loadNewGame",
 	"saveListRefresh","saveListSort","saveListFilterManual","saveListFilterAuto","saveListClear",
 	"saveBack","saveSelect","saveSave","saveOverwrite","saveNewer","saveOlder","restartBack","restartGo",
@@ -1915,6 +1915,13 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(Near(skill.x,date.x) && Near(skill.y,230*u) && Near(played.x,date.x) && Near(played.y,245*u) &&
 		played.y+played.height <= load.y+13*u,"the difficulty and play time stand under them, clear of LOAD GAME's band");
 	Check(text("load-skill","text") == "Lieutenant" && text("load-played","text") == "2:13:05 played","the save's difficulty and play time show");
+	// The Menu button closes the menus and resumes play during a game; at
+	// the title it goes back (section 13.5).
+	Check(runtime.RunEvent("onMenuButton",1.01,effects,error) && effects.actions.size() == 1 && effects.actions[0].action == "back",
+		"the Menu button goes back at the title");
+	Check(runtime.SetState({{"load.ingame",true}},error,1.02) && runtime.RunEvent("onMenuButton",1.03,effects,error) &&
+		effects.actions.size() == 1 && effects.actions[0].action == "menuResume","in game the Menu button resumes play");
+	Check(runtime.SetState({{"load.ingame",false}},error,1.04),"back at the title");
 	Check(text("load-error","display") == "none" && text("load-empty","display") == "none","no failure and no empty state");
 	Check(text("page-newer","display") == "none" && text("page-older","display") == "none","one page holds three saves");
 	Check(std::find(host.materials.begin(),host.materials.end(),"savegames/bunker_door") != host.materials.end(),"the selected save's picture shows");
