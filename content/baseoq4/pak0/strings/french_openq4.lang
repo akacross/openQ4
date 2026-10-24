@@ -1408,4 +1408,11 @@
 	"#str_231527"	"Automatique;Xbox;PlayStation;Nintendo;Steam Deck;Générique"
 	"#str_231528"	"Inverser Valider/Retour"
 	"#str_231529"	"Automatique;Non;Oui"
+	"#str_231530"	"NOM"
+	"#str_231531"	"DURÉE"
+	"#str_231532"	"%s en mission"
+	"#str_231533"	"%s · %s"
+	"#str_231534"	"%d,%d s"
+	"#str_231535"	"%s %s"
+	"#str_231536"	"ACTUALISER"
 }

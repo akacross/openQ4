@@ -201,6 +201,7 @@ idStr Session_RetainedPlayerText( const char *text, int maxBytes, int maxLines )
 // the retained screens show them (Session.cpp).
 const char *Session_SkillName( int skill );
 idStr Session_RetainedPlayTime( int seconds );
+idStr Session_RetainedList( const char *first, const char *second );
 
 const int USERCMD_PER_DEMO_FRAME	= 2;
 const int CONNECT_TRANSMIT_TIME		= 1000;

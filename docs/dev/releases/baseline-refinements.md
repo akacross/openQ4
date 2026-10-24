@@ -63,6 +63,9 @@
   changes; with a dialog or list open, it closes that first.
 - With a controller, the Match and Admin pages of the multiplayer menu show
   your triggers beside their sections, which the triggers step through.
+- The loading screen's load time uses your language's decimal mark and unit,
+  and the Demos page's headings and buttons are in capitals like the other
+  pages'.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

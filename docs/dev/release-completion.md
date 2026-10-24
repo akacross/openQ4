@@ -62,6 +62,16 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Joined lines and Demos capitals, 24 October 2026
+
+- [x] List separators, the time in the mission, a save's date and time and
+  the load time's decimal mark and unit come from each language's table
+  (`#str_231532`-`#str_231535`); the Demos page's headings and plates are
+  capitals in every language (`#str_231530`, `#str_231531`, `#str_231536`).
+- [Behavior and checks](ui/retained-screens.md#joined-lines-and-capitals-24-october-2026):
+  gate harness fixtures, a format check over every table and captures in
+  three languages. Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## Controller prompt settings and list paging, 24 October 2026
 
 - [x] Game Options > Controller gains Prompt Style (`in_promptStyle`) and Swap

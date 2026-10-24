@@ -1408,4 +1408,11 @@
 	"#str_231527"	"Automatico;Xbox;PlayStation;Nintendo;Steam Deck;Generico"
 	"#str_231528"	"Inverti Conferma/Indietro"
 	"#str_231529"	"Automatico;No;Sì"
+	"#str_231530"	"NOME"
+	"#str_231531"	"DURATA"
+	"#str_231532"	"%s in missione"
+	"#str_231533"	"%s · %s"
+	"#str_231534"	"%d,%d s"
+	"#str_231535"	"%s %s"
+	"#str_231536"	"AGGIORNA"
 }

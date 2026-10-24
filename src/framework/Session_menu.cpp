@@ -5710,13 +5710,10 @@ static void Session_PublishRetainedTitleState( idUserInterface *gui, idSessionLo
 		parts.Append( skill );
 		parts.Append( played );
 		if ( skill.IsEmpty() && played.IsEmpty() ) {
-			parts.Append( va( "%s %s", date.c_str(), time.c_str() ) );
+			parts.Append( va( common->GetLanguageDict()->GetString( "#str_231535" ), date.c_str(), time.c_str() ) );
 		}
 		for ( int i = 0; i < parts.Num(); i++ ) {
-			if ( parts[i].Length() > 0 ) {
-				detail += detail.Length() > 0 ? " \xc2\xb7 " : "";
-				detail += parts[i];
-			}
+			detail = Session_RetainedList( detail.c_str(), parts[i].c_str() );
 		}
 	}
 	gui->SetStateBool( "menu_continue", hasSave );

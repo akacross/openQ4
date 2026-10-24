@@ -1403,4 +1403,11 @@
 	"#str_231527"	"Automático;Xbox;PlayStation;Nintendo;Steam Deck;Genérico"
 	"#str_231528"	"Cambiar Confirmar/Atrás"
 	"#str_231529"	"Automático;No;Sí"
+	"#str_231530"	"NOMBRE"
+	"#str_231531"	"DURACIÓN"
+	"#str_231532"	"%s en la misión"
+	"#str_231533"	"%s · %s"
+	"#str_231534"	"%d,%d s"
+	"#str_231535"	"%s %s"
+	"#str_231536"	"ACTUALIZAR"
 }

@@ -1459,4 +1459,11 @@
 	"#str_231527"	"Automatycznie;Xbox;PlayStation;Nintendo;Steam Deck;Ogólny"
 	"#str_231528"	"Zamień Zatwierdź/Wstecz"
 	"#str_231529"	"Automatycznie;Wył.;Wł."
+	"#str_231530"	"NAZWA"
+	"#str_231531"	"DŁUGOŚĆ"
+	"#str_231532"	"%s w misji"
+	"#str_231533"	"%s · %s"
+	"#str_231534"	"%d,%d s"
+	"#str_231535"	"%s %s"
+	"#str_231536"	"ODŚWIEŻ"
 }

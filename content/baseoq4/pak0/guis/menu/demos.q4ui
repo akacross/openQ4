@@ -24173,7 +24173,7 @@
         "id": "demo-head-name",
         "type": "text",
         "properties": {
-         "text": {"type": "text", "value": "#str_41507"},
+         "text": {"type": "text", "value": "#str_231530"},
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 325.5, "unit": "dp"},
          "top": {"type": "length", "value": 94.5, "unit": "dp"},
@@ -24191,7 +24191,7 @@
         "id": "demo-head-map",
         "type": "text",
         "properties": {
-         "text": {"type": "text", "value": "#str_41509"},
+         "text": {"type": "text", "value": "#str_200040"},
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 549.0, "unit": "dp"},
          "top": {"type": "length", "value": 94.5, "unit": "dp"},
@@ -24209,7 +24209,7 @@
         "id": "demo-head-date",
         "type": "text",
         "properties": {
-         "text": {"type": "text", "value": "#str_41557"},
+         "text": {"type": "text", "value": "#str_200243"},
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 699.0, "unit": "dp"},
          "top": {"type": "length", "value": 94.5, "unit": "dp"},
@@ -24227,7 +24227,7 @@
         "id": "demo-head-length",
         "type": "text",
         "properties": {
-         "text": {"type": "text", "value": "#str_41510"},
+         "text": {"type": "text", "value": "#str_231531"},
          "position": {"type": "keyword", "value": "absolute"},
          "left": {"type": "length", "value": 810.0, "unit": "dp"},
          "top": {"type": "length", "value": 94.5, "unit": "dp"},
@@ -44143,7 +44143,7 @@
           "id": "demo_play-label",
           "type": "text",
           "properties": {
-           "text": {"type": "text", "value": "#str_41512"},
+           "text": {"type": "text", "value": "#str_231523"},
            "position": {"type": "keyword", "value": "absolute"},
            "left": {"type": "length", "value": 27.0, "unit": "dp"},
            "top": {"type": "length", "value": 19.5, "unit": "dp"},
@@ -44162,7 +44162,7 @@
       ],
       "control": {
        "role": "button",
-       "label": "#str_41512",
+       "label": "#str_231523",
        "states": {
         "default": "demo_play.default",
         "hover": "demo_play.hover",
@@ -44338,7 +44338,7 @@
           "id": "demo_delete-label",
           "type": "text",
           "properties": {
-           "text": {"type": "text", "value": "#str_41513"},
+           "text": {"type": "text", "value": "#str_231521"},
            "position": {"type": "keyword", "value": "absolute"},
            "left": {"type": "length", "value": 27.0, "unit": "dp"},
            "top": {"type": "length", "value": 19.5, "unit": "dp"},
@@ -44357,7 +44357,7 @@
       ],
       "control": {
        "role": "button",
-       "label": "#str_41513",
+       "label": "#str_231521",
        "states": {
         "default": "demo_delete.default",
         "hover": "demo_delete.hover",
@@ -44533,7 +44533,7 @@
           "id": "demo_refresh-label",
           "type": "text",
           "properties": {
-           "text": {"type": "text", "value": "#str_41514"},
+           "text": {"type": "text", "value": "#str_231536"},
            "position": {"type": "keyword", "value": "absolute"},
            "left": {"type": "length", "value": 27.0, "unit": "dp"},
            "top": {"type": "length", "value": 19.5, "unit": "dp"},
@@ -44552,7 +44552,7 @@
       ],
       "control": {
        "role": "button",
-       "label": "#str_41514",
+       "label": "#str_231536",
        "states": {
         "default": "demo_refresh.default",
         "hover": "demo_refresh.hover",

@@ -110,12 +110,10 @@ Highest impact first.
   Opening Create Server or the Arena page in the title's first two seconds,
   before its idle frames have read every levelshot, still reads the rest
   in one long frame ([startup preload](runtime-performance.md#startup-preload)).
-- **Strings.** Separators are joined in C++ (the CONTINUE detail's " - ", the
-  pause time line's order and " · ", "%.1f s"). Demos' column headings and
-  actions are mixed case where Join Game's headings are capitals, and RmlUi's
-  `text-transform` changes ASCII letters only, so capitals need their own
-  string keys in every language. The Italian and Polish crumbs of long titles
-  are cut at the 13 dp floor.
+- **Strings.** The Italian and Polish crumbs of long titles are cut at the
+  13 dp floor. The separators and formats once joined in C++ and the Demos
+  page's mixed-case headings and plates now come from each table
+  ([joined lines and capitals](retained-screens.md#joined-lines-and-capitals-24-october-2026)).
 - **Join Game** republishes all 64 rows on every change of the scan.
 - **Prompt bar verbs.** The pages' Accept now follows focus with short
   verbs in every language (LOAD, DELETE, SAVE, PLAY and JOIN; [page prompt

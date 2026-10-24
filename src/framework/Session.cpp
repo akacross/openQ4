@@ -2677,6 +2677,19 @@ idStr Session_RetainedPlayTime( int seconds ) {
 	return va( "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60 );
 }
 
+// Two parts of a line the retained screens show, joined as the language
+// joins a list (#str_231533: in English the two around a middle dot);
+// either alone when the other is empty.
+idStr Session_RetainedList( const char *first, const char *second ) {
+	if ( first == NULL || first[0] == '\0' ) {
+		return second != NULL ? second : "";
+	}
+	if ( second == NULL || second[0] == '\0' ) {
+		return first;
+	}
+	return va( common->GetLanguageDict()->GetString( "#str_231533" ), first, second );
+}
+
 static const char *Session_GetLongMPGameTypeName( const char *gametype ) {
 	if ( !gametype || !gametype[ 0 ] ) {
 		return "";
@@ -6396,8 +6409,7 @@ void idSessionLocal::PublishRetainedLoadingServer( const idDict &serverInfo ) {
 		extra = va( common->GetLanguageDict()->GetString( "#str_230072" ), spectators );
 	}
 	if ( retainedRosterConnecting > 0 ) {
-		extra += extra.Length() ? " \xc2\xb7 " : "";
-		extra += va( common->GetLanguageDict()->GetString( "#str_230071" ), retainedRosterConnecting );
+		extra = Session_RetainedList( extra.c_str(), va( common->GetLanguageDict()->GetString( "#str_230071" ), retainedRosterConnecting ) );
 	}
 	guiLoading->SetStateBool( "server_roster_known", retainedRosterKnown );
 	guiLoading->SetStateBool( "server_team_mode", teams );
@@ -6709,10 +6721,10 @@ void idSessionLocal::PublishRetainedPauseState( idUserInterface *gui ) {
 	const int total = gui->State().GetInt( "pause_total_seconds", "-1" );
 	idStr stats, saved;
 	if ( seconds >= 0 ) {
-		stats = va( "%s %s", Session_RetainedPlayTime( seconds ).c_str(), common->GetLanguageDict()->GetString( "#str_230046" ) );
+		stats = va( common->GetLanguageDict()->GetString( "#str_231532" ), Session_RetainedPlayTime( seconds ).c_str() );
 		if ( total >= 0 ) {
-			stats += " \xc2\xb7 ";
-			stats += va( common->GetLanguageDict()->GetString( "#str_231524" ), Session_RetainedPlayTime( total ).c_str() );
+			stats = Session_RetainedList( stats.c_str(), va( common->GetLanguageDict()->GetString( "#str_231524" ),
+				Session_RetainedPlayTime( total ).c_str() ) );
 		}
 		if ( retainedNewestSave > 0 ) {
 			saved = Session_RetainedSaveAge( retainedNewestSave, time( NULL ) );
@@ -7431,8 +7443,11 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 
 	common->PrintWarnings();
 
-	// The phase line reports the load time once the level is ready.
-	SetRetainedLoadingPhase( RETAINED_LOAD_READY, va( "%.1f s", msec * 0.001f ) );
+	// The phase line reports the load time once the level is ready, in tenths
+	// of a second as the language writes them (#str_231534, "%d.%d s").
+	const int loadTenths = Max( 0, msec + 50 ) / 100;
+	SetRetainedLoadingPhase( RETAINED_LOAD_READY,
+		va( common->GetLanguageDict()->GetString( "#str_231534" ), loadTenths / 10, loadTenths % 10 ) );
 	if ( guiLoading ) {
 		float pct = idMath::ClampFloat( 0.0f, 1.0f, guiLoading->State().GetFloat( "map_loading" ) );
 		while ( pct < 1.0f ) {

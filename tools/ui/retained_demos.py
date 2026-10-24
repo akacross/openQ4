@@ -37,11 +37,16 @@ from retained_saves import (ERROR, ERROR_LINE, ERROR_STRIP, HEADING, LIST_H, LIS
 ROWS = 64                      # RETAINED_DEMO_ROWS in the session: the demos the list holds at a time
 TITLE = "#str_41500"           # DEMOS, the plinth link that opens the page
 DETAIL_LEFT, DETAIL_W, KIND_TOP, STATUS_TOP, NOTE_TOP = 37.0, 165.0, 215.0, 230.0, 245.0
-PLATES = (("demo_play", "#str_41512", 21.0, 256.0, "play"), ("demo_delete", "#str_41513", 20.0, 293.0, None),
-          ("demo_refresh", "#str_41514", 20.0, 330.0, "refresh"))
+# The plates and headings in capitals, as Join Game's and the save pages'
+# are (RmlUi's text-transform changes ASCII letters only): the pages' PLAY
+# and DELETE verbs, the stock capital MAP and DATE, and openQ4's REFRESH,
+# NAME and DURATION (the stock capital NAME names a player in Ukrainian, and
+# REFRESH LIST runs past a plate in German).
+PLATES = (("demo_play", "#str_231523", 21.0, 256.0, "play"), ("demo_delete", "#str_231521", 20.0, 293.0, None),
+          ("demo_refresh", "#str_231536", 20.0, 330.0, "refresh"))
 # The columns' tabstops across the 394 u row (the scrollbar takes the last 16 u).
-COLUMNS = (("name", "#str_41507", 0.0, 146.0), ("map", "#str_41509", 150.0, 96.0), ("date", "#str_41557", 250.0, 72.0),
-           ("length", "#str_41510", 324.0, 70.0))
+COLUMNS = (("name", "#str_231530", 0.0, 146.0), ("map", "#str_200040", 150.0, 96.0), ("date", "#str_200243", 250.0, 72.0),
+           ("length", "#str_231531", 324.0, 70.0))
 HEAD_TOP = 63.0
 # The filter tags over the headings: the legacy browser's filters after ALL,
 # which no tag set stands for (demos.filter 1-4, as demoFilter names them).

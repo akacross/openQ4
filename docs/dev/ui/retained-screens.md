@@ -891,9 +891,10 @@ of this changes the save format.
   save's header (`Session_MenuReadSaveGameHeader`), as the list already
   parses each header to accept a save. The title's CONTINUE detail is the
   mission, the difficulty and "1:02:05 played" (`#str_231525`, a format
-  each table orders), joined by middle dots; a save that records neither
-  says when it was written instead, which also drops the old unlocalized
-  hyphen. The Load Game page puts the date and time on one line under the
+  each table orders), joined as the language joins a list ([joined
+  lines](#joined-lines-and-capitals-24-october-2026)); a save that records
+  neither says when it was written instead, which also drops the old
+  unlocalized hyphen. The Load Game page puts the date and time on one line under the
   picture, then the difficulty and the play time; both stay empty for a save
   from an earlier build. The pause's level block gives the mission time and
   the total (`#str_231524`, "3:05:06 total") on one line and the newest
@@ -1685,10 +1686,42 @@ only while that screen presents the load: MAP before the render world loads,
 WORLD before the game builds the level, ASSETS while the renderer works
 through its model and image queues (their own loaded and total counts replace
 the phase's place), FINISHING after the renderer's level load, and the load
-time once the level is ready. The continue prompt follows `prompt.glyphs`
+time once the level is ready, in tenths of a second as the language writes
+them ([joined lines](#joined-lines-and-capitals-24-october-2026)). The continue prompt follows `prompt.glyphs`
 like every prompt ([prompt glyphs](#prompt-glyphs)). The wait for continue
 redraws the screen each frame, so touching a controller or the mouse switches
 it. The session no longer publishes its own `loading_controller`.
+
+## Joined lines and capitals (24 October 2026)
+
+The session no longer joins text in C++ where a language may join it
+differently. Each table gives the form:
+
+- `#str_231533` joins two parts of a line as the language joins a list
+  (`Session_RetainedList`; a middle dot in every shipped table): the title's
+  CONTINUE detail, the pause's time in the mission and the run's total, and
+  the loading card's spectators and players connecting.
+- `#str_231532` places the time in the mission ("%s in mission"), whose
+  order the code fixed before; `#str_231535` orders a save's date and time
+  where CONTINUE shows them.
+- `#str_231534` writes the load time from its whole and tenth seconds, so a
+  language chooses its decimal mark and unit: "1.5 s" in English, "1,5 s" in
+  most tables, "1,5 с" in Russian and Ukrainian, "1,5 mp" in Hungarian and
+  "1,5 sn" in Turkish.
+
+The Demos page's plates and headings are capitals, as Join Game's and the
+save pages' are, in every language: RmlUi's `text-transform` changes ASCII
+letters only, so each has a key. PLAY and DELETE are the pages' prompt
+verbs, MAP and DATE the stock capital keys, and openQ4 adds REFRESH
+(`#str_231536`; the save pages' REFRESH LIST runs past a plate in German),
+NAME (`#str_231530`; the stock capital NAME names a player in Ukrainian) and
+DURATION (`#str_231531`; Polish and Russian use the shorter DŁUGOŚĆ and
+ВРЕМЯ, which fit the column). The gate harness checks that every table's
+formats take exactly their arguments, and generation fails if a capital
+heading or plate runs past its slot in any language.
+
+Evidence: `.tmp/ui/joined-strings/validation-evidence.json`, SHA-256
+`9142f36637682668facf126154792e78c6d94b1235fbe0585b47010438cee682`.
 
 ## Page prompt bars
 

@@ -1403,4 +1403,11 @@
 	"#str_231527"	"Automatisch;Xbox;PlayStation;Nintendo;Steam Deck;Generisch"
 	"#str_231528"	"Bestätigen/Zurück tauschen"
 	"#str_231529"	"Automatisch;Aus;Ein"
+	"#str_231530"	"NAME"
+	"#str_231531"	"DAUER"
+	"#str_231532"	"%s im Einsatz"
+	"#str_231533"	"%s · %s"
+	"#str_231534"	"%d,%d s"
+	"#str_231535"	"%s %s"
+	"#str_231536"	"AKTUALISIEREN"
 }

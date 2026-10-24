@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [joined lines and capitals](retained-screens.md#joined-lines-and-capitals-24-october-2026)
+add bounded UI-02 evidence to `TXT-005`. List joins, the time in the mission, a
+save's date and time and the load time's decimal mark and unit come from every
+shipped table, and the Demos page's plates and headings are capitals in every
+language. The increment is audited against `d610d54794ca41f13b6f8c9878023e4d8912e6c8`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [trigger glyphs](input-routing.md#trigger-glyphs-24-october-2026)
 add bounded UI-02 evidence to `INP-011`. The Escape card's Match and Admin section
 strips end with each controller family's trigger glyphs, a legend for a controller
