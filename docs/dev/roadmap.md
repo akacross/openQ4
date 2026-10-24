@@ -772,7 +772,8 @@ archived provenance; new scheduling belongs here.
   for each controller family. The [joined lines](ui/retained-screens.md#joined-lines-and-capitals-24-october-2026)
   that C++ assembled (list separators, the time in the mission, a save's date
   and time, the load time's decimal mark and unit) and the Demos page's
-  capitals come from every language's table.
+  capitals come from every language's table. The Admin page's Apply changes
+  plate ends with the [Menu button's glyph](ui/input-routing.md#menu-glyphs-24-october-2026).
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 48 entries, stable refresh focus, contextual disabled

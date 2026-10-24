@@ -161,6 +161,19 @@ SCENARIOS = {
         'openq4_retainedGui event admin_section_players', 'waitMsec 400', 'openq4_retainedGui inspect "admin-apply"',
         'openq4_retainedGui event onMenuButton', 'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/mpadmin-menu-closed.tga"',
     ]),
+    # The Menu button's glyph at the end of the Admin page's Apply changes
+    # plate, with a frag limit drafted: none for the keyboard, then each
+    # controller family's.
+    'mpadmin-menu-glyph': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 2500', 'openq4_retainedGui event tab_admin', 'waitMsec 600',
+        'openq4_retainedGui event admin_section_server', 'waitMsec 400', 'openq4_retainedGui focus "admin-row-fraglimit"',
+        'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0', 'waitMsec 600',
+        *[step for style, name in PROMPT_STYLES for step in (
+            *prompt_style(style), 'waitMsec 500', 'openq4_retainedGui inspect "admin-apply-menu"',
+            *([] if name == 'keyboard' else [f'openq4_retainedGui inspect "admin-apply-menu-{name}"']),
+            f'screenshot "screenshots/mpadmin-menu-glyph-{name}.tga"')],
+        *prompt_style(0),
+    ]),
     # The Admin page from a client of a dedicated server (SCENARIO_SERVERS):
     # the password first; a wrong one is refused, the server's own makes the
     # player an admin, and the console sends a command. (A client's console

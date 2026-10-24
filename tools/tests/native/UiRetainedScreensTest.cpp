@@ -843,6 +843,18 @@ static void CheckAdmin(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"mp.admin.apply.available",false}},error,5.07) && runtime.RunEvent("onMenuButton",5.08,effects,error) &&
 		asked("mpClose"),"with nothing to apply Menu closes the card");
 	Check(runtime.SetState({{"mp.admin.apply.available",true}},error,5.09),"changes to apply again");
+	// Apply changes ends with the controller's Menu button, which presses it;
+	// the keyboard has no key for it and shows none.
+	runtime.Frame(viewport,5.1);
+	for (const char* family : {"xbox","playstation","nintendo","steamdeck","generic"})
+		Check(text(std::string("admin-apply-menu-")+family,"display") == "none","no Menu glyph for the keyboard");
+	Check(runtime.SetState({{"prompt.glyphs",3.0}},error,5.11),"a Nintendo controller");
+	runtime.Frame(viewport,5.12);
+	const auto plate = bounds("admin-apply"), menuGlyph = bounds("admin-apply-menu"), applyLabel = bounds("admin-apply-label");
+	Check(text("admin-apply-menu-nintendo","display") == "block" && text("admin-apply-menu-xbox","display") == "none" &&
+		menuGlyph.x+menuGlyph.width <= plate.x+plate.width && applyLabel.x+applyLabel.width <= menuGlyph.x,
+		"the Nintendo Menu glyph ends the Apply plate, after its label");
+	Check(runtime.SetState({{"prompt.glyphs",0.0}},error,5.13),"the keyboard again");
 	const auto apply = bounds("admin-apply"), page = bounds("page-admin");
 	Check(apply.y+apply.height <= page.y+page.height+.5f,"Apply changes stands inside the page");
 	// Console: the newest lines and the command field.

@@ -441,14 +441,15 @@ def padlock(ident: str, tint: list) -> dict:
 
 
 def action_plate(doc: Document, ident: str, key: str, width: float, top: float, event: str, steps: list, *,
-                 primary: bool = False) -> dict:
+                 primary: bool = False, menu_button: bool = False) -> dict:
     """An action the game offers: an in-game plate whose label, availability
     and reason the game publishes (`key`.shown, .available, .label, .reason
     and .detail). An unavailable action stays in place, dimmed, with a lock
     after its label and its reason in the error color on the plate; choosing
     it shakes the plate for 300 ms and pulses the reason, and nothing else
     happens. An available one runs `steps`, which ask the game, and the game
-    checks the action again."""
+    checks the action again. With `menu_button` the row ends with the
+    controller's Menu button, which runs the action too (section 13.5)."""
     for name, kind in (("shown", "boolean"), ("available", "boolean"), ("label", "string"), ("reason", "string"), ("detail", "string")):
         doc.state[f"{key}.{name}"] = {"type": kind, "initial": False if kind == "boolean" else ""}
     plate = in_game_plate(doc, ident, PLACEHOLDER, 0, 0, width=width, primary=primary, event=event)
@@ -463,9 +464,18 @@ def action_plate(doc: Document, ident: str, key: str, width: float, top: float, 
     lock = padlock(f"{ident}-lock", rgb(ERROR))
     unavailable = {"op": "!", "args": [{"state": f"{key}.available"}]}
     doc.bind(f"{ident}-lock.display", f"{ident}-lock", "display", {"op": "select", "args": [unavailable, "block", "none"]})
+    row_children = [label_node, lock]
+    if menu_button:
+        # The glyph keeps the row's end for a controller; the keyboard has no
+        # key for it, so it shows none there.
+        row_children += [group(f"{ident}-menu-gap", {"position": keyword("relative"), "display": keyword("block"),
+                                                     "flex-grow": number(1), "height": length(1)}),
+                         group(f"{ident}-menu", {"position": keyword("relative"), "display": keyword("block"), "width": length(PROMPT_H),
+                                                 "height": length(PROMPT_H), "flex-shrink": number(0), "margin-left": length(8)},
+                               b.device_glyphs(doc, f"{ident}-menu", "menu", [1, 1, 1, 0.85], PROMPT_H))]
     row = group(f"{ident}-row", {**absolute(left=26, top=0, width=width - 46, height=45), "display": keyword("flex"),
                                  "flex-direction": keyword("row"), "align-items": keyword("center"), "pointer-events": keyword("none")},
-                [label_node, lock])
+                row_children)
     plate["children"].append(row)
     # The plate dims with its label; the reason beside it keeps its color.
     plate["properties"]["opacity"] = number(1)

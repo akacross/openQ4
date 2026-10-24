@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [Menu glyphs](input-routing.md#menu-glyphs-24-october-2026)
+add bounded UI-02 evidence to `INP-011`. Each controller family's Menu button
+glyph ends the Escape card's Admin Apply changes plate, which the button presses,
+for a controller only. The art derives from section 13.5 and awaits review under
+UI-05. The increment is audited against `b038777b2b1cec823b34b80256d0c3f7d50ccc64`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [joined lines and capitals](retained-screens.md#joined-lines-and-capitals-24-october-2026)
 add bounded UI-02 evidence to `TXT-005`. List joins, the time in the mission, a
 save's date and time and the load time's decimal mark and unit come from every

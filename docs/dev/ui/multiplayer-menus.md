@@ -510,7 +510,8 @@ then offered Players, Server and Console. The card's page
   stock page's Apply did (`HandleServerAdminCommands`) and closes the menu;
   the server restarts the map for a new map, game type or buying. The
   controller's Menu button presses Apply changes while there is something
-  to apply, and otherwise closes the card ([Menu button](input-routing.md#menu-button-24-october-2026)).
+  to apply, and otherwise closes the card ([Menu button](input-routing.md#menu-button-24-october-2026));
+  for a controller the plate ends with the Menu button's glyph.
 - **Console.** The remote console's twelve newest lines in the stock
   console's frame, and a field whose Enter runs the command through the
   stock console's own input (`admin command`): on a listen server, the

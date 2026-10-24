@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "d610d54794ca41f13b6f8c9878023e4d8912e6c8",
+    "engine_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -120,7 +120,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Semantic button/device ownership fixtures; no full widget, text, touch or platform acceptance.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f"
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
     },
     "interaction-foundation": {
       "kind": "implementation_checkpoint",
@@ -832,7 +832,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "The controller menu pump pairs each navigation step with its release on every retained input target, so a stick push no longer leaves focus moving on the Single Player, Campaign and SYSTEM pages. Qualified by a compiled pump test, a mutation pass and the session tests.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f"
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
     },
     "event-focus-tabs": {
       "kind": "implementation_checkpoint",
@@ -844,37 +844,37 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "Behind ui_retainedMultiplayer, the multiplayer Escape card covers the game's in-match menu over the softened match: header, eight-tab strip, prompt bar, Disconnect confirmation and hand-off pages, with the game's revisioned header keys and its own menu commands. Qualified by the gate and native screens tests, a mutation pass and a live probe on OpenGL and Vulkan in four languages.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-team-server": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Team page offers the game's own join, spectate and ready actions with their availability and reasons, the team band and recent chat; its Server page shows the server's name, address, message, rules and rotation. Qualified by the gate and native screens tests, a mutation pass and a live probe in two languages.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-players": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Players page lists the teams and spectators beside the selected player's statistics, with Mute and Friend. Qualified by the gate and native screens tests, a mutation pass and live probes in three languages, on both renderers, and from a remote client.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-welcome": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Welcome card covers the connect-time join offer with the game's join choices per mode, the server and the players, and hands its settings to the stock pages. Qualified by the gate and native screens tests, a mutation pass and live probes in three languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-vote": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Vote page shows the running vote with its ballots and drafts a call from rows for the fields the drafted game type uses, sending only the fields that differ. Qualified by the gate, adapter and native screens tests, a mutation pass and live probes with a remote client in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-settings": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The multiplayer cards' Settings pages and the Escape card's Voice page, with a player-settings operation in the adapter; the Welcome card presents by default. Qualified by the gate, adapter and native screens tests, a mutation pass and live probes in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-loading-handoff": {
       "kind": "implementation_checkpoint",
@@ -886,25 +886,25 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Match page: Match Control's sections as an inner strip the triggers page, and the Status section mirrored from the game's projection, its actions sent as the stock tokens with the stock confirmations. Qualified by the gate, adapter and native screens tests, a mutation pass and live probes in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-match-teams": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Match page, Teams section: the team and roster rows and the participants a substitution can bring in, chosen by index as the stock list's own selection, the role, and the team, queue and roster actions with the stock confirmations. Qualified by the gate and native screens tests, a mutation pass and live probes in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-match-proposals-rules": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Match page, Proposals and Rules sections: the running proposals, the ballot target, the ballots and the proposals to make; the rules, profiles and rule fields, a whole-number value to stage and the rule actions with the stock confirmation. Qualified by the gate and native screens tests, a mutation pass and live probes in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-mp-match-series-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Match page, Series and Evidence sections, completing the page: the series, the map pool, the history, the format and the series and veto actions with the stock confirmations; the evidence and Refresh. Qualified by the gate and native screens tests, a mutation pass and live probes in two languages on both renderers.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "hud-wheel-continuation-20261009": {
       "kind": "implementation_checkpoint",
@@ -1040,19 +1040,19 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Prompts follow the active device: the SDL family, the Prompt Style override, the adapter's prompt.glyphs and the vector glyphs of the prompt bars and the loading prompt, qualified by the gate, the adapter harness, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f"
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
     },
     "retained-card-glyphs-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The multiplayer cards' prompt bars and tab-strip keys show the active device's glyphs, shoulders included, qualified by the screens native test, the gate, the generator's fit check and live captures on OpenGL and Vulkan.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-confirm-swap-evidence": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/input-routing.md",
       "scope": "Swap Confirm and Back: the setting, the translation in every menu input path and the prompts that follow it, qualified by the adapter harness, the input test, the gate, the screens native test and live captures on OpenGL and Vulkan.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f"
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f"
     },
     "retained-network-quality-evidence": {
       "kind": "implementation_checkpoint",
@@ -1070,7 +1070,7 @@
       "kind": "implementation_checkpoint",
       "path": "docs/dev/ui/multiplayer-menus.md",
       "scope": "The Escape card's Admin page (the remote console password in a masked field, Players with kick, ban, force team switch and the ban list, Server with the drafted rules and Apply changes, and Console), the Settings pages' name and clan and the Match page's referee password as the card's own text fields, and the Escape card presenting with ui_retained alone now that no page hands off. Qualified by the gate test compiling the production session verbs, the native card, settings, vote/match and Admin checks, and live captures of a listen server's host and a dedicated server's client on OpenGL at 1280x720.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6"
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871"
     },
     "retained-joingame-filters": {
       "kind": "implementation_checkpoint",
@@ -1120,7 +1120,7 @@
       "path": "docs/dev/ui/multiplayer-menus.md",
       "baseline_engine_revision": "f5bd60838ae25961fb9392ba71a9ab6c6a9c1437",
       "scope": "UI-03 bounded increment: four production multiplayer roster views use fixed headings, readable 24 dp rows and scrolling across all 32 connection slots; kick choices include every other client. Focus reveal, Home/End, paging, refresh, adapter restoration and shrink clamping pass native and engine checks. Six native suites, the session gate, four oracle tests and 30 reviewed OpenGL/Vulkan engine captures pass. Live three-player gameplay is combined with explicit 32-slot document fixtures; the server limit remains 16. Full identity, devices, layouts, performance, platforms and product acceptance remain open.",
-      "sha256": "c187b68f66828a16beb730ecea4ca61b79ba9893813a668844f1f634d632fed6",
+      "sha256": "69c26b6c77e8c1877e58eb51d89575d74ba132081e14916061f49c850c8e6871",
       "local_capture_summary": ".tmp/ui-roster-capacity/validation-evidence.json",
       "local_capture_summary_sha256": "f13c423780562850952492944ce99cf56351ef89f003f0fef7fe0146ff3174bc"
     },
@@ -1187,7 +1187,7 @@
       "baseline_engine_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "companion_revision": "35a1e919c828b8fd5326f46e1dda9a975c8549aa",
       "scope": "UI-02/UI-03 controller settings, list paging and Join Game focus: Prompt Style (in_promptStyle) and Swap Confirm and Back (in_swapConfirmBack) as stock choice rows in Game Options > Controller in every shipped language, the later rows, hovers, anchors and scroll extent moved; PageUp/PageDown and Home/End moving focus a visible page through the scrolling list that holds a focused button or toggle (Runtime::Impl::PageList), the triggers sending them where a document declares no section events and stepping a focused slider coarsely; Join Game's row focus following its server through new orders, refreshes and filters onto its page. Settings coverage and GUI contracts, the focus reveal test at two densities with button and toggle rows, the adapter and session gate harnesses and an OpenGL English Settings and Load Game capture pass. Trigger and other button glyphs, right-stick detail scrolling and physical controller runs remain.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f",
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
       "local_capture_summary": ".tmp/ui/controller-settings-paging/validation-evidence.json",
       "local_capture_summary_sha256": "4ee88d83dbf0f98347f95fa70529aeb463fc20bb7725aaad1f905b6a5a82831c"
     },
@@ -1197,7 +1197,7 @@
       "baseline_engine_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
       "companion_revision": "1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6",
       "scope": "UI-02/INP-011: the gamepad Menu button runs a retained document's onMenuButton, once per press, where declared (Back elsewhere); Save Game, Restart Level and in-game Load Game ask the session for menuResume, which returns the pause and runs its RESUME during a single-player game.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f",
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
       "local_capture_summary": ".tmp/ui/menu-button-resume/validation-evidence.json",
       "local_capture_summary_sha256": "7d791a2d806b2f192709d210e04b984d5ba59b3a49860c5564c28448e1af3782"
     },
@@ -1207,7 +1207,7 @@
       "baseline_engine_revision": "2bfcb60cc42b51d700b36386d065c104c0d9daf5",
       "companion_revision": "2bfcb60cc42b51d700b36386d065c104c0d9daf5",
       "scope": "UI-02/INP-011: the Menu button applies pending changes on the opt-in SYSTEM page (update_system_menu_button.py) and the Escape card's Admin page, and the adapter keeps it Back while a dialog or an open list holds the input (Runtime::ModalOpen, the focused widget's popupOpen).",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f",
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
       "local_capture_summary": ".tmp/ui/menu-button-apply/validation-evidence.json",
       "local_capture_summary_sha256": "f8fea2394b50fc49215af334f825208e7b17f9fe35970f45b7adb3e9945665c6"
     },
@@ -1217,7 +1217,7 @@
       "baseline_engine_revision": "55ed6f210da77490d2389849e04d46faad92e9c0",
       "companion_revision": "55ed6f210da77490d2389849e04d46faad92e9c0",
       "scope": "UI-02/INP-011: section 13.5's trigger glyphs (LT/RT, L2/R2, ZL/ZR, Steam Deck's outlined L2/R2, generic chevrons) end the Escape card's Match and Admin section strips, a legend for a controller only.",
-      "sha256": "6bc8fbcacb7039de50530d79ba31fc7d57d0c9ffc6ceec706e5174b4175a894f",
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
       "local_capture_summary": ".tmp/ui/trigger-glyphs/validation-evidence.json",
       "local_capture_summary_sha256": "1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59"
     },
@@ -1230,6 +1230,16 @@
       "sha256": "3ee91791c340135ec396b480acbed54a4f899ec399a8c82745f19f1f8fe99031",
       "local_capture_summary": ".tmp/ui/joined-strings/validation-evidence.json",
       "local_capture_summary_sha256": "9142f36637682668facf126154792e78c6d94b1235fbe0585b47010438cee682"
+    },
+    "menu-glyphs": {
+      "kind": "implementation_checkpoint",
+      "path": "docs/dev/ui/input-routing.md",
+      "baseline_engine_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
+      "companion_revision": "b038777b2b1cec823b34b80256d0c3f7d50ccc64",
+      "scope": "UI-02/INP-011: section 13.5's Menu button glyphs (Xbox disc, PlayStation Options pill, Nintendo plus, Steam Deck ring, generic outlined pill) end the Escape card's Admin Apply changes plate, which the button presses, for a controller only.",
+      "sha256": "66cb4f83bee3d505e5030e7a608b903ded5a3ce66901f0d97761365d4ad30c7f",
+      "local_capture_summary": ".tmp/ui/menu-glyphs/validation-evidence.json",
+      "local_capture_summary_sha256": "c2bc17f9841b34b99304af21faa4c2f65104a3c8dad2af5a484488d67fa2a4cf"
     }
   },
   "groups": {
@@ -9006,10 +9016,11 @@
         "controller-settings-paging",
         "menu-button-resume",
         "menu-button-apply",
-        "trigger-glyphs"
+        "trigger-glyphs",
+        "menu-glyphs"
       ],
       "acceptance_evidence": [],
-      "remaining": "The shoulders (with Q and E) run a document's previous and next tab events, the triggers its previous and next section events, and the west and north face buttons its secondary and tertiary events, each once per press, never with Ctrl or Alt or while a field is being edited; without section events the triggers page the focused list a visible page at a time and step a focused slider coarsely (Join Game refreshes the list on west and sorts it by the next column on north). Prompts draw the active controller's family, the one the HUD's prompts use (from the gamepad type SDL reports: Xbox, PlayStation, Nintendo, Steam Deck under the steamdeck profile, or generic), as vector glyphs for the face buttons and the shoulders (LB and RB, L1 and R1, L and R), and the HUD's in_promptStyle overrides it for both. Nintendo layouts, a forced Nintendo style among them, confirm on the east button and go back on the south one, and in_swapConfirmBack forces either convention (both are rows in Game Options > Controller), in every menu input path (the stock windows, the retained adapter and runtime, and the sub-page change's Back), with the Accept and Back prompts following. The right stick's detail scrolling, View's scoreboard or details (View is Back in menus now, as Menu is while a dialog or an open list holds the input), glyphs for the Menu and View buttons and the sticks (the triggers' glyphs end the Match and Admin section strips), and the per-family controller runs remain.",
+      "remaining": "The shoulders (with Q and E) run a document's previous and next tab events, the triggers its previous and next section events, and the west and north face buttons its secondary and tertiary events, each once per press, never with Ctrl or Alt or while a field is being edited; without section events the triggers page the focused list a visible page at a time and step a focused slider coarsely (Join Game refreshes the list on west and sorts it by the next column on north). Prompts draw the active controller's family, the one the HUD's prompts use (from the gamepad type SDL reports: Xbox, PlayStation, Nintendo, Steam Deck under the steamdeck profile, or generic), as vector glyphs for the face buttons and the shoulders (LB and RB, L1 and R1, L and R), and the HUD's in_promptStyle overrides it for both. Nintendo layouts, a forced Nintendo style among them, confirm on the east button and go back on the south one, and in_swapConfirmBack forces either convention (both are rows in Game Options > Controller), in every menu input path (the stock windows, the retained adapter and runtime, and the sub-page change's Back), with the Accept and Back prompts following. The right stick's detail scrolling, View's scoreboard or details (View is Back in menus now, as Menu is while a dialog or an open list holds the input), glyphs for the View button and the sticks (the triggers' glyphs end the Match and Admin section strips, and the Menu button's the Admin page's Apply changes plate), and the per-family controller runs remain.",
       "constraints": {
         "south": "accept",
         "east": "back",

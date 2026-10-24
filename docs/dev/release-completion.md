@@ -62,6 +62,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Menu button glyphs, 24 October 2026
+
+- [x] Each controller family's Menu button glyph ends the Escape card's
+  Admin Apply changes plate, which the button presses, for a controller only.
+- [Behavior and checks](ui/input-routing.md#menu-glyphs-24-october-2026):
+  native plate checks and a capture of every family.
+
 ## Joined lines and Demos capitals, 24 October 2026
 
 - [x] List separators, the time in the mission, a save's date and time and

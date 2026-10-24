@@ -1202,10 +1202,54 @@ def trigger_glyph(ident: str, family: str, side: str, tint: list, width: float =
                           "height": length(height)}, paths)
 
 
+def menu_glyph(ident: str, family: str, tint: list, size: float = 22) -> dict:
+    """One controller family's Menu button (section 13.5), drawn in the
+    family text color: Xbox's three lines on a disc, PlayStation's Options
+    button as three lines on an upright pill, Nintendo's plus on a disc,
+    Steam Deck's three lines in a ring, and a generic controller's three
+    lines in an outlined pill."""
+    scale = size / 22
+    lines_ink = GLYPH_INK if family in ("xbox", "playstation", "nintendo") else tint
+
+    def bars(width: float) -> list:
+        line = stroke(solid(lines_ink), 1.6 * scale, minimum=1)
+        return [path(f"bar-{index}", [((11 - width / 2) * scale, (11 + dy) * scale), ((11 + width / 2) * scale, (11 + dy) * scale)],
+                     closed=False, stroke=line) for index, dy in enumerate((-3.2, 0.0, 3.2))]
+
+    def pill(fill: bool) -> dict:
+        left, right, top, bottom, radius = 5.5 * scale, 16.5 * scale, 1.5 * scale, 20.5 * scale, 5.5 * scale
+        k = 0.5523 * radius
+        commands = [{"id": "m", "op": "move", "points": [point(left, top + radius)]},
+                    {"id": "a", "op": "cubic", "points": [point(left, top + radius - k), point(left + radius - k, top), point(left + radius, top)]},
+                    {"id": "b", "op": "cubic", "points": [point(right - radius + k, top), point(right, top + radius - k), point(right, top + radius)]},
+                    {"id": "c", "op": "line", "points": [point(right, bottom - radius)]},
+                    {"id": "d", "op": "cubic", "points": [point(right, bottom - radius + k), point(right - radius + k, bottom), point(right - radius, bottom)]},
+                    {"id": "e", "op": "cubic", "points": [point(left + radius - k, bottom), point(left, bottom - radius + k), point(left, bottom - radius)]},
+                    {"id": "z", "op": "close"}]
+        return ({"id": "pill", "commands": commands, "fill": solid(tint)} if fill else
+                {"id": "pill", "commands": commands, "stroke": stroke(solid(tint), 1.3 * scale, minimum=1)})
+    if family == "xbox":
+        paths = [circle_path("disc", 11 * scale, 11 * scale, 10.6 * scale, fill=solid(tint))] + bars(9.0)
+    elif family == "playstation":
+        paths = [pill(True)] + bars(6.0)
+    elif family == "nintendo":
+        line = stroke(solid(GLYPH_INK), 1.8 * scale, minimum=1)
+        paths = [circle_path("disc", 11 * scale, 11 * scale, 10.6 * scale, fill=solid(tint)),
+                 path("plus-h", [(6 * scale, 11 * scale), (16 * scale, 11 * scale)], closed=False, stroke=line),
+                 path("plus-v", [(11 * scale, 6 * scale), (11 * scale, 16 * scale)], closed=False, stroke=line)]
+    elif family == "steamdeck":
+        paths = [circle_path("ring", 11 * scale, 11 * scale, 9.9 * scale, line=stroke(solid(tint), 1.5 * scale, minimum=1))] + bars(8.0)
+    else:
+        paths = [pill(False)] + bars(6.0)
+    return vector(ident, {"position": keyword("relative"), "display": keyword("none"), "width": length(size),
+                          "height": length(size)}, paths)
+
+
 def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: float = 22,
                   width: float | None = None) -> list:
     """Each controller family's button at `position` (a face position, the
-    "left" or "right" shoulder, or the "left-trigger" or "right-trigger"),
+    "left" or "right" shoulder, the "left-trigger" or "right-trigger", or
+    "menu"),
     each shown only while prompt.glyphs names its family. A shoulder or a
     trigger is `width` dp wide (default `size`). An
     Accept or Back prompt (south or east) also carries each family's button
@@ -1227,6 +1271,8 @@ def device_glyphs(doc: Document, ident: str, position: str, tint: list, size: fl
                 node = shoulder_glyph(node_id, family, spot, tint, width or size, size)
             elif spot in ("left-trigger", "right-trigger"):
                 node = trigger_glyph(node_id, family, spot.split("-")[0], tint, width or size, size)
+            elif spot == "menu":
+                node = menu_glyph(node_id, family, tint, size)
             else:
                 node = face_glyph(node_id, family, spot, tint, size)
             doc.bind(f"{node_id}.display", node_id, "display", {"op": "select", "args": [condition, "block", "none"]})

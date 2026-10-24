@@ -357,7 +357,7 @@ def admin_page(doc: Document, index: int, ident: str, width: float, height: floa
                                                 "display": keyword("flex"), "flex-direction": keyword("column")}, right_rows)
     apply_name, apply_verb = APPLY
     apply = action_plate(doc, "admin-apply", f"mp.admin.{apply_name}", apply_w, section_height - 58, "admin_apply",
-                         [{"op": "action", "action": apply_verb}], primary=True)
+                         [{"op": "action", "action": apply_verb}], primary=True, menu_button=True)
     controls.append("admin-apply")
     server_section = section_group("server", 1, [server_left, server_right,
                                                  group("admin-apply-holder", b.absolute(left=0, top=0, width=apply_w, height=section_height),

@@ -161,7 +161,9 @@ a dialog. The two screens with an Apply declare it:
 - The Escape card's [Admin page](multiplayer-menus.md#the-admin-page)
   presses Apply changes while its Server section has something to apply
   (`mp.admin.apply.available`); otherwise Menu closes the card, as Back
-  does. The Welcome and summary cards keep the button Back.
+  does. The Welcome and summary cards keep the button Back. The Apply
+  changes plate ends with the Menu button's glyph for a controller
+  ([Menu glyphs](#menu-glyphs-24-october-2026)).
 
 Match Control's staged rules commit through a confirmation and keep Menu
 as Back.
@@ -185,6 +187,23 @@ no prompt names them yet.
 
 Evidence for trigger glyphs: `.tmp/ui/trigger-glyphs/validation-evidence.json`,
 SHA-256 `1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59`.
+
+### Menu glyphs (24 October 2026)
+
+Section 13.5's glyph families gain the Menu button, drawn in the family text
+color: Xbox's three lines on a disc, PlayStation's Options button as three
+lines on an upright pill, Nintendo's plus on a disc, Steam Deck's three
+lines in a ring and a generic controller's three lines in an outlined pill
+(`menu_glyph`, the `menu` position of `device_glyphs`). The card's prompt
+bar has no room for a Menu prompt in every language (German and Spanish run
+past the card with one), so the glyph sits on the control the button
+presses: the end of the Admin page's Apply changes plate, after its label
+and lock, for a controller only. The keyboard has no key for it and shows
+none. Glyphs for the View button and the sticks remain; no control names
+them yet.
+
+Evidence for Menu glyphs: `.tmp/ui/menu-glyphs/validation-evidence.json`,
+SHA-256 `c2bc17f9841b34b99304af21faa4c2f65104a3c8dad2af5a484488d67fa2a4cf`.
 
 ### Settings rows (24 October 2026)
 

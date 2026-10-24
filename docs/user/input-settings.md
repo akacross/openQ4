@@ -153,8 +153,9 @@ The menu prompts follow the choice. In-game bindings are not affected.
 
 In the menus, the controller's Menu button (Start, Options or +) takes you
 back to the game from the pause menu's Save, Load and Restart Level pages.
-On a multiplayer server's Admin page it applies your server changes. While a
-dialog or an open list is showing, it closes that first, as Back does.
+On a multiplayer server's Admin page it applies your server changes, and the
+Apply Changes button shows the Menu button's symbol. While a dialog or an
+open list is showing, it closes that first, as Back does.
 
 ### Button Prompts
 
