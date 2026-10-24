@@ -3233,6 +3233,14 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(text("join-detail-address","text") == "10.0.0.9:28004" && text("join-detail-player0","text") == "Grunt" &&
 		text("join-detail-setting0","text") == "Map: Fragging Yard" && text("join-detail-players","text") == "#str_200038" &&
 		text("join-detail-settings","text") == "#str_200928","it names the server's address, players and settings under the stock headings");
+	// The View button hides the card and shows it again (section 13.5).
+	Runtime::EventEffects viewEffects;
+	Check(runtime.RunEvent("onViewButton",0.922,viewEffects,error),"View hides the details");
+	runtime.Frame(viewport,0.923);
+	Check(text("join-detail","display") == "none","the card is hidden while its row stays the subject");
+	Check(runtime.RunEvent("onViewButton",0.924,viewEffects,error),"View shows them again");
+	runtime.Frame(viewport,0.925);
+	Check(text("join-detail","display") == "block","the card is back");
 	Check(runtime.SetState({{"join.detail.row",2.0}},error,0.93),"a stale description");
 	runtime.Frame(viewport,0.931);
 	Check(text("join-detail","display") == "none","describing another row hides it");

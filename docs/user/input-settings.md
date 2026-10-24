@@ -153,6 +153,8 @@ The menu prompts follow the choice. In-game bindings are not affected.
 
 In the menus, the controller's Menu button (Start, Options or +) takes you
 back to the game from the pause menu's Save, Load and Restart Level pages.
+The View button (Back, Select or −) hides or shows Join Game's server details;
+in play, holding it shows the scores or objectives.
 On a multiplayer server's Admin page it applies your server changes, and the
 Apply Changes button shows the Menu button's symbol. While a dialog or an
 open list is showing, it closes that first, as Back does.
@@ -267,7 +269,7 @@ SDL gamepads use stable `JOY` button names so binds work across common Xbox, Pla
 | `JOY5` / Y or Triangle | Flashlight |
 | `JOY6` / X or Square | Reload |
 | `JOY7` / Start | Menu |
-| `JOY8` / Back or Select | Menu |
+| `JOY8` / View, Back or Select | Scores or objectives while held |
 | `JOY9` / D-pad Up | Objectives or scores |
 | `JOY10` / D-pad Down | Quick-chat wheel (multiplayer) |
 | `JOY11` / D-pad Right | Previous weapon |
@@ -296,9 +298,12 @@ of letters.
 
 Menu behavior:
 
-- `JOY7` and `JOY8` open the in-game menu.
+- `JOY7` opens the in-game menu; `JOY8` (View) shows the scores or objectives
+  while held, as `JOY9` does.
 - `JOY3` activates the focused menu item.
-- `JOY4`, `JOY7`, and `JOY8` back out of menus.
+- `JOY4`, `JOY7`, and `JOY8` back out of menus, except where `JOY7` (Menu)
+  or `JOY8` (View) has its own job on a page: View hides or shows Join
+  Game's server details.
 - The D-pad and movement stick move menu focus.
 - Holding the D-pad, movement stick, or shoulder buttons repeats navigation for long lists.
 - Steam Deck packages enable the `steamdeck` platform profile, which applies `openq4_profile_steamdeck.cfg` on top of the normal defaults.

@@ -40,6 +40,7 @@ revision; the parity test checks the pinned files as well as the working tree.
 | Enter, keypad Enter, Space / gamepad South (East while swapped) | Accept on paired release |
 | Escape / gamepad East (South while swapped), Start, Back | Pop the current modal scope, then close the root menu |
 | Gamepad Menu (Start) | The document's `onMenuButton` where it declares it ([Menu button](#menu-button-24-october-2026)), once per press; otherwise, and while a dialog or an open list holds the input, as Back |
+| Gamepad View (Back) | The document's `onViewButton` where it declares it ([View button](#view-button-24-october-2026)), once per press; otherwise, and while a dialog or an open list holds the input, as Back |
 | Primary pointer | Focus, arm and release the hit button |
 | Movement stick | Dominant-axis spatial navigation after neutral |
 | Q / E, gamepad shoulders | The document's previous / next tab (`onTabPrevious`, `onTabNext`) where it declares them; not while a field is being edited, nor with Ctrl or Alt |
@@ -232,6 +233,23 @@ SHA-256 `c6e0cce45e07d6b112980a2399eb413fc22ad7d596deacc620a976f7b545739f`.
 Evidence for the dialog and Restart Level wraps:
 `.tmp/ui/menu-wrap-dialogs/validation-evidence.json`, SHA-256
 `950ee588fc31835335cb205174b5607db8e11dca821498d2d75cd8c66dfc91ff`.
+
+### View button (24 October 2026)
+
+Section 13.5 gives the View button the scoreboard in play and, in menus,
+showing or hiding a page's details. The adapter runs a document's
+`onViewButton` the way it runs `onMenuButton`: once per press where the
+document declares it, Back elsewhere and while a dialog or an open list
+holds the input. Join Game declares it: View hides the server details card
+under the focused row and shows it again (`join.detail.hidden`), without
+changing which row the card describes. In play the default bind of `JOY8`
+is now `_impulse19`, the scores or objectives while held, as D-pad Up's is;
+it opened the menu, as Start still does. Players who kept the old bind in
+their configuration keep it. Join Game's card is the only details panel a
+retained page has yet.
+
+Evidence for the View button: `.tmp/ui/view-button/validation-evidence.json`,
+SHA-256 `d34fdad0c627ab5312d76888a780f35eee9f61cf8e8e0d39a52e03f19d7f1e7c`.
 
 ### Menu glyphs (24 October 2026)
 

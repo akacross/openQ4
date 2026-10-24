@@ -1,5 +1,12 @@
 # UI product requirement register
 
+24 October 2026: [the View button](input-routing.md#view-button-24-october-2026)
+adds bounded UI-02 evidence to `INP-011`. View runs a document's `onViewButton`
+(Back elsewhere and in dialogs or open lists), hides or shows Join Game's server
+details, and by default shows the scores while held in play. The increment is
+audited against `116b00bfd21a8c0ed101da46b3c84e94448ffa7d`. No requirement status, migration acceptance or final
+gate changes.
+
 24 October 2026: [Medical Labs implant captures](remastered-hud.md#medical-labs-implant-captures-24-october-2026)
 add bounded UI-04 evidence to `FLOW-062`. The retained overlay is driven through the
 level's own script and a real save at five aspects and in German. The increment is

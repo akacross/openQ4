@@ -33,8 +33,8 @@ Default gameplay bindings shipped by the stock openQ4 config:
 
 Menu behavior:
 
-- `JOY7` and `JOY8` both open the in-game menu; `JOY17` also opens the menu when the OS delivers the Guide button to the game.
-- `JOY3` selects the focused menu item, while `JOY4`, `JOY7`, and `JOY8` back out of menus.
+- `JOY7` opens the in-game menu and `JOY8` (View) shows the scores or objectives while held; `JOY17` also opens the menu when the OS delivers the Guide button to the game.
+- `JOY3` selects the focused menu item, while `JOY4`, `JOY7`, and `JOY8` back out of menus (View hides or shows Join Game's server details).
 - The D-pad is reserved for menu focus movement whenever a menu is open, even though those same buttons also have gameplay bindings.
 - The movement stick can also move menu focus, and holding the D-pad, movement stick, or shoulder buttons repeats navigation/scrolling for longer lists.
 - Extra `JOY23` through `JOY32` and `AUX1` through `AUX16` buttons are bindable but left unbound by default for user customization.

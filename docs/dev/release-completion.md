@@ -74,6 +74,16 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## View button, 24 October 2026
+
+- [x] The View button runs a retained document's `onViewButton` (Back
+  elsewhere and in dialogs or open lists); Join Game's toggles its server
+  details card. Its default bind in play is the scores or objectives while
+  held (`_impulse19`).
+- [Behavior and checks](ui/input-routing.md#view-button-24-october-2026):
+  adapter harness, native Join Game check and an engine capture. Candidate
+  player wording is in [baseline refinements](releases/baseline-refinements.md).
+
 ## List focus memory, 24 October 2026
 
 - [x] Scrolling lists remember their last focused control; a directional

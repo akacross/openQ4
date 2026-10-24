@@ -71,6 +71,10 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- The controller's View button now shows the scores (or your objectives)
+  while held, instead of opening the menu; Start still opens it. In Join Game
+  it hides or shows the server details. If you rebound the button yourself,
+  your binding is kept.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

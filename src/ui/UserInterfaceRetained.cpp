@@ -1002,13 +1002,14 @@ struct idUserInterfaceRetained::Impl {
 	// a page where it declares onSectionPrevious and onSectionNext; the west
 	// face button runs its secondary action (reset, remove, refresh) where it
 	// declares onSecondary, and north its tertiary one (details, search, sort,
-	// filters) where it declares onTertiary, and the Menu button its
-	// onMenuButton (section 13.5). A field being
+	// filters) where it declares onTertiary, the Menu button its
+	// onMenuButton and the View button its onViewButton (section 13.5). A field being
 	// edited keeps its keys, and Ctrl or Alt leave them to shortcuts.
 	bool TabKey(int key, const openq4::KeyEventMetadata* metadata) {
 		const char* name = key == 'q' || key == K_JOY1 ? "onTabPrevious" : key == 'e' || key == K_JOY2 ? "onTabNext" :
 			key == K_JOY16 ? "onSectionPrevious" : key == K_JOY15 ? "onSectionNext" :
-			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : key == K_JOY7 ? "onMenuButton" : nullptr;
+			key == K_JOY6 ? "onSecondary" : key == K_JOY5 ? "onTertiary" : key == K_JOY7 ? "onMenuButton" :
+			key == K_JOY8 ? "onViewButton" : nullptr;
 		if (!name || !RuntimeView()->HasEvent(name)) return false;
 		const bool control = metadata ? metadata->control : held.contains(K_CTRL) || idKeyInput::IsDown(K_CTRL);
 		const bool alt = metadata ? metadata->alt : held.contains(K_ALT) || held.contains(K_RIGHT_ALT) || idKeyInput::IsDown(K_ALT) || idKeyInput::IsDown(K_RIGHT_ALT);
@@ -1394,16 +1395,18 @@ const char* idUserInterfaceRetained::HandleEvent(const sysEvent_t* event, int ti
 					break;
 				}
 				case K_ENTER: case K_KP_ENTER: case K_SPACE: case K_JOY3: action = MenuInput::Accept; break;
-				case K_ESCAPE: case K_JOY4: case K_JOY8: action = MenuInput::Back; break;
+				case K_ESCAPE: case K_JOY4: action = MenuInput::Back; break;
 				// The Menu button applies pending changes or closes the menus and
-				// resumes play (section 13.5) where the document declares it;
+				// resumes play, and the View button shows or hides a page's
+				// details (section 13.5), where the document declares them;
 				// elsewhere, and while a dialog or an open list holds the input,
-				// it is Back, which closes them.
-				case K_JOY7: {
+				// each is Back, which closes them.
+				case K_JOY7: case K_JOY8: {
 					auto* runtime = impl->RuntimeView();
 					const auto widget = runtime ? runtime->GetWidgetState(runtime->FocusedControl()) : std::nullopt;
 					action = MenuInput::Back;
-					mapped = !runtime || !runtime->HasEvent("onMenuButton") || runtime->ModalOpen() || (widget && widget->popupOpen);
+					mapped = !runtime || !runtime->HasEvent(key == K_JOY7 ? "onMenuButton" : "onViewButton") || runtime->ModalOpen() ||
+						(widget && widget->popupOpen);
 					break;
 				}
 				default: mapped = false; break;

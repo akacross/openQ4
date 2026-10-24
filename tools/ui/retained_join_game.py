@@ -276,6 +276,10 @@ def detail_card(doc: Document) -> dict:
     doc.state["join.detail"] = {"type": "number", "initial": -1}
     doc.state["join.detail.row"] = {"type": "number", "initial": -1}
     doc.state["join.detail.address"] = {"type": "string", "initial": ""}
+    # The View button shows or hides the card (section 13.5).
+    doc.state["join.detail.hidden"] = {"type": "boolean", "initial": False}
+    doc.events["onViewButton"] = [{"op": "setState", "values": {
+        "join.detail.hidden": {"op": "!", "args": [{"state": "join.detail.hidden"}]}}}]
     doc.detail = {"state": "join.detail", "card": "join-detail", "none": -1}
     width, height = U * DETAIL[0], U * DETAIL[1]
     cut, bevel = U * 8, U * 4
@@ -307,8 +311,10 @@ def detail_card(doc: Document) -> dict:
     card = group("join-detail", {**absolute(left=0, top=0, width=width, height=height), "display": keyword("none"),
                                  "pointer-events": keyword("none")}, [frame, address, *headings, *lines])
     doc.bind("join-detail.display", "join-detail", "display", {"op": "select", "args": [
-        {"op": "&&", "args": [{"op": ">=", "args": [{"state": "join.detail"}, 0]},
-                              {"op": "==", "args": [{"state": "join.detail"}, {"state": "join.detail.row"}]}]}, "block", "none"]})
+        {"op": "&&", "args": [{"op": "!", "args": [{"state": "join.detail.hidden"}]},
+                              {"op": "&&", "args": [{"op": ">=", "args": [{"state": "join.detail"}, 0]},
+                                                    {"op": "==", "args": [{"state": "join.detail"}, {"state": "join.detail.row"}]}]}]},
+        "block", "none"]})
     return card
 
 

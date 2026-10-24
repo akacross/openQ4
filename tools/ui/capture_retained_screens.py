@@ -877,6 +877,21 @@ SCENARIOS = {
     # own file). Before the join the chosen server shows its levelshot and
     # dedicated symbol, the favorite toggle takes it off the favorites and
     # puts it back, and MOD's spinner steps to the next mod and back.
+    # The View button hides and shows Join Game's server details (section
+    # 13.5): the focused row's card, then hidden, then back. The log first
+    # reports View's default bind in play.
+    'join-details-view': (None, [
+        'waitMsec 7000', 'bind JOY8',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2700', 'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 4800', 'openq4_retainedGui focus "server-0"', 'waitMsec 2500',
+        'openq4_retainedGui inspect "join-detail"', 'screenshot "screenshots/join-details-shown.tga"',
+        'openq4_retainedGui event onViewButton', 'waitMsec 400', 'openq4_retainedGui inspect "join-detail"',
+        'screenshot "screenshots/join-details-hidden.tga"',
+        'openq4_retainedGui event onViewButton', 'waitMsec 400', 'openq4_retainedGui inspect "join-detail"',
+        'screenshot "screenshots/join-details-again.tga"',
+    ]),
     'joingame': (None, [
         # A fresh build's first start can run past the usual wait; the title
         # refuses focus until it has arrived.
@@ -1182,6 +1197,7 @@ SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 
                                       'cvars': {'net_serverRemoteConsolePassword': 'openq4-admin-probe', 'bot_minPlayers': '2',
                                                'net_allowCheats': '1'}},
                     'joingame': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'join-details-view': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joinfilters': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
@@ -1208,6 +1224,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'mpcard-tri
                   'multiplayer': {'net_allowCheats': '1'},
                   'createserverstart': {'net_ip': '127.0.0.1'},
                   'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
+                  'join-details-view': {'net_ip': '127.0.0.1'},
                   'joinfilters': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
@@ -1259,6 +1276,8 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'createserver': {'banlist.txt': ban_list},
          # The browser's favorites (one address a line): the scenario's server.
          'joingame': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joingame']['port']}\n".encode('ascii')},
+         'join-details-view': {'server_favorites.list':
+                               lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['join-details-view']['port']}\n".encode('ascii')},
          'joinfilters': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joinfilters']['port']}\n".encode('ascii')},
          'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,

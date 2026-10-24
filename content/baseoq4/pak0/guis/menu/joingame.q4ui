@@ -674,6 +674,7 @@
   "join.detail": {"type": "number", "initial": -1},
   "join.detail.row": {"type": "number", "initial": -1},
   "join.detail.address": {"type": "string", "initial": ""},
+  "join.detail.hidden": {"type": "boolean", "initial": false},
   "join.detail.player0": {"type": "string", "initial": ""},
   "join.detail.player1": {"type": "string", "initial": ""},
   "join.detail.player2": {"type": "string", "initial": ""},
@@ -1344,6 +1345,7 @@
     "else": [{"op": "setState", "values": {"join.pick": 63}}, {"op": "action", "action": "joinPick"}]
    }
   ],
+  "onViewButton": [{"op": "setState", "values": {"join.detail.hidden": {"op": "!", "args": [{"state": "join.detail.hidden"}]}}}],
   "joinAddressEntered": [{"op": "action", "action": "joinConnect"}],
   "joinIpConnect": [
    {
@@ -24701,8 +24703,14 @@
      {
       "op": "&&",
       "args": [
-       {"op": ">=", "args": [{"state": "join.detail"}, 0]},
-       {"op": "==", "args": [{"state": "join.detail"}, {"state": "join.detail.row"}]}
+       {"op": "!", "args": [{"state": "join.detail.hidden"}]},
+       {
+        "op": "&&",
+        "args": [
+         {"op": ">=", "args": [{"state": "join.detail"}, 0]},
+         {"op": "==", "args": [{"state": "join.detail"}, {"state": "join.detail.row"}]}
+        ]
+       }
       ]
      },
      "block",

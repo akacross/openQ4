@@ -2518,6 +2518,16 @@ static void CheckTabKeys() {
     runtime.widgets.at("root").popupOpen=true;pulse(K_JOY7);runtime.widgets.at("root").popupOpen=false;
     assert((runtime.menu==Pulses{{MenuInput::Back,true},{MenuInput::Back,false},{MenuInput::Back,true},{MenuInput::Back,false}}));
     assert(std::count(eventHistory.begin(),eventHistory.end(),std::string("onmenubutton"))==2);
+    // The View button likewise: Back unless the document declares
+    // onViewButton, once per press, and Back while a dialog holds the input.
+    runtime.menu.clear();
+    pulse(K_JOY8);
+    assert((runtime.menu==Pulses{{MenuInput::Back,true},{MenuInput::Back,false}}));
+    eventPlans["onviewbutton"]={};runtime.menu.clear();
+    pulse(K_JOY8);Key(gui,K_JOY8,true);Key(gui,K_JOY8,true);Key(gui,K_JOY8,false);
+    assert(runtime.menu.empty() && std::count(eventHistory.begin(),eventHistory.end(),std::string("onviewbutton"))==2);
+    runtime.modalOpen=true;pulse(K_JOY8);runtime.modalOpen=false;
+    assert((runtime.menu==Pulses{{MenuInput::Back,true},{MenuInput::Back,false}}));
 }
 // A document that declares prompt.glyphs gets RetainedUI_PromptGlyphs as
 // each frame draws, once per change, and the session's state pushes carry
