@@ -125,6 +125,10 @@ completed release material here and publish curated notes in `releases/`.
   Admin Apply changes plate, which the button presses, for a controller only.
 - [Behavior and checks](ui/input-routing.md#menu-glyphs-24-october-2026):
   native plate checks and a capture of every family.
+- [x] Each family's View button glyph sits at the corner of Join Game's
+  server details card, which the button hides, for a controller only
+  ([View glyphs](ui/input-routing.md#view-glyphs-24-october-2026): native card
+  checks and a capture of every family).
 
 ## Joined lines and Demos capitals, 24 October 2026
 

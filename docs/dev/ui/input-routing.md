@@ -183,8 +183,9 @@ corners round by 7 dp, labelled as SDL reports it: LT and RT (Xbox), L2 and
 R2 (PlayStation and Steam Deck, the latter outlined), ZL and ZR (Nintendo),
 and for a generic controller an outlined plate with a chevron pointing to its
 side. Generation fails if a strip's sections in any shipped language would
-reach the glyphs. Glyphs for the Menu and View buttons and the sticks remain;
-no prompt names them yet.
+reach the glyphs. The Menu and View buttons have glyphs since
+([Menu glyphs](#menu-glyphs-24-october-2026), [View glyphs](#view-glyphs-24-october-2026));
+the sticks' remain.
 
 Evidence for trigger glyphs: `.tmp/ui/trigger-glyphs/validation-evidence.json`,
 SHA-256 `1de24fafd097c2ba6f764a6b37406e5972111dc88c79fa6b55a74db617779d59`.
@@ -263,11 +264,27 @@ bar has no room for a Menu prompt in every language (German and Spanish run
 past the card with one), so the glyph sits on the control the button
 presses: the end of the Admin page's Apply changes plate, after its label
 and lock, for a controller only. The keyboard has no key for it and shows
-none. Glyphs for the View button and the sticks remain; no control names
-them yet.
+none. The sticks' glyphs remain.
 
 Evidence for Menu glyphs: `.tmp/ui/menu-glyphs/validation-evidence.json`,
 SHA-256 `c2bc17f9841b34b99304af21faa4c2f65104a3c8dad2af5a484488d67fa2a4cf`.
+
+### View glyphs (24 October 2026)
+
+The glyph families gain the View button (`view_glyph`, the `view` position of
+`device_glyphs`), in the family text color: Xbox's two overlapping windows on
+a disc, PlayStation's Create button as three rays on an upright pill,
+Nintendo's minus on a disc, Steam Deck's two windows in a ring and a generic
+controller's two windows in an outlined pill. As the Menu glyph does, it sits
+on what the button acts on: the top trailing corner of Join Game's server
+details card, 18 dp beside the address and above the rule, for a controller
+only. View hides the card; the keyboard has no key for it and shows none.
+The mp-pages native test checks each family's glyph, its place on the card
+and the keyboard's absence, and the `join-view-glyphs` capture forces each
+family through Prompt Style. The family shapes await art review under UI-05.
+
+Evidence for View glyphs: `.tmp/ui/view-glyphs/validation-evidence.json`,
+SHA-256 `d3870701f6e9d2e67bf53894eb59a5cc5ff0e8477369a2ac1e9f1ca658195d18`.
 
 ### Settings rows (24 October 2026)
 

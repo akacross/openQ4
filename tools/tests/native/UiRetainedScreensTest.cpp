@@ -3252,6 +3252,25 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.RunEvent("onViewButton",0.924,viewEffects,error),"View shows them again");
 	runtime.Frame(viewport,0.925);
 	Check(text("join-detail","display") == "block","the card is back");
+	// Its top trailing corner names the View button for a controller, beside
+	// the address and above the rule; no key presses it, so the keyboard
+	// shows none.
+	Check(text("join-detail-view-xbox","display") == "none" && text("join-detail-view-generic","display") == "none",
+		"the keyboard shows no View button");
+	Check(runtime.SetState({{"prompt.glyphs",1.0}},error,0.926),"an Xbox controller");
+	runtime.Frame(viewport,0.927);
+	const auto viewGlyph = bounds("join-detail-view-xbox"), viewCard = bounds("join-detail"), viewAddress = bounds("join-detail-address");
+	Check(text("join-detail-view-xbox","display") == "block" && text("join-detail-view-playstation","display") == "none" &&
+		Near(viewGlyph.x+viewGlyph.width,viewCard.x+viewCard.width-6*u,1) && Near(viewGlyph.y,viewCard.y+4*u,1) &&
+		Near(viewGlyph.width,12*u,1) && viewGlyph.y+viewGlyph.height <= viewCard.y+23*u+1 &&
+		viewAddress.x+viewAddress.width <= viewGlyph.x+1,"the card's corner shows the Xbox View button");
+	Check(runtime.SetState({{"prompt.glyphs",4.0}},error,0.928),"a Steam Deck");
+	runtime.Frame(viewport,0.929);
+	Check(text("join-detail-view-steamdeck","display") == "block" && text("join-detail-view-xbox","display") == "none",
+		"each family draws its own");
+	Check(runtime.SetState({{"prompt.glyphs",0.0}},error,0.9295),"the keyboard again");
+	runtime.Frame(viewport,0.9297);
+	Check(text("join-detail-view-steamdeck","display") == "none","and the keyboard none");
 	Check(runtime.SetState({{"join.detail.row",2.0}},error,0.93),"a stale description");
 	runtime.Frame(viewport,0.931);
 	Check(text("join-detail","display") == "none","describing another row hides it");

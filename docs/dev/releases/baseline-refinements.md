@@ -79,8 +79,8 @@
   in the multiplayer menu's Vote and Admin pages, up from 48.
 - The controller's View button now shows the scores (or your objectives)
   while held, instead of opening the menu; Start still opens it. In Join Game
-  it hides or shows the server details. If you rebound the button yourself,
-  your binding is kept.
+  it hides or shows the server details, whose card shows the button's symbol.
+  If you rebound the button yourself, your binding is kept.
 
 - Continue on the title screen and the Load Game page now show each save's
   difficulty and total play time, and the pause menu adds your total play time

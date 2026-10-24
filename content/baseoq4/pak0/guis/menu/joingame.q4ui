@@ -24694,6 +24694,36 @@
    "value": {"state": "join.detail.setting6"}
   },
   {
+   "id": "join-detail-view-xbox.display",
+   "node": "join-detail-view-xbox",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 1]}, "block", "none"]}
+  },
+  {
+   "id": "join-detail-view-playstation.display",
+   "node": "join-detail-view-playstation",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 2]}, "block", "none"]}
+  },
+  {
+   "id": "join-detail-view-nintendo.display",
+   "node": "join-detail-view-nintendo",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 3]}, "block", "none"]}
+  },
+  {
+   "id": "join-detail-view-steamdeck.display",
+   "node": "join-detail-view-steamdeck",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 4]}, "block", "none"]}
+  },
+  {
+   "id": "join-detail-view-generic.display",
+   "node": "join-detail-view-generic",
+   "property": "display",
+   "value": {"op": "select", "args": [{"op": "==", "args": [{"state": "prompt.glyphs"}, 5]}, "block", "none"]}
+  },
+  {
    "id": "join-detail.display",
    "node": "join-detail",
    "property": "display",
@@ -102924,6 +102954,345 @@
            "white-space": {"type": "keyword", "value": "nowrap"},
            "overflow": {"type": "keyword", "value": "hidden"}
           }
+         },
+         {
+          "id": "join-detail-view",
+          "type": "group",
+          "properties": {
+           "position": {"type": "keyword", "value": "absolute"},
+           "left": {"type": "length", "value": 378.0, "unit": "dp"},
+           "top": {"type": "length", "value": 6.0, "unit": "dp"},
+           "width": {"type": "length", "value": 18.0, "unit": "dp"},
+           "height": {"type": "length", "value": 18.0, "unit": "dp"},
+           "pointer-events": {"type": "keyword", "value": "none"}
+          },
+          "children": [
+           {
+            "id": "join-detail-view-xbox",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "relative"},
+             "display": {"type": "keyword", "value": "none"},
+             "width": {"type": "length", "value": 18.0, "unit": "dp"},
+             "height": {"type": "length", "value": 18.0, "unit": "dp"}
+            },
+            "paths": [
+             {
+              "id": "disc",
+              "commands": [
+               {"id": "m", "op": "move", "points": [[17.673, 9.0]]},
+               {"id": "a", "op": "cubic", "points": [[17.673, 13.79], [13.79, 17.673], [9.0, 17.673]]},
+               {"id": "b", "op": "cubic", "points": [[4.21, 17.673], [0.327, 13.79], [0.327, 9.0]]},
+               {"id": "c", "op": "cubic", "points": [[0.327, 4.21], [4.21, 0.327], [9.0, 0.327]]},
+               {"id": "d", "op": "cubic", "points": [[13.79, 0.327], [17.673, 4.21], [17.673, 9.0]]},
+               {"id": "z", "op": "close"}
+              ],
+              "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}}
+             },
+             {
+              "id": "back",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[5.318, 10.325]]},
+               {"id": "p1", "op": "line", "points": [[5.318, 5.318]]},
+               {"id": "p2", "op": "line", "points": [[10.325, 5.318]]},
+               {"id": "p3", "op": "line", "points": [[10.325, 7.675]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "back-foot",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[5.318, 10.325]]},
+               {"id": "p1", "op": "line", "points": [[7.675, 10.325]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "front",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[7.675, 7.675]]},
+               {"id": "p1", "op": "line", "points": [[12.682, 7.675]]},
+               {"id": "p2", "op": "line", "points": [[12.682, 12.682]]},
+               {"id": "p3", "op": "line", "points": [[7.675, 12.682]]},
+               {"id": "close", "op": "close"}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           },
+           {
+            "id": "join-detail-view-playstation",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "relative"},
+             "display": {"type": "keyword", "value": "none"},
+             "width": {"type": "length", "value": 18.0, "unit": "dp"},
+             "height": {"type": "length", "value": 18.0, "unit": "dp"}
+            },
+            "paths": [
+             {
+              "id": "pill",
+              "commands": [
+               {"id": "m", "op": "move", "points": [[4.5, 5.727]]},
+               {"id": "a", "op": "cubic", "points": [[4.5, 3.242], [6.515, 1.227], [9.0, 1.227]]},
+               {"id": "b", "op": "cubic", "points": [[11.485, 1.227], [13.5, 3.242], [13.5, 5.727]]},
+               {"id": "c", "op": "line", "points": [[13.5, 12.273]]},
+               {"id": "d", "op": "cubic", "points": [[13.5, 14.758], [11.485, 16.773], [9.0, 16.773]]},
+               {"id": "e", "op": "cubic", "points": [[6.515, 16.773], [4.5, 14.758], [4.5, 12.273]]},
+               {"id": "z", "op": "close"}
+              ],
+              "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}}
+             },
+             {
+              "id": "ray-0",
+              "commands": [{"id": "p0", "op": "move", "points": [[9.0, 11.864]]}, {"id": "p1", "op": "line", "points": [[9.0, 6.136]]}],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "ray-1",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[7.609, 12.109]]},
+               {"id": "p1", "op": "line", "points": [[6.464, 7.527]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "ray-2",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[10.391, 12.109]]},
+               {"id": "p1", "op": "line", "points": [[11.536, 7.527]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           },
+           {
+            "id": "join-detail-view-nintendo",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "relative"},
+             "display": {"type": "keyword", "value": "none"},
+             "width": {"type": "length", "value": 18.0, "unit": "dp"},
+             "height": {"type": "length", "value": 18.0, "unit": "dp"}
+            },
+            "paths": [
+             {
+              "id": "disc",
+              "commands": [
+               {"id": "m", "op": "move", "points": [[17.673, 9.0]]},
+               {"id": "a", "op": "cubic", "points": [[17.673, 13.79], [13.79, 17.673], [9.0, 17.673]]},
+               {"id": "b", "op": "cubic", "points": [[4.21, 17.673], [0.327, 13.79], [0.327, 9.0]]},
+               {"id": "c", "op": "cubic", "points": [[0.327, 4.21], [4.21, 0.327], [9.0, 0.327]]},
+               {"id": "d", "op": "cubic", "points": [[13.79, 0.327], [17.673, 4.21], [17.673, 9.0]]},
+               {"id": "z", "op": "close"}
+              ],
+              "fill": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}}
+             },
+             {
+              "id": "minus",
+              "commands": [{"id": "p0", "op": "move", "points": [[4.909, 9.0]]}, {"id": "p1", "op": "line", "points": [[13.091, 9.0]]}],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [0.04, 0.05, 0.035, 1]}},
+               "widthDp": 1.473,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           },
+           {
+            "id": "join-detail-view-steamdeck",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "relative"},
+             "display": {"type": "keyword", "value": "none"},
+             "width": {"type": "length", "value": 18.0, "unit": "dp"},
+             "height": {"type": "length", "value": 18.0, "unit": "dp"}
+            },
+            "paths": [
+             {
+              "id": "ring",
+              "commands": [
+               {"id": "m", "op": "move", "points": [[17.1, 9.0]]},
+               {"id": "a", "op": "cubic", "points": [[17.1, 13.474], [13.474, 17.1], [9.0, 17.1]]},
+               {"id": "b", "op": "cubic", "points": [[4.526, 17.1], [0.9, 13.474], [0.9, 9.0]]},
+               {"id": "c", "op": "cubic", "points": [[0.9, 4.526], [4.526, 0.9], [9.0, 0.9]]},
+               {"id": "d", "op": "cubic", "points": [[13.474, 0.9], [17.1, 4.526], [17.1, 9.0]]},
+               {"id": "z", "op": "close"}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.227,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "back",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[5.727, 10.178]]},
+               {"id": "p1", "op": "line", "points": [[5.727, 5.727]]},
+               {"id": "p2", "op": "line", "points": [[10.178, 5.727]]},
+               {"id": "p3", "op": "line", "points": [[10.178, 7.822]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "back-foot",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[5.727, 10.178]]},
+               {"id": "p1", "op": "line", "points": [[7.822, 10.178]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "front",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[7.822, 7.822]]},
+               {"id": "p1", "op": "line", "points": [[12.273, 7.822]]},
+               {"id": "p2", "op": "line", "points": [[12.273, 12.273]]},
+               {"id": "p3", "op": "line", "points": [[7.822, 12.273]]},
+               {"id": "close", "op": "close"}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           },
+           {
+            "id": "join-detail-view-generic",
+            "type": "vector",
+            "properties": {
+             "position": {"type": "keyword", "value": "relative"},
+             "display": {"type": "keyword", "value": "none"},
+             "width": {"type": "length", "value": 18.0, "unit": "dp"},
+             "height": {"type": "length", "value": 18.0, "unit": "dp"}
+            },
+            "paths": [
+             {
+              "id": "pill",
+              "commands": [
+               {"id": "m", "op": "move", "points": [[4.5, 5.727]]},
+               {"id": "a", "op": "cubic", "points": [[4.5, 3.242], [6.515, 1.227], [9.0, 1.227]]},
+               {"id": "b", "op": "cubic", "points": [[11.485, 1.227], [13.5, 3.242], [13.5, 5.727]]},
+               {"id": "c", "op": "line", "points": [[13.5, 12.273]]},
+               {"id": "d", "op": "cubic", "points": [[13.5, 14.758], [11.485, 16.773], [9.0, 16.773]]},
+               {"id": "e", "op": "cubic", "points": [[6.515, 16.773], [4.5, 14.758], [4.5, 12.273]]},
+               {"id": "z", "op": "close"}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.064,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "back",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[6.136, 10.031]]},
+               {"id": "p1", "op": "line", "points": [[6.136, 6.136]]},
+               {"id": "p2", "op": "line", "points": [[10.031, 6.136]]},
+               {"id": "p3", "op": "line", "points": [[10.031, 7.969]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "back-foot",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[6.136, 10.031]]},
+               {"id": "p1", "op": "line", "points": [[7.969, 10.031]]}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             },
+             {
+              "id": "front",
+              "commands": [
+               {"id": "p0", "op": "move", "points": [[7.969, 7.969]]},
+               {"id": "p1", "op": "line", "points": [[11.864, 7.969]]},
+               {"id": "p2", "op": "line", "points": [[11.864, 11.864]]},
+               {"id": "p3", "op": "line", "points": [[7.969, 11.864]]},
+               {"id": "close", "op": "close"}
+              ],
+              "stroke": {
+               "paint": {"type": "solid", "color": {"type": "color", "value": [1, 1, 1, 0.8]}},
+               "widthDp": 1.145,
+               "minimumPixels": 1,
+               "join": "miter",
+               "cap": "butt"
+              }
+             }
+            ]
+           }
+          ]
          },
          {
           "id": "join-detail-players",

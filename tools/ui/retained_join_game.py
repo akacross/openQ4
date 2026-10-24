@@ -37,7 +37,8 @@ from __future__ import annotations
 import math
 
 from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, VERB_JOIN, Document, absolute, action_plate,
-                                    colour, confirmation, group, keyword, label, length, linear, number, objectives_scrollbar,
+                                    colour, confirmation, device_glyphs, group, keyword, label, length, linear, number,
+                                    objectives_scrollbar,
                                     page_prompts, path, rgb, solid, stroke, text_width, typeface, vector)
 from retained_create_server import header_band, text_row
 from retained_difficulty import check_fits, primary_plate
@@ -264,6 +265,7 @@ DETAIL_PLAYERS = 11                        # the stock list's 139 u at 12 u item
 DETAIL_SETTINGS = 7                        # the stock settings (GetServerDetails)
 DETAIL_HEADING = 11.0                      # dp: Lowpixel at the stock .16 scale
 DETAIL_TEXT = 13.0                         # dp: Profont (section 7's hover card)
+VIEW_GLYPH = 18.0                          # dp: the View button's glyph on the card
 
 
 def detail_card(doc: Document) -> dict:
@@ -308,8 +310,14 @@ def detail_card(doc: Document) -> dict:
                                                     **typeface("profont", DETAIL_TEXT, U * 12, [1, 1, 1, 0.8]),
                                                     "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
             doc.bind(f"{ident}.text", ident, "text", {"state": key})
+    # The View button that hides the card, at its top trailing corner beside
+    # the address: a controller's only (no key presses it, so the keyboard
+    # shows none).
+    view = group("join-detail-view", {**absolute(left=width - U * 6 - VIEW_GLYPH, top=U * 4, width=VIEW_GLYPH, height=VIEW_GLYPH),
+                                      "pointer-events": keyword("none")},
+                 device_glyphs(doc, "join-detail-view", "view", [1, 1, 1, 0.8], VIEW_GLYPH))
     card = group("join-detail", {**absolute(left=0, top=0, width=width, height=height), "display": keyword("none"),
-                                 "pointer-events": keyword("none")}, [frame, address, *headings, *lines])
+                                 "pointer-events": keyword("none")}, [frame, address, view, *headings, *lines])
     doc.bind("join-detail.display", "join-detail", "display", {"op": "select", "args": [
         {"op": "&&", "args": [{"op": "!", "args": [{"state": "join.detail.hidden"}]},
                               {"op": "&&", "args": [{"op": ">=", "args": [{"state": "join.detail"}, 0]},

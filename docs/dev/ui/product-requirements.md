@@ -1,5 +1,10 @@
 # UI product requirement register
 
+24 October 2026: [View glyphs](input-routing.md#view-glyphs-24-october-2026)
+add bounded UI-02 evidence to `INP-011`. Each controller family draws the View
+button, which Join Game's details card shows at its corner for a controller. The increment is audited against `87444682f370b0db50b18f943cd40e2299a67fe9`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: the [menu pages](retained-screens.md#narrow-views-24-october-2026)
 add bounded UI-02 evidence to `LAY-021`. Load and Save Game, Restart Level, Demos,
 Credits, Create Server, Join Game and the Arena fit views narrower than 4:3 with

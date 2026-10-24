@@ -778,7 +778,8 @@ archived provenance; new scheduling belongs here.
   that C++ assembled (list separators, the time in the mission, a save's date
   and time, the load time's decimal mark and unit) and the Demos page's
   capitals come from every language's table. The Admin page's Apply changes
-  plate ends with the [Menu button's glyph](ui/input-routing.md#menu-glyphs-24-october-2026).
+  plate ends with the [Menu button's glyph](ui/input-routing.md#menu-glyphs-24-october-2026),
+  and Join Game's details card shows the [View button's](ui/input-routing.md#view-glyphs-24-october-2026).
   The home screens and menu pages [wrap](ui/input-routing.md#wrapping-menus-24-october-2026):
   Up and Down loop through each menu and its plinth links, skipping hidden entries.
   Confirmations and Restart Level wrap too, and scrolling lists remember their
