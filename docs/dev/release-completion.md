@@ -24,6 +24,19 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## Saved language over an installer autoexec, 24 October 2026
+
+- [x] #199 (UI-01/PLAT-04): GOG installers write `q4base/autoexec.cfg` with the
+  install-time `sys_lang`, and extraction tools that unpack every language
+  variant leave the last one (French in the report). It ran after the saved
+  config, so each launch replaced the language chosen in Settings. Once a saved
+  config exists, a loose `autoexec.cfg` in the retail game directory no longer
+  changes `sys_lang`; it still supplies the first launch's language and runs
+  its other commands. A player's own `autoexec.cfg` elsewhere and `+set sys_lang`
+  still win. `startup_language_override.py` pins the order; a hidden client
+  probe on Steam data with a GOG-style autoexec covers first launch, a saved
+  choice across relaunches, the player's own autoexec and the command line.
+
 ## Multiplayer network qualification, 24 October 2026
 
 - [x] MP-07/MP-08: simulated network conditions on Windows and POSIX
