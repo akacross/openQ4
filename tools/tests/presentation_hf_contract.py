@@ -128,6 +128,15 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
 
     check_frame_rate_policy()
 
+    # HF-08 physical latency: the attack press, as the event arrives, flashes the
+    # next drawn frame; the overlay takes it every frame so no press goes stale.
+    set_button = function(usercmd_cpp, "void idUsercmdGenLocal::SetButtonAction( int action, bool down )", "latency flash")
+    require_before(set_button, "if ( action == UB_ATTACK && buttonState[ action ] == 0 ) {", "buttonState[ action ]++;", "latency flash arms on the press edge")
+    console = read("src/framework/Console.cpp")
+    require(console, 'com_latencyFlash( "com_latencyFlash", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT', "latency flash is opt-in")
+    require(console, "if ( Usercmd_ConsumeLatencyFlash() && com_latencyFlash.GetBool() ) {", "latency flash consumed every frame, drawn when enabled")
+    require(console, '"latencyFlashTest", Con_LatencyFlashTest_f, CMD_FL_SYSTEM | CMD_FL_CHEAT', "latency flash test is cheat-gated")
+
     require(game_h, "const int GAME_API_VERSION\t\t= 54;", "game ABI v54")
     require(game_h, "idUsercmdGen *\t\t\t\tusercmdGen;", "gameImport_t carries the generator")
     require(common_cpp, "gameImport.usercmdGen\t\t\t\t= ::usercmdGen;", "engine hands the generator to the game")

@@ -157,6 +157,9 @@ completed release material here and publish curated notes in `releases/`.
   Vulkan pacing runs are recorded, and the declared frame-rate policy is
   contract-pinned. Rapid turns at 2200°/s consume input once. Late look stays
   excluded in vehicles by decision.
+- [x] HF-08 physical latency instrument: `com_latencyFlash` draws a white bar on
+  the first frame after a fire press for LDAT/OSLTT-style sensors; the `flash`
+  runtime case checks one drawn frame per press.
 - Evidence: `presentation_hf_contract.py --mutations`, the interpolation
   contract and live captures recorded in the
   [presentation owners contract](presentation-owners.md). Physical pacing,

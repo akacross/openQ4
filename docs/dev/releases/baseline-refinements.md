@@ -26,6 +26,9 @@
   keep a bounded presentation phase.
 - OpenXR smooth turning now measures elapsed host time without rounding each
   frame to whole milliseconds.
+- `com_latencyFlash 1` draws a white bar on the first frame after you press
+  fire, so latency testers such as NVIDIA LDAT or OSLTT can measure
+  click-to-photon delay.
 - The multiplayer guide correctly identifies enhanced prediction and hitscan
   lag compensation as opt-in settings.
 

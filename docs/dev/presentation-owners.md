@@ -230,6 +230,18 @@ intervals and the gameplay benchmark for frame times, all in a visible
 foreground window. Physical display latency (scan-out, compositor, panel)
 needs external measurement and is not claimed by these tools.
 
+Physical latency (HF-08). Set `com_latencyFlash 1` and point a click-to-photon
+sensor (NVIDIA LDAT, OSLTT or a photodiode) at the left edge of the screen.
+Each press of the attack button arms the flash as the event arrives. The first
+frame drawn afterwards paints a white bar over the left tenth of the screen, and
+the sensor reads the time from click to light. That frame samples input as late
+as late look does, so the reading is the engine, swap chain, compositor and
+panel latency a late-look view has. Measure in a visible foreground window on the
+reference machine, at the HF-07 caps, with `in_presentationView` off and on.
+Shots still land on the next tick, so muzzle-flash latency is longer by up to a
+tick. `latencyFlashTest` (cheat) arms the flash without a device, and the
+`flash` runtime case checks that each arming draws exactly one frame.
+
 The cap matrix runs as one command:
 
 ```

@@ -276,6 +276,7 @@ original timing.
 |---|---:|---|
 | `g_presentationInterpolation` | `1` | Draw the world and alternate views between game ticks. `0` returns everything to the 60 Hz tick. |
 | `in_presentationView` | `0` | **Late look (opt-in).** Turns the view with your mouse, gyro, look keys and stick on every drawn frame, instead of up to a tick later. Your weapon, its muzzle flash and its lights turn with the view. Shots, hit detection and the network still use the game's own 60 Hz aim. |
+| `com_latencyFlash` | `0` | **Latency measurement aid.** Draws a white bar down the left edge on the first frame after you press fire, for click-to-photon sensors such as NVIDIA LDAT or OSLTT. Leave it off for normal play. |
 
 Late look stands down, and the view behaves exactly as before, while mouse
 smoothing or filtering is on (`m_smooth` above `1`, `m_filter` above `0`), in a

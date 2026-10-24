@@ -1572,6 +1572,8 @@ void idUsercmdGenLocal::Key( int keyNum, bool down ) {
 	SetButtonAction( action, down );
 }
 
+void Usercmd_ArmLatencyFlash( void );
+
 /*
 ===================
 idUsercmdGenLocal::SetButtonAction
@@ -1583,6 +1585,10 @@ the inputs currently holding the action down.
 */
 void idUsercmdGenLocal::SetButtonAction( int action, bool down ) {
 	if ( down ) {
+		// the press itself, as the event arrives, not the next usercmd build
+		if ( action == UB_ATTACK && buttonState[ action ] == 0 ) {
+			Usercmd_ArmLatencyFlash();
+		}
 		if ( action == UB_WEAPONWHEEL || action == UB_QUICKCHAT || IsWeaponSelectionImpulse( action ) ) {
 			toggled_zoom.Clear();
 		}
@@ -1838,6 +1844,28 @@ void idUsercmdGenLocal::RetainedInputChanged() {
 	ResetMouseFilter();
 }
 void Usercmd_RetainedInputChanged() { localUsercmdGen.RetainedInputChanged(); }
+
+/*
+===================
+Usercmd_ConsumeLatencyFlash
+
+com_latencyFlash, for click-to-photon sensors such as NVIDIA LDAT and OSLTT:
+the console's overlay pass takes the pending press and draws a white bar on
+the first frame drawn after the attack button went down, the frame whose
+late-look view already reflects input sampled that late.
+===================
+*/
+static bool usercmdLatencyFlashPending = false;
+
+bool Usercmd_ConsumeLatencyFlash( void ) {
+	const bool pending = usercmdLatencyFlashPending;
+	usercmdLatencyFlashPending = false;
+	return pending;
+}
+
+void Usercmd_ArmLatencyFlash( void ) {
+	usercmdLatencyFlashPending = true;
+}
 bool idUsercmdGenLocal::NativeKeyBlocked(int key) const noexcept {
     if(nativeSourceExhausted || nativeUnknownKeyBlocked[key])return true;
     for(const auto& source:nativeHeldSources)if(source.down && source.key==key)return true;

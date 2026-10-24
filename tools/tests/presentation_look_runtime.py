@@ -12,6 +12,9 @@ sample and owner counters. Scenarios:
 - death, ragdoll, debris: the death camera, AF ragdoll blending and client debris;
 - vehicle: a spawned walker entered by script, its joint-bound cockpit eye
   turning under the probe;
+- flash (HF-08): com_latencyFlash, the white bar click-to-photon sensors watch;
+  latencyFlashTest arms it as an attack press would, and each arming must draw
+  exactly one frame;
 - flick: rapid turns, the probe at ten times its rate (2200 deg/s), late look
   off and on;
 - zoom: a railgun held zoomed by the cheat-gated in_presentationViewProbeZoom,
@@ -301,6 +304,8 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
         case["rendererViews"] = {"frames": len(views), "maxViews": max(int(v[0]) for v in views),
                                  "maxSubviewPackets": max(int(v[2]) for v in views),
                                  "maxRemotePackets": max(int(v[3]) for v in views)}
+    if scenario == "flash":
+        case["latencyFlashes"] = text.count("latencyFlash: drawn at ")
     if scenario == "demo":
         played = TIMEDEMO.search(text)
         case["timeDemo"] = {"frames": int(played[1]), "seconds": float(played[2]), "fps": float(played[3])} if played else None
@@ -355,7 +360,7 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "flick", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
+                        choices=("look", "thirdperson", "flick", "flash", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
                                  "mphost", "mpclient", "mploss", "spectate", "pacing"),
                         default=["look"])
     parser.add_argument("--reference", action="store_true",
@@ -415,6 +420,10 @@ def main() -> int:
                      ["god", "notarget", f"setviewpos {args.viewpos}", "waitMsec 500",
                       "spawn vehicle_walker name hf_walker", "waitMsec 1500",
                       'script "$player1.enterVehicle( $hf_walker );"', "waitMsec 2000", probe, "waitMsec 1500"], "sp")],
+        # HF-08: the latency flash draws once per press
+        "flash": [("flash", ["in_presentationView", "1", "com_latencyFlash", "1"],
+                   ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "waitMsec 1000"] +
+                   ["latencyFlashTest", "waitMsec 250"] * 5, "sp")],
         # HF-08: rapid turns
         "flick": [(f"flick-look{late}", ["in_presentationView", str(late)],
                    ["god", "notarget", "noclip", f"setviewpos {args.viewpos}", "waitMsec 500",
@@ -560,6 +569,7 @@ def main() -> int:
     failures = [c["case"] for c in report["cases"] if c["exit"] != 0 or c["errors"] or c["gameplayInDraws"] or
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
+                (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
                 (c["samples"] < 64 and not c["case"].endswith("interp0")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")
