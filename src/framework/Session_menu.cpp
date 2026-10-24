@@ -8150,6 +8150,14 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 		PublishRetainedJoinGame( gui );
 		return;
 	}
+	// The empty list's CLEAR FILTERS (section 13.13): every filter the row,
+	// the mod and the search set, at once.
+	if ( !idStr::Icmp( request, "joinClearFilters" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		servers.ClearFilters();
+		PublishRetainedJoinGame( gui );
+		return;
+	}
 	if ( !idStr::Icmp( request, "joinGameTypePrevious" ) || !idStr::Icmp( request, "joinGameTypeNext" ) ) {
 		HandleMainMenuCommands( "play main_menu_selection" );
 		servers.StepGameTypeFilter( !idStr::Icmp( request, "joinGameTypeNext" ) ? 1 : -1 );

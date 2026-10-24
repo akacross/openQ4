@@ -71,6 +71,10 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- When a filter hides every save, demo or server, the empty list now offers
+  CLEAR FILTERS right there, and Join Game offers GET NEW LIST when it found
+  no servers. One CLEAR FILTERS in Join Game clears the tags, game type, mod
+  and player search together.
 - On 5:4 screens and in portrait windows, the main menu, pause menus, the
   Load, Save, Restart Level, Demos, Credits and Arena pages, the multiplayer
   pages, the death screen and the in-match menu now fit the screen instead of

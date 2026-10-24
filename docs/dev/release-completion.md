@@ -74,6 +74,14 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Empty states, 24 October 2026
+
+- [x] Empty lists offer the action that fixes them: CLEAR FILTERS on Load and
+  Save Game, Demos and Join Game while a filter hides everything, GET NEW
+  LIST when Join Game found no server.
+- [Behavior and checks](ui/retained-screens.md#empty-states-24-october-2026):
+  native page and session checks, captures in English and Russian.
+
 ## Narrow views, 24 October 2026
 
 - [x] The title, pauses, Arena pause, Multiplayer page, death screen and the

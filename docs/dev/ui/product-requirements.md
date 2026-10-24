@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [empty states](retained-screens.md#empty-states-24-october-2026)
+add bounded UI-03 evidence to `WID-030`. Load and Save Game, Demos and Join Game
+offer CLEAR FILTERS while a filter hides everything, and Join Game GET NEW LIST
+when it found no server, under a heading. The increment is audited against `e8a56dd5663cf7f85e7f48ea4e3262150fdfe750`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [View glyphs](input-routing.md#view-glyphs-24-october-2026)
 add bounded UI-02 evidence to `INP-011`. Each controller family draws the View
 button, which Join Game's details card shows at its corner for a controller. The increment is audited against `87444682f370b0db50b18f943cd40e2299a67fe9`. No requirement status,

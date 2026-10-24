@@ -20,7 +20,8 @@ saves there are. A row's first Accept selects its save (the preview and the
 date follow); Accept on the selected save, or LOAD GAME, loads it. DELETE GAME
 asks with the stock confirmation, and the save that takes the deleted one's
 place is selected. With no saves the list is the empty state of section 13.13:
-a heading, one sentence and, at the title, NEW GAME. A save that cannot be
+a heading, one sentence and an action that fixes it: NEW GAME at the title,
+or CLEAR FILTERS while a filter hides every save. A save that cannot be
 loaded or deleted says why over the foot of its preview, until another save
 is chosen.
 
@@ -398,6 +399,17 @@ def newgame_width() -> float:
     return max(180.0, round(widest + 30 + 20))
 
 
+def empty_clear(doc: Document, prefix: str, family: Family) -> dict:
+    """The empty state's action row while a filter hides every save (section
+    13.13): CLEAR FILTERS, the bottom band's plate, under the sentence."""
+    width = 24 + max(text_width("lowpixel", text, 14) for text in table_text("#str_231422").values()) / U
+    node = browser_button(doc, f"{prefix}-empty-clear", "#str_231422", "clearFilters", 0, 74, width, family)
+    node["properties"]["display"] = keyword("none")
+    doc.bind(f"{prefix}-empty-clear.display", f"{prefix}-empty-clear", "display",
+             {"op": "select", "args": [{"op": "!=", "args": [{"state": "browser.filter"}, 0]}, "block", "none"]})
+    return node
+
+
 def heading_face(family: Family) -> tuple:
     """The list headings' face and tint: Lowpixel white at 0.40, or R_Strogg
     in #FCFFC8 at 0.45, as the Strogg objectives page sets its own."""
@@ -623,7 +635,7 @@ def load_game_document(family: Family = MARINE) -> dict:
               **typeface(family.face, 20, U * 16, empty_heading_tint(family)), "white-space": keyword("nowrap")}),
         label("load-empty-text", "#str_231101", {**absolute(left=0, top=U * 32, width=U * ROW_W, height=U * 36),
               **typeface("lowpixel", 17, 22, family.tint(0.8)), "white-space": keyword("normal"), "overflow": keyword("hidden")}),
-        newgame,
+        newgame, empty_clear(doc, "load", family),
     ])
     doc.bind("load-empty.display", "load-empty", "display",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "load.count"}, 0]}, "block", "none"]})
@@ -850,13 +862,15 @@ def save_game_document(family: Family = MARINE) -> dict:
                                    "overflow": keyword("auto")}, [column])
     scrollbar = objectives_scrollbar(doc, "save_scroll", "save-list", family.rule, family.hot, U * (SAVE_LIST_LEFT + SAVE_ROW_W + 8) - 18,
                                      U * SAVE_LIST_TOP, U * SAVE_LIST_H, line_step=U * ROW_H, key="#str_200003")
-    # No saves yet: the empty state of section 13.13 in the list's place.
-    empty = group("save-empty", {**absolute(left=U * SAVE_LIST_LEFT, top=U * SAVE_LIST_TOP, width=U * SAVE_ROW_W, height=U * 80),
+    # No saves yet: the empty state of section 13.13 in the list's place;
+    # while a filter hides every save, CLEAR FILTERS under it.
+    empty = group("save-empty", {**absolute(left=U * SAVE_LIST_LEFT, top=U * SAVE_LIST_TOP, width=U * SAVE_ROW_W, height=U * 110),
                                  "display": keyword("none")}, [
         label("save-empty-heading", "#str_231100", {**absolute(left=0, top=U * 10, width=U * SAVE_ROW_W, height=U * 16),
               **typeface(family.face, 20, U * 16, empty_heading_tint(family)), "white-space": keyword("nowrap")}),
         label("save-empty-text", "#str_231101", {**absolute(left=0, top=U * 32, width=U * SAVE_ROW_W, height=U * 36),
               **typeface("lowpixel", 17, 22, family.tint(0.8)), "white-space": keyword("normal"), "overflow": keyword("hidden")}),
+        empty_clear(doc, "save", family),
     ])
     doc.bind("save-empty.display", "save-empty", "display",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "save.count"}, 0]}, "block", "none"]})

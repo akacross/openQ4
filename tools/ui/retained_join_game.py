@@ -42,7 +42,7 @@ from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, VER
                                     page_prompts, path, rgb, solid, stroke, text_width, typeface, vector)
 from retained_create_server import header_band, text_row
 from retained_difficulty import check_fits, primary_plate
-from retained_saves import ERROR, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
+from retained_saves import ERROR, HEADING, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
 from retained_subpage import subpage_document
 
 JOIN_ROWS = 64                             # RETAINED_JOIN_ROWS in the session
@@ -741,23 +741,40 @@ def join_game_document() -> dict:
                                         "overflow": keyword("auto")}, [servers]))
     parts.append(objectives_scrollbar(doc, "servers_scroll", "servers-list", OLIVE, ORANGE, U * (left + list_w) - 16, U * top, U * list_h,
                                       line_step=U * ROW_H, key="#str_200187"))
-    # An empty list says how to fill it, unless the scan is still running.
-    empty = label("join-empty", "#str_231133", {**absolute(left=U * (left + 4), top=U * (top + 6), width=U * (list_w - 16), height=U * 16),
+    # An empty list is the empty state of section 13.13, unless the scan is
+    # still running: a heading, the sentence that says how to fill it and
+    # the action that does. When the scan holds servers that the filters or a
+    # search all hide, they say none matches and CLEAR FILTERS clears them;
+    # otherwise none was found and GET NEW LIST asks for them again.
+    shown = {"op": "&&", "args": [{"op": "==", "args": [{"state": "join.count"}, 0]}, {"op": "!", "args": [{"state": "join.scanning"}]}]}
+    filtered = {"op": ">", "args": [{"state": "join.listed"}, 0]}
+    empty_heading = label("join-empty-heading", "#str_231537", {**absolute(left=U * (left + 4), top=U * (top + 8), width=U * (list_w - 16),
+                                                                           height=U * 16),
+                                                                 **typeface("marine", 20, U * 16, HEADING), "white-space": keyword("nowrap"),
+                                                                 "overflow": keyword("hidden"), "display": keyword("none")})
+    doc.bind("join-empty-heading.display", "join-empty-heading", "display", {"op": "select", "args": [shown, "block", "none"]})
+    doc.bind("join-empty-heading.text", "join-empty-heading", "text", {"op": "select", "args": [filtered, "#str_231538", "#str_231537"]})
+    empty = label("join-empty", "#str_231133", {**absolute(left=U * (left + 4), top=U * (top + 28), width=U * (list_w - 16), height=U * 16),
                                                  **typeface("lowpixel", 15, U * 16, [1, 1, 1, 0.6]), "white-space": keyword("nowrap"),
                                                  "overflow": keyword("hidden"), "display": keyword("none")})
-    doc.bind("join-empty.display", "join-empty", "display", {"op": "select", "args": [
-        {"op": "&&", "args": [{"op": "==", "args": [{"state": "join.count"}, 0]}, {"op": "!", "args": [{"state": "join.scanning"}]}]},
-        "block", "none"]})
-    # When the scan holds servers that the filters or a search all hide, the
-    # line says none matches rather than none was found.
-    doc.bind("join-empty.text", "join-empty", "text", {"op": "select", "args": [
-        {"op": ">", "args": [{"state": "join.listed"}, 0]}, "#str_231134", "#str_231133"]})
+    doc.bind("join-empty.display", "join-empty", "display", {"op": "select", "args": [shown, "block", "none"]})
+    doc.bind("join-empty.text", "join-empty", "text", {"op": "select", "args": [filtered, "#str_231134", "#str_231133"]})
+    doc.session("joinClearFilters", "joinClearFilters")
+    fix_w = max(180.0, math.ceil(max(text_width("marine", text, 20) for key in ("#str_231422", "#str_200029")
+                                     for text in table_text(key).values()) + 30))
+    fixes = []
+    for ident, key, verb, condition in (("join_emptyclear", "#str_231422", "joinClearFilters", filtered),
+                                        ("join_emptynew", "#str_200029", "joinNewList", {"op": "!", "args": [filtered]})):
+        plate = action_plate(doc, ident, key, U * (left + 4), U * (top + 48) - 5, action=verb, width=fix_w)
+        plate["properties"]["display"] = keyword("none")
+        doc.bind(f"{ident}.display", ident, "display", {"op": "select", "args": [{"op": "&&", "args": [shown, condition]}, "block", "none"]})
+        fixes.append(plate)
     clear_w = clear_sort_width()
     status = label("join-status", PLACEHOLDER, {**absolute(left=U * STATUS[0], top=U * STATUS[1], width=U * STATUS[2], height=U * 16),
                                                  **typeface("lowpixel", 14, U * 16, [1, 1, 1, 0.7]), "white-space": keyword("nowrap"),
                                                  "overflow": keyword("hidden")})
     doc.bind("join-status.text", "join-status", "text", {"state": "join.status"})
-    parts += [empty, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
+    parts += [empty_heading, empty, *fixes, status, action_plate(doc, "join_clearsort", "#str_200951", U * (CLEAR_SORT[0] - clear_w), U * CLEAR_SORT[1] - 5,
                                           action="joinClearSort", width=U * clear_w)]
     parts += load_progress(doc)
     action_w = list_action_width()

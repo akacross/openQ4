@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -2138,8 +2138,8 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	// No saves: the empty state, NEW GAME at the title, and the plates disabled.
 	Check(runtime.SetState({{"load.count",0.0},{"load.first",0.0},{"load.selected",-1.0}},error,7),"no saves");
 	runtime.Frame(viewport,7.1);
-	Check(text("load-empty","display") == "block" && text("load_newgame","display") == "block" && text("row-0","display") == "none",
-		"the empty state offers NEW GAME at the title");
+	Check(text("load-empty","display") == "block" && text("load_newgame","display") == "block" && text("row-0","display") == "none" &&
+		text("load-empty-clear","display") == "none","the empty state offers NEW GAME at the title");
 	Check(!runtime.CanActivateControl("load_go",7.1) && !runtime.CanActivateControl("load_delete",7.1),"without a selection the plates rest disabled");
 	Check(runtime.RunEvent("onActivate",7.2,effects,error),"an empty page arrives");
 	runtime.Frame(viewport,7.4);
@@ -2166,6 +2166,18 @@ static void CheckLoadPage(ScreenHost& host, const char* path, bool strogg = fals
 	Check(text("browser-automatic-cross","display") == "block" && text("browser-manual-cross","display") == "none" &&
 		text("browser-clear","display") == "block" && text("load_newgame","display") == "none" &&
 		text("load-empty-heading","text") == "#str_231423", "filtered empty state and clear action");
+	// The empty state's own action row fixes it: CLEAR FILTERS under the
+	// sentence, where NEW GAME was, asks the session to clear the filter.
+	const auto emptyClear = bounds("load-empty-clear"), emptyText = bounds("load-empty-text");
+	Check(text("load-empty-clear","display") == "block" && Near(emptyClear.x,emptyText.x,1) && emptyClear.y >= emptyText.y+emptyText.height-1,
+		"a filtered empty state offers CLEAR FILTERS under its sentence");
+	runtime.TakeActions();
+	Check(runtime.FocusControl("load-empty-clear",16.12),"focus the empty state's CLEAR FILTERS");
+	runtime.MenuAction(MenuInput::Accept,true,16.13); runtime.MenuAction(MenuInput::Accept,false,16.14);
+	{
+		const auto cleared = runtime.TakeActions();
+		Check(cleared.size() == 1 && cleared[0].action == "clearFilters","Accept asks the session to clear the filter");
+	}
 	Check(runtime.RunEvent("onSecondary",16.2,effects,error) && requested("refresh"),"controller secondary refreshes");
 	Check(runtime.RunEvent("onTertiary",16.3,effects,error) && requested("sort"),"controller tertiary sorts");
 	for (int sort=0; sort<6; ++sort) {
@@ -2304,7 +2316,13 @@ static void CheckSavePage(ScreenHost& host, const char* path, bool strogg = fals
 	// No saves yet: the empty state in the list's place.
 	Check(runtime.SetState({{"save.count",0.0},{"save.selected",-1.0}},error,7),"no saves");
 	runtime.Frame(viewport,7.1);
-	Check(text("save-empty","display") == "block" && text("row-0","display") == "none","an empty list says so");
+	Check(text("save-empty","display") == "block" && text("row-0","display") == "none" && text("save-empty-clear","display") == "none",
+		"an empty list says so");
+	Check(runtime.SetState({{"browser.filter",1.0}},error,7.2),"a filter hides every save");
+	runtime.Frame(viewport,7.3);
+	const auto saveClear = bounds("save-empty-clear"), saveList = bounds("save-list");
+	Check(text("save-empty-clear","display") == "block" && saveClear.y+saveClear.height <= saveList.y+saveList.height,
+		"the filtered empty state offers CLEAR FILTERS inside the list's place");
 }
 
 // The Restart Level page: five difficulty plates with the chosen one lit, its
@@ -2500,11 +2518,18 @@ static void CheckDemosPage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"demos.count",0.0},{"demos.first",0.0},{"demos.selected",-1.0},{"demos.filter",0.0},{"demos.canPlay",false},
 		{"demos.canDelete",false}},error,8),"no demos");
 	runtime.Frame(viewport,8.1);
-	Check(text("demo-empty","display") == "block" && text("demo-empty-text","text") == "#str_231115" && text("row-0","display") == "none",
-		"the empty state says where demos come from");
+	Check(text("demo-empty","display") == "block" && text("demo-empty-text","text") == "#str_231115" && text("row-0","display") == "none" &&
+		text("demo_emptyclear","display") == "none","the empty state says where demos come from");
 	Check(runtime.SetState({{"demos.filter",2.0}},error,8.2),"a filter hides them all");
 	runtime.Frame(viewport,8.3);
-	Check(text("demo-empty-text","text") == "#str_231118","the empty state says the filter hides them");
+	Check(text("demo-empty-text","text") == "#str_231118" && text("demo_emptyclear","display") == "block",
+		"the empty state says the filter hides them and offers CLEAR FILTERS");
+	Check(runtime.RunEvent("clearDemoFilter",8.32,effects,error) && requested("filter") && effects.stateChanges.count("demos.filter"),
+		"CLEAR FILTERS clears the filter and asks the session for the list again");
+	runtime.Frame(viewport,8.34);
+	Check(text("demo_emptyclear","display") == "none" && text("demo-empty-text","text") == "#str_231115","with no filter it is not offered");
+	Check(runtime.SetState({{"demos.filter",2.0}},error,8.36),"the filter again");
+	runtime.Frame(viewport,8.38);
 	Check(runtime.RunEvent("onActivate",8.4,effects,error),"an empty page arrives");
 	runtime.Frame(viewport,8.6);
 	Check(runtime.FocusedControl() == "demo_refresh","REFRESH has focus");
@@ -3076,7 +3101,7 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"joinSortPing","joinSortPing"},{"joinSortPlayers","joinSortPlayers"},{"joinSortGameType","joinSortGameType"},
 		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"},{"joinFilterFull","joinFilterFull"},
 		{"joinFilterEmpty","joinFilterEmpty"},{"joinFilterPassword","joinFilterPassword"},
-		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"}};
+		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"},{"joinClearFilters","joinClearFilters"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
@@ -3178,9 +3203,25 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231133" && text("server-0","display") == "none" &&
 		runtime.GetControlState("join_server") == ControlState::Disabled && runtime.GetControlState("join_favorite") == ControlState::Disabled,
 		"an empty list says so, with nothing to join or favorite");
+	// The empty state of section 13.13: a heading over the sentence, and the
+	// action that fixes it: GET NEW LIST when the scan holds no server.
+	const auto emptyHeading = bounds("join-empty-heading"), emptyLine = bounds("join-empty"), emptyNew = bounds("join_emptynew");
+	Check(text("join-empty-heading","display") == "block" && text("join-empty-heading","text") == "#str_231537" &&
+		text("join_emptynew","display") == "block" && text("join_emptyclear","display") == "none" &&
+		emptyHeading.y+emptyHeading.height <= emptyLine.y+1 && emptyLine.y+emptyLine.height <= emptyNew.y+5*u+1 &&
+		Near(emptyNew.x,emptyLine.x,1),"none found: NO SERVERS, the sentence and GET NEW LIST under it");
+	{
+		runtime.TakeActions();
+		Check(runtime.FocusControl("join_emptynew",0.741),"focus GET NEW LIST");
+		runtime.MenuAction(MenuInput::Accept,true,0.742); runtime.MenuAction(MenuInput::Accept,false,0.743);
+		const auto fixed = runtime.TakeActions();
+		Check(fixed.size() == 1 && fixed[0].action == "joinNewList","Accept asks for a new list");
+	}
 	Check(runtime.SetState({{"join.scanning",true},{"join.status",std::string("Scanning - Found: 0")}},error,0.75),"a scan starts");
 	runtime.Frame(viewport,0.8);
-	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0","a running scan shows its status, not the empty line");
+	Check(text("join-empty","display") == "none" && text("join-status","text") == "Scanning - Found: 0" &&
+		text("join-empty-heading","display") == "none" && text("join_emptynew","display") == "none" && text("join_emptyclear","display") == "none",
+		"a running scan shows its status, not the empty state");
 	Check(runtime.SetState({{"join.progress",0.5},{"join.notice",std::string("Scanning 3/6: Strogg Hive")}},error,0.76),"the scan's progress");
 	runtime.Frame(viewport,0.77);
 	Check(Near(bounds("join-load-fill").width,593*u/2,1) && text("join-load-notice","text") == "Scanning 3/6: Strogg Hive",
@@ -3192,7 +3233,16 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.SetState({{"join.scanning",false},{"join.listed",2.0},{"join.status",std::string("Showing 0 out of 2 servers")}},error,0.81),
 		"a filter hides both servers the scan holds");
 	runtime.Frame(viewport,0.82);
-	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231134","the empty line tells a filtered list apart");
+	Check(text("join-empty","display") == "block" && text("join-empty","text") == "#str_231134" &&
+		text("join-empty-heading","text") == "#str_231538" && text("join_emptyclear","display") == "block" &&
+		text("join_emptynew","display") == "none","the empty state tells a filtered list apart and offers CLEAR FILTERS");
+	{
+		runtime.TakeActions();
+		Check(runtime.FocusControl("join_emptyclear",0.821),"focus CLEAR FILTERS");
+		runtime.MenuAction(MenuInput::Accept,true,0.822); runtime.MenuAction(MenuInput::Accept,false,0.823);
+		const auto fixed = runtime.TakeActions();
+		Check(fixed.size() == 1 && fixed[0].action == "joinClearFilters","Accept asks the session to clear every filter");
+	}
 	StateValues servers = {{"join.scanning",false},{"join.count",3.0},{"join.first",0.0},{"join.selected",-1.0},{"join.sort",0.0},
 		{"join.ascending",true},{"join.status",std::string("Showing 3 out of 3 servers")},
 		{"join.row0.name",std::string("Refinement Arena")},{"join.row0.ping",std::string("12")},{"join.row0.players",std::string("1/8")},

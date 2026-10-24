@@ -821,6 +821,10 @@ archived provenance; new scheduling belongs here.
   Progress, 24 October: Join Game's [row focus follows its server](ui/retained-screens.md#join-game-sub-page)
   through new orders, refreshes and filters, onto its page, as the choice
   already did; a server that leaves the list leaves the focus in place.
+  Progress, 24 October: the lists' [empty states](ui/retained-screens.md#empty-states-24-october-2026)
+  offer the action that fixes them: CLEAR FILTERS on Load and Save Game,
+  Demos and Join Game while a filter hides everything, and GET NEW LIST when
+  Join Game's scan found no server, under a heading in every language.
   Progress, 23 October: [save details](ui/retained-screens.md#save-details)
   record each run's play time and difficulty in the persistent player info
   that every save header carries, without a save format change. CONTINUE and

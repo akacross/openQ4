@@ -517,6 +517,12 @@ struct idServerScan {
     // FIND PLAYER/CLAN's search, which the scan filters by.
     std::string search;
     void SetPlayerSearch(const char* text) { calls.push_back(std::string("SetPlayerSearch ") + text); search = text; ++revision; }
+    // An empty list's CLEAR FILTERS: every filter and the search at once.
+    void ClearFilters() {
+        calls.push_back("ClearFilters"); filters[0] = filters[1] = filters[2] = false; gameType = 0; mod = 0; search.clear();
+        if (menu) menu->state["filterMod"] = mods[mod];
+        ++revision;
+    }
     const char* GetPlayerSearch() const { return search.c_str(); }
     // The scan's progress, as the stock browser's load bar shows it.
     std::string notice; float progress = 0;
@@ -1750,6 +1756,15 @@ int main() {
         join->state["join.find"] = "Gr^1unt"; s.HandleRetainedSessionRequest(join, "joinSearch");
         CHECK(scan.calls.back() == "SetPlayerSearch Gr^1unt" && join->state["join.search"] == "Grunt");
         s.HandleRetainedSessionRequest(join, "joinSearchClear"); CHECK(scan.calls.back() == "SetPlayerSearch " && join->state["join.search"] == "");
+        // The empty state's CLEAR FILTERS clears the tags, the game type, the
+        // mod and the search in one request, and the page shows them clear.
+        s.HandleRetainedSessionRequest(join, "joinFilterFull"); s.HandleRetainedSessionRequest(join, "joinGameTypeNext");
+        s.HandleRetainedSessionRequest(join, "joinModNext"); join->state["join.find"] = "Grunt"; s.HandleRetainedSessionRequest(join, "joinSearch");
+        CHECK(join->state["join.filterFull"] == "1" && join->state["join.gameType"] != "0" && join->state["join.search"] == "Grunt");
+        s.HandleRetainedSessionRequest(join, "joinClearFilters");
+        CHECK(scan.calls.back() == "ClearFilters" && join->state["join.filterFull"] == "0" && join->state["join.filterEmpty"] == "0" &&
+              join->state["join.filterPassword"] == "0" && join->state["join.gameType"] == "0" && join->state["join.search"] == "" &&
+              join->state["join.mod"] == "All");
         // A map path the browser may not look up shows the generic art.
         join->state["join.pick"] = "0"; s.HandleRetainedSessionRequest(join, "joinPick");
         CHECK(join->state["join.selected"] == "0" && join->state["join.shot"] == "gfx/guis/loadscreens/generic" && join->state["join.favorite"] == "0");

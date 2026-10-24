@@ -153,6 +153,10 @@ public:
 	// or a filter the registry does not name.
 	static const char *	GameTypeFilterName( int filter );
 	void				ResetSorting();
+	// Every filter a menu offers back at showing every server: the players,
+	// password, game type and mod filters and the player search, the list
+	// filtered once.
+	void				ClearFilters();
 
 	void				Shutdown( );
 

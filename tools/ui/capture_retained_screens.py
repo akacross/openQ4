@@ -626,6 +626,20 @@ SCENARIOS = {
         'screenshot "screenshots/loadgame-empty.tga"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 1200', 'ui_retainedStatus', 'screenshot "screenshots/loadgame-empty-newgame.tga"',
     ]),
+    # No saves and a filter: AUTOSAVES filters the empty list, so its empty
+    # state says none matches and offers CLEAR FILTERS where NEW GAME was;
+    # CLEAR FILTERS clears the filter and NEW GAME returns.
+    'loadgame-empty-filter': (None, [
+        'waitMsec 4000', 'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1',
+        'openq4_retainedGui menu accept 0', 'waitMsec 1100', 'openq4_retainedGui focus "browser-automatic"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui inspect "load-empty-clear"', 'openq4_retainedGui inspect "load_newgame"',
+        'screenshot "screenshots/loadgame-empty-filtered.tga"',
+        'openq4_retainedGui focus "load-empty-clear"', 'waitMsec 300', 'screenshot "screenshots/loadgame-empty-clear-focus.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'openq4_retainedGui inspect "load-empty-clear"', 'openq4_retainedGui inspect "load_newgame"',
+        'screenshot "screenshots/loadgame-empty-cleared.tga"',
+    ]),
     # A save the list accepts but LoadGame refuses (a damaged payload, seeded
     # below): Accept on it says why over its picture and the page stays.
     'loadgame-failure': (None, [
@@ -1001,6 +1015,27 @@ SCENARIOS = {
         'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "join_filter_full-lit"',
         'openq4_retainedGui report',
     ]),
+    # The Join Game list's empty state: NOT EMPTY and Tourney together hide the
+    # seeded loopback server (SCENARIO_SERVERS), so the list says none matches
+    # under NO MATCHING SERVERS and offers CLEAR FILTERS, which clears both
+    # filters at once and brings the server back.
+    'join-empty-clear': (None, [
+        'waitMsec 12000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 4800', 'openq4_retainedGui inspect "server-0"', 'screenshot "screenshots/join-empty-list.tga"',
+        'openq4_retainedGui focus join_filter_empty', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui focus join_gametype_next', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 300',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'gui_filter_players', 'gui_filter_gameType', 'openq4_retainedGui inspect "server-0"',
+        'openq4_retainedGui inspect "join-empty-heading"', 'openq4_retainedGui inspect "join_emptyclear"',
+        'screenshot "screenshots/join-empty-filtered.tga"',
+        'openq4_retainedGui focus join_emptyclear', 'waitMsec 300', 'screenshot "screenshots/join-empty-clear-focus.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 600',
+        'gui_filter_players', 'gui_filter_gameType', 'openq4_retainedGui inspect "server-0"', 'openq4_retainedGui inspect "join-empty-heading"',
+        'screenshot "screenshots/join-empty-cleared.tga"',
+    ]),
     # JOIN IP ADDRESS on the Join Game sub-page: an address it cannot join
     # keeps the dialog with the reason (spaces fail before any lookup); the
     # loopback dedicated server's address (SCENARIO_SERVERS), entered, joins
@@ -1127,9 +1162,9 @@ SCENARIOS = {
         'waitMsec 250', 'screenshot "screenshots/demos-handoff.tga"', 'waitMsec 900', 'ui_retainedStatus',
         'openq4_retainedGui report', 'screenshot "screenshots/demos.tga"',
         'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 300', 'screenshot "screenshots/demos-filtered.tga"',
-        'openq4_retainedGui focus "tag-mvd"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
-        'waitMsec 300', 'screenshot "screenshots/demos-cleared.tga"',
+        'waitMsec 300', 'openq4_retainedGui inspect "demo_emptyclear"', 'screenshot "screenshots/demos-filtered.tga"',
+        'openq4_retainedGui focus demo_emptyclear', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 300', 'openq4_retainedGui inspect "demo_emptyclear"', 'screenshot "screenshots/demos-cleared.tga"',
         'openq4_retainedGui focus demo_delete', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
         'waitMsec 400', 'screenshot "screenshots/demos-delete.tga"',
         'openq4_retainedGui focus deleteModal_yes', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
@@ -1214,6 +1249,7 @@ SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 
                     'join-view-glyphs': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joinfilters': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'join-empty-clear': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
@@ -1240,6 +1276,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'mpcard-tri
                   'joingame': {'net_ip': '127.0.0.1'}, 'joingameaddress': {'net_ip': '127.0.0.1'},
                   'join-details-view': {'net_ip': '127.0.0.1'}, 'join-view-glyphs': {'net_ip': '127.0.0.1'},
                   'joinfilters': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
+                  'join-empty-clear': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
@@ -1295,6 +1332,8 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'join-view-glyphs': {'server_favorites.list':
                               lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['join-view-glyphs']['port']}\n".encode('ascii')},
          'joinfilters': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joinfilters']['port']}\n".encode('ascii')},
+         'join-empty-clear': {'server_favorites.list':
+                              lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['join-empty-clear']['port']}\n".encode('ascii')},
          'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}

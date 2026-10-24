@@ -1168,6 +1168,23 @@ void idServerScan::ToggleFilter( browserFilter_t filter ) {
 
 /*
 ================
+idServerScan::ClearFilters
+================
+*/
+void idServerScan::ClearFilters() {
+	gui_filter_players.SetInteger( 0 );
+	gui_filter_password.SetInteger( 0 );
+	gui_filter_gameType.SetInteger( 0 );
+	gui_filter_mod.SetString( "" );
+	playerSearch.Clear();
+	if ( m_pGUI ) {
+		m_pGUI->SetStateString( "filterMod", common->GetLanguageDict()->GetString( "#str_41502" ) );
+	}
+	ApplyFilter();
+}
+
+/*
+================
 idServerScan::GetGameTypeFilter
 ================
 */

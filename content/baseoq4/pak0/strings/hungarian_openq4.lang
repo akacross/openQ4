@@ -1410,4 +1410,6 @@
 	"#str_231534"	"%d,%d mp"
 	"#str_231535"	"%s %s"
 	"#str_231536"	"FRISSÍTÉS"
+	"#str_231537"	"NINCS SZERVER"
+	"#str_231538"	"NINCS MEGFELELŐ SZERVER"
 }

@@ -1410,4 +1410,6 @@
 	"#str_231534"	"%d.%d s"
 	"#str_231535"	"%s %s"
 	"#str_231536"	"REFRESH"
+	"#str_231537"	"NO SERVERS"
+	"#str_231538"	"NO MATCHING SERVERS"
 }

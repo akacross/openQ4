@@ -1415,4 +1415,6 @@
 	"#str_231534"	"%d,%d s"
 	"#str_231535"	"%s %s"
 	"#str_231536"	"AGGIORNA"
+	"#str_231537"	"NESSUN SERVER"
+	"#str_231538"	"NESSUN SERVER CORRISPONDENTE"
 }

@@ -19,7 +19,8 @@ row's first Accept selects its demo; Accept on the selected demo, or PLAY,
 plays it where it can play. DELETE asks with the stock confirmation, which
 names the demo, and the demo that takes the deleted one's place is selected.
 With no demos the list's place is the empty state of section 13.13: a heading
-and one sentence, which says so when a filter hides every demo.
+and one sentence, which says so when a filter hides every demo and then offers
+CLEAR FILTERS, the action that fixes it.
 
 The page title, DEMOS, fades in with the panel (content.in), as a stock page's
 own title does when nothing carried it.
@@ -28,7 +29,7 @@ from __future__ import annotations
 
 from build_retained_screens import fit_narrow
 from build_retained_screens import (CANVAS_W, FULL, LANGUAGES, OLIVE, ORANGE, TITLE_SLOT, U, VERB_DELETE, VERB_PLAY,
-                                    Document, absolute, colour, confirmation, font, group, keyword, label, length, number,
+                                    Document, absolute, action_plate, colour, confirmation, font, group, keyword, label, length, number,
                                     objectives_scrollbar, page_prompts, path, rgb, row_prompt, solid, stroke, text_width, track,
                                     typeface, vector)
 from retained_saves import (ERROR, ERROR_LINE, ERROR_STRIP, HEADING, LIST_H, LIST_LEFT, LIST_TOP, LIST_W, PLACEHOLDER, PREVIEW,
@@ -258,12 +259,19 @@ def demos_document() -> dict:
                                      U * LIST_H, line_step=U * ROW_H, key=TITLE)
 
     # No demos: the empty state of section 13.13 in the list's place; its
-    # sentence says when a filter hides them all.
+    # sentence says when a filter hides them all, and CLEAR FILTERS clears it.
+    clear_w = max(180.0, round(max(text_width("marine", text, 20) for text in table_text("#str_231422").values()) + 50))
+    clear = action_plate(doc, "demo_emptyclear", "#str_231422", 0, U * 74, event="clearDemoFilter", width=clear_w)
+    clear["properties"]["display"] = keyword("none")
+    doc.events["clearDemoFilter"] = [{"op": "setState", "values": {"demos.filter": 0}}, {"op": "action", "action": "filter"}]
+    doc.bind("demo_emptyclear.display", "demo_emptyclear", "display",
+             {"op": "select", "args": [{"op": "!=", "args": [{"state": "demos.filter"}, 0]}, "block", "none"]})
     empty = group("demo-empty", {**absolute(left=U * LIST_LEFT, top=U * LIST_TOP, width=U * ROW_W, height=U * 150), "display": keyword("none")}, [
         label("demo-empty-heading", "#str_231114", {**absolute(left=0, top=U * 10, width=U * ROW_W, height=U * 16),
               **typeface("marine", 20, U * 16, HEADING), "white-space": keyword("nowrap")}),
         label("demo-empty-text", "#str_231115", {**absolute(left=0, top=U * 32, width=U * ROW_W, height=U * 36),
               **typeface("lowpixel", 17, 22, [1, 1, 1, 0.8]), "white-space": keyword("normal"), "overflow": keyword("hidden")}),
+        clear,
     ])
     doc.bind("demo-empty.display", "demo-empty", "display",
              {"op": "select", "args": [{"op": "==", "args": [{"state": "demos.count"}, 0]}, "block", "none"]})

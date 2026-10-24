@@ -1692,6 +1692,36 @@ like every prompt ([prompt glyphs](#prompt-glyphs)). The wait for continue
 redraws the screen each frame, so touching a controller or the mouse switches
 it. The session no longer publishes its own `loading_controller`.
 
+## Empty states (24 October 2026)
+
+Section 13.13 gives an empty list a heading, one sentence saying why and an
+action row that fixes it. The lists now carry the action:
+
+- Load and Save Game: while a filter hides every save, the empty state says
+  none matches and offers CLEAR FILTERS under its sentence, in NEW GAME's
+  place on the Load page (`load-empty-clear`, `save-empty-clear`, the
+  family's filter plate and the session's `saveListClear`). Unfiltered, the
+  Load page keeps NEW GAME at the title.
+- Demos: while a filter hides every demo, CLEAR FILTERS (`demo_emptyclear`)
+  clears it and asks for the list again.
+- Join Game: the empty line gains a heading, NO SERVERS or NO MATCHING SERVERS
+  (`#str_231537`, `#str_231538`, in every shipped language), and the fix:
+  GET NEW LIST when the scan holds no server, CLEAR FILTERS when the filters
+  or a search hide them all. CLEAR FILTERS is the session's new
+  `joinClearFilters`, which clears the NOT FULL, NOT EMPTY and NO PASSWORD
+  tags, the game type, the mod and the player search at once
+  (`idServerScan::ClearFilters`, one re-filter). A running scan shows its
+  status instead.
+
+The rows show only while their condition holds, so a list with entries and a
+running scan are unchanged. The native page tests check each row's condition,
+place and request, and the gate's session harness checks that one request
+clears every Join Game filter. Captures at 16:9 in English and Russian
+show the rows and the lists they bring back.
+
+Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
+`b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
+
 ## Narrow views (24 October 2026)
 
 The retained menus compose a 4:3 canvas that fills the view's height and
