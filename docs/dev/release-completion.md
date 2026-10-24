@@ -23,6 +23,7 @@ record findings when written; they are not an authoritative current backlog.
 Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
+
 ## Multiplayer network qualification, 24 October 2026
 
 - [x] MP-07/MP-08: simulated network conditions on Windows and POSIX
