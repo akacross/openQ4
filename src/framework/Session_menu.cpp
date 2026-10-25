@@ -338,6 +338,19 @@ static const char *const RETAINED_AUDIO_VERBS[] = {
 static const int RETAINED_AUDIO_VERB_COUNT = sizeof( RETAINED_AUDIO_VERBS ) / sizeof( RETAINED_AUDIO_VERBS[0] );
 static const int RETAINED_AUDIO_DEVICES = 16;
 static const int RETAINED_AUDIO_SPEAKERS[] = { 0, 2, 6 };
+// The retained GAME OPTIONS page (tools/ui/retained_game.py): its document,
+// the verbs of the rows the stock page computes, in the order
+// HandleRetainedGameRequest takes them, and the languages its list names, in
+// #str_229908's order.
+static const char *const RETAINED_GAME_GUI = "guis/menu/settings/game.q4ui";
+static const char *const RETAINED_GAME_VERBS[] = {
+	"gameGunPosition", "gameForceModel", "gameCrosshair", "gameCorpseTime", "gameLanguage"
+};
+static const int RETAINED_GAME_VERB_COUNT = sizeof( RETAINED_GAME_VERBS ) / sizeof( RETAINED_GAME_VERBS[0] );
+static const char *const RETAINED_GAME_LANGUAGES[] = {
+	"english", "spanish", "french", "italian", "polish", "russian", "german", "brazilian", "czech", "hungarian", "turkish", "ukrainian"
+};
+static const int RETAINED_GAME_LANGUAGE_COUNT = sizeof( RETAINED_GAME_LANGUAGES ) / sizeof( RETAINED_GAME_LANGUAGES[0] );
 
 // "mpMatchRuleValue <value>": a whole number from 0 to the largest value a
 // Match Control rule takes, in at most five digits.
@@ -2386,6 +2399,243 @@ void idSessionLocal::HandleRetainedAudioRequest( idUserInterface *gui, const cha
 #endif
 }
 
+/*
+===============
+idSessionLocal::RetainedGameAvailable
+
+The GAME OPTIONS button opens the retained page while the retained screens
+are on and the page has not fallen back to the stock one this session.
+===============
+*/
+bool idSessionLocal::RetainedGameAvailable() const {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	return Session_RetainedScreensEnabled() && retainedStock.FindIndex( RETAINED_GAME_GUI ) < 0;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedGame
+
+The retained GAME OPTIONS page over the settings screen that asked for it,
+the rows the stock page computes read back first. A page that is missing or
+cannot load leaves the stock page in use (FindRetainedGui).
+===============
+*/
+bool idSessionLocal::OpenRetainedGame() {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	if ( !RetainedGameAvailable() || guiMainMenu == NULL || guiActive != guiMainMenu || guiMsgRestore != NULL || guiTest != NULL ) {
+		return false;
+	}
+	if ( guiRetainedGame != NULL && UI_RetainedViewFailed( guiRetainedGame ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_GAME_GUI );
+		retainedStock.AddUnique( RETAINED_GAME_GUI );
+		guiRetainedGame = NULL;
+		return false;
+	}
+	if ( guiRetainedGame == NULL ) {
+		guiRetainedGame = FindRetainedGui( RETAINED_GAME_GUI, true, false );
+	}
+	if ( guiRetainedGame == NULL ) {
+		return false;
+	}
+	retainedGameParent = guiActive;
+	retainedGameParentHandle = guiHandle;
+	guiRetainedGame->SetStateBool( "game.languageReloaded", false );
+	PublishRetainedGame( guiRetainedGame );
+	SetGUI( guiRetainedGame, NULL );
+	return guiActive == guiRetainedGame;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedGameRoute
+
+The GAME OPTIONS button opens the retained page, or the stock one where it
+could not open: from then on once the page fell back, else for this press.
+===============
+*/
+void idSessionLocal::OpenRetainedGameRoute() {
+	static bool routing = false;
+	if ( routing || guiMainMenu == NULL || OpenRetainedGame() ) {
+		return;
+	}
+	routing = true;
+	const bool available = RetainedGameAvailable();
+	guiMainMenu->SetStateBool( "retainedGame", false );
+	guiMainMenu->StateChanged( common->GetPresentationTime() );
+	idStr command;
+	if ( UI_RunLegacyWindowAction( guiMainMenu, "set_b_gameoptions", false, command ) && command.Length() > 0 ) {
+		DispatchCommand( guiMainMenu, command.c_str() );
+	}
+	if ( available ) {
+		guiMainMenu->SetStateBool( "retainedGame", true );
+		guiMainMenu->StateChanged( common->GetPresentationTime() );
+	}
+	routing = false;
+}
+
+/*
+===============
+idSessionLocal::ReturnRetainedGame
+
+BACK, or the back input, returns to the settings screen that opened the page.
+===============
+*/
+void idSessionLocal::ReturnRetainedGame() {
+	if ( guiRetainedGame == NULL || guiActive != guiRetainedGame || retainedGameParent == NULL ) {
+		return;
+	}
+	idUserInterface *parent = retainedGameParent;
+	const HandleGuiCommand_t handler = retainedGameParentHandle;
+	retainedGameParent = NULL;
+	retainedGameParentHandle = NULL;
+	SetGUI( parent, handler );
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedGame
+
+The rows the stock page computes, as the session reads them back: the gun
+position whose offsets g_gunX/Y/Z hold (none for others), the forced pro
+skins, the custom crosshair's place among the crosshairs (1 for the first)
+and its picture, the corpse time preset this game's delay holds (Custom,
+past the presets, for others) and the language. The rows that name a CVar
+read it themselves.
+===============
+*/
+void idSessionLocal::PublishRetainedGame( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	if ( gui == NULL ) {
+		return;
+	}
+	int gunPosition = -1;
+	const int gunPositions = sizeof( MAINMENU_GUN_POSITION_PRESETS ) / sizeof( MAINMENU_GUN_POSITION_PRESETS[0] );
+	for ( int i = 0; i < gunPositions; i++ ) {
+		const mainMenuGunPositionPreset_t &preset = MAINMENU_GUN_POSITION_PRESETS[ i ];
+		if ( cvarSystem->GetCVarFloat( "g_gunX" ) == preset.x && cvarSystem->GetCVarFloat( "g_gunY" ) == preset.y &&
+			cvarSystem->GetCVarFloat( "g_gunZ" ) == preset.z ) {
+			gunPosition = i;
+		}
+	}
+	gui->SetStateInt( "game.gunPosition", gunPosition );
+	gui->SetStateBool( "game.forceModel", cvarSystem->GetCVarString( "g_forceModel" )[0] != '\0' );
+	const idDict *crosshairs = MainMenuCrosshairDict();
+	if ( crosshairs != NULL ) {
+		const idKeyValue *current = MainMenuFindCrosshair( *crosshairs, cvarSystem->GetCVarString( "g_crosshairCustomFile" ), 0 );
+		int place = 1;
+		for ( const idKeyValue *kv = crosshairs->MatchPrefix( MAINMENU_CROSSHAIR_PREFIX ); kv != NULL && kv != current;
+			kv = crosshairs->MatchPrefix( MAINMENU_CROSSHAIR_PREFIX, kv ) ) {
+			place++;
+		}
+		gui->SetStateInt( "game.crosshair", place );
+		gui->SetStateString( "game.crosshairImage", current != NULL ? current->GetValue().c_str() : "" );
+	}
+	const char *corpseDelay = guiMainMenu != NULL && guiMainMenu->State().GetInt( "ingame" ) == 2 ? "g_corpseRemoveDelayMP" : "g_corpseRemoveDelaySP";
+	const int corpseTimes = sizeof( MAINMENU_CORPSE_TIME_PRESET_VALUES ) / sizeof( MAINMENU_CORPSE_TIME_PRESET_VALUES[0] );
+	int corpseTime = corpseTimes;
+	for ( int i = 0; i < corpseTimes; i++ ) {
+		if ( cvarSystem->GetCVarFloat( corpseDelay ) == MAINMENU_CORPSE_TIME_PRESET_VALUES[ i ] ) {
+			corpseTime = i;
+			break;
+		}
+	}
+	gui->SetStateInt( "game.corpseTime", corpseTime );
+	int language = 0;
+	for ( int i = 0; i < RETAINED_GAME_LANGUAGE_COUNT; i++ ) {
+		if ( !idStr::Icmp( cvarSystem->GetCVarString( "sys_lang" ), RETAINED_GAME_LANGUAGES[ i ] ) ) {
+			language = i;
+		}
+	}
+	gui->SetStateInt( "game.language", language );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedGameRequest
+
+The GAME OPTIONS page's computed rows, each applied at once as the stock
+page applies it, through the stock main menu's own choices so that page
+agrees: the gun position (ApplyMainMenuGunPositionChoice), the pro skins
+(ApplyMainMenuForceModelChoice), the custom crosshair, the corpse time
+(ApplyMainMenuCorpseTimeChoice) and the language, which reloads the language
+and the menus as the stock list does. The page then reads them back. BACK
+returns to the settings screen.
+===============
+*/
+void idSessionLocal::HandleRetainedGameRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( !idStr::Icmp( request, "gameBack" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		ReturnRetainedGame();
+		return;
+	}
+	int field = -1, value = 0;
+	if ( guiMainMenu == NULL || !Session_RetainedValueRequest( request, RETAINED_GAME_VERBS, RETAINED_GAME_VERB_COUNT, field, value ) ) {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	switch ( field ) {
+		case 0:
+			if ( value < 0 || value >= static_cast<int>( sizeof( MAINMENU_GUN_POSITION_PRESETS ) / sizeof( MAINMENU_GUN_POSITION_PRESETS[0] ) ) ) {
+				return;
+			}
+			guiMainMenu->SetStateInt( "g_gunXYZ", value );
+			ApplyMainMenuGunPositionChoice( guiMainMenu );
+			break;
+		case 1:
+			guiMainMenu->SetStateBool( "ui_proskins", value != 0 );
+			ApplyMainMenuForceModelChoice( guiMainMenu );
+			break;
+		case 2: {
+			// The crosshair at this place (1 for the first), shown in the stock
+			// page's preview as it is chosen.
+			const idDict *crosshairs = MainMenuCrosshairDict();
+			const idKeyValue *chosen = crosshairs != NULL ? crosshairs->MatchPrefix( MAINMENU_CROSSHAIR_PREFIX ) : NULL;
+			for ( int place = 1; chosen != NULL && place < value; place++ ) {
+				chosen = crosshairs->MatchPrefix( MAINMENU_CROSSHAIR_PREFIX, chosen );
+			}
+			if ( value < 1 || chosen == NULL ) {
+				return;
+			}
+			cvarSystem->SetCVarString( "g_crosshairCustomFile", chosen->GetValue().c_str() );
+			MainMenuPublishCrosshair( guiMainMenu, 0 );
+			break;
+		}
+		case 3:
+			if ( value < 0 || value >= static_cast<int>( sizeof( MAINMENU_CORPSE_TIME_PRESET_VALUES ) / sizeof( MAINMENU_CORPSE_TIME_PRESET_VALUES[0] ) ) ) {
+				return;
+			}
+			guiMainMenu->SetStateInt( "corpse_time_choice", value );
+			ApplyMainMenuCorpseTimeChoice( guiMainMenu );
+			break;
+		case 4:
+			if ( value < 0 || value >= RETAINED_GAME_LANGUAGE_COUNT ) {
+				return;
+			}
+			if ( idStr::Icmp( cvarSystem->GetCVarString( "sys_lang" ), RETAINED_GAME_LANGUAGES[ value ] ) ) {
+				cvarSystem->SetCVarString( "sys_lang", RETAINED_GAME_LANGUAGES[ value ] );
+				guiMainMenu->SetStateInt( "curr_lang", value );
+				// The reload re-activates the page; it returns to Language.
+				gui->SetStateBool( "game.languageReloaded", true );
+				HandleMainMenuCommands( "reloadLanguage ; reloadGuis" );
+			}
+			break;
+		default:
+			return;
+	}
+	PublishRetainedGame( gui );
+#endif
+}
+
 bool idSessionLocal::ReturnSystemSettings() {
 #ifdef ID_DEDICATED
 	return false;
@@ -3069,6 +3319,7 @@ idSessionLocal::SetMainMenuGuiVars
 void idSessionLocal::SetMainMenuGuiVars( bool refreshCatalogs ) {
 	guiMainMenu->SetStateBool( "retainedSystem", RetainedSystemAvailable() );
 	guiMainMenu->SetStateBool( "retainedAudio", RetainedAudioAvailable() );
+	guiMainMenu->SetStateBool( "retainedGame", RetainedGameAvailable() );
 	guiMainMenu->SetStateBool( "androidSetupAvailable", Session_AndroidSetupAvailable() );
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
@@ -3522,6 +3773,11 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Icmp( cmd, "openRetainedAudio" ) ) {
 			OpenRetainedAudioRoute();
+			return;
+		}
+
+		if ( !idStr::Icmp( cmd, "openRetainedGame" ) ) {
+			OpenRetainedGameRoute();
 			return;
 		}
 
@@ -6550,10 +6806,16 @@ void idSessionLocal::ShowSaveRestoreFailure( const char *saveName ) {
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
-	// The retained AUDIO page's verbs, while it presents.
+	// The retained AUDIO and GAME OPTIONS pages' verbs, while they present.
 	if ( request != NULL && gui != NULL && gui == guiRetainedAudio ) {
 		if ( gui == guiActive ) {
 			HandleRetainedAudioRequest( gui, request );
+		}
+		return;
+	}
+	if ( request != NULL && gui != NULL && gui == guiRetainedGame ) {
+		if ( gui == guiActive ) {
+			HandleRetainedGameRequest( gui, request );
 		}
 		return;
 	}

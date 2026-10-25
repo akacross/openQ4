@@ -700,6 +700,13 @@ public:
     HandleGuiCommand_t guiHandle = nullptr, retainedAudioParentHandle = nullptr;
     bool RetainedAudioAvailable() const; bool OpenRetainedAudio(); void OpenRetainedAudioRoute(); void ReturnRetainedAudio();
     void PublishRetainedAudio(idUserInterface*); void HandleRetainedAudioRequest(idUserInterface*, const char*);
+    // The GAME OPTIONS page; its readback and verbs have their own source
+    // contracts (the stock choices they apply live outside this harness).
+    idUserInterface *guiRetainedGame = nullptr, *retainedGameParent = nullptr; HandleGuiCommand_t retainedGameParentHandle = nullptr;
+    bool RetainedGameAvailable() const; bool OpenRetainedGame(); void OpenRetainedGameRoute(); void ReturnRetainedGame();
+    std::vector<idUserInterface*> gamePublishes; std::vector<std::string> gameRequests;
+    void PublishRetainedGame(idUserInterface* gui) { gamePublishes.push_back(gui); }
+    void HandleRetainedGameRequest(idUserInterface*, const char* request) { gameRequests.push_back(request); }
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
     idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot; idStrList retainedJoinRowAddresses;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
@@ -772,7 +779,7 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/loadgame_strogg.q4ui", "guis/menu/savegame_strogg.q4ui", "guis/menu/restartlevel_strogg.q4ui",
     "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
     "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui",
-    "guis/menu/arena_pause.q4ui", "guis/menu/settings/audio.q4ui"};
+    "guis/menu/arena_pause.q4ui", "guis/menu/settings/audio.q4ui", "guis/menu/settings/game.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -2500,6 +2507,35 @@ int main() {
         auto boxed = Session(true); idUserInterface box("guis/msg.gui"); boxed.guiMsgRestore = &box; CHECK(!boxed.OpenRetainedAudio());
         cvarSystemObject = CVarSystem{}; audioDeviceNames.clear(); audioDeviceValues.clear();
     }
+    {   // The GAME OPTIONS button opens the retained page over the settings
+        // screen, its computed rows read back; the page's verbs reach the
+        // session only while it presents; BACK returns to the screen and
+        // handler that opened it; a page that stopped drawing or is missing
+        // opens the stock page.
+        auto s = Session(true); CHECK(s.RetainedGameAvailable());
+        auto* settings = s.guiMainMenu; s.guiHandle = reinterpret_cast<HandleGuiCommand_t>(&audioDeviceNames);
+        s.OpenRetainedGameRoute();
+        auto* page = s.guiActive;
+        CHECK(page != settings && page == s.guiRetainedGame && std::string(page->Name()) == "guis/menu/settings/game.q4ui" &&
+              s.retainedGameParent == settings && s.guiHandle == nullptr && legacyActions.empty() &&
+              (s.gamePublishes == std::vector<idUserInterface*>{page}));
+        s.HandleRetainedSessionRequest(page, "gameLanguage 2");
+        CHECK((s.gameRequests == std::vector<std::string>{"gameLanguage 2"}));
+        s.HandleRetainedSessionRequest(settings, "gameLanguage 3"); CHECK(s.gameRequests.size() == 1);
+        s.ReturnRetainedGame();
+        CHECK(s.guiActive == settings && s.guiHandle == reinterpret_cast<HandleGuiCommand_t>(&audioDeviceNames) && s.retainedGameParent == nullptr);
+        s.HandleRetainedSessionRequest(page, "gameLanguage 4"); CHECK(s.gameRequests.size() == 1);
+        s.OpenRetainedGameRoute(); CHECK(s.guiActive == page && s.gamePublishes.size() == 2); s.ReturnRetainedGame();
+        page->failed = true; s.OpenRetainedGameRoute();
+        CHECK(s.guiActive == settings && s.guiRetainedGame == nullptr && (legacyActions == std::vector<std::string>{"set_b_gameoptions"}) &&
+              !s.RetainedGameAvailable() && Stock(s) == std::vector<std::string>{"guis/menu/settings/game.q4ui"} &&
+              settings->state["retainedGame"] == "0");
+        auto missing = Session(true); fileSystemObject.files.erase("guis/menu/settings/game.q4ui");
+        missing.OpenRetainedGameRoute();
+        CHECK(missing.guiActive == missing.guiMainMenu && missing.guiRetainedGame == nullptr && !missing.RetainedGameAvailable() &&
+              legacyActions.size() == 1);
+        auto off = Session(false); CHECK(!off.RetainedGameAvailable() && !off.OpenRetainedGame());
+    }
     {   // CONTINUE shows a save's own screenshot, freshly read, only when it exists.
         auto s = Session(true); s.saves = {"quick"}; describedShot = ""; fileSystemObject.files.insert("savegames/quick.tga");
         s.UpdateRetainedHome();
@@ -3393,7 +3429,7 @@ def player_setting_rules(adapter: str) -> dict:
     body = function_body(adapter, 'const PlayerSetting* FindPlayerSetting(')
     lists = {name: re.findall(r'"([^"]*)"', items) for name, items in re.findall(r'static const std::vector<std::string> (\w+) = \{([^}]*)\};', body)}
     rules = {}
-    for cvar, rule in re.findall(r'\{"(\w+)",\{([^{}]*(?:\{[^}]*\})?)\}\}', body):
+    for cvar, rule in re.findall(r'\{"(\w+)",\{([^{}]*(?:\{[^}]*\}[^{}]*){0,2})\}\}', body):
         named = re.search(r',(\w+)$', rule.strip())
         inline = re.search(r'\{([^}]*)\}', rule)
         rules[cvar] = lists[named.group(1)] if named and named.group(1) in lists else re.findall(r'"([^"]*)"', inline.group(1)) if inline else []
@@ -4818,7 +4854,7 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert 'vote' not in handoffs
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
     # (The Create Server page's verbs are check_create_server's.)
-    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith(('create', 'audio'))}
+    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith(('create', 'audio', 'game'))}
     fields = re.findall(r'"(mpVote[A-Za-z]+)"', re.search(r'RETAINED_MP_VOTE_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
     appearance = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_APPEARANCE_VALUES\[\] = \{([^}]*)\};', menu).group(1))
     choices = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_MATCH_CHOICES\[\] = \{([^}]*)\};', menu).group(1))
@@ -4985,7 +5021,7 @@ def main() -> int:
                        'guis/menu/savegame_strogg.q4ui', 'guis/menu/restartlevel_strogg.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
                        'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui',
-                       'guis/menu/arena_pause.q4ui', 'guis/menu/settings/audio.q4ui'}
+                       'guis/menu/arena_pause.q4ui', 'guis/menu/settings/audio.q4ui', 'guis/menu/settings/game.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -5026,6 +5062,41 @@ def main() -> int:
     audio_request = function_body(menu, 'void idSessionLocal::HandleRetainedAudioRequest(')
     for command in ('sound drivar', 'sound eax', 'sound speakers'):
         assert f'HandleMainMenuCommands( "{command}" );' in audio_request
+    # The GAME OPTIONS page: the button's route as AUDIO's; the computed rows'
+    # verbs are the session's table, which the adapter allows and the document
+    # requests, each applied through the stock main menu's own choice; the
+    # rows that name a CVar set it with settings.player.set, whose rules are
+    # the stock controls' ranges and values; the language list is the stock
+    # one, in its order.
+    assert 'if ( !idStr::Icmp( cmd, "openRetainedGame" ) ) {\n\t\t\tOpenRetainedGameRoute();\n\t\t\treturn;' in main_menu
+    assert 'guiMainMenu->SetStateBool( "retainedGame", RetainedGameAvailable() );' in menu
+    assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_gameoptions", false, command )' in function_body(menu, 'void idSessionLocal::OpenRetainedGameRoute(')
+    game_button = stock_menu[stock_menu.index('windowDef set_b_gameoptions'):]
+    game_action = game_button[game_button.index('onAction'):game_button.index('windowDef', 1)]
+    assert 'if ("gui::retainedGame" == 1) {' in game_action and 'set "cmd" "openRetainedGame" ;' in game_action
+    import retained_game
+    game_verbs = re.findall(r'"(game[A-Za-z]+)"', re.search(r'RETAINED_GAME_VERBS\[\] = \{([^}]*)\};', menu).group(1))
+    adapter_game = [verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if verb.startswith('game')]
+    assert game_verbs == list(retained_game.VERBS) and sorted(adapter_game) == sorted(game_verbs)
+    game_document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/settings/game.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    assert 'canvas' not in game_document and game_document['actions']['back'] == {'operation': 'session.menu', 'arguments': {'command': 'gameBack'}}
+    for verb in game_verbs:
+        assert game_document['actions'][verb]['arguments'] == {'command': verb, 'value': {'input': 'value'}}, verb
+    game_request = function_body(menu, 'void idSessionLocal::HandleRetainedGameRequest(')
+    for applied in ('ApplyMainMenuGunPositionChoice( guiMainMenu );', 'ApplyMainMenuForceModelChoice( guiMainMenu );',
+                    'MainMenuPublishCrosshair( guiMainMenu, 0 );', 'ApplyMainMenuCorpseTimeChoice( guiMainMenu );',
+                    'HandleMainMenuCommands( "reloadLanguage ; reloadGuis" );'):
+        assert applied in game_request, applied
+    stock_game = (ROOT / 'content/baseoq4/pak0/guis/menu/settings/game.gui').read_text(encoding='utf-8', errors='replace')
+    stock_languages = re.search(r'values\s+"(english;[^"]+)"', stock_game).group(1).split(';')
+    assert re.findall(r'"([a-z]+)"', re.search(r'RETAINED_GAME_LANGUAGES\[\] = \{([^}]*)\};', menu).group(1)) == stock_languages
+    assert len(stock_languages) == retained_game.LANGUAGES
+    rules = player_setting_rules(adapter)
+    for cvar, kind, extra in retained_game.setting_rows():
+        action = game_document['actions'][f'set.{cvar}']
+        assert action['operation'] == 'settings.player.set' and action['arguments'] == {'cvar': cvar, 'value': {'input': 'value'}}, cvar
+        assert cvar in rules and (kind != 'choice' or not isinstance(extra[1][0], str) or rules[cvar] == list(extra[1])), cvar
+        assert re.search(rf'(cvar\s+"?|consoleCMD\s+"){cvar}\b', stock_game), f'{cvar} is not a stock GAME OPTIONS setting'
     assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_system", false, command )' in system_route, 'a failed SYSTEM page must open the stock one'
     assert 'guiMainMenu->HandleNamedEvent( "fromMp_toSystemStock" );' in system_route, 'a failed multiplayer SYSTEM route must open the stock page'
     home_document = function_body(menu, 'idUserInterface *idSessionLocal::RetainedHomeDocument(')
@@ -5337,6 +5408,8 @@ def main() -> int:
         'static void Session_ChoiceListItems(', 'bool idSessionLocal::RetainedAudioAvailable(', 'bool idSessionLocal::OpenRetainedAudio(',
         'void idSessionLocal::OpenRetainedAudioRoute(', 'void idSessionLocal::ReturnRetainedAudio(',
         'void idSessionLocal::PublishRetainedAudio(', 'void idSessionLocal::HandleRetainedAudioRequest(',
+        'bool idSessionLocal::RetainedGameAvailable(', 'bool idSessionLocal::OpenRetainedGame(',
+        'void idSessionLocal::OpenRetainedGameRoute(', 'void idSessionLocal::ReturnRetainedGame(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'void idSessionLocal::PrecacheRetainedLevelshots(', 'void idSessionLocal::QueueRetainedLevelshot(',

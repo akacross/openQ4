@@ -1042,6 +1042,33 @@ SCENARIOS = {
         'openq4_retainedGui event onBack', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_guiGet p_settings_audio::visible',
         'screenshot "screenshots/audio-back.tga"',
     ]),
+    # The retained GAME OPTIONS page (UI-01): the GAME OPTIONS button opens it
+    # on the Section row; Section jumps to Crosshair; the custom crosshair turns
+    # on and steps to the next one; the gun position and a mouse row apply; the
+    # language list switches to German, which reloads the language and the
+    # menus; Back returns to the settings screen.
+    'game': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_gameoptions',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/game.tga"',
+        *menu_step('accept'), *menu_step('down'), *menu_step('down'), *menu_step('down'), *menu_step('accept'),
+        'waitMsec 600', 'screenshot "screenshots/game-section.tga"',
+        'g_crosshairCustom', 'openq4_retainedGui focus game_customcrosshair', *menu_step('accept'), *menu_step('down'),
+        *menu_step('accept'), 'g_crosshairCustom', 'openq4_retainedGui focus game_crosshair', *menu_step('right'),
+        'g_crosshairCustomFile', 'waitMsec 400', 'screenshot "screenshots/game-crosshair.tga"',
+        'openq4_retainedGui focus game_gunposition', *menu_step('accept'), *menu_step('down'), *menu_step('accept'), 'g_gunY',
+        'sensitivity', 'openq4_retainedGui focus game_msensitivity', *menu_step('right'), 'sensitivity',
+        'screenshot "screenshots/game-mouse.tga"',
+        'openq4_retainedGui focus game_language', *menu_step('accept'), *[step for _ in range(6) for step in menu_step('down')],
+        *menu_step('accept'), 'waitMsec 3000', 'sys_lang', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/game-language.tga"',
+        'openq4_retainedGui event onBack', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_guiGet p_settings_game::visible',
+        'screenshot "screenshots/game-back.tga"',
+    ]),
+    # A GAME OPTIONS page that cannot load: the same press opens the stock page.
+    'fallback-game': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_gameoptions',
+        'waitMsec 1500', 'openq4_guiGet p_settings_game::visible', 'ui_retainedStatus', 'screenshot "screenshots/fallback-game.tga"',
+    ]),
     # An AUDIO page that cannot load: the same press opens the stock page.
     'fallback-audio': (None, [
         'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_audio',
@@ -1342,6 +1369,7 @@ OVERRIDES = {
     'fallback-system': {'guis/menu/settings/system.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-system-mp': {'guis/menu/settings/system.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-audio': {'guis/menu/settings/audio.q4ui': lambda runtime: BROKEN_DOCUMENT},
+    'fallback-game': {'guis/menu/settings/game.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-campaign': {'guis/menu/singleplayer.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-loading': {'guis/loading/splevel.gui': lambda runtime: MOD_LOADING_GUI,
                          'guis/loading/generic.gui': lambda runtime: MOD_LOADING_GUI},

@@ -810,6 +810,12 @@ applied through the session and read back. GAME, CONTROLS, Load Defaults,
 Player Setup, dependency explanations, bindings and the cancellation and
 failure scenarios remain.
 
+The [GAME OPTIONS page](retained-screens.md#the-game-options-page-25-october-2026) adds
+`FLOW-003` evidence: the stock page's every row is reconstructed, its CVar rows
+set through the adapter's allowlist and its computed rows through the stock
+choices. CONTROLS, Load Defaults, Player Setup and the rest of `FLOW-003`
+remain.
+
 There are **121 partial, 228 pending and 0 verified requirements**, counting the
 39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.

@@ -92,9 +92,11 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
-- Settings > Audio now uses the new interface, with every setting of the
-  original page. Changes apply as you make them, and the page always shows
-  the values the game is using.
+- Settings > Audio and Settings > Game Options now use the new interface,
+  with every setting of the original pages. Changes apply as you make them,
+  and the pages always show the values the game is using. Game Options
+  groups its settings under headings, and its Section list jumps straight
+  to one.
 - In portrait windows and on 5:4 screens, the Load, Save, Demos and Join Game
   lists now grow to fill the extra height and show more entries.
 - If your controller disconnects while you are in the menus, a notice at the

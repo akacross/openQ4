@@ -142,6 +142,14 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## GAME OPTIONS page, 25 October 2026
+
+- [x] The settings screen's GAME OPTIONS page in the retained interface: every
+  stock row in eight sections, CVar rows through allowlisted settings, the
+  computed rows through the stock choices, the stock page as its fallback
+  ([GAME OPTIONS page](ui/retained-screens.md#the-game-options-page-25-october-2026):
+  native page test, gate route and contracts, captures at 16:9 and 9:16).
+
 ## AUDIO page, 25 October 2026
 
 - [x] The settings screen's AUDIO page in the retained interface, every stock

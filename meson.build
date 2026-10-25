@@ -1351,6 +1351,9 @@ if build_engine or get_option('build_native_tests')
       args: ['--view-effects', meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/view_effects.q4ui'], timeout: 60)
     test('openq4-ui-subtitles', openq4_ui_retained_screens_test,
       args: ['--subtitles', meson.project_source_root() / 'content/baseoq4/pak0/guis/hud/subtitles.q4ui'], timeout: 60)
+    # The retained GAME OPTIONS settings page (UI-01).
+    test('openq4-ui-retained-game', openq4_ui_retained_screens_test,
+      args: ['--game', meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/settings/game.q4ui'], timeout: 120)
     # The retained AUDIO settings page (UI-01).
     test('openq4-ui-retained-audio', openq4_ui_retained_screens_test,
       args: ['--audio', meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/settings/audio.q4ui'], timeout: 120)

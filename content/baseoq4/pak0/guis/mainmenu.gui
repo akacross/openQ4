@@ -19080,6 +19080,9 @@ windowDef Desktop
 			}
 
 			onAction {
+				if ("gui::retainedGame" == 1) {
+					set "cmd" "openRetainedGame" ;
+				} else {
 				set "p_settings_ctrls::visible" "0" ;
 				set "p_settings_game::visible" "1" ;
 				set "p_settings_sys::visible" "0" ;
@@ -19193,6 +19196,7 @@ windowDef Desktop
 				set "set_t_b3::textscale" "0.31" ;
 				
 				set "cmd" "play main_menu_selection" ;
+				}
 			}
 
 		}

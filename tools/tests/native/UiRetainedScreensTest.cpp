@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","audioBack","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","audioBack","gameBack","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -212,13 +212,26 @@ static const std::set<std::string> SessionValueCommands = {"mpVoteMap","mpVoteGa
 	"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
 	"createBuying","createBots","createBotSkill",
 	"audioVolume","audioMusic","audioDialogue","audioBackend","audioDevice","audioEax","audioSpeakers","audioHrtf",
-	"audioSubtitles","audioSubtitleSize","audioSubtitleBackground","audioSubtitleSpeakers"};
-// The player settings the multiplayer card's Settings and Voice pages change.
+	"audioSubtitles","audioSubtitleSize","audioSubtitleBackground","audioSubtitleSpeakers",
+	"gameGunPosition","gameForceModel","gameCrosshair","gameCorpseTime","gameLanguage"};
+// The player settings the multiplayer card's Settings and Voice pages and the
+// GAME OPTIONS page change.
 static const std::set<std::string> PlayerSettings = {"ui_handicap","cl_player_outline_enemy","cl_player_outline_team",
 	"cl_player_rimlight_enemy","cl_player_rimlight_team","cl_player_visibility_enemy_color","cl_player_visibility_team_color",
 	"cl_player_brightskin_enemy","cl_player_brightskin_team","cl_player_brightskin_enemy_color","cl_player_brightskin_team_color",
 	"cl_player_outline_width","s_voiceChatSend","s_voiceChatReceive","s_voiceChatEcho","s_voiceVolume","s_micInputLevel",
-	"s_voiceChatCapture","s_voiceChatTest"};
+	"s_voiceChatCapture","s_voiceChatTest",
+	"in_freeLook","ui_autoReload","ui_autoSwitch","in_toggleZoom","pm_zoomedSlow","g_decals","ui_showGun","g_simpleItems",
+	"g_mpFlatOpponentWeapons","m_pitch","m_smooth","sensitivity","m_cpi","m_filter","cl_mouseAccel","cl_mouseAccelOffset",
+	"cl_mouseAccelPower","cl_mouseSensCap","in_joystick","in_joystickSouthpaw","in_joystickDeadZone","in_joystickLookSensitivity",
+	"in_weaponWheelSensitivity","ui_weaponWheelOffset","in_joystickLookCurve","in_joystickInvertLook","in_joystickTriggerThreshold",
+	"in_joystickRumble","in_joystickRumbleScale","in_gyro","in_gyroSensitivity","in_touchpadMode","in_touchpadSensitivity",
+	"in_touchscreen","in_joystickLowBatteryRumbleThreshold","in_joystickLowBatteryRumbleScale","in_promptStyle","in_swapConfirmBack",
+	"g_crosshairCustom","g_crosshairSize","g_crosshairColor","hud_hitMarker","ui_hudLayout","ui_hudScale","ui_hudWidth",
+	"ui_hudSafeInset","g_objectivesToggle","ui_hudOpacity","ui_hudDamageDirection","ui_hudPickups","ui_hudWeaponStrip",
+	"ui_reducedFlashing","g_corpseSink","con_allowConsole","g_autoSkipCinematics","cl_gunfov","cl_gunfov_adjust","cl_gun_x",
+	"cl_gun_y","cl_gun_z","g_weaponMuzzleKick","vr_enable","vr_aimMode","vr_leftHanded","vr_turnMode","vr_snapTurnAngle",
+	"vr_moveDirection","vr_roomScale","vr_aimLaser","vr_hapticStrength","vr_twoHanded","vr_comfortVignette","vr_physicalCrouch"};
 
 static void CheckSessionActions(const Document& document) {
 	for (const auto& [id,action] : document.Model().actions) {
@@ -3580,6 +3593,120 @@ static void CheckCreateServerBanList(ScreenHost& host, const char* path) {
 	Check(text("banModal","display") == "none" && text("advancedModal","display") == "block" && runtime.FocusedControl() == "create-banlist",
 		"closing the list returns to the row that opened it, the dialog still open");
 }
+// The retained GAME OPTIONS page (tools/ui/retained_game.py): a row naming a
+// CVar reads it back and sets it with settings.player.set; the rows the stock
+// page computes ask the session; the Section row moves the focus to a
+// section's first row; the custom crosshair follows Crosshair's setting.
+static void CheckGamePage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.game" && document.Model().canvasHeight == 0,
+		"the GAME page validates, laid out on the view as the SYSTEM page is");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> settings[] = {{"game_freelook","in_freeLook"},{"game_msensitivity","sensitivity"},
+		{"game_invertmouse","m_pitch"},{"game_promptstyle","in_promptStyle"},{"game_crosshaircolor","g_crosshairColor"},
+		{"game_hudscale","ui_hudScale"},{"game_console","con_allowConsole"},{"game_vrsnap","vr_snapTurnAngle"}};
+	for (const auto& [control, cvar] : settings) {
+		const auto* node = document.Model().FindNode(control);
+		const auto found = document.Model().actions.find(std::string("set.")+cvar);
+		Check(node && node->control && node->control->action == std::string("set.")+cvar && found != document.Model().actions.end() &&
+			found->second.operation == "settings.player.set" && std::get<std::string>(found->second.arguments.at("cvar").literal) == cvar,
+			"a setting row sets its own CVar");
+	}
+	for (const char* verb : {"gameGunPosition","gameForceModel","gameCrosshair","gameCorpseTime","gameLanguage"}) {
+		const auto found = document.Model().actions.find(verb);
+		Check(found != document.Model().actions.end() && found->second.operation == "session.menuValue" &&
+			std::get<std::string>(found->second.arguments.at("command").literal) == verb,"a computed row asks the session");
+	}
+	Check(std::get<std::string>(document.Model().actions.at("back").arguments.at("command").literal) == "gameBack","BACK asks the session to return");
+	// Every row's CVar, at its type's initial value but for these.
+	const auto saved = host.cvars;
+	host.cvars.insert({{"in_freeLook",true},{"sensitivity",5.0},{"m_pitch",std::string("0.022")},{"g_crosshairCustom",std::string("0")},
+		{"g_crosshairSize",32.0},{"g_crosshairColor",std::string("1 0 0 1")},{"in_promptStyle",0.0}});
+	for (const auto& [name, declaration] : document.Model().state)
+		if (!declaration.cvar.empty()) host.cvars.emplace(declaration.cvar,declaration.initial);
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/settings/game.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; std::string error; Runtime::EventEffects effects;
+	const auto press = [&](MenuInput input, double at) { runtime.MenuAction(input,true,at); runtime.MenuAction(input,false,at+.01); };
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"a GAME page node is laid out"); return b; };
+	// The one action a control queued, resolved through its descriptor.
+	const auto taken = [&](const char* action) {
+		const auto actions = runtime.TakeActions();
+		if (actions.size() != 1 || actions[0].action != action) {
+			std::fprintf(stderr,"Expected action %s; received %zu",action,actions.size());
+			for (const auto& pending : actions) std::fprintf(stderr," %s",pending.action.c_str());
+			std::fprintf(stderr,"\n");
+		}
+		Check(actions.size() == 1 && actions[0].action == action,"a control requests its action");
+		ActionInvocation invocation;
+		const StateValue* input = actions.size() == 1 && actions[0].proposal ? &*actions[0].proposal : nullptr;
+		Check(!actions.empty() && runtime.ResolveAction(actions[0].action,invocation,error,input),"the action resolves");
+		if (!actions.empty() && actions[0].proposalToken) runtime.AcknowledgeControlProposal(actions[0].node,actions[0].proposalToken,true);
+		return invocation;
+	};
+	Check(runtime.SetState({{"game.gunPosition",0.0},{"game.forceModel",false},{"game.crosshair",3.0},
+		{"game.crosshairImage",std::string("gfx/guis/crosshairs/crosshair_blaster.tga")},{"game.corpseTime",6.0},{"game.language",0.0}},error,0.1),
+		"the session publishes the computed rows");
+	Check(runtime.RunEvent("onActivate",0.2,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.5);
+	Check(runtime.FocusedControl() == "game_section","the page opens on the Section row");
+	// The Section row: choosing Crosshair writes the page's state and its
+	// event moves the focus to that section's first row.
+	press(MenuInput::Accept,0.6); runtime.Frame(viewport,0.65);
+	Check(runtime.GetWidgetState("game_section") && runtime.GetWidgetState("game_section")->popupOpen,"the Section row unfolds");
+	for (int i = 0; i < 3; ++i) press(MenuInput::Down,0.7+i*.05);
+	press(MenuInput::Accept,0.9);
+	auto invocation = taken("gameSection");
+	Check(invocation.operation == "ui.state.set" && std::get<double>(invocation.arguments.at("value")) == 3,"Section asks for its fourth section");
+	Check(runtime.SetState({{"game.section",3.0}},error,0.95) && runtime.RunEvent("gameSectionChosen",0.95,effects,error),"the adapter writes it");
+	runtime.Frame(viewport,1.0);
+	Check(runtime.FocusedControl() == "game_customcrosshair","the focus moves to Crosshair's first row");
+	// A setting row sets its CVar: Free Look off, a sensitivity step.
+	Check(runtime.FocusControl("game_freelook",1.1),"focus Free Look");
+	press(MenuInput::Accept,1.11);
+	invocation = taken("set.in_freeLook");
+	Check(std::get<std::string>(invocation.arguments.at("cvar")) == "in_freeLook" && !std::get<bool>(invocation.arguments.at("value")),
+		"Accept turns Free Look off");
+	Check(runtime.FocusControl("game_msensitivity",1.2),"focus the mouse sensitivity");
+	press(MenuInput::Right,1.21);
+	Check(std::abs(std::get<double>(taken("set.sensitivity").arguments.at("value"))-5.01) < 1e-9,"Right raises the sensitivity a step");
+	// The crosshair colour list reads g_crosshairColor and offers the next colour.
+	Check(runtime.FocusControl("game_crosshaircolor",1.3),"focus the crosshair colour");
+	press(MenuInput::Accept,1.31); runtime.Frame(viewport,1.35);
+	press(MenuInput::Down,1.4); press(MenuInput::Accept,1.45);
+	Check(std::get<std::string>(taken("set.g_crosshairColor").arguments.at("value")) == "1 0.5 0 1","a colour takes its stock value");
+	// The custom crosshair waits for Crosshair's Custom setting.
+	runtime.Frame(viewport,1.5);
+	Check(!runtime.FocusControl("game_crosshair",1.5),"the crosshair is locked while the weapons' own crosshairs show");
+	host.cvars["g_crosshairCustom"] = std::string("1");
+	runtime.Frame(viewport,1.6);
+	Check(runtime.FocusControl("game_crosshair",1.61),"the custom crosshair unlocks");
+	press(MenuInput::Right,1.62);
+	Check(std::get<double>(taken("gameCrosshair").arguments.at("value")) == 4,"Right asks the session for the next crosshair");
+	// Corpse Time shows Custom but never offers it.
+	Check(runtime.FocusControl("game_corpsetime",1.7),"focus Corpse Time");
+	press(MenuInput::Accept,1.71); runtime.Frame(viewport,1.75);
+	press(MenuInput::Down,1.8); runtime.Frame(viewport,1.85);
+	Check(runtime.GetWidgetState("game_corpsetime")->highlight != "game_corpsetime-option-7","Custom cannot be highlighted");
+	press(MenuInput::Back,1.9); runtime.Frame(viewport,1.95); runtime.TakeActions();
+	// The language reload re-activates the page, which the session marks:
+	// the focus returns to Language.
+	Check(runtime.SetState({{"game.languageReloaded",true}},error,1.96) && runtime.RunEvent("onActivate",1.97,effects,error),"reload");
+	runtime.Frame(viewport,1.98);
+	Check(runtime.FocusedControl() == "game_language","after a language reload the page returns to Language");
+	// The back input asks the session to return.
+	Check(runtime.RunEvent("onBack",2.0,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "gameBack","Back asks the session to return");
+	Viewport portrait; portrait.width = 540; portrait.height = 960;
+	runtime.Frame(portrait,2.1);
+	const auto panel = bounds("game-panel"), row = bounds("game_msensitivity");
+	Check(panel.x >= -.5f && panel.x+panel.width <= 540.5f && panel.y+panel.height <= 960.5f && row.x+row.width <= 540.5f,
+		"the panel fits a portrait view");
+	host.cvars = saved;
+}
+
 // The retained AUDIO settings page (tools/ui/retained_audio.py): the stock
 // page's rows in the SYSTEM page's construction, each asking the session for
 // its new value with its own verb, the session's readback setting what they
@@ -4237,6 +4364,10 @@ int main(int argc, char** argv) {
  if (argc == 3 && std::string(argv[1]) == "--summary") {
      ScreenHost host; CheckSummary(host,argv[2]);
      std::printf("retained summary: %d checks passed\n",checks); return 0;
+ }
+ if (argc == 3 && std::string(argv[1]) == "--game") {
+     ScreenHost host; CheckGamePage(host,argv[2]);
+     std::printf("retained GAME page: %d checks passed\n",checks); return 0;
  }
  if (argc == 3 && std::string(argv[1]) == "--audio") {
      ScreenHost host; CheckAudioPage(host,argv[2]);

@@ -773,8 +773,10 @@ archived provenance; new scheduling belongs here.
   The remaining settings/effect/editor and platform qualification stays open.
   Progress, 25 October: the [AUDIO page](ui/retained-screens.md#the-audio-page-25-october-2026)
   is reconstructed in the retained interface with every stock row; each change
-  applies at once and every value reads back from the engine. GAME, CONTROLS,
-  Load Defaults and Player Setup remain.
+  applies at once and every value reads back from the engine. Later that day
+  the [GAME OPTIONS page](ui/retained-screens.md#the-game-options-page-25-october-2026)
+  followed with its 79 rows in eight sections. CONTROLS, Load Defaults and
+  Player Setup remain.
 - [ ] **UI-02 — P1, implementation and qualification: text, input and accessibility.**
   Finish in-field IME/composition, shaping/kerning/fallback/styles, grapheme editing,
   caret/candidate placement, binding capture, accessibility exposure and contextual

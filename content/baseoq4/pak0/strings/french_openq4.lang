@@ -1420,4 +1420,7 @@
 	"#str_231539"	"Ajouté aux favoris."
 	"#str_231540"	"Retiré des favoris."
 	"#str_231541"	"Manette déconnectée."
+	"#str_231542"	"GENERAL"
+	"#str_231543"	"VISEUR"
+	"#str_231544"	"GAMEPLAY"
 }

@@ -3966,6 +3966,9 @@ void idSessionLocal::Clear() {
 	guiRetainedAudio = NULL;
 	retainedAudioParent = NULL;
 	retainedAudioParentHandle = NULL;
+	guiRetainedGame = NULL;
+	retainedGameParent = NULL;
+	retainedGameParentHandle = NULL;
 	retainedNotices.Clear();
 	retainedNoticesDirty = false;
 	retainedNoticesGui = NULL;

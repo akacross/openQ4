@@ -231,7 +231,7 @@ bool SessionMenuCommand(const std::string& command) {
         "joinSourceLan","joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers",
         "joinSortGameType","joinSortMap","joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext",
         "joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters",
-        "noticeAction0","noticeAction1","noticeAction2","audioBack",
+        "noticeAction0","noticeAction1","noticeAction2","audioBack","gameBack",
         "joinConnect","joinSearch","joinSearchClear","joinSortNext",
         "mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction",
         "mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction","mpVoteYes","mpVoteNo","mpCallVote",
@@ -303,16 +303,20 @@ bool SessionMenuValueCommand(const std::string& command) {
 		"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
 		"createBuying","createBots","createBotSkill",
 		"audioVolume","audioMusic","audioDialogue","audioBackend","audioDevice","audioEax","audioSpeakers","audioHrtf",
-		"audioSubtitles","audioSubtitleSize","audioSubtitleBackground","audioSubtitleSpeakers"};
+		"audioSubtitles","audioSubtitleSize","audioSubtitleBackground","audioSubtitleSpeakers",
+		"gameGunPosition","gameForceModel","gameCrosshair","gameCorpseTime","gameLanguage"};
 	return commands.contains(command);
 }
 
 // The player settings a retained page may change ("settings.player.set"):
-// the multiplayer card's Settings and Voice pages. Each takes what its stock
-// control offers: a slider's range (whole numbers for an integer setting), a
-// Boolean, or one of a list's values, which pages read back as the setting's
-// text so a float list matches exactly.
-struct PlayerSetting { size_t type; double minimum = 0, maximum = 0; bool integer = false; std::vector<std::string> choices; };
+// the multiplayer card's Settings and Voice pages and the GAME OPTIONS page
+// (tools/ui/retained_game.py). Each takes what its stock control offers: a
+// slider's range (whole numbers for an integer setting), a Boolean, or one
+// of a list's values, as text (which pages read back as the setting's text,
+// so a float list matches exactly) or as numbers.
+struct PlayerSetting {
+	size_t type; double minimum = 0, maximum = 0; bool integer = false; std::vector<std::string> choices; std::vector<double> values;
+};
 const PlayerSetting* FindPlayerSetting(const std::string& cvar) {
 	static const std::vector<std::string> levels = {"0","0.35","0.7","1"};
 	static const std::vector<std::string> effects = {"1 0.12 0.05","1 0.45 0.05","1 0.9 0.15","0.1 0.85 0.25","0.1 0.9 0.95","0.3 0.45 1",
@@ -329,7 +333,34 @@ const PlayerSetting* FindPlayerSetting(const std::string& cvar) {
 		{"cl_player_outline_width",{2,0,0,false,{"1.0","1.5","2.0","3.0","4.0","6.0"}}},
 		{"s_voiceChatSend",{1}},{"s_voiceChatReceive",{1}},{"s_voiceChatEcho",{1}},
 		{"s_voiceChatCapture",{1}},{"s_voiceChatTest",{1}},
-		{"s_voiceVolume",{0,0,1}},{"s_micInputLevel",{0,0,10}}};
+		{"s_voiceVolume",{0,0,1}},{"s_micInputLevel",{0,0,10}},
+		// The GAME OPTIONS page, in its order.
+		{"in_freeLook",{1}},{"ui_autoReload",{1}},{"ui_autoSwitch",{1}},{"in_toggleZoom",{1}},{"pm_zoomedSlow",{0,1,100,true}},
+		{"g_decals",{1}},{"ui_showGun",{1}},{"g_simpleItems",{0,0,3,true,{},{0,1,2,3}}},
+		{"g_mpFlatOpponentWeapons",{0,0,1,true,{},{0,1}}},{"m_pitch",{2,0,0,false,{"0.022","-0.022"}}},{"m_smooth",{0,1,8,true}},
+		{"sensitivity",{0,0.01,30,false}},{"m_cpi",{0,0,32000,false}},{"m_filter",{0,0,31,true}},{"cl_mouseAccel",{0,-5,5,false}},
+		{"cl_mouseAccelOffset",{0,0,50,false}},{"cl_mouseAccelPower",{0,1,8,false}},{"cl_mouseSensCap",{0,0,100,false}},
+		{"in_joystick",{1}},{"in_joystickSouthpaw",{0,0,1,true,{},{0,1}}},{"in_joystickDeadZone",{0,0,0.95,false}},
+		{"in_joystickLookSensitivity",{0,0.1,4,false}},{"in_weaponWheelSensitivity",{0,0.25,16,false}},
+		{"ui_weaponWheelOffset",{0,-40,40,true}},{"in_joystickLookCurve",{0,1,3,false}},{"in_joystickInvertLook",{1}},
+		{"in_joystickTriggerThreshold",{0,0,1,false}},{"in_joystickRumble",{1}},{"in_joystickRumbleScale",{0,0,2,false}},{"in_gyro",{1}},
+		{"in_gyroSensitivity",{0,0,8,false}},{"in_touchpadMode",{0,0,3,true,{},{0,1,2,3}}},{"in_touchpadSensitivity",{0,0,8,false}},
+		{"in_touchscreen",{1}},{"in_joystickLowBatteryRumbleThreshold",{0,0,100,true}},
+		{"in_joystickLowBatteryRumbleScale",{0,0,2,false}},{"in_promptStyle",{0,0,5,true,{},{0,1,2,3,4,5}}},
+		{"in_swapConfirmBack",{0,0,2,true,{},{0,1,2}}},{"g_crosshairCustom",{2,0,0,false,{"0","1"}}},
+		{"g_crosshairSize",{0,16,48,true,{},{16,24,32,40,48}}},
+		{"g_crosshairColor",{2,0,0,false,{"1 1 1 1","1 0 0 1","1 0.5 0 1","1 1 0 1","0 1 0 1","0 1 1 1","0 0 1 1","1 0 0.5 1"}}},
+		{"hud_hitMarker",{1}},{"ui_hudLayout",{0,0,3,true,{},{0,1,2,3}}},{"ui_hudScale",{0,0.5,2,false}},
+		{"ui_hudWidth",{0,0,2,true,{},{0,1,2}}},{"ui_hudSafeInset",{0,0,10,false}},{"g_objectivesToggle",{1}},
+		{"ui_hudOpacity",{0,0.25,1,false}},{"ui_hudDamageDirection",{1}},{"ui_hudPickups",{1}},{"ui_hudWeaponStrip",{1}},
+		{"ui_reducedFlashing",{1}},{"g_corpseSink",{0,0,2,true,{},{0,1,2}}},{"con_allowConsole",{0,0,1,true,{},{0,1}}},
+		{"g_autoSkipCinematics",{1}},{"cl_gunfov",{0,0,179,false}},{"cl_gunfov_adjust",{0,0,1,true,{},{0,1}}},
+		{"cl_gun_x",{0,-5,5,false}},{"cl_gun_y",{0,-5,5,false}},{"cl_gun_z",{0,-5,5,false}},{"g_weaponMuzzleKick",{1}},
+		{"vr_enable",{0,0,1,true,{},{0,1}}},{"vr_aimMode",{0,0,1,true,{},{1,0}}},{"vr_leftHanded",{0,0,1,true,{},{0,1}}},
+		{"vr_turnMode",{0,0,1,true,{},{0,1}}},{"vr_snapTurnAngle",{0,30,90,true,{},{30,45,60,90}}},
+		{"vr_moveDirection",{0,0,1,true,{},{0,1}}},{"vr_roomScale",{0,0,1,true,{},{0,1}}},{"vr_aimLaser",{0,0,2,true,{},{0,1,2}}},
+		{"vr_hapticStrength",{2,0,0,false,{"0","0.5","1"}}},{"vr_twoHanded",{0,0,1,true,{},{0,1}}},
+		{"vr_comfortVignette",{2,0,0,false,{"0","0.5","1"}}},{"vr_physicalCrouch",{0,0,1,true,{},{0,1}}}};
 	const auto found = settings.find(cvar);
 	return found == settings.end() ? nullptr : &found->second;
 }
@@ -340,6 +371,7 @@ bool PlayerSettingValue(const std::string& cvar, const StateValue& value) {
 	if (setting->type == 1) return true;
 	if (setting->type == 2) return std::find(setting->choices.begin(),setting->choices.end(),std::get<std::string>(value)) != setting->choices.end();
 	const double number = std::get<double>(value);
+	if (!setting->values.empty()) return std::find(setting->values.begin(),setting->values.end(),number) != setting->values.end();
 	return std::isfinite(number) && number >= setting->minimum && number <= setting->maximum && (!setting->integer || number == std::floor(number));
 }
 

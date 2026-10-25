@@ -54,6 +54,7 @@ OUTPUTS = {
     "createserver": PAK0 / "guis" / "menu" / "createserver.q4ui",
     "joingame": PAK0 / "guis" / "menu" / "joingame.q4ui",
     "audio": PAK0 / "guis" / "menu" / "settings" / "audio.q4ui",
+    "game": PAK0 / "guis" / "menu" / "settings" / "game.q4ui",
     "mp_escape": PAK0 / "guis" / "menu" / "mp_escape.q4ui",
     "mp_welcome": PAK0 / "guis" / "menu" / "mp_welcome.q4ui",
     "mp_summary": PAK0 / "guis" / "menu" / "mp_summary.q4ui",
@@ -3836,6 +3837,7 @@ def main() -> int:
     from retained_arena_pause import arena_pause_document
     from retained_notices import with_notices
     from retained_audio import audio_document
+    from retained_game import game_document
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
@@ -3851,7 +3853,8 @@ def main() -> int:
                  "createserver": create_server_document(),
                  "joingame": join_game_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document(), "mp_summary": summary_document(),
-                 "arena_pause": arena_pause_document(), "audio": audio_document()}
+                 "arena_pause": arena_pause_document(), "audio": audio_document(),
+                 "game": game_document()}
     # The session's notices (section 13.13) over every retained menu but the
     # loading screen, the Strogg family's pages and the multiplayer cards.
     for name in NOTICE_DOCUMENTS:

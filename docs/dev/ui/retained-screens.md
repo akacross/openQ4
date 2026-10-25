@@ -1725,6 +1725,53 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## The GAME OPTIONS page (25 October 2026)
+
+The settings screen's GAME OPTIONS button opens a retained page while the
+retained screens are on, built as the AUDIO page is:
+`tools/ui/retained_game.py` builds `guis/menu/settings/game.q4ui` from the
+SYSTEM page's construction, which `tools/ui/retained_settings_rows.py` now
+shares between the settings pages. It carries every row of the stock page,
+in the stock order and text, in eight sections: GENERAL, MOUSE INPUT,
+CONTROLLER, CROSSHAIR, HUD, GAMEPLAY, VIEW WEAPON and VIRTUAL REALITY. The
+three headings the stock page lacked (`#str_231542` to `#str_231544`) are
+each language's own section names from its Section list, in capitals. The
+Section row at the top moves the focus to a section's first row, as the
+stock list scrolled to it, and in a portrait window the sections stack in
+one column.
+
+The 73 rows that name a CVar read it back through the page's CVar state and
+set it with `settings.player.set`, which the adapter allows for exactly what
+the stock control offered (`FindPlayerSetting`): a slider's range, a check
+box's Boolean, or a list's values. A list whose values have a fraction
+(Invert Mouse, the VR haptics and vignette) compares the CVar's text, as the
+stock list does, since a float CVar reads back inexactly; for the same reason a
+slider with a fraction shows its CVar rounded to its places. The rows the stock
+page computes go through the session (`HandleRetainedGameRequest`), applied
+through the stock main menu's own choices so the two pages agree: Gun
+Position, Force Pro Skins, Set Crosshair (a slider over the custom crosshairs
+with the chosen one's picture, usable while Crosshair is Custom), Corpse Time
+(Custom shows when the delay matches no preset and is never offered) and
+Language. Language reloads the language and the menus as the stock list
+does; the page stays, translated, with the focus on Language, and BACK then
+returns to the main menu's home, where the reload restarts the stock menu.
+
+BACK and the back input (`gameBack`) return to the settings screen and its
+handler; a page that is missing or stops drawing opens the stock page from
+then on, as AUDIO does. The multiplayer menu's Game Options hand-off
+(`fromMp_toGameoptions`) still shows the stock page: it moves the main menu
+straight to that panel rather than pressing the button, and needs a route of
+its own, as SYSTEM has.
+
+`openq4-ui-retained-game` checks the document's rows and verbs, the Section
+jump, CVar rows setting their CVars, a colour list's stock value, the custom
+crosshair's lock, Custom never offered, the focus after a language reload,
+Back and a portrait fit. The gate compiles the route against its doubles and
+pins each computed row to its stock choice, the language list to the stock
+one and every CVar row to a stock control and an adapter rule. Captured at
+16:9 in English and Russian and at 9:16, with the fallback; each run switches
+the language to German on the way.
+
 ## The AUDIO page (25 October 2026)
 
 The settings screen's AUDIO button opens a retained AUDIO page while the

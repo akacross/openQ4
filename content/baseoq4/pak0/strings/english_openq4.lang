@@ -1415,4 +1415,7 @@
 	"#str_231539"	"Added to favorites."
 	"#str_231540"	"Removed from favorites."
 	"#str_231541"	"Controller disconnected."
+	"#str_231542"	"GENERAL"
+	"#str_231543"	"CROSSHAIR"
+	"#str_231544"	"GAMEPLAY"
 }
