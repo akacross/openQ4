@@ -3287,11 +3287,19 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(runtime.GetStateValue("join.detail",subject) && std::get<double>(subject) == 1,"the focused row is the subject");
 	Check(text("join-detail","display") == "none","the card waits for its server's details");
 	Check(runtime.SetState({{"join.detail.row",1.0},{"join.detail.address",std::string("10.0.0.9:28004")},
+		{"join.detail.name",std::string("Refinement Arena - Twenty-four Hour Instagib Rail Madness, Admins Online")},
 		{"join.detail.player0",std::string("Grunt")},{"join.detail.setting0",std::string("Map: Fragging Yard")}},error,0.92),"the session describes it");
 	runtime.Frame(viewport,0.921);
 	const auto detailRow = bounds("server-1"), detailCard = bounds("join-detail");
 	Check(text("join-detail","display") == "block" && Near(detailCard.x,detailRow.x,1) && Near(detailCard.y,detailRow.y+detailRow.height+6,1) &&
-		Near(detailCard.width,270*u,1) && Near(detailCard.height,186*u,1),"the card sits 6 dp under the focused row at its leading edge");
+		Near(detailCard.width,270*u,1) && Near(detailCard.height,216*u,1),"the card sits 6 dp under the focused row at its leading edge");
+	// Its name in full, over the stock address: a long one wraps to a second
+	// line inside the card rather than ending in an ellipsis.
+	const auto detailName = bounds("join-detail-name"), detailAddress = bounds("join-detail-address");
+	Check(text("join-detail-name","text") == "Refinement Arena - Twenty-four Hour Instagib Rail Madness, Admins Online" &&
+		text("join-detail-name","white-space") == "normal" && Near(detailName.y,detailCard.y+5*u,1) &&
+		detailName.y+detailName.height <= detailAddress.y+1 && detailAddress.y+detailAddress.height <= detailCard.y+53*u+1,
+		"the card names its server in full over the address, above the rule");
 	Check(text("join-detail-address","text") == "10.0.0.9:28004" && text("join-detail-player0","text") == "Grunt" &&
 		text("join-detail-setting0","text") == "Map: Fragging Yard" && text("join-detail-players","text") == "#str_200038" &&
 		text("join-detail-settings","text") == "#str_200928","it names the server's address, players and settings under the stock headings");

@@ -8114,7 +8114,7 @@ The details card's server: the page row under the pointer or the focus
 (join.detail, which the runtime writes as they move) names one of the
 listed servers, whose address, players and settings the session publishes
 as the stock browser's tooltip shows them (idServerScan::GetServerDetails),
-read as players' text, with the row they describe (join.detail.row), which
+under its name in full, read as players' text, with the row they describe (join.detail.row), which
 shows the card once it matches the row. A row without a server publishes
 none.
 ===============
@@ -8130,6 +8130,9 @@ void idSessionLocal::PublishRetainedJoinDetail( idUserInterface *gui ) {
 	retainedJoinDetailRow = row;
 	gui->SetStateInt( "join.detail.row", described ? row : -1 );
 	gui->SetStateString( "join.detail.address", Session_RetainedPlayerText( address.c_str(), 64, 1 ).c_str() );
+	// The server's name in full, which its row cuts (section 13.13).
+	gui->SetStateString( "join.detail.name", described ?
+		Session_RetainedPlayerText( idAsyncNetwork::client.serverList[ index ].serverInfo.GetString( "si_name" ), 96, 1 ).c_str() : "" );
 	for ( int i = 0; i < RETAINED_JOIN_DETAIL_PLAYERS; ++i ) {
 		const idStr player = i < players.Num() ? Session_RetainedPlayerText( players[ i ].c_str(), 64, 1 ) : idStr();
 		gui->SetStateString( va( "join.detail.player%d", i ), player.c_str() );

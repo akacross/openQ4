@@ -265,7 +265,8 @@ def server_row(doc: Document, index: int, row_w: float) -> dict:
 
 # The server details card (the stock p_mp_browse_tooltip as section 7's hover
 # card): its frame, the address, PLAYERS and SERVER SETTINGS with their lists.
-DETAIL = (270.0, 186.0)                    # u: the stock tooltip
+DETAIL = (270.0, 216.0)                    # u: the stock tooltip, and the name's two lines above it
+DETAIL_NAME = 30.0                         # u: the name's two lines, which move the stock layout down
 DETAIL_PLAYERS = 11                        # the stock list's 139 u at 12 u items
 DETAIL_SETTINGS = 7                        # the stock settings (GetServerDetails)
 DETAIL_HEADING = 11.0                      # dp: Lowpixel at the stock .16 scale
@@ -283,6 +284,7 @@ def detail_card(doc: Document) -> dict:
     doc.state["join.detail"] = {"type": "number", "initial": -1}
     doc.state["join.detail.row"] = {"type": "number", "initial": -1}
     doc.state["join.detail.address"] = {"type": "string", "initial": ""}
+    doc.state["join.detail.name"] = {"type": "string", "initial": ""}
     # The View button shows or hides the card (section 13.5).
     doc.state["join.detail.hidden"] = {"type": "boolean", "initial": False}
     doc.events["onViewButton"] = [{"op": "setState", "values": {
@@ -293,17 +295,27 @@ def detail_card(doc: Document) -> dict:
     frame = vector("join-detail-frame", {**FULL, "pointer-events": keyword("none")}, [
         path("card", [(0, 0), (width - bevel, 0), (width, bevel), (width, height), (cut, height), (0, height - cut)],
              fill=solid([0, 0, 0, 0.9]), stroke=stroke(solid(rgb(OLIVE, 0.85)), 1)),
-        path("rule", [(U * 7, U * 23), (U * 252, U * 23)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
-        path("divider", [(U * 89, U * 29), (U * 89, U * 179)], closed=False, stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
+        path("rule", [(U * 7, U * (23 + DETAIL_NAME)), (U * 252, U * (23 + DETAIL_NAME))], closed=False,
+             stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
+        path("divider", [(U * 89, U * (29 + DETAIL_NAME)), (U * 89, U * (179 + DETAIL_NAME))], closed=False,
+             stroke=stroke(solid(rgb(OLIVE, 0.32)), 2)),
     ])
-    address = label("join-detail-address", PLACEHOLDER, {**absolute(left=U * 6, top=U * 5, width=U * 244, height=U * 16),
-                                                          **typeface("lowpixel", 14, U * 16, [1, 1, 1, 1]), "white-space": keyword("nowrap"),
+    # The server's name in full, which its row cuts with an ellipsis: up to
+    # two lines over the stock address (section 13.13's detail area shows what
+    # a row truncates).
+    name = label("join-detail-name", PLACEHOLDER, {**absolute(left=U * 6, top=U * 5, width=U * 244, height=U * 28),
+                                                   **typeface("lowpixel", 14, U * 14, [1, 1, 1, 1]), "white-space": keyword("normal"),
+                                                   "overflow": keyword("hidden")})
+    doc.bind("join-detail-name.text", "join-detail-name", "text", {"state": "join.detail.name"})
+    address = label("join-detail-address", PLACEHOLDER, {**absolute(left=U * 6, top=U * (5 + DETAIL_NAME), width=U * 244, height=U * 16),
+                                                          **typeface("lowpixel", 14, U * 16, [1, 1, 1, 0.7]), "white-space": keyword("nowrap"),
                                                           "overflow": keyword("hidden")})
     doc.bind("join-detail-address.text", "join-detail-address", "text", {"state": "join.detail.address"})
-    headings = [label("join-detail-players", "#str_200038", {**absolute(left=U * 7, top=U * 27, width=U * 80, height=U * 12),
+    headings = [label("join-detail-players", "#str_200038", {**absolute(left=U * 7, top=U * (27 + DETAIL_NAME), width=U * 80, height=U * 12),
                                                              **typeface("lowpixel", DETAIL_HEADING, U * 12, [1, 1, 1, 0.4]),
                                                              "white-space": keyword("nowrap"), "overflow": keyword("hidden")}),
-                label("join-detail-settings", "#str_200928", {**absolute(left=U * 92, top=U * 27, width=U * 160, height=U * 12),
+                label("join-detail-settings", "#str_200928", {**absolute(left=U * 92, top=U * (27 + DETAIL_NAME), width=U * 160,
+                                                                       height=U * 12),
                                                               **typeface("lowpixel", DETAIL_HEADING, U * 12, [1, 1, 1, 0.4]),
                                                               "white-space": keyword("nowrap"), "overflow": keyword("hidden")})]
     lines = []
@@ -311,7 +323,8 @@ def detail_card(doc: Document) -> dict:
         for index in range(count):
             ident, key = f"join-detail-{prefix}{index}", f"join.detail.{prefix}{index}"
             doc.state[key] = {"type": "string", "initial": ""}
-            lines.append(label(ident, PLACEHOLDER, {**absolute(left=U * left, top=U * (40 + 12 * index), width=U * line_w, height=U * 12),
+            lines.append(label(ident, PLACEHOLDER, {**absolute(left=U * left, top=U * (40 + DETAIL_NAME + 12 * index), width=U * line_w,
+                                                                height=U * 12),
                                                     **typeface("profont", DETAIL_TEXT, U * 12, [1, 1, 1, 0.8]),
                                                     "white-space": keyword("nowrap"), "overflow": keyword("hidden")}))
             doc.bind(f"{ident}.text", ident, "text", {"state": key})
@@ -322,7 +335,7 @@ def detail_card(doc: Document) -> dict:
                                       "pointer-events": keyword("none")},
                  device_glyphs(doc, "join-detail-view", "view", [1, 1, 1, 0.8], VIEW_GLYPH))
     card = group("join-detail", {**absolute(left=0, top=0, width=width, height=height), "display": keyword("none"),
-                                 "pointer-events": keyword("none")}, [frame, address, view, *headings, *lines])
+                                 "pointer-events": keyword("none")}, [frame, name, address, view, *headings, *lines])
     doc.bind("join-detail.display", "join-detail", "display", {"op": "select", "args": [
         {"op": "&&", "args": [{"op": "!", "args": [{"state": "join.detail.hidden"}]},
                               {"op": "&&", "args": [{"op": ">=", "args": [{"state": "join.detail"}, 0]},

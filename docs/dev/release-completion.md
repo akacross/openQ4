@@ -94,6 +94,12 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Full server names, 25 October 2026
+
+- [x] Join Game's details card names its server in full over the address
+  ([full server names](ui/retained-screens.md#full-server-names-25-october-2026):
+  native, session and capture checks).
+
 ## Notices, 24 October 2026
 
 - [x] Retained pages show section 13.13's notices; Join Game's favorites use

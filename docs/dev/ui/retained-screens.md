@@ -1577,9 +1577,12 @@ verb or node, or to that list; the stock PunkBuster column's sort is exempt
   `join.detail.player0`-`10`, `join.detail.setting0`-`6`, read as players'
   text) and the row it describes (`join.detail.row`), and the card shows only
   while that matches the subject, so it never shows another server's details
-  for a frame. The card is the stock 270x186 u: a black body at 0.9 with an
-  olive border, cut at its lower-leading corner and bevelled at its
-  upper-trailing one; the address in Lowpixel 14 dp; PLAYERS and SERVER
+  for a frame. The card is the stock 270x186 u, 30 u taller for the server's
+  name: a black body at 0.9 with an olive border, cut at its lower-leading
+  corner and bevelled at its upper-trailing one; the server's name in full
+  (`join.detail.name`), which its row cuts with an ellipsis, on up to two
+  Lowpixel 14 dp lines (section 13.13's detail area shows what a row
+  truncates); the address under it at 0.7; PLAYERS and SERVER
   SETTINGS at 0.4 over 11 player and 7 setting lines in Profont 13 dp on the
   stock 12 u pitch; and olive dividers at 0.32 as the stock draws them. It
   sits under the focused row (over it near the view's edge), or beside the
@@ -1721,6 +1724,23 @@ show the rows and the lists they bring back.
 
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
+
+## Full server names (25 October 2026)
+
+Join Game's rows cut a long server name with an ellipsis, and nothing showed
+the rest. The details card now names the server in full over its address
+([details card](#join-game-sub-page)): the session publishes
+`join.detail.name` with the row it describes, read as a player's text, and a
+long name wraps to a second line inside the card. The card grows 30 u for the
+two lines and the stock layout below moves down with it.
+
+The mp-pages native test checks a long name wrapping inside the card over the
+address and above the rule; the gate's session harness checks the name
+follows the described row and clears with it; a capture shows the card on a
+real list.
+
+Evidence: `.tmp/ui/card-name/validation-evidence.json`, SHA-256
+`ceb19bdb11c43b0f9e39ce7e0921a0642b41dd3ea592beffed199bf5bc390b20`.
 
 ## Notices (24 October 2026)
 

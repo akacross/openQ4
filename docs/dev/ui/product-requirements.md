@@ -1,5 +1,10 @@
 # UI product requirement register
 
+25 October 2026: [full server names](retained-screens.md#full-server-names-25-october-2026)
+add bounded UI-03 evidence to `WID-020`. Join Game's details card names its
+server in full over the address. The increment is audited against `4d12fb9c86dcdced701b7ac2b60bac7d7f38220e`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [notices](retained-screens.md#notices-24-october-2026)
 add bounded UI-03 evidence to `WID-026` and `MOT-009`. Retained pages show
 section 13.13's notices; Join Game's favorites use them and a removal offers

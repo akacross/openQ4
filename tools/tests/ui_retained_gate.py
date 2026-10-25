@@ -1769,11 +1769,13 @@ int main() {
         scan.players[scan.servers[scan.visible[1]].adr.address] = {"^1Grunt", "Kane"};
         join->state["join.detail"] = "1"; s.UpdateRetainedJoinGame();
         CHECK(join->state["join.detail.row"] == "1" && join->state["join.detail.address"] == scan.servers[scan.visible[1]].adr.address &&
+              join->state["join.detail.name"] == "Refinement Arena" &&
               join->state["join.detail.player0"] == "Grunt" && join->state["join.detail.player1"] == "Kane" && join->state["join.detail.player2"] == "" &&
               join->state["join.detail.setting0"].rfind("Map: ", 0) == 0 && join->state["join.detail.setting1"] == "");
         int detailChanges = join->stateChanges; s.UpdateRetainedJoinGame(); CHECK(join->stateChanges == detailChanges);   // unchanged
         join->state["join.detail"] = "9"; s.UpdateRetainedJoinGame();
-        CHECK(join->state["join.detail.row"] == "-1" && join->state["join.detail.address"] == "" && join->state["join.detail.player0"] == "");
+        CHECK(join->state["join.detail.row"] == "-1" && join->state["join.detail.address"] == "" && join->state["join.detail.player0"] == "" &&
+              join->state["join.detail.name"] == "");
         join->state["join.detail"] = "0"; s.UpdateRetainedJoinGame();
         const std::string firstAddress = join->state["join.detail.address"];
         std::swap(scan.visible[0], scan.visible[1]); ++scan.revision; s.UpdateRetainedJoinGame();
