@@ -526,6 +526,7 @@ private:
 	static idCVar	in_presentationView;
 	static idCVar	in_presentationViewProbe;
 	static idCVar	in_presentationViewProbeZoom;
+	static idCVar	in_presentationViewProbeAttack;
 };
 
 idCVar idUsercmdGenLocal::in_yawSpeed( "in_yawspeed", "140", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "yaw change speed when holding down _left or _right button" );
@@ -555,6 +556,7 @@ idCVar idUsercmdGenLocal::cl_mouseSensCap( "cl_mouseSensCap", "0", CVAR_SYSTEM |
 idCVar idUsercmdGenLocal::in_presentationView( "in_presentationView", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "late look: turn the drawn view with mouse, gyro, look-key and stick input on every presented frame instead of up to a 60 Hz tick later; aiming, firing and the network still use the authoritative usercmd" );
 idCVar idUsercmdGenLocal::in_presentationViewProbe( "in_presentationViewProbe", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_FLOAT, "development probe: synthetic horizontal mouse counts per second, delivered through the ordinary mouse path for no-input latency measurements; requires cheats" );
 idCVar idUsercmdGenLocal::in_presentationViewProbeZoom( "in_presentationViewProbeZoom", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_BOOL, "development probe: hold the zoom button, for no-input zoomed late-look measurements; requires cheats" );
+idCVar idUsercmdGenLocal::in_presentationViewProbeAttack( "in_presentationViewProbeAttack", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_BOOL, "development probe: hold the attack button, so muzzle flashes, view lights and tracers can be reviewed under late look without input; requires cheats" );
 
 static idUsercmdGenLocal localUsercmdGen;
 idUsercmdGen	*usercmdGen = &localUsercmdGen;
@@ -1225,6 +1227,10 @@ void idUsercmdGenLocal::CmdButtons( void ) {
 	if ( ButtonState( UB_ATTACK ) ) {
 		cmd.buttons |= BUTTON_ATTACK;
 	}
+	// in_presentationViewProbeAttack holds fire the way a held button would
+	if ( in_presentationViewProbeAttack.GetBool() ) {
+		cmd.buttons |= BUTTON_ATTACK;
+	}
 
 	// check the run button
 	if ( IsRunButtonActive() ) {
@@ -1856,6 +1862,13 @@ late-look view already reflects input sampled that late.
 ===================
 */
 static bool usercmdLatencyFlashPending = false;
+static double usercmdLatencyFlashArmedClock = 0.0;
+
+// The input the current frame's draw took, on the high-resolution clock, so the
+// frame can be timed to its swap (Common_RecordFrameInputToSwap, HF-08): the
+// first late-look sample and the press behind a drawn latency flash; 0 = none.
+static double usercmdFrameLookSampleClock = 0.0;
+static double usercmdFrameFlashPressClock = 0.0;
 
 bool Usercmd_ConsumeLatencyFlash( void ) {
 	const bool pending = usercmdLatencyFlashPending;
@@ -1865,6 +1878,19 @@ bool Usercmd_ConsumeLatencyFlash( void ) {
 
 void Usercmd_ArmLatencyFlash( void ) {
 	usercmdLatencyFlashPending = true;
+	usercmdLatencyFlashArmedClock = Sys_GetClockTicks();
+}
+
+// the console drew the flash for the press it just consumed
+void Usercmd_NoteLatencyFlashDrawn( void ) {
+	usercmdFrameFlashPressClock = usercmdLatencyFlashArmedClock;
+}
+
+void Usercmd_TakeFrameInputClocks( double &lookSampleClock, double &flashPressClock ) {
+	lookSampleClock = usercmdFrameLookSampleClock;
+	flashPressClock = usercmdFrameFlashPressClock;
+	usercmdFrameLookSampleClock = 0.0;
+	usercmdFrameFlashPressClock = 0.0;
 }
 bool idUsercmdGenLocal::NativeKeyBlocked(int key) const noexcept {
     if(nativeSourceExhausted || nativeUnknownKeyBlocked[key])return true;
@@ -2034,6 +2060,10 @@ bool idUsercmdGenLocal::GetPresentationViewAngles( float &yaw, float &pitch ) {
 		const double tickSeconds = common->GetUserCmdSec();
 		yaw += openq4::PresentationRateShare( yawRate, elapsedSeconds, tickSeconds );
 		pitch += openq4::PresentationRateShare( pitchRate, elapsedSeconds, tickSeconds );
+	}
+	// the draw freezes its first sample; time that one to the swap
+	if ( usercmdFrameLookSampleClock <= 0.0 ) {
+		usercmdFrameLookSampleClock = Sys_GetClockTicks();
 	}
 	return true;
 #endif

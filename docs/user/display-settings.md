@@ -261,8 +261,16 @@ does not replace or remove the OpenGL renderer.
 | `com_maxfps` | `240` | Presentation frame cap (`0` = uncapped). |
 | `com_steamDeckAutoFrameCap` | `1` | When the Steam Deck profile is active, applies a Deck-friendly cap only while `com_maxfps` is still `240`. |
 | `com_steamDeckFrameCap` | `0` | Steam Deck default cap override (`0` = use detected display refresh clamped to the Deck-oriented range). |
+| `com_preciseFrameWait` | `1` | `1` waits out the cap on a high-resolution timer and busy-waits only as long as that timer needs; `0` restores the older whole-millisecond wait. |
+| `com_showFramePacing` | `0` | `1` shows frame times (to 0.01 ms), the display's refresh rate and what limits the frame rate; `2` also logs them. With a 240 cap it shows whether pacing meets the 240 Hz target. |
 
 The Steam Deck auto cap preserves custom `com_maxfps` values. Set `com_steamDeckAutoFrameCap 0` to opt out, or set `com_maxfps` directly for a fixed cap.
+
+A minimized or hidden window draws at most 60 frames a second, whatever the
+cap, so the game does not run flat out while you cannot see it. With vsync on
+and a variable-refresh display (G-Sync, FreeSync), cap a few frames under the
+refresh rate (for example `com_maxfps 237` on a 240 Hz display) so frames
+never wait for the next refresh.
 
 ### Smooth motion between game ticks
 

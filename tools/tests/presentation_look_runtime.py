@@ -52,9 +52,21 @@ sample and owner counters. Scenarios:
   com_maxfps like gameplay;
 - hidden (HF-07): the same turn in a hidden window (r_hiddenWindow 1), which
   must present at about 60 Hz whatever the cap;
+- minimized (HF-07): the same turn after the cheat-gated windowMinimizeTest
+  minimizes the window, as leaving full screen does; it must also present at
+  about 60 Hz, on every platform;
 - pacing (HF-07): late look on at each --fps cap, judged against the declared
   240 Hz budget. Only --reference runs (a visible foreground window on the
-  reference machine) qualify; every other run reports engine-side pacing.
+  reference machine) qualify; every other run reports engine-side pacing;
+- review (HF-08): operator-attended sessions for the by-eye review, best run
+  --fullscreen on the reference machine. On-screen captions announce each
+  segment while late look is switched off and on: steady and rapid turns under
+  temporal AA, firing (muzzle flash, its light, tracers) through the
+  cheat-gated in_presentationViewProbeAttack, third person, a ragdoll with
+  barrel debris and the death camera on airdefense1; airdefense1's opening
+  cinematic with its cuts; tram1's monitor. The engine-side checks still apply;
+  the verdicts go in review-checklist.md, which the run writes for the
+  operator.
 
 For turning scenarios it reports the authoritative turn rate (input reaches the
 game exactly once), input-to-draw latency against the input line, the drawn yaw
@@ -86,17 +98,27 @@ SAMPLE = re.compile(
     r"presentationClockSample rt=(-?\d+) t=(-?\d+) f=([-\d.]+) hrt=([-\d.]+) step=(\d+) hz=(\d+) phase=([-\d.]+)"
     r" drawYaw=([-\d.]+) authYaw=([-\d.]+) look=(\d) lookYaw=([-\d.]+) inYaw=([-\d.]+)"
     r"(?: debris=(\d+) afBlends=(\d+))?(?: listed=(\d+) afFrames=(\d+))?(?: gameplay=(\d+))?(?: bse=(\d+))?(?: drawZ=([-\d.]+))?(?: prepMs=([-\d.]+))?")
-TURNING = ("look", "thirdperson", "flick", "hidden", "hitch", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
+TURNING = ("look", "thirdperson", "flick", "hidden", "minimized", "hitch", "zoom", "lift", "demo", "mphost", "mpclient", "mploss", "pacing")
 RENDERER = re.compile(r"rendererMetrics summary tier=\S+ fe=(\d+)ms .*? be=(\d+)ms present=(\d+)ms gpu=(\S+) views=(\d+)")
 VIEWS = re.compile(r"rendererMetrics frame=\d+ .*? views=(\d+) ents=.*?categories\(world=(\d+) subview=(\d+) remote=(\d+)")
-THROTTLE = re.compile(r"Presentation throttle snapshot hf(?: - )?pacing: waits=(\d+) late p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms")
+THROTTLE = re.compile(r"Presentation throttle snapshot hf(?: - )?pacing: waits=(\d+) late p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms"
+                      r"(?:, spin mean=([\d.]+) ms)?")
+# engine-side input to swap (HF-08): the draw's first late-look sample, and the press behind a drawn flash
+LATENCY = re.compile(r"Presentation latency snapshot hf(?: - )?pacing: lookSamples=(\d+) sampleToSwap "
+                     r"(?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none); flashes=(\d+) pressToSwap "
+                     r"(?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none)")
+# scenarios that end with framePacingSnapshot
+SNAPSHOTS = ("pacing", "hidden", "minimized", "look", "flash")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
 DUMP = re.compile(r"^presentationClock: (\d+) samples$", re.M)
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
 # HF-07 budgets (presentation-owners.md): draw interval p95/p99 and late-look sample-to-draw, in ms
 BUDGETS = {240: {"intervalP95": 4.6, "intervalP99": 6.3, "lookSampleToDrawP95": 1.0}}
 SNAPSHOT = re.compile(r"Frame pacing snapshot hf(?: - )?pacing \((SP|MP)\): bound=([\w-]+), samples=(\d+), present=([\d.]+) ms \(([\d.]+) Hz\)"
-                      r", p50=(\d+) ms, p95=(\d+) ms, p99=(\d+) ms, max=(\d+) ms")
+                      r", p50=([\d.]+) ms, p95=([\d.]+) ms, p99=([\d.]+) ms, max=([\d.]+) ms(?:.*?refresh=([\d.]+) Hz)?")
+# the presentation cap the engine applied (after the window policy), and the mean frame interval since framePacingReset
+SNAPSHOT_CAP = re.compile(r"Frame pacing snapshot hf(?: - )?pacing \((?:SP|MP)\): .*?, cap=(\d+), refresh=")
+WINDOW = re.compile(r"Frame timing window \((?:SP|MP)\): samples=(\d+), span_ms=(\d+), mean_ms=([\d.]+)")
 
 
 def unwrap(values):
@@ -240,14 +262,17 @@ def pacing(samples, fps, text, reference):
     }
     snapshot = SNAPSHOT.search(text)
     if snapshot:
+        # the engine's own frame-start intervals at 50 us resolution, and the display's refresh
         result["framePacingSnapshot"] = {"bound": snapshot[2], "samples": int(snapshot[3]), "presentMs": float(snapshot[4]),
-                                         "hz": float(snapshot[5]), "p50": int(snapshot[6]), "p95": int(snapshot[7]),
-                                         "p99": int(snapshot[8]), "max": int(snapshot[9])}
+                                         "hz": float(snapshot[5]), "p50": float(snapshot[6]), "p95": float(snapshot[7]),
+                                         "p99": float(snapshot[8]), "max": float(snapshot[9]),
+                                         "refreshHz": float(snapshot[10]) if snapshot[10] else None}
     throttle = THROTTLE.search(text)
     if throttle:
-        # the limiter's own precision: how late each wait woke against its target
+        # the limiter's own precision: how late each wait woke against its target, and how long it busy-waited
         result["throttleLateMs"] = {"waits": int(throttle[1]), "p50": float(throttle[2]), "p95": float(throttle[3]),
-                                    "p99": float(throttle[4]), "max": float(throttle[5])}
+                                    "p99": float(throttle[4]), "max": float(throttle[5]),
+                                    "spinMean": float(throttle[6]) if throttle[6] else None}
     budget = BUDGETS.get(fps)
     if budget is None:
         result["verdict"] = "reported only"
@@ -311,9 +336,21 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
         case["hitch"] = {"stalls": sum(1 for d in intervals if d > 80.0),
                          "backsteps": sum(1 for d in steps if d * sign < -0.001),
                          "largestStepDeg": max(abs(d) for d in steps)}
-    if len(samples) >= 64 and scenario == "hidden":
-        # the background policy: a hidden window is capped at 60 whatever the cap
+    if len(samples) >= 64 and scenario in ("hidden", "minimized"):
+        # the background policy: a window that shows nothing is capped at 60 whatever the cap
         case["pacing"] = pacing(samples, 60, text, False)
+    if scenario == "minimized":
+        # Judged on the engine's own frame rate: the OS may throttle a minimized
+        # window further and its scene need not interpolate, so the capture can be
+        # empty. The cap must read 60 and the frames must not come faster.
+        case["minimizedReported"] = "windowMinimizeTest: minimized=1 shown=0" in text
+        cap, window = SNAPSHOT_CAP.search(text), WINDOW.search(text)
+        case["minimizedPacing"] = {"cap": int(cap[1]) if cap else None,
+                                   "frames": int(window[1]) if window else 0,
+                                   "hz": 1000.0 / float(window[3]) if window and float(window[3]) > 0 else None}
+    kept = re.search(r'"win_keepTimerResolution" is:"(\d)"', text)
+    if kept:
+        case["timerResolutionKeptWhenOccluded"] = kept[1] == "1"
     if len(samples) >= 64 and scenario == "pacing":
         case["pacing"] = pacing(samples, fps, text, reference)
         budget = BUDGETS.get(fps)
@@ -357,9 +394,22 @@ def summarise(name, scenario, fps, exit_code, started, text, expected_rate, refe
     if scenario == "menu":
         snapshot = SNAPSHOT.search(text)
         case["menuPacing"] = {"bound": snapshot[2], "samples": int(snapshot[3]), "hz": float(snapshot[5]),
-                              "p50": int(snapshot[6]), "p95": int(snapshot[7]), "p99": int(snapshot[8])} if snapshot else None
+                              "p50": float(snapshot[6]), "p95": float(snapshot[7]), "p99": float(snapshot[8])} if snapshot else None
     if scenario == "flash":
         case["latencyFlashes"] = text.count("latencyFlash: drawn at ")
+    throttle = THROTTLE.search(text)
+    if throttle and scenario != "pacing":
+        # how late the limiter's waits woke against their targets (pacing cases carry it in "pacing")
+        case["throttleLateMs"] = {"waits": int(throttle[1]), "p50": float(throttle[2]), "p95": float(throttle[3]),
+                                  "p99": float(throttle[4]), "max": float(throttle[5]),
+                                  "spinMean": float(throttle[6]) if throttle[6] else None}
+    latency = LATENCY.search(text)
+    if latency:
+        def spread(first):
+            return ({"p50": float(latency[first]), "p95": float(latency[first + 1]), "p99": float(latency[first + 2]),
+                     "max": float(latency[first + 3])} if latency[first] else None)
+        case["inputToSwapMs"] = {"lookSamples": int(latency[1]), "lookSampleToSwap": spread(2),
+                                 "flashes": int(latency[6]), "flashPressToSwap": spread(7)}
     if scenario == "demo":
         played = TIMEDEMO.search(text)
         case["timeDemo"] = {"frames": int(played[1]), "seconds": float(played[2]), "fps": float(played[3])} if played else None
@@ -393,6 +443,91 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def caption(text: str) -> str:
+    """An on-screen caption: con_noPrint 0 shows console prints as notify lines."""
+    return f'echo "{text}"'
+
+
+def review_segments(args, probe: str) -> list[dict]:
+    """HF-08's by-eye review: what each session shows and what the operator judges.
+
+    Each session switches late look off and on under a caption, so the same
+    motion is seen both ways. Firing uses in_presentationViewProbeAttack, which
+    holds the attack button as the zoom probe holds zoom.
+    """
+    rate = args.probe_rate
+    shown = ["con_noPrint", "0", "con_notifyTime", "8", "r_temporalAA", "1", "ui_autoSwitch", "1"]
+    play = [
+        "god", "notarget", "noclip", f"setviewpos {args.viewpos}", "give weapon_machinegun", "waitMsec 2000",
+        # the whole session, up to the capture's 8192 draws
+        f"g_presentationClockCapture {min(8192, args.samples * 16)}",
+        # the first screenshot logs the post-AA resources once; take it before any caption so the log
+        # cannot push a caption off the notify lines
+        "screenshot", "waitMsec 500",
+        caption("Review 1 of 6: steady turn under temporal AA, late look OFF"), "in_presentationView 0", probe, "waitMsec 6000",
+        caption("Review 1 of 6: late look ON, the same turn"), "in_presentationView 1", "waitMsec 6000",
+        caption("Review 2 of 6: rapid turns, late look OFF"), "in_presentationView 0",
+        f"in_presentationViewProbe {rate * 10:g}", "waitMsec 4000",
+        caption("Review 2 of 6: rapid turns, late look ON"), "in_presentationView 1", "waitMsec 4000",
+        caption("Review 3 of 6: firing while turning, late look OFF"), "in_presentationView 0", "give ammo",
+        f"in_presentationViewProbe {rate / 4:g}", "in_presentationViewProbeAttack 1", "waitMsec 1000", "screenshot", "waitMsec 3000",
+        caption("Review 3 of 6: firing while turning, late look ON"), "in_presentationView 1", "waitMsec 2000",
+        "screenshot", "waitMsec 2000",
+        "in_presentationViewProbeAttack 0",
+        caption("Review 4 of 6: third person, late look stands down"), "pm_thirdPerson 1",
+        f"in_presentationViewProbe {rate:g}", "waitMsec 6000", "pm_thirdPerson 0",
+        caption("Review 5 of 6: a ragdoll and barrel debris, late look ON"), f"in_presentationViewProbe {rate / 20:g}",
+        "spawn monster_strogg_marine name hf_review_ragdoll", "spawn launching_barrel_small name hf_review_barrel", "waitMsec 1500",
+        "damage hf_review_ragdoll 5000 damage_triggerhurt_1000", "damage hf_review_barrel 1000 damage_triggerhurt_1000",
+        "waitMsec 1000", "screenshot", "waitMsec 5000",
+        # dump what the session captured so far (a count below the samples taken dumps on the next draw),
+        # then capture the death camera on its own
+        "g_presentationClockCapture 1", "waitMsec 500", "g_presentationClockCapture 0", "waitMsec 100",
+        f"g_presentationClockCapture {args.samples}",
+        caption("Review 6 of 6: the death camera"), "in_presentationViewProbe 0", "god", "noclip", "testDeath", "waitMsec 6000",
+    ]
+    return [
+        {"name": "review-play", "mode": "sp", "cvars": shown + ["pm_thirdPersonDeath", "1"], "lines": play,
+         "judge": [
+             "1: the steady turn is smooth in both modes, and with late look ON it follows the mouse sooner; TAA shows no ghosting or doubled edges",
+             "2: rapid turns: no stepping or tearing beyond the off case; with late look ON the view does not overshoot or settle back",
+             "3: the muzzle flash, its light and the gun stay together in both modes; tracers and impacts start where the shot left",
+             "4: third person: the camera moves smoothly; nothing jumps when late look is ON (it stands down)",
+             "5: the ragdoll falls smoothly (no 60 Hz stepping); barrel debris and its trails move smoothly",
+             "6: the death camera orbits smoothly, without a jump at the start",
+         ]},
+        {"name": "review-cinematic", "mode": "sp", "cvars": shown + ["g_autoSkipCinematics", "0", "in_presentationView", "1"],
+         "lines": [caption("Review: the opening cinematic; camera moves are smooth and every cut is clean"),
+                   f"g_presentationClockCapture {args.samples}", "waitMsec 10000", "screenshot", "waitMsec 30000"],
+         "judge": ["camera moves are smooth at the display rate", "every authored cut is a clean cut, with no blend or slide between shots"]},
+        {"name": "review-monitor", "mode": "sp:game/tram1", "cvars": shown + ["in_presentationView", "1"],
+         "lines": ["god", "notarget", "noclip", "setviewpos 15915 -1201 169 16 -40 0", "waitMsec 2500",
+                   "screenshot", "waitMsec 500", f"g_presentationClockCapture {args.samples}",
+                   caption("Review: the monitor's remote camera; what it shows moves smoothly"), "waitMsec 2000",
+                   "screenshot", "waitMsec 6000"],
+         "judge": ["the remote camera image updates smoothly; nothing in it steps at 60 Hz while the main view is smooth"]},
+    ]
+
+
+def write_review_checklist(path: Path, args, report: dict) -> None:
+    """The operator's sheet: what each session showed and what to judge by eye."""
+    lines = ["# HF-08 by-eye review", "",
+             f"Runtime: `{report['runtime']}`, renderer {report['renderer']}, caps {', '.join(str(f) for f in args.fps)},",
+             f"{'full screen' if args.fullscreen else 'windowed'}, swap interval {args.swap_interval}.",
+             "Engine-side checks (no gameplay in draws, no errors) are in report.json;",
+             "mark each item below pass or fail by eye, with a note for anything seen.", ""]
+    cases = {c["case"]: c for c in report["cases"]}
+    for fps in args.fps:
+        for segment in review_segments(args, ""):
+            case = cases.get(f"{fps}fps-{segment['name']}", {})
+            lines += [f"## {segment['name']} at {fps} fps",
+                      f"Engine-side: {case.get('samples', 0)} draws captured, gameplay in draws {case.get('gameplayInDraws', 'n/a')},"
+                      f" errors {len(case.get('errors') or [])}.", ""]
+            lines += [f"- [ ] {item} — verdict: ______" for item in segment["judge"]]
+            lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-dir", type=Path, default=ROOT / ".install")
@@ -414,13 +549,15 @@ def main() -> int:
                         help="noclip setviewpos used by the HF-02 clock controls on airdefense1")
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
-                        choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "hitch", "menu", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
-                                 "mphost", "mpclient", "mploss", "spectate", "pacing"),
+                        choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "minimized", "hitch", "menu", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
+                                 "mphost", "mpclient", "mploss", "spectate", "pacing", "review"),
                         default=["look"])
     parser.add_argument("--fullscreen", action="store_true",
                         help="full screen at the native desktop resolution instead of a 960x540 window (reference runs)")
     parser.add_argument("--reference", action="store_true",
                         help="operator statement: a visible foreground window on the HF-07 reference machine; only then does pacing qualify")
+    parser.add_argument("--cvar", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"),
+                        help="an extra +set for every case, for A/B runs (for example com_preciseFrameWait 0)")
     parser.add_argument("--reanalyse", action="store_true", help="recompute report.json from an existing output directory")
     args = parser.parse_args()
     if args.reanalyse:
@@ -433,7 +570,7 @@ def main() -> int:
     # sensitivity 5 x m_yaw 0.022 with no acceleration: degrees per count
     expected_rate = -args.probe_rate * 5.0 * 0.022
     report = {"runtime": str(runtime), "map": args.map, "mpMap": args.mp_map, "renderer": args.renderer,
-              "probeRate": args.probe_rate, "reference": args.reference, "fullscreen": args.fullscreen, "swapInterval": args.swap_interval,
+              "probeRate": args.probe_rate, "reference": args.reference, "cvars": args.cvar, "fullscreen": args.fullscreen, "swapInterval": args.swap_interval,
               "binaries": {name: sha256(runtime / name) for name in
                            ("openQ4-client_x64.exe", "baseoq4/game-sp_x64.dll", "baseoq4/game-mp_x64.dll",
                             f"renderer-{args.renderer}_x64.dll")
@@ -544,6 +681,12 @@ def main() -> int:
         # HF-07: the background policy, a hidden window presents at about 60 Hz
         "hidden": [("hidden", ["in_presentationView", "1", "r_hiddenWindow", "1", "com_showFramePacing", "2"],
                     turn_sp + ["framePacingReset"], "sp")],
+        # HF-07: a minimized window is capped at 60 too, on every platform
+        "minimized": [("minimized", ["in_presentationView", "1", "com_showFramePacing", "2"],
+                       turn_sp + ["windowMinimizeTest", "waitMsec 1000", "framePacingReset", "waitMsec 5000"], "sp")],
+        # HF-08: the by-eye review, captioned on screen for an operator
+        "review": [(segment["name"], segment["cvars"], segment["lines"], segment["mode"])
+                   for segment in review_segments(args, probe)],
         # HF-07: the draw cadence at this cap while turning with late look
         "pacing": [("pacing", ["in_presentationView", "1", "com_showFramePacing", "2", "r_rendererMetrics", "1"],
                     turn_sp + ["framePacingReset"], "sp")],
@@ -553,6 +696,8 @@ def main() -> int:
         extra = []
         for index in range(0, len(cvars), 2):
             extra += ["+set", cvars[index], cvars[index + 1]]
+        for name, value in args.cvar:
+            extra += ["+set", name, value]
         return [
             str(client),
             "+set", "fs_basepath", str(args.basepath), "+set", "fs_savepath", str(home),
@@ -569,8 +714,10 @@ def main() -> int:
             "+set", "in_mouse", "0", "+set", "in_nograb", "1",
             "+set", "sensitivity", "5", "+set", "m_yaw", "0.022", "+set", "cl_mouseAccel", "0",
             "+set", "m_smooth", "1", "+set", "m_filter", "0",
+            # before the case's own cvars, so a case can watch a cinematic
+            "+set", "g_autoSkipCinematics", "1",
         ] + extra + [
-            "+set", "com_skipLoadingContinue", "1", "+set", "g_autoSkipCinematics", "1",
+            "+set", "com_skipLoadingContinue", "1",
             "+set", "g_autoExecAfterMapLoad", cfg, "+set", "g_autoExecAfterMapLoadDelayMs", "0",
         ] + launch
 
@@ -582,11 +729,14 @@ def main() -> int:
                 game = home / "baseoq4"
                 game.mkdir(parents=True)
                 body = ["waitMsec 4000"] + lines
+                if scenario in SNAPSHOTS and "framePacingReset" not in lines:
+                    # before the case's own lines, so the flash presses are counted
+                    body.insert(1, "framePacingReset")
                 if not any(line.startswith("g_presentationClockCapture") for line in lines):
                     body.append(f"g_presentationClockCapture {args.samples}")
                 body.append(capture_wait(fps))
-                if scenario in ("pacing", "hidden"):
-                    body.append("framePacingSnapshot hfpacing")
+                if scenario in SNAPSHOTS:
+                    body += ["framePacingSnapshot hfpacing", "win_keepTimerResolution"]
                 body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "in_presentationViewProbeZoom 0"]
                 if scenario == "mploss":
                     body.append("netImpairment")
@@ -651,18 +801,23 @@ def main() -> int:
                 report["cases"].append(case)
                 print(json.dumps({k: case[k] for k in case if k not in ("errors", "gameplayReports")}), flush=True)
     (output / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    if "review" in args.scenario:
+        write_review_checklist(output / "review-checklist.md", args, report)
     # Scenes drawn on the authoritative clock record no samples by design (thirdperson-interp0).
     failures = [c["case"] for c in report["cases"] if c["exit"] != 0 or c["errors"] or c["gameplayInDraws"] or
                 (c["scenario"] == "demo" and not c.get("timeDemo")) or
                 (c["scenario"] == "vr" and not c.get("xrFramesSubmitted")) or
-                (c["scenario"] == "flash" and c.get("latencyFlashes") != 5) or
+                (c["scenario"] == "flash" and (c.get("latencyFlashes") != 5 or
+                                               (c.get("inputToSwapMs") or {}).get("flashes") != 5)) or
                 (c["scenario"] == "hitch" and (not c.get("hitch") or c["hitch"]["backsteps"] or c["hitch"]["stalls"] < 2)) or
                 (c["scenario"] == "menu" and not c.get("menuPacing")) or
                 (c["scenario"] == "hidden" and not 50.0 <= (c.get("pacing", {}).get("presentedHz") or 0.0) <= 63.0) or
+                (c["scenario"] == "minimized" and (not c.get("minimizedReported") or c["minimizedPacing"]["cap"] != 60 or
+                                                   not c["minimizedPacing"]["frames"] or c["minimizedPacing"]["hz"] > 63.0)) or
                 (c["scenario"] == "combined" and (len(c.get("segments") or []) != 4 or
                                                   any(s["samples"] < 64 or s["gameplay"] for s in c["segments"]))) or
                 (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
-                (c["samples"] < 64 and not c["case"].endswith("interp0") and c["scenario"] != "menu") or
+                (c["samples"] < 64 and not c["case"].endswith("interp0") and c["scenario"] not in ("menu", "minimized")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")
     return 1 if failures else 0

@@ -82,6 +82,7 @@ idCVar	s_muteUnfocused( "s_muteUnfocused", "1", CVAR_ARCHIVE | CVAR_BOOL, "mute 
 
 #if defined( USE_SDL3 )
 bool Sys_SDL_IsGameWindowFocused( void );
+float Sys_SDL_GetWindowRefreshHz( void );
 #if defined( __ANDROID__ )
 #include "../sys/android/android_public.h"
 bool Sys_SDL_ConsumeAppSuspension( void );
@@ -161,32 +162,21 @@ static const char *Session_GetFramePacingBoundName( openq4FramePacingBound_t bou
 		case OPENQ4_FRAME_BOUND_PRESENTATION_CAP:
 			return "presentation-cap";
 		case OPENQ4_FRAME_BOUND_UNCAPPED:
-			return "uncapped";
+			return "frame-work";
 		default:
 			return "collecting";
 	}
 }
 
-static int Session_GetFramePacingPercentileMsec( const openq4FramePacingStats_t &stats, int percentile ) {
-	if ( stats.frameSampleCount <= 0 ) {
-		return 0;
-	}
-
-	const int target = Max( 1, ( stats.frameSampleCount * percentile + 99 ) / 100 );
-	int accumulated = 0;
-	for ( int i = 0; i < OPENQ4_FRAME_PACING_HISTOGRAM_BINS; ++i ) {
-		accumulated += stats.frameMsecHistogram[i];
-		if ( accumulated >= target ) {
-			return i == OPENQ4_FRAME_PACING_HISTOGRAM_OVERFLOW ? stats.maxFrameMsec : i;
-		}
-	}
-
-	return stats.maxFrameMsec;
+// Sub-millisecond: the 240 Hz budget (p95 4.6 ms, p99 6.3 ms) cannot be
+// judged from whole-millisecond bins (PresentationPacing.h).
+float Session_GetFramePacingPercentileMsec( const openq4FramePacingStats_t &stats, int percentile ) {
+	return openq4::FramePacingPercentileMsec( stats.frameIntervalBins, stats.frameSampleCount, percentile, stats.maxFrameMsec );
 }
 
 static void Session_PrintFramePacingSummary( const openq4FramePacingStats_t &stats, const char *reason ) {
 	common->Printf(
-		"Frame pacing%s (%s): bound=%s, samples=%d, present=%.2f ms (%.1f Hz), p50=%d ms, p95=%d ms, p99=%d ms, max=%d ms, async=%.2f ms (%.1f Hz), ticDelta/frame=%.2f, gameTics/frame=%.2f, wait overshoot=%.2f ms, wake jitter=%.2f ms\n",
+		"Frame pacing%s (%s): bound=%s, samples=%d, present=%.2f ms (%.1f Hz), p50=%.2f ms, p95=%.2f ms, p99=%.2f ms, max=%.2f ms, async=%.2f ms (%.1f Hz), ticDelta/frame=%.2f, gameTics/frame=%.2f, wait overshoot=%.2f ms, wake jitter=%.2f ms, swapInterval=%d, cap=%d, refresh=%.1f Hz\n",
 		reason != NULL ? reason : "",
 		stats.multiplayer ? "MP" : "SP",
 		Session_GetFramePacingBoundName( stats.boundMode ),
@@ -202,12 +192,17 @@ static void Session_PrintFramePacingSummary( const openq4FramePacingStats_t &sta
 		stats.avgTicsPerFrame,
 		stats.avgGameTicsPerFrame,
 		stats.avgWaitOvershootMsec,
-		stats.avgWakeJitterMsec );
+		stats.avgWakeJitterMsec,
+		stats.swapInterval,
+		stats.presentationCap,
+		stats.refreshHz );
 }
 
 #ifndef ID_DEDICATED
 void openQ4_PrintPresentationThrottleStats( const char *reason );
 void openQ4_ResetPresentationThrottleStats( void );
+void openQ4_PrintPresentationLatencyStats( const char *reason );
+void openQ4_ResetPresentationLatencyStats( void );
 
 static void Session_FramePacingSnapshot_f( const idCmdArgs &args ) {
 	const char *reason = NULL;
@@ -219,11 +214,13 @@ static void Session_FramePacingSnapshot_f( const idCmdArgs &args ) {
 
 	sessLocal.PrintFramePacingSnapshot( reason );
 	openQ4_PrintPresentationThrottleStats( reasonText.Length() ? va( " snapshot %s", reasonText.c_str() ) : " snapshot" );
+	openQ4_PrintPresentationLatencyStats( reasonText.Length() ? va( " snapshot %s", reasonText.c_str() ) : " snapshot" );
 }
 
 static void Session_FramePacingReset_f( const idCmdArgs &args ) {
 	sessLocal.ResetFramePacingStats();
 	openQ4_ResetPresentationThrottleStats();
+	openQ4_ResetPresentationLatencyStats();
 	common->Printf( "Frame pacing stats reset\n" );
 }
 
@@ -268,28 +265,34 @@ static void Session_TestMessageBox_f( const idCmdArgs &args ) {
 }
 #endif
 
+// What holds the frame rate (PresentationPacing.h): a cap that is met at any
+// rate, the display's refresh under vsync, game tics, or the frame's own work.
 static openq4FramePacingBound_t Session_ClassifyFramePacing( const openq4FramePacingStats_t &stats ) {
-	if ( !stats.valid || stats.avgFrameMsec <= 0.0f ) {
+	if ( !stats.valid ) {
 		return OPENQ4_FRAME_BOUND_UNKNOWN;
 	}
 
-	const float ticMsec = 1000.0f / static_cast<float>( USERCMD_HZ );
-	if ( stats.presentationCap > 0 ) {
-		const float capMsec = 1000.0f / static_cast<float>( stats.presentationCap );
-		if ( capMsec > ticMsec * 1.10f && stats.avgFrameMsec >= capMsec * 0.95f ) {
+	openq4::FramePacingBoundInput input;
+	input.avgFrameMsec = stats.avgFrameMsec;
+	input.presentationCap = stats.presentationCap;
+	input.swapInterval = stats.swapInterval;
+	input.refreshHz = stats.refreshHz;
+	input.ticMsec = 1000.0f / static_cast<float>( USERCMD_HZ );
+	input.avgTicsPerFrame = stats.avgTicsPerFrame;
+	input.avgGameTicsPerFrame = stats.avgGameTicsPerFrame;
+	input.waitedForTic = stats.lastRequestedWaitMsec > 0;
+	switch ( openq4::ClassifyFramePacing( input ) ) {
+		case openq4::FramePacingBound::Simulation:
+			return OPENQ4_FRAME_BOUND_SIMULATION;
+		case openq4::FramePacingBound::Vsync:
+			return OPENQ4_FRAME_BOUND_VSYNC;
+		case openq4::FramePacingBound::PresentationCap:
 			return OPENQ4_FRAME_BOUND_PRESENTATION_CAP;
-		}
+		case openq4::FramePacingBound::FrameWork:
+			return OPENQ4_FRAME_BOUND_UNCAPPED;
+		default:
+			return OPENQ4_FRAME_BOUND_UNKNOWN;
 	}
-
-	if ( stats.swapInterval > 0 && stats.avgFrameMsec > ticMsec * 1.10f ) {
-		return OPENQ4_FRAME_BOUND_VSYNC;
-	}
-
-	if ( stats.avgTicsPerFrame >= 0.90f || stats.avgGameTicsPerFrame >= 0.90f || stats.lastRequestedWaitMsec > 0 ) {
-		return OPENQ4_FRAME_BOUND_SIMULATION;
-	}
-
-	return OPENQ4_FRAME_BOUND_UNCAPPED;
 }
 
 // these must be kept up to date with window Levelshot in guis/mainmenu.gui
@@ -1462,9 +1465,9 @@ private:
 
 void idSessionLocal::ResetFramePacingStats( void ) {
 	memset( &framePacingStats, 0, sizeof( framePacingStats ) );
-	framePacingWindowMsec = 0;
+	framePacingWindowMsec = 0.0;
 	framePacingStats.boundMode = OPENQ4_FRAME_BOUND_UNKNOWN;
-	framePacingLastFrameMsec = 0;
+	framePacingLastFrameClock = 0.0;
 	framePacingLastLatchedTic = -1;
 	framePacingLastLoggedBound = OPENQ4_FRAME_BOUND_UNKNOWN;
 	framePacingLastLoggedSampleCount = 0;
@@ -1489,43 +1492,49 @@ void idSessionLocal::PrintFramePacingSnapshot( const char *reason ) const {
 	if ( framePacingStats.frameSampleCount > 0 ) {
 		common->Printf( "Frame timing window (%s): samples=%d, span_ms=%llu, mean_ms=%.6f\n",
 			framePacingStats.multiplayer ? "MP" : "SP", framePacingStats.frameSampleCount,
-			framePacingWindowMsec, double( framePacingWindowMsec ) / framePacingStats.frameSampleCount );
+			static_cast<unsigned long long>( framePacingWindowMsec + 0.5 ), framePacingWindowMsec / framePacingStats.frameSampleCount );
 	}
 }
 
-void idSessionLocal::SampleMultiplayerFramePacing( int frameStartMsec ) {
+void idSessionLocal::SampleMultiplayerFramePacing( void ) {
 	latchedTicNumber = com_ticNumber;
-	UpdateFramePacingStats( frameStartMsec, 0, 0, 0 );
+	UpdateFramePacingStats( 0, 0, 0 );
 }
 
 void openQ4_PrintFramePacingSnapshot( const char *reason ) {
 	sessLocal.PrintFramePacingSnapshot( reason );
 }
 
-void openQ4_RecordMultiplayerFramePacing( int frameStartMsec ) {
-	sessLocal.SampleMultiplayerFramePacing( frameStartMsec );
+void openQ4_RecordMultiplayerFramePacing( void ) {
+	sessLocal.SampleMultiplayerFramePacing();
 }
 
-void idSessionLocal::UpdateFramePacingStats( int frameStartMsec, int requestedWaitMsec, int actualWaitMsec, int gameTicsToRun ) {
+void idSessionLocal::UpdateFramePacingStats( int requestedWaitMsec, int actualWaitMsec, int gameTicsToRun ) {
 	openq4AsyncTimingStats_t asyncStats;
 	openQ4_GetAsyncTimingStats( asyncStats, 120 );
 
 	const int sampleCount = Max( framePacingStats.frameSampleCount, 1 );
 
-	if ( framePacingLastFrameMsec > 0 ) {
-		const int frameDeltaMsec = Max( 0, frameStartMsec - framePacingLastFrameMsec );
-		framePacingStats.lastFrameMsec = frameDeltaMsec;
+	// One interval per presentation frame, from the high-resolution stamp the
+	// frame limiter takes as it releases the frame.
+	const double frameStartMsec = openQ4_GetPresentationFrameStartMsec();
+	if ( framePacingLastFrameClock > 0.0 && frameStartMsec > framePacingLastFrameClock ) {
+		const double frameDeltaMsec = frameStartMsec - framePacingLastFrameClock;
+		const float frameDelta = static_cast<float>( frameDeltaMsec );
+		framePacingStats.lastFrameMsec = frameDelta;
 		++framePacingStats.frameSampleCount;
-		framePacingWindowMsec += static_cast<unsigned int>( frameDeltaMsec );
-		framePacingStats.avgFrameMsec = Session_UpdateMetricAverage( framePacingStats.avgFrameMsec, static_cast<float>( frameDeltaMsec ), framePacingStats.frameSampleCount );
+		framePacingWindowMsec += frameDeltaMsec;
+		framePacingStats.avgFrameMsec = Session_UpdateMetricAverage( framePacingStats.avgFrameMsec, frameDelta, framePacingStats.frameSampleCount );
 		framePacingStats.avgFrameHz = framePacingStats.avgFrameMsec > 0.0f ? 1000.0f / framePacingStats.avgFrameMsec : 0.0f;
-		if ( framePacingStats.frameSampleCount == 1 || frameDeltaMsec < framePacingStats.minFrameMsec ) {
-			framePacingStats.minFrameMsec = frameDeltaMsec;
+		if ( framePacingStats.frameSampleCount == 1 || frameDelta < framePacingStats.minFrameMsec ) {
+			framePacingStats.minFrameMsec = frameDelta;
 		}
-		framePacingStats.maxFrameMsec = Max( framePacingStats.maxFrameMsec, frameDeltaMsec );
-		++framePacingStats.frameMsecHistogram[Min( frameDeltaMsec, static_cast<int>( OPENQ4_FRAME_PACING_HISTOGRAM_OVERFLOW ) )];
+		framePacingStats.maxFrameMsec = Max( framePacingStats.maxFrameMsec, frameDelta );
+		++framePacingStats.frameIntervalBins[ openq4::FramePacingBin( frameDeltaMsec ) ];
 	}
-	framePacingLastFrameMsec = frameStartMsec;
+	if ( frameStartMsec > 0.0 ) {
+		framePacingLastFrameClock = frameStartMsec;
+	}
 
 	if ( framePacingLastLatchedTic >= 0 ) {
 		const int ticDelta = Max( 0, latchedTicNumber - framePacingLastLatchedTic );
@@ -1547,6 +1556,11 @@ void idSessionLocal::UpdateFramePacingStats( int frameStartMsec, int requestedWa
 
 	framePacingStats.swapInterval = cvarSystem != NULL ? cvarSystem->GetCVarInteger( "r_swapInterval" ) : 0;
 	framePacingStats.presentationCap = Session_FindPresentationCap();
+#if defined( USE_SDL3 )
+	framePacingStats.refreshHz = Sys_SDL_GetWindowRefreshHz();
+#else
+	framePacingStats.refreshHz = 0.0f;
+#endif
 	framePacingStats.asyncStats = asyncStats;
 	framePacingStats.valid = ( framePacingStats.frameSampleCount > 0 ) || asyncStats.valid;
 	framePacingStats.boundMode = Session_ClassifyFramePacing( framePacingStats );
@@ -9245,8 +9259,6 @@ void idSessionLocal::Frame() {
 		return;
 	}
 
-	const int frameStartMsec = Sys_Milliseconds();
-
 	// if the console is down, we don't need to hold
 	// the mouse cursor
 	if ( console->Active() || com_editorActive ) {
@@ -9360,7 +9372,7 @@ void idSessionLocal::Frame() {
 
 	// advance demos
 	if ( readDemo ) {
-		UpdateFramePacingStats( frameStartMsec, requestedWaitMsec, actualWaitMsec, 0 );
+		UpdateFramePacingStats( requestedWaitMsec, actualWaitMsec, 0 );
 		AdvanceRenderDemo( false );
 		return;
 	}
@@ -9375,20 +9387,20 @@ void idSessionLocal::Frame() {
 	}
 
 	if ( !mapSpawned ) {
-		UpdateFramePacingStats( frameStartMsec, requestedWaitMsec, actualWaitMsec, 0 );
+		UpdateFramePacingStats( requestedWaitMsec, actualWaitMsec, 0 );
 		return;
 	}
 
 	if ( IsGUIActive() ) {
 		lastGameTic = latchedTicNumber;
-		UpdateFramePacingStats( frameStartMsec, requestedWaitMsec, actualWaitMsec, 0 );
+		UpdateFramePacingStats( requestedWaitMsec, actualWaitMsec, 0 );
 		return;
 	}
 
 	// in message box / GUIFrame, idSessionLocal::Frame is used for GUI interactivity
 	// but we early exit to avoid running game frames
 	if ( idAsyncNetwork::IsActive() ) {
-		UpdateFramePacingStats( frameStartMsec, requestedWaitMsec, actualWaitMsec, 0 );
+		UpdateFramePacingStats( requestedWaitMsec, actualWaitMsec, 0 );
 		return;
 	}
 
@@ -9477,7 +9489,7 @@ void idSessionLocal::Frame() {
 		}
 	}
 
-	UpdateFramePacingStats( frameStartMsec, requestedWaitMsec, actualWaitMsec, i );
+	UpdateFramePacingStats( requestedWaitMsec, actualWaitMsec, i );
 }
 
 /*

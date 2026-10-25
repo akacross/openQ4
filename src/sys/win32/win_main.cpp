@@ -1873,6 +1873,49 @@ void Sys_ReleaseInstanceLock(void) {
 
 /*
 ================
+Sys_KeepTimerResolutionWhenOccluded
+
+Windows 11 stops honouring timeBeginPeriod for a process whose windows are all
+occluded or minimized, unless the process opts out. The async thread's 1 ms
+tick timer and the frame cap would then fall back to the default 15.6 ms
+resolution, so a listen server behind another window ticks in bursts and a
+capped client wakes late. Resolved at run time: the opt-out exists on
+Windows 11 only, and older systems refuse it harmlessly.
+================
+*/
+static idCVar win_keepTimerResolution("win_keepTimerResolution", "0", CVAR_SYSTEM | CVAR_ROM | CVAR_BOOL,
+	"1 when Windows keeps this process's 1 ms timer resolution while its window is occluded or minimized (the Windows 11 opt-out)");
+
+static void Sys_KeepTimerResolutionWhenOccluded(void) {
+	typedef struct {
+		ULONG Version;
+		ULONG ControlMask;
+		ULONG StateMask;
+	} powerThrottlingState_t;	// PROCESS_POWER_THROTTLING_STATE
+	typedef BOOL (WINAPI *setProcessInformation_t)(HANDLE, int, LPVOID, DWORD);
+	const int processPowerThrottling = 4;			// ProcessPowerThrottling
+	const ULONG ignoreTimerResolution = 0x4;		// PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION
+
+	HMODULE kernel = GetModuleHandleA("kernel32.dll");
+	setProcessInformation_t setInformation = kernel != NULL
+		? reinterpret_cast<setProcessInformation_t>(GetProcAddress(kernel, "SetProcessInformation")) : NULL;
+	if (setInformation == NULL) {
+		return;
+	}
+
+	powerThrottlingState_t state;
+	state.Version = 1;							// PROCESS_POWER_THROTTLING_CURRENT_VERSION
+	state.ControlMask = ignoreTimerResolution;
+	state.StateMask = 0;						// never ignore this process's resolution
+	// Sys_Init runs before the log file opens; win_keepTimerResolution keeps the result
+	if (setInformation(GetCurrentProcess(), processPowerThrottling, &state, sizeof(state))) {
+		win_keepTimerResolution.SetBool(true);
+		common->Printf("Timer resolution: 1 ms kept while the window is occluded\n");
+	}
+}
+
+/*
+================
 Sys_Init
 
 The cvar system must already be setup
@@ -1885,6 +1928,7 @@ void Sys_Init(void) {
 	// make sure the timer is high precision, otherwise
 	// NT gets 18ms resolution
 	timeBeginPeriod(1);
+	Sys_KeepTimerResolutionWhenOccluded();
 
 	// get WM_TIMER messages pumped every millisecond
 //	SetTimer( NULL, 0, 100, NULL );

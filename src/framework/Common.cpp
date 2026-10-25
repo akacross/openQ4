@@ -54,15 +54,18 @@ If you have questions concerning this license or the applicable additional terms
 #include "SaveGameReleases.h"
 #include "../sys/NetworkEndpoint.h"
 
+#include "PresentationPacing.h"
+
 #if defined( USE_SDL3 )
 #include <SDL3/SDL_locale.h>
+#include <SDL3/SDL_timer.h>
 #endif
 
 #define	MAX_PRINT_MSG_SIZE	4096
 #define MAX_WARNING_LIST	256
 
 void openQ4_PrintFramePacingSnapshot( const char *reason );
-void openQ4_RecordMultiplayerFramePacing( int frameStartMsec );
+void openQ4_RecordMultiplayerFramePacing( void );
 
 static const int OPENQ4_ENTITYDEF_MEDIA_CACHE_TOOL_MASK =
 	EDITOR_RADIANT |
@@ -139,6 +142,7 @@ idCVar con_allowConsole( "con_allowConsole", "1", CVAR_BOOL | CVAR_SYSTEM | CVAR
 idCVar com_speeds( "com_speeds", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show engine timings" );
 idCVar com_showFPS( "com_showFPS", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_NOCHEAT, "show frames rendered per second: 1 = in-game only, 2 = legacy always on", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_maxfps( "com_maxfps", "240", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_NOCHEAT, "presentation frame cap, 0 = uncapped", 0, 1000, idCmdSystem::ArgCompletion_Integer<0,1000> );
+static idCVar com_preciseFrameWait( "com_preciseFrameWait", "1", CVAR_BOOL | CVAR_SYSTEM | CVAR_NOCHEAT, "frame cap wait: 1 = sleep on the high-resolution timer and spin only its measured wake-up error, 0 = whole-millisecond sleeps and a fixed spin" );
 static idCVar com_presentationStallProbe( "com_presentationStallProbe", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_CHEAT, "development probe: once a second, stall one frame this many milliseconds, so hitch catch-up can be measured without a real hitch; requires cheats", 0, 1000 );
 idCVar com_showFramePacing( "com_showFramePacing", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_NOCHEAT, "show frame pacing diagnostics: 1 = HUD overlay, 2 = overlay plus console logging", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_showMemoryUsage( "com_showMemoryUsage", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show total and per frame memory usage" );
@@ -354,6 +358,7 @@ static void Common_MigrateLegacyAudioDefaults( void ) {
 static int commonLastPresentationCap = -1;
 static double commonNextPresentationFrameClock = 0.0;
 static bool commonNextPresentationFrameValid = false;
+static double commonPresentationFrameStartClock = 0.0;
 
 // How late each throttled wake came against its target, the limiter's own
 // precision apart from the work a frame does (framePacingSnapshot, HF-07).
@@ -361,6 +366,13 @@ static const int COMMON_THROTTLE_LATENESS_HISTORY = 2048;
 static float commonThrottleLatenessMsec[ COMMON_THROTTLE_LATENESS_HISTORY ];
 static int commonThrottleLatenessCount = 0;
 static int commonThrottleLatenessNext = 0;
+// Time the waits since framePacingReset spent busy-waiting, the limiter's CPU cost.
+static double commonThrottleSpinMsec = 0.0;
+static int commonThrottleSpinWaits = 0;
+
+// How late the precise wait's recent sleeps woke; the spin covers their 95th
+// percentile (PresentationPacing.h).
+static openq4::LimiterOversleepWindow commonLimiterOversleep;
 
 static void Common_ResetPresentationThrottle( void ) {
 	commonNextPresentationFrameClock = 0.0;
@@ -375,24 +387,52 @@ static double Common_GetPresentationClockUnitsPerSecond( void ) {
 	return Sys_ClockTicksPerSecond();
 }
 
+#if defined( USE_SDL3 )
+bool Sys_SDL_IsGameWindowShown( void );
+#endif
+
+// Whether the game window shows anything. Hidden windows (r_hiddenWindow, the
+// light-grid bake) and minimized ones do not, on any platform.
+static bool Common_IsGameWindowShown( void ) {
+#if defined( USE_SDL3 )
+	return Sys_SDL_IsGameWindowShown();
+#elif defined( _WIN32 )
+	// Win32 IsWindowVisible() reports TRUE for minimized windows
+	return Sys_IsWindowVisible();
+#else
+	return true;
+#endif
+}
+
 static int Common_GetRequestedPresentationCap( void ) {
 	// a headset session paces every frame through xrWaitFrame
 	if ( vrSystem != NULL && vrSystem->IsPacing() ) {
 		return 0;
 	}
 
-	int cap = Max( 0, com_maxfps.GetInteger() );
+	// A window that shows nothing never presents faster than 60 Hz, uncapped
+	// included, so a hidden or minimized client does not spin (HF-07).
+	return openq4::PresentationCapForWindow( com_maxfps.GetInteger(), Common_IsGameWindowShown() );
+}
 
-#if defined( _WIN32 )
-	// Hidden windows should not spin uncapped when presentation is decoupled. Note
-	// Win32 IsWindowVisible() reports TRUE for minimized windows, so in practice this
-	// only fires for genuinely hidden ones (r_hiddenWindow, the light-grid bake).
-	if ( !Sys_IsWindowVisible() && ( cap == 0 || cap > 60 ) ) {
-		cap = 60;
-	}
+// Whether the limiter waits on the high-resolution timer (PresentationPacing.h).
+// com_preciseFrameWait 0 restores whole-millisecond sleeps and a fixed spin.
+static bool Common_UsePreciseFrameWait( void ) {
+#if defined( USE_SDL3 )
+	return com_preciseFrameWait.GetBool();
+#else
+	return false;
 #endif
+}
 
-	return cap;
+// SDL_DelayNS sleeps on a high-resolution waitable timer on Windows and on
+// nanosleep elsewhere, so a sleep can end within a fraction of a millisecond.
+static void Common_PreciseSleep( double msec ) {
+#if defined( USE_SDL3 )
+	SDL_DelayNS( static_cast<Uint64>( msec * 1000000.0 ) );
+#else
+	Sys_Sleep( Max( 1, static_cast<int>( idMath::Floor( static_cast<float>( msec ) ) ) ) );
+#endif
 }
 
 /*
@@ -417,13 +457,122 @@ void openQ4_PrintPresentationThrottleStats( const char *reason ) {
 	}
 	std::sort( sorted.Ptr(), sorted.Ptr() + count );
 	const auto at = [&]( float fraction ) { return sorted[ Min( count - 1, static_cast<int>( fraction * ( count - 1 ) + 0.5f ) ) ]; };
-	common->Printf( "Presentation throttle%s: waits=%d late p50=%.3f p95=%.3f p99=%.3f max=%.3f ms\n",
-		reason, count, at( 0.5f ), at( 0.95f ), at( 0.99f ), sorted[ count - 1 ] );
+	common->Printf( "Presentation throttle%s: waits=%d late p50=%.3f p95=%.3f p99=%.3f max=%.3f ms, spin mean=%.3f ms\n",
+		reason, count, at( 0.5f ), at( 0.95f ), at( 0.99f ), sorted[ count - 1 ],
+		commonThrottleSpinWaits > 0 ? commonThrottleSpinMsec / commonThrottleSpinWaits : 0.0 );
 }
 
 void openQ4_ResetPresentationThrottleStats( void ) {
 	commonThrottleLatenessCount = 0;
 	commonThrottleLatenessNext = 0;
+	commonThrottleSpinMsec = 0.0;
+	commonThrottleSpinWaits = 0;
+}
+
+/*
+=================
+Common_RecordFrameInputToSwap
+
+How long after its input each frame reached the screen's swap chain (HF-08):
+from the first late-look sample of the draw, and from the press behind a drawn
+latency flash, to the return of UpdateScreen. The renderer runs synchronously,
+so its swap or present call has returned by then. A sensor's click-to-photon
+reading minus pressToSwap leaves the GPU, compositor and display. Input older
+than a quarter second was taken outside an ordinary frame (a load) and is
+dropped rather than counted.
+=================
+*/
+void Usercmd_TakeFrameInputClocks( double &lookSampleClock, double &flashPressClock );
+
+static const int COMMON_INPUT_TO_SWAP_HISTORY = 2048;
+
+struct commonInputToSwapRing_t {
+	float	msec[ COMMON_INPUT_TO_SWAP_HISTORY ];
+	int		count;
+	int		next;
+};
+
+static commonInputToSwapRing_t commonLookSampleToSwap;
+static commonInputToSwapRing_t commonFlashPressToSwap;
+
+static void Common_AddInputToSwap( commonInputToSwapRing_t &ring, double inputClock, double swapClock, double clockUnitsPerSecond ) {
+	if ( inputClock <= 0.0 || swapClock < inputClock ) {
+		return;
+	}
+	const double msec = ( ( swapClock - inputClock ) * 1000.0 ) / clockUnitsPerSecond;
+	if ( msec > 250.0 ) {
+		return;
+	}
+	ring.msec[ ring.next ] = static_cast<float>( msec );
+	ring.next = ( ring.next + 1 ) % COMMON_INPUT_TO_SWAP_HISTORY;
+	ring.count = Min( ring.count + 1, COMMON_INPUT_TO_SWAP_HISTORY );
+}
+
+static void Common_RecordFrameInputToSwap( void ) {
+	double lookSampleClock = 0.0;
+	double flashPressClock = 0.0;
+	Usercmd_TakeFrameInputClocks( lookSampleClock, flashPressClock );
+	const double clockUnitsPerSecond = Common_GetPresentationClockUnitsPerSecond();
+	if ( clockUnitsPerSecond <= 0.0 ) {
+		return;
+	}
+	const double swapClock = Common_GetPresentationClockNow();
+	Common_AddInputToSwap( commonLookSampleToSwap, lookSampleClock, swapClock, clockUnitsPerSecond );
+	Common_AddInputToSwap( commonFlashPressToSwap, flashPressClock, swapClock, clockUnitsPerSecond );
+}
+
+static idStr Common_InputToSwapPercentiles( const commonInputToSwapRing_t &ring ) {
+	const int count = ring.count;
+	if ( count <= 0 ) {
+		return "none";
+	}
+	idList<float> sorted;
+	sorted.SetNum( count );
+	for ( int i = 0; i < count; i++ ) {
+		sorted[ i ] = ring.msec[ i ];
+	}
+	std::sort( sorted.Ptr(), sorted.Ptr() + count );
+	const auto at = [&]( float fraction ) { return sorted[ Min( count - 1, static_cast<int>( fraction * ( count - 1 ) + 0.5f ) ) ]; };
+	return va( "p50=%.3f p95=%.3f p99=%.3f max=%.3f ms", at( 0.5f ), at( 0.95f ), at( 0.99f ), sorted[ count - 1 ] );
+}
+
+void openQ4_PrintPresentationLatencyStats( const char *reason ) {
+	common->Printf( "Presentation latency%s: lookSamples=%d sampleToSwap %s; flashes=%d pressToSwap %s\n",
+		reason, commonLookSampleToSwap.count, Common_InputToSwapPercentiles( commonLookSampleToSwap ).c_str(),
+		commonFlashPressToSwap.count, Common_InputToSwapPercentiles( commonFlashPressToSwap ).c_str() );
+}
+
+void openQ4_ResetPresentationLatencyStats( void ) {
+	commonLookSampleToSwap.count = commonLookSampleToSwap.next = 0;
+	commonFlashPressToSwap.count = commonFlashPressToSwap.next = 0;
+}
+
+/*
+=================
+openQ4_GetPresentationThrottleLatenessP95
+
+The com_showFramePacing overlay's view of the same lateness: p95 over the
+recent waits, sorted at most four times a second, 0 with no waits.
+=================
+*/
+float openQ4_GetPresentationThrottleLatenessP95( void ) {
+	static int lastSortMsec = 0;
+	static float latenessP95 = 0.0f;
+	const int nowMsec = Sys_Milliseconds();
+	if ( lastSortMsec != 0 && nowMsec - lastSortMsec >= 0 && nowMsec - lastSortMsec < 250 ) {
+		return latenessP95;
+	}
+	lastSortMsec = nowMsec != 0 ? nowMsec : 1;
+	const int count = commonThrottleLatenessCount;
+	if ( count <= 0 ) {
+		latenessP95 = 0.0f;
+		return latenessP95;
+	}
+	static float sorted[ COMMON_THROTTLE_LATENESS_HISTORY ];
+	memcpy( sorted, commonThrottleLatenessMsec, count * sizeof( sorted[ 0 ] ) );
+	std::sort( sorted, sorted + count );
+	latenessP95 = sorted[ Min( count - 1, static_cast<int>( 0.95f * ( count - 1 ) + 0.5f ) ) ];
+	return latenessP95;
 }
 
 int openQ4_GetRequestedPresentationCap( void ) {
@@ -464,23 +613,40 @@ static void Common_ThrottlePresentationFrame( void ) {
 
 	// Sleep away the bulk of the frame period, then use the high-resolution counter
 	// for the last slice so low frame caps don't pick up an extra scheduler quantum.
-	const double sleepSlackMsec = idMath::ClampFloat( 0.5f, 1.5f, static_cast<float>( frameMsec * 0.125f ) );
+	// The slice covers how late a sleep wakes: as measured for the high-resolution
+	// timer, a fixed eighth of the frame for millisecond sleeps.
+	const bool preciseWait = Common_UsePreciseFrameWait();
+	const double sleepSlackMsec = preciseWait
+		? openq4::LimiterSpinMsec( commonLimiterOversleep )
+		: openq4::LegacyLimiterSpinMsec( frameMsec );
 
 	// Never wait longer than a few frame periods here however the clock behaves. The
 	// tail of this loop is a deliberate busy-spin for sub-millisecond precision, so a
 	// counter that stalls or runs backwards would otherwise wedge the process with no
 	// way out.
 	const double waitDeadlineClock = Common_GetPresentationClockNow() + frameClockUnits * 4.0;
+	// Only a frame that arrives before its target waits. One whose work overran
+	// the period is late already, which says nothing about the limiter's own
+	// precision, so it is not counted as a late wake.
+	bool waited = false;
+	double spinStartClock = -1.0;
 	while ( true ) {
 		const double spinNowClock = Common_GetPresentationClockNow();
 		const double remainingClockUnits = commonNextPresentationFrameClock - spinNowClock;
 		if ( remainingClockUnits <= 0.0 ) {
-			commonThrottleLatenessMsec[ commonThrottleLatenessNext ] =
-				static_cast<float>( ( -remainingClockUnits * 1000.0 ) / clockUnitsPerSecond );
-			commonThrottleLatenessNext = ( commonThrottleLatenessNext + 1 ) % COMMON_THROTTLE_LATENESS_HISTORY;
-			commonThrottleLatenessCount = Min( commonThrottleLatenessCount + 1, COMMON_THROTTLE_LATENESS_HISTORY );
+			if ( waited ) {
+				commonThrottleLatenessMsec[ commonThrottleLatenessNext ] =
+					static_cast<float>( ( -remainingClockUnits * 1000.0 ) / clockUnitsPerSecond );
+				commonThrottleLatenessNext = ( commonThrottleLatenessNext + 1 ) % COMMON_THROTTLE_LATENESS_HISTORY;
+				commonThrottleLatenessCount = Min( commonThrottleLatenessCount + 1, COMMON_THROTTLE_LATENESS_HISTORY );
+				if ( spinStartClock >= 0.0 ) {
+					commonThrottleSpinMsec += ( ( spinNowClock - spinStartClock ) * 1000.0 ) / clockUnitsPerSecond;
+				}
+				++commonThrottleSpinWaits;
+			}
 			break;
 		}
+		waited = true;
 
 		if ( spinNowClock >= waitDeadlineClock ) {
 			// The clock is not behaving; drop the backlog and resynchronise next frame
@@ -492,11 +658,21 @@ static void Common_ThrottlePresentationFrame( void ) {
 
 		const double remainingMsec = ( remainingClockUnits * 1000.0 ) / clockUnitsPerSecond;
 		if ( remainingMsec <= sleepSlackMsec ) {
+			if ( spinStartClock < 0.0 ) {
+				spinStartClock = spinNowClock;
+			}
 			continue;
 		}
 
-		const int sleepMsec = Max( 1, static_cast<int>( idMath::Floor( remainingMsec - sleepSlackMsec ) ) );
-		Sys_Sleep( sleepMsec );
+		if ( preciseWait ) {
+			const double sleepMsec = remainingMsec - sleepSlackMsec;
+			Common_PreciseSleep( sleepMsec );
+			const double sleptMsec = ( ( Common_GetPresentationClockNow() - spinNowClock ) * 1000.0 ) / clockUnitsPerSecond;
+			commonLimiterOversleep.Add( sleptMsec - sleepMsec );
+		} else {
+			const int sleepMsec = Max( 1, static_cast<int>( idMath::Floor( static_cast<float>( remainingMsec - sleepSlackMsec ) ) ) );
+			Sys_Sleep( sleepMsec );
+		}
 	}
 
 	commonNextPresentationFrameClock += frameClockUnits;
@@ -513,6 +689,15 @@ void openQ4_BeginPresentationFrame( void ) {
 	}
 
 	com_frameRealTime = Sys_Milliseconds();
+	commonPresentationFrameStartClock = Common_GetPresentationClockNow();
+}
+
+double openQ4_GetPresentationFrameStartMsec( void ) {
+	const double clockUnitsPerSecond = Common_GetPresentationClockUnitsPerSecond();
+	if ( commonPresentationFrameStartClock <= 0.0 || clockUnitsPerSecond <= 0.0 ) {
+		return 0.0;
+	}
+	return ( commonPresentationFrameStartClock * 1000.0 ) / clockUnitsPerSecond;
 }
 
 // While the single-player loading-screen continue gate is waiting for input, the
@@ -6092,7 +6277,6 @@ idCommonLocal::Frame
 void idCommonLocal::Frame( void ) {
 	try {
 		openQ4_BeginPresentationFrame();
-		const int frameStartMsec = com_frameRealTime;
 		Common_PresentationStallProbe();
 
 		// pump all the events
@@ -6128,7 +6312,7 @@ void idCommonLocal::Frame( void ) {
 			// Keep netplay flow the same as stock, but ensure audio mixes each frame.
 			soundSystem->Render();
 			session->GuiFrameEvents();
-			openQ4_RecordMultiplayerFramePacing( frameStartMsec );
+			openQ4_RecordMultiplayerFramePacing();
 			session->UpdateScreen( false );
 		}
 	} else {
@@ -6137,6 +6321,7 @@ void idCommonLocal::Frame( void ) {
 			// normal, in-sequence screen update
 			session->UpdateScreen( false );
 		}
+		Common_RecordFrameInputToSwap();
 
 		// report timing information
 		if ( com_speeds.GetBool() ) {
@@ -6182,6 +6367,7 @@ void idCommonLocal::GUIFrame( bool execCmd, bool network ) {
 	}
 	session->Frame();
 	session->UpdateScreen( false );	
+	Common_RecordFrameInputToSwap();
 }
 
 /*

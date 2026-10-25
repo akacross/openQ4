@@ -17,6 +17,15 @@
 - **Optional low-latency look.** Set `in_presentationView 1` to turn the view
   with your mouse, gyro, look keys or stick on every drawn frame instead of up
   to a tick later. Aiming, hit detection and the network are unchanged.
+- **A steadier frame cap that burns less CPU.** `com_maxfps` now waits on a
+  high-resolution timer and busy-waits only as long as that timer needs,
+  instead of a fixed slice of every frame. On Windows 11 the game keeps its
+  precise timers while another window covers it, so a listen server behind
+  other windows keeps an even tick.
+- **Minimized games rest.** A minimized or hidden openQ4 window now draws at
+  most 60 frames a second on Windows, Linux and macOS, instead of running at
+  its full cap while you cannot see it. The game itself keeps running at full
+  speed.
 
 - Command-line multiplayer connections now reach the server reliably when a
   long launch command requires the game to switch from single player.
@@ -28,7 +37,15 @@
   frame to whole milliseconds.
 - `com_latencyFlash 1` draws a white bar on the first frame after you press
   fire, so latency testers such as NVIDIA LDAT or OSLTT can measure
-  click-to-photon delay.
+  click-to-photon delay. `framePacingSnapshot` now also reports how long the
+  engine itself took from your input to handing the frame to the display, so
+  the rest of a tester's reading is the GPU, compositor and screen.
+- `com_showFramePacing` now reports frame times to a hundredth of a
+  millisecond, shows your display's refresh rate, names what is limiting the
+  frame rate (the frame cap, vsync, or the frame's own work) and, with a
+  240 FPS cap, whether pacing meets openQ4's 240 Hz target.
+  `com_preciseFrameWait 0` restores the previous frame-cap wait if you need to
+  compare.
 - The multiplayer guide correctly identifies enhanced prediction and hitscan
   lag compensation as opt-in settings.
 

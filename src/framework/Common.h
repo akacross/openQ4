@@ -198,6 +198,9 @@ bool                openQ4_UpdateInitialization( void );
 // against a frame period must use this rather than com_maxfps directly, or their
 // budget and the throttle's period disagree and they sleep away the difference.
 int					openQ4_GetRequestedPresentationCap( void );
+// When the limiter released the current presentation frame, in milliseconds on
+// the high-resolution clock (Sys_GetClockTicks); 0 before the first frame.
+double				openQ4_GetPresentationFrameStartMsec( void );
 void				openQ4_SetLoadingContinueInputActive( bool active );
 bool				openQ4_AcceptingLoadingContinueInput( void );
 int					openQ4_GetActiveToolFlags( int flags );

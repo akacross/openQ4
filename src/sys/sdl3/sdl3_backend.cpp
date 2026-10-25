@@ -887,6 +887,39 @@ bool Sys_SDL_IsGameWindowFocused(void) {
 		(flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
 }
 
+// False while the game window shows nothing: hidden (r_hiddenWindow, batch
+// jobs), minimized, not created yet, or the app is in the background. The
+// frame limiter then presents at most 60 Hz on every platform (HF-07).
+bool Sys_SDL_IsGameWindowShown(void) {
+	if (s_sdlAppInBackground || !s_sdlVideoReferenceHeld || s_sdlWindow == NULL) {
+		return false;
+	}
+	return (SDL_GetWindowFlags(s_sdlWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
+}
+
+// The refresh rate of the display the game window is on, 0 when unknown, for
+// the frame-pacing reports. Looked up at most twice a second.
+float Sys_SDL_GetWindowRefreshHz(void) {
+	static Uint64 lastLookupMsec = 0;
+	static float refreshHz = 0.0f;
+	if (!s_sdlVideoReferenceHeld || s_sdlWindow == NULL) {
+		lastLookupMsec = 0;
+		refreshHz = 0.0f;
+		return 0.0f;
+	}
+	const Uint64 nowMsec = SDL_GetTicks();
+	if (lastLookupMsec == 0 || nowMsec - lastLookupMsec >= 500) {
+		lastLookupMsec = nowMsec > 0 ? nowMsec : 1;
+		refreshHz = 0.0f;
+		const SDL_DisplayID display = SDL_GetDisplayForWindow(s_sdlWindow);
+		const SDL_DisplayMode *mode = display != 0 ? SDL_GetCurrentDisplayMode(display) : NULL;
+		if (mode != NULL && mode->refresh_rate > 0.0f) {
+			refreshHz = mode->refresh_rate;
+		}
+	}
+	return refreshHz;
+}
+
 static bool SDL3_UseAbsoluteWindowPlacement(void) {
 	return !SDL3_IsNativeWaylandVideoDriver();
 }
@@ -4008,6 +4041,25 @@ static bool SDL3_SetWindowPositionCompat(int frameX, int frameY, SDL_DisplayID d
 	return true;
 }
 
+// windowMinimizeTest (cheat): minimize the game window as leaving full screen
+// does, so the frame cap of a window that shows nothing (HF-07) can be
+// measured without input. The window stays minimized until it is restored.
+static void SDL3_WindowMinimizeTest_f(const idCmdArgs &args) {
+	(void)args;
+	if (s_sdlWindow == NULL) {
+		common->Printf("windowMinimizeTest: no game window\n");
+		return;
+	}
+	if (!SDL_MinimizeWindow(s_sdlWindow)) {
+		common->Printf("windowMinimizeTest: %s\n", SDL_GetError());
+		return;
+	}
+	(void)SDL_SyncWindow(s_sdlWindow);
+	common->Printf("windowMinimizeTest: minimized=%d shown=%d\n",
+		(SDL_GetWindowFlags(s_sdlWindow) & SDL_WINDOW_MINIMIZED) != 0 ? 1 : 0,
+		Sys_SDL_IsGameWindowShown() ? 1 : 0);
+}
+
 static void SDL3_ListDisplays_f(const idCmdArgs &args) {
 	(void)args;
 	SDL3_PrintDisplayList();
@@ -6730,6 +6782,7 @@ static bool SDL3_WindowServices_PrepareWindowSystem(void) {
 		cmdSystem->AddCommand("listDisplayModes", SDL3_ListDisplayModes_f, CMD_FL_SYSTEM, "lists SDL3 fullscreen display modes (optional display index)");
 		cmdSystem->AddCommand("listControllers", SDL3_ListControllers_f, CMD_FL_SYSTEM, "lists SDL3 controller, sensor, touchpad, and battery diagnostics");
 		cmdSystem->AddCommand("sdl3MouseCaptureDiagnostics", SDL3_MouseCaptureDiagnostics_f, CMD_FL_SYSTEM, "toggles SDL3 mouse capture and prints backend state; optional repeat count is clamped to 1..8");
+		cmdSystem->AddCommand("windowMinimizeTest", SDL3_WindowMinimizeTest_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "development: minimize the game window, as leaving full screen does, so the frame cap of a window that shows nothing can be measured without input; requires cheats");
 		s_sdlDiagnosticCommandsRegistered = true;
 	}
 

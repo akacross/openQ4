@@ -292,8 +292,17 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   and a hidden window capped at 240 measured 60.0 Hz. Through 100 ms stalls
   (`com_presentationStallProbe`) the drawn view never stepped backwards and late
   look still matched its sampled input. The main menu follows the cap. Variable
-  refresh and adaptive vsync are reference-run cases. Physical runs on the
-  desktop reference remain.
+  refresh and adaptive vsync are reference-run cases. On 25 October the frame
+  cap began sleeping on SDL's high-resolution delay and busy-waiting only its
+  measured oversleep (`com_preciseFrameWait 0` keeps the old wait): at 144 Hz
+  the old wait woke about 1 ms late at p95 and the new one was not late, and at
+  60 Hz the busy-wait halved. Windows 11 now keeps the 1 ms timer behind other
+  windows. Hidden and minimized windows present at most 60 Hz on every platform
+  (a minimized client held 59.5 Hz). Frame pacing statistics moved from whole
+  milliseconds, which read a steady 240 Hz cadence as p95 5 ms, to 50 µs bins.
+  The report gained the display refresh and names what holds the rate, and the
+  overlay judges the 240 Hz budget. The limiter's late-wake count no longer
+  includes frames that overran. Physical runs on the desktop reference remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),
   zoomed, on lifts and trams and through rapid turns, and measure physical
@@ -319,7 +328,14 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   vehicles turn under their own rate limits (a walker turned 196°/s for a
   220°/s input). Q4's trams are vehicles (the ridden `player_tram` is a
   marine-driven tramcar), so the same decision covers them. Physical latency and
-  the by-eye review remain.
+  the by-eye review remain. Both now have engine-side support (25 October).
+  `framePacingSnapshot` times each frame from the draw's late-look input sample
+  and from a flash press to the swap, so a sensor reading separates into the
+  engine's share and the display's. `presentation_look_runtime.py --scenario
+  review` runs captioned review sessions (turns under TAA, firing through the
+  cheat-gated `in_presentationViewProbeAttack`, third person, ragdoll and
+  debris, the death camera, the opening cinematic and a monitor) and writes the
+  operator's checklist.
 
 ## Vulkan rendering
 

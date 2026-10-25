@@ -124,6 +124,9 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
     require(usercmd_cpp, 'in_presentationViewProbeZoom( "in_presentationViewProbeZoom", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_BOOL', "zoom probe is a cheat-gated dev cvar")
     buttons = function(usercmd_cpp, "void idUsercmdGenLocal::CmdButtons( void )", "zoom probe")
     require(normalized(buttons), "if ( in_presentationViewProbeZoom.GetBool() ) { cmd.buttons |= BUTTON_ZOOM; }", "zoom probe only holds the zoom button")
+    # HF-08 review: firing under late look without input
+    require(usercmd_cpp, 'in_presentationViewProbeAttack( "in_presentationViewProbeAttack", "0", CVAR_SYSTEM | CVAR_CHEAT | CVAR_BOOL', "fire probe is a cheat-gated dev cvar")
+    require(normalized(buttons), "if ( in_presentationViewProbeAttack.GetBool() ) { cmd.buttons |= BUTTON_ATTACK; }", "fire probe only holds the attack button")
     require(usercmd_cpp, 'in_presentationView( "in_presentationView", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL', "late look stays opt-in")
 
     check_frame_rate_policy()
@@ -142,18 +145,63 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
     require(common_cpp, "gameImport.usercmdGen\t\t\t\t= ::usercmdGen;", "engine hands the generator to the game")
 
 
-def check_frame_rate_policy() -> None:
+def check_frame_rate_policy(common: str | None = None) -> None:
     """HF-07's declared frame-rate policy (presentation-owners.md)."""
-    common = read("src/framework/Common.cpp")
+    common = read("src/framework/Common.cpp") if common is None else common
     context = "HF-07 frame-rate policy"
     cap = function(common, "static int Common_GetRequestedPresentationCap( void )", context)
     require(cap, "vrSystem->IsPacing()", f"{context}: a headset paces itself")
-    require(cap, "!Sys_IsWindowVisible() && ( cap == 0 || cap > 60 )", f"{context}: hidden windows capped at 60")
+    require(cap, "openq4::PresentationCapForWindow( com_maxfps.GetInteger(), Common_IsGameWindowShown() )", f"{context}: hidden and minimized windows capped at 60")
+    pacing = read("src/framework/PresentationPacing.h")
+    require(pacing, "constexpr int HIDDEN_WINDOW_PRESENTATION_CAP = 60;", f"{context}: the hidden-window cap is 60")
     require(common, 'com_presentationStallProbe( "com_presentationStallProbe", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_CHEAT,', f"{context}: the hitch probe is cheat-gated")
     throttle = function(common, "static void Common_ThrottlePresentationFrame( void )", context)
     require(throttle, "commonThrottleLatenessMsec[ commonThrottleLatenessNext ] =", f"{context}: each wait records how late it woke")
+    require_before(throttle, "if ( waited ) {", "commonThrottleLatenessMsec[ commonThrottleLatenessNext ] =",
+                   f"{context}: only frames that waited count as late wakes (an overrun is not the limiter's lateness)")
+    # The bulk of a wait sleeps on SDL's high-resolution timer and the spin covers the
+    # measured oversleep (PresentationPacing.h); com_preciseFrameWait 0 is the rollback.
+    require(common, 'com_preciseFrameWait( "com_preciseFrameWait", "1", CVAR_BOOL | CVAR_SYSTEM | CVAR_NOCHEAT,', f"{context}: the precise wait has a rollback")
+    require(throttle, "openq4::LimiterSpinMsec( commonLimiterOversleep )", f"{context}: the spin covers the measured oversleep")
+    require(throttle, "openq4::LegacyLimiterSpinMsec( frameMsec )", f"{context}: the legacy wait keeps its fixed spin")
+    require(throttle, "commonLimiterOversleep.Add( sleptMsec - sleepMsec );", f"{context}: every precise sleep is measured")
+    require(throttle, "spinNowClock >= waitDeadlineClock", f"{context}: the spin keeps its deadline")
+    sleep = function(common, "static void Common_PreciseSleep( double msec )", context)
+    require(sleep, "SDL_DelayNS(", f"{context}: precise sleeps use SDL's high-resolution delay")
+    shown = function(common, "static bool Common_IsGameWindowShown( void )", context)
+    require(shown, "return Sys_SDL_IsGameWindowShown();", f"{context}: the window state comes from SDL on every platform")
+    backend = read("src/sys/sdl3/sdl3_backend.cpp")
+    shown_sdl = function(backend, "bool Sys_SDL_IsGameWindowShown(void)", context)
+    require(shown_sdl, "SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED", f"{context}: hidden and minimized windows show nothing")
+    require(backend, '"windowMinimizeTest", SDL3_WindowMinimizeTest_f, CMD_FL_SYSTEM | CMD_FL_CHEAT,', f"{context}: the minimize test is cheat-gated")
+    win = read("src/sys/win32/win_main.cpp")
+    init = function(win, "void Sys_Init(void)", context)
+    require_before(init, "timeBeginPeriod(1);", "Sys_KeepTimerResolutionWhenOccluded();", f"{context}: the 1 ms timer survives occlusion")
+    keep = function(win, "static void Sys_KeepTimerResolutionWhenOccluded(void)", context)
+    require(keep, "state.ControlMask = ignoreTimerResolution;", f"{context}: the opt-out names timer resolution")
+    require(keep, "state.StateMask = 0;", f"{context}: timer resolution is never ignored")
+    require(keep, "win_keepTimerResolution.SetBool(true);", f"{context}: the result outlives the pre-log Sys_Init")
+    # pacing statistics at 50 us on the limiter's own frame-start stamp
+    require(pacing, "constexpr int FRAME_PACING_BIN_USEC = 50;", f"{context}: 50 us interval bins")
+    update = function(read("src/framework/Session.cpp"), "void idSessionLocal::UpdateFramePacingStats( int requestedWaitMsec, int actualWaitMsec, int gameTicsToRun )", context)
+    require(update, "openQ4_GetPresentationFrameStartMsec()", f"{context}: intervals use the limiter's high-resolution stamp")
+    require(update, "frameIntervalBins[ openq4::FramePacingBin( frameDeltaMsec ) ]", f"{context}: intervals are binned finely")
+    begin = function(common, "void openQ4_BeginPresentationFrame( void )", context)
+    require_before(begin, "Common_ThrottlePresentationFrame();", "commonPresentationFrameStartClock = Common_GetPresentationClockNow();", f"{context}: the stamp follows the wait")
+    # the engine's 240 Hz budget is the one the runtime harness judges
+    harness = read("tools/tests/presentation_look_runtime.py")
+    budgets = re.search(r'BUDGETS = \{240: \{"intervalP95": ([\d.]+), "intervalP99": ([\d.]+)', harness)
+    if budgets is None:
+        raise AssertionError(f"{context}: the harness declares no 240 Hz budget")
+    require(pacing, f"constexpr float SUPPORTED_CAP_P95_BUDGET_MSEC = {budgets[1]}f;", f"{context}: p95 budget agrees with the harness")
+    require(pacing, f"constexpr float SUPPORTED_CAP_P99_BUDGET_MSEC = {budgets[2]}f;", f"{context}: p99 budget agrees with the harness")
     session = read("src/framework/Session.cpp")
     require(session, "openQ4_PrintPresentationThrottleStats(", f"{context}: framePacingSnapshot reports the limiter's lateness")
+    require(common, "late p50=%.3f p95=%.3f p99=%.3f max=%.3f ms, spin mean=%.3f ms", f"{context}: and how long it busy-waits")
+    require(session, "openQ4_PrintPresentationLatencyStats(", f"{context}: framePacingSnapshot reports input to swap (HF-08)")
+    require(session, "openQ4_ResetPresentationLatencyStats();", f"{context}: framePacingReset clears it")
+    frame_loop = function(common, "void idCommonLocal::Frame( void )", context)
+    require_before(frame_loop, "session->UpdateScreen( false );", "Common_RecordFrameInputToSwap();", f"{context}: input is timed to the swap")
     require(session, "openQ4_ResetPresentationThrottleStats();", f"{context}: framePacingReset clears it")
     frame = function(common, "void idCommonLocal::Frame( void )", context)
     require_before(frame, "Common_PresentationStallProbe();", "Sys_GenerateEvents();", f"{context}: the hitch lands in an ordinary frame")
@@ -453,7 +501,22 @@ def mutations() -> None:
         pass
     else:
         raise AssertionError("mutation survived: event dispatch loses its guard")
-    print("presentation_hf_contract mutations: 5 rejected")
+    common = read("src/framework/Common.cpp")
+    for name, mutated in {
+        "minimized windows present uncapped": common.replace(
+            "openq4::PresentationCapForWindow( com_maxfps.GetInteger(), Common_IsGameWindowShown() )",
+            "openq4::PresentationCapForWindow( com_maxfps.GetInteger(), true )", 1),
+        "the limiter spins a fixed slice": common.replace(
+            "? openq4::LimiterSpinMsec( commonLimiterOversleep )", "? openq4::LegacyLimiterSpinMsec( frameMsec )", 1),
+    }.items():
+        if mutated == common:
+            raise AssertionError(f"mutation did not apply: {name}")
+        try:
+            check_frame_rate_policy(mutated)
+        except AssertionError:
+            continue
+        raise AssertionError(f"mutation survived: {name}")
+    print("presentation_hf_contract mutations: 7 rejected")
 
 
 def main() -> None:

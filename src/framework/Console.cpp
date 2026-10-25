@@ -1192,11 +1192,13 @@ static const char *SCR_FramePacingBoundLabel( openq4FramePacingBound_t boundMode
 		case OPENQ4_FRAME_BOUND_PRESENTATION_CAP:
 			return "presentation-cap";
 		case OPENQ4_FRAME_BOUND_UNCAPPED:
-			return "uncapped";
+			return "frame-work";
 		default:
 			return "collecting";
 	}
 }
+
+float openQ4_GetPresentationThrottleLatenessP95( void );
 
 float SCR_DrawFramePacing( float y ) {
 	const openq4FramePacingStats_t &stats = sessLocal.GetFramePacingStats();
@@ -1225,12 +1227,33 @@ float SCR_DrawFramePacing( float y ) {
 
 	SCR_DrawTextRightAlign(
 		y,
-		"present avg = %.2f ms (%.1f Hz), last = %d ms, async avg = %.2f ms (%.1f Hz)",
+		"present avg = %.2f ms (%.1f Hz), last = %.2f ms, async avg = %.2f ms (%.1f Hz)",
 		stats.avgFrameMsec,
 		stats.avgFrameHz,
 		stats.lastFrameMsec,
 		stats.asyncStats.avgDeltaMsec,
 		stats.asyncStats.avgHz );
+
+	// Since framePacingReset, at 50 us resolution: enough to judge the 240 Hz
+	// budget (PresentationPacing.h), which only a visible foreground window on
+	// the reference machine qualifies.
+	const float p50 = Session_GetFramePacingPercentileMsec( stats, 50 );
+	const float p95 = Session_GetFramePacingPercentileMsec( stats, 95 );
+	const float p99 = Session_GetFramePacingPercentileMsec( stats, 99 );
+	SCR_DrawTextRightAlign(
+		y,
+		"interval p50/p95/p99/max = %.2f/%.2f/%.2f/%.2f ms, display %.1f Hz, limiter late p95 = %.3f ms",
+		p50, p95, p99, stats.maxFrameMsec, stats.refreshHz, openQ4_GetPresentationThrottleLatenessP95() );
+	const openq4::FramePacingBudget budget = openq4::JudgeFramePacingBudget( stats.presentationCap, p95, p99 );
+	if ( budget != openq4::FramePacingBudget::NotDeclared ) {
+		SCR_DrawTextRightAlign(
+			y,
+			"%d Hz budget p95 <= %.2f, p99 <= %.2f ms: %s",
+			openq4::SUPPORTED_PRESENTATION_CAP,
+			openq4::SUPPORTED_CAP_P95_BUDGET_MSEC,
+			openq4::SUPPORTED_CAP_P99_BUDGET_MSEC,
+			budget == openq4::FramePacingBudget::Met ? "met" : "missed" );
+	}
 	SCR_DrawTextRightAlign(
 		y,
 		"async jitter = %.2f ms, min/max = %d/%d ms, async work = %.2f ms",
@@ -1334,6 +1357,7 @@ static void Con_Clear_f( const idCmdArgs &args ) {
 // button, taken by the first frame drawn after it; Arm stands in for a press.
 bool Usercmd_ConsumeLatencyFlash( void );
 void Usercmd_ArmLatencyFlash( void );
+void Usercmd_NoteLatencyFlashDrawn( void );
 
 static idCVar com_latencyFlash( "com_latencyFlash", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT,
 	"click-to-photon latency aid: draw a white bar down the left edge on the first frame drawn after the attack button goes down, for sensors such as NVIDIA LDAT and OSLTT" );
@@ -5035,6 +5059,7 @@ void	idConsoleLocal::Draw( bool forceFullScreen ) {
 	// Taken every frame, so turning the flash on never shows a stale press.
 	if ( Usercmd_ConsumeLatencyFlash() && com_latencyFlash.GetBool() ) {
 		DrawSolidRect( 0.0f, 0.0f, SCREEN_WIDTH * 0.1f, SCREEN_HEIGHT, colorWhite, 1.0f );
+		Usercmd_NoteLatencyFlashDrawn();
 		if ( com_developer.GetBool() ) {
 			common->Printf( "latencyFlash: drawn at %d ms\n", Sys_Milliseconds() );
 		}

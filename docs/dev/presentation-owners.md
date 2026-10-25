@@ -3,7 +3,7 @@
 > **Development status:** This document describes the current source tree and its evidence, not the contents of the latest available 0.13.2 package. The 0.14.0 release was withdrawn. See [release status](../user/release-status.md).
 
 Contract for HF-03 through HF-08 in the [roadmap](roadmap.md), 23 October 2026,
-extended 24 October 2026.
+extended 24 and 25 October 2026.
 It extends the [clock ownership contract](presentation-clock.md) (HF-01/HF-02),
 which still owns the clocks themselves. Nothing here changes authoritative
 simulation, usercmds, save formats, network timestamps or demo timing. Every
@@ -227,9 +227,15 @@ available, low-FPS catch-up (fewer draws than ticks), menus and loading, hidden
 windows, and the preset caps. The declared policy, pinned by
 `presentation_hf_contract.py`, is as follows. Loading screens redraw at the
 lower of `com_maxfps` and 60 Hz, never faster, and back off when a redraw is
-slow. Uncapped, they redraw at most once per tick. Hidden windows are capped at
-60 (the `hidden` runtime case: a hidden window capped at 240 presented 60.0 Hz,
-p95 17.4 ms) and a headset paces itself. The presets set `minimum`/`lowpower` 30,
+slow. Uncapped, they redraw at most once per tick. A window that shows nothing
+(hidden, minimized, not created yet, or an app in the background) presents at
+most 60 Hz on every platform, uncapped included; the state comes from SDL's
+window flags (`Sys_SDL_IsGameWindowShown`, `openq4::PresentationCapForWindow`).
+Before 25 October 2026 only Windows applied it, and only to hidden windows: a
+minimized client, such as a full-screen game minimized on leaving it, kept
+drawing at its cap. The `hidden` runtime case (a hidden window capped at 240
+presented 60.0 Hz, p95 17.4 ms) and the `minimized` case (the cheat-gated
+`windowMinimizeTest` minimizes the window) check it. A headset paces itself. The presets set `minimum`/`lowpower` 30,
 `performance` 60, `balanced` 120, `quality` 144 and `ultra` 240, and a detected
 Steam Deck starts on `performance`. Use
 [`presentation_look_runtime.py`](https://github.com/themuffinator/openQ4/blob/master/tools/tests/presentation_look_runtime.py)
@@ -237,6 +243,21 @@ for engine-side latency and smoothness, `com_showFramePacing 2` for p50/p95/p99
 intervals and the gameplay benchmark for frame times, all in a visible
 foreground window. Physical display latency (scan-out, compositor, panel)
 needs external measurement and is not claimed by these tools.
+
+Pacing statistics. `com_showFramePacing` and `framePacingSnapshot` time each
+presentation frame from the high-resolution stamp the limiter takes as it
+releases the frame, binned at 50 µs (`PresentationPacing.h`). Until 25 October
+2026 they used whole milliseconds, which cannot judge this budget: a steady
+4.17 ms cadence landed in the 4 and 5 ms bins and read p95 5 ms. A percentile
+reports the upper edge of its bin, so it errs long by under 0.05 ms and never
+short. The overlay adds the display's refresh rate, the limiter's wake
+lateness and, at a 240 cap, whether the budget is met. The snapshot line adds
+`swapInterval`, `cap` and `refresh`. Its `bound=` names what holds the rate:
+`presentation-cap` when frames arrive within −5/+8% of the cap at any cap (it
+used to apply only below about 55 Hz), `vsync` when vsync is on and frames are
+no faster than the display's refresh, `simulation` when frames wait for game
+tics, and `frame-work` (formerly `uncapped`) when nothing waits and the
+frame's own work sets the rate.
 
 Physical latency (HF-08). Set `com_latencyFlash 1` and point a click-to-photon
 sensor (NVIDIA LDAT, OSLTT or a photodiode) at the left edge of the screen.
@@ -251,6 +272,28 @@ tick (16 ms). Measure full screen on the reference machine at the HF-07 caps,
 with vsync off and on. Shots still land on the next tick, so muzzle-flash
 latency is longer by up to a tick. `latencyFlashTest` (cheat) arms the flash without a device, and the
 `flash` runtime case checks that each arming draws exactly one frame.
+
+The engine's own share of that delay is measured too. `framePacingSnapshot`
+prints `Presentation latency …: lookSamples=… sampleToSwap … flashes=…
+pressToSwap …`: for every frame, the time from the draw's first late-look
+input sample, and from the press behind a drawn flash, to the return of the
+renderer's swap or present call (the renderer is synchronous, so the frame has
+been handed to the swap chain by then). A sensor reading minus `pressToSwap`
+is the GPU, compositor and display share. The harness reports both as
+`inputToSwapMs`.
+
+By-eye review (HF-08). `presentation_look_runtime.py --scenario review
+--fullscreen` runs three captioned sessions for an operator watching the
+reference display; on-screen captions name each segment as late look is
+switched off and then on over the same motion. `review-play` (airdefense1)
+shows a steady and a rapid turn under temporal AA, firing while turning (the
+cheat-gated `in_presentationViewProbeAttack` holds fire as the zoom probe
+holds zoom: muzzle flash, its light, tracers and impacts), third person, a
+ragdoll with barrel debris, and the death camera. `review-cinematic` plays
+airdefense1's opening cinematic with its cuts, and `review-monitor` shows
+tram1's remote-camera monitor. The run still applies the engine-side checks
+(no gameplay in a draw, no errors) and writes `review-checklist.md`, a sheet of
+what to judge in each segment, for the operator's verdicts.
 
 The cap matrix runs as one command:
 
@@ -279,18 +322,38 @@ foreground, on the reference machine. Without it every verdict reads "not
 qualifying", whatever the numbers. With it, a 240 case over budget fails the
 run.
 
-Limiter precision. The frame cap sleeps most of each period, then busy-waits the
-last eighth of the frame (at least 0.5 ms, at most 1.5 ms) against a fixed
-cadence, with `timeBeginPeriod(1)` on Windows. `framePacingSnapshot` also prints
-how late each wait woke against its target (`Presentation throttle …: waits=…
-late p50/p95/p99/max`), and the harness reports it as `throttleLateMs`. In a
-visible window a p95 above about 0.3 ms would be a limiter defect worth fixing.
-SDL 3.4's `SDL_DelayPrecise` is the portable replacement if one appears.
-Windows 11 honours `timeBeginPeriod` only while a process has a visible window.
-A fully occluded or minimised window falls back to the default timer
-resolution, so its waits wake late by up to a scheduler tick. That is why the
-occluded runs below presented far under their caps, and why only a visible
-foreground run qualifies.
+Limiter precision. The frame cap waits against a fixed cadence. Since
+25 October 2026 it sleeps most of each period with `SDL_DelayNS`, a
+high-resolution waitable timer on Windows and `nanosleep` elsewhere, then
+busy-waits only the time its sleeps have been waking late: the 95th percentile
+of the last 64 sleeps plus 0.1 ms, between 0.25 and 2 ms
+(`openq4::LimiterOversleepWindow`). Ignoring the slowest few sleeps leaves out
+preemption, which no spin can hide and which would otherwise keep a wide spin
+burning a core. The native `openq4-presentation-pacing` test drives that loop
+against model timers: a timer waking up to 0.3 ms late leaves no frame late
+with a spin under 0.45 ms, a coarse one widens it, and preemption every 200
+frames neither widens it nor delays the frames between. `com_preciseFrameWait 0`
+restores the previous wait, whole-millisecond sleeps and a fixed spin of an
+eighth of the frame (0.5 to 1.5 ms). `framePacingSnapshot` prints how late each
+wait woke against its target (`Presentation throttle …: waits=… late
+p50/p95/p99/max`), and the harness reports it as `throttleLateMs`. Only frames
+that arrive before their target wait and are counted. Until 25 October 2026 a
+frame whose own work overran the period was counted too, with its overrun, so
+a work-bound run read as a late limiter: on a loaded machine at a 240 cap,
+`late p50` was 6.5 ms although the frames took 14 ms. In a visible window a p95
+above about 0.3 ms would be a limiter defect worth fixing.
+
+Windows 11 honours `timeBeginPeriod` only while a process has a visible window,
+unless the process opts out. Without the opt-out a fully occluded or minimised
+window falls back to the default 15.6 ms timer resolution. Its waits then wake
+late by up to a scheduler tick, and the async thread's 1 ms tick timer, which
+drives the 60 Hz game clock, fires in bursts, so a listen server behind another
+window ticks unevenly. `Sys_Init` now opts out
+(`PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION`, resolved at run time and
+refused harmlessly before Windows 11) and logs `Timer resolution: 1 ms kept
+while the window is occluded`. Only a visible foreground run still qualifies
+HF-07: the compositor and driver may throttle an occluded window's
+presentation whatever the engine's timers do.
 
 An occluded window on Windows does not qualify: on 23 October 2026 the same
 client capped at 240 presented at 57 Hz on OpenGL (p99 232 ms) and 15 Hz on
@@ -517,3 +580,50 @@ forward by the turn made during the stall (about 31–34°), as it should. The
 residual against the input line stayed at p95 0.09° with late look, against
 2.2° without. The main menu follows `com_maxfps` like gameplay: it held 58 Hz at
 a 60 cap and reached 164 Hz at a 240 cap on this machine, never above the cap.
+
+### Frame-cap precision, minimized windows and engine latency, 25 October 2026
+
+The same laptop (occluded window, OpenGL, 960×540) under heavy load from
+other builds. Output is retained under `.tmp/hf/r12-run2`, `.tmp/hf/r12-ab2-*`
+and `.tmp/hf/r12-review3`. No case counted gameplay inside a draw and none
+logged an error. `win_keepTimerResolution` read 1 in every run, so the
+Windows 11 timer opt-out took effect.
+
+Frame-cap wait, two interleaved pairs per cap (`--cvar com_preciseFrameWait 0`
+for the previous wait; late wakes counted only for frames that waited):
+
+| Cap | Wait | Late wake p95 / p99 | Busy-wait per frame | Engine interval p95 |
+| --- | --- | --- | --- | --- |
+| 60 | precise | 0.00–0.06 / 0.05–0.11 ms | 0.35 ms | 16.70–16.75 ms |
+| 60 | previous | 0.42–0.46 / 0.78–0.91 ms | 0.72–0.76 ms | 17.10–17.15 ms |
+| 144 | precise | 0.00 / 0.17–0.20 ms | 0.37–0.40 ms | 9.3–10.2 ms |
+| 144 | previous | 0.91–1.05 / 1.36–1.41 ms | 0.26–0.27 ms | 10.7–11.3 ms |
+
+At 144 the previous wait's whole-millisecond sleeps overshot its 0.87 ms spin
+and woke about a millisecond late at p95, a seventh of the period; the precise
+wait spun slightly longer and was not late. At 60 it halved the busy-wait. At a
+240 cap this loaded machine was bound by its own frame work (143–168 Hz), so
+the limiter rarely waited and the comparison says nothing there.
+
+Windows that show nothing. `windowMinimizeTest` minimized the client at a 240
+cap: the snapshot read `cap=60`, `bound=presentation-cap`, 59.5 Hz over
+1,432 frames, and the limiter's late wakes p95 0.00 ms. Late look kept
+consuming input once (−220.00°/s). An earlier run under heavier load showed
+Windows itself slowing a minimized client to about 7 Hz, below the cap, which
+the `minimized` case allows.
+
+Engine latency (`inputToSwapMs`). With late look the draw's input sample reached
+the return of the swap in 10 ms at p50 (14 ms p95) when frames took 12–14 ms
+under load, and 5–7.5 ms at p50 in the lighter A/B runs. The five
+`latencyFlashTest` presses each drew one flash frame and reached the swap in
+12.6 ms at p50 (17.4 ms max) under load. These are this machine's numbers; the
+reference run measures its own.
+
+Review kit (`--scenario review`, `.tmp/hf/r12-review3`). All three sessions ran
+every segment with no gameplay in a draw and no errors. The play session
+captured 3,425 interpolated draws before the death camera and 512 during it,
+blended ragdoll poses on 1,764 draws and drew up to 9 debris pieces; the fire probe emptied and
+reloaded the machinegun (ammunition 40 → 31 → 23 across the shots). The
+cinematic and monitor sessions captured 512 draws each. Screenshots do not show
+the captions, because taking one re-lays out the console and clears its notify
+lines; an operator watching the session sees each caption for 8 s.

@@ -570,6 +570,11 @@ if get_option('build_native_tests')
     include_directories: root_include_dir, install: false,
   )
   test('openq4-presentation-look', presentation_look_test, timeout: 30)
+  presentation_pacing_test = executable(
+    'openq4-presentation-pacing-test', files('tools/tests/native/PresentationPacingTest.cpp'),
+    include_directories: root_include_dir, install: false,
+  )
+  test('openq4-presentation-pacing', presentation_pacing_test, timeout: 30)
   test('openq4-presentation-hf-contract', py,
     args: [files('tools/tests/presentation_hf_contract.py'), '--mutations'], timeout: 90)
   test('openq4-clock-ownership', py,

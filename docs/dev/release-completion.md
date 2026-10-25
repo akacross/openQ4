@@ -24,6 +24,43 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## High-refresh pacing precision and the by-eye review kit, 25 October 2026
+
+- [x] HF-07 limiter: the frame cap sleeps on SDL's high-resolution delay
+  (`SDL_DelayNS`: a high-resolution waitable timer on Windows, `nanosleep`
+  elsewhere) and spins only the 95th percentile of its recent oversleep
+  (0.25–2 ms) instead of a fixed eighth of the frame. `com_preciseFrameWait 0`
+  restores the previous wait.
+- [x] HF-07 Windows 11: `Sys_Init` opts out of Windows 11 ignoring
+  `timeBeginPeriod` for occluded processes, so the async thread's 1 ms tick
+  timer and the frame cap keep their resolution behind other windows.
+- [x] HF-07 background policy: hidden and minimized windows present at most
+  60 Hz on every platform, from SDL's window flags (Windows applied it only to
+  hidden windows; Linux and macOS not at all). `windowMinimizeTest` (cheat) and
+  the `minimized` runtime case check it.
+- [x] HF-07 instrument: `com_showFramePacing` and `framePacingSnapshot` time
+  frames from the limiter's high-resolution stamp in 50 µs bins (whole
+  milliseconds read a steady 240 Hz cadence as p95 5 ms), report the display
+  refresh, and name what holds the rate (`presentation-cap` at any cap,
+  `vsync` against the refresh, `frame-work`). The overlay judges the 240 Hz
+  budget. The limiter's late-wake count now includes only frames that waited
+  (a work-bound frame used to count its overrun), and the snapshot adds the
+  mean busy-wait per wait.
+- [x] HF-08 engine latency: `framePacingSnapshot` reports, per frame, the time
+  from the draw's first late-look sample and from a drawn latency flash's
+  press to the return of the swap, so a click-to-photon reading separates into
+  the engine's share and the GPU/compositor/display share.
+- [x] HF-08 review kit: `presentation_look_runtime.py --scenario review` runs
+  captioned by-eye sessions (turns under TAA, firing via the cheat-gated
+  `in_presentationViewProbeAttack`, third person, ragdoll and debris, the death
+  camera, airdefense1's opening cinematic, tram1's monitor) and writes the
+  operator's `review-checklist.md`.
+- Evidence: `openq4-presentation-pacing`, `presentation_hf_contract.py
+  --mutations` (7 rejected) and the runtime cases recorded in the
+  [presentation owners contract](presentation-owners.md). Physical pacing on
+  the reference desktop, sensor latency and the by-eye verdicts remain open
+  under HF-07/HF-08.
+
 ## Multiplayer round three, 24 October 2026
 
 - [x] MP-04: leaving the match or quitting the game during the Arena

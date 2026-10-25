@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SESSIONLOCAL_H__
 #define __SESSIONLOCAL_H__
 #include "NativeInputPublications.h"
+#include "PresentationPacing.h"
 
 /*
 
@@ -153,21 +154,18 @@ typedef enum {
 	OPENQ4_FRAME_BOUND_UNCAPPED
 } openq4FramePacingBound_t;
 
-enum {
-	OPENQ4_FRAME_PACING_HISTOGRAM_BINS = 66,
-	OPENQ4_FRAME_PACING_HISTOGRAM_OVERFLOW = OPENQ4_FRAME_PACING_HISTOGRAM_BINS - 1
-};
-
+// Frame intervals run on the high-resolution clock from the start of one
+// presentation frame to the next, binned at 50 us (PresentationPacing.h).
 typedef struct {
 	bool						valid;
 	bool						multiplayer;
 	int							frameSampleCount;
-	int							lastFrameMsec;
+	float						lastFrameMsec;
 	float						avgFrameMsec;
 	float						avgFrameHz;
-	int							minFrameMsec;
-	int							maxFrameMsec;
-	int							frameMsecHistogram[OPENQ4_FRAME_PACING_HISTOGRAM_BINS];
+	float						minFrameMsec;
+	float						maxFrameMsec;
+	int							frameIntervalBins[openq4::FRAME_PACING_BINS];
 	int							lastTicDelta;
 	float						avgTicsPerFrame;
 	int							lastGameTics;
@@ -180,9 +178,13 @@ typedef struct {
 	float						avgWakeJitterMsec;
 	int							swapInterval;
 	int							presentationCap;
+	float						refreshHz;			// the window's display, 0 when unknown
 	openq4AsyncTimingStats_t	asyncStats;
 	openq4FramePacingBound_t	boundMode;
 } openq4FramePacingStats_t;
+
+// A frame-interval percentile since framePacingReset, in milliseconds.
+float Session_GetFramePacingPercentileMsec( const openq4FramePacingStats_t &stats, int percentile );
 
 // The retained sub-page a change of menu level goes to or comes back from.
 typedef enum {
@@ -486,7 +488,7 @@ public:
 	const openq4FramePacingStats_t &GetFramePacingStats( void ) const { return framePacingStats; }
 	void				ResetFramePacingStats( void );
 	void				PrintFramePacingSnapshot( const char *reason = NULL ) const;
-	void				SampleMultiplayerFramePacing( int frameStartMsec );
+	void				SampleMultiplayerFramePacing( void );
 	void				RunTimedWaitBoxPacingTest( int durationMsec, bool network, const char *reason = NULL );
 	void				RunTimedMessageBoxPacingTest( int durationMsec, bool network, const char *reason = NULL );
 
@@ -601,8 +603,8 @@ public:
 	bool				cinematicStateValid;
 	bool				cinematicActive;
 	openq4FramePacingStats_t framePacingStats;
-	unsigned long long	framePacingWindowMsec;
-	int					framePacingLastFrameMsec;
+	double				framePacingWindowMsec;
+	double				framePacingLastFrameClock;
 	int					framePacingLastLatchedTic;
 	openq4FramePacingBound_t framePacingLastLoggedBound;
 	int					framePacingLastLoggedSampleCount;
@@ -957,7 +959,7 @@ private:
 	void				EmitGameAuth( void );
 	bool				IsIAmTheDukeActive( void ) const;
 	void				DrawIAmTheDukeOverlay( void ) const;
-	void				UpdateFramePacingStats( int frameStartMsec, int requestedWaitMsec, int actualWaitMsec, int gameTicsToRun );
+	void				UpdateFramePacingStats( int requestedWaitMsec, int actualWaitMsec, int gameTicsToRun );
 	
 	typedef enum {
 		CDKEY_UNKNOWN,	// need to perform checks on the key
