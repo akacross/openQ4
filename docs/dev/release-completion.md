@@ -149,6 +149,9 @@ completed release material here and publish curated notes in `releases/`.
   computed rows through the stock choices, the stock page as its fallback
   ([GAME OPTIONS page](ui/retained-screens.md#the-game-options-page-25-october-2026):
   native page test, gate route and contracts, captures at 16:9 and 9:16).
+- [x] The multiplayer menu's Game Options hand-off opens the retained page
+  too, the stock page where it cannot (gate route checks, captures from the
+  menu event, a listen server's in-game menu and a broken page).
 
 ## AUDIO page, 25 October 2026
 

@@ -663,7 +663,21 @@ windowDef Desktop
 		set "desktop::dest" "4" ;
 	}
 
+	// The multiplayer menu's GAME OPTIONS route. With the retained page the
+	// session opens it over the menu as it comes up, as the SYSTEM route does;
+	// a page that cannot open sends fromMp_toGameoptionsStock, the stock route.
 	onNamedEvent fromMp_toGameoptions {
+		if ("gui::retainedGame" == 1) {
+			set "desktop::dest" "0" ;
+			resettime "anim_retainedGameFromMp" "0" ;
+		} else {
+			set "desktop::active" "1" ;
+			resettime "anim_in" "0" ;
+			set "desktop::dest" "21" ;
+		}
+	}
+
+	onNamedEvent fromMp_toGameoptionsStock {
 		set "desktop::active" "1" ;
 		resettime "anim_in" "0" ;
 		set "desktop::dest" "21" ;
@@ -13389,6 +13403,17 @@ windowDef Desktop
 
 			onTime 0 {
 				set "cmd" "openRetainedSystemFromMp" ;
+				set "notime" "1" ;
+			}
+		}
+		windowDef anim_retainedGameFromMp
+		{
+			rect	0,0,1,1
+			visible	1
+			notime	1
+
+			onTime 0 {
+				set "cmd" "openRetainedGameFromMp" ;
 				set "notime" "1" ;
 			}
 		}

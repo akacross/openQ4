@@ -441,7 +441,7 @@ public:
 	void				HandleRetainedAudioRequest( idUserInterface *gui, const char *request );
 	bool				RetainedGameAvailable() const;
 	bool				OpenRetainedGame();
-	void				OpenRetainedGameRoute();
+	void				OpenRetainedGameRoute( bool fromMultiplayer = false );
 	void				ReturnRetainedGame();
 	void				PublishRetainedGame( idUserInterface *gui );
 	void				HandleRetainedGameRequest( idUserInterface *gui, const char *request );

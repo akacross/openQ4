@@ -2456,17 +2456,28 @@ bool idSessionLocal::OpenRetainedGame() {
 ===============
 idSessionLocal::OpenRetainedGameRoute
 
-The GAME OPTIONS button opens the retained page, or the stock one where it
-could not open: from then on once the page fell back, else for this press.
+The GAME OPTIONS button, and the multiplayer menu's route through the main
+menu, open the retained page, or the stock one where it could not open: from
+then on once the page fell back, else for this request.
 ===============
 */
-void idSessionLocal::OpenRetainedGameRoute() {
+void idSessionLocal::OpenRetainedGameRoute( bool fromMultiplayer ) {
 	static bool routing = false;
 	if ( routing || guiMainMenu == NULL || OpenRetainedGame() ) {
 		return;
 	}
 	routing = true;
 	const bool available = RetainedGameAvailable();
+	if ( fromMultiplayer ) {
+		// The stock route reads no state; it shows the stock page.
+		if ( !available ) {
+			guiMainMenu->SetStateBool( "retainedGame", false );
+			guiMainMenu->StateChanged( common->GetPresentationTime() );
+		}
+		guiMainMenu->HandleNamedEvent( "fromMp_toGameoptionsStock" );
+		routing = false;
+		return;
+	}
 	guiMainMenu->SetStateBool( "retainedGame", false );
 	guiMainMenu->StateChanged( common->GetPresentationTime() );
 	idStr command;
@@ -3777,7 +3788,12 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 		}
 
 		if ( !idStr::Icmp( cmd, "openRetainedGame" ) ) {
-			OpenRetainedGameRoute();
+			OpenRetainedGameRoute( false );
+			return;
+		}
+
+		if ( !idStr::Icmp( cmd, "openRetainedGameFromMp" ) ) {
+			OpenRetainedGameRoute( true );
 			return;
 		}
 

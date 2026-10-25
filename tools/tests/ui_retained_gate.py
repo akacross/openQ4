@@ -703,7 +703,7 @@ public:
     // The GAME OPTIONS page; its readback and verbs have their own source
     // contracts (the stock choices they apply live outside this harness).
     idUserInterface *guiRetainedGame = nullptr, *retainedGameParent = nullptr; HandleGuiCommand_t retainedGameParentHandle = nullptr;
-    bool RetainedGameAvailable() const; bool OpenRetainedGame(); void OpenRetainedGameRoute(); void ReturnRetainedGame();
+    bool RetainedGameAvailable() const; bool OpenRetainedGame(); void OpenRetainedGameRoute(bool = false); void ReturnRetainedGame();
     std::vector<idUserInterface*> gamePublishes; std::vector<std::string> gameRequests;
     void PublishRetainedGame(idUserInterface* gui) { gamePublishes.push_back(gui); }
     void HandleRetainedGameRequest(idUserInterface*, const char* request) { gameRequests.push_back(request); }
@@ -2535,6 +2535,16 @@ int main() {
         CHECK(missing.guiActive == missing.guiMainMenu && missing.guiRetainedGame == nullptr && !missing.RetainedGameAvailable() &&
               legacyActions.size() == 1);
         auto off = Session(false); CHECK(!off.RetainedGameAvailable() && !off.OpenRetainedGame());
+        // The multiplayer menu's route opens the page the same way; where it
+        // cannot, the main menu's own stock event shows the stock page, the
+        // button keeping the retained page while it is available.
+        auto mp = Session(true); mp.OpenRetainedGameRoute(true);
+        CHECK(mp.guiActive == mp.guiRetainedGame && mp.guiRetainedGame != nullptr && mp.retainedGameParent == mp.guiMainMenu);
+        mp.ReturnRetainedGame(); mp.guiRetainedGame->failed = true; mp.OpenRetainedGameRoute(true);
+        CHECK(mp.guiActive == mp.guiMainMenu && legacyActions.empty() && mp.guiMainMenu->named.back() == "fromMp_toGameoptionsStock" &&
+              mp.guiMainMenu->state["retainedGame"] == "0");
+        auto boxed = Session(true); idUserInterface box("guis/msg.gui"); boxed.guiMsgRestore = &box; boxed.OpenRetainedGameRoute(true);
+        CHECK(boxed.guiMainMenu->named.back() == "fromMp_toGameoptionsStock" && boxed.guiMainMenu->state["retainedGame"] != "0");
     }
     {   // CONTINUE shows a save's own screenshot, freshly read, only when it exists.
         auto s = Session(true); s.saves = {"quick"}; describedShot = ""; fileSystemObject.files.insert("savegames/quick.tga");
@@ -5068,7 +5078,11 @@ def main() -> int:
     # rows that name a CVar set it with settings.player.set, whose rules are
     # the stock controls' ranges and values; the language list is the stock
     # one, in its order.
-    assert 'if ( !idStr::Icmp( cmd, "openRetainedGame" ) ) {\n\t\t\tOpenRetainedGameRoute();\n\t\t\treturn;' in main_menu
+    for command, multiplayer in (('openRetainedGame', 'false'), ('openRetainedGameFromMp', 'true')):
+        assert f'if ( !idStr::Icmp( cmd, "{command}" ) ) {{\n\t\t\tOpenRetainedGameRoute( {multiplayer} );\n\t\t\treturn;' in main_menu
+    route_event = stock_menu[stock_menu.index('onNamedEvent fromMp_toGameoptions {'):stock_menu.index('onNamedEvent fromMp_toGameoptionsStock {')]
+    assert 'if ("gui::retainedGame" == 1) {' in route_event and 'resettime "anim_retainedGameFromMp" "0" ;' in route_event
+    assert 'set "cmd" "openRetainedGameFromMp" ;' in stock_menu[stock_menu.index('windowDef anim_retainedGameFromMp'):]
     assert 'guiMainMenu->SetStateBool( "retainedGame", RetainedGameAvailable() );' in menu
     assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_gameoptions", false, command )' in function_body(menu, 'void idSessionLocal::OpenRetainedGameRoute(')
     game_button = stock_menu[stock_menu.index('windowDef set_b_gameoptions'):]

@@ -1064,6 +1064,29 @@ SCENARIOS = {
         'openq4_retainedGui event onBack', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_guiGet p_settings_game::visible',
         'screenshot "screenshots/game-back.tga"',
     ]),
+    # The multiplayer menu's GAME OPTIONS route (the event the game sends
+    # through "main fromMp_toGameoptions") opens the retained page over the
+    # main page, and Back returns to it.
+    'game-mp-route': (None, [
+        'waitMsec 4000', 'GuiEvent fromMp_toGameoptions', 'waitMsec 1500', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/game-mp-route.tga"', 'openq4_retainedGui event onBack', 'waitMsec 1000', 'openq4_retainedGui report',
+        'openq4_guiGet desktop::dest', 'openq4_guiGet desktop::active', 'openq4_guiGet desktop::curr', 'ui_retainedStatus',
+    ]),
+    # The real route on a listen server: the in-game menu's Settings page and
+    # GAME OPTIONS button send "mainmenu fromMp_toGameoptions", the game
+    # returns "main fromMp_toGameoptions", and the main menu opens the
+    # retained page. After Back the main menu must take input again.
+    'game-mp-game': ('mp:mp/q4dm1', [
+        'openq4_assertMenuActivation 4000 game', 'waitMsec 1500', 'openq4_guiAction main_b_settings', 'waitMsec 1500',
+        'openq4_guiAction set_b_gameopts', 'waitMsec 3000', 'openq4_retainedGui report', 'ui_retainedStatus',
+        'screenshot "screenshots/game-mp-game.tga"', 'openq4_retainedGui event onBack', 'waitMsec 1500', 'openq4_retainedGui report',
+        'openq4_guiGet desktop::active', 'openq4_guiGet desktop::curr', 'screenshot "screenshots/game-mp-game-back.tga"',
+    ]),
+    # A GAME OPTIONS page that cannot load: the multiplayer route opens the stock page.
+    'fallback-game-mp': (None, [
+        'waitMsec 4000', 'GuiEvent fromMp_toGameoptions', 'waitMsec 2500', 'openq4_guiGet p_settings_game::visible',
+        'openq4_guiGet desktop::active', 'ui_retainedStatus', 'screenshot "screenshots/fallback-game-mp.tga"',
+    ]),
     # A GAME OPTIONS page that cannot load: the same press opens the stock page.
     'fallback-game': (None, [
         'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_gameoptions',
@@ -1370,6 +1393,7 @@ OVERRIDES = {
     'fallback-system-mp': {'guis/menu/settings/system.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-audio': {'guis/menu/settings/audio.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-game': {'guis/menu/settings/game.q4ui': lambda runtime: BROKEN_DOCUMENT},
+    'fallback-game-mp': {'guis/menu/settings/game.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-campaign': {'guis/menu/singleplayer.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-loading': {'guis/loading/splevel.gui': lambda runtime: MOD_LOADING_GUI,
                          'guis/loading/generic.gui': lambda runtime: MOD_LOADING_GUI},

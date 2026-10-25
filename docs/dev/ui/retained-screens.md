@@ -1759,9 +1759,14 @@ returns to the main menu's home, where the reload restarts the stock menu.
 BACK and the back input (`gameBack`) return to the settings screen and its
 handler; a page that is missing or stops drawing opens the stock page from
 then on, as AUDIO does. The multiplayer menu's Game Options hand-off
-(`fromMp_toGameoptions`) still shows the stock page: it moves the main menu
-straight to that panel rather than pressing the button, and needs a route of
-its own, as SYSTEM has.
+(`fromMp_toGameoptions`, which moves the main menu straight to that panel
+rather than pressing the button) has its own route, as SYSTEM's does: with
+the page available the main menu comes up at its home and the session opens
+the page over it (`openRetainedGameFromMp`), so BACK returns there; a page
+that cannot open sends `fromMp_toGameoptionsStock`, the stock route, and the
+button keeps the retained page while it is available. Captured from the menu
+event, on a listen server through the in-game menu's own GAME OPTIONS button,
+and with a broken page.
 
 `openq4-ui-retained-game` checks the document's rows and verbs, the Section
 jump, CVar rows setting their CVars, a colour list's stock value, the custom
