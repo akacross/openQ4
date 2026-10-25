@@ -142,6 +142,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## AUDIO page, 25 October 2026
+
+- [x] The settings screen's AUDIO page in the retained interface, every stock
+  row applied at once and read back, with the stock page as its fallback
+  ([AUDIO page](ui/retained-screens.md#the-audio-page-25-october-2026):
+  native page test, compiled session checks, captures at 16:9 and 9:16).
+
 ## Tall views, 25 October 2026
 
 - [x] Load and Save Game, Demos and Join Game give a tall view's extra height

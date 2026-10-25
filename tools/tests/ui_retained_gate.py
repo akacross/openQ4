@@ -98,6 +98,7 @@ struct idStr : std::string {
     int Icmp(const char* other) const { return Icmp(c_str(), other); }
     int Cmp(const char* other) const { return std::strcmp(c_str(), other); }
 };
+template<typename T> static T Min(T a, T b) { return a < b ? a : b; }
 namespace openq4 { static int sessionChanges = 0; static void NativeInputBeforeSessionChange() { ++sessionChanges; } }
 template<typename T> struct idList : std::vector<T> {
     using std::vector<T>::vector;
@@ -161,7 +162,13 @@ struct CVarSystem {
     void SetCVarInteger(const char* name, int value) { strings[name] = std::to_string(value); }
     void SetCVarBool(const char* name, bool value) { strings[name] = value ? "1" : "0"; }
     void SetCVarString(const char* name, const char* value) { strings[name] = value; }
+    float GetCVarFloat(const char* name) const { return static_cast<float>(std::atof(GetCVarString(name))); }
+    void SetCVarFloat(const char* name, float value) { char text[32]; std::snprintf(text, sizeof(text), "%g", value); strings[name] = text; }
 } cvarSystemObject, *cvarSystem = &cvarSystemObject;
+// The sound system's devices, as the stock AUDIO page lists them.
+static idStr audioDeviceNames, audioDeviceValues;
+static void BuildMainMenuAudioDeviceChoices(idStr& names, idStr& values) { names = audioDeviceNames; values = audioDeviceValues; }
+typedef void* HandleGuiCommand_t;
 // Retained documents are the .q4ui ones (UI_IsRetainedPath).
 static bool UI_IsRetainedPath(const char* path) {
     const std::string name = path ? path : "";
@@ -331,6 +338,7 @@ struct idMath {
     static float ClampFloat(float low, float high, float value) { return value < low ? low : value > high ? high : value; }
     static float Fabs(float value) { return value < 0 ? -value : value; }
     static int ClampInt(int low, int high, int value) { return value < low ? low : value > high ? high : value; }
+    static int Ftoi(float value) { return static_cast<int>(value); }
 };
 static int sysMilliseconds = 0;
 static int Sys_Milliseconds() { return sysMilliseconds; }
@@ -687,6 +695,11 @@ public:
     void PublishRetainedCreateMaps(idUserInterface*, bool); void HandleRetainedCreateServerRequest(idUserInterface*, const char*);
     idStrList retainedCreateBanGuids; int retainedCreateBanSelected = -1; void PublishRetainedCreateBans(idUserInterface*);
     // Its Join Game sub-page and the servers it lists.
+    // The settings screen's AUDIO page, and the screen and handler it returns to.
+    idUserInterface *guiRetainedAudio = nullptr, *retainedAudioParent = nullptr;
+    HandleGuiCommand_t guiHandle = nullptr, retainedAudioParentHandle = nullptr;
+    bool RetainedAudioAvailable() const; bool OpenRetainedAudio(); void OpenRetainedAudioRoute(); void ReturnRetainedAudio();
+    void PublishRetainedAudio(idUserInterface*); void HandleRetainedAudioRequest(idUserInterface*, const char*);
     idUserInterface* guiRetainedJoin = nullptr; idList<int> retainedJoinServers; int retainedJoinFirst = 0, retainedJoinRevision = -1;
     idStr retainedJoinAddress, retainedJoinShotMap, retainedJoinShot; idStrList retainedJoinRowAddresses;
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
@@ -724,7 +737,7 @@ public:
     int starts = 0;
     void SelectCampaign(const char* campaign, bool start = false) { selected.push_back(campaign); if (start) ++starts; else OpenRetainedCampaignSkill(); }
     void StartMenu() { ++menus; guiActive = guiMainMenu; }
-    void SetGUI(idUserInterface* gui, void*) { guiActive = gui; }
+    void SetGUI(idUserInterface* gui, HandleGuiCommand_t handler) { guiActive = gui; guiHandle = handler; }
     idUserInterface* SelectRetainedLoadingGui(idUserInterface*, bool);
     idUserInterface* FindRetainedGui(const char*, bool, bool);
     idUserInterface* RetainedHomeDocument(idUserInterface*&, const char*);
@@ -759,7 +772,7 @@ static const char* const DOCUMENTS[] = {"guis/menu/title.q4ui", "guis/menu/pause
     "guis/menu/loadgame_strogg.q4ui", "guis/menu/savegame_strogg.q4ui", "guis/menu/restartlevel_strogg.q4ui",
     "guis/menu/demos.q4ui", "guis/menu/restartmenu.q4ui", "guis/menu/credits.q4ui",
     "guis/menu/arena.q4ui", "guis/menu/multiplayer.q4ui", "guis/menu/createserver.q4ui", "guis/menu/joingame.q4ui",
-    "guis/menu/arena_pause.q4ui"};
+    "guis/menu/arena_pause.q4ui", "guis/menu/settings/audio.q4ui"};
 // The documents that fell back to their stock screens, in order.
 static std::vector<std::string> Stock(const idSessionLocal& session) {
     return std::vector<std::string>(session.retainedStock.begin(), session.retainedStock.end());
@@ -2415,6 +2428,77 @@ int main() {
         auto off = Session(false); CHECK(!off.RetainedSystemAvailable());
         ui_retainedSystem.value = true; CHECK(s.RetainedSystemAvailable() && off.RetainedSystemAvailable());
         s.retainedStock.Append("guis/menu/settings/system.q4ui"); CHECK(!s.RetainedSystemAvailable());
+    }
+    {   // The AUDIO button opens the retained page over the settings screen,
+        // its values read back: the volumes and the subtitle size and
+        // background as whole percents, the device as its row in the sound
+        // system's list. Each verb applies at once, the device rows through
+        // the stock page's commands; BACK returns to the screen and handler
+        // that opened it.
+        auto s = Session(true); CHECK(s.RetainedAudioAvailable());
+        // The sound system's list, its items quoted with backslash escapes.
+        audioDeviceNames = "\"Default device (Realtek)\";\"Speakers\";\"Headset \\\"Pro\\\"\"";
+        audioDeviceValues = "\"__OPENQ4_DEFAULT_AUDIO_DEVICE__\";\"Speakers (Realtek)\";\"Headset \\\"Pro\\\";USB\"";
+        for (const auto& [cvar, value] : std::map<std::string, std::string>{{"s_volume", "0.7"}, {"s_musicVolume", "0.4"},
+                 {"s_dialogueVolume", "1"}, {"s_useOpenAL", "1"}, {"s_deviceName", "Headset \"Pro\";USB"}, {"s_useEAXReverb", "1"},
+                 {"s_numberOfSpeakers", "6"}, {"s_openALHRTF", "2"}, {"ui_subtitles", "1"}, {"ui_subtitleScale", "1.5"},
+                 {"ui_subtitleBackground", "0.3"}, {"ui_subtitleSpeakers", "0"}}) cvarSystemObject.strings[cvar] = value;
+        auto* settings = s.guiMainMenu; s.guiHandle = reinterpret_cast<HandleGuiCommand_t>(&audioDeviceNames);
+        s.OpenRetainedAudioRoute();
+        auto* page = s.guiActive;
+        CHECK(page != settings && page == s.guiRetainedAudio && std::string(page->Name()) == "guis/menu/settings/audio.q4ui" &&
+              s.retainedAudioParent == settings && s.guiHandle == nullptr && legacyActions.empty());
+        CHECK(page->state["audio.volume"] == "70" && page->state["audio.music"] == "40" && page->state["audio.dialogue"] == "100" &&
+              page->state["audio.backend"] == "1" && page->state["audio.device.count"] == "3" && page->state["audio.device"] == "2" &&
+              page->state["audio.device.1.label"] == "Speakers" && page->state["audio.device.2.label"] == "Headset \"Pro\"" &&
+              page->state["audio.device.3.label"] == "" &&
+              page->state["audio.eax"] == "1" && page->state["audio.speakers"] == "2" && page->state["audio.hrtf"] == "2" &&
+              page->state["audio.subtitles"] == "1" && page->state["audio.subtitleSize"] == "150" &&
+              page->state["audio.subtitleBackground"] == "30" && page->state["audio.subtitleSpeakers"] == "0");
+        s.played.clear();
+        s.HandleRetainedSessionRequest(page, "audioVolume 80");
+        CHECK(cvarSystemObject.strings["s_volume"] == "0.8" && page->state["audio.volume"] == "80" &&
+              (s.played == std::vector<std::string>{"play main_menu_selection"}));
+        s.HandleRetainedSessionRequest(page, "audioDevice 1");
+        CHECK(cvarSystemObject.strings["s_deviceName"] == "Speakers (Realtek)" && s.played.back() == "sound drivar" && page->state["audio.device"] == "1");
+        s.HandleRetainedSessionRequest(page, "audioDevice 0");
+        CHECK(cvarSystemObject.strings["s_deviceName"] == "__OPENQ4_DEFAULT_AUDIO_DEVICE__" && page->state["audio.device"] == "0");
+        s.played.clear(); s.HandleRetainedSessionRequest(page, "audioDevice 3"); s.HandleRetainedSessionRequest(page, "audioDevice -1");
+        CHECK(cvarSystemObject.strings["s_deviceName"] == "__OPENQ4_DEFAULT_AUDIO_DEVICE__" && (s.played == std::vector<std::string>{"play main_menu_selection", "play main_menu_selection"}));
+        s.HandleRetainedSessionRequest(page, "audioEax 0");
+        CHECK(cvarSystemObject.strings["s_useEAXReverb"] == "0" && s.played.back() == "sound eax" && page->state["audio.eax"] == "0");
+        s.HandleRetainedSessionRequest(page, "audioSpeakers 1");
+        CHECK(cvarSystemObject.strings["s_numberOfSpeakers"] == "2" && s.played.back() == "sound speakers" && page->state["audio.speakers"] == "1");
+        s.HandleRetainedSessionRequest(page, "audioBackend 0");
+        CHECK(cvarSystemObject.strings["s_useOpenAL"] == "0" && s.played.back() == "sound drivar" && page->state["audio.backend"] == "0");
+        s.HandleRetainedSessionRequest(page, "audioHrtf 1"); CHECK(cvarSystemObject.strings["s_openALHRTF"] == "1" && s.played.back() == "sound drivar");
+        s.HandleRetainedSessionRequest(page, "audioSubtitleSize 250"); CHECK(cvarSystemObject.strings["ui_subtitleScale"] == "2");
+        s.HandleRetainedSessionRequest(page, "audioSubtitleBackground 50"); CHECK(cvarSystemObject.strings["ui_subtitleBackground"] == "0.5");
+        s.HandleRetainedSessionRequest(page, "audioSubtitles 0"); s.HandleRetainedSessionRequest(page, "audioSubtitleSpeakers 1");
+        CHECK(cvarSystemObject.strings["ui_subtitles"] == "0" && cvarSystemObject.strings["ui_subtitleSpeakers"] == "1" &&
+              page->state["audio.subtitles"] == "0" && page->state["audio.subtitleSpeakers"] == "1");
+        // A malformed request, or the page's verbs from another screen, does nothing.
+        s.played.clear(); s.HandleRetainedSessionRequest(page, "audioVolume"); s.HandleRetainedSessionRequest(page, "audioVolume x");
+        s.HandleRetainedSessionRequest(page, "audioLoudness 5"); CHECK(s.played.empty() && cvarSystemObject.strings["s_volume"] == "0.8");
+        s.HandleRetainedSessionRequest(page, "audioBack");
+        CHECK(s.guiActive == settings && s.guiHandle == reinterpret_cast<HandleGuiCommand_t>(&audioDeviceNames) && s.retainedAudioParent == nullptr);
+        s.HandleRetainedSessionRequest(page, "audioVolume 10"); CHECK(cvarSystemObject.strings["s_volume"] == "0.8");
+        // The page reopens on the screen's next press; one that stopped
+        // drawing, or a document that is missing, opens the stock page, and
+        // the AUDIO button keeps doing so.
+        s.OpenRetainedAudioRoute(); CHECK(s.guiActive == page); s.HandleRetainedSessionRequest(page, "audioBack");
+        page->failed = true; s.OpenRetainedAudioRoute();
+        CHECK(s.guiActive == settings && s.guiRetainedAudio == nullptr && (legacyActions == std::vector<std::string>{"set_b_audio"}) &&
+              s.dispatched.back() == "play main_menu_selection" && !s.RetainedAudioAvailable() &&
+              Stock(s) == std::vector<std::string>{"guis/menu/settings/audio.q4ui"} && settings->state["retainedAudio"] == "0");
+        auto missing = Session(true); fileSystemObject.files.erase("guis/menu/settings/audio.q4ui");
+        missing.OpenRetainedAudioRoute();
+        CHECK(missing.guiActive == missing.guiMainMenu && missing.guiRetainedAudio == nullptr && !missing.RetainedAudioAvailable() &&
+              legacyActions.size() == 1);
+        // Without the retained screens, or over a message box, the page stays shut.
+        auto off = Session(false); CHECK(!off.RetainedAudioAvailable() && !off.OpenRetainedAudio());
+        auto boxed = Session(true); idUserInterface box("guis/msg.gui"); boxed.guiMsgRestore = &box; CHECK(!boxed.OpenRetainedAudio());
+        cvarSystemObject = CVarSystem{}; audioDeviceNames.clear(); audioDeviceValues.clear();
     }
     {   // CONTINUE shows a save's own screenshot, freshly read, only when it exists.
         auto s = Session(true); s.saves = {"quick"}; describedShot = ""; fileSystemObject.files.insert("savegames/quick.tga");
@@ -4734,7 +4818,7 @@ def check_retained_multiplayer(menu: str, session: str) -> None:
     assert 'vote' not in handoffs
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
     # (The Create Server page's verbs are check_create_server's.)
-    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith('create')}
+    value_verbs = {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if not verb.startswith(('create', 'audio'))}
     fields = re.findall(r'"(mpVote[A-Za-z]+)"', re.search(r'RETAINED_MP_VOTE_FIELDS\[\] = \{([^}]*)\};', menu).group(1))
     appearance = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_APPEARANCE_VALUES\[\] = \{([^}]*)\};', menu).group(1))
     choices = re.findall(r'"(mp[A-Za-z]+)"', re.search(r'RETAINED_MP_MATCH_CHOICES\[\] = \{([^}]*)\};', menu).group(1))
@@ -4901,7 +4985,7 @@ def main() -> int:
                        'guis/menu/savegame_strogg.q4ui', 'guis/menu/restartlevel_strogg.q4ui',
                        'guis/menu/demos.q4ui', 'guis/menu/restartmenu.q4ui', 'guis/menu/credits.q4ui', 'guis/menu/arena.q4ui',
                        'guis/menu/multiplayer.q4ui', 'guis/menu/createserver.q4ui', 'guis/menu/joingame.q4ui',
-                       'guis/menu/arena_pause.q4ui'}
+                       'guis/menu/arena_pause.q4ui', 'guis/menu/settings/audio.q4ui'}
             assert path in allowed, f'{name} names an ungated retained document {path}'
     # Every retained document loads through FindRetainedGui, which falls back to
     # the stock screen; the SYSTEM page and the campaign selectors fall back too.
@@ -4914,6 +4998,34 @@ def main() -> int:
     for command, multiplayer in (('openRetainedSystem', 'false'), ('openRetainedSystemFromMp', 'true')):
         assert f'if ( !idStr::Icmp( cmd, "{command}" ) ) {{\n\t\t\tOpenSystemSettingsRoute( {multiplayer} );\n\t\t\treturn;' in main_menu
     system_route = function_body(menu, 'void idSessionLocal::OpenSystemSettingsRoute(')
+    # The AUDIO page: the AUDIO button asks for it while the retained screens
+    # are on (the main menu's retainedAudio), the stock page's action runs
+    # where it cannot open; its value verbs are the session's table, which the
+    # adapter allows and the document's rows request; its rows apply through
+    # the stock page's commands.
+    assert 'if ( !idStr::Icmp( cmd, "openRetainedAudio" ) ) {\n\t\t\tOpenRetainedAudioRoute();\n\t\t\treturn;' in main_menu
+    assert 'guiMainMenu->SetStateBool( "retainedAudio", RetainedAudioAvailable() );' in menu
+    audio_route = function_body(menu, 'void idSessionLocal::OpenRetainedAudioRoute(')
+    assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_audio", false, command )' in audio_route
+    stock_menu = (ROOT / 'content/baseoq4/pak0/guis/mainmenu.gui').read_text(encoding='utf-8', errors='replace')
+    audio_button = stock_menu[stock_menu.index('windowDef set_b_audio'):]
+    audio_action = audio_button[audio_button.index('onAction'):audio_button.index('windowDef', 1)]
+    assert 'if ("gui::retainedAudio" == 1) {' in audio_action and 'set "cmd" "openRetainedAudio" ;' in audio_action
+    audio_verbs = re.findall(r'"(audio[A-Za-z]+)"', re.search(r'RETAINED_AUDIO_VERBS\[\] = \{([^}]*)\};', menu).group(1))
+    sys.path.insert(0, str(ROOT / 'tools' / 'ui'))
+    import retained_audio
+    adapter_audio = [verb for verb in cpp_allowlist(adapter, 'bool SessionMenuValueCommand(') if verb.startswith('audio')]
+    assert set(adapter_audio) == set(audio_verbs) and len(adapter_audio) == len(audio_verbs) == 12
+    assert [verb for _section, _heading, rows in retained_audio.SECTIONS for _kind, _ident, _label, verb, _state, _extra in rows] == audio_verbs
+    audio_document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/settings/audio.q4ui').read_text(encoding='utf-8'), flags=re.M))
+    assert 'canvas' not in audio_document and audio_document['actions']['back'] == {'operation': 'session.menu', 'arguments': {'command': 'audioBack'}}
+    for verb in audio_verbs:
+        assert audio_document['actions'][verb]['operation'] == 'session.menuValue' and \
+            audio_document['actions'][verb]['arguments'] == {'command': verb, 'value': {'input': 'value'}}, verb
+    assert f'static const int RETAINED_AUDIO_DEVICES = {retained_audio.DEVICES};' in menu
+    audio_request = function_body(menu, 'void idSessionLocal::HandleRetainedAudioRequest(')
+    for command in ('sound drivar', 'sound eax', 'sound speakers'):
+        assert f'HandleMainMenuCommands( "{command}" );' in audio_request
     assert 'UI_RunLegacyWindowAction( guiMainMenu, "set_b_system", false, command )' in system_route, 'a failed SYSTEM page must open the stock one'
     assert 'guiMainMenu->HandleNamedEvent( "fromMp_toSystemStock" );' in system_route, 'a failed multiplayer SYSTEM route must open the stock page'
     home_document = function_body(menu, 'idUserInterface *idSessionLocal::RetainedHomeDocument(')
@@ -5222,6 +5334,9 @@ def main() -> int:
         'void idSessionLocal::UpdateRetainedNotices(', 'void idSessionLocal::HandleRetainedNoticeAction(',
         'void idSessionLocal::UpdateRetainedJoinGame(',
         'void idSessionLocal::HandleRetainedJoinGameRequest(',
+        'static void Session_ChoiceListItems(', 'bool idSessionLocal::RetainedAudioAvailable(', 'bool idSessionLocal::OpenRetainedAudio(',
+        'void idSessionLocal::OpenRetainedAudioRoute(', 'void idSessionLocal::ReturnRetainedAudio(',
+        'void idSessionLocal::PublishRetainedAudio(', 'void idSessionLocal::HandleRetainedAudioRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',
         'void idSessionLocal::PreloadRetainedScreens(', 'void idSessionLocal::PrepareRetainedLevel(',
         'void idSessionLocal::PrecacheRetainedLevelshots(', 'void idSessionLocal::QueueRetainedLevelshot(',

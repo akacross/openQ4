@@ -327,6 +327,18 @@ static bool Session_RetainedValueRequest( const char *request, const char *const
 	return digits && value >= -1 && value <= 999;
 }
 
+// The retained AUDIO page (tools/ui/retained_audio.py): its document, its
+// value verbs in the order HandleRetainedAudioRequest takes them, the device
+// list's rows and the speaker counts its choice names.
+static const char *const RETAINED_AUDIO_GUI = "guis/menu/settings/audio.q4ui";
+static const char *const RETAINED_AUDIO_VERBS[] = {
+	"audioVolume", "audioMusic", "audioDialogue", "audioBackend", "audioDevice", "audioEax", "audioSpeakers", "audioHrtf",
+	"audioSubtitles", "audioSubtitleSize", "audioSubtitleBackground", "audioSubtitleSpeakers"
+};
+static const int RETAINED_AUDIO_VERB_COUNT = sizeof( RETAINED_AUDIO_VERBS ) / sizeof( RETAINED_AUDIO_VERBS[0] );
+static const int RETAINED_AUDIO_DEVICES = 16;
+static const int RETAINED_AUDIO_SPEAKERS[] = { 0, 2, 6 };
+
 // "mpMatchRuleValue <value>": a whole number from 0 to the largest value a
 // Match Control rule takes, in at most five digits.
 static bool Session_RetainedRuleValueRequest( const char *request, int &value ) {
@@ -564,6 +576,34 @@ static void ApplyMainMenuCorpseTimeChoice( idUserInterface *gui ) {
 	const char *const targetCvar = gui->State().GetInt( "ingame" ) == 2 ? "g_corpseRemoveDelayMP" : "g_corpseRemoveDelaySP";
 	cvarSystem->SetCVarFloat( targetCvar, MAINMENU_CORPSE_TIME_PRESET_VALUES[ choice ] );
 }
+
+#ifndef ID_DEDICATED
+// The items of a stock choice list: "a";"b", each item quoted with backslash
+// escapes as idSoundHardware_OpenAL::AppendChoiceItem joins them, or bare.
+static void Session_ChoiceListItems( const char *list, idStrList &items ) {
+	items.Clear();
+	if ( list == NULL || list[0] == '\0' ) {
+		return;
+	}
+	idStr item;
+	bool quoted = false;
+	for ( const char *at = list; ; ++at ) {
+		if ( quoted && *at == '\\' && at[1] != '\0' ) {
+			item += *++at;
+		} else if ( *at == '"' ) {
+			quoted = !quoted;
+		} else if ( *at == '\0' || ( *at == ';' && !quoted ) ) {
+			items.Append( item );
+			item.Clear();
+			if ( *at == '\0' ) {
+				return;
+			}
+		} else {
+			item += *at;
+		}
+	}
+}
+#endif
 
 /*
 =================
@@ -2125,6 +2165,227 @@ void idSessionLocal::OpenSystemSettingsRoute( bool fromMultiplayer ) {
 	routing = false;
 }
 
+/*
+===============
+idSessionLocal::RetainedAudioAvailable
+
+The AUDIO button opens the retained page while the retained screens are on
+and the page has not fallen back to the stock one this session.
+===============
+*/
+bool idSessionLocal::RetainedAudioAvailable() const {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	return Session_RetainedScreensEnabled() && retainedStock.FindIndex( RETAINED_AUDIO_GUI ) < 0;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedAudio
+
+The retained AUDIO page over the settings screen that asked for it, its
+values read back first. A page that is missing or cannot load leaves the
+stock page in use (FindRetainedGui).
+===============
+*/
+bool idSessionLocal::OpenRetainedAudio() {
+#ifdef ID_DEDICATED
+	return false;
+#else
+	if ( !RetainedAudioAvailable() || guiMainMenu == NULL || guiActive != guiMainMenu || guiMsgRestore != NULL || guiTest != NULL ) {
+		return false;
+	}
+	if ( guiRetainedAudio != NULL && UI_RetainedViewFailed( guiRetainedAudio ) ) {
+		common->Warning( "retained UI: '%s' stopped drawing; the stock screen presents instead", RETAINED_AUDIO_GUI );
+		retainedStock.AddUnique( RETAINED_AUDIO_GUI );
+		guiRetainedAudio = NULL;
+		return false;
+	}
+	if ( guiRetainedAudio == NULL ) {
+		guiRetainedAudio = FindRetainedGui( RETAINED_AUDIO_GUI, true, false );
+	}
+	if ( guiRetainedAudio == NULL ) {
+		return false;
+	}
+	retainedAudioParent = guiActive;
+	retainedAudioParentHandle = guiHandle;
+	PublishRetainedAudio( guiRetainedAudio );
+	SetGUI( guiRetainedAudio, NULL );
+	return guiActive == guiRetainedAudio;
+#endif
+}
+
+/*
+===============
+idSessionLocal::OpenRetainedAudioRoute
+
+The AUDIO button opens the retained page, or the stock one where it could
+not open: from then on once the page fell back, else for this press.
+===============
+*/
+void idSessionLocal::OpenRetainedAudioRoute() {
+	static bool routing = false;
+	if ( routing || guiMainMenu == NULL || OpenRetainedAudio() ) {
+		return;
+	}
+	routing = true;
+	const bool available = RetainedAudioAvailable();
+	guiMainMenu->SetStateBool( "retainedAudio", false );
+	guiMainMenu->StateChanged( common->GetPresentationTime() );
+	idStr command;
+	if ( UI_RunLegacyWindowAction( guiMainMenu, "set_b_audio", false, command ) && command.Length() > 0 ) {
+		DispatchCommand( guiMainMenu, command.c_str() );
+	}
+	if ( available ) {
+		guiMainMenu->SetStateBool( "retainedAudio", true );
+		guiMainMenu->StateChanged( common->GetPresentationTime() );
+	}
+	routing = false;
+}
+
+/*
+===============
+idSessionLocal::ReturnRetainedAudio
+
+BACK, or the back input, returns to the settings screen that opened the page.
+===============
+*/
+void idSessionLocal::ReturnRetainedAudio() {
+	if ( guiRetainedAudio == NULL || guiActive != guiRetainedAudio || retainedAudioParent == NULL ) {
+		return;
+	}
+	idUserInterface *parent = retainedAudioParent;
+	const HandleGuiCommand_t handler = retainedAudioParentHandle;
+	retainedAudioParent = NULL;
+	retainedAudioParentHandle = NULL;
+	SetGUI( parent, handler );
+}
+
+/*
+===============
+idSessionLocal::PublishRetainedAudio
+
+The AUDIO page's values as the session reads them back: the three volumes
+and the subtitle size and background as whole percents, the sound system,
+the device (the row of s_deviceName in the device list, which it publishes
+too, read as a device's text), EAX, the speakers' choice (Auto, 2 or 6),
+HRTF and the three subtitle switches.
+===============
+*/
+void idSessionLocal::PublishRetainedAudio( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	if ( gui == NULL ) {
+		return;
+	}
+	const auto percent = []( const char *cvar, float scale ) {
+		return idMath::ClampInt( 0, 999, idMath::Ftoi( cvarSystem->GetCVarFloat( cvar ) * scale + 0.5f ) );
+	};
+	gui->SetStateInt( "audio.volume", percent( "s_volume", 100.0f ) );
+	gui->SetStateInt( "audio.music", percent( "s_musicVolume", 100.0f ) );
+	gui->SetStateInt( "audio.dialogue", percent( "s_dialogueVolume", 100.0f ) );
+	gui->SetStateInt( "audio.backend", cvarSystem->GetCVarBool( "s_useOpenAL" ) ? 1 : 0 );
+	idStr names, values;
+	BuildMainMenuAudioDeviceChoices( names, values );
+	idStrList nameList, valueList;
+	Session_ChoiceListItems( names.c_str(), nameList );
+	Session_ChoiceListItems( values.c_str(), valueList );
+	const int count = Min( nameList.Num(), RETAINED_AUDIO_DEVICES );
+	int device = 0;
+	for ( int i = 0; i < count; ++i ) {
+		gui->SetStateString( va( "audio.device.%d.label", i ), Session_RetainedPlayerText( nameList[ i ].c_str(), 128, 1 ).c_str() );
+		if ( i < valueList.Num() && !valueList[ i ].Icmp( cvarSystem->GetCVarString( "s_deviceName" ) ) ) {
+			device = i;
+		}
+	}
+	for ( int i = count; i < RETAINED_AUDIO_DEVICES; ++i ) {
+		gui->SetStateString( va( "audio.device.%d.label", i ), "" );
+	}
+	gui->SetStateInt( "audio.device.count", count );
+	gui->SetStateInt( "audio.device", device );
+	gui->SetStateBool( "audio.eax", cvarSystem->GetCVarBool( "s_useEAXReverb" ) );
+	int speakers = 0;
+	for ( int i = 0; i < 3; ++i ) {
+		if ( cvarSystem->GetCVarInteger( "s_numberOfSpeakers" ) == RETAINED_AUDIO_SPEAKERS[ i ] ) {
+			speakers = i;
+		}
+	}
+	gui->SetStateInt( "audio.speakers", speakers );
+	gui->SetStateInt( "audio.hrtf", idMath::ClampInt( 0, 2, cvarSystem->GetCVarInteger( "s_openALHRTF" ) ) );
+	gui->SetStateBool( "audio.subtitles", cvarSystem->GetCVarBool( "ui_subtitles" ) );
+	gui->SetStateInt( "audio.subtitleSize", percent( "ui_subtitleScale", 100.0f ) );
+	gui->SetStateInt( "audio.subtitleBackground", percent( "ui_subtitleBackground", 100.0f ) );
+	gui->SetStateBool( "audio.subtitleSpeakers", cvarSystem->GetCVarBool( "ui_subtitleSpeakers" ) );
+	gui->StateChanged( common->GetPresentationTime() );
+#endif
+}
+
+/*
+===============
+idSessionLocal::HandleRetainedAudioRequest
+
+The AUDIO page's verbs: each value applies at once, as the stock page's
+controls do, the device rows through the stock page's own commands (sound
+drivar, sound eax, sound speakers), which restart the sound system and may
+ask with the stock message box; the page then reads every value back. BACK
+returns to the settings screen.
+===============
+*/
+void idSessionLocal::HandleRetainedAudioRequest( idUserInterface *gui, const char *request ) {
+#ifndef ID_DEDICATED
+	if ( !idStr::Icmp( request, "audioBack" ) ) {
+		HandleMainMenuCommands( "play main_menu_selection" );
+		ReturnRetainedAudio();
+		return;
+	}
+	int field = -1, value = 0;
+	if ( !Session_RetainedValueRequest( request, RETAINED_AUDIO_VERBS, RETAINED_AUDIO_VERB_COUNT, field, value ) ) {
+		return;
+	}
+	HandleMainMenuCommands( "play main_menu_selection" );
+	switch ( field ) {
+		case 0: cvarSystem->SetCVarFloat( "s_volume", idMath::ClampInt( 0, 100, value ) / 100.0f ); break;
+		case 1: cvarSystem->SetCVarFloat( "s_musicVolume", idMath::ClampInt( 0, 100, value ) / 100.0f ); break;
+		case 2: cvarSystem->SetCVarFloat( "s_dialogueVolume", idMath::ClampInt( 0, 100, value ) / 100.0f ); break;
+		case 3:
+			cvarSystem->SetCVarBool( "s_useOpenAL", value != 0 );
+			HandleMainMenuCommands( "sound drivar" );
+			break;
+		case 4: {
+			idStr names, values;
+			BuildMainMenuAudioDeviceChoices( names, values );
+			idStrList valueList;
+			Session_ChoiceListItems( values.c_str(), valueList );
+			if ( value < 0 || value >= valueList.Num() || value >= RETAINED_AUDIO_DEVICES ) {
+				return;
+			}
+			cvarSystem->SetCVarString( "s_deviceName", valueList[ value ].c_str() );
+			HandleMainMenuCommands( "sound drivar" );
+			break;
+		}
+		case 5:
+			cvarSystem->SetCVarBool( "s_useEAXReverb", value != 0 );
+			HandleMainMenuCommands( "sound eax" );
+			break;
+		case 6:
+			cvarSystem->SetCVarInteger( "s_numberOfSpeakers", RETAINED_AUDIO_SPEAKERS[ idMath::ClampInt( 0, 2, value ) ] );
+			HandleMainMenuCommands( "sound speakers" );
+			break;
+		case 7:
+			cvarSystem->SetCVarInteger( "s_openALHRTF", idMath::ClampInt( 0, 2, value ) );
+			HandleMainMenuCommands( "sound drivar" );
+			break;
+		case 8: cvarSystem->SetCVarBool( "ui_subtitles", value != 0 ); break;
+		case 9: cvarSystem->SetCVarFloat( "ui_subtitleScale", idMath::ClampInt( 100, 200, value ) / 100.0f ); break;
+		case 10: cvarSystem->SetCVarFloat( "ui_subtitleBackground", idMath::ClampInt( 0, 100, value ) / 100.0f ); break;
+		case 11: cvarSystem->SetCVarBool( "ui_subtitleSpeakers", value != 0 ); break;
+		default: return;
+	}
+	PublishRetainedAudio( gui );
+#endif
+}
+
 bool idSessionLocal::ReturnSystemSettings() {
 #ifdef ID_DEDICATED
 	return false;
@@ -2807,6 +3068,7 @@ idSessionLocal::SetMainMenuGuiVars
 */
 void idSessionLocal::SetMainMenuGuiVars( bool refreshCatalogs ) {
 	guiMainMenu->SetStateBool( "retainedSystem", RetainedSystemAvailable() );
+	guiMainMenu->SetStateBool( "retainedAudio", RetainedAudioAvailable() );
 	guiMainMenu->SetStateBool( "androidSetupAvailable", Session_AndroidSetupAvailable() );
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
@@ -3255,6 +3517,11 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 
 		if ( !idStr::Icmp( cmd, "openRetainedSystemFromMp" ) ) {
 			OpenSystemSettingsRoute( true );
+			return;
+		}
+
+		if ( !idStr::Icmp( cmd, "openRetainedAudio" ) ) {
+			OpenRetainedAudioRoute();
 			return;
 		}
 
@@ -6283,6 +6550,13 @@ void idSessionLocal::ShowSaveRestoreFailure( const char *saveName ) {
 
 void idSessionLocal::HandleRetainedSessionRequest( idUserInterface *gui, const char *request ) {
 #ifndef ID_DEDICATED
+	// The retained AUDIO page's verbs, while it presents.
+	if ( request != NULL && gui != NULL && gui == guiRetainedAudio ) {
+		if ( gui == guiActive ) {
+			HandleRetainedAudioRequest( gui, request );
+		}
+		return;
+	}
 	// A notice's action (section 13.13), on whichever menu shows the stack.
 	const int noticeSlot = request == NULL ? -1 : !idStr::Icmp( request, "noticeAction0" ) ? 0 :
 		!idStr::Icmp( request, "noticeAction1" ) ? 1 : !idStr::Icmp( request, "noticeAction2" ) ? 2 : -1;

@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","audioBack","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -210,7 +210,9 @@ static const std::set<std::string> SessionValueCommands = {"mpVoteMap","mpVoteGa
 	"createGameType","createLan","createDedicated","createAutoBalance","createFragLimit","createCaptureLimit","createControlTime",
 	"createTimeLimit","createMaxPlayers","createMinPlayers","createVoting","createTeamDamage","createTourneyLimit","createUsePass",
 	"createServerMods","createWeaponStay","createPure","createRate","createReady","createSpectators","createWarmup","createVoice",
-	"createBuying","createBots","createBotSkill"};
+	"createBuying","createBots","createBotSkill",
+	"audioVolume","audioMusic","audioDialogue","audioBackend","audioDevice","audioEax","audioSpeakers","audioHrtf",
+	"audioSubtitles","audioSubtitleSize","audioSubtitleBackground","audioSubtitleSpeakers"};
 // The player settings the multiplayer card's Settings and Voice pages change.
 static const std::set<std::string> PlayerSettings = {"ui_handicap","cl_player_outline_enemy","cl_player_outline_team",
 	"cl_player_rimlight_enemy","cl_player_rimlight_team","cl_player_visibility_enemy_color","cl_player_visibility_team_color",
@@ -3578,6 +3580,100 @@ static void CheckCreateServerBanList(ScreenHost& host, const char* path) {
 	Check(text("banModal","display") == "none" && text("advancedModal","display") == "block" && runtime.FocusedControl() == "create-banlist",
 		"closing the list returns to the row that opened it, the dialog still open");
 }
+// The retained AUDIO settings page (tools/ui/retained_audio.py): the stock
+// page's rows in the SYSTEM page's construction, each asking the session for
+// its new value with its own verb, the session's readback setting what they
+// show; BACK and the back input ask the session to return.
+static void CheckAudioPage(ScreenHost& host, const char* path) {
+	const auto source = Read(path);
+	Document document; std::vector<Diagnostic> diagnostics;
+	if (!document.Load(source,diagnostics)) for (const auto& d : diagnostics) std::fprintf(stderr,"%u:%u %s %s\n",unsigned(d.line),unsigned(d.column),d.pointer.c_str(),d.message.c_str());
+	Check(diagnostics.empty() && document.Model().id == "openq4.audio" && document.Model().canvasHeight == 0,
+		"the AUDIO page validates, laid out on the view as the SYSTEM page is");
+	CheckSessionActions(document);
+	const std::pair<const char*,const char*> rows[] = {{"audio_volume","audioVolume"},{"audio_music","audioMusic"},
+		{"audio_dialogue","audioDialogue"},{"audio_backend","audioBackend"},{"audio_device","audioDevice"},{"audio_eax","audioEax"},
+		{"audio_speakers","audioSpeakers"},{"audio_hrtf","audioHrtf"},{"audio_subtitles","audioSubtitles"},
+		{"audio_subtitle_size","audioSubtitleSize"},{"audio_subtitle_background","audioSubtitleBackground"},
+		{"audio_subtitle_speakers","audioSubtitleSpeakers"}};
+	for (const auto& [control, verb] : rows) {
+		const auto* node = document.Model().FindNode(control);
+		const auto found = document.Model().actions.find(verb);
+		Check(node && node->control && node->control->action == verb && found != document.Model().actions.end() &&
+			found->second.operation == "session.menuValue" && std::get<std::string>(found->second.arguments.at("command").literal) == verb,
+			"each row asks the session with its own verb");
+	}
+	const auto back = document.Model().actions.find("back");
+	Check(back != document.Model().actions.end() && std::get<std::string>(back->second.arguments.at("command").literal) == "audioBack",
+		"BACK asks the session to return");
+	Runtime runtime(host);
+	Check(runtime.Initialize() && runtime.LoadDocument(source,"guis/menu/settings/audio.q4ui",diagnostics),"the page loads into a runtime");
+	Viewport viewport; std::string error; Runtime::EventEffects effects;
+	const auto press = [&](MenuInput input, double at) { runtime.MenuAction(input,true,at); runtime.MenuAction(input,false,at+.01); };
+	const auto text = [&](const std::string& node, const char* property) {
+		const auto found = runtime.PresentedValue(node,property); return found ? found->text : std::string("?");
+	};
+	const auto bounds = [&](const std::string& id) { Bounds b; Check(runtime.GetBounds(id,b),"an AUDIO page node is laid out"); return b; };
+	// The one action a control queued, resolved through its descriptor.
+	const auto taken = [&](const char* action) {
+		const auto actions = runtime.TakeActions();
+		if (actions.size() != 1 || actions[0].action != action) {
+			std::fprintf(stderr,"Expected action %s; received %zu",action,actions.size());
+			for (const auto& pending : actions) std::fprintf(stderr," %s",pending.action.c_str());
+			std::fprintf(stderr,"\n");
+		}
+		Check(actions.size() == 1 && actions[0].action == action,"a control requests its action");
+		ActionInvocation invocation;
+		const StateValue* input = actions.size() == 1 && actions[0].proposal ? &*actions[0].proposal : nullptr;
+		Check(!actions.empty() && runtime.ResolveAction(actions[0].action,invocation,error,input),"the action resolves");
+		if (!actions.empty() && actions[0].proposalToken) runtime.AcknowledgeControlProposal(actions[0].node,actions[0].proposalToken,true);
+		return invocation;
+	};
+	// The session's readback: 70% volume, the second of three devices, EAX on,
+	// 5.1 speakers and the subtitles at 150%.
+	Check(runtime.SetState({{"audio.volume",70.0},{"audio.music",40.0},{"audio.dialogue",100.0},{"audio.backend",1.0},
+		{"audio.device.count",3.0},{"audio.device.0.label",std::string("Default device")},{"audio.device.1.label",std::string("Speakers")},
+		{"audio.device.2.label",std::string("Headset")},{"audio.device",1.0},{"audio.eax",true},{"audio.speakers",2.0},{"audio.hrtf",0.0},
+		{"audio.subtitles",true},{"audio.subtitleSize",150.0},{"audio.subtitleBackground",30.0},{"audio.subtitleSpeakers",false}},error,0.1),
+		"the session publishes the values");
+	Check(runtime.RunEvent("onActivate",0.2,effects,error),"the page arrives");
+	runtime.Frame(viewport,0.5);
+	Check(runtime.FocusedControl() == "audio_volume","the first row takes the focus");
+	const auto track = bounds("audio_volume-track"), fill = bounds("audio_volume-fill");
+	Check(fill.width > track.width*.6f && fill.width < track.width*.8f,"the volume's fill runs to 70%");
+	// The device row unfolds its list; Back folds it without asking anything.
+	Check(runtime.FocusControl("audio_device",0.51),"focus the device");
+	press(MenuInput::Accept,0.52); runtime.Frame(viewport,0.55);
+	Check(runtime.GetWidgetState("audio_device") && runtime.GetWidgetState("audio_device")->popupOpen && runtime.TakeActions().empty(),
+		"the device row unfolds its list");
+	press(MenuInput::Back,0.56); runtime.Frame(viewport,0.58);
+	Check(!runtime.GetWidgetState("audio_device")->popupOpen && runtime.TakeActions().empty(),"Back folds the list without a request");
+	Check(runtime.FocusControl("audio_volume",0.59),"focus the volume again");
+	// A step to the right asks for 80%.
+	runtime.TakeActions();
+	press(MenuInput::Right,0.6);
+	auto invocation = taken("audioVolume");
+	Check(invocation.operation == "session.menuValue" && std::get<std::string>(invocation.arguments.at("command")) == "audioVolume" &&
+		std::get<double>(invocation.arguments.at("value")) == 80,"Right asks the session for 80%");
+	// The check box asks for the other setting.
+	Check(runtime.FocusControl("audio_eax",0.7),"focus EAX");
+	press(MenuInput::Accept,0.71);
+	invocation = taken("audioEax");
+	Check(!std::get<bool>(invocation.arguments.at("value")),"Accept asks the session to turn EAX off");
+	Check(runtime.FocusControl("audio_subtitle_speakers",0.73),"focus Speaker Names");
+	press(MenuInput::Accept,0.74);
+	Check(std::get<bool>(taken("audioSubtitleSpeakers").arguments.at("value")),"Accept asks the session to name the speakers");
+	// The back input asks the session to return.
+	Check(runtime.RunEvent("onBack",0.8,effects,error) && effects.actions.size() == 1 &&
+		std::get<std::string>(effects.actions[0].arguments.at("command")) == "audioBack","Back asks the session to return");
+	// A portrait view: the panel and its rows stay inside the view.
+	Viewport portrait; portrait.width = 540; portrait.height = 960;
+	runtime.Frame(portrait,1.0);
+	const auto panel = bounds("audio-panel"), volume = bounds("audio_volume");
+	Check(panel.x >= -.5f && panel.x+panel.width <= 540.5f && panel.y+panel.height <= 960.5f && volume.x+volume.width <= 540.5f,
+		"the panel fits a portrait view");
+}
+
 static void CheckCreateServerPage(ScreenHost& host, const char* path) {
 	const auto source = Read(path);
 	Document document; std::vector<Diagnostic> diagnostics;
@@ -4141,6 +4237,10 @@ int main(int argc, char** argv) {
  if (argc == 3 && std::string(argv[1]) == "--summary") {
      ScreenHost host; CheckSummary(host,argv[2]);
      std::printf("retained summary: %d checks passed\n",checks); return 0;
+ }
+ if (argc == 3 && std::string(argv[1]) == "--audio") {
+     ScreenHost host; CheckAudioPage(host,argv[2]);
+     std::printf("retained AUDIO page: %d checks passed\n",checks); return 0;
  }
  if (argc == 3 && std::string(argv[1]) == "--quick-chat") {
      ScreenHost host; CheckQuickChat(host,argv[2]);

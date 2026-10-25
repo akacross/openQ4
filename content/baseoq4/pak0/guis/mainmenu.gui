@@ -19330,6 +19330,9 @@ windowDef Desktop
 			}
 
 			onAction {
+				if ("gui::retainedAudio" == 1) {
+					set "cmd" "openRetainedAudio" ;
+				} else {
 				set "cmd" "refreshAudioSettings" ;
 				set "p_settings_ctrls::visible" "0" ;
 				set "p_settings_game::visible" "0" ;
@@ -19371,6 +19374,7 @@ windowDef Desktop
 				set "set_t_b3::textscale" "0.31" ;
 
 				set "cmd" "play main_menu_selection" ;
+				}
 			}
 
 		}

@@ -1026,6 +1026,27 @@ SCENARIOS = {
         'waitMsec 6000', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-held.tga"',
         'testControllerLoss 0', 'waitMsec 1500', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-resolved.tga"',
     ]),
+    # The retained AUDIO page (UI-01): the settings screen's AUDIO button opens
+    # it on the session's values; a step right raises the music; the device
+    # row unfolds the sound system's list; Back returns to the settings screen.
+    'audio': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_audio',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui report', 'screenshot "screenshots/audio.tga"',
+        's_musicVolume', 'openq4_retainedGui focus audio_music', 'openq4_retainedGui menu right 1', 'openq4_retainedGui menu right 0',
+        'waitMsec 600', 's_musicVolume', 'openq4_retainedGui report', 'screenshot "screenshots/audio-music.tga"',
+        'openq4_retainedGui focus audio_device', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 600', 'openq4_retainedGui report', 'screenshot "screenshots/audio-devices.tga"',
+        'openq4_retainedGui menu back 1', 'openq4_retainedGui menu back 0', 'waitMsec 400',
+        'openq4_retainedGui focus audio_subtitle_size', 'waitMsec 400', 'openq4_retainedGui report',
+        'screenshot "screenshots/audio-subtitles.tga"',
+        'openq4_retainedGui event onBack', 'waitMsec 1500', 'ui_retainedStatus', 'openq4_guiGet p_settings_audio::visible',
+        'screenshot "screenshots/audio-back.tga"',
+    ]),
+    # An AUDIO page that cannot load: the same press opens the stock page.
+    'fallback-audio': (None, [
+        'waitMsec 4000', 'openq4_guiAction main_b_settings', 'waitMsec 1500', 'openq4_guiAction set_b_audio',
+        'waitMsec 1500', 'openq4_guiGet p_settings_audio::visible', 'ui_retainedStatus', 'screenshot "screenshots/fallback-audio.tga"',
+    ]),
     # Join Game's notices (section 13.13): taking the seeded loopback server
     # off the favorites says so with Undo; putting it back and taking it off
     # again stack three notices, newest at the top; Undo on the newest puts
@@ -1320,6 +1341,7 @@ OVERRIDES = {
     'fallback-menu': {'guis/mainmenu.gui': stock_menu_without_demos},
     'fallback-system': {'guis/menu/settings/system.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-system-mp': {'guis/menu/settings/system.q4ui': lambda runtime: BROKEN_DOCUMENT},
+    'fallback-audio': {'guis/menu/settings/audio.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-campaign': {'guis/menu/singleplayer.q4ui': lambda runtime: BROKEN_DOCUMENT},
     'fallback-loading': {'guis/loading/splevel.gui': lambda runtime: MOD_LOADING_GUI,
                          'guis/loading/generic.gui': lambda runtime: MOD_LOADING_GUI},

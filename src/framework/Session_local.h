@@ -433,6 +433,12 @@ public:
 	void				PublishRetainedJoinGame( idUserInterface *gui );
 	void				PublishRetainedJoinDetail( idUserInterface *gui );
 	void				UpdateRetainedJoinGame();
+	bool				RetainedAudioAvailable() const;
+	bool				OpenRetainedAudio();
+	void				OpenRetainedAudioRoute();
+	void				ReturnRetainedAudio();
+	void				PublishRetainedAudio( idUserInterface *gui );
+	void				HandleRetainedAudioRequest( idUserInterface *gui, const char *request );
 	void				PushRetainedNotice( const char *text, int kind, const char *action, const char *subject, int undo,
 							bool persistent );
 	void				ResolveRetainedNotices( int kind );
@@ -808,6 +814,9 @@ public:
 		int				shownAt;
 		int				leavingAt;
 	};
+	idUserInterface *	guiRetainedAudio;			// the retained AUDIO settings page (NULL until it loads)
+	idUserInterface *	retainedAudioParent;		// the screen it returns to, and that screen's handler
+	HandleGuiCommand_t	retainedAudioParentHandle;
 	idList<retainedNotice_t> retainedNotices;	// shown oldest first, then those waiting, as they came
 	bool				retainedNoticesDirty;		// the stack changed since it was published
 	idUserInterface *	retainedNoticesGui;			// the retained menu it was published to

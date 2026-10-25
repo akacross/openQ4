@@ -3963,6 +3963,9 @@ void idSessionLocal::Clear() {
 	retainedJoinShotMap.Clear();
 	retainedJoinShot.Clear();
 	retainedJoinDetailRow = -1;
+	guiRetainedAudio = NULL;
+	retainedAudioParent = NULL;
+	retainedAudioParentHandle = NULL;
 	retainedNotices.Clear();
 	retainedNoticesDirty = false;
 	retainedNoticesGui = NULL;

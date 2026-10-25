@@ -1725,6 +1725,46 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## The AUDIO page (25 October 2026)
+
+The settings screen's AUDIO button opens a retained AUDIO page while the
+retained screens are on. `tools/ui/retained_audio.py` builds
+`guis/menu/settings/audio.q4ui` from the SYSTEM page's construction (its
+panel, header, scrolling body, section headings, slider, check box and list
+rows and footer), so the page adds no art and no strings. It carries every row
+of the stock page, in the stock order and with the stock text:
+
+| Section | Rows |
+| --- | --- |
+| LEVELS | Volume, Music Volume and Dialogue Volume, 0 to 100% |
+| DEVICES | Sound System (Default, OpenAL) and Sound Device, the sound system's devices (up to 16) |
+| EFFECTS | EAX ADVANCED HD; Surround Speakers and Headphone HRTF (Auto, Off, On); Dialogue Subtitles; Subtitle Size, 100 to 200%; Subtitle Background, 0 to 100%; Speaker Names |
+
+Each row asks the session with its own value verb (`audioVolume` through
+`audioSubtitleSpeakers`, allowed by the adapter's `SessionMenuValueCommand`),
+and the session applies the value at once, as the stock controls do. The
+levels and subtitle rows set their CVars. Sound System, Sound Device and
+Headphone HRTF run the stock page's `sound drivar`, EAX `sound eax` and
+Surround Speakers `sound speakers`, which restart the sound system and may
+answer with the stock message box. The session then publishes every value
+back (`PublishRetainedAudio`), so the page shows what the engine holds: EAX
+that the device refuses reads back off. The device list is the stock choice's
+own (`idSoundHardware_OpenAL::BuildDeviceChoiceStrings`), its quoted items
+read with their escapes; a chosen device the system no longer lists stays in
+the list, marked unavailable, as on the stock page.
+
+BACK and the back input (`audioBack`) return to the settings screen and the
+handler that opened the page. A page that is missing or stops drawing opens
+the stock page instead, from then on in the session (`retainedStock`), as the
+SYSTEM page falls back; with `ui_retained 0` the stock page opens as before.
+
+`openq4-ui-retained-audio` checks the document's verbs, the readback, a
+slider step, the check boxes, the device list unfolding and folding without a
+request, Back and a portrait fit. The gate compiles the session code against
+its doubles: the route, the readback from a quoted device list, each verb's
+CVar and command, malformed and stale requests, Back and both fallbacks.
+Captured at 16:9 in English and German and at 9:16, with the fallback.
+
 ## Tall views grow the lists (25 October 2026)
 
 In a view taller than the canvas (5:4, and most of all a portrait window)

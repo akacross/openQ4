@@ -804,7 +804,13 @@ held in play, its toggle, the notices, single-player loading tips and the
 multiplayer Escape card. Each row keeps its unbuilt parts and qualification
 matrices as remaining.
 
-There are **120 partial, 229 pending and 0 verified requirements**, counting the
+The [AUDIO page](retained-screens.md#the-audio-page-25-october-2026) moves `FLOW-003`
+from pending to partial: the stock AUDIO page's every row is reconstructed,
+applied through the session and read back. GAME, CONTROLS, Load Defaults,
+Player Setup, dependency explanations, bindings and the cancellation and
+failure scenarios remain.
+
+There are **121 partial, 228 pending and 0 verified requirements**, counting the
 39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
