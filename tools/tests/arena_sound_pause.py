@@ -50,6 +50,7 @@ struct SoundSystem {
     int now=100;
     idSoundWorld* world=nullptr;
     int SoundTime() const { return now; }
+    int RefreshSoundTime() { return now; }
     idSoundWorld* GetSoundWorldFromId(int id) { assert(id==SOUNDWORLD_GAME); return world; }
 } soundSystemLocal;
 SoundSystem* soundSystem=&soundSystemLocal;

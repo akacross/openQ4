@@ -16,14 +16,28 @@ namespace OpenQ4Subtitles {
 // captions, which then covered the title text cinematics draw in it, so when
 // two lines of the given pitch fit there captions hang from the artwork's
 // lower edge instead. The panel is 12 + pitch * lines high; deciding on two
-// lines keeps the position still while a caption's line count changes.
+// lines keeps the position still while a caption's line count changes. When
+// only one line fits, the overlay pages a lone caption a line at a time so it
+// can stay there; two overlapping captions return to the picture.
+inline int LinesBelowArtwork(float aspect, float pitch) {
+	if (!(aspect <= 4.0f / 3.0f) || !std::isfinite(pitch) || pitch <= 0.0f) return 0;
+	const float room = 708.0f - (360.0f + 270.0f * aspect + 12.0f) - 12.0f;
+	return room >= 2.0f * pitch ? 2 : room >= pitch ? 1 : 0;
+}
 inline float CanvasBottom(float aspect, bool cinematic, float pitch = 0.0f, int lines = 1) {
 	if (!cinematic) return 570.0f;
 	if (!(aspect <= 4.0f / 3.0f)) return 640.0f;
-	const float below = 360.0f + 270.0f * aspect + 12.0f;
-	if (std::isfinite(pitch) && pitch > 0.0f && below + 12.0f + 2.0f * pitch <= 708.0f)
-		return below + 12.0f + pitch * std::clamp(lines, 1, 2);
+	const int fit = LinesBelowArtwork(aspect, pitch);
+	if (fit == 2 || (fit == 1 && lines <= 1))
+		return 360.0f + 270.0f * aspect + 24.0f + pitch * std::clamp(lines, 1, 2);
 	return 348.0f + 202.5f * aspect;
+}
+// The indent a speaker label takes: its whole measured width, so the words never
+// run under it, or none, leaving the label out, where it would take more than half
+// the line (the largest text on a narrow screen).
+inline float SpeakerIndent(float label, float width) {
+	if (!std::isfinite(label) || !std::isfinite(width) || label <= 0.0f || label > width * 0.5f) return 0.0f;
+	return label;
 }
 struct Page { std::string lines[2]; int end = 0; };
 template<class Glyph> std::vector<Page> Paginate(const char* text, float width, int rows, Glyph glyph) {

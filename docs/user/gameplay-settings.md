@@ -384,8 +384,10 @@ declarations, with the normal language fallback. The Steam release installs
 these transcripts in English only, and The Awakening's are written in English,
 so other menu languages show English captions. Coverage is incomplete: a
 missing transcript stays blank, and a scene description is never substituted.
-Player voice chat and sound effects are not transcribed. Large captions can
-overlap Awakening title cards in portrait windows.
+Player voice chat and sound effects are not transcribed. In portrait windows,
+cinematic captions sit below the picture, clear of title cards; at the largest
+text sizes they show one line at a time there. A speaker name too wide for half
+the line is left out.
 
 ## Gameplay Status Bar
 

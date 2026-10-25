@@ -122,7 +122,7 @@ def main():
     probe('SLOW')
     steps.extend(['set timescale 1', 's_restart'])
     probe('RESTART')
-    steps.extend(['set g_autoExecAfterMapLoad ""', 'saveGame audio_dialogue', 'waitMsec 500',
+    steps.extend(['set g_autoExecAfterMapLoad ""', 'echo AUDIO_DIALOGUE_SAVE', 'saveGame audio_dialogue', 'waitMsec 500',
                   'loadGame audio_dialogue', 'waitMsec 1000'])
     probe('RESTORE')
     steps.extend(['listSounds audio_test', 'writeConfig "audio-dialogue-saved.cfg"', 'testRadioChatter stop',
@@ -143,7 +143,8 @@ def main():
         'r_hiddenWindow': '1', 'r_windowWidth': '1280', 'r_windowHeight': '720', 'r_mode': '-1',
         'r_customWidth': '1280', 'r_customHeight': '720', 'r_renderApi': 'gl', 'r_multiSamples': '0',
         'r_swapInterval': '1', 'in_mouse': '0', 'in_joystick': '0', 'in_joystickRumble': '0',
-        's_noSound': '0', 's_muteUnfocused': '0', 'com_skipLogoVideos': '1', 'g_autoSkipCinematics': '0' if args.awakening else '1',
+        # Both maps open in a cinematic, which refuses the save the RESTORE phase needs.
+        's_noSound': '0', 's_muteUnfocused': '0', 'com_skipLogoVideos': '1', 'g_autoSkipCinematics': '1',
         's_decodeMemoryMB': str(args.decode_memory),
         's_audioMemoryMB': str(args.audio_memory),
         's_numberOfSpeakers': str(args.speakers), 's_openALHRTF': '0',
@@ -183,6 +184,10 @@ def main():
         checks[name + '_effect'] = bool(full.get('weapon') and row.get('weapon') and abs(row['weapon'][0] - full['weapon'][0]) < .01)
     checks['mute_speech_only'] = 'dialogue' not in rows.get('MUTE', {}) and 'weapon' in rows.get('MUTE', {})
     checks['slow_motion_pitch'] = bool(rows.get('SLOW', {}).get('dialogue') and abs(rows['SLOW']['dialogue'][1] - .5) < .01)
+    # A real save and load: a cinematic refuses the save, which would leave RESTORE
+    # measuring the same session rather than a restored one.
+    checks['saved_and_loaded'] = "Can't save during a cinematic" not in log and bool(re.search(
+        r"^AUDIO_DIALOGUE_SAVE\s*\n(?:.*\n)*?Saved 'audio_dialogue'\s*\n(?:.*\n)*?Map: ", log, re.M))
     # Engine settings are deliberately shared by the two SP campaigns.
     saved = root / 'save/baseoq4/audio-dialogue-saved.cfg'
     checks['archived'] = saved.exists() and bool(re.search(r'seta s_dialogueVolume "0\.6"', saved.read_text()))

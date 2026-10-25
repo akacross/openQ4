@@ -726,6 +726,42 @@ void Sys_GetExeLaunchMemoryStatus( sysMemoryStats_t &stats ) {
 	Sys_GetCurrentMemoryStatus( stats );
 }
 
+bool Sys_GetProcessMemoryUsage( unsigned long long &privateBytes, unsigned long long &residentBytes ) {
+	privateBytes = residentBytes = 0;
+#if defined( __linux__ )
+	// Linux and Android: anonymous resident memory plus swap is what the process
+	// owns privately; file-backed pages such as mapped libraries are excluded.
+	FILE *status = fopen( "/proc/self/status", "r" );
+	if ( status == NULL ) {
+		return false;
+	}
+	char line[256];
+	unsigned long long anonymousKiB = 0, swapKiB = 0, residentKiB = 0;
+	bool found = false;
+	while ( fgets( line, sizeof( line ), status ) != NULL ) {
+		found |= sscanf( line, "RssAnon: %llu kB", &anonymousKiB ) == 1;
+		sscanf( line, "VmSwap: %llu kB", &swapKiB );
+		sscanf( line, "VmRSS: %llu kB", &residentKiB );
+	}
+	fclose( status );
+	privateBytes = ( anonymousKiB + swapKiB ) * 1024ULL;
+	residentBytes = residentKiB * 1024ULL;
+	return found;
+#elif defined( MACOS_X )
+	// The physical footprint is the figure the system's memory pressure tools use.
+	task_vm_info_data_t info;
+	mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+	if ( task_info( mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>( &info ), &count ) != KERN_SUCCESS ) {
+		return false;
+	}
+	privateBytes = info.phys_footprint;
+	residentBytes = info.resident_size;
+	return true;
+#else
+	return false;
+#endif
+}
+
 /*
 =================
 Sys_Init

@@ -381,6 +381,9 @@ int				Sys_GetDriveFreeSpace( const char *path );
 // returns memory stats
 void			Sys_GetCurrentMemoryStatus( sysMemoryStats_t &stats );
 void			Sys_GetExeLaunchMemoryStatus( sysMemoryStats_t &stats );
+// this process's private memory (commit charge, or anonymous resident memory plus swap)
+// and resident set, in bytes; false where the OS reports neither
+bool			Sys_GetProcessMemoryUsage( unsigned long long &privateBytes, unsigned long long &residentBytes );
 
 // lock and unlock memory
 bool			Sys_LockMemory( void *ptr, int bytes );

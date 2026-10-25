@@ -32,6 +32,9 @@
   when audio returns, and a line paused in a menu continues from where it
   stopped instead of starting over. Voice chat from other players picks up
   again too, without a backlog of late speech.
+- Loading a saved game resumes the dialogue, music and effects that were playing
+  where they were when you saved, in step with the characters' lips. They used
+  to skip ahead by however long the level took to load.
 - Changing the speaker layout, headphone 3D audio or the output limiter now
   applies instantly without reloading the game's sounds, and dialogue that is
   playing moves to or from the centre speaker at its current point.
@@ -46,15 +49,17 @@
 - Subtitles start off and cover lines with usable text in your installed assets.
   Coverage is incomplete in both campaigns; lines without a verified transcript
   stay uncaptioned. In portrait windows, cinematic captions sit just below the
-  picture, clear of title cards, except at the very largest text sizes. This
-  feature does not transcribe player voice chat or caption effects.
+  picture, clear of title cards; at the very largest text sizes they show one
+  line at a time there. A speaker name too wide for the line is left out rather
+  than overlapping the words. This feature does not transcribe player voice chat
+  or caption effects.
 - Replace the engine and matching game modules together. Dialogue Volume starts
   at full authored volume; existing saves do not need conversion for this setting.
 - Voice requires matching support on the server and clients. It uses narrowband
   speech and drops delayed audio during congestion to preserve gameplay traffic.
   Install matching releases and content for everyone in the match; release
   0.13.0 cannot join this candidate, or host its clients.
-  Windows automated peer tests pass; physical microphone and other-OS
+  Windows and Linux automated peer tests pass; physical microphone and macOS
   qualification is still pending.
 - The managed audio budget defaults to 256 MiB. Under pressure, new sounds may
   be omitted while existing sounds continue; increasing the budget permits
@@ -76,6 +81,8 @@
 - New developer commands: `listSoundVoices` reports each sound's output routing
   and position, `s_trimAudioMemory` runs the low-memory response on demand, and
   `s_testDeviceInterruption` simulates a lost audio device for testing.
+  `listSounds` also reports the game's total memory use, so its cost with sound
+  on and off can be compared.
   `s_logSpeech 1` lists every line of speech as it starts, with whether Dialogue
   Volume and subtitles reach it.
 - Lines whose transcript is declared for the voice file, rather than for the

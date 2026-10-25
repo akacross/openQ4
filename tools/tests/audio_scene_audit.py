@@ -8,6 +8,14 @@ by a lipSync) is logged with the routing the mixer gives it and the transcript
 status the subtitle overlay has for it. Periodic probes list the audible voices
 and the active subtitle cues, first with Dialogue Volume at 1 and then muted.
 
+With --walk, each map continues past its opening through its scripted scenes:
+the entities whose script call (directly or through the functions it calls)
+makes a character speak, and the radio chatter entities, are read from the
+installed .map and script files and triggered in authored order, with probes
+between them, as the console `trigger` command does. Anything that reaches the
+level's end is left out. Scenes start out of their gameplay order, so a line
+whose speaker has not spawned yet stays silent; the report counts what plays.
+
 Checks: declared or flagged speech always follows Dialogue Volume; muting it
 silences every dialogue voice while other sounds continue; every cue shown has
 a transcript. The report keeps shader and sample identifiers and counts, never
@@ -23,6 +31,7 @@ import re
 import subprocess
 import sys
 import time
+import zipfile
 
 from mp_round_remote_smoke import verify_runtime_is_current
 
@@ -47,6 +56,121 @@ ADMISSION = re.compile(r'^Audio admission: reserved=(\d+) KiB peak=(\d+) KiB bud
 MEMORY = re.compile(r'^Audio memory: CPU=(\d+) KiB OpenAL=(\d+) KiB pending-input<=(\d+) KiB aggregate<=(\d+) KiB', re.M)
 STREAMING = re.compile(r'^Vorbis streaming: reserved=(\d+) KiB', re.M)
 VOICE = re.compile(r'^SOUND_VOICE source=\d+ state=(\w+) routed=\d queued=(\d) serial=\d+ offsetMs=[\d.-]+ sample=(\S+)', re.M)
+PROCESS = re.compile(r'^Process memory: private=(\d+) KiB resident=(\d+) KiB', re.M)
+STEP = re.compile(r'^SCENE_STEP (\S+) (\d+) (\S+)\s*$', re.M)
+MAP_LOAD = re.compile(r'^Map: (\S+)', re.M)
+ENTITY = re.compile(r'// entity \d+\n\{\n((?:"[^"\n]*" "[^"\n]*"\n)+)')
+FUNCTION = re.compile(r'\b(?:void|float|entity|vector|string|boolean)\s+(\w+)\s*\([^;{)]*\)\s*\{')
+# What makes a character speak in the stock and Awakening scripts: the actor speak
+# event (aiSpeak and its wrappers call it) and the lipSync or voice-over shader names.
+SPEAKS = re.compile(r'\.speak\s*\(|"lipsync_|"vo_', re.I)
+
+
+def content_files(roots, want):
+    """Installed files a game layer sees, later roots and later paks overriding earlier."""
+    files = {}
+    for root in roots:
+        for pak in sorted(root.glob('*.pk4'), key=lambda p: p.name.lower()):
+            with zipfile.ZipFile(pak) as archive:
+                for name in archive.namelist():
+                    if want(name.lower()):
+                        files[name.lower()] = archive.read(name).decode('latin-1')
+        for path in root.rglob('*'):
+            name = path.relative_to(root).as_posix().lower()
+            if path.is_file() and want(name):
+                files[name] = path.read_text(encoding='latin-1')
+    return files
+
+
+def script_functions(scripts):
+    """Every script function by qualified name: (namespace, body without comments)."""
+    bodies = {}
+    for text in scripts.values():
+        text = re.sub(r'//[^\n]*', '', re.sub(r'/\*.*?\*/', ' ', text, flags=re.S))
+        spans, open_spaces, depth = [], [], 0
+        for m in re.finditer(r'namespace\s+(\w+)\s*\{|\{|\}', text):
+            if m.group(1):
+                depth += 1
+                open_spaces.append((m.group(1), depth, m.end()))
+            elif m.group(0) == '{':
+                depth += 1
+            else:
+                if open_spaces and open_spaces[-1][1] == depth:
+                    space, _, start = open_spaces.pop()
+                    spans.append((start, m.start(), space))
+                depth -= 1
+        for m in FUNCTION.finditer(text):
+            space = '::'.join(n for s, e, n in sorted(spans) if s <= m.start() < e)
+            depth, end = 1, m.end()
+            while depth and end < len(text):
+                depth += {'{': 1, '}': -1}.get(text[end], 0)
+                end += 1
+            bodies[(space + '::' if space else '') + m.group(1)] = (space, text[m.end():end])
+    return bodies
+
+
+def scene_steps(roots, maps):
+    """Per map, the (classname, entity) pairs whose trigger starts speech, in authored order."""
+    scripts = content_files(roots, lambda n: n.endswith('.script') and n.startswith(('scripts/', 'maps/')))
+    wanted = {f'maps/{m.lower()}.map' for m in maps}
+    sources = content_files(roots, lambda n: n in wanted)
+    bodies = script_functions(scripts)
+
+    def resolve(space, name):
+        if '::' in name:
+            return name if name in bodies else None
+        if space and f'{space}::{name}' in bodies:
+            return f'{space}::{name}'
+        return name if name in bodies else None
+
+    calls, refs = {}, {}
+    for name, (space, body) in bodies.items():
+        calls[name] = {r for r in (resolve(space, c) for c in re.findall(r'\b((?:\w+::)*\w+)\s*\(', body)) if r and r != name}
+        refs[name] = {r.lower() for r in re.findall(r'\$(\w+)', body)}
+    speech = {name for name, (_, body) in bodies.items() if SPEAKS.search(body)}
+    grown = True
+    while grown:
+        grown = False
+        for name in bodies:
+            if name not in speech and calls[name] & speech:
+                speech.add(name)
+                grown = True
+    steps = {}
+    for name in maps:
+        text = sources.get(f'maps/{name.lower()}.map', '')
+        entities = [{k.lower(): v for k, v in re.findall(r'"([^"]*)" "([^"]*)"', block)} for block in ENTITY.findall(text)]
+        by_name = {e.get('name', '').lower(): e for e in entities}
+        endings = {n for n, e in by_name.items() if e.get('classname') == 'target_endlevel'}
+
+        def ends_level(node, seen):
+            # Entity targets, script calls and the entities a function names, followed to a level end.
+            if node in seen:
+                return False
+            seen.add(node)
+            if node.startswith('$'):
+                entity = by_name.get(node[1:])
+                if entity is None:
+                    return False
+                if node[1:] in endings:
+                    return True
+                following = ['$' + v.lower() for k, v in entity.items() if k.startswith('target')]
+                following += [resolve('', v) for k, v in entity.items() if k.startswith('call')]
+                return any(n and ends_level(n, seen) for n in following)
+            return node in bodies and (any(ends_level(c, seen) for c in calls[node]) or
+                                       any(ends_level('$' + r, seen) for r in refs[node]))
+
+        chosen = []
+        for entity in entities:
+            classname, entity_name = entity.get('classname', ''), entity.get('name', '')
+            if classname == 'worldspawn' or not entity_name:
+                continue
+            functions = [resolve('', v) for k, v in entity.items() if k.startswith('call')]
+            if classname != 'func_radiochatter' and not any(f in speech for f in functions if f):
+                continue
+            if not ends_level('$' + entity_name.lower(), set()):
+                chosen.append((classname, entity_name))
+        steps[name] = chosen
+    return steps
 
 
 def sample_key(name):
@@ -63,15 +187,30 @@ def scene_entries(maps, repeat):
     return [(f'pass{run}/{name}' if repeat > 1 else name, name) for run in range(1, repeat + 1) for name in maps]
 
 
-def scene_cfgs(entries, seconds, interval):
+def scene_cfgs(entries, seconds, interval, walk=None, step_msec=4000, tail=0):
+    """One cfg per opening; with a walk, each map's scene triggers follow its opening probes."""
     probes = max(1, (seconds * 1000) // (interval + 150))
     files = []
-    for index, (name, _) in enumerate(entries):
-        steps = ['god', f'echo SCENE_BEGIN {name}']
-        for probe in range(probes):
-            steps += [f'waitMsec {interval}', f'echo SCENE_PROBE {name} {probe} full', 'listPlayingSounds', 'listSubtitles',
-                      'set s_dialogueVolume 0', 'waitMsec 150', f'echo SCENE_PROBE {name} {probe} mute', 'listPlayingSounds',
-                      'set s_dialogueVolume 1']
+    for index, (name, level) in enumerate(entries):
+        # Disarmed until this cfg re-arms it for the next map, so a level change no
+        # step should make cannot run this cfg again on top of itself.
+        steps = ['set g_autoExecAfterMapLoad ""', 'god', f'echo SCENE_BEGIN {name}']
+        count = 0
+
+        def probe(wait):
+            nonlocal count
+            count += 1
+            return [f'waitMsec {wait}', f'echo SCENE_PROBE {name} {count - 1} full', 'listPlayingSounds', 'listSubtitles',
+                    'set s_dialogueVolume 0', 'waitMsec 150', f'echo SCENE_PROBE {name} {count - 1} mute', 'listPlayingSounds',
+                    'set s_dialogueVolume 1']
+        for _ in range(probes):
+            steps += probe(interval)
+        if walk is not None:
+            for number, (_, entity) in enumerate(walk.get(level, [])):
+                steps += [f'echo SCENE_STEP {name} {number} {entity}', f'trigger {entity}'] + probe(step_msec)
+            # Let the conversations the last steps started finish.
+            for _ in range((tail * 1000) // (interval + 150)):
+                steps += probe(interval)
         # Residency after the opening: a filter no sample matches prints only the totals.
         # The voice report shows which streamed tracks are playing on bounded queues.
         steps += [f'echo SCENE_MEMORY {name}', 'listSounds openq4_residency_totals_only', 'listSoundVoices',
@@ -85,11 +224,11 @@ def scene_cfgs(entries, seconds, interval):
     return files
 
 
-def launch(args, root, entries):
+def launch(args, root, entries, walk=None):
     game_dir = 'q4xbase' if args.awakening else 'baseoq4'
     game = root / 'save' / game_dir
     game.mkdir(parents=True, exist_ok=True)
-    for index, text in enumerate(scene_cfgs(entries, args.seconds, args.interval)):
+    for index, text in enumerate(scene_cfgs(entries, args.seconds, args.interval, walk, args.step_msec, args.tail)):
         (game / f'scene-{index}.cfg').write_text(text, encoding='utf-8')
     config = root / 'alsoft.conf'
     config.write_text('[general]\ndrivers=wave\nchannels=stereo\nhrtf=false\n[wave]\nfile=' + str(root / 'mix.wav') + '\n',
@@ -101,7 +240,7 @@ def launch(args, root, entries):
         'win_allowMultipleInstances': '1', 'r_hiddenWindow': '1', 'r_windowWidth': '1280', 'r_windowHeight': '720',
         'r_mode': '-1', 'r_customWidth': '1280', 'r_customHeight': '720', 'r_renderApi': 'gl', 'r_multiSamples': '0',
         'r_swapInterval': '1', 'in_mouse': '0', 'in_joystick': '0', 'in_joystickRumble': '0',
-        's_noSound': '0', 's_muteUnfocused': '0', 'com_skipLogoVideos': '1', 'g_autoSkipCinematics': '0',
+        's_noSound': '1' if getattr(args, 'silent', False) else '0', 's_muteUnfocused': '0', 'com_skipLogoVideos': '1', 'g_autoSkipCinematics': '0',
         's_numberOfSpeakers': '2', 's_openALHRTF': '0', 's_dialogueVolume': '1', 's_logSpeech': '1', 'ui_subtitles': '1',
         'com_skipLoadingContinue': '1', 'com_maxfps': '60', 'ui_autoJoin': '0', 'ui_retained': '1', 'sys_lang': 'english',
         'g_autoExecAfterMapLoad': 'scene-0.cfg', 'g_autoExecAfterMapLoadDelayMs': '2000',
@@ -119,7 +258,8 @@ def launch(args, root, entries):
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
         options.update(startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
-    timeout = args.timeout or 90 + len(entries) * (args.seconds + 60)
+    walked = sum(len(walk.get(level, [])) for _, level in entries) if walk else 0
+    timeout = args.timeout or 90 + len(entries) * (args.seconds + 60 + (args.tail if walk else 0)) + walked * (args.step_msec + 1500) // 1000
     started = time.monotonic()
     with (root / 'process.log').open('w') as out:
         try:
@@ -143,6 +283,16 @@ def audit(log, labels):
             begin += marker.end()
         speech = [dict(zip(FIELDS, m)) for m in SPEECH.findall(segment)]
         speech = [s for s in speech if s['game'] == '1']
+        # Scripted scenes: what each step's trigger found, and the speech after the opening.
+        begin_at = re.search(rf'^SCENE_BEGIN {re.escape(name)}\s*$', segment, re.M)
+        step_marks = list(STEP.finditer(segment))
+        missing_steps = sum('entity not found' in segment[m.end():(step_marks[i + 1].start() if i + 1 < len(step_marks) else len(segment))]
+                                                   .split('SCENE_PROBE', 1)[0] for i, m in enumerate(step_marks))
+        split = step_marks[0].start() if step_marks else len(segment)
+        walked, opening = ([dict(zip(FIELDS, m)) for m in SPEECH.findall(part)] for part in (segment[split:], segment[:split]))
+        walked = [s for s in walked if s['game'] == '1' and s['dialogue'] == '1']
+        opening = [s for s in opening if s['game'] == '1' and s['dialogue'] == '1']
+        level_changes = MAP_LOAD.findall(segment[begin_at.end():]) if begin_at else []
         dialogue_samples = {sample_key(s['sample']) for s in speech if s['dialogue'] == '1'}
         text_shaders = {s['shader'].lower() for s in speech if s['transcript'] == 'text'}
         mapped_samples = {sample_key(s['sample']): s['shader'].lower() for s in speech
@@ -177,9 +327,13 @@ def audit(log, labels):
             tail = segment[at.end():]
             # The totals cover every sample; the filter only empties the per-sample listing.
             admission, totals, streaming = ADMISSION.search(tail), MEMORY.search(tail), STREAMING.search(tail)
+            process = PROCESS.search(tail)
+            if process:
+                # Present with s_noSound too, where the audio figures are absent.
+                memory = {'process_private_kib': int(process[1]), 'process_resident_kib': int(process[2])}
             if admission and totals:
                 queued = VOICE.findall(tail)
-                memory = {'reserved_kib': int(admission[1]), 'process_peak_kib': int(admission[2]),
+                memory |= {'reserved_kib': int(admission[1]), 'payload_peak_kib': int(admission[2]),
                           'budget_mib': int(admission[3]), 'refused_total': int(admission[4]),
                           'cpu_kib': int(totals[1]), 'openal_kib': int(totals[2]), 'aggregate_kib': int(totals[4]),
                           'stream_reserved_kib': int(streaming[1]) if streaming else None,
@@ -205,6 +359,14 @@ def audit(log, labels):
             'cues_without_transcript': sorted(set(cue_without_text)),
             'mapped_lines_shown': reach,
             'mapped_lines_missed': sorted(set(missed)),
+            'scene_steps': len(step_marks),
+            'scene_steps_not_spawned': missing_steps,
+            'scene_dialogue_starts': len(walked),
+            'scene_dialogue_shaders': sorted({s['shader'].lower() for s in walked}),
+            'opening_dialogue_shaders': sorted({s['shader'].lower() for s in opening}),
+            'unexpected_level_changes': level_changes,
+            'dialogue_shaders': sorted({s['shader'].lower() for s in speech if s['dialogue'] == '1'}),
+            'transcribed_shaders': sorted(text_shaders),
         }
     return scenes
 
@@ -218,26 +380,47 @@ def main():
     parser.add_argument('--seconds', type=int, default=30, help='Seconds of each opening to audit')
     parser.add_argument('--interval', type=int, default=3000, help='Milliseconds between probes')
     parser.add_argument('--repeat', type=int, default=1, help='Play the maps this many times in one client (a long session)')
+    parser.add_argument('--walk', action='store_true', help="Trigger each map's speech scenes after its opening")
+    parser.add_argument('--step-msec', type=int, default=4000, help='Milliseconds between scene triggers')
+    parser.add_argument('--tail', type=int, default=15, help='Seconds of probes after the last scene of a map')
+    parser.add_argument('--silent-baseline', action='store_true',
+                        help='Replay the openings with s_noSound 1 and report what audio adds to process memory')
     parser.add_argument('--timeout', type=int, default=0)
     args = parser.parse_args()
     args.repeat = max(1, args.repeat)
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to((ROOT / '.tmp').resolve()):
         parser.error('choose a new output directory under the project .tmp')
+    if args.walk and args.silent_baseline:
+        parser.error('the silent baseline compares openings; run it without --walk')
     verify_runtime_is_current(ROOT / '.install')
     maps = [m.strip() for m in args.maps.split(',')] if args.maps else (AWAKENING_MAPS if args.awakening else STOCK_MAPS)
     entries = scene_entries(maps, args.repeat)
     labels = [label for label, _ in entries]
+    walk = None
+    if args.walk:
+        roots = [args.assets.resolve(strict=True) / 'q4base']
+        if args.awakening:
+            roots.append(args.awakening.resolve(strict=True) / 'q4xbase')
+        walk = scene_steps(roots, maps)
     output.mkdir(parents=True)
-    code, log, command, seconds = launch(args, output, entries)
+    code, log, command, seconds = launch(args, output, entries, walk)
     scenes = audit(log, labels)
     loaded = [name for name, scene in scenes.items() if scene['loaded']]
     total = Counter()
     for scene in scenes.values():
         total.update({'speech_starts': scene['speech_starts'], 'dialogue_starts': scene['dialogue_starts'],
                       'radio_starts': scene['radio_starts'], 'probes': scene['probes'],
-                      'mapped_lines_shown': scene['mapped_lines_shown']})
+                      'mapped_lines_shown': scene['mapped_lines_shown'], 'scene_steps': scene['scene_steps'],
+                      'scene_steps_not_spawned': scene['scene_steps_not_spawned'],
+                      'scene_dialogue_starts': scene['scene_dialogue_starts']})
         total.update({'transcript_' + key: value for key, value in scene['transcripts'].items()})
+    # The corpus the run reached: distinct dialogue shaders, and how many had a transcript.
+    heard = set().union(*(s['dialogue_shaders'] for s in scenes.values())) if scenes else set()
+    total['distinct_dialogue_shaders'] = len(heard)
+    total['distinct_transcribed_shaders'] = len(heard & set().union(*(s['transcribed_shaders'] for s in scenes.values())))
+    total['distinct_scene_only_shaders'] = len(set().union(*(s['scene_dialogue_shaders'] for s in scenes.values())) -
+                                               set().union(*(s['opening_dialogue_shaders'] for s in scenes.values())))
     checks = {
         'complete': code == 0 and 'SCENE_COMPLETE' in log and len(loaded) == len(entries),
         'speech_heard': total['dialogue_starts'] > 0,
@@ -255,6 +438,34 @@ def main():
         'streams_play_on_recycled_voices': len(entries) < 2 or
             any(s['memory'].get('streams_playing') for s in list(scenes.values())[1:]),
     }
+    if walk is not None:
+        # Every scene trigger ran on its own map: none changed the level, and the
+        # scenes started speech the openings did not.
+        checks['scenes_walked'] = total['scene_steps'] == sum(len(walk.get(level, [])) for _, level in entries)
+        checks['scenes_stay_on_their_map'] = all(not s['unexpected_level_changes'] for s in scenes.values())
+        checks['scenes_add_speech'] = total['distinct_scene_only_shaders'] > 0
+    if args.silent_baseline:
+        # The same openings with sound off: what audio adds to the whole process,
+        # and how much of that the managed payloads above do not account for.
+        quiet_root = output / 'silent'
+        quiet_code, quiet_log, _, quiet_seconds = launch(argparse.Namespace(**vars(args), silent=True), quiet_root, entries)
+        quiet = audit(quiet_log, labels)
+        cost = {}
+        for name in labels:
+            loud, still = scenes[name]['memory'], quiet[name]['memory']
+            if 'reserved_kib' in loud and 'process_private_kib' in loud and 'process_private_kib' in still:
+                added = loud['process_private_kib'] - still['process_private_kib']
+                cost[name] = {'audio_private_kib': added, 'reserved_kib': loud['reserved_kib'],
+                              'beyond_payloads_kib': added - loud['reserved_kib'],
+                              'audio_resident_kib': loud['process_resident_kib'] - still['process_resident_kib'],
+                              'silent_private_kib': still['process_private_kib']}
+        checks['silent_baseline_complete'] = quiet_code == 0 and 'SCENE_COMPLETE' in quiet_log and len(cost) == len(labels)
+        total['process_cost'] = cost
+        total['silent_run_seconds'] = quiet_seconds
+        if cost:
+            beyond = sorted(c['beyond_payloads_kib'] for c in cost.values())
+            total.update({'beyond_payloads_median_kib': beyond[len(beyond) // 2], 'beyond_payloads_max_kib': beyond[-1],
+                          'audio_private_max_kib': max(c['audio_private_kib'] for c in cost.values())})
     if args.repeat > 1:
         # A long session: an opening played again holds no more audio, voices or
         # stream reservations than its first pass, beyond what one opening varies by.
@@ -278,13 +489,15 @@ def main():
     if residency:
         largest = max(scenes, key=lambda name: scenes[name]['memory'].get('reserved_kib', -1))
         total.update({'largest_reserved_kib': scenes[largest]['memory']['reserved_kib'],
-                      'process_peak_kib': max(m['process_peak_kib'] for m in residency),
+                      'payload_peak_kib': max(m['payload_peak_kib'] for m in residency),
                       'budget_mib': residency[-1]['budget_mib']})
         total['largest_map'] = largest
     exe = ROOT / '.install' / ('openQ4-client_x64.exe' if os.name == 'nt' else 'openQ4-client_x64')
     report = {
         'passed': all(checks.values()), 'checks': checks, 'totals': dict(total), 'scenes': scenes,
         'maps': maps, 'repeat': args.repeat, 'seconds_per_map': args.seconds, 'probe_interval_ms': args.interval, 'run_seconds': seconds,
+        'walk': {level: [entity for _, entity in steps] for level, steps in walk.items()} if walk else None,
+        'step_msec': args.step_msec if walk else None,
         'game': 'q4xbase' if args.awakening else 'baseoq4', 'returncode': code, 'command': command,
         'microphone': False, 'host_input': False, 'output': 'OpenAL wave writer', 'transcripts_recorded': False,
         'executable_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(),

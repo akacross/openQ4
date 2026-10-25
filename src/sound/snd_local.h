@@ -671,6 +671,10 @@ public:
 	}
 
 	int						SoundTime() const;
+	// Brings the sound clock, otherwise advanced once per mixed frame, up to now: a
+	// pause and an unpause inside one long blocking step such as a level load would
+	// both read the frame before it and hold the clock for none of that time.
+	int						RefreshSoundTime();
 
 	// may return NULL if there are no more voices left
 	idSoundVoice* 			AllocateVoice( const idSoundSample* leadinSample, const idSoundSample* loopingSample );

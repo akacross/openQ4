@@ -195,6 +195,25 @@ completed release material here and publish curated notes in `releases/`.
   and adapter harnesses, and in-game Settings and Load Game captures. Candidate
   player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Audio scripted scenes, saved-game restore and process memory, 24 October 2026
+
+- [x] AUD-02/06/07: loading a saved game resumes restored sounds where they were saved
+  instead of as far into them as the load took. Pausing a sound world now refreshes
+  the per-frame sound clock, and reading a saved sound state pauses the world until
+  the map change completes. The subtitle and Awakening dialogue harnesses now make
+  real saves (their earlier saves were refused inside opening cinematics).
+- [x] AUD-06/07: `audio_scene_audit.py --walk` fires every campaign map's scripted
+  speech scenes without input: 689 triggers, 1,326 dialogue starts, 1,050 distinct
+  lines (727 transcribed), no mute leak, misroute or untranscribed cue.
+- [x] AUD-07: at the largest text a lone portrait cinematic caption pages a line at a
+  time below the artwork; speaker names never run under the words (visual
+  specification 1.26).
+- [x] AUD-03: `listSounds` reports process memory on every platform; audio's cost
+  outside the managed payloads is bounded at about 60 MiB in six stock openings.
+- [x] AUD-05: voice chat passes on Linux x64 against listen and dedicated servers.
+- Evidence and limits: [scripted scenes, process memory and the largest captions](audio-voice-evidence.md#scripted-scenes-process-memory-and-the-largest-captions-24-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
 ## Audio on Linux, voice output loss and long sessions, 24 October 2026
 
 - [x] AUD-02/03/04/06/07: the output-recovery, subtitle and scene harnesses pass on

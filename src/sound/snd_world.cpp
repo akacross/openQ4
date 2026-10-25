@@ -1073,7 +1073,7 @@ void idSoundWorldLocal::Pause()
 {
 	if( !isPaused )
 	{
-		pausedTime = soundSystemLocal.SoundTime();
+		pausedTime = soundSystemLocal.RefreshSoundTime();
 		isPaused = true;
 		// just pause all unmutable voices (normally just voice overs)
 		for( int e = emitters.Num() - 1; e >= 0; e-- )
@@ -1100,7 +1100,7 @@ void idSoundWorldLocal::UnPause()
 	if( isPaused )
 	{
 		isPaused = false;
-		accumulatedPauseTime += soundSystemLocal.SoundTime() - pausedTime;
+		accumulatedPauseTime += soundSystemLocal.RefreshSoundTime() - pausedTime;
 		pauseFade.SetVolume( 0.0f );
 		pauseFade.Fade( 1.0f, s_unpauseFadeInTime.GetInteger(), GetSoundTime() );
 
@@ -1789,6 +1789,14 @@ bool idSoundWorldLocal::ReadSoundState( idFile* savefile, idDemoFile* demoFile )
 		return AbortRead();
 	}
 	const int timeDelta = static_cast<int>( timeDelta64 );
+	if( demoFile == NULL )
+	{
+		// Restored sounds keep their place relative to this moment, but the level is
+		// still loading: hold the clock here until the session unpauses the world
+		// when the map change completes, or a line resumes as far into itself as
+		// the rest of the load took, ahead of the lip sync the game clock drives.
+		Pause();
+	}
 
 	idSoundFade restoredVolumeFade;
 	idSoundFade restoredSoundClassFade[SOUND_MAX_CLASSES];

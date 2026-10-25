@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "563dec70115155ec478a37859b39718b5e3ed3aa",
+    "engine_revision": "0de6325128b52bf7dcbc8706c820e4df84517236",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -14,7 +14,7 @@
     "visual": {
       "path": "docs/dev/ui-visual-design.md",
       "authority": "normative visual, interaction and editor contract",
-      "sha256": "f1f70212163daec092c193daa85dc06d8b450cc67e0e5d29cf537a86ccbdbecb"
+      "sha256": "6d732824fb6a2357af0888408d4a5e6282dbfc032949db7f6e422c7300b48e60"
     },
     "product": {
       "path": "docs/dev/archive/2026-10-18/plans/ui-product-completion.md",
@@ -1093,7 +1093,7 @@
     "audio-subtitles-playback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/audio-voice-evidence.md",
-      "sha256": "ffc7a536d30caee7576144c61cc8707a486a2e786e5c3813489133f7313dbe3d",
+      "sha256": "141d30870ec84af5be1bc370d31edac8bd49b4d22a37a4dbe6fc386e4fafb178",
       "scope": "Playback-driven installed-transcript subtitles and persistent controls; stock/Awakening runtime plus Classic and native layout checks. Portrait title-card collisions, full corpus and headset qualification remain open. No acceptance granted."
     },
     "inventory-android-setup-return": {

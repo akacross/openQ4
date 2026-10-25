@@ -127,7 +127,10 @@ saturation, stop/retry, missing input, decoder failure and a reduced live budget
 
 The final Windows stock and Awakening runs use `audio_dialogue.py --compressed
 --decode-memory 16`, enter the same maps as the earlier dialogue tests, and pass
-all 24 checks. They exercise mute, pause, time scale 0.5, restart and save/load;
+all 24 checks. They exercise mute, pause, time scale 0.5, restart and save/load
+(correction, 24 October 2026: the Awakening run kept its opening cinematic, which
+refused the save, so only the stock run loaded a saved game; see
+[real saves](#real-saves-in-the-subtitle-and-dialogue-harnesses));
 actual rendered 440/880 Hz tone amplitudes exceed 0.05 in each output. The stock
 save-game stall also exercises underrun recovery at a nonzero dialogue offset.
 
@@ -527,6 +530,10 @@ input is used. The following reports pass all 16 checks, including selected-text
 English fallback, mute, pause, half speed, restart, overlap, interruption,
 save/restore, installed transcript selection, archived controls and real Audio
 page scrolling. Reports retain executable, module, content and harness hashes.
+(Correction, 24 October 2026: both maps open in a cinematic, which refuses a save, so
+these runs' save/restore phase showed captions kept through a refused save, not a
+save and load. The harness now saves and loads for real; see
+[real saves](#real-saves-in-the-subtitle-and-dialogue-harnesses).)
 
 - `.tmp/audio/final3-subtitles-wide/result.json`: stock, English, 1280×720.
 - `.tmp/audio/final3-subtitles-portrait/result.json`: Awakening
@@ -835,10 +842,10 @@ check passes in each:
 | Probes catching a transcribed line: cue shown; cue missing with a free slot | 24; 0 | 34; 0 |
 | Maps with streams playing after the opening | 27 | 12 |
 | Reserved audio after an opening: smallest, median, largest | 65.0, 124.6, 193.8 MiB | 71.7, 151.1, 242.1 MiB |
-| Process peak (admission budget 256 MiB); refusals | 255.4 MiB; 0 | 255.7 MiB; 0 |
+| Managed-payload peak (admission budget 256 MiB); refusals | 255.4 MiB; 0 | 255.7 MiB; 0 |
 
 The largest openings are `mcc_landing`, `building_b` and `mcc_1`, and Awakening's
-`m09_valkaryne`. The process peak includes level changes, where the admission
+`m09_valkaryne`. The managed-payload peak includes level changes, where the admission
 reclaims the previous level's samples as it approaches the budget. The only
 radio-channel starts that are not speech are two stock effect shaders. The
 voice-over-flagged starts that are not speech are radio static and interface
@@ -909,10 +916,170 @@ unqualified.
 `dispersal`, `storage1` and `core1` three times each in one client, 18 openings in
 671 s. All 11 checks pass. Reserved audio after each opening is flat across the
 passes: at most 83 KiB more on the second pass than the first, and identical on the
-third. Voices in use and stream reservations do not grow. The process peak is
-205.7 MiB. A first attempt labelled the passes with `#`, which the console's `echo`
+third. Voices in use and stream reservations do not grow. The managed-payload peak
+is 205.7 MiB. A first attempt labelled the passes with `#`, which the console's `echo`
 splits into separate words, so no opening could be told apart. The labels are now
 `passN/<map>`.
+
+## Scripted scenes, process memory and the largest captions, 24 October 2026
+
+Windows x64, MSVC debugoptimized, built from `87444682f` plus this round's changes;
+client SHA-256 `1cc1399e446bd25449f4101e609185ed2b918520fe19402d6f6084d496045daf`.
+Implementation: [audio modernization](audio-modernization.md#scripted-scenes-process-memory-and-the-largest-captions-october-24).
+
+### Scripted scenes
+
+`audio_scene_audit.py --walk` played every campaign map's first 9 s and then fired
+its scripted speech scenes in authored order, 4 s apart, with a probe after each and
+15 s of probes at the end: the 29 stock maps in three chains (19, 23 and 12 minutes)
+and the 13 Awakening maps in one. Every check passes in each chain, including the
+three new ones: every planned trigger ran, no scene changed the level, and the scenes
+started speech the openings did not.
+
+| Measure | Stock (29 maps) | Awakening (13 maps) |
+| --- | ---: | ---: |
+| Scene triggers fired (absent when fired) | 541 (37) | 148 (1) |
+| Dialogue starts, of them after the opening | 900, 855 | 426, 408 |
+| Distinct dialogue lines started | 711 | 364 |
+| Of them with a transcript | 373 | 355 |
+| Lines not started in any opening | 681 | 348 |
+| Probes at full and muted Dialogue Volume | 715 | 226 |
+| Dialogue heard while muted; declared speech off the control | 0; 0 | 0; 0 |
+| Cues without a transcript; transcribed lines missing a cue with a free slot | 0; 0 | 0; 0 |
+
+The stock map scripts and map files name 1,470 distinct `vo_` lines, and the walk
+started 695 of them, 47%. The rest belong to scenes whose speakers had not spawned,
+had already gone or were never reached in this order, or to branches a trigger does
+not take. Sixteen further lines came from AI barks and definitions. Awakening's scripts
+and maps name 1,808 `vo_` strings, retired scripts left in its folder included, and the
+walk started 312 of them, 17%; its other 52 lines are AI barks. An absent trigger
+is one the map declares but the level no longer held when the walk reached it:
+`storage1` accounts for 29, entities an earlier scene had already removed. The
+opening sweep of 23 October counted 148 dialogue starts in all 42 openings; the walk
+starts 1,326 and reaches 1,050 distinct lines.
+
+The scenes run out of their gameplay order, so this is coverage of the authored
+dialogue routing and captions, not a playthrough: lines a scene plays only after the
+player moves, fights or waits, and the speech of cinematics played by entities this
+selection does not reach, stay unchecked. Few warnings follow from the order; an
+`airdefense1` smoke run logged five non-precached lipSync loads and one scripted move
+that could not start.
+
+### Process memory
+
+`audio_scene_audit.py --silent-baseline` played the first 20 s of six stock maps with
+sound and then again with `s_noSound 1`, where no sample loads, in one client each.
+`listSounds` reports the process's private memory (the Windows commit charge) after
+each opening. The difference between the runs is what audio adds; what remains after
+the managed payloads is the provider's mixer, effects and device buffers, sample
+metadata and the sound system's own structures. The pair ran twice, the second time
+on the build with the restore fix, and all 11 checks pass in both.
+
+| Map | Audio adds (first; second) | Managed payloads | Beyond the payloads (first; second) |
+| --- | ---: | ---: | ---: |
+| `airdefense1` | 185.4; 145.8 MiB | 138.6 MiB | 46.8; 7.2 MiB |
+| `hangar2` | 161.1; 121.7 MiB | 107.7 MiB | 53.3; 14.0 MiB |
+| `medlabs` | 183.0; 165.4 MiB | 138.5 MiB | 44.5; 27.0 MiB |
+| `dispersal` | 165.0; 116.2 MiB | 119.3 MiB | 45.7; −3.1 MiB |
+| `storage1` | 207.0; 170.6 MiB | 147.0 MiB | 59.9; 23.6 MiB |
+| `core1` | 182.4; 130.6 MiB | 124.4 MiB | 58.0; 6.3 MiB |
+
+The runs with sound repeated within 27 MiB, but the silent runs came out 11–76 MiB
+higher the second time, so the difference carries the variation of the rest of a
+3.3–4.0 GiB process. What the table supports is a bound: the managed payloads account
+for most of what audio costs the process, and the remainder outside the 256 MiB budget
+is at most about 60 MiB in these openings. This method does not resolve it more
+finely. The working set (resident) difference was only 7–30 MiB, because Windows trims
+a hidden window's working set; the commit charge is the measure. Earlier evidence
+called the admission's payload peak a "process peak"; those passages now name it the
+managed-payload peak.
+
+On Linux the same comparison is less clean. The private figure there is anonymous
+resident memory plus swap (`/proc/self/status`). For `airdefense1` and `hangar2` it
+rose by 95.0 and 156.2 MiB with sound, against managed payloads of 138.6 and
+107.7 MiB. The first is below its own payloads, so memory outside audio varied
+between those two runs by more than audio's overhead; the GL driver's mappings under
+WSL are one likely source. The second leaves 48.5 MiB beyond the payloads, within the
+Windows bound. All 11 checks pass. Device and mobile figures remain open.
+
+### The largest captions
+
+`audio_subtitles_runtime.py` now also captures a lone caption at the largest text,
+subtitle and interface text scales both at 2 (`largest_text_caption`). At 720×1280 in
+Awakening's `m01_stranarus_trench1` intro, only one line of that size fits below the
+cinematic artwork. Before this change the caption returned into the picture, over the
+"Planet Stroggos" title; it now pages one line at a time below the artwork, clear of
+the title (captures inspected). The same capture showed the radio label "Telsiz:"
+running under the first word, because a speaker name's indent stopped at 30% of the
+line; the words now start after the whole name, and a name wider than half the line
+is left out, as it is at this size. Enlarged two-line captions at 1.6 are unchanged.
+The native placement test now covers one-line fits at 9:16, 10:16, 3:4 and 0.9, the
+largest text at 9:16 and 3:4, and the speaker indent's bounds.
+
+### Real saves in the subtitle and dialogue harnesses
+
+Until this round the subtitle runs saved inside the opening cinematic of
+`airdefense1` and `m01_stranarus_trench1`, and a cinematic refuses a save ("Can't save
+during a cinematic"). Their restore phase therefore showed captions kept through a
+refused save, not a save and load. The Awakening dialogue run did the same; the stock
+one skipped cinematics and did load. The subtitle harness now takes its cinematic
+captures first, loads the map again with cinematics skipped, starts both speakers,
+saves and loads. The dialogue harness skips cinematics on both campaigns. Both check
+`saved_and_loaded`: the save's `Saved` line followed by a level load.
+
+Real saves showed a defect. A line restored from a save resumed as far into itself as
+the rest of the load had taken: a caption saved 267 ms in read 3,842 ms after a
+3,309 ms load and a 500 ms wait, and in the portrait run 333 ms read 2,180 ms after a
+1,309 ms load. Pausing the world as the saved sound state is read changed nothing on
+its own (316 ms read 1,722 ms after a 1,334 ms load), because the sound clock advances
+once per mixed frame and no frame is mixed during a load. With the pause and unpause
+bringing the clock up to date, the stock, portrait and Classic runs read 318, 370 and
+317 ms before the save and 1,281, 810 and 1,199 ms after loads of 1,306, 1,673 and
+1,091 ms. That is 0.4–1.0 s of play after the harness's 500 ms wait, not the load
+time. `restore_resumes_in_place` now allows at most 1.1 s, which the fastest load seen,
+1.3 s, would exceed. Each subtitle run passes all 19 checks; both dialogue runs pass
+all 27, with Dialogue Volume's 0.6 holding across a real restore. These runs use the
+client with the restore fix, SHA-256
+`d488e79abaf95606ea764766fa90a62a019ea4181273392092c0c4b2d42d12d2`; the scene walks
+and the first memory pair ran on the build before it, which differs only in that fix
+and in how a sound world pauses.
+
+### Linux voice chat
+
+Ubuntu 24.04 under WSL2 (kernel 6.6.87.2) ran the client, dedicated server and both
+game modules, built there from the same tree with the multiplayer module (debugoptimized,
+without native tests, Vulkan, OpenXR or GLES, and with a minimal `pak1`). The clients
+ran hidden under Xvfb with SDL's dummy audio driver, and OpenAL Soft 1.23.1 rendered
+through its wave writer. Client SHA-256
+`8a0176edef7ffd52a5ca7e7939c780aa6e4893c97b3fa1b399ecc2625d589d92`, dedicated server
+`f9773b574faf760fd4af416f34161e7cb316715f3f986ee1d4996ccbb0c54d2f`.
+
+`voice_chat_runtime.py --size 480x270` passes all 20 checks against a listen server
+with three client processes, and all 20 against the dedicated server with three
+clients. They cover both directions of rendered voice, mute and unmute, receive off,
+volume, real-time pitch, server moderation, restart, loss and reorder through the
+impairment proxy, late frames, congestion (voice dropped, snapshots kept, recovery
+after it), reconnect identity, no spectator leak, bounded playback and a clean exit;
+no microphone is opened. In the two-way phase each sender captured 83–85 frames, and
+the recipients played 60–76 of them.
+
+The first two attempts rendered with Mesa's software rasterizer (llvmpipe) and failed
+5 and then 7 checks. The clients reached about 3 and then 9 frames a second. The
+synthetic voice source makes one frame per client frame once frames are more than
+60 ms apart, and the 80 ms voice rings need a client faster than that, so those runs
+measured the rasterizer. The passing runs use WSL's GPU paravirtualization through
+Mesa's D3D12 driver (OpenGL on the Intel Iris Xe). Physical capture and playback
+devices, other distributions and separate machines remain open.
+
+### Native and source checks
+
+The `openq4-arena-sound`, `openq4-sound-reverb-core`, `openq4-sound-dialogue`,
+`openq4-sound-output-recovery`, `openq4-sound-memory-trim`, `openq4-voice-packet`,
+`openq4-ui-sound-recovery` and `openq4-ui-subtitles` native tests pass on the final
+build. `arena_sound_pause.py` compiles the real pause and unpause, now with the
+clock refresh, and passes 1,000 pause/resume cycles with a frozen clock.
+`audio_subtitles.py` (both native subtitle tests), `demo_playback.py`,
+`savegame_corruption_contract.py` and the other sources these changes touch pass.
 
 ## Other verification and limitations
 

@@ -242,6 +242,14 @@ void ListSounds_f( const idCmdArgs& args )
 #if defined(USE_OPENAL)
 	idSoundSample_OpenAL::PrintDecodeMemoryInfo();
 #endif
+	// The whole process, which the payload figures above exclude: compared with a
+	// run under s_noSound 1, it measures what audio costs beyond those payloads,
+	// such as the provider's mixer, effects and device buffers.
+	unsigned long long processPrivate = 0, processResident = 0;
+	if( Sys_GetProcessMemoryUsage( processPrivate, processResident ) )
+	{
+		idLib::Printf( "Process memory: private=%llu KiB resident=%llu KiB\n", processPrivate / 1024, processResident / 1024 );
+	}
 }
 
 /*
@@ -918,6 +926,17 @@ idSoundSystemLocal::SoundTime
 */
 int idSoundSystemLocal::SoundTime() const
 {
+	return soundTime;
+}
+
+/*
+========================
+idSoundSystemLocal::RefreshSoundTime
+========================
+*/
+int idSoundSystemLocal::RefreshSoundTime()
+{
+	soundTime = Sys_Milliseconds();
 	return soundTime;
 }
 

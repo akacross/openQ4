@@ -1448,6 +1448,17 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   with flat audio residency, voices and stream reservations. Physical devices,
   hotplug, macOS and other distributions remain the gate.
   [Linux and long-session evidence](audio-voice-evidence.md#linux-voice-output-loss-and-long-sessions-24-october-2026).
+  October 24, second round: loading a saved game no longer moves every restored sound
+  forward by the load time. The sound clock advances once per mixed frame and none is
+  mixed during a load, so the session's pause and unpause read the same stale time;
+  pausing now refreshes it, and reading a saved sound state pauses the world until the
+  map change completes. Restored captions now resume 0.4–1.0 s after their saved point
+  across a 500 ms wait, where they had resumed 1.4–3.6 s later. The subtitle and
+  Awakening dialogue harnesses had saved inside opening cinematics, which refuse saves,
+  so their earlier save/restore passes were vacuous; both now check a real save and
+  load. No Apple host is available for macOS. Physical devices, hotplug, macOS and
+  other distributions remain the gate.
+  [Save and load evidence](audio-voice-evidence.md#real-saves-in-the-subtitle-and-dialogue-harnesses).
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -1491,14 +1502,24 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   loops started and stopped every frame. Flushed sources now rewind, and a
   production queue test covers the case. A sweep of every stock and Awakening map's
   opening finds streams playing on recycled voices and records each level's
-  residency: at most 193.8 and 242.1 MiB after an opening, with a process peak of
-  255.7 MiB under the 256 MiB budget and no refusals. Device and mobile budgets
+  residency: at most 193.8 and 242.1 MiB after an opening, with a managed-payload
+  peak of 255.7 MiB under the 256 MiB budget and no refusals. Device and mobile budgets
   remain open.
   [Scene and residency evidence](audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026).
   October 24: replaying six maps' openings three times in one client leaves each
   map's residency flat, within 83 KiB of its first pass, with voices and stream
   reservations unchanged. On Linux the trim, both stream fixtures and recycled-voice
   streams pass as on Windows.
+  October 24, second round: `listSounds` reports the process's private and resident
+  memory on Windows, Linux/Android and macOS, and `audio_scene_audit.py
+  --silent-baseline` compares each opening with a run under `s_noSound 1`. In two pairs
+  of runs over six stock openings on Windows, audio adds 116–207 MiB of private memory,
+  and at most 60 MiB of it lies outside the managed payloads (provider mixer, effects
+  and device buffers, metadata); the rest of the process varied by up to 76 MiB between
+  runs, so that overhead is bounded rather than measured exactly. Real Android/iOS
+  low-memory notices, device and mobile budgets and provider memory on those devices
+  remain open.
+  [Process memory evidence](audio-voice-evidence.md#process-memory).
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1557,6 +1578,14 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   during the local test qualifies this with the real settings adapter. Physical
   capture and playback endpoints remain open.
   [Voice output-loss evidence](audio-voice-evidence.md#voice-chat-across-output-loss).
+  October 24, second round: voice chat passes on Linux x64 (Ubuntu 24.04 under WSL2,
+  OpenAL Soft 1.23.1): all 20 checks against a listen server and against the
+  dedicated server, each with three real client processes, covering both directions,
+  mute, volume, pitch, moderation, restart, loss and reorder, congestion and
+  reconnect. Software rendering could not keep the clients above the 50 Hz voice
+  cadence, so the runs use WSL's GPU paravirtualization. Physical capture and playback
+  devices, independent machines and their clock drift, and other systems remain open.
+  [Linux voice evidence](audio-voice-evidence.md#linux-voice-chat).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
   persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
@@ -1584,6 +1613,16 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   continued. Dialogue Volume also holds through a simulated output loss and in-place
   HRTF resets. Scenes past each opening, which need player input, and physical
   devices remain open.
+  October 24, second round: `audio_scene_audit.py --walk` reaches the scripted scenes
+  past each opening without input. It fires every entity whose script makes a
+  character speak, and every radio chatter, in authored order, leaving out anything
+  that ends the level. In all 29 stock and 13 Awakening maps, 689 triggers start 1,326
+  dialogue lines, 1,050 of them distinct; no declared speech missed the control and no
+  dialogue played while muted in 941 probes, with effects continuing. Dialogue
+  Volume's 0.6 now also holds across a real Awakening save and load. Scenes play out
+  of their gameplay order, so this is routing coverage, not a playthrough; physical
+  devices remain open.
+  [Scripted-scene evidence](audio-voice-evidence.md#scripted-scenes).
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -1619,6 +1658,17 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   full scene/locale corpus and physical stereo-HUD qualification remain open.
   October 24: the stock subtitle runtime harness (16 checks) and a four-map speech
   sweep also pass on Linux x64.
+  October 24, second round: the scripted-scene walk shows 1,050 distinct dialogue
+  lines in both campaigns, 727 with a transcript; every cue shown had one, and no
+  transcribed line lacked a cue while a slot was free. At the largest text in a
+  portrait cinematic only one line fits below the artwork, so a lone caption now pages
+  a line at a time there instead of covering the title text, and a speaker name no
+  longer runs under the words: it is left out when wider than half the line (visual
+  specification 1.26). Subtitle save/restore is now exercised by a real save and
+  load, and captions resume where they were saved. The rest of the scene corpus,
+  overlapping captions below a portrait picture at the largest text and physical
+  stereo-HUD qualification remain open.
+  [Caption evidence](audio-voice-evidence.md#the-largest-captions).
 
 ## Desktop platforms and packaging
 

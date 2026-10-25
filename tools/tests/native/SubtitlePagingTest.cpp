@@ -18,15 +18,17 @@ int main() {
 	}
 	// Portrait cinematics: when two lines fit under the artwork, the panel hangs
 	// 12 below it, clear of every title row Awakening's intro draws in the
-	// picture (GUI y 270-310) and in its lower band (GUI y 430-470).
-	for (float aspect : {9.0f/16, 10.0f/16, 3.0f/4}) {
+	// picture (GUI y 270-310) and in its lower band (GUI y 430-470). When only
+	// one fits, a one-line panel (a lone caption paged a line at a time) does too.
+	for (float aspect : {9.0f/16, 10.0f/16, 3.0f/4, 0.9f}) {
 		const float artworkTop = 360 - 270 * aspect, artworkBottom = 360 + 270 * aspect;
 		for (float pitch : {17 * 1.4f, 17 * 1.6f * 1.4f, 17 * 2 * 1.4f, 17 * 2 * 2 * 1.4f}) {
-			const bool fits = artworkBottom + 24 + 2 * pitch <= 708;
+			const int fit = artworkBottom + 24 + 2 * pitch <= 708 ? 2 : artworkBottom + 24 + pitch <= 708 ? 1 : 0;
+			assert(LinesBelowArtwork(aspect, pitch) == fit);
 			for (int lines : {1, 2}) {
 				const float bottom = CanvasBottom(aspect, true, pitch, lines);
 				const float top = bottom - (12 + pitch * lines);
-				if (fits) {
+				if (fit == 2 || (fit == 1 && lines == 1)) {
 					assert(std::fabs(top - (artworkBottom + 12)) < 0.01f && bottom <= 708.01f);
 					for (float y : {270.0f, 310.0f, 430.0f, 470.0f})
 						assert(artworkTop + (artworkBottom - artworkTop) * y / 480 < top);
@@ -37,6 +39,15 @@ int main() {
 		}
 	}
 	assert(CanvasBottom(9.0f/16, true, 17 * 1.4f, 2) <= 708 && CanvasBottom(9.0f/16, true, 17 * 2 * 2 * 1.4f, 2) == CanvasBottom(9.0f/16, true));
+	// A speaker label indents the words by its whole width, or is left out past half the line.
+	assert(SpeakerIndent(100, 340) == 100 && SpeakerIndent(170, 340) == 170 && SpeakerIndent(171, 340) == 0);
+	assert(SpeakerIndent(0, 340) == 0 && SpeakerIndent(std::numeric_limits<float>::quiet_NaN(), 340) == 0 &&
+	       SpeakerIndent(100, std::numeric_limits<float>::infinity()) == 0);
+	// The largest text (both scales at 2) at 9:16 and 3:4 fits one line below the picture, not two.
+	assert(LinesBelowArtwork(9.0f/16, 17 * 2 * 2 * 1.4f) == 1 && LinesBelowArtwork(3.0f/4, 17 * 2 * 2 * 1.4f) == 1);
+	assert(CanvasBottom(9.0f/16, true, 17 * 2 * 2 * 1.4f, 1) <= 708 && CanvasBottom(9.0f/16, true, 17 * 2 * 2 * 1.4f, 1) > 360 + 270 * 9.0f/16);
+	assert(LinesBelowArtwork(4.0f/3, 17 * 1.4f) == 0 && LinesBelowArtwork(16.0f/9, 17 * 1.4f) == 0);
+	assert(LinesBelowArtwork(9.0f/16, std::numeric_limits<float>::quiet_NaN()) == 0 && LinesBelowArtwork(9.0f/16, -5) == 0);
 	// 4:3 and wider, gameplay, and an unusable pitch keep the earlier placement.
 	assert(CanvasBottom(4.0f/3, true, 17 * 1.4f, 2) == CanvasBottom(4.0f/3, true));
 	assert(CanvasBottom(16.0f/9, true, 17 * 1.4f, 2) == 640 && CanvasBottom(9.0f/16, false, 17 * 1.4f, 2) == 570);

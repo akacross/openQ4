@@ -393,6 +393,60 @@ draws in it. When two lines fit under the 640x480 artwork, captions now hang fro
 below it; otherwise, and on wider screens, they keep their place
 (`OpenQ4Subtitles::CanvasBottom`).
 
+### Scripted scenes, process memory and the largest captions (October 24)
+
+**Scripted scenes.** `audio_scene_audit.py --walk` continues each map past its
+opening. It reads the map and every script from the installed paks, and Awakening's
+loose files, and picks the entities whose `call` key reaches a function that makes a
+character speak, directly or through the functions it calls: the actor `speak` event,
+which `aiSpeak` and its wrappers use, or a `lipsync_` or `vo_` shader name. Every
+`func_radiochatter` is picked too. Anything that reaches a `target_endlevel`, through
+entity targets, script calls or the entities a function names, is left out. The
+picked entities are fired in authored order with the console `trigger` command, with
+a probe after each, and a tail of probes lets the last conversations finish. The
+scenes start out of their gameplay order, so a line whose speaker has not spawned
+yet stays silent; the audit counts what plays. Each map's command file disarms
+`g_autoExecAfterMapLoad` as it starts, so a level change that no step should make
+cannot run it again; the audit reports any map load inside a scene.
+
+**Process memory.** `listSounds` now ends with `Process memory: private=… KiB
+resident=… KiB` from `Sys_GetProcessMemoryUsage`. On Windows that is the commit
+charge and working set (`K32GetProcessMemoryInfo`, looked up at run time so no psapi
+import is needed). On Linux and Android it is the anonymous resident memory plus
+swap, and `VmRSS`, from `/proc/self/status`. On macOS it is the physical footprint
+and resident size (`TASK_VM_INFO`). `audio_scene_audit.py --silent-baseline` replays
+the openings with `s_noSound 1`, where no sample loads, and reports per map what audio
+adds to the process and how much of that lies beyond the managed payloads: the
+provider's mixer, effects and device buffers, and the sound system's own structures.
+The harness's earlier `process_peak_kib` was the admission's peak of managed
+payloads, not process memory; it is now `payload_peak_kib`.
+
+**Saved games resume sounds in place.** A loaded game restores each sound relative to
+the sound clock at the moment its state is read, which is partway through the level
+load. The session expects the game sound world to be paused while a saved game loads
+and unpauses it when the map change completes, but nothing paused it, so the clock
+ran on through the rest of the load. Every restored sound then resumed as far into
+itself as that took, 1.4–3.6 s in the subtitle runs, ahead of the lip sync the game
+clock drives. A pause could not have held it either: the sound clock advances once per
+mixed frame, no frame is mixed during a load, and a pause and an unpause inside one
+read the same stale time. Pausing and unpausing a sound world now bring the clock up to
+date (`RefreshSoundTime`), and reading a saved sound state pauses the world at that
+point (`ReadSoundState`; render demos are unchanged). Finding it took real saves: the
+subtitle harness, and the dialogue harness on Awakening, had saved inside an opening
+cinematic, which refuses to save, so their restore phases had measured the same
+session. Both now check `saved_and_loaded`: the subtitle harness saves on a second
+load with cinematics skipped, and the dialogue harness skips them on both campaigns.
+
+**The largest captions.** At the largest text (subtitle and interface text scales both
+at 2), only one line fits below a portrait cinematic's artwork at 9:16 or 3:4, so
+captions moved back into the picture, over the title text. Where one line fits
+(`OpenQ4Subtitles::LinesBelowArtwork`), a lone caption is now paged a line at a time
+and stays below the artwork; two overlapping captions still return to the picture.
+The same captures showed a speaker name running under the words: its indent was
+capped at 30% of the line whatever the name measured. The words now start after the
+whole name, which is left out where it would take more than half the line
+(`OpenQ4Subtitles::SpeakerIndent`).
+
 ### Presets
 
 Every performance preset keeps room reverb on (`s_useEAXReverb 1`); see
@@ -411,8 +465,12 @@ restores it on profiles still on the minimum, lowpower or performance preset.
 - **Whole-process/mobile audio memory.** A 256 MiB managed-payload budget now
   jointly admits retained CPU/OpenAL data, WAV/ADPCM/RoQ loading, decoder arenas,
   envelopes and conservative queues, and an operating-system low-memory notice
-  trims what the scene can do without. Provider internals, metadata, all-map
-  residency, a notice delivered by a real Android/iOS device and device
+  trims what the scene can do without. Whole-process cost is measured on Windows
+  and Linux: in two pairs of runs over six stock openings on Windows, audio adds
+  116–207 MiB of private memory, and at most 60 MiB of it lies outside the managed
+  payloads. The rest of the process varied by up to 76 MiB between runs, so that
+  overhead is bounded, not resolved more finely. A notice delivered by a
+  real Android/iOS device, provider memory on those devices and device
   loading-time budgets remain under AUD-03/CORE-03. Lowering the limit preserves
   active allocations while stopping new admissions until usage fits.
 - **Surround device qualification.** Mono global/radio dialogue now honours
@@ -437,7 +495,9 @@ restores it on profiles still on the minimum, lowpower or performance preset.
   OpenAL loopback), `tools/tests/audio_subtitles.py` (transcript status and cinematic
   caption placement) and the gameplay sweep `tools/tests/audio_scene_audit.py` (authored
   speech routing, Dialogue Volume and subtitle cues in every campaign map's opening, and
-  its audio residency).
+  its audio residency). Its `--walk` option continues through each map's scripted speech
+  scenes, `--repeat N` replays the maps in one client, and `--silent-baseline` measures what
+  audio adds to the process against a run with `s_noSound 1`.
 - `tools/tests/sound_settings.py` and `tools/tests/sound_recovery.py` (the device-layout and
   limiter paths), `tools/tests/sound_retail_reverb_contract.py`,
   `tools/tests/sound_distance.py` (distance-harness failure controls),

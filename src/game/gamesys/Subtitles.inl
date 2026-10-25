@@ -21,6 +21,11 @@ void idPlayerView::DrawSubtitles() {
 	// a portrait display and the headset's common virtual HUD surface.
 	const float width = Min(1040.0f, 720.0f * renderSystem->GetScreenWidth() / Max(1, renderSystem->GetScreenHeight()) * 0.84f);
 	const float pitch = size * textScale * 1.4f;
+	const float aspect = static_cast<float>(renderSystem->GetScreenWidth()) / Max(1, renderSystem->GetScreenHeight());
+	const bool cinematic = gameLocal.GetCamera() || player->GetPrivateCameraView();
+	// Where one line fits under a portrait cinematic's artwork, a lone caption pages a
+	// line at a time to stay clear of the title text drawn in the picture.
+	const int singleRows = cinematic && OpenQ4Subtitles::LinesBelowArtwork(aspect, pitch) == 1 ? 1 : 2;
 	subtitleGui->SetStateFloat("width", width);
 	subtitleGui->SetStateFloat("x", (720.0f * renderSystem->GetScreenWidth() / Max(1, renderSystem->GetScreenHeight()) - width) * 0.5f);
 	subtitleGui->SetStateFloat("size", size);
@@ -59,10 +64,11 @@ void idPlayerView::DrawSubtitles() {
 		if (!speaker.IsEmpty()) {
 			speaker.RemoveColors(); speaker += ": ";
 			for (int p = 0; p < speaker.Length();) { float advance; p += Max(1, measure(speaker.c_str() + p, speaker.Length() - p, advance)); speakerWidth += advance; }
-			speakerWidth = Min(width * 0.3f, speakerWidth + 4);
+			speakerWidth = OpenQ4Subtitles::SpeakerIndent(speakerWidth + 4, width);
+			if (speakerWidth <= 0) speaker.Clear();
 		}
 		const float available = Max(16.0f, width - 24 - speakerWidth);
-		const int rows = count == 1 ? 2 : 1;
+		const int rows = count == 1 ? singleRows : 1;
 		idStr cacheKey(cue.text); cacheKey += fontName;
 		if (subtitleCacheText[i] != cacheKey || subtitleCacheWidth[i] != available || subtitleCacheSize[i] != size * textScale || subtitleCacheRows[i] != rows) {
 			subtitleCacheText[i] = cacheKey;
@@ -84,9 +90,7 @@ void idPlayerView::DrawSubtitles() {
 	}
 	subtitleGui->SetStateFloat("lines", static_cast<float>(visibleLines));
 	// Placed once the line count is known: below a portrait cinematic's artwork it hangs from its top.
-	subtitleGui->SetStateFloat("bottom", OpenQ4Subtitles::CanvasBottom(
-		static_cast<float>(renderSystem->GetScreenWidth()) / Max(1, renderSystem->GetScreenHeight()),
-		gameLocal.GetCamera() || player->GetPrivateCameraView(), pitch, visibleLines));
+	subtitleGui->SetStateFloat("bottom", OpenQ4Subtitles::CanvasBottom(aspect, cinematic, pitch, visibleLines));
 	subtitleGui->StateChanged(gameLocal.time);
 	const bool previous = renderSystem->GetUseUIViewportFor2D();
 	renderSystem->SetUseUIViewportFor2D(true);

@@ -41,6 +41,7 @@ If you have questions concerning this license or the applicable additional terms
 #include <io.h>
 #include <dxgi.h>
 #include <bcrypt.h>
+#include <psapi.h>
 
 /*
 ================
@@ -381,6 +382,29 @@ void Sys_GetCurrentMemoryStatus(sysMemoryStats_t& stats) {
 
 	work = statex.ullAvailExtendedVirtual >> 20;
 	stats.availExtendedVirtual = *(int*)&work;
+}
+
+/*
+================
+Sys_GetProcessMemoryUsage
+================
+*/
+bool Sys_GetProcessMemoryUsage( unsigned long long &privateBytes, unsigned long long &residentBytes ) {
+	privateBytes = residentBytes = 0;
+	// K32GetProcessMemoryInfo is exported by kernel32 since Windows 7; looking it up
+	// keeps psapi.lib out of the link.
+	typedef BOOL ( WINAPI *processMemoryInfo_t )( HANDLE, PPROCESS_MEMORY_COUNTERS, DWORD );
+	static const processMemoryInfo_t query = reinterpret_cast<processMemoryInfo_t>(
+		reinterpret_cast<void *>( GetProcAddress( GetModuleHandleA( "kernel32.dll" ), "K32GetProcessMemoryInfo" ) ) );
+	PROCESS_MEMORY_COUNTERS_EX counters;
+	memset( &counters, 0, sizeof( counters ) );
+	counters.cb = sizeof( counters );
+	if ( query == NULL || !query( GetCurrentProcess(), reinterpret_cast<PPROCESS_MEMORY_COUNTERS>( &counters ), sizeof( counters ) ) ) {
+		return false;
+	}
+	privateBytes = counters.PrivateUsage;
+	residentBytes = counters.WorkingSetSize;
+	return true;
 }
 
 /*

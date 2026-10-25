@@ -67,7 +67,19 @@ def main():
     steps += ['set timescale 1', 'set s_volume 1', 'set s_dialogueVolume 1', 's_restart', 'waitMsec 250']; probe('RESTART')
     steps += ['testRadioChatter distract oq4_subtitle_b', 'waitMsec 150']; probe('OVERLAP'); capture('overlap')
     steps += ['set ui_subtitleScale 1.6', 'set ui_subtitleBackground 0.8', 'waitMsec 200']; capture('large')
-    steps += ['set g_autoExecAfterMapLoad ""', 'saveGame audio_subtitles', 'waitMsec 300', 'loadGame audio_subtitles', 'waitMsec 500']; probe('RESTORE'); capture('restore')
+    # The largest text, both scales at 2, on a lone caption: below a portrait cinematic's
+    # artwork only one line fits, so it pages a line at a time there. The untranscribed
+    # fixture takes over the second speaker's channel, which stop leaves; the overlap returns.
+    steps += ['testRadioChatter distract oq4_subtitle_missing', 'testRadioChatter stop', 'set ui_subtitleScale 2', 'set ui_retainedTextScale 2', 'testRadioChatter oq4_subtitle_a',
+              'waitMsec 200']; probe('LARGEST'); capture('largest')
+    steps += ['set ui_subtitleScale 1.6', 'reset ui_retainedTextScale']
+    # The map opens in a cinematic, which refuses a save. After the captures that need the
+    # cinematic, load the map again with cinematics skipped, then save and load outside one.
+    cinematic = steps + ['set g_autoSkipCinematics 1', 'set g_autoExecAfterMapLoad "subtitle-restore.cfg"', f'map {args.map}']
+    steps = ['set g_autoExecAfterMapLoad ""', 'notarget', 'testRadioChatter oq4_subtitle_a',
+             'testRadioChatter distract oq4_subtitle_b', 'waitMsec 300']
+    probe('BEFORE_SAVE')
+    steps += ['echo SUBTITLE_SAVE', 'saveGame audio_subtitles', 'waitMsec 300', 'loadGame audio_subtitles', 'waitMsec 500']; probe('RESTORE'); capture('restore')
     steps += ['testRadioChatter oq4_subtitle_missing', 'waitMsec 100']; probe('INTERRUPT')
     steps += ['testRadioChatter distract oq4_subtitle_missing', 'testRadioChatter stop', 'waitMsec 100']; probe('STOP')
     authored = 'vo_mcc_allop' if args.awakening else 'vo_1_1_1_110_1'
@@ -82,7 +94,8 @@ def main():
               'ui_hudTest guis/mainmenu.gui get gui_set_audio_scroll']
     capture('settings')
     steps += ['testGUI', 'echo SUBTITLE_COMPLETE', 'quit']
-    (game / 'subtitle-test.cfg').write_text('\n'.join(steps) + '\n')
+    (game / 'subtitle-test.cfg').write_text('\n'.join(cinematic) + '\n')
+    (game / 'subtitle-restore.cfg').write_text('\n'.join(steps) + '\n')
     config = root / 'alsoft.conf'
     config.write_text('[general]\ndrivers=wave\nchannels=stereo\nhrtf=false\n[wave]\nfile=' + str(root / 'mix.wav') + '\n')
     cvars = {
@@ -122,7 +135,14 @@ def main():
               'slow_clock': 200 <= cue('SLOW_B').get('time', 0) - cue('SLOW_A').get('time', 0) <= 450,
               'restart_preserves': cue('RESTART').get('time', -1) > cue('SLOW_B').get('time', 10**9),
               'two_speakers': bool(cue('OVERLAP') and cue('OVERLAP', 'b')),
-              'restore_both': bool(cue('RESTORE') and cue('RESTORE', 'b')),
+              'largest_text_caption': bool(cue('LARGEST')) and not cue('LARGEST', 'b'),
+              'restore_both': bool(cue('BEFORE_SAVE') and cue('BEFORE_SAVE', 'b') and cue('RESTORE') and cue('RESTORE', 'b')),
+              # A real save and load: written outside a cinematic, then the level loads from it.
+              # The restored line resumes where it was saved: 500 ms of play after the load
+              # and a few frames, not as far into itself as the load (1.3 s at the fastest) took.
+              'restore_resumes_in_place': 0 < cue('RESTORE').get('time', -1) - cue('BEFORE_SAVE').get('time', 10**9) <= 1100,
+              'saved_and_loaded': "Can't save during a cinematic" not in log and
+                  bool(re.search(r"^SUBTITLE_SAVE\s*\n(?:.*\n)*?Saved 'audio_subtitles'\s*\n(?:.*\n)*?Map: ", log, re.M)),
               'interruption_and_missing_text': not cue('INTERRUPT') and bool(cue('INTERRUPT', 'b')) and not cue('INTERRUPT', 'missing'),
               'stopped_clear': not any(n.startswith('oq4_subtitle_') for n in phases.get('STOP', {})),
               'installed_transcript': authored in phases.get('AUTHORED', {}),
@@ -134,7 +154,7 @@ def main():
     checks['archived_controls'] = all(f'seta {key} "{value}"' in settings for key,value in
                                      [('ui_subtitles','1'), ('ui_subtitleScale','1.6'), ('ui_subtitleBackground','0.8'), ('ui_subtitleSpeakers','0')])
     captures = list((game / 'screenshots').glob('subtitles-*.tga'))
-    checks['engine_captures'] = len(captures) == 9
+    checks['engine_captures'] = len(captures) == 10
     from PIL import Image
     for path in captures:
         with Image.open(path) as im: im.save(path.with_suffix('.png'))
