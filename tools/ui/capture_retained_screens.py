@@ -1015,6 +1015,17 @@ SCENARIOS = {
         'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "join_filter_full-lit"',
         'openq4_retainedGui report',
     ]),
+    # The session's notice layer over the retained menus (section 13.13): a
+    # controller's loss (section 13.7; testControllerLoss stands in for the
+    # device, touching none) shows on the title, stays as the Load Game page
+    # takes over, and leaves when a controller returns.
+    'notices-controller': (None, [
+        'waitMsec 6000', 'testControllerLoss 1', 'waitMsec 600', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-title.tga"',
+        'openq4_retainedGui focus nav_loadgame', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 1500', 'ui_retainedStatus', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-page.tga"',
+        'waitMsec 6000', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-held.tga"',
+        'testControllerLoss 0', 'waitMsec 1500', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-0-symbol-2"', 'screenshot "screenshots/notice-controller-resolved.tga"',
+    ]),
     # Join Game's notices (section 13.13): taking the seeded loopback server
     # off the favorites says so with Undo; putting it back and taking it off
     # again stack three notices, newest at the top; Undo on the newest puts

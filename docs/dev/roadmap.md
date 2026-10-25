@@ -853,7 +853,9 @@ archived provenance; new scheduling belongs here.
   While a scan has found nothing yet, Join Game shows [loading rows](ui/retained-screens.md#loading-rows-24-october-2026)
   at rest, and its first servers replace them with `row.reveal`. Retained pages
   gain section 13.13's [notices](ui/retained-screens.md#notices-24-october-2026);
-  Join Game's favorites use them, and a removal offers Undo for 8 s. Join
+  Join Game's favorites use them, and a removal offers Undo for 8 s. The
+  [notices are shared](ui/retained-screens.md#shared-notices-and-a-lost-controller-25-october-2026)
+  across the retained menus and say when a controller disconnects. Join
   Game's details card names its server [in full](ui/retained-screens.md#full-server-names-25-october-2026),
   which the list cuts.
   Progress, 23 October: [save details](ui/retained-screens.md#save-details)

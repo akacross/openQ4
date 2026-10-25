@@ -41,7 +41,6 @@ from build_retained_screens import (FULL, OLIVE, ORANGE, PROGRESS, U, VALUE, VER
                                     objectives_scrollbar,
                                     page_prompts, path, rgb, solid, stroke, text_width, track, typeface, vector)
 from retained_create_server import header_band, text_row
-from retained_notices import notice_stack
 from retained_difficulty import check_fits, primary_plate
 from retained_saves import ERROR, HEADING, PLACEHOLDER, pager_row, picture_frame, row_plates, row_states, table_text
 from retained_subpage import subpage_document
@@ -842,8 +841,5 @@ def join_game_document() -> dict:
              {"op": "select", "args": [{"state": "join.favorite"}, FAVORITE_KEYS[1], FAVORITE_KEYS[0]]})
     doc.bind("join_favorite.enabled", "join_favorite", "enabled", {"op": ">=", "args": [{"state": "join.selected"}, 0]})
     back = page_prompts(doc, "join_back", action="back", verbs=(VERB_JOIN,))
-    # Section 13.13's notices: a favorite added or removed, the removal
-    # offering Undo; the favorite's star is their symbol.
-    notices = notice_stack(doc, "notice", "joinNoticeAction", [(1, lambda ident: symbol(ident, "fav"))], ("#str_42904",))
     return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back, detail_card(doc)],
-                            [*notices, join_ip_modal(doc), find_modal(doc)])
+                            [join_ip_modal(doc), find_modal(doc)])

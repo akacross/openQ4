@@ -7,7 +7,11 @@ with an action) and asks for each entrance (`<prefix>Enter<slot>`:
 notice.enter, 160 ms, 12 dp in from the trailing edge with opacity),
 departure (`<prefix>Leave<slot>`: notice.leave, 200 ms opacity) and the rest
 of a slot a departure empties (`<prefix>Rest<slot>`). A notice's action runs
-the session's `<verb><slot>`."""
+the session's `<verb><slot>`.
+
+The layer is the session's, not a page's: `with_notices` adds it to each
+retained menu once the document is built, so the stack follows the player
+from page to page."""
 from __future__ import annotations
 
 from build_retained_screens import (EASE_OUT, OLIVE, ORANGE, Document, absolute, colour, group, keyword, label, linear, number,
@@ -21,6 +25,43 @@ CUT = 8.0                                  # dp: the header band's upper-leading
 SYMBOL_SIZE = 16.0                         # dp: the status symbol's tile
 TEXT_SIZE = 14.0                           # dp: Lowpixel
 ENTER_MS, LEAVE_MS, ENTER_DP = 160, 200, 12.0
+
+
+def controller_symbol(ident: str) -> dict:
+    """A controller crossed out, on the list symbols' dark tile (section
+    13.7's device notices): its body and grips in white, the stroke across in
+    orange."""
+    s = SYMBOL_SIZE
+    body = [(2.5, 6.0), (5.0, 4.5), (11.0, 4.5), (13.5, 6.0), (14.5, 11.0), (12.5, 12.5), (10.5, 10.5), (5.5, 10.5),
+            (3.5, 12.5), (1.5, 11.0)]
+    return vector(ident, {"position": keyword("relative"), "width": {"type": "length", "value": s, "unit": "dp"},
+                          "height": {"type": "length", "value": s, "unit": "dp"}}, [
+        path("tile", [(3, 0), (s, 0), (s, s), (0, s), (0, 3)], fill=solid([0, 0, 0, 0.5])),
+        path("body", body, stroke=stroke(solid([1, 1, 1, 0.9]), 1.2)),
+        path("cross", [(2.0, 14.0), (14.0, 2.0)], closed=False, stroke=stroke(solid(rgb(ORANGE)), 1.4)),
+    ])
+
+
+def with_notices(result: dict) -> dict:
+    """A built document with the session's notice layer over it: its three
+    slots join the root's last children (over the page and its dialogs), and
+    their state, actions, events, bindings and timelines the document's. The
+    status symbols: 1 the favorite's star, 2 a lost controller."""
+    from retained_join_game import symbol
+    doc = Document(result["id"])
+    slots = notice_stack(doc, "notice", "noticeAction", [(1, lambda ident: symbol(ident, "fav")), (2, controller_symbol)],
+                         ("#str_42904",))
+    fragment = doc.build(group("notices", {}, slots))
+    for key in ("state", "actions", "events"):
+        if fragment.get(key):
+            merged = result.get(key, {})
+            assert not set(merged) & set(fragment[key]), (result["id"], key)
+            result[key] = {**merged, **fragment[key]}
+    result["bindings"] = result.get("bindings", []) + fragment.get("bindings", [])
+    result["timelines"] = result.get("timelines", []) + fragment["timelines"]
+    result["root"]["children"].extend(slots)
+    order = ("format", "version", "id", "canvas", "state", "actions", "events", "bindings", "detail", "timelines", "root")
+    return {**{key: result[key] for key in order if key in result}, **{key: value for key, value in result.items() if key not in order}}
 
 
 def action_width(keys: tuple) -> float:

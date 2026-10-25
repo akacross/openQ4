@@ -162,6 +162,13 @@ struct CVarSystem {
     void SetCVarBool(const char* name, bool value) { strings[name] = value ? "1" : "0"; }
     void SetCVarString(const char* name, const char* value) { strings[name] = value; }
 } cvarSystemObject, *cvarSystem = &cvarSystemObject;
+// Retained documents are the .q4ui ones (UI_IsRetainedPath).
+static bool UI_IsRetainedPath(const char* path) {
+    const std::string name = path ? path : "";
+    return name.size() > 5 && name.compare(name.size() - 5, 5, ".q4ui") == 0;
+}
+enum { RETAINED_NOTICE_FAVORITE = 1, RETAINED_NOTICE_CONTROLLER = 2 };
+enum { RETAINED_NOTICE_UNDO_NONE, RETAINED_NOTICE_UNDO_FAVORITE };
 struct FileSystem {
     std::set<std::string> files;
     std::map<std::string, std::set<std::string>> gameDirFiles; // what each game directory itself supplies
@@ -685,10 +692,17 @@ public:
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
     void PublishRetainedJoinDetail(idUserInterface*); int retainedJoinDetailRow = -1;
     void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
-    // Its notices (section 13.13): shown oldest first, then those waiting.
-    struct retainedNotice_t { idStr text, action; int kind = 0; idStr subject; int shownAt = -1, leavingAt = -1; };
-    idList<retainedNotice_t> retainedJoinNotices; bool retainedJoinNoticesDirty = false;
-    void PushRetainedJoinNotice(const char*, int, const char*, const char*); void UpdateRetainedJoinNotices(idUserInterface*);
+    // The notices over the retained menus (section 13.13): shown oldest
+    // first, then those waiting; the menu they were published to; the
+    // controller family last seen.
+    struct retainedNotice_t {
+        idStr text, action; int kind = 0; idStr subject; int undo = 0; bool persistent = false, resolved = false;
+        int shownAt = -1, leavingAt = -1;
+    };
+    idList<retainedNotice_t> retainedNotices; bool retainedNoticesDirty = false; idUserInterface* retainedNoticesGui = nullptr;
+    idStr retainedNoticeGamepad;
+    void PushRetainedNotice(const char*, int, const char*, const char*, int, bool); void ResolveRetainedNotices(int);
+    void UpdateRetainedNotices(); void HandleRetainedNoticeAction(idUserInterface*, int);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
@@ -1691,46 +1705,79 @@ int main() {
         CHECK(scan.calls.back() == "ToggleFavoriteServer 0" && scan.favorites.empty() && join->state["join.favorite"] == "0" &&
               join->state["join.row1.fav"] == "0");
         s.HandleRetainedSessionRequest(join, "joinFavorite"); CHECK(scan.favorites.count("10.0.0.1:28004") && join->state["join.favorite"] == "1");
-        // Section 13.13's notices: each toggle says what it did, newest at the
-        // top, entering there; the removal offers Undo.
+        // Section 13.13's notices, over whichever retained menu shows (here
+        // Join Game): each toggle says what it did, newest at the top,
+        // entering there; the removal offers Undo. The first publish to a menu
+        // rests its slots.
         const auto named = [&](const char* event) { return std::count(join->named.begin(), join->named.end(), std::string(event)); };
-        CHECK(s.retainedJoinNotices.Num() == 2 && join->state["notice.0.shown"] == "1" && join->state["notice.0.text"] == "#str_231539" &&
-              join->state["notice.0.action"] == "" && join->state["notice.0.kind"] == "1" && join->state["notice.1.text"] == "#str_231540" &&
-              join->state["notice.1.action"] == "#str_42904" && join->state["notice.2.shown"] == "0" && named("noticeEnter0") == 2);
+        CHECK(s.retainedNoticesGui == join && s.retainedNotices.Num() == 2 && join->state["notice.0.shown"] == "1" &&
+              join->state["notice.0.text"] == "#str_231539" && join->state["notice.0.action"] == "" && join->state["notice.0.kind"] == "1" &&
+              join->state["notice.1.text"] == "#str_231540" && join->state["notice.1.action"] == "#str_42904" &&
+              join->state["notice.2.shown"] == "0" && named("noticeEnter0") == 2 && named("noticeRest2") == 1);
+        const auto rests = named("noticeRest0");
         // The plain notice holds 4 s, then leaves over 200 ms; its slot rests
         // and the older notice closes up into it.
-        commonObject.time += 3999; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 0);
-        commonObject.time += 1; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 1 && join->state["notice.0.shown"] == "1");
-        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
-        CHECK(named("noticeRest0") == 1 && s.retainedJoinNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540" &&
+        commonObject.time += 3999; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == 0);
+        commonObject.time += 1; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == 1 && join->state["notice.0.shown"] == "1");
+        commonObject.time += 200; s.UpdateRetainedNotices();
+        CHECK(named("noticeRest0") == rests + 1 && s.retainedNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540" &&
               join->state["notice.1.shown"] == "0");
         // Removed again: a second Undo enters at the top. Its Undo puts the
         // server back among the favorites and the notice leaves.
         s.HandleRetainedSessionRequest(join, "joinFavorite");
         CHECK(scan.favorites.empty() && named("noticeEnter0") == 3 && join->state["notice.0.action"] == "#str_42904" &&
               join->state["notice.1.text"] == "#str_231540");
-        s.HandleRetainedSessionRequest(join, "joinNoticeAction0");
+        s.HandleRetainedSessionRequest(join, "noticeAction0");
         CHECK(scan.favorites.count("10.0.0.1:28004") && join->state["join.favorite"] == "1" && named("noticeLeave0") == 2);
-        // An action already taken, or a slot without a notice, does nothing.
+        // An action already taken, a slot without a notice, or another menu's
+        // request, does nothing.
         const auto calls = scan.calls.size();
-        s.HandleRetainedSessionRequest(join, "joinNoticeAction0"); s.HandleRetainedSessionRequest(join, "joinNoticeAction2");
+        s.HandleRetainedSessionRequest(join, "noticeAction0"); s.HandleRetainedSessionRequest(join, "noticeAction2");
+        s.HandleRetainedSessionRequest(s.guiRetainedHome, "noticeAction1");
         CHECK(scan.calls.size() == calls && scan.favorites.count("10.0.0.1:28004"));
-        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
-        CHECK(named("noticeRest0") == 2 && s.retainedJoinNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540");
+        commonObject.time += 200; s.UpdateRetainedNotices();
+        CHECK(named("noticeRest0") == rests + 2 && s.retainedNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540");
         // A notice with an action holds 8 s.
-        commonObject.time += 3599; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 2);
-        commonObject.time += 1; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 3);
-        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
-        CHECK(s.retainedJoinNotices.empty() && join->state["notice.0.shown"] == "0");
+        commonObject.time += 3599; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == 2);
+        commonObject.time += 1; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == 3);
+        commonObject.time += 200; s.UpdateRetainedNotices();
+        CHECK(s.retainedNotices.empty() && join->state["notice.0.shown"] == "0");
         // At most three show; a fourth waits until one has gone.
-        for (int i = 0; i < 4; ++i) s.PushRetainedJoinNotice("#str_231539", 1, "", "");
-        for (int i = 0; i < 4; ++i) s.UpdateRetainedJoinNotices(join);
-        CHECK(join->state["notice.2.shown"] == "1" && s.retainedJoinNotices[3].shownAt < 0);
-        commonObject.time += 4000; s.UpdateRetainedJoinNotices(join); commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
-        s.UpdateRetainedJoinNotices(join);
-        CHECK(s.retainedJoinNotices.Num() == 1 && s.retainedJoinNotices[0].shownAt >= 0 && join->state["notice.1.shown"] == "0");
-        commonObject.time += 4000; s.UpdateRetainedJoinNotices(join); commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
-        CHECK(s.retainedJoinNotices.empty());
+        for (int i = 0; i < 4; ++i) s.PushRetainedNotice("#str_231539", 1, "", "", RETAINED_NOTICE_UNDO_NONE, false);
+        for (int i = 0; i < 4; ++i) s.UpdateRetainedNotices();
+        CHECK(join->state["notice.2.shown"] == "1" && s.retainedNotices[3].shownAt < 0);
+        commonObject.time += 4000; s.UpdateRetainedNotices(); commonObject.time += 200; s.UpdateRetainedNotices();
+        s.UpdateRetainedNotices();
+        CHECK(s.retainedNotices.Num() == 1 && s.retainedNotices[0].shownAt >= 0 && join->state["notice.1.shown"] == "0");
+        commonObject.time += 4000; s.UpdateRetainedNotices(); commonObject.time += 200; s.UpdateRetainedNotices();
+        CHECK(s.retainedNotices.empty());
+        // A controller's loss (section 13.7): a controller connecting says
+        // nothing; its loss is a notice with the controller's symbol that
+        // stays past any hold until one connects again.
+        cvarSystemObject.strings["in_gamepadFamily"] = "xbox"; s.UpdateRetainedNotices(); CHECK(s.retainedNotices.empty());
+        cvarSystemObject.strings["in_gamepadFamily"] = "none"; s.UpdateRetainedNotices();
+        CHECK(s.retainedNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231541" && join->state["notice.0.kind"] == "2" &&
+              join->state["notice.0.action"] == "");
+        const auto leaves = named("noticeLeave0");
+        commonObject.time += 60000; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == leaves && join->state["notice.0.shown"] == "1");
+        cvarSystemObject.strings["in_gamepadFamily"] = "playstation"; s.UpdateRetainedNotices(); CHECK(named("noticeLeave0") == leaves + 1);
+        commonObject.time += 200; s.UpdateRetainedNotices(); CHECK(s.retainedNotices.empty() && join->state["notice.0.shown"] == "0");
+        // A loss and a quick return leave nothing behind.
+        cvarSystemObject.strings["in_gamepadFamily"] = "none"; s.UpdateRetainedNotices();
+        cvarSystemObject.strings["in_gamepadFamily"] = "xbox"; s.UpdateRetainedNotices(); s.UpdateRetainedNotices();
+        commonObject.time += 200; s.UpdateRetainedNotices(); CHECK(s.retainedNotices.empty());
+        // (A controller stays connected from here: dropping the CVar would read as a loss.)
+        // The stack moves with the menu that shows; the home, drawn behind a
+        // page as its frame, drops it while the page shows.
+        // (The title shows over the legacy menu as the home; a page clears it.)
+        s.PushRetainedNotice("#str_231539", RETAINED_NOTICE_FAVORITE, "", "", RETAINED_NOTICE_UNDO_NONE, false);
+        auto* home = s.guiRetainedTitle; CHECK(home != nullptr);
+        auto* homeBefore = s.guiRetainedHome; s.guiRetainedHome = home; s.guiActive = s.guiMainMenu; s.UpdateRetainedNotices();
+        CHECK(s.retainedNoticesGui == home && home->state["notice.0.shown"] == "1" && home->state["notice.0.text"] == "#str_231539");
+        s.guiRetainedHome = homeBefore; s.guiActive = join; s.UpdateRetainedNotices();
+        CHECK(s.retainedNoticesGui == join && home->state["notice.0.shown"] == "0" && join->state["notice.0.shown"] == "1");
+        commonObject.time += 4000; s.UpdateRetainedNotices(); commonObject.time += 200; s.UpdateRetainedNotices();
+        CHECK(s.retainedNotices.empty() && join->state["notice.0.shown"] == "0");
         // MOD's spinner shows the next and the previous mod.
         s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
         s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
@@ -4435,7 +4482,11 @@ def check_join_game(menu: str) -> None:
     adapter = (ROOT / 'src/ui/UserInterfaceRetained.cpp').read_text(encoding='utf-8', errors='replace')
     document = json.loads(re.sub(r'^\s*//.*$', '', (ROOT / 'content/baseoq4/pak0/guis/menu/joingame.q4ui').read_text(encoding='utf-8'), flags=re.M))
     commands = {action['arguments']['command'] for action in document['actions'].values() if action['operation'] == 'session.menu'}
-    assert {verb for verb in cpp_allowlist(adapter, 'bool SessionMenuCommand(') if verb.startswith('join')} == commands, sorted(commands)
+    # The page's own verbs, and the session's notice layer's (section 13.13).
+    shared = {f'noticeAction{slot}' for slot in range(3)}
+    allowed = cpp_allowlist(adapter, 'bool SessionMenuCommand(')
+    assert shared <= commands and shared <= set(allowed), sorted(commands)
+    assert {verb for verb in allowed if verb.startswith('join')} == commands - shared, sorted(commands)
     nodes, pending = set(), [document['root']]
     while pending:
         node = pending.pop()
@@ -5086,7 +5137,9 @@ def main() -> int:
             assert 'bottom' in bar and 'top' not in bar, relative
             assert find_node(document['root'], 'load-panel')['properties']['height'] == {'type': 'length', 'value': 100, 'unit': '%'}, relative
         if 'pause' in relative or 'mp_escape' in relative or 'mp_summary' in relative:
-            assert [child['id'] for child in document['root']['children']] == ['scene-softfocus', 'scrim', 'chrome'], relative
+            # The pause carries the session's notice slots over everything.
+            notices = ['notice-0', 'notice-1', 'notice-2'] if relative.endswith('/pause.q4ui') else []
+            assert [child['id'] for child in document['root']['children']] == ['scene-softfocus', 'scrim', 'chrome', *notices], relative
         if 'pause' in relative:
             layers = [child['id'] for child in document['root']['children'][2]['children']]
             assert layers.index('objectives-bar') < layers.index('band-top') < layers.index('objectives'), relative
@@ -5165,7 +5218,8 @@ def main() -> int:
         'idUserInterface *idSessionLocal::RetainedJoinGamePage(', 'void idSessionLocal::OpenRetainedJoinGame(',
         'static int Session_NetworkQualityBars(',
         'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::PublishRetainedJoinDetail(',
-        'void idSessionLocal::PushRetainedJoinNotice(', 'void idSessionLocal::UpdateRetainedJoinNotices(',
+        'void idSessionLocal::PushRetainedNotice(', 'void idSessionLocal::ResolveRetainedNotices(',
+        'void idSessionLocal::UpdateRetainedNotices(', 'void idSessionLocal::HandleRetainedNoticeAction(',
         'void idSessionLocal::UpdateRetainedJoinGame(',
         'void idSessionLocal::HandleRetainedJoinGameRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',

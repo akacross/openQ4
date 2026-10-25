@@ -1,5 +1,10 @@
 # UI product requirement register
 
+25 October 2026: [shared notices](retained-screens.md#shared-notices-and-a-lost-controller-25-october-2026)
+add bounded UI-03 evidence to `WID-026`. The notices follow the player across the
+retained menus, and a lost controller shows one until it returns. The increment is audited against `e28992e8ffbccde281e04b7f25722de47b903d79`. No requirement status,
+migration acceptance or final gate changes.
+
 25 October 2026: [full server names](retained-screens.md#full-server-names-25-october-2026)
 add bounded UI-03 evidence to `WID-020`. Join Game's details card names its
 server in full over the address. The increment is audited against `4d12fb9c86dcdced701b7ac2b60bac7d7f38220e`. No requirement status,

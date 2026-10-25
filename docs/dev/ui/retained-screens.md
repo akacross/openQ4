@@ -1725,6 +1725,38 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## Shared notices and a lost controller (25 October 2026)
+
+The notices are now the session's layer rather than Join Game's: the
+generator adds the three slots to every retained menu (`with_notices`: the
+title, the pause, Single Player, Campaign and its difficulty, Load and Save
+Game, Restart Level, Demos, the death screen, Credits, the Arena and its
+pause, Multiplayer, Create Server and Join Game; not the loading screen, the
+Strogg family's pages or the multiplayer cards), and one queue in the session
+(`PushRetainedNotice`, `UpdateRetainedNotices`) publishes to whichever of
+them shows: a page, or the home over the legacy menu. The stack follows the
+player from menu to menu, published in full to each menu as it comes to show;
+a home screen, which stays drawn behind a page as its frame, drops it while
+the page shows it. A notice's action is the shared `noticeAction<slot>`
+(`HandleRetainedNoticeAction`), so Join Game's Undo works from any menu.
+
+Section 13.7's device notice joins it: when the controller in use goes away
+(`in_gamepadFamily` falls to `none`), "Controller disconnected." shows with a
+controller crossed out (`#str_231541`, every shipped language) and stays past
+any hold, since an unresolved state persists, until a controller connects
+again; a controller connecting says nothing. `testControllerLoss 1|0`, a
+cheat command like `testPromptDevice`, stands in for the loss and return
+without touching a device.
+
+The gate's session harness checks the controller notice through the CVar,
+its persistence and resolution, the layer following the showing menu and the
+home dropping it; the native tests check the slots on Join Game; captures
+show the notice on the title, carried to the Load Game page, held past 4 s
+and gone on return, and Join Game's stack.
+
+Evidence: `.tmp/ui/shared-notices/validation-evidence.json`, SHA-256
+`1f4acec144f950b8a979122487bd200b0726242b2a9c7eb655ab71b06684dea5`.
+
 ## Full server names (25 October 2026)
 
 Join Game's rows cut a long server name with an ellipsis, and nothing showed

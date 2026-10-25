@@ -224,6 +224,22 @@ static void Session_FramePacingReset_f( const idCmdArgs &args ) {
 	common->Printf( "Frame pacing stats reset\n" );
 }
 
+/*
+================
+Session_TestControllerLoss_f
+
+openQ4: testControllerLoss 1|0 stands in for a controller's loss or return
+for the menus' notices (section 13.7), touching no device.
+================
+*/
+static void Session_TestControllerLoss_f( const idCmdArgs &args ) {
+	if ( args.Argc() > 1 && atoi( args.Argv( 1 ) ) == 0 ) {
+		sessLocal.ResolveRetainedNotices( RETAINED_NOTICE_CONTROLLER );
+	} else {
+		sessLocal.PushRetainedNotice( "#str_231541", RETAINED_NOTICE_CONTROLLER, "", "", RETAINED_NOTICE_UNDO_NONE, true );
+	}
+}
+
 static void Session_TestWaitBox_f( const idCmdArgs &args ) {
 	int durationMsec = 2000;
 	bool network = false;
@@ -3947,8 +3963,10 @@ void idSessionLocal::Clear() {
 	retainedJoinShotMap.Clear();
 	retainedJoinShot.Clear();
 	retainedJoinDetailRow = -1;
-	retainedJoinNotices.Clear();
-	retainedJoinNoticesDirty = false;
+	retainedNotices.Clear();
+	retainedNoticesDirty = false;
+	retainedNoticesGui = NULL;
+	retainedNoticeGamepad.Clear();
 	retainedDemoRows.Clear();
 	retainedDemoFirst = 0;
 	retainedDemoSelected = -1;
@@ -9709,6 +9727,7 @@ void idSessionLocal::Init() {
 	cmdSystem->AddCommand( "framePacingSnapshot", Session_FramePacingSnapshot_f, CMD_FL_SYSTEM, "prints the current frame-pacing diagnostics summary" );
 	cmdSystem->AddCommand( "framePacingReset", Session_FramePacingReset_f, CMD_FL_SYSTEM, "resets frame-pacing diagnostics before a measured window" );
 	cmdSystem->AddCommand( "testWaitBox", Session_TestWaitBox_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "opens a timed wait box and prints frame-pacing stats: testWaitBox <msec> [network 0/1] [reason]" );
+	cmdSystem->AddCommand( "testControllerLoss", Session_TestControllerLoss_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "stands in for a controller's loss (1) or return (0) for the menus' notices" );
 	cmdSystem->AddCommand( "testMessageBox", Session_TestMessageBox_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "opens a timed message box and prints frame-pacing stats: testMessageBox <msec> [network 0/1] [reason]" );
 
 	cmdSystem->AddCommand( "writeCmdDemo", Session_WriteCmdDemo_f, CMD_FL_SYSTEM, "writes a command demo" );

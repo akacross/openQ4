@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","joinNoticeAction0","joinNoticeAction1","joinNoticeAction2","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","noticeAction0","noticeAction1","noticeAction2","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -3102,7 +3102,7 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"},{"joinFilterFull","joinFilterFull"},
 		{"joinFilterEmpty","joinFilterEmpty"},{"joinFilterPassword","joinFilterPassword"},
 		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"},{"joinClearFilters","joinClearFilters"},
-		{"joinNoticeAction0","joinNoticeAction0"},{"joinNoticeAction1","joinNoticeAction1"},{"joinNoticeAction2","joinNoticeAction2"}};
+		{"noticeAction0","noticeAction0"},{"noticeAction1","noticeAction1"},{"noticeAction2","noticeAction2"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
@@ -3489,7 +3489,9 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	Check(text("notice-0","display") == "block" && text("notice-1","display") == "block" && text("notice-2","display") == "none" &&
 		Near(notice0.x+notice0.width,1280-24,1) && Near(notice0.y,14,1) && Near(notice0.width,400,1) && Near(notice0.height,30,1) &&
 		Near(notice1.y,notice0.y+36,1),"two plates stack from the top band's trailing section");
-	Check(text("notice-0-symbol-1","display") == "block" && text("notice-0-text","text") == "#str_231540" &&
+	// The session's layer: the favorite's star and a lost controller's symbol.
+	Check(document.Model().FindNode("notice-0-symbol-2") && text("notice-0-symbol-2","display") == "none" &&
+		text("notice-0-symbol-1","display") == "block" && text("notice-0-text","text") == "#str_231540" &&
 		text("notice-0-action","display") == "block" && text("notice-0-action-label","text") == "#str_42904" &&
 		text("notice-1-action","display") == "none" && noticeText.x+noticeText.width <= noticeAction.x+1 &&
 		noticeAction.x+noticeAction.width <= notice0.x+notice0.width,"each its star and text, the removal its Undo inside the plate");
@@ -3498,7 +3500,7 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	runtime.MenuAction(MenuInput::Accept,true,3.83); runtime.MenuAction(MenuInput::Accept,false,3.84);
 	{
 		const auto undone = runtime.TakeActions();
-		Check(undone.size() == 1 && undone[0].action == "joinNoticeAction0","Accept asks the session to undo");
+		Check(undone.size() == 1 && undone[0].action == "noticeAction0","Accept asks the session to undo");
 	}
 	// notice.enter: 160 ms, 12 dp in from the trailing edge with opacity.
 	Check(runtime.RunEvent("noticeEnter0",3.9,effects,error),"a notice enters");

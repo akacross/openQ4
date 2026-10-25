@@ -3777,6 +3777,10 @@ def render(document: dict) -> str:
     return text_value.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
+NOTICE_DOCUMENTS = ("title", "pause", "singleplayer", "campaigns", "skill", "loadgame", "savegame", "restartlevel", "demos",
+                    "restartmenu", "credits", "arena", "multiplayer", "createserver", "joingame", "arena_pause")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail when a generated document differs from its source")
@@ -3795,6 +3799,7 @@ def main() -> int:
     from retained_create_server import create_server_document
     from retained_join_game import join_game_document
     from retained_arena_pause import arena_pause_document
+    from retained_notices import with_notices
     documents = {"title": title_document(), "pause": pause_document(), "pause_strogg": pause_document(strogg=True),
                  "loading": loading_document(),
                  "singleplayer": campaign_document(False), "campaigns": campaign_document(True),
@@ -3811,6 +3816,10 @@ def main() -> int:
                  "joingame": join_game_document(),
                  "mp_escape": escape_document(), "mp_welcome": welcome_document(), "mp_summary": summary_document(),
                  "arena_pause": arena_pause_document()}
+    # The session's notices (section 13.13) over every retained menu but the
+    # loading screen, the Strogg family's pages and the multiplayer cards.
+    for name in NOTICE_DOCUMENTS:
+        documents[name] = with_notices(documents[name])
     stale = []
     for name, document in documents.items():
         output = OUTPUTS[name]

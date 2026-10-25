@@ -142,6 +142,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Shared notices, 25 October 2026
+
+- [x] The notices follow the player across the retained menus, and a lost
+  controller shows one until it returns
+  ([shared notices](ui/retained-screens.md#shared-notices-and-a-lost-controller-25-october-2026):
+  session harness, native and capture checks).
+
 ## Full server names, 25 October 2026
 
 - [x] Join Game's details card names its server in full over the address

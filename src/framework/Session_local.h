@@ -209,6 +209,18 @@ const int USERCMD_PER_DEMO_FRAME	= 2;
 const int CONNECT_TRANSMIT_TIME		= 1000;
 const int MAX_LOGGED_USERCMDS		= 60*60*60;	// one hour of single player, 15 minutes of four player
 
+// A notice's status symbol (idSessionLocal::retainedNotice_t::kind), as the
+// notice layer draws it (tools/ui/retained_notices.py), and what its action
+// undoes (::undo).
+enum {
+	RETAINED_NOTICE_FAVORITE = 1,		// the favorite's star
+	RETAINED_NOTICE_CONTROLLER = 2		// a controller crossed out
+};
+enum {
+	RETAINED_NOTICE_UNDO_NONE,
+	RETAINED_NOTICE_UNDO_FAVORITE		// puts a server back among the favorites
+};
+
 class idSessionLocal : public idSession {
 public:
 
@@ -421,8 +433,11 @@ public:
 	void				PublishRetainedJoinGame( idUserInterface *gui );
 	void				PublishRetainedJoinDetail( idUserInterface *gui );
 	void				UpdateRetainedJoinGame();
-	void				PushRetainedJoinNotice( const char *text, int kind, const char *action, const char *subject );
-	void				UpdateRetainedJoinNotices( idUserInterface *gui );
+	void				PushRetainedNotice( const char *text, int kind, const char *action, const char *subject, int undo,
+							bool persistent );
+	void				ResolveRetainedNotices( int kind );
+	void				UpdateRetainedNotices();
+	void				HandleRetainedNoticeAction( idUserInterface *gui, int slot );
 	// The stock browser's server tooltip, kept for the hovered row while the
 	// classic main menu runs (idServerScan::GUIUpdateHover).
 	void				UpdateBrowserTooltip();
@@ -777,20 +792,26 @@ public:
 	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
 	idStr				retainedJoinShot;		// that levelshot
 	int					retainedJoinDetailRow;	// the page row whose server's details the page holds (-1: none)
-	// A notice of section 13.13 on Join Game: its text and its action's label
-	// (language-table keys; no action: empty), its status symbol, what the
-	// action acts on (a server's address), and when it entered and began to
-	// leave (-1: not yet).
+	// A notice of section 13.13 over the retained menus: its text and its
+	// action's label (language-table keys; no action: empty), its status
+	// symbol, what the action undoes (RETAINED_NOTICE_UNDO_*) and on what (a
+	// server's address), whether it stays until resolved, and when it entered
+	// and began to leave (-1: not yet).
 	struct retainedNotice_t {
 		idStr			text;
 		idStr			action;
 		int				kind;
 		idStr			subject;
+		int				undo;
+		bool			persistent;
+		bool			resolved;
 		int				shownAt;
 		int				leavingAt;
 	};
-	idList<retainedNotice_t> retainedJoinNotices;	// shown oldest first, then those waiting, as they came
-	bool				retainedJoinNoticesDirty;	// the stack changed since it was published
+	idList<retainedNotice_t> retainedNotices;	// shown oldest first, then those waiting, as they came
+	bool				retainedNoticesDirty;		// the stack changed since it was published
+	idUserInterface *	retainedNoticesGui;			// the retained menu it was published to
+	idStr				retainedNoticeGamepad;		// in_gamepadFamily as last seen (empty: not yet read)
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

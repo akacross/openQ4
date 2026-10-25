@@ -3500,7 +3500,9 @@ def validate_pause_menu() -> None:
     # The retained card's verbs and questions.
     text = (ROOT / "content" / "baseoq4" / "pak0" / "guis" / "menu" / "arena_pause.q4ui").read_text(encoding="utf-8")
     document = json.loads(re.sub(r"^\s*//.*$", "", text, flags=re.M))
-    actions = {name: action["arguments"]["command"] for name, action in document["actions"].items()}
+    # The card's own verbs; the session's notice layer adds its actions to every retained menu.
+    actions = {name: action["arguments"]["command"] for name, action in document["actions"].items()
+               if not name.startswith("noticeAction")}
     if actions != {"resume": "resume", "settings": "settings", "arenaRestart": "arenaRestart", "arenaLeave": "arenaLeave"}:
         raise AssertionError(f"the Arena pause card's verbs are {sorted(actions)}")
     if document["events"]["onBack"] != [{"op": "action", "action": "resume"}]:
