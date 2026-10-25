@@ -46,6 +46,10 @@
   240 FPS cap, whether pacing meets openQ4's 240 Hz target.
   `com_preciseFrameWait 0` restores the previous frame-cap wait if you need to
   compare.
+- With the Vulkan renderer, `r_vkPresentTiming 1` (then `vid_restart`) measures
+  when each frame actually reaches your display, not just when it was drawn;
+  `rendererPresentTiming` reports it. It needs a driver with
+  `VK_KHR_present_wait` and is off by default.
 - The multiplayer guide correctly identifies enhanced prediction and hitscan
   lag compensation as opt-in settings.
 

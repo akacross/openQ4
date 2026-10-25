@@ -6123,6 +6123,9 @@ void R_InitCommands( void ) {
 	extern void R_RendererVulkanHDRSelfTest_f( const idCmdArgs &args );
 	extern void R_RendererVulkanTemporalMotionSelfTest_f( const idCmdArgs &args );
 	extern void R_RendererVulkanMemoryInfo_f( const idCmdArgs &args );
+	extern void R_RendererVulkanPresentTiming_f( const idCmdArgs &args );
+	cmdSystem->AddCommand( "rendererPresentTiming", R_RendererVulkanPresentTiming_f,
+			CMD_FL_RENDERER, "when frames reached the display since the last 'rendererPresentTiming reset' (r_vkPresentTiming 1, VK_KHR_present_wait)" );
 	cmdSystem->AddCommand( "rendererVulkanTemporalMotionSelfTest", R_RendererVulkanTemporalMotionSelfTest_f,
 			CMD_FL_RENDERER, "test Vulkan rigid temporal motion and history rejection on the active GPU" );
 	cmdSystem->AddCommand( "rendererVulkanMemoryInfo", R_RendererVulkanMemoryInfo_f,

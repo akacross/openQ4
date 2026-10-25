@@ -33,6 +33,10 @@
 #define UINT_MAX	0xffffffffu
 #endif
 #include <cstdio>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #if defined( MACOS_X )
 #include <dlfcn.h>
 #endif
@@ -76,6 +80,258 @@ static idCVar r_vkHiddenWindowPresent( "r_vkHiddenWindowPresent", "0", CVAR_REND
 	"diagnostic: 1 acquires and presents a hidden window's frames through its swapchain instead of rendering them "
 	"offscreen; applies when the swapchain is next created (vid_restart)" );
 static int vkPresentationRecoveries = 0;
+
+/*
+===============================================================================
+
+	Presented-frame timing (HF-07/HF-08, r_vkPresentTiming)
+
+	With VK_KHR_present_id and VK_KHR_present_wait every present carries an id,
+	and a waiter thread blocks in vkWaitForPresentKHR until the presentation
+	engine reports that id presented, then stamps the time. That is the cadence
+	frames reach the display, and how long each waited after vkQueuePresentKHR
+	returned, rather than when the engine drew them; it is what the frame-pacing
+	budget is really about. Off by default (a diagnostic for reference runs).
+
+	The waiter never touches a retired or destroyed swapchain: every swapchain
+	transition first quiesces it (dropping pending ids and waiting out its
+	current, short wait) and resumes it on the new swapchain. A wait that
+	completes after a later id was presented (a replaced mailbox image) shares
+	that later present's time and counts as replaced.
+
+===============================================================================
+*/
+
+static idCVar r_vkPresentTiming( "r_vkPresentTiming", "0", CVAR_RENDERER | CVAR_BOOL,
+	"diagnostic: measure when each frame reaches the display (VK_KHR_present_wait) for rendererPresentTiming; "
+	"applies when the Vulkan device starts (vid_restart)" );
+
+static const int VK_PRESENT_TIMING_PENDING = 64;
+static const int VK_PRESENT_TIMING_HISTORY = 4096;
+// one bounded wait; a swapchain transition waits at most this long for the waiter
+static const uint64_t VK_PRESENT_TIMING_WAIT_NS = 4000000ull;
+
+typedef struct vkPresentTimingPending_s {
+	uint64_t	id;
+	double		submittedMsec;		// when vkQueuePresentKHR returned
+} vkPresentTimingPending_t;
+
+static std::mutex vkPresentTimingMutex;
+static std::condition_variable vkPresentTimingWake;
+static std::thread vkPresentTimingThread;
+static bool vkPresentTimingRunning = false;		// the device enabled both extensions
+static bool vkPresentTimingStop = false;
+static bool vkPresentTimingPaused = true;		// no swapchain the waiter may use
+static bool vkPresentTimingWaiting = false;		// the waiter is inside vkWaitForPresentKHR
+static VkDevice vkPresentTimingDevice = VK_NULL_HANDLE;
+static VkSwapchainKHR vkPresentTimingSwapchain = VK_NULL_HANDLE;
+static uint64_t vkPresentTimingNextId = 1;
+static vkPresentTimingPending_t vkPresentTimingPending[ VK_PRESENT_TIMING_PENDING ];
+static int vkPresentTimingPendingFirst = 0;
+static int vkPresentTimingPendingCount = 0;
+// results since rendererPresentTiming reset: presented-to-presented interval
+// and submitted-to-presented wait, in ms
+static float vkPresentTimingInterval[ VK_PRESENT_TIMING_HISTORY ];
+static float vkPresentTimingQueueWait[ VK_PRESENT_TIMING_HISTORY ];
+static int vkPresentTimingCount = 0;
+static int vkPresentTimingNext = 0;
+static int vkPresentTimingReplaced = 0;
+static int vkPresentTimingDropped = 0;
+static double vkPresentTimingLastPresentedMsec = -1.0;
+
+static double VK_PresentTiming_NowMsec( void ) {
+	return std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now().time_since_epoch() ).count();
+}
+
+// called with the mutex held
+static void VK_PresentTiming_DropPending( void ) {
+	vkPresentTimingDropped += vkPresentTimingPendingCount;
+	vkPresentTimingPendingFirst = 0;
+	vkPresentTimingPendingCount = 0;
+	vkPresentTimingLastPresentedMsec = -1.0;
+}
+
+static void VK_PresentTiming_Waiter( void ) {
+	std::unique_lock<std::mutex> lock( vkPresentTimingMutex );
+	while ( true ) {
+		vkPresentTimingWake.wait( lock, [] {
+			return vkPresentTimingStop || ( !vkPresentTimingPaused && vkPresentTimingPendingCount > 0 );
+		} );
+		if ( vkPresentTimingStop ) {
+			return;
+		}
+		const vkPresentTimingPending_t pending = vkPresentTimingPending[ vkPresentTimingPendingFirst ];
+		const VkDevice device = vkPresentTimingDevice;
+		const VkSwapchainKHR swapchain = vkPresentTimingSwapchain;
+		vkPresentTimingWaiting = true;
+		lock.unlock();
+		const VkResult result = vkWaitForPresentKHR( device, swapchain, pending.id, VK_PRESENT_TIMING_WAIT_NS );
+		const double presentedMsec = VK_PresentTiming_NowMsec();
+		lock.lock();
+		vkPresentTimingWaiting = false;
+		vkPresentTimingWake.notify_all();
+		// a transition dropped this id while the wait ran; nothing to record
+		if ( vkPresentTimingPaused || vkPresentTimingPendingCount == 0
+				|| vkPresentTimingPending[ vkPresentTimingPendingFirst ].id != pending.id ) {
+			continue;
+		}
+		if ( result == VK_TIMEOUT ) {
+			continue;
+		}
+		vkPresentTimingPendingFirst = ( vkPresentTimingPendingFirst + 1 ) % VK_PRESENT_TIMING_PENDING;
+		--vkPresentTimingPendingCount;
+		if ( result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR ) {
+			// out of date, surface or device lost: the frames will not be presented
+			++vkPresentTimingDropped;
+			VK_PresentTiming_DropPending();
+			continue;
+		}
+		const double interval = vkPresentTimingLastPresentedMsec >= 0.0 ? presentedMsec - vkPresentTimingLastPresentedMsec : -1.0;
+		vkPresentTimingLastPresentedMsec = presentedMsec;
+		if ( interval < 0.0 ) {
+			continue;
+		}
+		if ( interval < 0.05 ) {
+			++vkPresentTimingReplaced;
+		}
+		vkPresentTimingInterval[ vkPresentTimingNext ] = static_cast<float>( interval );
+		vkPresentTimingQueueWait[ vkPresentTimingNext ] = static_cast<float>( Max( 0.0, presentedMsec - pending.submittedMsec ) );
+		vkPresentTimingNext = ( vkPresentTimingNext + 1 ) % VK_PRESENT_TIMING_HISTORY;
+		vkPresentTimingCount = Min( vkPresentTimingCount + 1, VK_PRESENT_TIMING_HISTORY );
+	}
+}
+
+static void VK_PresentTiming_Start( VkDevice device ) {
+	std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+	vkPresentTimingDevice = device;
+	vkPresentTimingSwapchain = VK_NULL_HANDLE;
+	vkPresentTimingStop = false;
+	vkPresentTimingPaused = true;
+	vkPresentTimingWaiting = false;
+	vkPresentTimingNextId = 1;
+	vkPresentTimingPendingFirst = 0;
+	vkPresentTimingPendingCount = 0;
+	vkPresentTimingLastPresentedMsec = -1.0;
+	vkPresentTimingThread = std::thread( VK_PresentTiming_Waiter );
+	vkPresentTimingRunning = true;
+}
+
+static void VK_PresentTiming_Stop( void ) {
+	{
+		std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+		if ( !vkPresentTimingRunning ) {
+			return;
+		}
+		vkPresentTimingStop = true;
+		vkPresentTimingRunning = false;
+	}
+	vkPresentTimingWake.notify_all();
+	if ( vkPresentTimingThread.joinable() ) {
+		vkPresentTimingThread.join();
+	}
+	std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+	VK_PresentTiming_DropPending();
+	vkPresentTimingDevice = VK_NULL_HANDLE;
+	vkPresentTimingSwapchain = VK_NULL_HANDLE;
+}
+
+// Before a swapchain is retired or destroyed: the waiter lets go of it.
+static void VK_PresentTiming_Quiesce( void ) {
+	std::unique_lock<std::mutex> lock( vkPresentTimingMutex );
+	if ( !vkPresentTimingRunning ) {
+		return;
+	}
+	vkPresentTimingPaused = true;
+	VK_PresentTiming_DropPending();
+	vkPresentTimingWake.wait( lock, [] { return !vkPresentTimingWaiting; } );
+	vkPresentTimingSwapchain = VK_NULL_HANDLE;
+}
+
+static void VK_PresentTiming_Resume( VkSwapchainKHR swapchain ) {
+	std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+	if ( !vkPresentTimingRunning ) {
+		return;
+	}
+	vkPresentTimingSwapchain = swapchain;
+	vkPresentTimingPaused = swapchain == VK_NULL_HANDLE;
+}
+
+uint64_t VK_PresentTiming_NextId( void ) {
+	std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+	if ( !vkPresentTimingRunning || vkPresentTimingPaused ) {
+		return 0;
+	}
+	return vkPresentTimingNextId++;
+}
+
+void VK_PresentTiming_Presented( uint64_t id ) {
+	if ( id == 0 ) {
+		return;
+	}
+	const double submittedMsec = VK_PresentTiming_NowMsec();
+	{
+		std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+		if ( !vkPresentTimingRunning || vkPresentTimingPaused ) {
+			return;
+		}
+		if ( vkPresentTimingPendingCount == VK_PRESENT_TIMING_PENDING ) {
+			// the waiter fell a whole ring behind; start its timeline again
+			VK_PresentTiming_DropPending();
+		}
+		vkPresentTimingPending_t &pending =
+			vkPresentTimingPending[ ( vkPresentTimingPendingFirst + vkPresentTimingPendingCount ) % VK_PRESENT_TIMING_PENDING ];
+		pending.id = id;
+		pending.submittedMsec = submittedMsec;
+		++vkPresentTimingPendingCount;
+	}
+	vkPresentTimingWake.notify_all();
+}
+
+static idStr VK_PresentTiming_Percentiles( const float *values, int count ) {
+	if ( count <= 0 ) {
+		return "none";
+	}
+	idList<float> sorted;
+	sorted.SetNum( count );
+	for ( int i = 0; i < count; i++ ) {
+		sorted[ i ] = values[ i ];
+	}
+	std::sort( sorted.Ptr(), sorted.Ptr() + count );
+	const auto at = [&]( float fraction ) { return sorted[ Min( count - 1, static_cast<int>( fraction * ( count - 1 ) + 0.5f ) ) ]; };
+	return va( "p50=%.3f p95=%.3f p99=%.3f max=%.3f ms", at( 0.5f ), at( 0.95f ), at( 0.99f ), sorted[ count - 1 ] );
+}
+
+/*
+====================
+R_RendererVulkanPresentTiming_f
+
+rendererPresentTiming [reset | <reason>]: when frames reached the display since
+the last reset, from VK_KHR_present_wait (r_vkPresentTiming 1).
+====================
+*/
+void R_RendererVulkanPresentTiming_f( const idCmdArgs &args ) {
+	idStr reason = args.Argc() > 1 ? args.Args( 1, -1 ) : "";
+	std::lock_guard<std::mutex> lock( vkPresentTimingMutex );
+	if ( reason.Icmp( "reset" ) == 0 ) {
+		vkPresentTimingCount = 0;
+		vkPresentTimingNext = 0;
+		vkPresentTimingReplaced = 0;
+		vkPresentTimingDropped = 0;
+		common->Printf( "Presented frames reset\n" );
+		return;
+	}
+	if ( !vkPresentTimingRunning ) {
+		common->Printf( "Presented frames%s%s: unavailable (%s)\n", reason.Length() ? " " : "", reason.c_str(),
+			r_vkPresentTiming.GetBool() ? "VK_KHR_present_wait unsupported by this device" : "r_vkPresentTiming 0" );
+		return;
+	}
+	const int count = vkPresentTimingCount;
+	common->Printf( "Presented frames%s%s: frames=%d interval %s; queue %s; replaced=%d dropped=%d\n",
+		reason.Length() ? " " : "", reason.c_str(), count,
+		VK_PresentTiming_Percentiles( vkPresentTimingInterval, count ).c_str(),
+		VK_PresentTiming_Percentiles( vkPresentTimingQueueWait, count ).c_str(),
+		vkPresentTimingReplaced, vkPresentTimingDropped );
+}
 
 void VK_Device_ServicePresentationRecovery( void ) {
 	if ( !vkCtx.initialized ) {
@@ -466,6 +722,7 @@ VK_Device_DestroySwapchainObjects
 ====================
 */
 static void VK_Device_DestroySwapchainObjects( void ) {
+	VK_PresentTiming_Quiesce();
 	VK_Device_ReleaseWithheldImages();
 	for ( int i = 0; i < VK_FRAMES_IN_FLIGHT; i++ ) {
 		if ( vkCtx.offscreenViews[ i ] != VK_NULL_HANDLE ) {
@@ -778,6 +1035,8 @@ static bool VK_Device_CreateSwapchain( void ) {
 	sci.oldSwapchain = vkCtx.swapchain;
 
 	VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
+	// creating with oldSwapchain retires it: the present-timing waiter lets go first
+	VK_PresentTiming_Quiesce();
 	const VkResult res = vkCreateSwapchainKHR( vkCtx.device, &sci, NULL, &newSwapchain );
 	if ( res != VK_SUCCESS ) {
 		common->Warning( "Vulkan: vkCreateSwapchainKHR failed (%d)", (int)res );
@@ -798,6 +1057,7 @@ static bool VK_Device_CreateSwapchain( void ) {
 	vkCtx.swapchain = newSwapchain;
 	vkCtx.swapchainFormat = chosen.format;
 	vkCtx.swapchainExtent = extent;
+	VK_PresentTiming_Resume( newSwapchain );
 	vkCtx.presentMode = presentMode;
 	vkCtx.swapchainTransferSrc = transferSrcSupported;
 
@@ -1518,7 +1778,7 @@ bool VK_Device_Init( const renderWindowServices_s *windowServices, uint32_t firs
 	// enabled when they advertise it, and their optional subset features read
 	// back through the chained feature struct. Native drivers advertise neither,
 	// and every portability capability then stays at its permissive default.
-	const char *deviceExtensions[ 3 ];
+	const char *deviceExtensions[ 5 ];
 	uint32_t deviceExtensionCount = 0;
 	deviceExtensions[ deviceExtensionCount++ ] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 	if ( r_vkSampleLocations.GetBool() && vkGetPhysicalDeviceMultisamplePropertiesEXT != NULL
@@ -1586,6 +1846,32 @@ bool VK_Device_Init( const renderWindowServices_s *windowServices, uint32_t firs
 	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	features13.dynamicRendering = VK_TRUE;
 	features13.synchronization2 = VK_TRUE;
+
+	// r_vkPresentTiming: present ids and waits, chained after the 1.3 features
+	VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures;
+	memset( &presentIdFeatures, 0, sizeof( presentIdFeatures ) );
+	presentIdFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+	VkPhysicalDevicePresentWaitFeaturesKHR presentWaitFeatures;
+	memset( &presentWaitFeatures, 0, sizeof( presentWaitFeatures ) );
+	presentWaitFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+	bool presentTiming = false;
+	if ( r_vkPresentTiming.GetBool() ) {
+		if ( selected.hasPresentId && selected.hasPresentWait ) {
+			presentIdFeatures.pNext = &presentWaitFeatures;
+			VkPhysicalDeviceFeatures2 presentQuery;
+			memset( &presentQuery, 0, sizeof( presentQuery ) );
+			presentQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+			presentQuery.pNext = &presentIdFeatures;
+			vkGetPhysicalDeviceFeatures2( vkCtx.physicalDevice, &presentQuery );
+			presentTiming = presentIdFeatures.presentId == VK_TRUE && presentWaitFeatures.presentWait == VK_TRUE;
+		}
+		if ( presentTiming ) {
+			deviceExtensions[ deviceExtensionCount++ ] = VK_KHR_PRESENT_ID_EXTENSION_NAME;
+			deviceExtensions[ deviceExtensionCount++ ] = VK_KHR_PRESENT_WAIT_EXTENSION_NAME;
+			features13.pNext = &presentIdFeatures;
+		}
+		common->Printf( "Vulkan: presented-frame timing %s\n", presentTiming ? "enabled (VK_KHR_present_wait)" : "unavailable on this device" );
+	}
 	if ( vkCtx.portabilitySubset ) {
 		// the subset feature struct must stay chained on device creation so the
 		// implementation sees which optional behaviors the app relies on
@@ -1644,6 +1930,9 @@ bool VK_Device_Init( const renderWindowServices_s *windowServices, uint32_t firs
 		return false;
 	}
 	volkLoadDevice( vkCtx.device );
+	if ( presentTiming && vkWaitForPresentKHR != NULL ) {
+		VK_PresentTiming_Start( vkCtx.device );
+	}
 	vkGetDeviceQueue( vkCtx.device, vkCtx.graphicsQueueFamily, 0, &vkCtx.graphicsQueue );
 
 	// command pool + per-slot sync
@@ -1747,6 +2036,8 @@ VK_Device_Shutdown
 */
 void VK_Device_Shutdown( void ) {
 	R_DisplayPresentationShutdown();
+	// before the swapchain and device it waits on go away
+	VK_PresentTiming_Stop();
 	if ( vkCtx.device != VK_NULL_HANDLE ) {
 		vkDeviceWaitIdle( vkCtx.device );
 	}

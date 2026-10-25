@@ -55,8 +55,19 @@ completed release material here and publish curated notes in `releases/`.
   `in_presentationViewProbeAttack`, third person, ragdoll and debris, the death
   camera, airdefense1's opening cinematic, tram1's monitor) and writes the
   operator's `review-checklist.md`.
+- [x] HF-07 presented-frame timing: with `r_vkPresentTiming 1` and
+  `VK_KHR_present_wait`, Vulkan stamps when each frame reaches the display;
+  `rendererPresentTiming` reports presented intervals and the queueing after
+  `vkQueuePresentKHR`, and the harness holds them to the 240 Hz budget
+  (`--present-timing`). The waiter is quiesced before every swapchain
+  retirement and stopped before device shutdown.
+- [x] HF-07/HF-08 reference suite: `presentation_reference_suite.py
+  --reference` runs both renderers' cap matrices full screen, vsync, adaptive
+  vsync, variable refresh under the reported refresh, the policy cases, the
+  operator's sensor session (`--scenario sensor`) and the review, and writes
+  one summary.
 - Evidence: `openq4-presentation-pacing`, `presentation_hf_contract.py
-  --mutations` (7 rejected) and the runtime cases recorded in the
+  --mutations` (8 rejected) and the runtime cases recorded in the
   [presentation owners contract](presentation-owners.md). Physical pacing on
   the reference desktop, sensor latency and the by-eye verdicts remain open
   under HF-07/HF-08.

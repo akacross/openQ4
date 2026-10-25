@@ -302,7 +302,14 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   milliseconds, which read a steady 240 Hz cadence as p95 5 ms, to 50 µs bins.
   The report gained the display refresh and names what holds the rate, and the
   overlay judges the 240 Hz budget. The limiter's late-wake count no longer
-  includes frames that overran. Physical runs on the desktop reference remain.
+  includes frames that overran. Vulkan can now time when frames reach the
+  display (`r_vkPresentTiming`, `VK_KHR_present_wait`): at 144 Hz here, frames
+  drawn at p99 13.5 ms were presented at p99 22.1 ms, a gap draw-side numbers
+  cannot show. `presentation_reference_suite.py --reference` runs the whole
+  reference procedure (both renderers' cap matrices full screen, vsync,
+  adaptive vsync, variable refresh under the reported refresh, the policy cases,
+  the sensor session and the review) and writes one summary. Physical runs on
+  the desktop reference remain.
 - [ ] **HF-08 — P1, qualification: late look and alternate views in play.**
   Run late look in live MP (listen host and remote client, prediction recovery),
   zoomed, on lifts and trams and through rapid turns, and measure physical
@@ -335,7 +342,9 @@ Sources: [historical high-refresh scope](archive/2026-10-18/high-framerate-rende
   review` runs captioned review sessions (turns under TAA, firing through the
   cheat-gated `in_presentationViewProbeAttack`, third person, ragdoll and
   debris, the death camera, the opening cinematic and a monitor) and writes the
-  operator's checklist.
+  operator's checklist. Its `sensor` case is the click-to-photon session: the
+  operator presses fire with a sensor on the flashed edge, and the snapshot
+  gives the engine's press-to-swap time for the same presses.
 
 ## Vulkan rendering
 

@@ -174,6 +174,9 @@ static VkResult vkQueueSubmit2(VkQueue,uint32_t,const VkSubmitInfo2* info,VkFenc
     submittedWaits=info->waitSemaphoreInfoCount;submittedSignals=info->signalSemaphoreInfoCount;return queueResult;
 }
 static VkResult vkQueuePresentKHR(VkQueue,const VkPresentInfoKHR*){calls.emplace_back("present");++presentCalls;return presentResult;}
+// presented-frame timing is off in these doubles (r_vkPresentTiming 0): no id is chained
+static uint64_t VK_PresentTiming_NextId(){return 0;}
+static void VK_PresentTiming_Presented(uint64_t){}
 '''
 
 SWAPCHAIN_SUPPORT = r'''

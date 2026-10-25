@@ -130,6 +130,7 @@ def check_engine(usercmd_h: str, usercmd_cpp: str, game_h: str, common_cpp: str)
     require(usercmd_cpp, 'in_presentationView( "in_presentationView", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL', "late look stays opt-in")
 
     check_frame_rate_policy()
+    check_present_timing()
 
     # HF-08 physical latency: the attack press, as the event arrives, flashes the
     # next drawn frame; the overlay takes it every frame so no press goes stale.
@@ -219,6 +220,31 @@ def check_frame_rate_policy(common: str | None = None) -> None:
     if caps != expected:
         raise AssertionError(f"{context}: preset caps {caps} differ from the declared {expected}")
     require(presets, 'else if(signals.steamDeck){name="performance";', f"{context}: Steam Deck starts on performance")
+
+
+def check_present_timing(device: str | None = None) -> None:
+    """HF-07 presented-frame timing (VK_KHR_present_wait): opt-in, and the waiter never
+    touches a retired or destroyed swapchain."""
+    device = read("src/renderer/Vulkan/VulkanDevice.cpp") if device is None else device
+    context = "HF-07 presented-frame timing"
+    require(device, 'r_vkPresentTiming( "r_vkPresentTiming", "0", CVAR_RENDERER | CVAR_BOOL,', f"{context}: off by default")
+    create = function(device, "static bool VK_Device_CreateSwapchain( void )", context)
+    require_before(create, "VK_PresentTiming_Quiesce();", "vkCreateSwapchainKHR(", f"{context}: the waiter lets go before oldSwapchain retires")
+    require_before(create, "vkCtx.swapchain = newSwapchain;", "VK_PresentTiming_Resume( newSwapchain );", f"{context}: it resumes on the new swapchain")
+    destroy = function(device, "static void VK_Device_DestroySwapchainObjects( void )", context)
+    if destroy.strip().splitlines()[0].strip() != "VK_PresentTiming_Quiesce();":
+        raise AssertionError(f"{context}: destroying the swapchain must quiesce the waiter first")
+    shutdown = function(device, "void VK_Device_Shutdown( void )", context)
+    require_before(shutdown, "VK_PresentTiming_Stop();", "vkDeviceWaitIdle( vkCtx.device );", f"{context}: the waiter stops before the device goes")
+    waiter = function(device, "static void VK_PresentTiming_Waiter( void )", context)
+    require(waiter, "vkWaitForPresentKHR( device, swapchain, pending.id, VK_PRESENT_TIMING_WAIT_NS )", f"{context}: bounded waits")
+    require_before(waiter, "lock.unlock();", "vkWaitForPresentKHR(", f"{context}: the wait runs outside the lock")
+    present = read("src/renderer/Vulkan/vk_GuiExecutor.cpp")
+    require(present, "const uint64_t presentId = VK_PresentTiming_NextId();", f"{context}: each present takes an id")
+    require(present, "pi.pNext = &presentIds;", f"{context}: the id is chained on the present")
+    require(present, "VK_PresentTiming_Presented( presentId );", f"{context}: a queued present is handed to the waiter")
+    init = read("src/renderer/RenderSystem_init.cpp")
+    require(init, 'cmdSystem->AddCommand( "rendererPresentTiming", R_RendererVulkanPresentTiming_f,', f"{context}: the report command")
 
 
 def check_guard(source: str, signature: str, expected: str, context: str) -> str:
@@ -516,7 +542,18 @@ def mutations() -> None:
         except AssertionError:
             continue
         raise AssertionError(f"mutation survived: {name}")
-    print("presentation_hf_contract mutations: 7 rejected")
+    device = read("src/renderer/Vulkan/VulkanDevice.cpp")
+    mutated = device.replace("\tVK_PresentTiming_Quiesce();\n\tconst VkResult res = vkCreateSwapchainKHR(",
+                             "\tconst VkResult res = vkCreateSwapchainKHR(", 1)
+    if mutated == device:
+        raise AssertionError("mutation did not apply: the waiter keeps a retiring swapchain")
+    try:
+        check_present_timing(mutated)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("mutation survived: the waiter keeps a retiring swapchain")
+    print("presentation_hf_contract mutations: 8 rejected")
 
 
 def main() -> None:

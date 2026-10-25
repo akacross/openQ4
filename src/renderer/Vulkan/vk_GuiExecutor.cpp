@@ -7321,7 +7321,20 @@ static bool VK_GuiExecutor_SubmitFrame( bool present ) {
 	pi.swapchainCount = 1;
 	pi.pSwapchains = &vkCtx.swapchain;
 	pi.pImageIndices = &imageIndex;
+	// r_vkPresentTiming: an id the presented-frame waiter can wait on
+	const uint64_t presentId = VK_PresentTiming_NextId();
+	VkPresentIdKHR presentIds;
+	memset( &presentIds, 0, sizeof( presentIds ) );
+	if ( presentId != 0 ) {
+		presentIds.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
+		presentIds.swapchainCount = 1;
+		presentIds.pPresentIds = &presentId;
+		pi.pNext = &presentIds;
+	}
 	const VkResult res = vkQueuePresentKHR( vkCtx.graphicsQueue, &pi );
+	if ( res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR ) {
+		VK_PresentTiming_Presented( presentId );
+	}
 	if ( res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR ) R_DisplayPresentationPresented();
 	else if ( res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_ERROR_SURFACE_LOST_KHR ) R_DisplayPresentationFailed( RDP_PRESENT_FAILED, (int32_t)res );
 	else { VK_Device_BlockPresentation( RDP_PRESENT_FAILED, res, "frame present" ); return false; }

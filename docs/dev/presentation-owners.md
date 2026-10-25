@@ -280,7 +280,11 @@ input sample, and from the press behind a drawn flash, to the return of the
 renderer's swap or present call (the renderer is synchronous, so the frame has
 been handed to the swap chain by then). A sensor reading minus `pressToSwap`
 is the GPU, compositor and display share. The harness reports both as
-`inputToSwapMs`.
+`inputToSwapMs`. Its `sensor` case is the operator's session for this: the
+operator's own mouse works (no other case reads devices), late look and the
+flash are on, and for `--sensor-seconds` each fire press flashes the left edge.
+The snapshot then gives the engine's press-to-swap time for those same
+presses.
 
 By-eye review (HF-08). `presentation_look_runtime.py --scenario review
 --fullscreen` runs three captioned sessions for an operator watching the
@@ -354,6 +358,36 @@ refused harmlessly before Windows 11) and logs `Timer resolution: 1 ms kept
 while the window is occluded`. Only a visible foreground run still qualifies
 HF-07: the compositor and driver may throttle an occluded window's
 presentation whatever the engine's timers do.
+
+Presented-frame timing (Vulkan). Draw intervals say when the engine finished a
+frame, not when it reached the display. With `r_vkPresentTiming 1` (off by
+default; applies when the device starts) and a device exposing
+`VK_KHR_present_id` and `VK_KHR_present_wait`, every present carries an id and
+a waiter thread blocks in `vkWaitForPresentKHR` until the presentation engine
+reports that frame presented. `rendererPresentTiming [reset | <reason>]`
+reports the interval between presented frames, the time each waited after
+`vkQueuePresentKHR` returned, and how many were replaced before display. The
+waiter only ever waits on the current swapchain: every recreation, surface
+recovery and shutdown quiesces it first (its waits are bounded at 4 ms), and the
+contract pins that order. The harness's `--present-timing` collects it and holds
+the presented intervals to the same 240 Hz budget. OpenGL has no portable
+equivalent, so its pacing stays draw-side. On this laptop at a 144 cap, frames
+drawn at p95/p99 11.3/13.5 ms reached the display at 13.6/22.1 ms, with 2.4 ms
+median queueing after the present call; under the Khronos validation layer the
+waiter ran 1,013 frames without a validation or threading message.
+
+Reference suite.
+[`presentation_reference_suite.py`](https://github.com/themuffinator/openQ4/blob/master/tools/tests/presentation_reference_suite.py)
+runs the whole HF-07/HF-08 procedure in one command at the reference desktop:
+the cap matrix full screen for OpenGL and Vulkan (with presented-frame timing),
+vsync and adaptive vsync, variable refresh at 3 Hz under the refresh the first
+run reports, the hidden, minimized, menu and hitch cases, the sensor session and
+the review sessions. It writes `reference-summary.md` with each 240 Hz verdict
+and where the review checklist is:
+
+```
+presentation_reference_suite.py --basepath <Quake 4> --output-dir <new dir> --reference
+```
 
 An occluded window on Windows does not qualify: on 23 October 2026 the same
 client capped at 240 presented at 57 Hz on OpenGL (p99 232 ms) and 15 Hz on

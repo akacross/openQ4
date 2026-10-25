@@ -58,6 +58,11 @@ sample and owner counters. Scenarios:
 - pacing (HF-07): late look on at each --fps cap, judged against the declared
   240 Hz budget. Only --reference runs (a visible foreground window on the
   reference machine) qualify; every other run reports engine-side pacing;
+- sensor (HF-08): an operator-driven session for click-to-photon sensors. The
+  operator's own mouse works (the other cases never read devices), late look and
+  com_latencyFlash are on, and for --sensor-seconds every fire press flashes the
+  left edge; the snapshot then reports the engine's press-to-swap time for those
+  same presses, to subtract from the sensor's readings;
 - review (HF-08): operator-attended sessions for the by-eye review, best run
   --fullscreen on the reference machine. On-screen captions announce each
   segment while late look is switched off and on: steady and rapid turns under
@@ -108,7 +113,10 @@ LATENCY = re.compile(r"Presentation latency snapshot hf(?: - )?pacing: lookSampl
                      r"(?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none); flashes=(\d+) pressToSwap "
                      r"(?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none)")
 # scenarios that end with framePacingSnapshot
-SNAPSHOTS = ("pacing", "hidden", "minimized", "look", "flash")
+SNAPSHOTS = ("pacing", "hidden", "minimized", "look", "flash", "sensor")
+# Vulkan with r_vkPresentTiming 1: when frames reached the display (VK_KHR_present_wait)
+PRESENTED = re.compile(r"Presented frames hf(?: - )?pacing: frames=(\d+) interval (?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none);"
+                       r" queue (?:p50=([\d.]+) p95=([\d.]+) p99=([\d.]+) max=([\d.]+) ms|none); replaced=(\d+) dropped=(\d+)")
 IMPAIR = re.compile(r"NET_IMPAIR port=(\d+) dir=(\w+) offered=(\d+) dropped=(\d+) duplicated=(\d+) released=(\d+) reordered=(\d+)")
 DUMP = re.compile(r"^presentationClock: (\d+) samples$", re.M)
 TIMEDEMO = re.compile(r"(\d+) frames rendered in ([\d.]+) seconds = ([\d.]+) fps")
@@ -267,6 +275,15 @@ def pacing(samples, fps, text, reference):
                                          "hz": float(snapshot[5]), "p50": float(snapshot[6]), "p95": float(snapshot[7]),
                                          "p99": float(snapshot[8]), "max": float(snapshot[9]),
                                          "refreshHz": float(snapshot[10]) if snapshot[10] else None}
+    presented = PRESENTED.search(text)
+    if presented and presented[2]:
+        # display-side pacing: the interval between frames reaching the display, and how long
+        # each waited after vkQueuePresentKHR (r_vkPresentTiming)
+        result["presentedIntervalMs"] = {"frames": int(presented[1]), "p50": float(presented[2]), "p95": float(presented[3]),
+                                         "p99": float(presented[4]), "max": float(presented[5]),
+                                         "replaced": int(presented[10]), "dropped": int(presented[11])}
+        result["presentQueueMs"] = {"p50": float(presented[6]), "p95": float(presented[7]), "p99": float(presented[8]),
+                                    "max": float(presented[9])}
     throttle = THROTTLE.search(text)
     if throttle:
         # the limiter's own precision: how late each wait woke against its target, and how long it busy-waited
@@ -284,6 +301,13 @@ def pacing(samples, fps, text, reference):
         misses.append(f"interval p99 {result['intervalMs']['p99']:.2f} > {budget['intervalP99']} ms")
     if result["skippedTicks"]:
         misses.append(f"{result['skippedTicks']} skipped ticks")
+    shown = result.get("presentedIntervalMs")
+    if shown:
+        # the cadence frames reached the display is held to the same budget
+        if shown["p95"] > budget["intervalP95"]:
+            misses.append(f"presented interval p95 {shown['p95']:.2f} > {budget['intervalP95']} ms")
+        if shown["p99"] > budget["intervalP99"]:
+            misses.append(f"presented interval p99 {shown['p99']:.2f} > {budget['intervalP99']} ms")
     result["budgetMisses"] = misses
     if not reference:
         result["verdict"] = "not qualifying: engine-side run (pass --reference only for a visible foreground window on the reference machine)"
@@ -550,12 +574,15 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--scenario", nargs="+",
                         choices=("look", "thirdperson", "flick", "flash", "combined", "hidden", "minimized", "hitch", "menu", "death", "ragdoll", "debris", "vehicle", "zoom", "lift", "demo", "subview", "vr",
-                                 "mphost", "mpclient", "mploss", "spectate", "pacing", "review"),
+                                 "mphost", "mpclient", "mploss", "spectate", "pacing", "review", "sensor"),
                         default=["look"])
     parser.add_argument("--fullscreen", action="store_true",
                         help="full screen at the native desktop resolution instead of a 960x540 window (reference runs)")
     parser.add_argument("--reference", action="store_true",
                         help="operator statement: a visible foreground window on the HF-07 reference machine; only then does pacing qualify")
+    parser.add_argument("--sensor-seconds", type=int, default=120, help="length of the operator's sensor session")
+    parser.add_argument("--present-timing", action="store_true",
+                        help="Vulkan: also measure when frames reach the display (r_vkPresentTiming 1, VK_KHR_present_wait)")
     parser.add_argument("--cvar", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"),
                         help="an extra +set for every case, for A/B runs (for example com_preciseFrameWait 0)")
     parser.add_argument("--reanalyse", action="store_true", help="recompute report.json from an existing output directory")
@@ -684,6 +711,12 @@ def main() -> int:
         # HF-07: a minimized window is capped at 60 too, on every platform
         "minimized": [("minimized", ["in_presentationView", "1", "com_showFramePacing", "2"],
                        turn_sp + ["windowMinimizeTest", "waitMsec 1000", "framePacingReset", "waitMsec 5000"], "sp")],
+        # HF-08: click-to-photon with a sensor; the operator presses fire, nothing is synthesised
+        "sensor": [("sensor", ["in_presentationView", "1", "com_latencyFlash", "1", "in_mouse", "1", "in_nograb", "0",
+                               "con_noPrint", "0", "con_notifyTime", "8", "ui_autoSwitch", "1"],
+                    ["god", "notarget", f"setviewpos {args.viewpos}", "give weapon_machinegun", "give ammo", "waitMsec 1500",
+                     "framePacingReset", caption(f"Latency sensor: aim it at the left edge and press fire; ends in {args.sensor_seconds} s"),
+                     f"waitMsec {args.sensor_seconds * 1000}"], "sp")],
         # HF-08: the by-eye review, captioned on screen for an operator
         "review": [(segment["name"], segment["cvars"], segment["lines"], segment["mode"])
                    for segment in review_segments(args, probe)],
@@ -698,6 +731,8 @@ def main() -> int:
             extra += ["+set", cvars[index], cvars[index + 1]]
         for name, value in args.cvar:
             extra += ["+set", name, value]
+        if args.present_timing:
+            extra += ["+set", "r_vkPresentTiming", "1"]
         return [
             str(client),
             "+set", "fs_basepath", str(args.basepath), "+set", "fs_savepath", str(home),
@@ -732,11 +767,17 @@ def main() -> int:
                 if scenario in SNAPSHOTS and "framePacingReset" not in lines:
                     # before the case's own lines, so the flash presses are counted
                     body.insert(1, "framePacingReset")
+                if scenario in SNAPSHOTS and args.present_timing:
+                    # presented frames are counted from the same point as the frame pacing
+                    reset = body.index("framePacingReset") if "framePacingReset" in body else 1
+                    body.insert(reset + 1, "rendererPresentTiming reset")
                 if not any(line.startswith("g_presentationClockCapture") for line in lines):
                     body.append(f"g_presentationClockCapture {args.samples}")
                 body.append(capture_wait(fps))
                 if scenario in SNAPSHOTS:
                     body += ["framePacingSnapshot hfpacing", "win_keepTimerResolution"]
+                    if args.present_timing:
+                        body.append("rendererPresentTiming hfpacing")
                 body += ["g_presentationClockCapture 0", "in_presentationViewProbe 0", "in_presentationViewProbeZoom 0"]
                 if scenario == "mploss":
                     body.append("netImpairment")
@@ -817,7 +858,7 @@ def main() -> int:
                 (c["scenario"] == "combined" and (len(c.get("segments") or []) != 4 or
                                                   any(s["samples"] < 64 or s["gameplay"] for s in c["segments"]))) or
                 (c["scenario"] == "mploss" and not any(v["dropped"] for v in (c.get("netImpairment") or {}).values())) or
-                (c["samples"] < 64 and not c["case"].endswith("interp0") and c["scenario"] not in ("menu", "minimized")) or
+                (c["samples"] < 64 and not c["case"].endswith("interp0") and c["scenario"] not in ("menu", "minimized", "sensor")) or
                 c.get("pacing", {}).get("verdict") == "over budget"]
     print(f"presentation look runtime: {len(report['cases'])} cases, failures: {failures}")
     return 1 if failures else 0

@@ -33,6 +33,9 @@ struct vkDeviceSelection_t {
 	// consults a second, separately bounded lookup.
 	bool hasPortabilitySubset;
 	bool hasSampleLocations;
+	// VK_KHR_present_id and VK_KHR_present_wait (r_vkPresentTiming)
+	bool hasPresentId;
+	bool hasPresentWait;
 };
 
 typedef void (*vkDeviceRejection_t)( uint32_t index, const VkPhysicalDeviceProperties &properties,

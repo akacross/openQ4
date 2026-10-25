@@ -273,6 +273,12 @@ void	VK_Device_RecordPipelineCreation( uint64 microseconds );
 void	VK_Device_PersistPipelineCache( const char *reason );
 void	VK_Device_PrintPipelineInfo( void );
 
+// Presented-frame timing (r_vkPresentTiming, VK_KHR_present_wait): the id to
+// chain on the next present (0 = none, timing is off or between swapchains),
+// and the report that the present carrying it was queued.
+uint64_t	VK_PresentTiming_NextId( void );
+void		VK_PresentTiming_Presented( uint64_t id );
+
 // Called before each frame's acquisition. r_vkPresentationFailureTest 3 takes
 // every swapchain image the presentation engine would hand out, as a display
 // that is off withholds them; clearing the drill rebuilds the swapchain to

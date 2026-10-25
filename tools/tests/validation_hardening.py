@@ -653,6 +653,9 @@ def validate_validation_wiring() -> None:
         # them and their production-extraction siblings are wired.
         "arena_sound_runtime.py",
         "presentation_look_runtime.py",
+        # Runs presentation_look_runtime.py's reference cases for the operator at
+        # the reference desktop; --dry-run prints the plan without launching.
+        "presentation_reference_suite.py",
         "mp_wsl_peer_smoke.py",
         "openxr_lifecycle_runtime.py",
         "savegame_restore_cleanup_runtime.py",
