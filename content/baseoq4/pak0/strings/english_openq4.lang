@@ -1412,4 +1412,6 @@
 	"#str_231536"	"REFRESH"
 	"#str_231537"	"NO SERVERS"
 	"#str_231538"	"NO MATCHING SERVERS"
+	"#str_231539"	"Added to favorites."
+	"#str_231540"	"Removed from favorites."
 }

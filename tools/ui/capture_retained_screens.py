@@ -1015,6 +1015,27 @@ SCENARIOS = {
         'waitMsec 600', 'gui_filter_players', 'gui_filter_password', 'openq4_retainedGui inspect "join_filter_full-lit"',
         'openq4_retainedGui report',
     ]),
+    # Join Game's notices (section 13.13): taking the seeded loopback server
+    # off the favorites says so with Undo; putting it back and taking it off
+    # again stack three notices, newest at the top; Undo on the newest puts
+    # the server back and that notice leaves; the rest leave after their
+    # holds (4 s, 8 s with Undo).
+    'join-notices': (None, [
+        'waitMsec 12000',
+        'openq4_retainedGui focus nav_multiplayer', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 2500', 'openq4_retainedGui focus join_internet', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 4800', 'openq4_retainedGui focus "server-0"', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui focus join_favorite', 'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0',
+        'waitMsec 400', 'openq4_retainedGui inspect "server-0-fav"', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-1"', 'openq4_retainedGui inspect "notice-2"', 'screenshot "screenshots/join-notice-removed.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui inspect "server-0-fav"', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-1"', 'openq4_retainedGui inspect "notice-2"', 'screenshot "screenshots/join-notices-stacked.tga"',
+        'openq4_retainedGui focus "notice-0-action"', 'waitMsec 300', 'screenshot "screenshots/join-notice-undo-focus.tga"',
+        'openq4_retainedGui menu accept 1', 'openq4_retainedGui menu accept 0', 'waitMsec 400',
+        'openq4_retainedGui inspect "server-0-fav"', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-1"', 'openq4_retainedGui inspect "notice-2"', 'screenshot "screenshots/join-notice-undone.tga"',
+        'waitMsec 9000', 'openq4_retainedGui inspect "notice-0"', 'openq4_retainedGui inspect "notice-1"', 'openq4_retainedGui inspect "notice-2"', 'screenshot "screenshots/join-notices-gone.tga"',
+    ]),
     # The Join Game list's empty state: NOT EMPTY and Tourney together hide the
     # seeded loopback server (SCENARIO_SERVERS), so the list says none matches
     # under NO MATCHING SERVERS and offers CLEAR FILTERS, which clears both
@@ -1250,6 +1271,7 @@ SCENARIO_SERVERS = {'mpadminremote': {'port': 27964, 'map': 'mp/q4dm1', 'name': 
                     'joingameaddress': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'joinfilters': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'join-empty-clear': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
+                    'join-notices': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'},
                     'stockbrowser': {'port': 27962, 'map': 'mp/q4dm1', 'name': 'Retained Join Arena'}}
 SCENARIO_FILES = {'arenafail': {
     'retained_arenafail_defer.cfg': ['vstr arenaAfter'],
@@ -1277,6 +1299,7 @@ SCENARIO_CVARS = {'mpcard-prompts': {'ui_retainedMultiplayer': '1'}, 'mpcard-tri
                   'join-details-view': {'net_ip': '127.0.0.1'}, 'join-view-glyphs': {'net_ip': '127.0.0.1'},
                   'joinfilters': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'join-empty-clear': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
+                  'join-notices': {'net_ip': '127.0.0.1', 'gui_filter_players': '0', 'gui_filter_password': '0', 'gui_filter_gameType': '0'},
                   'stockbrowser': {'net_ip': '127.0.0.1', 'ui_retained': '0'}}
 
 # The private mod the fallback scenarios run as, and the files it provides.
@@ -1334,6 +1357,8 @@ SEEDS = {'loadgame-failure': {'savegames/damaged.save': damaged_save,
          'joinfilters': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['joinfilters']['port']}\n".encode('ascii')},
          'join-empty-clear': {'server_favorites.list':
                               lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['join-empty-clear']['port']}\n".encode('ascii')},
+         'join-notices': {'server_favorites.list':
+                          lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['join-notices']['port']}\n".encode('ascii')},
          'stockbrowser': {'server_favorites.list': lambda runtime: f"127.0.0.1:{SCENARIO_SERVERS['stockbrowser']['port']}\n".encode('ascii')},
          'savegame': {'savegames/auto.save': damaged_save,
                       'savegames/auto.txt': lambda runtime: AUTOSAVE_DESCRIPTION.encode('utf-8')}}

@@ -685,6 +685,10 @@ public:
     idUserInterface* RetainedJoinGamePage(); void OpenRetainedJoinGame(); void PublishRetainedJoinGame(idUserInterface*);
     void PublishRetainedJoinDetail(idUserInterface*); int retainedJoinDetailRow = -1;
     void UpdateRetainedJoinGame(); void HandleRetainedJoinGameRequest(idUserInterface*, const char*);
+    // Its notices (section 13.13): shown oldest first, then those waiting.
+    struct retainedNotice_t { idStr text, action; int kind = 0; idStr subject; int shownAt = -1, leavingAt = -1; };
+    idList<retainedNotice_t> retainedJoinNotices; bool retainedJoinNoticesDirty = false;
+    void PushRetainedJoinNotice(const char*, int, const char*, const char*); void UpdateRetainedJoinNotices(idUserInterface*);
     int serverStarts = 0; bool StartMenuServer() { ++serverStarts; return true; }
     std::vector<int> restarts; bool RestartLevelAtSkill(int skill) { restarts.push_back(skill); return true; }
     void GetSaveGameList(idStrList& files, idList<fileTIME_T>& times) {
@@ -1687,6 +1691,46 @@ int main() {
         CHECK(scan.calls.back() == "ToggleFavoriteServer 0" && scan.favorites.empty() && join->state["join.favorite"] == "0" &&
               join->state["join.row1.fav"] == "0");
         s.HandleRetainedSessionRequest(join, "joinFavorite"); CHECK(scan.favorites.count("10.0.0.1:28004") && join->state["join.favorite"] == "1");
+        // Section 13.13's notices: each toggle says what it did, newest at the
+        // top, entering there; the removal offers Undo.
+        const auto named = [&](const char* event) { return std::count(join->named.begin(), join->named.end(), std::string(event)); };
+        CHECK(s.retainedJoinNotices.Num() == 2 && join->state["notice.0.shown"] == "1" && join->state["notice.0.text"] == "#str_231539" &&
+              join->state["notice.0.action"] == "" && join->state["notice.0.kind"] == "1" && join->state["notice.1.text"] == "#str_231540" &&
+              join->state["notice.1.action"] == "#str_42904" && join->state["notice.2.shown"] == "0" && named("noticeEnter0") == 2);
+        // The plain notice holds 4 s, then leaves over 200 ms; its slot rests
+        // and the older notice closes up into it.
+        commonObject.time += 3999; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 0);
+        commonObject.time += 1; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 1 && join->state["notice.0.shown"] == "1");
+        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
+        CHECK(named("noticeRest0") == 1 && s.retainedJoinNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540" &&
+              join->state["notice.1.shown"] == "0");
+        // Removed again: a second Undo enters at the top. Its Undo puts the
+        // server back among the favorites and the notice leaves.
+        s.HandleRetainedSessionRequest(join, "joinFavorite");
+        CHECK(scan.favorites.empty() && named("noticeEnter0") == 3 && join->state["notice.0.action"] == "#str_42904" &&
+              join->state["notice.1.text"] == "#str_231540");
+        s.HandleRetainedSessionRequest(join, "joinNoticeAction0");
+        CHECK(scan.favorites.count("10.0.0.1:28004") && join->state["join.favorite"] == "1" && named("noticeLeave0") == 2);
+        // An action already taken, or a slot without a notice, does nothing.
+        const auto calls = scan.calls.size();
+        s.HandleRetainedSessionRequest(join, "joinNoticeAction0"); s.HandleRetainedSessionRequest(join, "joinNoticeAction2");
+        CHECK(scan.calls.size() == calls && scan.favorites.count("10.0.0.1:28004"));
+        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
+        CHECK(named("noticeRest0") == 2 && s.retainedJoinNotices.Num() == 1 && join->state["notice.0.text"] == "#str_231540");
+        // A notice with an action holds 8 s.
+        commonObject.time += 3599; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 2);
+        commonObject.time += 1; s.UpdateRetainedJoinNotices(join); CHECK(named("noticeLeave0") == 3);
+        commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
+        CHECK(s.retainedJoinNotices.empty() && join->state["notice.0.shown"] == "0");
+        // At most three show; a fourth waits until one has gone.
+        for (int i = 0; i < 4; ++i) s.PushRetainedJoinNotice("#str_231539", 1, "", "");
+        for (int i = 0; i < 4; ++i) s.UpdateRetainedJoinNotices(join);
+        CHECK(join->state["notice.2.shown"] == "1" && s.retainedJoinNotices[3].shownAt < 0);
+        commonObject.time += 4000; s.UpdateRetainedJoinNotices(join); commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
+        s.UpdateRetainedJoinNotices(join);
+        CHECK(s.retainedJoinNotices.Num() == 1 && s.retainedJoinNotices[0].shownAt >= 0 && join->state["notice.1.shown"] == "0");
+        commonObject.time += 4000; s.UpdateRetainedJoinNotices(join); commonObject.time += 200; s.UpdateRetainedJoinNotices(join);
+        CHECK(s.retainedJoinNotices.empty());
         // MOD's spinner shows the next and the previous mod.
         s.HandleRetainedSessionRequest(join, "joinModNext"); CHECK(scan.calls.back() == "UpdateFilterByMod 1" && join->state["join.mod"] == "baseoq4");
         s.HandleRetainedSessionRequest(join, "joinModPrevious"); CHECK(scan.calls.back() == "UpdateFilterByMod -1" && join->state["join.mod"] == "All");
@@ -5119,6 +5163,7 @@ def main() -> int:
         'idUserInterface *idSessionLocal::RetainedJoinGamePage(', 'void idSessionLocal::OpenRetainedJoinGame(',
         'static int Session_NetworkQualityBars(',
         'void idSessionLocal::PublishRetainedJoinGame(', 'void idSessionLocal::PublishRetainedJoinDetail(',
+        'void idSessionLocal::PushRetainedJoinNotice(', 'void idSessionLocal::UpdateRetainedJoinNotices(',
         'void idSessionLocal::UpdateRetainedJoinGame(',
         'void idSessionLocal::HandleRetainedJoinGameRequest(',
         'idUserInterface *idSessionLocal::SelectRetainedLoadingGui(',

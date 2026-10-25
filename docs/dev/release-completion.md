@@ -94,6 +94,13 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Notices, 24 October 2026
+
+- [x] Retained pages show section 13.13's notices; Join Game's favorites use
+  them, a removal offering Undo
+  ([notices](ui/retained-screens.md#notices-24-october-2026): native, session
+  and capture checks).
+
 ## Empty states, 24 October 2026
 
 - [x] Empty lists offer the action that fixes them: CLEAR FILTERS on Load and

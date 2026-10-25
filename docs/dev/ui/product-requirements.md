@@ -1,5 +1,11 @@
 # UI product requirement register
 
+24 October 2026: [notices](retained-screens.md#notices-24-october-2026)
+add bounded UI-03 evidence to `WID-026` and `MOT-009`. Retained pages show
+section 13.13's notices; Join Game's favorites use them and a removal offers
+Undo. The increment is audited against `563dec70115155ec478a37859b39718b5e3ed3aa`. No requirement status,
+migration acceptance or final gate changes.
+
 24 October 2026: [loading rows](retained-screens.md#loading-rows-24-october-2026)
 add bounded UI-03 evidence to `WID-030` and `MOT-009`. Join Game shows its rows at
 rest while a scan has found nothing, and the first servers replace them with

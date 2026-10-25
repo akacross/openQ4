@@ -71,6 +71,8 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- Adding or removing a favorite server in Join Game now shows a short notice
+  at the top right, and removing one offers Undo for a few seconds.
 - While Join Game is still looking for servers, its list shows empty rows
   instead of a blank space, and the servers it finds fade in.
 - When a filter hides every save, demo or server, the empty list now offers

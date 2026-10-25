@@ -419,6 +419,8 @@ public:
 	void				PublishRetainedJoinGame( idUserInterface *gui );
 	void				PublishRetainedJoinDetail( idUserInterface *gui );
 	void				UpdateRetainedJoinGame();
+	void				PushRetainedJoinNotice( const char *text, int kind, const char *action, const char *subject );
+	void				UpdateRetainedJoinNotices( idUserInterface *gui );
 	// The stock browser's server tooltip, kept for the hovered row while the
 	// classic main menu runs (idServerScan::GUIUpdateHover).
 	void				UpdateBrowserTooltip();
@@ -773,6 +775,20 @@ public:
 	idStr				retainedJoinShotMap;	// the map whose levelshot the page shows
 	idStr				retainedJoinShot;		// that levelshot
 	int					retainedJoinDetailRow;	// the page row whose server's details the page holds (-1: none)
+	// A notice of section 13.13 on Join Game: its text and its action's label
+	// (language-table keys; no action: empty), its status symbol, what the
+	// action acts on (a server's address), and when it entered and began to
+	// leave (-1: not yet).
+	struct retainedNotice_t {
+		idStr			text;
+		idStr			action;
+		int				kind;
+		idStr			subject;
+		int				shownAt;
+		int				leavingAt;
+	};
+	idList<retainedNotice_t> retainedJoinNotices;	// shown oldest first, then those waiting, as they came
+	bool				retainedJoinNoticesDirty;	// the stack changed since it was published
 	idUserInterface *	guiLoading;
 	idUserInterface *	guiIntro;
 	idUserInterface *	guiGameOver;

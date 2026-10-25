@@ -7804,6 +7804,10 @@ void idSessionLocal::OpenRetainedJoinGame() {
 	}
 	idAsyncNetwork::client.serverList.GUIInit();
 	retainedJoinFirst = -1;
+	// Notices from an earlier visit are gone.
+	retainedJoinNotices.Clear();
+	retainedJoinNoticesDirty = true;
+	UpdateRetainedJoinNotices( page );
 	page->SetStateString( "join.clientip", Session_LocalAddressText().c_str() );
 	PublishRetainedJoinGame( page );
 	SetGUI( page, NULL );
@@ -8008,11 +8012,96 @@ void idSessionLocal::UpdateRetainedJoinGame() {
 	if ( guiRetainedJoin == NULL || guiActive != guiRetainedJoin ) {
 		return;
 	}
+	UpdateRetainedJoinNotices( guiRetainedJoin );
 	if ( idAsyncNetwork::client.serverList.GetRevision() != retainedJoinRevision ) {
 		PublishRetainedJoinGame( guiRetainedJoin );
 	} else if ( guiRetainedJoin->State().GetInt( "join.detail", "-1" ) != retainedJoinDetailRow ) {
 		PublishRetainedJoinDetail( guiRetainedJoin );
 		guiRetainedJoin->StateChanged( common->GetPresentationTime() );
+	}
+#endif
+}
+
+/*
+===============
+idSessionLocal::PushRetainedJoinNotice
+
+A notice for Join Game's stack (section 13.13): it waits until the stack has
+room and no notice is leaving, then enters at the top.
+===============
+*/
+void idSessionLocal::PushRetainedJoinNotice( const char *text, int kind, const char *action, const char *subject ) {
+	retainedNotice_t notice;
+	notice.text = text;
+	notice.action = action;
+	notice.kind = kind;
+	notice.subject = subject;
+	notice.shownAt = -1;
+	notice.leavingAt = -1;
+	retainedJoinNotices.Append( notice );
+	retainedJoinNoticesDirty = true;
+}
+
+/*
+===============
+idSessionLocal::UpdateRetainedJoinNotices
+
+Join Game's notices each frame (section 13.13). A notice past its hold (4 s,
+or 8 s when it offers an action) leaves over 200 ms (notice.leave, the page's
+noticeLeave<slot>) and then goes; the slot it empties rests (noticeRest<slot>)
+and the older notices under it close up. While no notice leaves and fewer
+than three show, the oldest waiting one enters at the top (noticeEnter0) and
+the others move down. The stack publishes newest first as notice.<slot>.*.
+===============
+*/
+void idSessionLocal::UpdateRetainedJoinNotices( idUserInterface *gui ) {
+#ifndef ID_DEDICATED
+	const int slots = 3, hold = 4000, actionHold = 8000, leave = 200;
+	const int now = common->GetPresentationTime();
+	int shown = 0;
+	bool leaving = false;
+	while ( shown < retainedJoinNotices.Num() && retainedJoinNotices[ shown ].shownAt >= 0 ) {
+		leaving |= retainedJoinNotices[ shown ].leavingAt >= 0;
+		++shown;
+	}
+	idStrList events;
+	for ( int i = shown - 1; i >= 0; --i ) {
+		retainedNotice_t &notice = retainedJoinNotices[ i ];
+		const int slot = shown - 1 - i;
+		if ( notice.leavingAt < 0 && now - notice.shownAt >= ( notice.action.Length() > 0 ? actionHold : hold ) ) {
+			notice.leavingAt = now;
+			leaving = true;
+			events.Append( va( "noticeLeave%d", slot ) );
+		} else if ( notice.leavingAt >= 0 && now - notice.leavingAt >= leave ) {
+			retainedJoinNotices.RemoveIndex( i );
+			--shown;
+			events.Append( va( "noticeRest%d", slot ) );
+			retainedJoinNoticesDirty = true;
+		}
+	}
+	leaving = false;
+	for ( int i = 0; i < shown; ++i ) {
+		leaving |= retainedJoinNotices[ i ].leavingAt >= 0;
+	}
+	if ( !leaving && shown < slots && shown < retainedJoinNotices.Num() ) {
+		retainedJoinNotices[ shown ].shownAt = now;
+		++shown;
+		events.Append( "noticeEnter0" );
+		retainedJoinNoticesDirty = true;
+	}
+	if ( retainedJoinNoticesDirty ) {
+		retainedJoinNoticesDirty = false;
+		for ( int slot = 0; slot < slots; ++slot ) {
+			const retainedNotice_t *notice = slot < shown ? &retainedJoinNotices[ shown - 1 - slot ] : NULL;
+			gui->SetStateBool( va( "notice.%d.shown", slot ), notice != NULL );
+			gui->SetStateString( va( "notice.%d.text", slot ), notice != NULL ? notice->text.c_str() : "" );
+			gui->SetStateString( va( "notice.%d.action", slot ), notice != NULL ? notice->action.c_str() : "" );
+			gui->SetStateInt( va( "notice.%d.kind", slot ), notice != NULL ? notice->kind : 0 );
+		}
+		gui->StateChanged( now );
+	}
+	for ( int i = 0; i < events.Num(); ++i ) {
+		gui->HandleNamedEvent( events[ i ].c_str() );
 	}
 #endif
 }
@@ -8135,11 +8224,45 @@ void idSessionLocal::HandleRetainedJoinGameRequest( idUserInterface *gui, const 
 		for ( int i = 0; i < retainedJoinServers.Num() && retainedJoinAddress.Length() > 0; ++i ) {
 			if ( !retainedJoinAddress.Icmp( Sys_NetAdrToString( servers[ retainedJoinServers[ i ] ].adr ) ) ) {
 				HandleMainMenuCommands( "play main_menu_selection" );
-				servers.ToggleFavoriteServer( retainedJoinServers[ i ] );
+				if ( servers.ToggleFavoriteServer( retainedJoinServers[ i ] ) ) {
+					// A notice says so (section 13.13); a removal offers Undo.
+					const bool favorite = servers.IsFavoriteServer( retainedJoinServers[ i ] );
+					PushRetainedJoinNotice( favorite ? "#str_231539" : "#str_231540", 1, favorite ? "" : "#str_42904",
+						retainedJoinAddress.c_str() );
+					UpdateRetainedJoinNotices( gui );
+				}
 				PublishRetainedJoinGame( gui );
 				break;
 			}
 		}
+		return;
+	}
+	// A notice's Undo (section 13.13): a removed favorite returns, if the
+	// scan still holds its server, and the notice leaves.
+	const int noticeSlot = !idStr::Icmp( request, "joinNoticeAction0" ) ? 0 : !idStr::Icmp( request, "joinNoticeAction1" ) ? 1 :
+		!idStr::Icmp( request, "joinNoticeAction2" ) ? 2 : -1;
+	if ( noticeSlot >= 0 ) {
+		int shown = 0;
+		while ( shown < retainedJoinNotices.Num() && retainedJoinNotices[ shown ].shownAt >= 0 ) {
+			++shown;
+		}
+		const int index = shown - 1 - noticeSlot;
+		if ( index < 0 || retainedJoinNotices[ index ].leavingAt >= 0 || retainedJoinNotices[ index ].action.Length() == 0 ) {
+			return;
+		}
+		retainedNotice_t &notice = retainedJoinNotices[ index ];
+		HandleMainMenuCommands( "play main_menu_selection" );
+		for ( int i = 0; i < servers.Num(); ++i ) {
+			if ( !notice.subject.Icmp( Sys_NetAdrToString( servers[ i ].adr ) ) ) {
+				if ( !servers.IsFavoriteServer( i ) ) {
+					servers.ToggleFavoriteServer( i );
+				}
+				break;
+			}
+		}
+		notice.leavingAt = common->GetPresentationTime();
+		gui->HandleNamedEvent( va( "noticeLeave%d", noticeSlot ) );
+		PublishRetainedJoinGame( gui );
 		return;
 	}
 	if ( !idStr::Icmp( request, "joinModPrevious" ) || !idStr::Icmp( request, "joinModNext" ) ) {

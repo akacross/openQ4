@@ -196,7 +196,7 @@ static const std::set<std::string> SessionCommands = {"continue","singlePlayer",
 	"createMapsOlder","createBanList","createBanPick","createBanRemove",
 	"joinBack","joinPick","joinServer","joinNewer","joinOlder","joinRefresh","joinNewList","joinSourceInternet","joinSourceLan",
 	"joinClearSort","joinSortFavorite","joinSortLocked","joinSortName","joinSortPing","joinSortPlayers","joinSortGameType","joinSortMap",
-	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","joinConnect","joinSearch","joinSearchClear","joinSortNext",
+	"joinSortDedicated","joinSortRepeater","joinFavorite","joinModPrevious","joinModNext","joinFilterFull","joinFilterEmpty","joinFilterPassword","joinGameTypePrevious","joinGameTypeNext","joinClearFilters","joinNoticeAction0","joinNoticeAction1","joinNoticeAction2","joinConnect","joinSearch","joinSearchClear","joinSortNext",
 	"mpClose","mpMainMenu","mpDisconnect","mpStockPage","mpTeamAction","mpSelectPlayer","mpMute","mpFriend","mpWelcomeAction",
 	"mpVoteYes","mpVoteNo","mpCallVote","mpRail","mpSettingsControls","mpSettingsGame","mpSettingsSystem","mpMatch","mpMatchSelect",
 	"mpSummaryChat","mpAdminPass","mpAdminSelect","mpAdminKick","mpAdminBan","mpAdminSwitch","mpAdminBans","mpAdminBanPick","mpAdminUnban",
@@ -3101,7 +3101,8 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 		{"joinSortPing","joinSortPing"},{"joinSortPlayers","joinSortPlayers"},{"joinSortGameType","joinSortGameType"},
 		{"joinSortMap","joinSortMap"},{"joinSortNext","joinSortNext"},{"joinFilterFull","joinFilterFull"},
 		{"joinFilterEmpty","joinFilterEmpty"},{"joinFilterPassword","joinFilterPassword"},
-		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"},{"joinClearFilters","joinClearFilters"}};
+		{"joinGameTypePrevious","joinGameTypePrevious"},{"joinGameTypeNext","joinGameTypeNext"},{"joinClearFilters","joinClearFilters"},
+		{"joinNoticeAction0","joinNoticeAction0"},{"joinNoticeAction1","joinNoticeAction1"},{"joinNoticeAction2","joinNoticeAction2"}};
 	for (const auto& [action, command] : menu) {
 		const auto found = document.Model().actions.find(action);
 		Check(found != document.Model().actions.end() && found->second.operation == "session.menu" &&
@@ -3466,6 +3467,48 @@ static void CheckJoinGamePage(ScreenHost& host, const char* path) {
 	runtime.Frame(viewport,3.75);
 	Check(Near(value("server-0","opacity"),1,.001f) && Near(value("server-1","opacity"),1,.001f) && Near(value("server-2","opacity"),1,.001f),
 		"all in by 210 ms");
+	// Notices (section 13.13): header-band plates 400 dp wide in the top
+	// band's trailing section, 24 dp from the view's edge, three stacked
+	// 6 dp apart, each a status symbol, its text and an optional action.
+	Check(text("notice-0","display") == "none" && text("notice-2","display") == "none" && !document.Model().FindNode("notice-3"),
+		"no notice, nothing shows");
+	Check(runtime.SetState({{"notice.0.shown",true},{"notice.0.text",std::string("#str_231540")},{"notice.0.action",std::string("#str_42904")},
+		{"notice.0.kind",1.0},{"notice.1.shown",true},{"notice.1.text",std::string("#str_231539")},{"notice.1.kind",1.0}},error,3.8),
+		"the session publishes two notices");
+	runtime.Frame(viewport,3.81);
+	const auto notice0 = bounds("notice-0"), notice1 = bounds("notice-1"), noticeAction = bounds("notice-0-action"),
+		noticeText = bounds("notice-0-text");
+	Check(text("notice-0","display") == "block" && text("notice-1","display") == "block" && text("notice-2","display") == "none" &&
+		Near(notice0.x+notice0.width,1280-24,1) && Near(notice0.y,14,1) && Near(notice0.width,400,1) && Near(notice0.height,30,1) &&
+		Near(notice1.y,notice0.y+36,1),"two plates stack from the top band's trailing section");
+	Check(text("notice-0-symbol-1","display") == "block" && text("notice-0-text","text") == "#str_231540" &&
+		text("notice-0-action","display") == "block" && text("notice-0-action-label","text") == "#str_42904" &&
+		text("notice-1-action","display") == "none" && noticeText.x+noticeText.width <= noticeAction.x+1 &&
+		noticeAction.x+noticeAction.width <= notice0.x+notice0.width,"each its star and text, the removal its Undo inside the plate");
+	runtime.TakeActions();
+	Check(runtime.FocusControl("notice-0-action",3.82),"focus Undo");
+	runtime.MenuAction(MenuInput::Accept,true,3.83); runtime.MenuAction(MenuInput::Accept,false,3.84);
+	{
+		const auto undone = runtime.TakeActions();
+		Check(undone.size() == 1 && undone[0].action == "joinNoticeAction0","Accept asks the session to undo");
+	}
+	// notice.enter: 160 ms, 12 dp in from the trailing edge with opacity.
+	Check(runtime.RunEvent("noticeEnter0",3.9,effects,error),"a notice enters");
+	runtime.Frame(viewport,3.901);
+	const auto entering = runtime.PresentedValue("notice-0","transform");
+	Check(value("notice-0","opacity") < .1f && entering && entering->data[0] > 11,"from nothing, 12 dp toward the trailing edge");
+	runtime.Frame(viewport,4.07);
+	const auto entered = runtime.PresentedValue("notice-0","transform");
+	Check(Near(value("notice-0","opacity"),1,.001f) && entered && Near(static_cast<float>(entered->data[0]),0,.01f),"in place at 160 ms");
+	// notice.leave: 200 ms opacity; the rest returns the slot.
+	Check(runtime.RunEvent("noticeLeave0",4.1,effects,error),"it leaves");
+	runtime.Frame(viewport,4.2);
+	const float leavingOpacity = value("notice-0","opacity");
+	runtime.Frame(viewport,4.31);
+	Check(leavingOpacity > .3f && leavingOpacity < .7f && value("notice-0","opacity") < .01f,"fading out over 200 ms");
+	Check(runtime.RunEvent("noticeRest0",4.32,effects,error),"the slot rests");
+	runtime.Frame(viewport,4.33);
+	Check(Near(value("notice-0","opacity"),1,.001f),"for the notice that closes up into it");
 }
 
 // The Create Server sub-page (FLOW-050): the stock Create Server page's

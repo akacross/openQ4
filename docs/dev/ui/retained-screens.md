@@ -1722,6 +1722,35 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## Notices (24 October 2026)
+
+Section 13.13's notices come to the retained pages (`retained_notices.py`):
+header-band plates 400 dp wide in the top band's trailing section, 24 dp
+from the view's edge, at most three stacked 6 dp apart, newest at the top.
+Each holds a status symbol, its Lowpixel 14 dp text and an optional action,
+a small plate with its label. The session owns their timing: a notice waits
+until the stack has room and no notice is leaving, enters at the top with
+`notice.enter` (160 ms, 12 dp in from the trailing edge with opacity) and
+holds 4 s, or 8 s when it offers an action; it then leaves with
+`notice.leave` (200 ms opacity), its slot rests and the older notices close
+up into it. A track runs from the property's present value, so each of these
+holds its start from its first millisecond.
+
+Join Game uses them for its favorites: ADD TO FAVORITES says "Added to
+favorites." or "Removed from favorites." under the favorite's star, and a
+removal offers Undo (`#str_42904`), which puts the server back among the
+favorites while the scan holds it and lets the notice leave. Opening the page
+drops an earlier visit's notices. The new strings `#str_231539` and
+`#str_231540` are in every shipped language.
+
+The mp-pages native test checks the slots' place, contents, Undo's request
+and the enter, leave and rest timing; the gate's session harness checks the
+holds, the order, the stack of three with a fourth waiting, and Undo. A
+capture stacks three notices on a real list and uses Undo.
+
+Evidence: `.tmp/ui/notices/validation-evidence.json`, SHA-256
+`b7b8363f05e30ffaa07a6441ccf17f7b4d1f9b314bf0ff3ecbd7424ae934fc5e`.
+
 ## Loading rows (24 October 2026)
 
 Section 13.13's loading rows: while a scan has listed no server yet, Join

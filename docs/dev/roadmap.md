@@ -826,7 +826,9 @@ archived provenance; new scheduling belongs here.
   Demos and Join Game while a filter hides everything, and GET NEW LIST when
   Join Game's scan found no server, under a heading in every language.
   While a scan has found nothing yet, Join Game shows [loading rows](ui/retained-screens.md#loading-rows-24-october-2026)
-  at rest, and its first servers replace them with `row.reveal`.
+  at rest, and its first servers replace them with `row.reveal`. Retained pages
+  gain section 13.13's [notices](ui/retained-screens.md#notices-24-october-2026);
+  Join Game's favorites use them, and a removal offers Undo for 8 s.
   Progress, 23 October: [save details](ui/retained-screens.md#save-details)
   record each run's play time and difficulty in the persistent player info
   that every save header carries, without a save format change. CONTINUE and
