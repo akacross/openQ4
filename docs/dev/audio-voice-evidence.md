@@ -1036,8 +1036,10 @@ once per mixed frame and no frame is mixed during a load. With the pause and unp
 bringing the clock up to date, the stock, portrait and Classic runs read 318, 370 and
 317 ms before the save and 1,281, 810 and 1,199 ms after loads of 1,306, 1,673 and
 1,091 ms. That is 0.4–1.0 s of play after the harness's 500 ms wait, not the load
-time. `restore_resumes_in_place` now allows at most 1.1 s, which the fastest load seen,
-1.3 s, would exceed. Each subtitle run passes all 19 checks; both dialogue runs pass
+time. `restore_resumes_in_place` first allowed at most 1.1 s, which the fastest load seen,
+1.3 s, would exceed; on a busier machine on 25 October a correct restore took 1.3 s to
+settle after a 3.5 s load, so it now allows the larger of 1.1 s and the load's own length,
+which the defect always exceeded. Each subtitle run passes all 19 checks; both dialogue runs pass
 all 27, with Dialogue Volume's 0.6 holding across a real restore. These runs use the
 client with the restore fix, SHA-256
 `d488e79abaf95606ea764766fa90a62a019ea4181273392092c0c4b2d42d12d2`; the scene walks
@@ -1080,6 +1082,91 @@ build. `arena_sound_pause.py` compiles the real pause and unpause, now with the
 clock refresh, and passes 1,000 pause/resume cycles with a frozen clock.
 `audio_subtitles.py` (both native subtitle tests), `demo_playback.py`,
 `savegame_corruption_contract.py` and the other sources these changes touch pass.
+
+## Two speakers at the largest text, the OS low-memory notice and voice clock drift, 25 October 2026
+
+Windows x64, MSVC debugoptimized, built from `4d12fb9c8` plus this round's changes. The
+final Windows runs used client SHA-256
+`2dce2ce7511d743a4cdce947212f01fc007d3f214bb5fef69c4f0809ea66e614`; the stock and Classic
+subtitle runs used the build before the Linux start fix (`bc8cb67f…`), and the landed
+build differs only in a restore error message. Linux x64 ran under WSL2 as before, on
+Mesa's D3D12 driver; final client `de87df33…`, dedicated server `23dfcbc4…`.
+Implementation: [audio modernization](audio-modernization.md#two-speakers-at-the-largest-text-the-os-low-memory-notice-and-voice-clock-drift-october-25).
+
+### Two speakers at the largest text
+
+`audio_subtitles_runtime.py` now also captures two speakers at the largest text in
+Awakening's portrait intro (`largest_text_two_speakers`). The newer caption sits on its
+own line above the cinematic artwork and the older one below it, both clear of the
+picture and its "Planet Stroggos" title (captures inspected); before, the pair returned
+into the picture. The run passes all 20 checks on the final build, as do the stock and
+Classic runs (20 each). The native subtitle document test adds the split layout at
+720×1280 (5,959 checks), and the placement test checks that the room above matches the
+room below.
+
+### The operating system's low-memory notice
+
+`audio_output_recovery_runtime.py` now trims through `testLowMemoryNotice`, which pushes
+`SDL_EVENT_LOW_MEMORY` through SDL's queue and event watchers, and checks that the event
+reached the engine and trimmed exactly once (`trim_follows_os_low_memory_event`). On
+Windows the notice freed 1,127 idle samples (96.7 MB) and kept the 96 in use; on Linux
+1,128 and 95. Wiring it up showed that each notice had trimmed twice: the lifecycle
+watcher's pending pass answered it at the top of the event pump and the queued event
+trimmed again. Stereo passes all 20 checks and surround all 12 on both systems. On Windows
+two of four runs each missed one check while other work loaded the machine: one paused
+line restarted 670 ms late with a build running, and one HRTF re-route was still pending
+at its 1.6 s probe with three Linux clients running. Both passed in the other runs and in a
+final rerun on the quiet machine.
+
+### Voice clock drift between real peers
+
+`voice_chat_runtime.py` runs the peer's voice clock 0.1% slow and then 0.1% fast
+(`s_voiceTestClockRate`), through 10 s of speech each, against the host. On Linux, with
+a listen server, all 22 checks pass: the host admitted all 388 frames from the slow sender
+while its baseline rose 8 ms, and all 407 from the fast one while it fell 9 ms. Through the
+dedicated server, all 22 pass on the final Linux build: 436 frames each way with the
+baseline rising 9 ms and falling 7 ms, and nothing rejected; the listen server repeats at
++9 and −10 ms over 410 and 411 frames. The added delay above the baseline peaked at
+47–104 ms, under the 120 ms limit, which is scheduling jitter on this host rather than
+drift.
+The checks require at least 200 frames, so a slow client's lower frame rate does not
+count as a drift failure; the first dedicated run delivered 285 against an earlier limit
+of 300. This is drift simulated on one machine; independent machines remain open.
+
+### Saves on Linux
+
+The subtitle and dialogue harnesses could not qualify a save and load on Linux, and the
+`saved_and_loaded` check reported it each time instead of passing on captions kept
+through a failed load. Two causes surfaced in turn. The exported test tree had one
+commit, so it built as build 1, and a build below the savegame floor of 640 refuses even
+its own saves (stable builds already require full history); 700 empty commits put the
+test tree above it. The saves then wrote, and the loads failed in the player's animator:
+"`'player1' saved joint count 0 does not match model 'model_player_marine' joint count
+65`", and, saving 3 s into the map instead of 15 s, a garbage joint count. The restore
+error now names the entity and model, which is how the player was found. Windows saves
+and loads the same maps in every run. Linux single-player save/restore is therefore an
+open defect outside audio. A failed load falls back to reloading the level, so the Linux
+subtitle run also lost the two phases after it (16 of 20 checks pass) and the dialogue
+run its two restore measurements (22 of 24). The dialogue harness had counted that
+reload as a load; both harnesses now also reject the load's own failure warnings, which
+fail these Linux runs and pass every Windows one. Audio save/restore on Linux stays
+unqualified until the player's animator restores.
+
+### A Linux start crash on main
+
+The Linux client and dedicated server built from main crashed before `main`. The global
+multiview demo, built with `AsyncNetwork.cpp`'s statics, cleared itself through
+`mvd_seeking.SetBool`, a cvar from another file that GCC's link order had not yet
+constructed. Windows hid it. The constructor now resets its members without the cvar,
+`Clear()` still publishes it, and `mvd_seek_debris_contract.py` rejects a constructor path
+that touches it (six controls).
+
+### Native and source checks, 25 October
+
+The subtitle document test (5,959 checks, now with the split layout), the paging test,
+`openq4-arena-sound` and the other sound native tests pass. `arena_sound_pause.py`,
+`voice_capture_lifecycle.py` (with stubs for the test cvar), `mvd_seek_debris_contract.py`
+(six controls) and all 34 source tests that read the SDL backend pass.
 
 ## Other verification and limitations
 

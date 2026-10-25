@@ -3640,7 +3640,9 @@ void idAnimator::Restore( idRestoreGame *savefile ) {
 		savefile->Error( "idAnimator::Restore: invalid joint count %d", numJoints );
 	}
 	if ( numJoints != expectedJoints ) {
-		savefile->Error( "idAnimator::Restore: saved joint count %d does not match model joint count %d", numJoints, expectedJoints );
+		// Name the entity and model: the count alone cannot be traced to the content.
+		savefile->Error( "idAnimator::Restore: '%s' saved joint count %d does not match model '%s' joint count %d",
+			entity ? entity->GetName() : "<no entity>", numJoints, modelDef ? modelDef->GetName() : "<none>", expectedJoints );
 	}
 //RAVEN BEGIN
 //amccarthy: Added allocation tag

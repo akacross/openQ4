@@ -179,7 +179,11 @@ def check_stereo(args, root):
     # Dialogue Volume holds through an outage: the restarted line keeps the user's level.
     steps += ['set s_dialogueVolume 0.25', 'waitMsec 300'] + probe('QUARTER') + \
              ['s_testDeviceInterruption 600', 'waitMsec 1500'] + probe('QUARTER_AFTER') + ['set s_dialogueVolume 1']
-    steps += ['echo AUDIO_OUTPUT_TRIM_BEFORE', 'listSounds weapons/blaster', 's_trimAudioMemory 0',
+    # The trim answers the operating system's low-memory event, pushed through SDL's queue
+    # and event watchers as Android and iOS deliver it; idle 0 makes every idle sample
+    # eligible, so the outcome is the same on every run.
+    steps += ['echo AUDIO_OUTPUT_TRIM_BEFORE', 'listSounds weapons/blaster', 'set s_trimIdleSeconds 0',
+              'testLowMemoryNotice', 'waitMsec 100', 'reset s_trimIdleSeconds',
               'echo AUDIO_OUTPUT_TRIM_AFTER', 'listSounds weapons/blaster', 'listPlayingSounds',
               'testSound sound/weapons/blaster/fire01', 'waitMsec 100',
               'echo AUDIO_OUTPUT_TRIM_REPLAY', 'listSounds weapons/blaster', 'listPlayingSounds',
@@ -214,7 +218,9 @@ def check_stereo(args, root):
     checks['dialogue_volume_kept_across_outage'] = all(
         abs(phase.get('dialogue', 0) - 0.25) < 0.02 and phase.get('noeos', 0) > 0.9 for phase in (quarter, quarter_after)) and \
         voices(s.get('QUARTER_AFTER', '')).get('dialogue', {}).get('serial', 0) > voices(s.get('QUARTER', '')).get('dialogue', {}).get('serial', 0)
-    trim = re.search(r'AUDIO_TRIM reason=console idle=0 freed=(\d+) freedKiB=(\d+) copies=(\d+) copyKiB=(\d+) active=(\d+)', log)
+    trim = re.search(r'AUDIO_TRIM reason=os low-memory idle=0 freed=(\d+) freedKiB=(\d+) copies=(\d+) copyKiB=(\d+) active=(\d+)', log)
+    checks['trim_follows_os_low_memory_event'] = 'testLowMemoryNotice: low-memory event pushed' in log and \
+        'low-memory event received' in log and log.count('AUDIO_TRIM reason=os low-memory') == 1
     checks['trim_freed_idle_level_samples'] = bool(trim and int(trim[1]) > 0 and int(trim[2]) > 0)
     checks['trim_kept_active_samples'] = bool(trim and int(trim[5]) >= 4) and \
         {'dialogue', 'noeos', 'nogranule'} <= set(playing(s.get('TRIM_AFTER', '')))

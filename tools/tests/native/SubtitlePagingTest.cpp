@@ -39,6 +39,14 @@ int main() {
 		}
 	}
 	assert(CanvasBottom(9.0f/16, true, 17 * 1.4f, 2) <= 708 && CanvasBottom(9.0f/16, true, 17 * 2 * 2 * 1.4f, 2) == CanvasBottom(9.0f/16, true));
+	// Two speakers where one line fits below: the second panel sits 12 above the artwork,
+	// on screen, in room equal to the room below.
+	for (float aspect : {9.0f/16, 3.0f/4}) {
+		const float pitch = 17 * 2 * 2 * 1.4f, artworkTop = 360 - 270 * aspect, artworkBottom = 360 + 270 * aspect;
+		const float above = CanvasAboveBottom(aspect);
+		assert(std::fabs(above - (artworkTop - 12)) < 0.01f && above - (12 + pitch) >= 12);
+		assert(std::fabs((above - 24) - (708 - artworkBottom - 24)) < 0.01f); // text room: margin and padding each side
+	}
 	// A speaker label indents the words by its whole width, or is left out past half the line.
 	assert(SpeakerIndent(100, 340) == 100 && SpeakerIndent(170, 340) == 170 && SpeakerIndent(171, 340) == 0);
 	assert(SpeakerIndent(0, 340) == 0 && SpeakerIndent(std::numeric_limits<float>::quiet_NaN(), 340) == 0 &&

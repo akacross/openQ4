@@ -24,8 +24,11 @@ void idPlayerView::DrawSubtitles() {
 	const float aspect = static_cast<float>(renderSystem->GetScreenWidth()) / Max(1, renderSystem->GetScreenHeight());
 	const bool cinematic = gameLocal.GetCamera() || player->GetPrivateCameraView();
 	// Where one line fits under a portrait cinematic's artwork, a lone caption pages a
-	// line at a time to stay clear of the title text drawn in the picture.
-	const int singleRows = cinematic && OpenQ4Subtitles::LinesBelowArtwork(aspect, pitch) == 1 ? 1 : 2;
+	// line at a time to stay clear of the title text drawn in the picture, and with two
+	// speakers the newer one takes the matching line above the artwork.
+	const bool oneLineBelow = cinematic && OpenQ4Subtitles::LinesBelowArtwork(aspect, pitch) == 1;
+	const int singleRows = oneLineBelow ? 1 : 2;
+	const bool split = oneLineBelow && count == 2;
 	subtitleGui->SetStateFloat("width", width);
 	subtitleGui->SetStateFloat("x", (720.0f * renderSystem->GetScreenWidth() / Max(1, renderSystem->GetScreenHeight()) - width) * 0.5f);
 	subtitleGui->SetStateFloat("size", size);
@@ -39,6 +42,10 @@ void idPlayerView::DrawSubtitles() {
 		subtitleGui->SetStateString(va("speaker%d", line), "");
 		subtitleGui->SetStateFloat(va("indent%d", line), 0);
 	}
+	subtitleGui->SetStateString("aboveLine", "");
+	subtitleGui->SetStateString("aboveSpeaker", "");
+	subtitleGui->SetStateFloat("aboveIndent", 0);
+	subtitleGui->SetStateFloat("aboveLines", 0);
 	int visibleLines = 1;
 	for (int i = 0; i < count; ++i) {
 		const soundSubtitle_t& cue = cues[i];
@@ -78,10 +85,18 @@ void idPlayerView::DrawSubtitles() {
 		const int page = OpenQ4Subtitles::PageAt(subtitlePages[i], cue.timeMsec, cue.durationMsec);
 		if (page < 0) continue;
 		const auto& shown = subtitlePages[i][page];
-		subtitleGui->SetStateString(va("speaker%d", i), speaker.c_str());
-		subtitleGui->SetStateFloat(va("indent%d", i), speakerWidth);
-		subtitleGui->SetStateString(va("line%d", i), shown.lines[0].c_str());
-		visibleLines = Max(visibleLines, i + 1);
+		if (split && i == 0) {
+			subtitleGui->SetStateString("aboveSpeaker", speaker.c_str());
+			subtitleGui->SetStateFloat("aboveIndent", speakerWidth);
+			subtitleGui->SetStateString("aboveLine", shown.lines[0].c_str());
+			subtitleGui->SetStateFloat("aboveLines", 1);
+			continue;
+		}
+		const int row = split ? 0 : i;
+		subtitleGui->SetStateString(va("speaker%d", row), speaker.c_str());
+		subtitleGui->SetStateFloat(va("indent%d", row), speakerWidth);
+		subtitleGui->SetStateString(va("line%d", row), shown.lines[0].c_str());
+		visibleLines = Max(visibleLines, row + 1);
 		if (count == 1 && !shown.lines[1].empty()) {
 			subtitleGui->SetStateString("line1", shown.lines[1].c_str());
 			subtitleGui->SetStateFloat("indent1", speakerWidth);
@@ -91,6 +106,7 @@ void idPlayerView::DrawSubtitles() {
 	subtitleGui->SetStateFloat("lines", static_cast<float>(visibleLines));
 	// Placed once the line count is known: below a portrait cinematic's artwork it hangs from its top.
 	subtitleGui->SetStateFloat("bottom", OpenQ4Subtitles::CanvasBottom(aspect, cinematic, pitch, visibleLines));
+	subtitleGui->SetStateFloat("aboveBottom", OpenQ4Subtitles::CanvasAboveBottom(aspect));
 	subtitleGui->StateChanged(gameLocal.time);
 	const bool previous = renderSystem->GetUseUIViewportFor2D();
 	renderSystem->SetUseUIViewportFor2D(true);

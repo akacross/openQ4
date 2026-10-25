@@ -2610,6 +2610,19 @@ static void SDL3_ClearLifecyclePendingFlag(int flag) {
 	}
 }
 
+// Clears the flag and reports whether it was set, so one notice is answered once.
+static bool SDL3_TakeLifecyclePendingFlag(int flag) {
+	for (;;) {
+		const int currentFlags = SDL_GetAtomicInt(&s_sdlLifecyclePending);
+		if ((currentFlags & flag) == 0) {
+			return false;
+		}
+		if (SDL_CompareAndSwapAtomicInt(&s_sdlLifecyclePending, currentFlags, currentFlags & ~flag)) {
+			return true;
+		}
+	}
+}
+
 static void SDL3_HandleAppBackgroundTransition(int eventTime, const char *reason);
 
 static bool SDLCALL SDL3_LifecycleEventWatch(void *userdata, SDL_Event *event) {
@@ -4060,6 +4073,20 @@ static void SDL3_WindowMinimizeTest_f(const idCmdArgs &args) {
 		Sys_SDL_IsGameWindowShown() ? 1 : 0);
 }
 
+// Pushes the event an operating system sends under memory pressure (Android, iOS)
+// through SDL's queue and event watchers, so the response is testable anywhere.
+static void SDL3_TestLowMemoryNotice_f(const idCmdArgs &args) {
+	SDL_Event event;
+	SDL_zero(event);
+	event.type = SDL_EVENT_LOW_MEMORY;
+	event.common.timestamp = SDL_GetTicksNS();
+	if (!SDL_PushEvent(&event)) {
+		common->Printf("testLowMemoryNotice: %s\n", SDL_GetError());
+		return;
+	}
+	common->Printf("testLowMemoryNotice: low-memory event pushed\n");
+}
+
 static void SDL3_ListDisplays_f(const idCmdArgs &args) {
 	(void)args;
 	SDL3_PrintDisplayList();
@@ -5353,9 +5380,13 @@ bool Sys_SDL_PumpEvents(void) {
 				break;
 
 			case SDL_EVENT_LOW_MEMORY:
-				SDL3_ClearLifecyclePendingFlag(SDL3_LIFECYCLE_PENDING_LOW_MEMORY);
-				common->Printf("SDL3: low-memory event received from OS.\n");
-				S_TrimMemory("os low-memory");
+				// The event watch flags each notice as SDL queues it, and the pending pass
+				// at the top of this pump has usually answered it already; trimming again
+				// here ran every notice twice. Answer it only if that pass has not.
+				if (SDL3_TakeLifecyclePendingFlag(SDL3_LIFECYCLE_PENDING_LOW_MEMORY) || !s_sdlLifecycleEventWatchRegistered) {
+					common->Printf("SDL3: low-memory event received from OS.\n");
+					S_TrimMemory("os low-memory");
+				}
 				break;
 
 			case SDL_EVENT_KEY_DOWN:
@@ -6783,6 +6814,7 @@ static bool SDL3_WindowServices_PrepareWindowSystem(void) {
 		cmdSystem->AddCommand("listControllers", SDL3_ListControllers_f, CMD_FL_SYSTEM, "lists SDL3 controller, sensor, touchpad, and battery diagnostics");
 		cmdSystem->AddCommand("sdl3MouseCaptureDiagnostics", SDL3_MouseCaptureDiagnostics_f, CMD_FL_SYSTEM, "toggles SDL3 mouse capture and prints backend state; optional repeat count is clamped to 1..8");
 		cmdSystem->AddCommand("windowMinimizeTest", SDL3_WindowMinimizeTest_f, CMD_FL_SYSTEM | CMD_FL_CHEAT, "development: minimize the game window, as leaving full screen does, so the frame cap of a window that shows nothing can be measured without input; requires cheats");
+		cmdSystem->AddCommand("testLowMemoryNotice", SDL3_TestLowMemoryNotice_f, CMD_FL_SYSTEM, "pushes an operating-system low-memory event through SDL, as Android and iOS deliver one");
 		s_sdlDiagnosticCommandsRegistered = true;
 	}
 

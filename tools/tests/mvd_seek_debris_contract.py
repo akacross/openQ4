@@ -60,10 +60,20 @@ def body(source: str, signature: str) -> str:
 def validate(sources: dict[str, str]) -> None:
     mvd = sources["mvd"]
     require(mvd, '"mvd_seeking", "0",\n\tCVAR_SYSTEM | CVAR_BOOL | CVAR_NOCHEAT | CVAR_ROM,', "the read-only seek flag")
-    # Every change of seekInProgress publishes the same value.
-    changes = re.findall(r"seekInProgress = (true|false);\n\s*(mvd_seeking\.SetBool\( (true|false) \);)?", mvd)
-    if len(changes) < 4:
-        raise AssertionError(f"expected at least four seekInProgress changes, found {len(changes)}")
+    # Every change of seekInProgress publishes the same value. ClearState() resets the
+    # members alone, because the global instance's constructor runs during static
+    # initialization, before mvd_seeking may exist (every Linux start crashed); Clear()
+    # publishes right after it.
+    clear_state = body(mvd, "void idMultiViewDemo::ClearState()")
+    constructor = body(mvd, "idMultiViewDemo::idMultiViewDemo()")
+    if "mvd_seeking." in clear_state or "mvd_seeking." in constructor or re.search(r"\bClear\(\);", constructor):
+        raise AssertionError("the constructor path touches mvd_seeking during static initialization")
+    require(body(mvd, "void idMultiViewDemo::Clear()"), "ClearState();\n\tmvd_seeking.SetBool( false );",
+            "Clear publishes the cleared seek flag")
+    changes = re.findall(r"seekInProgress = (true|false);\n\s*(mvd_seeking\.SetBool\( (true|false) \);)?",
+                         mvd.replace(clear_state, ""))
+    if len(changes) < 3:
+        raise AssertionError(f"expected at least three seekInProgress changes besides ClearState, found {len(changes)}")
     for value, published, published_value in changes:
         if not published or published_value != value:
             raise AssertionError(f"seekInProgress = {value} is not published to mvd_seeking")
@@ -96,6 +106,8 @@ CONTROLS = (
     ("a seek that lands is not cleared", "mvd",
      "\t\tseekInProgress = false;\n\t\tmvd_seeking.SetBool( false );\n\t\tplaybackGameTime = seekTargetGameTime;",
      "\t\tseekInProgress = false;\n\t\tplaybackGameTime = seekTargetGameTime;"),
+    ("the constructor publishes during static initialization", "mvd",
+     "\tClearState();\n}", "\tClear();\n}"),
     ("the game ignores the flag", "moveable", "if ( gameLocal.IsServerDemoSeeking() ) {", "if ( false ) {"),
     ("live play reads the flag too", "game_local",
      'return IsServerDemoPlaying() && cvarSystem->GetCVarBool( "mvd_seeking" );', 'return cvarSystem->GetCVarBool( "mvd_seeking" );'),

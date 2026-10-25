@@ -72,6 +72,8 @@ def main():
     # fixture takes over the second speaker's channel, which stop leaves; the overlap returns.
     steps += ['testRadioChatter distract oq4_subtitle_missing', 'testRadioChatter stop', 'set ui_subtitleScale 2', 'set ui_retainedTextScale 2', 'testRadioChatter oq4_subtitle_a',
               'waitMsec 200']; probe('LARGEST'); capture('largest')
+    # A second speaker at that size: one line below the artwork and one above it.
+    steps += ['testRadioChatter distract oq4_subtitle_b', 'waitMsec 150']; probe('LARGEST_OVERLAP'); capture('largest-overlap')
     steps += ['set ui_subtitleScale 1.6', 'reset ui_retainedTextScale']
     # The map opens in a cinematic, which refuses a save. After the captures that need the
     # cinematic, load the map again with cinematics skipped, then save and load outside one.
@@ -127,6 +129,9 @@ def main():
         phases[name] = {shader: {'time': int(time), 'duration': int(duration), 'bytes': int(length)} for shader,time,duration,length in
                         re.findall(r'Subtitle shader=(\S+) emitter=\d+ speaker=\d+ time=(\d+) duration=(\d+) radio=\d textBytes=(\d+)', section)}
     def cue(name, letter='a'): return phases.get(name, {}).get('oq4_subtitle_' + letter, {})
+    # The saved game's load is the last level load the log reports.
+    loads = re.findall(r'^\s*(\d+) msec to load \S+', log, re.M)
+    load_msec = int(loads[-1]) if loads else 0
     checks = {'complete': run.returncode == 0 and 'SUBTITLE_COMPLETE' in log,
               'transcript_and_english_fallback': cue('START').get('bytes') == len(PRIMARY.encode()),
               'muted_dialogue_caption': bool(cue('MUTED')),
@@ -136,12 +141,16 @@ def main():
               'restart_preserves': cue('RESTART').get('time', -1) > cue('SLOW_B').get('time', 10**9),
               'two_speakers': bool(cue('OVERLAP') and cue('OVERLAP', 'b')),
               'largest_text_caption': bool(cue('LARGEST')) and not cue('LARGEST', 'b'),
+              'largest_text_two_speakers': bool(cue('LARGEST_OVERLAP') and cue('LARGEST_OVERLAP', 'b')),
               'restore_both': bool(cue('BEFORE_SAVE') and cue('BEFORE_SAVE', 'b') and cue('RESTORE') and cue('RESTORE', 'b')),
               # A real save and load: written outside a cinematic, then the level loads from it.
               # The restored line resumes where it was saved: 500 ms of play after the load
-              # and a few frames, not as far into itself as the load (1.3 s at the fastest) took.
-              'restore_resumes_in_place': 0 < cue('RESTORE').get('time', -1) - cue('BEFORE_SAVE').get('time', 10**9) <= 1100,
-              'saved_and_loaded': "Can't save during a cinematic" not in log and
+              # and the frames that settle it, not as far into itself as the load took. The
+              # defect added the whole load, so allow up to that load's own length (or 1.1 s).
+              'restore_resumes_in_place': 0 < cue('RESTORE').get('time', -1) - cue('BEFORE_SAVE').get('time', 10**9) <= max(1100, load_msec),
+              # A failed load also reloads the level, so it is ruled out by its own warnings.
+              'saved_and_loaded': "Can't save during a cinematic" not in log and 'could not restore saved state' not in log and
+                  "Couldn't open savegame" not in log and
                   bool(re.search(r"^SUBTITLE_SAVE\s*\n(?:.*\n)*?Saved 'audio_subtitles'\s*\n(?:.*\n)*?Map: ", log, re.M)),
               'interruption_and_missing_text': not cue('INTERRUPT') and bool(cue('INTERRUPT', 'b')) and not cue('INTERRUPT', 'missing'),
               'stopped_clear': not any(n.startswith('oq4_subtitle_') for n in phases.get('STOP', {})),
@@ -154,7 +163,7 @@ def main():
     checks['archived_controls'] = all(f'seta {key} "{value}"' in settings for key,value in
                                      [('ui_subtitles','1'), ('ui_subtitleScale','1.6'), ('ui_subtitleBackground','0.8'), ('ui_subtitleSpeakers','0')])
     captures = list((game / 'screenshots').glob('subtitles-*.tga'))
-    checks['engine_captures'] = len(captures) == 10
+    checks['engine_captures'] = len(captures) == 11
     from PIL import Image
     for path in captures:
         with Image.open(path) as im: im.save(path.with_suffix('.png'))
@@ -162,7 +171,8 @@ def main():
               'executable_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(), 'harness_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'runtime_sha256': {str(p.relative_to(ROOT / '.install')): hashlib.sha256(p.read_bytes()).hexdigest()
                                  for p in (ROOT / '.install/baseoq4').iterdir() if p.suffix.lower() in ('.dll','.so','.dylib','.pk4')},
-              'command': command, 'captures': [str(p) for p in captures], 'host_input': False, 'microphone': False, 'passed': all(checks.values())}
+              'command': command, 'captures': [str(p) for p in captures], 'host_input': False, 'microphone': False,
+              'restore_load_msec': load_msec, 'passed': all(checks.values())}
     (root / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'result': str(root / 'result.json'), 'checks': checks}, indent=2))
     return 0 if report['passed'] else 1

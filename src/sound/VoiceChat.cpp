@@ -17,6 +17,10 @@ idCVar s_voiceChatCapture( "s_voiceChatCapture", "0", CVAR_SOUND | CVAR_ARCHIVE 
 idCVar s_voiceChatTest( "s_voiceChatTest", "0", CVAR_SOUND | CVAR_BOOL | CVAR_NOCHEAT, "local microphone test; never sent over the network" );
 idCVar s_voiceChatStatus( "s_voiceChatStatus", "0", CVAR_SOUND | CVAR_INTEGER | CVAR_ROM, "voice status: 0 unavailable, 1 capture off, 2 ready, 3 recording, 4 input unavailable" );
 idCVar s_voiceChatLevel( "s_voiceChatLevel", "0", CVAR_SOUND | CVAR_FLOAT | CVAR_ROM, "current microphone peak (0-1)" );
+// Test only: stands in for a machine whose clock runs fast or slow, so receivers'
+// drift tracking can be qualified between real peers on one host.
+idCVar s_voiceTestClockRate( "s_voiceTestClockRate", "1", CVAR_SOUND | CVAR_FLOAT | CVAR_CHEAT,
+	"test only: rate at which this sender's voice timestamps advance against real time", 0.98f, 1.02f );
 
 namespace {
 constexpr int VoiceClients = 32;
@@ -33,6 +37,9 @@ int partialSamples = 0;
 oq4voice::Admission incoming[VoiceClients + 1];
 oq4voice::AdmissionStats incomingStats[VoiceClients + 1];
 unsigned int generations[VoiceClients + 1] = {};
+double stampClock = 0;
+uint32_t stampSource = 0;
+bool stampSkewed = false;
 
 uint32_t VoiceNow() {
 #if defined(USE_SDL3) && !defined(ID_DEDICATED)
@@ -41,6 +48,22 @@ uint32_t VoiceNow() {
 	return uint32_t( Sys_Milliseconds() );
 #endif
 }
+// The timestamp a frame is sent with. At rate 1 it is the frame's own time; under
+// s_voiceTestClockRate it advances at that rate from the last stamp, with the
+// fraction carried, so a 20 ms frame is never truncated and a change never jumps.
+uint32_t VoiceStamp( uint32_t time ) {
+	const double rate = idMath::ClampFloat( 0.98f, 1.02f, s_voiceTestClockRate.GetFloat() );
+	if ( rate == 1.0 && !stampSkewed ) {
+		stampSource = time;
+		stampClock = time;
+		return time;
+	}
+	stampClock += double( int32_t( time - stampSource ) ) * rate;
+	stampSource = time;
+	stampSkewed = rate != 1.0;
+	return uint32_t( int64_t( stampClock ) );
+}
+
 bool SyntheticActive( uint32_t now ) {
 	return syntheticEnd != 0 && syntheticEnd - now < 0x80000000u;
 }
@@ -345,7 +368,7 @@ int idSoundSystemLocal::GetVoiceData( byte* data, int capacity ) {
 	for ( int16_t sample : frame.pcm ) peak = (std::max)( peak, abs( int( sample ) ) );
 	microphoneLevel = peak / 32768.0f;
 	s_voiceChatLevel.SetFloat( microphoneLevel );
-	oq4voice::Encode( frame.pcm, ++sequence, frame.time, data );
+	oq4voice::Encode( frame.pcm, ++sequence, VoiceStamp( frame.time ), data );
 	++captured;
 	return oq4voice::PacketBytes;
 }

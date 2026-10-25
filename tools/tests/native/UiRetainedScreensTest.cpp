@@ -4086,7 +4086,28 @@ static void CheckSubtitles(ScreenHost& host, const char* path) {
 			if(lines==2) {
 				Check(runtime.GetBounds("line1",second)&&second.y>=first.y+first.height-.5,"two speakers never overlap");
 			}
+			const auto aboveHidden=runtime.PresentedValue("abovePanel","display");
+			Check(aboveHidden && aboveHidden->text=="none","the panel above the artwork stays hidden unless split");
 		}
+	}
+	// Portrait cinematic at the largest text, two speakers: one line below the artwork and
+	// one above it (canvas 720 high; the artwork spans 360 +/- 270 * aspect).
+	{
+		const int width=720, height=1280; const double aspect=double(width)/height, pitch=17*2*2*1.4;
+		Viewport viewport; viewport.width=width; viewport.height=height; viewport.canvasHeight=720;
+		const double panelWidth=720.*aspect*.84, scale=height/720.;
+		Check(runtime.SetState({{"x",(720.*aspect-panelWidth)*.5},{"width",panelWidth},{"size",68.},{"pitch",pitch},
+			{"lines",1.},{"bottom",360+270*aspect+24+pitch},{"line0",std::string("Older")},{"line1",std::string("")},
+			{"aboveLines",1.},{"aboveBottom",360-270*aspect-12},{"aboveLine",std::string("Newer")},
+			{"aboveSpeaker",std::string("")},{"aboveIndent",0.}},error,1),"split subtitle state publishes");
+		runtime.Frame(viewport,1);
+		Bounds panel, above;
+		Check(runtime.GetBounds("panel",panel)&&runtime.GetBounds("abovePanel",above),"split subtitle bounds exist");
+		const auto shown=runtime.PresentedValue("abovePanel","display");
+		Check(shown && shown->text=="block","the panel above the artwork shows when split");
+		Check(above.y>=0 && above.y+above.height<=(360-270*aspect)*scale+.5,"the upper caption sits above the artwork on screen");
+		Check(panel.y>=(360+270*aspect)*scale-.5 && panel.y+panel.height<=height+.5,"the lower caption sits below the artwork on screen");
+		Check(runtime.SetState({{"aboveLines",0.}},error,1),"split subtitle state clears");
 	}
 	Check(host.errors==0,"subtitle rendering has no diagnostics");
 }

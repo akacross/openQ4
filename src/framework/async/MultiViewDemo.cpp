@@ -532,7 +532,10 @@ idMultiViewDemo::idMultiViewDemo
 idMultiViewDemo::idMultiViewDemo() {
 	memset( &recordingResult, 0, sizeof( recordingResult ) );
 	recordingResultValid = false;
-	Clear();
+	// The global instance is built with AsyncNetwork.cpp's statics, which may run before
+	// this file's mvd_seeking is constructed: GCC's link order on Linux crashed every
+	// client and server before main. Reset only the members here.
+	ClearState();
 }
 
 /*
@@ -541,6 +544,16 @@ idMultiViewDemo::Clear
 ==================
 */
 void idMultiViewDemo::Clear() {
+	ClearState();
+	mvd_seeking.SetBool( false );
+}
+
+/*
+==================
+idMultiViewDemo::ClearState
+==================
+*/
+void idMultiViewDemo::ClearState() {
 	state = MVD_IDLE;
 	file = NULL;
 	fileName.Clear();
@@ -568,7 +581,6 @@ void idMultiViewDemo::Clear() {
 	sawCleanEnd = false;
 	resettingPlayback = false;
 	seekInProgress = false;
-	mvd_seeking.SetBool( false );
 	forcePresentationFrame = false;
 	seekTargetGameTime = 0;
 	preferredFollowClient = DEMO_FOLLOW_FREE;

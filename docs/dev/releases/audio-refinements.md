@@ -50,7 +50,8 @@
   Coverage is incomplete in both campaigns; lines without a verified transcript
   stay uncaptioned. In portrait windows, cinematic captions sit just below the
   picture, clear of title cards; at the very largest text sizes they show one
-  line at a time there. A speaker name too wide for the line is left out rather
+  line at a time there, and a second speaker's caption appears above the
+  picture. A speaker name too wide for the line is left out rather
   than overlapping the words. This feature does not transcribe player voice chat
   or caption effects.
 - Replace the engine and matching game modules together. Dialogue Volume starts
@@ -82,7 +83,8 @@
   and position, `s_trimAudioMemory` runs the low-memory response on demand, and
   `s_testDeviceInterruption` simulates a lost audio device for testing.
   `listSounds` also reports the game's total memory use, so its cost with sound
-  on and off can be compared.
+  on and off can be compared. `testLowMemoryNotice` sends the warning a phone or
+  tablet gives when memory runs low, which now frees audio once instead of twice.
   `s_logSpeech 1` lists every line of speech as it starts, with whether Dialogue
   Volume and subtitles reach it.
 - Lines whose transcript is declared for the voice file, rather than for the

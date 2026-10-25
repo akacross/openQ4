@@ -183,6 +183,7 @@ private:
 	bool					recordingResultValid;
 
 	void					Clear();
+	void					ClearState();
 	bool					StartRecording( const idCmdArgs &args );
 	bool					StopRecording( const char *reason, bool finalize,
 							serverMVDResultReason_t failureReason =

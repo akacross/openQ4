@@ -1,6 +1,6 @@
 # openQ4 UI Visual Design
 
-Specification version 1.26, 24 October 2026 (1.25 on 23 October, 1.24 on 21 October, 1.22 on 11 October, 1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
+Specification version 1.27, 25 October 2026 (1.26 on 24 October, 1.25 on 23 October, 1.24 on 21 October, 1.22 on 11 October, 1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
 1.9 on 29 September, 1.6 on 28 September, 1.4 and 1.5 on 27 September, 1.1 to
 1.3 on 26 September, 1.0 on 8 September 2026). Status:
 implementation target; the replacement has not shipped. Applies to every
@@ -25,6 +25,9 @@ Version 1.26 keeps the largest caption sizes there too: where only one line fits
 below the artwork, a lone caption pages one line at a time below it. A speaker's
 name no longer runs under the words; it is left out where it would take more than
 half the line.
+
+Version 1.27 gives a second speaker at those sizes the matching line above the
+artwork, so two overlapping captions also stay clear of the picture.
 
 Version 1.1 added measured references from a survey of the effective retail
 GUI scripts, interface art, fonts and materials, and corrected anatomy that did
@@ -2380,7 +2383,8 @@ its wheel is the Marine wheel with these changes:
   crosshair. On a screen narrower than 4:3, where two lines fit below the 640x480
   cinematic artwork, they hang 12 u below it instead, clear of title text drawn in
   the picture or its bands. Where only one line fits there, a lone caption pages a
-  line at a time below the artwork; two overlapping captions return to the picture.
+  line at a time below the artwork, and the newer of two overlapping captions takes
+  the matching line 12 u above the artwork.
 
 ### 14.9 Multiplayer HUD
 

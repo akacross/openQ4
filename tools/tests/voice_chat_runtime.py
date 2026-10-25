@@ -126,7 +126,7 @@ def main() -> int:
     games = {role: saves[role] / 'baseoq4' for role in roles}
     logs = {role: games[role] / 'logs/openq4.log' for role in roles}
     polls = {role: games[role] / 'voice-poll.cfg' for role in roles}
-    processes, streams, phases, checks = {}, [], {}, {}
+    processes, streams, phases, checks, clock_drift = {}, [], {}, {}, {}
     proxy = LocalProxy(args.port + 10, args.port)
 
     def loop(path: Path) -> None:
@@ -190,12 +190,12 @@ def main() -> int:
             time.sleep(.2)
         raise RuntimeError('timeout: ' + description)
 
-    def phase(name, commands):
+    def phase(name, commands, active_msec=1700):
         for role in roles:
             next_poll = games[role] / f'voice-wait-{name}.cfg'
             loop(next_poll)
             write_script(polls[role], [f'echo VOICE_BEGIN_{name}', 'listVoiceChat', *commands.get(role, []),
-                         'waitMsec 1700', f'echo VOICE_ACTIVE_{name}', 'listVoiceChat', 'testVoiceChat 0',
+                         f'waitMsec {active_msec}', f'echo VOICE_ACTIVE_{name}', 'listVoiceChat', 'testVoiceChat 0',
                          'waitMsec 300', f'echo VOICE_END_{name}', 'listVoiceChat', f'echo VOICE_DONE_{name}',
                          'exec "' + next_poll.name + '"'])
             polls[role] = next_poll
@@ -212,6 +212,8 @@ def main() -> int:
                 values = {key: int(value) for key, value in re.findall(r'(\w+)=(\d+)', status[1])}
                 playback = re.findall(r'^VOICE_PLAYBACK (.*)', section[1], re.M)
                 values['playback'] = [{key: float(value) for key, value in re.findall(r'(\w+)=(-?[\d.]+)', line)} for line in playback]
+                admission = re.findall(r'^VOICE_ADMISSION (.*)', section[1], re.M)
+                values['admission'] = [{key: float(value) for key, value in re.findall(r'(\w+)=(-?[\d.]+)', line)} for line in admission]
                 sections[stage] = values
             data[role] = sections
             phase_text = current[role].split(f'VOICE_BEGIN_{name}', 1)[1].split(f'VOICE_DONE_{name}', 1)[0]
@@ -270,6 +272,32 @@ def main() -> int:
         recovered = phase('RECOVERED', server_commands(['set net_serverMaxClientRate 128000'], {'host': ['testVoiceChat 3'], 'peer': ['testVoiceChat 3']}))
         checks['recovers_after_congestion'] = delta(recovered, 'host') > 20 and delta(recovered, 'peer') > 20
         old_generations = {row['generation'] for row in recovered['host']['ACTIVE']['playback'] if row['client'] == 1}
+
+        # Independent clocks: the peer's voice timestamps run 0.1% slow and then 0.1% fast
+        # through 10 s of speech each, ten times a typical crystal's drift and half the
+        # admission's 2 ms/s slew. The host's baseline for the peer follows: up while the
+        # sender falls behind, straight down when it runs ahead, rejecting nothing.
+        def admitted(data, stage):
+            rows = [row for row in data['host'][stage]['admission'] if row.get('client') == 1]
+            return rows[-1] if rows else {}
+
+        def drift(name, rate):
+            data = phase(name, {'peer': [f'set s_voiceTestClockRate {rate}', 'testVoiceChat 10']}, active_msec=10500)
+            begin, end = admitted(data, 'BEGIN'), admitted(data, 'ACTIVE')
+            return {'played': delta(data, 'host'),
+                    'accepted': end.get('accepted', 0) - begin.get('accepted', 0),
+                    'rejected': end.get('rejected', 0) - begin.get('rejected', 0),
+                    'baseline_shift_ms': end.get('baseline_shift_ms', 0) - begin.get('baseline_shift_ms', 0),
+                    'max_added_ms': end.get('interval_max_added_ms')}
+        drift_slow, drift_fast = drift('DRIFT_SLOW', 0.999), drift('DRIFT_FAST', 1.001)
+        phase('DRIFT_END', {'peer': ['set s_voiceTestClockRate 1']})
+        clock_drift['slow'], clock_drift['fast'] = drift_slow, drift_fast
+        # At least 4 s of the 10 s spoken arrives even where slow clients emit one frame per
+        # rendered frame (a dedicated server and three software-paced clients).
+        checks['clock_drift_slow_sender'] = drift_slow['played'] > 200 and drift_slow['rejected'] <= drift_slow['accepted'] * .02 and \
+            drift_slow['baseline_shift_ms'] >= 5
+        checks['clock_drift_fast_sender'] = drift_fast['played'] > 200 and drift_fast['rejected'] <= drift_fast['accepted'] * .02 and \
+            drift_fast['baseline_shift_ms'] <= -5
         # Scope both recipient mute and server moderation to this connection.
         phase('BEFORE_RECONNECT', server_commands(['serverVoiceMute 1 1'], {'host': ['clientVoiceMute voice_peer']}))
         before = {role: len(read_log(logs[role])) for role in roles}
@@ -332,7 +360,7 @@ def main() -> int:
     rendered_tone = {role: tone_peak(saves[role] / 'mix.wav') for role in ('host', 'peer')} if checks['rendered_audio'] else {}
     checks['rendered_voice_tone'] = bool(rendered_tone) and all(peak > .02 for peak in rendered_tone.values())
     report = {'passed': bool(phases) and all(checks.values()), 'checks': checks, 'error': error, 'phases': phases,
-              'rendered_tone_peak': rendered_tone, 'proxy': {'packets': proxy.packets, 'dropped': proxy.dropped, 'maximum_pending': proxy.max_pending},
+              'rendered_tone_peak': rendered_tone, 'clock_drift': clock_drift, 'proxy': {'packets': proxy.packets, 'dropped': proxy.dropped, 'maximum_pending': proxy.max_pending},
               'microphone': False, 'host_input': False, 'output': 'OpenAL wave',
               'engine_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(),
               'dedicated': args.dedicated, 'server_sha256': hashlib.sha256(server_exe.read_bytes()).hexdigest(),

@@ -1488,6 +1488,11 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   load. No Apple host is available for macOS. Physical devices, hotplug, macOS and
   other distributions remain the gate.
   [Save and load evidence](audio-voice-evidence.md#real-saves-in-the-subtitle-and-dialogue-harnesses).
+  October 25: Linux builds of main crashed before `main` (the multiview demo's
+  constructor reset a cvar not yet constructed under GCC's link order); fixed with this
+  round. Linux single-player saves then failed to load in the player's animator, a
+  savegame defect outside audio, so Linux audio save/restore stays unqualified.
+  [Linux evidence](audio-voice-evidence.md#saves-on-linux).
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
   allocate a complete PCM sample. Measure compressed input, pending decoded PCM,
@@ -1549,6 +1554,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   low-memory notices, device and mobile budgets and provider memory on those devices
   remain open.
   [Process memory evidence](audio-voice-evidence.md#process-memory).
+  October 25: `testLowMemoryNotice` pushes the operating system's low-memory event
+  through SDL's queue and event watchers, and the output-recovery harness now trims
+  through it on Windows and Linux. That found every notice trimmed twice (the watcher's
+  pending pass and then the queued event); one notice now trims once. A notice from a
+  real Android or iOS device remains open: the Android emulator set-up used for the port
+  was removed with its worktree, and restoring it needs a download approved by the user.
+  [Low-memory notice evidence](audio-voice-evidence.md#the-operating-systems-low-memory-notice).
 - [ ] **AUD-04 — P2, implementation and qualification: surround and mod reverb.**
   Resolve `SSF_CENTER`/VO placement on 5.1 with stereo/HRTF fallback and nonzero mod
   room-rolloff unit handling. Keep stock zero-rolloff behavior intact.
@@ -1615,6 +1627,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   cadence, so the runs use WSL's GPU paravirtualization. Physical capture and playback
   devices, independent machines and their clock drift, and other systems remain open.
   [Linux voice evidence](audio-voice-evidence.md#linux-voice-chat).
+  October 25: `s_voiceTestClockRate` (test only) runs a sender's voice clock fast or slow,
+  and `voice_chat_runtime.py` drives the peer 0.1% slow and then 0.1% fast through 10 s
+  of speech each: the host's admission baseline follows it up and down and rejects no
+  frame. On Linux x64 all 22 checks pass through a listen server and the dedicated
+  server; the baseline rose 8–9 ms and fell 7–10 ms over about 10 s each, rejecting
+  nothing. Separate machines with their own clocks remain open.
+  [Drift evidence](audio-voice-evidence.md#voice-clock-drift-between-real-peers).
 - [ ] **AUD-06 — P2, implementation and qualification: independent dialogue volume.**
   Address [#187](https://github.com/themuffinator/openQ4/issues/187) with a localized,
   persistent spoken-dialogue control in UI-01. Inventory actual dialogue routing
@@ -1698,6 +1717,13 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   overlapping captions below a portrait picture at the largest text and physical
   stereo-HUD qualification remain open.
   [Caption evidence](audio-voice-evidence.md#the-largest-captions).
+  October 25: two overlapping captions at the largest portrait text now take one line
+  each, the newer above the cinematic artwork and the older below it, both clear of the
+  picture (visual specification 1.27). On Linux a real save and load fails in the
+  player's animator (`player1` saved with no joints), an open single-player savegame
+  defect outside audio, so audio save/restore stays unqualified there. The rest of the
+  scene corpus and physical stereo-HUD qualification remain open.
+  [Two-speaker evidence](audio-voice-evidence.md#two-speakers-at-the-largest-text).
 
 ## Desktop platforms and packaging
 

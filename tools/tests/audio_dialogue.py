@@ -186,7 +186,9 @@ def main():
     checks['slow_motion_pitch'] = bool(rows.get('SLOW', {}).get('dialogue') and abs(rows['SLOW']['dialogue'][1] - .5) < .01)
     # A real save and load: a cinematic refuses the save, which would leave RESTORE
     # measuring the same session rather than a restored one.
-    checks['saved_and_loaded'] = "Can't save during a cinematic" not in log and bool(re.search(
+    # A failed load also reloads the level, so it is ruled out by its own warnings.
+    checks['saved_and_loaded'] = "Can't save during a cinematic" not in log and 'could not restore saved state' not in log and \
+        "Couldn't open savegame" not in log and bool(re.search(
         r"^AUDIO_DIALOGUE_SAVE\s*\n(?:.*\n)*?Saved 'audio_dialogue'\s*\n(?:.*\n)*?Map: ", log, re.M))
     # Engine settings are deliberately shared by the two SP campaigns.
     saved = root / 'save/baseoq4/audio-dialogue-saved.cfg'

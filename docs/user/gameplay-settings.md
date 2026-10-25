@@ -386,8 +386,8 @@ so other menu languages show English captions. Coverage is incomplete: a
 missing transcript stays blank, and a scene description is never substituted.
 Player voice chat and sound effects are not transcribed. In portrait windows,
 cinematic captions sit below the picture, clear of title cards; at the largest
-text sizes they show one line at a time there. A speaker name too wide for half
-the line is left out.
+text sizes they show one line at a time there, with a second speaker above the
+picture. A speaker name too wide for half the line is left out.
 
 ## Gameplay Status Bar
 

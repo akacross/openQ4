@@ -256,6 +256,21 @@ completed release material here and publish curated notes in `releases/`.
   and adapter harnesses, and in-game Settings and Load Game captures. Candidate
   player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Audio split captions, low-memory notice and voice drift, 25 October 2026
+
+- [x] AUD-07: two overlapping captions at the largest portrait text take one line each,
+  the newer above the cinematic artwork and the older below it (visual specification
+  1.27).
+- [x] AUD-03: `testLowMemoryNotice` sends the operating system's low-memory event through
+  SDL; each notice now trims audio once, not twice.
+- [x] AUD-05: `s_voiceTestClockRate` drift between real peers; the receiver follows a
+  sender 0.1% slow or fast and rejects nothing (Linux listen and dedicated servers).
+- [x] Linux builds of main start again (the multiview demo reset a cvar during static
+  initialization). Linux single-player save/load still fails in the player's animator,
+  outside audio, so Linux audio save/restore stays unqualified.
+- Evidence and limits: [two speakers, the low-memory notice and voice drift](audio-voice-evidence.md#two-speakers-at-the-largest-text-the-os-low-memory-notice-and-voice-clock-drift-25-october-2026).
+  Candidate player wording is in [audio refinements](releases/audio-refinements.md).
+
 ## Audio scripted scenes, saved-game restore and process memory, 24 October 2026
 
 - [x] AUD-02/06/07: loading a saved game resumes restored sounds where they were saved

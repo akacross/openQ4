@@ -18,7 +18,7 @@ namespace OpenQ4Subtitles {
 // lower edge instead. The panel is 12 + pitch * lines high; deciding on two
 // lines keeps the position still while a caption's line count changes. When
 // only one line fits, the overlay pages a lone caption a line at a time so it
-// can stay there; two overlapping captions return to the picture.
+// can stay there, and a second speaker takes the same room above the artwork.
 inline int LinesBelowArtwork(float aspect, float pitch) {
 	if (!(aspect <= 4.0f / 3.0f) || !std::isfinite(pitch) || pitch <= 0.0f) return 0;
 	const float room = 708.0f - (360.0f + 270.0f * aspect + 12.0f) - 12.0f;
@@ -31,6 +31,11 @@ inline float CanvasBottom(float aspect, bool cinematic, float pitch = 0.0f, int 
 	if (fit == 2 || (fit == 1 && lines <= 1))
 		return 360.0f + 270.0f * aspect + 24.0f + pitch * std::clamp(lines, 1, 2);
 	return 348.0f + 202.5f * aspect;
+}
+// The bottom of the one-line panel above a portrait cinematic's artwork, 12 above
+// it; the room there matches the room below.
+inline float CanvasAboveBottom(float aspect) {
+	return 360.0f - 270.0f * aspect - 12.0f;
 }
 // The indent a speaker label takes: its whole measured width, so the words never
 // run under it, or none, leaving the label out, where it would take more than half

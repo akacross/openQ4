@@ -33,11 +33,12 @@ def main():
 #define SDLCALL
 #define FLOAT_IS_NAN(x) std::isnan(x)
 using byte=uint8_t;
-constexpr int CVAR_SOUND=1,CVAR_ARCHIVE=2,CVAR_BOOL=4,CVAR_NOCHEAT=8,CVAR_INTEGER=16,CVAR_ROM=32,CVAR_FLOAT=64;
+constexpr int CVAR_SOUND=1,CVAR_ARCHIVE=2,CVAR_BOOL=4,CVAR_NOCHEAT=8,CVAR_INTEGER=16,CVAR_ROM=32,CVAR_FLOAT=64,CVAR_CHEAT=128;
 constexpr int CMD_FL_SOUND=1,CMD_FL_CHEAT=2;
 struct idCVar {
     float value;
     idCVar(const char*,const char* initial,int,const char*):value(std::strtof(initial,nullptr)){}
+    idCVar(const char* name,const char* initial,int flags,const char* help,float,float):idCVar(name,initial,flags,help){}
     bool GetBool() const{return value!=0;} int GetInteger() const{return int(value);} float GetFloat() const{return value;}
     void SetBool(bool v){value=v;} void SetInteger(int v){value=float(v);} void SetFloat(float v){value=v;}
 };
