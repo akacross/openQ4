@@ -1,5 +1,10 @@
 # UI product requirement register
 
+25 October 2026: [tall views](retained-screens.md#tall-views-grow-the-lists-25-october-2026)
+add bounded UI-02 evidence to `LAY-021`. Load and Save Game, Demos and Join Game
+give a tall view's extra height to their list. The increment is audited against `137bd8d4bf2c08fabf5dc1e2ddd7ab44e36160fb`. No requirement status,
+migration acceptance or final gate changes.
+
 25 October 2026: [shared notices](retained-screens.md#shared-notices-and-a-lost-controller-25-october-2026)
 add bounded UI-03 evidence to `WID-026`. The notices follow the player across the
 retained menus, and a lost controller shows one until it returns. The increment is audited against `e28992e8ffbccde281e04b7f25722de47b903d79`. No requirement status,

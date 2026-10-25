@@ -92,6 +92,8 @@
   them returns to the top.
 - Moving back into a list, such as the saves on the Load Game page, returns
   you to the entry you left instead of the one nearest the button.
+- In portrait windows and on 5:4 screens, the Load, Save, Demos and Join Game
+  lists now grow to fill the extra height and show more entries.
 - If your controller disconnects while you are in the menus, a notice at the
   top right says so until it is back. Notices now stay with you as you move
   between menus.

@@ -16,7 +16,7 @@ from retained_saves import backing
 
 
 def subpage_document(doc: Document, prefix: str, crumb_key: str, title_key: str, focus: str, panel_parts: list,
-                     overlays: list) -> dict:
+                     overlays: list, stretch: tuple = ()) -> dict:
     """The sub-page around `panel_parts` (its content, in `{prefix}-panel`)
     with `overlays` (its dialogs) over everything.
     onActivate    every arrival: the content and backing fade in over 150 ms
@@ -86,4 +86,4 @@ def subpage_document(doc: Document, prefix: str, crumb_key: str, title_key: str,
     doc.events["subpageLeave"] = [{"op": "playTimeline", "timeline": "subpageLeave"}, *by_language(doc, "crumbReturn", fits)]
     return fit_narrow(doc.build(group("screen", {**FULL, "background-color": colour([0, 0, 0, 1])}, [
         *lit_field("field", 0.7), *bands, backing(backing_id), content, titles, *overlays,
-    ])), pages=True)
+    ])), pages=True, stretch=stretch)

@@ -306,4 +306,4 @@ def demos_document() -> dict:
     doc.events["pagedNewer"] = [{"op": "focus", "control": f"row-{ROWS - 1}"}]
     root = group("screen", {**FULL, "font-family": font("marine"), "font-size": length(16), "color": colour([1, 1, 1, 0.8])},
                  [backing("demo-backing"), stage, modal])
-    return fit_narrow(doc.build(root), pages=True)
+    return fit_narrow(doc.build(root), pages=True, stretch=("demo-list",))

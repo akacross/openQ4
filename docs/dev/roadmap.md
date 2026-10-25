@@ -812,7 +812,8 @@ archived provenance; new scheduling belongs here.
   hides or shows Join Game's server details and, by default, shows the scores
   while held in play. The home screens, menu pages and multiplayer cards
   [fit views narrower than 4:3](ui/retained-screens.md#narrow-views-24-october-2026)
-  (5:4, portrait).
+  (5:4, portrait), and the list pages [grow their lists](ui/retained-screens.md#tall-views-grow-the-lists-25-october-2026)
+  into a tall view's extra height.
 - [ ] **UI-03 — P1, implementation: complete player and multiplayer workflows.**
   Finish tourney queue/arena/watch controls, model previews, full Match Control,
   map catalogs beyond 128 entries, stable refresh focus, contextual disabled

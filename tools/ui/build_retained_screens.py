@@ -531,7 +531,7 @@ def plinth_widths(keys: tuple, width: float, lead: float, trail_cut: float) -> d
     return widths
 
 
-def fit_narrow(result: dict, pages: bool = False) -> dict:
+def fit_narrow(result: dict, pages: bool = False, stretch: tuple = ()) -> dict:
     """Section 9's 4:3 composition in a view narrower than 4:3 (5:4,
     portrait), as the campaign pages fit it (retained_menu_levels.fit_page):
     the canvas shrinks to the view's width (canvas.minWidth 960), each canvas
@@ -547,12 +547,37 @@ def fit_narrow(result: dict, pages: bool = False) -> dict:
     (above 80 dp, as Demos' title) keeps the view's top edge and one that
     starts in the bottom band (from 640 dp) keeps its distance from the
     view's bottom, so the bar stays on the bottom band. A detail card keeps
-    its place: the runtime sets it beside its subject."""
+    its place: the runtime sets it beside its subject.
+
+    With `stretch` (a page's scrolling list, by its viewport's id) a view
+    taller than the canvas (5:4, portrait) gives its extra height to the
+    list rather than to empty space around a centred page: the list and its
+    scrollbar keep their top and run to their distance from the view's
+    bottom, the parts that start above the list's foot keep the view's top,
+    and the parts below it keep its bottom. At 720 dp tall nothing moves."""
     def value(props: dict, key: str):
         found = props.get(key)
         return (found.get("value"), found.get("unit")) if isinstance(found, dict) else None
 
     detail = (result.get("detail") or {}).get("card")
+
+    def find(node: dict, wanted: str):
+        if node.get("id") == wanted:
+            return node
+        return next((found for child in node.get("children", []) if (found := find(child, wanted)) is not None), None)
+
+    def scrollbars(node: dict) -> list:
+        control = node.get("control") or {}
+        own = [node["id"]] if control.get("role") == "scrollbar" and control.get("viewport") in stretch else []
+        return own + [ident for child in node.get("children", []) for ident in scrollbars(child)]
+
+    stretchy, foot = set(), None
+    if stretch:
+        stretchy = set(stretch) | set(scrollbars(result["root"]))
+        for ident in stretch:
+            props = find(result["root"], ident)["properties"]
+            bottom = value(props, "top")[0] + value(props, "height")[0]
+            foot = bottom if foot is None else max(foot, bottom)
 
     def place(node: dict) -> None:
         props = node.get("properties", {})
@@ -567,7 +592,16 @@ def fit_narrow(result: dict, pages: bool = False) -> dict:
         if top is None or top[1] != "dp" or "bottom" in props:
             return
         height = value(props, "height")
+        if node.get("id") in stretchy:
+            props["bottom"] = length(round(720 - top[0] - height[0], 4))
+            props.pop("height")
+            return
         if height is not None and height[1] == "dp" and top[0] + height[0] <= 80:
+            return
+        if foot is not None:
+            if top[0] >= foot - 0.5 and height is not None:
+                props.pop("top")
+                props["bottom"] = length(round(720 - top[0] - height[0], 4))
             return
         if top[0] >= 640 and value(props, "height") is not None:
             props.pop("top")

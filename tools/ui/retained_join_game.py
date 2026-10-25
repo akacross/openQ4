@@ -842,4 +842,4 @@ def join_game_document() -> dict:
     doc.bind("join_favorite.enabled", "join_favorite", "enabled", {"op": ">=", "args": [{"state": "join.selected"}, 0]})
     back = page_prompts(doc, "join_back", action="back", verbs=(VERB_JOIN,))
     return subpage_document(doc, "join", "#str_200002", "#str_200187", "join_newlist", [*parts, join, favorite, back, detail_card(doc)],
-                            [join_ip_modal(doc), find_modal(doc)])
+                            [join_ip_modal(doc), find_modal(doc)], stretch=("servers-list",))

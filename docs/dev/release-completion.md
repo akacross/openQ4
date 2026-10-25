@@ -142,6 +142,12 @@ completed release material here and publish curated notes in `releases/`.
   generation width checks, native strip checks and a capture of every family.
   Candidate player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Tall views, 25 October 2026
+
+- [x] Load and Save Game, Demos and Join Game give a tall view's extra height
+  to their list ([tall views](ui/retained-screens.md#tall-views-grow-the-lists-25-october-2026):
+  native suites unchanged at 16:9, captures at 9:16, 5:4 and 16:9).
+
 ## Shared notices, 25 October 2026
 
 - [x] The notices follow the player across the retained menus, and a lost

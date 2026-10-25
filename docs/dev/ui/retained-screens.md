@@ -1725,6 +1725,26 @@ show the rows and the lists they bring back.
 Evidence: `.tmp/ui/empty-actions/validation-evidence.json`, SHA-256
 `b6ac9bfa909d37afecfa59d210f880116dcbb3db8cb8810af29596ee6744e47f`.
 
+## Tall views grow the lists (25 October 2026)
+
+In a view taller than the canvas (5:4, and most of all a portrait window)
+the list pages centred their 720 dp layout and left the extra height empty
+above and below. Load and Save Game, Demos and Join Game now give it to
+their list: `fit_narrow`'s `stretch` names the list's viewport, and the
+list and its scrollbar keep their top and run to their distance from the
+view's bottom, so they show more rows. The parts that start above the
+list's foot keep the view's top (the toolbar, the picture, the details and
+the plates beside the list) and the parts below it keep the view's bottom
+(Join Game's filter row, status, scan bar and plates, Save Game's name and
+SAVE GAME, the bottom band and the prompt bar). At 720 dp tall, 4:3 or wider,
+nothing moves. Restart Level, Credits, Create Server and the Arena keep the
+centred fit: they have no list to grow.
+
+Captured at 9:16 (540x960), 5:4 (1280x1024) and 16:9 for the four pages.
+
+Evidence: `.tmp/ui/stretch-lists/validation-evidence.json`, SHA-256
+`9d19f3dae684625dddf4d8c25d1a835238c95dba2fd3a6e88fb0b50b5d4b9322`.
+
 ## Shared notices and a lost controller (25 October 2026)
 
 The notices are now the session's layer rather than Join Game's: the
@@ -1859,7 +1879,8 @@ keeps its place: the runtime sets it under the focused row. The gate pins
 every menu's `canvas.minWidth` and the Load page's bottom-anchored bar.
 
 Captured at 9:16 for each of those pages, and at 5:4 and 16:9 for Load
-Game, Demos and Join Game.
+Game, Demos and Join Game. The list pages have since taken a tall view's
+extra height for their lists ([tall views](#tall-views-grow-the-lists-25-october-2026)).
 
 Evidence for the pages: `.tmp/ui/pages-fit/validation-evidence.json`, SHA-256
 `cc5f11fad8fa0b33f019b57dc33c4d6e07db99cd2046ffeb89becb308e7629db`.
