@@ -123,6 +123,13 @@ completed release material here and publish curated notes in `releases/`.
   six no-input runs. Candidate player wording:
   [Arena refinements](releases/arena-refinements.md).
 
+## Lag-compensation bias, 26 October 2026
+
+- [x] MP-07: a positive `net_mpLagCompBiasMS` no longer rewinds a bot, a listen
+  host or an unmeasured slot by the bias alone. The state fixture's three new
+  bias-20 cases pass. Candidate player wording:
+  [multiplayer refinements](releases/multiplayer-refinements.md).
+
 ## Multiplayer network qualification, 24 October 2026
 
 - [x] MP-07/MP-08: simulated network conditions on Windows and POSIX

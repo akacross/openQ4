@@ -49,6 +49,10 @@
 
 ## Change log
 
+- With a positive `net_mpLagCompBiasMS`, experimental lag compensation no
+  longer rewinds the world for bots, a listen server's own player or a
+  connection the server has not measured yet. The bias only adjusts measured
+  remote connections. Lag compensation stays off by default.
 - The client's prediction controller speeds up again when it is behind its
   target. Since 0.13.0 it slowed down instead, so a client ran one frame behind
   every server update and its commands arrived late. `net_verbose 2` now also

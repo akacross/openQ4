@@ -1397,6 +1397,11 @@ Sources: [competitive closure audit](competitive-match-reference-audit.md),
   reports the data rate. Bursts of about five losses at 10% held with no
   resyncs, at a 32 ms higher lead than single losses
   ([congestion evidence](mp-network-qualification.md#congestion-rate-control-and-burst-loss-24-october-2026)).
+  Progress, 26 October: a positive `net_mpLagCompBiasMS` no longer rewinds a
+  bot, a listen host or an unmeasured slot by the bias alone; the rewind now
+  returns before the bias when the lead or the measured round trip is missing.
+  The state fixture adds three bias-20 cases. A Codex round found this on
+  23 October in its own copy of the code.
 - [ ] **MP-08 — P1, qualification and decision: network and content interoperability.**
   Qualify real cross-platform/architecture peers over IPv4 and IPv6, fragmentation/
   MTU/rate limits, congestion, high player counts, discovery and reconnect. Address

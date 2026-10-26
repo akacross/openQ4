@@ -289,6 +289,13 @@ static void TestEstimate() {
 	world.Connection( 100, 90, nullptr );
 	net_mpLagCompBiasMS.value = 20;
 	ExpectInt( world.Rewind(), 136, "bias adds to the pose age" );
+	world.Connection( 0, 0, "16" );
+	ExpectInt( world.Rewind(), 0, "bias never rewinds a listen host or bot" );
+	world.Connection( 99999, 99999, nullptr );
+	ExpectInt( world.Rewind(), 0, "bias never rewinds a slot that is not fully connected" );
+	world.Connection( 100, 0, nullptr );
+	ExpectInt( world.Rewind(), 0, "bias never rewinds an unmeasured round trip" );
+	world.Connection( 100, 90, nullptr );
 	net_mpLagCompBiasMS.value = -200;
 	ExpectInt( world.Rewind(), 0, "a negative bias never rewinds into the future" );
 	net_mpLagCompBiasMS.value = 0;

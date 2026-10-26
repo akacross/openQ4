@@ -9715,6 +9715,13 @@ bool idGameLocal::ComputeMPLagCompensationRewind( const idPlayer *shooter, int &
 	mpLagCompEstimate_t &used = ( estimate != NULL ) ? *estimate : local;
 	EstimateMPLagCompensation( clientNum, used );
 
+	// The bias tunes the rewind of a measured remote connection.  A listen server's own player, a
+	// bot or a slot without a measured round trip has no wire to compensate, so it must not
+	// manufacture latency for them.
+	if ( used.leadMS <= 0 || used.measuredMS <= 0 ) {
+		return false;
+	}
+
 	// The rewind is the displayed pose age: the lead the shooter draws the world behind by, less
 	// what it extrapolates remote players forward for itself.
 	const int rewindEstimateMS = used.poseAgeMS + net_mpLagCompBiasMS.GetInteger();
