@@ -49,6 +49,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "InitializationPresentation.h"
 #include <chrono>
 #include "FileSystemPathValidation.h"
+#include "SaveGameReleases.h"
 #include "../sys/NetworkEndpoint.h"
 
 #if defined( USE_SDL3 )
@@ -1505,6 +1506,18 @@ void idCommonLocal::Error( const char *fmt, ... ) {
 		code = ERP_FATAL;
 	}
 
+	// A save restore owns its partial object graph. Let it unwind before the
+	// session closes the save or releases the map's renderer/script resources.
+	// The load transaction reports this failure through the ordinary save UI.
+	if ( code == ERP_DROP && openQ4_saveGameRestore.file != NULL ) {
+		char restoreError[ sizeof( errorMessage ) ];
+		va_start( argptr, fmt );
+		idStr::vsnPrintf( restoreError, sizeof( restoreError ), fmt, argptr );
+		va_end( argptr );
+		restoreError[ sizeof( restoreError ) - 1 ] = '\0';
+		throw idException( restoreError );
+	}
+
 	// if we are getting a solid stream of ERP_DROP, do an ERP_FATAL
 	currentTime = Sys_Milliseconds();
 	if ( currentTime - lastErrorTime < 100 ) {
@@ -1852,6 +1865,30 @@ static bool Common_HasStartupVariable( const char *match ) {
 	}
 
 	return false;
+}
+
+/*
+==================
+Common_IsRetailGameDirFile
+
+True when the file a relative path resolves to is a loose file in the retail
+game directory. GOG's Quake 4 installers write q4base/autoexec.cfg with the
+language picked at install time, and tools that extract every language variant
+leave whichever came last (issue #199).
+==================
+*/
+static bool Common_IsRetailGameDirFile( const char *relativePath ) {
+	idFile *file = fileSystem->OpenFileRead( relativePath );
+	if ( file == NULL ) {
+		return false;
+	}
+
+	idStr directory = file->GetFullPath();
+	fileSystem->CloseFile( file );
+	directory.BackSlashesToSlashes();
+	directory.StripFilename();
+	directory.StripPath();
+	return directory.Icmp( BASE_GAMEDIR ) == 0;
 }
 
 void idCommonLocal::StartupVariable( const char *match, bool once ) {
@@ -6276,11 +6313,18 @@ void idCommonLocal::Async( void ) {
 	}
 
 	// don't skip too many
-	if ( smoothSlowTime || timescale == 1.0f ) {
-		const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
-		if ( lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
-			lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
-		}
+#if defined( __ANDROID__ )
+	// Android may freeze the entire process between timer wakes. Bound every
+	// timescale to ten current tics, including the first call after foreground,
+	// rather than replaying minutes of accelerated input in the async worker.
+	const bool boundCatchup = true;
+	const double clampedCatchupMsec = 10.0 * ticMsec;
+#else
+	const bool boundCatchup = smoothSlowTime || timescale == 1.0f;
+	const double clampedCatchupMsec = 10.0 * GetUserCmdMsecFloat();
+#endif
+	if ( boundCatchup && lastTicMsec + clampedCatchupMsec < static_cast<double>( msec ) ) {
+		lastTicMsec = static_cast<double>( msec ) - clampedCatchupMsec;
 	}
 
 	while ( lastTicMsec + ticMsec <= static_cast<double>( msec ) ) {
@@ -6643,6 +6687,7 @@ void idCommonLocal::LoadGameDLL( void ) {
 	gameImport.collisionModelManager	= ::collisionModelManager;
 	gameImport.bse						= ::bse;
 	gameImport.vrSystem					= ::vrSystem;
+	gameImport.usercmdGen				= ::usercmdGen;
 
 	Com_SetGameModuleLoadPhase( GAME_MODULE_PHASE_CALL_GET_GAME_API );
 	const gameExport_t *gameExportPtr = GetGameAPI( &gameImport );
@@ -7192,12 +7237,27 @@ void idCommonLocal::InitGame( void ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "exec " CONFIG_FILE "\n" );
 		}
 	}
+
+	// An installer's q4base/autoexec.cfg supplies the first launch's language.
+	// After that the saved config holds the player's Settings choice, which a
+	// player's own autoexec.cfg elsewhere may still override.
+	const bool keepSavedLanguage = !sysDetect && !SafeMode() && Common_IsRetailGameDirFile( "autoexec.cfg" );
+	idStr savedLanguage;
+	if ( keepSavedLanguage ) {
+		cmdSystem->ExecuteCommandBuffer();
+		savedLanguage = cvarSystem->GetCVarString( "sys_lang" );
+	}
 	if ( fileSystem->ReadFile( "autoexec.cfg", NULL ) >= 0 ) {
 		cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "exec autoexec.cfg\n" );
 	}
 
 	// run cfg execution
 	cmdSystem->ExecuteCommandBuffer();
+	if ( keepSavedLanguage && savedLanguage.Icmp( cvarSystem->GetCVarString( "sys_lang" ) ) != 0 ) {
+		Printf( "Keeping the saved language '%s' over sys_lang '%s' from " BASE_GAMEDIR "/autoexec.cfg.\n",
+			savedLanguage.c_str(), cvarSystem->GetCVarString( "sys_lang" ) );
+		cvarSystem->SetCVarString( "sys_lang", savedLanguage.c_str() );
+	}
 
 	// re-override anything from the config files with command line args
 	StartupVariable( NULL, false );

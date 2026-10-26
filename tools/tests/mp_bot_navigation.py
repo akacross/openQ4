@@ -287,8 +287,27 @@ def validate_game_wiring() -> None:
     require(movement, "bounds.GetCenter() - origin", "rvBot::UpdateMovement volume entry steering")
     # Grounded movement never walks off into the void or a kill volume.
     require(movement, "BotBrakeAtEdge( self, moveDir )", "rvBot::UpdateMovement void-edge guard")
+    require_order(movement, "BotBrakeAtEdge( self, brakeDir )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum before idle/item holds")
     require_order(movement, "BotBrakeAtEdge( self, moveDir )", "ApplyMove( moveDir, cmd );",
                   "rvBot::UpdateMovement guards before it moves")
+    # A knock's slide toward an edge is braked even on an action's approach.
+    require(movement, "( !leavesOnPurpose || knockSliding )", "rvBot::UpdateMovement knocked edge guard")
+    # A held pad approach guards its momentum at the edge, input or none.
+    require(movement, "if ( holdForPad && self->pfl.onGround ) {", "rvBot::UpdateMovement held approach edge guard")
+    require(movement, "( hasMoveDir || transportBrake || heldEdgeBrake )", "rvBot::UpdateMovement applies the held edge brake")
+    # A shotgun's pellets are one throw: a frame's kicks are summed.
+    require(bot, "bot.knockbackFrameKick += kick;", "rvBotManager::OnPlayerKnockback pellet sum")
+    # Momentum never carries a grounded bot into a pad or teleporter its route
+    # did not choose, on a route or off one (q4ctf5's unplanned pad entries).
+    require(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+            "rvBot::UpdateMovement unplanned transport guard")
+    require(movement, "BotBrakeForTransport( self, brakeDir, -1 )",
+            "rvBot::UpdateMovement unrouted transport guard")
+    require_order(movement, "BotBrakeForTransport( self, moveDir, BotPlannedTransport( path, pathCorner ) )",
+                  "ApplyMove( moveDir, cmd );", "rvBot::UpdateMovement guards transports before it moves")
+    require_order(movement, "BotBrakeForTransport( self, brakeDir, -1 )", "bool waitingForItem = false;",
+                  "rvBot::UpdateMovement brakes unrouted momentum short of a pad before idle/item holds")
     # A bot waits short of a pad while someone flies its corridor the other way.
     require(movement, "HoldForPad( self, moveDir )", "rvBot::UpdateMovement pad hold owns movement")
     require(movement, "hasMoveDir && !holdForPad && self->pfl.onGround",
@@ -423,6 +442,28 @@ def validate_navmesh() -> None:
     # node that merely clips a platform's edge.
     require(step, "!NavLandingSupported( toFloor )", "rvNavMesh::TryStep supported jump landing")
     require(nav, "NavLandingSupported( nodes[landing].origin )", "rvNavMesh::AddGapJumpLinks supported landing")
+    # A trench no deeper than NAV_GAP_MAX_FALL is a floor in the landing band.
+    # The scan links the drop into it and then keeps looking for the far rim
+    # at the takeoff's level instead of stopping at the trench floor.
+    gap = nav[nav.index("void rvNavMesh::AddGapJumpLinks") :]
+    gap = gap[: gap.index("\n}\n") + 3]
+    for token in (
+        "bool seekingRim = false;",
+        "const bool belowTakeoff = nodes[landing].origin.z < origin.z - stepSize;",
+        "if ( seekingRim && belowTakeoff ) {",
+        "if ( belowTakeoff && !seekingRim ) {",
+        "GapJumpClear( origin, nodes[landing].origin, runSpeed, jumpSpeed, gravity )",
+        "trenchRimLinks = rimAdded;",
+    ):
+        require(gap, token, "rvNavMesh::AddGapJumpLinks trench rim")
+    require(nav, "%d gap jumps (%d over trenches)", "navmesh build summary")
+
+    # A listen server reads no snapshots, so its RunFrame clears the debug
+    # lines that bot_debugNav draws or the renderer's line pool fills up.
+    game_local = (GAME_LIBS_ROOT / "src/mpgame/Game_local.cpp").read_text(encoding="utf-8")
+    run_frame = game_local[game_local.index("gameReturn_t idGameLocal::RunFrame(") :]
+    run_frame = run_frame[: run_frame.index("\tdo {")]
+    require(run_frame, "gameRenderWorld->DebugClear( time );", "MP server frame debug line clear")
 
     # Closed proximity doors are usable traversal, not permanent holes in a
     # graph that happens to be generated before the first player approaches.
@@ -845,6 +886,43 @@ def validate_cvars() -> None:
         require(commands, f'"{command}"', "mpgame console commands")
 
 
+def validate_liquid_dive() -> None:
+    """A swimming bot follows a route under the surface while it has air to spare.
+
+    The navmesh keeps a pool's floor, so a route can drop onto it.  The bot used
+    to surface whenever its eyes were under water and then trod water above that
+    corner until the stuck check gave up.  Lava and slime still always climb.
+    """
+    bot = read(GAME_LIBS_ROOT / "src/mpgame/bots/Bot.cpp")
+    context = "rvBot::UpdateLiquidMovement dive"
+    body = bot[bot.index("void rvBot::UpdateLiquidMovement(") :]
+    body = body[: body.index("\n}\n") + 3]
+    for token in (
+        "if ( swimming && pathCorner >= 0 && pathCorner < path.Num() ) {",
+        "corner.z < self->GetPhysics()->GetOrigin().z - BOT_LIQUID_DIVE_DEPTH",
+        "& CONTENTS_WATER )",
+        "self->GetAirTics() > pm_airTics.GetInteger() / 2",
+        "cmd.upmove = -127;",
+    ):
+        require(body, token, context)
+    require_order(body, "feetLiquid & ( CONTENTS_LAVA | CONTENTS_SLIME )", "cmd.upmove = -127;", context)
+    require_order(body, "cmd.upmove = -127;", "if ( LiquidAtEye() ) {", context)
+    require(bot, "const float BOT_LIQUID_DIVE_DEPTH\t= 16.0f;", context)
+
+    player_h = read(GAME_LIBS_ROOT / "src/mpgame/Player.h")
+    require(player_h, "GetAirTics( void ) const { return airTics; }", "idPlayer air accessor")
+
+    # "Half the reservoir is six seconds of stock air": underwater the whole
+    # pm_air reservoir drains over pm_waterAir frames at 60 Hz.
+    player = read(GAME_LIBS_ROOT / "src/mpgame/Player.cpp")
+    require(player, "airDrain = fullAir / waterAir;", "idPlayer::UpdateAir underwater drain")
+    cvars = read(GAME_LIBS_ROOT / "src/mpgame/gamesys/SysCvar.cpp")
+    air, _ = cvar_signature(cvars, "pm_air", "SysCvar.cpp")
+    water_air, _ = cvar_signature(cvars, "pm_waterAir", "SysCvar.cpp")
+    if (air, water_air) != ("1800", "720") or int(water_air) // 2 != 6 * 60:
+        raise AssertionError(f"stock air no longer gives six seconds at half a reservoir: pm_air {air}, pm_waterAir {water_air}")
+
+
 def main() -> int:
     try:
         from mp_bot_audit import world_deaths
@@ -854,6 +932,7 @@ def main() -> int:
         validate_game_wiring()
         validate_navmesh()
         validate_cvars()
+        validate_liquid_dive()
     except AssertionError as error:
         print(f"mp_bot_navigation: FAILED - {error}")
         return 1

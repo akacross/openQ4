@@ -531,15 +531,11 @@ function Copy-WindowsDiagnosticSymbols {
 
 function Stop-openQ4RuntimeProcesses {
     [OutputType([bool])]
-    param()
+    param([Parameter(Mandatory = $true)][string]$InstallRoot)
+
+    $targetDirectory = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\', '/')
 
     $processNames = @(
-        "openQ4-client_x64",
-        "openQ4-client_x86",
-        "openQ4-client_arm64",
-        "openQ4-ded_x64",
-        "openQ4-ded_x86",
-        "openQ4-ded_arm64",
         "openQ4-client_x64",
         "openQ4-client_x86",
         "openQ4-client_arm64",
@@ -548,12 +544,24 @@ function Stop-openQ4RuntimeProcesses {
         "openQ4-ded_arm64"
     )
 
-    $running = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue)
+    $running = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue | Where-Object {
+        try {
+            # A name match alone includes other worktrees and installed games.
+            # An unreadable executable path is not permission to stop a process.
+            $null = $_.Handle
+            $executablePath = $_.Path
+            if ([string]::IsNullOrWhiteSpace($executablePath)) { return $false }
+            $directory = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($executablePath))
+            return [string]::Equals($directory, $targetDirectory, [StringComparison]::OrdinalIgnoreCase)
+        } catch {
+            return $false
+        }
+    })
     if ($running.Count -eq 0) {
         return $false
     }
 
-    Write-Host "Stopping running openQ4 processes before install: $($running.ProcessName -join ', ')"
+    Write-Host "Stopping openQ4 processes in '$targetDirectory' before install: $($running.ProcessName -join ', ')"
 
     foreach ($proc in $running) {
         try {
@@ -567,12 +575,22 @@ function Stop-openQ4RuntimeProcesses {
 
     Start-Sleep -Milliseconds 500
 
-    $stillRunning = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue)
-    if ($stillRunning.Count -gt 0) {
+    # Retain the selected process objects/handles. A second lookup by name could
+    # stop another checkout or a new process started during the close interval.
+    foreach ($proc in $running) {
         try {
-            $stillRunning | Stop-Process -Force -ErrorAction Stop
+            $proc.Refresh()
+            if (-not $proc.HasExited) {
+                $proc.Kill()
+                if (-not $proc.WaitForExit(5000)) {
+                    throw "Process $($proc.Id) did not exit."
+                }
+            }
         } catch {
-            throw "Failed to stop running openQ4 processes. Close them manually and retry install. Details: $($_.Exception.Message)"
+            # A process can finish between Refresh and Kill.
+            if (-not $proc.HasExited) {
+                throw "Failed to stop openQ4 in '$targetDirectory'. Close it manually and retry install. Details: $($_.Exception.Message)"
+            }
         }
     }
 
@@ -767,7 +785,7 @@ if ($effectiveArgs.Length -gt 0 -and ($effectiveArgs[0] -eq "compile" -or $effec
 }
 
 if ($commandName -eq "install" -and $env:OPENQ4_INSTALL_CLOSE_RUNNING -ne "0") {
-    Stop-openQ4RuntimeProcesses | Out-Null
+    Stop-openQ4RuntimeProcesses -InstallRoot (Join-Path $repoRoot ".install") | Out-Null
 }
 
 if (@("setup", "compile", "install").Contains($commandName) -and $env:OPENQ4_SKIP_ICON_SYNC -ne "1") {
@@ -800,7 +818,7 @@ $exitCode = [int]$LASTEXITCODE
 if ($commandName -eq "install" -and $exitCode -ne 0 -and $env:OPENQ4_INSTALL_RETRY_ON_FAILURE -ne "0") {
     Write-Host "Meson install failed; retrying once..."
     if ($env:OPENQ4_INSTALL_CLOSE_RUNNING -ne "0") {
-        Stop-openQ4RuntimeProcesses | Out-Null
+        Stop-openQ4RuntimeProcesses -InstallRoot (Join-Path $repoRoot ".install") | Out-Null
     }
     Start-Sleep -Milliseconds 500
     Invoke-Meson -MesonArgs $effectiveArgs -VsDevCmdPath $vsDevCmd -MesonCommand $mesonCommand -VsTargetArch $vsTargetArch -VsHostArch $vsHostArch

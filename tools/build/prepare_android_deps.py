@@ -13,7 +13,7 @@ import platform
 import shutil
 import subprocess
 
-from android_elf import validate_library
+from android_elf import ANDROID_ABIS, DEFAULT_ABI, android_abi, validate_library
 
 
 def dependency_notices(ndk: Path, sdl_source: Path, openal_source: Path) -> list[tuple[Path, Path]]:
@@ -44,8 +44,10 @@ def main() -> None:
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--build-root", type=Path, required=True)
     parser.add_argument("--api", type=int, default=24)
+    parser.add_argument("--abi", choices=sorted(ANDROID_ABIS), default=DEFAULT_ABI)
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
+    target = android_abi(args.abi)
     if args.api < 24 or args.jobs < 1:
         parser.error("API must be at least 24 and jobs must be positive")
     for path in (args.sdl_source, args.openal_source):
@@ -61,16 +63,16 @@ def main() -> None:
     host = {"Windows": "windows-x86_64", "Linux": "linux-x86_64", "Darwin": "darwin-x86_64"}.get(platform.system())
     if host is None:
         parser.error("Unsupported NDK build host")
-    runtime = args.ndk / "toolchains/llvm/prebuilt" / host / "sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+    runtime = args.ndk / "toolchains/llvm/prebuilt" / host / "sysroot/usr/lib" / target.triple / "libc++_shared.so"
     if not runtime.is_file():
         parser.error(f"Missing shared NDK C++ runtime: {runtime}")
     try:
-        validate_library(runtime, args.api)
+        validate_library(runtime, args.api, args.abi)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     common = [
         "-G", "Ninja", f"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
-        "-DANDROID_ABI=arm64-v8a", f"-DANDROID_PLATFORM=android-{args.api}",
+        f"-DANDROID_ABI={args.abi}", f"-DANDROID_PLATFORM=android-{args.api}",
         "-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
         "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_INSTALL_PREFIX={args.prefix.resolve()}",
         "-DCMAKE_INSTALL_LIBDIR=lib",
@@ -87,7 +89,7 @@ def main() -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(runtime, destination)
     for name in ("libSDL3.so", "libopenal.so"):
-        validate_library(args.prefix / "lib" / name, args.api)
+        validate_library(args.prefix / "lib" / name, args.api, args.abi)
     for source, relative_destination in notices:
         destination = args.prefix / relative_destination
         destination.parent.mkdir(parents=True, exist_ok=True)

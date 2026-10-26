@@ -1234,6 +1234,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	nextClientMatchRequestId = 0;
 	nextTrustedLocalMatchRequestId = 0;
 	nextMatchProposalId = 0;
+	memset( lastExecutedMatchProposalId, 0, sizeof( lastExecutedMatchProposalId ) );
 	memset( matchViewSentRevision, 0, sizeof( matchViewSentRevision ) );
 	memset( lastMatchRequestId, 0, sizeof( lastMatchRequestId ) );
 	memset( lastMatchRequestResultValid, 0, sizeof( lastMatchRequestResultValid ) );
@@ -1266,6 +1267,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	retainedMenuCovered = false;
 	retainedMenuRevision = 0;
 	retainedStatClient = -1;
+	retainedStatIdentity.Clear();
 	memset( retainedVoteDraft, 0, sizeof( retainedVoteDraft ) );
 	retainedVoteDraft[ RVF_KICK ] = -1;
 	retainedVoteMapsRequested = false;
@@ -1287,6 +1289,7 @@ idMultiplayerGame::idMultiplayerGame() {
 	mapWeaponMaskValid = false;
 	arenaHudPresentation = -1;
 	arenaMenuWasPaused = false;
+	arenaSoundPauseOwned = false;
 
 	memset( lights, 0, sizeof( lights ) );
 	memset( lightHandles, -1, sizeof( lightHandles ) );
@@ -4659,6 +4662,9 @@ void idMultiplayerGame::BuildMatchOperationContext( int clientNum,
 			competitionSide >= 0 && competitionSide < MP_SERIES_SIDE_COUNT;
 		context.actorCompetitionSide = context.actorCompetitionContestant ?
 			competitionSide : MP_SERIES_SIDE_NONE;
+		// The view's veto decision (PublishMatchView) asks the same resolver.
+		context.actorSeriesSide = competitionSide >= 0 &&
+			competitionSide < MP_SERIES_SIDE_COUNT ? competitionSide : MP_SERIES_SIDE_NONE;
 	}
 	const mpMatchOperationDescriptor_t *descriptor =
 		MPMatchOperationDescriptor( opcode );
@@ -4719,6 +4725,25 @@ void idMultiplayerGame::ProcessPassedMatchProposals( void ) {
 		const mpProposalId_t proposalId = record->proposalId;
 		mpMatchOperationRequest_t request = record->operation;
 		const int actorSlot = request.actorSlot;
+		// The executor revalidates a passed ballot against the current session, so
+		// the session revision no longer stops a second run.  A ballot that already
+		// executed and whose acknowledgement failed only retries the acknowledgement.
+		if ( proposalId <= lastExecutedMatchProposalId[ index ] ) {
+			mpOperationAdapterContext_t retryContext;
+			BuildMatchOperationContext( actorSlot, request.opcode, false, retryContext );
+			retryContext.expectedProposalRevision = matchProposals.GetRevision();
+			const mpOperationExecutionResult_t retried =
+				matchOperationExecutor.AcknowledgePassedProposal( scopes[ index ],
+					proposalId, retryContext, matchSession, matchRules,
+					matchProposals, matchSeries );
+			if ( retried.outcome == MP_OPERATION_REJECTED ) {
+				gameLocal.Warning( "could not consume executed proposal %llu (reason %d)",
+					static_cast<unsigned long long>( proposalId ), retried.reason );
+			}
+			ClearMatchOperationSensitiveArguments( request );
+			continue;
+		}
+		lastExecutedMatchProposalId[ index ] = proposalId;
 		mpParticipantId evidenceActor = mpParticipantId::Invalid();
 		matchSession.ResolveSlotBinding( actorSlot,
 			request.actorBindingGeneration, evidenceActor );
@@ -8828,6 +8853,7 @@ bool idMultiplayerGame::BeginMatchSession( void ) {
 	matchViewObservedTeamsRevision = matchTeams.GetRevision();
 	matchViewNextClockUpdateTime = Max( 0, gameLocal.time ) + 1000;
 	nextMatchProposalId = 0;
+	memset( lastExecutedMatchProposalId, 0, sizeof( lastExecutedMatchProposalId ) );
 	memset( matchViewSentRevision, 0, sizeof( matchViewSentRevision ) );
 	memset( lastMatchRequestId, 0, sizeof( lastMatchRequestId ) );
 	memset( lastMatchRequestResultValid, 0, sizeof( lastMatchRequestResultValid ) );
@@ -9846,8 +9872,10 @@ idMultiplayerGame::Clear
 ================
 */
 void idMultiplayerGame::Clear() {
+	ResetVoiceState();
 	
 	int		i;
+	UpdateArenaSoundPause( false );
 
 	// Clear can be reached directly by reset/shutdown paths.  Do this before
 	// resetting our ownership bit so an interrupted Arena handoff cannot leave
@@ -9857,6 +9885,7 @@ void idMultiplayerGame::Clear() {
 	joinScreenPending = false;
 	retainedMenuCovered = false;
 	retainedStatClient = -1;
+	retainedStatIdentity.Clear();
 	for ( int list = 0; list < RETAINED_PLAYER_LISTS; list++ ) {
 		retainedPlayerOrder[ list ].Clear();
 	}
@@ -10015,6 +10044,8 @@ idMultiplayerGame::ClearMap
 void idMultiplayerGame::ClearMap( void ) {
 	// MapClear runs after client entities may already have been deleted, so only
 	// touch renderer-owned presentation state here; GUI cleanup is not safe.
+	ResetVoiceState();
+	UpdateArenaSoundPause( false );
 	SetArenaCampaignDepthOfField( false );
 	SetJoinScreenSoftFocus( false );
 	joinScreenPending = false;
@@ -13542,73 +13573,8 @@ void idMultiplayerGame::CommonRun( void ) {
 			iconManager->UpdateIcons();
 		}
 
-#ifdef _USE_VOICECHAT
-		float	micLevel;
-		bool	sending, testing;
-
-		// jscott: enable the voice recording
-		testing = cvarSystem->GetCVarBool( "s_voiceChatTest" );
-// jmarshall - voice recording is not available through the engine sound interface.
-		//sending = soundSystem->EnableRecording( !!( player->usercmd.buttons & BUTTON_VOICECHAT ), testing, micLevel );
-		sending = false;
-		micLevel = 0.0f;
-// jmarshall end
-
-		if( mainGui ) {
-			mainGui->SetStateFloat( "s_micLevel", micLevel );
-			mainGui->SetStateFloat( "s_micInputLevel", cvarSystem->GetCVarFloat( "s_micInputLevel" ) );
-		}
-
-// RAVEN BEGIN
-// shouchard:  let the UI know about voicechat states
-		// openQ4: the transmit displays follow changes; repeating the same event
-		// every frame made the HUD run an event program per frame.
-		const int transmitSelf = ( !testing && sending ) ? 1 : 0;
-		if ( transmitSelf != hudTransmitSelf ) {
-			player->mphud->HandleNamedEvent( transmitSelf ? "show_transmit_self" : "hide_transmit_self" );
-			hudTransmitSelf = transmitSelf;
-		}
-
-		if( player->GetUserInfo() && player->GetUserInfo()->GetBool( "s_voiceChatReceive" ) ) {
-// jmarshall - voice channels are not available through the engine sound interface.
-			//int maxChannels = soundSystem->GetNumVoiceChannels();
-			int clientNum = -1;
-			//for (int channels = 0; channels < maxChannels; channels++ ) {
-			//	clientNum = soundSystem->GetCommClientNum( channels );
-			//	if ( -1 != clientNum ) {
-			//		break;
-			//	}
-			//}
-// jmarshall end
-
-			// Sanity check for network errors
-			assert( clientNum > -2 && clientNum < MAX_CLIENTS );
-
-			if ( clientNum > -1 && clientNum < MAX_CLIENTS ) {
-				idPlayer *from = ( idPlayer * )gameLocal.entities[clientNum];
-				if( from && hudTransmitOther != clientNum ) {
-					player->mphud->SetStateString( "audio_name", from->GetUserInfo()->GetString( "ui_name" ) );
-					// openQ4: the Remastered talker plate's trace takes the talker's team color
-					player->mphud->SetStateInt( "oq4_audio_team", gameLocal.IsTeamGame() ? from->team : -1 );
-					player->mphud->HandleNamedEvent( "show_transmit" );
-					hudTransmitOther = clientNum;
-				}
-			} else if ( hudTransmitOther != -1 ) {
-				player->mphud->HandleNamedEvent( "hide_transmit" );
-				hudTransmitOther = -1;
-			}
-		}
-		else if ( hudTransmitOther != -1 ) {
-			player->mphud->HandleNamedEvent( "hide_transmit" );
-			hudTransmitOther = -1;
-		}
-#endif // _USE_VOICECHAT
-// RAVEN END
 	}
-#ifdef _USE_VOICECHAT
-	// jscott: Send any new voice data
 	XmitVoiceData();
-#endif
 
 	int oldRank = -1;
 	int oldLeadingTeam = -1;
@@ -14222,6 +14188,35 @@ bool idMultiplayerGame::ArenaCampaignPausesWorld( void ) const {
 	// The campaign publishes whether a menu covers the match: the main menu
 	// opened over it belongs to the engine, which the game cannot see.
 	return cvarSystem->GetCVarBool( "ui_arenaMenuOpen" );
+}
+
+/*
+================
+idMultiplayerGame::UpdateArenaSoundPause
+
+Own only the pause acquired by the local Arena menu. The sound world keeps its
+playback clock and resumable voices, while the separate menu world stays live.
+Clear/ClearMap release this ownership before a restart, abandon or module swap.
+================
+*/
+void idMultiplayerGame::UpdateArenaSoundPause( bool pause ) {
+	if ( !pause && !arenaSoundPauseOwned ) {
+		return;
+	}
+	idSoundWorld *world = soundSystem != NULL ? soundSystem->GetSoundWorldFromId( SOUNDWORLD_GAME ) : NULL;
+	if ( world == NULL ) {
+		arenaSoundPauseOwned = false;
+		return;
+	}
+	if ( pause ) {
+		if ( !world->IsPaused() ) {
+			world->Pause();
+			arenaSoundPauseOwned = true;
+		}
+	} else if ( arenaSoundPauseOwned ) {
+		world->UnPause();
+		arenaSoundPauseOwned = false;
+	}
 }
 
 /*
@@ -16116,6 +16111,7 @@ void idMultiplayerGame::Run( void ) {
 	// the rules must not run either, or the clock, the respawns and the rounds
 	// would advance underneath the menu.
 	const bool arenaPaused = ArenaCampaignPausesWorld();
+	UpdateArenaSoundPause( arenaPaused );
 	if ( arenaPaused != arenaMenuWasPaused ) {
 		arenaMenuWasPaused = arenaPaused;
 		gameLocal.Printf( "arena campaign: match %s\n", arenaPaused ? "paused" : "resumed" );
@@ -16539,7 +16535,7 @@ join panel's blur while it covers the connect-time join offer, and
 uncovering gives the panel its soft focus back while the offer stands.
 ================
 */
-static const int RETAINED_MENU_PROTOCOL = 1;
+static const int RETAINED_MENU_PROTOCOL = 2;
 
 void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *card ) {
 	if ( card == NULL ) {
@@ -16577,6 +16573,7 @@ void idMultiplayerGame::SetRetainedMenuCover( bool covered, idUserInterface *car
 	// by score again.
 	idPlayer *local = gameLocal.GetLocalPlayer();
 	retainedStatClient = local != NULL ? local->entityNumber : -1;
+	retainedStatIdentity = RetainedPlayerIdentity( retainedStatClient );
 	for ( int list = 0; list < RETAINED_PLAYER_LISTS; list++ ) {
 		retainedPlayerOrder[ list ].Clear();
 	}
@@ -16893,6 +16890,16 @@ void idMultiplayerGame::ToggleFriend( int client ) {
 	}
 }
 
+// Use the entity's connection generation, never its name or row number. The
+// unsigned decimal spelling also preserves spawn IDs with the high bit set.
+idStr idMultiplayerGame::RetainedPlayerIdentity( int client ) const {
+	idEntity *entity = client >= 0 && client < MAX_CLIENTS ? gameLocal.entities[ client ] : NULL;
+	if ( entity == NULL || !entity->IsType( idPlayer::GetClassType() ) ) {
+		return idStr();
+	}
+	return va( "%u", static_cast<unsigned int>( gameLocal.GetSpawnId( entity ) ) );
+}
+
 // The Players page's accuracy row, in the stock statistics' order; the
 // document shows each weapon's icon (tools/ui/retained_mp_menus.py WEAPONS).
 static const char *const RETAINED_ACCURACY_WEAPONS[] = { "weapon_machinegun", "weapon_shotgun", "weapon_hyperblaster",
@@ -16958,6 +16965,7 @@ void idMultiplayerGame::PublishRetainedPlayers( idUserInterface *card, bool &cha
 			// A copy: va() reuses its eight buffers within the row.
 			const idStr key = va( "mp.players.%s%d", name, row );
 			publish( va( "%s.client", key.c_str() ), va( "%d", player != NULL ? client : -1 ) );
+			publish( va( "%s.identity", key.c_str() ), RetainedPlayerIdentity( client ).c_str() );
 			publish( va( "%s.name", key.c_str() ), player != NULL ? MPRetainedPlainText( player->GetUserInfo()->GetString( "ui_name" ), 64, 1 ).c_str() : "" );
 			publish( va( "%s.score", key.c_str() ), player != NULL && list != 2 ? va( "%d", scores[ client ] ) : "" );
 			publish( va( "%s.ping", key.c_str() ), player != NULL ? va( "%d", playerState[ client ].ping ) : "" );
@@ -16982,13 +16990,15 @@ void idMultiplayerGame::PublishRetainedPlayers( idUserInterface *card, bool &cha
 
 	// The statistics: the selected player's, or the local player's once the
 	// selected one has left.
-	if ( !selectedListed ) {
+	if ( !selectedListed || retainedStatIdentity != RetainedPlayerIdentity( retainedStatClient ) ) {
 		retainedStatClient = local != NULL ? local->entityNumber : -1;
+		retainedStatIdentity = RetainedPlayerIdentity( retainedStatClient );
 	}
 	const int selected = retainedStatClient;
 	idEntity *entity = selected >= 0 && selected < MAX_CLIENTS ? gameLocal.entities[ selected ] : NULL;
 	idPlayer *chosen = entity != NULL && entity->IsType( idPlayer::GetClassType() ) ? static_cast<idPlayer *>( entity ) : NULL;
 	publish( "mp.stat.client", va( "%d", chosen != NULL ? selected : -1 ) );
+	publish( "mp.stat.identity", chosen != NULL ? retainedStatIdentity.c_str() : "" );
 	publish( "mp.stat.name", chosen != NULL ? MPRetainedPlainText( chosen->GetUserInfo()->GetString( "ui_name" ), 64, 1 ).c_str() : "" );
 	// The end-of-match review spectates everyone; a ranked player keeps the
 	// team the match was played on.
@@ -19094,19 +19104,22 @@ bool idMultiplayerGame::HandleRetainedMenuCommand( const idCmdArgs &args, int &i
 		DisableMenu();
 		return true;
 	}
-	if ( ( !sub.Icmp( "select" ) || !sub.Icmp( "mute" ) || !sub.Icmp( "friend" ) ) && args.Argc() - icmd >= 1 ) {
+	if ( ( !sub.Icmp( "select" ) || !sub.Icmp( "mute" ) || !sub.Icmp( "friend" ) ) && args.Argc() - icmd >= 2 ) {
 		const idStr clientText = args.Argv( icmd++ );
+		const idStr identity = args.Argv( icmd++ );
 		bool digits = clientText.Length() >= 1 && clientText.Length() <= 2;
 		for ( int i = 0; digits && i < clientText.Length(); i++ ) {
 			digits = clientText[ i ] >= '0' && clientText[ i ] <= '9';
 		}
 		const int client = digits ? atoi( clientText.c_str() ) : -1;
-		if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ) {
+		if ( client < 0 || client >= MAX_CLIENTS || !RetainedListed( client ) ||
+			identity.IsEmpty() || identity != RetainedPlayerIdentity( client ) ) {
 			return false;
 		}
 		idPlayer *local = gameLocal.GetLocalPlayer();
 		if ( !sub.Icmp( "select" ) ) {
 			retainedStatClient = client;
+			retainedStatIdentity = identity;
 		} else if ( local != NULL && client != local->entityNumber ) {
 			if ( !sub.Icmp( "mute" ) ) {
 				ClientVoiceMute( client, !local->IsPlayerMuted( client ) );
@@ -19734,7 +19747,7 @@ const char* idMultiplayerGame::HandleGuiCommands( const char *_menuCommand ) {
 					channel	= atoi(	snd	);
 					snd	= args.Argv( icmd++	);
 				}
-				soundSystem->PlayShaderDirectly( SOUNDWORLD_GAME, snd, channel );
+				soundSystem->PlayShaderDirectly( IsArenaPauseMenuOpen() ? SOUNDWORLD_MENU : SOUNDWORLD_GAME, snd, channel );
 			}
 			continue;
 		} else if (	!idStr::Icmp( cmd, "callVote" )	) {
@@ -25223,10 +25236,56 @@ void idMultiplayerGame::ServerWriteInitialReliableMessages( const idMessageSende
 idMultiplayerGame::ClientReadStartState
 ================
 */
+/*
+================
+MP_StartStatePowerupBits
+
+openQ4: the width of each client record's powerup mask in a start state.  The writer
+uses POWERUP_MAX, which grew from 16 to 18 when The Awakening's powerups were added, so
+multi-view demos recorded before that carry 16.  Probe a copy of the message with each
+width and take the one that reads as valid client records ending exactly in the
+MAX_CLIENTS sentinel; a live start state always parses at POWERUP_MAX.
+================
+*/
+static int MP_StartStatePowerupBits( const idBitMsg &msg ) {
+	static const int widths[ 2 ] = { POWERUP_MAX, 16 };
+	for ( int w = 0; w < 2; w++ ) {
+		idBitMsg probe = msg;
+		probe.ReadLong();
+		int previous = -1;
+		for ( int i = 0; i <= MAX_CLIENTS; i++ ) {
+			if ( probe.GetRemainingReadBits() < 16 ) {
+				break;
+			}
+			const int client = probe.ReadShort();
+			if ( client == MAX_CLIENTS ) {
+				if ( probe.GetRemainingReadBits() < 8 ) {
+					return widths[ w ];
+				}
+				break;
+			}
+			if ( client <= previous || client >= MAX_CLIENTS ||
+				 probe.GetRemainingReadBits() < widths[ w ] + ASYNC_PLAYER_INSTANCE_BITS + 1 ) {
+				break;
+			}
+			probe.ReadBits( widths[ w ] );
+			const int instance = probe.ReadBits( ASYNC_PLAYER_INSTANCE_BITS );
+			if ( instance < 0 || instance >= MAX_INSTANCES ) {
+				break;
+			}
+			probe.ReadBits( 1 );
+			previous = client;
+		}
+	}
+	return POWERUP_MAX;
+}
+
 void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 	int i, client, powerup;
 
 	assert( gameLocal.isClient );
+
+	const int powerupBits = MP_StartStatePowerupBits( msg );
 
 	// read the state in preparation for reading snapshot updates
 	matchStartedTime = msg.ReadLong( );
@@ -25234,7 +25293,7 @@ void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 		if ( client < 0 || client >= MAX_CLIENTS ||
 			 !gameLocal.entities[ client ] ||
 			 !gameLocal.entities[ client ]->IsType( idPlayer::GetClassType() ) ||
-			 msg.GetRemainingReadBits() < ASYNC_PLAYER_INSTANCE_BITS + 17 ) {
+			 msg.GetRemainingReadBits() < powerupBits + ASYNC_PLAYER_INSTANCE_BITS + 1 ) {
 			common->Warning( "Ignoring invalid multiplayer start-state client %d", client );
 			return;
 		}
@@ -25242,7 +25301,7 @@ void idMultiplayerGame::ClientReadStartState( const idBitMsg &msg ) {
 // jnewquist: Use accessor for static class type 
 		assert( gameLocal.entities[ client ] && gameLocal.entities[ client ]->IsType( idPlayer::GetClassType() ) );
 // RAVEN END
-		powerup = msg.ReadBits( POWERUP_MAX );
+		powerup = msg.ReadBits( powerupBits );
 
 		int instance = ( msg.ReadBits( ASYNC_PLAYER_INSTANCE_BITS ) );
 		if ( instance < 0 || instance >= MAX_INSTANCES ) {

@@ -3,7 +3,7 @@
 static void Cmd_TestRadioChatter_f( const idCmdArgs &args ) {
 	idPlayer *player = gameLocal.GetLocalPlayer();
 	if ( player == NULL || args.Argc() < 2 ) {
-		gameLocal.Printf( "testRadioChatter <sound shader>|show|stop|probe|pause|resume|distract <sound shader>\n" );
+		gameLocal.Printf( "testRadioChatter <sound shader>|show|stop|probe|pause|resume|distract <sound shader>|fixture <sound shader>\n" );
 		return;
 	}
 	const idStr action = args.Argv( 1 );
@@ -27,10 +27,22 @@ static void Cmd_TestRadioChatter_f( const idCmdArgs &args ) {
 	} else if ( action == "stop" ) {
 		player->StopSound( SND_CHANNEL_RADIO, false );
 		player->StopRadioChatter();
+		idEntity* fixture = gameLocal.FindEntity( "_openq4_audio_fixture" );
+		if ( fixture ) fixture->StopSound( SND_CHANNEL_RADIO, false );
 	} else if ( action == "pause" ) {
 		gameSoundWorld->Pause();
 	} else if ( action == "resume" ) {
 		gameSoundWorld->UnPause();
+	} else if ( action == "fixture" && args.Argc() == 3 ) {
+		// A real saved entity/channel for mixer tests. Campaign radio scripts
+		// still run, but cannot replace this fixture on the player's emitter.
+		idEntity* fixture = gameLocal.FindEntity( "_openq4_audio_fixture" );
+		if ( fixture == NULL ) {
+			idDict spawn;
+			spawn.Set( "name", "_openq4_audio_fixture" );
+			fixture = gameLocal.SpawnEntityType( idStaticEntity::GetClassType(), &spawn );
+		}
+		if ( fixture ) fixture->StartSoundShader( declManager->FindSound( args.Argv( 2 ) ), SND_CHANNEL_RADIO, SSF_GLOBAL, false, NULL );
 	} else {
 		const bool distract = action == "distract";
 		if ( distract && args.Argc() != 3 ) {

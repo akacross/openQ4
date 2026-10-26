@@ -56,7 +56,21 @@ def main() -> None:
             expect_stale(runtime, None, "game-mp.test")
             os.utime(runtime / "baseoq4/game-mp.test", (1010, 1010))
             smoke.verify_runtime_is_current(runtime)
-    print("PASS: default/custom multiplayer executables, timestamp tolerance, stale modules and explicit override")
+
+            # A newer local build must not reject a different worktree's
+            # up-to-date stage; that stage's own newer build must reject it.
+            foreign = root / "other-worktree"
+            foreign_stage, foreign_build = foreign / ".install", foreign / "builddir"
+            foreign_stage.mkdir(parents=True)
+            foreign_build.mkdir()
+            for parent in (foreign_stage, foreign_build):
+                path = parent / executable
+                path.write_bytes(b"other build")
+                os.utime(path, (900, 900))
+            smoke.verify_runtime_is_current(foreign_stage)
+            os.utime(foreign_build / executable, (950, 950))
+            expect_stale(foreign_stage, None, executable)
+    print("PASS: default/custom multiplayer executables, timestamp tolerance, stale modules, worktree ownership and explicit override")
 
 
 if __name__ == "__main__":

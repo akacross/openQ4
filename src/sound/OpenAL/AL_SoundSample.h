@@ -36,6 +36,28 @@ idSoundSample_OpenAL
 */
 class idSampleInfo;
 struct idSoundSampleDecode;
+class SoundVorbisStream;
+class idSoundOggStream {
+public:
+	idSoundOggStream();
+	~idSoundOggStream();
+	bool Open( const char* filename );
+	bool Seek( unsigned int frame );
+	// For a stream without length metadata: the length and last positioned page its
+	// sample's envelope pass found (SoundVorbisStream::SetCountedLength).
+	bool SetCountedLength( unsigned int frames, unsigned int pageStart, unsigned int pageEnd, unsigned int granule );
+	int Read( short* pcm, int frames );
+	int Channels() const;
+	int Rate() const;
+	unsigned int Frames() const;
+	static void PrintMemoryInfo();
+private:
+	idSoundOggStream( const idSoundOggStream& ) = delete;
+	idSoundOggStream& operator=( const idSoundOggStream& ) = delete;
+	void Close();
+	idFile* file;
+	SoundVorbisStream* decoder;
+};
 class idSoundSample_OpenAL
 {
 public:
@@ -53,6 +75,7 @@ public:
 	}
 	// a worker has finished the outstanding decode; FinishDecode will not wait
 	bool			IsDecodeComplete() const;
+	static void		PrintDecodeMemoryInfo();
 
 	void			SetName( const char* n )
 	{
@@ -98,14 +121,25 @@ public:
 	// be conflated: listSounds reports both so the saving is visible.
 	int				ResidentBufferSize() const
 	{
-		return payloadReleased ? 0 : totalBufferSize;
+		return payloadReleased || IsStreamed() ? 0 : totalBufferSize;
 	}
+	bool IsStreamed() const { return streamName.Length() > 0; }
 	bool			PayloadReleased() const
 	{
 		return payloadReleased;
 	}
 	// Drops the CPU copy of an uploaded sample, keeping the buffer sizes.
 	void			ReleaseCpuPayload();
+	// CPU PCM retained beside a complete OpenAL copy: restored for a reader, or kept
+	// with s_releaseSamplePayload 0.
+	bool			HasCpuCopy() const
+	{
+		return !payloadReleased && openalBuffer != 0 && pendingDecode == NULL &&
+			buffers.Num() == 1 && buffers[0].buffer != NULL;
+	}
+	// Memory pressure: frees that copy even when a reader restored it; the next
+	// reader restores it again. Returns the bytes freed.
+	int				ReleaseCpuCopy();
 	// Reloads a released payload. Needed before any path that reads the PCM
 	// bytes rather than just their sizes. Returns false if it cannot be had.
 	bool			EnsureCpuPayload();
@@ -123,7 +157,7 @@ public:
 
 	bool			IsCompressed() const
 	{
-		return ( format.basic.formatTag != idWaveFile::FORMAT_PCM );
+		return IsStreamed() || ( format.basic.formatTag != idWaveFile::FORMAT_PCM );
 	}
 
 	bool			IsDefault() const
@@ -199,6 +233,9 @@ protected:
 	bool			BeginOggLoad( const idStr& name, idSoundSampleDecode** asyncDecode );
 	bool			FinishOggDecode( const idStr& name, unsigned int decodedFrames );
 	bool			FinishOggLoad( int channels, int sampleRate, unsigned int frames );
+	bool			LoadOggStream( const idStr& filename );
+	// LoadOggStream for a level load: the envelope pass runs on a job worker.
+	bool			BeginOggStreamEnvelope( const idStr& filename, idFile* file, int channels, int rate, unsigned int frames, idSoundSampleDecode** asyncDecode );
 	void			CancelDecode();
 	bool			LoadRoQ( const idStr& name );
 	bool			LoadAmplitude( const idStr& name );
@@ -228,6 +265,13 @@ protected:
 	};
 
 	idStr			name;
+	idStr			streamName;
+	// A stream without length metadata: its envelope pass counted the length, and
+	// each voice's decoder seeks with it and the last page that carries a position.
+	bool			streamCountedLength;
+	unsigned int	streamPageStart;
+	unsigned int	streamPageEnd;
+	unsigned int	streamPageGranule;
 
 	ID_TIME_T		timestamp;
 	bool			loaded;
@@ -256,6 +300,7 @@ protected:
 	// OpenAL buffer that contains all buffers
 	ALuint			openalBuffer;
 	bool			openalBufferUploadFailed;
+	uint64			openalReserved;
 
 	int				playBegin;
 	int				playLength;
@@ -263,6 +308,7 @@ protected:
 	idWaveFile::waveFmt_t	format;
 
 	idList<byte> amplitude;
+	uint64			amplitudeReserved;
 
 	// An Ogg decoding on a job worker into buffers[0] (LoadResourceAsync), and its file
 	idSoundSampleDecode*	pendingDecode;

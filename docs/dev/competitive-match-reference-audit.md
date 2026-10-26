@@ -3,6 +3,9 @@
 Date: 2026-08-03  
 Qualification review: 2026-09-07
 
+Current rerun: 2026-10-18. The stage-two evidence below uses the in-tree game
+sources; the earlier companion-repository links retain investigation provenance.
+
 Status: Implemented; scoped live qualification recorded, remaining release checks below
 
 This document records the behavioural comparison behind openQ4's competitive
@@ -1072,3 +1075,74 @@ three clean exits, native visibility readings of 1 and inspected engine captures
 of both the active captain/operator and neutral spectator Status panels. This
 is a diagnostic routing correction; no product GUI or input-control change was
 needed. Earlier OpenGL/Vulkan role-menu captures remain separate visual evidence.
+
+## Stage-two current-runtime rerun (2026-10-18)
+
+The staged Windows x64/OpenGL runtime with the command-argument ownership fix
+passes `mp_control_smoke.py --role-matrix` and `mp_roster_smoke.py`. This is the
+same binary set used by the [passing stock baseline](retail-baseline-ledger.md#stage-two-connection-regression),
+based on `cbe967f2b61935da283a873a731fe975926cf214` plus the recorded `CmdArgs`
+source changes. Subsequent generated-image source/build work did not replace
+the staged runtime during these tests.
+
+The control run retains 17 follow-target observations, role-filtered accepted
+wire views, menu activation within the unchanged 3,000 ms budget, and three
+clean exits. The roster run passes 32 accepted-state checkpoints in 453.2 seconds
+and five clean client lifetimes, including coach invitation, revocation, review
+denial, proposal reuse and captain/referee slot replacement without inherited
+authority. Both runs use hidden 960x540 windows, loopback peers, original assets
+and engine diagnostic commands; no operating-system input was controlled.
+
+| Retained report | SHA-256 |
+| --- | --- |
+| `.tmp/s2control/report.json` | `a26840b9e52b655eb6082be510ad13f401bf1e9b4d25b4616ef22f1428d42f5d` |
+| `.tmp/s2roster/report.json` | `8d1d3f42cf790741ce4939e8df67ee9119495af17778cfcf7b699482cc2334c8` |
+
+Reports name the engine logs and render-target captures in their respective
+directories. These checks do not close MP-01: the remaining scenarios above,
+physical localized keyboard/controller workflows, other renderer/platform
+qualification and newly authored UI workflows remain open. The roster duration
+is operational evidence, not a controlled performance comparison.
+
+## Proposal revalidation, veto side and follow identity (2026-10-23)
+
+A review of the MP-01 scenarios found three defects in the shipped pipeline:
+
+- **Passed ballots went stale during their own vote.** A proposal stored the
+  session revision its proposer saw. Every ready change, connection or other
+  session mutation inside the 30-second window advanced that revision, so the
+  passed operation was rejected as stale at execution and consumed with no
+  effect. `ExecutePassedProposal` now revalidates the operation against the
+  session as it is at execution: phase, the proposer's binding and eligibility,
+  target identity and side, and the opcode's own semantic checks all run again.
+  Once-only execution moved to the adapter: `lastExecutedMatchProposalId`
+  records each scope's newest executed ballot, and a ballot whose
+  acknowledgement failed retries only the acknowledgement. Proposals still
+  freeze their electorate and fail closed when the proposer leaves.
+- **The veto turn used two side sources.** The published view decided a veto
+  turn from `ResolveCompetitionSide`, but the executor used the gameplay side
+  in team modes. A series binds seats to series sides and can remap gameplay
+  sides between maps, so the two could disagree. The operation context now
+  carries `actorSeriesSide` from the same resolver, and the executor holds the
+  turn to it.
+- **Spectator follow trusted the slot number.** `UpdateSpectating` revalidated
+  the followed slot each frame and relied on a frame where a disconnected
+  player's slot was empty. It now latches the followed entity's spawn identity
+  and releases the camera when the slot's entity changes, so a replacement
+  connection never inherits a follow by number.
+
+Executable coverage: `mp_match_operations_contract.py` executes a passed
+ballot after an unrelated session change (it fails with the old creation-time
+revision), refuses a second run by revalidation, and holds both veto steps to
+the resolved series side, including a seat whose gameplay side differs.
+`mp_match_spectator_follow_contract.py` replaces the followed slot's entity
+with no empty frame. Each new case was checked against a reverted production
+change and fails there. All 52 asset-free `mp_match_*` contracts pass; the two
+runtime smokes in that family need a staged runtime and were not part of this
+change's evidence.
+
+These fixes do not close MP-01. The live scenarios listed above (successful
+substitution, timed invitation expiry, proposal execution through Match
+Control, physical localized input and the rest of the release closure order)
+still need runtime evidence, and the post-commit series rollback limit is
+unchanged.

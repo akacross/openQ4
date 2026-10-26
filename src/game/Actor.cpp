@@ -1016,12 +1016,13 @@ void idActor::Restore( idRestoreGame *savefile ) {
 // RAVEN BEGIN
 // bdube: added
 	vehicleController.Restore ( savefile );
-
-	savefile->ReadInt ( flashlightHandle );
+	// Saved handles only describe presence; cleanup must own current renderer IDs.
+	int savedFlashlightHandle;
+	savefile->ReadInt( savedFlashlightHandle );
 	savefile->ReadJoint ( flashlightJoint );
 	savefile->ReadVec3 ( flashlightOffset );
 	savefile->ReadRenderLight ( flashlight );
-	if ( flashlightHandle != -1 ) {		
+	if ( savedFlashlightHandle != -1 ) {
 		rvNormalizeProjectedRenderLight( flashlight, GetName(), "actor-flashlight" );
 		flashlightHandle = gameRenderWorld->AddLightDef( &flashlight );
 	}
@@ -1291,7 +1292,13 @@ bool idActor::AllowsPresentationInterpolation( void ) const {
 	// shadow in first person and disappears in third person only because that view
 	// puts the camera back on the authoritative clock as well.
 	if ( gameLocal.isMultiplayer && this != static_cast< const idActor * >( gameLocal.GetLocalPlayer() ) ) {
-		return false;
+		// A spectating client fires no shots, so nothing it draws is ever rewound
+		// against (MP-07). Its free or followed camera and every body it shows
+		// share the presentation clock instead of the bodies stepping at 60 Hz.
+		const idPlayer *localPlayer = gameLocal.GetLocalPlayer();
+		if ( localPlayer == NULL || !localPlayer->spectating ) {
+			return false;
+		}
 	}
 	return idAFEntity_Gibbable::AllowsPresentationInterpolation();
 }

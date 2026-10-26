@@ -570,7 +570,8 @@ idCVar g_crosshairCharInfoFar(		"g_crosshairCharInfoFar",	"1",			CVAR_GAME | CVA
 // bring back; turning the marker off restores that flash on its own so a player
 // is never left with no hit cue at all.  Kept in step with the multiplayer
 // module so the setting means the same thing in both.
-idCVar hud_hitMarker(				"hud_hitMarker",			"1",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "crosshair hit marker on hits you land" );
+// Fresh profiles keep stock hit feedback; existing archived choices are kept.
+idCVar hud_hitMarker(				"hud_hitMarker",			"0",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "crosshair hit marker on hits you land" );
 idCVar hud_hitMarkerScale(			"hud_hitMarkerScale",		"1",			CVAR_GAME | CVAR_ARCHIVE | CVAR_FLOAT, "hit marker size multiplier, on top of g_crosshairSize", 0.25f, 4.0f );
 idCVar hud_crosshairHitFlash(		"hud_crosshairHitFlash",	"0",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "recolour the crosshair on a hit, as stock Quake 4 does; implied when hud_hitMarker is off" );
 // openQ4 END

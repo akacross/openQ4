@@ -5,6 +5,15 @@ changed in the 2026-10-06 audio pass, the evidence behind each change, and what 
 deliberately left for later. The retail parity work that came before it is in
 [retail-audio-reverb.md](retail-audio-reverb.md).
 
+The 2026-10-21 follow-up adds dialogue volume, byte-based
+Vorbis admission and compressed streaming, the mod reverb reference-distance repair
+and bounded multiplayer voice capture/codec/transport/playback with explicit consent. See
+[audio and voice evidence](audio-voice-evidence.md) for its measured scope and
+remaining roadmap gates; this page's October 6 measurements remain historical.
+The [23 October round](#output-changes-and-memory-pressure-october-23) makes playback
+survive output loss and layout changes, adds the low-memory response and streams Ogg
+files without usable length metadata.
+
 ## Where openQ4 starts from
 
 openQ4's sound core is the Doom 3 BFG Edition sound system (`snd_world.cpp`,
@@ -76,6 +85,63 @@ a protected master bus, streaming), not with any one game's tuning, which is not
 - **Headroom.** `AL_MAX_GAIN` is raised to the voice's 16x ceiling. 57 stock map speakers are
   authored `s_unclamped` at +1 to +12 dB and were flattened to unity.
 
+### Current distance audit, 20 October 2026
+
+The current mixer does not turn Quake 4's authored ranges into metres.
+`s_soundDistances [exact shader name]` now reports the last completed mix's
+listener/emitter positions, direct and portal distances, authored minimum/maximum,
+channel gain and actual OpenAL gain, position, rolloff, reference distance and source
+radius. It only reads state; it does not move an emitter or change playback.
+
+`tools/tests/sound_distance_runtime.py` spawns three original retail looping sounds
+in a real Hangar 1 session and checks nine distances per sound. It reads and hashes
+the effective installed PK4 shader sources, isolates writable data under `.tmp/`,
+captures through the engine, and records the tested binary/source identities.
+The default OpenAL null output qualifies the mixer/backend values, not audibility.
+`--audio-output physical` uses the current device at −12 dB for a separate human
+check; `--quadratic` checks the existing optional curve without changing defaults.
+
+The Windows GL runs against client SHA-256
+`fbce6a142404a565d6ec9c07bf9cf2ec2ccb472cc23357a1ccf3560b1b33aa6b`
+pass all 27 default-linear and all 27 quadratic samples. Evidence is retained in
+`.tmp/stage-two/audio-distance-linear-r2/` and
+`.tmp/stage-two/audio-distance-quadratic-r1/`, including logs, reports, runner
+snapshots and the reviewed 960×540 in-game captures.
+
+| Original shader | Authored range (map units) | Inner radius / OpenAL radius | Near gain, before master |
+| --- | --- | --- | --- |
+| `weapon_lightninggun_fireloop` | 40–1000 | 40 / 20 | 0.3250000 |
+| `weapon_lightninggun_hum` | 80–900 | 80 / 40 | 0.4596194 |
+| `ambient_light_hum01` | 40–250 | 40 / 20 | 0.0255921 |
+
+Positions sent to OpenAL retain the source/listener separation in map units.
+`AL_ROLLOFF_FACTOR` is 0, so OpenAL does not apply a second distance curve. Since
+the October 21 [mod reverb room rolloff](#mod-reverb-room-rolloff-october-21) repair,
+`AL_REFERENCE_DISTANCE` carries the authored minimum distance (the table's inner
+radius) instead of 1; with zero rolloff it affects only an EFX wet send's room
+rolloff, not the dry gain this audit measures. A default-linear rerun on the
+combined audio/Stage 2 build (client SHA-256
+`1d1bfd2fcb201028c02a317459b4619a8815e2ec8428378340231a48c82e7cc9`) passed all
+27 samples and reported that reference distance (40/80/40). The engine applies the authored curve and the
+retail speaker fraction of 0.65. Its existing gain convention is `2^(dB/6)`.
+`LengthFast` can underestimate Euclidean distance by about 0.17%; the checks compare
+that distance with independently measured coordinates and then check the resulting
+gain. Channels below the existing 1/1024 gain threshold release their hardware
+voice, including these fixtures at their authored maximum.
+
+The first run, `.tmp/stage-two/audio-distance-linear-r1/`, remains a failed harness
+calibration record: `setviewpos`/teleport raised the eye by 0.5 units, the first
+expectation used a different dB convention, and a stock speaker shared the ambient
+shader. The corrected test pins the intended eye position and identifies its
+emitter by origin. Eight parser/assessment tests include negative controls for
+unit conversion, extra attenuation, changed gain/radius, stopped/missing voices,
+ambiguous emitters and incomplete execution.
+
+These are controlled dry-path measurements with portal occlusion, air filtering
+and reverb disabled in the isolated profile. They do not replace the existing
+reverb/HRTF evidence or qualify different endpoints. No attenuation, source-radius,
+HRTF, EFX or reverb defaults changed. The physical distance check is still pending.
+
 ### Mixing and timing
 
 - **Recycled channels.** `idBlockAlloc` hands back channels without constructing them, and
@@ -139,6 +205,13 @@ and tests.
   `EndLevelLoad` uploads the rest. At most 48 decodes are outstanding; beyond that, and with
   `jobs_enable 0`, the main thread decodes as before. A failed decode takes the normal
   synchronous probe, so fallbacks to other variants and the default are unchanged.
+  The October 21 follow-up also reserves compressed input, fixed decoder arenas and pending PCM against
+  `s_decodeMemoryMB` (64 MiB by default). Admission joins older work before growing
+  a reservation. Reservations survive worker completion until join/cancellation;
+  oversized individual samples warn and follow normal loader fallback. This is a
+  transient Vorbis allocation bound, not a limit on resident OpenAL data. Long
+  tracks now take the bounded streaming path described below; tested stock and
+  Awakening scenes also pass a deliberately lower 16 MiB decode budget.
   The main thread only reads the file and the page headers: the channels and rate from the
   identification header and the length from the end-of-stream granule
   (`SoundSample_PeekOggInfo`, which matches stb_vorbis on all 5,690 stock files); the job opens
@@ -158,6 +231,168 @@ and tests.
   used to end the session (`common->Error`) or play as noise. `s_noSound 1; s_restart;
   s_noSound 0` keeps the restart pending instead of starting voices on emptied samples.
 
+### Compressed streaming (October 21)
+
+Ogg tracks above 512 KiB of decoded PCM now use the engine filesystem directly,
+including PK4 members and localized voice fallback. Each playing voice owns a
+2 MiB decoder arena, 64 KiB input cache and three 4,096-frame PCM buffers. The
+`s_streamMemoryMB` admission limit defaults to 32 MiB and includes conservative
+VFS and scratch reservations. Stop, cancellation and sample purge release them.
+`s_streamThresholdKB` controls selection on load; zero restores full decoding.
+
+Sample-exact seek supports virtualized sounds, restart and save restore. Queues
+preserve leadin/loop transitions and pitch; an underrun discards stale playback
+and recreates the voice at the channel's current sound time. A bounded initial
+decode builds the existing 60 Hz amplitude envelope without retaining full PCM;
+since October 23 it runs on a job worker during level loads, and files without
+usable length metadata stream too (see [below](#output-changes-and-memory-pressure-october-23)).
+Whole-track `GetNonCacheData` access returns null for streamed samples instead of
+defeating the memory limit.
+
+The repository's MIT/public-domain stb_vorbis has a small read/seek/tell callback
+extension; both checked-in copies match, and Meson pins this bundled variant.
+Full and streamed PCM compare exactly in tests, including seek and mixed
+static/streamed loop seams. Stock and Awakening gameplay checks cover gain,
+pause, slow motion, restart and save/load. See the [current evidence](audio-voice-evidence.md#compressed-streaming)
+for memory measurements and remaining device limits. The subsequent
+[aggregate admission](audio-voice-evidence.md#aggregate-payload-admission) also
+covers CPU/OpenAL payloads and non-Vorbis loading under `s_audioMemoryMB`.
+
+### Mod reverb room rolloff (October 21)
+
+The missing source reference distance, rather than a required global metres
+conversion, caused excessive attenuation. The OpenAL source now receives the
+authored minimum distance in the same units as its position. Real loopback
+rendering preserves stock zero rolloff and dry gain and gives the expected half
+wet gain at twice the minimum distance with room rolloff 1. Centre-channel
+routing and its physical-device qualification are described below.
+
+### Output changes and memory pressure (October 23)
+
+**Output recovery.** The hardware counts every event that can stop, move or re-lay-out
+the sources (`GetOutputSerial`): a reopen, an in-place reset, a centre speaker
+appearing or going away, a simulated outage ending. Each voice keeps the serial it
+started on and checks it every update (`SoundOutputRecovery.h`). A source stopped
+by a lost endpoint, or stopped across a reopen, hands itself back and its channel
+restarts it at the scene clock, exactly as after a bounded-queue underrun
+(`RecoversAtClock`). Before, only loops and bounded queues came back: a static
+non-looping voice that OpenAL Soft stopped on disconnect ended, cutting off the line
+of dialogue that was playing. While the endpoint is gone (`ALC_CONNECTED` false)
+`AllocateVoice` refuses voices, so channels keep their clocks without churning
+sources. A paused voice keeps its serial; `UnPause` does not resume one whose output
+changed, because OpenAL Soft replays a paused source that lost its voice from its
+first sample. The channel restarts it at the paused scene time instead.
+
+**Layout changes.** `s_numberOfSpeakers`, `s_openALHRTF` and `s_outputLimiter`
+changes reset the open device in place with the same attribute list as creation
+(`TryResetDevice`, `alcResetDeviceSOFT`); a full restart, which freed and decoded
+every sample again, is now only the fallback. The output check also runs every
+frame for the centre speaker (`HasCenterChannelOutput`, now from extension flags
+cached per context): a voice whose centre routing no longer matches the output,
+after a reset or a reopen onto another endpoint, re-routes at its scene clock.
+
+**Test hooks.** `s_testDeviceInterruption [msec]` (cheat) does to the context what a
+disconnect does, without hardware: every source stops and no voice is allocated
+until the outage ends, which then raises the serial as a reopen would.
+`listSoundVoices` prints `SOUND_OUTPUT` (serial, connected, centre, interrupted) and
+one `SOUND_VOICE` line per voice in use (state, routing, queue, serial, position).
+
+**Low-memory response.** `S_TrimMemory`, called from SDL's `SDL_EVENT_LOW_MEMORY`
+on the main thread (Android and iOS deliver it), frees what a scene can do without
+(`SoundMemoryTrim.h`): earlier levels' samples, CPU copies of samples OpenAL also
+holds (even ones restored for a reader), and this level's samples no sound has
+started for `s_trimIdleSeconds` (30; -1 keeps them). Nothing a channel references
+in any world is touched, nor menu/HUD samples or streamed tracks, and nothing during
+a level load. A freed sample keeps its shader references and reloads when a sound
+next starts it; `StartSound` already retried unloaded samples. Last-played times are
+now wall-clock. `s_trimAudioMemory [seconds]` runs the same response on demand and
+prints `AUDIO_TRIM`.
+
+**Ogg files without usable length metadata.** The strict header peek needs a final
+end-of-stream page that ends the file. When it fails (a truncated file, trailing
+bytes, a final page without a position) the stream selection now asks stb_vorbis
+itself, over the VFS with the fixed arena, and with no length at all judges by four
+times the compressed size, so a long track never decodes whole. A stream with no
+length is counted by its envelope pass; `stb_vorbis_openq4_find_last_granule` then
+finds the last page that carries a position and `stb_vorbis_openq4_set_length`
+gives each voice's decoder that page and the count, so seeking bisects up to it and
+decodes forward (sample-exact in `audio_streaming.py`). A stream with no positioned
+page at all keeps the bounded full decode. The one-hour limit on streamed tracks is
+gone; the bound is the int-sized PCM bookkeeping, about three hours of 48 kHz
+stereo.
+
+**Envelope pass off the main thread.** During a level load a streamed track's
+compressed bytes go to a job worker, which fills the 60 Hz envelope sized before
+submission (`BeginOggStreamEnvelope`); the full pass had cost the main thread a tenth
+to a third of a second per music track. Voices can stream the track before the
+envelope is complete; until `FinishDecode` joins the job the envelope reads silent.
+Outside level loads, with jobs synchronous, or for a stream without length metadata
+the pass stays synchronous.
+
+### Authored scenes, centred reverb and portrait captions (October 23)
+
+**Centred sounds in mod reverbs.** A voice routed to the centre speaker plays its
+mono sample in FC of a 5.1 buffer through direct channels. OpenAL spatializes no
+multichannel buffer, so it applies no distance attenuation to it, and that includes
+a reverb's room rolloff on the sends, which a mono voice gets from OpenAL itself. With
+a mod preset's `room rolloff factor` above zero, an explicitly centred positional
+sound therefore kept its full reverb at any distance. `ApplyWetDryRouting` now gives
+such a voice the attenuation OpenAL computes for a mono source
+(`SoundReverb_RoomRolloffGain`: the reference distance over the reference plus the
+rolloff times the distance beyond it), from the reverb in the slot each send feeds
+(`GetReverbSlotRoomRolloff`). Stock presets have no room rolloff, so stock content is
+unchanged.
+
+**Speech audit.** `s_logSpeech 1` prints a `SOUND_SPEECH` line for every start that
+may be speech: classified dialogue, flagged voice-over, the radio channel, or a sample
+or shader a lipSync declares. Each line carries the routing the mixer gives it and the
+subtitle transcript status (`text`, `undeclared`, `notext`, `unresolved` or `variant`),
+identifiers only. The overlay and the audit share one transcript lookup
+(`SoundTranscriptText`), so the status is the one the overlay acts on.
+`tools/tests/audio_scene_audit.py` plays the opening of every campaign map in one hidden
+client, cinematics included, and probes the audible voices and subtitle cues at full
+and muted Dialogue Volume. After each opening it records the map's audio residency.
+
+**Streams on recycled voices.** The voice pool hands out its least recently used
+voice, so after the first minute or so of play every new sound reuses a source that
+has played. OpenAL keeps such a source `AL_STOPPED` and counts every buffer queued on
+a stopped source as processed. A streamed track (music, a long line, a late ambience
+loop) started there therefore had its first blocks unqueued as fast as they were
+queued, found nothing to play, and was stopped and retried every frame. Bounded
+streaming shipped in this cycle, so no release is affected. Earlier checks started
+their streams early, on voices that had never played. `FlushSourceBuffers` now
+rewinds the source to `AL_INITIAL`, the state a new source starts in.
+
+**Made-up lipSync declarations.** Looking up a lipSync that no content declares (actor
+speech and map precache do) makes the declaration manager create an empty implicit
+default. The subtitle lookup took that default as the shader's declaration, found no
+text and stopped, so a transcript declared for the full sample path never showed.
+Implicit declarations are now ignored there and by the speech audit, whose first sweep
+had counted one robot's chatter as declared speech for that reason.
+
+**Voice chat across output loss (October 24).** Multiplayer voice plays on its own
+OpenAL sources, which a lost endpoint stops like every other. `Play` now drops a
+frame while the output is gone (`IsOutputConnected`, counted as a playback drop)
+rather than queuing speech that would be late when it returns, and the next frame
+afterwards restarts the stopped source. `s_testDeviceInterruption` stops these
+sources too (`SoundVoiceChat_OutputInterrupted`), as a real disconnect does.
+
+**Linux dedicated server (October 24).** The dedicated server links the OpenAL sound
+code against `src/sys/stub/stub_openal.cpp` on Linux, which lacked the
+`alSourceRewind` the recycled-voice fix calls, so that build failed to link. The stub
+now provides it.
+
+**Long sessions.** `audio_scene_audit.py --repeat N` plays its map list N times in one
+client and checks that an opening played again holds no more audio, voices or stream
+reservations than its first pass. A first attempt found that the console's `echo`
+splits `#` into separate words, so pass labels are `passN/<map>`.
+
+**Portrait captions.** On screens narrower than 4:3 a cinematic's picture is a short
+band, and enlarged captions at its bottom covered the title text Awakening's intro
+draws in it. When two lines fit under the 640x480 artwork, captions now hang from just
+below it; otherwise, and on wider screens, they keep their place
+(`OpenQ4Subtitles::CanvasBottom`).
+
 ### Presets
 
 Every performance preset keeps room reverb on (`s_useEAXReverb 1`); see
@@ -168,23 +403,44 @@ restores it on profiles still on the minimum, lowpower or performance preset.
 
 - **Audible distance units.** Current `DOOM_TO_METERS` and `METERS_TO_DOOM` are both
   `1.0f` in `src/sound/sound.h`; the earlier claim that the mixer necessarily converts
-  map units to metres is stale. AUD-01 still requires measured stock attenuation,
-  reference-distance, source-radius and reverb curves before changing the audible mix.
-  Camera shake already has its separate game-unit path.
-- **Streaming music and long voice-over.** All 43 music tracks decode to 393 MB of PCM. The
-  voice already queues three buffers; streaming from the compressed Ogg would hold about 33 MB.
-- **Centre channel on 5.1.** `SetCenterChannel`, `SSF_CENTER` and `s_centerFractionVO` have no
-  OpenAL equivalent in use; voice-over on 5.1 is spread like any listener sound.
-- **Mod reverb room rolloff.** OpenAL Soft applies an effect's room rolloff with distances in
-  game units. Stock presets use 0; a mod preset with a room rolloff gets far too much.
+  map units to metres is stale. The current distance audit above establishes the
+  dry-path attenuation and source radius on Windows; the source reference distance
+  is the authored minimum and matters only to mod room rolloff. Human
+  audibility remains pending under AUD-01. Reverb and HRTF retain their separate
+  qualifications; camera shake already has its separate game-unit path.
+- **Whole-process/mobile audio memory.** A 256 MiB managed-payload budget now
+  jointly admits retained CPU/OpenAL data, WAV/ADPCM/RoQ loading, decoder arenas,
+  envelopes and conservative queues, and an operating-system low-memory notice
+  trims what the scene can do without. Provider internals, metadata, all-map
+  residency, a notice delivered by a real Android/iOS device and device
+  loading-time budgets remain under AUD-03/CORE-03. Lowering the limit preserves
+  active allocations while stopping new admissions until usage fits.
+- **Surround device qualification.** Mono global/radio dialogue now honours
+  `s_centerFractionVO`, and `SSF_CENTER` uses the physical centre on a detected
+  surround output through direct 5.1 buffers. Positional NPC speech retains its
+  direction; stereo and active HRTF keep the mono path, and playing voices re-route
+  when a reset or reopen changes the layout. Automated loopback and stock/Awakening
+  gameplay pass, and explicitly centred positional sounds now take a mod reverb's
+  room rolloff on their sends (loopback-qualified). Physical devices still need
+  qualification; stock content uses no `center` shader or `s_center` speaker.
 - **HDR audio, ducking, geometric obstruction.** These change the authored mix or need new
   per-sound data; they are not defaults for stock content.
 - **Voice budget.** 48 voices stay (retail mixed 24 channels).
 
 ## Verifying
 
+- The native `openq4-sound-output-recovery` and `openq4-sound-memory-trim` tests (every
+  output-change and trim decision), `tools/tests/audio_streaming.py` (streams without length
+  metadata) and the gameplay run `tools/tests/audio_output_recovery_runtime.py` (output loss,
+  paused resume, live layout re-routing, the trim and replay after it).
+- `tools/tests/audio_mod_reverb.py` (room rolloff for mono and centre-routed sources on
+  OpenAL loopback), `tools/tests/audio_subtitles.py` (transcript status and cinematic
+  caption placement) and the gameplay sweep `tools/tests/audio_scene_audit.py` (authored
+  speech routing, Dialogue Volume and subtitle cues in every campaign map's opening, and
+  its audio residency).
 - `tools/tests/sound_settings.py` and `tools/tests/sound_recovery.py` (the device-layout and
   limiter paths), `tools/tests/sound_retail_reverb_contract.py`,
+  `tools/tests/sound_distance.py` (distance-harness failure controls),
   `tools/tests/sound_screen_shake.py` (camera strength, range and aggregation),
   `tools/tests/macos_openal_provider_policy.py`, `tools/tests/ui_performance_presets.py` and the
   in-engine `performancePresetSelfTest`.

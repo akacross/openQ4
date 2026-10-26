@@ -3160,6 +3160,57 @@ void idMover_Binary::Save( idSaveGame *savefile ) const {
 	}
 }
 
+void idMover_Binary::PrepareFailedRestoreShutdown( void ) {
+	// Activation links may be incomplete even when the physics team was read.
+	// Detach before any mover destructor follows or promotes another member.
+	moveMaster = NULL;
+	activateChain = NULL;
+	idEntity::PrepareFailedRestoreShutdown();
+}
+
+void idMover_Binary::RestoreMoverLinks( idRestoreGame *savefile ) {
+	idMover_Binary *restoredMaster = NULL;
+	idMover_Binary *restoredChain = NULL;
+	savefile->ReadObject( restoredMaster );
+	savefile->ReadObject( restoredChain );
+
+	int visited = 0;
+	for ( const idMover_Binary *mover = restoredChain; mover != NULL; mover = mover->activateChain ) {
+		if ( mover == this || ++visited >= MAX_GENTITIES ) {
+			savefile->Error( "idMover_Binary::Restore: cyclic activation chain for '%s'", name.c_str() );
+		}
+	}
+	visited = 0;
+	for ( const idMover_Binary *mover = restoredMaster; mover != NULL; mover = mover->moveMaster ) {
+		if ( ( mover == this && restoredMaster != this ) || ++visited >= MAX_GENTITIES ) {
+			savefile->Error( "idMover_Binary::Restore: cyclic move master for '%s'", name.c_str() );
+		}
+		if ( mover == this || mover == mover->moveMaster ) {
+			break;
+		}
+	}
+	moveMaster = restoredMaster;
+	activateChain = restoredChain;
+}
+
+void idMover_Binary::ValidateRestoredBindings( idRestoreGame *savefile ) const {
+	idEntity::ValidateRestoredBindings( savefile );
+	if ( moveMaster == NULL || moveMaster->moveMaster != moveMaster ) {
+		savefile->Error( "idMover_Binary::Restore: invalid activation root for '%s'", name.c_str() );
+	}
+	bool found = false;
+	int visited = 0;
+	for ( const idMover_Binary *mover = moveMaster; mover != NULL; mover = mover->activateChain ) {
+		if ( ++visited > MAX_GENTITIES || mover->moveMaster != moveMaster ) {
+			savefile->Error( "idMover_Binary::Restore: inconsistent activation chain for '%s'", name.c_str() );
+		}
+		found = found || mover == this;
+	}
+	if ( !found ) {
+		savefile->Error( "idMover_Binary::Restore: mover '%s' is absent from its activation team", name.c_str() );
+	}
+}
+
 /*
 ================
 idMover_Binary::Restore
@@ -3173,8 +3224,7 @@ void idMover_Binary::Restore( idRestoreGame *savefile ) {
 	savefile->ReadVec3( pos2 );
 	savefile->ReadInt( (int &)moverState );
 
-	savefile->ReadObject( moveMaster );
-	savefile->ReadObject( activateChain );
+	RestoreMoverLinks( savefile );
 
 	savefile->ReadInt( soundPos1 );
 	savefile->ReadInt( sound1to2 );

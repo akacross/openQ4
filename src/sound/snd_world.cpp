@@ -1076,7 +1076,7 @@ void idSoundWorldLocal::Pause()
 		pausedTime = soundSystemLocal.SoundTime();
 		isPaused = true;
 		// just pause all unmutable voices (normally just voice overs)
-		for( int e = emitters.Num() - 1; e > 0; e-- )
+		for( int e = emitters.Num() - 1; e >= 0; e-- )
 		{
 			for( int i = 0; i < emitters[e]->channels.Num(); i++ )
 			{
@@ -1105,7 +1105,7 @@ void idSoundWorldLocal::UnPause()
 		pauseFade.Fade( 1.0f, s_unpauseFadeInTime.GetInteger(), GetSoundTime() );
 
 		// just unpause all unmutable voices (normally just voice overs)
-		for( int e = emitters.Num() - 1; e > 0; e-- )
+		for( int e = emitters.Num() - 1; e >= 0; e-- )
 		{
 			for( int i = 0; i < emitters[e]->channels.Num(); i++ )
 			{

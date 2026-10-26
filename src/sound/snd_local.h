@@ -317,6 +317,7 @@ public:
 	virtual float			CurrentShakeAmplitude();
 	float					ShakeAmplitudeForPosition( const idVec3& listenerPosition );
 	float					CurrentRumbleAmplitude() const { return rumbleAmp; }
+	virtual int				GetSubtitles( soundSubtitle_t* cues, int capacity );
 
 	// where is the camera
 	virtual void			PlaceListener( const idVec3& origin, const idMat3& axis, const int listenerId );
@@ -648,6 +649,13 @@ public:
 	virtual bool			SetReverb( int area, const char* reverbName, const char* fileName );
 
 	virtual void			ShutdownHW();
+	virtual bool			UpdateVoiceChat( bool active, bool transmit, bool localTest );
+	virtual int				GetVoiceData( byte* data, int capacity );
+	virtual void			PlayVoiceData( int clientNum, unsigned int generation, const byte* data, int size );
+	virtual void			StopVoiceData( int clientNum );
+	virtual void			ResetVoiceChat();
+	virtual int				GetVoiceTalker() const;
+	virtual float			GetVoiceLevel() const;
 
 	//-------------------------
 
@@ -727,6 +735,9 @@ public:
 	idList<idSoundSample*>		decodingSamples;
 	// uploads the samples whose decode has finished, or all of them, waiting
 	void						FinishSampleDecodes( bool all );
+	// frees the audio a low-memory notice may take (SoundMemoryTrim.h); idleSeconds < 0
+	// keeps the current level's samples
+	void						TrimMemory( const char* reason, int idleSeconds );
 
 	//-------------------------
 

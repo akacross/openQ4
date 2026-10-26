@@ -1,5 +1,7 @@
 # Savegame Compatibility Policy
 
+> **Development status:** This document describes the current source tree and its evidence, not the contents of the latest available 0.13.2 package. The 0.14.0 release was withdrawn. See [release status](../user/release-status.md).
+
 This policy defines which openQ4 single-player saves the current runtime may
 load. Reliability mechanisms and implementation detail are documented in
 [Savegame Reliability](savegame-reliability.md).
@@ -149,6 +151,14 @@ equivalents made by re-stamping real saves of identical layout (a 0.12.0 save
 re-stamped as 0.11.0; the same with `swimSpeed` removed as 0.10.0; a dev build
 845 save, whose snapshot equals 0.13.0's, re-stamped as build 1). No save written
 by the 0.10.0, 0.11.0 or 0.13.0 binaries themselves was available.
+
+The [21 October original-writer corpus](savegame-reliability.md#original-release-writers-21-october-2026)
+supersedes that evidence-availability limit for Windows x64. Five map-start
+saves from each of the published 0.6.95, 0.8.0, 0.10.0 and 0.11.0 binaries pass
+current restore/resave/reload. Five completed v0.13.0 staged payloads also pass;
+that original release rejects its own build-1 save transaction, and the record
+keeps debugger-captured staging distinct from committed saves. This adds
+runtime evidence without broadening the ABI or format policy.
 
 Version 2 has its own floor, build 546 (see [Version 2](#version-2)). Lowering
 either floor requires a real save in that format that restores cleanly, not a
@@ -360,11 +370,23 @@ precedent for adding fields within v3.
 Compatibility failures must identify the rejected layer—total size, outer
 version, payload version, ABI, v2 snapshot, legacy build, CRC, footer, or
 map—without attempting a partial restore. The running map remains active for
-failures caught by engine preflight. Deeper object-specific semantic failures can
-occur after teardown; they abort that restore and use the existing fresh-map
-initialization fallback. There is no staged-world rollback that preserves the
-former map after this point, and the failure must report the closest class/field
-boundary available.
+failures caught by engine preflight. The fresh-map initialization fallback handles
+an explicit `false` return from `InitFromSaveGame`, such as a changed script
+program. Deeper recoverable semantic errors now unwind the scoped restore owner
+before the session closes the save or releases the world. The session then stops
+the partial map and opens the Load Game page with a localized failure notice, or
+the classic message dialog when the retained page is unavailable. The log retains
+the closest class/field boundary available. This is explicit recovery, without
+staged-world rollback or automatic restart of a semantically damaged save.
+Fatal/startup errors retain their normal policy. The
+[recovery evidence and limits](savegame-reliability.md#recovery-after-semantic-restore-failure)
+include CRC-valid damaged saves; arbitrary malformed ownership graphs remain
+Q4-05 qualification work.
+
+Unrecognized unstamped/build-1 payloads still fail preflight. A readable header
+does not authorize an automatic level restart or checkpoint replacement. Any
+future header-only restart must be a distinct player-requested action with its
+own save-preservation checks; recognized historical release readers are unchanged.
 
 Save slots may remain visible when their bounded outer header is readable; menu
 discovery intentionally does not checksum all payloads. Selecting an incompatible

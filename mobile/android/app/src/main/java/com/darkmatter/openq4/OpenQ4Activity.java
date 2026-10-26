@@ -2,19 +2,131 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.darkmatter.openq4;
 
-import android.content.res.AssetManager;
+import android.annotation.TargetApi;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.Insets;
+import android.os.Build;
+import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.view.KeyEvent;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.util.Log;
+import android.widget.Toast;
 import org.libsdl.app.SDLActivity;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /** SDL owns the Activity lifecycle; Meson owns all native compilation. */
 public final class OpenQ4Activity extends SDLActivity {
+    private boolean setupOpening;
+
+    /** Called by the engine thread at foreground entry; never calls native code on the UI thread. */
+    public float[] getTouchSetup() {
+        String saved = getSharedPreferences("setup", MODE_PRIVATE).getString(TouchSettings.SAVED, null);
+        return saved == null ? null : TouchSettings.decode(saved).engineValues();
+    }
+
+    /** An unchanged applied revision never overwrites later in-game scale choices. */
+    public String getInterfaceSetup() {
+        InterfaceSettings saved = InterfaceSettings.decodeOrNull(
+                getSharedPreferences("setup", MODE_PRIVATE).getString(InterfaceSettings.SAVED, null));
+        Configuration config = getResources().getConfiguration();
+        return saved == null ? null : saved.engineValues(config.smallestScreenWidthDp >= 600, config.fontScale);
+    }
+
+    @Override
+    protected boolean onUnhandledMessage(int command, Object param) {
+        if (command != COMMAND_USER) return super.onUnhandledMessage(command, param);
+        // SDL delivers user messages on the Android UI thread. Reuse the
+        // single-task launcher; never finish/recreate the live game here.
+        if (setupOpening || isFinishing() || mBrokenLibraries || !mActivityCreated) return true;
+        setupOpening = true;
+        try {
+            startActivity(new Intent(this, LauncherActivity.class));
+            Log.i("openQ4", "Opened Android setup from the game");
+        } catch (ActivityNotFoundException unavailable) {
+            setupOpening = false;
+            Log.e("openQ4", "Could not reopen Android setup", unavailable);
+            Toast.makeText(this, R.string.setup_open_failed, Toast.LENGTH_LONG).show();
+        }
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setupOpening = false;
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        StorageSession.INSTANCE.activityCreated(this);
+        super.onCreate(savedInstanceState);
+        if (!mBrokenLibraries && mLayout != null && Build.VERSION.SDK_INT >= 30) {
+            keepOutOfDisplayCutout(mLayout);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        try { super.onDestroy(); }
+        finally { StorageSession.INSTANCE.activityDestroyed(this); }
+    }
+
+    @Override
+    protected void main() {
+        try {
+            if (!StorageSession.INSTANCE.beginEngine(this)) return;
+        } catch (InterruptedException cancelled) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        try { super.main(); }
+        finally { StorageSession.INSTANCE.endEngine(this); }
+    }
+
+    @TargetApi(30)
+    private static void keepOutOfDisplayCutout(ViewGroup layout) {
+        // SDL allows the surface under display cutouts on Android 11+. The
+        // stock HUD and in-world GUIs still use the complete render target.
+        // Keep that target inside the cutout, preserving one coordinate space
+        // for rendering, retained UI and SDL input instead of clipping controls.
+        layout.setBackgroundColor(Color.BLACK);
+        layout.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets cutout = insets.getInsets(WindowInsets.Type.displayCutout());
+            view.setPadding(cutout.left, cutout.top, cutout.right, cutout.bottom);
+            // Children, including SDL's surface and text input, receive the
+            // remaining system/IME insets relative to this padded content.
+            return insets.inset(cutout);
+        });
+        layout.requestApplyInsets();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (isFinishing()) return;
+        if (mBrokenLibraries || !mActivityCreated) {
+            // There is no native UI to navigate after a failed SDL load.
+            // SDL's default handler calls JNI, so do not enter it here.
+            finish();
+            return;
+        }
+        // Gesture navigation reaches this callback without a hardware key.
+        // Use the same SDL Back event as a physical button: the engine routes
+        // it through its current menu, gameplay pause or fatal-error console.
+        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_BACK);
+        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_BACK);
+    }
+
     @Override
     protected String[] getLibraries() {
         return new String[] { "SDL3", "quake4" };
@@ -32,11 +144,13 @@ public final class OpenQ4Activity extends SDLActivity {
             requireDirectory(new File(retailRoot, "q4base"));
             File saveRoot = new File(getFilesDir(), "saves");
             requireDirectory(saveRoot);
+            // Early native fatal diagnostics run before fs_savepath is parsed.
+            Os.setenv("OPENQ4_SAVE_ROOT", saveRoot.getAbsolutePath(), true);
             File contentRoot = extractPackage();
             Os.setenv("OPENQ4_NATIVE_LIBS", getApplicationInfo().nativeLibraryDir, true);
             Os.setenv("OPENQ4_CONTENT_ROOT", contentRoot.getAbsolutePath(), true);
             boolean multiplayer = getIntent().getBooleanExtra("multiplayer", false);
-            return new String[] {
+            List<String> arguments = new ArrayList<>(Arrays.asList(
                 "+set", "fs_basepath", retailRoot.getAbsolutePath(),
                 "+set", "fs_savepath", saveRoot.getAbsolutePath(),
                 "+set", "fs_cachepath", getCacheDir().getAbsolutePath(),
@@ -49,7 +163,13 @@ public final class OpenQ4Activity extends SDLActivity {
                 "+set", "in_tty", "0",
                 "+set", "logFile", "2",
                 "+set", "logFileName", "logs/openq4.log"
-            };
+            ));
+            String language = SetupLanguage.engine(getIntent().getStringExtra("setup_language"));
+            if (language != null) {
+                arguments.addAll(Arrays.asList("+set", "sys_lang", language));
+                LauncherActivity.languageApplied(getIntent().getStringExtra("setup_language"));
+            }
+            return arguments.toArray(new String[0]);
         } catch (IOException | ErrnoException error) {
             // SDL/logcat retains the actionable cause; never run with partial
             // package data or fall back to an unintended writable directory.
@@ -64,82 +184,6 @@ public final class OpenQ4Activity extends SDLActivity {
     }
 
     private File extractPackage() throws IOException, ErrnoException {
-        String version;
-        try (InputStream input = getAssets().open("openq4-package-version.txt")) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[128];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            version = new String(output.toByteArray(), StandardCharsets.US_ASCII).trim();
-        }
-        if (!version.matches("[0-9a-f]{64}")) {
-            throw new IOException("Invalid packaged content revision");
-        }
-        // Android may expose /data/user/0 through an alias of /data/data.
-        // Normalize that trusted parent once so cleanup can reject symlinks
-        // inside packages without mistaking the app storage alias for one.
-        File packages = new File(getFilesDir(), "packages").getCanonicalFile();
-        File root = new File(packages, version);
-        File ready = new File(root, ".ready");
-        if (!ready.isFile()) {
-            requireDirectory(root);
-            copyAssetTree(getAssets(), "baseoq4", new File(root, "baseoq4"));
-            if (!ready.createNewFile() && !ready.isFile()) {
-                throw new IOException("Cannot mark content package complete");
-            }
-        }
-        // Retain the previous version until extraction succeeds. Once the new
-        // package is complete, old generated copies must not consume another
-        // ~640 MB on every upgrade. Saves live in a different directory.
-        File[] previousPackages = packages.listFiles();
-        if (previousPackages != null) {
-            for (File previous : previousPackages) {
-                if (!previous.getName().equals(version) &&
-                        previous.getName().matches("[0-9a-f]{64}")) {
-                    deleteGeneratedPackage(previous);
-                }
-            }
-        }
-        return root;
-    }
-
-    private static void deleteGeneratedPackage(File file) {
-        // Never follow a symlink out of the app-owned package directory. An
-        // unexpected entry is left alone; cleanup must not prevent startup.
-        try {
-            if (!file.getCanonicalFile().equals(file.getAbsoluteFile())) return;
-        } catch (IOException error) {
-            return;
-        }
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children == null) return;
-            for (File child : children) deleteGeneratedPackage(child);
-        }
-        // A failed delete can be retried on the next launch. It is safe to use
-        // the new package even if an old generated file remains.
-        file.delete();
-    }
-
-    private static void copyAssetTree(AssetManager assets, String source, File target)
-            throws IOException, ErrnoException {
-        String[] children = assets.list(source);
-        if (children != null && children.length > 0) {
-            requireDirectory(target);
-            for (String child : children) {
-                copyAssetTree(assets, source + "/" + child, new File(target, child));
-            }
-            return;
-        }
-        requireDirectory(target.getParentFile());
-        File temporary = new File(target.getPath() + ".tmp");
-        try (InputStream input = assets.open(source);
-             FileOutputStream output = new FileOutputStream(temporary)) {
-            byte[] buffer = new byte[65536];
-            int count;
-            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-            output.getFD().sync();
-        }
-        Os.rename(temporary.getAbsolutePath(), target.getAbsolutePath());
+        return PackageStorage.extract(getAssets(), getFilesDir());
     }
 }

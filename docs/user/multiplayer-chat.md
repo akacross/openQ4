@@ -1,5 +1,44 @@
 # Multiplayer chat
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
+## Voice chat
+
+In a multiplayer match, open the **Voice** tab (or **Voice Config** in the
+Classic menu) and enable **Microphone access**. Access starts off, including
+after upgrading an older installation. Enabling access alone does not record.
+Bind **Voice Chat** under **Settings > Controls > Other**, then hold that key
+to speak. There is no default key binding. The default recording device is
+selected through SDL; allow microphone access in your operating system when
+prompted.
+
+**Local microphone test** lets you hear the input and see its level without
+sending it to the server. It stops when you leave the Voice tab or menu, revoke
+microphone access, or leave the match. **Mic Input Volume** adjusts the input;
+**Receive Volume** adjusts other players independently of campaign dialogue and
+music. **Voice Echo** lets the server return your transmitted speech to you.
+
+Use **Players > Mute** to silence a participant, or turn off **Receive Voice**
+to silence all incoming chat. A mute applies to that connection: it does not
+follow a disconnected player or affect someone who later occupies the same
+slot. Voice follows the server's team, arena, spectator and managed-match
+rules. It is not included in multi-view demos or repeater feeds.
+
+Voice uses narrowband speech and discards audio that cannot be delivered
+promptly; congestion can cause gaps while gameplay continues. Both server and
+clients need this version's voice support. A server operator can disable it
+with `si_voiceChat 0`, or silence a connected slot with
+`serverVoiceMute <slot> 1` (`0` restores it). Replace the engine and game
+modules together when upgrading.
+
+The page reports whether input is off, ready, recording or unavailable. If
+input is unavailable, check the default recording device and operating-system
+permissions. `listVoiceChat` reports capture/playback state without printing
+audio. Windows automated tests cover real local peers and SDL's dummy input;
+physical microphones and other operating systems still need qualification.
+
+## Text chat
+
 Chat keeps the latest 64 received messages and wraps long lines.
 
 With the Remastered HUD layout (the default), the four latest messages sit at

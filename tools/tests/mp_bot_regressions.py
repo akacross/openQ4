@@ -42,6 +42,7 @@ def main() -> None:
         network, re.M))
     bodies = "\n".join(function(bot, signature) for signature in (
         "static float BotGapToPad(",
+        "static bool BotPadFlightsShareCorridor(",
         "static bool BotPadCorridorBusy(",
         "bool rvBot::HoldForPad(",
         "void rvBot::ResetDodgeJump(",
@@ -58,6 +59,9 @@ def main() -> None:
         "void rvBot::TryDodgeJump(",
         "bool rvBot::HoldDodgeJump(",
         "static bool BotBrakeAtEdge( idPlayer *self, idVec3 &moveDir ) {",
+        "static int BotPlannedTransport(",
+        "static bool BotBrakeForTransport(",
+        "bool rvBot::RecoverInAir(",
         "bool rvBot::RecoverToNavMesh(",
         "void rvBot::UpdateEnemy(",
         "int rvBot::EnemyLastKnownTime(",

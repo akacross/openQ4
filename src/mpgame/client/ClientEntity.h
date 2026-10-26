@@ -22,6 +22,10 @@ public:
 	virtual void		Think				( void );
 	virtual void		UpdatePresentationTransform	( int presentationTime );
 	virtual bool		HasPresentationAnimation	( int, int ) const { return false; }
+	// unbound client entities that move under their own physics (debris, brass,
+	// gibs) are drawn between tics from gameLocal.presentationClientEntities
+	virtual void		UpdatePresentationPose		( void ) {}
+	virtual void		RestoreAuthoritativePresentationPose( void ) {}
 	virtual idPhysics*	GetPhysics			( void ) const;
 	virtual bool		Collide				( const trace_t &collision, const idVec3 &velocity );
 
@@ -70,6 +74,7 @@ public:
 
 	idLinkList<rvClientEntity>	spawnNode;
 	idLinkList<rvClientEntity>	bindNode;
+	idLinkList<rvClientEntity>	presentationNode;	// draw-only; never saved
 
 	idDict						spawnArgs;
 
@@ -178,7 +183,18 @@ ID_INLINE void rvClientEntityPtr<type>::Save( idSaveGame *savefile ) const {
 
 template< class type >
 ID_INLINE void rvClientEntityPtr<type>::Restore( idRestoreGame *savefile ) {
-	savefile->ReadInt( spawnId );
+	rvClientEntityPtr<type> restored;
+	savefile->ReadInt( restored.spawnId );
+	// Keep stale generations as weak references, but never publish a live
+	// reference that would make GetEntity downcast to the wrong class.
+	if ( restored.IsValid() ) {
+		const rvClientEntity *entity = gameLocal.clientEntities[restored.GetEntityNum()];
+		if ( entity != NULL && !entity->IsType( type::GetClassType() ) ) {
+			savefile->Error( "rvClientEntityPtr::Restore: entity %d has type '%s', expected '%s'",
+				restored.GetEntityNum(), entity->GetClassname(), type::GetClassType().classname );
+		}
+	}
+	spawnId = restored.spawnId;
 }
 
 /*

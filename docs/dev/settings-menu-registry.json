@@ -1295,6 +1295,41 @@
       "accessibility": "Slider with paired edit field."
     },
     {
+      "id": "audio.dialogue_volume",
+      "pane": "Audio",
+      "section": "Levels",
+      "path": "Settings > Audio > Levels > Dialogue Volume",
+      "source": "audio",
+      "container": "set_audio_dialogue",
+      "widgets": [
+        "set_audio_dialogue_slider",
+        "set_audio_dialogue_value"
+      ],
+      "edit_fields": [
+        {
+          "name": "set_audio_dialogue_value",
+          "maxchars": 4,
+          "numeric": true
+        }
+      ],
+      "widget_type": "slider_edit",
+      "label_key": "#str_231300",
+      "target_type": "cvar",
+      "target": "s_dialogueVolume",
+      "default": "1",
+      "ui_range": {
+        "low": "0",
+        "high": "1",
+        "step": "0.05"
+      },
+      "cvar_range": {
+        "low": "0",
+        "high": "1"
+      },
+      "restart_required": false,
+      "accessibility": "Slider with paired edit field."
+    },
+    {
       "id": "system.renderer_fallback",
       "pane": "System",
       "section": "Post Effects",
@@ -3097,6 +3132,65 @@
       "accessibility": "Slider with paired edit field."
     },
     {
+      "id": "game.controller.prompt_style",
+      "pane": "Game Options",
+      "section": "Controller",
+      "path": "Settings > Game Options > Controller > Prompt Style",
+      "source": "game",
+      "container": "set_game_controller_prompt_style",
+      "widgets": [
+        "set_game_controller_prompt_style_value"
+      ],
+      "widget_type": "choice",
+      "label_key": "#str_231526",
+      "choices_key": "#str_231527",
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "target_type": "cvar",
+      "target": "in_promptStyle",
+      "default": "0",
+      "cvar_range": {
+        "low": "0",
+        "high": "5"
+      },
+      "restart_required": false,
+      "accessibility": "Standard focusable choiceDef row: the controller prompt family for the menus and the HUD."
+    },
+    {
+      "id": "game.controller.swap_confirm",
+      "pane": "Game Options",
+      "section": "Controller",
+      "path": "Settings > Game Options > Controller > Swap Confirm and Back",
+      "source": "game",
+      "container": "set_game_controller_swap_confirm",
+      "widgets": [
+        "set_game_controller_swap_confirm_value"
+      ],
+      "widget_type": "choice",
+      "label_key": "#str_231528",
+      "choices_key": "#str_231529",
+      "values": [
+        "0",
+        "1",
+        "2"
+      ],
+      "target_type": "cvar",
+      "target": "in_swapConfirmBack",
+      "default": "0",
+      "cvar_range": {
+        "low": "0",
+        "high": "2"
+      },
+      "restart_required": false,
+      "accessibility": "Standard focusable choiceDef row: which face button confirms in menus; prompts follow it."
+    },
+    {
       "id": "game.crosshair_custom",
       "pane": "Game Options",
       "section": "Crosshair",
@@ -4119,6 +4213,114 @@
       "default": "1",
       "restart_required": false,
       "accessibility": "Focusable choiceDef row. Crouching in the room crouches the character."
+    },
+    {
+      "id": "audio.subtitles",
+      "pane": "Audio",
+      "section": "Subtitles",
+      "path": "Settings > Audio > Dialogue Subtitles",
+      "source": "audio",
+      "container": "set_audio_subtitles",
+      "widgets": [
+        "set_audio_subtitles_val"
+      ],
+      "widget_type": "choice",
+      "label_key": "#str_231308",
+      "choices_key": "#str_200059",
+      "target_type": "cvar",
+      "target": "ui_subtitles",
+      "default": "0",
+      "restart_required": false,
+      "accessibility": "Standard focusable choiceDef row."
+    },
+    {
+      "id": "audio.subtitle_size",
+      "pane": "Audio",
+      "section": "Subtitles",
+      "path": "Settings > Audio > Subtitle Size",
+      "source": "audio",
+      "container": "set_audio_subtitle_size",
+      "widgets": [
+        "set_audio_subtitle_size_slider",
+        "set_audio_subtitle_size_value"
+      ],
+      "edit_fields": [
+        {
+          "name": "set_audio_subtitle_size_value",
+          "maxchars": 4,
+          "numeric": true
+        }
+      ],
+      "widget_type": "slider_edit",
+      "label_key": "#str_231309",
+      "target_type": "cvar",
+      "target": "ui_subtitleScale",
+      "default": "1",
+      "ui_range": {
+        "low": "1",
+        "high": "2",
+        "step": "0.1"
+      },
+      "cvar_range": {
+        "low": "1",
+        "high": "2"
+      },
+      "restart_required": false,
+      "accessibility": "Slider with paired edit field."
+    },
+    {
+      "id": "audio.subtitle_background",
+      "pane": "Audio",
+      "section": "Subtitles",
+      "path": "Settings > Audio > Subtitle Background",
+      "source": "audio",
+      "container": "set_audio_subtitle_background",
+      "widgets": [
+        "set_audio_subtitle_background_slider",
+        "set_audio_subtitle_background_value"
+      ],
+      "edit_fields": [
+        {
+          "name": "set_audio_subtitle_background_value",
+          "maxchars": 4,
+          "numeric": true
+        }
+      ],
+      "widget_type": "slider_edit",
+      "label_key": "#str_231310",
+      "target_type": "cvar",
+      "target": "ui_subtitleBackground",
+      "default": "0.6",
+      "ui_range": {
+        "low": "0",
+        "high": "1",
+        "step": "0.1"
+      },
+      "cvar_range": {
+        "low": "0",
+        "high": "1"
+      },
+      "restart_required": false,
+      "accessibility": "Slider with paired edit field."
+    },
+    {
+      "id": "audio.subtitle_speakers",
+      "pane": "Audio",
+      "section": "Subtitles",
+      "path": "Settings > Audio > Speaker Names",
+      "source": "audio",
+      "container": "set_audio_subtitle_speakers",
+      "widgets": [
+        "set_audio_subtitle_speakers_val"
+      ],
+      "widget_type": "choice",
+      "label_key": "#str_231311",
+      "choices_key": "#str_200059",
+      "target_type": "cvar",
+      "target": "ui_subtitleSpeakers",
+      "default": "1",
+      "restart_required": false,
+      "accessibility": "Standard focusable choiceDef row."
     }
   ],
   "default_bind_sources": [

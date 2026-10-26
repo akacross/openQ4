@@ -362,11 +362,12 @@ public:
 	bool			CanTalk( idPlayer *from, idPlayer *to, bool echo );
 	void			ReceiveAndForwardVoiceData( int clientNum, const idBitMsg &inMsg, int messageType );
 
-#ifdef _USE_VOICECHAT
 // jscott: game side voice comms
 	void			XmitVoiceData( void );
 	void			ReceiveAndPlayVoiceData( const idBitMsg &inMsg );
-#endif
+	void			ResetVoiceState( int client = -1 );
+	static void		ServerVoiceMute_f( const idCmdArgs& args );
+	static void		ServerVoiceStats_f( const idCmdArgs& args );
 
 // jshepard: selects a map at random that will run with the current game type
 	bool			PickMap( idStr gameType, bool checkOnly = false );
@@ -806,6 +807,7 @@ public:
 	// over it) is open, the way a story level does. Host-local, like the rest
 	// of the ceremony: the paused frames rebase every match deadline.
 	bool			ArenaCampaignPausesWorld( void ) const;
+	void			UpdateArenaSoundPause( bool pause );
 	void			RebaseArenaCampaignPauseFrame( int deltaMsec );
 	// Escape during the end-of-match ceremony skips ahead to the match report
 	// instead of opening a menu whose Disconnect would forfeit the result.
@@ -980,6 +982,10 @@ private:
 	uint32_t		nextClientMatchRequestId;
 	uint32_t		nextTrustedLocalMatchRequestId;
 	mpProposalId_t	nextMatchProposalId;
+	// The newest passed proposal executed in each scope.  Proposal ids only grow
+	// within a session, so a record at or below it ran already and only its
+	// acknowledgement is retried: a ballot never executes twice.
+	mpProposalId_t	lastExecutedMatchProposalId[ MP_PROPOSAL_SCOPE_COUNT ];
 	uint64_t		nextMatchSessionId;
 	bool			matchRefereeCredentialInitialized;
 	bool			matchRefereeCredentialIsReal;
@@ -1187,6 +1193,7 @@ private:
 	bool			arenaCeremonySkipping;
 	bool			arenaSkipButtonHeld;
 	bool			arenaMenuWasPaused;
+	bool			arenaSoundPauseOwned;
 	// The introduction order, latched when it arms: teammates first, then the
 	// opposition, each in slot order.
 	int				arenaIntroOrder[ MAX_CLIENTS ];
@@ -1249,9 +1256,12 @@ private:
 	// opens or the list's players change. The page shows the statistics of
 	// retainedStatClient.
 	static const int RETAINED_PLAYER_LISTS = 3;
-	static const int RETAINED_PLAYER_ROWS = 16;
+	static const int RETAINED_PLAYER_ROWS = 32;
+	static_assert( RETAINED_PLAYER_ROWS == MAX_CLIENTS, "retained rosters cover every client slot" );
 	idList<int>		retainedPlayerOrder[ RETAINED_PLAYER_LISTS ];
 	int				retainedStatClient;
+	idStr			retainedStatIdentity;
+	idStr			RetainedPlayerIdentity( int client ) const;
 	void			RetainedPlayerLists( idList<int> lists[ RETAINED_PLAYER_LISTS ], int colors[ RETAINED_PLAYER_LISTS ] );
 	bool			RetainedListed( int client );
 	void			PublishRetainedPlayers( idUserInterface *card, bool &changed );

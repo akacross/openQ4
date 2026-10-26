@@ -302,6 +302,13 @@ public:
 	// volume's own brush where it has one: a diagonal pad's bounding box
 	// covers floor beside it that the pad never touches.
 	int						TransportAtFloor( const idVec3 &floor ) const;
+	// The live transport, other than ignoreEntityNum, that a standing box
+	// carried from one origin to another would touch - exactly, against the
+	// volume's brush where it has one - or -1.  A box already touching one
+	// counts: the pad throws on any frame of contact.
+	int						TransportOnMove( const idVec3 &from, const idVec3 &to, int ignoreEntityNum ) const;
+	// The centre of a live transport's volume, false for an unknown entity.
+	bool					TransportCentre( int entityNum, idVec3 &centre ) const;
 
 	// Is this landing of the pad one only air control reaches - not where the
 	// pad's own arc comes down?  A bot rides a natural landing and steers for
@@ -312,6 +319,14 @@ public:
 	bool					NaturalPadLanding( int padEntityNum, idVec3 &landing ) const;
 	bool					LandingSurvivable( const idVec3 &from, const navCorner_t &corner, float maxImpactDelta ) const;
 	bool					LandingContinuationClear( const idVec3 &origin, const idVec3 &next ) const;
+	// Whether a fall from this state under one fixed horizontal air input (zero
+	// for none) comes down on supported, non-lethal ground with room to stop,
+	// within maxImpactDelta of landing damage.
+	// landedSupported, when given, reports a supported, affordable landing
+	// even when it leaves no room to stop.
+	bool					AirInputLandingSafe( const idVec3 &origin, const idVec3 &velocity, const idVec3 &wish,
+											 float maxImpactDelta, idVec3 *touchdown = NULL,
+											 bool *landedSupported = NULL ) const;
 	// Diagnostics: would a route leg between these points be accepted as a
 	// walk now, and if not, which test refuses it.
 	bool					WalkLegAccepted( const idVec3 &from, const idVec3 &to, const char **failure ) const {
@@ -500,6 +515,7 @@ private:
 
 	int						buildMsec;
 	int						gapJumpLinks;
+	int						trenchRimLinks;	// gap jumps over a trench to its far rim
 	// Smallest stored edge-cost/geometric-distance ratio.  Scaling Euclidean
 	// distance by this keeps A* admissible even with cheap long-range
 	// transports; the landmarks supply the real guidance on top of it.

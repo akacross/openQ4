@@ -3289,6 +3289,58 @@ windowDef Desktop
 				background	"gfx/guis/mainmenu/b3_light"
 				matcolor	0.545,0.588,0.294,0.4
 			}
+			windowDef vcfg_voice_capture
+			{
+				rect 205,206,154,24
+				visible 1
+				forecolor 1,1,1,0.8
+				text "#str_231301"
+				textscale 0.24
+				font "fonts/lowpixel"
+			}
+			choiceDef vcfg_voice_capture_val
+			{
+				rect 364,206,135,18
+				visible 1
+				forecolor 1,0.745,0.137,0.8
+				textscale 0.24
+				font "fonts/lowpixel"
+				cvar s_voiceChatCapture
+				choiceType 0
+				choices "#str_200059"
+				onAction { set "cmd" "play main_menu_selection"; }
+			}
+			windowDef vcfg_voice_test
+			{
+				rect 205,234,154,30
+				visible 1
+				forecolor 1,1,1,0.8
+				text "#str_231307"
+				textscale 0.24
+				font "fonts/lowpixel"
+			}
+			choiceDef vcfg_voice_test_val
+			{
+				rect 364,234,135,18
+				visible 1
+				noevents 1 - "gui::voiceCaptureAllowed"
+				forecolor 1,0.745,0.137,0.8
+				textscale 0.24
+				font "fonts/lowpixel"
+				cvar s_voiceChatTest
+				choiceType 0
+				choices "#str_200059"
+				onAction { set "cmd" "play main_menu_selection"; }
+			}
+			windowDef vcfg_voice_status
+			{
+				rect 205,270,313,64
+				visible 1
+				forecolor 1,1,1,0.8
+				text "gui::voiceStatusText"
+				textscale 0.24
+				font "fonts/lowpixel"
+			}
 			choiceDef vcfg_voice_send_val
 			{
 				rect	364,62,135,18
@@ -6082,7 +6134,7 @@ windowDef Desktop
 			notime	1
 
 			onTime 0 {
-				consolecmd "s_voiceChatTest 1" ;
+				consolecmd "s_voiceChatTest 0" ;
 				set "p_voiceconfig::rect" "0,0,640,480" ;
 				set "p_voiceconfig::visible" "1" ;
 				set "desktop::curr" "20" ;

@@ -29,9 +29,12 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "snd_local.h"
+#include "SoundDialogue.h"
+#include "../framework/declLipSync.h"
 
 idCVar s_singleEmitter( "s_singleEmitter", "0", CVAR_INTEGER, "mute all sounds but this emitter" );
 idCVar s_showStartSound( "s_showStartSound", "0", CVAR_BOOL, "print a message every time a sound starts/stops" );
+idCVar s_logSpeech( "s_logSpeech", "0", CVAR_SOUND | CVAR_BOOL, "print SOUND_SPEECH for every start of a sample that may be speech: its dialogue routing, radio channel and subtitle transcript status (identifiers only, never the text)" );
 idCVar s_skipStartSound( "s_skipStartSound", "0", CVAR_BOOL, "skip starting sounds" );
 idCVar s_useOcclusion( "s_useOcclusion", "1", CVAR_BOOL, "Attenuate sounds based on walls" );
 idCVar s_centerFractionVO( "s_centerFractionVO", "0.75", CVAR_FLOAT, "Portion of VO sounds routed to the center channel" );
@@ -40,6 +43,7 @@ extern idCVar s_playDefaultSound;
 extern idCVar s_noSound;
 extern idCVar s_volume;
 extern idCVar s_musicVolume;
+extern idCVar s_dialogueVolume;
 extern idCVar s_constantAmplitude;
 extern idCVar s_speakerFraction;
 extern idCVar s_radioChatterFraction;
@@ -600,6 +604,100 @@ bool idSoundChannel::CheckForCompletion( int currentTime )
 idSoundChannel::UpdateVolume
 ========================
 */
+// A lipSync some content declares. The game makes up an empty default when it
+// looks up a name nothing declares (actor speech and map precache do), which
+// would otherwise hide a sample-path transcript behind the shader's name.
+static const rvDeclLipSync* SoundDeclaredLipSync( const char* name ) {
+	const rvDeclLipSync* lip = static_cast<const rvDeclLipSync*>( declManager->FindType( DECL_LIPSYNC, name, false ) );
+	return lip != NULL && !lip->IsImplicit() ? lip : NULL;
+}
+
+// The transcript a playing sample may show. One shader can choose different
+// utterances: only a single-sample shader has an unambiguous same-name
+// transcript, for its leadin; variants need an explicit full sample-path
+// lipSync declaration. Descriptions, filenames and missing localization keys
+// are never transcripts. status, when asked for, says why there is no text.
+static const char* SoundTranscriptText( const idSoundShader* shader, const idSoundSample* sample, bool leadin, SoundTranscript* status ) {
+	const bool single = shader->GetNumEntries() == 1 && leadin;
+	const rvDeclLipSync* lip = NULL;
+	if( single )
+		lip = SoundDeclaredLipSync( shader->GetName() );
+	if( lip == NULL ) {
+		idStr key = sample->GetName(); key.StripFileExtension();
+		lip = SoundDeclaredLipSync( key.c_str() );
+	}
+	if( lip == NULL ) {
+		if( status != NULL )
+			*status = !single && SoundDeclaredLipSync( shader->GetName() ) != NULL ? SoundTranscript::Variant : SoundTranscript::Undeclared;
+		return NULL;
+	}
+	if( !lip->GetRawTranscribeText()[0] ) {
+		if( status != NULL ) *status = SoundTranscript::NoText;
+		return NULL;
+	}
+	const char* text = lip->GetSubtitleText();
+	if( text == NULL || !text[0] || !idStr::Icmpn( text, "#str_", 5 ) || !idStr::Icmp( text, "<DEFAULTED>" ) ) {
+		if( status != NULL ) *status = SoundTranscript::Unresolved;
+		return NULL;
+	}
+	if( status != NULL ) *status = SoundTranscript::Text;
+	return text;
+}
+
+// Captions follow authored playback, not the user's volume or hardware-voice
+// allocation. This remains useful with dialogue muted or a lost audio device.
+int idSoundWorldLocal::GetSubtitles( soundSubtitle_t* cues, int capacity ) {
+	if( cues == NULL || capacity <= 0 ) return 0;
+	capacity = Min( capacity, 2 );
+	const int now = GetSoundTime();
+	int count = 0;
+	for( int e = 0; e < emitters.Num(); ++e ) {
+		idSoundEmitterLocal* emitter = emitters[e];
+		if( emitter == NULL ) continue;
+		for( int c = 0; c < emitter->channels.Num(); ++c ) {
+			idSoundChannel* channel = emitter->channels[c];
+			if( channel == NULL || channel->soundShader == NULL || channel->leadinSample == NULL ||
+				now < channel->startTime || SoundChannelHasCompleted( channel, now ) ) continue;
+			const int flags = channel->parms.soundShaderFlags;
+			const bool self = emitter->emitterId == listener.id;
+			if( ( ( flags & SSF_PRIVATE_SOUND ) && !self ) || ( ( flags & SSF_ANTI_PRIVATE_SOUND ) && self ) ) continue;
+			int cursor = idMath::FtoiFast( SoundChannelPlaybackTimeMsec( channel, now ) );
+			const idSoundSample* sample = channel->leadinSample;
+			if( cursor >= sample->LengthInMsec() ) {
+				cursor -= sample->LengthInMsec();
+				sample = channel->loopingSample;
+				if( sample == NULL || sample->LengthInMsec() <= 0 ) continue;
+				cursor %= sample->LengthInMsec();
+			}
+			if( sample->IsDefault() || sample->LengthInMsec() <= 0 ||
+				!SoundIsDialogue( SoundUsesMusicVolume( channel->parms ),
+					( flags & ( SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) != 0, sample->GetName() ) ) continue;
+			float audible = channel->parms.volume * channel->volumeFade.GetVolume( now );
+			if( channel->parms.soundClass >= 0 && channel->parms.soundClass < SOUND_MAX_CLASSES )
+				audible *= soundClassFade[channel->parms.soundClass].GetVolume( now );
+			if( !( flags & SSF_GLOBAL ) && !self ) {
+				const bool direct = ( flags & SSF_NO_OCCLUSION ) || !s_useOcclusion.GetBool();
+				SoundWorldApplyDistanceFalloff( audible, direct ? ( emitter->origin - listener.pos ).Length() : emitter->spatializedDistance,
+					channel->parms.minDistance, channel->parms.maxDistance );
+			}
+			if( !std::isfinite( audible ) || audible <= SOUND_WORLD_VOLUME_EPSILON ) continue;
+			const char* text = SoundTranscriptText( channel->soundShader, sample, sample == channel->leadinSample, NULL );
+			if( text == NULL ) continue;
+			soundSubtitle_t cue = { text, channel->soundShader->GetName(), emitter->Index(), emitter->emitterId,
+				channel->startTime, cursor, sample->LengthInMsec(), IsRadioChatterChannel( channel ) };
+			// Keep the two most recent utterances. Stable source order breaks
+			// simultaneous ties; no stale event queue survives stops or restore.
+			int at = 0;
+			while( at < count && cues[at].startTime >= cue.startTime ) ++at;
+			if( at >= capacity ) continue;
+			for( int j = Min( count, capacity - 1 ); j > at; --j ) cues[j] = cues[j - 1];
+			cues[at] = cue;
+			count = Min( capacity, count + 1 );
+		}
+	}
+	return count;
+}
+
 void idSoundChannel::UpdateVolume( int currentTime )
 {
 	idSoundWorldLocal* soundWorld = emitter->soundWorld;
@@ -690,6 +788,22 @@ void idSoundChannel::UpdateVolume( int currentTime )
 	if( SoundUsesMusicVolume( parms ) )
 	{
 		volumeScale *= SoundSanitizeUnitValue( s_musicVolume.GetFloat(), 1.0f );
+	}
+	else
+	{
+		// Classify the sample actually playing, including a leadin/loop change.
+		// This also survives save/restore and localized fallback without storing
+		// a new flag in saves or changing retail attenuation/voice priority.
+		const idSoundSample* sample = leadinSample;
+		if( loopingSample != NULL && SoundChannelPlaybackTimeMsec( this, currentTime ) >= leadinSample->LengthInMsec() )
+		{
+			sample = loopingSample;
+		}
+		const bool authoredSpeech = ( parms.soundShaderFlags & ( SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) != 0;
+		if( SoundIsDialogue( false, authoredSpeech, sample->GetName() ) )
+		{
+			volumeScale *= SoundSanitizeUnitValue( s_dialogueVolume.GetFloat(), 1.0f );
+		}
 	}
 
 	if( soundSystemLocal.musicMuted && SoundUsesMusicVolume( parms ) )
@@ -798,7 +912,8 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		hardwareVoice->SetCenterChannel( 1.0f );
 	}
-	else if( ( parms.soundShaderFlags & SSF_VO ) || ( parms.soundShaderFlags & SSF_IS_VO ) )
+	else if( ( parms.soundShaderFlags & ( SSF_VO | SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) || IsRadioChatterChannel( this ) ||
+		SoundIsDialogue( SoundUsesMusicVolume( parms ), false, leadinSample->GetName() ) )
 	{
 		hardwareVoice->SetCenterChannel( s_centerFractionVO.GetFloat() );
 	}
@@ -865,9 +980,10 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Start( startOffset, parms.soundShaderFlags | ( parms.shakes == 0.0f ? SSF_NO_FLICKER : 0 ) ) )
 		{
+			const bool recoverAtClock = hardwareVoice->RecoversAtClock();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
-			if( !IsLooping() )
+			if( !IsLooping() && !recoverAtClock )
 			{
 				endTime = 1;
 			}
@@ -877,9 +993,10 @@ void idSoundChannel::UpdateHardware( float volumeAdd, int currentTime )
 	{
 		if( !hardwareVoice->Update() )
 		{
+			const bool recoverAtClock = hardwareVoice->RecoversAtClock();
 			soundSystemLocal.FreeVoice( hardwareVoice );
 			hardwareVoice = NULL;
-			if( !IsLooping() )
+			if( !IsLooping() && !recoverAtClock )
 			{
 				endTime = 1;
 			}
@@ -1320,6 +1437,42 @@ in most cases play sounds immediately, however
 return: int	- the length of the started sound in msec.
 ========================
 */
+/*
+========================
+SoundLogSpeechStart
+
+s_logSpeech: a start that may be speech, being classified dialogue, flagged
+voice-over, on the radio channel or declared by a lipSync, with the routing the
+mixer gives it and the subtitle it can show. Speech that is not dialogue would
+escape the Dialogue Volume control. Identifiers only, never the transcript.
+========================
+*/
+static void SoundLogSpeechStart( const idSoundChannel* chan )
+{
+	const idSoundShader* shader = chan->soundShader;
+	const idSoundSample* sample = chan->leadinSample;
+	const int flags = chan->parms.soundShaderFlags;
+	const bool music = SoundUsesMusicVolume( chan->parms );
+	const bool authored = ( flags & ( SSF_IS_VO | SSF_VO_FOR_PLAYER ) ) != 0;
+	const bool dialogue = SoundIsDialogue( music, authored, sample->GetName() );
+	const bool radio = IsRadioChatterChannel( chan );
+	idStr key = sample->GetName();
+	key.StripFileExtension();
+	const bool declared = SoundDeclaredLipSync( shader->GetName() ) != NULL || SoundDeclaredLipSync( key.c_str() ) != NULL;
+	if( !dialogue && !authored && !radio && !declared && ( flags & SSF_VO ) == 0 )
+	{
+		return;
+	}
+	SoundTranscript transcript = SoundTranscript::Undeclared;
+	SoundTranscriptText( shader, sample, true, &transcript );
+	idSoundWorldLocal* world = chan->emitter->soundWorld;
+	idLib::Printf( "SOUND_SPEECH game=%d time=%d emitter=%d speaker=%d channel=%d shader=%s sample=%s dialogue=%d authored=%d vo=%d radio=%d music=%d global=%d private=%d declared=%d transcript=%s\n",
+		world == soundSystemLocal.GetSoundWorldFromId( SOUNDWORLD_GAME ) ? 1 : 0, world->GetSoundTime(), chan->emitter->Index(),
+		chan->emitter->emitterId, static_cast<int>( chan->logicalChannel ), shader->GetName(), sample->GetName(), dialogue ? 1 : 0,
+		authored ? 1 : 0, ( flags & SSF_VO ) != 0 ? 1 : 0, radio ? 1 : 0, music ? 1 : 0, ( flags & SSF_GLOBAL ) != 0 ? 1 : 0,
+		( flags & ( SSF_PRIVATE_SOUND | SSF_ANTI_PRIVATE_SOUND ) ) != 0 ? 1 : 0, declared ? 1 : 0, SoundTranscriptName( transcript ) );
+}
+
 int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channelType channel, float diversity, int shaderFlags, bool allowSlow )
 {
 	assert( soundWorld != NULL );
@@ -1467,7 +1620,12 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	{
 		leadinSample = shader->entries[choice];
 	}
-	leadinSample->SetLastPlayedTime( soundWorld->GetSoundTime() );
+	// An earlier load may have been refused under memory pressure. Retry at an
+	// explicit playback request; never substitute a permanently cached beep.
+	if( !leadinSample->IsLoaded() ) leadinSample->LoadResource();
+	if( !leadinSample->IsLoaded() ) return 0;
+	// Wall-clock, like the low-memory trim that reads it: worlds keep their own clocks.
+	leadinSample->SetLastPlayedTime( Max( 1, Sys_Milliseconds() ) );
 
 	if( chanParms.soundShaderFlags & SSF_LOOPING )
 	{
@@ -1476,6 +1634,8 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 		{
 			loopingSample = leadinSample;
 		}
+		if( !loopingSample->IsLoaded() ) loopingSample->LoadResource();
+		if( !loopingSample->IsLoaded() ) return 0;
 	}
 
 	// set all the channel parameters here,
@@ -1540,6 +1700,10 @@ int idSoundEmitterLocal::StartSound( const idSoundShader* shader, const s_channe
 	{
 		// This channel will automatically end at this time
 		chan->endTime = chan->startTime + idMath::FtoiFast( length / SoundChannelPlaybackRate( chan ) ) + 100;
+	}
+	if( s_logSpeech.GetBool() )
+	{
+		SoundLogSpeechStart( chan );
 	}
 	if( showStartSound )
 	{

@@ -2,11 +2,11 @@
   "schema_version": 2,
   "status": "Reconciled lexical inventory; migration acceptance remains governed separately by UI-11.",
   "previous_manifest": {
-    "revision": "8c1a49ca7a033e163e271ef3787a4a9ba73f7479",
-    "git_blob": "c3974f4b954dc0183437acc02799d8ff984420a0",
+    "revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
+    "git_blob": "4200af14c7264d82cfd18ebdb81965eb3abd19ef",
     "path": "docs/dev/ui/migration-manifest.json"
   },
-  "source_snapshot_sha256": "dcaf20c30ff4467d633723382a671f3d0e8d9443384cb7b1c880093b7e37da01",
+  "source_snapshot_sha256": "7090286870446dd84e494ad552e82c8eb873be21ce6b509300bbd1ecdba2f956",
   "denominator_policy": "Unique effective (path, transitive include text identity) variants across named configurations.",
   "configurations": {
     "awakening": {
@@ -189,7 +189,7 @@
         "guis/maps/waste/lasers.gui@888b956a9cd321fc7afa7f005b04382b365fc5f0d17ef503794899fa2b21a1be",
         "guis/matchcontrol.gui@cd766a25fa4322e0201e462ade13e5bfc2ccd602838bfbb86e54df751cdd81d3",
         "guis/mcchealth.gui@06d4b02b5e7f292fc7e1b2ec9342c9affe64329a642a2bed77805901ccbdc72c",
-        "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+        "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
         "guis/menu/settings/controls.gui@1df0651a69fe36ae75c64c865b7912e4bb006f23a47c58f95f0990209acf4e39",
         "guis/menu/settings/game.gui@72e190a15b7a99d4fdd80fc7af9503bc81261e1e39243fc08b915b43cab84c99",
         "guis/menu/settings/game_hovers.gui@ccc124fd8df43d47828f32d777e9d126f030b503a7d173e357968bd3a3002cd3",
@@ -496,7 +496,7 @@
         "guis/loading/generic.gui@82702b947d5ea5625320b0e162fe82083c537373676cbf3651325fc95ddc2c97",
         "guis/loading/intro.gui@3082d12b93baa7094fadd81ab6ec8456ce463f1d45816a89528275991caf6bff",
         "guis/loading/mplevel.gui@55c96bce99d6b6614d48c2e7d28361f2534d9f913e5d457a95450345b1aedb47",
-        "guis/mainmenu.gui@ccc340bacb3ce181b7ed39cfc4cfa00f3ba6e053886329c6fd86679725ee8030",
+        "guis/mainmenu.gui@a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
         "guis/maps/airdefense/gun_monitor.gui@b027f8ab4950f19cabe2e71c1160a3d28498c1af394f6e92ebbfe36b02fa1e2d",
         "guis/maps/airdefense/gun_schematic.gui@5fc8b697ad56b60701d94bd801e817f2fef76dc052a545ce3eb15f64f2970f1c",
         "guis/maps/bldg_b/barriercontrol.gui@ffec1122a1ff7093ec7f754bcc2aba159c902826200ca084fdfeebc8f86664c9",
@@ -557,7 +557,7 @@
         "guis/maps/waste/bridge.gui@352127e78691e6528192a766385da803240794bdb3bb1538e8be42ac71a0f7fb",
         "guis/maps/waste/lasers.gui@888b956a9cd321fc7afa7f005b04382b365fc5f0d17ef503794899fa2b21a1be",
         "guis/matchcontrol.gui@cd766a25fa4322e0201e462ade13e5bfc2ccd602838bfbb86e54df751cdd81d3",
-        "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+        "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
         "guis/menu/settings/controls.gui@1df0651a69fe36ae75c64c865b7912e4bb006f23a47c58f95f0990209acf4e39",
         "guis/menu/settings/game.gui@72e190a15b7a99d4fdd80fc7af9503bc81261e1e39243fc08b915b43cab84c99",
         "guis/menu/settings/game_hovers.gui@ccc124fd8df43d47828f32d777e9d126f030b503a7d173e357968bd3a3002cd3",
@@ -698,7 +698,7 @@
         "guis/movers/strogg/call_lift.gui@1456151fe6fd57c3c8ff24a38eae69e4558b46206edd6f225f1d470c973f5e34",
         "guis/movers/strogg/call_lift_blue.gui@0e7e5bdbb3d0392c60cfefaa8a00db830729f9a5cefe7c3e6e0cd34f424cccf6",
         "guis/mphud.gui@ea787dfaa462a17a86ae6e411678e616af1d5306964dd9673b3c3c1b405da15e",
-        "guis/mpmain.gui@fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
+        "guis/mpmain.gui@64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
         "guis/mpmsgmode.gui@5da0d01d6cd2797aa0128d789805a92617abb94b2330818046175c4b456734d3",
         "guis/msg.gui@803911ed987a06b777ba264c921ac6db266827cf8fc11d9e3af09d69dc160504",
         "guis/netmenu.gui@6faeff21f1487d0334c48ed3955715a01c0e843510393a25b00732245d896b90",
@@ -1051,9 +1051,48 @@
   },
   "changes": {
     "awakening": {
-      "added": [
-        "guis/arena_pause.gui",
-        "guis/campaign_menu.gui",
+      "added": [],
+      "changed": [
+        {
+          "path": "guis/menu/settings/audio.gui",
+          "before": [
+            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+          ],
+          "after": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc"
+        }
+      ],
+      "absent_previous_paths": []
+    },
+    "base": {
+      "added": [],
+      "changed": [
+        {
+          "path": "guis/mainmenu.gui",
+          "before": [
+            "66eca43e613d853b1e201d3a62c07c7d539df76f8995fbc51fd4eeab566e4756",
+            "c4bf96513314718eea55df2ace0a7a44562d1e95fd5657194f472019a1c617c6",
+            "cdb02c665f19e8a0b2b007faed528492206778c9000d890abe88cf718da43516"
+          ],
+          "after": "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646"
+        },
+        {
+          "path": "guis/menu/settings/audio.gui",
+          "before": [
+            "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
+          ],
+          "after": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc"
+        },
+        {
+          "path": "guis/mpmain.gui",
+          "before": [
+            "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154",
+            "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
+            "b732316d9b0695ae078a92310f727e4f708002895113d909c832a352186a7adc"
+          ],
+          "after": "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab"
+        }
+      ],
+      "absent_previous_paths": [
         "guis/cinematics/intro_cinematic.gui",
         "guis/common/strogg/contents2.gui",
         "guis/common/strogg/keypad.gui",
@@ -1069,8 +1108,71 @@
         "guis/hal9000/firesurpress.gui",
         "guis/hal9000/ramp.gui",
         "guis/introcinematic.gui",
-        "guis/level_editor_experimental.gui",
         "guis/mcchealth.gui",
+        "guis/monitors/marine/airassault/aa_system1.gui",
+        "guis/monitors/marine/airassault/aa_system2.gui",
+        "guis/monitors/marine/mcc/q4x_ambient_mcc1.gui",
+        "guis/monitors/marine/mcc/q4x_ambient_mcc2.gui",
+        "guis/monitors/marine/mcc/q4x_operation.gui",
+        "guis/monitors/strogg/common1a.gui",
+        "guis/monitors/strogg/common4a.gui",
+        "guis/monitors/strogg/cryo/cryo01.gui",
+        "guis/monitors/strogg/cryo/cryo02.gui",
+        "guis/monitors/strogg/cryo/cryo03.gui",
+        "guis/monitors/strogg/cryo/cryo03_valk.gui",
+        "guis/monitors/strogg/cryo/cryo04.gui",
+        "guis/monitors/strogg/cryo/cryo05.gui",
+        "guis/monitors/strogg/cryo/cryo_func_coolingbutton.gui",
+        "guis/monitors/strogg/cryo/m10_crane.gui",
+        "guis/monitors/strogg/cryo/m10_machine_off.gui",
+        "guis/monitors/strogg/descent/queen_blastdoor.gui",
+        "guis/monitors/strogg/nexus_down.gui",
+        "guis/q4x_cannon_hud.gui",
+        "guis/q4xhud.gui",
+        "guis/q4xhud_strogg.gui",
+        "guis/test/trigger.gui",
+        "guis/vehicles/airassault/spaceturret_guns.gui",
+        "guis/vehicles/airassault/spaceturret_main.gui",
+        "guis/vehicles/airassault/spaceturret_rocket.gui",
+        "guis/vehicles/airassault/turretplayerhud.gui",
+        "guis/vehicles/gev_hud.gui",
+        "guis/vehicles/groundassault/groundturret_main.gui",
+        "guis/vehicles/mcc/cannonplayerhud.gui",
+        "guis/vehicles/speeder.gui",
+        "guis/vehicles/speederplayerhud.gui",
+        "guis/weapons/firegun.gui"
+      ]
+    },
+    "retail": {
+      "added": [],
+      "changed": [],
+      "absent_previous_paths": [
+        "guis/arena_menu.gui",
+        "guis/arena_pause.gui",
+        "guis/campaign_menu.gui",
+        "guis/cinematics/intro_cinematic.gui",
+        "guis/common/strogg/contents2.gui",
+        "guis/common/strogg/keypad.gui",
+        "guis/common/strogg/lightswitch.gui",
+        "guis/common/strogg/open_seal.gui",
+        "guis/common/strogg/turret.gui",
+        "guis/common/strogg/wsign.gui",
+        "guis/demo_menu.gui",
+        "guis/dropshiphealth.gui",
+        "guis/hal9000/ammogui.gui",
+        "guis/hal9000/cargo.gui",
+        "guis/hal9000/cargodump.gui",
+        "guis/hal9000/engine.gui",
+        "guis/hal9000/firesurpress.gui",
+        "guis/hal9000/ramp.gui",
+        "guis/introcinematic.gui",
+        "guis/level_editor_experimental.gui",
+        "guis/matchcontrol.gui",
+        "guis/mcchealth.gui",
+        "guis/menu/settings/audio.gui",
+        "guis/menu/settings/controls.gui",
+        "guis/menu/settings/popups.gui",
+        "guis/menu/settings/system.gui",
         "guis/monitors/marine/airassault/aa_system1.gui",
         "guis/monitors/marine/airassault/aa_system2.gui",
         "guis/monitors/marine/mcc/q4x_ambient_mcc1.gui",
@@ -1105,490 +1207,6 @@
         "guis/vehicles/speeder.gui",
         "guis/vehicles/speederplayerhud.gui",
         "guis/weapons/firegun.gui"
-      ],
-      "changed": [
-        {
-          "path": "guis/arena_menu.gui",
-          "before": [
-            "54436e38b681e9fc93c0cafd55cc73d15309a6995a296f21f18c6b914fad06db"
-          ],
-          "after": "4972b44b6cfd502b9a6ff4f85b1734eea29915e834866a8812c3fcade7eb48f7"
-        },
-        {
-          "path": "guis/buymenu.gui",
-          "before": [
-            "8809fc0966a121988c2c2d04c74e10e3d4a382e4a426f092902e127a1fcd65b9"
-          ],
-          "after": "2229cdcf26ab4a5256b184508cdd2c3b8c82fc74005adf5a9b5b8568afa32bb3"
-        },
-        {
-          "path": "guis/cinematic.gui",
-          "before": [
-            "ce7de202051be14edb67279723d91f0e0d6ba720e27ec16fff33acc785a5c274"
-          ],
-          "after": "b236d7fc635bb314b9cb0014c1c1afc6a93fa4119e5a9d99459a958cd6981c52"
-        },
-        {
-          "path": "guis/common/strogg/warn_electrical.gui",
-          "before": [
-            "2e592fb34cdcaaef2729ecedd12106f6bba579fb207457f4b1a70a206f83baf2"
-          ],
-          "after": "5305b88b73b8f69a80dac24a7162291e35ca2d15d171a6aade82d2a42b3823e9"
-        },
-        {
-          "path": "guis/cursor.gui",
-          "before": [
-            "01cda9e05f4d9a786c75f2790d760a69c0a36888ec06bc81fb22b325726120d3"
-          ],
-          "after": "5f2c8e4c0335224ae7e2d801dc5d059a8111224bf21427b7875572b6f822297f"
-        },
-        {
-          "path": "guis/hud.gui",
-          "before": [
-            "c345f66d76b4de50849194312d629cb9dac555d127ec29af9125a55037945bce"
-          ],
-          "after": "bc07fc371813096cebcdec00f153728d0058d3d85569dfca6bece52df614323b"
-        },
-        {
-          "path": "guis/hud_strogg.gui",
-          "before": [
-            "ec0177e7df3b835eb26efae94b22f9e5d875168caea397254cbacb6d79ec22b7"
-          ],
-          "after": "ca97815000f609dac2b8bbe60dc972d5edd2ee087f9dacc9bf68a5466aec1de9"
-        },
-        {
-          "path": "guis/loading/generic.gui",
-          "before": [
-            "923691dd0f326b300881af08e6f30c3b336b690433960d3ccac439fc7cb3b5a1"
-          ],
-          "after": "f67151560b6fa611fb2823f3a23ea8dfb9959f7be2fd9e5ce38b95f0bd492326"
-        },
-        {
-          "path": "guis/mainmenu.gui",
-          "before": [
-            "adf6141b459b582e5d7ed7ba6edc15d23469a5c70be43e1e3724324558c359af"
-          ],
-          "after": "cdb02c665f19e8a0b2b007faed528492206778c9000d890abe88cf718da43516"
-        },
-        {
-          "path": "guis/matchcontrol.gui",
-          "before": [
-            "1ba69f05a12829b02396df7ee5afacb49c33492be88e52ae73d0fb71e8a17237"
-          ],
-          "after": "9d042903e6f78b3c6d15565e4cc219e5da8b3510da1b63815dd29a12d0d265de"
-        },
-        {
-          "path": "guis/menu/settings/audio.gui",
-          "before": [
-            "6b75ecb3849cbbb9d751452b5c03659bc8f435ceaa3729cc8478533b729849ae"
-          ],
-          "after": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
-        },
-        {
-          "path": "guis/menu/settings/controls.gui",
-          "before": [
-            "fd189d65b5f3f615846044e9cb29f067add5d44b20d713f0b948ba583cedb627"
-          ],
-          "after": "0a9cab6b3bf628c7e8657c6b1a553fd14e166c1c2ff2b4141e77c012395a31e0"
-        },
-        {
-          "path": "guis/menu/settings/game.gui",
-          "before": [
-            "5e73c101749d89f6d56745cf4d7cd37355a3fda4923c257ea1eea79e0169ac7a"
-          ],
-          "after": "251b14c4af00aca66eab331795fb9bb51d3921b9758d889c036ac07b6849e0c5"
-        },
-        {
-          "path": "guis/menu/settings/game_hovers.gui",
-          "before": [
-            "b49fdf87ade7930df089cbb1a0549cf967b845bdb38eea01f2e61a746854a35f"
-          ],
-          "after": "e8b26167649ff404c83e3707515847e3b0bc65d9b5fc2ce10d51f4a209591394"
-        },
-        {
-          "path": "guis/menu/settings/popups.gui",
-          "before": [
-            "aa76411d20362ca122b9707dc43e2cd872201bbfe65bbd290a6a619143bb8988"
-          ],
-          "after": "7e40cab31fd2b7217b7f42dbcec8a8eafbfabb571c02970fafea8b8d8404ed68"
-        },
-        {
-          "path": "guis/mphud.gui",
-          "before": [
-            "5576518fe4d6dc0894596aeb9e781cee5e04aa71f9de0fc14dd4809ab131837d"
-          ],
-          "after": "25f64c0c9a501cb052d671df2c1c5c84dcae9ca4804cc376940d586054f8b28b"
-        },
-        {
-          "path": "guis/mpmain.gui",
-          "before": [
-            "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154"
-          ],
-          "after": "b732316d9b0695ae078a92310f727e4f708002895113d909c832a352186a7adc"
-        },
-        {
-          "path": "guis/scoreboard.gui",
-          "before": [
-            "1697683921dc3ddad42112a4447979d84239710b2f3d26f5bb27d5c7bb020e70"
-          ],
-          "after": "cb087e1da85950190b777cf5cb5bda63abea60d6671c0a92aee51529d7e7cd35"
-        },
-        {
-          "path": "guis/summary.gui",
-          "before": [
-            "ab9d34f6dcaa9c413437f16a1bac75b9571fd80c512068ff8c7d467d70511890"
-          ],
-          "after": "1e260ebb36c34073aec2799e28391b9e76f52c301aff0f264db6158170bcaa77"
-        },
-        {
-          "path": "guis/vehicles/airdef_cannon.gui",
-          "before": [
-            "44c349f51e22920ac741919fce4706486f7be2f17dc4dcd01582dfef1d9dd6b9"
-          ],
-          "after": "6aa7341614ed0385e6c9cfb32ea13ac1516a850e47616b794bed31a176d53bce"
-        },
-        {
-          "path": "guis/vehicles/mdisp.gui",
-          "before": [
-            "a61aa71d765e58c321711a3554e06b59b43a46a111861bf99298f51844a92ed9"
-          ],
-          "after": "69b9f542270731dd66fde3c3b74858deb818fe5832ed0db912fb645ad0f8be8d"
-        },
-        {
-          "path": "guis/weapons/machinegun_scope.gui",
-          "before": [
-            "ac8dc95b1ad5cd7f264ef7969bb30bdb52536fbd757b8e78c64cf6ce7af74e2a"
-          ],
-          "after": "d0f4a524ef0cc252a00d6683797c2d9ff069765322b6ab2a9dd6519b4b7c9e28"
-        },
-        {
-          "path": "guis/weapons/nailgun_scope.gui",
-          "before": [
-            "5780138879c3918c4d07929fdbab06d28db7ca8f01bf799b91a00adcf19a7843"
-          ],
-          "after": "df5e25136e6a728a6e1268e46e2c09b81fdd31591fa1462bba0e569ca03ea14e"
-        }
-      ],
-      "absent_previous_paths": []
-    },
-    "base": {
-      "added": [
-        "guis/arena_pause.gui",
-        "guis/campaign_menu.gui",
-        "guis/level_editor_experimental.gui",
-        "guis/savecompat/hud_r1.gui",
-        "guis/savecompat/hud_strogg_r1.gui"
-      ],
-      "changed": [
-        {
-          "path": "guis/arena_menu.gui",
-          "before": [
-            "54436e38b681e9fc93c0cafd55cc73d15309a6995a296f21f18c6b914fad06db"
-          ],
-          "after": "4972b44b6cfd502b9a6ff4f85b1734eea29915e834866a8812c3fcade7eb48f7"
-        },
-        {
-          "path": "guis/cinematic.gui",
-          "before": [
-            "ce7de202051be14edb67279723d91f0e0d6ba720e27ec16fff33acc785a5c274"
-          ],
-          "after": "2c2369ce7d904fca87eff642e381feeaf9ea54af477a8a5cf6e1aef7d8e5082d"
-        },
-        {
-          "path": "guis/hud.gui",
-          "before": [
-            "c345f66d76b4de50849194312d629cb9dac555d127ec29af9125a55037945bce"
-          ],
-          "after": "bc07fc371813096cebcdec00f153728d0058d3d85569dfca6bece52df614323b"
-        },
-        {
-          "path": "guis/hud_strogg.gui",
-          "before": [
-            "ec0177e7df3b835eb26efae94b22f9e5d875168caea397254cbacb6d79ec22b7"
-          ],
-          "after": "ca97815000f609dac2b8bbe60dc972d5edd2ee087f9dacc9bf68a5466aec1de9"
-        },
-        {
-          "path": "guis/loading/generic.gui",
-          "before": [
-            "923691dd0f326b300881af08e6f30c3b336b690433960d3ccac439fc7cb3b5a1"
-          ],
-          "after": "f67151560b6fa611fb2823f3a23ea8dfb9959f7be2fd9e5ce38b95f0bd492326"
-        },
-        {
-          "path": "guis/mainmenu.gui",
-          "before": [
-            "adf6141b459b582e5d7ed7ba6edc15d23469a5c70be43e1e3724324558c359af"
-          ],
-          "after": "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811"
-        },
-        {
-          "path": "guis/matchcontrol.gui",
-          "before": [
-            "1ba69f05a12829b02396df7ee5afacb49c33492be88e52ae73d0fb71e8a17237"
-          ],
-          "after": "9d042903e6f78b3c6d15565e4cc219e5da8b3510da1b63815dd29a12d0d265de"
-        },
-        {
-          "path": "guis/menu/settings/audio.gui",
-          "before": [
-            "6b75ecb3849cbbb9d751452b5c03659bc8f435ceaa3729cc8478533b729849ae"
-          ],
-          "after": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b"
-        },
-        {
-          "path": "guis/menu/settings/controls.gui",
-          "before": [
-            "fd189d65b5f3f615846044e9cb29f067add5d44b20d713f0b948ba583cedb627"
-          ],
-          "after": "0a9cab6b3bf628c7e8657c6b1a553fd14e166c1c2ff2b4141e77c012395a31e0"
-        },
-        {
-          "path": "guis/menu/settings/game.gui",
-          "before": [
-            "5e73c101749d89f6d56745cf4d7cd37355a3fda4923c257ea1eea79e0169ac7a"
-          ],
-          "after": "251b14c4af00aca66eab331795fb9bb51d3921b9758d889c036ac07b6849e0c5"
-        },
-        {
-          "path": "guis/menu/settings/game_hovers.gui",
-          "before": [
-            "b49fdf87ade7930df089cbb1a0549cf967b845bdb38eea01f2e61a746854a35f"
-          ],
-          "after": "e8b26167649ff404c83e3707515847e3b0bc65d9b5fc2ce10d51f4a209591394"
-        },
-        {
-          "path": "guis/menu/settings/popups.gui",
-          "before": [
-            "aa76411d20362ca122b9707dc43e2cd872201bbfe65bbd290a6a619143bb8988"
-          ],
-          "after": "7e40cab31fd2b7217b7f42dbcec8a8eafbfabb571c02970fafea8b8d8404ed68"
-        },
-        {
-          "path": "guis/mphud.gui",
-          "before": [
-            "5576518fe4d6dc0894596aeb9e781cee5e04aa71f9de0fc14dd4809ab131837d"
-          ],
-          "after": "c026f10dcdd0675e95083f9637ae655d96301c9750e16b07ef94e28f14e0a8df"
-        },
-        {
-          "path": "guis/scoreboard.gui",
-          "before": [
-            "1697683921dc3ddad42112a4447979d84239710b2f3d26f5bb27d5c7bb020e70"
-          ],
-          "after": "ab8a5d939338dee25a177a1487cc7e9d40cf3b8ba9b2fb579caf8e75989606d1"
-        },
-        {
-          "path": "guis/summary.gui",
-          "before": [
-            "ab9d34f6dcaa9c413437f16a1bac75b9571fd80c512068ff8c7d467d70511890"
-          ],
-          "after": "b99e1a6c05800a9538c2f6fec76865ffa94474027d226cf6955abe792d2a257e"
-        },
-        {
-          "path": "guis/vehicles/airdef_cannon.gui",
-          "before": [
-            "44c349f51e22920ac741919fce4706486f7be2f17dc4dcd01582dfef1d9dd6b9"
-          ],
-          "after": "6aa7341614ed0385e6c9cfb32ea13ac1516a850e47616b794bed31a176d53bce"
-        },
-        {
-          "path": "guis/weapons/machinegun_scope.gui",
-          "before": [
-            "ac8dc95b1ad5cd7f264ef7969bb30bdb52536fbd757b8e78c64cf6ce7af74e2a"
-          ],
-          "after": "d0f4a524ef0cc252a00d6683797c2d9ff069765322b6ab2a9dd6519b4b7c9e28"
-        },
-        {
-          "path": "guis/weapons/nailgun_scope.gui",
-          "before": [
-            "5780138879c3918c4d07929fdbab06d28db7ca8f01bf799b91a00adcf19a7843"
-          ],
-          "after": "df5e25136e6a728a6e1268e46e2c09b81fdd31591fa1462bba0e569ca03ea14e"
-        }
-      ],
-      "absent_previous_paths": []
-    },
-    "retail": {
-      "added": [],
-      "changed": [
-        {
-          "path": "guis/buymenu.gui",
-          "before": [
-            "8809fc0966a121988c2c2d04c74e10e3d4a382e4a426f092902e127a1fcd65b9"
-          ],
-          "after": "94befedfdb8e5f9c11ac9fbd4da767573f7cd3d99ec6f4e968657a2fb46d8b33"
-        },
-        {
-          "path": "guis/cinematic.gui",
-          "before": [
-            "ce7de202051be14edb67279723d91f0e0d6ba720e27ec16fff33acc785a5c274"
-          ],
-          "after": "22e6c803f1aeea35e59d40f8ccd9a2e683a03b2f8857938d322b6685e042f92b"
-        },
-        {
-          "path": "guis/gameover.gui",
-          "before": [
-            "2947a43f9b404bb05050ae7510f3e47ab8a8c2eaf84a68296d4170341153831a"
-          ],
-          "after": "b1ba8c23a6cdcbf7d576a3aeb6ce5d65dc7245f664aa56e9ad83d6e3dca65653"
-        },
-        {
-          "path": "guis/hud.gui",
-          "before": [
-            "c345f66d76b4de50849194312d629cb9dac555d127ec29af9125a55037945bce"
-          ],
-          "after": "6ca5e86af31acaa0872787716df4766162d83bc26fe8ccadb99640edd7e60adb"
-        },
-        {
-          "path": "guis/hud_strogg.gui",
-          "before": [
-            "ec0177e7df3b835eb26efae94b22f9e5d875168caea397254cbacb6d79ec22b7"
-          ],
-          "after": "b7965085201d23219fcf0050dc4235d81f0d678133a1453ca791b55e35e5b07a"
-        },
-        {
-          "path": "guis/loading/generic.gui",
-          "before": [
-            "923691dd0f326b300881af08e6f30c3b336b690433960d3ccac439fc7cb3b5a1"
-          ],
-          "after": "8b868c8a99c232362ff3e08429a873087b62bb58d7ef2f14e65af64f3a877838"
-        },
-        {
-          "path": "guis/loading/intro.gui",
-          "before": [
-            "37414f253eff4af240053b70c7e2ed99961a01dd9bdf939c51b0b3e1695ec5e2"
-          ],
-          "after": "e1214be4d4756a217e1a0e825c065038d3e9ad96ee47880d01802a255c854cae"
-        },
-        {
-          "path": "guis/loading/mplevel.gui",
-          "before": [
-            "efd2e0beca4b009a24a40d329666fccf0f737c6ebdbfe7940891ef6d7bba511e"
-          ],
-          "after": "8f12988489a5e816bc47214d51853098e1394d168d5859ef50ff71b2187bb524"
-        },
-        {
-          "path": "guis/mainmenu.gui",
-          "before": [
-            "adf6141b459b582e5d7ed7ba6edc15d23469a5c70be43e1e3724324558c359af"
-          ],
-          "after": "c4bf96513314718eea55df2ace0a7a44562d1e95fd5657194f472019a1c617c6"
-        },
-        {
-          "path": "guis/menu/settings/game.gui",
-          "before": [
-            "5e73c101749d89f6d56745cf4d7cd37355a3fda4923c257ea1eea79e0169ac7a"
-          ],
-          "after": "f375ba2ca74a47e5fa9982f292cc6d9c3461f83ceaf56dc6ec7c56b917b1544c"
-        },
-        {
-          "path": "guis/menu/settings/game_hovers.gui",
-          "before": [
-            "b49fdf87ade7930df089cbb1a0549cf967b845bdb38eea01f2e61a746854a35f"
-          ],
-          "after": "fd2961eac125030fa4118bfd71bb6d61603e31cdf23429c8cda3f970659c213c"
-        },
-        {
-          "path": "guis/mphud.gui",
-          "before": [
-            "5576518fe4d6dc0894596aeb9e781cee5e04aa71f9de0fc14dd4809ab131837d"
-          ],
-          "after": "7407a30728a941544097c205ed604d76606c618e38e325b6cf55fa31248e1f7b"
-        },
-        {
-          "path": "guis/mpmain.gui",
-          "before": [
-            "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154"
-          ],
-          "after": "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35"
-        },
-        {
-          "path": "guis/mpmsgmode.gui",
-          "before": [
-            "e80af8602e8f1a5bfb57a43fc4878a1e114ad9a8a7323a3648ea3c51e9cd7a14"
-          ],
-          "after": "1e352712634c3a33868c2065e6a49bedaab58fd29a1a9545d12419eea35bcce0"
-        },
-        {
-          "path": "guis/scoreboard.gui",
-          "before": [
-            "1697683921dc3ddad42112a4447979d84239710b2f3d26f5bb27d5c7bb020e70"
-          ],
-          "after": "cb7c96caa6e571d7eddf76b06c29da1f5e3936ca81397d969b96b5fa33e23cf0"
-        },
-        {
-          "path": "guis/summary.gui",
-          "before": [
-            "ab9d34f6dcaa9c413437f16a1bac75b9571fd80c512068ff8c7d467d70511890"
-          ],
-          "after": "09f10e951708ffbc3af71f07513e91662b49d015953e831baa2c19dc1571b368"
-        },
-        {
-          "path": "guis/vehicles/airdef_cannon.gui",
-          "before": [
-            "44c349f51e22920ac741919fce4706486f7be2f17dc4dcd01582dfef1d9dd6b9"
-          ],
-          "after": "af73ddfb89f6f014b6f296e6383db88a48203b8758a4955d719c657011634758"
-        },
-        {
-          "path": "guis/vehicles/hud.gui",
-          "before": [
-            "03d793db4f08fac5f384eb4c04ad20f45c9063c45b5e83bf3c626dbe72bbd1ed"
-          ],
-          "after": "397e7b5f51714e12a4d907ddde5f4236e2d05c318f7f6aa0cb4281fcae1fd06b"
-        },
-        {
-          "path": "guis/vehicles/strogg_noise.gui",
-          "before": [
-            "f00db325d7a1d4e91dd3b3cc36adfc7ab7f2ac4beb44b9bde5b4f2ad9a233f36"
-          ],
-          "after": "921eecb25b620114cbc1a31e7af4ee5bed07f54f8e248500fe12bfce8255b6fa"
-        },
-        {
-          "path": "guis/weapons/machinegun_scope.gui",
-          "before": [
-            "ac8dc95b1ad5cd7f264ef7969bb30bdb52536fbd757b8e78c64cf6ce7af74e2a"
-          ],
-          "after": "0d4aa2353e9541f9d9fc4622cd8097f06f179bb38b79a8e7a8f559f6a78a1afb"
-        },
-        {
-          "path": "guis/weapons/nailgun_scope.gui",
-          "before": [
-            "5780138879c3918c4d07929fdbab06d28db7ca8f01bf799b91a00adcf19a7843"
-          ],
-          "after": "01b9fd5e7a5e8771d02064c81f8b2f8c45be47149f12688314271dcd30188c19"
-        },
-        {
-          "path": "guis/weapons/railgun_scope.gui",
-          "before": [
-            "b4c4932921ccb208a7296062aa1d2b2db527d74958b23c89ed54b7daba3037e1"
-          ],
-          "after": "c9dadde68806b5df7404e07fd81fdfdaf9f1f7674f52a4db2c091dd606f250be"
-        },
-        {
-          "path": "guis/wristcomm.gui",
-          "before": [
-            "cc50466e2fdcc8fb7dfc42ac92b74763a05d5ce184227aadf36f36b1fdea32d9"
-          ],
-          "after": "615f28ab026b4d0c20f80f41037e0e00b28cf96ea1c395798050917346769362"
-        },
-        {
-          "path": "guis/wristcomm_strogg.gui",
-          "before": [
-            "1bb10da708f652db58ad302c4c57b9b38ec1f50466b77d58799a309d3bde5fae"
-          ],
-          "after": "04a91b2e9617fabcc980115b7f8623eedbd6577c9a0567af40c1bbf4ddf3678e"
-        }
-      ],
-      "absent_previous_paths": [
-        "guis/arena_menu.gui",
-        "guis/demo_menu.gui",
-        "guis/matchcontrol.gui",
-        "guis/menu/settings/audio.gui",
-        "guis/menu/settings/controls.gui",
-        "guis/menu/settings/popups.gui",
-        "guis/menu/settings/system.gui"
       ]
     }
   },
@@ -2979,10 +2597,10 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mainmenu.gui@ccc340bacb3ce181b7ed39cfc4cfa00f3ba6e053886329c6fd86679725ee8030",
+      "resource_id": "guis/mainmenu.gui@a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
       "source": "openq4-pak0/loose",
-      "source_sha256": "9beb1d905f1b521b88ba09467ed317ec657894a1272c2a037cc1b18378714811",
-      "source_closure_sha256": "ccc340bacb3ce181b7ed39cfc4cfa00f3ba6e053886329c6fd86679725ee8030",
+      "source_sha256": "0111dcd272f03931e877e3c3866aecf1d93f332e86c91227d0abb97fca39d646",
+      "source_closure_sha256": "a6e038ee46b51c776f31837afe1b52957e2fd9e0d9730112ea2f01e6e0c6b73a",
       "includes": [
         "guis/menu/settings/controls.gui",
         "guis/menu/settings/game.gui",
@@ -4290,10 +3908,10 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/menu/settings/audio.gui@43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+      "resource_id": "guis/menu/settings/audio.gui@977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
       "source": "openq4-pak0/loose",
-      "source_sha256": "d13c2b5c02ae6aa15ec966599792f200b53227f32421ec9bf334d906fa1c0c0b",
-      "source_closure_sha256": "43b72881e7435a9139b57ad4ea0e3588bc471a437bd820def65153d74970be09",
+      "source_sha256": "159a3f259baf30d436c23398c0a585356265f079c51a07b7a06e90b95ccf26cc",
+      "source_closure_sha256": "977b74371857c6126a31e472a38b3ad054eaa281c13d39c95e7e2dab38fb16c5",
       "includes": [],
       "source_diagnostics": [],
       "configurations": [
@@ -7682,14 +7300,16 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mpmain.gui@984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
-      "source": "retail/pak021.pk4",
-      "source_sha256": "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
-      "source_closure_sha256": "984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
-      "includes": [],
+      "resource_id": "guis/mpmain.gui@64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
+      "source": "openq4-pak0/loose",
+      "source_sha256": "e60b8107c6f8de2f7e88edd19c4be7806cce462be609fd1c63f0a5904f85a0ab",
+      "source_closure_sha256": "64c284b0871a89fbf0c4a1e354e1eaed81e2dc6c5b7646205058d24fbe1dbd51",
+      "includes": [
+        "guis/matchcontrol.gui"
+      ],
       "source_diagnostics": [],
       "configurations": [
-        "retail"
+        "base"
       ]
     },
     {
@@ -7701,16 +7321,14 @@
       "translation_status": "pending",
       "behavior_evidence": [],
       "visual_evidence": [],
-      "resource_id": "guis/mpmain.gui@fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
-      "source": "openq4-pak0/loose",
-      "source_sha256": "59eeef11b96220012d1016ea8083664890c47e4d2f1d050900351bf11aca9154",
-      "source_closure_sha256": "fa95f1db30a3de27df3885031e13da03cb31463b9f2e362bf52c411cfcbcddc1",
-      "includes": [
-        "guis/matchcontrol.gui"
-      ],
+      "resource_id": "guis/mpmain.gui@984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
+      "source": "retail/pak021.pk4",
+      "source_sha256": "5af6715db67e994e04dbad73b46f40d5fa73735b137493ad73c4f53b4cc92b35",
+      "source_closure_sha256": "984e67413f103eca14884cf7671b75f7792a3f17965693c476487b8e63998047",
+      "includes": [],
       "source_diagnostics": [],
       "configurations": [
-        "base"
+        "retail"
       ]
     },
     {

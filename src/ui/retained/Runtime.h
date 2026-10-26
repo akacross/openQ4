@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 #include "Document.h"
@@ -125,6 +126,12 @@ public:
 	virtual bool ReadCVar(const std::string& name, size_t type, StateValue& value) = 0;
 	virtual void Log(bool error, const std::string& message) = 0;
 	virtual std::uintptr_t LoadMaterial(const std::string& name, int& width, int& height) = 0;
+	// Immutable RGBA8 pixels with premultiplied alpha, copied before returning.
+	// A nonzero handle is unique among live generated images on this host and
+	// draws through the ordinary material boundary. Release must preserve any
+	// already queued draws; a replacement obtains a separate live handle.
+	virtual std::uintptr_t GenerateTexture(std::span<const std::uint8_t> pixels, int width, int height) { return 0; }
+	virtual void ReleaseGeneratedTexture(std::uintptr_t texture) {}
 	virtual void Draw(const std::vector<Vertex>& vertices, const std::vector<int>& indices, std::uintptr_t material) = 0;
 	// Optional retained submission: while `revision` is unchanged, `mesh` names
 	// the same vertices, indices and material as its previous draw, so a host
@@ -321,7 +328,14 @@ public:
 	bool SetControlEnabled(const std::string& id, bool enabled, double monotonicSeconds);
 	bool PushModal(const std::string& root, double monotonicSeconds);
 	bool PopModal(double monotonicSeconds);
+	// Whether a modal scope, an authored dialog or a pushed one, holds the
+	// input, so that Back closes it rather than the document.
+	bool ModalOpen() const;
 	std::string FocusedControl() const;
+	// The verb a prompt bar shows for Accept (section 13.4): the focused
+	// button's prompt, `fallback` for a control that names none, or empty
+	// while nothing focused can be activated.
+	std::string AcceptPrompt(const std::string& fallback, double monotonicSeconds);
 	std::optional<ControlState> GetControlState(const std::string& id) const;
 	std::optional<WidgetViewState> GetWidgetState(const std::string& id) const;
     // Semantic popup presentation only. No device event, option acceptance or

@@ -95,6 +95,9 @@ public:
 					// outright, so callers that pay to build their payload can ask
 					// first instead of losing it.
 	int				GetMaxSendMessageSize( void ) const;
+	// Real-time media is dropped under backpressure and never fragmented or
+	// retransmitted. Include the reliable backlog in this admission decision.
+	bool			CanSendUnfragmented( int time, int payloadBytes, int burstMsec = 0 ) const;
 
 					// Sends the next fragment if the last message was too large to send at once.
 	void			SendNextFragment( idPort &port, const int time );

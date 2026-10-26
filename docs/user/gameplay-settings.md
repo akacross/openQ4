@@ -1,5 +1,7 @@
 # Gameplay Settings and Runtime Toggles
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 This guide covers a small set of gameplay and audio cvars that are useful for testing, accessibility, and personal preference.
 
 The auto-skip cinematics, corpse cleanup, and corpse sink controls are also available in the in-game menu at `Settings -> Game Options`.
@@ -17,6 +19,7 @@ The auto-skip cinematics, corpse cleanup, and corpse sink controls are also avai
 | `g_classicDynamicLights` | `1` | SP and MP game code | Quake II/III style dynamic lights on muzzle flashes, bright projectiles and explosions. On by default. |
 | `g_classicDynamicLightScale` | `1` | SP and MP game code | Radius multiplier for the classic dynamic lights, `0.25` to `4`. |
 | `s_musicVolume` | `0.5` | Client audio | Controls music volume independently of the main sound mix. |
+| `s_dialogueVolume` | `1` | Client audio | Spoken dialogue volume, from `0` (mute) to `1` (full), independently of effects and music. |
 | `s_useEAXReverb` | `1` | Client audio | Quake 4's per-area room reverb, as the level designers set it up. See [Room Reverb](#room-reverb). |
 | `s_useEAXOcclusion` | `1` | Client audio | Closed doors muffle the sounds behind them. Works while `s_useEAXReverb` is on. |
 | `s_numberOfSpeakers` | `0` | Client audio | Speaker layout. `0` follows your output device, `2` forces stereo, `6` forces 5.1. See [Speaker Layout](#speaker-layout). |
@@ -158,6 +161,18 @@ seta s_musicVolume 0.2
 seta s_musicVolume 0
 ```
 
+## Dialogue Volume
+
+**Settings > Audio > Dialogue Volume** changes spoken dialogue without lowering
+weapons or music. The setting takes effect immediately and is saved for both the
+retail campaign and The Awakening. `seta s_dialogueVolume 0.6` sets it to 60% of
+the authored level; `0` mutes dialogue. Master volume still affects everything.
+
+NPC lip-sync speech, radio lines and sounds using the game's voice-over asset
+paths share this control, including English audio fallback in other text
+languages. Multiplayer microphone audio has its own settings. A mod that mixes
+speech and music into one recording cannot separate those parts with this slider.
+
 ## Room Reverb
 
 Every Quake 4 map tells the game which reverb each of its rooms, corridors and outdoor areas uses: a
@@ -207,7 +222,12 @@ Notes:
 - `s_openALHRTF` chooses headphone HRTF: `0` automatic (default), `1` off, `2` on. Earlier builds
   could not turn it off on headphones; `1` now does.
 - Unplugging a headset or switching the default device keeps the sound going, including music
-  and looping ambience, and keeps your speaker and HRTF choices.
+  and looping ambience, and keeps your speaker and HRTF choices. Dialogue and other sounds that
+  were playing pick up where the scene is when audio returns, instead of being cut off, and a
+  line paused in a menu continues from where it stopped.
+- Changing `s_numberOfSpeakers`, `s_openALHRTF` or `s_outputLimiter` applies to the open device
+  in place: sounds keep playing without reloading, and a line that is playing moves to or from
+  the centre speaker at its current point.
 
 ## Audio Quality
 
@@ -344,11 +364,35 @@ seta g_corpseRemoveDelayMP -1
 - If damage numbers never appear, check `g_hitFeedback` on the server: at `0` or `1` the amount never reaches you. They are also multiplayer only, and they only cover damage dealt to players.
 - If damage numbers appear for opponents but not team mates, that is `hud_damageNumbers 1` working as intended. Set it to `2` to include team and self damage.
 
+## Dialogue Subtitles
+
+Enable **Dialogue Subtitles** in **Settings > Audio** (scroll down). Subtitles
+work in both Classic and modern UI, including The Awakening, and remain visible
+when dialogue or master audio is muted. Up to two speakers appear at once;
+long lines advance in pages as their audio plays. Pause and save/load keep the
+caption at the current point in the line.
+
+| Setting | Default | Range | Effect |
+| --- | --- | --- | --- |
+| `ui_subtitles` | `0` | `0`–`1` | Enable dialogue subtitles |
+| `ui_subtitleScale` | `1` | `1`–`2` | Text size; also respects the interface text scale |
+| `ui_subtitleBackground` | `0.6` | `0`–`1` | Black backing opacity |
+| `ui_subtitleSpeakers` | `1` | `0`–`1` | Show an available speaker name or the radio label |
+
+All four settings are saved. Text comes from your installed game's lip-sync
+declarations, with the normal language fallback. The Steam release installs
+these transcripts in English only, and The Awakening's are written in English,
+so other menu languages show English captions. Coverage is incomplete: a
+missing transcript stays blank, and a scene description is never substituted.
+Player voice chat and sound effects are not transcribed. Large captions can
+overlap Awakening title cards in portrait windows.
+
 ## Gameplay Status Bar
 
-The modern UI is the default (`ui_retained 1`). Select classic with
+Current source builds default to the modern UI (`ui_retained 1`). Select classic with
 `seta ui_retained 0`, or modern with `seta ui_retained 1`.
-Saved preferences from earlier versions are preserved.
+Saved preferences from earlier versions are preserved. For released-package
+defaults, see [Modern and Classic Screens](client-settings.md#modern-and-classic-screens).
 
 The modern UI (`ui_retained 1`) shows a centered ammo, health and armor
 bar, with Marine and Strogg artwork matching the campaign. Multiplayer shows

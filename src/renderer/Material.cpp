@@ -4872,6 +4872,15 @@ bool idMaterial::SetDefaultText( void ) {
 		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_one_minus_src_alpha vertexColor nopicmip nearest clamp map _retainedLayerImage%s } }",GetName(),slot));
 		return true;
 	}
+	if (idStr::Icmpn(GetName(),"_retainedGenerated/",19) == 0) {
+		const char* slot = GetName()+19;
+		if (!*slot) return false;
+		for (const char* p = slot; *p; ++p) if (*p < '0' || *p > '9') return false;
+		// Generated RGBA8 and vertex tint are both premultiplied. Preserve
+		// transparent colour edges when filtering and composing nested views.
+		SetText(va("material %s { sort gui twoSided { blend gl_one, gl_one_minus_src_alpha vertexColor nopicmip linear clamp map _retainedGeneratedImage%s } }",GetName(),slot));
+		return true;
+	}
 	if ( idStr::Icmp(GetName(),"_retainedBlur/reducedResult") == 0 ) {
 		SetText("material _retainedBlur/reducedResult { sort gui twoSided { blend gl_one, gl_zero vertexColor nopicmip linear clamp map _retainedReducedBlurResult } }");
 		return true;

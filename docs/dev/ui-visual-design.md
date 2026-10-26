@@ -1,6 +1,6 @@
 # openQ4 UI Visual Design
 
-Specification version 1.22, 11 October 2026 (1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
+Specification version 1.25, 23 October 2026 (1.24 on 21 October, 1.22 on 11 October, 1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
 1.9 on 29 September, 1.6 on 28 September, 1.4 and 1.5 on 27 September, 1.1 to
 1.3 on 26 September, 1.0 on 8 September 2026). Status:
 implementation target; the replacement has not shipped. Applies to every
@@ -11,6 +11,15 @@ The [archived replacement plan](archive/2026-10-18/plans/idtech5-ui.md) preserve
 the original scope and historical stage evidence.
 
 Version 1.19 adds smoothly fading Gaussian scene focus beneath the weapon wheel and HUD, superseding the former no-blur backing. Version 1.18 preserves the weapon wheel's original right-side placement and adds an archived horizontal offset, with zero centered and narrow-view safety fitting. This supersedes the centered default in earlier wheel specifications.
+
+Version 1.24 reconciles Awakening's HUD scope with the project's single-player
+expansion policy. It preserves its thirteen-weapon single-player HUD and ordinary
+Quake 4 multiplayer requirements; it does not require an expansion multiplayer
+module. The register retains superseded requirements and their evidence as history.
+
+Version 1.25 lets cinematic subtitles hang just below the cinematic artwork on
+screens narrower than 4:3 when two lines fit there. The picture is too short there
+for enlarged captions, which covered the title text a cinematic draws in it.
 
 Version 1.1 added measured references from a survey of the effective retail
 GUI scripts, interface art, fonts and materials, and corrected anatomy that did
@@ -2157,8 +2166,10 @@ the pickup lines (section 14.8); the wheel adds a second way to choose.
 launcher and the Freeze Gun take its slots 10 to 12, after the stock ten, and
 its HUD adds two strip plates for the last two. openQ4's strip lists them in
 slot order like the rest, on the Strogg HUD too, where the expansion's copy
-has no plates for them. The multiplayer ammunition gauge, accuracy and summary
-rows cover all thirteen weapons; the expansion's own screens stop at ten.
+has no plates for them. This thirteen-weapon scope applies to the `q4xbase`
+single-player campaign. Multiplayer keeps its own Quake 4 roster; the former
+requirement for expansion multiplayer ammunition, accuracy and summary rows is
+superseded by the project's single-player expansion policy.
 
 ### 14.6 Weapon wheel
 
@@ -2247,7 +2258,8 @@ a recolored Marine ring.
 its wheel is the Marine wheel with these changes:
 
 - **Roster.** The multiplayer weapons in strip order, the gauntlet in the
-  blaster's place: eleven positions, thirteen under *The Awakening*.
+  blaster's place: eleven positions. The Awakening's thirteen-position wheel
+  belongs to its single-player HUD; there is no expansion multiplayer module.
 - **Icons.** The weapon color code, as in the multiplayer strip (section 14.5):
   the pending weapon at full alpha and the rest at 0.60, never the single-player
   orange.
@@ -2359,7 +2371,9 @@ its wheel is the Marine wheel with these changes:
 - **Subtitles.** The stock has none. openQ4 subtitles use Lowpixel 17 dp in
   white on a text backing at 0.60, with the speaker's name in #B0C891, at most two
   lines in the lower third of the cinematic picture area, and never cover the
-  crosshair.
+  crosshair. On a screen narrower than 4:3, where two lines fit below the 640x480
+  cinematic artwork, they hang 12 u below it instead, clear of title text drawn in
+  the picture or its bands.
 
 ### 14.9 Multiplayer HUD
 
@@ -3945,3 +3959,21 @@ Section 13.7 gives the single-player Arena Campaign its own pause menu in the
 single-player pause frame: Resume, Restart Match, Settings and Leave Match, with
 the match in the level block's place, replacing the multiplayer Escape menu
 during an Arena match. The register is unchanged.
+
+### Version 1.24: Awakening single-player scope
+
+The project guide excludes an Awakening multiplayer module and limits expansion
+content/substitutions to active `q4xbase` single-player play. This supersedes older
+clauses requiring expansion multiplayer powerup/pickup columns, thirteen-weapon
+ammunition/accuracy/summary rows or multiplayer wheel captures. The applicable
+single-player strip, thirteen-slot wheel, scopes, weapon displays, crosshairs,
+vehicle displays and Falcon squad line remain required on both HUD families.
+Ordinary Quake 4 multiplayer retains its complete eleven-slot wheel, team colors,
+reserve-only ammunition, immediate equip and uninterrupted simulation contract.
+
+Register schema 19 preserves `FLOW-054` and `WID-034` unchanged as historical rows
+and replaces their active scope with `FLOW-066` and `WID-038`. Existing artwork
+catalogue obligations, including `ART-035`, remain authoring/artwork requirements;
+they do not authorize or require a new gameplay mode. This scope correction
+accepts no GUI, artwork, platform or behavior. Hit-feedback defaults and the other
+UI-05 qualification remain open.

@@ -123,6 +123,8 @@ public:
 
 	const char *			AddString( const char *str );
 	const char *			GetString( const char *str ) const;
+	// Exact optional lookup: null for an absent key, without a console warning.
+	const char *			FindString( const char *key ) const;
 
 							// adds the value and key as passed (doesn't generate a "#str_xxxxxx" key or ensure the key/value pair is unique)
 	void					AddKeyVal( const char *key, const char *val );

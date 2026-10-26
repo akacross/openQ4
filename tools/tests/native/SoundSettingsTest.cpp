@@ -41,6 +41,7 @@ class idSoundHardware_OpenAL {
 public:
 	ALCdevice* openalDevice=nullptr; ALCcontext* openalContext=nullptr;
 	bool initFailed=false,deferredUpdatesActive=false,efxFiltersAvailable=true,efxEnabled=false;
+	bool devicePauseRequested=false;
 	ALuint auxEffectSlot=0,auxReverbEffect=0;
 	int openedSpeakerCount=2,openedHrtfMode=0,lastResetTime=0;
 	List<idSoundVoice_OpenAL> voices; List<idSoundVoice_OpenAL*> zombieVoices,freeVoices;
@@ -57,6 +58,9 @@ struct idSoundSystemLocal { idSoundHardware_OpenAL hardware; bool muted=false,ne
 idSoundSystemLocal soundSystemLocal; idSoundSystemLocal* soundSystem=&soundSystemLocal;
 struct Session {World* sw=nullptr;} sessionValue; Session* session=&sessionValue;
 static void Sound_UpdateControllerRumble(float){}
+// Capture/playback owns its separate lifecycle tests; this suite counts only
+// the settings transaction's provider calls at the Render boundary.
+static void SoundVoiceChat_Render(){}
 static int Sys_Milliseconds(){return 2000;}
 static bool mainThread=true; bool SDL_IsMainThread(){return mainThread;}
 static int automaticMonitor=0;

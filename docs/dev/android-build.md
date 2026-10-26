@@ -1,5 +1,7 @@
 # Android, GLES and Sigma Touch
 
+> **Development status:** This document describes the current source tree and its evidence, not the contents of the latest available 0.13.2 package. The 0.14.0 release was withdrawn. See [release status](../user/release-status.md).
+
 The Android platform, GLES renderer and Sigma Touch adapter originate in
 [emileb's Android branch](https://github.com/emileb/openQ4/tree/android) and
 [GLES shader variants branch](https://github.com/emileb/openQ4/tree/gles-shader-variants).
@@ -21,9 +23,10 @@ The engine embeds BSE and each game mode keeps its own idlib archive.
 
 The [standalone Android application](../../mobile/android/README.md) packages
 these native outputs using Gradle and SDLActivity. It supports ordinary SDL
-gamepad, keyboard, mouse and menu input; a full touch gameplay overlay uses the
-optional compatible Sigma Touch host. Device gameplay remains a separate
-validation step.
+gamepad, keyboard, mouse and menu input, plus the experimental first-party
+gameplay controls described in the [player guide](../user/android-setup.md).
+Sigma Touch remains an optional compatible external host. Device gameplay
+remains a separate validation step.
 
 ## Toolchain and dependencies
 
@@ -87,8 +90,8 @@ Use a host that exposes an extracted native library directory for runtime module
 loading. Keep the application's SDL Java sources and native SDL library from the
 same SDL release.
 
-Meson also installs `android-build.json` with the ABI, actual native minimum API
-and SDL version. The standalone Gradle host requires this file, uses its API for
+Meson also installs `android-build.json` with the ABI, package variant, actual
+native minimum API and SDL version. The standalone Gradle host requires this file, uses its API for
 the APK's minimum SDK and rejects a mismatched SDL source tree. APK version names
 follow the staged mod metadata; see the standalone guide for custom version-code
 numbering when publishing several builds of one engine version.
@@ -104,6 +107,75 @@ are not included in a build or an APK. The host must provide filesystem paths
 that allow the engine to read those assets and write its save/configuration data.
 Automated MP launches must explicitly pass `+set ui_autoJoin 1`; interactive
 launches use `+set ui_autoJoin 0`.
+
+## Diagnostic emulator build
+
+The recovered `x86_64` target uses the same API 24 floor, SDL and GLES3 code,
+with `_x64` renderer/game modules. It is a development target under AND-01,
+separate from the experimental ARM64 release. Keep its dependency prefix,
+native build and stage separate:
+
+```powershell
+python tools/build/prepare_android_deps.py --ndk E:/_SOURCE/_CODE/android-ndk-r27d --abi x86_64 --api 24 --sdl-source subprojects/SDL3-3.4.16 --openal-source E:/_SOURCE/_CODE/openal-soft-1.24.3 --prefix .tmp/android-emulator/deps --build-root .tmp/android-emulator/dependency-builds
+python tools/build/android_cross.py --ndk E:/_SOURCE/_CODE/android-ndk-r27d --abi x86_64 --api 24 --out .tmp/android-emulator/x64.ini
+$dependencyPrefix = (Resolve-Path .tmp/android-emulator/deps).Path
+& tools/build/meson_setup.ps1 setup builddir/android-x64 --cross-file .tmp/android-emulator/x64.ini "-Dandroid_deps_root=$dependencyPrefix" --buildtype=release
+& tools/build/meson_setup.ps1 compile -C builddir/android-x64 -j 4
+& tools/build/meson_setup.ps1 install -C builddir/android-x64 --no-rebuild --skip-subprojects
+```
+
+Package that stage with `-Popenq4Abi=x86_64`,
+`-Popenq4Stage=<checkout>/.install/android/x86_64` and `assembleDebug`, retaining
+the matching SDL source argument and an absolute project-cache directory from
+the standalone build instructions. Gradle writes
+`builddir/android-apk-emulator/app/outputs/apk/debug/app-debug.apk`.
+The application ID is `com.darkmatter.openq4.emulator`, with its own private
+saves and external files directory. Its localized launcher name identifies
+the emulator build. No release APK or release bundle task is enabled for this
+ABI; the phone release workflow and certificate policy remain unchanged.
+
+For verification, pass `--variant emulator` to
+`tools/build/verify_android_apk.py`, with the exact staged version, SDK build
+tools and the public certificate for the diagnostic signing key. It requires a
+debuggable emulator package, API 24, exactly seven matching x86_64 libraries,
+16 KiB alignment and the same content/notices checks. The default verifier
+continues to require a nondebuggable ARM64 phone release and rejects this APK.
+An ABI label alone does not qualify a binary: ELF machine/API and every
+packaged library's bytes are checked.
+
+Create AVDs using the [Android emulator tools](https://developer.android.com/studio/run/emulator-commandline).
+Set `ANDROID_USER_HOME` and the AVD data path inside the checkout's `.tmp/`
+before invoking SDK/AVD tools; keep SDK downloads and VM disks off the system
+drive. Retain the emulator/image version, renderer and capture method with each
+run. Emulator results qualify that virtual configuration only; they cannot
+establish Adreno/Mali driver, physical touch, audible output or thermal behavior.
+The image must expose GLES3 as well as the required Android API level. The
+API 24 default x86_64 revision 8 image reports GLES2 with both SwiftShader and
+the tested NVIDIA host renderer, so it cannot qualify gameplay at the API floor.
+The runtime probe rejects that configuration before installing or copying data;
+the APK's API 24 minimum is unchanged.
+
+`tools/tests/android_emulator_smoke.py` is an opt-in native gameplay probe for a
+booted, rooted AOSP/userdebug emulator. It verifies the diagnostic APK, copies
+and hashes the caller's retail archives, then runs silent Hangar 1 movement,
+look/fire/release and save/load checks. `--mode mp` instead runs a Q4DM1
+listen server with explicit auto-join and the same movement/release checks;
+it does not create a save. Captures come from the engine's
+`screenshot` command. The probe starts the internal game Activity from the
+rooted AVD, so it does not qualify setup navigation or physical input. It refuses
+physical-device serials and an already running diagnostic app, preserves existing
+settings, and removes its exact scripts/save slot/captures after collecting them:
+
+```powershell
+python tools/tests/android_emulator_smoke.py --adb <sdk>/platform-tools/adb.exe --serial emulator-5580 --apk builddir/android-apk-emulator/app/outputs/apk/debug/app-debug.apk --stage .install/android/x86_64 --build-tools <sdk>/build-tools/35.0.0 --certificate .tmp/emulator-debug-cert.pem --assets "E:/SteamLibrary/steamapps/common/Quake 4/q4base" --version <staged-version> --output .tmp/android-emulator/run-1
+```
+
+An identical installed APK is retained after full SHA-256 verification;
+otherwise installation updates the diagnostic app without clearing its data.
+The report includes a copy of the runner and the tested source/package hashes.
+Use a fresh evidence directory for each run and inspect its engine captures
+before accepting a visual result. Inspect a failed report and any retained test
+files before retrying; the probe does not overwrite an existing diagnostic slot.
 
 ## Optional Sigma Touch host adapter
 

@@ -3476,6 +3476,80 @@ void Cmd_BotReload_f( const idCmdArgs &args ) {
 
 /*
 ==================
+Cmd_BotProbeTraversal_f
+==================
+*/
+void Cmd_BotProbeTraversal_f( const idCmdArgs &args ) {
+	const bool padProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probePad" );
+	const bool dodgeProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeDodge" );
+	const bool airProbe = !idStr::Icmp( args.Argv( 0 ), "bot_probeAir" );
+	const navTravelType_t travel = padProbe ? NAVTRAVEL_JUMPPAD :
+		( dodgeProbe || airProbe || !idStr::Icmp( args.Argv( 0 ), "bot_probeMove" ) ? NAVTRAVEL_WALK : NAVTRAVEL_JUMP );
+	if ( args.Argc() != ( padProbe ? 12 : 11 ) ) {
+		gameLocal.Printf( "usage: %s client x y z vx vy vz %s%s\n", args.Argv( 0 ),
+			airProbe ? "inputX inputY inputZ" : "targetX targetY targetZ", padProbe ? " padName" : "" );
+		return;
+	}
+	int clientNum = 0;
+	const char *clientText = args.Argv( 1 );
+	if ( !*clientText ) {
+		return;
+	}
+	for ( const char *digit = clientText; *digit; digit++ ) {
+		if ( *digit < '0' || *digit > '9' ||
+			 ( clientNum = clientNum * 10 + ( *digit - '0' ) ) >= MAX_CLIENTS ) {
+			gameLocal.Printf( "%s: client must be an integer from 0 to %d\n", args.Argv( 0 ), MAX_CLIENTS - 1 );
+			return;
+		}
+	}
+	float values[9];
+	for ( int i = 0; i < 9; i++ ) {
+		if ( !idStr::IsNumeric( args.Argv( i + 2 ) ) ) {
+			gameLocal.Printf( "%s: coordinates must be numeric\n", args.Argv( 0 ) );
+			return;
+		}
+		values[i] = atof( args.Argv( i + 2 ) );
+		if ( idMath::Fabs( values[i] ) > 65536.0f ) {
+			gameLocal.Printf( "%s: coordinate or speed outside diagnostic range\n", args.Argv( 0 ) );
+			return;
+		}
+	}
+	idEntity *pad = padProbe ? gameLocal.FindEntity( args.Argv( 11 ) ) : NULL;
+	if ( padProbe && !pad ) {
+		gameLocal.Printf( "bot_probePad: pad entity not found\n" );
+		return;
+	}
+	// bot_probeAir's last three values are a fixed input direction, not a
+	// target; the bot only faces along it.
+	const idVec3 origin( values[0], values[1], values[2] );
+	const idVec3 airInput( values[6], values[7], 0.0f );
+	const idVec3 target = airProbe ? origin + airInput * 64.0f : idVec3( values[6], values[7], values[8] );
+	if ( !botManager.ProbeTraversal( clientNum, origin, idVec3( values[3], values[4], values[5] ), target,
+			travel, pad, dodgeProbe, airProbe ? &airInput : NULL ) ) {
+		gameLocal.Printf( "%s: requires an isolated local cheat server with one live bot and a separate observer%s\n",
+			args.Argv( 0 ), padProbe ? ", and a pad with a proven natural landing" : "" );
+	}
+}
+
+/*
+==================
+Cmd_BotProbeHealth_f
+==================
+*/
+void Cmd_BotProbeHealth_f( const idCmdArgs &args ) {
+	if ( ( args.Argc() != 3 && args.Argc() != 4 ) || !idStr::IsNumeric( args.Argv( 1 ) ) ||
+		 !idStr::IsNumeric( args.Argv( 2 ) ) || ( args.Argc() == 4 && !idStr::IsNumeric( args.Argv( 3 ) ) ) ) {
+		gameLocal.Printf( "usage: bot_probeHealth client health [knockbackMsec]\n" );
+		return;
+	}
+	if ( !botManager.SetProbeHealth( atoi( args.Argv( 1 ) ), atoi( args.Argv( 2 ) ),
+			args.Argc() == 4 ? atoi( args.Argv( 3 ) ) : 0 ) ) {
+		gameLocal.Printf( "bot_probeHealth: requires an isolated local cheat server with one live bot, 1-1000 health and 0-1000 ms\n" );
+	}
+}
+
+/*
+==================
 Cmd_NavMesh_f
 ==================
 */
@@ -3853,6 +3927,38 @@ static void Cmd_OpenQ4LaunchMPTestProjectile_f( const idCmdArgs &args ) {
 	gameLocal.Printf( "MP_WORLD_PROJECTILE launched name=%s\n", projectile->GetName() );
 }
 
+/*
+==================
+Cmd_LagCompStatus_f
+
+openQ4: what lag compensation would rewind for each connected client, and why: its reported
+lead, the round trip the server measured, the remote extrapolation it advertises and the
+displayed pose age that leaves.  Read-only, and meaningful with net_mpLagCompensation off.
+==================
+*/
+static void Cmd_LagCompStatus_f( const idCmdArgs &args ) {
+	if ( !gameLocal.isMultiplayer || !gameLocal.isServer ) {
+		gameLocal.Printf( "lagCompStatus: only a multiplayer server can report lag compensation\n" );
+		return;
+	}
+	const int maxRewindMS = idMath::ClampInt( 0, 1000, net_mpLagCompMaxMS.GetInteger() );
+	gameLocal.Printf( "LAGCOMP_STATUS enabled=%d max=%dms slack=%dms bias=%dms frame=%dms\n",
+		net_mpLagCompensation.GetBool() ? 1 : 0, maxRewindMS, net_mpLagCompSlackMS.GetInteger(),
+		net_mpLagCompBiasMS.GetInteger(), gameLocal.GetMSec() );
+	for ( int clientNum = 0; clientNum < MAX_CLIENTS; clientNum++ ) {
+		const idEntity *entity = gameLocal.entities[ clientNum ];
+		if ( entity == NULL || !entity->IsType( idPlayer::GetClassType() ) ) {
+			continue;
+		}
+		idGameLocal::mpLagCompEstimate_t estimate;
+		gameLocal.EstimateMPLagCompensation( clientNum, estimate );
+		const int rewindMS = idMath::ClampInt( 0, maxRewindMS, estimate.poseAgeMS + net_mpLagCompBiasMS.GetInteger() );
+		gameLocal.Printf( "LAGCOMP_CLIENT client=%d name=\"%s\" lead=%dms rtt=%dms advertised=%dtics extrap=%dms age=%dms rewind=%dms\n",
+			clientNum, gameLocal.userInfo[ clientNum ].GetString( "ui_name" ), estimate.leadMS, estimate.measuredMS,
+			estimate.advertisedTics, estimate.extrapolationMS, estimate.poseAgeMS, rewindMS );
+	}
+}
+
 // Read actual simulation and animation state without moving the camera or
 // injecting player commands. This complements engine render-target captures
 // when qualifying repeated competitive pauses and subsequent resumption.
@@ -4150,6 +4256,8 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "clientCallVote",		idMultiplayerGame::CallVote_f,	CMD_FL_GAME,			"call a vote: clientCallVote si_.. proposed_value" );
 	cmdSystem->AddCommand( "clientVoiceChat",		idMultiplayerGame::VoiceChat_f,	CMD_FL_GAME,			"voice chats: clientVoiceChat <sound shader>" );
 	cmdSystem->AddCommand( "clientVoiceChatTeam",	idMultiplayerGame::VoiceChatTeam_f,	CMD_FL_GAME,		"team voice chats: clientVoiceChat <sound shader>" );
+	cmdSystem->AddCommand( "serverVoiceMute", idMultiplayerGame::ServerVoiceMute_f, CMD_FL_GAME, "silence a voice sender for this connection: <client slot> <0|1>" );
+	cmdSystem->AddCommand( "serverVoiceStats", idMultiplayerGame::ServerVoiceStats_f, CMD_FL_GAME, "report per-sender voice admission, forwarding and added delay" );
 // RAVEN BEGIN
 	// jshepard
 	cmdSystem->AddCommand( "forceTeamChange",				idMultiplayerGame::ForceTeamChange_f,			CMD_FL_GAME,		"force team change: forceTeamChange <id>" );
@@ -4185,6 +4293,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "openq4_assertMPClientActive", Cmd_OpenQ4AssertMPClientActive_f, CMD_FL_GAME | CMD_FL_CHEAT, "fail validation unless the local multiplayer player is active and not spectating" );
 	cmdSystem->AddCommand( "openq4_reportMPState", Cmd_OpenQ4ReportMPState_f, CMD_FL_GAME | CMD_FL_CHEAT, "report local multiplayer phases, scores and player state to the console" );
 	cmdSystem->AddCommand( "openq4_reportMPWorld", Cmd_OpenQ4ReportMPWorld_f, CMD_FL_GAME | CMD_FL_CHEAT, "report one multiplayer entity's simulation, animation and powerup state" );
+	cmdSystem->AddCommand( "lagCompStatus", Cmd_LagCompStatus_f, CMD_FL_GAME, "report each client's lag-compensation lead, round trip, advertised remote extrapolation and rewind" );
 	cmdSystem->AddCommand( "openq4_launchMPTestProjectile", Cmd_OpenQ4LaunchMPTestProjectile_f, CMD_FL_GAME | CMD_FL_CHEAT, "launch a named stock projectile for multiplayer world-clock diagnostics" );
 	cmdSystem->AddCommand( "openq4_matchControl", Cmd_OpenQ4MatchControl_f, CMD_FL_GAME | CMD_FL_CHEAT, "exercise and inspect the local accepted-view Match Control adapter without device input" );
 	cmdSystem->AddCommand( "openq4_arenaCeremony", Cmd_OpenQ4ArenaCeremony_f, CMD_FL_GAME | CMD_FL_CHEAT, "drive the local Arena Campaign match without device input: openq4_arenaCeremony <win|loss|draw|skip|status>" );
@@ -4254,6 +4363,12 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand( "botcharacters",			Cmd_BotCharacters_f,		CMD_FL_GAME,				"list the loaded bot characters, their play style and their skill band" );
 	cmdSystem->AddCommand( "botreload",				Cmd_BotReload_f,			CMD_FL_GAME,				"re-read the bot style and character files without a map change" );
 	cmdSystem->AddCommand( "navmesh",				Cmd_NavMesh_f,				CMD_FL_GAME,				"navmesh <build|info|probe x y z [radius]> - generate, report or probe the bot navigation mesh" );
+	cmdSystem->AddCommand( "bot_probeJump", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot jump on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probePad", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a bot pad flight on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeMove", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot movement on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeDodge", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay bot dodge admission on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeAir", Cmd_BotProbeTraversal_f, CMD_FL_GAME, "replay a fall under one fixed full air input on an isolated local cheat server" );
+	cmdSystem->AddCommand( "bot_probeHealth", Cmd_BotProbeHealth_f, CMD_FL_GAME, "give the next traversal probe's bot this health on an isolated local cheat server" );
 }
 
 /*

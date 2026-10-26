@@ -1,5 +1,101 @@
 # UI product requirement register
 
+24 October 2026: [Menu glyphs](input-routing.md#menu-glyphs-24-october-2026)
+add bounded UI-02 evidence to `INP-011`. Each controller family's Menu button
+glyph ends the Escape card's Admin Apply changes plate, which the button presses,
+for a controller only. The art derives from section 13.5 and awaits review under
+UI-05. The increment is audited against `b038777b2b1cec823b34b80256d0c3f7d50ccc64`. No requirement status,
+migration acceptance or final gate changes.
+
+24 October 2026: [joined lines and capitals](retained-screens.md#joined-lines-and-capitals-24-october-2026)
+add bounded UI-02 evidence to `TXT-005`. List joins, the time in the mission, a
+save's date and time and the load time's decimal mark and unit come from every
+shipped table, and the Demos page's plates and headings are capitals in every
+language. The increment is audited against `d610d54794ca41f13b6f8c9878023e4d8912e6c8`. No requirement status,
+migration acceptance or final gate changes.
+
+24 October 2026: [trigger glyphs](input-routing.md#trigger-glyphs-24-october-2026)
+add bounded UI-02 evidence to `INP-011`. The Escape card's Match and Admin section
+strips end with each controller family's trigger glyphs, a legend for a controller
+only. The art derives from section 13.5 and awaits review under UI-05. The increment
+is audited against `55ed6f210da77490d2389849e04d46faad92e9c0`. No requirement status, migration acceptance or
+final gate changes.
+
+24 October 2026: [the Menu button's Apply](input-routing.md#menu-button-24-october-2026)
+adds bounded UI-02 evidence to `INP-011`. The opt-in SYSTEM page and the Escape
+card's Admin page apply pending changes with the Menu button, and the adapter keeps
+the button Back while a dialog or an open list holds the input. The increment is
+audited against `2bfcb60cc42b51d700b36386d065c104c0d9daf5`. No requirement status, migration acceptance or final
+gate changes.
+
+24 October 2026: [the Menu button](input-routing.md#menu-button-24-october-2026)
+adds bounded UI-02 evidence to `INP-011`. A document's `onMenuButton` runs once
+per press where declared and the button is Back elsewhere; the pause's Save, Load
+and Restart Level pages resume play through `menuResume`. The increment is audited
+against `1ce1599f4357cdf28b0ceffec83c0b3d2fb51fe6`. No requirement status,
+migration acceptance or final gate changes.
+
+24 October 2026: [controller settings, list paging and Join Game focus](input-routing.md#settings-rows-24-october-2026)
+add bounded UI-02/UI-03 evidence to `INP-011` and `WID-009`. Prompt Style and Swap
+Confirm and Back are Settings rows, the triggers page retained lists and step a
+focused slider coarsely, and Join Game's row focus follows its server. The increment
+is audited against `35a1e919c828b8fd5326f46e1dda9a975c8549aa`. No requirement status,
+migration acceptance or final gate changes.
+
+23 October 2026: [save details](retained-screens.md#save-details) add bounded
+UI-03 evidence to `FLOW-024`, `FLOW-048` and `FLOW-004`. Saves record the
+run's play time and difficulty in their existing headers; CONTINUE and the
+Load Game page name them, the pause's level block adds the run's total, and
+completed objectives survive a save load. The increment is audited against
+`8d821202d70ca746d58a2608b1aab3c69bcbf56f`. No requirement status, migration
+acceptance or final gate changes.
+
+23 October 2026: [focus-following prompt verbs](retained-screens.md#page-prompt-bars)
+add bounded UI-02 evidence to `WID-019`, `FLOW-004` and `FLOW-013`. The pages'
+Accept names the focused control's verb in the focus frame and leaves the bar
+while nothing focused can act. The increment is audited against
+`2f6c628a306b9dc42f752df505ebce5f26595996`. No requirement status, migration
+acceptance or final gate changes.
+
+23 October 2026: [Strogg confirmations](retained-screens.md#strogg-confirmations)
+add bounded UI-03 evidence to `FLOW-048`, `WID-013`, `ART-037` and `MOT-015`.
+The Strogg pause's and Strogg pages' dialogs take the Strogg family and
+translate from runes as they open; their art derives from section 13.7 and
+awaits review. The increment is audited against `e3cf8d037b1458c8ed49b9b423bf76201a194879`.
+No requirement status, migration acceptance or final gate changes.
+
+23 October 2026: the [acceptance transition](acceptance-transition.md) adds
+UI-11 tooling evidence to `GOV-002` and `QUAL-006`. Only it may accept
+requirements and resources, from current, separately reviewed records. It was
+audited against `f74b48edb4b5cb3153749241f0b087df17e3eb0d`. Nothing has been
+accepted with it, and no status changes.
+
+23 October 2026: [save browser controls](save-browser.md) add bounded UI-03
+evidence to `WID-009`, `FLOW-004` and `FLOW-026`: sorting, filter tags, explicit
+refresh, filename-based selection/focus and stale catalog rejection in both
+page families. The increment is audited against `c302254b865833786be9f1fd02041aef85f80b22`.
+No requirement status, migration acceptance or final gate changes.
+
+23 October 2026: [full multiplayer roster scrolling](multiplayer-menus.md#full-roster-scrolling-23-october-2026)
+adds bounded UI-03 evidence to `WID-009`, `WID-010`, `FLOW-039` and `FLOW-046`.
+Four production views keep fixed headings and readable rows, reach all 32
+connection slots and preserve or clamp their scroll as appropriate; the kick
+chooser includes every other client. Six native suites, the session gate,
+four capture-oracle tests and 30 reviewed OpenGL/Vulkan engine screenshots pass.
+The gameplay runs use three live players plus explicit 32-slot document fixtures;
+the configured server limit remains 16. This increment is checked against
+immutable Git baseline `f5bd60838ae25961fb9392ba71a9ab6c6a9c1437`. Existing evidence
+bindings to the extended multiplayer document are refreshed without changing
+their historical scope. No requirement status, migration or final gate changes.
+
+23 October 2026: the [external settings refresh and queued value ownership
+increment](external-settings-refresh.md) contributes bounded evidence to
+`BEH-002`, `FLOW-002`, `WID-005`, `WID-017` and `WID-018`. Clean SYSTEM pages now
+follow live settings; dirty drafts and local numeric text remain protected;
+queued values check their starting readback and choice availability. Eleven
+native suites, 110 production-service scenarios and SP/OpenGL/MP/Vulkan gameplay
+captures cover this subset. No status, migration acceptance or final gate changes.
+
 **Planning authority, 18 October 2026:** the [development roadmap](../roadmap.md#new-user-interface)
 is the sole active plan; UI-01 through UI-11 coordinate this register's work.
 The archived plans below preserve the original completion scope and section
@@ -8,9 +104,9 @@ remain the detailed acceptance records: consolidation does not change any
 requirement ID, dependency, status, evidence or migration acceptance. The
 [visual specification](../ui-visual-design.md) remains normative.
 
-9 September 2026, revised 26, 27, 28 and 29 September and 1, 7 and 9 October 2026. The
-[machine-readable register](product-requirements.json) contains **347
-requirements** for the complete UI product: 310 that define acceptance and 37
+9 September 2026, revised through 21 October 2026. The
+[machine-readable register](product-requirements.json) contains **349
+requirements** for the complete UI product: 310 that define acceptance and 39
 superseded rows kept for history. It expands
 the [archived completion scope](../archive/2026-10-18/plans/ui-product-completion.md), the
 [archived original delivery scope](../archive/2026-10-18/plans/idtech5-ui.md) and the normative
@@ -621,8 +717,8 @@ held in play, its toggle, the notices, single-player loading tips and the
 multiplayer Escape card. Each row keeps its unbuilt parts and qualification
 matrices as remaining.
 
-There are **118 partial, 229 pending and 0 verified requirements**, counting the
-37 superseded rows at their recorded states. `BEH-002`
+There are **120 partial, 229 pending and 0 verified requirements**, counting the
+39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
 sounds and the complete device/modal/widget behavior still require implementation
@@ -675,6 +771,15 @@ An evidence record names scope, revisions, source/asset hashes, exact operations
 builds/binaries where applicable, host/backend, logs/images, outcome, review and
 limitations. Relevant changes require revalidation; a stale hash or unrelated
 green test cannot close a requirement.
+
+Only the [acceptance transition](acceptance-transition.md) records acceptance.
+It names each requirement and resource it accepts and audits their committed
+acceptance records: every conjunct, constraint and dependency, a gate's bounded
+milestone scope, and per-resource behavior and artwork proof. All of it must be
+current against the present files and reviewed by someone other than the
+author. The checkpoint audit keeps earlier acceptance only while its records
+stay current. Otherwise the acceptance must be withdrawn, keeping its records
+as history.
 
 The [migration manifest](migration-manifest.json) remains the per-resource source
 of replacement, behavior and visual acceptance. This register covers shared
@@ -899,3 +1004,46 @@ supersession is changed. The new row remains pending. There are 347 requirements
 The recovered HUD work now has bounded evidence for the Classic gauges and canvas, individual ammo gains, notice separation, MP edge states and the Marine/Strogg wheels. `ART-026`, `FLOW-031`, `FLOW-051`, `LAY-020`, `FLOW-056`, `WID-034` and `WID-036` move from pending to partial; `MOT-015` gains wheel-motion evidence. All normative requirements, constraints, dependencies, historical rows and acceptance gates remain unchanged. There are 102 partial, 244 pending and one verified requirement.
 
 The source-bound local record is `.tmp/claude-continuation/hud/validation-summary.json`; [HUD](remastered-hud.md) and [wheel](weapon-wheels.md) notes retain the open work. This checkout already contained register revisions 14 through 18 beyond its committed schema-13 baseline. The continuation therefore records a structural/source-binding check against its preserved working checkpoint, not a successful immutable-Git increment audit or product acceptance.
+
+## Revision 19: Awakening single-player scope
+
+Visual specification 1.24 applies the project guide's existing single-player
+expansion policy. `FLOW-066` supersedes `FLOW-054` while preserving the thirteen
+weapons, both HUD families, scopes/displays/crosshairs and Falcon squad line in
+`q4xbase` single player. `WID-038` supersedes `WID-034` while preserving the complete
+eleven-slot ordinary Quake 4 multiplayer wheel, team treatments, reserve-only
+readout and equip/timing behavior. The historical rows are unchanged. Expansion
+multiplayer powerup/ammunition/accuracy/summary and wheel clauses no longer define
+acceptance; the artwork catalogue remains required without adding a game mode.
+
+Both successors remain partial and carry their predecessors' bounded evidence.
+No requirement, migration variant, artwork or platform is accepted. There are
+349 rows, 310 active requirements and 39 historical superseded rows; the current
+358 migration variants and seven final gates remain unaccepted.
+
+This revision follows the already validated Android inventory update in this
+uncommitted checkpoint. Its audit compares a frozen working-register snapshot,
+checks preserved historical rows/evidence, supersession/dependency structure,
+source hashes and unchanged migration bytes. It is a structural/source-binding
+check, not an immutable-Git increment audit or implementation acceptance.
+
+The scoped audit is `.tmp/stage-two/ui-awakening-scope/scope-audit-r3.json`, SHA-256
+`7a8cf674e111a7efa515e730fa4c1e854d4595b49e261e8d21e0ba52be9e6960`.
+Current document bindings pass. Historical local capture references remain
+unchanged and are explicitly not requalified; the unavailable older inventory
+capture is not treated as new evidence.
+
+## 23 October 2026: portrait cinematic subtitles
+
+Visual specification 1.25 lets cinematic subtitles hang 12 u below the 640x480
+cinematic artwork on screens narrower than 4:3 where two lines fit there. The
+picture is too short there for enlarged captions, which covered title text that
+cinematics draw in it, such as the Awakening introduction's. The active subtitle
+clause of `FLOW-052`, which superseded `FLOW-034` through `FLOW-040`, reads "at most
+two lines, never over the crosshair" and already admits this placement. No
+requirement, status or supersession changes; the increment re-binds the visual
+specification and the audio evidence document. The
+[portrait caption captures](../audio-voice-evidence.md#authored-scenes-centred-reverb-and-portrait-captions-23-october-2026)
+record the implementation, not acceptance. The increment audit
+(`validate_product_requirements.py`) passes against baseline `c12d36cda`; its report
+is `.tmp/audio/round2/register-increment.json` in the audio worktree.

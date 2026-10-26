@@ -23,7 +23,11 @@ def verify_runtime_is_current(runtime: Path, executable_name: str | None = None)
     """
     if os.environ.get("OPENQ4_ALLOW_STALE_RUNTIME", "").strip() == "1":
         return
-    build = ROOT / "builddir"
+    # A standard stage in another worktree belongs to that worktree's build,
+    # not to the checkout containing this harness. Resolve junctions as well.
+    runtime = runtime.resolve()
+    build_root = runtime.parent if runtime.name == ".install" else ROOT
+    build = build_root / "builddir"
     if not build.is_dir():
         return
 

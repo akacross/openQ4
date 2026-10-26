@@ -1,5 +1,7 @@
 # Virtual reality (OpenXR)
 
+> **Development documentation:** This page follows the current source tree and may describe changes newer than the public download. See [release status and released-version guides](release-status.md) before using it with a release package.
+
 openQ4 can play Quake 4 on a PC VR headset through OpenXR, the cross-vendor
 VR standard. You see the game in stereo at your headset's resolution, look
 around with your head and aim with a motion controller. The HUD floats in
@@ -53,6 +55,16 @@ as it appears.
 If you quit SteamVR, or the runtime closes VR some other way, the game carries
 on in its desktop window. Enter `vr_restart` to go back into VR; `vr_enable`
 stays on, so the next launch starts in VR as usual.
+
+If an XR frame or session fails, openQ4 clears held VR controls and returns to
+desktop rendering. Session failures retry after three seconds; a stopped or lost
+runtime waits for `vr_restart`. This recovery has been checked with a simulated
+OpenXR runtime; real-headset qualification remains open.
+
+The ordinary `screenshot` command captures a desktop view during VR gameplay.
+For a developer capture of the last rendered eye, use
+`screenshot image _vrEyeColor0 screenshots/vr-left.tga` or `_vrEyeColor1` for the
+right eye. These are engine render-target captures.
 
 ## Controls
 

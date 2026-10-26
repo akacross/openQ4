@@ -57,6 +57,7 @@ void rvClientEntity::Spawn( void ) {
 
 	spawnNode.SetOwner( this );
 	bindNode.SetOwner( this );
+	presentationNode.SetOwner( this );
 
 	origin = spawnArgs.GetVector( "origin", "0 0 0" );
 	axis = spawnArgs.GetMatrix( "axis", "1 0 0 0 1 0 0 0 1" );
@@ -360,10 +361,16 @@ rvClientEntity::Restore
 ================
 */
 void rvClientEntity::Restore( idRestoreGame *savefile ) {
-	savefile->ReadInt( entityNumber );
-	if ( entityNumber < -1 || entityNumber >= MAX_CENTITIES ) {
-		savefile->Error( "rvClientEntity::Restore: invalid client entity number %d", entityNumber );
+	int restoredEntityNumber;
+	savefile->ReadInt( restoredEntityNumber );
+	if ( restoredEntityNumber < -1 || restoredEntityNumber >= MAX_CENTITIES ) {
+		savefile->Error( "rvClientEntity::Restore: invalid client entity number %d", restoredEntityNumber );
 	}
+	// A failed restore must leave the master table's identity safe to unregister.
+	if ( entityNumber != -1 && entityNumber != restoredEntityNumber ) {
+		savefile->Error( "rvClientEntity::Restore: client entity number %d does not match registered number %d", restoredEntityNumber, entityNumber );
+	}
+	entityNumber = restoredEntityNumber;
 
 	// idLinkList<rvClientEntity>	spawnNode;		- reconstructed in the master entity load
 	// idLinkList<rvClientEntity>	bindNode;		- reconstructed in the master entity load
