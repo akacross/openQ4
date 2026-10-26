@@ -169,7 +169,9 @@ public:
 			}
 			entries.push_back( entry_t() );
 			entry_t &entry = entries.back();
-			entry.due = departure + settings.latencyMsec + random.UpTo( settings.jitterMsec );
+			// The clock may wrap, so add as unsigned; signed overflow is undefined.
+			entry.due = static_cast<int32_t>( static_cast<uint32_t>( departure ) + static_cast<uint32_t>( settings.latencyMsec ) +
+				static_cast<uint32_t>( random.UpTo( settings.jitterMsec ) ) );
 			entry.offer = offer;
 			entry.arrival = nextArrival++;
 			entry.address = address;
@@ -269,9 +271,9 @@ private:
 			return false;
 		}
 		linkBusy = true;
-		linkFreeMsec = now + static_cast<int>( finishUsec / 1000 );
+		linkFreeMsec = static_cast<int32_t>( static_cast<uint32_t>( now ) + static_cast<uint32_t>( finishUsec / 1000 ) );
 		linkFreeUsec = static_cast<int>( finishUsec % 1000 );
-		departure = now + static_cast<int>( ( finishUsec + 999 ) / 1000 );
+		departure = static_cast<int32_t>( static_cast<uint32_t>( now ) + static_cast<uint32_t>( ( finishUsec + 999 ) / 1000 ) );
 		const int waitMsec = static_cast<int>( waitUsec / 1000 );
 		if ( waitMsec > stats.maxWaitMsec ) {
 			stats.maxWaitMsec = waitMsec;

@@ -631,6 +631,7 @@ See [release status](../../user/release-status.md) and the
 - Joining a team from the multiplayer menu's Match Control now moves you to that team. When Auto Balance Teams refuses because that team has too many players, Match Control says so, instead of reporting the change as made while you stayed on your old team.
 - Added complete German translations for bundled menu and gameplay text, with umlauts and sharp s supported by the existing fonts.
 - Changing language now refreshes cached menu labels immediately and keeps the menu visible.
+- The language you choose in Settings is kept when your game data comes from a GOG installer. Extracted GOG data can include a `q4base/autoexec.cfg` that switched the game back to French at every launch; it now sets only the first launch's language. Thanks to tomkidd for finding the cause.
 - Improved experimental Vulkan render-target compatibility: cube faces, depth-only targets and multiple color buffers now render and capture correctly, including resizing and multisample resolves. Heavy render-target resizing also avoids releasing images before the GPU has finished with them. Vulkan remains an opt-in renderer while broader compatibility and hardware qualification continue.
 - If Vulkan cannot create its window, surface, swapchain or startup resources, openQ4 now continues with OpenGL in the same launch. Your Vulkan preference is kept for the next launch, and the log retains the recovery reason.
 - Looping effect sounds, such as crackling electrical arcs, no longer play an extra copy each time you load a saved game.

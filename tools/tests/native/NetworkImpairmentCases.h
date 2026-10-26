@@ -27,10 +27,11 @@ typedef idNetworkImpairment::queue_t<int> impairmentQueue_t;
 static std::vector<int> DrainImpairment( impairmentQueue_t &queue, const idNetworkImpairment::settings_t &settings,
 		const int count, const int spacingMsec, const int start, std::vector<int> *releaseTimes = nullptr ) {
 	std::vector<int> released;
-	int now = start;
 	int offered = 0;
-	for ( int step = 0; step < count * spacingMsec + 4000; step++, now++ ) {
-		while ( offered < count && now - start >= offered * spacingMsec ) {
+	for ( int step = 0; step < count * spacingMsec + 4000; step++ ) {
+		// step is the elapsed time; the clock itself may wrap past INT_MAX.
+		const int now = static_cast<int32_t>( static_cast<uint32_t>( start ) + static_cast<uint32_t>( step ) );
+		while ( offered < count && step >= offered * spacingMsec ) {
 			const unsigned char payload = static_cast<unsigned char>( offered );
 			queue.Offer( settings, now, offered, &payload, 1 );
 			offered++;
@@ -41,7 +42,7 @@ static std::vector<int> DrainImpairment( impairmentQueue_t &queue, const idNetwo
 		while ( queue.Pop( now, address, buffer, sizeof( buffer ), size ) ) {
 			released.push_back( buffer[0] );
 			if ( releaseTimes != nullptr ) {
-				releaseTimes->push_back( now - start - address * spacingMsec );
+				releaseTimes->push_back( step - address * spacingMsec );
 			}
 		}
 	}
@@ -158,6 +159,25 @@ static int ExerciseNetworkImpairment() {
 			paced = out[i].index == static_cast<int>( i ) && out[i].time == static_cast<int>( i + 1 ) * 10;
 		}
 		ExpectImpairment( paced, "the bottleneck survives the clock wrapping" );
+	}
+
+	// Rate, latency and jitter must compose identically on either side of clock wrap.
+	{
+		impairmentQueue_t plain, wrapped;
+		plain.random.Seed( 123 );
+		wrapped.random.Seed( 123 );
+		const std::vector<int> sizes( 12, 72 );
+		const std::vector<int> times( 12, 0 );
+		const settings_t settings = Sanitize( 25, 40, 0, 0, 10000, 1000 );
+		const std::vector<impairmentRelease_t> a = PaceImpairment( plain, settings, sizes, times, 0, 300 );
+		const std::vector<impairmentRelease_t> b = PaceImpairment( wrapped, settings, sizes, times, INT_MAX - 30, 300 );
+		bool same = a.size() == sizes.size() && b.size() == a.size();
+		for ( size_t i = 0; same && i < a.size(); i++ ) {
+			const int departure = ( a[i].index + 1 ) * 10;
+			same = a[i].index == b[i].index && a[i].time == b[i].time &&
+				a[i].time >= departure + 25 && a[i].time <= departure + 65;
+		}
+		ExpectImpairment( same, "bottleneck, latency and jitter compose across clock wrap" );
 	}
 
 	// Burst loss keeps its rate but loses datagrams in runs of about burstLength;

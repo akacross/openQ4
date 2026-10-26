@@ -6,6 +6,26 @@ Later implementation and validation entries below are unreleased development
 work. Historical CI/publication success does not restore the withdrawn release.
 See [player release status](../user/release-status.md).
 
+## CI qualification follow-up, 26 October 2026
+
+- GOV-02/CORE-04: Windows durable-file validation now has a 900-second Meson
+  budget. Its existing per-command 600-second timeout still fails hung commands;
+  POSIX retains 180 seconds. Main and #191 both previously killed the ARM64
+  harness at 180 seconds, before it could finish or retain its result.
+- The Windows ARM64 push job now uploads `builddir/game-regression-logs` and
+  `builddir/meson-logs`, where the push profile actually writes them. The old
+  upload was attached to the POSIX matrix and looked in the unused PR-style
+  directory. The commit-validation job's separate PR paths remain unchanged.
+- Validation: the unchanged native durable-file fixture passes on Windows x64;
+  workflow structure and the Meson syntax are checked. ARM64 execution remains
+  a CI gate, including the independent locked-executable cleanup in
+  [#201](https://github.com/themuffinator/openQ4/pull/201).
+- The [26 October main run](https://github.com/themuffinator/openQ4/actions/runs/40277373140)
+  has a passing Windows x64 payload for #183 reporter testing. The overall run
+  is not green: Windows ARM64 failed native checks and macOS Intel Metal timed
+  out in renderer-foundation self-tests. These are development artifacts, not
+  a new release or proof that the open gameplay reports are resolved.
+
 ## Release-status reconciliation, 23 October 2026
 
 - [x] Verify GitHub's latest release and public release list identify 0.13.2;
@@ -147,8 +167,24 @@ completed release material here and publish curated notes in `releases/`.
   bias-20 cases pass. Candidate player wording:
   [multiplayer refinements](releases/multiplayer-refinements.md).
 
+## Saved language over an installer autoexec, 24 October 2026
+
+- [x] #199 (UI-01/PLAT-04): GOG installers write `q4base/autoexec.cfg` with the
+  install-time `sys_lang`, and extraction tools that unpack every language
+  variant leave the last one (French in the report). It ran after the saved
+  config, so each launch replaced the language chosen in Settings. Once a saved
+  config exists, a loose `autoexec.cfg` in the retail game directory no longer
+  changes `sys_lang`; it still supplies the first launch's language and runs
+  its other commands. A player's own `autoexec.cfg` elsewhere and `+set sys_lang`
+  still win. `startup_language_override.py` pins the order; a hidden client
+  probe on Steam data with a GOG-style autoexec covers first launch, a saved
+  choice across relaunches, the player's own autoexec and the command line.
+
 ## Multiplayer network qualification, 24 October 2026
 
+- [x] Reconciliation, 26 October: bandwidth simulation retains the clock-wrap
+  overflow fix through both queue departure and packet delivery. The combined
+  rate/latency/jitter case checks identical delivery across clock wrap.
 - [x] MP-07/MP-08: simulated network conditions on Windows and POSIX
   (`src/sys/NetworkImpairment.h`): latency, jitter with the reordering it
   causes, loss and duplication, seeded for repeatable runs, reported by
