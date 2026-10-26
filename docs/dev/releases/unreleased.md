@@ -10,6 +10,16 @@ See [release status](../../user/release-status.md) and the
 
 ## Highlights
 
+- **Find multiplayer objectives at a glance.** Flag bases, Arena CTF assault
+  points and DeadZone zones now have compact HUD symbols with distance and
+  directions when they are outside your view. The icons show flag availability,
+  zone control and artifact requirements without additional text. Markers dim
+  near your crosshair and stay clear of scoreboards. Use
+  `seta hud_objectiveMarkers 0` to turn them off. Update the engine and game
+  modules together. In VR, markers follow your head on the stereo HUD and
+  respect its size and position. VR remains experimental; real-headset
+  readability and comfort have not yet been qualified.
+
 - **Faster gameplay HUD.** The ECG uses its original installed artwork with
   the same scrolling and health colours, reducing the new HUD's rendering
   cost. Radio and voice-chat displays use the original bitmap waveform and

@@ -796,6 +796,7 @@ def validate_validation_wiring() -> None:
         "openxr_vr_smoke.py",
         "openxr_vr_menu_smoke.py",
         "openxr_vr_mp_smoke.py",
+        "openxr_objective_markers.py",
         # Imported by the UI harnesses that compile wrap sources; the workflows
         # py_compile it, and it is exercised through those harnesses.
         "wrap_sources.py",

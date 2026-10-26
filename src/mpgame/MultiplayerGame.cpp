@@ -9984,6 +9984,7 @@ void idMultiplayerGame::Clear() {
 	memset( &switchThrottle, 0, sizeof( switchThrottle ) );
 	voiceChatThrottle = 0;
 	damageNumbers.Clear();
+	objectiveMarkers.Clear();
 	rvHitMarker::Clear();
 
 	voteValue.Clear();
@@ -10045,6 +10046,7 @@ idMultiplayerGame::ClearMap
 void idMultiplayerGame::ClearMap( void ) {
 	// MapClear runs after client entities may already have been deleted, so only
 	// touch renderer-owned presentation state here; GUI cleanup is not safe.
+	objectiveMarkers.Clear();
 	ResetVoiceState();
 	UpdateArenaSoundPause( false );
 	SetArenaCampaignDepthOfField( false );

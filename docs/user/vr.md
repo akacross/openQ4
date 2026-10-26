@@ -63,8 +63,10 @@ OpenXR runtime; real-headset qualification remains open.
 
 The ordinary `screenshot` command captures a desktop view during VR gameplay.
 For a developer capture of the last rendered eye, use
-`screenshot image _vrEyeColor0 screenshots/vr-left.tga` or `_vrEyeColor1` for the
+`screenshot image _vrEyeColor0 "screenshots/vr-left.tga"` or `_vrEyeColor1` for the
 right eye. These are engine render-target captures.
+Use `screenshot image _vrScreenColor "screenshots/vr-hud.tga"` to capture the
+separate HUD surface.
 
 ## Controls
 
@@ -182,6 +184,14 @@ helps to bind it to a key, for example `bind F12 vr_recenter`.
 
 The floating screen and the HUD take the shape of the game window, so menus
 look the same as on your monitor.
+
+Multiplayer objective markers show flag bases and DeadZone zones on the stereo
+HUD. Their symbols express status, with distance as the only text. They follow
+your head independently of controller aiming and respect the HUD's size,
+distance and height offset. Off-screen arrows stay inside the HUD; markers
+remain at HUD depth. `hud_objectiveMarkers 0` hides them. Their projection and
+gameplay rendering have automated coverage through a simulated OpenXR runtime;
+real-headset readability and comfort still need testing.
 
 Temporal anti-aliasing and dynamic resolution switch themselves off in VR.
 Use MSAA (`r_multiSamples`) or SMAA instead.

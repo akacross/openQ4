@@ -723,7 +723,8 @@ extern rvGameLog *				gameLog;
 // 53: bounded unreliable voice and engine-owned capture/playback interfaces.
 // 54: gameImport_t carries the engine's idUsercmdGen so the draw pass can
 //     sample late-look input (in_presentationView).
-const int GAME_API_VERSION		= 54;
+// 55: idUserInterfaceManager appends localized HUD text shaping for objective markers.
+const int GAME_API_VERSION		= 55;
 
 struct gameImport_t {
 

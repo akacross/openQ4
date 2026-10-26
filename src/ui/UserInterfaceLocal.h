@@ -261,6 +261,8 @@ public:
 	// HUDs and the ui_hudTest probe.
 	void HudTest(const idCmdArgs& args);
 	bool DrawHudPrimitives(const char* source, const idList<uiHudPrimitive_t>& items) override;
+	void BuildHudText(const char* text, float scale, float width, float height,
+		idList<uiHudPrimitive_t>& output) override;
 	void ClearHudPrimitives();
 	idList<idRetainedHud*> generatedHuds;
 	idStrList generatedHudNames;

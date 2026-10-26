@@ -680,6 +680,22 @@ void idUserInterfaceManagerLocal::ClearHudPrimitives() {
 	generatedHuds.DeleteContents(true); generatedHudNames.Clear();
 }
 
+void idUserInterfaceManagerLocal::BuildHudText(const char* text,float scale,float width,float height,
+	idList<uiHudPrimitive_t>& output) {
+	output.Clear();
+	if (!text || !text[0] || scale <= 0 || width <= 4 || height <= 4) return;
+	std::vector<openq4::ui::HudPrimitive> glyphs;
+	CaptureLegacyText(text,"fonts/lowpixel",scale,width,height,1,true,glyphs);
+	for (const auto& glyph : glyphs) {
+		uiHudPrimitive_t item;
+		for (int n=0;n<4;++n) item.points[n].Set(glyph.quad[2*n],glyph.quad[2*n+1]);
+		item.uv.Set(glyph.uv[0],glyph.uv[1],glyph.uv[2],glyph.uv[3]);
+		item.color=colorWhite; item.glyph=true;
+		item.material=declManager->FindMaterial(glyph.material.c_str());
+		output.Append(item);
+	}
+}
+
 bool idUserInterfaceManagerLocal::DrawHudPrimitives(const char* source,const idList<uiHudPrimitive_t>& packet) {
 	if (!cvarSystem->GetCVarBool("ui_retained")) { ClearHudPrimitives(); return false; }
 	if (!source || packet.Num()>32768) return false;

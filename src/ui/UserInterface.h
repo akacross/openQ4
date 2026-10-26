@@ -193,6 +193,10 @@ public:
 //// bdube: embedded icons
 	virtual void				RegisterIcon ( const char* code, const char* shader, int x = -1, int y = -1, int w = -1, int h = -1 ) { }
 // RAVEN END
+	// Shape localized game-owned HUD text with the UI's current language/font
+	// policy. Returned quads are local to the supplied box, centered in white.
+	virtual void BuildHudText( const char* text, float scale, float width, float height,
+		idList<uiHudPrimitive_t>& output ) { output.Clear(); }
 };
 
 extern idUserInterfaceManager *	uiManager;

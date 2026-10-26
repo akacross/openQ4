@@ -17,6 +17,7 @@
 #include "mp/GameTypeIds.h"
 #include "mp/Buying.h"
 #include "mp/HitFeedback.h"
+#include "mp/ObjectiveMarkers.h"
 #include "../game/gamesys/HudLines.h"
 #include "mp/match/MatchRules.h"
 #include "mp/match/MatchSeries.h"
@@ -1537,6 +1538,7 @@ public:
 	// openQ4: live damage numbers for the local view.  Client side only, but
 	// a listen server host stages into the same slab.
 	rvDamageNumbers			damageNumbers;
+	rvObjectiveMarkers		objectiveMarkers;
 
 private:
 

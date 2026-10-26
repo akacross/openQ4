@@ -821,7 +821,7 @@ The [CONTROLS page](retained-screens.md#the-controls-page-25-october-2026) adds
 and clear. The settings screen itself, Load Defaults, Player Setup and the
 rest of `FLOW-003` remain.
 
-There are **121 partial, 228 pending and 0 verified requirements**, counting the
+There are **121 partial, 229 pending and 0 verified requirements**, counting the
 39 superseded rows at their recorded states. `BEH-002`
 remains partial for the implemented settings transaction/service boundary.
 `BEH-005` remains partial for committed action delivery and cancellation; stock
@@ -910,7 +910,7 @@ complete source-bound mappings and evidence.
 | `RES-001`–`005` | Full material/movie/model operations, generated images and actual renderer resource accounting | M3, M4 |
 | `ART-001`–`037` | Measured component/icon libraries, exact visual tokens, panel/plate anatomy, all eight distinct families, complex-image exceptions, device glyphs, modern refinements, detailing, HUD gauge constructions, the crosshair and item icon catalogues, the traced HUD instruments, the title screen's emblem, the initializing screen's layers, the squad patches and The Awakening's icons and crosshairs | M2–M5 |
 | `MOT-001`–`016` | Continuous clocks, normative timing/easing, reversal/ownership, page/modal orchestration, stock choreography, sound, ambient loops/alarms, reduced motion, band motion with the sub-page step, HUD alarms and the translation and transmission effects | M1–M6 |
-| `FLOW-001`–`065` | Every menu/MP flow, HUD, communications, scope/vehicle, cinematic and scripted/world GUI; lifecycle, first-run setup, touch controls and editor, terminal input, modern screen patterns, HUD presets and layouts; the HUD's composition, gauges, strip, crosshair, messages and multiplayer HUD; objectives, boss, vehicle, scope and weapon displays; the scoreboard; the Remastered multiplayer top and chat; the multiplayer menus, loading, title and pause, initialization, four menu levels, Competitive HUD, spectator follow camera, expansion vehicle displays, Medical Labs implant activation, scope focus, recovery and death continuity | M2, M4, M5 |
+| `FLOW-001`–`067` | Every menu/MP flow, HUD, communications, scope/vehicle, cinematic and scripted/world GUI; lifecycle, first-run setup, touch controls and editor, terminal input, modern screen patterns, HUD presets and layouts; the HUD's composition, gauges, strip, crosshair, messages and multiplayer HUD; objectives, boss, vehicle, scope and weapon displays; the scoreboard; the Remastered multiplayer top and chat; the multiplayer menus, loading, title and pause, initialization, four menu levels, Competitive HUD, spectator follow camera, expansion vehicle displays, Medical Labs implant activation, scope focus, recovery and death continuity, the Awakening single-player HUD and multiplayer objective points of interest | M2, M4, M5 |
 | `ED-001`–`030` | Native workspace, canvas/constraints, components, vectors, motion/behavior, persistence/recovery, diagnostics and complete SP/MP delivery | M2, M3 |
 | `PERF-001`–`009` | Named optimized baselines, separate CPU/GPU telemetry, warm/cold runs, budgets, long-run plateau, measured optimization and mobile power limits | M3, M6 |
 | `QUAL-001`–`011` | Display/text/input/refresh/language/world extremes, independent visual review, stock parity, input/profile/device matrix, actual platforms and evidence provenance | M6 |
@@ -1151,3 +1151,20 @@ specification and the audio evidence document. The
 record the implementation, not acceptance. The increment audit
 (`validate_product_requirements.py`) passes against baseline `c12d36cda`; its report
 is `.tmp/audio/round2/register-increment.json` in the audio worktree.
+
+## Revision 20: objective points of interest
+
+Visual specification 1.28 adds objective points of interest to the multiplayer
+HUD's Remastered additions: flag bases, assault points and Dead Zone zones marked
+in the world with distance as their only text, their status carried by the
+symbols, off-screen bearings inside the safe frame, and the stereo VR HUD-plane
+projection. No active row admitted them: `FLOW-035` lists the Remastered
+multiplayer additions one by one and `FLOW-056` covers only the Remastered top.
+`FLOW-067` appends the scope and depends on both. It is pending; the
+implementation (`src/mpgame/mp/ObjectiveMarkers.cpp`) is recorded in
+[the HUD notes](remastered-hud.md), and its captures are not yet bound as
+evidence. No existing requirement, evidence record or supersession changes; the
+revision re-binds the visual specification and the three evidence records that
+bind `remastered-hud.md`. There are 350 rows, 311 active requirements and 39
+historical superseded rows; the 358 migration variants and seven final gates
+remain unaccepted.

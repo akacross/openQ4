@@ -1,6 +1,6 @@
 # openQ4 UI Visual Design
 
-Specification version 1.27, 25 October 2026 (1.26 on 24 October, 1.25 on 23 October, 1.24 on 21 October, 1.22 on 11 October, 1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
+Specification version 1.28, 26 October 2026 (1.27 on 25 October, 1.26 on 24 October, 1.25 on 23 October, 1.24 on 21 October, 1.22 on 11 October, 1.19 on 7 October, 1.15 and 1.16 earlier that day, 1.14 on 1 October, 1.10 to 1.13 the same day, 1.7 to
 1.9 on 29 September, 1.6 on 28 September, 1.4 and 1.5 on 27 September, 1.1 to
 1.3 on 26 September, 1.0 on 8 September 2026). Status:
 implementation target; the replacement has not shipped. Applies to every
@@ -28,6 +28,10 @@ half the line.
 
 Version 1.27 gives a second speaker at those sizes the matching line above the
 artwork, so two overlapping captions also stay clear of the picture.
+
+Version 1.28 adds objective points of interest to the multiplayer HUD: flag
+bases, assault points and Dead Zone zones marked in the world, with distance as
+their only text, on the desktop and on the stereo VR HUD plane.
 
 Version 1.1 added measured references from a survey of the effective retail
 GUI scripts, interface art, fonts and materials, and corrected anatomy that did
@@ -2428,6 +2432,27 @@ Stock slips that openQ4 does not reproduce:
 
 **Remastered additions.** The stock lacks these; they use its vocabulary.
 
+- **Objective points of interest (23 October 2026).** CTF and One Flag bases,
+  including their Arena variants, use a compact flag in a 45-degree diamond;
+  assault points and DeadZone scoring volumes use open square brackets in the
+  same diamond. Keep permanent base anchors while flags travel. Distance is
+  the only text: use solid/hollow pennants and upward/downward cues for flag
+  availability, empty/filled/split zone cores for control, and a small padlock
+  for artifact eligibility. Preserve faction colours without relying on colour
+  alone for status. Keep outlines quiet and steady; no flashing or alert text.
+  Place the straight-line distance below the symbol. Use a dark backing and text shadow over bright
+  scenes. Off-screen bearings terminate inside a safe frame with outward
+  chevrons, including targets behind the camera. Dim at the crosshair, suppress
+  colliding distances and bound the visible set. Do not show carrier locations.
+  Hide during menus, scoreboards, zoom, death and free-camera spectating.
+  Apply HUD opacity, safe inset and bounded sizing. Both Classic and retained
+  routes use the same geometry. In stereo VR, project head-relative bearings
+  onto the compositor's physical HUD plane, including its controller-aiming
+  height offset. Use the corrected tracked head origin and axis, independent
+  of weapon aim and eye FOV. Keep symbols at HUD depth, quiet around the forward
+  gaze, and inside the HUD's safe frame. Inactive VR uses the desktop projection.
+  `hud_objectiveMarkers` is an archived client opt-out, defaulting to enabled.
+
 - **You, marked without color.** Kill-feed and chat lines that involve you sit
   on a header-band plate at 0.30 with your name in white; your deathmatch row
   and scoreboard row carry the ◥ marker.
@@ -3988,3 +4013,16 @@ catalogue obligations, including `ART-035`, remain authoring/artwork requirement
 they do not authorize or require a new gameplay mode. This scope correction
 accepts no GUI, artwork, platform or behavior. Hit-feedback defaults and the other
 UI-05 qualification remain open.
+
+### Version 1.28: objective points of interest
+
+Section 14.9's Remastered additions gain objective points of interest for the
+goal-oriented multiplayer modes: CTF and One Flag bases, including their Arena
+variants, assault points and Dead Zone scoring volumes, each a symbol in a
+45-degree diamond with its straight-line distance as the only text. The symbols
+carry flag availability, zone control and artifact eligibility; colour never
+does alone. Off-screen bearings end inside the safe frame. In stereo VR the
+markers project head-relative bearings onto the compositor's HUD plane.
+`hud_objectiveMarkers` is an archived client opt-out. Register revision 20
+appends `FLOW-067` for this scope; no existing requirement changes, and nothing
+is accepted.

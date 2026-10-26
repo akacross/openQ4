@@ -638,6 +638,31 @@ completed release material here and publish curated notes in `releases/`.
   and full UI-03/UI-09 acceptance as outstanding. Candidate player wording is in
   [baseline refinements](releases/baseline-refinements.md).
 
+## Multiplayer objective POI, 23 October 2026
+
+- [x] Add restrained world-positioned flag-base, assault-point and DeadZone
+  markers. Distance is the only text; pennant fill/position, zone cores and a
+  small artifact padlock express status. Keep faction colours, off-screen
+  bearings, crosshair fading, bounded overlap and HUD visibility rules.
+- [x] Build and stage the Windows engine and matching SP/MP modules, pass six
+  focused suites and the twelve-language source check, and qualify live CTF
+  pickup/drop and DeadZone control in OpenGL/Vulkan engine captures. Verify a
+  remote client, stock fallback and absence in DM. Preserve the existing stock
+  asset/precache warnings as unrelated findings. [Evidence and remaining scope](ui/remastered-hud.md#multiplayer-objective-markers-23-october-2026)
+  leave the broader UI-03/UI-04, real-headset, platform and performance gates open.
+- [x] Extend markers to the OpenXR stereo HUD using tracked head bearings and
+  physical HUD dimensions/offset. Keep ordinary rendering after runtime exit.
+  Pass seven focused suites plus the VR ABI/source contract and simulated CTF/
+  DeadZone gameplay, with 44 engine render-target/desktop captures. Compare
+  Classic/retained marker footprints to catch missing strokes. Keep distance
+  as the only text; real-headset readability and comfort remain unqualified.
+- [x] Landed on main 26 October from the Codex worktree, with game API 55 and
+  register revision 20 (visual specification 1.28, pending `FLOW-067`). On the
+  landed build, GL and Vulkan captures (CTF 10, Dead Zone 5 each), simulated-OpenXR
+  captures (CTF 19 and Dead Zone 22 stereo HUD frames), the native layout test
+  and the register revision audit pass.
+- Candidate player wording is included in [unreleased notes](releases/unreleased.md).
+
 ## Multiplayer roster reachability, 23 October 2026
 
 - [x] Keep multiplayer player lists and summary scoreboards readable with fixed

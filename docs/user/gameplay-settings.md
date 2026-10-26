@@ -24,12 +24,37 @@ The auto-skip cinematics, corpse cleanup, and corpse sink controls are also avai
 | `s_useEAXOcclusion` | `1` | Client audio | Closed doors muffle the sounds behind them. Works while `s_useEAXReverb` is on. |
 | `s_numberOfSpeakers` | `0` | Client audio | Speaker layout. `0` follows your output device, `2` forces stereo, `6` forces 5.1. See [Speaker Layout](#speaker-layout). |
 | `hud_damageNumbers` | `0` | Multiplayer client | Floating damage numbers over the players you hit. `0` off, `1` opponents only, `2` all damage you deal. |
+| `hud_objectiveMarkers` | `1` | Multiplayer client | World-positioned CTF bases, Arena CTF assault points and DeadZone scoring zones, with distance, status and off-screen directions. `0` hides them. |
 | `hud_damageNumberStyle` | `1` | Multiplayer client | How damage numbers are coloured. `1` white through red, `2` one colour per damage band, `3` one colour per weapon. |
 | `hud_damageNumberScale` | `1` | Multiplayer client | Damage number size multiplier, `0.25` to `4`. |
 | `hud_hitMarker` | `1` | SP and MP client | Crosshair hit marker on hits you land. On by default. |
 | `hud_hitMarkerScale` | `1` | SP and MP client | Hit marker size multiplier, `0.25` to `4`, on top of `g_crosshairSize`. |
 | `hud_crosshairHitFlash` | `0` | SP and MP client | Recolours the crosshair on a hit, as stock Quake 4 does. Implied when `hud_hitMarker` is off. |
 | `g_hitFeedback` | `2` | Multiplayer server | Whether the server tells attackers about their hits at all. `0` none, `1` without the amount, `2` with the amount. |
+
+## Multiplayer objective markers
+
+Compact symbols mark the permanent bases in CTF and One Flag CTF, including
+the Arena variants, plus control points and DeadZone zones. Distance is the
+only text. A solid pennant means a flag is home; a hollow pennant with an upward
+cue means carried, and a lowered pennant with a downward cue means dropped.
+The marker stays at the base. Zone brackets have an empty core when unclaimed,
+a filled faction-coloured core when controlled and two opposing halves when
+contested. A small padlock indicates that you need a DeadZone artifact to score.
+
+Distances are straight-line metres, not route lengths. Markers remain visible
+through walls and arrows point toward objectives outside the view. They dim near
+the crosshair, suppress overlapping distances, and disappear while dead, zoomed,
+using a menu or viewing the scoreboard. Following spectators see their player's
+objectives; free-camera spectators do not. In VR, markers follow your head's
+bearing on the stereo HUD, respecting its distance, width and height offset.
+They sit at HUD depth. The setting is saved and works with both Classic and
+retained HUDs. See [VR display settings](vr.md#display).
+
+Use `seta hud_objectiveMarkers 0` to disable it, or `1` to restore it. HUD Size,
+Safe Area Inset and Opacity also affect the markers; marker size is bounded to
+keep its screen-edge distance visible. Update the engine and both game modules
+together when upgrading a development build.
 
 ## Cinematics
 

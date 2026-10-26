@@ -258,6 +258,10 @@ if not build_engine and not build_games
 endif
 
 if get_option('build_native_tests')
+  objective_marker_layout_test = executable('openq4-objective-marker-layout-test',
+    files('tools/tests/native/ObjectiveMarkerLayoutTest.cpp'),
+    include_directories: root_include_dir, install: false)
+  test('openq4-objective-marker-layout', objective_marker_layout_test, timeout: 30)
   test('openq4-vulkan-material-sources', py,
     args: [files('tools/build/vulkan_material_sources.py'), '--check'], timeout: 30)
   openq4_editor_document_test = executable(

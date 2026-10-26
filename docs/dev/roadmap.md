@@ -878,6 +878,16 @@ archived provenance; new scheduling belongs here.
   objectives completed on a map survive loading its saves. Saves from earlier
   builds show neither. Chapter numbers on saves are not shown: the list names
   each save's mission.
+  Progress, 23 October (landed 26 October): multiplayer
+  [objective markers](ui/remastered-hud.md#multiplayer-objective-markers-23-october-2026)
+  now cover permanent flag bases, Arena CTF assault points and DeadZone zones,
+  with icon-based status, distance only, bounded overlap and off-screen directions.
+  Preserve their gameplay/state and projection coverage while completing the
+  broader UI-03/UI-04 workflows. VR now projects bearings from the tracked head
+  onto the stereo HUD plane; preserve simulated-runtime and geometric coverage.
+  Real-headset comfort/readability and the full device matrix remain open.
+  Visual specification 1.28 and register revision 20 add the scope as pending
+  `FLOW-067`; no evidence record is bound yet.
 - [ ] **UI-04 — P1, implementation and qualification: full GUI corpus migration.**
   Finish all HUD, wrist/comms, scope, vehicle, cinematic, terminal/world and scripted
   surfaces with source-bound retained lowering. Preserve legacy grouping/remainder

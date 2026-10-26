@@ -4948,6 +4948,9 @@ void idPlayer::DrawHUD( idUserInterface *_hud ) {
 		}	
 
 		UpdateHudStats( _hud );
+		// Project against the actual presentation camera, after the scene and
+		// below HUD panels and wheels. DrawHUD owns cinematic/GUI/vehicle gates.
+		gameLocal.mpGame.objectiveMarkers.Draw( this, _hud, GetRenderView() );
 
 		if ( focusBrackets ) {
 			// If 2d_calc is still true then the gui didnt render so we can abandon it

@@ -1,5 +1,132 @@
 # Remastered HUD layout
 
+## Multiplayer objective markers, 23 October 2026
+
+`rvObjectiveMarkers` supplies a bounded game-owned overlay through
+`native/objective-markers`. It discovers permanent CTF/One Flag bases, Arena CTF
+assault points and DeadZone triggers from the active map, caches spawn-safe
+references for one second, filters instances and disabled zones, and clears on
+map/module reset. At most eight objectives draw; bases have priority, followed
+by nearby points. Overlapping symbols collapse; distance placement considers
+every selected symbol before submitting any text.
+The camera-space projection follows the current rendered view and compensates
+the 640x480 submission space for the actual output aspect. No network messages,
+carrier tracking, new materials or proprietary artwork are introduced.
+
+CTF status comes from replicated `rvCTFGameState`; the marker remains at the
+permanent base when its flag travels. DeadZone uses the existing per-zone
+`entityAffect` visual state, with the replicated aggregate state as a fallback
+only for a single zone. A custom multi-zone map without that visual contract
+gets location/eligibility markers rather than a fabricated per-zone owner.
+The artifact requirement respects `requiresDeadZonePowerup` and the viewed
+player's actual inventory. Following spectators inherit that player's team;
+free-camera spectators, dead players, zoom, menus and scoreboards suppress it.
+Warm-up/countdown permit orientation; review does not.
+
+Stereo VR uses the same corrected tracked head pose as `PlayerView::VRView`,
+including lean limits and physical crouch, then intersects objective bearings
+with the OpenXR compositor's physical HUD quad. `vr_hudDistance`, `vr_hudWidth`,
+the actual virtual-screen aspect and the hand-aiming `vr_hudHeightOffset` all
+participate. Head aiming centres that plane. Eye FOV and controller aim do not
+drive marker placement. Symbols converge at HUD depth in both eyes; they are
+HUD bearings, not geometry placed at the distant objective. Forward-gaze fading
+stays relative to the head, even on a lowered HUD, and directly-behind arrows
+remain deterministic. The actual stereo view gates this path, so a disconnected
+runtime with `vr_enable 1` and flat spectator views retain ordinary projection.
+
+Symbols are first-party geometry with a stock fallback. Distance is the only
+text: pennant fill/position and directional cues show home/carried/dropped;
+zone cores show empty/controlled/contested and a padlock shows the artifact
+requirement. Faction colours remain consistent, with quiet outlines and no
+flashing or alert text. Localized distances use
+the UI's existing Lowpixel font, language decoding and glyph capture, exposed
+through the append-only `idUserInterfaceManager::BuildHudText` slot. Game API
+55 rejects older modules: stage the engine and both games together. All twelve
+language tables carry the distance format. Distances fit and centre by their
+shaped ink bounds and cannot wrap out of their clipping box.
+
+The native `openq4-objective-marker-layout` test exercises 12,705 aspect/bearing/
+pitch combinations, behind-camera and near-plane cases, invalid input,
+crosshair emphasis and collision bounds. Another 47,628 VR bearings cover HUD
+dimensions and offsets, including 7,044 in-frame intersections independently
+checked against `VR_RayQuadIntersect` from the head and both eyes.
+`tools/ui/capture_objective_markers.py`
+uses stock maps, staged binaries, isolated profiles, hidden windowed clients,
+disabled device input and engine `screenshot` captures. Its report records the
+source, dirty tree, binary hashes, launch arguments, images and logs. Gameplay
+state assertions distinguish taken/dropped flags and a controlled zone from
+warm-up. The death/respawn step uses the server's semantic `kill 0` command and
+automatic respawn, without injected device input.
+
+Windows validation on 23 October 2026 passed the complete debugoptimized
+build/stage and six focused suites: `openq4-objective-marker-layout`,
+`openq4-ui-hud`, `openq4-ui-remastered-hud`,
+`openq4-ui-remastered-hud-generated`, `openq4-ui-hud-coverage` and
+`openq4-ui-retained-screens-loading-hud`. The source language-table check also
+passes. Local evidence is retained under `.tmp/hud-poi/`:
+
+- `icons-gl/report.json`: OpenGL 1280×720, five passing live scenarios and
+  sixteen engine captures covering CTF, DeadZone, One Flag CTF, a dedicated
+  server's remote CTF client and DM with no markers. Includes stock fallback,
+  behind-camera directions, HUD size/safe inset, the opt-out and HUD suppression.
+- `icons-vulkan-verified/report.json`: Vulkan 1920×1080, two passing scenarios
+  and fifteen engine captures. Actual flag pickup/drop and DeadZone ownership
+  assertions pass; death, scoreboard and hidden-HUD captures suppress the POI.
+- `icons-ultrawide/report.json`: a passing Russian One Flag CTF run, including
+  all three bases and Cyrillic distance units. The requested 2560×1080 window
+  produced a 2538×1080 engine capture on this host; markers use that actual
+  viewport aspect.
+- `build-icons.log`, `stage-icons.log`, `tests-icons.log`: final build/stage and
+  focused checks. Reports record executable/module hashes and launch commands.
+
+The fresh worktree lacked an OpenAL runtime DLL; staging used an independent
+temporary copy of the existing development checkout's runtime. Stock AAS,
+missing-image and non-precache warnings remain unrelated to the overlay.
+The passing captures contain no retained-UI warnings or engine errors.
+
+VR validation uses `tools/tests/openxr_objective_markers.py` with the existing
+non-installed OpenXR test runtime. Set its process-local `XR_RUNTIME_JSON`;
+no system runtime registration or headset is needed. The harness keeps every
+controller action inactive (`OPENQ4_XR_TEST_NO_INPUT=1`), disables host mouse/
+joystick input, and uses scripted tracking poses with room scale and physical
+crouching off. Windowed CTF and DeadZone matches exercise head yaw/pitch/roll,
+lean, altered HUD width/distance/height, head aiming, behind-head bearings,
+flag pickup, artifact pickup/zone ownership, and runtime-requested exit with
+`vr_enable 1`. Eye and HUD images use the engine's `screenshot image` path;
+paired enabled/disabled HUD captures prove marker presence. Classic/retained
+right-edge footprints are compared independently of other HUD animation:
+strokes use clockwise canvas winding so the Classic renderer cannot cull them.
+
+The Windows build/stage, the six suites above plus `openq4-vr-math-core`, and
+`tools/tests/openxr_vr_contract.py` pass. The contract follows game API 55's
+appended HUD text slot. VR evidence is under `.tmp/hud-poi-vr/`:
+
+- `accepted/report.json`: two passing gameplay scenarios and 44 engine images,
+  with 1200×1320 eye targets and a 1920×1080 HUD. Runtime layer metadata verifies
+  stereo projection plus the HUD quad at each tested physical size/offset;
+  on/off pairs and Classic/retained stroke comparisons pass. The report records
+  source/dirty-tree identity, binary hashes, process environment and commands.
+- `desktop-vulkan/report.json`: two passing CTF/DeadZone scenarios and fifteen
+  engine captures at 1280×720, using the same executable/module hashes as the
+  VR run. Classic strokes, flag pickup/drop and zone ownership are preserved.
+- `build.log`, `stage.log`, `tests.log`, `vr-contract.log`: build and focused
+  verification evidence. Existing stock asset/AAS/precache warnings remain;
+  these VR runs have no engine errors, retained-UI warnings or XR layer errors.
+
+Reproduce without hardware after building/staging and building the test runtime:
+
+```powershell
+python tools/tests/openxr_objective_markers.py --assets "E:/SteamLibrary/steamapps/common/Quake 4" --output .tmp/hud-poi-vr/new-run
+```
+
+This checks geometry, layer submission and gameplay rendering. It does not
+qualify real-headset optics, readability, latency or comfort.
+
+This bounded addition extends UI-03/UI-04; it does not accept the complete HUD
+migration, performance or device matrix.
+
+## HUD layout and presentation
+
 With `ui_retained 1` and `ui_hudLayout 1` (the default), the stock HUD GUIs
 draw the Remastered layout of [visual specification section 14](../ui-visual-design.md)
 instead of their stock rectangles. Each covered GUI is paired with a retained
