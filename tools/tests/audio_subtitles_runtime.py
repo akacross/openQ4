@@ -80,8 +80,9 @@ def main():
     cinematic = steps + ['set g_autoSkipCinematics 1', 'set g_autoExecAfterMapLoad "subtitle-restore.cfg"', f'map {args.map}']
     steps = ['set g_autoExecAfterMapLoad ""', 'notarget', 'testRadioChatter oq4_subtitle_a',
              'testRadioChatter distract oq4_subtitle_b', 'waitMsec 300']
-    probe('BEFORE_SAVE')
-    steps += ['echo SUBTITLE_SAVE', 'saveGame audio_subtitles', 'waitMsec 300', 'loadGame audio_subtitles', 'waitMsec 500']; probe('RESTORE'); capture('restore')
+    probe('BEFORE_SAVE'); steps.append('s_soundWorlds')
+    steps += ['echo SUBTITLE_SAVE', 'saveGame audio_subtitles', 'waitMsec 300', 'loadGame audio_subtitles', 'waitMsec 500']
+    probe('RESTORE'); steps.append('s_soundWorlds'); capture('restore')
     steps += ['testRadioChatter oq4_subtitle_missing', 'waitMsec 100']; probe('INTERRUPT')
     steps += ['testRadioChatter distract oq4_subtitle_missing', 'testRadioChatter stop', 'waitMsec 100']; probe('STOP')
     authored = 'vo_mcc_allop' if args.awakening else 'vo_1_1_1_110_1'
@@ -91,6 +92,8 @@ def main():
     steps += ['writeConfig "subtitle-settings.cfg"', 'testRadioChatter stop',
               'testGUI guis/mainmenu.gui', 'waitMsec 1500', 'openq4_guiAction main_b_settings', 'waitMsec 1500',
               'openq4_guiAction set_b_audio', 'waitMsec 1000',
+              # The menu opened with testGUI from a running map is the stock one in both
+              # UI modes, so its stock Audio page scrolls to the subtitle rows.
               'ui_hudTest guis/mainmenu.gui state gui_set_audio_scroll 6',
               'openq4_guiAction set_audio_scroll_thumb', 'waitMsec 300',
               'ui_hudTest guis/mainmenu.gui get gui_set_audio_scroll']
@@ -132,6 +135,18 @@ def main():
     # The saved game's load is the last level load the log reports.
     loads = re.findall(r'^\s*(\d+) msec to load \S+', log, re.M)
     load_msec = int(loads[-1]) if loads else 0
+
+    def game_clock(name):
+        # The game sound world's clock and the wall clock, read just after the phase's cues.
+        section = re.search(rf'^SUBTITLE_{name}\s*\n(.*?)(?=^SUBTITLE_|\Z)', log, re.M | re.S)
+        world = re.search(r'^SOUND_WORLD id=1 paused=\d time=(-?\d+) .*? now=(-?\d+)', section[1], re.M) if section else None
+        return (int(world[1]), int(world[2])) if world else None
+    clocks = [game_clock('BEFORE_SAVE'), game_clock('RESTORE')]
+    # A restored line resumes where it was saved only if the game sound world's clock is
+    # held from the moment the saved sound state is read, partway through the load, until
+    # the map change completes: the wall clock then runs ahead of it by that stretch. With
+    # the defect nothing held it and the gap stayed within a frame or two.
+    held_msec = (clocks[1][1] - clocks[0][1]) - (clocks[1][0] - clocks[0][0]) if all(clocks) else None
     checks = {'complete': run.returncode == 0 and 'SUBTITLE_COMPLETE' in log,
               'transcript_and_english_fallback': cue('START').get('bytes') == len(PRIMARY.encode()),
               'muted_dialogue_caption': bool(cue('MUTED')),
@@ -144,10 +159,8 @@ def main():
               'largest_text_two_speakers': bool(cue('LARGEST_OVERLAP') and cue('LARGEST_OVERLAP', 'b')),
               'restore_both': bool(cue('BEFORE_SAVE') and cue('BEFORE_SAVE', 'b') and cue('RESTORE') and cue('RESTORE', 'b')),
               # A real save and load: written outside a cinematic, then the level loads from it.
-              # The restored line resumes where it was saved: 500 ms of play after the load
-              # and the frames that settle it, not as far into itself as the load took. The
-              # defect added the whole load, so allow up to that load's own length (or 1.1 s).
-              'restore_resumes_in_place': 0 < cue('RESTORE').get('time', -1) - cue('BEFORE_SAVE').get('time', 10**9) <= max(1100, load_msec),
+              'restore_resumes_in_place': held_msec is not None and load_msec > 0 and held_msec >= 100 and
+                  0 < cue('RESTORE').get('time', -1) - cue('BEFORE_SAVE').get('time', 10**9) <= clocks[1][0] - clocks[0][0],
               # A failed load also reloads the level, so it is ruled out by its own warnings.
               'saved_and_loaded': "Can't save during a cinematic" not in log and 'could not restore saved state' not in log and
                   "Couldn't open savegame" not in log and
@@ -172,7 +185,7 @@ def main():
               'runtime_sha256': {str(p.relative_to(ROOT / '.install')): hashlib.sha256(p.read_bytes()).hexdigest()
                                  for p in (ROOT / '.install/baseoq4').iterdir() if p.suffix.lower() in ('.dll','.so','.dylib','.pk4')},
               'command': command, 'captures': [str(p) for p in captures], 'host_input': False, 'microphone': False,
-              'restore_load_msec': load_msec, 'passed': all(checks.values())}
+              'restore_load_msec': load_msec, 'restore_clock_held_msec': held_msec, 'passed': all(checks.values())}
     (root / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'result': str(root / 'result.json'), 'checks': checks}, indent=2))
     return 0 if report['passed'] else 1

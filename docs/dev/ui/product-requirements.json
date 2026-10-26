@@ -4,7 +4,7 @@
   "date": "2026-10-23",
   "status": "Implementation incomplete; this register preserves full product scope and does not accept any production GUI.",
   "baseline": {
-    "engine_revision": "05d56ec9221a5eb184d2ffd0740d8e9e5b9ff9b8",
+    "engine_revision": "0cce17e6f997422251499df067062083cb353338",
     "companion_revision": "18f000a7ff3b99f1da25a73282a0eca1dc1244f0",
     "effective_gui_count": 358,
     "translated_or_accepted_resources": 0,
@@ -1093,7 +1093,7 @@
     "audio-subtitles-playback": {
       "kind": "implementation_checkpoint",
       "path": "docs/dev/audio-voice-evidence.md",
-      "sha256": "4f1ac864969ac1ea142662b909fadffd7876bc18f4193a03b6fbc99f96705fd2",
+      "sha256": "d0465d22911618e0fe0257a03190e682a930b8d50e3f132bcd40b7aa30e8c573",
       "scope": "Playback-driven installed-transcript subtitles and persistent controls; stock/Awakening runtime plus Classic and native layout checks. Portrait title-card collisions, full corpus and headset qualification remain open. No acceptance granted."
     },
     "inventory-android-setup-return": {

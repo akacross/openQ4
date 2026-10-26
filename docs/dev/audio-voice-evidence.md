@@ -1038,8 +1038,9 @@ bringing the clock up to date, the stock, portrait and Classic runs read 318, 37
 1,091 ms. That is 0.4–1.0 s of play after the harness's 500 ms wait, not the load
 time. `restore_resumes_in_place` first allowed at most 1.1 s, which the fastest load seen,
 1.3 s, would exceed; on a busier machine on 25 October a correct restore took 1.3 s to
-settle after a 3.5 s load, so it now allows the larger of 1.1 s and the load's own length,
-which the defect always exceeded. Each subtitle run passes all 19 checks; both dialogue runs pass
+settle after a 3.5 s load, and a bound on the caption alone cannot tell a fast load from a
+slow settle; it now checks the game sound world's clock instead (see
+[saves on Linux](#saves-on-linux)). Each subtitle run passes all 19 checks; both dialogue runs pass
 all 27, with Dialogue Volume's 0.6 holding across a real restore. These runs use the
 client with the restore fix, SHA-256
 `d488e79abaf95606ea764766fa90a62a019ea4181273392092c0c4b2d42d12d2`; the scene walks
@@ -1135,22 +1136,54 @@ of 300. This is drift simulated on one machine; independent machines remain open
 
 ### Saves on Linux
 
-The subtitle and dialogue harnesses could not qualify a save and load on Linux, and the
-`saved_and_loaded` check reported it each time instead of passing on captions kept
-through a failed load. Two causes surfaced in turn. The exported test tree had one
-commit, so it built as build 1, and a build below the savegame floor of 640 refuses even
-its own saves (stable builds already require full history); 700 empty commits put the
-test tree above it. The saves then wrote, and the loads failed in the player's animator:
-"`'player1' saved joint count 0 does not match model 'model_player_marine' joint count
-65`", and, saving 3 s into the map instead of 15 s, a garbage joint count. The restore
-error now names the entity and model, which is how the player was found. Windows saves
-and loads the same maps in every run. Linux single-player save/restore is therefore an
-open defect outside audio. A failed load falls back to reloading the level, so the Linux
-subtitle run also lost the two phases after it (16 of 20 checks pass) and the dialogue
-run its two restore measurements (22 of 24). The dialogue harness had counted that
-reload as a load; both harnesses now also reject the load's own failure warnings, which
-fail these Linux runs and pass every Windows one. Audio save/restore on Linux stays
-unqualified until the player's animator restores.
+Linux saves load. A first conclusion that they did not, recorded on 25 October in
+`137bd8d4b`, was wrong: the failures came from the test tree's build number. The build
+number is the Git commit count, and the exported tree first had one commit, so it built
+as build 1, below the savegame floor of 640, and refused even its own saves. Padded to
+701 commits, it wrote saves whose joint modifiers it then read with the shorter layout
+of builds before 1582, misreading the player's animator ("`'player1' saved joint count
+0 does not match model 'model_player_marine' joint count 65`", or a garbage count). Given
+main's own count, 1,831, the same Linux build saves and loads `airdefense1` 3 s and 15 s
+after the map is live. Stable builds already refuse to build without full history. The
+restore error now names the entity and model, which is how the player was found.
+
+With that build, the Linux dialogue run passes all 24 checks, its real save and load
+included, with Dialogue Volume's 0.6 holding across it. The Linux subtitle run passes all
+20 once `restore_resumes_in_place` compares clocks: it now reads `s_soundWorlds` beside
+the cues and requires the game sound world's clock to have been held through the load
+(245 ms while the wall clock ran on), with the caption advancing no further than the
+world clock. A bound on the caption alone could not tell a fast load from a slow settle:
+the earlier check failed this correct restore by 77 ms. The unfixed build was not rerun
+with the new check; with nothing holding its clock, the gap is one or two stale frames.
+A failed load reloads the level, which the dialogue harness had counted as a load; both
+harnesses now also reject the load's own failure warnings.
+
+### Arena pause on Linux
+
+`arena_sound_runtime.py` passes on Linux for a won and a lost Arena match, with OpenAL
+Soft's null output and engine commands only: the game sound world's clock held at
+64,785 ms through a 3.6 s pause while the menu's world ran on, resumed from there, did
+the same through a second pause, and the result ledgers were recorded. Resume took
+31–42 ms. Whether the pause is audible on Linux remains a listening check.
+
+### A longer tail in the scene walk
+
+The walk now keeps probing for 90 s after each map's last scene instead of 15 s, so a
+conversation whose lines wait on one another can finish. Every check passes in all four
+chains (89 minutes stock, 34 Awakening):
+
+| Measure | Stock, 15 s → 90 s | Awakening, 15 s → 90 s |
+| --- | ---: | ---: |
+| Distinct dialogue lines started | 711 → 750 | 364 → 455 |
+| Of them with a transcript | 373 → 399 | 355 → 444 |
+| Dialogue starts | 900 → 1,209 | 426 → 557 |
+| Probes at full and muted Dialogue Volume | 715 → 1,411 | 226 → 538 |
+| Dialogue heard while muted; declared speech off the control; cues without a transcript | 0; 0; 0 | 0; 0; 0 |
+
+Across both campaigns the walk now starts 1,179 distinct lines, 842 of them transcribed.
+The longer tail helped where conversations are long (`airdefense1` 25 → 37 lines,
+Awakening overall +25%) and little elsewhere: most lines still unstarted wait on the player
+moving, fighting or reaching a place, which only a playthrough can provide.
 
 ### A Linux start crash on main
 

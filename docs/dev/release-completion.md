@@ -292,6 +292,19 @@ completed release material here and publish curated notes in `releases/`.
   and adapter harnesses, and in-game Settings and Load Game captures. Candidate
   player wording is in [baseline refinements](releases/baseline-refinements.md).
 
+## Audio save/restore on Linux, Arena on Linux and longer scene walks, 25 October 2026
+
+- [x] AUD-02/06/07: a real save and load passes on Linux (subtitles and Dialogue Volume);
+  the earlier failure came from the test tree's short Git history. The subtitle harness
+  now proves the restore by the game sound world's clock being held through the load.
+- [x] AUD-02: the Arena pause/resume sound harness passes on Linux.
+- [x] AUD-06/07: a 90 s tail per map lets long conversations finish; the scene walk now
+  starts 1,179 distinct dialogue lines (842 transcribed) with no mute leak or
+  untranscribed cue.
+- Evidence and limits: [saves on Linux](audio-voice-evidence.md#saves-on-linux),
+  [Arena](audio-voice-evidence.md#arena-pause-on-linux) and
+  [the longer walk](audio-voice-evidence.md#a-longer-tail-in-the-scene-walk).
+
 ## Audio split captions, low-memory notice and voice drift, 25 October 2026
 
 - [x] AUD-07: two overlapping captions at the largest portrait text take one line each,
@@ -302,8 +315,8 @@ completed release material here and publish curated notes in `releases/`.
 - [x] AUD-05: `s_voiceTestClockRate` drift between real peers; the receiver follows a
   sender 0.1% slow or fast and rejects nothing (Linux listen and dedicated servers).
 - [x] Linux builds of main start again (the multiview demo reset a cvar during static
-  initialization). Linux single-player save/load still fails in the player's animator,
-  outside audio, so Linux audio save/restore stays unqualified.
+  initialization), and audio save/restore passes on Linux. A save failure first reported
+  here came from the test tree's short Git history, not Linux.
 - Evidence and limits: [two speakers, the low-memory notice and voice drift](audio-voice-evidence.md#two-speakers-at-the-largest-text-the-os-low-memory-notice-and-voice-clock-drift-25-october-2026).
   Candidate player wording is in [audio refinements](releases/audio-refinements.md).
 

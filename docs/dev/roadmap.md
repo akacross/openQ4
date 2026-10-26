@@ -1499,9 +1499,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   other distributions remain the gate.
   [Save and load evidence](audio-voice-evidence.md#real-saves-in-the-subtitle-and-dialogue-harnesses).
   October 25: Linux builds of main crashed before `main` (the multiview demo's
-  constructor reset a cvar not yet constructed under GCC's link order); fixed with this
-  round. Linux single-player saves then failed to load in the player's animator, a
-  savegame defect outside audio, so Linux audio save/restore stays unqualified.
+  constructor reset a cvar not yet constructed under GCC's link order); fixed. A real
+  save and load then passes on Linux with Dialogue Volume and subtitles intact, once the
+  test build carries main's build number: a short exported history had made it misread
+  its own saves, which an earlier note here took for a Linux defect. The Arena
+  pause/resume harness also passes on Linux (won and lost matches; the game world's clock
+  holds through each pause). Hearing it on Linux remains a listening check.
   [Linux evidence](audio-voice-evidence.md#saves-on-linux).
 - [ ] **AUD-03 — P2, implementation and qualification: bounded decode and compressed
   streaming.** Current decode admission bounds job count, while each job can
@@ -1681,6 +1684,11 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   of their gameplay order, so this is routing coverage, not a playthrough; physical
   devices remain open.
   [Scripted-scene evidence](audio-voice-evidence.md#scripted-scenes).
+  October 25: with 90 s for each map's last conversations, the walk starts 1,766
+  dialogue lines across both campaigns and silences every dialogue voice in 1,949 muted
+  probes while effects continue; Dialogue Volume's 0.6 holds across a real save and load
+  on Windows and Linux. Lines that wait on the player moving or fighting, and physical
+  devices, remain open.
 - [ ] **AUD-07 — P1, decision, implementation and qualification: dialogue subtitles.**
   Address [#186](https://github.com/themuffinator/openQ4/issues/186) with UI-02/UI-04.
   Inventory dialogue-to-text/localization data available from installed assets and
@@ -1729,10 +1737,12 @@ Sources: [audio implementation and remaining limits](audio-modernization.md),
   [Caption evidence](audio-voice-evidence.md#the-largest-captions).
   October 25: two overlapping captions at the largest portrait text now take one line
   each, the newer above the cinematic artwork and the older below it, both clear of the
-  picture (visual specification 1.27). On Linux a real save and load fails in the
-  player's animator (`player1` saved with no joints), an open single-player savegame
-  defect outside audio, so audio save/restore stays unqualified there. The rest of the
-  scene corpus and physical stereo-HUD qualification remain open.
+  picture (visual specification 1.27). Subtitles pass a real save and load on Linux too,
+  resuming where they were saved. With 90 s for each map's last conversations to finish,
+  the scene walk starts 1,179 distinct dialogue lines (842 transcribed), every cue shown
+  with a transcript and no dialogue heard while muted. Lines that wait on the player
+  moving or fighting and physical stereo-HUD qualification remain open; the installed
+  game has transcripts in English only, so other languages show English captions.
   [Two-speaker evidence](audio-voice-evidence.md#two-speakers-at-the-largest-text).
 
 ## Desktop platforms and packaging
