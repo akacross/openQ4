@@ -1535,9 +1535,13 @@ if build_engine or get_option('build_native_tests')
     test('openq4-ui-popup-placement-runtime', openq4_ui_popup_placement_runtime_test,
       args: [meson.project_source_root() / 'content/baseoq4/pak0/guis/menu/settings/system.q4ui',
              meson.project_source_root() / 'content/baseoq4/pak0/strings'], timeout: 900)
+    # Windows ARM64 write-through I/O can exceed three minutes. Let the
+    # harness's 600-second command timeout report the failure before Meson
+    # kills it, allowing time for its three compiler invocations as well.
+    durable_file_timeout = host_machine.system() == 'windows' ? 900 : 180
     test('openq4-ui-document-files', py,
       args: [meson.project_source_root() / 'tools/tests/durable_file.py',
-        '--compiler', ui_test_cpp.cmd_array()[-1]], timeout: 180)
+        '--compiler', ui_test_cpp.cmd_array()[-1]], timeout: durable_file_timeout)
     openq4_ui_state_test = executable(
       'openq4-ui-state-test',
       files('tools/tests/native/UiStateTest.cpp'),

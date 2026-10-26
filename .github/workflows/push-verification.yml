@@ -1233,18 +1233,6 @@ jobs:
           retention-days: 14
           include-hidden-files: true
 
-      - name: Publish Windows ARM64 native regression logs
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: push-windows-arm64-native-regressions
-          path: |
-            .tmp/validation/push-builddir/game-regression-logs
-            .tmp/validation/push-builddir/meson-logs
-          if-no-files-found: warn
-          retention-days: 14
-          include-hidden-files: true
-
       - name: Publish staged payload
         if: always()
         uses: actions/upload-artifact@v7
@@ -1418,6 +1406,18 @@ jobs:
         with:
           name: push-windows-arm64-dedicated-smoke
           path: .tmp/windows-dedicated-smoke/arm64
+          if-no-files-found: warn
+          retention-days: 14
+          include-hidden-files: true
+
+      - name: Publish Windows ARM64 native regression logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: push-windows-arm64-native-regressions
+          path: |
+            builddir/game-regression-logs
+            builddir/meson-logs
           if-no-files-found: warn
           retention-days: 14
           include-hidden-files: true

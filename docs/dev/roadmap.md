@@ -56,25 +56,30 @@ future work and decisions are coordinated here.
 
 ## Report and contribution traceability
 
-Reviewed 18 October 2026. These links connect the open reports and contributions
+Reviewed 26 October 2026. These links connect the reports and contributions
 to the existing workstreams; they do not create separate schedules or promise a
 release. GitHub remains the source for subsequent discussion and PR/check state.
 
 | Report or contribution | Owning work and remaining acceptance |
 | --- | --- |
 | [#168: disappearing menu text after preset changes](https://github.com/themuffinator/openQ4/issues/168) | UI-01/UI-07, REN-04: the earlier glyph reload fix is partial evidence; qualify current GL/Vulkan preset changes and seek confirmation of the intermittent symptom. |
-| [#169: resolution scaling affects menus](https://github.com/themuffinator/openQ4/issues/169) | REN-04/UI-07: reproduce the recorded softened/cropped UI in current stock and retained routes; require native-resolution 2D output through scale changes and restart. |
+| [#169: resolution scaling affects menus](https://github.com/themuffinator/openQ4/issues/169) | REN-04/UI-07: the contributor's 22 October Linux/OpenGL retest preserves menu sharpness in mode 1; legacy mode 0 still crops at 25%. Qualify current stock/retained UI, Vulkan, in-game HUD, resize and video restart before closure. |
 | [#170: weapon effects, sound and reload animation](https://github.com/themuffinator/openQ4/issues/170) | Q4-03/AUD-01/HF-04: preserve the merged BSE sound-diversity fix; identify and qualify each remaining weapon/effect/animation symptom separately. |
 | [#181: rebuilt hub2 cannot load](https://github.com/themuffinator/openQ4/issues/181) | CORE-05: the compiler allocation crash was fixed by #182; oversized runtime surfaces and silhouette warnings remain. |
-| [#183: machinegun transparency](https://github.com/themuffinator/openQ4/issues/183) | Q4-01/VK-04/REN-08: establish exact version, backend, settings and assets before assigning a rendering cause; qualify matching GL/Vulkan views. |
-| [#184: Tech Li at the hangar1 lift](https://github.com/themuffinator/openQ4/issues/184) | Q4-02: #189 addresses an unreachable-patient stall, but the reporter's exact save and progression still need confirmation. |
+| [#183: machinegun transparency](https://github.com/themuffinator/openQ4/issues/183) | Q4-01/VK-04/REN-08: reporter save/log and both-backend stock-data reproduction received; scope fixes are in `2126a232`. A Windows x64 development package from the passing 26 October job is linked on the issue; await reporter confirmation on the same view. |
+| [#184: Tech Li at the hangar1 lift](https://github.com/themuffinator/openQ4/issues/184) | Q4-02: the supplied save identifies the Turbo/scripted-mover timing race addressed by #198. #189 is separate unreachable-patient recovery. Qualify the fresh lift sequence; the proposed prevention does not repair already-stuck saves, which still need a pre-lift save. |
 | [#185: GOG offline installation on macOS](https://github.com/themuffinator/openQ4/issues/185) | PLAT-04/REL-01: provide extraction/path guidance and qualify the reporter's installer/package combination; do not imply that openQ4 imports Windows installers. |
 | [#186: subtitles](https://github.com/themuffinator/openQ4/issues/186) | AUD-07/UI-02/UI-04: define supported dialogue text, timing, localization and accessible display coverage. |
 | [#187: dialogue volume](https://github.com/themuffinator/openQ4/issues/187) | AUD-06/UI-01: independent spoken-dialogue gain with real mixer classification and persistent settings. |
 | [#173: high-DPI menu cursor PR](https://github.com/themuffinator/openQ4/pull/173) | UI-02/PLAT-05: preserve controller-to-mouse handoff and console ownership; requalify against current routing. |
-| [#180: GUI save migration PR](https://github.com/themuffinator/openQ4/pull/180) | Q4-05/Q4-07/UI-09: preserve scripted values and evaluation flags through subsequent GUI updates; validate both legacy and retained presentation. |
+| [#180: GUI save migration PR](https://github.com/themuffinator/openQ4/pull/180) | Q4-05/Q4-07/UI-09: source review approved after persistent value/evaluation-state and input-retention fixes. Contributor Linux restore/update evidence is retained; completed current CI and remaining historical-save platform qualification are distinct gates. |
 | [#189: medic approach watchdog PR](https://github.com/themuffinator/openQ4/pull/189) | Q4-02: bounded stall recovery, SP/MP parity, restore behavior and normal heal/progression regression; does not by itself prove #184 resolved. |
 | [#190: numeric clipboard harness PR](https://github.com/themuffinator/openQ4/pull/190) | CORE-04/GOV-02: mock-interface fix merged; the subsequent atlas math-include fix passes locally. Complete fresh CI without suppressing checks; neither fixture fix alone qualifies the full product. |
+| [#191: parallel validation PR](https://github.com/themuffinator/openQ4/pull/191) | GOV-02/CORE-04: source review approved; 17 of 18 checks passed at `83a78672`. Windows ARM64 still fails locked harness cleanup (#201) and the outer durable-file timeout; rerun after those prerequisites without suppressing checks. |
+| [#192: weapon GUI events prevent save loading](https://github.com/themuffinator/openQ4/issues/192) / [#193: backlog recovery PR](https://github.com/themuffinator/openQ4/pull/193) | Q4-05/Q4-07: source review approved; contributor Linux synthetic-save evidence demonstrates the queue defect and recovery. Complete integration/CI and qualify the reporter's failure before closing #192. |
+| [#198: Turbo scripted-mover timing PR](https://github.com/themuffinator/openQ4/pull/198) | Q4-02: source review approved, preserving plain scripted-mover timing while keeping doors/platforms fast; current CI and the #184 save-recovery limitation remain explicit. |
+| [#201: Windows ARM64 harness cleanup PR](https://github.com/themuffinator/openQ4/pull/201) | GOV-02/CORE-04: source review approved; refresh after #202 and validate on the native ARM64 runner. The durable-file timeout and correctly located push-log upload are separate CI prerequisites. |
+| [26 October main verification](https://github.com/themuffinator/openQ4/actions/runs/40277373140) | GOV-02/CORE-04/PLAT-04: Windows x64, Linux x64/ARM64 and three macOS jobs passed. Windows ARM64 has the failures above; macOS Intel Metal timed out in renderer-foundation self-tests. Preserve failed evidence and require a completed rerun; a passing Windows package does not qualify those targets. |
 
 ## Current baseline to preserve
 
