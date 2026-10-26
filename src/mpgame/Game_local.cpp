@@ -3513,7 +3513,8 @@ void idGameLocal::CacheDictionaryMedia( const idDict *dict ) {
 				}
 				const double mediaProfileStart = OpenQ4_BeginMapMediaPrecacheCall();
 				declManager->MediaPrint( "Precaching gui %s\n", kv->GetValue().c_str() );
-				uiManager->FindGui( kv->GetValue().c_str(), true );
+				// Media discovery must not orphan interactive/menu GUI instances.
+				uiManager->FindGui( kv->GetValue().c_str(), true, false, true );
 				OpenQ4_EndMapMediaPrecacheCall( MAP_MEDIA_GUI, mediaProfileStart );
 			}
 		} else if ( MATCH( "texture" ) ) {

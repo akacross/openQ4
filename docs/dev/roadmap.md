@@ -1815,6 +1815,17 @@ visual editor have their own active items.
   job on/off, renderer-budget, retail baseline, map-cycle/cancellation and
   deterministic dedicated shutdown checks on clean committed final packages and
   required platforms. Keep installed content read-only and dedicated BSE disabled.
+  Progress, 26 October: three map-cycle defects a Codex AUD-03 round found on
+  23 October are fixed. Map precache instantiated the multiplayer menu GUIs
+  afresh on every load and never freed them (about 1.1 GiB over its community
+  map tour); precache now reuses the GUI template. Every interface window
+  reserved 4,096 expression entries up front (the bulk of The Awakening's
+  Trian Factory growth); the storage now grows on demand. Windows never drawn
+  kept unset coordinates that abort an autosave. Hit maps are freed by the
+  engine's own allocator through the declaration manager (renderer API 25).
+  Static fixtures with failing controls cover each; the map tours themselves
+  were not rerun on main, and the tour harnesses remain to be refitted to
+  main's audio interfaces.
 - [ ] **CORE-02 — P2, optimization: cache and loading promotion.** Investigate cold
   load regressions, per-file Sync, cache identity and rewrite churn before enabling
   learned/generated-cache experiments. Default worker DDS reading already exists.

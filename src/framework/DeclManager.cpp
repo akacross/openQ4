@@ -357,6 +357,7 @@ public:
 	virtual bool					Validate( declType_t type, int iIndex, idStr &strReportTo );
 	virtual idDecl *				AllocateDecl( declType_t type );
 	virtual byte *					GetMaterialTypeArray( const char *image, int &width, int &height );
+	virtual void					FreeMaterialTypeArray( byte *array );
 
 public:
 	static void					MakeNameCanonical( const char *name, char *result, int maxLength );
@@ -3134,6 +3135,10 @@ across the DLL boundary (Phase B8).
 */
 byte *idDeclManagerLocal::GetMaterialTypeArray( const char *image, int &width, int &height ) {
 	return MT_GetMaterialTypeArray( idStr( image ), width, height );
+}
+
+void idDeclManagerLocal::FreeMaterialTypeArray( byte *array ) {
+	Mem_Free( array );
 }
 
 const rvDeclEffect* idDeclManagerLocal::EffectByIndex(int index, bool forceParse) {

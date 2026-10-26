@@ -61,8 +61,8 @@ def main() -> int:
 
     require(
         read(RENDERER / "RenderModuleAPI.h"),
-        "#define RENDER_API_VERSION\t\t\t24",
-        "renderer ABI v24",
+        "#define RENDER_API_VERSION\t\t\t25",
+        "renderer ABI v25",
     )
     require(
         read(GAME_ROOT / "src" / "game" / "Game.h"),

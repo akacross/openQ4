@@ -500,6 +500,8 @@ idWindow::CommonInit
 ================
 */
 void idWindow::CommonInit() {
+	// An off-screen GUI can be saved before CalcRects/Redraw ever runs.
+	actualX = actualY = 0.0f;
 	childID = 0;
 	flags = 0;
 	lastTimeRun = 0;
@@ -550,7 +552,7 @@ void idWindow::CommonInit() {
 
 	hideCursor = false;
 
-// jmarshall - gui crash
+	ops.clear();
 	numOps = 0;
 
 	backColor_r.Bind(backColor, 0);
@@ -599,6 +601,7 @@ idWindow::Allocated
 size_t idWindow::Allocated() {
 	int i, c;
 	size_t sz = name.Allocated();
+	sz += ops.size() * sizeof( wexpOp_t );
 	sz += text.Size();
 	sz += backGroundName.Size();
 
@@ -4115,15 +4118,12 @@ idWindow::ExpressionOp
 ================
 */
 wexpOp_t *idWindow::ExpressionOp() {
-// jmarshall - gui crash
 	if (numOps == MAX_EXPRESSION_OPS ) {
 		common->Warning( "expressionOp: gui %s hit MAX_EXPRESSION_OPS", gui->GetSourceFile());
 		return &ops[0];
 	}
-	wexpOp_t wop;
-	memset(&wop, 0, sizeof(wexpOp_t));	
+	ops.emplace_back();
 	return &ops[numOps++];
-// jmarshall end
 }
 
 /*
@@ -4653,7 +4653,8 @@ void idWindow::ReadFromDemoFile( class idDemoFile *f, bool rebuild ) {
 			f->ReadInt( w.b );
 			f->ReadInt( w.c );
 			f->ReadInt( w.d );
-			ops.Append(w);
+			ops.push_back(w);
+			++numOps;
 		}
 
 		f->ReadInt( c );
@@ -6275,7 +6276,7 @@ bool idWindow::UpdateFromDictionary ( idDict& dict ) {
 	// Clear all registers since they will get recreated
 	regList.Reset ( );
 	expressionRegisters.Clear ( );
-	//ops.Clear ( );
+	ops.clear();
 	numOps = 0;
 	
 	for ( i = 0; i < dict.GetNumKeyVals(); i ++ ) {

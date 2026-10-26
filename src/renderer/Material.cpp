@@ -449,7 +449,7 @@ void idMaterial::FreeData() {
 		ops = NULL;
 	}
 	if ( materialTypeArray != NULL ) {
-		Mem_Free( materialTypeArray );
+		declManager->FreeMaterialTypeArray( materialTypeArray );
 		materialTypeArray = NULL;
 	}
 	materialTypeArrayName.Clear();
@@ -3535,6 +3535,8 @@ void idMaterial::ParseMaterial( idLexer &src ) {
 		else if (!token.Icmp("materialImage")) {
 			src.ReadTokenOnLine(&token);
 			idStr hitImage = token;
+			// A later materialImage replaces the earlier map, including on failure.
+			declManager->FreeMaterialTypeArray( materialTypeArray );
 			materialTypeArray = declManager->GetMaterialTypeArray( hitImage.c_str(), MTAWidth, MTAHeight );
 			materialTypeArrayName = token;
 			continue;

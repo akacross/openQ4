@@ -24,6 +24,23 @@ Likewise, a recorded pass or failure applies to its stated revision, package and
 scope. Track new work and closure decisions against roadmap IDs, then record
 completed release material here and publish curated notes in `releases/`.
 
+## GUI and material memory fixes, 26 October 2026
+
+- [x] CORE-01: three map-cycle defects a Codex AUD-03 round found on 23 October,
+  ported from its uncommitted worktree. Map precache reuses the multiplayer menu
+  GUI templates instead of keeping a never-freed copy per load; window expression
+  storage grows on demand instead of reserving 4,096 entries per window; windows
+  that were never drawn start with valid coordinates, so an autosave no longer
+  aborts on them. Hit maps are freed by the engine allocator through the
+  declaration manager (renderer API 25), and a second `materialImage` no longer
+  leaks the first map.
+- [x] `gui_precache_lifetime.py`, `gui_initial_save_state.py`,
+  `gui_expression_storage.py` and `material_hit_map_lifetime.py` pass with their
+  failing controls, and stock airdefense1 and hub1 save and load on the landed
+  build. The map-memory tours were not rerun; their harnesses need refitting to
+  main's audio interfaces. Candidate player wording:
+  [core refinements](releases/core-refinements.md).
+
 ## High-refresh pacing precision and the by-eye review kit, 25 October 2026
 
 - [x] HF-07 limiter: the frame cap sleeps on SDL's high-resolution delay

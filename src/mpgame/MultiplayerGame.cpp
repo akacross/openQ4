@@ -24552,7 +24552,8 @@ void idMultiplayerGame::Precache( void ) {
 	// MP guis. just make sure we hit all of them
 	i = 0;
 	while ( MPGuis[ i ] ) {
-		uiManager->FindGui( MPGuis[ i ], true );
+		// Precache a shared template; no caller owns a new interactive instance.
+		uiManager->FindGui( MPGuis[ i ], true, false, true );
 		i++;
 	}
 }

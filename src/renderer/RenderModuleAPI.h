@@ -83,7 +83,9 @@
 //      generated-cache payload the level-load coordinator would discard.
 // 24 - Append-only idRenderSystem BeginGuiRoot preserves compatible HUD
 //      batches without weakening explicit render-target flush barriers.
-#define RENDER_API_VERSION			24
+// 25 - idDeclManager appends FreeMaterialTypeArray: hit maps must be freed by
+//      their engine allocator, not by a renderer-local Mem_Free.
+#define RENDER_API_VERSION			25
 #define RENDER_API_ENTRY_POINT		"GetRenderAPI"
 
 class idSys;

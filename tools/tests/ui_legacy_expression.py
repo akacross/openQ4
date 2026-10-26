@@ -30,6 +30,7 @@ SUPPORT=r'''
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -95,7 +96,7 @@ struct idWindow {
  // FIELDS
  idList<idWinVar*> definedVars;idList<idWindow*> children;idList<TimeEvent*> timeLineEvents;idList<NamedEvent*> namedEvents;Script* scripts[SCRIPT_COUNT]{};
  idWindow* parent=nullptr;idStr name="synthetic";int flags=0;int disabled=0;RegisterList regList;static constexpr int NumRegisterVars=0;static RegisterEntry RegisterVars[1];
- Gui owner;Gui* gui=&owner;std::map<std::string,drawWin_t> namedWindows;int numOps=0;wexpOp_t ops[MAX_EXPRESSION_OPS]{};idList<float> expressionRegisters;bool registerIsTemporary[MAX_EXPRESSION_REGISTERS]{};
+ Gui owner;Gui* gui=&owner;std::map<std::string,drawWin_t> namedWindows;int numOps=0;std::deque<wexpOp_t> ops;idList<float> expressionRegisters;bool registerIsTemporary[MAX_EXPRESSION_REGISTERS]{};
  idWindow(){owner.desktop=this;expressionRegisters.Append(0);}~idWindow(){for(auto* p:definedVars)delete p;for(int i=0;i<numOps;++i)if(ops[i].b==-2)delete[]reinterpret_cast<char*>(ops[i].a);}
  const char* GetName()const{return name.c_str();}Gui* GetGui(){return gui;}void DisableRegister(const char*){++disabled;}void AddUpdateVar(idWinVar*){}void CalcRects(int,int){}
  drawWin_t* FindChildByName(const char* n){auto i=namedWindows.find(n);return i==namedWindows.end()?nullptr:&i->second;}
@@ -111,7 +112,7 @@ RegisterEntry idWindow::RegisterVars[1]{};
 TEST=r'''
 static idWinFloat* AddFloat(idWindow& w,const char* name,float value){auto* v=new idWinFloat;v->SetName(name);*v=value;w.definedVars.Append(v);return v;}
 static float Evaluate(idWindow& w,intptr_t r){float registers[MAX_EXPRESSION_REGISTERS];std::fill(std::begin(registers),std::end(registers),99.f);w.EvaluateRegisters(registers);return registers[r];}
-static void Missing(){idWindow w;idParser p{{"\\",TT_PUNCTUATION},{"next",TT_NAME}};auto r=w.ParseExpression(&p);Check(p.at==1,"backslash consumes one term, preserving next declaration");Check(w.ops[0].opType==WOP_TYPE_VAR&&w.ops[0].b==-2&&w.ops[0].a,"missing name is deferred, not constant");Check(w.GetWinVarByName("\\",true)==nullptr,"bare slash does not manufacture GUI binding");Check(declObject.last=="/","decl lookup normalizes slash without creating table");Check(Evaluate(w,r)==0,"unfixed temporary register remains initial zero");w.FixupParms();Check(w.ops[0].a==0&&w.ops[0].b==-1,"fixup stores null pointer and completed marker");Check(Evaluate(w,r)==0,"unbound post-fixup evaluates zero");AddFloat(w,"\\",.75f);Check(Evaluate(w,r)==0,"later definition does not implicitly rerun completed fixup");Check(w.disabled==0,"missing name does not disable unrelated registers");}
+static void Missing(){idWindow w;idParser p{{"\\",TT_PUNCTUATION},{"next",TT_NAME}};auto r=w.ParseExpression(&p);Check(p.at==1,"backslash consumes one term, preserving next declaration");Check(w.numOps==1&&w.ops[0].opType==WOP_TYPE_VAR&&w.ops[0].b==-2&&w.ops[0].a,"missing name is deferred, not constant");Check(w.GetWinVarByName("\\",true)==nullptr,"bare slash does not manufacture GUI binding");Check(declObject.last=="/","decl lookup normalizes slash without creating table");Check(Evaluate(w,r)==0,"unfixed temporary register remains initial zero");w.FixupParms();Check(w.ops[0].a==0&&w.ops[0].b==-1,"fixup stores null pointer and completed marker");Check(Evaluate(w,r)==0,"unbound post-fixup evaluates zero");AddFloat(w,"\\",.75f);Check(Evaluate(w,r)==0,"later definition does not implicitly rerun completed fixup");Check(w.disabled==0,"missing name does not disable unrelated registers");}
 static void Defined(){for(bool late:{false,true}){idWindow w;if(!late)AddFloat(w,"\\",.625f);idParser p{{"\\",TT_PUNCTUATION}};auto r=w.ParseExpression(&p);if(late)AddFloat(w,"\\",.375f);w.FixupParms();Check(Evaluate(w,r)==(late?.375f:0.f),"native immediate float Init differs from late fixup without Init");Check(w.disabled==1,"resolved expression disables exactly its own register");}}
 static void OtherScopes(){idWindow parent,w;AddFloat(parent,"\\",.75f);w.parent=&parent;idParser p{{"\\",TT_PUNCTUATION}};auto r=w.ParseExpression(&p);w.FixupParms();Check(Evaluate(w,r)==0,"unqualified term does not inherit parent defined variable");idWindow child;AddFloat(child,"gain",.875f);w.namedWindows["child"]={&child,nullptr};idParser q{{"child::gain",TT_NAME}};auto s=w.ParseExpression(&q);w.FixupParms();Check(w.ops[1].a==reinterpret_cast<intptr_t>(child.definedVars[0]),"qualified named window retains exact native pointer lookup");Check(Evaluate(w,s)==0,"qualified immediate float Init consumes its token spelling");}
 static void Table(){declObject.tableAvailable=true;idWindow w;AddFloat(w,"\\",.9f);idParser p{{"\\",TT_PUNCTUATION},{"[",TT_PUNCTUATION},{"2",TT_NUMBER},{"]",TT_PUNCTUATION}};auto r=w.ParseExpression(&p);Check(w.ops[0].opType==WOP_TYPE_TABLE&&w.disabled==0,"decl table takes precedence over local variable");Check(Evaluate(w,r)==2.25f,"observed table cannot be replaced by zero");declObject.tableAvailable=false;}

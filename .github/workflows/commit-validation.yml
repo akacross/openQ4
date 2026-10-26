@@ -553,6 +553,10 @@ jobs:
             tools/tests/ui_legacy_import.py \
             tools/tests/ui_legacy_feedback.py \
             tools/tests/ui_legacy_expression.py \
+            tools/tests/gui_expression_storage.py \
+            tools/tests/gui_initial_save_state.py \
+            tools/tests/gui_precache_lifetime.py \
+            tools/tests/material_hit_map_lifetime.py \
             tools/tests/ui_legacy_observation.py \
             tools/ui/legacy_inventory.py \
             tools/ui/inventory_revision.py \
@@ -976,6 +980,10 @@ jobs:
           python tools/tests/ui_legacy_import.py
           python tools/tests/ui_legacy_feedback.py
           python tools/tests/ui_legacy_expression.py --mutations
+          python tools/tests/gui_expression_storage.py
+          python tools/tests/gui_initial_save_state.py
+          python tools/tests/gui_precache_lifetime.py --mutations
+          python tools/tests/material_hit_map_lifetime.py
           python tools/tests/ui_legacy_observation.py --mutations
           python tools/tests/ui_background_cursor.py
           python tools/tests/crosshair_picker_contract.py

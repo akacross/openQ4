@@ -35,6 +35,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Winvar.h"
 #include "GuiScript.h"
 #include "SimpleWindow.h"
+#include <deque>
 
 const int WIN_CHILD			= 0x00000001;
 const int WIN_CAPTION		= 0x00000002;
@@ -544,7 +545,9 @@ protected:
 
 	static bool registerIsTemporary[MAX_EXPRESSION_REGISTERS]; // statics to assist during parsing
 // jmarshall - gui crash
-	wexpOp_t ops[MAX_EXPRESSION_OPS];			   	// evaluate to make expressionRegisters
+	// Recursive conditional parsing retains pointers to earlier operations.
+	// Grow only as needed, without invalidating those pointers on append.
+	std::deque<wexpOp_t> ops;
 	int numOps;
 // jmarshall end
 	idList<float> expressionRegisters;
